@@ -2,16 +2,12 @@ import { createEffect, onMount, onCleanup, type JSX } from "solid-js";
 import { loadEcharts } from "../../utils/loadEcharts";
 
 /**
- * Minimal Solid wrapper around `echarts.init` — `echarts-for-react` is gone.
- * Mounts the chart once, applies option changes with `notMerge`, keeps it
- * sized to its container and disposes on cleanup.
- *
  * `echarts` is pulled in through `loadEcharts()` so it stays in a lazy chunk
  * instead of the entry bundle.
  */
 export function EChart(props: {
-  /** The echarts option. Solid evaluates JSX props lazily — pass a memo accessor
-   *  result and option updates flow into setOption. */
+  /** Solid evaluates JSX props lazily — pass a memo accessor result so option
+   *  updates flow into setOption. */
   option: unknown;
   onEvents?: Record<string, (params: any) => void>;
   class?: string;

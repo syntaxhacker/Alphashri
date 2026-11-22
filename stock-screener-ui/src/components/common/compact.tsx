@@ -18,6 +18,8 @@ const SCROLLABLE_PANEL_STYLE: CSSProperties = {
 };
 
 const SCROLL_CONTAINER_STYLE: CSSProperties = {
+  display: "flex",
+  "flex-direction": "column",
   flex: 1,
   "min-height": "0px",
   "min-width": "0px",
@@ -116,7 +118,6 @@ export function CompactPanel(props: CompactPanelProps) {
   const padded = () => own.padded ?? true;
   const flush = () => own.flush ?? false;
   const scrollable = () => own.scrollable ?? false;
-  /** Fin-app body inset: 4px (dense desk default; was 6px). */
   const pad = () => (padded() ? 0.5 : 0);
   const panelStyle = (): CSSProperties =>
     scrollable() ? { ...SCROLLABLE_PANEL_STYLE, ...own.style } : (own.style ?? {});

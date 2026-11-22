@@ -123,19 +123,34 @@ export const AGRI_CHART_MODES: readonly AgriChartModeDescriptor[] = [
     description: "Daily modal price with the min–max band",
   },
   {
-    key: "arrivals",
-    label: "Arrivals",
-    description: "Daily arrivals in quintals alongside market count",
-  },
-  {
     key: "compare",
     label: "Compare",
     description: "Overlay two or more commodities on one price chart",
   },
   {
-    key: "ohlc",
-    label: "OHLC",
-    description: "Min / modal / max rendered as a range bar",
+    key: "distribution",
+    label: "Distribution",
+    description: "Histogram of daily modal prices showing where prices cluster",
+  },
+  {
+    key: "supplyDemand",
+    label: "Supply vs price",
+    description: "Arrivals in quintals plotted against modal price to read supply–price interplay",
+  },
+  {
+    key: "heatmap",
+    label: "Heatmap",
+    description: "Month-by-year modal price heatmap for spotting seasonal highs and lows",
+  },
+  {
+    key: "rolling",
+    label: "Rolling",
+    description: "Rolling mean price with a band to smooth out daily noise",
+  },
+  {
+    key: "seasonality",
+    label: "Seasonality",
+    description: "Average monthly price pattern across years to expose seasonal cycles",
   },
 ];
 

@@ -15,6 +15,7 @@ ROOT: Path = Path(__file__).resolve().parents[2]
 DEFAULT_DB_PATH: Path = ROOT / "reports" / "agri" / "agri_prices.db"
 
 TABLE: str = "agri_mandi_prices"
+DISTRICT_KEY_SEPARATOR: str = "||"
 COLUMNS: tuple[str, ...] = (
     "date", "state", "district", "market", "commodity", "commodity_key",
     "variety", "grade", "min_price", "max_price", "modal_price",
@@ -193,6 +194,20 @@ def latest_date(
 
 
 _OPTIONS_CACHE: dict[tuple[str, float, int], dict[str, Any]] = {}
+_GEOGRAPHY_CACHE: dict[tuple[str, float, int], dict[str, Any]] = {}
+
+
+def cache_identity(conn: sqlite3.Connection) -> Optional[tuple[str, float, int]]:
+    """File identity for mtime/size-keyed caches; ``None`` for non-file DBs."""
+    path_row = conn.execute("PRAGMA database_list").fetchone()
+    path = str(path_row[2] or "") if path_row else ""
+    if not path:
+        return None
+    try:
+        stat = os.stat(path)
+    except OSError:
+        return None
+    return (path, stat.st_mtime, stat.st_size)
 
 
 def fetch_options(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -201,18 +216,11 @@ def fetch_options(conn: sqlite3.Connection) -> dict[str, Any]:
     ``SELECT DISTINCT`` over 1.2M rows took ~1.3s on every request; the option
     lists only change when an import/collector writes the DB.
     """
-    path_row = conn.execute("PRAGMA database_list").fetchone()
-    path = str(path_row[2] or "") if path_row else ""
-    cache_key = None
-    if path:
-        try:
-            stat = os.stat(path)
-            cache_key = (path, stat.st_mtime, stat.st_size)
-            cached = _OPTIONS_CACHE.get(cache_key)
-            if cached is not None:
-                return dict(cached)
-        except OSError:
-            cache_key = None
+    cache_key = cache_identity(conn)
+    if cache_key is not None:
+        cached = _OPTIONS_CACHE.get(cache_key)
+        if cached is not None:
+            return dict(cached)
     as_of = conn.execute(f"SELECT MAX(date) FROM {TABLE}").fetchone()[0]
     states = [r[0] for r in conn.execute(f"SELECT DISTINCT state FROM {TABLE} WHERE state <> '' ORDER BY state")]
     districts = [r[0] for r in conn.execute(f"SELECT DISTINCT district FROM {TABLE} WHERE district <> '' ORDER BY district")]
@@ -222,6 +230,39 @@ def fetch_options(conn: sqlite3.Connection) -> dict[str, Any]:
         if len(_OPTIONS_CACHE) >= 4:
             _OPTIONS_CACHE.clear()
         _OPTIONS_CACHE[cache_key] = dict(result)
+    return result
+
+
+def fetch_geography(conn: sqlite3.Connection) -> dict[str, Any]:
+    """State→district and district→market cascades, cached per DB identity.
+
+    Kept out of :func:`fetch_options` so the ``/prices`` hot path does not pay
+    for the extra ~1.7s DISTINCT over 1.2M rows on a cold cache.
+    """
+    cache_key = cache_identity(conn)
+    if cache_key is not None:
+        cached = _GEOGRAPHY_CACHE.get(cache_key)
+        if cached is not None:
+            return dict(cached)
+    state_districts: dict[str, list[str]] = {}
+    district_markets: dict[str, list[str]] = {}
+    for state, district, market in conn.execute(
+        f"SELECT DISTINCT state, district, market FROM {TABLE} "
+        "WHERE state <> '' AND district <> '' AND market <> '' "
+        "ORDER BY state, district, market"
+    ):
+        districts_for_state = state_districts.setdefault(state, [])
+        if district not in districts_for_state:
+            districts_for_state.append(district)
+        key = f"{state}{DISTRICT_KEY_SEPARATOR}{district}"
+        markets_for_district = district_markets.setdefault(key, [])
+        if market not in markets_for_district:
+            markets_for_district.append(market)
+    result = {"state_districts": state_districts, "district_markets": district_markets}
+    if cache_key is not None:
+        if len(_GEOGRAPHY_CACHE) >= 4:
+            _GEOGRAPHY_CACHE.clear()
+        _GEOGRAPHY_CACHE[cache_key] = dict(result)
     return result
 
 
@@ -266,15 +307,18 @@ def _shift_iso(value: str, days: int) -> str:
 __all__ = [
     "COLUMNS",
     "DEFAULT_DB_PATH",
+    "DISTRICT_KEY_SEPARATOR",
     "ROOT",
     "SCHEMA_SQL",
     "TABLE",
     "anchor_dates",
+    "cache_identity",
     "count_rows",
     "date_range",
     "default_db_path",
     "ensure_schema",
     "fetch_options",
+    "fetch_geography",
     "fetch_rows",
     "latest_date",
     "open_reader",

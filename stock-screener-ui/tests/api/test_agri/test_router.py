@@ -15,6 +15,13 @@ def test_filters_expose_registry_and_cache_geography(agri_client: TestClient):
     assert payload["states"] == ["Karnataka", "Maharashtra"]
     assert payload["districts"] == ["Bengaluru", "Pune"]
     assert payload["markets"] == ["Bengaluru APMC", "Pune APMC"]
+    assert payload["state_districts"] == {
+        "Karnataka": ["Bengaluru"], "Maharashtra": ["Pune"],
+    }
+    assert payload["district_markets"] == {
+        "Karnataka||Bengaluru": ["Bengaluru APMC"],
+        "Maharashtra||Pune": ["Pune APMC"],
+    }
 
 
 def test_default_prices_return_full_snapshot_but_empty_series(agri_client: TestClient):
@@ -104,6 +111,8 @@ def test_missing_cache_is_explicit(empty_client: TestClient):
     filters = empty_client.get("/api/agri/filters").json()
     assert filters["as_of"] is None
     assert filters["states"] == []
+    assert filters["state_districts"] == {}
+    assert filters["district_markets"] == {}
     payload = empty_client.get("/api/agri/prices?commodity=onion").json()
     assert payload["data_source"] == "empty"
     assert payload["as_of"] is None

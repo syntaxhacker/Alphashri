@@ -8,11 +8,14 @@ from the Agmarknet CKAN mirror. A missing cache is reported as
 from __future__ import annotations
 
 import logging
-from datetime import date, timedelta
+import time
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query
+
+import config
 
 from . import aggregate, registry, store
 from .contract import (
@@ -32,16 +35,42 @@ DB_PATH: Optional[Path] = None
 DATA_SOURCE_EMPTY: str = "empty"
 _DATA_SOURCE_CKAN: str = registry.SOURCE_CKAN
 _HISTORY_LOOKBACK_DAYS: int = 400
+_PRICES_CACHE_TTL: float = 60.0
+_PRICES_CACHE_MAX: int = 64
+_PRICES_CACHE: dict[tuple[Any, ...], tuple[float, PricesResponse]] = {}
 
 
 def _reader() -> Optional[Any]:
     return store.open_reader(DB_PATH)
 
 
+def _cache_get(cache_key: tuple[Any, ...]) -> Optional[PricesResponse]:
+    entry = _PRICES_CACHE.get(cache_key)
+    if entry is None:
+        return None
+    expires_at, response = entry
+    if expires_at < time.monotonic():
+        _PRICES_CACHE.pop(cache_key, None)
+        return None
+    return response
+
+
+def _cache_put(cache_key: tuple[Any, ...], response: PricesResponse) -> None:
+    if len(_PRICES_CACHE) >= _PRICES_CACHE_MAX:
+        _PRICES_CACHE.pop(next(iter(_PRICES_CACHE)))
+    _PRICES_CACHE[cache_key] = (time.monotonic() + _PRICES_CACHE_TTL, response)
+
+
 def _as_of_options(conn: Optional[Any]) -> dict[str, Any]:
     if conn is None:
         return {"as_of": None, "states": [], "districts": [], "markets": []}
     return store.fetch_options(conn)
+
+
+def _geography(conn: Optional[Any]) -> dict[str, Any]:
+    if conn is None:
+        return {"state_districts": {}, "district_markets": {}}
+    return store.fetch_geography(conn)
 
 
 def _check_commodity(value: Optional[str]) -> Optional[str]:
@@ -113,6 +142,7 @@ def get_agri_filters() -> FiltersPayload:
     conn = _reader()
     try:
         options = _as_of_options(conn)
+        geography = _geography(conn)
     finally:
         if conn is not None:
             conn.close()
@@ -125,6 +155,7 @@ def get_agri_filters() -> FiltersPayload:
         states=options["states"],
         districts=options["districts"],
         markets=options["markets"],
+        **geography,
     )
 
 
@@ -179,6 +210,18 @@ def get_agri_prices(
         )
 
     try:
+        identity = store.cache_identity(conn)
+        cache_key: Optional[tuple[Any, ...]] = None
+        if identity is not None:
+            cache_key = (
+                key, group_key, state, district, market, range_name,
+                from_day, to_day, tuple(compare_keys), limit, identity,
+                datetime.now(config.IST).date().isoformat(),
+            )
+            cached = _cache_get(cache_key)
+            if cached is not None:
+                return cached.model_copy(deep=True)
+
         global_as_of = _as_of_options(conn)["as_of"]
         if not global_as_of:
             return PricesResponse(
@@ -243,7 +286,7 @@ def get_agri_prices(
 
         warning_rows = selected_rows if key else latest_rows + history_rows
         warnings = aggregate.collect_warnings(warning_rows, as_of, selected_key=key)
-        return PricesResponse(
+        response = PricesResponse(
             ok=True,
             as_of=as_of,
             freshness_days=aggregate.freshness_days(as_of),
@@ -256,6 +299,9 @@ def get_agri_prices(
             comparison=comparison,
             warnings=warnings,
         )
+        if cache_key is not None:
+            _cache_put(cache_key, response)
+        return response
     finally:
         conn.close()
 

@@ -1152,6 +1152,13 @@ components:
             $ref: '#/components/schemas/CommodityOption'
           title: Commodities
           type: array
+        district_markets:
+          additionalProperties:
+            items:
+              type: string
+            type: array
+          title: District Markets
+          type: object
         districts:
           items:
             type: string
@@ -1175,6 +1182,13 @@ components:
         ok:
           title: Ok
           type: boolean
+        state_districts:
+          additionalProperties:
+            items:
+              type: string
+            type: array
+          title: State Districts
+          type: object
         states:
           items:
             type: string

@@ -69,3 +69,40 @@ def test_schema_and_indexes_exist(db_conn):
     names = {row[0] for row in db_conn.execute("SELECT name FROM sqlite_master WHERE type IN ('table','index')")}
     assert store.TABLE in names
     assert {"idx_agri_date", "idx_agri_commodity_key", "idx_agri_state"} <= names
+
+
+def test_fetch_geography_builds_compact_cascade(db_conn):
+    store.upsert_rows(db_conn, [
+        _row(),
+        {**_row(), "state": "Karnataka", "district": "Bengaluru", "market": "Bengaluru APMC"},
+        {**_row(variety="No 2"), "state": "Karnataka", "district": "Bengaluru", "market": "Bengaluru APMC"},
+    ])
+    geography = store.fetch_geography(db_conn)
+    assert geography["state_districts"] == {
+        "Karnataka": ["Bengaluru"], "Maharashtra": ["Pune"],
+    }
+    assert geography["district_markets"] == {
+        "Karnataka||Bengaluru": ["Bengaluru APMC"],
+        "Maharashtra||Pune": ["Pune APMC"],
+    }
+
+
+def test_options_and_geography_use_separate_identity_caches(db_conn, monkeypatch):
+    identity = store.cache_identity(db_conn)
+    options_sentinel = {"as_of": "sentinel", "states": ["X"]}
+    geography_sentinel = {"state_districts": {"X": ["Y"]}}
+    monkeypatch.setattr(store, "_OPTIONS_CACHE", {identity: options_sentinel})
+    monkeypatch.setattr(store, "_GEOGRAPHY_CACHE", {identity: geography_sentinel})
+    assert store.fetch_options(db_conn) == options_sentinel
+    assert store.fetch_geography(db_conn) == geography_sentinel
+
+
+def test_cache_identity_changes_after_a_write(db_conn, tmp_path):
+    before = store.cache_identity(db_conn)
+    assert before is not None
+    assert Path(before[0]) == tmp_path / "store.db"
+    store.upsert_rows(db_conn, [_row()])
+    after = store.cache_identity(db_conn)
+    assert after is not None
+    assert after[0] == before[0]
+    assert after != before

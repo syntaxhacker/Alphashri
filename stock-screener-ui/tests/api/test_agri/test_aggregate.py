@@ -79,6 +79,23 @@ def test_daily_modal_is_median_not_mean_and_arrivals_are_summed():
     }]
 
 
+def test_daily_robust_min_max_clip_a_single_impossible_print():
+    rows = [_row("2026-05-31", f"M{i:03d}", 1000.0, 900.0, 1100.0) for i in range(99)]
+    outlier = _row("2026-05-31", "M999", 1000.0, 900.0, 1100.0)
+    outlier["min_price"] = -500.0
+    outlier["max_price"] = 1_350_000.0
+    assert aggregate.aggregate_daily(rows + [outlier]) == [{
+        "date": "2026-05-31", "modal": 1000.0, "min": 900.0,
+        "max": 1100.0, "arrivals_qtl": 1000.0, "market_count": 100,
+    }]
+
+
+def test_daily_single_market_keeps_its_exact_range():
+    out = aggregate.aggregate_daily([_row("2026-05-31", "A", 100.0, 90.0, 110.0)])
+    assert out[0]["min"] == 90.0
+    assert out[0]["max"] == 110.0
+
+
 def test_changes_use_nearest_date_at_or_before_each_target():
     daily = [
         {"date": "2025-11-20", "modal": 60.0},

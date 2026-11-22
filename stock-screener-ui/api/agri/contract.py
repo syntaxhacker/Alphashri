@@ -35,6 +35,8 @@ class FiltersPayload(BaseModel):
     states: list[str] = Field(default_factory=list)
     districts: list[str] = Field(default_factory=list)
     markets: list[str] = Field(default_factory=list)
+    state_districts: dict[str, list[str]] = Field(default_factory=dict)
+    district_markets: dict[str, list[str]] = Field(default_factory=dict)
 
 
 class AppliedFilters(BaseModel):

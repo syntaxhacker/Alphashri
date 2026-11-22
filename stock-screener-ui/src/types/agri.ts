@@ -5,7 +5,14 @@
 
 export type AgriGroupKey = "cereals" | "pulses" | "vegetables" | "oilseeds" | "spices";
 export type AgriRangeKey = "1m" | "3m" | "6m" | "1y" | "max";
-export type AgriChartMode = "band" | "arrivals" | "compare" | "ohlc";
+export type AgriChartMode =
+  | "band"
+  | "compare"
+  | "distribution"
+  | "supplyDemand"
+  | "heatmap"
+  | "rolling"
+  | "seasonality";
 
 export interface AgriOption {
   key: string;

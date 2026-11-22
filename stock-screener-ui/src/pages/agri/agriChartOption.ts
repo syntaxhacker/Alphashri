@@ -2,12 +2,10 @@ import {
   alpha,
   BORDER,
   CHART_CROSSHAIR,
-  CHART_DARK_BG,
   CHART_DARK_MUTED,
   CHART_DARK_OVERLAY,
   CHART_DARK_SPLIT,
   CHART_DARK_TEXT,
-  CHART_LIGHT_BG,
   CHART_LIGHT_BORDER,
   CHART_LIGHT_MUTED,
   CHART_LIGHT_OVERLAY,
@@ -55,16 +53,18 @@ export interface AgriChartInput {
 
 const DEFAULT_UNIT = "₹/quintal";
 const MAX_COMPARE = 5;
+const MAX_CANDLES = 60;
 const BAND_STACK = "agri-minmax-band";
+const BAND_NAME = "Min–Max band";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const COMPARE_COLORS = [PRIMARY, INFO, POSITIVE, SCALE_VIOLET[4], SCALE_CYAN[4]];
 const NUMBER_FMT = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 const INDEX_FMT = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const COMPACT_FMT = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1 });
 
 type Series = Record<string, unknown>;
 
 interface ThemeTokens {
-  bg: string;
   text: string;
   muted: string;
   border: string;
@@ -84,7 +84,6 @@ interface TooltipParam {
 function themeTokens(isDark: boolean): ThemeTokens {
   return isDark
     ? {
-        bg: CHART_DARK_BG,
         text: CHART_DARK_TEXT,
         muted: CHART_DARK_MUTED,
         border: BORDER,
@@ -93,7 +92,6 @@ function themeTokens(isDark: boolean): ThemeTokens {
         crosshair: CHART_CROSSHAIR,
       }
     : {
-        bg: CHART_LIGHT_BG,
         text: CHART_LIGHT_TEXT,
         muted: CHART_LIGHT_MUTED,
         border: CHART_LIGHT_BORDER,
@@ -128,6 +126,13 @@ export function formatAgriValue(value: number | null | undefined, unit: string):
   return unit ? `${formatted} ${unit}` : formatted;
 }
 
+function compactAxisLabel(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `${COMPACT_FMT.format(value / 1_000_000)}M`;
+  if (abs >= 1_000) return `${COMPACT_FMT.format(value / 1_000)}k`;
+  return NUMBER_FMT.format(value);
+}
+
 function formatPct(value: number): string {
   if (!Number.isFinite(value)) return "—";
   return `${value >= 0 ? "+" : ""}${INDEX_FMT.format(value)}%`;
@@ -139,7 +144,7 @@ function escapeHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replace(/'/g, "&apos;");
 }
 
 function isParam(value: unknown): value is TooltipParam {
@@ -184,7 +189,7 @@ function categoryAxis(dates: string[], t: ThemeTokens, gridIndex: number, showLa
     axisLine: { lineStyle: { color: t.border } },
     axisTick: { show: false },
     axisLabel: showLabels
-      ? { color: t.muted, fontSize: 10, interval: "auto", hideOverlap: true }
+      ? { color: t.muted, fontSize: 10, interval: "auto", hideOverlap: true, margin: 8 }
       : { show: false },
     splitLine: { show: false },
   };
@@ -199,18 +204,18 @@ function valueAxis(t: ThemeTokens, gridIndex: number, name?: string): Series {
     nameTextStyle: { color: t.muted, fontSize: 10 },
     axisLine: { show: false },
     axisTick: { show: false },
-    axisLabel: { color: t.muted, fontSize: 10 },
+    axisLabel: { color: t.muted, fontSize: 10, formatter: (value: number) => compactAxisLabel(value) },
     splitLine: { lineStyle: { color: t.split, type: "dashed" } },
   };
 }
 
-function makeDataZoom(t: ThemeTokens, xAxisIndex: number[]): Series[] {
+function makeDataZoom(t: ThemeTokens, xAxisIndex: number[], start = 0): Series[] {
   return [
-    { type: "inside", xAxisIndex, start: 0, end: 100 },
+    { type: "inside", xAxisIndex, start, end: 100 },
     {
       type: "slider",
       xAxisIndex,
-      start: 0,
+      start,
       end: 100,
       height: 18,
       bottom: 8,
@@ -228,7 +233,9 @@ function baseOption(
 ): Record<string, unknown> {
   return {
     animation: false,
-    backgroundColor: t.bg,
+    // The panel owns the surface; painting a plot background here clashes with
+    // it whenever the caller's theme flag disagrees with the active CSS theme.
+    backgroundColor: "transparent",
     title: { text: title, left: "center", top: 2, textStyle: { color: t.text, fontSize: 12 } },
     legend: {
       show: legend.length > 0,
@@ -265,7 +272,8 @@ function modalSeries(data: (number | null)[], gridIndex: number, yAxisIndex: num
     symbol: "none",
     lineStyle: { color: PRIMARY, width: 2 },
     itemStyle: { color: PRIMARY },
-    z: 3,
+    emphasis: { focus: "series" },
+    z: 5,
   };
 }
 
@@ -279,6 +287,7 @@ function buildBand(
   const min = rows.map((r) => finiteOrNull(r.min));
   // The upper stacked series carries only the span so ECharts fills the area
   // between min and max; the tooltip reads the raw values from the source row.
+  // It is an informational range, so it reads as an INFO tint, never a grey wash.
   const span = rows.map((r) => {
     const lo = finite(r.min);
     const hi = finite(r.max);
@@ -289,7 +298,7 @@ function buildBand(
     ...baseOption(
       t,
       titled("Modal price with min–max band", asOf),
-      ["Modal", "Max"],
+      ["Modal", BAND_NAME],
       (params) =>
         rowTooltip(params, rows, (row) => [
           field("Modal", formatAgriValue(row.modal, unit)),
@@ -317,7 +326,7 @@ function buildBand(
         z: 1,
       },
       {
-        name: "Max",
+        name: BAND_NAME,
         type: "line",
         stack: BAND_STACK,
         data: span,
@@ -359,7 +368,7 @@ function buildArrivals(
       { left: 56, right: 56, top: "72%", height: "15%", containLabel: true },
     ],
     xAxis: [categoryAxis(dates, t, 0, false), categoryAxis(dates, t, 1, true)],
-    yAxis: [valueAxis(t, 0), valueAxis(t, 1, "Arrivals (qtl)")],
+    yAxis: [valueAxis(t, 0), valueAxis(t, 1, "qtl")],
     dataZoom: makeDataZoom(t, [0, 1]),
     series: [
       modalSeries(rows.map((r) => finiteOrNull(r.modal)), 0, 0),
@@ -369,9 +378,11 @@ function buildArrivals(
         data: arrivals,
         xAxisIndex: 1,
         yAxisIndex: 1,
-        barMaxWidth: 14,
+        barMaxWidth: 18,
+        barMinHeight: 2,
         // Arrivals are informational volume, never a bullish/bearish signal.
-        itemStyle: { color: alpha(INFO, 0.45) },
+        itemStyle: { color: alpha(INFO, 0.55) },
+        emphasis: { itemStyle: { color: INFO } },
         z: 1,
       },
     ],
@@ -440,7 +451,7 @@ function buildCompare(
                 {
                   yAxis: 100,
                   lineStyle: { color: t.muted, type: "dashed" },
-                  label: { formatter: "100", color: t.muted },
+                  label: { formatter: "100 (base)", color: t.muted },
                 },
               ],
             },
@@ -452,7 +463,9 @@ function buildCompare(
   const compareTooltip = (params: unknown): string => {
     const list = asParams(params);
     if (list.length === 0) return "";
-    const header = formatAgriDateLabel(String(list[0].axisValue ?? dates[0] ?? ""));
+    const header =
+      `${formatAgriDateLabel(String(list[0].axisValue ?? dates[0] ?? ""))}` +
+      ` · indexed to 100 at ${formatAgriDateLabel(commonFirst)}`;
     const rows = list.map((p) => {
       const value = finite(typeof p.value === "number" ? p.value : null);
       if (value == null) return "";
@@ -493,6 +506,12 @@ function buildOhlc(
     return [open, close, low, high];
   });
   const name = "Proxy OHLC (min · prev modal · modal · max)";
+  // Six-minute rows produce unreadable wick density at full extent, so open
+  // zoomed into the latest candles while keeping the whole range scrollable.
+  const start =
+    usable.length > MAX_CANDLES
+      ? Math.max(0, Math.round(100 - (MAX_CANDLES / usable.length) * 100))
+      : 0;
 
   return {
     ...baseOption(
@@ -518,12 +537,13 @@ function buildOhlc(
     grid: [{ left: 56, right: 24, top: 48, bottom: 64, containLabel: true }],
     xAxis: [categoryAxis(dates, t, 0, true)],
     yAxis: [valueAxis(t, 0)],
-    dataZoom: makeDataZoom(t, [0]),
+    dataZoom: makeDataZoom(t, [0], start),
     series: [
       {
         name,
         type: "candlestick",
         data: candles,
+        barMaxWidth: 10,
         itemStyle: {
           color: POSITIVE,
           color0: NEGATIVE,
