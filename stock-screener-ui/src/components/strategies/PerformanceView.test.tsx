@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import { PerformanceView } from "./PerformanceView";
+import { PerformanceView, summarizePerformance } from "./PerformanceView";
 import type { StrategyPerformance } from "../../types/strategies";
 
 afterEach(() => {
@@ -104,6 +104,37 @@ describe("PerformanceView", () => {
     fireEvent.click(screen.getByText("W / L"));
     // "10/2" must rank above "9/1" — a lexicographic string sort would put "9" first.
     await waitFor(() => expect(firstName()).toContain("Ten"));
+  });
+
+  it("computes all summary stats in a single traversal of performance", () => {
+    const perf: StrategyPerformance[] = [
+      { strategy_id: 1, strategy_name: "ORB v1", total_trades: 10, winners: 6, losers: 4, win_rate: 60, total_pnl: 5000, net_pnl: 4800 },
+      { strategy_id: 2, strategy_name: "EMA v2", total_trades: 5, winners: 1, losers: 4, win_rate: 20, total_pnl: -1000, net_pnl: -1050 },
+      { strategy_id: 3, strategy_name: "SR v3", total_trades: 5, winners: 3, losers: 2, win_rate: 60, total_pnl: 900, net_pnl: 750 },
+    ];
+    const reduceSpy = vi.spyOn(Array.prototype, "reduce");
+
+    const totals = summarizePerformance(perf);
+
+    // Four independent reduce() passes (trades/winners/losers/pnl) were replaced
+    // by one; the count is deterministic regardless of data size.
+    expect(reduceSpy).toHaveBeenCalledTimes(1);
+    reduceSpy.mockRestore();
+    expect(totals.totalTrades).toBe(20);
+    expect(totals.totalWinners).toBe(10);
+    expect(totals.totalLosers).toBe(10);
+    expect(totals.totalPnl).toBe(4500);
+    expect(totals.overallWinRate).toBe(50);
+  });
+
+  it("returns a zero win rate for empty performance without traversing", () => {
+    expect(summarizePerformance([])).toEqual({
+      totalTrades: 0,
+      totalWinners: 0,
+      totalLosers: 0,
+      totalPnl: 0,
+      overallWinRate: 0,
+    });
   });
 
 });

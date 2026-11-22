@@ -8,14 +8,40 @@ import type { StrategyPerformance } from "../../types/strategies";
 import { CompactStat, CompactStatGrid } from "../common/compact";
 import { TanStackTable } from "../common/TanStackTable";
 
-export function PerformanceView(props: PerformanceViewProps) {
-  const totalTrades = createMemo(() => props.performance.reduce((sum, p) => sum + p.total_trades, 0));
-  const totalWinners = createMemo(() => props.performance.reduce((sum, p) => sum + p.winners, 0));
-  const totalLosers = createMemo(() => props.performance.reduce((sum, p) => sum + p.losers, 0));
-  const overallWinRate = createMemo(() =>
-    totalTrades() > 0 ? (totalWinners() / totalTrades()) * 100 : 0,
+export interface PerformanceTotals {
+  totalTrades: number;
+  totalWinners: number;
+  totalLosers: number;
+  totalPnl: number;
+  overallWinRate: number;
+}
+
+// One traversal instead of four independent reduce() passes over performance.
+export function summarizePerformance(performance: StrategyPerformance[]): PerformanceTotals {
+  const totals = performance.reduce(
+    (acc, p) => {
+      acc.totalTrades += p.total_trades;
+      acc.totalWinners += p.winners;
+      acc.totalLosers += p.losers;
+      acc.totalPnl += p.net_pnl;
+      return acc;
+    },
+    { totalTrades: 0, totalWinners: 0, totalLosers: 0, totalPnl: 0 },
   );
-  const totalPnl = createMemo(() => props.performance.reduce((sum, p) => sum + p.net_pnl, 0));
+  return {
+    ...totals,
+    overallWinRate:
+      totals.totalTrades > 0 ? (totals.totalWinners / totals.totalTrades) * 100 : 0,
+  };
+}
+
+export function PerformanceView(props: PerformanceViewProps) {
+  const totals = createMemo(() => summarizePerformance(props.performance));
+  const totalTrades = () => totals().totalTrades;
+  const totalWinners = () => totals().totalWinners;
+  const totalLosers = () => totals().totalLosers;
+  const overallWinRate = () => totals().overallWinRate;
+  const totalPnl = () => totals().totalPnl;
 
   const columns = createMemo<TableColumnDef<StrategyPerformance>[]>(() => [
     {
