@@ -17,7 +17,7 @@ from types import ModuleType
 import pytest
 
 _UI_DIR = Path(__file__).resolve().parents[1]
-_PYTHON = str(_UI_DIR / ".venv" / "bin" / "python")
+_PYTHON = sys.executable
 
 
 def _nautilus_installed() -> bool:

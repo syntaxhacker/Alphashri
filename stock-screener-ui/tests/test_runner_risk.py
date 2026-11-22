@@ -19,6 +19,7 @@ class MockRunner(RunnerRiskMixin):
         self._to_date_val = to_date
         self._ist_now_val = ist_now
         self.strategies = strategies or {}
+        self._cycle_data_cache = {}
     
     def _get_data_fetcher(self):
         return self._data_fetcher
@@ -99,6 +100,7 @@ class TestFetchOrData:
         mock_fetcher.upstox_api.fetch_intraday_data_v3.return_value = df
 
         mock_signal_gen = MagicMock()
+        mock_signal_gen.or_minutes = 45
         or_levels = {
             'or_high': 105.0,
             'or_low': 99.0,
@@ -138,6 +140,7 @@ class TestFetchOrData:
         mock_fetcher.upstox_api.fetch_intraday_data_v3.return_value = df
 
         mock_signal_gen = MagicMock()
+        mock_signal_gen.or_minutes = 45
         or_levels = {'or_high': 106, 'or_low': 99, 'or_open': 100, 'or_range': 7, 'or_range_pct': 7, 'or_close': 105.5, 'or_candles': 6}
         mock_signal_gen.calculate_or_levels.return_value = or_levels
 
@@ -292,7 +295,7 @@ class TestFetchDailyData:
         mock_fetcher = MagicMock()
         mock_fetcher.upstox_api.fetch_historical_data_v3.return_value = simple_daily_df
 
-        intraday_df = pd.DataFrame({'close': [150.0, 151.5, 152.75]})
+        intraday_df = pd.DataFrame({'close': [150.0, 151.5, 152.75], 'high': [151.0, 152.0, 153.0]})
         mock_fetcher.upstox_api.fetch_intraday_data_v3.return_value = intraday_df
 
         runner = MockRunner(data_fetcher=mock_fetcher, to_date=date.today())
@@ -350,7 +353,7 @@ class TestFetchDailyData:
         import pandas as pd
         mock_fetcher = MagicMock()
         mock_fetcher.upstox_api.fetch_historical_data_v3.return_value = simple_daily_df
-        mock_fetcher.upstox_api.fetch_intraday_data_v3.return_value = pd.DataFrame({'close': [999.0]})
+        mock_fetcher.upstox_api.fetch_intraday_data_v3.return_value = pd.DataFrame({'close': [999.0], 'high': [1000.0]})
 
         runner = MockRunner(data_fetcher=mock_fetcher, to_date=date.today())
         result = runner.fetch_daily_data("RELIANCE")

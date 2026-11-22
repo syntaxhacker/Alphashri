@@ -614,12 +614,6 @@ def test_watch_empty_store(cp_client):
     assert resp.json()["items"] == []
 
 
-def test_watch_empty_store(cp_client):
-    resp = cp_client.get("/api/chart-patterns/watch?setup=breakout")
-    assert resp.status_code == 200
-    assert resp.json()["items"] == []
-
-
 
 
 def _near52w_frame(n=30, start=90.0, step=0.3, vol_start=1000.0, vol_step=100.0):
