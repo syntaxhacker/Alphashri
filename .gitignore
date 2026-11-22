@@ -108,6 +108,7 @@ mutants/
 !stock-screener-ui/tests/api/test_event_radar/fixtures/*.csv
 !stock-screener-ui/data/symbol_aliases.json
 !stock-screener-ui/tsconfig.json
+!stock-screener-ui/.oxlintrc.types.json
 !stock-screener-ui/tsconfig.typecheck.json
 
 # ---------------------------------------------------------------------------

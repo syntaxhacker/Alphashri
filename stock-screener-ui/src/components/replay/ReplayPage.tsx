@@ -63,8 +63,6 @@ function ReplayPageContent(
           startReplay={props.handle.startReplay}
           stopReplay={props.handle.stopReplay}
           reset={props.handle.reset}
-          loadSymbols={props.handle.loadSymbols}
-          error={state().error}
         />
       </div>
       <Box flex="0 0 auto" px="sm" py="xs">
@@ -95,7 +93,7 @@ function ReplayPageContent(
           setChartOptions={props.handle.setChartOptions}
           highlightedTradeId={state().highlightedTradeId}
           strategyFilter={state().strategyFilter}
-          setStrategyFilter={props.handle.setStrategyFilter}
+          setStrategyFilter={(filter) => props.handle.setStrategyFilter(filter ?? "ALL")}
           isRunning={state().isRunning}
           chartRef={props.chartRef}
           onTradeClick={(tradeId) => {

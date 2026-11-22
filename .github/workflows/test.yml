@@ -199,7 +199,9 @@ jobs:
           bun-version: '1.2.5'
       - run: cd stock-screener-ui && bun install --frozen-lockfile
       - run: cd stock-screener-ui && bun run lint
-      - name: Typecheck ratchet (real tsconfig)
+      - name: Typecheck app (TypeScript 7)
+        run: cd stock-screener-ui && bun run typecheck
+      - name: Typecheck tests ratchet
         run: cd stock-screener-ui && bun run typecheck:ratchet
   frontend-unit:
     name: Frontend Unit Tests

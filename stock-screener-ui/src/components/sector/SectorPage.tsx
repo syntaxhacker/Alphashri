@@ -544,7 +544,7 @@ function SectorPageHeader(props: {
         {/* @/ui Button reads `disabled`/`loading` once at construction, so the
             button is rebuilt whenever the loading flag flips. */}
         <Show when={props.loading} keyed>
-          {() => (
+          {(_loading) => (
             <Button
               variant="light"
               color="secondary"

@@ -196,7 +196,7 @@ export function NewsItemCard(props: {
       role="button"
       tabIndex={0}
       onClick={() => props.onClick(item())}
-      onKeyDown={(event) => {
+      onKeyDown={(event: KeyboardEvent) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           props.onClick(item());
@@ -206,7 +206,7 @@ export function NewsItemCard(props: {
       style={{
         "align-items": "flex-start",
         gap: "8px",
-        ...(isDesk
+        ...(isDesk()
           ? {
               "min-height": "64px",
               "padding-left": "12px",
@@ -273,7 +273,7 @@ export function NewsSourceGroup(props: {
   const isDesk = () => (props.variant ?? "default") === "desk";
   return (
     <Box component={isDesk() ? "section" : "div"} className="news-source-group list-none">
-      <Box role="button" tabIndex={0} onClick={props.onToggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); props.onToggle(); } }} aria-expanded={props.isExpanded} data-testid={`news-source-group-${props.source}`} className="flex items-center gap-2 cursor-pointer" style={isDesk() ? { position: "sticky", top: 0, zIndex: 1, minHeight: 36, paddingLeft: 12, paddingRight: 12, borderRadius: 0, borderTop: `1px solid ${palette.BORDER}`, backgroundColor: palette.BG, transitionProperty: "background-color", transitionDuration: "120ms" } : { borderRadius: 8 }}>
+      <Box role="button" tabIndex={0} onClick={props.onToggle} onKeyDown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); props.onToggle(); } }} aria-expanded={props.isExpanded} data-testid={`news-source-group-${props.source}`} className="flex items-center gap-2 cursor-pointer" style={isDesk() ? { position: "sticky", top: 0, "z-index": 1, "min-height": "36px", "padding-left": "12px", "padding-right": "12px", "border-radius": 0, "border-top": `1px solid ${palette.BORDER}`, "background-color": palette.BG, "transition-property": "background-color", "transition-duration": "120ms" } : { "border-radius": "8px" }}>
         <Text size="sm" fw={700} style={{ "text-transform": "uppercase" }}>
           {props.source}
         </Text>
@@ -285,7 +285,7 @@ export function NewsSourceGroup(props: {
       </Box>
 
       <Collapse in={props.isExpanded}>
-        <Box style={isDesk() ? { paddingTop: 0, paddingBottom: 0 } : { paddingTop: 4, paddingBottom: 4 }}>
+        <Box style={isDesk() ? { "padding-top": 0, "padding-bottom": 0 } : { "padding-top": "4px", "padding-bottom": "4px" }}>
           <For each={props.items}>{(item) => {
             const isUnread = !props.readIds.has(item.id);
             return props.renderItem ? (

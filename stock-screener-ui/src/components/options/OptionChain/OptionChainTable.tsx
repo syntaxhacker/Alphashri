@@ -12,7 +12,8 @@ import {
   useTheme,
 } from "@/ui";
 import * as palette from "@/ui/palette";
-import { createEffect, createMemo, createSignal, For, Index, Show, type CSSProperties } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Index, Show, type JSX } from "solid-js";
+type CSSProperties = JSX.CSSProperties;
 import { getMoneyness } from "../../../utils/options";
 import { clamp, formatNumber, getPnLTextColor } from "../../../utils/ui-helpers";
 import type { OptionContract } from "../../../api/upstoxOptions";
@@ -164,7 +165,7 @@ function OptionColumn(props: {
               value: ltp.toFixed(2),
               kind: "ltp",
               fw: 700,
-              c: isITM ? (props.type === "CE" ? "info" : "warning") : undefined,
+              c: isITM ? "warning" : undefined,
               isLTP: true,
               title: `LTP ₹${ltp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             },
@@ -174,7 +175,7 @@ function OptionColumn(props: {
               value: ltp.toFixed(2),
               kind: "ltp",
               fw: 700,
-              c: isITM ? (props.type === "CE" ? "info" : "warning") : undefined,
+              c: isITM ? "warning" : undefined,
               isLTP: true,
               title: `LTP ₹${ltp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             },
@@ -303,9 +304,9 @@ function OptionColumn(props: {
               const cellStyle: CSSProperties = {
                 ...(styles.cell as CSSProperties),
                 position: "relative",
-                fontWeight: cell.fw,
+                "font-weight": cell.fw,
                 background: cellBackground,
-                boxShadow: cellShadow,
+                "box-shadow": cellShadow,
                 color: cell.c ? undefined : cellText,
               };
 
@@ -387,8 +388,7 @@ function OptionColumn(props: {
                               size="sm"
                               variant="light"
                               color={badge().color}
-                              px={4}
-                              style={{ "font-size": "10px", height: "14px" }}
+                              style={{ "font-size": "10px", height: "14px", "padding-left": "4px", "padding-right": "4px" }}
                             >
                               {badge().label}
                             </Badge>

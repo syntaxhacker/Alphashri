@@ -51,7 +51,7 @@ export interface StrategiesPageProps {
   onSelectStrategy: (strategyId: number) => void;
 
   // Data actions
-  onUpdate: (strategyId: number, field: string, value: number) => Promise<void>;
+  onUpdate: (strategyId: number, field: string, value: number) => Promise<unknown>;
   onRefresh: () => void;
   onClearError: () => void;
 
@@ -67,7 +67,7 @@ export interface TemplateTreeViewProps {
   onCreateFromTemplate: (template: StrategyConfig) => void;
   onEditStrategy: (strategy: StrategyConfig) => void;
   onDeleteStrategy: (strategyId: number) => void;
-  onUpdate: (strategyId: number, field: string, value: number) => Promise<void>;
+  onUpdate: (strategyId: number, field: string, value: number) => Promise<unknown>;
   isLoading: boolean;
 }
 

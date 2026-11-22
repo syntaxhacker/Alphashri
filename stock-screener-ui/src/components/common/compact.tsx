@@ -85,7 +85,7 @@ export function CompactPage(props: CompactPageProps) {
 }
 
 interface CompactPanelProps extends UIPaperProps {
-  children: JSX.Element;
+  children?: JSX.Element;
   title?: JSX.Element;
   /** Opt-in classes for the header title element (e.g. responsive truncation). */
   titleClassName?: string;
@@ -223,6 +223,7 @@ interface CompactStatProps extends UIPaperProps {
   valueSize?: "xs" | "sm" | "md" | "lg" | "xl";
   /** Dense mode: smaller label/value fonts + tighter padding (report pages). */
   dense?: boolean;
+  testId?: string;
 }
 
 export function CompactStat(props: CompactStatProps) {
@@ -234,6 +235,7 @@ export function CompactStat(props: CompactStatProps) {
     "labelSize",
     "valueSize",
     "dense",
+    "testId",
   ]);
   const tone = () => own.tone ?? "default";
   const dense = () => own.dense ?? false;
@@ -243,6 +245,7 @@ export function CompactStat(props: CompactStatProps) {
   return (
     <Card
       data-compact-stat=""
+      data-testid={own.testId}
       className="bg-fin-surface"
       {...(paperProps as Record<string, unknown>)}
       bg="var(--color-fin-surface)"

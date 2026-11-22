@@ -22,7 +22,7 @@ function resolveColor(color: UIColor | undefined): string {
 }
 
 export interface UIRingProgressProps extends UIBaseProps {
-  value: number;
+  value?: number;
   size?: number;
   thickness?: number;
   roundCaps?: boolean;
@@ -46,7 +46,7 @@ export function RingProgress(props: UIRingProgressProps) {
     "id",
   ]);
 
-  const effSections = known.sections ?? [{ value: known.value, color: (known.color as string) ?? "primary" }];
+  const effSections = known.sections ?? [{ value: known.value ?? 0, color: (known.color as string) ?? "primary" }];
   const size = known.size ?? 80;
   const thickness = known.thickness ?? 8;
   const cx = size / 2;

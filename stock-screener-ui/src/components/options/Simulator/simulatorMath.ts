@@ -55,7 +55,10 @@ export function scenarioRows(legs: PayoffLeg[], spot: number | null): ScenarioRo
 
 /** Convert builder legs (with local legId) to payoff legs. Never mutates inputs. */
 export function toPayoffLegs(legs: SimulatorLeg[]): PayoffLeg[] {
-  return legs.map(({ legId: _, ...rest }) => rest);
+  return legs.map(({ legId, ...rest }) => {
+    void legId;
+    return rest;
+  });
 }
 
 /** Aggregate payoff stats for the stat strip. Null-safe for empty legs. */

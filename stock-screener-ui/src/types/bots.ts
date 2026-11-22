@@ -19,6 +19,8 @@ export interface StrategyWithAllocation {
   max_positions: number;
   capital_allocation_pct: number;
   enable_shorts: boolean;
+  sl_pct?: number;
+  tp_pct?: number;
 }
 // Bot configuration
 export interface BotConfig {

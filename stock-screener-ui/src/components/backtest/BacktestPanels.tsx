@@ -28,8 +28,7 @@ export function BacktestLeftPanel(props: BacktestLeftPanelProps) {
     <Tabs
       value={props.activeTab}
       onChange={props.setActiveTab}
-      h="100%"
-      className="flex flex-col"
+      className="flex flex-col h-full"
     >
       <Box className="shrink-0 flex items-center justify-center p-2" style={{ flex: "0 0 auto", display: "flex", "align-items": "center", "justify-content": "center", padding: "8px" }}>
         <Tabs.List>
@@ -45,8 +44,7 @@ export function BacktestLeftPanel(props: BacktestLeftPanelProps) {
       <Tabs.Panel
         value="results"
         className="backtest-results-panel min-h-0 overflow-hidden"
-        flex={1}
-        style={{ "min-height": 0, overflow: "hidden" }}
+        style={{ flex: 1, "min-height": 0, overflow: "hidden" }}
       >
         {props.isRunning ? (
           <Box className="flex items-center justify-center p-2" style={{ display: "flex", "align-items": "center", "justify-content": "center", padding: "16px" }}>
@@ -100,8 +98,7 @@ export function BacktestLeftPanel(props: BacktestLeftPanelProps) {
       <Tabs.Panel
         value="history"
         className="backtest-history-panel min-h-0 min-w-0 overflow-auto flex flex-col"
-        flex={1}
-        style={{ "min-height": 0, "min-width": 0, overflow: "auto", display: "flex", "flex-direction": "column" }}
+        style={{ flex: 1, "min-height": 0, "min-width": 0, overflow: "auto", display: "flex", "flex-direction": "column" }}
       >
         <BacktestHistory active={props.activeTab === "history"} onLoad={() => props.setActiveTab("results")} />
       </Tabs.Panel>

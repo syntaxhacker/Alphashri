@@ -32,7 +32,6 @@ export function BacktestProgress(props: BacktestProgressProps) {
         </Text>
       </Stack>
       <Progress
-        variant="determinate"
         value={Math.max(0, Math.min(100, percent()))}
         data-testid="progress-fill"
         size="md"

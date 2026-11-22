@@ -202,7 +202,7 @@ export function ExperimentsChart() {
                       </Flex>
                     }
                   >
-                    {() => (
+                    {(_hasSessions) => (
                     <Box
                       data-testid="experiments-chart-body"
                       style={{

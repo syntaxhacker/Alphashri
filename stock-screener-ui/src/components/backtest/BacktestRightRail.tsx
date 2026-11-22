@@ -41,14 +41,14 @@ export function BacktestRightRail(props: BacktestRightRailProps) {
 
   return (
     <Box
-      ref={el => (railRef = el)}
+      ref={(el: HTMLDivElement) => (railRef = el)}
       data-testid="backtest-rail"
       className="flex-shrink-0 h-full min-h-0 flex flex-col overflow-hidden"
       style={{
         flex: "0 0 auto",
-        width: props.width,
-        "min-width": RAIL_MIN_WIDTH,
-        "max-width": RAIL_MAX_WIDTH,
+        width: `${props.width}px`,
+        "min-width": `${RAIL_MIN_WIDTH}px`,
+        "max-width": `${RAIL_MAX_WIDTH}px`,
         height: "100%",
         "min-height": 0,
         position: "relative",

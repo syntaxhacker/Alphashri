@@ -230,7 +230,7 @@ export function ExpirySelect(props: ExpirySelectProps): JSX.Element {
   return (
     <Box className="flex min-w-0 flex-col gap-1" data-testid={props.pickerTestId}>
       <Show when={selectKey()} keyed>
-        {() => (
+        {(_key) => (
           <Select
             size="xs"
             w={props.width ?? 168}

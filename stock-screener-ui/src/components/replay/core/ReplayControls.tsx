@@ -28,7 +28,7 @@ export interface ReplayControlsProps {
 
 export default function ReplayControls(props: ReplayControlsProps) {
   return (
-    <Stack direction="row" gap="sm" mb="sm" align="center" wrap>
+    <Stack direction="row" gap="sm" mb="sm" align="center" wrap="wrap">
       <Button size="sm" variant="filled" onClick={props.onPlayToggle} disabled={props.disabled}>
         {props.playing ? "⏸ Pause" : "▶ Play"}
       </Button>

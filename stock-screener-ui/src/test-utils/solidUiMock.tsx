@@ -316,7 +316,8 @@ function StubCopyButton(props: DivProps & { value: string }) {
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
   };
-  return <>{props.children?.({ copied: copied(), copy })}</>;
+  const render = props.children as unknown as (args: { copied: boolean; copy: () => void }) => JSX.Element;
+  return <>{typeof render === "function" ? render({ copied: copied(), copy }) : null}</>;
 }
 
 const INPUT_CHROME = "border rounded-fin bg-fin-surface text-fin-text outline-none";
@@ -853,7 +854,7 @@ const TabsCtx = createContext<{ value: () => string; select: (v: string) => void
 function Tabs(props: DivProps & { value?: string; defaultValue?: string; onChange?: (v: string | null) => void }) {
   const internal = createSignal<string | undefined>(props.defaultValue ?? props.value ?? "table");
   const isControlled = () => props.value !== undefined;
-  const current = () => (isControlled() ? props.value! : internal[0]());
+  const current = () => (isControlled() ? props.value! : internal[0]()) ?? "table";
   const ctx = {
     value: current,
     select: (v: string) => {

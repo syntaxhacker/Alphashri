@@ -29,7 +29,6 @@ import {
   effectiveSessionDate,
   isOnSession,
   pickFreshestCandles,
-  sessionDateOf,
   tapePointsSig,
   type SpotPoint,
 } from "./niftyChartData";
@@ -38,12 +37,8 @@ import { maxPainTouches } from "./maxPainTouches";
 import { hexToRgba } from "@/utils/color";
 import {
   buildMarkLines,
-  candlePriceRange,
   emaSeries,
   labelGapPctFor,
-  levelBelongsToScale,
-  levelsWithinScale,
-  mergeCollidingLabels,
   resampleCandles,
 } from "./niftyChartMath";
 import type {
@@ -75,7 +70,6 @@ export {
   clipToAsOf,
   isOnSession,
   pickFreshestCandles,
-  sessionDateOf,
   type SpotPoint,
   type TapeSpotPoint,
 } from "./niftyChartData";

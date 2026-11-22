@@ -200,7 +200,7 @@ export function BacktestHistory(props: BacktestHistoryProps) {
           <div class="flex items-center justify-center">
           <Group gap={8} className="flex items-center justify-center gap-2">
             <Button
-              size="compact-xs"
+              size="xs"
               variant="light"
               leftSection={<IconExternalLink size={14} />}
               onClick={() => handleLoad(item.id)}

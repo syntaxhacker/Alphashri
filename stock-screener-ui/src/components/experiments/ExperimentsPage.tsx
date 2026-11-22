@@ -42,7 +42,7 @@ const paneSx = {
 const paneHeaderSx = {
   display: "flex",
   alignItems: "center",
-  gap: 0.5,
+  gap: "4px",
   paddingLeft: 8,
   minHeight: 28,
   borderBottom: `1px solid ${BROWN}`,

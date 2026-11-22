@@ -83,7 +83,7 @@ export function TemplateTreeView(props: TemplateTreeViewProps) {
       ? (variationsByParent.get(String(id)) ?? []).length
       : 0;
 
-    const colStyle: JSX.CSSProperties = { width: "70px", flexShrink: 0 };
+    const colStyle: JSX.CSSProperties = { width: "70px", "flex-shrink": 0 };
 
     return (
       <Group
@@ -267,8 +267,6 @@ export function TemplateTreeView(props: TemplateTreeViewProps) {
             data={treeData()}
             tree={tree}
             levelOffset={20}
-            expandOnClick={false}
-            selectOnClick={false}
             renderNode={renderNode}
           />
         </Box>

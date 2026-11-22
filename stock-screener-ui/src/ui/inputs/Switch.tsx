@@ -59,6 +59,7 @@ function toneColor(color?: UISwitchProps["color"]): string {
 export function Switch(props: SwitchProps) {
   const [known, _rest] = splitProps(props, [
     "label",
+    "name",
     "checked",
     "defaultChecked",
     "onChange",
@@ -166,6 +167,7 @@ export function Switch(props: SwitchProps) {
         role="switch"
         checked={isOn()}
         disabled={known.disabled}
+        name={known.name}
         id={known.id}
         data-testid={known["data-testid"]}
         // The native input is an invisible hit area; the global

@@ -333,7 +333,7 @@ export function extendAutoscaleWithLevels<T extends AutoscaleRange>(
       minValue = Math.min(minValue, v);
       maxValue = Math.max(maxValue, v);
     }
-    return { ...info, priceRange: { minValue, maxValue } };
+    return { ...info, priceRange: { minValue, maxValue } } as T;
   }
   const filterLevels = spot != null;
   let lo = incoming ? Math.min(incoming.minValue, bars.low) : bars.low;
@@ -364,7 +364,7 @@ export function extendAutoscaleWithLevels<T extends AutoscaleRange>(
       hi = bars.high + (needAbove / total) * budget;
     }
   }
-  return { ...info, priceRange: { minValue: lo, maxValue: hi } };
+  return { ...info, priceRange: { minValue: lo, maxValue: hi } } as T;
 }
 
 // Muted volume tints — deliberately lower-contrast than the candles so volume
@@ -388,7 +388,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
   let chart: IChartApi | null = null;
   let candleSeries: ISeriesApi<"Candlestick"> | null = null;
   let volumeSeries: ISeriesApi<"Histogram"> | null = null;
-  let markers: ReturnType<typeof createSeriesMarkers> | null = null;
+  let markers: { setMarkers: (m: unknown[]) => void } | null = null;
   let priceLines: IPriceLine[] = [];
   let emaSeries: ISeriesApi<"Line">[] = [];
   /** `label|color` signature of the EMA series currently attached. */
@@ -470,7 +470,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
     (createdVolume as any).priceScale().applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
 
     const createdMarkers = createSeriesMarkers(createdCandle, []);
-    markers = createdMarkers;
+    markers = createdMarkers as unknown as { setMarkers: (m: unknown[]) => void };
     props.onChartReady?.(created, createdCandle as any);
     setReady(true);
 
@@ -548,7 +548,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
     rsiSeries = series;
 
     const points = data
-      .map((v, i) => (v == null || !isFinite(v) || !candles[i] ? null : { time: toEpochSeconds(candles[i].time), value: v }))
+      .map((v, i) => (v == null || !isFinite(v) || !candles[i] ? null : { time: toEpochSeconds(candles[i].time) as Time, value: v }))
       .filter((d): d is LineData => d !== null)
       .sort((a, b) => (a.time as number) - (b.time as number));
     series.setData(points);
@@ -595,7 +595,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
         chart.timeScale().fitContent();
         return;
       }
-      chart.timeScale().setVisibleRange({ from, to });
+      chart.timeScale().setVisibleRange({ from: from as Time, to: to as Time });
     },
   };
 
@@ -618,13 +618,13 @@ export function TradingViewChart(props: TradingViewChartProps) {
     }
     if (chartType() === "line") {
       const lineData: LineData[] = candles
-        .map((c) => ({ time: toEpochSeconds(c.time), value: c.close }))
+        .map((c) => ({ time: toEpochSeconds(c.time) as Time, value: c.close }))
         .sort((a, b) => (a.time as number) - (b.time as number));
       candleSeries.setData(lineData as any);
     } else {
       const candleData: CandlestickData[] = candles
         .map((c) => ({
-          time: toEpochSeconds(c.time),
+          time: toEpochSeconds(c.time) as Time,
           open: c.open,
           high: c.high,
           low: c.low,
@@ -645,7 +645,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
     const nt = theme() === "nt";
     const volData: HistogramData[] = candles
       .map((c) => ({
-        time: toEpochSeconds(c.time),
+        time: toEpochSeconds(c.time) as Time,
         value: c.volume,
         color: c.close >= c.open
           ? (nt ? NT_VOL_UP : withAlpha(palette.POSITIVE, 0.9))
@@ -814,7 +814,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
       if (!ema) return;
       const data: LineData[] = ema.data
         .map((v, idx) =>
-          v == null || !isFinite(v) || !candles[idx] ? null : { time: toEpochSeconds(candles[idx].time), value: v },
+          v == null || !isFinite(v) || !candles[idx] ? null : { time: toEpochSeconds(candles[idx].time) as Time, value: v },
         )
         .filter((d): d is LineData => d !== null)
         .sort((a, b) => (a.time as number) - (b.time as number));
