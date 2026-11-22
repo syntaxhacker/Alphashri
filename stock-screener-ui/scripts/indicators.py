@@ -28,9 +28,6 @@ import itertools
 ATR_TRUE_PERIOD = 14
 
 
-# ---------------------------------------------------------------------------
-# range / volatility
-# ---------------------------------------------------------------------------
 def atr_range(bars, i, n: int = 14) -> float:
     """Mean ``high - low`` over the ``n`` bars ending at index ``i``.
 
@@ -62,12 +59,6 @@ def candle_field(candle, name: str, idx: int):
 
 
 def atr_true(candles, period: int = ATR_TRUE_PERIOD):
-    """Mean true range over the last ``period`` candles (simple mean).
-
-    True range needs high/low/previous-close; spot-only series (tape ``t`` /
-    ``spot`` rows mapped to ``{time, close}``) degrade to ``|close - prev|``.
-    Returns None when fewer than one true range is available.
-    """
     trs: list[float] = []
     prev_close = None
     for c in candles or []:
@@ -87,9 +78,6 @@ def atr_true(candles, period: int = ATR_TRUE_PERIOD):
     return sum(window) / len(window)
 
 
-# ---------------------------------------------------------------------------
-# bar construction
-# ---------------------------------------------------------------------------
 def build_bars(ticks, sec):
     """Bucket ticks into ``sec``-second OHLC bars keyed on the bid price."""
     bars = {}
@@ -107,11 +95,7 @@ def build_bars(ticks, sec):
     return [bars[k] for k in sorted(bars)]
 
 
-# ---------------------------------------------------------------------------
-# patterns
-# ---------------------------------------------------------------------------
 def detect_fvg(bars, i, gap_min: float = 2.0):
-    """3-bar fair-value-gap pattern ending at index ``i``. None when absent."""
     if i < 2:
         return None
     a, c = bars[i - 2], bars[i]
@@ -123,7 +107,6 @@ def detect_fvg(bars, i, gap_min: float = 2.0):
 
 
 def swing_pivots(bars, i, left: int = 2, right: int = 2):
-    """Fractal pivots confirmed at ``i`` (center = ``i - right``)."""
     out_hi, out_lo = None, None
     if i >= left + right:
         j = i - right
@@ -148,7 +131,6 @@ def detect_lrl(bars, i, lookback: int = 120, min_touches: int = 3,
     tol = tol_mult * a
     his, los = [], []
     for k in range(max(i - lookback, 4), i):
-        # pivot centered at k needs k+2 <= i to confirm
         if k + 2 > i:
             continue
         w = bars[k - 2:k + 3]
@@ -180,7 +162,7 @@ def detect_lrl(bars, i, lookback: int = 120, min_touches: int = 3,
                 target = sy + slope * (i - sx)
                 px = bars[i]["close"]
                 if side == "above" and target <= px + 2:
-                    continue  # already swept/touching
+                    continue
                 if side == "below" and target >= px - 2:
                     continue
                 if abs(target - px) > max_dist_atr * a:
@@ -196,16 +178,11 @@ def detect_lrl(bars, i, lookback: int = 120, min_touches: int = 3,
             cands.append(best)
     if not cands:
         return None
-    # prefer most touches, then smallest residual
     cands.sort(key=lambda c: (-c["touches"], c["resid"]))
     return cands[0]
 
 
-# ---------------------------------------------------------------------------
-# session helpers
-# ---------------------------------------------------------------------------
 def prev_trading_day(date_str: str) -> str:
-    """The previous weekday before ``date_str`` (YYYY-MM-DD)."""
     from datetime import date as _d, timedelta as _td
 
     p = _d.fromisoformat(date_str) - _td(days=1)
@@ -215,15 +192,10 @@ def prev_trading_day(date_str: str) -> str:
 
 
 def session_profile(ticks, t_end_ms, bin_pts: float = 5.0):
-    """Volume profile (bid+ask vol weights) over ticks with ``ts < t_end_ms``.
-
-    Returns ``(poc, vah, val)`` with 70% value-area expansion from POC, or
-    None when there are no ticks.
-    """
     bins = {}
     for x in ticks:
         if x["timestamp"] >= t_end_ms:
-            break  # ticks are time-ordered
+            break
         mid = (x["bidPrice"] + x["askPrice"]) / 2.0
         w = (x.get("bidVolume") or 0) + (x.get("askVolume") or 0)
         k = int(mid // bin_pts)

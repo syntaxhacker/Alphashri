@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""Scan Indian stocks with the repo's chart-pattern engine.
-
-Uses `chart_patterns.engine.detect_patterns` (19 patterns, PatternHit with
-breakout / target / stop / RR). Daily bars, 1 year. Reports patterns detected
-in the last 5 sessions ("this week").
-
-Run:
-    .venv/bin/python scripts/stock_pattern_scan.py
-"""
 
 from __future__ import annotations
 

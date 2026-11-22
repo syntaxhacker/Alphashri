@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-"""Geometry-only wall test, vectorised with vectorbt.
-
-Rule: at 09:30 fix the day's call wall (top call OI) and put wall (top put OI).
-  - CE signal: spot comes within `prox` x ATR of the PUT wall (support) -> buy CE
-  - PE signal: spot comes within `prox` x ATR of the CALL wall (resistance) -> buy PE
-No OI-rising, no rejection, no max-pain, no hour filter. This is the "geometry
-only" version the verifier's placebo pointed at.
-
-Execution: the fixed wall-strike premium series for the day. Stops/targets/trail
-are vectorbt's; costs are applied post-hoc with the repo's exact model.
-
-Run:
-    .venv/bin/python scripts/wall_replay/vbt_geometry.py
-"""
 
 from __future__ import annotations
 
@@ -62,7 +48,6 @@ def session_frame(date: str):
     if len(rs) < 340:
         return None
     spot = np.array([float(r["spot"]) for r in rs])
-    # walls fixed at 09:30
     r0 = next((r for r in rs if r["t"][11:16] >= "09:30"), rs[0])
     calls = (r0.get("walls") or {}).get("calls") or []
     puts = (r0.get("walls") or {}).get("puts") or []
@@ -70,8 +55,8 @@ def session_frame(date: str):
         return None
     cw = float(calls[0]["strike"])
     pw = float(puts[0]["strike"])
-    ce = np.array([px(r, pw, "CE") for r in rs])   # CE at the put wall (support)
-    pe = np.array([px(r, cw, "PE") for r in rs])   # PE at the call wall (resistance)
+    ce = np.array([px(r, pw, "CE") for r in rs])
+    pe = np.array([px(r, cw, "PE") for r in rs])
     a = atr_series(spot)
     idx = pd.to_datetime([r["t"] for r in rs], utc=True)
     df = pd.DataFrame({"spot": spot, "ce": ce, "pe": pe, "atr": a,
@@ -123,7 +108,6 @@ def main():
 
     rows = []
     for prox, stop, target, trail in configs:
-        # rebuild signals for the prox (cheap: recompute the two columns)
         tr_all = []
         for d in ds:
             df = frames.get(d)

@@ -7,9 +7,6 @@ from fastapi.testclient import TestClient
 import api.reports_api.breakouts as br
 
 
-# ---------------------------------------------------------------------------
-# Frame builders (programmatic candles, never inline JSON blobs)
-# ---------------------------------------------------------------------------
 
 def _flat(n=300, price=100.0, vol=1000.0, end="2026-09-01"):
     idx = pd.date_range(end=end, periods=n, freq="D", tz="UTC")
@@ -55,9 +52,6 @@ def client(monkeypatch, tmp_path):
     br.clear_today_cache()
 
 
-# ---------------------------------------------------------------------------
-# analyze_frame unit tests
-# ---------------------------------------------------------------------------
 
 class TestAnalyzeFrame:
     def test_short_frame_skipped(self):
@@ -166,9 +160,6 @@ class TestAnalyzeFrame:
         assert sig["to_52w_high"] is None
 
 
-# ---------------------------------------------------------------------------
-# Endpoint tests
-# ---------------------------------------------------------------------------
 
 _ROW_KEYS = {"symbol", "name", "type", "level", "close", "pct_above",
              "volume_ratio", "change", "to_52w_high", "sector", "spark"}
@@ -302,9 +293,6 @@ class TestEndpoint:
         assert second["breakouts"]["count"] == 1
 
 
-# ---------------------------------------------------------------------------
-# Today path: one OHLC batch for the whole universe, no per-symbol tape fetch
-# ---------------------------------------------------------------------------
 
 def _pin_today(monkeypatch):
     """Pin ``date`` to a completed session so the today scan path runs."""

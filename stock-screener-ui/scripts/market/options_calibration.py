@@ -57,9 +57,6 @@ TRADING_DAYS = 252
 PIT_BINS = 10
 
 
-# ---------------------------------------------------------------------------
-# Pure helpers
-# ---------------------------------------------------------------------------
 
 def finite(value: Any) -> Optional[float]:
     """Finite float or None (NaN/inf/None must never pass as a real number)."""
@@ -188,7 +185,7 @@ def build_session_series(rows: Iterable[dict]) -> list[dict]:
             try:
                 return (date.fromisoformat(exp).toordinal(), exp)
             except ValueError:
-                return (10**9, exp)  # unparseable expiries sort last
+                return (10**9, exp)
 
         front = min(expiries, key=expiry_sort_key) if expiries else None
         front_iv = atm_iv(expiries[front], spot) if (front and spot) else None
@@ -208,7 +205,6 @@ def build_session_series(rows: Iterable[dict]) -> list[dict]:
 
 
 def iv_rank_percentile(series: list[dict]) -> dict:
-    """Rank/percentile of the latest ATM IV within the window's IV series."""
     ivs = [s["atm_iv"] for s in series if s["atm_iv"] is not None]
     if not ivs:
         return {"n": 0, "min": None, "max": None, "latest": None,
@@ -221,7 +217,6 @@ def iv_rank_percentile(series: list[dict]) -> dict:
 
 
 def realised_vol(series: list[dict], window: int = 20) -> Optional[float]:
-    """Annualised close-to-close vol (percent) over the last ``window`` returns."""
     spots = [s["spot"] for s in series if s["spot"] is not None and s["spot"] > 0]
     if len(spots) < window + 1:
         return None
@@ -268,7 +263,6 @@ def cone_coverage(series: list[dict], horizon: int) -> dict:
 
 
 def term_snapshot(rows: Iterable[dict], as_of: Optional[str]) -> list[dict]:
-    """ATM IV by DTE for every expiry observed on ``as_of`` (latest session)."""
     if not as_of:
         return []
     by_expiry: dict[str, list[dict]] = {}
@@ -293,9 +287,6 @@ def term_snapshot(rows: Iterable[dict], as_of: Optional[str]) -> list[dict]:
     return out
 
 
-# ---------------------------------------------------------------------------
-# Database (SELECT-only, model-first with raw-SQL fallback)
-# ---------------------------------------------------------------------------
 
 _SQL = (
     "SELECT ts, underlying, expiry, strike, side, iv, spot, session_date "
@@ -320,7 +311,7 @@ def load_snapshots(source: Any, underlying: str, since: Optional[str] = None) ->
 
     error: Optional[str] = None
     try:
-        if hasattr(source, "query"):  # ORM session
+        if hasattr(source, "query"):
             try:
                 from db.models.option_snapshot import OptionChainSnapshot as Model
             except Exception:
@@ -350,7 +341,6 @@ def load_snapshots(source: Any, underlying: str, since: Optional[str] = None) ->
 
 
 def open_session(db_url: Optional[str] = None) -> tuple[Any, Any]:
-    """Open a SELECT-only SQLAlchemy session against the configured database."""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
@@ -366,9 +356,6 @@ def open_session(db_url: Optional[str] = None) -> tuple[Any, Any]:
     return sessionmaker(bind=engine)(), engine
 
 
-# ---------------------------------------------------------------------------
-# Report assembly + rendering
-# ---------------------------------------------------------------------------
 
 def build_report(rows: list[dict], underlying: str, days: int, horizon: int) -> dict:
     series = build_session_series(rows)
@@ -438,9 +425,6 @@ def render_report(report: dict) -> None:
         print("     (not enough expiries on the latest session)")
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(

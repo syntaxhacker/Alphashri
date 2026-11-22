@@ -62,9 +62,6 @@ def make_hit(conf, family, direction, start, end, pid="double_bottom"):
     )
 
 
-# ---------------------------------------------------------------------------
-# Edge cases
-# ---------------------------------------------------------------------------
 
 
 def test_none_input_returns_empty():
@@ -92,9 +89,6 @@ def test_unknown_timeframe_raises():
         detect_patterns(frame(np.linspace(100, 120, 80)), "bogus", "X")
 
 
-# ---------------------------------------------------------------------------
-# Orchestration
-# ---------------------------------------------------------------------------
 
 
 def test_engine_runs_and_fills_symbol_timeframe():
@@ -143,9 +137,6 @@ def test_engine_dedupes_overlapping_same_family_direction():
     assert len(reversal_bullish) == 1
 
 
-# ---------------------------------------------------------------------------
-# Dedupe algorithm
-# ---------------------------------------------------------------------------
 
 
 def test_dedupe_keeps_higher_confidence_overlap():

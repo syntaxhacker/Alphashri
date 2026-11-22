@@ -1,14 +1,4 @@
 #!/usr/bin/env python3
-"""QA: run the Deep Value scoring engine against the LIVE TradingView universe.
-
-Routes the scanner call through the single-source transport in ``api.tv``
-(``scan_frame`` + auth cookies) and scores with the production module
-(api/value_scan/scoring.py + filters.py) so the ranking can be sanity-checked
-against known names.
-
-Run:
-    .venv/bin/python scripts/market/qa_value_engine.py --market usa
-"""
 
 from __future__ import annotations
 

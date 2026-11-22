@@ -35,7 +35,6 @@ def load_csv(path: str) -> pd.DataFrame:
     df = df.set_index(t).sort_index()
     df = df.rename(columns={"open": "o", "high": "h", "low": "l", "close": "c"})
     df["vol"] = df["volume"].astype(float) if "volume" in df else 1.0
-    # the mirror occasionally repeats a minute; keep the last print
     df = df[~df.index.duplicated(keep="last")]
     return df[["o", "h", "l", "c", "vol"]]
 

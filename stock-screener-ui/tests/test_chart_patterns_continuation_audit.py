@@ -50,9 +50,6 @@ ROLES = {
 OWNED = sorted(ROLES)
 
 
-# ---------------------------------------------------------------------------
-# frame helpers
-# ---------------------------------------------------------------------------
 
 
 def frame(closes, spread: float = 0.5, high_cap=None, volume=None) -> pd.DataFrame:
@@ -100,9 +97,6 @@ def detector(pattern_id: str):
     return getattr(C, f"detect_{pattern_id}")
 
 
-# ---------------------------------------------------------------------------
-# geometries
-# ---------------------------------------------------------------------------
 
 
 def _ascending_channel():
@@ -187,9 +181,6 @@ GEOMETRIES = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Extra geometries for the regression guards (not part of GEOMETRIES)
-# ---------------------------------------------------------------------------
 
 
 def _descending_channel_broken_up():
@@ -269,9 +260,6 @@ def _bear_flag_wavy_pole():
     return frame(interp(pts, n))
 
 
-# ---------------------------------------------------------------------------
-# geometry helpers
-# ---------------------------------------------------------------------------
 
 
 def _pos_map(df):
@@ -318,9 +306,6 @@ def _boundary_stats(hit, df):
     return max_exc, n_beyond
 
 
-# ---------------------------------------------------------------------------
-# tests
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("pattern_id", OWNED)
@@ -443,9 +428,6 @@ def test_flags_breakout_meets_consolidation_box(pattern_id):
         assert hit.breakout_level == pytest.approx(upper[0]["price"], abs=1e-3)
 
 
-# ---------------------------------------------------------------------------
-# Regression guards for the reported viewing / correctness issues
-# ---------------------------------------------------------------------------
 
 
 def test_descending_channel_rejects_opposite_upper_break():

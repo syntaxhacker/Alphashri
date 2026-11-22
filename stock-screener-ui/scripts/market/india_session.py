@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""Next-session setup for the Indian market (NSE).
-
-Blocks:
-  1. INDEX CLOSE + tomorrow's classic pivot points / fib levels
-  2. BREADTH  (Nifty 50 constituents, adv/decline) and sector rotation
-  3. WATCHLISTS built with the same filters as the repo's TradingView scanners
-     (pre-breakout accumulation, intraday breakout, momentum, near-52w-high)
-  4. OVERNIGHT CUES (GIFT Nifty, crude, US futures) so the open can be anticipated
-
-Usage:
-    python scripts/market/india_session.py
-    python scripts/market/india_session.py --watchlists-only
-"""
 
 from __future__ import annotations
 
@@ -27,7 +14,6 @@ from market.tv_client import scanner_frame  # noqa: E402
 
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 
-# Nifty 50 constituents (Wikipedia, incl. the Sep-2026 reshuffle)
 NIFTY50 = """ADANIENT ADANIPORTS APOLLOHOSP ASIANPAINT AXISBANK BAJAJ-AUTO BAJFINANCE BAJAJFINSV BEL
 BHARTIARTL BSE CIPLA COALINDIA DRREDDY EICHERMOT ETERNAL GRASIM HCLTECH HDFCBANK HDFCLIFE HINDALCO
 HINDUNILVR ICICIBANK INDIGO INFY ITC JIOFIN JSWSTEEL KOTAKBANK LT M&M MARUTI MAXHEALTH NESTLEIND NTPC
@@ -108,7 +94,6 @@ def main() -> int:
         print("\n=== SECTOR ROTATION (mcap-weighted, >₹500cr) ===")
         print(rot.to_string())
 
-    # --- watchlists, same filters as the repo's TradingView scanners ---
     pre, _ = scanner_frame("india", columns=STOCK_COLS, filters=[
         {"left": "close", "operation": "greater", "right": 50},
         {"left": "volume", "operation": "greater", "right": 500000},

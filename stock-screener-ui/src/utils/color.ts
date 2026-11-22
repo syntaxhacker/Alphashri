@@ -2,10 +2,7 @@ import { alpha } from "@/ui/alpha";
 
 export { alpha } from "@/ui/alpha";
 
-/**
- * Convert hex color to rgba string with alpha.
- * Supports 3-char (#RGB) and 6-char (#RRGGBB) hex.
- */
+/** Accepts 3-char (#RGB) and 6-char (#RRGGBB) hex. */
 export function withAlpha(hex: string, opacity: number): string {
   let h = hex.replace("#", "");
   if (h.length === 3) {
@@ -20,9 +17,6 @@ export function withAlpha(hex: string, opacity: number): string {
   return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
 
-/**
- * Hex to rgba via local alpha (handles 3-char hex).
- */
 export function hexToRgba(hex: string, opacity: number): string {
   return alpha(hex, opacity);
 }

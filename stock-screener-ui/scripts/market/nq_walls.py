@@ -45,7 +45,7 @@ HEADERS = {
                   "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
 }
 FIELDS = "strike,openInterest,volume,lastPrice,bidPrice,askPrice,impliedVolatility,optionType"
-MONTH_CODE = "FGHJKMNQUVXZ"  # Jan..Dec futures month codes
+MONTH_CODE = "FGHJKMNQUVXZ"
 
 
 def api(path: str) -> dict[str, Any]:
@@ -67,7 +67,6 @@ def front_contract(root: str = "NQ") -> tuple[str, float, float | None, float | 
 
 
 def weekly_series(when: dt.date) -> tuple[str, dt.date]:
-    """MQ<week-of-month><month><yy> for the Friday of `when`'s week."""
     fri = when + dt.timedelta(days=(4 - when.weekday()) % 7)
     week = (fri.day - 1) // 7 + 1
     return f"MQ{week}{MONTH_CODE[fri.month - 1]}{fri.year % 100:02d}", fri
@@ -94,7 +93,6 @@ def fetch_chain(series: str) -> dict[str, dict[float, dict[str, Any]]]:
 
 
 def max_pain(calls: dict, puts: dict) -> float:
-    """Strike that minimises total in-the-money payout across the chain."""
     best_k, best = 0.0, None
     for k in sorted(set(calls) | set(puts)):
         pain = sum((k - s) * calls[s]["oi"] for s in calls if s < k)
@@ -105,7 +103,6 @@ def max_pain(calls: dict, puts: dict) -> float:
 
 
 def atm_straddle(calls: dict, puts: dict, spot: float) -> float | None:
-    """Implied move (%) from the ATM call+put mid, when both are quoted."""
     ks = [k for k in calls if k in puts and k > 0]
     if not ks:
         return None
@@ -179,14 +176,12 @@ def show(r: dict[str, Any]) -> None:
 
 def render_ascii(r: dict[str, Any], change_pct: float | None = None,
                  live_tag: str = "") -> None:
-    """Mirror-histogram ladder: put OI left, call OI right, spot/walls/pain marked."""
     spot = r["spot"]
     calls, puts = r["calls"], r["puts"]
     cw = r["call_wall"][0]
     pw = r["put_wall"][0]
     mp = r["max_pain"]
 
-    # always show both walls, plus 3% around spot
     lo = min(pw * 0.99, spot * 0.97)
     hi = max(cw * 1.01, spot * 1.03)
     span = hi - lo
@@ -248,7 +243,6 @@ def render_ascii(r: dict[str, Any], change_pct: float | None = None,
 
 
 def render_map(r: dict[str, Any]) -> None:
-    """One-line level map: put wall --- spot --- max pain --- call wall."""
     s, pw, cw, mp = r["spot"], r["put_wall"][0], r["call_wall"][0], r["max_pain"]
     lo, hi = min(pw, s, mp), max(cw, s, mp)
     pad = (hi - lo) * 0.04
@@ -278,7 +272,6 @@ def render_summary(r: dict[str, Any]) -> None:
 
 
 def tv_price(symbol: str = "CME_MINI:NQ1!") -> float | None:
-    """Live-ish last price from TradingView's scanner (falls back to None)."""
     body = {"symbols": {"tickers": [symbol], "query": {"types": []}}, "columns": ["close"]}
     try:
         response = scan_raw("futures", body, timeout=20)
@@ -329,7 +322,7 @@ def render_all(contract: str, spot: float, chg: float | None, pts: float | None,
 
 
 def watch(args: argparse.Namespace, interval: int) -> None:
-    args.spot = None  # always re-read the live price each cycle
+    args.spot = None
     try:
         while True:
             stamp = dt.datetime.now().strftime("%H:%M:%S")

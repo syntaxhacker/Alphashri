@@ -1,10 +1,4 @@
 /**
- * Reusable persistence layer for table preferences.
- *
- * The table itself owns the sort cycle, column picker and TanStack signal; this
- * module only owns the durable array. Nothing here renders or mutates a table —
- * a later lane wires `prefs()` / `setSorting()` into `TanStackTable`.
- *
  * One store per `tableId` is shared by all mounts of that table (ref-counted),
  * so two tabs of the same screen hydrate once and cannot drift into separate
  * debounce writers. Different `tableId`s get different scopes and payloads.

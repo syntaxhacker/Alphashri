@@ -16,7 +16,6 @@ import type { WallsEvent, WallsRow } from "@/api/reportNifty";
  * breaks identically.
  */
 
-/** Chip colour per wall state; unknown states fall back to muted text. */
 export const STATE_COLOR: Record<string, string> = {
   BREAK: palette.NEGATIVE,
   PIN_RISK: palette.WARNING,

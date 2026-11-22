@@ -35,6 +35,7 @@
 2. Pre-PR gate: `bun run lint`, `bun run build`, targeted unit + E2E for the touched areas, and `npx tsc --noEmit 2>&1 | grep -c "error TS"` (record the count; it must not rise).
 3. `git push -u origin <branch>`, then `gh pr create --base develop`. The body lists areas changed, behaviour changes (auth, migrations), verification commands/counts, and a test plan.
 4. Wait for checks. PR-to-`develop` runs **E2E Smoke (22)** + frontend unit/lint + 6 Python shards + GitGuardian; **E2E Full (20 shards) never runs on PR-to-develop**. Full E2E is deliberately main-only: it runs on push to `main`, on PR-to-`main`, and on the 02:00 nightly schedule, because 20 shards is slow and the smoke set is the accepted gate for feature branches. There is **no `workflow_dispatch` trigger** in `test.yml`, so a branch cannot request the full suite — treat smoke plus the touched test files as the gate, and let the release PR to `main` run the rest.
+5. **Attach UI screenshots to every PR with user-visible UI changes.** This is mandatory, not optional. Commit the evidence under `stock-screener-ui/docs/screenshots/<feature>/` (`reports/**` is gitignored) and embed the images in the PR body or a PR comment using their raw GitHub URLs. Cover **1600 and 390** plus every new/changed mode, selector and empty/loading/error state. Read each PNG back before claiming it; a blank canvas, a suspiciously small file, or `undefined`/`NaN` text means the change is not done. Refresh the screenshots in the same commit as the UI change. See `docs/SCREENSHOT_EVIDENCE.md` for the checklist.
 5. Merge with `gh pr merge <n> --merge` (preserves commit messages/measurements; do not squash a multi-commit bundle unless the user asks). Never `--admin`/bypass.
 6. `git switch develop && git pull --ff-only`; verify the merge commit and that the key files/fields actually landed.
 7. Delete the merged branch with `git branch -d <branch>` and `git push origin --delete <branch>` — only after step 6 verifies. An ancestor `feat/…` branch is also redundant; confirm before deleting it.
@@ -223,7 +224,7 @@ src/
 - `fetch_intraday_data_v3` for today, `fetch_historical_data_v3` for past dates
 - API routes in `stock-screener-ui/api/`, DB models in `db/models.py`
 - **Trades endpoint** (`/api/paper/trades`): queries PostgreSQL first, falls back to journal files. The `get_trades` and `_get_trades_from_db` functions handle this.
-- **Chart endpoint** (`/api/paper/chart/{symbol}`): has a known timezone mismatch bug on production — `fetch_historical_data_v3` returns data with UTC index but filtering uses `config.IST` (UTC+5:30), causing 0 rows after date filter. Works locally because `railway run` may use different config. Investigate: compare `df_1m_full.index.tz` vs `config.IST` in the Docker container.
+- **Chart endpoint** (`/api/paper/chart/{symbol}`): has a known timezone mismatch bug in hosted runs — `fetch_historical_data_v3` returns data with UTC index but filtering uses `config.IST` (UTC+5:30), causing 0 rows after date filter. Works in some local runs because the runtime config differs. Investigate: compare `df_1m_full.index.tz` vs `config.IST` in the affected environment.
 - **Local dev data**: prod DB can be dumped to local SQLite via `python scripts/dump_prod_to_local.py`. Note: trades have `user_id=1` in prod, local user may be different — update `user_id` after dump.
 - **Trading costs**: `backtest/costs.py:calculate_trading_costs()` is the single source of truth. Both `runner_signals.py` and `paper_portfolio.py` use it — never use flat `trade_value * 0.0006`.
 - **Background screener tasks** (prewarm + 52W range batch) are started in the lifespan and gated to market hours. The 52W batch now does a prompt initial run shortly after `start.sh` (during market hours) rather than waiting the full interval — see the dedicated 52W section for agent behavior around this.
@@ -512,7 +513,9 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 
 ## Deployment & Production
 
-See [PRODUCTION.md](./PRODUCTION.md) for infrastructure, deployment, Railway CLI, logs, Redis, and post-push verification.
+**Railway is not in use.** Do not reference, propose, or plan around Railway, `railway` CLI, Railway URLs, or Railway deploy checks. The project is currently run personally/locally. The Railway sections in [PRODUCTION.md](./PRODUCTION.md) are historical notes only and must not be treated as the current architecture.
+
+GitHub Actions may be used for scheduled batch compute, but it cannot write to a local SQLite file. Any Actions-based refresh needs an explicitly agreed durable target (a remote Postgres/Redis/object store, a checked-in handoff, or a self-hosted runner on the personal machine) — never an assumed hosted backend.
 
 ## Testing
 - Frontend: vitest, files co-located as `*.test.ts` / `*.test.tsx`
@@ -581,7 +584,8 @@ npx vitest run src/components/common/SymbolAutocomplete.test.tsx  # use vitest f
 - See [MUTATION_TESTING.md](./MUTATION_TESTING.md) for advanced testing guide
 
 ## Agent Fleet / Subagent Routing
-- **Default subagent model: `opencode/nemotron-3.5-super-vl-free` ("Nemotron 3.5 Super VL Free", $0).** Use it for every subagent unless the user names a different model. Model routing is owned by `SUBAGENT_RULES.md §9` — that section is authoritative; do not keep a second copy of the pool here.
+- **Default and only subagent model: `opencode-go/hy4-flash-free` ("Hy4 flash Free" under OpenCode Go).** Every subagent call MUST pass `model: "opencode-go/hy4-flash-free"` explicitly; omitting the model (which falls back to a harness default) is a violation. Do not use `opencode/nemotron-3.5-super-vl-free`, `opencode/hy4-flash-free`, DeepSeek, or any other provider/model. Model routing is owned by `SUBAGENT_RULES.md §9` — that section is authoritative; do not keep a second copy of the pool here.
+- **Always dispatch subagents in the background by default** (`background: true`). Do not wait on a foreground subagent unless the user explicitly asks for a blocking result. Keep working on non-overlapping integration/tests; merge when each lane reports.
 - Free-tier quota is finite — if a free model returns `Free usage limit reached`, report it and retry later or escalate that one agent, stating why.
 - Escalate a single agent to a stronger model **only** for correctness-critical work (adversarial verification, final holdout) and state why.
 - Long-running loop protocol (waves, ledger, gates, **fill-honesty audit**) lives in the **`non-stop`** skill.

@@ -26,7 +26,6 @@ def _overlaps(a, b) -> bool:
 
 
 def _dedupe(hits: list) -> list:
-    """Drop a hit when a higher-confidence same-family/direction hit overlaps."""
     kept: list = []
     for hit in hits:  # already sorted confidence desc
         duplicate = False

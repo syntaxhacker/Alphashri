@@ -1,5 +1,5 @@
 export interface WindowState {
-  id: string;                 // instance id
+  id: string;
   type: string;               // panel type from a registry
   title: string;
   x: number; y: number;       // px within the canvas

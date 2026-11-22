@@ -55,7 +55,6 @@ def find_rows(payload: Any) -> list[dict[str, Any]]:
                 rows = [r for r in value if isinstance(r, dict)]
                 if rows:
                     return rows
-        # Some envelopes nest rows under meta/result — scan one level deep.
         for value in payload.values():
             if isinstance(value, dict):
                 for key in ROW_LIST_KEYS:
@@ -99,11 +98,10 @@ def completeness(rows: list[dict[str, Any]]) -> dict[str, float]:
 
 
 def fetch_once(session: requests.Session, url: str, timeout: float) -> dict[str, Any]:
-    """One streamed GET capturing wire bytes, headers and latency."""
     started = time.perf_counter()
     try:
         response = session.get(url, stream=True, timeout=timeout)
-        wire = response.raw.read(decode_content=False)  # as-transferred bytes
+        wire = response.raw.read(decode_content=False)
         latency_ms = (time.perf_counter() - started) * 1000.0
     except requests.RequestException as exc:
         return {

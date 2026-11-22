@@ -55,11 +55,6 @@ UNDERLYING_NAMES = {
 
 
 def underlying_name(underlying: str) -> str:
-    """Short, filesystem-safe name for an underlying key (``NIFTY``, ...).
-
-    Unknown underlyings fall back to the sanitised raw key, so an unknown
-    underlying still gets its OWN cache file instead of sharing NIFTY's.
-    """
     key = str(underlying or "").strip()
     known = UNDERLYING_NAMES.get(key)
     if known:
@@ -69,13 +64,9 @@ def underlying_name(underlying: str) -> str:
 
 
 def _same_underlying(a, b) -> bool:
-    """Case/whitespace-insensitive underlying comparison."""
     return str(a or "").strip().upper() == str(b or "").strip().upper()
 
 
-# ---------------------------------------------------------------------------
-# pure helpers (unit-tested, no network)
-# ---------------------------------------------------------------------------
 def _norm_opt(opt: str | None) -> str | None:
     if opt is None:
         return None
@@ -250,9 +241,7 @@ def save_cached_contracts(
     return path
 
 
-# ---------------------------------------------------------------------------
 # live sources (network, read-only)
-# ---------------------------------------------------------------------------
 def _get(path: str, params: dict, timeout: float):
     return upstox_common.get(path, params, timeout)
 
@@ -268,7 +257,6 @@ def fetch_contracts(underlying: str, expiry: str, timeout: float = 10.0) -> list
 
 
 def fetch_chain_contracts(underlying: str, expiry: str, timeout: float = 10.0) -> list[dict]:
-    """GET /option/chain → normalised rows (chain legs carry instrument keys)."""
     raw = _get(
         "/option/chain",
         {"instrument_key": underlying, "expiry_date": expiry},
@@ -314,9 +302,6 @@ def resolve_option_key(
     return None, "contract"
 
 
-# ---------------------------------------------------------------------------
-# cli
-# ---------------------------------------------------------------------------
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         prog="upstox_contract",

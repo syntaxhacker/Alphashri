@@ -42,7 +42,6 @@ def _now_iso() -> str:
 
 
 def configure(max_queue=None, max_workers=None, runner=_UNSET) -> None:
-    """Test/ops hook to adjust queue limits or inject a runner."""
     global PATTERN_SCAN_MAX_QUEUE, PATTERN_SCAN_MAX_WORKERS, _runner
     if max_queue is not None:
         PATTERN_SCAN_MAX_QUEUE = int(max_queue)
@@ -53,7 +52,6 @@ def configure(max_queue=None, max_workers=None, runner=_UNSET) -> None:
 
 
 def reset() -> None:
-    """Clear all in-memory queue state (tests)."""
     global _runner
     with _lock:
         _jobs.clear()
@@ -265,7 +263,6 @@ def _run_worker(job_id: str) -> None:
 
 
 def update_state(job_id: str, persist: bool = True, **fields: Any) -> Optional[dict]:
-    """Update a job's in-memory DTO, Redis mirror, and (optionally) DB row."""
     with _lock:
         job = _jobs.get(job_id)
         if job is None:
@@ -302,7 +299,6 @@ def get_job(job_id: str) -> Optional[dict]:
 
 
 def list_active() -> list[dict]:
-    """Return queued + running jobs, overlaying live in-memory state."""
     with _lock:
         memory = {jid: dict(job) for jid, job in _jobs.items() if job.get("status") in ("queued", "running")}
     rows = {row["job_id"]: _overlay_persisted_extras(row) for row in store.list_jobs(active_only=True, limit=200)}
@@ -345,7 +341,6 @@ def cancel(job_id: str) -> Optional[dict]:
             _persist(job)
             _mirror(job)
         else:
-            # Signal the running worker; it flips the status when it notices.
             job["status"] = "cancelled"
             job["queue_position"] = None
             job["finished_at"] = _now_iso()
@@ -355,7 +350,6 @@ def cancel(job_id: str) -> Optional[dict]:
 
 
 def rehydrate(limit: int = 200) -> int:
-    """Reload queued/running jobs from the DB after a process restart."""
     count = 0
     with _lock:
         for row in store.list_jobs(active_only=True, limit=limit):

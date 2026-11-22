@@ -426,8 +426,6 @@ describe("usePatternFullscreen (page) stale marker vs displayed candle date", ()
     expect(api.fullscreen()?.dataAsOf).toBeNull();
   });
 
-  // Display freshness and detection freshness are separate axes: the chart can
-  // show today's tape bar while the hits stay on the completed session.
   test("a current display keeps detection_as_of for the dock caveat", async () => {
     vi.mocked(fetchSymbolChart).mockResolvedValue({
       ...staleChart(["2026-11-13", "2026-11-16"], "2026-11-16"),

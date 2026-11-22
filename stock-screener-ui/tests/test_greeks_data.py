@@ -19,9 +19,6 @@ from india_board.scripts import greeks_data
 from india_board.scripts.greeks_data import IST
 
 
-# ---------------------------------------------------------------------------
-# helpers
-# ---------------------------------------------------------------------------
 def _row(
     strike,
     *,
@@ -123,9 +120,6 @@ def _hermetic_fyers(monkeypatch):
     return stub
 
 
-# ---------------------------------------------------------------------------
-# (a) symmetric smile -> RR/butterfly ~ 0
-# ---------------------------------------------------------------------------
 class TestSymmetricSmile:
     def test_atm_and_25d(self):
         out = greeks_data.iv_metrics(_symmetric_chain())
@@ -145,9 +139,6 @@ class TestSymmetricSmile:
         assert out["min_iv"]["iv"] == pytest.approx(0.18)
 
 
-# ---------------------------------------------------------------------------
-# (b) put skew -> risk reversal > 0
-# ---------------------------------------------------------------------------
 class TestPutSkew:
     def test_put_skew_positive_rr(self):
         out = greeks_data.iv_metrics(_put_skew_chain())
@@ -163,9 +154,6 @@ class TestPutSkew:
         )
 
 
-# ---------------------------------------------------------------------------
-# (c) missing greeks -> None + reason, GEX falls back to bs_backsolved
-# ---------------------------------------------------------------------------
 class TestMissingGreeks:
     def test_iv_metrics_no_delta(self):
         out = greeks_data.iv_metrics(_no_greek_chain())
@@ -207,9 +195,6 @@ class TestMissingGreeks:
         assert out["rows"] == []
 
 
-# ---------------------------------------------------------------------------
-# (d) 25-delta interpolation across uneven strike spacing
-# ---------------------------------------------------------------------------
 class TestDeltaInterpolation:
     def test_uneven_spacing(self):
         # call deltas deliberately non-uniform; target 0.25 sits between
@@ -236,9 +221,6 @@ class TestDeltaInterpolation:
         assert out["reason"] == "delta_out_of_range"
 
 
-# ---------------------------------------------------------------------------
-# (e) true-gamma GEX + interpolated gamma flip
-# ---------------------------------------------------------------------------
 class TestTrueGammaGex:
     def _chain(self):
         # spot 105; net GEX: +, +, -, - -> single crossing between 100 and 110
@@ -286,9 +268,6 @@ class TestTrueGammaGex:
         assert out["net_gex"] < 0
 
 
-# ---------------------------------------------------------------------------
-# (f) iv_rank / percentile on a known series
-# ---------------------------------------------------------------------------
 class TestIvRank:
     def test_exact_values(self):
         series = list(range(10, 20))  # 10..19, n=10
@@ -317,9 +296,6 @@ class TestIvRank:
         assert greeks_data.iv_rank(None, series)["reason"] == "iv_now_missing"
 
 
-# ---------------------------------------------------------------------------
-# (g) VRP bands
-# ---------------------------------------------------------------------------
 class TestVrp:
     def test_expensive(self):
         out = greeks_data.vrp(0.20, 0.15)
@@ -347,9 +323,6 @@ class TestVrp:
         assert greeks_data.vrp(0.2, 0.0)["verdict"] == "UNKNOWN"
 
 
-# ---------------------------------------------------------------------------
-# term structure
-# ---------------------------------------------------------------------------
 class TestTermStructure:
     def test_contango_and_dte(self):
         today = datetime.now(IST).date()
@@ -386,9 +359,6 @@ class TestTermStructure:
         assert out["expiries"][0]["expiry"] == "2026-09-28"
 
 
-# ---------------------------------------------------------------------------
-# (h) summarize is JSON-safe, (i) empty/partial chains never raise
-# ---------------------------------------------------------------------------
 class TestSummarize:
     def test_bundle_keys_and_json_round_trip(self):
         today = datetime.now(IST).date()

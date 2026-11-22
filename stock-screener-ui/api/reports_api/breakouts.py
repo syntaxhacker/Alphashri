@@ -191,7 +191,6 @@ def analyze_frame(df, *, symbol: str = "") -> Optional[dict]:
         kind: Optional[str] = None
         level: Optional[float] = None
         side: Optional[str] = None
-        # --- upside: 52w first, then gap, then smallest qualifying base ---
         if has_52w and w52_high is not None and close > w52_high:
             kind, level, side = "52w_high", w52_high, "up"
         elif open_ >= ph20 * GAP_PCT and close > ph20:
@@ -204,7 +203,6 @@ def analyze_frame(df, *, symbol: str = "") -> Optional[dict]:
                 if close > lvl and _base_ok(highs[-n:], lows[-n:], closes[-n:]):
                     kind, level, side = f"base_{n}", lvl, "up"
                     break
-        # --- downside mirror ---
         if kind is None:
             if has_52w and w52_low is not None and close < w52_low:
                 kind, level, side = "52w_low", w52_low, "down"

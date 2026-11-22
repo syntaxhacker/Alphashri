@@ -26,7 +26,6 @@ function dedupe(walls: NiftyWall[]): NiftyWall[] {
   return [...byStrike.values()];
 }
 
-/** Nearest *significant* wall, not merely the heaviest in the ±300 window. */
 function nearestLevel(
   walls: NiftyWall[] | undefined,
   near: NiftyWall[] | undefined,
@@ -90,7 +89,6 @@ function confluenceLabel(
 
 function LevelInline(props: { side: "CE" | "PE"; level: LevelRead | null; rowLabel: string }) {
   const tone = props.side === "CE" ? palette.TERM_CE : palette.TERM_PE;
-  // A level AT spot is a barrier: a call wall caps (red), a put wall holds (green).
   const atColor = props.side === "CE" ? palette.NEGATIVE : palette.POSITIVE;
   const atTint = props.side === "CE" ? palette.TINT_NEGATIVE : palette.TINT_POSITIVE;
   const testId = `levels-${props.side.toLowerCase()}-${props.rowLabel}`;

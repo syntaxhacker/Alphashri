@@ -27,16 +27,12 @@ export interface PatternCardProps {
   onClick?: (hit: PatternHitDTO) => void;
   onExpand?: (hit: PatternHitDTO) => void;
   onShowMembers?: (symbol: string) => void;
-  /** View-only filter for standalone support/resistance lines. */
   trendlinesView?: TrendlinesView;
-  /** Hover intent for the right-side symbol preview (host debounces). */
   onSymbolPreview?: (symbol: string) => void;
   onSymbolPreviewEnd?: (symbol: string) => void;
-  /** Chart icon: open the symbol in the right-side chart. */
   onSymbolOpen?: (symbol: string) => void;
 }
 
-/** Derived display tone → shared `Badge` colour token. */
 const STATUS_BADGE_COLOR: Record<string, string> = {
   success: "success",
   warning: "warning",
@@ -45,7 +41,6 @@ const STATUS_BADGE_COLOR: Record<string, string> = {
   neutral: "default",
 };
 
-/** One stat cell: 10px label left, 11px mono value right. No rules, no cells. */
 function Metric(props: { label: string; value: string }) {
   return (
     <Box className="flex min-w-0 flex-1 items-center justify-between gap-2 px-1.5">
@@ -65,7 +60,6 @@ function Metric(props: { label: string; value: string }) {
   );
 }
 
-/** One pattern result card in the grid. */
 export function PatternCard(props: PatternCardProps) {
   const hit = () => props.hit;
   const selected = () => props.selected ?? false;
@@ -135,8 +129,6 @@ export function PatternCard(props: PatternCardProps) {
         data-selected={selected() ? "true" : undefined}
         className="flex min-w-0 flex-1 flex-col"
       >
-        {/* Hierarchy: the symbol is the only strong element, the pattern name sits
-            muted beneath it, and the state chip + bars-ago line align right. */}
         <Box className="flex min-w-0 items-start gap-2 px-1.5 pb-0.5 pt-1">
           <Box className="min-w-0 flex-1">
             <SymbolLink
@@ -169,7 +161,6 @@ export function PatternCard(props: PatternCardProps) {
           </Box>
           <Box className="flex shrink-0 flex-col items-end gap-1">
             <Tooltip label={display().tooltip} withArrow position="top">
-              {/* Borderless tinted chip: the card owns the only 1px rule. */}
               <Badge
                 data-testid={`patterns-status-${String(hit().status ?? "").toLowerCase()}`}
                 size="xs"
@@ -347,8 +338,6 @@ export function PatternCard(props: PatternCardProps) {
           </Box>
         </Show>
 
-        {/* Stat strip: one 18px line, background-shifted (no hairline) — the
-            card already has its single outer border. */}
         <Box className="flex h-[18px] min-w-0 items-center bg-fin-surface-alt">
           <Metric label="Score" value={formatScore(hit().confidence)} />
           <Metric label="Pos" value={formatRangePos(hit().range_pos)} />

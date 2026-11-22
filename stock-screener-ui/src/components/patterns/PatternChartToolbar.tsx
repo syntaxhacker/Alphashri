@@ -5,26 +5,16 @@ import type { TFSpec } from "@/types/chartPatterns";
 import { ChartTimeframeSelect } from "./ChartTimeframeSelect";
 
 export interface PatternChartToolbarProps {
-  /** Chart title (symbol, or `SYMBOL · Pattern name` in the fullscreen view). */
   title: JSX.Element;
-  /** Optional test id for the title text (page header keeps `chart-title`). */
   titleTestId?: string;
-  /** Title typography size (default `sm`; the page header uses `md`). */
   titleSize?: "sm" | "md";
-  /** Optional node rendered before the title (e.g. the page's back button). */
   leading?: JSX.Element;
-  /** Active timeframe; the selector only renders when set with onChange. */
   timeframe?: string | null;
-  /** Timeframe ladder for the selector. */
   timeframes?: TFSpec[];
   onTimeframeChange?: (timeframe: string) => void;
-  /** Small spinner shown next to the controls while a reload is in flight. */
   loading?: boolean;
-  /** As-of replay cutoff (ISO local datetime, null = live). */
   asOf?: string | null;
-  /** Replay window start (ISO local datetime, null = any). */
   fromDate?: string | null;
-  /** When provided, the From/as-of replay inputs render. */
   onAsOfChange?: (asOf: string | null, fromDate: string | null) => void;
 }
 

@@ -1,18 +1,10 @@
-/**
- * Shared tape normalization + chronological sort used by the participant-flow
- * and wall-migration builders. Extracted so the bucket size, empty handling and
- * clock ordering cannot drift between the two.
- */
 import { clockMinutes } from "./tapeRange";
 
 export interface SortedTape<T extends { t?: string }> {
-  /** Resolved bucket size (defaults to `defaultBucketMin`). */
   bucketMin: number;
-  /** Rows sorted ascending by tape clock; unparseable timestamps trail in input order. */
   ordered: T[];
 }
 
-/** Normalize `rows`, resolve `bucketMin` and sort chronologically by clock. */
 export function sortTapeRows<T extends { t?: string }>(
   rows: T[],
   defaultBucketMin: number,

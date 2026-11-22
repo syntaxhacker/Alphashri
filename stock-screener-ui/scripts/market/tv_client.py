@@ -1,15 +1,3 @@
-"""Shared clients for the market-research scripts (TradingView scanner + options).
-
-Used by:
-  - us_earnings.py      earnings prints, surprise %, market reaction, implied moves
-  - us_fundamentals.py  valuation / quality / trend panel for US large caps
-  - ai_value.py         value screen over the AI complex
-  - india_session.py    next-session setup for the Indian market
-  - futures_cue.py      global cue snapshot (futures, crude, GIFT Nifty, VIX)
-
-All data comes from TradingView's public scanner endpoints plus Yahoo Finance
-options chains. No API keys, no auth, no cookies.
-"""
 
 from __future__ import annotations
 
@@ -41,12 +29,6 @@ def scan(
     limit: int = 500,
     tickers: Iterable[str] | None = None,
 ) -> pd.DataFrame:
-    """Run a TradingView scanner query and return a tidy DataFrame.
-
-    ``filters`` uses the raw TV filter dialect, e.g.
-    ``[{"left": "change", "operation": "less", "right": -2}]``.
-    Multiple filters are ANDed by the endpoint.
-    """
     return scan_frame(
         market,
         columns=columns or DEFAULT_COLUMNS,
@@ -59,13 +41,11 @@ def scan(
 
 
 def scanner_frame(market: str, **kwargs: Any) -> pd.DataFrame:
-    """Convenience wrapper: scan() + numeric coercion + ``sym`` column."""
     return add_symbol(scan(market, **kwargs))
 
 
 @dataclass(frozen=True)
 class ImpliedMove:
-    """Options-implied move for one earnings event."""
 
     symbol: str
     price: float
@@ -96,7 +76,7 @@ def implied_move(symbol: str, event_date: str | dt.date, max_window_days: int = 
 
     Returns ``None`` when the chain is unavailable (bad symbol, no listed options).
     """
-    import yfinance as yf  # imported lazily: only the earnings scripts need it
+    import yfinance as yf
 
     ev = event_date if isinstance(event_date, dt.date) else dt.date.fromisoformat(str(event_date))
     t = yf.Ticker(symbol)
@@ -137,7 +117,6 @@ def implied_move(symbol: str, event_date: str | dt.date, max_window_days: int = 
 
 
 def earnings_table(symbols: Sequence[str], lookback_days: int = 10) -> pd.DataFrame:
-    """Latest earnings event per symbol: date, estimate, reported EPS, surprise %."""
     import yfinance as yf
 
     cutoff = dt.date.today() - dt.timedelta(days=lookback_days)

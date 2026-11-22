@@ -1,20 +1,6 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { safeNum } from "@/utils/reportParsers";
 import { ascTapeByTime } from "./tapeRange";
-/**
- * Flow-event strip builder — pure, no store, no network.
- *
- * Collapses the tape into a thin lane of events:
- * - `burst`: a minute whose |ΔOI| (first difference of the cumulative
- *   `call_doi`/`put_doi`) meets `burstThreshold` (default 2M units).
- * - `wall`: the top call-wall or top put-wall strike changed.
- * - `maxpain`: `max_pain` changed.
- * - `atm`: `atm_strike` changed.
- *
- * Side convention: put build / call unwind read bullish (green); call build /
- * put unwind read bearish (red); wall / max-pain / ATM shifts are structural
- * (neutral, amber in the strip).
- */
 
 export type FlowKind = "burst" | "wall" | "maxpain" | "atm";
 export type FlowSide = "bullish" | "bearish" | "neutral";
@@ -35,11 +21,8 @@ export interface FlowEvent {
   kind: FlowKind;
   label: string;
   side: FlowSide;
-  /** Contracts for bursts, points for wall/max-pain/ATM shifts. */
   magnitude: number;
-  /** Signed change: contracts for bursts, points for structural shifts. */
   delta: number;
-  /** Segment identity used for run-length grouping (`put-unwind`, `call-build`, …). */
   segment: string;
 }
 
@@ -49,7 +32,6 @@ interface FlowOptions {
 
 const FLOW_BURST_THRESHOLD = 2_000_000;
 
-/** Burst leg + direction → the human stem used by an aggregated bucket. */
 const FLOW_SEGMENT_STEM: Record<string, string> = {
   "put-build": "Put build",
   "put-unwind": "Put unwind",
@@ -57,10 +39,7 @@ const FLOW_SEGMENT_STEM: Record<string, string> = {
   "call-unwind": "Call unwind",
 };
 
-/** Default number of buckets shown in the one-line summary. */
-/** The text lane shows only the newest runs; the tooltip keeps the full list. */
 export const FLOW_SUMMARY_MAX_LABELS = 3;
-/** Default character budget for the one-line summary (tail-biased). */
 export const FLOW_SUMMARY_MAX_CHARS = 160;
 
 function fmtInt(v: number): string {
@@ -83,7 +62,6 @@ export function buildFlowEvents(rows: FlowTapeRow[], opts: FlowOptions = {}): Fl
     const prev = asc[i - 1];
     const cur = asc[i];
 
-    // Burst-like minutes on either side's first difference.
     const dCall = safeNum(cur.call_doi) - safeNum(prev.call_doi);
     const dPut = safeNum(cur.put_doi) - safeNum(prev.put_doi);
     if (Math.abs(dCall) >= threshold) {
@@ -109,7 +87,6 @@ export function buildFlowEvents(rows: FlowTapeRow[], opts: FlowOptions = {}): Fl
       });
     }
 
-    // Top wall-strike changes.
     const pc = safeNum(cur.walls?.call);
     const pp = safeNum(prev.walls?.call);
     if (pc !== pp && pc > 0 && pp > 0) {
@@ -137,7 +114,6 @@ export function buildFlowEvents(rows: FlowTapeRow[], opts: FlowOptions = {}): Fl
       });
     }
 
-    // Max-pain changes.
     const mpC = safeNum(cur.max_pain ?? cur.maxPain);
     const mpP = safeNum(prev.max_pain ?? prev.maxPain);
     if (mpC !== mpP && mpC > 0 && mpP > 0) {
@@ -152,7 +128,6 @@ export function buildFlowEvents(rows: FlowTapeRow[], opts: FlowOptions = {}): Fl
       });
     }
 
-    // ATM-strike roll.
     const aC = safeNum(cur.atm_strike);
     const aP = safeNum(prev.atm_strike);
     if (aC !== aP && aC > 0 && aP > 0) {
@@ -231,7 +206,6 @@ export function groupFlowRuns(events: FlowEvent[]): FlowBucket[] {
   const out: FlowBucket[] = [];
   for (const e of events ?? []) {
     const prev = out[out.length - 1];
-    // Only burst runs collapse; structure is one row per move.
     if (prev && e.kind === "burst" && prev.kind === "burst" && prev.segment === e.segment) {
       const merged = [...prev.events, e];
       const total = prev.total + e.delta;

@@ -18,7 +18,6 @@ from unittest.mock import patch
 
 import pandas as pd
 
-# Add project root to path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 

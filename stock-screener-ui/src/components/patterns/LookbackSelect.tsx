@@ -9,14 +9,11 @@ export interface LookbackSelectProps {
   onChange: (value: number | null) => void;
 }
 
-/** Lookback (in bars) selector for the Patterns scan bar. */
 export function LookbackSelect(props: LookbackSelectProps) {
   const data = [
     { value: "auto", label: "Auto" },
     ...LOOKBACK_OPTIONS.map((n) => ({ value: String(n), label: String(n) })),
   ];
-  // `UISelectProps` has no `title` (it is never forwarded to the DOM), so the
-  // hint rides on a Tooltip wrapper instead of being silently dropped.
   return (
     <Tooltip label="Bars of history the detector reads before forming a pattern (Auto = preset default)">
       <Select

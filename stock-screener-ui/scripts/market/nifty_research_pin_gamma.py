@@ -53,16 +53,15 @@ OUT_HTML = ROOT / f"reports/nifty_{SESSION}/research/pin_gamma.html"
 # would be fiction; a session recorded to the close has no cutoff.
 CUTOFF: str | None = "14:07:59"
 
-PIN_BAND = 25.0          # half-width of the "at the pin" band, in index points
-SURFACE_STEP_MIN = 5     # 3D surface is sampled every 5 minutes
+PIN_BAND = 25.0
+SURFACE_STEP_MIN = 5
 SURFACE_PAD_STRIKES = 250
 PROFILE_PAD_STRIKES = 250
-AFTERNOON_MIN = 12 * 60  # wall-clock 12:00, the "afternoon" split every page uses
+AFTERNOON_MIN = 12 * 60
 
 
 def configure(session: str, expiry: str | None = None, out_dir: Path | None = None,
               clip: str | None | bool = "auto") -> None:
-    """Point the module at one session and one output directory."""
     global SESSION, EXPIRY, SNAPSHOT_PATH, TAPE_PATH, FUTURES_PATH, OUT_JSON, OUT_HTML, CUTOFF
     SESSION = session
     EXPIRY = expiry or session
@@ -78,9 +77,6 @@ def configure(session: str, expiry: str | None = None, out_dir: Path | None = No
         CUTOFF = clip  # type: ignore[assignment]
 
 
-# ---------------------------------------------------------------------------
-# loading + pure maths
-# ---------------------------------------------------------------------------
 def minute_of(hhmmss: str) -> int:
     return int(hhmmss[:2]) * 60 + int(hhmmss[3:5])
 
@@ -133,12 +129,6 @@ def flip_level(per: list[dict], spot: float) -> float | None:
 
 
 def local_flip(per: list[dict], spot: float) -> float | None:
-    """Nearest strike where the *profile* turns negative -> positive.
-
-    This is the level the tape actually respects: below it the strikes add
-    short gamma, above it they add long gamma. Unlike the cumulative flip it
-    is defined even when the book as a whole is net short.
-    """
     prev: tuple[float, float] | None = None
     crossings: list[float] = []
     for entry in per:
@@ -258,9 +248,6 @@ def build_null(spot, max_pain, put_wall, call_wall, start_label: str,
     }
 
 
-# ---------------------------------------------------------------------------
-# payload
-# ---------------------------------------------------------------------------
 def build_payload() -> dict:
     rows = load_snapshots()
     start_min = rows[0]["min"]
@@ -327,7 +314,6 @@ def build_payload() -> dict:
     mp = series["max_pain"]
     n = len(spot)
 
-    # ---- axis + strike windows, derived from what was recorded --------------
     ticks = [start_min]
     for hour_min in (600, 660, 720, 780, 840):
         if start_min + 1 < hour_min and end_min - hour_min >= 20 and hour_min - ticks[-1] >= 25:
@@ -364,7 +350,6 @@ def build_payload() -> dict:
         f"{end_min // 60:02d}:{end_min % 60:02d}",
     ]
 
-    # ---- 5-minute buckets: spot vs pin, distance, net GEX, flip -------------
     buckets: dict[int, list[int]] = {}
     for i, m in enumerate(series["min"]):
         buckets.setdefault((m - start_min) // 5, []).append(i)
@@ -387,8 +372,7 @@ def build_payload() -> dict:
             }
         )
 
-    # ---- mean reversion toward the pin, and who moves ----------------------
-    horizon = 5  # snapshots ~ 5 minutes
+    horizon = 5
     gap, d_spot, d_mp = [], [], []
     for i in range(n - horizon):
         gap.append(spot[i] - mp[i])
@@ -403,13 +387,11 @@ def build_payload() -> dict:
             return None
         return round(5.0 * math.log(0.5) / math.log(1.0 + slope), 1)
 
-    # ---- volatility near vs far from the pin -------------------------------
     fwd = [(abs(spot[i] - mp[i]), abs(spot[i + horizon] - spot[i])) for i in range(n - horizon)]
     near_moves = [f for d, f in fwd if d <= 15]
     mid_moves = [f for d, f in fwd if 15 < d <= 50]
     far_moves = [f for d, f in fwd if d > 50]
 
-    # ---- walls -------------------------------------------------------------
     inside = [i for i in range(n) if series["put_wall"][i] <= spot[i] <= series["call_wall"][i]]
     aft_from = max(start_min, AFTERNOON_MIN)
     aft_idx = [i for i in range(n) if series["min"][i] >= aft_from]
@@ -453,7 +435,6 @@ def build_payload() -> dict:
         None,
     )
 
-    # ---- GEX snapshots + surface ------------------------------------------
     def nearest_clock(target: str) -> dict:
         tgt = minute_of(target + ":00")
         return min(profiles_frames, key=lambda f: abs(f["min"] - tgt))
@@ -518,7 +499,7 @@ def build_payload() -> dict:
         for strike in surface_strikes:
             surface_z[float(strike)].append(round(per.get(float(strike), 0.0), 1))
 
-    surface_matrix = [surface_z[float(s)] for s in surface_strikes]  # rows = strikes
+    surface_matrix = [surface_z[float(s)] for s in surface_strikes]
     amplitudes = [abs(v) for row in surface_matrix for v in row]
     cap = max(25.0, quantile(amplitudes, 0.995))
     surface_scale = {"cmin": -round(cap), "cmax": round(cap)}
@@ -530,7 +511,6 @@ def build_payload() -> dict:
             {"strike": strike, "label": label, "values": surface_z[float(strike)]}
         )
 
-    # ---- strike-level GEX change t2 -> last --------------------------------
     f_t2, f_last = nearest_clock(profile_times[1]), profiles_frames[-1]
     gex_t2 = {float(e["strike"]): e["net_gex"] for e in f_t2["rep"]["gex"]["strikes"]}
     gex_last = {float(e["strike"]): e["net_gex"] for e in f_last["rep"]["gex"]["strikes"]}
@@ -548,7 +528,6 @@ def build_payload() -> dict:
         reverse=True,
     )[:6]
 
-    # ---- dealer regime: cumulative GEX at spot (the report's own gate) -----
     regime = {
         "min": round(min(series["regime_gex"]), 1),
         "max": round(max(series["regime_gex"]), 1),
@@ -558,7 +537,6 @@ def build_payload() -> dict:
         "long_snaps": sum(1 for v in series["regime_gex"] if v > 1),
     }
 
-    # whole-book sign flip (net_total), distinct from the at-spot regime
     flip_from = max(start_min, AFTERNOON_MIN)
     net_flip = next(
         (
@@ -593,7 +571,6 @@ def build_payload() -> dict:
         ),
     }
 
-    # ---- session path (the futures archive exists for some sessions only) ---
     futures = None
     fbars: list[dict] = []
     if FUTURES_PATH.exists():
@@ -624,7 +601,6 @@ def build_payload() -> dict:
         vals = [spot[i] for i in idx]
         return {"from": lo, "to": hi, "n": len(idx), "low": min(vals), "high": max(vals)}
 
-    # ---- assembled stats ---------------------------------------------------
     bounds = [start_min]
     for hour_min in (660, 720, 780):
         if start_min + 30 < hour_min < end_min - 30:
@@ -650,7 +626,6 @@ def build_payload() -> dict:
             }
         )
 
-    # ---- same-volatility null + what happened after the clip ----------------
     start_label = f"{start_min // 60:02d}:{start_min % 60:02d}"
     null_pack = build_null(spot, mp, series["put_wall"], series["call_wall"], start_label)
     first_sec = minute_of(rows[0]["clock"]) * 60 + int(rows[0]["clock"][6:8])
@@ -697,7 +672,6 @@ def build_payload() -> dict:
             (c for c in fbars if c["t"][11:16] == axis["end_label"]),
             fbars[-1],
         )
-        # the equity market closes at 15:30, so 15:29 is the last continuous print
         fx_last = next(
             (c for c in futures["candles"] if c["t"][11:16] == "15:29"),
             futures["candles"][-1],
@@ -837,7 +811,6 @@ def build_payload() -> dict:
         },
     }
 
-    # ---- gex surface + ridges ---------------------------------------------
     ridges = {str(r["strike"]): r["values"] for r in ridge_strikes}
 
     return {
@@ -886,9 +859,6 @@ def build_payload() -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# html fragment
-# ---------------------------------------------------------------------------
 def fmt(v, digits=1, sign=False):
     if v is None:
         return "—"
@@ -899,7 +869,6 @@ def fmt(v, digits=1, sign=False):
 
 
 def pct_phrase(p: float) -> str:
-    """A percentile that does not lie when the observation is at the edge."""
     if p <= 0:
         return "below every null path"
     if p >= 100:

@@ -11,10 +11,6 @@ export interface FilterNumberProps {
   disabled?: boolean;
 }
 
-/**
- * Numeric filter input with the shared "empty clears the filter / partials
- * never become NaN" semantics used by every numeric control in the rail.
- */
 export function FilterNumber(props: FilterNumberProps) {
   return (
     <NumberInput

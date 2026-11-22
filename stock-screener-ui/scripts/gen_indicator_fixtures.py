@@ -20,7 +20,6 @@ N = 400
 
 
 def build_ohlcv() -> pd.DataFrame:
-    """Deterministic pseudo-market OHLCV (reproducible across machines)."""
     rng = np.random.default_rng(20260101)
     ret = rng.normal(0, 0.004, N)
     close = 1000.0 * np.cumprod(1 + ret)

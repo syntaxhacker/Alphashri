@@ -78,10 +78,8 @@ describe("PatternListView", () => {
     const table = screen.getByTestId("patterns-list");
     expect(table).toBeInTheDocument();
     for (const header of ["Symbol", "Pattern", "Dir", "Status", "Q", "52W gap %", "Pos %", "Bars ago", "Price", "Chg %"]) {
-      // A sticky header may clone a cell, so assert presence (>=1), not uniqueness.
       expect(within(table).getAllByText(header).length).toBeGreaterThanOrEqual(1);
     }
-    // "Score" (pattern-fit confidence) carries the sort indicator (text split) → match loosely.
     expect(within(table).getAllByText(/Score/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTestId("patterns-list-row-AAA-falling_wedge-1")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-list-row-BBB-falling_wedge-2")).toBeInTheDocument();
@@ -206,10 +204,8 @@ describe("PatternListView", () => {
         onSelect={vi.fn()}
       />);
     const row = screen.getByTestId("patterns-list-row-IRCON-falling_wedge-1");
-    // (112.6 - 100) / 100 = +12.60%; price falls back to end_price.
     expect(within(row).getByText("+12.60%")).toBeInTheDocument();
     expect(within(row).getByText("₹112.60")).toBeInTheDocument();
-    // Missing 52W gap and missing base position both render "—".
     expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(2);
   });
 
@@ -233,15 +229,12 @@ describe("PatternListView", () => {
             to_52w_high: 5,
             range_pos: 50,
           }),
-          // Non-base patterns have no horizontal trigger box → no distance.
           makeHit({ id: 4, symbol: "DDD", last_close: 115, trendlines: box, to_52w_high: 5, range_pos: 50 }),
         ]}
         onSelect={vi.fn()}
       />);
     const table = screen.getByTestId("patterns-list");
     expect(within(table).getByText("To trigger")).toBeInTheDocument();
-    // Scope the dash assertions to the To-trigger column: other numeric columns
-    // legitimately render "—" for these fixtures.
     const headers = within(table)
       .getAllByRole("columnheader")
       .map((h) => h.textContent?.trim() ?? "");
@@ -276,7 +269,6 @@ describe("PatternListView", () => {
 
     expect(screen.getByTestId("patterns-list-tag-fno-AAA")).toHaveTextContent("F&O");
     expect(screen.queryByTestId("patterns-list-tag-fno-BBB")).not.toBeInTheDocument();
-    // Results are equities: no F&O badge for the ETF-tagged row either, and no crash.
     expect(screen.queryByTestId("patterns-list-tag-fno-CCC")).not.toBeInTheDocument();
     expect(
       within(screen.getByTestId("patterns-list-row-CCC-falling_wedge-3")).queryByText("ETF"),
@@ -321,7 +313,6 @@ describe("PatternListView", () => {
     );
     expect(within(cells[1]).getByText("Falling Wedge").className).toContain("text-left");
     expect(cells[1].className).toContain("text-left");
-    // Direction / status / quality are badge-or-glyph columns: centred.
     const table = screen.getByTestId("patterns-list");
     const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent?.trim() ?? "");
     for (const name of ["Dir", "Status", "Q"]) {
@@ -337,8 +328,6 @@ describe("PatternListView", () => {
     const table = screen.getByTestId("patterns-list");
     const rowH = parseFloat(table.style.getPropertyValue("--tbl-row-h"));
     expect(rowH).toBeLessThanOrEqual(24);
-    // No cell adds vertical padding beyond the shared 2px token, which would
-    // push the content past the fixed row height.
     const row = screen.getByTestId("patterns-list-row-IRCON-falling_wedge-1");
     for (const cell of within(row).getAllByRole("cell")) {
       for (const el of [cell, ...Array.from(cell.querySelectorAll("*"))]) {

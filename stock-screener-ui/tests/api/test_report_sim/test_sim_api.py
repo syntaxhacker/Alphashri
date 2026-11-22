@@ -100,9 +100,6 @@ def _body(strategies: list[dict] | None = None, **overrides) -> dict:
     return body
 
 
-# --------------------------------------------------------------------------
-# Preponed expiry note
-# --------------------------------------------------------------------------
 def test_preponed_expiry_note_flags_nifty_2026_11_09():
     note = sim.preponed_expiry_note("NIFTY", "2026-11-09", "2026-11-17")
     assert note is not None
@@ -118,9 +115,6 @@ def test_preponed_expiry_note_is_none_on_a_normal_monday():
     assert sim.preponed_expiry_note("NIFTY", "2026-11-02", "2026-11-03") is None
 
 
-# --------------------------------------------------------------------------
-# Templates
-# --------------------------------------------------------------------------
 def test_templates_have_the_built_in_structures(client):
     response = client.get("/api/reports/sim/strategies")
     assert response.status_code == 200
@@ -138,9 +132,6 @@ def test_templates_have_the_built_in_structures(client):
             assert set(leg) == {"action", "opt", "strike", "lots"}
 
 
-# --------------------------------------------------------------------------
-# Run
-# --------------------------------------------------------------------------
 def test_run_returns_camel_case_payload(client, monkeypatch):
     monkeypatch.setattr(sim, "_load_ticks", lambda symbol, date: _session_ticks())
 

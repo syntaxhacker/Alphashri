@@ -104,9 +104,7 @@ describe("NiftySqueezeRadar", () => {
     expect(screen.getByTestId("nifty-squeeze-wall")).toHaveTextContent("25 pts");
     expect(screen.getByTestId("nifty-squeeze-stage")).toHaveTextContent("ARMING");
     expect(screen.getByTestId("nifty-squeeze-proximity").textContent).toMatch(/^\d+%$/);
-    // 0.35×distance(79) + 0.20×flow(56) + 0.15×setup(60) + 0.30×erosion(0) -> 48%
     expect(screen.getByTestId("nifty-squeeze-proximity")).toHaveTextContent("48%");
-    // wall OI 8.5M -> 8.3M = erosion, shown as a green down-arrow.
     expect(screen.getByTestId("nifty-squeeze-wall-delta")).toHaveTextContent("▼");
     expect(screen.getByTestId("nifty-squeeze-wall-delta")).toHaveTextContent("2.0L");
     expect(screen.getByTestId("nifty-squeeze-calibration")).toHaveTextContent("ARM 2.0×");
@@ -158,7 +156,6 @@ describe("NiftySqueezeRadar", () => {
       ));
 
 
-    // 0.35×distance(92) -> ~32%, no flow/setup edge -> QUIET.
     expect(screen.getByTestId("nifty-squeeze-stage")).toHaveTextContent("QUIET");
     expect(screen.getByTestId("nifty-squeeze-proximity").textContent).toMatch(/^3[0-9]%$/);
   });
@@ -206,7 +203,6 @@ describe("NiftySqueezeRadar", () => {
     expect(screen.getByText(/no flow edge yet/)).toBeInTheDocument();
   });
 
-  // --- Symbol-aware thresholds (new) ---
 
   it("SENSEX: squeezeRangePts scales with spot (79k vs 22.8k ≈ 3.46x)", () => {
     const sensexReport = makeSensexReport();
@@ -214,19 +210,14 @@ describe("NiftySqueezeRadar", () => {
     const niftyReport = report({});
     const niftyMetrics = symbolMetrics(niftyReport);
 
-    // SENSEX range should be ~3.46x NIFTY range (allow 5% tolerance for rounding)
     expect(metrics.squeezeRangePts / niftyMetrics.squeezeRangePts).toBeCloseTo(79_000 / 22_800, 0);
-    // Price break threshold scales similarly
     expect(metrics.squeezePriceBreakPts / niftyMetrics.squeezePriceBreakPts).toBeCloseTo(79_000 / 22_800, 0);
-    // At-wall threshold scales similarly
     expect(metrics.squeezeAtWallPts / niftyMetrics.squeezeAtWallPts).toBeCloseTo(79_000 / 22_800, 0);
   });
 
   it("SENSEX: 100-pt wall distance is NOT 'at the wall' (squeezeAtWallPts ≈ 17)", () => {
     const sensexReport = makeSensexReport({ spot: 79_000, wallsNear: { calls: [{ strike: 79_100, oi: 8_000_000, distance: 100 }], puts: [] } });
     const metrics = symbolMetrics(sensexReport);
-    // squeezeAtWallPts for SENSEX ~ 79k * 2.2bps / 10000 ≈ 17 pts
-    // 100 pts > 17, so NOT "at the wall"
     expect(metrics.squeezeAtWallPts).toBeLessThan(100);
   });
 
@@ -244,25 +235,18 @@ describe("NiftySqueezeRadar", () => {
   it("RELIANCE: 50-pt wall distance IS 'at the wall' (squeezeAtWallPts ≈ 0.3 -> min 1)", () => {
     const relianceReport = makeRelianceReport({ spot: 1_400, wallsNear: { calls: [{ strike: 1_450, oi: 8_000_000, distance: 50 }], puts: [] } });
     const metrics = symbolMetrics(relianceReport);
-    // squeezeAtWallPts for RELIANCE ~ 1400 * 2.2bps / 10000 ≈ 0.3 -> clamped to 1
-    // 50 pts > 1, so NOT "at the wall" with default calibration
-    // But the component uses m.squeezeAtWallPts which is at least 1
     expect(metrics.squeezeAtWallPts).toBeGreaterThanOrEqual(1);
   });
 
   it("SENSEX: a 10-pt move triggers priceBreak (squeezePriceBreakPts ≈ 35)", () => {
     const sensexReport = makeSensexReport();
     const metrics = symbolMetrics(sensexReport);
-    // squeezePriceBreakPts for SENSEX ~ 79k * 4.4bps / 10000 ≈ 35 pts
-    // A 10-pt move is NOT a break for SENSEX
     expect(metrics.squeezePriceBreakPts).toBeGreaterThan(10);
   });
 
   it("NIFTY: a 15-pt move triggers priceBreak (squeezePriceBreakPts ≈ 10)", () => {
     const niftyReport = report({ spot: 22_800 });
     const metrics = symbolMetrics(niftyReport);
-    // squeezePriceBreakPts for NIFTY ~ 22800 * 4.4bps / 10000 ≈ 10 pts
-    // A 15-pt move IS a break for NIFTY
     expect(metrics.squeezePriceBreakPts).toBeLessThanOrEqual(15);
   });
 

@@ -4,12 +4,10 @@ export interface MembersButtonProps {
   symbol: string;
   testId: string;
   onShowMembers?: (symbol: string) => void;
-  /** Hit area in px (16 list / 14 matrix). */
   size?: number;
   iconSize?: number;
 }
 
-/** Small index-members trigger rendered next to a symbol link. */
 export function MembersButton(props: MembersButtonProps) {
   const size = () => props.size ?? 16;
   return (

@@ -28,18 +28,22 @@ export interface PatternSymbolMatrixProps {
   onShowMembers?: (symbol: string) => void;
   loading?: boolean;
   emptyMessage?: string;
-  /** Symbol currently shown in the docked chart — highlighted in the matrix. */
   activeSymbol?: string | null;
   /** Emits the rows in rendered (post-sort) order for prev/next navigation. */
   onRowsChange?: (rows: PatternMatrixRow[]) => void;
-  /** Hover intent for the right-side symbol preview (host debounces). */
   onSymbolPreview?: (symbol: string) => void;
   onSymbolPreviewEnd?: (symbol: string) => void;
-  /** Chart icon: open the symbol in the right-side chart. */
   onSymbolOpen?: (symbol: string) => void;
 }
 
 const MAX_CHIPS = 8;
+
+interface PreparedChips {
+  shown: PatternHitDTO[];
+  extra: number;
+}
+
+const EMPTY_CHIPS: PreparedChips = { shown: [], extra: 0 };
 
 const STATUS_RANK: Record<string, number> = { confirmed: 0, forming: 1, failed: 2, marginal: 2 };
 const DIRECTION_RANK: Record<string, number> = { bullish: 0, bearish: 1, neutral: 2 };
@@ -56,12 +60,24 @@ function rank(map: Record<string, number>, value: unknown): number {
 }
 
 function sortHits(hits: PatternHitDTO[]): PatternHitDTO[] {
-  return [...hits].sort(
-    (a, b) =>
-      rank(STATUS_RANK, a.status) - rank(STATUS_RANK, b.status) ||
-      rank(DIRECTION_RANK, a.direction) - rank(DIRECTION_RANK, b.direction) ||
-      (b.confidence ?? 0) - (a.confidence ?? 0),
-  );
+  // Decorate once: the original comparator recomputed lowercased ranks on every
+  // pairwise comparison, which dominated rows with many chips.
+  return hits
+    .map((hit, index) => ({
+      hit,
+      index,
+      status: rank(STATUS_RANK, hit.status),
+      direction: rank(DIRECTION_RANK, hit.direction),
+      confidence: hit.confidence ?? 0,
+    }))
+    .sort(
+      (a, b) =>
+        a.status - b.status ||
+        a.direction - b.direction ||
+        b.confidence - a.confidence ||
+        a.index - b.index,
+    )
+    .map((entry) => entry.hit);
 }
 
 /** Render/build counters for the matrix perf work. Every render/memo rebuild
@@ -148,7 +164,7 @@ function SymbolCell(props: {
         </Show>
       </Box>
       <Show when={row().name}>
-        <Text c="dimmed" truncate className="text-[10px] leading-[1.1]">
+        <Text c="dimmed" truncate title={row().name ?? undefined} className="text-[10px] leading-[1.1]">
           {row().name}
         </Text>
       </Show>
@@ -224,11 +240,37 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
   matrixStats.matrixRenders += 1;
 
   const orderedTimeframes = createMemo(() => matrixTfOrder(props.timeframes));
+
+  // Keyed on the source row object + ordered-timeframe array, so a fresh rows
+  // array holding the same row objects (a filter pass, a chip click, a selection
+  // change) keeps every derived reference. TanStackTable's stable row slots then
+  // see an unchanged frame and skip re-rendering those cells.
+  const rowCache = new WeakMap<
+    PatternMatrixRow,
+    { tfs: string[]; derived: PatternMatrixRow | null }
+  >();
+  const chipsCache = new WeakMap<PatternHitDTO[], PatternHitDTO[]>();
+  const chipsByRow = new WeakMap<PatternMatrixRow, PreparedChips>();
+
+  const orderedChips = (hits: PatternHitDTO[]): PatternHitDTO[] => {
+    const cached = chipsCache.get(hits);
+    if (cached) return cached;
+    const ordered = sortHits(hits);
+    chipsCache.set(hits, ordered);
+    return ordered;
+  };
+
   const visibleRows = createMemo(() => {
     matrixStats.visibleRowsBuilds += 1;
-    const allowed = new Set(orderedTimeframes());
-    return props.rows
-      .flatMap((row) => {
+    const tfs = orderedTimeframes();
+    const allowed = new Set(tfs);
+    const out: PatternMatrixRow[] = [];
+    for (const row of props.rows) {
+      let cached = rowCache.get(row);
+      let derived: PatternMatrixRow | null;
+      if (cached && cached.tfs === tfs) {
+        derived = cached.derived;
+      } else {
         const byTimeframe = new Map<string, PatternHitDTO>();
         for (const hit of row.hits) {
           if (!allowed.has(hit.timeframe)) continue;
@@ -236,27 +278,34 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
           if (!prev || isFresherHit(hit, prev)) byTimeframe.set(hit.timeframe, hit);
         }
         const hits = [...byTimeframe.values()];
-        if (hits.length === 0) return [];
-        // Linear best-of preserves sort's stable first-on-tie without a second array.
-        let best: PatternHitDTO | null = null;
-        for (const hit of hits) {
-          if (!best || compareConviction(hit, best) < 0) best = hit;
+        if (hits.length === 0) {
+          derived = null;
+        } else {
+          // Linear best-of preserves sort's stable first-on-tie without a second array.
+          let best: PatternHitDTO | null = null;
+          for (const hit of hits) {
+            if (!best || compareConviction(hit, best) < 0) best = hit;
+          }
+          derived = { ...row, hits, best, hit_count: hits.length };
+          const ordered = orderedChips(hits);
+          const shown = ordered.slice(0, MAX_CHIPS);
+          chipsByRow.set(derived, { shown, extra: ordered.length - shown.length });
         }
-        return [{ ...row, hits, best, hit_count: hits.length }];
-      })
-      .sort((a, b) => (a.best && b.best ? compareConviction(a.best, b.best) : a.best ? -1 : 1));
-  });
-
-  const chipHitsBySymbol = createMemo(() => {
-    const bySymbol = new Map<string, PatternHitDTO[]>();
-    for (const row of visibleRows()) bySymbol.set(row.symbol, sortHits(row.hits));
-    return bySymbol;
+        cached = { tfs, derived };
+        rowCache.set(row, cached);
+      }
+      if (derived) out.push(derived);
+    }
+    out.sort((a, b) => (a.best && b.best ? compareConviction(a.best, b.best) : a.best ? -1 : 1));
+    return out;
   });
 
   const onRowClick = (row: PatternMatrixRow) => {
     if (row.best) props.onSelect(row.best);
   };
 
+  // Cell renderers read the volatile props (selection, chip callbacks) only when
+  // invoked, so this memo depends solely on the ordered timeframe list.
   const columns = createMemo<TableColumnDef<PatternMatrixRow>[]>(() => {
     matrixStats.columnsBuilds += 1;
     const tfColumns: TableColumnDef<PatternMatrixRow>[] = orderedTimeframes().map((tf) => ({
@@ -327,20 +376,17 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
         id: "patterns",
         header: "Patterns",
         accessorKey: "hit_count",
-        // Chips are badges, not text — centred like every other badge column.
         meta: { align: "center" },
         cell: (ctx) => {
-          const ordered = chipHitsBySymbol().get(ctx.row.original.symbol) ?? [];
-          const shown = ordered.slice(0, MAX_CHIPS);
-          const extra = ordered.length - shown.length;
+          const chips = chipsByRow.get(ctx.row.original) ?? EMPTY_CHIPS;
           return (
             <Box className="flex items-center gap-1 overflow-hidden">
-              <For each={shown}>
+              <For each={chips.shown}>
                 {(hit) => <PatternChip hit={hit} onSelect={props.onSelect} />}
               </For>
-              <Show when={extra > 0}>
+              <Show when={chips.extra > 0}>
                 <Text c="dimmed" className="shrink-0 text-[10px] leading-none">
-                  {`+${extra}`}
+                  {`+${chips.extra}`}
                 </Text>
               </Show>
             </Box>
@@ -370,7 +416,7 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
       getRowStyle={(row) =>
         activeSymbol() && row.symbol === activeSymbol()
           ? {
-              background: "rgba(88, 166, 255, 0.12)",
+              background: alpha(palette.PRIMARY, 0.12),
               boxShadow: "inset 3px 0 0 var(--color-fin-primary)",
             }
           : undefined

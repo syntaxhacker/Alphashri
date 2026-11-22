@@ -42,7 +42,6 @@ export async function selectBot(page: Page, _botId: string): Promise<void> {
   const botSelect = page.locator('[data-testid="bot-select"]');
   await expect(botSelect).toBeVisible({ timeout: 10000 });
 
-  // Click to open the dropdown portal
   await botSelect.click();
   await page.waitForTimeout(200);
   await page.keyboard.press("ArrowDown");

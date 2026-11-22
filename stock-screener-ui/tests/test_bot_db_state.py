@@ -108,9 +108,6 @@ def bot_with_strategy(db, bot, strategy):
     return bot, strategy
 
 
-# ============================================================================
-# Group 1: DB Model Tests
-# ============================================================================
 
 
 class TestBotRuntimeStateModel:
@@ -250,9 +247,6 @@ class TestPositionNewColumns:
         assert d["low_price"] == 2470.0
 
 
-# ============================================================================
-# Group 2: get_bot_state() Tests
-# ============================================================================
 
 
 class TestGetBotState:
@@ -469,9 +463,6 @@ class TestGetBotState:
         mock_redis.get.assert_not_called()
 
 
-# ============================================================================
-# Group 3: persist_state() Integration Tests
-# ============================================================================
 
 
 class TestPersistState:
@@ -746,9 +737,6 @@ class TestPersistState:
         assert parsed[1]["symbol"] == "TCS"
 
 
-# ============================================================================
-# Group 4: Position Restore Tests
-# ============================================================================
 
 
 class TestPositionRestore:
@@ -847,9 +835,6 @@ class TestPositionRestore:
         assert saved.metadata_json == json.dumps({"entry_reason": "Pivot breakout", "pivot_type": "classic"})
 
 
-# ============================================================================
-# Group 5: Close All Direct DB Tests
-# ============================================================================
 
 
 class TestCloseAllDirectDB:
@@ -991,9 +976,6 @@ class TestCloseAllDirectDB:
         assert len(trades) == 0
 
 
-# ============================================================================
-# Group 6: History Config Shadowing Tests
-# ============================================================================
 
 
 class TestHistoryConfigShadowing:

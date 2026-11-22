@@ -74,10 +74,8 @@ class TestArticleAnalyzer:
             ]
         }
         
-        # Execute
         result = analyzer_db.analyze_article("https://ai.com", "AI News", "Long content about AI " * 10)
         
-        # Assertions
         assert result["sentiment"] == "BULLISH"
         assert result["impact_score"] == 7
         assert "trade_ideas" in result

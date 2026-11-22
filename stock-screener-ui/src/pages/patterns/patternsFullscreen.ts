@@ -93,22 +93,16 @@ const chartProblem = (
 export interface FullscreenChartState {
   symbol: string;
   hit: PatternHitDTO | null;
-  /** All detected patterns for the symbol (newest-first single-select list). */
   hits: PatternHitDTO[];
-  /** Fullscreen timeframe (defaults to the opened hit's timeframe). */
   timeframe: string;
   candles: ChartCandle[];
   overlays: PatternOverlay[];
   trendLines: TrendLine[];
   /** True while a fullscreen fetch/reload is in flight (phase 1: candles). */
   loading: boolean;
-  /** True while phase-2 pattern detection is in flight (candles already rendered). */
   patternsLoading?: boolean;
-  /** False = candles-only (market/global dock); skips pattern detection. */
   detectPatterns?: boolean;
-  /** As-of replay cutoff (ISO local datetime, null = live). */
   asOf: string | null;
-  /** Replay window start (ISO local datetime, null = any). */
   fromDate: string | null;
   /** True while the rendered candles come from the stale disk cache. */
   stale?: boolean;
@@ -122,18 +116,13 @@ export interface FullscreenChartState {
   detectionAsOf?: string | null;
   /** Chart endpoint failure code (`no_data`, `fetch_timeout`, …). */
   chartError?: string | null;
-  /** Human-readable reason shown when the chart has no candles. */
   chartNote?: string | null;
-  /** Latest traded price from the market snapshot; null until it resolves (or on failure). */
   livePrice?: number | null;
-  /** Day change % paired with `livePrice`; null when unavailable. */
   liveChange?: number | null;
-  /** `true` when the user explicitly opened the chart; `false` for a hover preview. */
   pinned: boolean;
 }
 
 export interface UsePatternFullscreenArgs {
-  /** Default timeframe for symbol-only opens. */
   timeframe: string;
   lookbackBars?: number | null;
   computeTrendlines?: boolean;
@@ -241,8 +230,6 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
     return [...byKey.values()];
   };
 
-  // Open from a known hit (e.g. a result card): show it immediately, then
-  // load every detected pattern for the symbol and promote the newest.
   const openFromCard = (hit: PatternHitDTO) => {
     selectedHit = null;
     const token = chartRequest + 1;
@@ -371,8 +358,6 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
       fromDate?: string;
       refresh?: boolean;
     },
-    // Only a refresh/load keeps the visible hit; timeframe switches still
-    // default to newest (or the explicit list pick) for the new timeframe.
     preserveCurrentHit = false,
   ) => {
     const baseOpts: Record<string, unknown> = {
@@ -381,8 +366,6 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
       ...(extra.fromDate ? { fromDate: extra.fromDate } : {}),
       ...(extra.refresh ? { refresh: true } : {}),
     };
-    // `computeTrendlines` is only forwarded when explicitly provided — the
-    // timeframe switch deliberately omits it (server default).
     if (extra.computeTrendlines != null) {
       baseOpts.computeTrendlines = extra.computeTrendlines;
     }
@@ -597,7 +580,6 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
     return loadSymbolChart(symbol, timeframe, true, detectPatterns);
   };
 
-  /** Hover preview: same widget, but dismissible (pinned = false). */
   const previewFromSymbol = (symbol: string, timeframe?: string, detectPatterns = true) => {
     selectedHit = null;
     return loadSymbolChart(symbol, timeframe, false, detectPatterns);
@@ -632,11 +614,9 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
       // compute_trendlines (server default).
       computeTrendlines: undefined,
     });
-    // The reload for the new timeframe repopulates the quote via its poll.
     if (asOf == null) startLivePoll(symbol, token);
   };
 
-  // Fullscreen as-of replay: re-runs detection truncated at the cutoff.
   const changeFullscreenAsOf = (asOf: string | null, fromDate: string | null) => {
     const current = fullscreen();
     if (!current) return;
@@ -668,7 +648,6 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
     if (asOf == null) startLivePoll(symbol, token);
   };
 
-  /** Fullscreen single-select: switch the chart to the chosen pattern. */
   const selectFullscreenHit = (hit: PatternHitDTO) => {
     selectedHit = hit;
     setFullscreen((prev) => (prev ? { ...prev, hit } : prev));
@@ -708,7 +687,6 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
     void fetchPatternHit(hitId)
       .then((fresh) => {
         if (chartRequest !== token) return;
-        // A failed/empty response means the hit was replaced or deleted.
         if (!fresh) {
           closeFullscreen();
           return;
@@ -737,7 +715,6 @@ export function usePatternFullscreen(args: UsePatternFullscreenArgs) {
       });
   });
 
-  /** Promote a hover preview to a pinned chart (user interacted with it). */
   const pinFullscreen = () => {
     setFullscreen((prev) => (prev && !prev.pinned ? { ...prev, pinned: true } : prev));
   };

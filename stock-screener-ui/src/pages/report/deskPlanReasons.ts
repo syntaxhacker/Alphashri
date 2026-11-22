@@ -33,11 +33,6 @@ interface SentimentCounts {
   callBuyers: number;
 }
 
-/**
- * Count legs whose sentiment label says "short buildup" (a writer) or "long
- * buildup" (a buyer). The API normalizes the label to either a short code
- * (`SB`/`LB`) or the full text, so normalize both.
- */
 function sentimentClass(side: NiftyOptionSide | undefined): "writer" | "buyer" | null {
   const raw = String(side?.sentiment ?? "").trim().toUpperCase();
   if (!raw) return null;
@@ -66,7 +61,6 @@ function countSentiments(strikes: NiftyStrike[] | undefined): SentimentCounts {
   return counts;
 }
 
-/** Number of distinct visits to a level (consecutive bars count once). */
 function countTouches(
   candles: NiftyIntradayCandle[] | undefined,
   level: number,
@@ -110,7 +104,6 @@ export function premiumRun(report: NiftyReport, leg: "ce" | "pe"): PremiumRun | 
   return { open, ltp, pct: ((ltp - open) / open) * 100 };
 }
 
-/** "For the bear case:" / "Against the bull case:" — same numbers, side-aware. */
 function frame(side: DeskSideKey, supports: boolean): string {
   if (supports) return `For the ${side} case: `;
   return `Against the ${side} case: `;

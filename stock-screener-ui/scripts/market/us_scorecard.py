@@ -69,7 +69,6 @@ def peer_of(symbol: str) -> str:
 
 
 def fetch_fundamentals(symbols: Sequence[str]) -> pd.DataFrame:
-    """Fundamentals for every symbol, from the TradingView scanner (2 batched calls)."""
     frames = []
     for i in range(0, len(symbols), 40):
         chunk = symbols[i:i + 40]
@@ -94,7 +93,6 @@ def fetch_fundamentals(symbols: Sequence[str]) -> pd.DataFrame:
 
 
 def earnings_history(symbol: str, n_events: int = 8) -> dict[str, Any]:
-    """Beat rate, average surprise, day-1 reaction and 20d drift over recent prints."""
     import yfinance as yf
 
     out: dict[str, Any] = {"sym": symbol, "n_events": 0, "beat_rate": np.nan,
@@ -140,10 +138,8 @@ def earnings_history(symbol: str, n_events: int = 8) -> dict[str, Any]:
 
 
 def build_scorecard(fund: pd.DataFrame, hist: pd.DataFrame) -> pd.DataFrame:
-    """Merge fundamentals + earnings history and score business/earnings/relative value."""
     df = fund.merge(hist, on="sym", how="left")
 
-    # peer-relative medians (per bucket)
     for col in ["price_earnings_ttm", "price_sales_ratio", "return_on_equity_fq",
                 "total_revenue_yoy_growth_ttm", "fcf_yield%"]:
         df[f"peer_{col}"] = df.groupby("peer")[col].transform("median")
@@ -153,7 +149,6 @@ def build_scorecard(fund: pd.DataFrame, hist: pd.DataFrame) -> pd.DataFrame:
     df["g_vs_peer"] = (df["total_revenue_yoy_growth_ttm"]
                        / df["peer_total_revenue_yoy_growth_ttm"]).round(2)
 
-    # --- component scores (0-100 each) ---
     df["s_earnings"] = (
         (df["beat_rate"].fillna(0.5) * 30)
         + df["avg_surprise%"].fillna(0).clip(-10, 20) * 0.8

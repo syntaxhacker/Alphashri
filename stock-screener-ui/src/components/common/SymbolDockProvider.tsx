@@ -41,13 +41,6 @@ const PREVIEW_DEBOUNCE_MS = 300;
 const PREVIEW_CLOSE_MS = 800;
 
 /**
- * App-wide right-side symbol dock.
- *
- * Any `SymbolLink` on any page gets hover-preview + chart-icon-open for free:
- * the link falls back to this context when the page doesn't supply its own
- * handlers (the Patterns page does, because it owns a richer dock with a
- * stepper and as-of replay).
- *
  * The dock's `options` mode is the same rail, not a second one: one pin state,
  * one outlet, one close gesture.
  *

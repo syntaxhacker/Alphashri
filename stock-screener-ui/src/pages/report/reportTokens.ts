@@ -10,22 +10,21 @@ import type { JSX } from "solid-js";
 // of those four steps, so an unmigrated caller cannot reintroduce a fifth size
 // (or make the 11px floor the page default again).
 export const REPORT_FONT = {
-  display: 23, // the single verdict headline on the page (22–24)
-  value: 17,   // primary numbers a trader reads first (16–18)
-  body: 13,    // labels, table cells, panel titles (13–14)
-  micro: 11,   // axis ticks, hints, timestamps — the hard 11px floor
+  display: 23,
+  value: 17,
+  body: 13,
+  micro: 11, // axis ticks, hints, timestamps — the hard 11px floor
 
   // Legacy aliases → nearest canonical step. Kept so callers that have not
   // migrated to the named steps still compile without widening the scale.
-  xs: 13,      // body
-  xsPlus: 13,  // body
-  sm: 13,      // body
-  md: 13,      // body
-  lg: 17,      // value
-  xl: 17,      // value
-  verdict: 23, // display
+  xs: 13,
+  xsPlus: 13,
+  sm: 13,
+  md: 13,
+  lg: 17,
+  xl: 17,
+  verdict: 23,
 
-  /** Helper: return the exact px value for a given step */
   px: (
     step:
       | "display"
@@ -42,12 +41,6 @@ export const REPORT_FONT = {
   ): number => REPORT_FONT[step],
 } as const;
 
-/**
- * SegmentedControl and Button paint font-size as an inline style on their
- * inner elements, so a plain utility cannot promote a control label. The body
- * step travels as a CSS variable and the `!` utility wins over that inline
- * size without changing the control's box height.
- */
 export const REPORT_FONT_BODY_VAR = "--report-font-body";
 export const REPORT_CONTROL_LABEL_CLASS = "[&>button]:[font-size:var(--report-font-body)]!";
 export const REPORT_CONTROL_LABEL_STYLE = {

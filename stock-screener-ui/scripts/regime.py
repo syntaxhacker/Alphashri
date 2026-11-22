@@ -39,7 +39,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.htf_bias import fetch_daily
 from scripts.smc_tick_eval import CACHE_DIR, INSTRUMENT, build_1m_bars, fetch_ticks
 
-# ---- locked thresholds (calibrated June+July, do not retune on August) ----
 EFF_MIN = 0.15
 MORN_LO, MORN_HI = 0.8, 1.8
 ON_LO, ON_HI = 0.5, 1.8
@@ -47,8 +46,8 @@ MED_WINDOW = 20
 MIN_PRIORS = 3
 
 # IST-minute helpers (no tz lib needed): IST = UTC + 5:30
-MORN_START_MIN = 9 * 60 + 39   # 579
-MORN_END_MIN = 12 * 60         # 720
+MORN_START_MIN = 9 * 60 + 39
+MORN_END_MIN = 12 * 60
 
 
 def _ist_min(bar_time_sec: int) -> int:
@@ -80,7 +79,6 @@ def _prev_days(day_str: str, n: int):
 
 
 def eff5(day_str: str):
-    """5-change efficiency on prior daily closes, strictly before day_str."""
     import pandas as pd
 
     df = fetch_daily()

@@ -1,10 +1,3 @@
-// Test-only shared builders and stream mocks for the report page and hook
-// suites. Extracted so the report test suites stop cloning the same tape /
-// clock / candle / WebSocket harnesses.
-//
-// Imported by: useNiftyBurstStream.test, useNiftyReportStream.test,
-// niftyFlowStrip.test, useNiftyOiAlerts.test, niftyFlowRead.test,
-// niftyChartData.test, niftyOiHeatmap.test.
 
 import { render } from "@solidjs/testing-library";
 import type { JSX } from "solid-js";
@@ -15,19 +8,15 @@ import type { NiftyIntradayCandle, NiftyReport, NiftyStrike } from "@/types/nift
 import type { ReplayCandle } from "@/types/replay";
 import type { SpotPoint, TapeSpotPoint } from "./niftyChartData";
 
-// ---------------- Shared UI test harness ----------------
 
-/** UIProvider wrapper so report component tests render with the fin theme. */
 export function TestWrapper(props: { children?: JSX.Element }) {
   return <UIProvider>{props.children}</UIProvider>;
 }
 
-/** render() bound to TestWrapper. */
 export function r(jsx: () => JSX.Element) {
   return render(jsx, { wrapper: TestWrapper });
 }
 
-// ---------------- Stream mocks (shared by useNiftyBurstStream / useNiftyReportStream) ----------------
 
 type Handler = ((ev: never) => void) | null;
 
@@ -66,13 +55,6 @@ export function uninstallMockWs() {
   (globalThis as Record<string, unknown>).WebSocket = REAL_WS;
 }
 
-/**
- * The "error then close schedules a single reconnect" test shared by both
- * stream suites. Browsers fire `error` followed by `close` for one failure;
- * both handlers run `scheduleReconnect`, so the first timer handle is
- * overwritten and a second socket must not open. Advancing past both
- * backoffs must still leave exactly two sockets.
- */
 export function expectSingleReconnect(render: () => void): void {
   test("error followed by close schedules a single reconnect (no socket doubling)", () => {
     vi.useFakeTimers();
@@ -82,8 +64,6 @@ export function expectSingleReconnect(render: () => void): void {
       const ws = MockWebSocket.instances[0];
       ws.onerror?.({} as never);
       ws.onclose?.({} as never);
-      // First backoff is 2s; the overwritten duplicate would fire at 4s and
-      // open a third socket — advancing past both must still leave exactly 2.
       vi.advanceTimersByTime(10_000);
       expect(MockWebSocket.instances).toHaveLength(2);
     } finally {
@@ -92,9 +72,7 @@ export function expectSingleReconnect(render: () => void): void {
   });
 }
 
-// ---------------- Shared clock / tape / candle builders ----------------
 
-/** 09:15 + i minutes → "HH:MM". */
 export function hm(i: number): string {
   const total = 9 * 60 + 15 + i;
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;

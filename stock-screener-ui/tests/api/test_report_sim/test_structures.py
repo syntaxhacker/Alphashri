@@ -31,9 +31,6 @@ def leg(action: str, opt: str, strike: float, entry: float,
     return ResolvedLeg(action, opt, strike, lots, qty, entry)
 
 
-# --------------------------------------------------------------------------
-# Strike resolution
-# --------------------------------------------------------------------------
 def test_atm_is_nearest_and_ties_go_lower():
     assert resolve_strike("ATM", 24920, L50) == 24900.0
     # 24925 is equidistant from 24900 and 24950 -> the lower contract.
@@ -106,9 +103,6 @@ def test_leg_sign_only_accepts_buy_and_sell():
         leg_sign("HOLD")
 
 
-# --------------------------------------------------------------------------
-# Payoff
-# --------------------------------------------------------------------------
 def test_intrinsic_call_and_put():
     assert intrinsic("CE", 24900, 25100) == 200
     assert intrinsic("CE", 24900, 24800) == 0
@@ -159,9 +153,6 @@ def test_payoff_curve_matches_spot_list():
                      [-6500, -6500, (100 - 100) * 65, (200 - 100) * 65]]
 
 
-# --------------------------------------------------------------------------
-# Break-evens, range, max profit/loss
-# --------------------------------------------------------------------------
 def test_straddle_has_two_breakevens():
     legs = [leg("BUY", "CE", 25000, 100.0), leg("BUY", "PE", 25000, 100.0)]
     bes = breakevens(legs, 24000, 26000)

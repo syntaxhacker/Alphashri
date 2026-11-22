@@ -66,9 +66,6 @@ DEFAULT_OUT_DIR = ROOT / "reports" / "hero_zero"
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 
 
-# ---------------------------------------------------------------------------
-# API
-# ---------------------------------------------------------------------------
 
 
 def _get_json(url: str, timeout: float = 15.0) -> dict:
@@ -82,7 +79,6 @@ def fetch_expiries(api: str, underlying: str) -> list[dict]:
 
 
 def resolve_expiry(expiries: list[dict], choice: str) -> str:
-    """``nearest`` | ``next`` | an explicit ``YYYY-MM-DD``."""
     dates = [e.get("date") for e in expiries if e.get("date")]
     if not dates:
         raise SystemExit("no expiries returned by the API")
@@ -106,9 +102,6 @@ def fetch_chain(api: str, underlying: str, expiry: str) -> dict:
     return _get_json(url)
 
 
-# ---------------------------------------------------------------------------
-# Scoring
-# ---------------------------------------------------------------------------
 
 
 def _num(value, default: float = 0.0) -> float:
@@ -177,7 +170,6 @@ def candidate_rows(
             if spread_pct > max_spread_pct:
                 continue
 
-            # Break-even at expiry (long premium): strike +/- premium paid.
             breakeven = strike + ltp if side == "ce" else strike - ltp
             move_needed = abs(breakeven - spot)
             reach = move_needed / em_range
@@ -227,9 +219,6 @@ def candidate_rows(
     return out
 
 
-# ---------------------------------------------------------------------------
-# Rendering / logging
-# ---------------------------------------------------------------------------
 
 
 def header(payload: dict) -> str:
@@ -281,9 +270,6 @@ def log_scan(out_dir: pathlib.Path, payload: dict, rows: list[dict], top: int) -
     return path
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 
 def _parse_until(value: str) -> dt.time:

@@ -1,9 +1,3 @@
-"""Normalised vocabulary shared by every reusable report chart.
-
-Charts receive a mapping (the payload) plus this descriptor.  Nothing in a
-chart module may assume NIFTY's 25,000 level, 50-point strike ladder, rupee
-units or 09:15–15:30 session; those live here and travel with the payload.
-"""
 
 from __future__ import annotations
 
@@ -13,7 +7,6 @@ from typing import Any, Optional
 
 @dataclass(frozen=True)
 class InstrumentSpec:
-    """Identity and display units for one instrument/session."""
 
     symbol: str
     name: str

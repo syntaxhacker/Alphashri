@@ -53,7 +53,6 @@ def mstats(R):
 
 
 def collect_pairs(days, c, cost):
-    """Same logic as S.collect but keeps the signal so fills can be re-costed."""
     pairs = []
     for d in days:
         brk = S.first_break(d, c["range_src"], c["eps"])
@@ -76,7 +75,6 @@ def collect_pairs(days, c, cost):
 
 
 def shifted_levels(sig, new_entry):
-    """Re-anchor stop/target to the new fill so R geometry is unchanged."""
     side = sig["side"]
     stop_dist = abs(sig["stop"] - sig["entry"])
     tgt_dist = abs(sig["target"] - sig["entry"])
@@ -84,14 +82,13 @@ def shifted_levels(sig, new_entry):
 
 
 def sim_at(sig, cost, entry_idx, entry_px, stop, target):
-    """S.simulate's exact fill rules with an explicit entry bar/price/levels."""
     d = sig["day"]
     side = sig["side"]
     if entry_idx < 0 or entry_idx >= len(d.c):
         return None
     entry = float(entry_px)
     if (side > 0 and entry <= stop) or (side < 0 and entry >= stop):
-        return None  # gap invalidates the signal, same as the engine
+        return None
     risk = abs(entry - stop)
     if risk <= 0:
         return None
@@ -155,7 +152,6 @@ def main():
           f"t={base['t']:.2f} PF={base['PF']:.2f} win={base['win']:.1f}%  "
           f"reproduces_expected={reproduces}")
 
-    # ---- 1. moving-block bootstrap over consecutive sessions ---------------- #
     by_date = defaultdict(list)
     for tr in trades:
         by_date[tr["date"]].append(tr["R"])
@@ -190,7 +186,6 @@ def main():
           f"cumR 90%CI [{b['cumR_ci90'][0]:+.1f}, {b['cumR_ci90'][1]:+.1f}] "
           f"P(cumR<=0)={b['cumR_share_le0']:.1%}")
 
-    # ---- 2. drop top-k trades, drop best/worst month ------------------------ #
     order = np.argsort(-Rs)
     dropk = {f"k{k}": mstats(np.delete(Rs, order[:k])) for k in (1, 3, 5, 10)}
     months = defaultdict(list)
@@ -215,7 +210,6 @@ def main():
         f"-> {v['kept']['avgR']:+.3f} (n={v['kept']['n']})"
         for label, v in month_drop.items()))
 
-    # ---- 3. six contiguous folds ordered by date ---------------------------- #
     fold_dates = [list(x) for x in np.array_split(np.array(dates, dtype=object), 6)]
     folds = []
     for n, fd in enumerate(fold_dates, 1):
@@ -230,7 +224,6 @@ def main():
         f"F{f['fold']}:{f['avgR']:+.3f}(n={f['n']},t={f['t']})" if f["avgR"] is not None
         else f"F{f['fold']}:empty" for f in folds))
 
-    # ---- 4. entry-timing honesty -------------------------------------------- #
     timing = {}
     mismatches = 0
     variants = {}
@@ -249,7 +242,7 @@ def main():
                 sim = base_sim
             elif name in ("b_sigclose_rescaled", "b_sigclose_fixedlevel"):
                 if i >= 0:
-                    px = d.c[i] + side * 0.5  # +0.5 pt adverse slippage
+                    px = d.c[i] + side * 0.5
                     stop, target = (shifted_levels(s, px) if "rescaled" in name
                                     else (s["stop"], s["target"]))
                     sim = sim_at(s, COST, i, px, stop, target)
@@ -272,7 +265,6 @@ def main():
         f"{k}:{v['avgR']:+.3f}(n={v['n']})" for k, v in timing.items()
         if k.endswith("fixedlevel")) + f"  baseline mismatches={mismatches}")
 
-    # ---- 5. cost regime + actual spread -------------------------------------- #
     cost_res = {}
     for c in (1.1, 2.5, 4.0):
         rr = [S.simulate(s, c)["R"] for s, _ in pairs]
@@ -303,7 +295,6 @@ def main():
         f"{k}:{v['avgR']:+.3f}(t={v['t']},PF={v['PF']})" for k, v in cost_res.items())
           + f"  entry-spread matched {matched}/{len(trades)}")
 
-    # ---- 6. parameter neighbourhood ------------------------------------------ #
     ranges = ["on", "or15", "or30", "or60"]
     bufs = [10.0, 20.0, 30.0, 40.0, 50.0]
     targets = [f"rr{v:g}" for v in np.arange(1.0, 3.0001, 0.25)]
@@ -341,7 +332,6 @@ def main():
           f"best={nb['grid_best'][1]}={nb['grid_best'][0]:+.3f} "
           f"flag={nb['flag_overfit_spike']}")
 
-    # ---- 7. first 50% vs second 50% of sessions by date ---------------------- #
     half = len(dates) // 2
     halves = {}
     for name, ds in (("first_50pct", dates[:half]), ("second_50pct", dates[half:])):
@@ -365,7 +355,6 @@ def main():
         f"{k}:n={v['n']},avgR={v['avgR']:+.3f},t={v['t']}"
         for k, v in clean_halves.items()))
 
-    # ---- persist -------------------------------------------------------------- #
     with open(os.path.join(OUTDIR, "robustness.json"), "w") as fh:
         json.dump(out, fh, indent=1, default=str)
     write_md(out)

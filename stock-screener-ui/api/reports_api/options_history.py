@@ -75,7 +75,6 @@ SNAPSHOTS_DIR = "options_snapshots"
 #: The generic tape/chain10s are recorded per minute / per 10 seconds.
 TAPE_INTERVAL_SEC = 60
 
-# --- blasts (10-second chain) — adaptive thresholds ----------------------------
 #: A blast must be unusual *for this session*: ``max(floor, k × median)``.
 #: Unlike NIFTY (where the 10 s OI delta runs 0.7M-2.8M), a stock's chain OI is
 #: orders of magnitude smaller, so the absolute floors here are deliberately
@@ -92,7 +91,6 @@ from api.reports_api._blasts import chain_blasts as _shared_chain_blasts
 _SLIM_CACHE: dict[tuple, list[dict]] = {}
 
 
-# --- validation / paths --------------------------------------------------------
 def _today() -> str:
     """Today's session date in IST (never the host's local date)."""
     return datetime.now(config.IST).strftime("%Y-%m-%d")
@@ -174,7 +172,6 @@ def _epoch(value: Any) -> float:
         return 0.0
 
 
-# --- 1. tape -------------------------------------------------------------------
 @router.get("/{underlying}/tape")
 def get_options_tape(
     underlying: str,
@@ -209,7 +206,6 @@ def get_options_tape(
     }
 
 
-# --- 2. 10-second chain --------------------------------------------------------
 @router.get("/{underlying}/chain10s")
 def get_options_chain10s(
     underlying: str,
@@ -256,7 +252,6 @@ def get_options_chain10s(
     return {"date": date_str, "count": len(rows), "snapshots": newest}
 
 
-# --- 3. OI bursts --------------------------------------------------------------
 def _snapshot_context(symbol: str, date_str: str) -> tuple[Optional[dict], Optional[list], float]:
     """``(report, strikes, spot)`` from the day's last snapshot.
 
@@ -419,7 +414,6 @@ def get_options_bursts(
             "interval_sec": TAPE_INTERVAL_SEC, "bursts": bursts}
 
 
-# --- 4. OI / volume blasts (10-second chain only) ------------------------------
 def _chain_blasts(symbol: str, date_str: str, lookback_min: int) -> list[dict]:
     """OI + volume blasts from the generic 10-second chain.
 
@@ -486,7 +480,6 @@ def get_options_blasts(
             "lookback_min": lookback_min, "blasts": blasts}
 
 
-# --- 5. replay dates -----------------------------------------------------------
 @router.get("/{underlying}/replay/dates")
 def get_options_replay_dates(
     underlying: str,
@@ -521,7 +514,6 @@ def get_options_replay_dates(
     return {"dates": dates, "latest": dates[0] if dates else None}
 
 
-# --- 6. replay frames ----------------------------------------------------------
 def _needs_analytics(report: Optional[dict]) -> bool:
     """True when a stored frame predates the analytics-carrying recorder.
 
@@ -677,7 +669,6 @@ async def get_options_replay(
             "interval_sec": TAPE_INTERVAL_SEC, "snapshots": snaps}
 
 
-# --- 7. last snapshot ----------------------------------------------------------
 @router.get("/{underlying}/snapshot")
 async def get_options_snapshot(
     underlying: str,
@@ -698,7 +689,6 @@ async def get_options_snapshot(
     return data
 
 
-# --- 8. recorder status --------------------------------------------------------
 def _recorder_status() -> Optional[dict]:
     """The recorder's own status dict, or ``None`` when it is not available.
 

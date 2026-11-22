@@ -108,10 +108,6 @@ CHAIN10S_REUSE_MAX_AGE_SEC = float(
 SNAPSHOT_REFRESH_SEC = float(os.getenv("NIFTY_SNAPSHOT_REFRESH_SEC", "20"))
 
 
-# ---------------------------------------------------------------------------
-# Pure helpers (unit-testable, no I/O)
-# ---------------------------------------------------------------------------
-
 def has_usable_chain(rows: Optional[list[dict]]) -> bool:
     """True when ``rows`` describe a real chain (strikes + non-zero OI).
 
@@ -258,7 +254,6 @@ def build_leg(market_data: dict, greeks: Optional[dict] = None,
         "volume": volume,
         "price_change": price_change,
         "sentiment": get_sentiment(price_change, oi_change),
-        # --- greeks: ALL of them ---
         "gamma": _safe_float((g or {}).get("gamma")),
         "delta": _greek("delta"),
         "theta": _greek("theta"),
@@ -266,7 +261,6 @@ def build_leg(market_data: dict, greeks: Optional[dict] = None,
         "rho": _greek("rho"),
         "iv": _greek("iv"),
         "pop": _greek("pop"),        # probability of profit (Upstox option_greeks)
-        # --- order-book / flow fields Upstox provides ---
         "bid_price": _opt_float("bid_price"),
         "ask_price": _opt_float("ask_price"),
         "bid_qty": _safe_int(md.get("bid_qty")),
@@ -444,10 +438,6 @@ def market_block() -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# Previous-session pivot levels (classic)
-# ---------------------------------------------------------------------------
-
 #: NSE index instrument key for Nifty 50 daily candles (pivot source), same
 #: form as ``NIFTY_KEY`` / ``VIX_KEY`` in :mod:`api.reports_api.nifty_verdicts`.
 NIFTY_PIVOT_KEY = "NSE_INDEX|Nifty 50"
@@ -598,9 +588,6 @@ async def get_pivots_block(today: Optional[str] = None) -> Optional[dict]:
     return value
 
 
-# ---------------------------------------------------------------------------
-# Spot vs candle close, and 1-minute candle gaps
-# ---------------------------------------------------------------------------
 #: A tape-derived gap fill may not step more than this away from the last real
 #: candle close. On 2026-11-03 the option chain's ``underlying_spot_price`` sat
 #: ~79 pts (0.33%) ABOVE the index's last 1-minute close (23,810.85 vs
@@ -873,10 +860,6 @@ def _build_snapshot_dict(report: dict, date_str: str) -> dict:
     return out
 
 
-# ---------------------------------------------------------------------------
-# Snapshot persistence
-# ---------------------------------------------------------------------------
-
 def snapshot_path(date_str: str) -> Path:
     return SNAPSHOT_DIR / f"{date_str}.json"
 
@@ -919,10 +902,6 @@ def write_snapshot(date_str: str, data: dict) -> Path:
     return _jsonl.write_json_atomic(snapshot_path(date_str), data,
                                     separators=(",", ":"))
 
-
-# ---------------------------------------------------------------------------
-# Live computation (Upstox)
-# ---------------------------------------------------------------------------
 
 def _rolling_oi(rows: list[dict], minutes: tuple[int, ...] = (5, 15)) -> dict:
     """Rolling CE/PE OI change over the last N minutes of the tape.
@@ -1570,10 +1549,6 @@ async def get_cached_live(expiry: Optional[str] = None,
     return report
 
 
-# ---------------------------------------------------------------------------
-# Live WS path (api.reports_api.nifty_md, optional) with REST fallback
-# ---------------------------------------------------------------------------
-
 #: Minimum distinct strikes for a WS snapshot to count as a real chain.
 _MIN_LIVE_STRIKES = 20
 #: Live-built reports are fresh for ~1s so multiple WS clients share one build.
@@ -2115,7 +2090,6 @@ def _breadth_block() -> Optional[dict]:
     return block
 
 
-
 def _overlay_live_today(report: dict) -> dict:
     """Overlay the live WS feed on TODAY's saved snapshot (no write).
 
@@ -2297,10 +2271,6 @@ async def nifty_snapshot_task() -> None:
         elapsed = time.time() - started
         await asyncio.sleep(max(1.0, SNAPSHOT_REFRESH_SEC - elapsed))
 
-
-# ---------------------------------------------------------------------------
-# OI tape: per-minute time series of the Nifty chain
-# ---------------------------------------------------------------------------
 
 # stock-screener-ui/api/reports_api/nifty.py -> parents[2] == stock-screener-ui
 TAPE_DIR = Path(__file__).resolve().parent.parent.parent / "experiments" / "data" / "nifty_tape"
@@ -2486,10 +2456,6 @@ def read_tape(date_str: str) -> list[dict]:
     _TAPE_READ_CACHE[key] = (stat.st_mtime_ns, stat.st_size, rows)
     return list(rows)
 
-
-# ---------------------------------------------------------------------------
-# Full per-minute replay snapshots (the exact report envelope the UI renders)
-# ---------------------------------------------------------------------------
 
 #: One JSONL line per minute: ``{"t", "fetched_at", "report", "sensex"}`` where
 #: ``report`` is the FULL envelope ``/api/reports/nifty/live`` returns, so the
@@ -4114,10 +4080,6 @@ def get_nifty_replay(
             "gap_reasons": read_gap_reasons(date_str)}
 
 
-# ---------------------------------------------------------------------------
-# OI bursts: recomputable from the stored tape
-# ---------------------------------------------------------------------------
-
 def _recent_news_for(date_str: str) -> list[dict]:
     """Stored headlines around ``date_str`` (±12h) for burst tagging.
 
@@ -4341,9 +4303,6 @@ def _wall_event_alerts(rows: list[dict],
     return out
 
 
-# ---------------------------------------------------------------------------
-# Data watchdog + Telegram fan-out for the bursts feed
-# ---------------------------------------------------------------------------
 #: A tape whose newest row is older than this during market hours is blind: the
 #: recorder died (or the chain feed did) and every panel above the bursts feed
 #: is stale without saying so. 2 minutes is one missed tick plus one retry.
@@ -4466,7 +4425,6 @@ def detect_no_tape_alert(date_str: str,
         cutoff = NO_TAPE_BY_HOUR * 60 + NO_TAPE_BY_MINUTE
         if mins < cutoff:
             return None
-        # Empty or None rows means no tape written yet
         if rows:
             return None
         return {
@@ -4534,7 +4492,6 @@ def notify_telegram(alert: Optional[dict]) -> bool:
             return False
         from trading.telegram_notifier import _is_available, send_alert
 
-        # Check if notifier is configured; if not, log once and return False.
         if not _is_available():
             if not _TELEGRAM_WARNED:
                 import logging

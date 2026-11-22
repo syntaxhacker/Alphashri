@@ -32,7 +32,6 @@ function renderBuilder(
   return { ...view, onChange, setSpecSig };
 }
 
-/** NumberInput puts its testid on the FormControl, so reach the native input. */
 function numberField(testId: string): HTMLInputElement {
   const input = screen.getByTestId(testId).querySelector("input");
   if (!input) throw new Error(`No input inside ${testId}`);

@@ -23,12 +23,11 @@ from scripts.paper_sensex import fetch_chain  # noqa: E402
 
 LOT = 20
 EXPIRY = datetime(2026, 8, 6)
-IV = 0.19          # SENSEX ATM IV observed today
+IV = 0.19
 NOW = datetime(2026, 8, 5, 12, 45)
 
 
 def bs_premium(side: str, spot: float, strike: float, t_years: float, iv: float, r: float = 0.05) -> float:
-    """Black-Scholes premium on the spot (shared implementation)."""
     return _gr.bs_price(side, spot, strike, t_years, iv, r)
 
 
@@ -88,14 +87,13 @@ def main():
     except Exception:
         oi_res = oi_sup = day_open
 
-    # replay with cumulative day low/high (no lookahead)
     trades = []
     pos = None
     cum_low = float("inf")
     cum_high = 0.0
     dte_days = (EXPIRY - NOW).total_seconds() / 86400.0
     t_years = max(dte_days, 1) / 365.0
-    COOLDOWN_MIN = 5  # minutes after a close before re-entry (matches real cooldown)
+    COOLDOWN_MIN = 5
     cooldown_until = 0.0
     anchor_low = None
 
@@ -108,7 +106,6 @@ def main():
         cum_low = min(cum_low, c["low"])
         cum_high = max(cum_high, c["high"])
 
-        # levels as the strategy would see them at this minute
         sup_cands = [x for x in [oi_sup, cum_low] if x < spot]
         res_cands = [x for x in [oi_res, cum_high] if x > spot]
         sup = max(sup_cands) if sup_cands else cum_low
@@ -116,12 +113,10 @@ def main():
         down_day = spot < day_open
         up_day = spot > day_open
 
-        # ---- frozen anchor: first day-low seen on a down-day (fixed reference) ----
         if down_day and anchor_low is None:
             anchor_low = cum_low
         sup_anchor = anchor_low if anchor_low is not None else cum_low
 
-        # ---- manage open position ----
         if pos:
             pnl_hi = (bs_premium(pos["side"], c["high"], pos["strike"], t_years, IV) - pos["premium"]) * LOT
             pnl_lo = (bs_premium(pos["side"], c["low"], pos["strike"], t_years, IV) - pos["premium"]) * LOT
@@ -136,25 +131,21 @@ def main():
                 pos.update(reason="EOD", pnl=round((bs_premium(pos["side"], spot, pos["strike"], t_years, IV) - pos["premium"]) * LOT, 2), exit=spot)
             if pos.get("reason"):
                 trades.append(pos)
-                next_entry = hm  # cooldown: no entry for COOLDOWN_MIN minutes
+                next_entry = hm
                 pos = None
                 cooldown_until = ts.timestamp() + COOLDOWN_MIN * 60
             continue
 
-        # cooldown after a close
         if pos is None and ts.timestamp() < cooldown_until:
             continue
 
-        # ---- entry signals (fixed strategy rules) ----
         mom = (spot - candles[i - 1]["close"]) if i > 0 else 0.0
         signal = None
         side = None
         if not down_day:
-            # support bounce (CE) — only on up/flat day
             if spot <= sup + 50 and mom >= 0:
                 signal = f"support bounce {sup:,.0f}"; side = "CE"
         if not up_day:
-            # resistance reject (PE) on down/flat day
             if spot >= res - 50 and mom <= 0:
                 signal = f"resistance reject {res:,.0f}"; side = "PE"
             # breakdown (PE) below frozen anchor on down-day

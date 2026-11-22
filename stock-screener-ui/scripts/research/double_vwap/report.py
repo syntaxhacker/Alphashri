@@ -1,8 +1,4 @@
 #!/usr/bin/env python
-"""Cumulative-R chart + final numbers for the double-VWAP report.
-
-  .venv/bin/python scripts/research/double_vwap/report.py
-"""
 from __future__ import annotations
 
 import json

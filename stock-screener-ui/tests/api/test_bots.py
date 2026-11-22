@@ -40,9 +40,6 @@ from fastapi import FastAPI
 from api.bots_api import router as bots_router
 
 
-# ============================================================================
-# Unit Test Fixtures (for tests that use mocks)
-# ============================================================================
 
 @pytest.fixture
 def mock_db_session():
@@ -323,9 +320,6 @@ def client(app):
     return TestClient(app)
 
 
-# ============================================================================
-# 1. Available Strategies Tests
-# ============================================================================
 
 class TestAvailableStrategies:
     """Tests for /api/bots/available-strategies endpoint."""
@@ -356,9 +350,6 @@ class TestAvailableStrategies:
             assert response.status_code == 401
 
 
-# ============================================================================
-# 2. Bot CRUD Tests
-# ============================================================================
 
 class TestBotCRUD:
     """Tests for Bot CRUD operations."""
@@ -582,9 +573,6 @@ class TestBotCRUD:
             mock_stop.assert_called_once()
 
 
-# ============================================================================
-# 3. Bot Control Tests
-# ============================================================================
 
 class TestBotControl:
     """Tests for bot control endpoints."""
@@ -960,9 +948,6 @@ class TestBotPositionsFromDB:
             assert data["showing"] == 5
 
 
-# ============================================================================
-# 4. Strategy Control Tests
-# ============================================================================
 
 class TestStrategyControl:
     """Tests for strategy control within bots."""
@@ -992,9 +977,6 @@ class TestStrategyControl:
         assert "requires bot restart" in data["message"].lower()
 
 
-# ============================================================================
-# 5. Portfolio & Positions Tests
-# ============================================================================
 
 class TestPortfolioAndPositions:
     """Tests for portfolio and positions endpoints."""
@@ -1158,9 +1140,6 @@ class TestPortfolioAndPositions:
             assert data["count"] == 0
 
 
-# ============================================================================
-# 6. Performance Tests
-# ============================================================================
 
 class TestPerformanceEndpoints:
     """Tests for performance endpoints."""
@@ -1385,9 +1364,6 @@ class TestPerformanceEndpoints:
         assert "combined" in data
 
 
-# ============================================================================
-# 7. Error Handling Tests
-# ============================================================================
 
 class TestErrorHandling:
     """Tests for error handling."""
@@ -1452,7 +1428,6 @@ class TestBotCRUDUnit:
         # Create first bot
         client_with_db.post("/api/bots", json=bot_data)
 
-        # Try to create second bot with same name
         response = client_with_db.post("/api/bots", json=bot_data)
 
         assert response.status_code == 400

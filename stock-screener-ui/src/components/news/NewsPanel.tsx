@@ -17,10 +17,6 @@ import {
 } from "./NewsLocalStorage";
 import { ArticleView, NewsFilterControls, NewsListContent, NewsListHeader } from "./NewsHelpers";
 
-// =============================================================================
-// Custom Hooks
-// =============================================================================
-
 function useLocalNews(
   wsNewsItems: () => NewsItem[],
   addNewsItems: (items: NewsItem[]) => void,
@@ -122,10 +118,6 @@ function useAutoRefresh(
   return isRefreshing;
 }
 
-// -----------------------------------------------------------------------------
-// NewsPanel2-specific custom hooks (extracted from oversized component)
-// -----------------------------------------------------------------------------
-
 function useNewsSources() {
   const [sources, setSources] = createSignal<NewsSource[]>([]);
 
@@ -169,10 +161,6 @@ function useNewsTracking(isOpen: () => boolean, newsItems: () => NewsItem[]) {
 
   return lastSeenId;
 }
-
-// -----------------------------------------------------------------------------
-// Sub-components (extracted from NewsPanel2 JSX)
-// -----------------------------------------------------------------------------
 
 function NewsPanelToggle(props: {
   hasNewArticles: boolean;
@@ -327,10 +315,6 @@ function NewsPanelContainer(props: { isOpen: boolean; children?: JSX.Element }) 
     </Box>
   );
 }
-
-// -----------------------------------------------------------------------------
-// Composite hook for NewsPanel2 (combines all panel-specific state)
-// -----------------------------------------------------------------------------
 
 function useNewsPanelHandlers(
   isOpen: () => boolean,

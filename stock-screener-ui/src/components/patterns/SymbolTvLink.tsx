@@ -7,7 +7,6 @@ export interface SymbolTvLinkProps {
   symbol: string;
   testId: string;
   children: JSX.Element;
-  /** Extra layout only (flex, padding) — the link skin stays shared. */
   className?: string;
   style?: CSSProperties;
   ariaLabel?: string;

@@ -22,9 +22,6 @@ def _et(year, month, day, hour=0, minute=0) -> datetime:
     return datetime(year, month, day, hour, minute, tzinfo=sessions.ET)
 
 
-# ---------------------------------------------------------------------------
-# sessions
-# ---------------------------------------------------------------------------
 
 def test_now_et_converts_utc_and_interprets_naive_as_et():
     assert sessions.now_et(datetime(2026, 11, 17, 5, 0, tzinfo=timezone.utc)) == _et(2026, 11, 17)
@@ -101,9 +98,6 @@ def test_previous_us_session_walks_weekends_and_holidays():
         sessions.previous_us_session("bad-date")
 
 
-# ---------------------------------------------------------------------------
-# us_cache
-# ---------------------------------------------------------------------------
 
 @pytest.fixture
 def cache_dir(tmp_path, monkeypatch):

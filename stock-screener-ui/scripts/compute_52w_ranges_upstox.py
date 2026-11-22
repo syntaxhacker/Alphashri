@@ -1,21 +1,11 @@
 #!/usr/bin/env python3
-"""Compute 52-week high/low for NSE equities via Upstox daily candles.
-
-Uses trading.week52_utils (same logic as debug_52w.py / runner_risk) and upserts
-into stock_52w_range (+ optional Redis cache used by /api/52w-range).
-
-Usage:
-    cd stock-screener-ui
-    source .venv/bin/activate
-    python scripts/compute_52w_ranges_upstox.py --limit 10          # smoke test
-    python scripts/compute_52w_ranges_upstox.py --redis             # full run + cache
-    python scripts/compute_52w_ranges_upstox.py --symbol RELIANCE   # single symbol
-"""
 
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
+import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -54,6 +44,10 @@ LOOKBACK_CALENDAR_DAYS = 400
 DEFAULT_WORKERS = 3
 DEFAULT_DELAY_SEC = 0.35
 DB_FLUSH_EVERY = 500
+
+# Cleared when a run is compute-only or Redis-free so the top-level exception
+# handler never reaches for the Redis-backed job status.
+JOB_STATUS_ENABLED = True
 
 
 def load_symbols(
@@ -122,6 +116,41 @@ def _date_range(to_date: str | None) -> tuple[str, str]:
     return from_str, to_str
 
 
+def build_ranges_payload(as_of: str, ranges: dict) -> dict:
+    """Compact release payload: {as_of, count, symbols{symbol: {high, low, close, days_ago}}}."""
+    symbols = {}
+    for symbol in sorted(ranges):
+        info = ranges[symbol]
+        days = info.get("days_ago")
+        symbols[symbol] = {
+            "high": float(info["high"]),
+            "low": float(info["low"]),
+            "close": float(info["close"]),
+            "days_ago": None if days is None else max(0, int(days)),
+        }
+    return {"as_of": as_of, "count": len(symbols), "symbols": symbols}
+
+
+def write_ranges_json(path: str | Path, payload: dict) -> Path:
+    """Write the payload atomically; a ``.gz`` target is gzipped deterministically."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name(target.name + ".tmp")
+    blob = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    if target.suffix == ".gz":
+        blob = gzip.compress(blob, mtime=0)
+    try:
+        with open(tmp, "wb") as f:
+            f.write(blob)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, target)
+    finally:
+        if tmp.exists():
+            tmp.unlink()
+    return target
+
+
 def fetch_range_for_symbol(api, symbol: str, to_date: str | None) -> dict | None:
     from_date, to_str = _date_range(to_date)
     df = api.fetch_historical_data_v3(
@@ -146,7 +175,6 @@ def fetch_range_for_symbol(api, symbol: str, to_date: str | None) -> dict | None
 
 
 def _range_changed(row: Stock52WeekRange, info: dict) -> bool:
-    """True when the freshly computed range differs from the stored row."""
     return (
         row.high_52w != info["high"]
         or row.low_52w != info["low"]
@@ -227,7 +255,6 @@ def queue_range(
     info: dict,
     flush_every: int = DB_FLUSH_EVERY,
 ) -> tuple[int, int]:
-    """Buffer one symbol and commit the chunk once it reaches flush_every."""
     pending[symbol] = info
     if len(pending) >= flush_every:
         return flush_pending(pending)
@@ -251,11 +278,41 @@ def main() -> None:
         help="Only NSE_EQ stocks with instrument_type EQ (json) or ISIN INE%% (db)",
     )
     parser.add_argument("--symbol", action="append", help="Run for specific symbol(s) only")
-    parser.add_argument("--limit", type=int, default=0, help="Max symbols to process (0 = all)")
+    parser.add_argument(
+        "--limit",
+        "--max-symbols",
+        dest="limit",
+        type=int,
+        default=0,
+        help="Max symbols to process (0 = all); --max-symbols is an alias for smoke tests",
+    )
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS, help="Parallel fetch workers")
     parser.add_argument("--delay", type=float, default=DEFAULT_DELAY_SEC, help="Sleep after each API call")
     parser.add_argument("--to-date", dest="to_date", help="As-of date YYYY-MM-DD (default: today IST)")
     parser.add_argument("--dry-run", action="store_true", help="Fetch only; do not write DB/Redis")
+    parser.add_argument(
+        "--output-json",
+        metavar="PATH",
+        help=(
+            "Compute-only: write compact ranges JSON to PATH ('.gz' compresses). "
+            "Implies --no-db --no-redis and skips the Redis job status."
+        ),
+    )
+    parser.add_argument(
+        "--no-db",
+        action="store_true",
+        help="Skip stock_52w_range writes (reads for skip flags still run unless --dry-run)",
+    )
+    parser.add_argument(
+        "--no-redis",
+        action="store_true",
+        help="Skip Redis job status and the 52w_range bulk cache write",
+    )
+    parser.add_argument(
+        "--allow-empty",
+        action="store_true",
+        help="Exit 0 when no symbols remain (scheduled catch-up no-op)",
+    )
     parser.add_argument("--redis", action="store_true", help="Also update Redis 52w_range cache")
     parser.add_argument("--skip-existing", action="store_true", help="Skip symbols already in stock_52w_range")
     parser.add_argument(
@@ -269,6 +326,13 @@ def main() -> None:
         help="Run Alembic migrations before processing (default: skip, set SKIP_ALEMBIC=1)",
     )
     args = parser.parse_args()
+
+    global JOB_STATUS_ENABLED
+    compute_only = bool(args.output_json)
+    db_writes = not (args.dry_run or args.no_db or compute_only)
+    db_reads = not (args.dry_run or args.no_db)
+    redis_enabled = not (args.dry_run or args.no_redis or compute_only) and args.redis
+    JOB_STATUS_ENABLED = not (args.dry_run or args.no_redis or compute_only)
 
     source = args.source
     if source == "auto" and not args.symbol:
@@ -286,7 +350,7 @@ def main() -> None:
         source = "json"
 
     symbols = load_symbols(source, args.equity_only, args.symbol)
-    if args.skip_existing and not args.dry_run:
+    if args.skip_existing and db_reads:
         db = SessionLocal()
         try:
             have = {r.symbol for r in db.query(Stock52WeekRange.symbol).all()}
@@ -296,29 +360,39 @@ def main() -> None:
         finally:
             db.close()
 
-    if args.skip_updated_today and not args.dry_run:
-        db = SessionLocal()
+    if args.skip_updated_today and db_reads:
         try:
-            # updated_at only moves when a range actually changed, so a symbol
-            # that recomputes identically keeps its older stamp and is fetched
-            # again on the next run. In practice `close` moves for most names
-            # intraday, so the daily dedupe still holds during market hours.
-            today = datetime.now(config.IST).date()
-            fresh = {
-                r.symbol
-                for r in db.query(Stock52WeekRange.symbol, Stock52WeekRange.updated_at).all()
-                if r.updated_at and r.updated_at.date() >= today
-            }
-            before = len(symbols)
-            symbols = [s for s in symbols if s not in fresh]
-            print(f"Skip-updated-today: {before - len(symbols)} already fresh today, {len(symbols)} remaining")
-        finally:
-            db.close()
+            db = SessionLocal()
+            try:
+                # updated_at only moves when a range actually changed, so a symbol
+                # that recomputes identically keeps its older stamp and is fetched
+                # again on the next run. In practice `close` moves for most names
+                # intraday, so the daily dedupe still holds during market hours.
+                today = datetime.now(config.IST).date()
+                fresh = {
+                    r.symbol
+                    for r in db.query(Stock52WeekRange.symbol, Stock52WeekRange.updated_at).all()
+                    if r.updated_at and r.updated_at.date() >= today
+                }
+                before = len(symbols)
+                symbols = [s for s in symbols if s not in fresh]
+                print(f"Skip-updated-today: {before - len(symbols)} already fresh today, {len(symbols)} remaining")
+            finally:
+                db.close()
+        except Exception as exc:
+            # A compute-only host has no seeded table; catch-up freshness is then
+            # unknowable, so process the full list instead of failing the run.
+            if not compute_only:
+                raise
+            print(f"Skip-updated-today unavailable ({exc}); processing all symbols")
 
     if args.limit > 0:
         symbols = symbols[: args.limit]
 
     if not symbols:
+        if args.allow_empty:
+            print("No symbols to process (no-op).")
+            return
         print("No symbols to process.")
         sys.exit(1)
 
@@ -332,12 +406,12 @@ def main() -> None:
 
     api = UpstoxAPI(api_key=api_key, api_secret=api_secret, quiet=True)
 
-    if not args.dry_run and args.migrate:
+    if db_writes and args.migrate:
         init_db()
 
     print(f"Processing {len(symbols)} symbols (workers={args.workers}, delay={args.delay}s)...")
 
-    if not args.dry_run:
+    if JOB_STATUS_ENABLED:
         existing = get_job_status()
         if existing and existing.get("status") == "running":
             print("Another 52W batch job is already running (see Admin > 52W Range).")
@@ -382,11 +456,11 @@ def main() -> None:
             if entry:
                 ok += 1
                 all_ok[symbol] = entry
-                if not args.dry_run:
+                if db_writes:
                     a, u = queue_range(pending, symbol, entry)
                     total_added += a
                     total_updated += u
-                if not args.dry_run and (done <= 5 or done % 25 == 0 or done == len(symbols)):
+                if JOB_STATUS_ENABLED and (done <= 5 or done % 25 == 0 or done == len(symbols)):
                     elapsed = time.monotonic() - t0
                     rate = done / elapsed if elapsed > 0 else 0
                     eta_sec = (len(symbols) - done) / rate if rate > 0 else 0
@@ -409,18 +483,16 @@ def main() -> None:
                 if failed <= 10:
                     print(f"  [{done}/{len(symbols)}] {symbol}: ERROR {err}")
 
-    # Only the unflushed remainder; flushing all_ok here re-wrote every chunk.
-    if not args.dry_run and pending:
+    if db_writes and pending:
         a, u = flush_pending(pending)
         total_added += a
         total_updated += u
 
-    if args.redis and not args.dry_run and all_ok:
-        from api_server_fastapi import _load_52w_ranges_from_redis, _store_52w_ranges_in_redis
+    if redis_enabled and all_ok:
+        from cache.week52 import load_52w_ranges, store_52w_ranges
 
-        # Try Redis first (has days_ago), fall back to DB if cache was cleared
-        merged = _load_52w_ranges_from_redis()
-        if not merged:
+        merged = load_52w_ranges()
+        if not merged and db_reads:
             db = SessionLocal()
             try:
                 rows = db.query(Stock52WeekRange).all()
@@ -428,15 +500,21 @@ def main() -> None:
             finally:
                 db.close()
         merged.update(all_ok)
-        _store_52w_ranges_in_redis(merged)
+        store_52w_ranges(merged)
         print(f"Redis cache updated ({len(merged)} symbols).")
+
+    if compute_only:
+        as_of = _date_range(args.to_date)[1]
+        payload = build_ranges_payload(as_of, all_ok)
+        written = write_ranges_json(args.output_json, payload)
+        print(f"Wrote {payload['count']} ranges ({as_of}) to {written}")
 
     if args.dry_run and all_ok:
         sym, entry = next(iter(all_ok.items()))
         print(f"Dry-run sample {sym}: {entry}")
 
     elapsed = time.monotonic() - t0
-    if not args.dry_run:
+    if JOB_STATUS_ENABLED:
         finish_job(
             ok=ok,
             failed=failed,
@@ -444,15 +522,22 @@ def main() -> None:
             total=len(symbols),
             elapsed_sec=elapsed,
         )
-    print(
-        f"\nDone in {elapsed:.1f}s — ok={ok} skipped={skipped} failed={failed} "
-        f"(db +{total_added} ~{total_updated} changed)"
-    )
+    if compute_only:
+        print(
+            f"\nDone in {elapsed:.1f}s — ok={ok} skipped={skipped} failed={failed} "
+            f"(compute-only, {len(all_ok)} ranges written)"
+        )
+    else:
+        print(
+            f"\nDone in {elapsed:.1f}s — ok={ok} skipped={skipped} failed={failed} "
+            f"(db +{total_added} ~{total_updated} changed)"
+        )
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
-        fail_job(str(exc))
+        if JOB_STATUS_ENABLED:
+            fail_job(str(exc))
         raise

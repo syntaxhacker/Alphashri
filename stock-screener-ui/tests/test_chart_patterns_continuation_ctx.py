@@ -91,9 +91,6 @@ def _hit_signature(hit) -> dict:
     return asdict(hit)
 
 
-# ---------------------------------------------------------------------------
-# get_swings ctx caching
-# ---------------------------------------------------------------------------
 
 
 def test_get_swings_caches_under_ctx_and_reuses_object():
@@ -115,9 +112,6 @@ def test_get_swings_without_ctx_does_not_cache():
     # No ctx -> nothing stored.
 
 
-# ---------------------------------------------------------------------------
-# within-detector cache reuse
-# ---------------------------------------------------------------------------
 
 
 def test_detect_pennant_reuses_cached_swings_across_calls():
@@ -145,9 +139,6 @@ def test_flag_detector_reuses_cached_swings_across_calls():
     assert [_hit_signature(h) for h in hits2] == [_hit_signature(h) for h in hits1]
 
 
-# ---------------------------------------------------------------------------
-# cross-detector sharing: detect_pennant reads a pre-warmed ctx swing cache
-# ---------------------------------------------------------------------------
 
 
 def test_detect_pennant_reads_prewarmed_ctx_swings():
@@ -160,9 +151,6 @@ def test_detect_pennant_reads_prewarmed_ctx_swings():
     assert ctx["_swings"][SWINGS_KEY] is swings
 
 
-# ---------------------------------------------------------------------------
-# output equivalence: ctx threading must not change hits
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(

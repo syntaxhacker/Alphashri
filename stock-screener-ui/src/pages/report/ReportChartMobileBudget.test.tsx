@@ -186,7 +186,6 @@ describe("Index Report mobile vertical budget (390 × 844)", () => {
 
     const disclosure = await screen.findByTestId("nifty-flow-windows-disclosure", undefined, { timeout: 5000 });
     expect(disclosure).toHaveAttribute("data-open", "false");
-    // Collapsed counts: children stay mounted behind display:none.
     const content = within(disclosure).getByTestId("nifty-live-tape-content");
     expect(content.style.display).toBe("none");
     for (const id of ["nifty-flow-windows", "flow-session", "flow-15m", "flow-5m", "flow-legend"]) {

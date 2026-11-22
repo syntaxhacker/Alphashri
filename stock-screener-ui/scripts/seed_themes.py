@@ -21,14 +21,12 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
-# Add project path (same pattern as scripts/seed_qa_data.py)
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from db.models.taxonomy import Theme, ThemeConstituent  # noqa: E402
 
 
 def load_theme_file(path: Path) -> List[dict]:
-    """Read and minimally validate the seed JSON file."""
     with open(path, "r", encoding="utf-8") as f:
         items = json.load(f)
     if not isinstance(items, list):
@@ -40,11 +38,6 @@ def load_theme_file(path: Path) -> List[dict]:
 
 
 def load_valid_symbols(db=None) -> Set[str]:
-    """Return the set of known NSE_EQ trading symbols (uppercased).
-
-    Prefers ``api.symbols._load_instruments()``; falls back to a direct
-    ``Instrument`` query when the cache is empty/unavailable.
-    """
     try:
         from api.symbols import _load_instruments
         cached = _load_instruments() or []
@@ -118,7 +111,7 @@ def upsert_themes(
                 is_active=True,
             )
             db.add(theme)
-            db.flush()  # assign id for constituent inserts
+            db.flush()
             created += 1
         else:
             theme.name = item.get("name") or theme.name

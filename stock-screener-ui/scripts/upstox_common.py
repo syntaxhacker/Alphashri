@@ -27,7 +27,6 @@ NIFTY_KEY = "NSE_INDEX|Nifty 50"
 
 
 def _token_from_db() -> str:
-    """The shared ``broker_connections`` row, or "" when absent/unreadable."""
     try:
         from db.models.broker import get_shared_broker_token
 
@@ -65,7 +64,6 @@ def _token_from_file() -> tuple[str, str]:
 
 
 def _token_from_env() -> str:
-    """``UPSTOX_ACCESS_TOKEN`` from the process env, or ""."""
     tok = os.getenv("UPSTOX_ACCESS_TOKEN", "").strip()
     if tok:
         return tok
@@ -78,10 +76,6 @@ def _token_from_env() -> str:
 
 
 def token_with_source() -> tuple[str, str]:
-    """``(token, source label)`` — the label names where the token came from.
-
-    ``source`` is "" when no token is configured.
-    """
     tok = _token_from_db()
     if tok:
         return tok, "DB (broker_connections)"
@@ -95,18 +89,13 @@ def token_with_source() -> tuple[str, str]:
 
 
 def token() -> str:
-    """The current Upstox access token, or "" when none is configured."""
     return token_with_source()[0]
 
 
 def _resolve(tok: str) -> str:
-    """The caller's token when it has one, else the current one."""
     return tok or token_with_source()[0]
 
 
-# ---------------------------------------------------------------------------
-# pure helpers
-# ---------------------------------------------------------------------------
 def as_float(value):
     """Finite float or None — never raises, never returns NaN/inf."""
     try:
@@ -119,21 +108,13 @@ def as_float(value):
 
 
 def data(payload):
-    """Unwrap Upstox's ``{"status": ..., "data": ...}`` envelope."""
     if isinstance(payload, dict) and "data" in payload:
         return payload["data"]
     return payload
 
 
-# ---------------------------------------------------------------------------
-# REST
-# ---------------------------------------------------------------------------
 def get(path: str, params: dict | None = None, timeout: float = 10.0,
         base: str = BASE_V2, rate_limit: bool = True, token: str = "") -> dict:
-    """GET ``base + path`` and return the parsed JSON body.
-
-    Raises ``RuntimeError`` when there is no token; HTTP errors propagate.
-    """
     import requests
 
     from scripts.upstox_rate import get_limiter
@@ -143,7 +124,7 @@ def get(path: str, params: dict | None = None, timeout: float = 10.0,
         raise RuntimeError("no Upstox token")
     headers = {"Authorization": f"Bearer {tok}", "Accept": "application/json"}
     if rate_limit:
-        get_limiter().acquire()  # shared 50/s + 500/min + 2000/30min budget
+        get_limiter().acquire()
     resp = requests.get(f"{base}{path}", params=params, headers=headers, timeout=timeout)
     resp.raise_for_status()
     return resp.json()

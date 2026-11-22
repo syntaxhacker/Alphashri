@@ -143,10 +143,10 @@ describe("buildDepthRows", () => {
   test("boundary ±750 included, beyond excluded", () => {
     const report = mockReport({
       strikes: [
-        strikeAt(25000, 10, 10), // exactly -750
-        strikeAt(26500, 10, 10), // exactly +750
-        strikeAt(24950, 10, 10), // -800 → out
-        strikeAt(26550, 10, 10), // +800 → out
+        strikeAt(25000, 10, 10),
+        strikeAt(26500, 10, 10),
+        strikeAt(24950, 10, 10),
+        strikeAt(26550, 10, 10),
       ],
     });
     expect(buildDepthRows(report).map((r) => r.strike)).toEqual([25000, 26500]);
@@ -160,7 +160,6 @@ describe("buildDepthRows", () => {
     expect(rows).toHaveLength(DEPTH_MAX_ROWS);
     const got = rows.map((r) => r.strike);
     expect(got).toEqual(got.toSorted((a, b) => a - b));
-    // ATM strike survives the cap
     expect(got).toContain(25750);
   });
 
@@ -265,12 +264,10 @@ describe("IST x-axis", () => {
     const opt = asOpt(mockReport());
     const fmt = opt.xAxis[0].axisLabel?.formatter;
     expect(typeof fmt).toBe("function");
-    // Candle session times: 09:15 and 09:30 in the mock report
     expect(fmt?.(opt.xAxis[0].data?.[0])).toBe("09:15");
     expect(fmt?.(opt.xAxis[0].data?.[1])).toBe("09:30");
     for (const v of opt.xAxis[0].data ?? []) {
       const label = fmt?.(v) ?? "";
-      // HH:MM shape, and never a thousands-separated price ("22,300")
       expect(label).toMatch(/^\d{2}:\d{2}$/);
       expect(label).not.toMatch(/,\d{3}/);
     }
@@ -298,13 +295,13 @@ describe("levelLines dedupe", () => {
   test("Spot wins, MP/CW within 25pts skipped (priority Spot > MP > CW/PW > OI-POC > Hi/Lo)", () => {
     const report = mockReport({
       spot: 25750,
-      maxPain: 25760, // within 25 of Spot → skipped
+      maxPain: 25760,
       walls: {
         calls: [
-          { strike: 25755, oi: 5000 }, // within 25 of Spot → skipped
-          { strike: 26000, oi: 4000 }, // fresh → kept
+          { strike: 25755, oi: 5000 },
+          { strike: 26000, oi: 4000 },
         ],
-        puts: [{ strike: 25500, oi: 6000 }], // fresh → kept
+        puts: [{ strike: 25500, oi: 6000 }],
       },
     });
     const names = levelLines(report, dayStats(report), 26000).map((l) => l.name);
@@ -312,7 +309,6 @@ describe("levelLines dedupe", () => {
     expect(names.some((n) => n.startsWith("MP"))).toBe(false);
     expect(names).toContain("CW 26,000");
     expect(names.some((n) => n.startsWith("PW"))).toBe(true);
-    // OI POC dupes the CW line → skipped
     expect(names.some((n) => n.startsWith("OI POC"))).toBe(false);
   });
 
@@ -324,7 +320,6 @@ describe("levelLines dedupe", () => {
       ],
     });
     const names = levelLines(report, dayStats(report), null).map((l) => l.name);
-    // hi 25760 dupes Spot 25750, lo 25740 dupes Spot → both skipped
     expect(names.some((n) => n.startsWith("Hi"))).toBe(false);
     expect(names.some((n) => n.startsWith("Lo"))).toBe(false);
   });
@@ -339,7 +334,6 @@ describe("topOiLabelStrikes", () => {
     }));
     const labeled = topOiLabelStrikes(rows);
     expect(labeled.length).toBeLessThanOrEqual(6);
-    // top-3 CE: highest ceOi; top-3 PE: highest peOi
     expect(labeled).toEqual(expect.arrayContaining([25350, 25300, 25250, 25000, 25050, 25100]));
   });
 });
@@ -364,7 +358,6 @@ describe("buildDepthOption", () => {
     expect(y0.type).toBe("value");
     expect(y0.min).toBeCloseTo(lo * 0.9985, 6);
     expect(y0.max).toBeCloseTo(hi * 1.0015, 6);
-    // Strike extremes (24000/27500 in the full chain) are outside → bars clip
     expect(y0.min ?? 0).toBeGreaterThan(24000);
     expect(y0.max ?? 0).toBeLessThan(27500);
   });
@@ -400,7 +393,6 @@ describe("buildDepthOption", () => {
     expect(peData).toHaveLength(2);
     for (const [oi] of ceData) expect(oi).toBeLessThanOrEqual(0);
     for (const [oi] of peData) expect(oi).toBeGreaterThanOrEqual(0);
-    // …at the same strike rows, ascending (higher strike = higher row)
     expect(ceData.map((d) => d[1])).toEqual(["25700", "25800"]);
     expect(peData.map((d) => d[1])).toEqual(["25700", "25800"]);
     expect(peData[0][0]).toBe(2500);
@@ -421,7 +413,6 @@ describe("buildDepthOption", () => {
     expect(names).toContain("PW 25,600");
     expect(names).toContain("MP 25,700");
     expect(names.some((n) => n.startsWith("Spot"))).toBe(true);
-    // OI POC 25,800 dupes the CW 25,800 line → deduped, never doubled
     expect(names.some((n) => n.startsWith("OI POC"))).toBe(false);
     // A category axis cannot place arbitrary price levels: no markLines there
     expect(opt.series[1].markLine).toBeUndefined();
@@ -456,7 +447,6 @@ describe("buildDepthOption", () => {
     expect(peDom?.symbolSize).toBe(6);
     expect(ceDom?.label?.show).toBe(false);
     expect(peDom?.label?.show).toBe(false);
-    // 25800 is CE-heavy (9000 vs 1000), 25700 is PE-heavy (2000 vs 2500)
     expect(ceDom?.data).toHaveLength(1);
     expect(peDom?.data).toHaveLength(1);
   });

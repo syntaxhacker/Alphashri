@@ -32,7 +32,6 @@ const GUARDED_FILES = [
   "NiftyDeltaPositioning.tsx",
 ] as const;
 
-/** Tailwind arbitrary values, inline style objects (quoted or bare key), SVG attrs. */
 const FONT_SIZE =
   /text-\[(\d+(?:\.\d+)?)px\]|["']?font-size["']?\s*[:=]\s*["']?(\d+(?:\.\d+)?)px|\bfontSize\s*[:=]\s*["']?(\d+(?:\.\d+)?)|\bfont-size="(\d+(?:\.\d+)?)"/g;
 

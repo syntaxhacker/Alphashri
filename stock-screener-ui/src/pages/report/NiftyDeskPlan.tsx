@@ -14,17 +14,6 @@ import {
   type DeskSide,
 } from "./deskPlan";
 
-/**
- * Two-sided desk plan: what to DO and what NOT to do on each side of the book.
- *
- * Both columns are always rendered because the desk argues both cases: the
- * active bias gets the coloured badge, the other side reads NEUTRAL. The
- * numbers come from `buildDeskPlan`, which is pure and data-only — this file
- * is presentation, not reasoning.
- *
- * The panel is collapsible (open by default, no persistence) and its body is
- * height-capped so the chart below stays on screen at 1080p.
- */
 
 const TAG_COLORS: Record<DeskReasonTag, string> = {
   trend: palette.PRIMARY,

@@ -145,9 +145,6 @@ _SAFE_SYMBOL_RE = re.compile(r"[^A-Z0-9_.-]+")
 _FO_LOTS: dict = {"ts": 0.0, "by_key": {}, "by_symbol": {}}
 
 
-# --------------------------------------------------------------------------- #
-# per-event-loop asyncio state
-# --------------------------------------------------------------------------- #
 class _LoopState:
     """Semaphore + per-underlying locks bound to one event loop."""
 
@@ -187,9 +184,6 @@ def _symbol_lock(symbol: str) -> asyncio.Lock:
     return lock
 
 
-# --------------------------------------------------------------------------- #
-# Upstox budget (consumer "api")
-# --------------------------------------------------------------------------- #
 _RATE_LIMITER: Any = None
 _RATE_LIMITER_READY = False
 
@@ -227,9 +221,6 @@ async def _acquire_upstream() -> bool:
         return True
 
 
-# --------------------------------------------------------------------------- #
-# small coercion helpers (upstream sends None / strings / NaN)
-# --------------------------------------------------------------------------- #
 def _num(value: Any, default: float = 0.0) -> float:
     try:
         if value is None or isinstance(value, bool):
@@ -265,9 +256,6 @@ def _validate_expiry(expiry: str) -> str:
     return parsed.strftime("%Y-%m-%d")
 
 
-# --------------------------------------------------------------------------- #
-# pure shaping (unit-tested without HTTP)
-# --------------------------------------------------------------------------- #
 def build_side(contract: Optional[dict]) -> dict:
     """Flatten one chain leg into the frontend ``NiftyOptionSide`` shape.
 
@@ -424,9 +412,6 @@ def ohlc_from_intraday(intraday: list[dict], spot: float) -> dict:
     }
 
 
-# --------------------------------------------------------------------------- #
-# lot size (index table first, then the symbol's own NSE_FO contract)
-# --------------------------------------------------------------------------- #
 def _fo_lots() -> dict:
     """``NSE_FO`` instrument-key / asset-symbol -> lot size (lazy, 1h TTL).
 
@@ -491,9 +476,6 @@ def resolve_lot_size(symbol: str, chain: Optional[list[dict]] = None) -> int:
         return 1
 
 
-# --------------------------------------------------------------------------- #
-# daily candles -> pivots + baseline (symbol's own, never NIFTY's)
-# --------------------------------------------------------------------------- #
 def daily_rows_from_df(df: Any) -> list[list]:
     """Daily DataFrame -> raw Upstox candle rows ``[date, o, h, l, c, v, oi]``."""
     out: list[list] = []
@@ -558,9 +540,6 @@ def compute_pivots(candles: Optional[list], today: str) -> Optional[dict]:
         return None
 
 
-# --------------------------------------------------------------------------- #
-# generic recorder tape (per symbol — never the NIFTY tape)
-# --------------------------------------------------------------------------- #
 def tape_path(symbol: str, date_str: str) -> Path:
     """``experiments/data/options_tape/{SYMBOL}/{date}.jsonl``."""
     safe = _SAFE_SYMBOL_RE.sub("", str(symbol or "").upper()) or "UNKNOWN"
@@ -594,9 +573,6 @@ def read_tape(symbol: str, date_str: str) -> list[dict]:
     return rows
 
 
-# --------------------------------------------------------------------------- #
-# session block + timeline
-# --------------------------------------------------------------------------- #
 def market_block() -> dict:
     """``{is_open, session_date, as_of}`` in IST (same contract as NIFTY).
 
@@ -657,9 +633,6 @@ def build_emas(intraday: Optional[list[dict]]) -> list[dict]:
     ]
 
 
-# --------------------------------------------------------------------------- #
-# cache (own namespace, 30 s, LRU-capped by symbol)
-# --------------------------------------------------------------------------- #
 def _cache_get(symbol: str, expiry: str, allow_stale: bool = False) -> Optional[dict]:
     entry = _chain_cache.get((symbol, expiry))
     if not entry:
@@ -723,9 +696,6 @@ def _intraday_put(symbol: str, bars: list[dict]) -> None:
         _intraday_cache.pop(key, None)
 
 
-# --------------------------------------------------------------------------- #
-# upstream fetches (semaphore + rate limiter gated)
-# --------------------------------------------------------------------------- #
 async def _fetch_intraday(symbol: str) -> list[dict]:
     """Fetch 1-minute bars (no cache read) — ``[]`` on any failure.
 
@@ -1130,9 +1100,6 @@ async def _attach_analytics(symbol: str, report: dict, intraday: list[dict]) -> 
     return report
 
 
-# --------------------------------------------------------------------------- #
-# route
-# --------------------------------------------------------------------------- #
 @router.get("/{underlying}/live")
 async def get_live_option_report(
     underlying: str,

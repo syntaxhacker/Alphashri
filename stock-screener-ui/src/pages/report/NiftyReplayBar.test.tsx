@@ -24,7 +24,6 @@ function r(ui: () => JSX.Element) {
   return render(() => <UIProvider>{ui()}</UIProvider>);
 }
 
-/** Three recorded minutes with distinct spots so scrubbing is observable. */
 function replayFixture(): NiftyReplay {
   const frame = (hm: string) => ({
     t: `2026-10-10T${hm}:00+05:30`,

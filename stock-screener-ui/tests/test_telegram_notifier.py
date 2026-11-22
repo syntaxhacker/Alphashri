@@ -14,11 +14,9 @@ import trading.telegram_notifier as tgn
 from config import IST
 
 
-# Clear global state before and after each test
 @pytest.fixture(autouse=True)
 def reset_telegram_state(monkeypatch):
     """Reset module-level state between tests."""
-    # Replace the global deques and dicts with fresh ones
     new_send_times = deque()
     new_cooldown_keys = {}
     monkeypatch.setattr(tgn, "_send_times", new_send_times)
@@ -70,9 +68,7 @@ class TestRateLimit:
         assert tgn._check_rate_limit() is False
 
     def test_clears_old_entries(self, monkeypatch):
-        # Simulate some old entries outside the 60s window
         now = time.time()
-        # Manually add entries older than 60s
         old_time = now - 61
         tgn._send_times.append(old_time)
         tgn._send_times.append(old_time)
@@ -105,7 +101,6 @@ class TestCooldown:
     def test_after_cooldown_period_allowed(self, monkeypatch):
         """Test that after 60s, cooldown resets."""
         tgn._check_cooldown("test_key")
-        # Manipulate the stored time
         monkeypatch.setattr(tgn, "_cooldown_keys", {"test_key": time.time() - 61})
         assert tgn._check_cooldown("test_key") is True
 
@@ -122,7 +117,6 @@ class TestSendMessage:
     @patch('trading.telegram_notifier.requests')
     def test_sends_message_successfully(self, mock_requests, monkeypatch):
         """Test successful send builds correct payload."""
-        # Make _is_available return True
         monkeypatch.setattr(tgn, "_is_available", lambda: True)
         # Mock thread pool to run inline
         mock_pool = MagicMock()
@@ -142,7 +136,6 @@ class TestSendMessage:
 
         tgn._send_message("Test message", cooldown_key="test")
 
-        # Should have submitted one function
         assert len(submitted) == 1
         # The function would have called requests.post
         mock_requests.post.assert_called_once()
@@ -156,7 +149,6 @@ class TestSendMessage:
     def test_respects_rate_limit(self, mock_requests, monkeypatch, capsys):
         """Test that if rate limit exceeded, message is skipped."""
         monkeypatch.setattr(tgn, "_is_available", lambda: True)
-        # Fill rate limit
         monkeypatch.setattr(tgn, "_send_times", deque([time.time()] * 25))
         tgn._send_message("Test")
         # Should not call requests.post
@@ -168,7 +160,6 @@ class TestSendMessage:
     def test_respects_cooldown(self, mock_requests, monkeypatch, capsys):
         """Test that if cooldown active, message is skipped."""
         monkeypatch.setattr(tgn, "_is_available", lambda: True)
-        # Set cooldown for key
         monkeypatch.setattr(tgn, "_cooldown_keys", {"test": time.time()})
         tgn._send_message("Test", cooldown_key="test")
         mock_requests.post.assert_not_called()
@@ -191,7 +182,6 @@ class TestSendMessage:
         mock_requests.post.return_value = mock_resp
 
         tgn._send_message("Test message")
-        # Check that text passed to post includes origin tag
         call_kwargs = mock_requests.post.call_args[1]
         text_sent = call_kwargs['json']['text']
         assert text_sent.endswith(tgn._ORIGIN_TAG) or tgn._ORIGIN_TAG in text_sent
@@ -202,12 +192,10 @@ class TestSendMessage:
         monkeypatch.setattr(tgn, "_is_available", lambda: True)
         mock_pool = MagicMock()
         def run_func(func):
-            # Simulate network error in requests.post
             mock_requests.post.side_effect = Exception("Network error")
             func()
         mock_pool.submit.side_effect = run_func
         monkeypatch.setattr(tgn, "_THREAD_POOL", mock_pool)
-        # Should not raise
         tgn._send_message("Test")
         captured = capsys.readouterr()
         assert "Telegram error" in captured.out or "Telegram error" in captured.err
@@ -238,7 +226,6 @@ class TestPublicSendFunctions:
         assert "Entry: ₹2500.00 × 10 = ₹25,000" in msg
         assert "SL: ₹2450.00" in msg
         assert "TP: ₹2550.00" in msg
-        # Check cooldown key
         assert mock_send.call_args[1]['cooldown_key'] == "entry:RELIANCE"
 
     @patch.object(tgn, "_send_message")
@@ -345,7 +332,6 @@ class TestPublicSendFunctions:
         )
         msg = mock_send.call_args[0][0]
         assert "📊 *Daily Summary* — TestBot" in msg
-        # Numbers include sign formatting
         assert "Net P&L: ₹+25,000" in msg
         assert "Wins: 15 | Losses: 5" in msg
         assert "Win Rate: 75%" in msg

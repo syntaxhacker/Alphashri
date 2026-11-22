@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Parallel date runner for the wall research scripts (default 6 workers).
-
-Each session is independent, so `ProcessPoolExecutor` maps cleanly. The worker
-sets the module-level tape path per process (the `batch` cache is per-process).
-"""
 
 from __future__ import annotations
 
@@ -27,7 +22,7 @@ def _worker(args):
     elif which == "fixed":
         import hist_fixed as fn
     else:
-        import batch as fn  # module with .run
+        import batch as fn
     return fn.run(date, cfg)
 
 

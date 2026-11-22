@@ -15,7 +15,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-# Add project root to path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -189,7 +188,6 @@ class TestOptionsChainFieldPassthrough:
             assert ce_md["bid_qty"] == 50
             assert ce_md["ask_qty"] == 60
             assert data["chain"][0]["ce"]["option_greeks"]["pop"] == 40.0
-            # Existing fields untouched
             assert ce_md["ltp"] == 100
             assert ce_md["oi"] == 1000
 
@@ -213,7 +211,6 @@ class TestOptionsEndpoints:
         """
         Test retrieving expiry dates for NIFTY.
         """
-        # Use /api/options/expiries prefix if configured
         response = client.get("/api/options/expiries/NIFTY")
         assert response.status_code == 200
         data = response.json()

@@ -84,10 +84,8 @@ describe("EventWatch", () => {
     expect(screen.getByTestId("event-watch-recent")).toBeInTheDocument();
     expect(screen.getByTestId("event-watch-upcoming-row-RELIANCE-results")).toBeInTheDocument();
     expect(screen.getByTestId("event-watch-recent-row-HDFCBANK-upgrade")).toBeInTheDocument();
-    // date-grouped upcoming list
     expect(screen.getByTestId("event-watch-upcoming-group-2026-10-13")).toBeInTheDocument();
     expect(screen.getByTestId("event-watch-upcoming-group-2026-10-14")).toBeInTheDocument();
-    // technical snapshot beside the row (price from daily payload)
     expect(screen.getByTestId("event-watch-upcoming-row-RELIANCE-results")).toHaveTextContent("₹2850.50");
   });
 
@@ -126,7 +124,6 @@ describe("EventWatch", () => {
     vi.mocked(fetchRecentEvents).mockResolvedValue(null);
     renderWatch();
     await waitFor(() => expect(vi.mocked(fetchRecentEvents)).toHaveBeenCalled());
-    // allow effects to settle
     await new Promise((r) => setTimeout(r, 50));
     expect(screen.queryByTestId("event-watch")).not.toBeInTheDocument();
   });

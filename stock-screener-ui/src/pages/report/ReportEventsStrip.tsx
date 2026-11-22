@@ -64,7 +64,6 @@ export function ReportEventsStrip(props: ReportEventsStripProps) {
               <For each={events()}>
                 {(ev) => (
                   <div
-                    // Same symbol can appear for results + dividend on one date.
                     data-testid={`report-events-row-${ev.symbol}-${ev.kind}`}
                     data-symbol={ev.symbol}
                     {...symbolRowProps(props.onOpenSymbol, ev.symbol)}

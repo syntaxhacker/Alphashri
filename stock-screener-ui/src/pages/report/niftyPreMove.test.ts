@@ -2,7 +2,6 @@ import { describe, expect, test } from "vitest";
 import { scorePreMove, type PreMoveInput } from "./niftyPreMove";
 import type { OiPoint } from "./niftyFlowRead";
 
-/** 10 s snapshots from 13:12:00 to 13:18:00, newest last. */
 function points(): OiPoint[] {
   const out: OiPoint[] = [];
   let ceOi = 100_000_000;

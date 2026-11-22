@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""v3.1 wall playbook on the 10-second chain (Oct 26-30) — larger sample.
-
-The 1-minute tape gives 6-9 trades; the 10s chain has ~5x the rows and no
-pre-computed walls, so the walls and max pain are derived from the chain OI.
-Signal at row t, fill at t+1; stops/targets walked forward.
-"""
 
 from __future__ import annotations
 
@@ -115,7 +109,7 @@ def run(date):
             if pos:
                 continue
 
-        if tm < time(9, 30) or i - last_exit < 90:  # 90 x 10s = 15 min
+        if tm < time(9, 30) or i - last_exit < 90:
             continue
         calls, puts = walls(ch, spot)
         if not calls or not puts:

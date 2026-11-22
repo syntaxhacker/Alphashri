@@ -101,9 +101,6 @@ def _clear_partial_cache():
     candles._PARTIAL_CACHE.clear()
 
 
-# ---------------------------------------------------------------------------
-# fetch_ohlc_batch: parsing, chunking, failure handling.
-# ---------------------------------------------------------------------------
 
 
 def test_fetch_ohlc_batch_parses_mocked_response(monkeypatch):
@@ -212,9 +209,6 @@ def test_fetch_ohlc_batch_returns_empty_on_failure(monkeypatch):
     assert md.fetch_ohlc_batch(["RELIANCE"]) == {}
 
 
-# ---------------------------------------------------------------------------
-# Scan wiring: batch pre-fetch threads partial_bar into each symbol.
-# ---------------------------------------------------------------------------
 
 
 def _setup_scan(monkeypatch, symbols, partial_bars):
@@ -323,9 +317,6 @@ def test_scan_non_trading_day_skips_batch(cp_store, monkeypatch, tmp_path):
     assert total == 1
 
 
-# ---------------------------------------------------------------------------
-# Freshness: stale quotes (yesterday / pre-market) yield no bar.
-# ---------------------------------------------------------------------------
 
 
 def _mock_batch(monkeypatch, key_map, data):

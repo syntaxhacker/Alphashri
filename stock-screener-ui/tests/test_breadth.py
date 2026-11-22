@@ -14,9 +14,6 @@ import pytest
 from india_board.scripts import scan_data
 
 
-# ---------------------------------------------------------------------------
-# helpers
-# ---------------------------------------------------------------------------
 
 
 def _quote(chp, ltp=100.0):
@@ -35,9 +32,6 @@ def _fake_quotes(payload, calls=None):
     return fn
 
 
-# ---------------------------------------------------------------------------
-# (a) counts + pct_advancing
-# ---------------------------------------------------------------------------
 
 
 def test_build_breadth_counts_advancers_decliners_unchanged():
@@ -95,9 +89,6 @@ def test_build_breadth_accepts_pairs_and_dedupes():
     assert out["pct_advancing"] == pytest.approx(50.0)
 
 
-# ---------------------------------------------------------------------------
-# (b) batch splitting at the Fyers 50-symbol limit
-# ---------------------------------------------------------------------------
 
 
 def test_build_breadth_splits_into_batches_of_50():
@@ -123,9 +114,6 @@ def test_build_breadth_single_call_for_50_or_fewer():
     assert len(calls) == 1
 
 
-# ---------------------------------------------------------------------------
-# (c) failures degrade, never raise
-# ---------------------------------------------------------------------------
 
 
 def test_build_breadth_quote_fn_raising_is_unavailable():
@@ -150,9 +138,6 @@ def test_build_breadth_failure_on_second_batch_is_unavailable():
     assert len(calls) == 2  # first batch ok, second raises
 
 
-# ---------------------------------------------------------------------------
-# (d) per-row chg_pct injection
-# ---------------------------------------------------------------------------
 
 
 def test_apply_chg_pct_sets_value_and_none_for_missing():
@@ -180,9 +165,6 @@ def test_apply_chg_pct_tolerates_junk_rows():
     assert rows[2] is None
 
 
-# ---------------------------------------------------------------------------
-# (e) _finalize carries the breadth section without breaking existing callers
-# ---------------------------------------------------------------------------
 
 
 def test_finalize_defaults_breadth_unavailable():
@@ -197,9 +179,6 @@ def test_finalize_accepts_breadth_kwarg():
     assert payload["sections"]["breadth"] == breadth
 
 
-# ---------------------------------------------------------------------------
-# (f) breadth rows — the UI's top/bottom-5 contract
-# ---------------------------------------------------------------------------
 
 
 def test_breadth_rows_sorted_and_skip_missing_chp():

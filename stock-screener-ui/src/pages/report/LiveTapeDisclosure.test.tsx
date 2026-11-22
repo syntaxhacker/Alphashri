@@ -102,8 +102,6 @@ describe("LIVE TAPE disclosure", () => {
       expect(el).toBeInTheDocument();
       expect(content.contains(el)).toBe(true);
     }
-    // The walls card is the other collapsed surface, not a tape band: it stays
-    // mounted next to the disclosure in compact form.
     expect(screen.getByTestId("nifty-walls-card")).toBeInTheDocument();
   });
 

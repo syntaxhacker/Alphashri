@@ -41,9 +41,6 @@ def _known_chain():
     ]
 
 
-# ---------------------------------------------------------------------------
-# Full contract on a clean chain
-# ---------------------------------------------------------------------------
 
 class TestPositioningBlock:
     def test_exact_block_shape(self):
@@ -130,9 +127,6 @@ class TestPositioningBlock:
         assert positioning_block(chain, 95.0)["strikes"] == [90.0, 100.0, 110.0]
 
 
-# ---------------------------------------------------------------------------
-# Null rules — no 0-fill, never invent data
-# ---------------------------------------------------------------------------
 
 class TestNullsAndWarnings:
     def test_zero_oi_is_a_real_quote_none_is_missing(self):
@@ -228,9 +222,6 @@ class TestNullsAndWarnings:
         assert out["ceOiChange"][0] is None
 
 
-# ---------------------------------------------------------------------------
-# Empty / malformed inputs — warnings + empty arrays, never a 500
-# ---------------------------------------------------------------------------
 
 class TestEmptyAndMalformed:
     def test_empty_chain(self):

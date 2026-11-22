@@ -55,7 +55,6 @@ def _quote(session: requests.Session, token: str, keys: str) -> dict:
         timeout=20,
     )
     r.raise_for_status()
-    # Upstox keys the payload by "NSE_EQ:SYMBOL" / "NSE_INDEX:Nifty 50".
     return {k.split(":", 1)[-1]: v for k, v in r.json().get("data", {}).items()}
 
 

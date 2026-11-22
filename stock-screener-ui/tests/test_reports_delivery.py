@@ -97,7 +97,6 @@ def test_events_from_yfinance_facts(client, monkeypatch):
     assert ("RELIANCE", "results") in kinds
     assert ("RELIANCE", "dividend") in kinds  # ex-div 10-20 in window
     assert ("RELIANCE", "split") in kinds  # 10-25 in window
-    # Sep dividend is outside the window
     assert not any(e["kind"] == "dividend" and "Rs.9" in e["title"] for e in body["events"])
     assert body["symbols_covered"] == 2
     assert body["symbols_total"] == 2

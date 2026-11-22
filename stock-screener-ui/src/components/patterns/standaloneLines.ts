@@ -15,8 +15,6 @@ export interface StandaloneLineResult {
   line: TrendLine;
 }
 
-/** Filter standalone trend lines by the `trendlinesView` gate. `hit` supplies
- *  the fallback `trend_lines` when no explicit list is passed. */
 export function resolveVisibleStandalone(
   standaloneTrendLines: TrendLine[] | undefined,
   hit: PatternHitDTO | null | undefined,

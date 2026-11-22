@@ -42,6 +42,10 @@ const PAD_T = 8;
 const PAD_B = 14;
 const W = 600;
 
+// Fresh [] / closures per access would churn <For> and memo dependencies.
+const NO_MARKERS: MiniMarker[] = [];
+const DEFAULT_FORMAT_VALUE = (v: number) => v.toFixed(2);
+
 function finite(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v);
 }
@@ -128,7 +132,6 @@ export function buildAreaPath(
   const n = points.length;
   const stepX = n > 1 ? innerW / (n - 1) : 0;
   const baseline = (PAD_T + innerH).toFixed(1);
-  // Close from the last finite point back to the first finite point.
   let first = -1;
   let last = -1;
   for (let i = 0; i < n; i++) {
@@ -144,50 +147,64 @@ export function buildAreaPath(
 }
 
 /**
- * Dependency-free inline-SVG line/area chart for the Nifty analytics panels.
- *
  * Chosen over ECharts on purpose: these are static monitoring visuals, so a
  * full canvas charting instance (≈1 MB + a canvas context each) is not worth
- * the bundle/heap cost. SVG renders in the DOM, styles from palette tokens, and
- * a plain mouse-move drives the hover readout.
+ * the bundle/heap cost.
  */
 export function MiniLineChart(props: MiniLineChartProps) {
   const height = () => props.height ?? 180;
   const zeroLine = () => props.zeroLine ?? false;
-  const markers = () => props.markers ?? [];
-  const formatValue = () => props.formatValue ?? ((v: number) => v.toFixed(2));
+  const markers = () => props.markers ?? NO_MARKERS;
   const emptyMessage = () => props.emptyMessage ?? "No data";
-  const scale = () => props.scale ?? "linear";
 
   const [hover, setHover] = createSignal<number | null>(null);
   const innerW = () => W - PAD_L - PAD_R;
   const innerH = () => height() - PAD_T - PAD_B;
 
-  const bounds0 = createMemo(() => seriesBounds(props.series, 0, scale()));
-  const bounds1 = createMemo(() => seriesBounds(props.series, 1, scale()));
-  const paths = createMemo(() =>
-    props.series.map((s) => {
-      const b = (s.axis ?? 0) === 1 ? bounds1() : bounds0();
+  // One pass over series/labels/height/scale. Hover only reads the snapshot,
+  // so pointer moves never rebuild bounds, line/area paths or the zero line.
+  const geometry = createMemo(() => {
+    const scale = props.scale ?? "linear";
+    const bounds0 = seriesBounds(props.series, 0, scale);
+    const bounds1 = seriesBounds(props.series, 1, scale);
+    const w = innerW();
+    const h = innerH();
+    const stepX = props.labels.length > 1 ? w / (props.labels.length - 1) : 0;
+    const paths = props.series.map((s) => {
+      const b = (s.axis ?? 0) === 1 ? bounds1 : bounds0;
       return {
-        line: buildLinePath(s.points, b, innerW(), innerH(), scale()),
-        area: s.area ? buildAreaPath(s.points, b, innerW(), innerH(), scale()) : "",
+        line: buildLinePath(s.points, b, w, h, scale),
+        area: s.area ? buildAreaPath(s.points, b, w, h, scale) : "",
         color: s.color,
       };
-    }),
-  );
+    });
+    const span0 = bounds0.max - bounds0.min || 1;
+    return {
+      paths,
+      hasData: props.series.some((s) => s.points.some(finite)),
+      zeroY: PAD_T + h - ((0 - bounds0.min) / span0) * h,
+      stepX,
+    };
+  });
 
-  const hasData = createMemo(() =>
-    props.series.some((s) => s.points.some((p) => finite(p))),
-  );
-
-  const span0 = () => bounds0().max - bounds0().min || 1;
-  const zeroY = () => PAD_T + innerH() - ((0 - bounds0().min) / span0()) * innerH();
-  const stepX = () => (props.labels.length > 1 ? innerW() / (props.labels.length - 1) : 0);
+  // Format once per data/labels/format change instead of on every mouse move;
+  // hovering only indexes the resulting strings.
+  const readouts = createMemo(() => {
+    const format = props.formatValue ?? DEFAULT_FORMAT_VALUE;
+    return props.labels.map((_, i) =>
+      props.series
+        .map((s) => {
+          const v = s.points[i];
+          return `${s.name} ${finite(v) ? format(v) : "—"}`;
+        })
+        .join(" · "),
+    );
+  });
 
   const onMove = (e: MouseEvent & { currentTarget: SVGSVGElement }) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * W;
-    const idx = Math.round((x - PAD_L) / (stepX() || 1));
+    const idx = Math.round((x - PAD_L) / (geometry().stepX || 1));
     setHover(Math.max(0, Math.min(props.labels.length - 1, idx)));
   };
 
@@ -204,7 +221,7 @@ export function MiniLineChart(props: MiniLineChartProps) {
   );
 
   return (
-    <Show when={hasData() && props.labels.length > 0} fallback={emptyState}>
+    <Show when={geometry().hasData && props.labels.length > 0} fallback={emptyState}>
       <Box
         className="w-full min-w-0 relative"
         data-testid={props.testId}
@@ -217,23 +234,23 @@ export function MiniLineChart(props: MiniLineChartProps) {
           onMouseLeave={() => setHover(null)}
           role="img"
         >
-          <Show when={zeroLine() && Number.isFinite(zeroY())}>
+          <Show when={zeroLine() && Number.isFinite(geometry().zeroY)}>
             <line
               x1={PAD_L}
               x2={W - PAD_R}
-              y1={zeroY()}
-              y2={zeroY()}
+              y1={geometry().zeroY}
+              y2={geometry().zeroY}
               stroke={palette.TEXT_MUTED}
               stroke-dasharray="3 3"
               stroke-width={1}
             />
           </Show>
           <For each={markers()}>{(m) => {
-            const mx = PAD_L + m.index * stepX();
+            const mx = () => PAD_L + m.index * geometry().stepX;
             return (
               <line
-                x1={mx}
-                x2={mx}
+                x1={mx()}
+                x2={mx()}
                 y1={PAD_T}
                 y2={PAD_T + innerH()}
                 stroke={m.color}
@@ -242,12 +259,12 @@ export function MiniLineChart(props: MiniLineChartProps) {
               />
             );
           }}</For>
-          <For each={paths()}>{(p) => (
+          <For each={geometry().paths}>{(p) => (
             <Show when={p.area}>
               <path d={p.area} fill={p.color} opacity={0.15} stroke="none" />
             </Show>
           )}</For>
-          <For each={paths()}>{(p) => (
+          <For each={geometry().paths}>{(p) => (
             <path
               d={p.line}
               fill="none"
@@ -258,8 +275,8 @@ export function MiniLineChart(props: MiniLineChartProps) {
           )}</For>
           <Show when={hover() != null}>
             <line
-              x1={PAD_L + (hover() ?? 0) * stepX()}
-              x2={PAD_L + (hover() ?? 0) * stepX()}
+              x1={PAD_L + (hover() ?? 0) * geometry().stepX}
+              x2={PAD_L + (hover() ?? 0) * geometry().stepX}
               y1={PAD_T}
               y2={PAD_T + innerH()}
               stroke={palette.TEXT_MUTED}
@@ -273,10 +290,7 @@ export function MiniLineChart(props: MiniLineChartProps) {
           </Text>
           <Show when={hover() != null}>
             <Text size="xs" c="dimmed" span data-testid={props.testId ? `${props.testId}-readout` : undefined}>
-              {props.labels[hover()!]} ·{" "}
-              {props.series
-                .map((s) => `${s.name} ${finite(s.points[hover()!]) ? formatValue()(s.points[hover()!] as number) : "—"}`)
-                .join(" · ")}
+              {props.labels[hover()!]} · {readouts()[hover()!]}
             </Text>
           </Show>
           <Text size="xs" c="dimmed" span>

@@ -37,7 +37,7 @@ from options_paper.costs import option_round_trip_cost  # noqa: E402
 TAPE = ROOT / "experiments" / "data" / "nifty_tape"
 TOUCH = 10.0
 COOLDOWN = 15
-CONFIRM = 5          # minutes after the touch
+CONFIRM = 5
 HOLD_TOL = 5.0
 LOT = 65
 SL = 0.30
@@ -82,7 +82,6 @@ def premium(df: pd.DataFrame, t, strike: float, side: str) -> float:
 
 
 def flow(df: pd.DataFrame, i: int, side: str) -> tuple[bool, bool]:
-    """(bull_flow, bear_flow) from 5-min OI + premium changes."""
     j = max(0, i - 5)
     a, b = df.iloc[j], df.iloc[i]
     d_ce = float(b.get("ce_oi") or 0) - float(a.get("ce_oi") or 0)

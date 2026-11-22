@@ -14,9 +14,6 @@ from fastapi.testclient import TestClient
 from api import options_screener as mod
 
 
-# ---------------------------------------------------------------------------
-# Fixtures / builders
-# ---------------------------------------------------------------------------
 
 def _ms(year: int, month: int, day: int) -> int:
     return int(datetime(year, month, day, tzinfo=timezone.utc).timestamp() * 1000)
@@ -126,9 +123,6 @@ def client(monkeypatch):
     return TestClient(app)
 
 
-# ---------------------------------------------------------------------------
-# Instruments parsing
-# ---------------------------------------------------------------------------
 
 def test_parse_instruments_keeps_only_nse_fo_equity_calls():
     raw = [
@@ -173,9 +167,6 @@ def test_universe_for_expiry_dedupes_and_keeps_lot():
     assert universe["WEAKCO"]["underlying_key"] == "NSE_EQ|WEAK"
 
 
-# ---------------------------------------------------------------------------
-# Momentum / setup
-# ---------------------------------------------------------------------------
 
 def _series(closes, volumes=None):
     volumes = volumes or [1000.0] * len(closes)
@@ -226,9 +217,6 @@ def test_classify_setup(kwargs, expected):
     assert mod.classify_setup(**kwargs) == expected
 
 
-# ---------------------------------------------------------------------------
-# Option math
-# ---------------------------------------------------------------------------
 
 def test_move_2pct_est_matches_reference_number():
     # The documented IRFC example: delta .204, gamma .044, spot 83.5, prem .67
@@ -268,9 +256,6 @@ def test_parse_chain_flattens_market_and_greeks():
     assert call["pop"] == 15.8
 
 
-# ---------------------------------------------------------------------------
-# Candidate building / presets
-# ---------------------------------------------------------------------------
 
 def test_build_candidates_inclusion_gates():
     rows = mod.build_candidates("IRFC", MOMENTUM["IRFC"], CHAINS["IRFC"], 1000)
@@ -349,9 +334,6 @@ def test_public_row_strips_internal_keys():
     assert public["symbol"] == "X"
 
 
-# ---------------------------------------------------------------------------
-# Endpoint
-# ---------------------------------------------------------------------------
 
 def test_endpoint_returns_ranked_rows(client):
     resp = client.get("/api/options/screener")

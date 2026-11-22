@@ -61,8 +61,6 @@ vi.mock("./reportCells", () => ({
   getNiftyOiColumns: () => [],
 }));
 
-// Dynamic import after the mock store exists: a static import would evaluate
-// the mock factory while `mockStore` is still in the temporal dead zone.
 const { ReportWorkspace } = await import("./ReportWorkspace");
 
 function mount() {

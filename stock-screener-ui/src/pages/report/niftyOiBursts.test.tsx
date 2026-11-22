@@ -31,7 +31,6 @@ import {
   spotMinutesBefore,
 } from "./niftyOiBursts";
 
-/** "09:15" + i minutes. */
 function hm(i: number): string {
   const total = 9 * 60 + 15 + i;
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;

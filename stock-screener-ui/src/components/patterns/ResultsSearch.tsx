@@ -37,9 +37,6 @@ export function ResultsSearch(props: ResultsSearchProps) {
     onCleanup(() => window.clearTimeout(debounceTimer));
   });
 
-  // Keep the input in sync when filters change elsewhere (reset, presets), but
-  // ignore the echo of our own debounced commit: syncing that back would clobber
-  // any characters typed after the commit landed.
   let lastCommitted: string | null = null;
   createEffect(() => {
     const ext = external();
@@ -50,7 +47,6 @@ export function ResultsSearch(props: ResultsSearchProps) {
   let committedOnce = false;
   createEffect(() => {
     const dv = debounced();
-    // Skip the mount run: initial value is not a user edit.
     if (!committedOnce) {
       committedOnce = true;
       return;

@@ -25,7 +25,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-# Add project root to path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -75,7 +74,6 @@ class TestStrategyCreationFlow:
         db.commit()
         db.refresh(template)
 
-        # Step 1: List templates (using include_templates parameter)
         templates_response = client.get("/api/strategies", params={"include_templates": True})
         assert templates_response.status_code == 200
 
@@ -85,7 +83,6 @@ class TestStrategyCreationFlow:
         template_ids = [t["id"] for t in templates]
         assert template.uuid in template_ids
 
-        # Step 2: Create strategy from template
         create_response = client.post("/api/strategies", json={
             "name": "my_orb_conservative",
             "strategy_type": "ORB",
@@ -97,7 +94,6 @@ class TestStrategyCreationFlow:
         assert create_response.status_code == 200
         created_strategy = create_response.json()["strategy"]
 
-        # Step 3: Verify strategy inherited defaults correctly
         assert created_strategy["name"] == "my_orb_conservative"
         assert created_strategy["parent_id"] == template.id  # Integer ID
         assert created_strategy["sl_pct"] == 0.35  # Overridden value
@@ -105,7 +101,6 @@ class TestStrategyCreationFlow:
         assert created_strategy["or_minutes"] == 30  # Inherited from template
         assert created_strategy["max_positions"] == 3  # Inherited from template
 
-        # Step 4: Verify strategy appears in list
         list_response = client.get("/api/strategies")
         assert list_response.status_code == 200
 
@@ -115,7 +110,6 @@ class TestStrategyCreationFlow:
 
     def test_strategy_update_and_delete_flow(self, client: TestClient, db: Session):
         """Test updating and deleting a strategy."""
-        # Create a strategy
         strategy = StrategyConfig(
             name="test_update_strategy",
             strategy_type="ORB",
@@ -126,7 +120,6 @@ class TestStrategyCreationFlow:
         db.commit()
         db.refresh(strategy)
 
-        # Update strategy
         update_response = client.put(f"/api/strategies/{strategy.id}", json={
             "name": "updated_strategy_name",
             "sl_pct": 0.5,
@@ -137,15 +130,12 @@ class TestStrategyCreationFlow:
         assert updated["name"] == "updated_strategy_name"
         assert updated["sl_pct"] == 0.5
 
-        # Delete strategy
         delete_response = client.delete(f"/api/strategies/{strategy.id}")
         assert delete_response.status_code == 200
 
-        # Verify strategy is soft deleted
         db.refresh(strategy)
         assert strategy.is_active is False
 
-        # Should not appear in active strategies list
         list_response = client.get("/api/strategies")
         strategies = list_response.json()["strategies"]
         strategy_ids = [s["id"] for s in strategies]
@@ -163,7 +153,6 @@ class TestBotCreationFlow:
         3. Verify bot configuration
         4. Verify strategy associations
         """
-        # Step 1: Create two strategies
         strategy1 = StrategyConfig(
             name=f"orb_test_conservative_{uuid.uuid4().hex[:8]}",
             strategy_type="ORB",
@@ -186,7 +175,6 @@ class TestBotCreationFlow:
         db.refresh(strategy1)
         db.refresh(strategy2)
 
-        # Step 2: Create bot with strategies
         bot_response = client.post("/api/bots", json={
             "name": "PnL Test Bot",
             "is_active": True,
@@ -209,13 +197,11 @@ class TestBotCreationFlow:
         assert bot_response.status_code == 200
         bot = bot_response.json()
 
-        # Step 3: Verify bot configuration
         assert bot["name"] == "PnL Test Bot"
         assert bot["max_total_positions"] == 5
         assert bot["max_total_capital_pct"] == 0.5
         assert len(bot["strategies"]) == 2
 
-        # Step 4: Verify strategy associations in database
         bot_db = db.query(BotConfig).filter(BotConfig.uuid == bot["uuid"]).first()
         associations = db.execute(
             bot_strategies.select().where(bot_strategies.c.bot_id == bot_db.id)
@@ -223,7 +209,6 @@ class TestBotCreationFlow:
 
         assert len(associations) == 2
 
-        # Verify allocation details
         alloc_map = {a.strategy_id: a for a in associations}
         assert strategy1.id in alloc_map
         assert strategy2.id in alloc_map
@@ -234,7 +219,6 @@ class TestBotCreationFlow:
 
     def test_bot_update_flow(self, client: TestClient, db: Session):
         """Test updating bot configuration and strategies."""
-        # Create initial bot
         strategy = StrategyConfig(
             name="test_strategy",
             strategy_type="ORB",
@@ -261,7 +245,6 @@ class TestBotCreationFlow:
 
         bot = bot_response.json()
 
-        # Update bot
         update_response = client.put(f"/api/bots/{bot['id']}", json={
             "name": "Updated Bot Name",
             "max_total_positions": 8,
@@ -272,7 +255,6 @@ class TestBotCreationFlow:
 
         assert updated_bot["name"] == "Updated Bot Name"
         assert updated_bot["max_total_positions"] == 8
-        # Strategy should remain unchanged
         assert len(updated_bot["strategies"]) == 1
 
 
@@ -287,7 +269,6 @@ class TestSignalGenerationFlow:
         3. Filter signals by risk parameters
         4. Verify signal quality
         """
-        # Create a test strategy
         strategy = StrategyConfig(
             name="signal_test_strategy",
             strategy_type="ORB",
@@ -389,7 +370,6 @@ class TestOrderPlacementFlow:
             mock_risk_manager.validate_trade = Mock(return_value={'valid': True})
             mock_get_risk_manager.return_value = mock_risk_manager
 
-            # Define FakeTrader class
             class FakeTrader:
                 def __init__(self):
                     self.positions = {}
@@ -422,11 +402,9 @@ class TestOrderPlacementFlow:
                     order.status.value = 'filled'
                     order.timestamp = datetime.now()
                     
-                    # Handle position updates
                     side_value = getattr(side, 'value', side)
                     if side_value == "BUY":
                         if symbol in self.positions:
-                            # Update existing position with average price
                             existing = self.positions[symbol]
                             total_qty = existing['quantity'] + quantity
                             total_cost = (existing['quantity'] * existing['avg_price']) + (quantity * price)
@@ -512,7 +490,6 @@ class TestPositionManagementFlow:
 
             mock_get_trader.return_value = mock_trader
 
-            # Get all positions
             response = client.get("/api/paper/positions")
             assert response.status_code == 200
 
@@ -525,14 +502,12 @@ class TestPositionManagementFlow:
             assert position["quantity"] == 100
             assert position["avg_price"] == 100.0
 
-            # Update price (simulating market movement)
             updated_position = mock_position.copy()
             updated_position["current_price"] = 105.0
             updated_position["unrealized_pnl"] = 500.0
             updated_position["unrealized_pnl_pct"] = 5.0
             mock_trader.get_positions = Mock(return_value=[updated_position])
 
-            # Check updated position
             response = client.get("/api/paper/positions")
             positions_data = response.json()
 
@@ -554,9 +529,7 @@ class TestPnLCalculationFlow:
         """
         import importlib.util
         import uuid as uuid_module
-        # Use the user fixture (already passed as parameter)
         
-        # Create two strategies with UUIDs
         strategy1 = StrategyConfig(
             name=f"strategy_A_{uuid_module.uuid4().hex[:8]}",
             strategy_type="ORB",
@@ -577,7 +550,6 @@ class TestPnLCalculationFlow:
         db.refresh(strategy1)
         db.refresh(strategy2)
         
-        # Create bot with both strategies
         bot_response = client.post("/api/bots", json={
             "name": "Strategy Performance Test Bot",
             "is_active": True,
@@ -606,11 +578,9 @@ class TestPnLCalculationFlow:
         journal.user_id = test_user.id
         journal.trades = []
         
-        # Seed journal with 4 trades (2 per strategy, net_pnl = 600 each)
         base_time = datetime.now()
         trades = []
         
-        # Strategy 1 trades
         for i in range(2):
             trade = {
                 'trade_id': f'TRADE-{i+1:03d}',
@@ -631,7 +601,6 @@ class TestPnLCalculationFlow:
             }
             trades.append(trade)
         
-        # Strategy 2 trades
         for i in range(2):
             trade = {
                 'trade_id': f'TRADE-{i+3:03d}',
@@ -666,18 +635,14 @@ class TestPnLCalculationFlow:
             assert response.status_code == 200
             data = response.json()
             
-            # Verify response structure
             assert "by_strategy" in data
             by_strategy = data["by_strategy"]
             
-            # Should have at least 2 strategies
             assert len(by_strategy) >= 2
             
-            # Compute totals
             total_net_pnl = sum(s['net_pnl'] for s in by_strategy.values())
             total_trades = sum(s['trades'] for s in by_strategy.values())
             
-            # Assert aggregations
             assert total_net_pnl == 2400.0
             assert total_trades == 4
             
@@ -699,7 +664,6 @@ class TestBotLifecycleFlow:
         4. Stop bot
         5. Verify cleanup
         """
-        # Create strategies
         strategy = StrategyConfig(
             name="lifecycle_strategy",
             strategy_type="ORB",
@@ -710,7 +674,6 @@ class TestBotLifecycleFlow:
         db.commit()
         db.refresh(strategy)
 
-        # Create bot
         bot_response = client.post("/api/bots", json={
             "name": "Lifecycle Test Bot",
             "is_active": True,
@@ -727,7 +690,6 @@ class TestBotLifecycleFlow:
 
         bot = bot_response.json()
 
-        # Start bot (in test mode)
         with patch('api.bots_api.bot_operations.start_bot_process') as mock_start:
             mock_process = Mock()
             mock_process.pid = 12345
@@ -742,13 +704,11 @@ class TestBotLifecycleFlow:
             start_data = start_response.json()
             assert "pid" in start_data
 
-        # Check bot status
         status_response = client.get(f"/api/bots/{bot['id']}/status")
 
         # In test environment, this might fail without a real process
         # We're testing the flow, not the actual process management
 
-        # Stop bot
         with patch('api.bots_api.bot_operations.stop_bot_process') as mock_stop:
             stop_response = client.post(f"/api/bots/{bot['id']}/stop")
 
@@ -798,7 +758,6 @@ class TestErrorRecoveryInTrading:
                 order.status = Mock()
                 order.status.value = 'filled'
                 order.timestamp = datetime.now()
-                # Update positions for BUY
                 side_value = getattr(side, 'value', side)
                 if side_value == "BUY":
                     if symbol in self.positions:
@@ -881,7 +840,6 @@ class TestErrorRecoveryInTrading:
             with pytest.raises(Exception, match="Database connection error"):
                 client.get("/api/paper/portfolio")
 
-            # Second call - should succeed
             response = client.get("/api/paper/portfolio")
             assert response.status_code == 200
 
@@ -913,7 +871,6 @@ class TestMultiStrategyCoordination:
         db.refresh(strategy1)
         db.refresh(strategy2)
 
-        # Create bot with limited total positions
         bot_response = client.post("/api/bots", json={
             "name": "Coordination Test Bot",
             "is_active": True,
@@ -935,13 +892,10 @@ class TestMultiStrategyCoordination:
 
         bot = bot_response.json()
 
-        # Verify bot configuration enforces limits
         assert bot["max_total_positions"] == 3
 
-        # Verify both strategies are associated
         assert len(bot["strategies"]) == 2
 
-        # Verify allocation doesn't exceed 100%
         total_allocation = sum(s["capital_allocation_pct"] for s in bot["strategies"])
         assert total_allocation == 0.6  # 0.3 + 0.3
         assert total_allocation <= 1.0

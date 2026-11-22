@@ -155,98 +155,19 @@ def _is_market_hours() -> bool:
         return 8 <= hour <= 16
 
 
+from cache.week52 import (
+    load_52w_ranges as _load_52w_ranges_from_redis,
+    sanitize_bulk as _sanitize_52w_ranges_bulk,
+    sanitize_entry as _sanitize_52w_range_entry,
+    store_52w_ranges as _store_52w_ranges_bulk,
+)
+
 _52W_RANGE_CACHE_TTL = 600
 
 
-def _sanitize_52w_range_entry(info) -> dict | None:
-    """Return {high, low, close} floats or None if any value is missing/non-finite."""
-    import math
-    if not isinstance(info, dict):
-        return None
-    out = {}
-    for key in ("high", "low", "close"):
-        val = info.get(key)
-        if val is None:
-            return None
-        try:
-            fval = float(val)
-        except (TypeError, ValueError):
-            return None
-        if not math.isfinite(fval):
-            return None
-        out[key] = fval
-    days = info.get("days_ago")
-    if days is not None:
-        try:
-            out["days_ago"] = max(0, int(days))
-        except (TypeError, ValueError):
-            pass
-    # Carry the verification time into the bulk payload so the screener can read
-    # a row's as-of without re-scanning stock_52w_range on every request.
-    ts = info.get("updated_at")
-    if isinstance(ts, str) and ts:
-        out["updated_at"] = ts
-    elif hasattr(ts, "isoformat"):
-        out["updated_at"] = ts.isoformat()
-    return out
-
-
-def _sanitize_52w_ranges_bulk(data: dict) -> dict:
-    if not isinstance(data, dict):
-        return {}
-    return {
-        symbol: entry
-        for symbol, info in data.items()
-        if (entry := _sanitize_52w_range_entry(info)) is not None
-    }
-
-
 def _store_52w_ranges_in_redis(data: dict):
-    """Store every 52W range in one bulk Redis key (no per-symbol churn).
-
-    The batch writes ~3k symbols hourly; one round-trip to the bulk key replaces
-    thousands of per-symbol SETs whose 10-minute TTL mostly missed anyway.
-    """
-    from cache.redis_client import cache_set
-    clean = _sanitize_52w_ranges_bulk(data)
-
-    # Stamp verification time once per batch from the freshly-persisted rows so
-    # entries that arrived from the scanner (no updated_at) still carry an as-of.
-    try:
-        from db.database import SessionLocal
-        from db.models.stock_52w_touch import Stock52WeekRange
-
-        db = SessionLocal()
-        try:
-            stamps = {
-                row.symbol: row.updated_at.isoformat()
-                for row in db.query(Stock52WeekRange.symbol, Stock52WeekRange.updated_at).all()
-                if row.updated_at is not None
-            }
-        finally:
-            db.close()
-        for symbol, entry in clean.items():
-            if "updated_at" not in entry and symbol in stamps:
-                entry["updated_at"] = stamps[symbol]
-    except Exception:
-        pass
-
-    cache_set("52w_range:all", clean, ttl=_52W_RANGE_CACHE_TTL)
-
-    # Also clear the paper trading 52W file cache
-    import shutil
-    from pathlib import Path
-    paper_cache_dir = Path(__file__).parent / "experiments" / "data" / "52w_cache"
-    if paper_cache_dir.exists():
-        shutil.rmtree(paper_cache_dir)
-        paper_cache_dir.mkdir(parents=True, exist_ok=True)
-
-
-def _load_52w_ranges_from_redis() -> dict:
-    """Load 52W ranges from Redis (bulk key) or return empty dict."""
-    from cache.redis_client import cache_get
-    data = cache_get("52w_range:all")
-    return data if isinstance(data, dict) else {}
+    """Store every 52W range in one bulk Redis key via the shared cache helper."""
+    return _store_52w_ranges_bulk(data, ttl=_52W_RANGE_CACHE_TTL)
 
 
 def _persist_52w_ranges_to_db(data: dict):

@@ -21,9 +21,6 @@ from options_paper.tape import Tick
 HAVE_PANEL = bool(panel.contract_index())
 
 
-# --------------------------------------------------------------------------
-# greeks — pure maths
-# --------------------------------------------------------------------------
 def test_black76_put_call_parity():
     f, k, t, sig, r = 23500.0, 23500.0, 14 / 365, 0.12, 0.065
     c = G.black76(f, k, t, sig, "CE", r)
@@ -87,9 +84,6 @@ def test_attribute_short_flips_sign():
     assert long_a.actual == pytest.approx(-short_a.actual, abs=1e-9)
 
 
-# --------------------------------------------------------------------------
-# panel
-# --------------------------------------------------------------------------
 @pytest.mark.skipif(not HAVE_PANEL, reason="recorded option panel not present")
 def test_contract_index_and_expiries():
     ci = panel.contract_index()
@@ -119,9 +113,6 @@ def test_build_ticks_priced_day():
     assert t.expiry == panel.nearest_expiry(d).isoformat()
 
 
-# --------------------------------------------------------------------------
-# sim helpers
-# --------------------------------------------------------------------------
 def _mk_trade(strategy="nifty_momentum", opt="CE", direction="LONG", strike=23500.0,
               expiry="2026-09-29", entry=datetime(2026, 9, 15, 10, 0),
               exit_=datetime(2026, 9, 15, 10, 30)) -> Trade:

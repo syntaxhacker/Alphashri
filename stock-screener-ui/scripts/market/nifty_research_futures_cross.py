@@ -52,11 +52,11 @@ OUT_HTML = REPO_ROOT / "reports" / f"nifty_{SESSION}" / "research" / "futures_cr
 OUT_JSON = REPO_ROOT / "reports" / f"nifty_{SESSION}" / "research" / "futures_cross.json"
 PALETTE_FILE = REPO_ROOT / "src" / "ui" / "palette.ts"
 
-CLIP_MINUTE = 14 * 60 + 9          # 14:09 - futures file runs to 15:39
-SESSION_OPEN = 9 * 60 + 15         # 09:15
-NOON = 12 * 60                     # 12:00
-IMPULSE_START = 11 * 60 + 45       # 11:45
-IMPULSE_END = 12 * 60 + 5          # 12:05, shading ends here
+CLIP_MINUTE = 14 * 60 + 9
+SESSION_OPEN = 9 * 60 + 15
+NOON = 12 * 60
+IMPULSE_START = 11 * 60 + 45
+IMPULSE_END = 12 * 60 + 5
 REGIME_MINUTES = 15
 PRICE_THRESHOLD = 5.0              # pts; neutral floor
 OI_THRESHOLD = 20_000              # contracts; neutral floor
@@ -77,7 +77,6 @@ VOID_TAGS = {
 }
 
 
-# --------------------------------------------------------------------- utils
 def load_jsonl(path: Path) -> list[dict]:
     rows = []
     with path.open() as fh:
@@ -147,7 +146,6 @@ def log_returns(series: dict[int, float]) -> dict[int, float]:
     return out
 
 
-# ------------------------------------------------------------------- palette
 def alpha(hex_color: str, opacity: float) -> str:
     raw = hex_color.lstrip("#")
     r, g, b = (int(raw[i:i + 2], 16) for i in (0, 2, 4))
@@ -155,7 +153,6 @@ def alpha(hex_color: str, opacity: float) -> str:
 
 
 def load_palette() -> dict[str, str]:
-    """Pull chart ink from the app's single source of truth."""
     txt = PALETTE_FILE.read_text()
     anchors = {
         "PRIMARY": "primary", "POSITIVE_COLOR": "positive", "NEGATIVE_COLOR": "negative",
@@ -180,7 +177,6 @@ def load_palette() -> dict[str, str]:
     return out
 
 
-# ------------------------------------------------------------------ data load
 def load_inputs() -> tuple[
     dict[int, dict], dict[int, float], dict[int, float], dict[int, float], dict[int, float]
 ]:
@@ -394,7 +390,6 @@ def build_leadlag(fut: dict[int, dict], tape_last: dict[int, float], sync: dict[
             "n_naive": nn, "n_sync": ns,
         })
 
-    # Same draw order as the quant review, so the published CI is reproduced.
     rng = np.random.default_rng(20261117)
     boot = _block_boot_ci(f_ret, s_sync, [-2, -1, 0, 1, 2], rng)
     boot.update(_block_boot_ci(f_ret, s_sync, [-5, -4, -3, 3, 4, 5], rng))
@@ -531,7 +526,6 @@ def build_events(basis_rows: list[dict], nifty: dict[int, float], sensex: dict[i
 
 
 def basis_forward_check(rows: list[dict], nifty: dict[int, float], horizon: int = 5) -> dict:
-    """Does a rich basis predict spot catch-up? Descriptive only - overlapping windows."""
     if not rows:
         return {"r": float("nan"), "n": 0, "horizon": horizon}
     values = [r["ba"] for r in rows]
@@ -652,7 +646,6 @@ def build_payload() -> dict:
     }
 
 
-# ------------------------------------------------------------------ fragments
 def fmt(value: float, digits: int = 1) -> str:
     return f"{value:,.{digits}f}"
 
@@ -1491,7 +1484,6 @@ def build_html(payload: dict) -> str:
     return html
 
 
-# --------------------------------------------------------------------- checks
 class FragmentChecker(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -1550,7 +1542,6 @@ def validate(html: str) -> None:
         raise SystemExit("fragment validation failed:\n  - " + "\n  - ".join(errors))
 
 
-# ----------------------------------------------------------------------- main
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--check", action="store_true", help="validate the written fragment and exit")

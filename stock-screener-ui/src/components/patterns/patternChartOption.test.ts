@@ -130,8 +130,6 @@ describe("buildPatternChartOption sibling overlays", () => {
     });
     const series = seriesOf<SeriesLike>(option);
     const names = series.map((s) => s.name);
-    // Selected pattern is named (not "Upper/Lower boundary") and drawn solid;
-    // sibling is drawn under its own name.
     expect(names).toContain("Falling Wedge");
     expect(names).toContain("Rising Wedge");
     expect(names).not.toContain("Upper boundary");
@@ -192,8 +190,6 @@ describe("buildPatternChartOption instance identity", () => {
       compact: false,
     });
     const names = seriesOf<SeriesLike>(option).map((s) => s.name);
-    // Selected instance (exact start_date match) is skipped as a sibling, the
-    // other instance stays — disambiguated with a suffix.
     expect(names).toContain("Rising Wedge");
     expect(names).toContain("Rising Wedge (2)");
   });
@@ -222,7 +218,6 @@ describe("buildPatternChartOption instance identity", () => {
     });
     const series = seriesOf<SeriesLike>(option);
     const uniqueNames = new Set(series.map((s) => s.name));
-    // No two series share a legend name.
     expect(uniqueNames.size).toBe(series.length);
     const legend = option.legend as { data?: string[] } | undefined;
     expect(new Set(legend?.data).size).toBe(legend?.data?.length);
@@ -249,6 +244,35 @@ describe("buildPatternChartOption instance identity", () => {
     const withLabel = seriesOf<Record<string, unknown>>(option).find((s) => s.endLabel);
     expect(withLabel?.labelLayout).toMatchObject({ hideOverlap: true });
     expect((option.grid as { top?: number }).top).toBeGreaterThanOrEqual(32);
+  });
+});
+
+describe("buildPatternChartOption purity", () => {
+  it("does not mutate its inputs and is deterministic for equal arguments", () => {
+    const candles: ChartCandle[] = CANDLES.map((c) => ({ ...c }));
+    const trendlines = [
+      [
+        { t: CANDLES[0]!.t, price: 104 },
+        { t: CANDLES[1]!.t, price: 107 },
+      ],
+    ];
+    const candlesBefore = structuredClone(candles);
+    const trendlinesBefore = structuredClone(trendlines);
+    const hitBefore = structuredClone(HIT);
+
+    const input = { candles, trendlines, hit: HIT, compact: false };
+    const first = buildPatternChartOption(input);
+    const second = buildPatternChartOption(input);
+
+    expect(candles).toEqual(candlesBefore);
+    expect(trendlines).toEqual(trendlinesBefore);
+    expect(HIT).toEqual(hitBefore);
+    expect((first.xAxis as { data?: unknown[] }).data).toEqual(
+      (second.xAxis as { data?: unknown[] }).data,
+    );
+    expect(seriesOf<SeriesLike>(first).map((s) => s.data)).toEqual(
+      seriesOf<SeriesLike>(second).map((s) => s.data),
+    );
   });
 });
 
@@ -319,7 +343,6 @@ describe("buildPatternChartOption performance", () => {
       overlays,
       compact: false,
     };
-    // Warm up, then take the median of 20 single builds.
     for (let i = 0; i < 5; i++) buildPatternChartOption(input);
     const samples: number[] = [];
     for (let i = 0; i < 20; i++) {

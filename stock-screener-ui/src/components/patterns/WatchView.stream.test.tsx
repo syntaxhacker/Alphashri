@@ -86,15 +86,11 @@ describe("WatchView streaming", () => {
 
     render(() => <WatchView universe="nifty500" timeframe="1D" />);
 
-    // First row renders before done.
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
-    // Meta shows early: setup label + gate.
     expect(screen.getByTestId("watch-stream-meta")).toHaveTextContent("Breakout");
     expect(screen.getByTestId("watch-stream-meta")).toHaveTextContent("0.7");
-    // Still streaming: progress mark visible, second row not yet here.
     expect(screen.getByTestId("watch-streaming")).toHaveTextContent("loading more…");
     expect(screen.queryByTestId("watch-row-TCS")).not.toBeInTheDocument();
-    // Stream won: no fallback fetch.
     expect(mockFetchWatch).not.toHaveBeenCalled();
 
     release();
@@ -125,7 +121,6 @@ describe("WatchView streaming", () => {
 
   test("stream meta updated_at drives the snapshot age label", async () => {
     const { formatSnapshotAge } = await import("./WatchView");
-    // Pure helper check against the SSE meta shape (deterministic, no timers).
     const updatedAt = "2026-09-30T15:30:00+05:30";
     const nowMs = new Date("2026-09-30T15:31:10+05:30").getTime();
     expect(formatSnapshotAge(updatedAt, nowMs)).toBe("snapshot 15:30 · 1m ago");
@@ -143,7 +138,6 @@ describe("WatchView streaming", () => {
     render(() => <WatchView universe="nifty500" timeframe="1D" />);
 
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
-    // The SSE meta path sets updatedAt, so the snapshot age renders.
     await waitFor(() =>
       expect(screen.getByTestId("watch-snapshot-age")).toHaveTextContent("snapshot 15:30"),
     );
@@ -211,7 +205,6 @@ describe("WatchView streaming", () => {
       });
       mockStreamWatch.mockImplementation(async (_query: unknown, handlers: any) => {
         handlers.onMeta?.({ setup: "breakout", min_rel_volume: 0.7 });
-        // No item yet — the stream stays pending (slow arm/live).
         await gate;
         handlers.onItem?.(makeRow("RELIANCE", 1.69, "armed"));
         handlers.onDone?.();
@@ -234,7 +227,6 @@ describe("WatchView streaming", () => {
       expect(screen.getByTestId("watch-loading")).toBeInTheDocument();
       expect(mockFetchWatch).not.toHaveBeenCalled();
 
-      // First item lands: loading + hint clear, the table takes over.
       release();
       await Promise.resolve();
       await vi.advanceTimersByTimeAsync(0);

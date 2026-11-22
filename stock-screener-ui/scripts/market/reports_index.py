@@ -83,7 +83,6 @@ def card(
 
 
 CARDS = [
-    # ---------------------------------------------------------------- index
     card(
         "nifty-2026-11-17",
         "index",
@@ -214,7 +213,6 @@ CARDS = [
         ("backtest",),
     ),
 
-    # ---------------------------------------------------------------- stock
     card(
         "irfc-90ce",
         "stock",
@@ -284,7 +282,6 @@ CARDS = [
         ("backtest", "partial"),
     ),
 
-    # ------------------------------------------------------------------ eda
     card("ather-eda", "eda", "ATHERENERG EDA", "Volume, big-player and fundamentals EDA for ATHERENERG.",
          "Daily 2025-05-06 → 2026-08-14 · 319 sessions",
          "Upstox V3 candles + yfinance earnings, ownership and analyst data · 1-minute bars from 2025",
@@ -377,7 +374,6 @@ CARDS = [
         ("session",),
     ),
 
-    # -------------------------------------------------------------- options
     card(
         "wall-replay",
         "options",
@@ -552,7 +548,6 @@ CARDS = [
         ("tool",),
     ),
 
-    # ---------------------------------------------------------------- other
     card(
         "mnq-ict",
         "other",
@@ -708,9 +703,6 @@ CARDS = [
 ]
 
 
-# --------------------------------------------------------------------------
-# Discovery
-# --------------------------------------------------------------------------
 def discover_html() -> list[Path]:
     return sorted(
         p for p in REPORTS.rglob("*.html") if p.is_file() and p.resolve() != OUTPUT.resolve()
@@ -751,9 +743,6 @@ def auto_cards(registered: set[Path]) -> list[dict]:
     return cards
 
 
-# --------------------------------------------------------------------------
-# Rendering
-# --------------------------------------------------------------------------
 CSS = """
 :root{
   --bg:#000000;--surface:#13161C;--raised:#1F242D;--border:#2C313B;
@@ -988,9 +977,6 @@ def render(cards: list[dict], generated: str, page_count: int, linked_count: int
 """
 
 
-# --------------------------------------------------------------------------
-# Validation
-# --------------------------------------------------------------------------
 class PageParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)

@@ -27,9 +27,6 @@ from trading.config_loader import (
 )
 
 
-# ============================================================================
-# StrategyConfigData Dataclass Tests
-# ============================================================================
 
 @pytest.mark.unit
 class TestStrategyConfigDataDefaults:
@@ -357,9 +354,6 @@ class TestStrategyConfigDataToDict:
         assert result["parent_id"] == 10
 
 
-# ============================================================================
-# get_strategy_config Tests
-# ============================================================================
 
 class TestGetStrategyConfig:
     """Tests for get_strategy_config() function."""
@@ -537,9 +531,6 @@ class TestGetStrategyConfig:
         assert "is_active" in call_args or mock_db.query.called
 
 
-# ============================================================================
-# get_strategy_by_id Tests
-# ============================================================================
 
 class TestGetStrategyById:
     """Tests for get_strategy_by_id() function."""
@@ -611,9 +602,6 @@ class TestGetStrategyById:
         assert result is None
 
 
-# ============================================================================
-# get_all_strategies Tests
-# ============================================================================
 
 class TestGetAllStrategies:
     """Tests for get_all_strategies() function."""
@@ -749,9 +737,6 @@ class TestGetAllStrategies:
         assert result == []
 
 
-# ============================================================================
-# get_template_strategies Tests
-# ============================================================================
 
 class TestGetTemplateStrategies:
     """Tests for get_template_strategies() function."""
@@ -825,9 +810,6 @@ class TestGetTemplateStrategies:
         assert result == []
 
 
-# ============================================================================
-# get_strategy_variations Tests
-# ============================================================================
 
 class TestGetStrategyVariations:
     """Tests for get_strategy_variations() function."""
@@ -913,9 +895,6 @@ class TestGetStrategyVariations:
         assert result == []
 
 
-# ============================================================================
-# get_strategies_by_type Tests
-# ============================================================================
 
 class TestGetStrategiesByType:
     """Tests for get_strategies_by_type() function."""
@@ -1001,9 +980,6 @@ class TestGetStrategiesByType:
         assert result == []
 
 
-# ============================================================================
-# Config Merging Strategy Tests
-# ============================================================================
 
 class TestConfigMerging:
     """Tests for config merging/inheritance behavior."""
@@ -1051,9 +1027,6 @@ class TestConfigMerging:
         assert default_config.max_positions == 5
 
 
-# ============================================================================
-# Edge Cases and Error Handling Tests
-# ============================================================================
 
 class TestEdgeCases:
     """Tests for edge cases and error handling."""
@@ -1135,9 +1108,6 @@ class TestEdgeCases:
         assert config.max_positions == 1000
 
 
-# ============================================================================
-# Logging Tests
-# ============================================================================
 
 class TestLogging:
     """Tests for logging behavior."""

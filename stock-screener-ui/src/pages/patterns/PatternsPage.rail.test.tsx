@@ -8,21 +8,11 @@ import type { JSX } from "solid-js";
 import { For, Show } from "solid-js";
 import { PatternsPage, type PatternsPageProps } from "./PatternsPage";
 
-// These page tests mount the real filter modal (@/ui Autocomplete + Select).
-// Mounting + driving it takes ~10-13s per test even in isolation; under a
-// full-suite run with 8 workers that doubles. The assertions are deterministic,
-// so allow a slower machine.
-// The @/ui mock resolves a dynamic import per worker; under a 20-shard CI run
-// the first test in this file pays that transform inside its own budget.
 vi.setConfig({ testTimeout: 60_000 });
 
-// The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
-// intrinsic elements; page tests exercise page wiring, not the theme runtime.
 vi.mock("@/ui", async (importOriginal) => {
   const { uiLayoutStub } = await import("@/pages/solidTestStubs");
   const stubbed = await uiLayoutStub(await importOriginal<Record<string, unknown>>());
-  // Menu stub: bare pass-throughs with an onSelect-fired button; the
-  // suite asserts page wiring, not Menu internals.
   const passthrough = (props: any) => <div>{props.children}</div>;
   const Item = (props: any) => (
     <button type="button" onClick={() => props.onSelect?.(props)} data-testid={props["data-testid"]}>
@@ -48,8 +38,6 @@ vi.mock("@/ui", async (importOriginal) => {
   };
 });
 
-// IndexMembersDrawer pulls its own data path; this suite asserts page
-// wiring and filter staging, not the members drawer — render nothing.
 vi.mock("@/components/patterns/IndexMembersDrawer", () => ({
   IndexMembersDrawer: () => null,
 }));
@@ -76,7 +64,6 @@ vi.mock("@/api/patternImages", () => ({
   fetchPatternImages: (...args: unknown[]) => fetchPatternImages(...args),
 }));
 
-// Rendered-prop spies for the trendlines-view wiring tests.
 const gridTrendlinesViews = vi.hoisted(() => [] as unknown[]);
 const fullscreenTrendlinesViews = vi.hoisted(() => [] as unknown[]);
 // Records the `overlays` prop per fullscreen render (single-pattern contract:
@@ -449,7 +436,6 @@ describe("PatternsPage rail-modal", () => {
     expect(screen.queryByTestId("patterns-filter-rail")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("patterns-open-filters"));
     expect(await screen.findByTestId("patterns-filter-rail")).toBeInTheDocument();
-    // Pattern tiles show the reference image + label.
     const img = await screen.findByTestId("pattern-image-falling_wedge");
     expect(img).toHaveAttribute("src", "/api/chart-patterns/image/falling_wedge");
     expect(screen.getByTestId("patterns-filter-pattern-falling_wedge")).toHaveTextContent(
@@ -464,7 +450,6 @@ describe("PatternsPage rail-modal", () => {
     r(<PatternsPage {...props} />);
     fireEvent.click(screen.getByTestId("patterns-open-filters"));
     await pickMultiOption("patterns-family-select", /^Reversal/);
-    // Staged locally — no instant store update / reload.
     expect(props.setFilter).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("patterns-filters-done"));
     expect(props.applyFilters).toHaveBeenCalledWith(
@@ -477,10 +462,7 @@ describe("PatternsPage rail-modal", () => {
     r(<PatternsPage {...props} />);
     fireEvent.click(screen.getByTestId("patterns-open-filters"));
 
-    // Stage a direction first…
     await pickMultiOption("patterns-direction-select", "Bearish");
-    // …then apply a preset that says nothing about direction. The preset
-    // control is a native select, so drive it through its option list.
     fireEvent.input(within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox"),
       { target: { value: "builtin:fresh_reversals" } },
     );
@@ -502,7 +484,6 @@ describe("PatternsPage rail-modal", () => {
     fireEvent.click(screen.getByTestId("patterns-open-filters"));
     expect(await screen.findByTestId("patterns-filter-modal")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("patterns-reset"));
-    // Reset is staged locally; nothing hits the store until Filter.
     expect(props.resetFilters).not.toHaveBeenCalled();
   });
 

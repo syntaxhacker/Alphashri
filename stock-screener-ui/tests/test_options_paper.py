@@ -26,9 +26,6 @@ from options_paper.strategies import (NiftyGap, NiftyIVDelta, NiftyMomentum,
 from options_paper.tape import Tick
 
 
-# --------------------------------------------------------------------------
-# helpers
-# --------------------------------------------------------------------------
 def mk_ticks(rows, expiry="2026-10-19", start="2026-10-16T09:15:00"):
     """rows: list of (spot, ce, pe). Returns consecutive Timedelta(minutes=1).
 
@@ -52,9 +49,6 @@ def mk_ticks(rows, expiry="2026-10-19", start="2026-10-16T09:15:00"):
     return out
 
 
-# --------------------------------------------------------------------------
-# spec
-# --------------------------------------------------------------------------
 def test_nifty_lot_from_master():
     assert spec.get_lot("NIFTY") == 65
     assert spec.get_lot("NIFTY", policy="report") == 75
@@ -75,9 +69,6 @@ def test_unknown_lot_raises_for_garbage():
         spec.get_lot("ZZZNOTAREALSYMBOL")
 
 
-# --------------------------------------------------------------------------
-# costs
-# --------------------------------------------------------------------------
 def test_round_trip_flat_move_is_a_loss():
     rc = option_round_trip_cost(100.0, 100.0, 65)
     assert rc["gross_pnl"] == 0
@@ -119,9 +110,6 @@ def test_sell_margin_scales_with_lots():
     assert m2 > m1 > 0
 
 
-# --------------------------------------------------------------------------
-# engine honesty
-# --------------------------------------------------------------------------
 def test_fill_is_next_bar(tmp_path):
     ticks = mk_ticks([
         (100.0, 50, 50),    # 0
@@ -505,9 +493,6 @@ def test_start_bot_process_refuses_headless_bot(test_db_engine, monkeypatch):
     assert spawned["n"] == 0
 
 
-# --------------------------------------------------------------------------
-# breakeven ratchet + trail (profit protection)
-# --------------------------------------------------------------------------
 def test_breakeven_ratchet_protects_a_winner():
     """Once a long runs >= be_trigger, the stop must lift to ~breakeven."""
     ticks = mk_ticks([
@@ -635,9 +620,6 @@ def test_spot_scalp_trend_filter_blocks_counter_trend_bounce():
     assert sig is not None and sig.opt == "PE"
 
 
-# --------------------------------------------------------------------------
-# NIFTY pin reversal (failed break at a repeatedly-tested level)
-# --------------------------------------------------------------------------
 def test_pin_reversal_builds_from_registry():
     from options_paper.strategies import REGISTRY
     assert "nifty_pin_reversal" in REGISTRY
@@ -698,9 +680,6 @@ def test_pin_too_few_touches_no_entry():
     assert NiftyPinReversal(lots=1).run(ticks, {}) == []
 
 
-# ==========================================================================
-# P0 — honest marks, coherent ledger, the whole account
-# ==========================================================================
 def test_chain_px_never_prices_a_different_strike_at_the_atm():
     """A held strike absent from the chain must NOT be marked at the ATM."""
     from options_paper.strategies import chain_px
@@ -964,9 +943,6 @@ def test_account_snapshot_zeroed_when_no_account(test_db_engine, monkeypatch):
     assert snap["exists"] is False and snap["trades"] == 0
 
 
-# ==========================================================================
-# P1 — the trail is a share of PROFIT, targets fill at the target
-# ==========================================================================
 def test_long_trail_gives_back_a_share_of_profit(tmp_path, monkeypatch):
     """stop = entry + (1 - trail) * (best - entry), floored by breakeven."""
     import json as _json
@@ -1129,9 +1105,6 @@ def test_manual_straddle_is_four_orders():
     assert tr.costs > single["costs"]
 
 
-# ==========================================================================
-# P1 — guards: dry-run, EOD entries, expiry scope, be_trigger=0
-# ==========================================================================
 def test_dry_run_never_manages_positions(monkeypatch, tmp_path):
     from types import SimpleNamespace as NS
 
@@ -1244,9 +1217,6 @@ def test_be_trigger_zero_still_allows_the_time_stop():
     assert trades and trades[0].exit_reason == "TIME"
 
 
-# ==========================================================================
-# P1 — ledger safety + exit selectors
-# ==========================================================================
 def test_corrupt_ledger_is_quarantined_not_overwritten(tmp_path, monkeypatch):
     from options_paper import manual
 

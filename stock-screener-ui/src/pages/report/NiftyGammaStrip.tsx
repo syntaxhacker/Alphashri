@@ -13,12 +13,9 @@ import type { NiftyGex, NiftyPositioningBlock } from "@/types/niftyReport";
 import { REPORT_FONT } from "./reportTokens";
 
 interface NiftyGammaStripProps {
-  /** The report's dealer-gamma profile. Absent renders dashes. */
   gex?: NiftyGex;
-  /** Chain delta positioning shown beneath the profile in the drawer. */
   positioning?: NiftyPositioningBlock;
   spot: number;
-  /** Drawer open state, controlled (tests/storybook); defaults to internal. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }

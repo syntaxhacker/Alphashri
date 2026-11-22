@@ -1,9 +1,3 @@
-/**
- * Bot Management State
- *
- * Uses simple pub/sub pattern matching the existing strategies state.
- */
-
 import { createSubscriber } from "./createSubscriber";
 import type {
   BotConfig,
@@ -29,7 +23,6 @@ import {
 } from "../api/bots";
 import { createLoadingState, setLoading as setLoadingState } from "../utils/loading";
 
-// Initial state
 const initialState: BotsState = {
   bots: [],
   selectedBot: null,
@@ -55,10 +48,8 @@ const initialState: BotsState = {
   editingBot: null,
 };
 
-// Current state (mutable)
 let state: BotsState = { ...initialState };
 
-// Current view
 let currentViewValue: BotsView = "list";
 
 const { subscribe, notify } = createSubscriber();
@@ -68,35 +59,29 @@ export function triggerRerender() {
   notify();
 }
 
-// Get current state
 export function getBotsState(): BotsState {
   return state;
 }
 
-// Get current view
 export function getCurrentView(): BotsView {
   return currentViewValue;
 }
 
-// Set current view
 export function setCurrentView(view: BotsView) {
   currentViewValue = view;
   notify();
 }
 
-// Set loading state
 function setLoading(key: BotLoadingKey, loading: boolean) {
   state = { ...state, loading: setLoadingState<BotLoadingKey>(state.loading, key, loading) };
   notify();
 }
 
-// Set error
 function setError(error: string | null) {
   state = { ...state, error };
   notify();
 }
 
-// Load all bots
 export async function loadBots(): Promise<void> {
   setLoading("list", true);
   setError(null);
@@ -118,7 +103,6 @@ export async function loadBots(): Promise<void> {
   }
 }
 
-// Load bot status (live data)
 export async function loadBotStatus(botId: string): Promise<void> {
   setLoading("status", true);
   try {
@@ -136,7 +120,6 @@ export async function loadBotStatus(botId: string): Promise<void> {
   }
 }
 
-// Load bot trades history
 export async function loadBotTrades(botId: string, strategyId?: string): Promise<void> {
   setLoading("trades", true);
   try {
@@ -158,7 +141,6 @@ export async function loadBotTrades(botId: string, strategyId?: string): Promise
   }
 }
 
-// Load available strategies
 async function loadAvailableStrategies(): Promise<void> {
   setLoading("strategies", true);
   try {
@@ -179,7 +161,6 @@ async function loadAvailableStrategies(): Promise<void> {
   }
 }
 
-// Create a new bot
 export async function createBotAction(data: BotCreate): Promise<BotConfig | null> {
   setLoading("create", true);
   setError(null);
@@ -204,7 +185,6 @@ export async function createBotAction(data: BotCreate): Promise<BotConfig | null
   }
 }
 
-// Update a bot
 export async function updateBotAction(botId: string, data: BotUpdate): Promise<BotConfig | null> {
   setLoading("update", true);
   setError(null);
@@ -230,7 +210,6 @@ export async function updateBotAction(botId: string, data: BotUpdate): Promise<B
   }
 }
 
-// Delete a bot (with trade check)
 export async function deleteBotAction(botId: string): Promise<boolean> {
   setLoading("delete", true);
   setError(null);
@@ -266,7 +245,6 @@ export async function deleteBotAction(botId: string): Promise<boolean> {
   }
 }
 
-// Start a bot
 export async function startBotAction(botId: string, testMode: boolean = false): Promise<boolean> {
   setLoading("start", true);
   setError(null);
@@ -287,7 +265,6 @@ export async function startBotAction(botId: string, testMode: boolean = false): 
   }
 }
 
-// Stop a bot
 export async function stopBotAction(botId: string): Promise<boolean> {
   setLoading("stop", true);
   setError(null);
@@ -308,7 +285,6 @@ export async function stopBotAction(botId: string): Promise<boolean> {
   }
 }
 
-// Stop all bots
 export async function startAllBotsAction(): Promise<boolean> {
   setLoading("start-all", true);
   setError(null);
@@ -355,38 +331,32 @@ export async function stopAllBotsAction(): Promise<boolean> {
   }
 }
 
-// Open create modal
 export function openCreateModal(): void {
   loadAvailableStrategies();
   state = { ...state, showCreateModal: true, showEditModal: false, editingBot: null };
   notify();
 }
 
-// Close create modal
 export function closeCreateModal(): void {
   state = { ...state, showCreateModal: false };
   notify();
 }
 
-// Open edit modal
 export function openEditModal(bot: BotConfig): void {
   loadAvailableStrategies();
   state = { ...state, showEditModal: true, editingBot: bot, showCreateModal: false };
   notify();
 }
 
-// Close edit modal
 export function closeEditModal(): void {
   state = { ...state, showEditModal: false, editingBot: null };
   notify();
 }
 
-// Clear error
 export function clearError(): void {
   setError(null);
 }
 
-// Select a bot
 export function selectBot(bot: BotConfig | null): void {
   state = { ...state, selectedBot: bot, botStatus: null, botTrades: [] };
   notify();
@@ -395,7 +365,6 @@ export function selectBot(bot: BotConfig | null): void {
   }
 }
 
-// Initialize state - call this once on app load
 let initialized = false;
 export function initBotsState(): void {
   if (initialized) return;

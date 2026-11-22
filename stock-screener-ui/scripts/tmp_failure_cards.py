@@ -12,7 +12,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from nt_template import (new_fig, candles, zone, hline, riskbox, note, save,
                          BULL, BEAR, TEXT, MUTED, ACCENT, IFVG_S, TREND)
 
-# A — reversal
 fig, ax = new_fig("FAIL A — the reversal: +0.81R given back (08-27 LONG 3m, risk 92 -> SL -92.3)")
 bars = [(100, 100.6, 99.7, 100.3), (100.3, 101.2, 100, 100.9), (100.9, 102.5, 100.7, 102.1),
         (102.1, 103.4, 101.8, 103.0), (103.0, 103.2, 101.9, 102.2), (102.2, 102.4, 100.5, 100.8),
@@ -37,7 +36,6 @@ ax.annotate("opening-drive noise\nfirst-5-min entry", xy=(3, 101.9), xytext=(1.2
 note(ax, 0, 97.2, "4 of 5 instant losers entered <= +5 min or >= +28 min", c=MUTED, style="italic")
 save(fig, "fail_b_never_alive.png")
 
-# C — wide stop
 fig, ax = new_fig("FAIL C — wide stop: risk 111 = 2.8x ATR (08-27 SHORT 2m -> SL -112.2)")
 bars = [(100, 100.5, 99.5, 99.9), (99.9, 100.3, 99.4, 100.0), (100, 100.7, 99.7, 100.4),
         (100.4, 101.6, 100.2, 101.3), (101.3, 102.4, 101, 102.1), (102.1, 103, 101.8, 102.7)]
@@ -49,7 +47,6 @@ note(ax, 0, 93.4, "every trade risking 57+ lost (7/7) — far LRL = weak magnet 
      style="italic")
 save(fig, "fail_c_wide_stop.png")
 
-# D — slippage
 fig, ax = new_fig("FAIL D — slippage: stop gapped through (08-21 SHORT 3m risk 79 -> -160.1 = -2.03R)")
 bars = [(100, 100.4, 99.5, 99.8), (99.8, 100.1, 99.2, 99.5), (99.5, 103.8, 99.3, 103.4),
         (103.4, 104, 102.8, 103.6)]
@@ -61,7 +58,6 @@ note(ax, 0, 98.2, "open volatility does not oblige fixed-R math — one slip wip
      c=MUTED, style="italic")
 save(fig, "fail_d_slippage.png")
 
-# E — the wall that sometimes isn't
 fig, ax = new_fig("FAIL E — the wall that sometimes holds (09-02 LONG 3m into VAH@0.41R -> SL -57.7)")
 bars = [(100, 100.5, 99.7, 100.2), (100.2, 101.4, 100, 101.1), (101.1, 101.7, 100.8, 101.3),
         (101.3, 101.6, 100.9, 101.0), (101.0, 101.2, 99.8, 100.0), (100, 100.2, 98.6, 98.8),

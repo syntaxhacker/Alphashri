@@ -63,7 +63,6 @@ describe("PatternListView sort keys", () => {
   test("breakout sort orders by breakout score, not insertion order", () => {
     render(() => <PatternListView hits={HITS} sort="breakout" onSelect={() => {}} />);
     const rows = renderedSymbols();
-    // HITS[1] has the higher breakout_score (80 vs 10) and sorts first.
     expect(rows[0]).toContain("SYM2");
     expect(rows[1]).toContain("SYM1");
   });

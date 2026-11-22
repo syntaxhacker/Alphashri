@@ -88,7 +88,6 @@ def detect_curve_bearish(df: pd.DataFrame, ctx: dict | None = None) -> list:
     hi, lo, _, _ = F.swing_extremes(df, start, end)
     if peak <= neckline:
         return []
-    # price must have rolled over below the peak toward the neckline
     if float(df["close"].iloc[end]) > neckline + 0.6 * depth:
         return []
     highs, lows = get_swings(df, ctx)
@@ -161,7 +160,6 @@ def detect_cup_handle(df: pd.DataFrame, ctx: dict | None = None) -> list:
 
     h_low = float(df["low"].iloc[cup_end : end + 1].min())
     h_high = float(df["high"].iloc[cup_end : end + 1].max())
-    # handle sits in the upper half of the cup (shallow retrace)
     if h_low < trough + 0.5 * depth:
         return []
     if (h_high - h_low) > 0.5 * depth:
@@ -170,7 +168,6 @@ def detect_cup_handle(df: pd.DataFrame, ctx: dict | None = None) -> list:
     h_end = float(df["close"].iloc[end])
     if h_start > 0 and (h_end - h_start) / h_start > 0.05:
         return []
-    # price should be near the rim ready to break out
     if float(df["close"].iloc[end]) < trough + 0.55 * (cup_high - trough):
         return []
 

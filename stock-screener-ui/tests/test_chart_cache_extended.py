@@ -151,7 +151,6 @@ class TestTTLForToday:
         df = _sample_df()
         mod.save_cached_candles("RELIANCE", today, df)
 
-        # Delete the meta file
         pkl_path = cache_dir / today / "RELIANCE.pkl"
         meta_path = mod._get_meta_path(pkl_path)
         meta_path.unlink()
@@ -289,7 +288,6 @@ class TestTimeframeInCacheKey:
 
         mod.save_cached_candles("reliance", date, df, timeframe="5min")
 
-        # Symbol is uppercased internally
         result, is_cached = mod.get_cached_candles("RELIANCE", date, timeframe="5min")
         assert result is not None
         assert is_cached is True

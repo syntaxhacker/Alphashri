@@ -31,8 +31,6 @@ const PAD = 8;
 const ROW_H = "24px";
 
 /**
- * Column visibility + order control for `TanStackTable`.
- *
  * The panel is portalled and `fixed`: the table lives in a `overflow:auto`
  * scroll container, and an in-flow absolute child of the toolbar would be
  * clipped by it exactly like the market rail's old sector menu.

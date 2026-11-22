@@ -18,24 +18,19 @@ export interface UniverseBarProps {
   universes: Universe[];
   universe: string;
   setUniverse: (value: string) => void;
-  /** Reserved id of the custom symbol scope (e.g. `"custom"`). */
   customUniverse?: string;
-  /** How many symbols the custom scope currently holds (drives the label). */
   customSymbolCount?: number;
   scan: () => void;
   scanning: boolean;
   job: JobDTO | null;
   queuePosition: number | null;
   error: string | null;
-  /** Right-side controls rendered in the same toolbar row (timeframe, filters…). */
   actions?: JSX.Element;
   /** Scan-status controls rendered next to the scan button (cache, force re-run…). */
   scanActions?: JSX.Element;
-  /** Apply a pasted symbol list (switches to the custom universe). */
   onPasteSymbols?: (symbols: string[]) => void;
 }
 
-/** Inline spinner matching the shared Button's loading affordance. */
 function Spinner() {
   return (
     <span

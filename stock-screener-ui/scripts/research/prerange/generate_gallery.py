@@ -1,11 +1,3 @@
-"""SNDK pre-range fade — gallery + edge/exit study.
-
-Backtest rules tested on the 1h/6mo and 5m/60d samples:
-  entry  : RED pre -> LONG if open > pre_low ; GREEN pre -> SHORT if open < pre_high
-  stop   : hard stop at the pre range level
-  exits  : see EXIT RULES (target / EMA9 / EMA20 / VWAP / time)
-Charts use the recommended exit (EMA9 cross or 12:30, no fixed target).
-"""
 import datetime
 import os
 import matplotlib
@@ -46,7 +38,6 @@ def load(period, interval):
 
 
 def prep(day):
-    """Split day into pre/regular and add EMA9/EMA20/VWAP to the regular session."""
     pre = day[day.index.time < T(9, 30)]
     reg = day[(day.index.time >= T(9, 30)) & (day.index.time < T(16, 0))]
     if len(pre) == 0 or len(reg) == 0:
@@ -60,7 +51,6 @@ def prep(day):
 
 
 def simulate(reg, side, entry, stop, tgt, rule, moc):
-    """Return (exit_px, why, exit_i). Hard stop checked intrabar; signal exits on close."""
     for i, (ts, b) in enumerate(reg.iterrows()):
         hi, lo, cl = float(b["High"]), float(b["Low"]), float(b["Close"])
         if side == "LONG":
@@ -141,7 +131,6 @@ def to_df(trades):
     return pd.DataFrame([{k: v for k, v in t.items() if k not in ("pre", "reg")} for t in trades])
 
 
-# ---------- exit study ----------
 EXITS = [
     ("Baseline: target = pre range", "NONE", None, "pre"),
     ("Exit on EMA9 cross", "EMA9", None, "none"),
@@ -164,14 +153,12 @@ for lbl, rule, moc, tm in EXITS:
     exit_study.append((lbl, a, b))
     print(f"{lbl:28} 6mo PF={a['pf']:5} n={a['n']:3} tot={a['tot']:6} | 5m PF={b['pf']:5} n={b['n']:3} tot={b['tot']:6}")
 
-# recommended exit for charts
 RULE, MOC, TM = "EMA9", "12:30", "none"
 best6 = stats(to_df(backtest(df6, RULE, MOC, TM)))
 best5 = stats(to_df(backtest(df5, RULE, MOC, TM)))
 base6 = stats(to_df(backtest(df6, "NONE", None, "pre")))
 print("recommended:", best6, best5, "| base:", base6)
 
-# ---------- edge by move size (improved exit) ----------
 sb = to_df(backtest(df6, RULE, MOC, TM, min_move=0.2, max_move=100))
 sb["abs_pre"] = sb.pre_chg.abs()
 labels = ["0.2-1%", "1-2%", "2-3%", "3-5%", ">5%"]
@@ -180,7 +167,6 @@ edge_rows = [(lab, stats(sb[sb.bucket == lab])) for lab in labels]
 sweet = stats(sb[(sb.abs_pre >= 1) & (sb.abs_pre <= 5)])
 fat = stats(sb[sb.abs_pre > 5])
 
-# ---------- charts ----------
 def plot(t):
     pre, reg = t["pre"], t["reg"]
     day = pd.concat([pre, reg])
@@ -202,7 +188,6 @@ def plot(t):
             color=DIM, fontsize=7, ha="center", va="top")
     ax.text((npre + n) / 2 - 0.5, 0.97, "REGULAR", transform=ax.get_xaxis_transform(),
             color=DIM, fontsize=7, ha="center", va="top")
-    # EMA9 / VWAP (exit references)
     ax.plot(xs, reg["ema9"].reindex(day.index).values, color=PUR, lw=1.0, alpha=0.9, label="EMA9")
     ax.plot(xs, reg["vwap"].reindex(day.index).values, color="#39D2C0", lw=1.0, alpha=0.8, label="VWAP")
     other = t["pre_hi"] if t["side"] == "LONG" else t["pre_lo"]
@@ -248,7 +233,6 @@ recent = backtest(df5, RULE, MOC, TM)[-30:]
 for t in recent:
     t["fig"] = plot(t)
 
-# ---------- today's playbook (may be excluded by the >5% filter) ----------
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
@@ -258,7 +242,6 @@ except Exception as e:  # never break the report on a live-data hiccup
     print("today playbook skipped:", e)
     tp = None
 
-# ---------- HTML ----------
 CSS = ("body{background:#0D1117;color:#E6EDF3;font-family:system-ui,sans-serif;"
        "max-width:1180px;margin:0 auto;padding:24px;line-height:1.55}"
        "h1,h2{border-bottom:1px solid #30363D;padding-bottom:6px}"

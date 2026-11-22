@@ -23,9 +23,6 @@ WED = datetime(2026, 9, 30, 18, 30, tzinfo=IST)
 SAT = datetime(2026, 10, 3, 18, 30, tzinfo=IST)
 
 
-# ---------------------------------------------------------------------------
-# builders
-# ---------------------------------------------------------------------------
 def _row(
     symbol="EBGNG",
     client="SBI MUTUAL FUND",
@@ -78,9 +75,6 @@ def _deal(value_cr, side="BUY", ctype="mutual_fund", itype="equity"):
     }
 
 
-# ---------------------------------------------------------------------------
-# classifier
-# ---------------------------------------------------------------------------
 @pytest.mark.parametrize(
     "name,expected_type,expected_conf",
     [
@@ -116,9 +110,6 @@ def test_master_fund_ltd_is_fpi_not_mf():
     assert b.classify_client("ACME MASTER FUND LTD")["client_type"] == "fpi"
 
 
-# ---------------------------------------------------------------------------
-# normalize
-# ---------------------------------------------------------------------------
 def test_normalize_dedupe_and_math():
     raw = [
         _row(),
@@ -171,9 +162,6 @@ def test_normalize_respects_row_deal_type():
     assert out[0]["deal_type"] == "block"
 
 
-# ---------------------------------------------------------------------------
-# qualifying
-# ---------------------------------------------------------------------------
 def test_qualifying_threshold_is_inclusive():
     deals = [
         _deal(50.0),                       # exactly at the line -> included
@@ -202,9 +190,6 @@ def test_min_cr_default(monkeypatch):
     assert b._min_cr() == 50.0
 
 
-# ---------------------------------------------------------------------------
-# persistence
-# ---------------------------------------------------------------------------
 def test_persist_read_history_roundtrip(tmp_path):
     recs = [{"date": DAY, "symbol": "A", "value_cr": 1.0},
             {"date": DAY, "symbol": "B", "value_cr": 2.0}]
@@ -248,9 +233,6 @@ def test_prune_uses_explicit_today_string(tmp_path):
     assert not stale.exists()
 
 
-# ---------------------------------------------------------------------------
-# run_once
-# ---------------------------------------------------------------------------
 def _run_rows():
     return [
         _row(symbol="EBGNG", client="SBI MUTUAL FUND", qty="1000000", watp="600"),
@@ -343,9 +325,6 @@ def test_pytest_data_root_redirects_under_pytest():
     assert "test_bulk_deals" in str(root)
 
 
-# ---------------------------------------------------------------------------
-# fetch fallbacks (no network)
-# ---------------------------------------------------------------------------
 def test_fetch_deals_prefers_snapshot(monkeypatch):
     monkeypatch.setattr(b, "fetch_snapshot", lambda: {"BULK_DEALS_DATA": [_row()]})
     monkeypatch.setattr(b, "fetch_bulk_csv", lambda: [_row()])
@@ -391,9 +370,6 @@ def test_parse_bulk_csv_roundtrip():
     assert out[0]["value_cr"] == 60.0
 
 
-# ---------------------------------------------------------------------------
-# enrichment
-# ---------------------------------------------------------------------------
 def test_enrich_cap_and_missing():
     recs = [{"qualifying": True, "symbol": f"S{i}", "date": DAY} for i in range(20)]
     calls = []
@@ -419,9 +395,6 @@ def test_series_metrics_json_safe():
     }
 
 
-# ---------------------------------------------------------------------------
-# scheduler
-# ---------------------------------------------------------------------------
 def test_is_due_before_hour():
     assert b._is_due(datetime(2026, 9, 30, 17, 30, tzinfo=IST), None) is False
 
@@ -462,9 +435,6 @@ def test_ensure_started_idempotent(monkeypatch):
     assert started == ["bulk-deals"]
 
 
-# ---------------------------------------------------------------------------
-# Cross-feed dedupe: NSE lists the same trade in bulk AND block lists
-# ---------------------------------------------------------------------------
 
 
 def test_same_trade_in_both_feeds_is_counted_once():

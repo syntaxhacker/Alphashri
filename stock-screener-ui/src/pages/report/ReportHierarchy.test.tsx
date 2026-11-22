@@ -147,7 +147,6 @@ describe("Index Report desk hierarchy", () => {
       expect(await screen.findByTestId(id)).toBeInTheDocument();
     }
 
-    // Secondary data is no longer a sibling of the chart — it is one click away.
     expect(screen.queryByTestId("nifty-report-strips")).not.toBeInTheDocument();
     expect(screen.queryByTestId("nifty-tape-panel")).not.toBeInTheDocument();
 
@@ -165,7 +164,6 @@ describe("Index Report desk hierarchy", () => {
       expect(screen.getByTestId(id)).toBeInTheDocument();
     }
 
-    // The original dock tabs are untouched.
     for (const id of ["desk-dock-flow", "desk-dock-setup", "desk-dock-market"]) {
       expect(screen.getByTestId(id)).toBeInTheDocument();
     }

@@ -28,9 +28,6 @@ import type { NiftyReport, NiftyStrike } from "@/types/niftyReport";
 
 export { replayFromMeta } from "./niftyReplay";
 
-/** Flush panel header label. CompactPanel styles only *string* titles, so a JSX
- *  title (label + badges + control on one line) has to carry the same treatment
- *  itself — otherwise it renders as body copy inside the header strip. */
 const PANEL_TITLE_STYLE: JSX.CSSProperties = {
   "font-family": palette.MONO,
   "font-size": `${REPORT_FONT.body}px`,

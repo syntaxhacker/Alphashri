@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""Build the NIFTY tape-review page and its data artifact for one session.
-
-Reads the recorder files written under experiments/data/ (tape, futures,
-snapshots, 10-second chain) and emits a self-contained dark HTML report plus a
-machine-readable JSON summary.  No network calls, no database access.
-
-Usage:
-    .venv/bin/python scripts/market/nifty_tape_report.py --date 2026-11-18
-"""
 
 from __future__ import annotations
 
@@ -38,9 +29,6 @@ FILES = {
 }
 
 
-# ---------------------------------------------------------------------------
-# small helpers
-# ---------------------------------------------------------------------------
 def parse_ts(value: str) -> datetime:
     """Parse recorder timestamps; a few rows are naive and are assumed IST."""
     dt = datetime.fromisoformat(value)
@@ -123,7 +111,6 @@ def alpha(hex_color: str, a: float) -> str:
 
 
 def load_palette() -> dict[str, Any]:
-    """Read the product palette so the report cannot drift from the app theme."""
     path = ROOT / "src" / "ui" / "palette.ts"
     text = path.read_text() if path.exists() else ""
     anchors = dict(
@@ -166,9 +153,6 @@ def load_palette() -> dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------------------
-# analysis
-# ---------------------------------------------------------------------------
 def build(date: str) -> dict[str, Any]:
     paths = {name: Path(str(tpl).format(date=date)) for name, tpl in FILES.items()}
     for name, path in paths.items():
@@ -206,8 +190,6 @@ def build(date: str) -> dict[str, Any]:
     pivot = last_snap.get("pivots") or first_snap.get("pivots") or {}
     prior_close = float((pivot.get("prev") or {}).get("close") or 25_387.40)
 
-    # ---- path / returns ---------------------------------------------------
-    # skip the 09:15:54 backfill-to-09:16 interval: it is 18 seconds, not a minute
     rets_full = [
         (b["spot"] - a["spot"]) / a["spot"] for a, b in zip(full, full[1:])
     ]
@@ -223,7 +205,6 @@ def build(date: str) -> dict[str, Any]:
     below_lo, below_hi = wilson(below_open, len(spots))
     lag1 = pearson(returns[:-1], returns[1:])
 
-    # ---- futures ----------------------------------------------------------
     fut_nonnull = [row for row in futures if row.get("basis") is not None]
     basis_values = [row["basis"] for row in fut_nonnull]
     basis_min_row = min(fut_nonnull, key=lambda row: row["basis"])
@@ -233,7 +214,6 @@ def build(date: str) -> dict[str, Any]:
     fut_change = fut_last["close"] - fut_first["close"]
     fut_oi_change = fut_last["oi"] - fut_first["oi"]
 
-    # ---- open interest ----------------------------------------------------
     ce_open, pe_open = base["ce_oi"], base["pe_oi"]
     ce_close, pe_close = last["ce_oi"], last["pe_oi"]
     ce_delta, pe_delta = ce_close - ce_open, pe_close - pe_open
@@ -253,7 +233,6 @@ def build(date: str) -> dict[str, Any]:
     dpcr = [b["pcr_oi"] - a["pcr_oi"] for a, b in zip(full, full[1:])]
     corr_pcr = corr_ci(rets_full, dpcr)
 
-    # ---- walls / max pain -------------------------------------------------
     pain_series = [row for row in tape if row.get("max_pain") is not None]
     pain_transitions = sum(
         1 for a, b in zip(pain_series, pain_series[1:])
@@ -265,7 +244,6 @@ def build(date: str) -> dict[str, Any]:
     call_mode = statistics.mode(call_walls) if call_walls else None
     put_mode = statistics.mode(put_walls) if put_walls else None
 
-    # ---- chain: surface, ITM put clusters, strike OI ----------------------
     def chain_map(row: dict[str, Any]) -> dict[float, list[float]]:
         if "chain" in row:
             return {
@@ -273,7 +251,6 @@ def build(date: str) -> dict[str, Any]:
                 for strike, values in row["chain"].items()
                 if values and len(values) >= 6
             }
-        # 10s rows: [strike, ce_ltp, ce_oi, ce_vol, ce_iv, pe_oi, pe_vol]
         return {
             float(values[0]): [values[1], None, values[2], values[5], values[3], values[6]]
             for values in row["rows"]
@@ -328,7 +305,6 @@ def build(date: str) -> dict[str, Any]:
     worst_5 = sorted(moves, key=lambda row: row["change"])[:3]
     best_5 = sorted(moves, key=lambda row: -row["change"])[:3]
 
-    # volume by natural half-hour buckets
     bucket_spec = [
         ("09:15", "09:30"), ("09:30", "10:00"), ("10:00", "10:30"),
         ("10:30", "11:00"), ("11:00", "11:30"), ("11:30", "12:00"),
@@ -345,7 +321,6 @@ def build(date: str) -> dict[str, Any]:
             "pe": max(0, b["pe_vol"] - a["pe_vol"]),
         })
 
-    # 3D surface: 10-minute samples, 24 strikes around the money
     surface_rows = full[::10]
     if surface_rows[-1] is not last:
         surface_rows.append(last)
@@ -362,7 +337,6 @@ def build(date: str) -> dict[str, Any]:
             values = chain_map(row).get(float(strike))
             line.append(values[3] / 1e6 if values and values[3] is not None else None)
         surface_z.append(line)
-    # forward-fill gaps along time so the surface has no holes
     for line in surface_z:
         prev = None
         for i, value in enumerate(line):
@@ -440,7 +414,6 @@ def build(date: str) -> dict[str, Any]:
             "note": note,
         })
 
-    # ---- data quality -----------------------------------------------------
     def minute_list(first: str, last: str) -> list[str]:
         start = parse_ts(f"{date}T{first}:00+05:30")
         end = parse_ts(f"{date}T{last}:00+05:30")
@@ -498,7 +471,6 @@ def build(date: str) -> dict[str, Any]:
         if parse_ts(a["t"]) > parse_ts(b["t"])
     )
 
-    # snapshot verdict distributions
     def counter(field: str) -> dict[str, int]:
         counts: dict[str, int] = {}
         for row in snapshots:
@@ -517,7 +489,6 @@ def build(date: str) -> dict[str, Any]:
         "rv_iv": (last_snap.get("regime") or {}).get("rv_iv_ratio"),
     }
 
-    # ---- chart series -----------------------------------------------------
     fut_by_minute = {row["t"][11:16]: row for row in futures}
     times = [row["t"][11:16] for row in tape]
     fut_aligned = [
@@ -596,7 +567,6 @@ def build(date: str) -> dict[str, Any]:
         ],
     }
 
-    # external research lane, if it has landed by the time we build
     external_quant = None
     external = None
     if QUANT_JSON.exists():
@@ -812,9 +782,6 @@ def build(date: str) -> dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------------------
-# HTML rendering
-# ---------------------------------------------------------------------------
 CSS = """
 :root{
   --tr-bg:__BG__;--tr-panel:__PANEL__;--tr-raised:__RAISED__;--tr-border:__BORDER__;
@@ -1255,7 +1222,6 @@ def render(data: dict[str, Any]) -> str:
         for label, value, sub, cls in kpis
     )
 
-    # --- simple read -------------------------------------------------------
     above_open = 100 - s["below_open_share"] * 100
     lead = (
         f'<p><b>NIFTY sold off all day, then bounced, and still closed lower.</b> '
@@ -1309,7 +1275,6 @@ def render(data: dict[str, Any]) -> str:
         f'<li><span class="tag">{tag}</span>{text}</li>' for tag, text in bullets
     )
 
-    # --- quant tables ------------------------------------------------------
     seg_rows = [
         [
             f'<b>{row["label"]}</b>',
@@ -1474,7 +1439,6 @@ def render(data: dict[str, Any]) -> str:
         crosscheck_html = """<div class="tr-crosscheck"><h4>Cross-check · research lane</h4>
         <p class="sub">quant_tape.json was not present at build time; the numbers above are computed from the recorder directly.</p></div>"""
 
-    # --- data quality ------------------------------------------------------
     frozen_txt = ", then ".join(
         f'{fmt(level["price"])} ({level["first"]}–{level["last"]})'
         for level in q["frozen_levels"]
@@ -1517,7 +1481,6 @@ def render(data: dict[str, Any]) -> str:
         for row in quality_rows
     )
 
-    # --- chart panels ------------------------------------------------------
     panels = f"""
 <figure class="tr-panel tr-span2">
   <figcaption>Spot and futures · the whole session
@@ -1633,7 +1596,6 @@ def render(data: dict[str, Any]) -> str:
 </figure>
 """
 
-    # --- page --------------------------------------------------------------
     html = f"""<!doctype html>
 <html lang="en">
 <head>

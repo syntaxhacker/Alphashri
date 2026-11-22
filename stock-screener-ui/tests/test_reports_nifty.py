@@ -99,7 +99,6 @@ def _chain_payload(expiry: str = "2026-10-13"):
     }
 
 
-# ---------------- sentiment ----------------
 
 class TestSentiment:
     def test_long_buildup(self):
@@ -119,7 +118,6 @@ class TestSentiment:
         assert get_sentiment(-50.0, -99)["type"] == "Neutral"
 
 
-# ---------------- PCR ----------------
 
 class TestPcr:
     def test_basic(self):
@@ -134,7 +132,6 @@ class TestPcr:
         assert compute_pcr(10.0, 3.0) == 3.33
 
 
-# ---------------- max pain ----------------
 
 class TestMaxPain:
     def test_empty(self):
@@ -163,7 +160,6 @@ class TestMaxPain:
         assert compute_max_pain(rows) == 0.0
 
 
-# ---------------- usable-chain guard ----------------
 
 class TestHasUsableChain:
     def test_empty_and_none(self):
@@ -185,7 +181,6 @@ class TestHasUsableChain:
         assert has_usable_chain([{"strike": 100.0}]) is False
 
 
-# ---------------- parse + legs ----------------
 
 class TestParseChain:
     def test_expiry_spot_rows(self):
@@ -209,7 +204,6 @@ class TestParseChain:
         assert parse_chain_payload({}) == ("", 0.0, [])
 
 
-# ---------------- report assembly ----------------
 
 class TestBuildReport:
     def test_totals_and_walls(self):
@@ -247,7 +241,6 @@ class TestBuildReport:
         assert [w["strike"] for w in top_walls(rows, "ce")] == [5.0, 4.0, 3.0]
 
 
-# ---------------- snapshots ----------------
 
 class TestSnapshots:
     def test_roundtrip(self, _tmp_snapshots):
@@ -306,7 +299,6 @@ class TestSnapshots:
         assert exc.value.status_code == 400
 
 
-# ---------------- read caches (tape / snapshot) ----------------
 
 class TestReadCaches:
     def test_tape_parse_is_cached_until_the_file_grows(
@@ -365,7 +357,6 @@ class TestReadCaches:
         assert get_nifty_report(date="2026-11-02")["spot"] == 20_100.0
 
 
-# ---------------- live + snapshot endpoints (mocked Upstox) ----------------
 
 def _mock_chain(payload):
     fetch = AsyncMock(return_value=payload)
@@ -513,7 +504,6 @@ class TestExpiriesEndpoint:
         assert exc.value.status_code == 502
 
 
-# ---------------- Sensex live context (mocked Upstox) ----------------
 
 def _ohlc_payload(open_=22100.0, high=22450.0, low=22050.0, close=22380.0):
     """Upstox /market-quote/ohlc shape — fields nest under a child 'ohlc'."""
@@ -663,7 +653,6 @@ class TestSnapshotEndpoint:
         assert not (nifty.SNAPSHOT_DIR / "2026-10-12.json").exists()
 
 
-# ---------------- gamma / GEX ----------------
 
 def _gex_row(strike, g_ce, oi_ce, g_pe, oi_pe):
     return {"strike": float(strike),
@@ -1078,7 +1067,6 @@ class TestBuildReportGex:
             assert key in rep, f"missing {key}"
 
 
-# ---------------- live WS snapshot path ----------------
 
 def _live_snapshot(n=25, spot=22700.0, legs_ts=None):
     """Hand-built nifty_md-style snapshot: legs keyed '<strike>:ce|pe'.
@@ -1195,7 +1183,6 @@ class TestGetLiveReport:
         assert calls["n"] == 1
 
 
-# ---------------- previous-session pivots ----------------
 
 def _daily_payload():
     """Upstox /historical-candle daily shape, newest-first.
@@ -1370,7 +1357,6 @@ class TestComputeReference:
         assert n.compute_reference([{"atm_strike": "x"}], [{"strike": "y"}]) is None
 
 
-# ---------------- replay endpoint (per-minute full snapshots) ----------------
 
 def _replay_line(t: str) -> dict:
     return {
@@ -1511,7 +1497,6 @@ def test_top_walls_limits_the_ranking_to_strikes_near_spot():
     assert near_walls([{"strike": 20_000, "pe": {"oi": 5}, "ce": {"oi": 0}}], "pe", spot=spot)
 
 
-# ---------------- notify_telegram ----------------
 
 class TestNotifyTelegram:
     """Tests for the notify_telegram helper."""
@@ -1535,9 +1520,7 @@ class TestNotifyTelegram:
         import api.reports_api.nifty as n_mod
         import trading.telegram_notifier as tgn
 
-        # Reset the warning flag
         n_mod._TELEGRAM_WARNED = False
-        # Make notifier appear unconfigured
         monkeypatch.setattr(tgn, "_is_available", lambda: False)
 
         import logging
@@ -1550,7 +1533,6 @@ class TestNotifyTelegram:
         assert result1 is False
         assert any("Telegram notifier unavailable" in r.message for r in caplog.records)
 
-        # Second call - should NOT warn again
         caplog.clear()
         result2 = n_mod.notify_telegram(alert)
         assert result2 is False
@@ -1562,9 +1544,7 @@ class TestNotifyTelegram:
         import api.reports_api.nifty as n_mod
         import trading.telegram_notifier as tgn
 
-        # Reset the warning flag
         n_mod._TELEGRAM_WARNED = False
-        # Make notifier appear configured but send_alert raises
         monkeypatch.setattr(tgn, "_is_available", lambda: True)
 
         def raising_send_alert(*args, **kwargs):
@@ -1582,7 +1562,6 @@ class TestNotifyTelegram:
         assert result1 is False
         assert any("Telegram send failed" in r.message for r in caplog.records)
 
-        # Second call - should NOT warn again
         caplog.clear()
         result2 = n_mod.notify_telegram(alert)
         assert result2 is False

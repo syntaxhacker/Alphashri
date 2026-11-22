@@ -1,10 +1,3 @@
-"""
-Fetch and cache all data needed for SR Breakout optimization.
-Run once, then benchmark uses the cached pickle file.
-
-Usage:
-    cd stock-screener-ui && python scripts/fetch_sr_cache.py
-"""
 
 import sys
 from pathlib import Path

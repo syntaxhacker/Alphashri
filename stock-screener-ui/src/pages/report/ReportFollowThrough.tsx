@@ -14,8 +14,6 @@ function formatSummary(side: FollowThroughSide | null | undefined, emptyNote?: s
   if (!side) return "";
   if ((side.count ?? 0) === 0) return emptyNote ?? "";
   const rows = side.rows ?? [];
-  // No session has elapsed since the reference date (e.g. report date is the
-  // latest completed session): nothing to win/lose yet.
   if (rows.length > 0 && rows.every((r) => (r.ret_pct ?? 0) === 0)) {
     return "Awaiting next session";
   }

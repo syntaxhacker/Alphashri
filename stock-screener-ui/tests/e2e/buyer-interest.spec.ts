@@ -7,15 +7,12 @@ test.describe("Buyer Interest+ Screener", () => {
     await loginAsTestUser(page);
   });
 
-  // Test Buyer Interest+ by loading it directly via URL parameter
   test("should load Buyer Interest+ data and show columns", async ({ page }) => {
-    // Load page with buyer_interest_enhanced as the default
     await page.goto("/?tab=screener");
 
     // Wait for data to load - the fallback should include buyer_interest_enhanced
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 10000 });
 
-    // Check for Wick column which is unique to buyer interest
     const _wickHeader = page.locator("th").filter({ hasText: "Wick" });
     // This might not exist if trending is the default, so we just verify data loaded
     const rows = page.locator('[data-testid="screener-table"] tbody tr');
@@ -26,11 +23,9 @@ test.describe("Buyer Interest+ Screener", () => {
     await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 10000 });
 
-    // Get all rows
     const rows = page.locator('[data-testid="screener-table"] tbody tr');
     const count = await rows.count();
 
-    // At least verify we have data
     expect(count).toBeGreaterThan(0);
   });
 
@@ -41,7 +36,6 @@ test.describe("Buyer Interest+ Screener", () => {
     const rows = page.locator('[data-testid="screener-table"] tbody tr');
     const count = await rows.count();
 
-    // Verify table has data
     expect(count).toBeGreaterThan(0);
 
     // Check that mock stock symbols are visible

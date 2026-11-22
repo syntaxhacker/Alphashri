@@ -111,10 +111,9 @@ function mount() {
   ));
 }
 
-/** A visible, four-sided card border — a divider (border-l/border-t) is not one. */
 function isCardBorder(el: HTMLElement): boolean {
   const cls = typeof el.className === "string" ? el.className : "";
-  if (/\bborder-transparent\b/.test(cls)) return false; // UI buttons default to an invisible border
+  if (/\bborder-transparent\b/.test(cls)) return false;
   const fullClass = /(?:^|\s)border(?:\s|$)/.test(cls);
   const inline = el.style.border ?? "";
   return fullClass || (inline.length > 0 && !inline.includes("transparent"));
@@ -124,8 +123,6 @@ afterEach(cleanup);
 
 describe("Index Report — one grid, one border per section", () => {
   test("(a) every top-level section is pinned to the shared left-edge contract", () => {
-    // The sections this lane renders carry the shared marker. The marker is
-    // asserted, not a screenshot pixel coordinate (happy-dom has no layout).
     mount();
     for (const id of ["nifty-stat-strip", "nifty-flow-windows", "movers-strip"]) {
       const section = screen.getByTestId(id);

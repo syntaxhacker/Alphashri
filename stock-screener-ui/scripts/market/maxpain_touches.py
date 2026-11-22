@@ -162,7 +162,6 @@ def main(argv=None) -> int:
                 "up30": f30["up"], "down30": f30["down"], "held30": f30["held"],
                 "reached_call": reached_call, "reached_put": reached_put,
             })
-        # wall-to-wall per day
         touched_calls = set()
         touched_puts = set()
         for t, r in df.iterrows():

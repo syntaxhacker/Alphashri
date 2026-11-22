@@ -113,9 +113,6 @@ def test_one_session_behind_still_served(cdir, closed_weekday, monkeypatch):
     assert candles_mod._read_cached(path, True, is_daily=True) is not None
 
 
-# ---------------------------------------------------------------------------
-# Staleness proofs that hold on the current code (no fix required)
-# ---------------------------------------------------------------------------
 
 
 def test_meta_session_stamped_from_frame_not_expected_session(cdir, monkeypatch):
@@ -164,9 +161,6 @@ def test_lookback_variant_cannot_serve_another_lookback(cdir, closed_weekday, mo
     assert candles_mod._read_cached(p500, True, is_daily=True) is None
 
 
-# ---------------------------------------------------------------------------
-# Swallowed errors that must become observable
-# ---------------------------------------------------------------------------
 
 
 def test_historical_fetch_error_is_logged_with_context(caplog):

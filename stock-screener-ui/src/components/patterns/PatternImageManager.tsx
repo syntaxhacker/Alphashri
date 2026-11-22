@@ -23,11 +23,6 @@ import { PatternImage } from "./PatternImage";
 
 const ACCEPT = "image/png,image/jpeg,image/webp,image/svg+xml";
 
-/**
- * Admin panel: upload / replace / delete one reference image per chart pattern.
- * Fetches its own image map on mount and shows a placeholder per card until an
- * image exists.
- */
 export function PatternImageManager() {
   const isWide = useMediaQuery("(min-width: 1200px)");
   const isMid = useMediaQuery("(min-width: 760px)");

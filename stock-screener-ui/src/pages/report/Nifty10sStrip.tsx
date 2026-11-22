@@ -22,14 +22,12 @@ export type { OiPoint };
  * 9M unwind just happened. The 10 s pace and a ⚡ BURST chip cover the instant.
  */
 
-/** One block per 10 s snapshot; 45 blocks ≈ 7.5 minutes of history. */
 const RIBBON_BARS = 45;
 const BLOCK_W = 3;
 const BLOCK_GAP = 1;
 
 export interface Nifty10sStripProps {
   points: OiPoint[];
-  /** Optional noise floor (contracts). Defaults to FLOW_NOISE (100k). */
   noise?: number;
 }
 

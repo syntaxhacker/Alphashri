@@ -20,9 +20,6 @@ from chart_patterns.detectors.common import (
 )
 
 
-# ---------------------------------------------------------------------------
-# fixtures / helpers
-# ---------------------------------------------------------------------------
 
 
 def _frame(index, n, *, high=None, low=None) -> pd.DataFrame:
@@ -67,9 +64,6 @@ class _Hit:
         self.tag = tag
 
 
-# ---------------------------------------------------------------------------
-# shift_line_to_bound
-# ---------------------------------------------------------------------------
 
 
 def test_shift_line_to_bound_upper_margin_lifts_by_exactly_margin_and_bounds():
@@ -163,9 +157,6 @@ def test_fit_window_pair_is_memoized_per_ctx_and_window():
     assert (0, None) in ctx["_fit_pairs"]
 
 
-# ---------------------------------------------------------------------------
-# calendar_day_gap
-# ---------------------------------------------------------------------------
 
 
 def test_calendar_day_gap_datetime_index_uses_calendar_days():
@@ -192,9 +183,6 @@ def test_calendar_day_gap_is_symmetric():
     assert calendar_day_gap(rng, 0, 2) == calendar_day_gap(rng, 2, 0)
 
 
-# ---------------------------------------------------------------------------
-# scan_windows
-# ---------------------------------------------------------------------------
 
 
 def test_scan_windows_calls_once_per_eligible_window_with_positional_args_and_keeps_first_hit():

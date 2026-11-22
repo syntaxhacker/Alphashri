@@ -225,7 +225,6 @@ class TestMissingAndIlliquid:
             assert "negative_density_clamped" in out["warnings"]
 
 
-# --- vectorized local-quadratic density (parity with the old polyfit loop) ---
 import numpy as np
 
 from api.options_rnd import LOCAL_WINDOW, MIN_POINTS, _bl_density, _local_quad_second

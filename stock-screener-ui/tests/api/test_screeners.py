@@ -12,7 +12,6 @@ from pathlib import Path
 import types
 import random
 
-# Add project root to path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -215,7 +214,6 @@ class TestScreenersList:
                     assert 'key' in filter_config
                     assert 'label' in filter_config
                     assert 'type' in filter_config
-                    # Type-specific fields
                     if filter_config['type'] == 'number':
                         assert 'min' in filter_config
                         assert 'max' in filter_config
@@ -367,11 +365,9 @@ class TestScreenerDataRetrieval:
         assert 'profile_meta' in result
         assert 'summary' in result
 
-        # Check profile meta
         assert result['profile_meta']['section_labels']['primary'] == '🎯 APPROACHING 52W HIGH'
         assert result['profile_meta']['section_labels']['secondary'] == '✅ ALREADY TOUCHED 52W HIGH'
 
-        # Check that we have both approaching and touched stocks
         approaching_count = len(result['approaching'])
         touched_count = len(result['touched'])
         assert approaching_count + touched_count == 4  # Total from mock data
@@ -423,7 +419,6 @@ class TestScreenerDataRetrieval:
         # This profile doesn't use touched bucket
         assert len(result['touched']) == 0
 
-        # Verify section labels
         assert result['profile_meta']['section_labels']['primary'] == '📈 GAP OPEN CANDIDATES'
         assert result['profile_meta']['section_labels']['secondary'] == '✅ LARGER GAP MOVERS'
 
@@ -525,7 +520,6 @@ class TestScreenerDataRetrieval:
         prefix_symbols = {s['symbol'] for s in result_with_prefix['approaching']}
         no_prefix_symbols = {s['symbol'] for s in result_without['approaching']}
         assert prefix_symbols == no_prefix_symbols
-        # Same profile meta
         assert result_with_prefix['profile_meta'] == result_without['profile_meta']
 
     @patch('api_server_fastapi.TradingAPIFactory.create_from_config')
@@ -789,7 +783,6 @@ class TestScreenerDataStructure:
         all_stocks = result['approaching'] + result['touched']
 
         for stock in all_stocks:
-            # Required fields
             assert 'symbol' in stock
             assert 'score' in stock
             assert 'tv_price' in stock
@@ -797,8 +790,6 @@ class TestScreenerDataStructure:
             assert 'to_52w_high' in stock
             assert 'rationale' in stock
 
-            # Optional but commonly present fields
-            # These may vary by profile
             if 'day_change' in stock:
                 assert isinstance(stock['day_change'], (int, float))
 
@@ -821,7 +812,6 @@ class TestScreenerDataStructure:
         assert 'summary' in result
         summary = result['summary']
 
-        # Summary should be a list of summary items
         assert isinstance(summary, list)
 
         if summary:
@@ -848,7 +838,6 @@ class TestScreenerCaching:
             profile_filters={'min_gap_pct': '1.0', 'min_volume_m': '1'}
         )
 
-        # Second call with different filters
         result2 = fetch_screener_data(
             provider='upstox',
             mode='intraday',
@@ -956,10 +945,8 @@ class Test52WeekTouchEnrichment:
             'touched': [],
         }
 
-        # Act
         _enrich_with_touch_history(data, 'trending')
 
-        # Assert
         stock = data['approaching'][0]
         assert stock['last_touched'] is None
         assert stock['last_touched_price'] is None
@@ -970,7 +957,6 @@ class Test52WeekTouchEnrichment:
         """Test that stocks with recent touches are moved to touched bucket."""
         from datetime import datetime, timedelta
 
-        # Arrange: stock that didn't touch today but has a touch 2 days ago
         touch_date = datetime.now() - timedelta(days=2)
         record = Stock52WeekTouch(
             symbol="ADANIGREEN",
@@ -997,10 +983,8 @@ class Test52WeekTouchEnrichment:
             'touched': [],
         }
 
-        # Act
         _enrich_with_touch_history(data, 'trending')
 
-        # Assert: stock moved to touched, touched_52w set to True
         assert len(data['approaching']) == 0
         assert len(data['touched']) == 1
         stock = data['touched'][0]
@@ -1013,7 +997,6 @@ class Test52WeekTouchEnrichment:
         """Test that stocks already touched today stay in touched."""
         from datetime import datetime
 
-        # Arrange: stock touched today
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         record = Stock52WeekTouch(
             symbol="RELIANCE",
@@ -1040,10 +1023,8 @@ class Test52WeekTouchEnrichment:
             ],
         }
 
-        # Act
         _enrich_with_touch_history(data, 'trending')
 
-        # Assert: stays in touched
         assert len(data['approaching']) == 0
         assert len(data['touched']) == 1
         stock = data['touched'][0]
@@ -1054,7 +1035,6 @@ class Test52WeekTouchEnrichment:
         """Test enrichment with multiple stocks with mixed touch history."""
         from datetime import datetime, timedelta
 
-        # Setup: stocks with different touch patterns
         two_days_ago = datetime.now() - timedelta(days=2)
         three_days_ago = datetime.now() - timedelta(days=3)
 
@@ -1108,10 +1088,8 @@ class Test52WeekTouchEnrichment:
             'touched': [],
         }
 
-        # Act
         _enrich_with_touch_history(data, 'trending')
 
-        # Assert: ADANIGREEN and RELIANCE moved to touched, TCS stays approaching
         assert len(data['approaching']) == 1
         assert len(data['touched']) == 2
 
@@ -1126,7 +1104,6 @@ class Test52WeekTouchEnrichment:
         """Test that touches older than 7 days are not considered recent for bucket placement."""
         from datetime import datetime, timedelta
 
-        # Arrange: touch from 8 days ago (outside lookback)
         old_date = datetime.now() - timedelta(days=8)
         record = Stock52WeekTouch(
             symbol="ADANIGREEN",
@@ -1152,10 +1129,8 @@ class Test52WeekTouchEnrichment:
             'touched': [],
         }
 
-        # Act
         _enrich_with_touch_history(data, 'trending')
 
-        # Assert: stock stays in approaching (old touch not recent enough to move)
         assert len(data['approaching']) == 1
         assert len(data['touched']) == 0
         stock = data['approaching'][0]
@@ -1168,7 +1143,6 @@ class Test52WeekTouchEnrichment:
         """Test that only the most recent touch per symbol is used."""
         from datetime import datetime, timedelta
 
-        # Arrange: multiple touches for same symbol, different dates
         old_date = datetime.now() - timedelta(days=5)
         newer_date = datetime.now() - timedelta(days=1)
 
@@ -1204,10 +1178,8 @@ class Test52WeekTouchEnrichment:
             'touched': [],
         }
 
-        # Act
         _enrich_with_touch_history(data, 'trending')
 
-        # Assert: uses the most recent (newer_date) touch
         stock = data['touched'][0]
         assert stock['last_touched_price'] == 1255.0
 

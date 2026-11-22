@@ -9,9 +9,7 @@ import {
 import type { SimPayoff, SimResolvedLeg } from "@/types/reportSim";
 
 export interface PayoffSummary {
-  /** null when the upside is unbounded. */
   maxProfit: number | null;
-  /** null when the downside is unbounded; otherwise <= 0. */
   maxLoss: number | null;
   breakevens: number[];
   spots: number[];
@@ -35,7 +33,6 @@ export function spotsFor(legs: PayoffLeg[], pct = 8, n = 161): number[] {
   if (strikes.length === 0) return [];
   const lo = Math.min(...strikes);
   const hi = Math.max(...strikes);
-  // Centre the window on the structure so both wings stay visible.
   const center = (lo + hi) / 2;
   return curveSpots(center, pct, n).filter((s) => Number.isFinite(s) && s > 0);
 }

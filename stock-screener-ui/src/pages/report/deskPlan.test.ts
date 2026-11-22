@@ -29,7 +29,6 @@ function strike(
   return { strike: level, ce: leg(ce), pe: leg(pe) };
 }
 
-/** 30 one-minute bars with explicit lows and closes; session low = 22,690. */
 function intraday(opts: {
   base: number;
   lowAt: Record<number, number>;

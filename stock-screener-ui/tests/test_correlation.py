@@ -27,9 +27,6 @@ from api.correlation import (
 )
 
 
-# ---------------------------------------------------------------------------
-# _compute_correlation
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 class TestComputeCorrelation:
@@ -154,9 +151,6 @@ class TestComputeCorrelation:
         assert all(all(isinstance(v, (int, float)) for v in row) for row in matrix)
 
 
-# ---------------------------------------------------------------------------
-# _make_cache_key
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 class TestMakeCacheKey:
@@ -186,9 +180,6 @@ class TestMakeCacheKey:
         assert key == "RELIANCE_TCS_daily_30_days"
 
 
-# ---------------------------------------------------------------------------
-# Cache read/write roundtrip
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 class TestCacheRoundtrip:
@@ -248,9 +239,6 @@ class TestCacheRoundtrip:
         assert result is None
 
 
-# ---------------------------------------------------------------------------
-# Endpoint validation
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 class TestCorrelationEndpoint:

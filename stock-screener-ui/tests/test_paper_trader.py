@@ -1157,7 +1157,6 @@ class TestPaperTraderSimulations:
         trader = PaperTrader(initial_capital=1_000_000, slippage_pct=0.01)
         order = trader.place_order("TEST", OrderSide.BUY, 100, 1000.0, 900.0, 1100.0)
         
-        # Fill price should be 1000 * (1.01) = 1010
         assert order.fill_price == 1010.0
         assert trader.positions["TEST"].entry_price == 1010.0
 
@@ -1167,7 +1166,6 @@ class TestPaperTraderSimulations:
         trader = PaperTrader(initial_capital=1_000_000, slippage_pct=0.01)
         order = trader.place_order("TEST", OrderSide.SELL, 100, 1000.0, 1100.0, 900.0)
         
-        # Fill price should be 1000 * (0.99) = 990
         assert order.fill_price == 990.0
         assert trader.positions["TEST"].entry_price == 990.0
 

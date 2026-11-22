@@ -24,9 +24,6 @@ from api.reports_api import profitability as pb  # noqa: E402
 from api.reports_api.nifty_positioning import compute_positioning  # noqa: E402
 
 
-# --------------------------------------------------------------------------
-# NaN guard
-# --------------------------------------------------------------------------
 
 def _chain_row(delta="nan", oi=1000, prev_oi=500):
     """A chain row in the flat shape ``compute_positioning`` consumes."""
@@ -74,9 +71,6 @@ def test_a_normal_chain_still_produces_numbers():
     assert out["strikes"][0]["strike"] == 23000.0
 
 
-# --------------------------------------------------------------------------
-# profitability: one EMA pass instead of one per bar
-# --------------------------------------------------------------------------
 
 def _series(n=140):
     closes = [100.0 + i * 0.5 for i in range(n)]
@@ -108,9 +102,6 @@ def test_ema_cross_signals_are_actually_detected():
     assert hits == []
 
 
-# --------------------------------------------------------------------------
-# bounded in-memory caches
-# --------------------------------------------------------------------------
 
 @pytest.mark.parametrize("module", [dl, ef])
 def test_mem_put_evicts_the_oldest_entries(module):

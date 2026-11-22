@@ -1,5 +1,3 @@
-"""Broker access-token resolution shared by the hub's consumers."""
-
 from typing import Optional
 
 

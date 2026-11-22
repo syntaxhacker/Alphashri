@@ -48,9 +48,6 @@ def reset_global_state():
         orb_module._config_available = original_config_available
 
 
-# ============================================================================
-# SignalType Enum Tests
-# ============================================================================
 
 class TestSignalType:
     """Tests for SignalType enum."""
@@ -77,9 +74,6 @@ class TestSignalType:
             SignalType("INVALID")
 
 
-# ============================================================================
-# ORBSignal Dataclass Tests
-# ============================================================================
 
 class TestORBSignal:
     """Tests for ORBSignal dataclass."""
@@ -181,9 +175,6 @@ class TestORBSignal:
         assert signal.notes == "Strong breakout"
 
 
-# ============================================================================
-# ORBSignalGenerator Initialization Tests
-# ============================================================================
 
 class TestORBSignalGeneratorInit:
     """Tests for ORBSignalGenerator initialization."""
@@ -255,9 +246,6 @@ class TestORBSignalGeneratorInit:
         assert ORBSignalGenerator.FORCE_EXIT == (14, 45)
 
 
-# ============================================================================
-# Opening Range Calculation Tests
-# ============================================================================
 
 class TestCalculateORLevels:
     """Tests for calculate_or_levels method."""
@@ -436,9 +424,6 @@ class TestCalculateORLevels:
         assert result['or_range_pct'] == 0
 
 
-# ============================================================================
-# Breakout Detection Tests
-# ============================================================================
 
 class TestCheckBreakout:
     """Tests for check_breakout method."""
@@ -725,9 +710,6 @@ class TestCheckBreakout:
         assert signal is not None
 
 
-# ============================================================================
-# Exit Signal Tests
-# ============================================================================
 
 class TestCheckExit:
     """Tests for check_exit method."""
@@ -976,9 +958,6 @@ class TestCheckExit:
         assert "Take profit hit" in signal.notes
 
 
-# ============================================================================
-# create_entry_signal Function Tests
-# ============================================================================
 
 class TestCreateEntrySignal:
     """Tests for create_entry_signal convenience function."""
@@ -1161,9 +1140,6 @@ class TestCreateEntrySignal:
         assert signal.take_profit == round(signal.take_profit, 2)
 
 
-# ============================================================================
-# Display Signals Tests
-# ============================================================================
 
 class TestDisplaySignals:
     """Tests for display_signals method."""
@@ -1210,9 +1186,6 @@ class TestDisplaySignals:
         generator.display_signals([])
 
 
-# ============================================================================
-# Integration Tests
-# ============================================================================
 
 class TestORBSignalGeneratorIntegration:
     """Integration tests for ORBSignalGenerator."""
@@ -1301,9 +1274,6 @@ class TestORBSignalGeneratorIntegration:
         assert signal is None
 
 
-# ============================================================================
-# Edge Cases Tests
-# ============================================================================
 
 class TestEdgeCases:
     """Tests for edge cases and boundary conditions."""

@@ -56,10 +56,6 @@ export { OptionDockError, type DockErrorKind } from "./optionsDock";
 const DASHBOARD_BASE = `${API_BASE}/api/options`;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-/* ------------------------------------------------------------------ */
-/* Defensive primitives                                                 */
-/* ------------------------------------------------------------------ */
-
 function obj(value: unknown): Record<string, unknown> | null {
   return value != null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -107,10 +103,6 @@ function numArray(value: unknown): Array<number | null> {
   if (!Array.isArray(value)) return [];
   return value.map(finiteNumber);
 }
-
-/* ------------------------------------------------------------------ */
-/* Volatility blocks                                                    */
-/* ------------------------------------------------------------------ */
 
 function normalizeIvPoint(raw: unknown): IvPoint | null {
   const row = obj(raw);
@@ -289,10 +281,6 @@ function normalizeWarning(raw: unknown): Warning | null {
   if (!message) return null;
   return { code: textOf(row, "code"), message };
 }
-
-/* ------------------------------------------------------------------ */
-/* New per-expiry blocks                                                */
-/* ------------------------------------------------------------------ */
 
 function normalizePositioningStrike(raw: unknown): PositioningStrike | null {
   const row = obj(raw);
@@ -580,10 +568,6 @@ function normalizeExpiry(raw: unknown, topSpot: number | null): DashboardExpiry 
     rnd: normalizeRnd(row.rnd),
   };
 }
-
-/* ------------------------------------------------------------------ */
-/* Chart-ready projections                                              */
-/* ------------------------------------------------------------------ */
 
 /** A representative scalar for a CE/PE pair without inventing a value. */
 function combine(a: number | null, b: number | null): number | null {

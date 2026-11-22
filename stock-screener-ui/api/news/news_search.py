@@ -1,7 +1,3 @@
-"""
-Search and filter endpoints for news articles.
-"""
-
 import asyncio
 import sys
 from datetime import datetime

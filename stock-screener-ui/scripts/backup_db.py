@@ -40,7 +40,6 @@ def default_backup_dir() -> Path:
 
 
 def resolve_sqlite_path(db: str | None = None) -> Path | None:
-    """Return the SQLite file path, or None when the DB is not SQLite."""
     if db:
         return Path(db).expanduser().resolve()
 
@@ -76,7 +75,6 @@ def _snapshot(source: Path, dest: Path) -> None:
 
 
 def prune(backup_dir: Path, retention_days: int) -> list[Path]:
-    """Delete backups older than retention_days (by mtime). Returns removed paths."""
     if retention_days < 0 or not backup_dir.exists():
         return []
     cutoff = time.time() - retention_days * 86400

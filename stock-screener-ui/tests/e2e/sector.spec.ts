@@ -189,10 +189,8 @@ test.describe("Sector Dashboard - Market Selector", () => {
     const header = page.locator('[data-testid="sector-header"]');
     const indiaBtn = header.getByRole("button", { name: "India" });
     const usBtn = header.getByRole("button", { name: "US" });
-    // India is the default market
     await expect(indiaBtn).toHaveAttribute("aria-pressed", "true");
     await usBtn.click();
-    // Toggle actually switches markets: US becomes selected, India deselects
     await expect(usBtn).toHaveAttribute("aria-pressed", "true");
     await expect(indiaBtn).toHaveAttribute("aria-pressed", "false");
     await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({

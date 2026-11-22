@@ -70,7 +70,6 @@ describe("PatternFullscreenView as-of replay", () => {
       "type",
       "datetime-local",
     );
-    // Live (no cutoff): no banner.
     expect(screen.queryByTestId("patterns-fullscreen-asof-banner")).not.toBeInTheDocument();
   });
 

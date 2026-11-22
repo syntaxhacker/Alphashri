@@ -57,9 +57,6 @@ def _full_rows(base: float = 23500.0, n: int = 21) -> list[dict]:
     return rows
 
 
-# ---------------------------------------------------------------------------
-# Walls — one projection, identical payloads
-# ---------------------------------------------------------------------------
 
 def test_both_report_wall_helpers_are_the_shared_projection():
     assert nifty._as_report_walls is as_report_walls
@@ -100,9 +97,6 @@ def test_near_walls_use_the_shared_projection_with_each_reports_own_band(side):
         levels.near_walls(norm, side, spot=SPOT, max_dist=report_band), SPOT)
 
 
-# ---------------------------------------------------------------------------
-# PCR — one definition, presentation stays local
-# ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize(
     "ce,pe,expected",
@@ -168,9 +162,6 @@ def test_options_report_pcr_vol_keeps_its_zero_sentinel():
     assert options_report.compute_pcr_vol(strikes) == round(put_call(4, 7), 2)
 
 
-# ---------------------------------------------------------------------------
-# IV term — the report's own chain feeds the term without a new fetch
-# ---------------------------------------------------------------------------
 
 def test_self_iv_expiries_builds_a_one_point_map():
     rows = [{"strike": 1.0}]

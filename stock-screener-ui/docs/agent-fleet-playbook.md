@@ -80,7 +80,7 @@ Give each wave a theme so the ledger reads as a story. **Archive the agent code*
 ---
 
 ## 8. Cost control
-Default fleet agents to `opencode/nemotron-3.5-super-vl-free`; escalate a **single** agent only
+Default fleet agents to `opencode-go/hy4-flash-free`; escalate a **single** agent only
 for correctness-critical work (adversarial verification / the final audit) and say why. **The gate,
 not the model, is what protects you.**
 

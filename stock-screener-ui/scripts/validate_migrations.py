@@ -19,12 +19,6 @@ from pathlib import Path
 
 
 def extract_revision_info(filepath: Path) -> dict:
-    """Extract revision and down_revision using Python AST parsing.
-
-    Handles both styles:
-      revision = 'abc123'
-      revision: str = 'abc123'
-    """
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
@@ -57,7 +51,6 @@ def extract_revision_info(filepath: Path) -> dict:
 
 
 def looks_like_filename(value: str) -> bool:
-    """Check if a down_revision value looks like a filename instead of a revision ID."""
     if not value:
         return False
     if "/" in value or "\\" in value:
@@ -72,7 +65,6 @@ def looks_like_filename(value: str) -> bool:
 
 
 def validate_migrations(migrations_dir: Path) -> bool:
-    """Validate all migration files in the migrations directory."""
     errors = []
     warnings = []
 

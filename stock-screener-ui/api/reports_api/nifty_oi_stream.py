@@ -140,7 +140,6 @@ def detect_oi_ticks(
             continue
         ts_now, oi_now = samples[-1]
         window_start = ts_now - window_sec
-        # Samples inside the detection window, oldest first.
         window = [s for s in samples if s[0] >= window_start]
         if len(window) < 2:
             continue
@@ -232,7 +231,6 @@ def _resolve_subscriptions() -> tuple[list[str], dict[str, tuple[float, str]]]:
     headers = {"Accept": "application/json", "Authorization": f"Bearer {token}"}
 
     underlying = get_instrument_key("NIFTY")
-    # Nearest expiry that still has quotes.
     r = requests.get(f"{base}/option/contract", params={"instrument_key": underlying},
                      headers=headers, timeout=20)
     expiries = sorted({c.get("expiry") for c in (r.json().get("data") or [])
@@ -296,7 +294,7 @@ async def nifty_oi_stream_task() -> None:
                 await asyncio.sleep(30)
                 continue
 
-            # --- WS session (blocking) lives in a thread; ticks hop via a queue
+            # WS session (blocking) lives in a thread; ticks hop via a queue
             q: thr_queue.Queue = thr_queue.Queue(maxsize=20000)
             closed = threading.Event()
             streamer = _run_ws(key_map, q, closed)

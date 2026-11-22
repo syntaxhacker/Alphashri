@@ -47,7 +47,6 @@ describe("buildPatternTVData", () => {
       candle("2026-04-03", 105, 101),
       candle("2026-04-01", 100, 102),
       candle("2026-04-02", 102, 101),
-      // Duplicate time: last bar wins.
       candle("2026-04-02", 102, 104),
     ];
     const out = buildPatternTVData({ candles: shuffled, hit: null });
@@ -58,7 +57,6 @@ describe("buildPatternTVData", () => {
     ]);
     const dup = out.candles.find((c) => c.time === toTVTime("2026-04-02"));
     expect(dup).toMatchObject({ open: 102, close: 104 });
-    // Volume follows the same times, coloured by candle direction.
     expect(out.volume.map((v) => v.time)).toEqual(out.candles.map((c) => c.time));
     const up = out.volume.find((v) => v.time === toTVTime("2026-04-01"));
     const down = out.volume.find((v) => v.time === toTVTime("2026-04-03"));
@@ -164,7 +162,6 @@ describe("buildPatternTVData", () => {
     const tlr = out.lines.find((l) => l.name === "TLR");
     expect(tls?.color).toBe(POSITIVE);
     expect(tlr?.color).toBe(NEGATIVE);
-    // Boundary trendline points also snap onto candle times.
     const full = buildPatternTVData({ candles: CANDLES, hit: makeHit(), trendLines: [] });
     for (const line of full.lines) {
       for (const p of line.points) expect(candleTimes.has(p.time)).toBe(true);

@@ -69,7 +69,6 @@ describe("itm share math", () => {
   });
 
   test("session share sums legs instead of averaging ratios", () => {
-    // 25/100 and 40/100 → 65/200 = 32.5%, not the (25 + 40)/2 = 32.5% coincidence.
     expect(sessionShare(flow().series)).toBeCloseTo(32.5, 6);
     expect(
       sessionShare([
@@ -108,7 +107,6 @@ describe("NiftyItmPeFlowPanel", () => {
     r(() => <NiftyItmPeFlowPanel flow={flow()} spot={25_980} />);
 
     const rows = screen.getByTestId("nifty-itm-pe-top").children;
-    // Header row + five strike rows.
     expect(rows).toHaveLength(6);
     const strikes = Array.from(screen.getByTestId("nifty-itm-pe-top").querySelectorAll("[data-testid^='nifty-itm-pe-top-']"));
     expect(strikes.map((row) => row.getAttribute("data-testid"))).toEqual([

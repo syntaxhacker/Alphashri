@@ -46,7 +46,6 @@ export function AnimatedValue(props: AnimatedValueProps) {
 
   createEffect(() => {
     const value = props.value;
-    // Mount: record the baseline, never flash on first paint.
     if (!mounted) {
       mounted = true;
       prev = value;

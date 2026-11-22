@@ -25,9 +25,6 @@ DEFAULT_DATE = "2026-11-17"
 DEFAULT_T1 = "12:00"
 
 
-# ---------------------------------------------------------------------------
-# loading / small helpers
-# ---------------------------------------------------------------------------
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -209,9 +206,6 @@ def snapshot_view(row: dict[str, Any], window: int) -> dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------------------
-# payload
-# ---------------------------------------------------------------------------
 
 
 def build_payload(date: str, t1_label: str, window: int) -> dict[str, Any]:
@@ -582,9 +576,6 @@ def build_payload(date: str, t1_label: str, window: int) -> dict[str, Any]:
     return payload
 
 
-# ---------------------------------------------------------------------------
-# HTML
-# ---------------------------------------------------------------------------
 
 HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en">

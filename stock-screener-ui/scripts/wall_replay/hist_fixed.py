@@ -117,7 +117,6 @@ def run(date: str, cfg: dict) -> list[dict]:
                     trail = pos["entry"] + (1 - cfg["give"]) * (pos["best"] - pos["entry"])
                     pos["stop"] = max(pos["stop"], trail)
 
-                # opposite break: the put wall in force on the PREVIOUS bar
                 pprev, _ = walls_at(rs[i - 1], float(rs[i - 1]["spot"]))
                 opp = False
                 if pprev:
@@ -167,7 +166,6 @@ def run(date: str, cfg: dict) -> list[dict]:
         if calls:
             top["call"] = (calls[0]["strike"], top["call"][1] + 1 if top["call"][0] == calls[0]["strike"] else 1)
 
-        # break up: cross the call wall that was in force on the previous bar
         if calls_prev and not cfg.get("no_break"):
             w = calls_prev[0]["strike"]
             if prev < w <= spot and (spot - w) >= cfg["break"]:
@@ -180,7 +178,6 @@ def run(date: str, cfg: dict) -> list[dict]:
                     pos = _entry(cfg, rs, i, spot, "break up", "CE", w, nxt or spot + 100, strike)
                     if pos:
                         continue
-        # break down
         if puts_prev and not cfg.get("no_break"):
             w = puts_prev[0]["strike"]
             if prev > w >= spot and (w - spot) >= cfg["break"]:
@@ -193,7 +190,6 @@ def run(date: str, cfg: dict) -> list[dict]:
                     pos = _entry(cfg, rs, i, spot, "break down", "PE", w, nxt or spot - 100, strike)
                     if pos:
                         continue
-        # fade put (support held)
         if puts and not cfg.get("no_fade") and top["put"][1] >= 3 and corridor >= cfg["corridor"]:
             w = puts[0]["strike"]
             if 0 <= spot - w <= max(5, 0.5 * a) and mp - spot >= cfg["room"]:
@@ -203,7 +199,6 @@ def run(date: str, cfg: dict) -> list[dict]:
                                  calls[0]["strike"] if calls else spot + 100, strike)
                     if pos:
                         continue
-        # fade call (resistance held)
         if calls and not cfg.get("no_fade") and top["call"][1] >= 3 and corridor >= cfg["corridor"]:
             w = calls[0]["strike"]
             if 0 <= w - spot <= max(5, 0.5 * a) and spot - mp >= cfg["room"]:

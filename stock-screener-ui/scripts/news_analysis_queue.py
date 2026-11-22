@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""
-News Analysis Queue — enqueue, process, and track progress.
-
-Usage:
-  python scripts/news_analysis_queue.py enqueue [--limit N] [--force]
-  python scripts/news_analysis_queue.py process [--max N]
-  python scripts/news_analysis_queue.py status
-  python scripts/news_analysis_queue.py reset
-"""
 
 import argparse
 import json
@@ -49,7 +40,6 @@ def cmd_enqueue(args):
         from db.models.news import NewsArticle
         from sqlalchemy import func, and_
 
-        # articles that need analysis
         query = db.query(NewsArticle).filter(
             NewsArticle.content.isnot(None),
             NewsArticle.content != "",
@@ -102,7 +92,6 @@ def cmd_process(args):
     _ensure_table()
     db = SessionLocal()
     try:
-        # fetch pending items
         rows = db.execute(
             text("""
                 SELECT q.id, q.article_id, a.headline, a.url, a.content
@@ -116,7 +105,6 @@ def cmd_process(args):
         ).fetchall()
 
         if not rows:
-            # show status instead
             _show_status(db)
             return
 
@@ -128,7 +116,6 @@ def cmd_process(args):
         for i, (qid, aid, headline, url, content) in enumerate(rows, 1):
             headline = headline or ""
 
-            # mark processing
             db.execute(
                 text("UPDATE news_analysis_queue SET status='processing', updated_at=CURRENT_TIMESTAMP WHERE id=:qid"),
                 {"qid": qid}
@@ -161,7 +148,6 @@ def cmd_process(args):
                 print(f"           {summary[:80]}")
                 continue
 
-            # success — update article + queue
             sentiment = result.get("sentiment", "NEUTRAL").upper()
             impact = int(result.get("impact_score", 0))
             db.execute(
@@ -180,7 +166,6 @@ def cmd_process(args):
 
             print(f"{i:>4} | {'done':>10} | {sentiment:>9} | {impact:>6} | {hdr}")
 
-        # final status
         print(f"\nDone processing {total} articles\n")
         _show_status(db)
 
@@ -225,7 +210,6 @@ def _show_status(db):
     print("-" * 25)
     print(f"{'TOTAL':>12} | {total}")
 
-    # show last 5 failed
     failed = db.execute(text("""
         SELECT q.id, q.article_id, a.headline, q.error
         FROM news_analysis_queue q
@@ -240,7 +224,6 @@ def _show_status(db):
             hl = (h or "")[:50]
             print(f"  qid={qid} article={aid}: {hl} — {e or 'unknown'}")
 
-    # show pending
     pending = db.execute(text("""
         SELECT COUNT(*) FROM news_analysis_queue WHERE status = 'pending'
     """)).scalar()

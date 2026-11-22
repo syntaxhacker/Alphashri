@@ -53,9 +53,6 @@ def detector(pattern_id: str):
     return dict(DETECTORS)[pattern_id]
 
 
-# ---------------------------------------------------------------------------
-# Geometry builders (one per pattern id)
-# ---------------------------------------------------------------------------
 
 
 def _falling_wedge():
@@ -202,9 +199,6 @@ GEOMETRIES = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Registration / catalog
-# ---------------------------------------------------------------------------
 
 
 def test_every_catalog_pattern_is_registered():
@@ -222,9 +216,6 @@ def test_every_detector_documents_its_geometry():
         assert len(doc) >= 40, f"{pattern_id} detector needs a geometry docstring"
 
 
-# ---------------------------------------------------------------------------
-# Detection on clear geometry
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("pattern_id", sorted(PATTERN_CATALOG))
@@ -254,9 +245,6 @@ def test_flag_directions():
     assert detector("bear_flag")(F.normalize_ohlcv(_bear_flag()), {})[0].direction == "bearish"
 
 
-# ---------------------------------------------------------------------------
-# False-positive traps
-# ---------------------------------------------------------------------------
 
 
 def _hits_on(df):
@@ -291,9 +279,6 @@ def test_random_walk_has_no_textbook_hits():
     assert all(h.quality != "textbook" for h in hits)
 
 
-# ---------------------------------------------------------------------------
-# Level math (measured move / ATR stop / rr)
-# ---------------------------------------------------------------------------
 
 
 def test_compute_levels_bullish_measured_move():
@@ -381,9 +366,6 @@ def test_score_quality_monotonic_in_inputs():
     assert high_q in {"textbook", "strong"}
 
 
-# ---------------------------------------------------------------------------
-# Feature primitives
-# ---------------------------------------------------------------------------
 
 
 def test_find_swing_pivots():

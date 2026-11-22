@@ -270,9 +270,6 @@ def test_explicit_job_and_universe_filters_keep_all_rows(cp_store):
     assert total_uni == 1
 
 
-# ---------------------------------------------------------------------------
-# store._num rejects non-finite floats; save_job persists `params`.
-# ---------------------------------------------------------------------------
 
 
 def test_num_rejects_non_finite(cp_store):
@@ -323,9 +320,6 @@ def test_save_job_persists_params(cp_store):
     assert raw is not None and "force" in raw
 
 
-# ---------------------------------------------------------------------------
-# `q` LIKE escaping: `%` / `_` match literally.
-# ---------------------------------------------------------------------------
 
 
 def test_q_escapes_like_wildcards(cp_store):
@@ -352,9 +346,6 @@ def test_q_escapes_like_wildcards(cp_store):
     assert items[0]["symbol"] == "HOLD"
 
 
-# ---------------------------------------------------------------------------
-# _scanned_count fallback: latest job total regardless of status, else 0.
-# ---------------------------------------------------------------------------
 
 
 def test_scanned_falls_back_to_latest_job_total_any_status(cp_store):
@@ -530,9 +521,6 @@ def test_job_params_reads_params_and_params_json():
     assert scan._is_fresh("2000-01-01T00:00:00+00:00") is False
 
 
-# ---------------------------------------------------------------------------
-# candles: Inf mapping, as_of_date cache key, IST-anchored resample bins.
-# ---------------------------------------------------------------------------
 
 
 def test_candles_f_maps_inf_to_default():
@@ -1116,9 +1104,6 @@ def test_4h_fetch_pulls_1h_then_resamples_to_240m(monkeypatch, tmp_path):
     assert all(ts.minute == 0 and ts.hour % 4 == 0 for ts in ist)
 
 
-# ---------------------------------------------------------------------------
-# 1D partial-today bar (today's in-progress session aggregated from the tape).
-# ---------------------------------------------------------------------------
 
 
 def _daily_bars(dates: list) -> pd.DataFrame:
@@ -1254,9 +1239,6 @@ def test_1d_without_flag_has_no_partial_bar(clear_partial_cache, monkeypatch, tm
     assert not getattr(got, "attrs", {}).get("partial_today", False)
 
 
-# ---------------------------------------------------------------------------
-# frame_last_date reports the IST session date, not the UTC calendar date.
-# ---------------------------------------------------------------------------
 
 
 def test_frame_last_date_reports_ist_session_date():
@@ -1284,9 +1266,6 @@ def test_frame_last_date_reports_ist_session_date():
     assert frame_last_date(None) is None
 
 
-# ---------------------------------------------------------------------------
-# TV volume/rel-volume pre-filter: one bulk query before any candle fetch.
-# ---------------------------------------------------------------------------
 
 
 def test_run_scan_prefilter_called_once_and_limits_symbols(cp_store, monkeypatch):
@@ -1582,9 +1561,6 @@ def test_custom_scan_delete_is_scoped_to_its_symbols(cp_store, monkeypatch):
     assert seen["symbols"] == ["AAA"]
 
 
-# ---------------------------------------------------------------------------
-# Source-signature symbol reuse: unchanged symbols skip detection + trendlines.
-# ---------------------------------------------------------------------------
 
 
 def _seed_prev_hit(job_id: str, symbol: str = "AAA", source_sig=None,

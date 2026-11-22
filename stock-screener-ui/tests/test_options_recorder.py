@@ -117,7 +117,6 @@ def recorder(tmp_path, monkeypatch):
     monkeypatch.setattr(rec, "SYMBOL_TIMEOUT_SEC", 25.0)
     monkeypatch.setattr(rec, "GREEKS_ENABLED", True)
 
-    # --- rate limiter: capture the consumer slice, never block ---------------
     class FakeLimiter:
         instances: list["FakeLimiter"] = []
 
@@ -134,7 +133,6 @@ def recorder(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "upstox_trader.rate_limiter.UpstoxRateLimiter", FakeLimiter)
 
-    # --- instruments file: SENSEX is an index, RELIANCE is a stock lot 500 ---
     instruments = tmp_path / "nse_instruments.json"
     instruments.write_text(json.dumps([
         {"segment": "NSE_EQ", "instrument_key": "NSE_EQ|INE002A01018", "lot_size": 1},
@@ -145,7 +143,6 @@ def recorder(tmp_path, monkeypatch):
     ]))
     monkeypatch.setattr(rec, "_instruments_path", lambda: instruments)
 
-    # --- upstream mocks -----------------------------------------------------
     expiries = AsyncMock(return_value={
         "underlying": "SENSEX",
         "expiries": [{"date": "2026-10-30", "weekly": True, "days_to_expiry": 1}],

@@ -4,31 +4,17 @@ import * as palette from "@/ui/palette";
 import type { NiftyPositioningStrike } from "@/types/niftyReport";
 import { sortByField, formatNumberIN } from "@/utils/ui-helpers";
 
-/** Strike half-width kept around spot — same band as the option-chain OI. */
 const DELTA_PROFILE_WINDOW_PTS = 750;
 
-/** One plotted strike: its OI delta exposure, today's initiated flow, and the
- * running exposure total used to locate the Δ pivot. */
 interface DeltaProfilePoint {
   strike: number;
-  /** OI × |delta| (Cr), calls + / puts −. */
   netState: number;
-  /** ΔOI × |delta| signed by class (Cr); + = bullish initiation. */
   netInitiated: number;
   /** Running Σ netState over the **whole** chain, so the zero crossing still
    * matches the backend's Δ pivot after windowing. */
   cumulative: number;
 }
 
-/**
- * Build the per-strike delta profile.
- *
- * `netState` (OI delta exposure) is what defines the Δ pivot, so it must be
- * accumulated **before** the ±window filter — resetting the sum at the first
- * visible strike would move the zero crossing and contradict the pivot chip.
- * Payloads recorded before `net_state` existed return `[]` (the panel then
- * shows its empty state instead of a fake flat line).
- */
 export function buildDeltaProfile(
   strikes: NiftyPositioningStrike[] | null | undefined,
   spot?: number | null,
@@ -63,8 +49,6 @@ export function buildDeltaProfile(
   return near.length > 0 ? near : all;
 }
 
-/** Nearest point index to a strike, or -1 when the level is missing or sits
- * outside the plotted band (a marker pinned to the edge would misstate it). */
 function nearestIndex(
   points: DeltaProfilePoint[],
   level: number | null | undefined,
@@ -95,7 +79,6 @@ const BAR_H = 52;
 const BAR_BASE = BAR_TOP + BAR_H / 2;
 const H = BAR_TOP + BAR_H + 2;
 
-/** Compress bar lengths: |v|^0.5 keeps a single wall from flattening the rest. */
 function barHeight(value: number, maxAbs: number): number {
   if (!Number.isFinite(value) || maxAbs <= 0) return 0;
   const v = Math.abs(value);
@@ -107,7 +90,6 @@ interface DeltaProfileChartProps {
   points: DeltaProfilePoint[];
   spot?: number | null;
   flip?: number | null;
-  /** Value formatter for the hover readout (e.g. signed crore). */
   formatValue?: (v: number) => string;
   testId?: string;
   emptyMessage?: string;

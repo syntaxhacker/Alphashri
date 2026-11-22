@@ -34,8 +34,6 @@ const NiftyOiHeatmap = lazy(() =>
   import("./NiftyOiHeatmap").then((m) => ({ default: m.NiftyOiHeatmap })),
 );
 
-// Mirrors NiftyChartPanel's layout presets. Duplicated so the chart panel can
-// stay behind its lazy boundary without pulling its module into this chunk.
 const CHART_HEIGHTS = { s: 180, m: 320, l: 520, xl: 760 } as const;
 const CHART_ROW_CHROME = 48;
 const FILL_MAX_HEIGHT = 300;

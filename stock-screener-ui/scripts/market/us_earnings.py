@@ -28,7 +28,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from market.tv_client import earnings_table, implied_move  # noqa: E402
 
 WATCHLIST = [
-    # megacaps
     "NVDA", "AAPL", "MSFT", "GOOGL", "AMZN", "META", "AVGO", "TSLA", "NFLX", "QCOM", "AMD",
     "INTC", "MU", "ORCL", "CRM", "ADBE", "PLTR", "NOW", "IBM", "TXN", "AMAT", "LRCX", "KLAC",
     "VRT", "ANET", "ARM", "TSM", "ASML", "DIS", "UBER", "SHOP", "COIN", "SBUX", "PFE", "MRK",
@@ -39,7 +38,6 @@ WATCHLIST = [
 
 
 def reaction(symbol: str, n_events: int = 12) -> dict[str, Any]:
-    """Estimate vs reported + day-1 / 5d / 20d reaction for the last ``n_events`` prints."""
     import yfinance as yf
 
     out: dict[str, Any] = {"sym": symbol, "rows": []}

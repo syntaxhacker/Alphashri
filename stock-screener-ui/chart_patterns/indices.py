@@ -1,4 +1,3 @@
-"""Important Indian indices available to the chart-pattern scanner."""
 
 from __future__ import annotations
 

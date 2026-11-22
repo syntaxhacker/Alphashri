@@ -84,7 +84,6 @@ class TestGetUpstoxTokenFallbackOrder:
 class TestSQLInjectionSafe:
     def test_symbol_with_single_quote_uses_param_query(self, monkeypatch):
         import api.paper.live_stream as mod
-        # Setup: one position with symbol containing single quote
         mock_db = MagicMock()
         pos = MagicMock(symbol="A'B")
         mock_db.query.return_value.filter.return_value.all.return_value = [pos]
@@ -126,7 +125,6 @@ class TestSQLInjectionSafe:
 
     def test_5000_key_limit_enforced(self, monkeypatch):
         import api.paper.live_stream as mod
-        # Simulate 6000 symbols resolved
         mock_db = MagicMock()
         positions = [MagicMock(symbol=f"SYM{i}") for i in range(6000)]
         mock_db.query.return_value.filter.return_value.all.return_value = positions
@@ -165,7 +163,6 @@ class TestSSESerialization:
             "ts": "1777449588319",
         }
         raw = f"event: price\ndata: {json.dumps(event)}\n\n"
-        # Parse data line
         data_str = raw.split("data: ")[1].split("\n")[0]
         parsed = json.loads(data_str)
         assert parsed["symbol"] == "RELIANCE"
@@ -179,7 +176,6 @@ class TestSSESerialization:
         double_parsed = json.loads(double)
         # double-parsed first load yields string, not dict
         assert isinstance(double_parsed, str)
-        # Our raw should NOT be double encoded
         assert data_str != double
 
     def test_nosymbols_event_single_encoded(self):
@@ -206,7 +202,6 @@ class TestQueueOverflowAndHeartbeat:
     def test_queue_full_is_handled_gracefully(self):
         """on_message should not raise when queue is full."""
         import api.paper.live_stream as mod
-        # Create a queue with maxsize 1 and fill it
         q = thr_queue.Queue(maxsize=1)
         q.put_nowait({"type": "price", "symbol": "X", "ltp": 1})
 
@@ -219,7 +214,6 @@ class TestQueueOverflowAndHeartbeat:
         except Full:
             pass  # expected
 
-        # Verify our fixed handler would catch it
         def on_message_fixed(data):
             try:
                 q.put_nowait({"type": "price", "symbol": "Z", "ltp": 3})
@@ -231,7 +225,6 @@ class TestQueueOverflowAndHeartbeat:
 
     def test_heartbeat_via_empty_timeout(self):
         """When q.get(timeout=30) raises Empty, endpoint yields heartbeat."""
-        # Simulate the event_generator heartbeat branch directly
         try:
             q = thr_queue.Queue()
             q.get(timeout=0.01)
@@ -249,7 +242,6 @@ class TestQueueOverflowAndHeartbeat:
         app = FastAPI()
         app.include_router(live_router)
 
-        # Override get_current_user to bypass auth, but token resolver returns None
         from api.auth import get_current_user
         from db.models import User
 

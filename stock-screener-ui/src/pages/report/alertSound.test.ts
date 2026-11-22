@@ -72,7 +72,6 @@ describe("playAlertSound", () => {
         };
       }
     }
-    // Even with a working context, muted means no oscillator is created.
     vi.stubGlobal("AudioContext", FakeCtx as unknown as typeof AudioContext);
     expect(() => playAlertSound("critical")).not.toThrow();
     vi.unstubAllGlobals();
@@ -105,9 +104,6 @@ describe("flashAlertTitle", () => {
   });
 
   test("re-flashing does not leave focus listeners behind", () => {
-    // A desk session can fire dozens of flashes with the tab focused, so no
-    // `focus` event ever runs their restore handler. Each flash must replace
-    // the previous listener instead of stacking a new one.
     vi.useFakeTimers();
     const added: EventListenerOrEventListenerObject[] = [];
     const removed: EventListenerOrEventListenerObject[] = [];

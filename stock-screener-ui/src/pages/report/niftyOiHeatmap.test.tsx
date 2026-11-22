@@ -20,8 +20,6 @@ function row(t: string, spot: number, chain: HeatmapTapeRow["chain"], extra: Par
 }
 
 const STRIKES = [25650, 25700, 25750, 25800, 25850];
-// CE +5000 build at 25750, PE +4000 build at 25700, spot below max pain — used by
-// the readHeatmap unit tests and the JSX read rendering test.
 const READ_ROWS = [
   row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000), { max_pain: 25700 }),
   row(
@@ -29,8 +27,8 @@ const READ_ROWS = [
     25760,
     {
       ...chainAt(STRIKES, 1000, 1000),
-      "25750": [10, 12, 6000, 1000, 1, 1], // CE +5000 → call build
-      "25700": [10, 12, 1000, 5000, 1, 1], // PE +4000 → put build
+      "25750": [10, 12, 6000, 1000, 1, 1],
+      "25700": [10, 12, 1000, 5000, 1, 1],
     },
     { max_pain: 25800 },
   ),
@@ -44,7 +42,6 @@ describe("buildOiHeatmap", () => {
     const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 });
     expect(m.empty).toBe(false);
     expect(m.buckets).toHaveLength(2);
-    // Bucket label = last row in the bucket (latest snapshot).
     expect(m.buckets[0].label).toBe("09:19");
     expect(m.buckets[1].label).toBe("09:24");
   });
@@ -65,7 +62,6 @@ describe("buildOiHeatmap", () => {
     const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 });
     const b1 = m.cells.filter((c) => c.bucket === 1);
     expect(b1.find((c) => c.strike === 25750)?.sign).toBe("ce");
-    // PE-heavy strike: rebuild with PE dominance
     const rows2 = [
       row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000)),
       row(isoAt(6), 25760, { ...chainAt(STRIKES, 1000, 1000), "25850": [10, 12, 1000, 9000, 1, 1] }),
@@ -145,9 +141,7 @@ describe("buildOiHeatmap", () => {
     ];
     const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 });
     expect(m.buckets).toHaveLength(1);
-    // Representative (09:19, 25,800) is 100 pts away …
     expect(m.buckets[0].spot).toBe(25800);
-    // … but the earlier 09:15 row (25,700) sat on the pin.
     expect(m.buckets[0].touch).toMatchObject({ spot: 25700, maxPain: 25700, distance: 0, label: "09:15" });
   });
 
@@ -176,7 +170,6 @@ describe("buildOiHeatmap", () => {
     );
     const m = buildOiHeatmap(rows, { bucketMin: 5 });
     expect(m.buckets.map((b) => b.startLabel)).toEqual(["09:15", "09:20"]);
-    // The representative label stays the last row of the bucket.
     expect(m.buckets[0].label).toBe("09:19");
   });
 });
@@ -210,7 +203,6 @@ describe("trimmed tape chain (server payload, spot ± 500)", () => {
   // silent. A trimmed row also carries `chain_truncated` / `chain_center` /
   // `chain_window_pts`, which the builder ignores.
   const WINDOW = 500;
-  // Full ladder: ±2,500 pts in 50s — like a recorded NIFTY chain.
   const FULL = Array.from({ length: 101 }, (_, i) => 25750 + (i - 50) * 50);
   const visible = FULL.filter((s) => Math.abs(s - 25760) <= WINDOW);
   const trimmedChain = (ceOi: number, peOi: number) =>
@@ -241,7 +233,6 @@ describe("trimmed tape chain (server payload, spot ± 500)", () => {
 
     expect(b.strikes).toEqual(a.strikes);
     expect(b.buckets).toEqual(a.buckets);
-    // ΔOI per visible cell is identical, not merely present.
     expect(b.cells).toEqual(a.cells);
     expect(b.maxAbs).toBe(a.maxAbs);
     expect(b.empty).toBe(false);
@@ -315,7 +306,6 @@ describe("NiftyOiHeatmap render", () => {
     expect(canvas.tagName.toLowerCase()).toBe("canvas");
     expect(canvas.getAttribute("data-cells")).toBe(String(m.cells.length));
     expect(m.cells.length).toBe(m.buckets.length * m.strikes.length);
-    // No per-cell DOM nodes survive — the paint lives in the bitmap.
     expect(screen.queryAllByTestId("nifty-heatmap-cell")).toHaveLength(0);
     expect(screen.getByTestId("nifty-heatmap-spotline")).toBeInTheDocument();
   });
@@ -391,7 +381,6 @@ describe("NiftyOiHeatmap render", () => {
   test("time ticks land on 30-min marks and sit inside the plot", () => {
     r(() => <NiftyOiHeatmap {...{ rows: twoBuckets, bucketMin: 5, widthPts: 500 }} />);
     const labels = screen.getAllByTestId("nifty-heatmap-time-label");
-    // Bucket starts are 09:15 / 09:30 / 09:45 → only the :30 mark ticks.
     expect(labels.map((el) => el.textContent)).toEqual(["09:30"]);
     for (const el of labels) {
       expect(el.tagName.toLowerCase()).toBe("text");
@@ -470,9 +459,6 @@ describe("NiftyOiHeatmap render", () => {
   });
 
   test("marks a bucket whose earlier row touched, at that row's spot", () => {
-    // Bucket 0 = 09:15–09:19: 09:15 touches (25,700 = max pain), the 09:19
-    // representative does not (25,800). The circle must sit at 25,700, i.e.
-    // below the representative spot on screen (larger cy).
     const rows = [
       row(isoAt(0), 25700, chainAt(STRIKES, 1000, 1000), { max_pain: 25700 }),
       row(isoAt(4), 25800, chainAt(STRIKES, 2000, 1000), { max_pain: 25700 }),
@@ -526,7 +512,6 @@ describe("heatmap metric", () => {
 });
 
 describe("premium evidence (buyer vs writer)", () => {
-  /** One 5m build at 25,750 (CE) and 25,700 (PE); premium deltas are inputs. */
   function readText(cePrem: number, pePrem: number): string {
     const rows: HeatmapTapeRow[] = [
       {
@@ -543,7 +528,6 @@ describe("premium evidence (buyer vs writer)", () => {
         spot: 25760,
         max_pain: 25700,
         chain: {
-          // CE OI +5000, PE OI +4000; LTP moves by the premium delta.
           "25750": [10 + cePrem, 20, 6000, 1000, 1, 1],
           "25700": [10, 20 + pePrem, 1000, 5000, 1, 1],
         },
@@ -580,16 +564,14 @@ describe("premium evidence (buyer vs writer)", () => {
 
 describe("session-anchored time axis", () => {
   test("startTime pads the axis from 09:15 and leaves the missing minutes empty", () => {
-    const rows = [row(isoAt(15), 25750, chainAt(STRIKES, 1000, 1000))]; // first tape row 09:30
+    const rows = [row(isoAt(15), 25750, chainAt(STRIKES, 1000, 1000))];
     const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500, startTime: isoAt(0) });
     expect(m.buckets[0].startLabel).toBe("09:15");
     expect(m.buckets.length).toBeGreaterThan(1);
-    // 09:15 / 09:20 / 09:25 are padded empties, 09:30 carries the first row.
     expect(m.buckets[0].spot).toBeNull();
     expect(m.buckets[1].spot).toBeNull();
     expect(m.buckets[2].spot).toBeNull();
     expect(m.buckets[3].spot).toBe(25750);
-    // Empty buckets still own one flat cell per strike (the column exists).
     const firstBucketCells = m.cells.filter((c) => c.bucket === 0);
     expect(firstBucketCells).toHaveLength(STRIKES.length);
     expect(firstBucketCells.every((c) => c.ceDoi === null && c.peDoi === null)).toBe(true);
@@ -620,14 +602,12 @@ describe("session-anchored time axis", () => {
     expect(line.tagName.toLowerCase()).toBe("line");
     expect(line.getAttribute("stroke-dasharray")).toBe("3 3");
     expect(line.querySelector("title")?.textContent).toContain("Last 5m flow flip");
-    // The guide sits inside the plot, at a bucket centre.
     expect(Number(line.getAttribute("x1"))).toBeGreaterThan(64);
   });
 });
 
 
 describe("premium evidence edge cases", () => {
-  /** One 5m bucket pair; OI deltas are caller inputs, premium deltas too. */
   function readWith(opts: {
     ceOi: [number, number];
     peOi: [number, number];
@@ -658,8 +638,6 @@ describe("premium evidence edge cases", () => {
   }
 
   test("premium present but OI flat/negative omits the clauses — never mislabels", () => {
-    // CE OI unchanged, PE OI unwinds; both premiums tick up. Neither leg
-    // qualifies as a build, so neither may read as "buyers".
     const text = readWith({
       ceOi: [6000, 6000],
       peOi: [5000, 4000],
@@ -672,9 +650,6 @@ describe("premium evidence edge cases", () => {
   });
 
   test("premium present but one OI leg negative — only the building leg speaks", () => {
-    // CE OI unwinds (short covering) with premium UP — not an OI build, so no
-    // call clause even though premium evidence exists. PE OI builds with
-    // premium up → put buyers.
     const text = readWith({
       ceOi: [6000, 4800],
       peOi: [3000, 4200],
@@ -692,22 +667,20 @@ describe("session-anchored time axis edge cases", () => {
     const rows = [row(isoAt(0), 25750, chainAt(STRIKES, 1000, 1000)), row(isoAt(6), 25760, chainAt(STRIKES, 2000, 1000))];
     const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500, startTime: isoAt(0) });
     expect(m.buckets.map((b) => b.startLabel)).toEqual(["09:15", "09:20"]);
-    // No padded empty leading buckets — every bucket carries a representative.
     expect(m.buckets.every((b) => b.spot !== null)).toBe(true);
     expect(m.buckets[0].spot).toBe(25750);
   });
 
   test("first row before 09:15 ignores the later startTime — axis keeps the tape's start", () => {
     const rows = [row("2026-10-14T09:10:00+05:30", 25750, chainAt(STRIKES, 1000, 1000))];
-    const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500, startTime: isoAt(0) }); // asks for 09:15
+    const m = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500, startTime: isoAt(0) });
     expect(m.buckets[0].startLabel).toBe("09:10");
     expect(m.buckets[0].spot).toBe(25750);
-    // No phantom leading bucket was inserted before the tape's own start.
     expect(m.buckets).toHaveLength(1);
   });
 
   test("an unparseable startTime is ignored and the axis begins at the tape", () => {
-    const rows = [row(isoAt(15), 25750, chainAt(STRIKES, 1000, 1000))]; // 09:30
+    const rows = [row(isoAt(15), 25750, chainAt(STRIKES, 1000, 1000))];
     const withGarbage = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500, startTime: "not-a-time" });
     const without = buildOiHeatmap(rows, { bucketMin: 5, widthPts: 500 });
     expect(withGarbage.buckets.map((b) => b.startLabel)).toEqual(without.buckets.map((b) => b.startLabel));
@@ -755,7 +728,7 @@ describe("flow-flip guide x mapping", () => {
   });
 
   test("a flip past the last bucket clamps to the final bucket centre", () => {
-    renderHeatmap({ flipAt: isoAt(30) }); // 09:45 — beyond the plotted window
+    renderHeatmap({ flipAt: isoAt(30) });
     expect(Number(screen.getByTestId("heatmap-flip-line").getAttribute("x1"))).toBe(766);
   });
 
@@ -800,8 +773,6 @@ describe("ResizeObserver lifecycle", () => {
     vi.unstubAllGlobals();
   });
 
-  // A tape tick replaces the rows array; the observer must survive it and be
-  // torn down exactly once on unmount (otherwise every poll leaks a listener).
   test("one observer survives tape ticks and disconnects on unmount", () => {
     const ro = stubResizeObserver();
     const [rows, setRows] = createSignal([
@@ -818,8 +789,6 @@ describe("ResizeObserver lifecycle", () => {
 });
 
 describe("padded leading bucket", () => {
-  // The first tape row lands at 09:30, so startTime pads 09:15/09:20/09:25
-  // with empty buckets whose cells must still exist in the model.
   const lateRows = [
     row(isoAt(15), 25750, chainAt(STRIKES, 1000, 1000)),
     row(isoAt(20), 25760, chainAt(STRIKES, 2000, 1000)),
@@ -845,7 +814,7 @@ describe("padded leading bucket", () => {
       .trim()
       .split(/\s+/)
       .filter(Boolean);
-    expect(points).toHaveLength(2); // only the two buckets with a tape spot
+    expect(points).toHaveLength(2);
     expect(screen.getByTestId("nifty-heatmap-svg")).toBeInTheDocument();
   });
 });
@@ -861,11 +830,9 @@ describe("model memo gating", () => {
     const buildsAfterMount = buildSpy.mock.calls.length;
     expect(buildsAfterMount).toBeGreaterThan(0);
 
-    // Identical content, new array identity — like tapeRows() on every frame — must not rebuild.
     setRows((prev) => [...prev]);
     expect(buildSpy.mock.calls.length).toBe(buildsAfterMount);
 
-    // Genuinely new content — must rebuild.
     setRows((prev) => [...prev, row(isoAt(7), 25800, chainAt(STRIKES, 1000, 1000))]);
     expect(buildSpy.mock.calls.length).toBe(buildsAfterMount + 1);
   });

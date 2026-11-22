@@ -1,7 +1,3 @@
-/**
- * Backtest API Client
- */
-
 import type {
   Strategy,
   StrategyVariation,
@@ -36,7 +32,6 @@ function showBacktestError(message: string) {
   showError("Backtest Error", message);
 }
 
-// Calculate totals from results
 export function calculateTotals(results: BacktestResult[]): BacktestTotals {
   const totalTrades = results.reduce((sum, r) => sum + (r.trades || 0), 0);
   const totalWins = results.reduce((sum, r) => sum + (r.wins || 0), 0);
@@ -53,7 +48,6 @@ export function calculateTotals(results: BacktestResult[]): BacktestTotals {
   };
 }
 
-// Fetch available strategies
 export async function fetchStrategies(): Promise<Strategy[]> {
   setStrategiesLoading(true);
 
@@ -73,7 +67,6 @@ export async function fetchStrategies(): Promise<Strategy[]> {
   }
 }
 
-// Fetch strategy variations from database
 export async function fetchVariations(): Promise<StrategyVariation[]> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/strategies/variations`);
@@ -90,7 +83,6 @@ export async function fetchVariations(): Promise<StrategyVariation[]> {
   }
 }
 
-// Fetch cost breakdown
 export async function fetchCosts(): Promise<CostBreakdown | null> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/backtest/costs`);
@@ -107,11 +99,9 @@ export async function fetchCosts(): Promise<CostBreakdown | null> {
   }
 }
 
-// Run backtest
 export async function runBacktest(saveToHistory = false): Promise<BacktestResponse | null> {
   const state = getBacktestState();
 
-  // Clear any error from a previous run before starting a new one.
   setError(null);
   setRunning(true);
   setProgress({ current: 0, total: state.selectedSymbols.length, message: "Starting..." });
@@ -158,18 +148,15 @@ export async function runBacktest(saveToHistory = false): Promise<BacktestRespon
       const totals = data.totals || calculateTotals(data.results);
       setResults(data.results, totals);
 
-      // Process chart data from response
       if (data.chart_data) {
         for (const symbol of Object.keys(data.chart_data)) {
           const symbolChartData = data.chart_data[symbol];
 
-          // Check if API already built full chart data (has pivot_levels, orb_zones, week52_levels, etc.)
           if (
             symbolChartData.pivot_levels ||
             symbolChartData.orb_zones ||
             symbolChartData.week52_levels
           ) {
-            // API already built the chart data, use it directly
             setChartData(symbol, symbolChartData);
           } else if (data.candles && symbolChartData.trades) {
             // Legacy: API returned raw trades, build chart data on frontend.
@@ -206,7 +193,6 @@ export async function runBacktest(saveToHistory = false): Promise<BacktestRespon
   }
 }
 
-// Fetch chart data for a symbol
 export async function fetchChartData(symbol: string, tf?: number): Promise<SymbolChartData | null> {
   setChartLoading(true);
 
@@ -244,7 +230,6 @@ export async function fetchChartData(symbol: string, tf?: number): Promise<Symbo
   }
 }
 
-// Fetch progress (for long-running backtests)
 export async function fetchProgress(): Promise<BacktestProgress | null> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/backtest/progress`);
@@ -255,7 +240,6 @@ export async function fetchProgress(): Promise<BacktestProgress | null> {
   }
 }
 
-// Fetch cached results
 export async function fetchResults(): Promise<BacktestResponse | null> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/backtest/results`);
@@ -266,9 +250,6 @@ export async function fetchResults(): Promise<BacktestResponse | null> {
   }
 }
 
-// --- History Methods ---
-
-// Fetch backtest history list
 export async function fetchBacktestHistory(): Promise<BacktestHistoryItem[]> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/backtest/history`);
@@ -280,7 +261,6 @@ export async function fetchBacktestHistory(): Promise<BacktestHistoryItem[]> {
   }
 }
 
-// Fetch detailed backtest from history
 export async function fetchBacktestDetails(uuid: string): Promise<BacktestHistoryDetails | null> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/backtest/history/${uuid}`);
@@ -292,7 +272,6 @@ export async function fetchBacktestDetails(uuid: string): Promise<BacktestHistor
   }
 }
 
-// Delete backtest from history
 export async function deleteBacktest(uuid: string): Promise<boolean> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/backtest/history/${uuid}`, {

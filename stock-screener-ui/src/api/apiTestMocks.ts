@@ -7,8 +7,6 @@ import { describe, it, expect, vi } from "vitest";
 import type { ChartPreviewData } from "./chartPreview";
 import type { PaperTrade } from "../types/paperTrading";
 
-/* ---------- Response builders ---------- */
-
 export function okResponse(body: unknown, status = 200): Response {
   return {
     ok: true,
@@ -34,8 +32,6 @@ export function nonJsonErrorResponse(status: number): Response {
     },
   } as unknown as Response;
 }
-
-/* ---------- SSE helpers ---------- */
 
 export function sseResponse(chunks: string[]): Response {
   const stream = new ReadableStream({
@@ -75,8 +71,6 @@ export function sseDataResponse(events: unknown[], options: { delayRead?: boolea
 export function waitAsync(ms = 100): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-
-/* ---------- Mock helpers ---------- */
 
 /**
  * Structural subset of a vitest mock. Declared with method syntax on purpose:
@@ -133,15 +127,11 @@ export function mockGlobalFetchRejected(message = "Network error"): void {
   (global.fetch as unknown as MockFn).mockRejectedValue(new Error(message));
 }
 
-/* ---------- fetchWithAuth module mock (chartPatterns tests) ---------- */
-
 export function fetchWithAuthModuleMock() {
   return {
     fetchWithAuth: vi.fn(),
   };
 }
-
-/* ---------- normalizeBotPortfolio shared suite ---------- */
 
 export function makeFullPortfolio(): Record<string, unknown> {
   return {
@@ -274,8 +264,6 @@ export function describeNormalizeBotPortfolio(normalizeBotPortfolio: NormalizeFn
   });
 }
 
-/* ---------- Chart fixtures ---------- */
-
 const BASE_TRADE = {
   entry_price: 103,
   exit_price: 107,
@@ -396,8 +384,6 @@ export function makePreviewData(overrides: Partial<ChartPreviewData> = {}): Char
   };
 }
 
-/* ---------- Pattern stream fixtures ---------- */
-
 export function makePatternHit(symbol: string, confidence: number): Record<string, unknown> {
   return {
     id: confidence,
@@ -469,8 +455,6 @@ export function createStreamCollector(): {
     },
   };
 }
-
-/* ---------- API utils (bots/strategies) ---------- */
 
 export function buildTestUrl(endpoint: string, params?: Record<string, string | number | boolean>): string {
   if (!params || Object.keys(params).length === 0) {

@@ -25,11 +25,8 @@ const UNIVERSE_OPTIONS = [
   { value: "all", label: "All NSE" },
 ];
 
-/** Per-section fetch timeout: a hung scan surfaces as a retryable section
- * error instead of an endless page spinner. */
 const REPORT_FETCH_TIMEOUT_MS = 120000;
 
-/** Compact breadth volume ("1.2Cr"), dash when the feed sent no number. */
 const formatVolume = (v: number | null | undefined): string =>
   v == null || !Number.isFinite(v) ? "—" : formatNumber(v);
 
@@ -68,19 +65,12 @@ export function DailyReportPage(props: DailyReportPageProps) {
   const [tab, setTab] = createSignal<string>("breakouts");
   let activeControllers: AbortController[] = [];
 
-  // Universe prop is the initial value, not a controlled mirror of it — the
-  // Select owns the signal afterwards.
   createEffect(() => {
     const next = props.universe;
     if (next) setUniverse(next);
   });
 
-  // The sections load independently and each one gets its own controller: a
-  // section that times out must stop its own request without aborting the
-  // sections that are still progressing (a retry would otherwise stack a
-  // second server-side scan on top of the first).
   createEffect(() => {
-    // Track the scope; re-runs when date/universe/refreshKey change.
     date(); universe(); refreshKey();
     for (const c of activeControllers) c.abort();
     const controllers: AbortController[] = [];

@@ -9,25 +9,21 @@ import {
 import { fetchIndexMovers, IndexMoversResponse, IndexMoverRow } from "@/api/indexMovers";
 
 interface IndexMoversStripProps {
-  /** "NIFTY" | "SENSEX" — RELIANCE hides the strip entirely. */
   index: "NIFTY" | "SENSEX";
-  /** Called when user clicks EXPAND. */
   onExpand: () => void;
   /** Optional: in EOD/replay the band has no data: collapse it instead of reserving 24px; the mode banner declares the absence */
   liveOnly?: boolean;
-  /** Loading/error states from parent (optional override). */
   loading?: boolean;
   error?: string | null;
 }
 
-const GAINER_COLOR = palette.POSITIVE;   // green
-const LOSER_COLOR = palette.NEGATIVE;    // red
+const GAINER_COLOR = palette.POSITIVE;
+const LOSER_COLOR = palette.NEGATIVE;
 // 11px keeps 5+5 worst-case symbols inside a 1440px strip.
 const VALUE_FONT = REPORT_FONT.xs;
 const ARROW_GAINER = "▲";
 const ARROW_LOSER = "▼";
 
-/** One mover line: symbol + % change. */
 function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
   const row = () => props.row;
   const isGainer = () => props.isGainer;
@@ -108,7 +104,6 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
   let abortController: AbortController | null = null;
   let mounted = true;
 
-  // Poll every 30s in live mode
   const poll = async () => {
     if (!mounted || liveOnly()) return;
     abortController?.abort();
@@ -132,7 +127,6 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
     }
   };
 
-  // Initial load + interval
   createEffect(() => {
     // Track the index/liveOnly inputs so switching re-arms the poll.
     index();
@@ -149,7 +143,6 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
     });
   });
 
-  // Use parent's loading/error if provided, else local
   const isLoading = () => props.loading ?? loading();
   const isError = () => props.error ?? error();
 
@@ -165,7 +158,6 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
     </div>
   );
 
-  // Render data
   const gainers = () => data()?.gainers ?? [];
   const losers = () => data()?.losers ?? [];
 

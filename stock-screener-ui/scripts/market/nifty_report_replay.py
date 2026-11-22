@@ -41,9 +41,7 @@ D3_URL = f"https://cdn.jsdelivr.net/npm/d3@{D3_VERSION}/dist/d3.min.js"
 D3_CACHE = Path("/tmp/opencode/d3.v7.min.js")
 
 
-# --------------------------------------------------------------------------- #
 # small formatting helpers (Indian digit grouping, so 41,000,000 reads 4,10,00,000)
-# --------------------------------------------------------------------------- #
 def inr(value: float, nd: int = 0) -> str:
     text = f"{abs(value):.{nd}f}"
     whole, _, dec = text.partition(".")
@@ -80,9 +78,6 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-# --------------------------------------------------------------------------- #
-# payload build
-# --------------------------------------------------------------------------- #
 def build_payload(
     snaps: list[dict[str, Any]],
     futures: dict[str, Any],
@@ -111,13 +106,12 @@ def build_payload(
     s_index = {strike: i for i, strike in enumerate(strikes)}
     n_str = len(strikes)
 
-    # ---- per strike x minute series -------------------------------------- #
     oi_ce = [[None] * n_min for _ in range(n_str)]
     oi_pe = [[None] * n_min for _ in range(n_str)]
     ltp_ce = [[None] * n_min for _ in range(n_str)]
     ltp_pe = [[None] * n_min for _ in range(n_str)]
-    vol = [[0.0] * n_min for _ in range(n_str)]      # lakh units traded in the minute
-    premium = [[0.0] * n_min for _ in range(n_str)]  # ₹ Cr traded in the minute
+    vol = [[0.0] * n_min for _ in range(n_str)]
+    premium = [[0.0] * n_min for _ in range(n_str)]
 
     prev: dict[float, tuple[float, float]] = {}
     for snap in snaps:
@@ -139,7 +133,6 @@ def build_payload(
                 premium[si][mi] += (d_ce * ce_ltp + d_pe * pe_ltp) / 1e7
             prev[strike] = (ce_vol, pe_vol)
 
-    # forward-fill OI / LTP so a dropped recorder tick does not blank a column
     for series in (oi_ce, oi_pe, ltp_ce, ltp_pe):
         for row in series:
             carry: Optional[float] = None
@@ -157,7 +150,6 @@ def build_payload(
         for si in range(n_str)
     ]
 
-    # ---- spot path, one point per minute --------------------------------- #
     spot_by_minute: list[Optional[float]] = [None] * n_min
     for snap in snaps:
         mi = minute_index(snap["t"][11:16])
@@ -171,7 +163,6 @@ def build_payload(
             carry = value
     spot_series = [[i * 60, round(v, 2)] for i, v in enumerate(spot_by_minute) if v is not None]
 
-    # ---- focus strike at full 10s resolution ----------------------------- #
     focus_si = s_index.get(focus_strike)
     if focus_si is None:
         focus_si = min(range(n_str), key=lambda i: abs(strikes[i] - focus_strike))
@@ -194,7 +185,6 @@ def build_payload(
                 focus_ltp.append(round(row[4], 2))
                 break
 
-    # ---- four highest-volume strikes ------------------------------------ #
     last_rows = {row[0]: row for row in last["rows"]}
     ranked = sorted(
         ((row[3] + row[6], row[0]) for row in last["rows"]),
@@ -215,7 +205,6 @@ def build_payload(
             }
         )
 
-    # ---- futures, clipped to the chain10s window ------------------------- #
     candles = futures.get("candles") or []
     open_dt = datetime.fromisoformat(snaps[0]["t"])
     session_open = open_dt.replace(hour=9, minute=15, second=0, microsecond=0)
@@ -260,7 +249,6 @@ def build_payload(
             return 0.0, 0.0
         return vals[0], max(vals)
 
-    # ---- put volume up the ladder (strike-anchored, no ITM drift) -------- #
     put_vol_min: dict[str, dict[float, float]] = {m: {} for m in minutes}
     all_put_min: dict[str, float] = {m: 0.0 for m in minutes}
     prev_pe: dict[float, float] = {}
@@ -279,7 +267,6 @@ def build_payload(
             prev_pe[strike] = pe_vol_cum
 
     def ladder_rate(start: str, end: str) -> tuple[float, float]:
-        """Mean per-minute volume at 25500+25550 PE and its share of all put volume."""
         rs = [m for m in minutes if start <= m <= end]
         if not rs:
             return 0.0, 0.0
@@ -294,7 +281,6 @@ def build_payload(
     ladder_after, share_after = ladder_rate("11:10", "11:39")
     ladder_ratio = (ladder_after / ladder_before) if ladder_before else 0.0
 
-    # ---- focus-strike landmarks ------------------------------------------ #
     def focus_at(label: str) -> tuple[float, float, float]:
         i = minute_index(label)
         i = max(0, min(n_min - 1, i))
@@ -313,7 +299,6 @@ def build_payload(
     peak_i = max(range(len(focus_oi)), key=lambda i: focus_oi[i])
     pe_oi_peak, peak_sec = focus_oi[peak_i], focus_t[peak_i]
 
-    # first snapshot from which 25500 CE stays the highest-OI call strike
     top_since: Optional[str] = None
     for snap in snaps:
         top = max(snap["rows"], key=lambda r: r[2])[0]
@@ -332,7 +317,6 @@ def build_payload(
         i = max(0, min(n_min - 1, minute_index(label)))
         return spot_by_minute[i] or 0.0
 
-    # ---- events ----------------------------------------------------------- #
     def hhmm_of(sec: int) -> str:
         total = 9 * 60 + 15 + round(sec / 60)
         return f"{total // 60:02d}:{total % 60:02d}"
@@ -410,7 +394,6 @@ def build_payload(
         if candles[i]["oi"] - candles[i - 1]["oi"] <= -50000
     ]
 
-    # ---- body copy (numbers injected, nothing typed twice) ---------------- #
     ce_open = (oi_ce[s_index[25500.0]][0] or 0.0) if 25500.0 in s_index else 0.0
     pe_open = (oi_pe[s_index[25500.0]][0] or 0.0) if 25500.0 in s_index else 0.0
     ce_close = (oi_ce[s_index[25500.0]][-1] or 0.0) if 25500.0 in s_index else 0.0
@@ -501,9 +484,6 @@ def build_payload(
     }
 
 
-# --------------------------------------------------------------------------- #
-# HTML
-# --------------------------------------------------------------------------- #
 STYLE = """
 :root{
   --bg:#000000; --surface:#13161C; --alt:#1F242D; --border:#2C313B;

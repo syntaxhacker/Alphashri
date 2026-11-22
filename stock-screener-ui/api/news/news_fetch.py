@@ -1,7 +1,3 @@
-"""
-News fetching endpoints: scrape articles and poll for updates.
-"""
-
 import asyncio
 import hashlib as _hashlib
 import sys

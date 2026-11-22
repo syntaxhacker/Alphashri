@@ -32,7 +32,6 @@ const mocks = vi.hoisted(() => {
   };
   const fitContent = vi.fn();
   const chartApi = {
-    // Declared args keep `mock.calls[n]` typed as a tuple (a bare `vi.fn()` infers `[]`).
     addSeries: vi.fn((_kind?: unknown) => makeSeries()),
     removeSeries: vi.fn(),
     applyOptions: vi.fn(),
@@ -51,7 +50,6 @@ const mocks = vi.hoisted(() => {
     HistogramSeries: { kind: "histogram" },
     LineSeries: { kind: "line" },
     TickMarkType: { Year: 0, Month: 1, DayOfMonth: 2, Time: 3, TimeWithSeconds: 4 },
-    // Declare the args so `mock.calls[0]` is typed as a tuple, not `[]`.
     createChart: vi.fn((_container?: unknown, _options?: unknown) => chartApi),
     createSeriesMarkers: vi.fn((_series?: unknown, _markers?: unknown) => ({ setMarkers })),
   };
@@ -167,13 +165,11 @@ describe("PatternTradingViewChart", () => {
     expect(options).toMatchObject({ handleScroll: true, handleScale: true });
     expect((options.timeScale as Record<string, unknown>).rightOffset).toBe(6);
 
-    // Candlestick + volume + 2 boundaries + TLS + TLR.
     const kinds = mocks.chartApi.addSeries.mock.calls.map((c) => c[0]);
     expect(kinds[0]).toBe(mocks.CandlestickSeries);
     expect(kinds).toContain(mocks.HistogramSeries);
     expect(kinds.filter((k) => k === mocks.LineSeries)).toHaveLength(4);
 
-    // Candles + volume data painted.
     const [candleSeries, volumeSeries] = mocks.createdSeries;
     expect(candleSeries?.setData).toHaveBeenCalledTimes(1);
     const candleData = candleSeries?.setData.mock.calls[0]?.[0] as Array<{ time: number }>;
@@ -183,12 +179,9 @@ describe("PatternTradingViewChart", () => {
       scaleMargins: { top: 0.85, bottom: 0 },
     });
 
-    // No breakout/target/stop price lines and no dot markers: the chart draws
-    // pattern lines only (risk sizing is the trader's job).
     expect(candleSeries?.createPriceLine).not.toHaveBeenCalled();
     expect(mocks.setMarkers).toHaveBeenCalledWith([]);
 
-    // Fitted once the data landed.
     expect(mocks.fitContent).toHaveBeenCalled();
   });
 

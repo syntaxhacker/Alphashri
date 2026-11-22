@@ -18,7 +18,6 @@ _tz = None
 
 
 def _ist_tz():
-    """Resolve the canonical IST timezone once (config.IST, else Asia/Kolkata)."""
     global _tz
     if _tz is None:
         try:
@@ -51,7 +50,6 @@ def ist_session_date(ts) -> Optional[str]:
 
 
 def today_ist_iso() -> str:
-    """Today's date in IST as ``YYYY-MM-DD``; falls back to the UTC date."""
     try:
         import config
 

@@ -14,7 +14,6 @@ import { REPORT_FONT } from "./reportTokens";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 
-/** Files owned by the typography-floor lane. Keep in sync with that lane. */
 const GUARDED_FILES = [
   "reportTokens.ts",
   "WallsMap.tsx",
@@ -36,7 +35,6 @@ const GUARDED_FILES = [
 
 const FLOOR = 11;
 
-/** Tailwind arbitrary values, inline style objects and SVG text attributes. */
 const FONT_SIZE =
   /text-\[(\d+(?:\.\d+)?)px\]|"font-size":\s*"(\d+(?:\.\d+)?)px"|fontSize:\s*(\d+(?:\.\d+)?)\b|font-size="(\d+(?:\.\d+)?)"/g;
 

@@ -1,13 +1,4 @@
 #!/usr/bin/env python
-"""Validate the surviving shape: OR-break fade, wide stop, 1.5-2R / mid target.
-
-Three questions the grid cannot answer on its own:
-  1. is the OR30 window special, or does fading ANY 30-min range work?
-  2. does walk-forward selection by t-stat (not by luckiest mean) hold up?
-  3. does the result survive cost, side split and quarter-by-quarter?
-
-  .venv/bin/python scripts/research/double_vwap/validate.py
-"""
 from __future__ import annotations
 
 import json
@@ -39,7 +30,6 @@ def stat(trades, days):
 
 
 def random_range_placebo(days, cfg, draws=200, seed=3):
-    """Fade a random 30-min window instead of the real opening range."""
     rng = np.random.default_rng(seed)
     out = []
     for _ in range(draws):
@@ -102,7 +92,6 @@ def main():
               f"t={st['t']:+.2f} PF={st['PF']:.2f} win={st['win']:4.1f} "
               f"Rm={st['Rm']:+.1f}")
 
-    # family aggregate (overlapping trades -> sign test only, not a t-stat)
     allR = []
     for cfg, tr, st in rows:
         allR += [t["R"] for t in tr]
@@ -129,7 +118,6 @@ def main():
         print(f"    {c:>4.1f}pt n={st['n']:3d} avgR={st['avgR']:+.3f} t={st['t']:+.2f} "
               f"PF={st['PF']:.2f}")
 
-    # walk-forward by t-stat (min 25 trades in train)
     print("\nwalk-forward, selection by train t (n>=25)")
     wf = []
     for k in range(1, 6):
@@ -155,14 +143,12 @@ def main():
     if wf:
         print(f"  WF mean {np.mean(wf):+.3f}  positive {sum(1 for x in wf if x > 0)}/{len(wf)}")
 
-    # random-range placebo
     print("\nrandom-range placebo (fade a random 30-min window, same geometry)")
     pl = random_range_placebo(days, best_cfg, draws=200)
     print(f"  real avgR {best_st['avgR']:+.3f} | placebo mean {pl.mean():+.3f} "
           f"sd {pl.std():.3f} p5 {np.percentile(pl, 5):+.3f} p95 {np.percentile(pl, 95):+.3f} "
           f"| p(placebo>=real)={np.mean(pl >= best_st['avgR']):.02f}")
 
-    # how does the real config rank inside its own placebo distribution?
     print(f"  real percentile inside placebo: {100 * np.mean(pl < best_st['avgR']):.0f}%")
 
     with open(OUT, "w") as fh:

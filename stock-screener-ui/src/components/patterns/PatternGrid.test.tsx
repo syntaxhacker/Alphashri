@@ -100,7 +100,6 @@ describe("PatternGrid", () => {
         makeHit({ id: 22, start_date: "2026-07-01", end_date: "2026-09-26" }),
       ];
       render(() => <PatternGrid hits={hits} onSelect={vi.fn()} />);
-      // Both instances render (keyed by hit.id, not the shared composite).
       expect(screen.getAllByTestId("patterns-card")).toHaveLength(2);
       expect(warnings.some((w) => w.includes("duplicate") && w.includes("key"))).toBe(false);
     } finally {

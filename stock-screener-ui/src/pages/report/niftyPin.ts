@@ -5,55 +5,41 @@ import type { SymbolMetrics } from "./symbolMetrics";
 
 export type PinLevel = "HIGH" | "MEDIUM" | "LOW";
 
-/** Legacy constants (NIFTY-calibrated). Kept for backward compatibility. */
 export const PIN_EDGE_HIGH_PTS = 50;
 export const PIN_EDGE_MEDIUM_PTS = 100;
 export const PIN_PAIN_PTS = 100;
-/** Walls that may set the edge: from half the heaviest OI up. */
 export const PIN_WALL_MIN_OI_FRACTION = 0.5;
 
 export interface PinInput {
   spot?: number | null;
   maxPain?: number | null;
-  /** Heaviest OI within ±300 pts of spot — preferred when present. */
   wallsNear?: { calls?: NiftyWall[] | null; puts?: NiftyWall[] | null } | null;
-  /** Full wall board — fallback for payloads without `wallsNear`. */
   walls?: { calls?: NiftyWall[] | null; puts?: NiftyWall[] | null } | null;
-  /** Symbol-aware thresholds — required; never fall back to NIFTY defaults. */
   metrics: SymbolMetrics;
 }
 
 export interface PinRead {
   level: PinLevel;
-  /** Signed points from spot to max pain (positive = max pain above spot). */
   maxPainDistance: number;
-  /** Strike of the nearest significant wall, or `null`. */
   edgeStrike: number | null;
-  /** Absolute points from spot to that wall, or `null`. */
   edgeDistance: number | null;
-  /** Where the magnet sits relative to spot. */
   magnet: "above" | "below" | "at";
-  /** True when spot sits between the heaviest put and call walls. */
   contained: boolean;
-  /** One sentence for the tooltip — never rendered as a third text line. */
   detail: string;
 }
 
-/** Coerce to a finite number; absent / blank / NaN → NaN (never 0). */
 function num(v: unknown): number {
   if (v === null || v === undefined || v === "") return NaN;
   const n = Number(v);
   return Number.isFinite(n) ? n : NaN;
 }
 
-/** Valid walls only — a missing strike or OI would poison the max. */
 function validWalls(walls: NiftyWall[] | null | undefined): NiftyWall[] {
   return (walls ?? []).filter(
     (wall) => Number.isFinite(num(wall?.strike)) && Number.isFinite(num(wall?.oi)),
   );
 }
 
-/** Heaviest wall in a list (strike breaks an OI tie for determinism). */
 function heaviest(walls: NiftyWall[]): NiftyWall | null {
   let best: NiftyWall | null = null;
   for (const wall of walls) {
@@ -108,9 +94,6 @@ export function pinRisk(input: PinInput): PinRead | null {
     spot > heavyPutStrike &&
     spot < heavyCallStrike;
 
-  // Pin significance is deliberately stricter than setup's wall gate: only
-  // walls at least half the heaviest OI can define the pin edge. This is a
-  // semantic difference (pin = dominant wall), not a scale bug.
   const maxOi = all.reduce((m, wall) => Math.max(m, num(wall.oi)), 0);
   const significant =
     maxOi > 0

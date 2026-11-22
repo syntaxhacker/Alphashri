@@ -1,24 +1,4 @@
 #!/usr/bin/env python3
-"""
-Backtest ONH/ONL breakout strategy (from EDA learnings) on ES=F / NQ=F via yfinance 1h.
-
-Strategy (yfinance, ET):
-  For each NY trading day (09:30-16:00 ET):
-    ONH = max High of overnight window 18:00 (prev day) → 09:30 (this day) ET
-    ONL = min Low  of same window
-    Range R = ONH - ONL
-    Entry: first 1h bar in NY that closes above ONH → LONG at ONH; below ONL → SHORT at ONL (one trade/day, first break wins)
-    SL = opposite band (ONL for long, ONH for short)  → risk = R
-    TP = entry ± R * tp_mult (default 1.0)
-    EOD flat at 16:00 ET if neither SL/TP hit (exit at 16:00 close)
-
-Usage:
-  source .venv/bin/activate
-  python scripts/backtest_levels.py --start 2026-06-01 --end 2026-08-29
-  python scripts/backtest_levels.py --start 2026-08-17 --end 2026-08-29 --tp 1.0
-
-Output → reports/BACKTEST_LEVELS/{summary.json, trades.csv, equity.png, report.html}
-"""
 import argparse, json
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -52,11 +32,9 @@ def fetch(sym, start, end):
 def backtest_one(df, tp_mult=1.0, buffer_pts=0.0):
     if df is None or df.empty:
         return pd.DataFrame(), {}
-    # add ET
     df=df.copy()
     df["et"]=df.index.tz_convert(TZ_ET)
     df["date_et"]=df["et"].dt.normalize()
-    # build NY dates list: days with at least one NY bar 09:30-16:00
     def in_ny(et):
         t=et.time()
         return (t >= pd.Timestamp("09:30").time() and t < pd.Timestamp("16:00").time())
@@ -64,41 +42,33 @@ def backtest_one(df, tp_mult=1.0, buffer_pts=0.0):
     ny_dates=sorted(df[df["is_ny"]]["date_et"].unique())
     trades=[]
     for d in ny_dates:
-        # d is already tz-aware ET midnight (from df["date_et"] which is ET normalized)
-        # ensure tz-aware
         if d.tz is None:
             d_et = pd.Timestamp(d).tz_localize(TZ_ET)
         else:
             d_et = pd.Timestamp(d).tz_convert(TZ_ET).normalize()
         ny_open = d_et + pd.Timedelta(hours=9, minutes=30)
-        ov_start = ny_open - pd.Timedelta(hours=15, minutes=30) # 18:00 prior day → 09:30
-        # overnight bars
+        ov_start = ny_open - pd.Timedelta(hours=15, minutes=30)
         ov = df[(df["et"] >= ov_start) & (df["et"] < ny_open)]
         if len(ov)<3: continue
         onh=float(ov["High"].max())
         onl=float(ov["Low"].min())
         R=onh-onl
         if R<=0 or not np.isfinite(R): continue
-        # NY bars in order
         ny_bars=df[(df["et"] >= ny_open) & (df["et"] < ny_open+pd.Timedelta(hours=6, minutes=30))]
         if len(ny_bars)==0: continue
         entry=None; side=None; entry_time=None; entry_price=None
-        # find first break
         for ts,row in ny_bars.iterrows():
-            # use close for break confirmation
             c=float(row["Close"]); h=float(row["High"]); l=float(row["Low"])
             if h >= onh + buffer_pts:
                 entry="long"; entry_price=onh; entry_time=row["et"]; break
             if l <= onl - buffer_pts:
                 entry="short"; entry_price=onl; entry_time=row["et"]; break
         if entry is None:
-            continue # no break that day → no trade
-        # SL/TP
+            continue
         if entry=="long":
             sl=onl; tp=onh + R*tp_mult
         else:
             sl=onh; tp=onl - R*tp_mult
-        # monitor after entry
         exit_price=None; exit_reason=None; exit_time=None
         started=False
         for ts,row in ny_bars.iterrows():
@@ -121,10 +91,8 @@ def backtest_one(df, tp_mult=1.0, buffer_pts=0.0):
                 if l <= tp:
                     exit_price=tp; exit_reason="TP"; exit_time=et; break
         if exit_price is None:
-            # EOD flat at last NY bar close
             last=ny_bars.iloc[-1]
             exit_price=float(last["Close"]); exit_reason="EOD"; exit_time=last["et"]
-        # pnl in points and R multiple
         if entry=="long":
             pnl_pts=exit_price-entry_price
         else:
@@ -171,7 +139,6 @@ def run(start,end,tp):
         all_trades[label]=tdf
         if not tdf.empty:
             tdf.to_csv(OUT/f"trades_{label}.csv", index=False)
-    # equity curves
     fig, axes=plt.subplots(2,1,figsize=(12,7), sharex=False)
     for ax, label in zip(axes, ["ES","NQ"]):
         tdf=all_trades[label]
@@ -192,10 +159,8 @@ def run(start,end,tp):
     plt.tight_layout()
     plt.savefig(OUT/"figures"/"equity.png", dpi=130, bbox_inches="tight")
     plt.close()
-    # json
     out_json={"start":start,"end":end,"tp_mult":tp, "stats":all_stats}
     (OUT/"summary.json").write_text(json.dumps(out_json, indent=2))
-    # plain english report
     def plain(st):
         if st["trades"]==0: return "No trades — no overnight break."
         return f"{st['trades']} trades · {st['hit_pct']:.0f}% hit · PF {st['pf']:.2f} · avg win {st['avg_win_R']:.2f}R vs avg loss {st['avg_loss_R']:.2f}R · total {st['total_R']:+.2f}R ({st['total_pts']:+.0f} pts)"
@@ -228,7 +193,6 @@ def run(start,end,tp):
 Rerun: `python scripts/backtest_levels.py --start 2026-08-17 --end 2026-08-29 --tp 1.0` (try --tp 0.8 / 1.2). Sessions fixed ET, no code change.
 """
     (OUT/"report.md").write_text(md)
-    # html
     def b64(p): 
         import base64
         return base64.b64encode(open(p,"rb").read()).decode() if p.exists() else ""

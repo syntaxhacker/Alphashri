@@ -5,13 +5,7 @@ import { cn } from "@/ui/cn";
 import { getPnLTextColor } from "@/utils/ui-helpers";
 
 /**
- * The one place table cells get their type treatment.
- *
- * Before this existed, ~30 column-definition files each hand-rolled
- * `<Text size="xs" className="tabular-nums">`, so the same numeric column could
- * appear mono on one page, proportional on another, and 11px vs 12px between
- * two adjacent tables. Numbers must be mono + tabular everywhere or columns do
- * not line up across surfaces.
+ * Numbers must be mono + tabular everywhere or columns do not line up across surfaces.
  */
 
 /** Dimmed en-dash placeholder for a missing value in a dense table. */

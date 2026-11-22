@@ -2,11 +2,6 @@ import { describe, expect, test } from "vitest";
 import type { NiftyReport } from "@/types/niftyReport";
 import { buildMarkLines } from "./niftyChartMath";
 
-/**
- * Gutter labels must use one number format. Walls (CW/PW), max pain (MP) and
- * pivots (PP/R1/S1…) are all index points, so they all print Indian-grouped
- * whole points — `MP 22700` next to `CW 23,000` was two formats in one gutter.
- */
 function report(overrides: Partial<NiftyReport> = {}): NiftyReport {
   return {
     spot: 22_740,
@@ -47,7 +42,6 @@ describe("buildMarkLines gutter number format", () => {
     const out = labels(report());
     expect(out).toContain("MP 22,700");
     expect(out).toContain("PW 22,500");
-    // No raw four/five-digit variant may survive beside the grouped lines.
     expect(out).not.toContain("MP 22700");
     expect(out).not.toContain("PW 22500");
   });
@@ -92,19 +86,18 @@ describe("buildMarkLines gutter number format", () => {
 });
 
 describe("buildMarkLines wall side classification", () => {
-  /** Spot 79,153; calls 79,500 (above, higher OI) and 79,000 (below, lower OI). */
   function sensexReport(overrides: Partial<NiftyReport> = {}): NiftyReport {
     return {
       spot: 79_153,
       maxPain: 79_200,
       walls: {
         calls: [
-          { strike: 79_500, oi: 7_080_000 }, // above spot, higher OI
-          { strike: 79_000, oi: 5_830_000 }, // below spot, lower OI
+          { strike: 79_500, oi: 7_080_000 },
+          { strike: 79_000, oi: 5_830_000 },
         ],
         puts: [
-          { strike: 78_800, oi: 6_000_000 }, // below spot
-          { strike: 79_300, oi: 4_000_000 }, // above spot
+          { strike: 78_800, oi: 6_000_000 },
+          { strike: 79_300, oi: 4_000_000 },
         ],
       },
       intraday: [
@@ -116,20 +109,15 @@ describe("buildMarkLines wall side classification", () => {
 
   test("primary CW is highest-OI call ABOVE spot; below-spot call labelled CW↓", () => {
     const out = labels(sensexReport());
-    // Primary call above spot → CW
     expect(out).toContain("CW 79,500");
-    // Secondary call below spot → CW↓
     expect(out).toContain("CW↓ 79,000");
-    // Primary put below spot → PW
     expect(out).toContain("PW 78,800");
-    // Secondary put above spot → PW↑
     expect(out).toContain("PW↑ 79,300");
   });
 
   test("primary CW above spot has includeInScale true when within sane cap", () => {
     const lines = buildMarkLines(sensexReport());
     const cw79500 = lines.find((l) => l.label.formatter === "CW 79,500");
-    // 79,500 is 347 pts from 79,153 = 0.44% < 0.6% sane cap → in scale
     expect(cw79500?.includeInScale).toBe(true);
   });
 
@@ -138,16 +126,14 @@ describe("buildMarkLines wall side classification", () => {
       sensexReport({
         walls: {
           calls: [
-            { strike: 79_000, oi: 7_000_000 }, // below spot
-            { strike: 78_500, oi: 5_000_000 }, // below spot
+            { strike: 79_000, oi: 7_000_000 },
+            { strike: 78_500, oi: 5_000_000 },
           ],
           puts: [],
         },
       }),
     );
-    // No call above spot → primary is highest OI overall but marked as broken
     expect(out).toContain("CW (BELOW) 79,000");
-    // Secondary below → CW↓
     expect(out).toContain("CW↓ 78,500");
   });
 
@@ -157,23 +143,19 @@ describe("buildMarkLines wall side classification", () => {
         walls: {
           calls: [],
           puts: [
-            { strike: 79_500, oi: 7_000_000 }, // above spot
-            { strike: 79_800, oi: 5_000_000 }, // above spot
+            { strike: 79_500, oi: 7_000_000 },
+            { strike: 79_800, oi: 5_000_000 },
           ],
         },
       }),
     );
-    // No put below spot → primary is highest OI overall but marked as broken
     expect(out).toContain("PW (ABOVE) 79,500");
-    // Secondary above → PW↑
     expect(out).toContain("PW↑ 79,800");
   });
 
   test("mirror puts: primary PW is highest-OI put BELOW spot; above-spot put labelled PW↑", () => {
     const out = labels(sensexReport());
-    // Put below spot (78,800) is primary PW
     expect(out).toContain("PW 78,800");
-    // Put above spot (79,300) is secondary PW↑
     expect(out).toContain("PW↑ 79,300");
   });
 });

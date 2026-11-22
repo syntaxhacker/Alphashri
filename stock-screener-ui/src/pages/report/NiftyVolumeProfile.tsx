@@ -15,14 +15,12 @@ const GUTTER = 52;
 const CENTER = SVG_W / 2;
 const HALF = SVG_W / 2 - GUTTER - 8;
 
-/** CE = red (left), PE = green (right) — per the desk spec. */
 const CE_FILL = palette.NEGATIVE;
 const PE_FILL = palette.POSITIVE;
 const OI_STROKE = palette.TEXT_MUTED;
 
 interface NiftyVolumeProfileProps {
   rows?: NiftyVolumeTapeRow[] | null;
-  /** Reference spot for the ±window + ATM anchor (defaults to the tape). */
   spot?: number | null;
   widthPts?: number;
   testId?: string;

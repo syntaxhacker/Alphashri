@@ -50,9 +50,6 @@ def _detect(df):
     return detect_consolidation(F.normalize_ohlcv(df), {})
 
 
-# ---------------------------------------------------------------------------
-# Detection on a genuine base
-# ---------------------------------------------------------------------------
 
 
 def test_tight_long_base_is_detected():
@@ -99,9 +96,6 @@ def test_emits_at_most_one_hit_per_symbol():
     assert len(hits) == 1
 
 
-# ---------------------------------------------------------------------------
-# Trailing breakout trim
-# ---------------------------------------------------------------------------
 
 
 def base_then_breakdown_frame() -> pd.DataFrame:
@@ -180,9 +174,6 @@ def test_long_base_with_close_near_top_is_detected():
     assert hits[0].range_pos > 85.0
 
 
-# ---------------------------------------------------------------------------
-# Trend rejection
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -216,9 +207,6 @@ def test_v_shape_decline_then_rally_is_rejected():
     assert _detect(frame(closes)) == []
 
 
-# ---------------------------------------------------------------------------
-# Store round-trip + filters
-# ---------------------------------------------------------------------------
 
 
 def _hit(symbol: str, base_days: int, range_pct: float, range_pos: float) -> dict:

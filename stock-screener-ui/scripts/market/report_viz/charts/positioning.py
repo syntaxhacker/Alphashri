@@ -28,9 +28,6 @@ from ..theme import palette
 _CLASS_TONES = ("green", "red", "blue", "violet", "amber", "muted")
 
 
-# ---------------------------------------------------------------------------
-# payload helpers
-# ---------------------------------------------------------------------------
 
 
 def _number(value: Any, field: str) -> float:
@@ -77,7 +74,6 @@ def _scaled(value: Any, divisor: float, field: str, digits: int = 2) -> float | 
 
 
 def _magnitude(value: Any, divisor: float, field: str, digits: int = 2) -> float | None:
-    """Magnitude for the class stream; the only signed-to-unsigned conversion."""
     out = _scaled(value, divisor, field, digits)
     return None if out is None else abs(out)
 
@@ -123,11 +119,6 @@ def _class_list(
     p: Mapping[str, Any],
     observed: Iterable[str] = (),
 ) -> list[dict[str, str]]:
-    """Normalise class descriptors and attach palette-derived colours.
-
-    A class may carry ``{"id", "label", "tone"}``; ``tone`` picks a palette
-    anchor.  Without an explicit tone the stack order assigns one.
-    """
     items = list(classes) if classes else [{"id": cid} for cid in observed]
     out: list[dict[str, str]] = []
     for index, item in enumerate(items):
@@ -150,9 +141,7 @@ def _class_list(
     return out
 
 
-# ---------------------------------------------------------------------------
 # 1. CE vs PE net positioning (the named missing chart)
-# ---------------------------------------------------------------------------
 
 
 def ce_pe_net_positioning(
@@ -241,9 +230,6 @@ def ce_pe_net_positioning(
     )
 
 
-# ---------------------------------------------------------------------------
-# 2. CE vs PE divergence at one strike
-# ---------------------------------------------------------------------------
 
 
 def ce_pe_divergence(
@@ -344,9 +330,6 @@ def ce_pe_divergence(
     )
 
 
-# ---------------------------------------------------------------------------
-# 3. PE OI change by strike × time
-# ---------------------------------------------------------------------------
 
 
 def pe_oi_heatmap(
@@ -363,7 +346,6 @@ def pe_oi_heatmap(
     span: int = 2,
     height: int | None = None,
 ) -> str:
-    """Signed put ΔOI grid.  ``None`` cells stay blank all the way to the DOM."""
     columns = [_text(item, "time label") for item in labels]
     if not columns:
         raise ValueError("pe_oi_heatmap needs at least one time label")
@@ -439,9 +421,6 @@ def pe_oi_heatmap(
     )
 
 
-# ---------------------------------------------------------------------------
-# 4. Window bars: strike-by-strike ΔPE / ΔCE
-# ---------------------------------------------------------------------------
 
 
 def positioning_window_bars(
@@ -460,7 +439,6 @@ def positioning_window_bars(
     span: int = 2,
     height: int | None = None,
 ) -> str:
-    """Puts and calls at every strike over one window, on a shared ± scale."""
     divisor = _positive(scale, "scale")
     parsed: list[dict[str, Any]] = []
     for row in rows:
@@ -528,9 +506,6 @@ def positioning_window_bars(
     )
 
 
-# ---------------------------------------------------------------------------
-# 5. Incremental PE volume vs ΔPE OI
-# ---------------------------------------------------------------------------
 
 
 def volume_vs_net_oi(
@@ -545,7 +520,6 @@ def volume_vs_net_oi(
     span: int = 1,
     height: int = 320,
 ) -> str:
-    """Put volume on x, Δput OI on y, bubble area proportional to put OI."""
     divisor = _positive(scale, "scale")
     parsed: list[dict[str, Any]] = []
     for row in rows:
@@ -593,9 +567,6 @@ def volume_vs_net_oi(
     )
 
 
-# ---------------------------------------------------------------------------
-# 6. Σ|ΔOI| by participant class per bucket
-# ---------------------------------------------------------------------------
 
 
 def participant_class_stream(
@@ -696,9 +667,6 @@ def participant_class_stream(
     )
 
 
-# ---------------------------------------------------------------------------
-# 7. Class × bucket state map
-# ---------------------------------------------------------------------------
 
 
 def participant_class_heatmap(
@@ -711,7 +679,6 @@ def participant_class_heatmap(
     span: int = 2,
     height: int | None = None,
 ) -> str:
-    """One cell per bucket, coloured by the bucket's participant class."""
     source = list(buckets)
     if not source:
         raise ValueError("participant_class_heatmap needs at least one bucket")
@@ -774,9 +741,6 @@ def participant_class_heatmap(
     )
 
 
-# ---------------------------------------------------------------------------
-# 8. Focus strike: premium + OI
-# ---------------------------------------------------------------------------
 
 
 def participant_focus(
@@ -792,13 +756,6 @@ def participant_focus(
     span: int = 1,
     height: int = 300,
 ) -> str:
-    """Premium line and OI area for one strike.
-
-    When ``strike`` is omitted the focus is the strike nearest ``spot`` that is
-    actually present in the rows (falling back to the nearest grid strike).  On
-    any index or stock book that resolves to the ATM line, without this module
-    knowing an instrument level.
-    """
     source = list(rows)
     if not source:
         raise ValueError("participant_focus needs at least one bucket")
@@ -921,9 +878,6 @@ def participant_focus(
     )
 
 
-# ---------------------------------------------------------------------------
-# 9. Put − call OI terrain
-# ---------------------------------------------------------------------------
 
 
 def strike_terrain(
@@ -938,7 +892,6 @@ def strike_terrain(
     span: int = 1,
     height: int = 280,
 ) -> str:
-    """Signed ``PE OI − CE OI`` at every strike: the book's skew as a terrain."""
     divisor = _positive(scale, "scale")
     parsed: list[dict[str, Any]] = []
     for row in rows:
@@ -994,9 +947,6 @@ def strike_terrain(
     )
 
 
-# ---------------------------------------------------------------------------
-# 10. Live wall distance ladder
-# ---------------------------------------------------------------------------
 
 
 def wall_ladder(
@@ -1008,7 +958,6 @@ def wall_ladder(
     span: int = 2,
     height: int = 260,
 ) -> str:
-    """Call / put / max-pain distance in price points, signed around live spot."""
     source = list(rows)
     if not source:
         raise ValueError("wall_ladder needs at least one bucket")

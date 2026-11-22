@@ -50,7 +50,6 @@ def render_yaml(schema: dict) -> str:
 
 
 def write_spec(schema: dict | None = None) -> Path:
-    """Write SPEC_PATH. Returns the path."""
     if schema is None:
         schema = build_schema()
     SPEC_PATH.write_text(render_yaml(schema), encoding="utf-8")
@@ -63,7 +62,6 @@ def check_spec() -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """argparse entry point. --check compares, default writes."""
     parser = argparse.ArgumentParser(
         description="Export the live FastAPI OpenAPI schema to openapi.yaml."
     )
@@ -102,7 +100,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _count_operations(paths: dict) -> int:
-    """Count HTTP method operations across all path items."""
     return sum(
         1
         for path_item in paths.values()

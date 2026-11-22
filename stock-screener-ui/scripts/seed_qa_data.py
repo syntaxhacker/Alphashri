@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-"""
-Seed Script for Multi-Strategy QA Testing
-
-Creates:
-1. QA Test User (qa@test.com / qa123)
-2. Multiple strategy variations
-3. A multi-strategy bot
-4. Sample trades in journal across multiple strategies (opt-in via --seed-journals)
-
-Run with: python scripts/seed_qa_data.py
-"""
 
 import sys
 import random
@@ -18,7 +7,6 @@ from datetime import datetime, timedelta
 from typing import Dict, List
 import bcrypt
 
-# Add project path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from db.database import SessionLocal
@@ -29,17 +17,13 @@ from rich.panel import Panel
 
 console = Console()
 
-# ============================================
-# Configuration
-# ============================================
 
 QA_USER_EMAIL = "qa@test.com"
 QA_USER_PASSWORD = "qa123"
 QA_USER_NAME = "QA Test User"
 
-INITIAL_CAPITAL = 1_000_000  # 10 Lakhs
+INITIAL_CAPITAL = 1_000_000
 
-# Strategy templates (is_template=True)
 TEMPLATES = [
     {
         'name': 'ORB Template',
@@ -95,7 +79,6 @@ TEMPLATES = [
     },
 ]
 
-# Strategy variations (is_template=False)
 STRATEGIES = [
     {
         'name': 'ORB Conservative',
@@ -212,7 +195,6 @@ STRATEGIES = [
     },
 ]
 
-# Sample stocks for dummy trades
 SAMPLE_STOCKS = [
     {'symbol': 'RELIANCE', 'base_price': 2500},
     {'symbol': 'TCS', 'base_price': 3500},
@@ -233,7 +215,6 @@ def hash_password(password: str) -> str:
 
 
 def create_qa_user(db) -> User:
-    """Create or get QA test user."""
     user = db.query(User).filter(User.email == QA_USER_EMAIL).first()
 
     if user:
@@ -261,10 +242,8 @@ def create_qa_user(db) -> User:
 
 
 def create_strategies(db) -> Dict[str, StrategyConfig]:
-    """Create templates and variations. Returns dict of {name: config}."""
     results = {}
 
-    # 1. Create Templates
     console.print("  [bold]Creating Templates...[/bold]")
     for t_config in TEMPLATES:
         existing = db.query(StrategyConfig).filter(
@@ -294,7 +273,6 @@ def create_strategies(db) -> Dict[str, StrategyConfig]:
         results[template.name] = template
         console.print(f"    [green]✓ Created template '{template.name}'[/green]")
 
-    # 2. Create Variations
     console.print("  [bold]Creating Variations...[/bold]")
     for s_config in STRATEGIES:
         existing = db.query(StrategyConfig).filter(
@@ -330,9 +308,7 @@ def create_strategies(db) -> Dict[str, StrategyConfig]:
 
 
 def create_bot(db, strategies: Dict[int, StrategyConfig], user_id: int, bot_name: str = "Multi-Strategy QA Bot") -> BotConfig:
-    """Create multi-strategy bot with all strategies."""
 
-    # Check if bot exists
     bot = db.query(BotConfig).filter(
         BotConfig.name == bot_name,
         BotConfig.user_id == user_id
@@ -342,7 +318,6 @@ def create_bot(db, strategies: Dict[int, StrategyConfig], user_id: int, bot_name
         console.print(f"[yellow]Bot '{bot_name}' already exists (ID: {bot.id})[/yellow]")
         return bot
 
-    # Create bot
     bot = BotConfig(
         name=bot_name,
         user_id=user_id,
@@ -355,8 +330,7 @@ def create_bot(db, strategies: Dict[int, StrategyConfig], user_id: int, bot_name
     db.refresh(bot)
     console.print(f"[green]✓ Created bot '{bot.name}' (ID: {bot.id}) for User {user_id}[/green]")
 
-    # Add strategies to bot
-    allocations = [0.25, 0.20, 0.15, 0.15, 0.15, 0.10]  # Conservative, Aggressive, Best, S/R, EMA Cross
+    allocations = [0.25, 0.20, 0.15, 0.15, 0.15, 0.10]
     for idx, (strategy_id, strategy) in enumerate(strategies.items()):
         allocation_pct = allocations[idx] if idx < len(allocations) else 0.15
         max_positions = getattr(strategy, 'max_positions', 3)
@@ -376,7 +350,6 @@ def create_bot(db, strategies: Dict[int, StrategyConfig], user_id: int, bot_name
 
 
 def create_single_strategy_bot(db, strategy: StrategyConfig, user_id: int, bot_name: str) -> BotConfig:
-    """Create a bot with a single strategy at 100% allocation."""
 
     bot = db.query(BotConfig).filter(
         BotConfig.name == bot_name,
@@ -414,51 +387,40 @@ def create_single_strategy_bot(db, strategy: StrategyConfig, user_id: int, bot_n
 
 
 def generate_trades(user_id: int, bot: BotConfig, strategies: Dict[int, StrategyConfig]) -> List[dict]:
-    """Generate dummy trades for a multi-strategy bot."""
     trades = []
     trade_id = 0
 
-    # Generate trades over past 5 trading days
     for day in range(5):
         base_date = datetime.now() - timedelta(days=day + 1)
 
-        for _ in range(2):  # 2 trades per strategy per day
+        for _ in range(2):
             for strategy_id, strategy in strategies.items():
                 strategy_name = strategy.name
 
-                # Select random stock
                 stock = random.choice(SAMPLE_STOCKS)
                 symbol = stock['symbol']
                 base_price = stock['base_price']
 
-                # Determine trade parameters
                 sl_pct = strategy.sl_pct or 0.5
                 tp_pct = strategy.tp_pct or 1.5
 
-                # Randomize entry and exit
                 side = random.choice(['BUY', 'SELL'])
                 entry_time = base_date.replace(hour=9, minute=30, second=0) + timedelta(minutes=random.randint(0, 60))
 
-                # Price variation
                 price_var = random.uniform(-0.02, 0.02)
                 entry_price = base_price * (1 + price_var)
 
-                # Determine outcome (60% winners)
                 is_winner = random.random() < 0.6
                 if is_winner:
-                    # Winner - hit TP
                     exit_price = entry_price * (1 + tp_pct / 100 * random.uniform(0.5, 1.0))
                     exit_reason = 'TP'
                 else:
-                    # Loser - hit SL
                     exit_price = entry_price * (1 - sl_pct / 100 * random.uniform(0.8, 1.2))
                     exit_reason = 'SL'
 
-                # Calculate quantity (based on ~50k per trade)
                 trade_value = 50000
                 quantity = int(trade_value / entry_price)
 
-                # Calculate P&L
                 if side == 'BUY':
                     pnl = (exit_price - entry_price) * quantity
                     pnl_pct = (exit_price - entry_price) / entry_price * 100
@@ -466,10 +428,8 @@ def generate_trades(user_id: int, bot: BotConfig, strategies: Dict[int, Strategy
                     pnl = (entry_price - exit_price) * quantity
                     pnl_pct = (entry_price - exit_price) / entry_price * 100
 
-                # Add some variance
                 pnl += random.uniform(-200, 200)
 
-                # Calculate costs
                 trade_value_total = entry_price * quantity
                 costs = trade_value_total * 0.0006
                 net_pnl = pnl - costs
@@ -496,12 +456,10 @@ def generate_trades(user_id: int, bot: BotConfig, strategies: Dict[int, Strategy
                     'is_test': True,
                 }
 
-                # Log to journal
                 journal.log_trade(trade)
                 trades.append(trade)
                 trade_id += 1
 
-    # Save journal
     journal.save_journal()
     console.print(f"[green]✓ Generated {len(trades)} trades and saved to journal[/green]")
 
@@ -509,7 +467,6 @@ def generate_trades(user_id: int, bot: BotConfig, strategies: Dict[int, Strategy
 
 
 def print_summary(user: User, bot: BotConfig, strategies: Dict, trades: List[dict]):
-    """Print summary of seeded data."""
     console.print("\n" + "=" * 60)
     console.print(Panel.fit(
         "[bold green]Multi-Strategy QA Data Seeding Complete![/bold green]",
@@ -520,7 +477,6 @@ def print_summary(user: User, bot: BotConfig, strategies: Dict, trades: List[dic
     console.print(f"\nBot ID: [cyan]{bot.id}[/cyan]")
     console.print(f"User ID: [cyan]{user.id}[/cyan]")
 
-    # Performance summary
     total_trades = len(trades)
     winners = sum(1 for t in trades if t['net_pnl'] > 0)
     losers = sum(1 for t in trades if t['net_pnl'] <= 0)
@@ -536,7 +492,6 @@ def print_summary(user: User, bot: BotConfig, strategies: Dict, trades: List[dic
     console.print(f"  Net P&L: ₹{total_net_pnl:,.2f}")
     console.print(f"  Profit Factor: {profit_factor:.2f}")
 
-    # Strategy breakdown
     console.print(f"\n[bold]Performance by Strategy:[/bold]")
     for strategy_id, strategy in strategies.items():
         strategy_trades = [t for t in trades if t['strategy_id'] == strategy_id]
@@ -553,11 +508,9 @@ def print_summary(user: User, bot: BotConfig, strategies: Dict, trades: List[dic
 
 
 def clean_qa_data():
-    """Clean existing QA data."""
     from db.models import BacktestResult
     db = SessionLocal()
     try:
-        # 1. Delete bots and their strategy links for both QA and Admin
         for bot_name in ["Multi-Strategy QA Bot", "Multi-ORB QA Bot", "Alpha Admin Bot"]:
             bot = db.query(BotConfig).filter(BotConfig.name == bot_name).first()
             if bot:
@@ -571,11 +524,9 @@ def clean_qa_data():
         db.query(StrategyConfig).delete()
         console.print("[yellow]Deleted all strategy variations and templates[/yellow]")
 
-        # 3. Delete Backtest results
         db.query(BacktestResult).delete()
         console.print("[yellow]Deleted all backtest results[/yellow]")
 
-        # 4. Delete user (only QA user, keep Admin)
         user = db.query(User).filter(User.email == QA_USER_EMAIL).first()
         if user:
             db.delete(user)
@@ -588,34 +539,27 @@ def clean_qa_data():
 
 
 def seed_qa_data(seed_journals: bool = False):
-    """Seed QA data for multi-strategy testing."""
     db = SessionLocal()
     try:
         console.print("\n[bold]Seeding Multi-Strategy QA Data...[/bold]\n")
 
-        # 1. Create QA user
         console.print("[bold]Step 1: Creating QA User[/bold]")
         user = create_qa_user(db)
 
-        # 2. Create strategies (Templates + Variations)
         console.print("\n[bold]Step 2: Creating Strategies[/bold]")
         all_strategies = create_strategies(db)
         
-        # Filter only non-52W variations for multi-strategy bots
         variation_names = [s['name'] for s in STRATEGIES]
         skip_52w = {'52W Chaser Swing', '52W Target Swing'}
         variations = {name: config for name, config in all_strategies.items()
                       if name in variation_names and name not in skip_52w}
 
-        # 3. Create bot for QA user
         console.print("\n[bold]Step 3: Creating Multi-Strategy Bot for QA[/bold]")
         bot = create_bot(db, variations, user.id)
 
-        # 4. Create bot for Admin user (ID 2)
         console.print("\n[bold]Step 4: Creating Multi-Strategy Bot for Admin[/bold]")
         admin_bot = create_bot(db, variations, 2, "Alpha Admin Bot")
 
-        # 4b. Create dedicated ORB High Beta bot
         console.print("\n[bold]Step 4b: Creating ORB High Beta Bot[/bold]")
         orb_hb = all_strategies.get('ORB High Beta')
         if orb_hb:
@@ -623,7 +567,6 @@ def seed_qa_data(seed_journals: bool = False):
         else:
             console.print("[yellow]ORB High Beta strategy not found — skipping bot[/yellow]")
 
-        # 5. Generate trades for QA user (opt-in)
         trades = []
         if seed_journals:
             console.print("\n[bold]Step 5: Generating Trades for QA[/bold]")
@@ -631,7 +574,6 @@ def seed_qa_data(seed_journals: bool = False):
         else:
             console.print("\n[bold]Step 5: Skipping journal seeding (use --seed-journals to enable)[/bold]")
 
-        # 6. Print summary
         print_summary(user, bot, variations, trades)
 
     finally:

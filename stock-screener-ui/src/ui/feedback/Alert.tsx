@@ -69,7 +69,6 @@ export function Alert(props: UIAlertProps) {
     borderColor = main;
     textColor = main;
   } else {
-    // light / default / transparent / standard: tinted surface
     bg = `rgba(${rgb}, 0.10)`;
     borderColor = `rgba(${rgb}, 0.35)`;
     textColor = main;

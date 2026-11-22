@@ -107,12 +107,10 @@ export interface DensityValue {
 export function useDensity(): DensityValue {
   const [density, setDensitySignal] = createSignal<Density>(getDensitySnapshot());
 
-  // Subscribe to module-store changes and push them into the signal.
   createEffect(() => {
     const unsub = subscribeDensity(() => {
       setDensitySignal(getDensitySnapshot());
     });
-    // Seed with the current snapshot on mount.
     setDensitySignal(getDensitySnapshot());
     onCleanup(unsub);
   });

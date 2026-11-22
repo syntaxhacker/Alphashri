@@ -41,29 +41,20 @@ export { IV_MAX_PCT };
  *  stay readable inside the 3fr cell of the vol-surface row. */
 const IV_WINDOW_PTS = 500;
 
-/** Rendered for any absent field so a stat never shows blank/NaN. */
 export const IV_DASH = "—";
 
-/** IV as a positive percentage, or `null` when the leg had no greeks. */
 function ivOrNull(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/** One strike of the smile: CE IV and PE IV are independently optional. */
 interface IvSkewPoint {
   strike: number;
   ceIv: number | null;
   peIv: number | null;
 }
 
-/**
- * Build the smile across the ±`width` band around spot, ascending by strike.
- * Rows without a usable strike or without either IV are dropped. When spot is
- * absent the whole chain is returned (old snapshots carry no spot) so the
- * panel still draws something instead of going blank.
- */
 export function buildIvSkewPoints(
   strikes: NiftyStrike[],
   spot: number | null | undefined,
@@ -118,7 +109,6 @@ export function buildIvSkewPointsFromSurface(
     .sort((a, b) => a.strike - b.strike);
 }
 
-/** Point whose strike is closest to `target`, or `null` when empty. */
 export function nearestIvPoint(
   points: IvSkewPoint[],
   target: number | null | undefined,
@@ -136,7 +126,6 @@ export function nearestIvPoint(
   return best;
 }
 
-/** Mean of the present IVs, or `null` when none are present. */
 function meanPresent(values: (number | null)[]): number | null {
   const present = values.filter((v): v is number => v !== null);
   if (present.length === 0) return null;
@@ -184,21 +173,16 @@ export function legIvAtDelta(
   return best ? best.iv : null;
 }
 
-/** Derived headline numbers for the stat row. */
 interface IvSkewStats {
   atmStrike: number | null;
   atmIv: number | null;
   atmCe: number | null;
   atmPe: number | null;
-  /** PE IV at the 25-delta strike (downside wing). */
   put25: number | null;
-  /** CE IV at the 25-delta strike (upside wing). */
   call25: number | null;
-  /** 25-delta risk reversal: call IV − put IV, in vol points (positive = calls rich). */
   rr25: number | null;
 }
 
-/** Any finite number (RR can be negative), or `null`. */
 function numOrNull(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
@@ -279,7 +263,6 @@ export function ivSkewStats(
   };
 }
 
-/** `18.4%` / `—`. */
 export function formatIv(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return IV_DASH;
   return `${v.toFixed(1)}%`;

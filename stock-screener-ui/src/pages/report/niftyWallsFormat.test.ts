@@ -11,7 +11,6 @@ const rows = [
 
 describe("newOiTint", () => {
   it("derives the tint from a palette level token, not a hardcoded directional rgba", () => {
-    // |1M| is the largest move in `rows`, so alpha = 0.06 + 0.06 = 0.12.
     const tint = newOiTint(1_000_000, rows);
     expect(tint).toBe(alpha(palette.LEVEL_MAX_PAIN, 0.12));
     expect(tint).not.toContain("22,163,74");

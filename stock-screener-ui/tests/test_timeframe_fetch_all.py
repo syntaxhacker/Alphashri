@@ -31,9 +31,6 @@ except ImportError:  # other agent still implementing -> CI stays green
 from chart_patterns.timeframes import TIMEFRAME_IDS, get_timeframe
 
 
-# ---------------------------------------------------------------------------
-# Synthetic candle generation (no network, no stored fixtures)
-# ---------------------------------------------------------------------------
 
 def _make_bars(n: int, freq: str, seed: int = 7,
                end: pd.Timestamp | None = None) -> pd.DataFrame:
@@ -154,9 +151,6 @@ def _provider_calls(api: MagicMock) -> list[tuple[str, int]]:
     return out
 
 
-# ---------------------------------------------------------------------------
-# Shared invariant assertions (mirror the live smoke harness)
-# ---------------------------------------------------------------------------
 
 def assert_frame_invariants(df: pd.DataFrame, *, ctx: str = "") -> None:
     """UTC index, strictly ascending, unique, OHLC sane."""
@@ -214,9 +208,6 @@ def _fetch(tf_id: str, mock_api: MagicMock, **kwargs) -> pd.DataFrame | None:
         )
 
 
-# ---------------------------------------------------------------------------
-# All 13 timeframes: invariants + target spacing
-# ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("tf_id", TIMEFRAME_IDS)
 def test_timeframe_invariants_and_spacing(mock_api: MagicMock, tf_id: str):
@@ -230,9 +221,6 @@ def test_timeframe_invariants_and_spacing(mock_api: MagicMock, tf_id: str):
     ), f"[{tf_id}] provider was never called"
 
 
-# ---------------------------------------------------------------------------
-# Non-native timeframes (3m/2h/3h/4h) come from their native source_tf
-# ---------------------------------------------------------------------------
 
 NON_NATIVE_SOURCE = {
     "3m": ("minutes", 1),  # resampled from 1m
@@ -261,9 +249,6 @@ def test_non_native_resampled_from_source(
     )
 
 
-# ---------------------------------------------------------------------------
-# Native timeframes are fetched directly (no finer-source double resample)
-# ---------------------------------------------------------------------------
 
 NATIVE_PROVIDER_PARAMS = {
     "1m": ("minutes", 1),
@@ -300,9 +285,6 @@ def test_native_fetched_directly(mock_api: MagicMock, tf_id: str):
     )
 
 
-# ---------------------------------------------------------------------------
-# 1D with include_partial_today=True merges today's 1-minute tape
-# ---------------------------------------------------------------------------
 
 def test_1d_include_partial_today_merges_tape():
     now = pd.Timestamp.now(tz="UTC")

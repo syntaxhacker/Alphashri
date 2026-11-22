@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import { Router } from "@solidjs/router";
 import { UIProvider } from "@/ui";
@@ -33,14 +33,27 @@ vi.mock("../../api/chartPreview", () => ({
   clearPreviewCache: vi.fn(),
 }));
 
+type PreviewContext = ReturnType<typeof usePreviewChart>;
+const contextSnapshots: PreviewContext[] = [];
+
 beforeEach(() => {
   vi.clearAllMocks();
   cleanup();
+  contextSnapshots.length = 0;
   mockFetch.mockResolvedValue(mockData);
   (window as any).echarts = {
     init: vi.fn().mockReturnValue({ setOption: vi.fn(), dispose: vi.fn(), resize: vi.fn() }),
   };
 });
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+function ContextProbe() {
+  contextSnapshots.push(usePreviewChart());
+  return <div data-testid="context-probe" />;
+}
 
 function TestConsumer() {
   const { showPreviewChart, hidePreviewChart, toggleExpandedChart, collapseChart } =
@@ -73,6 +86,7 @@ function renderWithProvider() {
         <UIProvider>
           <PreviewChartProvider>
             <TestConsumer />
+            <ContextProbe />
           </PreviewChartProvider>
         </UIProvider>
       )}
@@ -95,6 +109,12 @@ function getButtons() {
       .getByTestId("consumer")
       .querySelector('[data-testid="btn-collapse"]') as HTMLButtonElement,
   };
+}
+
+async function flushMicrotasks() {
+  await vi.advanceTimersByTimeAsync(0);
+  await Promise.resolve();
+  await Promise.resolve();
 }
 
 describe("PreviewChartProvider", () => {
@@ -297,5 +317,130 @@ describe("PreviewChartProvider", () => {
       expect(document.querySelector('[data-testid="preview-chart-hover-empty"]')).not.toBeNull();
     });
     expect(document.querySelector('[data-testid="preview-chart-hover-error"]')).toBeNull();
+  });
+
+  it("keeps the context value and callbacks identical across preview state changes", async () => {
+    renderWithProvider();
+    expect(contextSnapshots).toHaveLength(1);
+    const first = contextSnapshots[0];
+    const probeNode = screen.getByTestId("context-probe");
+
+    const { hover, hide, expand, collapse } = getButtons();
+    await fireEvent.click(hover);
+    await new Promise((r) => setTimeout(r, 350));
+    await fireEvent.click(hide);
+    await fireEvent.click(expand);
+    await new Promise((r) => setTimeout(r, 50));
+    await fireEvent.click(collapse);
+
+    expect(contextSnapshots).toHaveLength(1);
+    expect(contextSnapshots[0]).toBe(first);
+    expect(contextSnapshots[0].showPreviewChart).toBe(first.showPreviewChart);
+    expect(contextSnapshots[0].hidePreviewChart).toBe(first.hidePreviewChart);
+    expect(contextSnapshots[0].toggleExpandedChart).toBe(first.toggleExpandedChart);
+    expect(contextSnapshots[0].collapseChart).toBe(first.collapseChart);
+    expect(screen.getByTestId("context-probe")).toBe(probeNode);
+  });
+
+  it("re-hovering the same symbol repositions without refetching or rebuilding the chart", async () => {
+    vi.useFakeTimers();
+    renderWithProvider();
+    const { hover } = getButtons();
+
+    await fireEvent.click(hover, { clientX: 10, clientY: 20 });
+    await vi.advanceTimersByTimeAsync(350);
+    await flushMicrotasks();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect((window as any).echarts.init).toHaveBeenCalledTimes(1);
+
+    await fireEvent.click(hover, { clientX: 40, clientY: 60 });
+    await vi.advanceTimersByTimeAsync(350);
+    await flushMicrotasks();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect((window as any).echarts.init).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[data-testid="preview-chart-hover"]')).not.toBeNull();
+  });
+
+  it("ignores a stale hover response from an earlier show of the same symbol", async () => {
+    vi.useFakeTimers();
+    const resolvers: Array<(value: any) => void> = [];
+    mockFetch.mockImplementation(() => new Promise((resolve) => resolvers.push(resolve)));
+    renderWithProvider();
+    const { hover, hide } = getButtons();
+
+    await fireEvent.click(hover);
+    await vi.advanceTimersByTimeAsync(350);
+    expect(resolvers).toHaveLength(1);
+
+    await fireEvent.click(hide);
+    await fireEvent.click(hover);
+    await vi.advanceTimersByTimeAsync(350);
+    expect(resolvers).toHaveLength(2);
+
+    const newer = {
+      ...mockData,
+      candles: [...mockData.candles, { ...mockData.candles[0] }],
+      total_candles: 2,
+    };
+    resolvers[1](newer);
+    await flushMicrotasks();
+    expect((window as any).echarts.init).toHaveBeenCalledTimes(1);
+
+    resolvers[0]({ ...mockData });
+    await flushMicrotasks();
+    expect((window as any).echarts.init).toHaveBeenCalledTimes(1);
+  });
+
+  it("expanded panel ignores a stale response from an earlier timeframe request", async () => {
+    vi.useFakeTimers();
+    const resolvers: Array<(value: any) => void> = [];
+    mockFetch.mockImplementation(() => new Promise((resolve) => resolvers.push(resolve)));
+    renderWithProvider();
+    await fireEvent.click(getButtons().expand);
+    expect(resolvers).toHaveLength(1);
+
+    const tfSelect = screen.getByTestId("preview-tf-select").querySelector("select") as HTMLSelectElement;
+    fireEvent.input(tfSelect, { target: { value: "30" } });
+    expect(resolvers).toHaveLength(2);
+
+    resolvers[1]({
+      ...mockData,
+      candles: [...mockData.candles, { ...mockData.candles[0] }],
+      total_candles: 2,
+    });
+    await flushMicrotasks();
+    expect((window as any).echarts.init).toHaveBeenCalledTimes(1);
+
+    resolvers[0]({ ...mockData });
+    await flushMicrotasks();
+    expect((window as any).echarts.init).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears the pending hover timer on unmount", async () => {
+    vi.useFakeTimers();
+    renderWithProvider();
+    await fireEvent.click(getButtons().hover);
+
+    cleanup();
+    await vi.advanceTimersByTimeAsync(500);
+    await flushMicrotasks();
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-testid="preview-chart-hover"]')).toBeNull();
+  });
+
+  it("suppresses an in-flight hover response after unmount", async () => {
+    vi.useFakeTimers();
+    let resolveFetch: ((value: any) => void) | undefined;
+    mockFetch.mockImplementation(() => new Promise((resolve) => { resolveFetch = resolve; }));
+    renderWithProvider();
+    await fireEvent.click(getButtons().hover);
+    await vi.advanceTimersByTimeAsync(350);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    cleanup();
+    resolveFetch?.(mockData);
+    await flushMicrotasks();
+    expect((window as any).echarts.init).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-testid="preview-chart-hover"]')).toBeNull();
   });
 });

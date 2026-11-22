@@ -38,9 +38,6 @@ def _rec(ts: str, **overrides) -> dict:
     return rec
 
 
-# ---------------------------------------------------------------------------
-# make_signal / schema
-# ---------------------------------------------------------------------------
 
 
 def test_make_signal_fills_id_ts_and_schema():
@@ -85,9 +82,6 @@ def test_make_signal_rejects_invalid(kwargs):
         signal_log.make_signal(features={}, **kwargs)
 
 
-# ---------------------------------------------------------------------------
-# log_signal / read_signals
-# ---------------------------------------------------------------------------
 
 
 def test_log_signal_returns_id_and_round_trips(tmp_path):
@@ -181,9 +175,6 @@ def test_read_signals_skips_malformed_and_sorts(tmp_path):
     assert signal_log.read_signals(DAY, root=tmp_path / "nope") == []
 
 
-# ---------------------------------------------------------------------------
-# date-range reads
-# ---------------------------------------------------------------------------
 
 
 def test_read_range_is_inclusive_and_ordered(tmp_path):
@@ -201,9 +192,6 @@ def test_read_range_is_inclusive_and_ordered(tmp_path):
     assert signal_log.read_range("nope", "2026-09-29", root=tmp_path) == []
 
 
-# ---------------------------------------------------------------------------
-# retention
-# ---------------------------------------------------------------------------
 
 
 def test_prune_removes_older_than_keep_days(tmp_path):

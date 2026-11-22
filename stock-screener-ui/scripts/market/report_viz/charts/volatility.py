@@ -62,9 +62,6 @@ def _positive(value: Any, field: str) -> float:
     return out
 
 
-# ---------------------------------------------------------------------------
-# 1. IV smile / skew
-# ---------------------------------------------------------------------------
 
 
 def iv_smile(
@@ -157,9 +154,6 @@ def iv_smile(
     )
 
 
-# ---------------------------------------------------------------------------
-# 2. Wall and max-pain distance from spot
-# ---------------------------------------------------------------------------
 
 
 def levels_distance(
@@ -172,12 +166,6 @@ def levels_distance(
     span: int = 1,
     height: int | None = None,
 ) -> str:
-    """Horizontal bars measuring each level's distance from spot.
-
-    ``distance`` is optional; when absent it is derived as ``strike - spot``
-    so a caller cannot silently pass a level and a distance that disagree by
-    giving neither.
-    """
     spot_value = _number(spot, "spot")
     parsed: list[dict[str, Any]] = []
     for level in levels:

@@ -1,4 +1,3 @@
-"""Single source of truth for candle-alert symbols, timeframes and limits."""
 
 from datetime import timezone
 

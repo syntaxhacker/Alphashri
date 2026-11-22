@@ -32,8 +32,6 @@ from api.reports_api._numeric import safe_float
 from api.reports_api._time import minutes_between as _gap_minutes
 from api.reports_api.nifty_fuel import basis_text, fuel_state, plan_allowed
 
-# ------------------------------------------------------------------ constants
-
 OI_BURST_WINDOW = 10
 OI_BURST_MIN_ABS = 2_000
 OI_BURST_WARMUP = 3
@@ -150,8 +148,6 @@ def _is_contiguous(a: dict, b: dict, max_gap: int = MAX_BURST_GAP_MIN) -> bool:
     return gap is not None and 0 < gap <= max_gap
 
 
-# -------------------------------------------------- buyer / writer flow
-#
 # ΔOI alone does not say WHO traded. The same put build is bullish when writers
 # sold it (premium fell) and bearish when buyers paid up (premium rose), and the
 # old "put build -> writers -> bullish" assumption got the live chain backwards:
@@ -332,8 +328,6 @@ def session_trend(rows: list[dict], at_time: Any = None) -> Optional[str]:
     return None
 
 
-# ------------------------------------------------------------- squeezes
-
 #: |OI unwind| needed for a wall break to count as a squeeze, in UNITS
 #: (shares) - Upstox reports option OI in units, so 2,000,000 is 2,000,000
 #: units of open interest, NOT 2,000,000 contracts. The labels below say
@@ -463,8 +457,6 @@ def detect_squeezes(
     return out
 
 
-# -------------------------------------------------------- per-strike bursts
-
 #: A single strike must move at least this much OI to be worth an alert —
 #: higher than the index threshold because one strike is a much sharper event.
 # Was 1_000_000 — an impossible bar. Measured over 1507 genuine 1-minute
@@ -587,8 +579,6 @@ def detect_strike_bursts(
     return out
 
 
-# ------------------------------------------------------- premium velocity
-
 #: ATM premium % move over the window that counts as a tradeable impulse.
 PREMIUM_MOVE_MIN_PCT = 15.0
 PREMIUM_MOVE_WINDOW_MIN = 3
@@ -671,8 +661,6 @@ def detect_premium_moves(
             })
     return out
 
-
-# ----------------------------------------------------------- coiling (pre-move)
 
 #: Spot range over the window, as % of spot, that counts as "tight".
 COIL_MAX_RANGE_PCT = 0.08
@@ -762,9 +750,6 @@ def detect_coiling(
 
 def _round2(v: float) -> float:
     return round(v, 2)
-
-
-# -------------------------------------------------------------------- news
 
 
 def _parse_ts(value: Any) -> Optional[float]:

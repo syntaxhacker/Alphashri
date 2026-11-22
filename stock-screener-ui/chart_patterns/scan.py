@@ -215,7 +215,6 @@ def _stored_scan_signature(prev: dict) -> Optional[str]:
 
 
 def _signature_matches(prev: dict) -> bool:
-    """True when a previous job's hits came from the current detector build."""
     current = _detector_signature()
     stored = _stored_scan_signature(prev)
     if not stored:
@@ -224,7 +223,6 @@ def _signature_matches(prev: dict) -> bool:
 
 
 def _reuse_age_sec(finished_at) -> Optional[int]:
-    """Seconds since ``finished_at`` (ISO str or datetime), else ``None``."""
     try:
         if isinstance(finished_at, str):
             finished = datetime.fromisoformat(finished_at)
@@ -256,7 +254,6 @@ def _resolve_min_bars(timeframe: str) -> int:
 
 
 def _normalize_universe(raw) -> tuple[list[str], dict[str, str]]:
-    """Return ``(symbols, name_by_symbol)`` from a variety of universe shapes."""
     symbols: list[str] = []
     names: dict[str, str] = {}
     for item in raw or []:
@@ -269,7 +266,6 @@ def _normalize_universe(raw) -> tuple[list[str], dict[str, str]]:
                 names[str(symbol).upper()] = item["name"]
         else:
             symbols.append(str(item).upper())
-    # de-dupe, preserve order
     seen = set()
     unique = []
     for s in symbols:
@@ -319,7 +315,6 @@ def _detect(df, timeframe: str, symbol: str):
 
 
 def _job_params(job: dict) -> dict:
-    """Params for a job, whether carried in-memory (``params``) or via DB."""
     params = job.get("params") if isinstance(job, dict) else None
     if isinstance(params, dict):
         return dict(params)
@@ -647,7 +642,6 @@ def run_job(job_id: str) -> None:
 
     try:
         if raw_symbols:
-            # Explicit symbol scope: run only these, no universe lookup.
             symbols, names = _normalize_universe(raw_symbols)
         else:
             symbols, names = _load_symbols(universe)
@@ -982,11 +976,9 @@ def run_job(job_id: str) -> None:
         _run_remaining(remaining)
     elif primary_failed and not cancelled and remaining:
         if mode == "processes":
-            # processes -> threads
             try:
                 cancelled = _run_subset_via_threads(remaining)
             except Exception as exc:
-                # threads -> sequential
                 logger.warning(
                     "scan %s: thread pool failed (%s); falling back to sequential",
                     job_id, exc,

@@ -83,9 +83,6 @@ _seen_minutes: dict[str, set[str]] = {}
 _contract_cache: dict[str, dict] = {}
 
 
-# --------------------------------------------------------------------------- #
-# paths
-# --------------------------------------------------------------------------- #
 def futures_dir() -> Path:
     return DATA_ROOT / DIRNAME
 
@@ -116,9 +113,6 @@ def _reset_state() -> None:
     common.reset_state(_status, _seen_minutes, _contract_cache)
 
 
-# --------------------------------------------------------------------------- #
-# pure helpers
-# --------------------------------------------------------------------------- #
 def is_sensex_futures(symbol: str) -> bool:
     """True only for the SENSEX index future (not SENSEX50)."""
     sym = str(symbol or "").strip().upper()
@@ -168,9 +162,6 @@ build_rows = common.build_rows
 _expiry_dates = common._expiry_dates
 
 
-# --------------------------------------------------------------------------- #
-# upstream
-# --------------------------------------------------------------------------- #
 _token = common.get_token
 _get_json = common.get_json
 
@@ -185,9 +176,6 @@ async def resolve_contract(today: str, token: str) -> Optional[dict]:
     return await common.resolve_contract(today, token, _runtime())
 
 
-# --------------------------------------------------------------------------- #
-# term snapshot
-# --------------------------------------------------------------------------- #
 async def record_term_snapshot(now: datetime) -> list[dict]:
     """ATM IV / max pain / PCR for the two nearest SENSEX option expiries."""
     return await common.record_term_snapshot(now, _SPEC)
@@ -198,9 +186,6 @@ async def _write_term(now: datetime) -> int:
     return await common.write_term(now, _runtime(), TERM_SNAPSHOT_SEC)
 
 
-# --------------------------------------------------------------------------- #
-# one tick
-# --------------------------------------------------------------------------- #
 def _local_spot(date_str: str) -> Optional[float]:
     """Latest SENSEX spot from the recorder's memory, then the on-disk report."""
     try:
@@ -248,9 +233,6 @@ async def record_tick(now: Optional[datetime] = None) -> dict:
     return await common.record_tick(now, _runtime())
 
 
-# --------------------------------------------------------------------------- #
-# background loop
-# --------------------------------------------------------------------------- #
 async def _tick() -> dict:
     return await common.run_tick(_runtime())
 
@@ -269,9 +251,6 @@ async def start_sensex_futures_task(interval_sec: Optional[float] = None) -> Non
                             ENABLED, _recorder_loop)
 
 
-# --------------------------------------------------------------------------- #
-# runtime
-# --------------------------------------------------------------------------- #
 def _claim_task(current: Optional[asyncio.Task]) -> bool:
     """Claim the single-writer slot; False when another loop already owns it."""
     global _task

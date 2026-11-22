@@ -182,9 +182,7 @@ class TestGetInstrumentKeysFallbacks:
     ):
         """When DB Position query returns empty positions, fall back to PaperTrader."""
         mock_db = MagicMock()
-        # Position query returns empty list
         mock_db.query.return_value.filter.return_value.all.return_value = []
-        # Instruments query resolves both symbols
         mock_db.execute.return_value.fetchall.return_value = [
             ("RELIANCE", "NSE_EQ|INE002A01018"),
             ("TCS", "NSE_EQ|INE123A01029"),
@@ -223,7 +221,6 @@ class TestGetInstrumentKeysFallbacks:
         mock_db.query.return_value.filter.return_value.all.return_value = [
             pos1, pos2
         ]
-        # Instruments table returns empty rows
         mock_db.execute.return_value.fetchall.return_value = []
         monkeypatch.setattr("db.database.SessionLocal", lambda: mock_db)
 

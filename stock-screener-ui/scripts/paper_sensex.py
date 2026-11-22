@@ -40,9 +40,6 @@ from scripts import upstox_common  # noqa: E402
 import config as root_config
 IST = root_config.IST
 
-# ---------------------------------------------------------------------------
-# paths / constants
-# ---------------------------------------------------------------------------
 DATA = Path(__file__).parent.parent / "experiments" / "data"
 POSITIONS_FILE = DATA / "paper_sensex_options.json"
 LOG_FILE = DATA / "paper_sensex_log.csv"
@@ -52,18 +49,16 @@ LOT_SIZE = 20
 INDEX_KEY = "BSE_INDEX|SENSEX"
 DEFAULT_EXPIRY = "2026-08-06"
 
-# --- strategy tuning ---
 ZONE_PTS = 50.0
 BREAK_BUFFER = 15.0
 CONFIRM_SAMPLES = 2
 TARGET_NET = 600.0
 SL_NET = -400.0
-TRAIL_TRIGGER = 400.0    # activate trailing once P&L reaches this (₹)
-TRAIL_DIST = 250.0       # trailing stop distance behind the peak (₹)
+TRAIL_TRIGGER = 400.0
+TRAIL_DIST = 250.0
 COOLDOWN_POLLS = 4
 MAX_OPEN = 1
 
-# --- strategy config registry (multi-strategy sweep) ---
 # Each entry is one named strategy config. Rule variants:
 #   all-rules      = support_bounce + resistance_reject + breakdown + breakout
 #   breakdown-only = only breakdown (PE) on down-days
@@ -79,7 +74,6 @@ def _mk(name, target, sl, trail_trigger, trail_dist, rules, trend_filter=True, *
             "rules": rules, "trend_filter": trend_filter, **kw}
 
 def strategy_configs():
-    """Curated ~24-30 configs spanning targets × SL × trail × rule variants."""
     cfgs = []
     for rules, tf, tag in [
         (ALL_RULES, True, "all"),
@@ -94,9 +88,6 @@ def strategy_configs():
                     cfgs.append(_mk(name, target, sl, t_trig, t_dist, rules, tf))
     return cfgs
 
-# ---------------------------------------------------------------------------
-# api helpers
-# ---------------------------------------------------------------------------
 def get_token() -> str:
     token = upstox_common.token()
     if not token:
@@ -124,7 +115,6 @@ VIX_KEY = "NSE_INDEX|India VIX"
 
 
 def fetch_vix(token: str | None = None) -> dict:
-    """Fetch India VIX (regime filter). Returns {open,high,low,close,last} or zeros."""
     j = _get("https://api.upstox.com/v2/market-quote/ohlc",
              {"instrument_key": VIX_KEY, "interval": "1d"}, timeout=15).json()
     if j.get("status") != "success" or not j.get("data"):
@@ -139,7 +129,6 @@ def fetch_vix(token: str | None = None) -> dict:
 
 
 def vix_regime(vix: float) -> str:
-    """Classify regime from India VIX: low=range/reversion, high=trend/momentum."""
     if vix <= 0:
         return "unknown"
     if vix < 13:
@@ -201,9 +190,6 @@ def get_contract_ltp(chain: dict, strike: float, opt_type: str, token: str | Non
     return 0.0
 
 
-# ---------------------------------------------------------------------------
-# position persistence
-# ---------------------------------------------------------------------------
 def load_positions() -> list:
     if POSITIONS_FILE.exists():
         return json.loads(POSITIONS_FILE.read_text())
@@ -219,9 +205,6 @@ def next_id(positions: list) -> int:
     return max([p["id"] for p in positions], default=0) + 1
 
 
-# ---------------------------------------------------------------------------
-# S/R levels
-# ---------------------------------------------------------------------------
 def pivot_levels(o, h, l, c, style: str = "classic") -> dict:
     pp = (h + l + c) / 3 if c else (h + l + o) / 3
     hl = h - l
@@ -292,11 +275,7 @@ def scan_levels(token: str | None = None, expiry: str = DEFAULT_EXPIRY) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# multi-day 1-min candle cache (for sweep)
-# ---------------------------------------------------------------------------
 def fetch_candles_range(from_date: str, to_date: str, token: str | None = None) -> list:
-    """Fetch SENSEX 1-min candles for a date range (Upstox V2 historical). Returns raw rows."""
     import urllib.parse
     token = token or get_token()
     key = urllib.parse.quote(INDEX_KEY, safe="")
@@ -308,7 +287,6 @@ def fetch_candles_range(from_date: str, to_date: str, token: str | None = None) 
 
 
 def cmd_fetch_candles(args):
-    """Fetch last N days of SENSEX 1-min candles into sensex_1m_cache/<date>.json."""
     CANDLE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     token = get_token()
     from_date = (datetime.now(IST) - timedelta(days=args.days)).strftime("%Y-%m-%d")
@@ -316,7 +294,6 @@ def cmd_fetch_candles(args):
     print(f"Fetching SENSEX 1-min candles {from_date} .. {to_date} ...", file=sys.stderr)
     rows = fetch_candles_range(from_date, to_date, token)
     rows.sort(key=lambda r: r[0])
-    # group by date
     by_day = {}
     for r in rows:
         d = r[0][:10]
@@ -332,7 +309,6 @@ def cmd_fetch_candles(args):
 
 
 def load_candle_days() -> list:
-    """Return sorted list of (date_str, candles_asc) from the cache."""
     if not CANDLE_CACHE_DIR.exists():
         return []
     days = []
@@ -356,7 +332,6 @@ def day_ohlc_from_candles(rows: list) -> dict:
 
 
 def oi_anchors_from_live(token=None) -> tuple:
-    """Approximate OI support/resistance from the live chain (res=high CE OI, sup=high PE OI)."""
     try:
         chain = fetch_chain(token=token)
         ce, pe = [], []
@@ -379,15 +354,13 @@ def oi_anchors_from_live(token=None) -> tuple:
         return 78500.0, 79000.0
 
 
-# ---------------------------------------------------------------------------
 # multi-day strategy sweep
-# ---------------------------------------------------------------------------
 # Option trading charges (NSE/BSE index options, premium-based, per lot):
 #   STT 0.1% on sell side only, brokerage 0.03% (min ₹20) both sides,
 #   exchange 0.03503% both sides, SEBI ₹10/crore, GST 18% on brk+exch+sebi,
 #   stamp 0.003% buy side. Charged on PREMIUM value (premium × lot).
 OPT_BROKERAGE_PCT = 0.0003
-OPT_STT_PCT = 0.001         # 0.1% on sell side (options)
+OPT_STT_PCT = 0.001
 OPT_EXCHANGE_PCT = 0.0003503
 OPT_SEBI_PCT = 0.000001
 OPT_STAMP_PCT = 0.00003
@@ -396,7 +369,6 @@ OPT_MIN_BROKERAGE = 20.0
 
 
 def option_costs(entry_premium: float, exit_premium: float, lot: int) -> float:
-    """Round-trip trading charges on a SENSEX option trade (premium value based)."""
     buy_val = entry_premium * lot
     sell_val = exit_premium * lot
     buy_brk = min(OPT_MIN_BROKERAGE, buy_val * OPT_BROKERAGE_PCT)
@@ -418,7 +390,6 @@ def run_day_sweep(cfg: dict, rows: list, oi_sup: float, oi_res: float,
                   target: float, sl: float, trail_trigger: float, trail_dist: float,
                   t_years: float, iv: float = 0.19, lot: int = LOT_SIZE,
                   cooldown_min: int = 5, include_costs: bool = True) -> dict:
-    """Replay one strategy config on one day's 1-min candles. Returns day metrics."""
     if not rows:
         return {"trades": 0, "net": 0.0, "wins": 0, "losses": 0, "max_dd": 0.0}
     day_ohlc = day_ohlc_from_candles(rows)
@@ -499,7 +470,7 @@ def run_day_sweep(cfg: dict, rows: list, oi_sup: float, oi_res: float,
         if decision.get("action") == "open":
             side = decision["side"]
             base = round(spot / 100) * 100
-            strike = base + (100 if side == "CE" else -100)  # strike just above/below spot
+            strike = base + (100 if side == "CE" else -100)
             premium = bs_premium(side, spot, strike, t_years, iv)
             pos = {"side": side, "strike": strike, "entry": spot, "premium": premium,
                    "time": hm, "peak": 0.0, "signal": decision.get("reason", "")}
@@ -514,7 +485,6 @@ def run_day_sweep(cfg: dict, rows: list, oi_sup: float, oi_res: float,
     wins = [t for t in trades if t["pnl"] > 0]
     losses = [t for t in trades if t["pnl"] <= 0]
     net = round(sum(t["pnl"] for t in trades), 2)
-    # max drawdown from cumulative P&L
     cum, peak, mdd = 0.0, 0.0, 0.0
     for t in trades:
         cum += t["pnl"]
@@ -525,7 +495,6 @@ def run_day_sweep(cfg: dict, rows: list, oi_sup: float, oi_res: float,
 
 
 def cmd_sweep(args):
-    """Multi-day backtest sweep over all strategy configs; rank by robustness."""
     days = load_candle_days()
     if not days:
         raise SystemExit("No candle cache. Run: python3 scripts/paper_sensex.py fetch-candles")
@@ -563,7 +532,6 @@ def cmd_sweep(args):
             "per_day": per_day,
         })
 
-    # rank by median day P&L (primary), then % profitable days
     results.sort(key=lambda r: (r["median_net"], r["pct_profitable_days"]), reverse=True)
 
     print(f"\n=== SENSEX STRATEGY SWEEP — {len(days)} days ({days[0][0]}..{days[-1][0]}) ===")
@@ -574,7 +542,6 @@ def cmd_sweep(args):
               f"{r['pct_profitable_days']:>5.0f} {r['total_net']:>9,.0f} {r['total_trades']:>4} "
               f"{r['win_rate']:>5.1f} {r['max_dd']:>8,.0f}")
 
-    # hold-out: last 2 days excluded -> confirm winner holds
     if len(days) > 3:
         hold = [r for r in results]
         print("\n=== HOLD-OUT CHECK (last 2 days) ===")
@@ -582,7 +549,6 @@ def cmd_sweep(args):
             hold_nets = [d["net"] for d in r["per_day"][-2:]]
             print(f"  {r['config']:<28} last-2-day net {sum(hold_nets):>+9,.0f}")
 
-    # save JSONL + trade logs
     sweep_json = DATA / f"paper_sensex_sweep_{datetime.now(IST).strftime('%Y-%m-%d')}.jsonl"
     with open(sweep_json, "w") as f:
         for r in results:
@@ -617,29 +583,23 @@ def cmd_sweep_live(args):
         _t.sleep(5 if args.follow else 30)
 
 
-# ---------------------------------------------------------------------------
-# strategy
-# ---------------------------------------------------------------------------
 class RangeStrategy:
     def __init__(self, **params):
         self._recent = []
         self._cooldown_until = 0
-        # exit params
         self.target_net = float(params.get("target", TARGET_NET))
         self.sl_net = float(params.get("sl", SL_NET))
         self.trail_trigger = float(params.get("trail_trigger", TRAIL_TRIGGER))
         self.trail_dist = float(params.get("trail_dist", TRAIL_DIST))
-        # entry params
         self.zone_pts = float(params.get("zone_pts", ZONE_PTS))
         self.break_buffer = float(params.get("break_buffer", BREAK_BUFFER))
         self.confirm_samples = int(params.get("confirm_samples", CONFIRM_SAMPLES))
         self.cooldown_polls = int(params.get("cooldown_polls", COOLDOWN_POLLS))
         self.max_open = int(params.get("max_open", MAX_OPEN))
-        # rule flags (which signals fire)
         self.rules = set(params.get("rules", ["support_bounce", "resistance_reject", "breakdown", "breakout"]))
         self.trend_filter = bool(params.get("trend_filter", True))
-        self._anchor_low = None   # fixed day-low anchor for breakdown (down-day)
-        self._anchor_high = None  # fixed day-high anchor for breakout (up-day)
+        self._anchor_low = None
+        self._anchor_high = None
 
     def _momentum(self, spot: float) -> float:
         if len(self._recent) < 2:
@@ -709,7 +669,6 @@ class RangeStrategy:
         mom = self._momentum(spot)
         trend = "down" if down_day else ("up" if up_day else "flat")
         extra = f"support={sup:,.0f} resistance={res:,.0f} maxpain={levels.get('max_pain',0):,.0f} trend={trend}"
-        # LONG-side rules only on an up/flat day
         if allow_long:
             if "support_bounce" in self.rules and spot <= sup_zone and mom >= 0 and self._consecutive_in_zone(lambda s: s <= sup_zone):
                 return {"action": "open", "side": "CE", "bias": "LONG",
@@ -717,7 +676,6 @@ class RangeStrategy:
             if "breakout" in self.rules and spot >= res_break and mom >= 0 and self._consecutive_in_zone(lambda s: s >= res_break):
                 return {"action": "open", "side": "CE", "bias": "LONG",
                         "reason": f"resistance BREAKOUT @ {spot:,.0f} (broke {res:,.0f})"}
-        # SHORT-side rules only on a down/flat day
         if allow_short:
             if "resistance_reject" in self.rules and spot >= res_zone and mom <= 0 and self._consecutive_in_zone(lambda s: s >= res_zone):
                 return {"action": "open", "side": "PE", "bias": "SHORT",
@@ -750,14 +708,7 @@ class RangeStrategy:
         return 0.0
 
 
-# ---------------------------------------------------------------------------
-# scalp strategy (momentum / range — OOS-validated)
-# ---------------------------------------------------------------------------
 class ScalpStrategy:
-    """Momentum or range scalp on 1-min SENSEX. OOS-validated configs:
-    momentum lb5 thr10 tgt300/sl150 (best OOS +857), range lb5 tgt300/sl150.
-    Needs the live spot series (fed each poll). target/sl are ₹ net per lot.
-    """
     def __init__(self, style="momentum", lookback=5, thr=10.0,
                  target=300.0, sl=-150.0, cooldown=2):
         self.style = style
@@ -831,9 +782,6 @@ class ScalpStrategy:
         return 0.0
 
 
-# ---------------------------------------------------------------------------
-# hero strategy (zero/hero trades — few, high-probability, big target)
-# ---------------------------------------------------------------------------
 class HeroStrategy:
     """Max-probability hero trades: very selective entries, wide SL, big target.
 
@@ -937,9 +885,6 @@ class HeroStrategy:
         return 0.0
 
 
-# ---------------------------------------------------------------------------
-# position commands
-# ---------------------------------------------------------------------------
 def cmd_chain(args):
     token = get_token()
     expiry = args.expiry or nearest_expiry(token)
@@ -1093,9 +1038,6 @@ def cmd_levels(args):
         print(f"  {s:,.0f}  PE OI {oi:,.0f}")
 
 
-# ---------------------------------------------------------------------------
-# check / force
-# ---------------------------------------------------------------------------
 def _zone(spot, lv):
     sup, res = lv["next_support"], lv["next_resistance"]
     if spot <= sup - BREAK_BUFFER:
@@ -1153,7 +1095,6 @@ def cmd_check(args):
 
 
 def cmd_force(args):
-    """Evaluate strategy NOW on live data; open if signaled (no poll wait)."""
     lv = scan_levels()
     positions = load_positions()
     open_count = sum(1 for p in positions if p["status"] == "OPEN")
@@ -1194,9 +1135,6 @@ def cmd_force(args):
                       "premium": premium, "reason": decision["reason"], "spot": spot}))
 
 
-# ---------------------------------------------------------------------------
-# monitor (poll loop with auto-close + optional strategy auto-entry)
-# ---------------------------------------------------------------------------
 def sample_once(ts, token, strategy=None, poll_index=0):
     positions = load_positions()
     spot = fetch_spot(token)
@@ -1213,16 +1151,13 @@ def sample_once(ts, token, strategy=None, poll_index=0):
             chain_cache[expiry] = fetch_chain(expiry, token)
         ltp = get_contract_ltp(chain_cache[expiry], p["strike"], p["type"], token)
         pnl = (ltp - p["premium"]) * p["qty"] * p["lot_size"]
-        # track peak P&L for trailing
         peak = p.get("peak_pnl") if p.get("peak_pnl") is not None else pnl
         if pnl > peak:
             p["peak_pnl"] = pnl
             peak = pnl
         reason = None
-        # fixed SL first
         if p.get("sl") is not None and pnl <= p["sl"]:
             reason = "SL"
-        # trailing: once past trigger, stop out if it gives back TRAIL_DIST from peak
         elif p.get("peak_pnl") is not None and p["peak_pnl"] >= TRAIL_TRIGGER:
             if pnl <= p["peak_pnl"] - TRAIL_DIST:
                 reason = "TRAIL"
@@ -1356,9 +1291,7 @@ def cmd_status(args):
         time.sleep(args.interval)
 
 
-# ---------------------------------------------------------------------------
 # top-5 horse-race (parallel virtual books, live)
-# ---------------------------------------------------------------------------
 TOP5 = [
     {"name": "momentum-lb5-t300", "type": "scalp", "style": "momentum", "lb": 5, "thr": 10, "target": 300, "sl": -150},
     {"name": "momentum-lb3-t500", "type": "scalp", "style": "momentum", "lb": 3, "thr": 10, "target": 500, "sl": -200},
@@ -1369,15 +1302,7 @@ TOP5 = [
 
 
 def cmd_top5(args):
-    """Run 5 strategies as parallel virtual books on live spot; log all trades to CSV.
-
-    Each strategy gets the same live spot each poll. Each keeps its own virtual
-    open position with target/SL (from its config). Every trade (open + close)
-    is appended to experiments/data/top5_live_<date>.csv so we can compare
-    live performance across the 5 OOS-validated strategies.
-    """
     import time as _t
-    # build strategies
     strats = []
     for s in TOP5:
         if s["type"] == "scalp":
@@ -1411,7 +1336,6 @@ def cmd_top5(args):
                         continue
                     _reason = _r.get("reason", "")
                     if _reason == "OPEN":
-                        # re-open the virtual position
                         _s["pos"] = {
                             "side": _r.get("side"), "strike": float(_r.get("strike", 0)),
                             "type": _r.get("side"), "premium": float(_r.get("premium", 0)),
@@ -1431,7 +1355,6 @@ def cmd_top5(args):
 
     stop_h, stop_m = (int(x) for x in args.until.split(":"))
     poll = 0
-    # day-open for the range strategy's levels
     ohlc = fetch_day_ohlc()
     day_open = ohlc["open"]
 
@@ -1499,7 +1422,6 @@ def cmd_top5(args):
                                     "strike": strike, "entry": round(spot, 2), "premium": round(premium, 2),
                                     "exit": "", "reason": "OPEN", "pnl": 0, "net_cum": round(s["net"], 2)})
 
-        # live board
         print(f"\n[{ts}] SENSEX {spot:,.0f}")
         print(f"{'strategy':<18} {'pos':>6} {'net':>10} {'trades':>7} {'W/L':>8}")
         for s in strats:
@@ -1512,9 +1434,7 @@ def cmd_top5(args):
     print(f"[top5] results -> {csv_path}")
 
 
-# ---------------------------------------------------------------------------
 # hero horse-race (zero/hero trades — few, high-probability, big target)
-# ---------------------------------------------------------------------------
 HERO5 = [
     {"name": "hero-bounce", "style": "prob-bounce", "target": 900.0, "sl": -600.0, "zone": 60},
     {"name": "hero-reject", "style": "prob-reject", "target": 900.0, "sl": -600.0, "zone": 60},
@@ -1545,7 +1465,6 @@ def cmd_hero(args):
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     write_hdr = not csv_path.exists()
 
-    # resume from today's CSV
     if csv_path.exists() and csv_path.stat().st_size > 0:
         try:
             with open(csv_path) as _f:
@@ -1602,7 +1521,7 @@ def cmd_hero(args):
                         reason = "SL"
                     elif pnl >= s["target"]:
                         reason = "TARGET"
-                    elif now.hour >= 15:  # expiry-aware EOD 15:00
+                    elif now.hour >= 15:
                         reason = "EOD"
                     if reason:
                         costs = option_costs(s["pos"]["premium"], ltp, LOT_SIZE)
@@ -1646,9 +1565,6 @@ def cmd_hero(args):
     print(f"[hero] results -> {csv_path}")
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(description="Paper SENSEX options — tracker + strategy + monitor (single script)")
     sub = parser.add_subparsers(dest="cmd", required=True)

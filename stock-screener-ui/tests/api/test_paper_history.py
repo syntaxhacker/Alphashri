@@ -73,9 +73,6 @@ def sample_trade():
     return trade
 
 
-# ============================================================================
-# Tests for resolve_bot_id (UUID/bot_id resolution)
-# ============================================================================
 
 @pytest.mark.unit
 @pytest.mark.slow
@@ -119,9 +116,6 @@ class TestResolveBotId:
         assert result is None
 
 
-# ============================================================================
-# Tests for trades endpoint with UUID bot_id
-# ============================================================================
 
 @pytest.mark.unit
 @pytest.mark.slow

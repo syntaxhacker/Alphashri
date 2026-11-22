@@ -1,13 +1,3 @@
-/**
- * Timeframe aggregation for the expanded report panes — pure, no React.
- *
- * The tape is one row per minute. Expanding a chart and switching to 5m/15m
- * must *aggregate* the same rows, not resample a rendered SVG:
- *  - volume fields are cumulative, so taking the LAST row of each bucket and
- *    diffing consecutive buckets gives the bucket's total (a true sum);
- *  - the cumulative flow line uses the bucket's last value (the bucket close);
- *  - the gamma regime uses that last value too.
- */
 
 export type TapeRange = 1 | 5 | 15;
 
@@ -17,12 +7,6 @@ export function tapeMinute(t: string): number | null {
 }
 
 /* ------------------------------------------------------------------ */
-/* Shared tape clock helpers (audit M2)                                 */
-/*                                                                      */
-/* The report modules each grew a private copy of the same three        */
-/* idioms — a chronological filter+sort, a clock→minute parser and a    */
-/* minute→HH:MM formatter. They live here so the parse and the label    */
-/* cannot drift apart between the tape, the flow strip and the bursts.  */
 /* ------------------------------------------------------------------ */
 
 /**
@@ -39,22 +23,10 @@ export function ascTapeByTime<T extends { t: string }>(
     .sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
 }
 
-/** Parse options for {@link hhmmToMinutes}. */
 export interface HhmmParseOpts {
-  /**
-   * Also accept a full ISO stamp: the date is peeled off at the first `T`,
-   * or at the first space when there is no `T` (`2026-10-26T11:30:00+05:30`,
-   * `2026-10-26 11:30`). Bare `HH:MM`/`HH:MM:SS` parse either way.
-   */
   iso?: boolean;
 }
 
-/**
- * Minutes-since-midnight for a tape timestamp. Accepts bare `HH:MM` and
- * `HH:MM:SS` (1–2 digit hours, 2-digit minutes); with `iso` a full stamp
- * is peeled to its clock first. Hours > 23 (`24:00` — no caller relies on
- * it) and minutes > 59 are rejected, as is anything unparseable → `null`.
- */
 export function hhmmToMinutes(t: string, opts?: HhmmParseOpts): number | null {
   if (!t) return null;
   let clock = t;
@@ -74,9 +46,7 @@ export function hhmmToMinutes(t: string, opts?: HhmmParseOpts): number | null {
   return h * 60 + min;
 }
 
-/** Format options for {@link minutesToHhmm}. */
 export interface HhmmFormatOpts {
-  /** Modulo 1440 first, so minute 1440 formats as `"00:00"` (day wrap). */
   wrap?: boolean;
 }
 

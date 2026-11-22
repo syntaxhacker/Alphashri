@@ -1,13 +1,4 @@
 #!/usr/bin/env python
-"""November 2026 replay page: our signal vs Austin Silver's posted trades.
-
-Data: NQ=F from yfinance (1m for the last 7 days, 5m for the month).
-Our rule: premarket-120 fade -> NY VWAP target, stop 30 beyond the sweep,
-entries <= 10:30 (the variant that best matched his charts).
-His trades: transcribed from the chart images (Oct-Nov posts).
-
-  .venv/bin/python scripts/research/double_vwap/nov_replay.py
-"""
 from __future__ import annotations
 
 import json
@@ -26,7 +17,6 @@ OUTDIR = os.path.join(S.OUTDIR, "november")
 CUT = 10 * 60 + 30
 BUF = 30.0
 
-# transcribed from the chart images; exit None = not annotated
 HIS = {
     "2026-11-06": [
         dict(leg="DB short", side=-1, entry=27282.50, exit=None, t="10:15", note="double break, add below"),
@@ -67,7 +57,6 @@ def load_yf():
 
 
 def our_trade(d):
-    """His first entry: fade the premarket break, target the NY VWAP, stop +30."""
     w = F.window_range(d, "pre", 120)
     if not w:
         return None
@@ -128,7 +117,7 @@ def main():
     for tag in ("1m", "5m"):
         for d in S.build_days(raw[tag]):
             key = str(d.date)
-            if key not in days or tag == "1m":   # prefer 1m
+            if key not in days or tag == "1m":
                 days[key] = (d, tag)
     sessions = []
     for key in sorted(days):

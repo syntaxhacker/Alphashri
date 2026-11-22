@@ -62,7 +62,6 @@ def _minute_gap(a: str, b: str) -> Optional[int]:
         return None
 
 
-
 def _top_wall(row: dict, side: str) -> tuple[Optional[float], float]:
     """``(strike, oi)`` of the biggest wall on ``side`` for this row."""
     walls = (row or {}).get("walls") or {}
@@ -182,7 +181,6 @@ def detect_structure_shifts(
             if comparable:
                 minute = _minute_key(row)
 
-                # ---- volume spikes (per side, vs trailing median) ----
                 for side, now_vol, before, hist in (
                     ("call", ce_vol, prev_ce_vol, ce_vol_hist),
                     ("put", pe_vol, prev_pe_vol, pe_vol_hist),
@@ -200,7 +198,6 @@ def detect_structure_shifts(
                              sev=_severity(mult, volume_spike_mult, 6.0),
                              dedupe=("volume_spike", side, minute[:13]))
 
-                # ---- max-pain drift ----
                 mp_prev = _f(prev.get("max_pain"))
                 mp_now = _f(row.get("max_pain"))
                 if (mp_prev and mp_now and abs(mp_now - mp_prev) >= level_move_pts
@@ -213,7 +210,6 @@ def detect_structure_shifts(
                          sev="alert" if abs(mp_now - mp_prev) >= 100 else "watch",
                          dedupe=("max_pain_drift", int(mp_now)))
 
-                # ---- walls: migration + flip ----
                 prev_cw, prev_cw_oi = _top_wall(prev, "calls")
                 prev_pw, prev_pw_oi = _top_wall(prev, "puts")
                 cw, cw_oi = _top_wall(row, "calls")
@@ -249,7 +245,6 @@ def detect_structure_shifts(
                          side="put", level=pw, magnitude=abs(pw - prev_pw),
                          sev="watch", dedupe=("wall_move", "put", pw))
 
-                # ---- spot losing / reclaiming the put wall ----
                 if prev_pw and spot and prev_spot:
                     if prev_spot >= prev_pw > spot:
                         loss = prev_pw - spot
@@ -267,7 +262,6 @@ def detect_structure_shifts(
                              sev=_severity(gain, 25.0, 75.0),
                              dedupe=("level_break", "up", prev_pw))
 
-                # ---- PCR regime change ----
                 p_now = _f(row.get("pcr_oi"))
                 if p_now:
                     if baseline_pcr is not None and abs(p_now - baseline_pcr) >= pcr_move:

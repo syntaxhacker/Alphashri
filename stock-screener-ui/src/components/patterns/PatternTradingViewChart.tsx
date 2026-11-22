@@ -35,15 +35,11 @@ export interface PatternTradingViewChartProps {
   overlays?: TVSiblingOverlay[];
   trendLines?: TrendLine[];
   trendlinesView?: TrendlinesView;
-  /** Last N hits (newest first) to draw as historical patterns. */
   historyHits?: PatternHitDTO[];
-  /** Pattern names (see `buildPatternTVData(...).lines[].name`) hidden from the chart. */
   hiddenNames?: ReadonlySet<string>;
   /** Fixed pixel height, or `"100%"` (default) to fill the flex parent. */
   height?: number | string;
-  /** IANA zone for axis/crosshair labels. Defaults to Asia/Kolkata (India). */
   timeZone?: string;
-  /** Market whose currency drives the axis/crosshair number locale. Defaults to India. */
   market?: ChartMarket;
 }
 
@@ -55,7 +51,6 @@ function clampWidth(w?: number): LineWidth {
 /** Stable empty set so the visibility effect never sees a new reference. */
 const EMPTY_HIDDEN: ReadonlySet<string> = new Set<string>();
 
-/** Candle scheme from the chart options, reused to fade a still-forming bar. */
 const CANDLE_UP = palette.MARKER_BORDER;
 const CANDLE_DOWN = palette.SCALE_BLUE[6] ?? palette.NEGATIVE;
 const PARTIAL_OPACITY = 0.4;
@@ -68,13 +63,6 @@ function visibleMarkers(markers: TVMarker[], hidden: ReadonlySet<string>): TVMar
   );
 }
 
-/**
- * TradingView (lightweight-charts v5) adapter that draws a detected
- * chart-pattern the same way the ECharts fullscreen does: real OHLCV candles +
- * volume, pattern boundary trendlines (selected solid, siblings dashed),
- * standalone TLS/TLR segments, horizontal breakout/target/stop levels, and
- * pivot markers. Pure mapping lives in `patternTVData.ts`.
- */
 export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
   let containerEl: HTMLDivElement | undefined;
   let overlayEl: HTMLCanvasElement | undefined;
@@ -106,10 +94,8 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
       historyHits: props.historyHits,
     }),
   );
-  // The mapper already reduces this to the newest flagged bar only.
   const partialTime = createMemo(() => data().candles.find((c) => c.isPartial)?.time ?? null);
 
-  // Create the chart once; data/overlays update in the effect below.
   onMount(() => {
     if (!containerEl) return;
     const initialHeight = containerEl.clientHeight || 360;
@@ -134,8 +120,6 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     });
     chart = created;
 
-    // Same default candle scheme as the paper-trading chart: white up bars,
-    // blue down bars (`TradingViewChart`'s default theme).
     const bull = CANDLE_UP;
     const bear = CANDLE_DOWN;
     const candles = created.addSeries(CandlestickSeries, {
@@ -356,9 +340,6 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
       // with the library's right-axis price-line titles (Breakout/Stop/Target).
       let bx = Math.max(0, Math.min(x - w - 6, Math.max(0, rect.width - w)));
       let by = Math.min(Math.max(y - h / 2, 0), Math.max(0, rect.height - h));
-      // Spread overlapping labels HORIZONTALLY first (same row, shifted left,
-      // then right) so a stack of patterns reads along one line; only fall
-      // back to a vertical step when the row is full.
       for (let guard = 0; guard < 12; guard++) {
         const clash = placed.some(
           (p) => bx < p.x + p.w && bx + w > p.x && by < p.y + p.h && by + h > p.y,

@@ -75,7 +75,6 @@ describe("Sparkline", () => {
     const svg = screen.getByTestId("spark-animate");
     const polyline = svg.querySelector("polyline");
     expect(polyline).toHaveAttribute("pathLength", "1");
-    // strokeDasharray/strokeDashoffset are set as SVG attributes via JSX props
     expect(polyline).toHaveAttribute("stroke-dasharray", "1");
     expect(polyline).toHaveAttribute("stroke-dashoffset", "1");
     expect(polyline).toHaveStyle({ animation: "wall-spark-draw 420ms cubic-bezier(.22,1,.36,1) forwards" });

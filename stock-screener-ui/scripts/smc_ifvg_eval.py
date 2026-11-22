@@ -37,7 +37,6 @@ def run_session(date, engines=None, from_ist=None, to_ist=None, verbose=True, ba
             cut = bars[0]["time"] - back_hours * 3600 if bars else 0
             pticks = [t for t in pticks if t["timestamp"] / 1000 >= cut]
             pbars = build_1m_bars(pticks)
-            # drop any overlap with session bars
             pbars = [b for b in pbars if not bars or b["time"] < bars[0]["time"]]
             start_idx = len(pbars)
             bars = pbars + bars

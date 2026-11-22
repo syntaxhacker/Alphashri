@@ -133,9 +133,6 @@ def _get(client, payload, query=""):
         return client.get("/api/market/snapshot" + query)
 
 
-# --------------------------------------------------------------------------- #
-# columns-v1
-# --------------------------------------------------------------------------- #
 
 def test_columns_reconstruct_the_json_rows(client):
     payload = _envelope()
@@ -216,9 +213,6 @@ def test_format_param_is_exposed_as_format(client):
     assert by_name["format"]["schema"]["default"] == "json"
 
 
-# --------------------------------------------------------------------------- #
-# default JSON is unchanged
-# --------------------------------------------------------------------------- #
 
 def test_default_json_is_unchanged(client):
     payload = _envelope()
@@ -239,9 +233,6 @@ def test_explicit_json_matches_default(client):
     assert "format" not in resp.json()
 
 
-# --------------------------------------------------------------------------- #
-# invalid format
-# --------------------------------------------------------------------------- #
 
 @pytest.mark.parametrize("bad", ["xml", "columnar", "columns-v2", "json,columns"])
 def test_unknown_format_is_400(client, bad):
@@ -256,9 +247,6 @@ def test_unknown_format_is_400(client, bad):
     build.assert_not_called()
 
 
-# --------------------------------------------------------------------------- #
-# encoded-body cache
-# --------------------------------------------------------------------------- #
 
 def _counted_encode():
     return patch("api.market_screen.router.dumps", wraps=dumps)
@@ -388,9 +376,6 @@ def test_filter_order_and_case_share_one_encoded_body(client):
     assert second.json()["total"] == 2
 
 
-# --------------------------------------------------------------------------- #
-# pure helpers
-# --------------------------------------------------------------------------- #
 
 def test_normalize_format_is_tolerant_but_strict_about_unknown():
     assert normalize_format(None) == "json"

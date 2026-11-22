@@ -11,7 +11,6 @@ import sys
 from pathlib import Path
 import pandas as pd
 
-# Add project root to path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -157,7 +156,6 @@ class TestBacktestStrategiesEndpoint:
         assert isinstance(strategies, list)
         assert len(strategies) >= 3  # orb, sr_breakout, 52w_chaser
 
-        # Check default strategy
         assert result['default'] == 'orb'
 
     def test_strategy_structure(self):
@@ -172,7 +170,6 @@ class TestBacktestStrategiesEndpoint:
             assert 'params' in strategy
             assert isinstance(strategy['params'], list)
 
-            # Check params structure
             for param in strategy['params']:
                 assert 'key' in param
                 assert 'label' in param
@@ -197,7 +194,6 @@ class TestBacktestStrategiesEndpoint:
         assert orb_strategy is not None
         param_keys = [p['key'] for p in orb_strategy['params']]
 
-        # Expected ORB parameters
         expected_params = ['or_minutes', 'timeframe', 'sl_pct', 'take_profit_pct', 'trade_size', 'cooldown_bars', 'enable_shorts']
         for param in expected_params:
             assert param in param_keys
@@ -269,12 +265,10 @@ class TestBacktestCostsEndpoint:
         assert 'total_costs' in costs
         assert 'breakdown' in costs
 
-        # Costs should be positive
         assert costs['buy_costs'] > 0
         assert costs['sell_costs'] > 0
         assert costs['total_costs'] > 0
 
-        # Total should equal sum of buy and sell
         assert costs['total_costs'] == costs['buy_costs'] + costs['sell_costs']
 
     def test_calculate_trading_costs_breakdown(self):
@@ -286,21 +280,18 @@ class TestBacktestCostsEndpoint:
         costs = calculate_trading_costs(entry_price, exit_price, quantity)
         breakdown = costs['breakdown']
 
-        # Check buy-side costs
         assert 'buy_brokerage' in breakdown
         assert 'buy_stamp_duty' in breakdown
         assert 'buy_exchange' in breakdown
         assert 'buy_sebi' in breakdown
         assert 'buy_gst' in breakdown
 
-        # Check sell-side costs
         assert 'sell_brokerage' in breakdown
         assert 'sell_stt' in breakdown
         assert 'sell_exchange' in breakdown
         assert 'sell_sebi' in breakdown
         assert 'sell_gst' in breakdown
 
-        # All costs should be non-negative
         for key, value in breakdown.items():
             assert value >= 0
 
@@ -308,12 +299,10 @@ class TestBacktestCostsEndpoint:
         """Test estimation function for average trade cost."""
         from backtest.costs import estimate_avg_cost_per_trade
 
-        # Default trade value
         cost = estimate_avg_cost_per_trade()
         assert cost > 0
         assert cost < 100  # Should be reasonable
 
-        # Larger trade
         cost_large = estimate_avg_cost_per_trade(100000)
         assert cost_large > cost
 
@@ -324,7 +313,6 @@ class TestBacktestCostsEndpoint:
         assert result['costs']
         assert 'updated' in result
 
-        # Verify updated timestamp is recent
         updated = datetime.fromisoformat(result['updated'])
         assert (datetime.now() - updated).total_seconds() < 1
 
@@ -444,10 +432,8 @@ class TestBacktestRunEndpoint:
 
         result = handle_run_backtest(body, progress_state)
 
-        # Should not have error
         assert 'error' not in result
 
-        # Check strategy was called
         mock_strategy_instance.run.assert_called_once()
 
     @patch('backtest.strategies.get_strategy')
@@ -458,7 +444,6 @@ class TestBacktestRunEndpoint:
         mock_strategy_instance.validate_params.return_value = []
 
         def run_with_progress(symbols, days, params, callback):
-            # Simulate progress updates
             if callback:
                 callback(0, 1, 'Starting...')
                 callback(1, 1, 'Complete')
@@ -484,7 +469,6 @@ class TestBacktestRunEndpoint:
 
         handle_run_backtest(body, progress_state)
 
-        # Progress should have been updated
         assert progress_state['current'] == 1
         assert progress_state['total'] == 1
         assert progress_state['message'] == 'Complete'
@@ -637,7 +621,6 @@ class TestBacktestResultsEndpoint:
         """Test getting results when no backtest has been run."""
         backtest_handler.backtest_cache = {}
 
-        # Simulate endpoint call
         result = {
             'results': backtest_handler.backtest_cache.get('results', []),
             'config': backtest_handler.backtest_cache.get('config', {})
@@ -763,7 +746,6 @@ class TestBacktestIntegration:
         mock_strategy_instance.run.return_value = mock_result
         mock_get_strategy.return_value = mock_strategy
 
-        # Step 1: Run backtest
         body = {
             'strategy': 'orb',
             'symbols': ['RELIANCE'],
@@ -775,15 +757,12 @@ class TestBacktestIntegration:
         assert 'error' not in run_result
         assert backtest_handler.backtest_cache
 
-        # Step 2: Check progress
         progress_result = backtest_handler.handle_request('GET', '/api/backtest/progress', {})
         assert progress_result['running'] is False  # Should be complete
 
-        # Step 3: Get results
         results_result = backtest_handler.handle_request('GET', '/api/backtest/results', {})
         assert len(results_result['results']) > 0
 
-        # Step 4: Get chart data
         with patch('backtest.api.build_chart_data_for_symbol') as mock_build:
             mock_build.return_value = {'candles': [], 'trades': []}
             chart_result = backtest_handler.handle_request('GET', '/api/backtest/chart/RELIANCE', {})

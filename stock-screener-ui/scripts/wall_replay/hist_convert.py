@@ -49,14 +49,14 @@ SRC_DIRS = [USB / "nifty-20260627T130953Z-3-001" / "nifty",
             USB / "nifty-20260627T130953Z-3-002" / "nifty"]
 RATE = 0.065
 MIN_STRIKES = 20
-MAX_DTE = 10          # front weekly expiry is at most a week away
+MAX_DTE = 10
 DATE_FLOOR = "2024-09-27"
 
 
 def folders() -> dict[str, Path]:
     """expiry -> folder, preferring the -002 copy (more contracts)."""
     out: dict[str, Path] = {}
-    for base in reversed(SRC_DIRS):          # -001 first, then -002 overrides
+    for base in reversed(SRC_DIRS):
         if not base.exists():
             continue
         for p in sorted(base.iterdir()):
@@ -113,7 +113,6 @@ def read_contract(path: str) -> tuple[int, str, dict[tuple[str, str], tuple]]:
 
 
 def build_chain(strike_rows: dict[tuple[int, str], dict[str, tuple]], minutes: list[str]) -> dict[str, dict]:
-    """Forward-fill prices/OI, cumulative volume, per minute."""
     chain: dict[str, dict[int, list[float]]] = {mm: {} for mm in minutes}
     strikes = sorted({k for k, _ in strike_rows})
     for k in strikes:
@@ -158,11 +157,9 @@ def spot_series(chain: dict[str, dict[int, list[float]]], minutes: list[str],
 
 
 def max_pain_np(strikes: np.ndarray, ce: np.ndarray, pe: np.ndarray) -> float:
-    """Standard max-pain over the whole chain (writer payout minimised)."""
     if strikes.size == 0:
         return 0.0
     k = strikes
-    # pain(K) = sum_{s<K}(K-s)ce(s) + sum_{s>K}(s-K)pe(s)
     ce_pre = np.concatenate(([0.0], np.cumsum(ce)))
     ce_strike_pre = np.concatenate(([0.0], np.cumsum(ce * k)))
     pe_suf = np.concatenate((np.cumsum((pe * k)[::-1])[::-1], [0.0]))
@@ -194,7 +191,6 @@ MINUTES = [f"{h:02d}:{m:02d}" for h in range(9, 16) for m in range(60)
 
 
 def convert_folder(expiry: str, folder: str, days: list[str]) -> list[tuple[str, dict | None]]:
-    """One pass over the folder; emit every assigned session."""
     allrows: dict[tuple[int, str], dict[tuple[str, str], tuple]] = {}
     for f in glob.glob(os.path.join(folder, "*.csv")):
         k, opt, rows = read_contract(f)

@@ -6,20 +6,14 @@ import { LocalCompactPanel, LocalCompactStat, LocalEmptyState } from "./reportBi
 import type { NiftyReference, NiftyRegimeBlock, NiftyTape, NiftyTapeRow } from "@/types/niftyReport";
 import type { ReplayCandle } from "@/types/replay";
 
-/** Rendered for any absent/null field so a stat never shows a blank/NaN. */
 export const IV_DASH = "—";
 
-/**
- * Tolerant numeric coercion: `null`/`undefined`/empty-string are absent (not
- * zero), so a dead ATM leg is skipped instead of counted as premium 0.
- */
 function numOrNull(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
 
-/** Exact average of the present values (callers guarantee at least one). */
 function mean(values: number[]): number {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
@@ -51,11 +45,6 @@ export function buildStraddleSeries(rows: NiftyTapeRow[]): StraddlePoint[] {
   return out;
 }
 
-/**
- * Rolling ATM IV % per tape row — the average of the two ATM leg IVs. Rows
- * where both legs are missing are skipped; when only one leg carries an IV,
- * that leg's value is used.
- */
 export function buildIvSeries(rows: NiftyTapeRow[]): IvPoint[] {
   const out: IvPoint[] = [];
   for (const r of rows ?? []) {
@@ -70,19 +59,16 @@ export function buildIvSeries(rows: NiftyTapeRow[]): IvPoint[] {
   return out;
 }
 
-/** Last row's non-null average ATM IV, or `null` when the tape had none. */
 function lastAtmIv(rows: NiftyTapeRow[]): number | null {
   const series = buildIvSeries(rows);
   return series.length ? series[series.length - 1].iv : null;
 }
 
-/** Last row's usable straddle premium (`ce + pe`), or `null`. */
 function lastStraddle(rows: NiftyTapeRow[]): number | null {
   const series = buildStraddleSeries(rows);
   return series.length ? series[series.length - 1].straddle : null;
 }
 
-/** ISO timestamp or bare `HH:MM[:SS]` → `HH:MM`; falls back to the raw string. */
 export function formatIvTime(t: string | null | undefined): string {
   const raw = String(t ?? "").trim();
   if (!raw) return IV_DASH;

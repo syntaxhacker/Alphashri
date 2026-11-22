@@ -7,7 +7,6 @@ import type { PatternHitDTO } from "@/types/chartPatterns";
 
 const pagePropsCapture = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
 
-// Store-shape mock: the container subscribes to the chart-patterns store
 vi.mock("@/state/chartPatterns", () => ({
   subscribe: vi.fn(() => () => {}),
   getChartPatternsState: vi.fn(),

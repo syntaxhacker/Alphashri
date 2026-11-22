@@ -1,5 +1,3 @@
-"""Upstox order-flow adapter (wraps the existing full-mode streamer helpers)."""
-
 from typing import Optional
 
 from api.broker_hub.adapters.base import OrderFlowAdapter, register_adapter

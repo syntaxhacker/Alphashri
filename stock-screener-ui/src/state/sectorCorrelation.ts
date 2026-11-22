@@ -1,7 +1,3 @@
-/**
- * Sector Correlation state management
- */
-
 import { createSubscriber } from "./createSubscriber";
 import { asApiError, isAbortError, type ApiError } from "../api/apiError";
 import { fetchSectorCorrelation } from "../api/sectorCorrelation";

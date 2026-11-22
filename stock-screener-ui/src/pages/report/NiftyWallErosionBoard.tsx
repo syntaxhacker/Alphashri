@@ -30,7 +30,6 @@ import { REPORT_FONT, REPORT_RADIUS } from "./reportTokens";
 /** Row height (px). The body is exactly two of these plus the 2 row borders. */
 const ROW_H = 24;
 
-/** Header slots keep a fixed box so a missing regime/flip never resizes the bar. */
 const REGIME_SLOT_W = 60;
 const REGIME_SLOT_H = 16;
 const FLIP_SLOT_W = 72;
@@ -41,7 +40,6 @@ const RIGHT_GROUP_W = 150;
 const SPARK_W = 54;
 const SPARK_H = 12;
 
-/** Flow text is the longest field; cap it and ellipsize instead of wrapping. */
 const FLOW_MAX_W = 132;
 /** Fuel text keeps a reserved column so its box never nudges the row. */
 const FUEL_MIN_W = 86;

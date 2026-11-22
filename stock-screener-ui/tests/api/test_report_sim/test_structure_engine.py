@@ -41,9 +41,6 @@ def buy_ce(**kw) -> ExecSpec:
     return spec([LegSpec("BUY", "CE", "ATM")], **kw)
 
 
-# --------------------------------------------------------------------------
-# No lookahead
-# --------------------------------------------------------------------------
 def test_entry_fills_on_the_next_bar_not_the_signal_bar():
     ticks = [
         tick("09:30", 24900, {24900: (999.0, 999.0)}),
@@ -107,9 +104,6 @@ def test_unpriced_entry_leg_is_skipped():
     assert result.trades == []
 
 
-# --------------------------------------------------------------------------
-# Exit priority
-# --------------------------------------------------------------------------
 def test_target_is_not_taken_on_the_fill_bar():
     ticks = [
         tick("09:35", 24900, {24900: (100.0, 90.0)}),
@@ -173,9 +167,6 @@ def test_max_hold_exits_on_the_clock():
     assert trade["holdMin"] == pytest.approx(5.0)
 
 
-# --------------------------------------------------------------------------
-# Marks
-# --------------------------------------------------------------------------
 def test_dead_leg_carries_its_last_price_and_never_uses_the_new_atm():
     ticks = [
         tick("09:35", 24900, {24900: (100.0, 90.0)}),
@@ -211,9 +202,6 @@ def test_open_position_is_marked_at_the_as_of_tick():
     assert result.equity[-1]["pnl"] == pytest.approx(30 * 65)
 
 
-# --------------------------------------------------------------------------
-# Costs, ledger, multi-spec
-# --------------------------------------------------------------------------
 def test_costs_reduce_net_pnl_but_not_gross():
     ticks = [
         tick("09:35", 24900, {24900: (100.0, 90.0)}),

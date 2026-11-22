@@ -14,7 +14,6 @@
 import { SESSION_START_MIN, DERIVATIVES_CLOSE_MIN, DERIVATIVES_SESSION_MINUTES } from "../../utils/marketClock";
 /** Last recorded minute of the derivatives session: 15:39 IST. */
 export const SESSION_END_MIN = DERIVATIVES_CLOSE_MIN - 1;
-/** Derivatives session length in minutes: 09:15 → 15:40 = 385 minutes. */
 export const SESSION_MINUTES = DERIVATIVES_SESSION_MINUTES;
 export { SESSION_START_MIN };
 
@@ -28,18 +27,13 @@ interface ReplayGap {
 
 export interface ReplayCoverage {
   sessionMinutes: number;
-  /** Distinct in-session minutes that have a frame. */
   recorded: number;
-  /** sessionMinutes − recorded. */
   missing: number;
-  /** 0–100, one decimal (0.8 for 3/385). */
   pct: number;
   firstMin: number | null;
   lastMin: number | null;
-  /** Missing runs across the whole session, including before/after the frames. */
   gaps: ReplayGap[];
   largestGap: ReplayGap | null;
-  /** Minutes skipped between frame i and i+1 (0 = contiguous). */
   stepMissing: number[];
 }
 

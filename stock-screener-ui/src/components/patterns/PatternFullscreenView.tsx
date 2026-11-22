@@ -25,22 +25,15 @@ export interface PatternFullscreenViewProps {
    * its parent (`height: 100%`) — the caller owns width/position.
    */
   docked?: boolean;
-  /** Docked mode only: promote the rail to the fullscreen modal. */
   onMaximize?: () => void;
-  /** Docked mode only: step to the previous / next result in the sequence. */
   onPrev?: () => void;
   onNext?: () => void;
-  /** Docked mode only: human position label, e.g. `3 / 48`. */
   positionLabel?: string;
-  /** Docked mode only: leave replay mode and return to live data. */
   onLive?: () => void;
-  /** Symbol when no hit is loaded yet (preview title). */
   symbol?: string | null;
   hit: PatternHitDTO | null;
   candles: ChartCandle[];
-  /** Detected patterns for the symbol (newest-first single-select list). */
   hits?: PatternHitDTO[];
-  /** Switch the chart to the selected single pattern (replaces the active hit). */
   onSelectHit?: (hit: PatternHitDTO) => void;
   /**
    * Kept for API compatibility; the parent passes an empty list so only the
@@ -52,52 +45,25 @@ export interface PatternFullscreenViewProps {
    * back to the hit's own `trend_lines` when absent/empty.
    */
   trendLines?: TrendLine[];
-  /** View-only filter for standalone support/resistance lines. */
   trendlinesView?: TrendlinesView;
-  /**
-   * Active fullscreen timeframe. When set together with `onTimeframeChange`
-   * the toolbar renders a Timeframe selector that re-runs detection on that
-   * timeframe.
-   */
   timeframe?: string | null;
   /** Timeframe ladder for the selector (falls back to the contract ladder). */
   timeframes?: TFSpec[];
-  /** Re-fetch the symbol chart + live hits on the newly selected timeframe. */
   onTimeframeChange?: (timeframe: string) => void;
-  /** Small loading state shown next to the selector while the TF reloads. */
   loading?: boolean;
-  /**
-   * As-of replay cutoff (ISO local datetime, null = live). When set together
-   * with `onAsOfChange` the toolbar renders From/To replay inputs plus an
-   * as-of banner, and the chart is re-fetched truncated at the cutoff.
-   */
   asOf?: string | null;
-  /** Replay window start (ISO local datetime, null = any). */
   fromDate?: string | null;
-  /** Re-fetch the chart truncated at the new as-of cutoff / window. */
   onAsOfChange?: (asOf: string | null, fromDate: string | null) => void;
   /** Chart endpoint failure code (`no_data`, `fetch_timeout`, …). */
   chartError?: string | null;
-  /** Human-readable reason shown when the chart has no candles. */
   chartNote?: string | null;
   /** Live quote from the market snapshot; the LTP line is omitted when null. */
   livePrice?: number | null;
-  /** Day change % paired with `livePrice`. */
   liveChange?: number | null;
   /** Re-fetch the symbol chart, bypassing the in-memory chart cache. */
   onRefresh?: () => void;
 }
 
-/**
- * Full-page chart for inspecting a pattern at a readable size: real candles,
- * boundary trendlines, pivot markers, plus zoom/pan on an 80/20 split with a
- * narrow meta panel on the right. Stacks vertically below `lg`.
- *
- * The toolbar and body are shared with the `/chart/:symbol` page
- * (`PatternChartToolbar` / `PatternChartBody`); this component only owns the
- * fullscreen modal chrome. The TV chart is mounted only while open so
- * lightweight-charts initialises against a live ref.
- */
 export function PatternFullscreenView(props: PatternFullscreenViewProps) {
   const title = () =>
     props.hit

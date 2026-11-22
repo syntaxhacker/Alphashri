@@ -57,8 +57,6 @@ function formatPatternTooltip(params: unknown, market?: ChartMarket): string {
         const [o, c, l, h] = p.value as number[];
         value = `O ${o}  H ${h}  L ${l}  C ${c}`;
       } else if (p.seriesType === "scatter" && Array.isArray(p.value)) {
-        // Pivot markers plot as [categoryIndex, price]; show the price at the
-        // marker's readable date (the tooltip header) instead of raw indices.
         value = formatChartPrice(Number((p.value as number[])[1]), market);
       } else if (Array.isArray(p.value)) {
         value = (p.value as unknown[]).join(" / ");
@@ -73,9 +71,7 @@ function formatPatternTooltip(params: unknown, market?: ChartMarket): string {
 
 /** An overlay trendline bundle, optionally carrying instance identity. */
 export type SiblingOverlay = PatternOverlay & {
-  /** Instance start date — distinguishes two instances of the same pattern. */
   start_date?: string | null;
-  /** Opaque instance key, when the backend supplies one. */
   instanceKey?: string | null;
 };
 
@@ -83,13 +79,7 @@ export interface PatternChartOptionInput {
   candles: ChartCandle[];
   trendlines?: Trendline[];
   hit?: PatternHitDTO | null;
-  /**
-   * All detected patterns for the symbol. Every sibling pattern's boundaries are
-   * drawn dashed so the full sequence of structures is visible (the selected one
-   * stays solid in the highlighted colours).
-   */
   overlays?: SiblingOverlay[];
-  /** Pattern id of the selected hit, excluded from the dashed siblings. */
   selectedPatternId?: string;
   /**
    * Instance identity of the selected hit. Siblings are skipped only when they
@@ -97,26 +87,12 @@ export interface PatternChartOptionInput {
    * every other instance of the same pattern was hidden as a "duplicate".
    */
   selectedStartDate?: string | null;
-  /** Opaque selected instance key (preferred when the backend supplies one). */
   selectedInstanceKey?: string | null;
-  /** Compact = card sparkline (no axes/tooltip/legend/zoom). */
   compact?: boolean;
-  /**
-   * View-only filter for standalone support/resistance lines: `"both"`
-   * (default) draws both kinds, `"support"`/`"resistance"` draws one kind,
-   * `"none"` draws none.
-   */
   trendlinesView?: TrendlinesView;
-  /**
-   * Standalone support/resistance lines to draw. Defaults to the hit's own
-   * `trend_lines` when omitted.
-   */
   standaloneTrendLines?: TrendLine[];
-  /** Full = drill-down / fullscreen (axes, tooltip, legend, level guides). */
   showZoom?: boolean;
-  /** Larger fonts/margins for the fullscreen view. */
   large?: boolean;
-  /** Quote market for the pivot tooltip price (`usa` → `$`, default `india` → `₹`). */
   market?: ChartMarket;
 }
 
@@ -202,7 +178,6 @@ export function buildPatternChartOption({
     if (!selectedId || overlay.pattern_id !== selectedId) return false;
     if (selectedKey != null) return overlay.instanceKey === selectedKey;
     const overlayStart = overlay.start_date ?? null;
-    // Both sides carry a start date → skip only the matching instance.
     if (selectedStart != null && overlayStart != null) return overlayStart === selectedStart;
     // Selected side has identity but the overlay doesn't (legacy payload):
     // keep the sibling visible rather than hiding a possibly different instance.
@@ -232,9 +207,6 @@ export function buildPatternChartOption({
   }
 
   const legendData: string[] = [];
-  // Two sibling instances can share a display name ("Rising Wedge" twice). ECharts
-  // merges same-named series in the legend/tooltip, so disambiguate repeats with
-  // a suffix while the first instance keeps the clean readable name.
   const nameCounts = new Map<string, number>();
   groups.forEach((group, index) => {
     const mapped = axis.mapTrendlines(group.lines);
@@ -244,8 +216,6 @@ export function buildPatternChartOption({
     nameCounts.set(group.name, seen + 1);
     const seriesName = seen === 0 ? group.name : `${group.name} (${seen + 1})`;
     mapped.forEach((points, lineIndex) => {
-      // A degenerate single-point trendline draws nothing as a line — dot-mark
-      // it so the structure is still visible instead of silently vanishing.
       const singlePoint = points.length <= 1;
       series.push({
         type: "line",
@@ -287,16 +257,11 @@ export function buildPatternChartOption({
     if (!legendData.includes(seriesName)) legendData.push(seriesName);
   });
 
-  // Auto-computed standalone support/resistance lines (`trend_lines`): one
-  // straight start→end segment per line, drawn above the candles. View-only —
-  // `trendlinesView` only controls which kinds are painted, never which
-  // symbols/patterns match.
   const visibleStandalone = resolveVisibleStandalone(standaloneTrendLines, hit, trendlinesView);
   visibleStandalone.forEach((line) => {
     const mapped = axis.mapStandaloneLine(line);
     if (!mapped) return;
     const { name, color, points } = mapped;
-    // A degenerate single-point line draws nothing as a line — dot-mark it.
     const singlePoint = points.length <= 1;
     series.push({
       type: "line",
@@ -313,8 +278,6 @@ export function buildPatternChartOption({
         type: "solid",
         opacity: singlePoint ? 0 : 1,
       },
-      // Inline touch count at the end of the line, matching the boundary
-      // end-label style (suppressed on compact sparklines like all labels).
       endLabel: !compact
         ? {
             show: true,
@@ -334,9 +297,6 @@ export function buildPatternChartOption({
     if (!compact && !legendData.includes(name)) legendData.push(name);
   });
 
-  // Swing pivots that define the pattern: up/down triangles at their real
-  // timestamp mapped onto the category axis (full charts only — card sparklines
-  // stay clean). Highs are red pointing down; lows green pointing up.
   const pivotMarkers: Array<{ index: number; price: number; kind: "high" | "low" }> = [];
   if (!compact && hit?.pivots?.length && times.length > 0) {
     hit.pivots.forEach((pivot) => {

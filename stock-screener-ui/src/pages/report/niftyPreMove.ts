@@ -1,15 +1,5 @@
 import { indexAgo, premiumResidual, rollingRead, type OiPoint } from "./niftyFlowRead";
 
-/**
- * Pre-move score — the positioning read that precedes a squeeze.
- *
- * On 2026-10-26 the 13:19 call squeeze was visible 7 minutes early in the 10 s
- * chain (put writing 13:12:48 → call buying 13:16:56) while every price/volume
- * trigger stayed quiet. The blasts confirm; this score arms.
- *
- * Pure: no React, no clock, no network. The caller owns the "held for 2 reads"
- * gate and the alert cooldown.
- */
 
 export interface PreMoveTapeRow {
   t: string;
@@ -17,13 +7,9 @@ export interface PreMoveTapeRow {
 }
 
 export interface PreMoveInput {
-  /** 10 s chain summaries (newest last). */
   points: OiPoint[];
-  /** 1-minute tape rows (newest last) — only GEX is read. */
   rows?: PreMoveTapeRow[];
-  /** Pressure series ratios (RVOL). */
   pressure?: { lastRatio?: number; last3Ratio?: number } | null;
-  /** Session vol block: IV/RV > 1.2 means premium is rich, don't chase. */
   regime?: { rv?: number | null; iv?: number | null } | null;
 }
 
@@ -39,7 +25,6 @@ export interface PreMoveScore {
   max: number;
   state: "armed" | "watch" | "quiet";
   components: PreMoveComponent[];
-  /** Positive components in plain English, e.g. ["puts sold 2m", "calls bought"]. */
   reasons: string[];
 }
 
@@ -48,7 +33,6 @@ import type { PreMovePoint } from "./niftyPreMoveHistory";
 export const PREMOVE_ARMED = 5;
 export const PREMOVE_WATCH = 3;
 
-/** "Put writing persists" is a 5-minute question, not a 2-minute one. */
 const STREAK_SAMPLES = 30;
 const STREAK_MIN = 8;
 
@@ -56,14 +40,6 @@ function readAt(points: OiPoint[], i: number) {
   return rollingRead(points, i);
 }
 
-/**
- * Seed the history from the 10 s window the API already returns (15 min).
- *
- * Only the 10 s components are replayed (put writing / call build / premium):
- * GEX and RVOL are 1-minute series and would need a per-prefix rebuild. That
- * still captures the arming sequence — on 2026-10-26 those three alone scored
- * 5/9 at 13:10, nine minutes before the blast.
- */
 export function seedPreMoveHistory(points: OiPoint[]): PreMovePoint[] {
   const out: PreMovePoint[] = [];
   if (!points || points.length < 10) return out;
@@ -90,7 +66,6 @@ export function scorePreMove(input: PreMoveInput): PreMoveScore {
 
   const last = points.length - 1;
 
-  // 1) Put writing persists: enough of the last 5 minutes reads "puts sold".
   let putSold = 0;
   let samples = 0;
   for (let i = Math.max(0, last - STREAK_SAMPLES + 1); i <= last; i++) {

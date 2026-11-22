@@ -16,23 +16,18 @@ const PUT_NOW_X = PANEL_W + CENTER_W;
 const PUT_PLOT_X = PUT_NOW_X + NOW_W;
 const TOTAL_W = PUT_PLOT_X + PLOT_W;
 
-/** Red = erosion, green = build; brighter = larger move. */
 const deltaFill = (value: number | null | undefined): string => {
   if (value == null || !Number.isFinite(value) || value === 0) return palette.SURFACE;
-  // Saturate at a 35% move so the ordinary 10-20% wall erosion is clearly
-  // visible; the old 50% ceiling left most of the map looking near-black.
   const magnitude = Math.min(1, Math.abs(value) / 0.35);
   return alpha(value < 0 ? palette.NEGATIVE : palette.POSITIVE, 0.2 + 0.7 * magnitude);
 };
 
-/** Absolute OI-change scale: size-aware, so a 50K row cannot shout like a 10M wall. */
 const oiFill = (change: number, maxAbs: number): string => {
   if (!Number.isFinite(change) || change === 0 || maxAbs <= 0) return palette.SURFACE;
   const magnitude = Math.min(1, Math.abs(change) / maxAbs);
   return alpha(change < 0 ? palette.NEGATIVE : palette.POSITIVE, 0.2 + 0.7 * magnitude);
 };
 
-/** Equal-row ladder: interpolate the spot/max-pain line between strikes. */
 const strikeY = (value: number | null | undefined, strikes: number[]): number => {
   if (value == null || !Number.isFinite(value) || strikes.length === 0) return HEADER_H + ROW_H / 2;
   const top = strikes[0];

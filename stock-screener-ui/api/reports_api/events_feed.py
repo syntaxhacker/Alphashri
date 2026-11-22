@@ -370,10 +370,6 @@ def clear_cache() -> None:
         pass
 
 
-# --------------------------------------------------------------------------
-# Market regime: Nifty 50 close vs its 20-day moving average (``regime_long_ok``).
-# --------------------------------------------------------------------------
-
 _REGIME_SYMBOL = "^NSEI"
 _REGIME_NAME = "NIFTY 50"
 _REGIME_WINDOW = 20

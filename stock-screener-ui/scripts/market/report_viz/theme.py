@@ -1,10 +1,3 @@
-"""Palette access for the static reports.
-
-``src/ui/palette.ts`` is the product's single colour source.  Reports are
-generated Python, so this module reads the anchors/scales from that file at
-runtime instead of keeping a second hex list.  If the file is unavailable a
-small documented fallback keeps a report buildable.
-"""
 
 from __future__ import annotations
 
@@ -78,7 +71,6 @@ def palette() -> dict[str, Any]:
 
 
 def palette_css() -> str:
-    """CSS custom properties consumed by ``assets/core.css``."""
     p = palette()
     return "\n".join(
         [

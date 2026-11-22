@@ -3,29 +3,10 @@ import type { AlertSeverity, MarketAlert } from "@/components/notifications/Mark
 import type { NiftyBurstNews, NiftyTapeRow } from "@/types/niftyReport";
 import { clockLabel, hhmmToMinutes, minutesToHhmm } from "./tapeRange";
 
-/**
- * Nifty OI-burst detection — pure, client-side, no store.
- *
- * The tape's `call_doi`/`put_doi` are CUMULATIVE from the day's first row, so a
- * burst is the FIRST DIFFERENCE between consecutive minutes, not the headline
- * number:
- *     dCall(i) = call_doi(i) − call_doi(i−1)
- *     dPut(i)  = put_doi(i)  − put_doi(i−1)
- *
- * A minute is "unusual" when its |d| dwarfs the trailing typical |d| for the
- * same side. The baseline is a robust MEDIAN (not mean) over the previous
- * window of minutes, so a single earlier burst can't hide the next one.
- * Everything is scored per side, so a big call burst and a big put burst in
- * the same minute are two separate events.
- */
 
-/** Trailing minutes used for the per-side baseline. */
 export const OI_BURST_WINDOW = 10;
-/** Absolute floor (contracts) — kills pre-open / thin-book noise. */
 export const OI_BURST_MIN_ABS = 2_000;
-/** Minimum prior minutes before scoring starts (no baseline = no alert). */
 export const OI_BURST_WARMUP = 3;
-/** score = |d| ÷ baseline → severity. */
 export const OI_BURST_TIERS: Record<AlertSeverity, number> = {
   watch: 3,
   alert: 5,
@@ -35,10 +16,8 @@ export const OI_BURST_TIERS: Record<AlertSeverity, number> = {
 
 export interface MinuteDoi {
   t: string;
-  /** OI contracts added this minute (can be negative = unwinding). */
   dCall: number;
   dPut: number;
-  /** Cumulative-from-open ΔOI at this minute. */
   callDoi: number;
   putDoi: number;
   spot: number;
@@ -48,15 +27,10 @@ export interface MinuteDoi {
 
 /** The level the underlying closed beyond, and the direction (backend). */
 export interface OiStructure {
-  /** The level that was closed beyond (e.g. 22,697). */
   level: number;
-  /** Direction of the break. */
   direction: "up" | "down";
-  /** What kind of level it was. */
   kind?: "day_high" | "day_low" | "pivot" | "wall" | "max_pain" | "other";
-  /** The confirming close. */
   close?: number;
-  /** Timestamp of the confirming close. */
   confirmed_at?: string;
 }
 
@@ -64,16 +38,12 @@ export interface OiBurst {
   id: string;
   side: "call" | "put";
   t: string;
-  /** Contracts added this minute (signed). */
   delta: number;
-  /** Trailing median |delta| used to score it. */
   baseline: number;
   score: number;
   severity: AlertSeverity;
-  /** Cumulative-from-open ΔOI for that side. */
   cumDoi: number;
   spot: number;
-  /** That side's traded volume this minute. */
   tickVol: number;
   /** Signal pre-computed by the backend; when absent the client derives one. */
   signal?: OiSignal | null;
@@ -88,12 +58,9 @@ export interface OiBurst {
    * fallback for bursts without a backend flow label (attached by the panel
    * from the tape). Mirrors the backend's `classify_flow` input. */
   premChg?: number | null;
-  /** 5-minute spot direction at the burst minute (attached by the panel from
-   * the tape). The alignment gate passes when EITHER trend agrees with the leg. */
   trend5m?: "up" | "down" | null;
   /** Candidate catalysts within ±10 min (backend-attached). */
   news?: NiftyBurstNews[];
-  /** Session trend at this minute (attached by the panel from the tape). */
   trend?: "up" | "down" | null;
   /** Backend setup classification + playbook (added 2026-11). */
   setup?:
@@ -125,27 +92,19 @@ export interface OiBurst {
     | "break"
     | "wall_break"
     | "data_stale";
-  /** Wall strike the squeeze broke through / the wall event tested. */
   wall?: number;
-  /** Exact strike a per-strike burst names (overrides nearest-to-spot). */
   strike?: number;
-  /** Wall event: the level the move is expected to reach (max pain). */
   target?: number | null;
   /** Backend headline / longer explanation (wall + data-stale events). */
   label?: string | null;
   detail?: string | null;
-  /** "CE" | "PE" for per-strike / premium bursts. */
   leg?: string;
-  /** ATM premium move in % (premium bursts). */
   pct?: number;
-  /** Coil only: spot range as % over the window. */
   range_pct?: number;
-  /** Coil only: distance to the wall as % of spot. */
   dist_pct?: number;
   /** Structure evidence for the burst minute: the named level the underlying
    * closed beyond, and the direction (backend-attached). */
   structure?: OiStructure | null;
-  /** Level that invalidates the idea (e.g. the pivot that was broken). */
   invalidation?: number | null;
   /** Backend says the plan was withheld (spent fuel, no structure break). */
   plan_suppressed?: boolean;
@@ -158,20 +117,14 @@ export function isWallEventType(type?: string | null): boolean {
   return type === "wall_test" || type === "rejection" || type === "break" || type === "wall_break";
 }
 
-/** Events that carry no trade plan (wall geometry + system warnings). */
 export function isNonTradeAlertType(type?: string | null): boolean {
   return isWallEventType(type) || type === "data_stale";
 }
 
-/* ------------------------------------------------------------------ signal */
 
-/** Default risk budget (₹) the mechanical sizing assumes. */
 export const OI_SIGNAL_RISK_BUDGET = 5_000;
-/** Option-buying stop distance as % of premium. */
 export const OI_SIGNAL_SL_PCT = 25;
-/** Fallback target as % of premium when no level target is available. */
 export const OI_SIGNAL_TP_PCT = 50;
-/** Below this premium the strike is effectively dead (expiry day) — skip it. */
 export const OI_SIGNAL_MIN_PREMIUM = 10;
 /** NIFTY contract size. */
 // NIFTY lot size. MUST match api/reports_api/nifty_bursts.py:NIFTY_LOT_SIZE.
@@ -187,18 +140,13 @@ export interface OiSignal {
   entry: number;
   sl: number;
   target: number;
-  /** Units = lots × lot size (0 when the premium is too rich for the budget). */
   qty: number;
   lots: number;
-  /** One-line rationale shown in the alert. */
   basis: string;
-  /** Session trend at the burst minute, when it could be computed. */
   trend?: "up" | "down" | null;
-  /** False when the leg fights the trend — the plan should be skipped. */
   aligned?: boolean | null;
 }
 
-/** EMA span (minutes) defining the session trend for the alignment gate. */
 export const TREND_EMA_SPAN = 20;
 
 /**
@@ -264,20 +212,17 @@ function round2(v: number): number {
 /** Backend buyer/writer flow labels (`classify_flow`). */
 export type OiFlowKind = "buyers" | "writers" | "covering" | "liquidation";
 
-/** OI direction × premium direction: fresh money, or a book being spent. */
 export type OiFuelState =
   | "fresh_buyers"
   | "fresh_sellers"
   | "writers_covering"
   | "longs_liquidating";
 
-/** Fuel states where the move runs on a book being unwound (no fresh money). */
 export const SPENT_FUEL_STATES: ReadonlySet<OiFuelState> = new Set<OiFuelState>([
   "writers_covering",
   "longs_liquidating",
 ]);
 
-/** Alert headline for a fuel state. */
 export const FUEL_STATE_LABEL: Record<OiFuelState, string> = {
   fresh_buyers: "FRESH BUYING",
   fresh_sellers: "FRESH SELLING",
@@ -285,7 +230,6 @@ export const FUEL_STATE_LABEL: Record<OiFuelState, string> = {
   longs_liquidating: "LONGS LIQUIDATING",
 };
 
-/** Flow label → fuel state. */
 export function fuelStateFromFlow(flow: string): OiFuelState | null {
   switch (flow.trim().toLowerCase()) {
     case "buyers":
@@ -320,16 +264,10 @@ export function resolveFuelState(
   return inferred ? fuelStateFromFlow(inferred) : null;
 }
 
-/**
- * The direction a covering burst on `side` implies: the side's own premium
- * rose because shorts on that side bought back, so the market moved in that
- * side's direction (a put-side covering = the market fell).
- */
 export function coveringDirection(side: "call" | "put"): "up" | "down" {
   return side === "put" ? "down" : "up";
 }
 
-/** True when the fuel is spent (the book is being unwound, no new money). */
 export function isSpentFuel(state: OiFuelState | null): boolean {
   return state !== null && SPENT_FUEL_STATES.has(state);
 }
@@ -339,15 +277,11 @@ export const OI_SIGNAL_STALE_PCT = 5;
 
 /** Freshness of a signal's entry against the live premium. */
 export interface OiEntryFreshness {
-  /** Live premium for the signalled leg/strike, when it could be read. */
   live: number | null;
-  /** (live − entry) / entry in % — positive means the market ran UP past it. */
   driftPct: number | null;
-  /** True when the drift is big enough to void the plan. */
   stale: boolean;
 }
 
-/** Compare a signal's entry with the live premium for its leg/strike. */
 export function entryFreshness(
   signal: Pick<OiSignal, "leg" | "strike" | "entry">,
   chain: Array<{ strike: number; ce?: { ltp?: number }; pe?: { ltp?: number } }>,
@@ -363,7 +297,6 @@ export function entryFreshness(
   return { live, driftPct, stale: Math.abs(driftPct) >= OI_SIGNAL_STALE_PCT };
 }
 
-/** Where the trade direction came from. */
 export type OiDirectionSource = "flow" | "premium" | "oi";
 
 export interface OiDirection {
@@ -371,7 +304,6 @@ export interface OiDirection {
   /** Backend verdict when known (true = bearish → PE). */
   bearish: boolean | null;
   via: OiDirectionSource;
-  /** One-line rationale for the alert. */
   basis: string;
 }
 
@@ -411,7 +343,6 @@ export function inferFlowFromPremium(
   return premChg > 0 ? "covering" : "liquidation";
 }
 
-/** One-line rationale for a flow-read direction. */
 function flowBasis(side: "call" | "put", flow: OiFlowKind, leg: "CE" | "PE"): string {
   const s = side === "call" ? "call" : "put";
   switch (flow) {
@@ -876,7 +807,6 @@ function wallEventToAlert(burst: OiBurst): MarketAlert {
   return {
     id: burst.id,
     kind: "oi_burst",
-    // A test is a heads-up; a rejection/break is the event itself.
     severity: isTest ? "watch" : "alert",
     symbol: "NIFTY",
     title,
@@ -1127,13 +1057,7 @@ export function burstToAlert(
   } as MarketAlert;
 }
 
-/* --------------------------------------- critical prominence */
 
-/**
- * Critical-first sort for the OI-burst trail: critical alerts lead, every
- * other severity keeps its relative (newest-first) order. Stable, so a
- * non-critical trail is returned unchanged.
- */
 export function sortAlertsCriticalFirst<T extends { severity: AlertSeverity }>(
   alerts: T[],
 ): T[] {
@@ -1147,20 +1071,10 @@ export function sortAlertsCriticalFirst<T extends { severity: AlertSeverity }>(
     .map(({ a }) => a);
 }
 
-/** Drop a trailing ".00" so banner levels read like the desk (`185`, not `185.00`). */
 function shortNum(v: string): string {
   return v.endsWith(".00") ? v.slice(0, -3) : v;
 }
 
-/**
- * One-line sticky-banner label for a critical alert, e.g.
- * `CRITICAL PUT UNWIND -1.48M · 22,701 · → BUY CE 22,700 · entry 185 · SL 139 · TGT 277`.
- *
- * The head (side / build-vs-unwind / ΔOI / spot) comes from the burst; the
- * action and levels are read back off the `burstToAlert` output (title +
- * ENTRY/SL/TGT metrics) so the banner can never disagree with the row and no
- * signal math is duplicated here.
- */
 export function criticalBannerText(
   burst: OiBurst | undefined,
   alert: MarketAlert,

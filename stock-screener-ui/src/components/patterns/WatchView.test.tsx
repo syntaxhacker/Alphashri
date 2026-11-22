@@ -17,8 +17,6 @@ vi.mock("@/api/chartPatterns", () => ({
   fetchWatchSetups: (...args: unknown[]) => mockFetchWatchSetups(...args),
   fetchWatch: (...args: unknown[]) => mockFetchWatch(...args),
   fetchMarketStatus: (...args: unknown[]) => mockFetchMarketStatus(...args),
-  // No live stream in these tests: fail fast so every load exercises the
-  // non-streaming `fetchWatch` fallback deterministically.
   streamWatch: async (_query: unknown, handlers: { onError?: (e: Error) => void }) => {
     handlers.onError?.(new Error("stream unavailable"));
   },
@@ -217,7 +215,6 @@ describe("WatchView", () => {
       render(() => <WatchView universe="nifty500" timeframe="1D" />);
       await waitFor(() => expect(mockFetchWatch).toHaveBeenCalled());
 
-      // Auto-refresh is disabled: the watch-list poll interval is not installed.
       expect(setSpy).not.toHaveBeenCalledWith(expect.any(Function), WATCH_POLL_MS);
     } finally {
       setSpy.mockRestore();
@@ -254,7 +251,6 @@ describe("WatchView", () => {
     const ids = Array.from(document.querySelectorAll('[data-testid^="watch-row-"]')).map(
       (el) => el.getAttribute("data-testid"),
     );
-    // desc by pct_to_trigger: INFY (9.09), RELIANCE (1.69), TCS (-1.25).
     expect(ids).toEqual(["watch-row-INFY", "watch-row-RELIANCE", "watch-row-TCS"]);
   });
 
@@ -297,7 +293,6 @@ describe("WatchView", () => {
       target: { value: "2" },
     });
 
-    // |pct| <= 2 keeps RELIANCE (1.69) and TCS (-1.25); INFY (9.09) drops.
     await waitFor(() => expect(screen.queryByTestId("watch-row-INFY")).not.toBeInTheDocument());
     expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument();
     expect(screen.getByTestId("watch-row-TCS")).toBeInTheDocument();
@@ -311,7 +306,6 @@ describe("WatchView", () => {
     expect(
       within(screen.getByTestId("watch-within-pct")).getByRole("spinbutton"),
     ).toHaveValue(5);
-    // INFY sits 9.09% away → filtered by the default; the actionable pair stays.
     expect(screen.queryByTestId("watch-row-INFY")).not.toBeInTheDocument();
     expect(screen.getByTestId("watch-row-TCS")).toBeInTheDocument();
     expect(screen.getByTestId("watch-count")).toHaveTextContent("2 / 3");
@@ -323,7 +317,6 @@ describe("WatchView", () => {
 
     const toggle = screen.getByTestId("watch-hide-invalidated");
     expect(toggle).toBeChecked();
-    // INFY is both invalidated and outside the default within-% window.
     expect(screen.queryByTestId("watch-row-INFY")).not.toBeInTheDocument();
 
     fireEvent.input(within(screen.getByTestId("watch-within-pct")).getByRole("spinbutton"), {
@@ -569,9 +562,7 @@ describe("WatchView near_52w", () => {
     for (const header of ["52W high", "Hi gap %", "OBV", "Up/Dn", "VolR", "Lows", "Vol (adj)"]) {
       expect(screen.getByText(header)).toBeInTheDocument();
     }
-    // The default-sorted column carries the ▲/▼ indicator, so match loosely.
     expect(screen.getByText(/Close gap %/)).toBeInTheDocument();
-    // Breakout-only columns are gone in this mode.
     expect(screen.queryByText("Trigger")).not.toBeInTheDocument();
     expect(screen.queryByText("Base (d)")).not.toBeInTheDocument();
 
@@ -605,7 +596,6 @@ describe("WatchView near_52w", () => {
     const ids = Array.from(document.querySelectorAll('[data-testid^="watch-row-"]')).map(
       (el) => el.getAttribute("data-testid"),
     );
-    // close_gap: BBB (0.5), AAA (1.5), CCC (3.2).
     expect(ids).toEqual(["watch-row-BBB", "watch-row-AAA", "watch-row-CCC"]);
   });
 
@@ -616,7 +606,6 @@ describe("WatchView near_52w", () => {
     for (const header of ["Trigger", "Rel vol", "Vol (adj)", "Base (d)", "Status"]) {
       expect(screen.getByText(header)).toBeInTheDocument();
     }
-    // The default-sorted column carries the ▼ indicator, so match loosely.
     expect(screen.getByText(/% to trigger/)).toBeInTheDocument();
     expect(screen.queryByText("52W high")).not.toBeInTheDocument();
     expect(screen.queryByText(/Close gap %/)).not.toBeInTheDocument();
@@ -684,7 +673,6 @@ describe("WatchView last-touch badge", () => {
     const badge = screen.getByTestId("watch-last-touch-PDSL");
     expect(badge).toHaveTextContent("touched 5 Nov");
     expect(screen.getByTitle("52W high touched 2026-11-05")).toBeInTheDocument();
-    // Not the live "touched" badge.
     expect(screen.queryByTestId("watch-touched-PDSL")).not.toBeInTheDocument();
   });
 
@@ -768,7 +756,6 @@ describe("WatchView snapshot age", () => {
     const age = screen.getByTestId("watch-snapshot-age");
     expect(age).toHaveTextContent("snapshot 15:30");
     expect(age).toHaveTextContent("2m ago");
-    // Live/paused behavior is unchanged.
     expect(screen.getByTestId("watch-live-indicator")).toHaveTextContent("live");
   });
 
@@ -903,7 +890,6 @@ describe("WatchView copy CSV", () => {
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     const text = String(writeText.mock.calls[0][0]);
-    // Default filters: RELIANCE + TCS visible, INFY hidden (invalidated + out of range).
     expect(text).toBe("NSE:RELIANCE,NSE:TCS");
 
     const toast = await screen.findByTestId("watch-copy-toast");
@@ -979,14 +965,12 @@ describe("WatchView tags and Hide ETFs", () => {
     );
     render(() => <WatchView universe="nifty500" timeframe="1D" />);
 
-    // The non-ETF rows are visible under the default Hide ETFs toggle.
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
     expect(screen.getByTestId("watch-tag-fno-RELIANCE")).toHaveTextContent("F&O");
     expect(screen.queryByTestId("watch-tag-etf-RELIANCE")).not.toBeInTheDocument();
     expect(screen.queryByTestId("watch-tag-fno-PLAIN")).not.toBeInTheDocument();
     expect(screen.queryByTestId("watch-tag-etf-PLAIN")).not.toBeInTheDocument();
 
-    // Reveal the ETF-tagged rows to inspect their badges.
     fireEvent.click(screen.getByTestId("watch-hide-etfs"));
     await waitFor(() => expect(screen.getByTestId("watch-row-ETFONE")).toBeInTheDocument());
 
@@ -1112,7 +1096,6 @@ describe("WatchView near_52w trigger date", () => {
     });
     await waitFor(() => expect(screen.getByTestId("watch-row-APLLTD")).toBeInTheDocument());
 
-    // Numeric value kept (exact) with the date next to it + the full caption in the tooltip.
     const row = within(screen.getByTestId("watch-row-APLLTD"));
     expect(row.getByText("₹963.35")).toBeInTheDocument();
     expect(screen.getByTestId("watch-trigger-date-APLLTD")).toHaveTextContent("2026-11-04");

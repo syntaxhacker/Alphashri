@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""Autoresearch on Indian cash equities — vectorbt, scored on TRAIN only.
-
-Levers: lookback, top-N, rebalance frequency, NIFTY 200-DMA market filter,
-vol-adjusted momentum, Donchian/EMA parameters. Test is read once for the best
-train config.
-
-Run:
-    .venv/bin/python scripts/stock_autoresearch.py
-"""
 
 from __future__ import annotations
 

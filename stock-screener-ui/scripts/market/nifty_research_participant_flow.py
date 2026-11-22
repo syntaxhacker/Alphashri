@@ -37,10 +37,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SESSION = "2026-11-17"
 BUCKET_MIN = 5
-GAP_SECONDS = 90          # longer than this between frames = recorder outage, not flow
-BAND_RADIUS = 300         # strikes kept on each side of the session-median spot
+GAP_SECONDS = 90
+BAND_RADIUS = 300
 
-# Four-quadrant states. Order is the legend/stack order.
 CLASSES = [
     {"id": "long_buildup", "label": "long buildup", "short": "LB", "color": "#2FA36B",
      "note": "premium up + OI up"},
@@ -64,9 +63,6 @@ BAND: list[int]
 FUTURES: Path | None = None
 
 
-# --------------------------------------------------------------------------- #
-# config / load
-# --------------------------------------------------------------------------- #
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -131,7 +127,6 @@ def frame(snaps: list[dict[str, Any]], minute: float) -> dict[str, Any]:
 
 
 def rows(snap: dict[str, Any]) -> dict[int, list[float]]:
-    """`[strike, ce_ltp, ce_oi, ce_vol, pe_ltp, pe_oi, pe_vol]`."""
     return {int(r[0]): r for r in snap["rows"]}
 
 
@@ -149,9 +144,6 @@ def classify(d_prem: float, d_oi: float) -> str:
     return "flat"
 
 
-# --------------------------------------------------------------------------- #
-# buckets / cells
-# --------------------------------------------------------------------------- #
 def bucket_edges(snaps: list[dict[str, Any]]) -> list[float]:
     """Session-grid 5-min edges, with the first frame at the real first snapshot.
 
@@ -184,7 +176,7 @@ def build(snaps: list[dict[str, Any]]) -> dict[str, Any]:
         spot0, spot1 = float(frames[i - 1]["spot"]), float(frames[i]["spot"])
         buckets.append({
             "i": i,
-            "s": hhmm(frame_min[i - 1]),        # actual frame, not the nominal edge
+            "s": hhmm(frame_min[i - 1]),
             "e": hhmm(frame_min[i]),
             "edge": edges[i],
             "start": edges[i - 1],
@@ -216,7 +208,6 @@ def build(snaps: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def merge_gaps(buckets: list[dict[str, Any]], frame_min: list[float]) -> list[dict[str, Any]]:
-    """One record per contiguous outage — the hole, not every bucket it swallowed."""
     out: list[dict[str, Any]] = []
     k = 0
     while k < len(buckets):
@@ -275,9 +266,6 @@ def fut_window(edges: list[float], a: float, b: float) -> dict[str, Any] | None:
     }
 
 
-# --------------------------------------------------------------------------- #
-# aggregates
-# --------------------------------------------------------------------------- #
 def class_totals(cells: list[list[Any]], nb: int) -> list[dict[str, Any]]:
     abs_oi = [[0.0] * len(CLASSES) for _ in range(nb + 1)]
     counts = [[0] * len(CLASSES) for _ in range(nb + 1)]
@@ -479,7 +467,6 @@ def focus_series(cells: list[list[Any]], buckets: list[dict[str, Any]],
 
 def lifecycle(snaps: list[dict[str, Any]], bands: list[dict[str, Any]],
               strike: int, side: str) -> dict[str, Any]:
-    """OI path of one leg at the window boundaries + its intraday peak."""
     ii = 5 if side == "PE" else 2
     marks = []
     for b in bands:
@@ -497,9 +484,6 @@ def lifecycle(snaps: list[dict[str, Any]], bands: list[dict[str, Any]],
             "oi_peak": peak_row, "peak_time": hhmm(peak_min) if peak_row else None}
 
 
-# --------------------------------------------------------------------------- #
-# text helpers — every sentence is built from the numbers above
-# --------------------------------------------------------------------------- #
 def human(v: float) -> str:
     a = abs(v)
     if a >= 1e6:
@@ -564,9 +548,6 @@ def read_clause(w: dict[str, Any]) -> str:
     return "; ".join(clauses[:2]) + "."
 
 
-# --------------------------------------------------------------------------- #
-# findings
-# --------------------------------------------------------------------------- #
 def valid_window(buckets: list[dict[str, Any]], first_i: int, last_i: int) -> bool:
     sel = [b for b in buckets if first_i <= b["i"] <= last_i]
     return bool(sel) and all(not b["gap"] for b in sel)
@@ -574,7 +555,6 @@ def valid_window(buckets: list[dict[str, Any]], first_i: int, last_i: int) -> bo
 
 def best_move(buckets: list[dict[str, Any]], n: int, sign: int,
               min_i: int = 0) -> tuple[int, int, float]:
-    """Contiguous n-bucket window with the largest signed spot change."""
     best: tuple[float, int, int] | None = None
     for k in range(len(buckets) - n + 1):
         win = buckets[k:k + n]
@@ -599,7 +579,6 @@ def build_findings(payload: dict[str, Any], snaps: list[dict[str, Any]],
     gaps = built["gaps"]
     first_i, last_i = buckets[0]["i"], buckets[-1]["i"]
 
-    # anchors taken from the session itself, not from a previous day's narrative
     hi = max(snaps, key=lambda s: s["spot"])
     lo = min(snaps, key=lambda s: s["spot"])
     open_i0, open_i1 = first_i, min(last_i, first_i + 5)
@@ -614,7 +593,6 @@ def build_findings(payload: dict[str, Any], snaps: list[dict[str, Any]],
     w_slide = window_stats(cells, buckets, levels, slide_i0, slide_i1)
     w_close = window_stats(cells, buckets, levels, close_i0, close_i1)
 
-    # expiry decay across the band
     r0, r1 = levels[0], levels[last_i]
     band_ce0 = sum(float(r0[k][2]) for k in BAND if k in r0)
     band_ce1 = sum(float(r1[k][2]) for k in BAND if k in r1)
@@ -623,7 +601,6 @@ def build_findings(payload: dict[str, Any], snaps: list[dict[str, Any]],
     vol_ce = sum(float(r1[k][3]) - float(r0[k][3]) for k in BAND if k in r0 and k in r1)
     vol_pe = sum(float(r1[k][6]) - float(r0[k][6]) for k in BAND if k in r0 and k in r1)
 
-    # pin candidates: largest OI added on each side between first and last frame
     ce_gain = max(BAND, key=lambda k: float(r1[k][2]) - float(r0[k][2]))
     pe_gain = max(BAND, key=lambda k: float(r1[k][5]) - float(r0[k][5]))
     ce_delta = float(r1[ce_gain][2]) - float(r0[ce_gain][2])
@@ -842,9 +819,6 @@ def caveat_html() -> str:
     )
 
 
-# --------------------------------------------------------------------------- #
-# HTML
-# --------------------------------------------------------------------------- #
 HTML_TEMPLATE = r"""
 <section data-research-section="participant-flow" id="research-participant-flow">
 <style>
@@ -1835,11 +1809,7 @@ HTML_TEMPLATE = r"""
 """
 
 
-# --------------------------------------------------------------------------- #
-# main
-# --------------------------------------------------------------------------- #
 def pre_open_cause(session: str, snaps: list[dict[str, Any]]) -> str:
-    """Why the chain has no snapshots before its first print — from the recorder's own log."""
     log = ROOT / f"experiments/data/nifty_tape/{session}.gaps.jsonl"
     first = minutes(snaps[0]["t"])
     fails = []
@@ -1904,7 +1874,7 @@ def main() -> None:
         raise SystemExit(f"missing chain file: {chain}")
     if args.clip:
         hh, mm = (int(x) for x in args.clip.split(":"))
-        CLIP_MIN = minutes(f"{session}T{hh:02d}:{mm:02d}:59.99+05:30")   # include the whole named minute
+        CLIP_MIN = minutes(f"{session}T{hh:02d}:{mm:02d}:59.99+05:30")
     else:
         CLIP_MIN = 1e9
 
@@ -1970,7 +1940,6 @@ def main() -> None:
     else:
         payload["findings"]["futures_cross"] = None
 
-    # focus legs: the biggest OI additions on each side, plus the close's ATM call
     pin = payload["findings"]["pin"]
     close_spot = buckets[-1]["spot"]
     atm_close = min(BAND, key=lambda k: abs(k - close_spot))

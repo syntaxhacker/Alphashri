@@ -1,9 +1,3 @@
-/**
- * Local Solid-native twins of src/components/screener/Sparkline.tsx and
- * SymbolAvatar.tsx — those files are still importing the broken @/ui Box and
- * cannot mount. Keeps the same props and data-* contracts (sparkline,
- * symbol-avatar, data-positive, data-points, data-fallback, data-symbol).
- */
 import { createEffect, createSignal, Show, type JSX } from "solid-js";
 import { Button } from "@/ui";
 import { SCALE_BLUE, SCALE_CYAN, SCALE_GREEN, SCALE_ORANGE, SCALE_PINK, SCALE_VIOLET, TEXT } from "@/ui/palette";

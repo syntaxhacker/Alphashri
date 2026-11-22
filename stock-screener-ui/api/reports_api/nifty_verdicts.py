@@ -47,7 +47,6 @@ from api.reports_api._numeric import safe_opt_float as _f
 NIFTY_KEY = "NSE_INDEX|Nifty 50"
 VIX_KEY = "NSE_INDEX|India VIX"
 
-# Baseline window / session filters.
 BASELINE_LOOKBACK_DAYS = 25
 SESSION_START = "09:15"
 SESSION_END = "12:30"
@@ -63,18 +62,10 @@ VIX_TTL_SEC = 60
 INTRADAY_TTL_SEC = 60
 
 
-# ---------------------------------------------------------------------------
-# Safe casts
-# ---------------------------------------------------------------------------
-
 def _null_vix() -> dict:
     return {"ltp": None, "prev_close": None, "change_pct": None,
             "day_high": None, "day_low": None}
 
-
-# ---------------------------------------------------------------------------
-# control block
-# ---------------------------------------------------------------------------
 
 #: Signed premium-flow magnitude (₹ Cr) below which the flow carries no
 #: direction. Matches the absolute floor in ``nifty_positioning``: 50 Cr is
@@ -247,10 +238,6 @@ def _avg_iv(control: dict) -> Optional[float]:
         return None
     return round(sum(vals) / len(vals), 2)
 
-
-# ---------------------------------------------------------------------------
-# Indicators (pure)
-# ---------------------------------------------------------------------------
 
 def ema(values: list[float], period: int) -> Optional[float]:
     """Exponential moving average seeded with the first ``period`` mean."""
@@ -496,10 +483,6 @@ def realized_vol_pct(candles: Optional[list[dict]],
         return 0.0
     return round(math.sqrt(daily_var) * math.sqrt(TRADING_DAYS) * 100.0, 2)
 
-
-# ---------------------------------------------------------------------------
-# regime block
-# ---------------------------------------------------------------------------
 
 #: Below this share of a normal session range the tape is compressing.
 RANGE_SELL_BELOW_PCT = 75.0
@@ -779,10 +762,6 @@ def compute_regime(candles: Optional[list[dict]], baseline: Optional[float],
     }
 
 
-# ---------------------------------------------------------------------------
-# strength block
-# ---------------------------------------------------------------------------
-
 def strength_verdict(score: int) -> str:
     if score >= 65:
         return "strong"
@@ -821,10 +800,6 @@ def compute_strength(candles: Optional[list[dict]],
         "pos_in_range": round(pos, 4) if pos is not None else None,
     }
 
-
-# ---------------------------------------------------------------------------
-# Baseline (median of prior sessions' 09:15-12:30 range)
-# ---------------------------------------------------------------------------
 
 def median_session_range(candles: Optional[list[dict]], exclude_date: str,
                          start: str = SESSION_START, end: str = SESSION_END,
@@ -877,10 +852,6 @@ def normalize_candles(raw: Optional[list]) -> list[dict]:
     out.sort(key=lambda c: c["time"])
     return out
 
-
-# ---------------------------------------------------------------------------
-# Network fetchers (cached, never raise)
-# ---------------------------------------------------------------------------
 
 async def _fetch(path: str, params: Optional[dict] = None) -> dict:
     from api.options import fetch_upstox
@@ -1045,10 +1016,6 @@ def clear_caches() -> None:
     _INTRADAY_CACHE.update(date=None, ts=0.0, value=None)
     _VIX_CACHE.update(ts=0.0, value=None)
 
-
-# ---------------------------------------------------------------------------
-# Assembly
-# ---------------------------------------------------------------------------
 
 def build_verdicts(*, rows: list[dict], spot: float, gex: Optional[dict],
                    candles: Optional[list[dict]],

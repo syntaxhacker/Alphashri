@@ -21,9 +21,6 @@ probe = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(probe)
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 def leg(strike: float, side: str, *, ltp: float = 10.0, oi: float = 1000.0,
         iv: float = 20.0, delta: float | None = None, gamma: float = 0.01,
@@ -70,9 +67,6 @@ class FakeSession:
         return FakeResponse(self.payloads[url.split("/api/", 1)[-1]])
 
 
-# ---------------------------------------------------------------------------
-# Numeric / leg extraction
-# ---------------------------------------------------------------------------
 
 def test_raw_num_rejects_nan_inf_and_text() -> None:
     assert probe.raw_num(1.5) == 1.5
@@ -108,9 +102,6 @@ def test_filter_valid_legs_applies_all_gates_and_sorts() -> None:
     assert [p["strike"] for p in puts] == [100]  # 95 has no IV, 115 has NaN delta
 
 
-# ---------------------------------------------------------------------------
-# Interpolation / smile
-# ---------------------------------------------------------------------------
 
 def test_interpolate_strike_linear_clamp_and_exact() -> None:
     points = [{"strike": 110, "iv": 18.0}, {"strike": 100, "iv": 20.0}]
@@ -173,9 +164,6 @@ def test_otm_smile_selects_calls_above_and_puts_below_spot() -> None:
     assert probe.otm_smile(calls, puts, 0.0) == []
 
 
-# ---------------------------------------------------------------------------
-# Put-call parity
-# ---------------------------------------------------------------------------
 
 def _parity_chain(spot: float, strike: float, r: float, q: float, years: float) -> dict:
     theo = spot * math.exp(-q * years) - strike * math.exp(-r * years)
@@ -216,9 +204,6 @@ def test_parity_flags_error_above_threshold() -> None:
     assert result["median_pct"] > 5.0
 
 
-# ---------------------------------------------------------------------------
-# Shared-level plumbing / quality
-# ---------------------------------------------------------------------------
 
 def _level_chain() -> list[dict]:
     return [
@@ -269,9 +254,6 @@ def test_data_quality_counts_iv_gaps_and_high_iv() -> None:
     assert quality["quotes_live"] is False
 
 
-# ---------------------------------------------------------------------------
-# Mocked HTTP end-to-end
-# ---------------------------------------------------------------------------
 
 def test_client_and_report_with_mocked_http() -> None:
     chain = _level_chain()

@@ -2,13 +2,18 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render, screen, within, fireEvent } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
   return mockSolidUi();
 });
-import { PatternSymbolMatrix } from "./PatternSymbolMatrix";
+import {
+  matrixRenderStats,
+  matrixRenderStatsReset,
+  PatternSymbolMatrix,
+} from "./PatternSymbolMatrix";
 import type { MatrixCell, PatternMatrixRow } from "./symbolMatrix";
 
 function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
@@ -166,6 +171,27 @@ describe("PatternSymbolMatrix", () => {
     expect(screen.getByTestId(`patterns-matrix-row-${rowA.symbol}`)).not.toHaveAttribute(
       "data-active",
     );
+  });
+
+  test("active-row tint is derived from the primary token, not a hardcoded blue", () => {
+    const { rowA, rowB } = fixtureRows();
+    render(() => <PatternSymbolMatrix
+        rows={[rowA, rowB]}
+        timeframes={["1D", "1W"]}
+        onSelect={vi.fn()}
+        activeSymbol={rowB.symbol}
+      />);
+    const style = screen.getByTestId(`patterns-matrix-row-${rowB.symbol}`).getAttribute("style") ?? "";
+    expect(style).not.toContain("88, 166, 255");
+    expect(style).toContain("217, 144, 42");
+  });
+
+  test("a clipped symbol name keeps its full text in the title", () => {
+    const { rowA } = fixtureRows();
+    render(() => <PatternSymbolMatrix rows={[rowA]} timeframes={["1D"]} onSelect={vi.fn()} />);
+    expect(
+      within(screen.getByTestId("patterns-matrix-row-AAA")).getByTitle("Alpha Industries Ltd."),
+    ).toBeInTheDocument();
   });
 
   test("renders one row per symbol with mapped timeframe headers", () => {
@@ -404,9 +430,7 @@ describe("PatternSymbolMatrix", () => {
     const { rowA, rowB } = fixtureRows();
     render(() => <PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["5m", "1D", "1W"]} onSelect={vi.fn()} />);
     const table = screen.getByTestId("patterns-symbol-matrix");
-    // Symbol + LTP + Chg + 3 timeframes + Score + Pos + Patterns = 9 columns.
     expect(table.style.minWidth).toBe(`${Math.max(560, 9 * 72)}px`);
-    // fillContainer: the table scrolls inside the panel rather than widening the page.
     const panel = table.closest(".paper-tanstack-container") as HTMLElement;
     expect(panel.style.maxHeight).toBe("");
     expect(panel.style.flex).toContain("1 1 0%");
@@ -439,7 +463,89 @@ describe("PatternSymbolMatrix", () => {
     expect(header("LTP").style.textAlign).toBe("right");
     expect(header("Score").style.textAlign).toBe("right");
     expect(header("Pos %").style.textAlign).toBe("right");
-    // Timeframe glyph columns are centred.
     expect(header("5m").style.textAlign).toBe("center");
+  });
+});
+
+describe("PatternSymbolMatrix identity and filtering", () => {
+  afterEach(() => {
+    cleanup();
+    matrixRenderStatsReset();
+  });
+
+  test("a fresh rows array with the same row objects rebuilds no cells or chips", () => {
+    const { rowA, rowB } = fixtureRows();
+    const [rows, setRows] = createSignal<PatternMatrixRow[]>([rowA, rowB]);
+    matrixRenderStatsReset();
+    render(() => <PatternSymbolMatrix rows={rows()} timeframes={["5m", "1D", "1W"]} onSelect={vi.fn()} />);
+
+    expect(matrixRenderStats().visibleRowsBuilds).toBe(1);
+    expect(matrixRenderStats().patternChipRenders).toBe(3);
+
+    matrixRenderStatsReset();
+    setRows([rowA, rowB]);
+    const after = matrixRenderStats();
+    expect(after.visibleRowsBuilds).toBe(1);
+    expect(after.columnsBuilds).toBe(0);
+    expect(after.symbolCellRenders).toBe(0);
+    expect(after.tfGlyphRenders).toBe(0);
+    expect(after.patternChipRenders).toBe(0);
+    expect(after.numTextRenders).toBe(0);
+    expect(screen.getAllByTestId(/patterns-matrix-row-/)).toHaveLength(2);
+  });
+
+  test("one changed row object rebuilds only that row's cells", () => {
+    const { rowA, rowB } = fixtureRows();
+    const [rows, setRows] = createSignal<PatternMatrixRow[]>([rowA, rowB]);
+    render(() => <PatternSymbolMatrix rows={rows()} timeframes={["5m", "1D", "1W"]} onSelect={vi.fn()} />);
+
+    matrixRenderStatsReset();
+    setRows([rowA, { ...rowB, ltp: 999 }]);
+    const after = matrixRenderStats();
+    expect(after.columnsBuilds).toBe(0);
+    expect(after.visibleRowsBuilds).toBe(1);
+    expect(after.symbolCellRenders).toBe(1);
+    expect(after.tfGlyphRenders).toBe(3);
+    expect(after.numTextRenders).toBe(4);
+    expect(after.patternChipRenders).toBe(1);
+    const bCells = within(screen.getByTestId("patterns-matrix-row-BBB")).getAllByRole("cell");
+    expect(bCells[1]).toHaveTextContent("₹999.00");
+  });
+
+  test("changing the timeframe filter refilters rows, columns and chips", () => {
+    const { rowA, rowB } = fixtureRows();
+    const [timeframes, setTimeframes] = createSignal(["5m", "1D", "1W"]);
+    render(() => <PatternSymbolMatrix rows={[rowA, rowB]} timeframes={timeframes()} onSelect={vi.fn()} />);
+    expect(screen.getByTestId("patterns-matrix-row-BBB")).toBeInTheDocument();
+
+    matrixRenderStatsReset();
+    setTimeframes(["1D"]);
+    const after = matrixRenderStats();
+    expect(after.columnsBuilds).toBe(1);
+    expect(after.visibleRowsBuilds).toBe(1);
+    expect(screen.queryByTestId("patterns-matrix-row-BBB")).not.toBeInTheDocument();
+    const cells = within(screen.getByTestId("patterns-matrix-row-AAA")).getAllByRole("cell");
+    expect(cells).toHaveLength(7);
+    const chips = Array.from(cells[6].querySelectorAll("button")).map((el) => el.textContent);
+    expect(chips).toEqual(["Head and Shoulders 1D"]);
+  });
+
+  test("post-sort rows keep their object identity across a rows-array swap", () => {
+    const { rowA, rowB } = fixtureRows();
+    const [rows, setRows] = createSignal<PatternMatrixRow[]>([rowA, rowB]);
+    let emitted: PatternMatrixRow[] = [];
+    render(() => <PatternSymbolMatrix
+        rows={rows()}
+        timeframes={["5m", "1D", "1W"]}
+        onSelect={vi.fn()}
+        onRowsChange={(next) => { emitted = next; }}
+      />);
+    const first = emitted;
+    expect(first.map((row) => row.symbol)).toEqual(["AAA", "BBB"]);
+
+    setRows([rowA, rowB]);
+    expect(emitted).not.toBe(first);
+    expect(emitted[0]).toBe(first[0]);
+    expect(emitted[1]).toBe(first[1]);
   });
 });

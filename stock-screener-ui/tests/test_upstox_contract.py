@@ -116,9 +116,6 @@ def test_parse_chain_stamps_row_underlying_when_absent():
     assert stamped[0]["underlying"] == "NSE_INDEX|Bank Nifty"
 
 
-# ---------------------------------------------------------------------------
-# Cache is per underlying, never per expiry only (BANKNIFTY != NIFTY)
-# ---------------------------------------------------------------------------
 
 NIFTY_KEY = "NSE_INDEX|Nifty 50"
 BANK_KEY = "NSE_INDEX|Bank Nifty"

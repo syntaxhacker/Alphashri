@@ -50,7 +50,6 @@ function signed(value: number | null, digits = 0): string {
   });
 }
 
-/** Regime chip: the one label the panel exists to answer. */
 function RegimeChip(props: { regime: NiftyFuturesRegime }) {
   const tone = () => regimeTone(props.regime);
   return (

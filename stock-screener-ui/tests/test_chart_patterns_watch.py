@@ -17,9 +17,6 @@ from chart_patterns import watch as watch_mod
 from chart_patterns.tags import tags_for
 
 
-# ---------------------------------------------------------------------------
-# Registry
-# ---------------------------------------------------------------------------
 
 
 def test_registry_breakout_shape():
@@ -71,9 +68,6 @@ def test_public_setups_hides_internals():
     ]
 
 
-# ---------------------------------------------------------------------------
-# arm (store-backed)
-# ---------------------------------------------------------------------------
 
 
 def _hit(symbol: str, **overrides) -> dict:
@@ -252,9 +246,6 @@ def test_arm_symbol_and_timeframe_scope(cp_store):
     assert watch_mod.arm("breakout", timeframe="1W") == []
 
 
-# ---------------------------------------------------------------------------
-# live (mocked price + TV)
-# ---------------------------------------------------------------------------
 
 
 def _row(symbol: str, trigger: float = 105.0, low: float = 95.0, fresh: bool = False) -> dict:
@@ -529,9 +520,6 @@ def test_live_fresh_cross_unknown_volume_triggered(mock_quotes):
     assert plain_row["state"] == "armed"
 
 
-# ---------------------------------------------------------------------------
-# Endpoints (contract)
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -632,9 +620,6 @@ def test_watch_empty_store(cp_client):
     assert resp.json()["items"] == []
 
 
-# ---------------------------------------------------------------------------
-# near_52w (computed arm)
-# ---------------------------------------------------------------------------
 
 
 def _near52w_frame(n=30, start=90.0, step=0.3, vol_start=1000.0, vol_step=100.0):
@@ -1025,9 +1010,6 @@ def test_watch_near52w_contract(cp_client, mock_quotes, monkeypatch, tmp_path):
     assert item["tags"] == tags_for("AAA")
 
 
-# ---------------------------------------------------------------------------
-# near_52w: per-symbol detection cache + process fan-out wiring
-# ---------------------------------------------------------------------------
 
 
 def test_near52w_detect_cache_reused_across_scopes(monkeypatch, near52w_env):
@@ -1104,9 +1086,6 @@ def test_near52w_arm_passes_use_processes_through(monkeypatch, near52w_env):
     assert seen["use_processes"] is True
 
 
-# ---------------------------------------------------------------------------
-# vol_adj: time-adjusted intraday relative volume (the ``triggered`` gate)
-# ---------------------------------------------------------------------------
 
 
 def _vol_adj_frames(today_vols=(100.0, 100.0, 100.0, 100.0), avg_vol=1000.0):

@@ -40,8 +40,6 @@ describe("FilterNumber", () => {
   });
 
   test("entering '-' never stores NaN", () => {
-    // happy-dom normalizes "-" to "" in <input type="number">, so partials
-    // surface as either empty or valid — never NaN.
     const onChange = vi.fn();
     render(() => <FilterNumber testId="fn" onChange={onChange} />);
     fireEvent.input(inputOf("fn"), { target: { value: "-" } });

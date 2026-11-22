@@ -45,9 +45,6 @@ def cache_dir(monkeypatch, tmp_path):
     return tmp_path
 
 
-# ---------------------------------------------------------------------------
-# _last_completed_session
-# ---------------------------------------------------------------------------
 
 
 def test_session_after_close_returns_today(monkeypatch):
@@ -82,9 +79,6 @@ def test_session_holiday_walks_back(monkeypatch):
     assert candles_mod._last_completed_session(monday_close) == date(2026, 10, 2)
 
 
-# ---------------------------------------------------------------------------
-# _read_cached session behaviour (market closed)
-# ---------------------------------------------------------------------------
 
 
 def test_closed_market_reuses_session_stamped_entry_past_ttl(cache_dir, monkeypatch):
@@ -140,9 +134,6 @@ def test_write_cached_honours_explicit_session_pin(cache_dir, monkeypatch):
     assert candles_mod._read_cached(path, True) is None
 
 
-# ---------------------------------------------------------------------------
-# TTL still applies while the market is open
-# ---------------------------------------------------------------------------
 
 
 def test_open_market_ttl_applies(cache_dir, monkeypatch):
@@ -165,9 +156,6 @@ def test_historical_path_unchanged(cache_dir, monkeypatch):
     assert candles_mod._read_cached(path, False) is not None
 
 
-# ---------------------------------------------------------------------------
-# Daily session tolerance (_read_cached with is_daily)
-# ---------------------------------------------------------------------------
 
 
 def _closed_market(monkeypatch):
@@ -226,9 +214,6 @@ def test_daily_future_session_rejected(cache_dir, monkeypatch):
     assert candles_mod._read_cached(path, True, is_daily=True) is None
 
 
-# ---------------------------------------------------------------------------
-# _resample_ohlcv (weekly / monthly fallback)
-# ---------------------------------------------------------------------------
 
 
 def test_resample_ohlcv_weekly_and_monthly():
@@ -267,9 +252,6 @@ def test_resample_ohlcv_weekly_and_monthly():
     assert m["volume"] == 12000.0
 
 
-# ---------------------------------------------------------------------------
-# _resample delegates to _resample_ohlcv (left/left bins)
-# ---------------------------------------------------------------------------
 
 
 def _resample_sample_df(tz="UTC") -> pd.DataFrame:
@@ -319,9 +301,6 @@ def test_resample_ohlcv_default_bin_sides_are_right():
     pd.testing.assert_frame_equal(default, explicit)
 
 
-# ---------------------------------------------------------------------------
-# Provenance
-# ---------------------------------------------------------------------------
 
 
 def test_fill_provenance_session_stale(cache_dir, monkeypatch):
@@ -367,9 +346,6 @@ def test_fetch_for_timeframe_daily_serves_stale_cache_no_fetch(cache_dir, monkey
     assert calls == []
 
 
-# ---------------------------------------------------------------------------
-# clear_cache
-# ---------------------------------------------------------------------------
 
 
 def _seed(cache_dir):
@@ -449,9 +425,6 @@ def test_cache_path_is_versioned():
     )
 
 
-# ---------------------------------------------------------------------------
-# Singleflight (in-flight coalescing) + negative (empty-result) cache
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture

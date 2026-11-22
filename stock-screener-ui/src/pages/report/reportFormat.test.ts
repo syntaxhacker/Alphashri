@@ -20,67 +20,53 @@ import {
  */
 describe("reportFormat — legacy parity", () => {
   test("formatReportNum matches the per-panel Indian-grouped formatters", () => {
-    // NiftyTapeTable.formatTapePrice
     expect(formatReportNum(25750.5, { digits: 2 })).toBe("25,750.5");
     expect(formatReportNum(25750.567, { digits: 2 })).toBe("25,750.57");
     expect(formatReportNum(null)).toBe(REPORT_DASH);
     expect(formatReportNum(undefined)).toBe(REPORT_DASH);
     expect(formatReportNum(NaN)).toBe(REPORT_DASH);
-    // deskPlan.fmtDeskNum
     expect(formatReportNum(22700, { digits: 0, minDigits: 0 })).toBe("22,700");
     expect(formatReportNum(22700.5, { digits: 2, minDigits: 2 })).toBe("22,700.50");
-    // NiftyDeltaPositioning.fmtFlipStrike — bare toLocaleString, so 3 decimals max
     expect(formatReportNum(25750.256)).toBe("25,750.256");
-    // niftyOiHeatmap.fmtStrike / niftyIntel.fmtIntelInt round first
     expect(formatReportNum(25750.6, { round: true })).toBe("25,751");
   });
 
   test("formatReportSigned matches the per-panel signed formatters", () => {
-    // NiftyTapeTable.formatTapeSigned
     expect(formatReportNum(12, { digits: 2, sign: "always" })).toBe("+12");
     expect(formatReportNum(-8, { digits: 2, sign: "always" })).toBe("-8");
     expect(formatReportNum(0, { digits: 2, sign: "always" })).toBe("+0");
-    // niftyIntel.fmtIntelSigned — Unicode minus, no sign on zero
     expect(formatReportNum(3201, { sign: "nonzero", minus: REPORT_MINUS })).toBe("+3,201");
     expect(formatReportNum(-1149, { sign: "nonzero", minus: REPORT_MINUS })).toBe("−1,149");
     expect(formatReportNum(0, { sign: "nonzero", minus: REPORT_MINUS })).toBe("0");
-    // NiftyDeltaPositioning.fmtCr — rounds, "0" for a value that rounds to zero
     expect(formatReportNum(53185, { sign: "nonzero", round: true })).toBe("+53,185");
     expect(formatReportNum(-50185, { sign: "nonzero", round: true })).toBe("-50,185");
     expect(formatReportNum(0.4, { sign: "nonzero", round: true })).toBe("0");
   });
 
   test("formatReportPct matches the per-panel percent formatters", () => {
-    // NiftyTapeTable.formatTapePct
     expect(formatReportPct(2.35, { digits: 2, sign: "always" })).toBe("+2.35%");
     expect(formatReportPct(-2.35, { digits: 2, sign: "always" })).toBe("-2.35%");
     expect(formatReportPct(null)).toBe(REPORT_DASH);
-    // NiftyUnusualVolume.formatUnusualShare — unsigned
     expect(formatReportPct(47.44, { digits: 1 })).toBe("47.4%");
-    // valueColumns.fmtPct — "+" only when positive
     expect(formatReportPct(1.2, { digits: 1, sign: "nonzero" })).toBe("+1.2%");
     expect(formatReportPct(-1.2, { digits: 1, sign: "nonzero" })).toBe("-1.2%");
     expect(formatReportPct(0, { digits: 1, sign: "nonzero" })).toBe("0.0%");
   });
 
   test("formatReportRatio matches the per-panel ratio formatters", () => {
-    // NiftyTapeTable.formatTapeRatio / niftyIntel.fmtIntelPcr
     expect(formatReportRatio(1.235)).toBe("1.24");
     expect(formatReportRatio(null)).toBe(REPORT_DASH);
   });
 
   test("formatReportCompact matches the per-panel compact formatters", () => {
-    // NiftyTapeTable.formatTapeCompact — signed, 2dp on both tiers
     expect(formatReportCompact(170160000, { sign: "always" })).toBe("+170.16M");
     expect(formatReportCompact(5530000, { sign: "always" })).toBe("+5.53M");
     expect(formatReportCompact(-1200000, { sign: "always" })).toBe("-1.20M");
     expect(formatReportCompact(850, { sign: "always" })).toBe("+850");
     expect(formatReportCompact(null, { sign: "always" })).toBe(REPORT_DASH);
-    // NiftyUnusualVolume.formatUnusualCompact — unsigned, rounded plain tier
     expect(formatReportCompact(1250000, { round: true })).toBe("1.25M");
     expect(formatReportCompact(850000, { round: true })).toBe("850.00K");
     expect(formatReportCompact(912.4, { round: true })).toBe("912");
-    // NiftyOiHeatmap.compactOi — Unicode minus, 1dp on the K tier
     expect(
       formatReportCompact(1230000, { sign: "always", minus: REPORT_MINUS, thousands: 1 }),
     ).toBe("+1.23M");

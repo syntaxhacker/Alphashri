@@ -21,9 +21,6 @@ from api.auth import hash_password, get_current_user
 from tests.helpers.db import import_all_models
 
 
-# ============================================================================
-# Test Database Fixtures (Integration Tests)
-# ============================================================================
 
 @pytest.fixture(scope="function")
 def test_db_engine():
@@ -36,13 +33,11 @@ def test_db_engine():
         poolclass=StaticPool
     )
     
-    # Import all models to ensure they're registered with Base.metadata
     import_all_models()
     Base.metadata.create_all(bind=engine)
     
     yield engine
     
-    # Cleanup
     Base.metadata.drop_all(bind=engine)
     engine.dispose()
 
@@ -61,7 +56,6 @@ def test_db(test_db_engine):
     try:
         yield db
     finally:
-        # Rollback all changes
         db.rollback()
         db.close()
 
@@ -149,9 +143,6 @@ def auth_client(db: Session) -> TestClient:
         app.dependency_overrides.clear()
 
 
-# ============================================================================
-# User Fixtures
-# ============================================================================
 
 @pytest.fixture
 def test_user(test_db):
@@ -179,9 +170,6 @@ def test_user_uuid(test_user):
     return test_user.uuid
 
 
-# ============================================================================
-# Strategy Fixtures
-# ============================================================================
 
 @pytest.fixture
 def test_strategy(test_db):
@@ -207,9 +195,6 @@ def test_strategy_uuid(test_strategy):
     return test_strategy.uuid
 
 
-# ============================================================================
-# Bot Fixtures
-# ============================================================================
 
 @pytest.fixture
 def test_bot(test_db, test_user):
@@ -233,9 +218,6 @@ def test_bot_uuid(test_bot):
     return test_bot.uuid
 
 
-# ============================================================================
-# API Client Fixtures
-# ============================================================================
 
 @pytest.fixture
 def client_with_db(test_db_engine, test_user):
@@ -254,7 +236,6 @@ def client_with_db(test_db_engine, test_user):
         bind=test_db_engine
     )
     
-    # Import all models to ensure they're registered with Base.metadata
     import_all_models()
     Base.metadata.create_all(bind=test_db_engine)
     
@@ -310,9 +291,6 @@ def client(test_db_engine):
     app.dependency_overrides.clear()
 
 
-# ============================================================================
-# Mock Fixtures (Unit Tests)
-# ============================================================================
 
 @pytest.fixture
 def mock_db():
@@ -376,9 +354,6 @@ def mock_strategy():
     return strategy
 
 
-# ============================================================================
-# Test Data Fixtures
-# ============================================================================
 
 @pytest.fixture
 def sample_bot_data():
@@ -401,9 +376,6 @@ def sample_strategy_data(test_strategy_uuid):
     }
 
 
-# ============================================================================
-# Snapshot Fixtures
-# ============================================================================
 
 @pytest.fixture
 def temp_snapshot_dir(tmp_path):
@@ -437,9 +409,6 @@ def sample_bot_snapshot(temp_snapshot_dir):
     return snapshot_file
 
 
-# ============================================================================
-# Utility Fixtures
-# ============================================================================
 
 @pytest.fixture
 def validate_uuid():
@@ -453,9 +422,6 @@ def validate_uuid():
     return _validate
 
 
-# ============================================================================
-# State Reset Fixtures (Test Isolation)
-# ============================================================================
 
 @pytest.fixture(autouse=True, scope="function")
 def reset_trading_module_state():

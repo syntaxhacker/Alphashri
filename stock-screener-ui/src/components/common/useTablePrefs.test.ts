@@ -309,7 +309,6 @@ describe("useTablePrefs store", () => {
     await settle();
     expect(first.api.prefs().sorting).toEqual(OLD.sorting);
 
-    // The user clicks a new sort; the PUT is armed but has not landed.
     first.api.setSorting(NEW.sorting);
     expect(first.api.prefs().sorting).toEqual(NEW.sorting);
 
@@ -323,7 +322,6 @@ describe("useTablePrefs store", () => {
     remountGet.resolve(envelope("table.remount", OLD));
     await settle();
 
-    // Both consumers keep the user's sort; the stale GET never wins.
     expect(first.api.prefs().sorting).toEqual(NEW.sorting);
     expect(second.api.prefs().sorting).toEqual(NEW.sorting);
 
@@ -384,20 +382,17 @@ describe("useTablePrefs store", () => {
     const b = mount("shared", made.transport);
     await settle();
 
-    // Same store: two consumers writing the identical value dedupe to one PUT.
     a.api.setSorting([{ id: "x", desc: true }]);
     b.api.setSorting([{ id: "x", desc: true }]);
     await flushDebounce();
     expect(made.put).toHaveBeenCalledTimes(1);
 
-    // Releasing one consumer leaves the store alive for the other.
     a.dispose();
     b.api.setSorting([{ id: "y", desc: true }]);
     await flushDebounce();
     expect(made.put).toHaveBeenCalledTimes(2);
     b.dispose();
 
-    // Last unmount released it: a fresh mount re-hydrates a new store.
     const c = mount("shared", made.transport);
     await settle();
     c.api.setSorting([{ id: "z", desc: true }]);

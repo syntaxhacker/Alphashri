@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""
-Copy broker OAuth tokens from production PostgreSQL to local SQLite.
-
-Usage:
-    python scripts/sync_broker_tokens.py
-    PROD_DATABASE_URL=postgresql://... python scripts/sync_broker_tokens.py
-    python scripts/sync_broker_tokens.py --broker upstox
-    python scripts/sync_broker_tokens.py --dry-run
-"""
 
 import os
 import sys

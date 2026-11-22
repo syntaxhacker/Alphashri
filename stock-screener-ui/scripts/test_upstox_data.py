@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-"""Test Upstox V3 API — fetch LTP and intraday data using ISIN-based keys."""
 
 import sys, json, time, requests
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 
-# Load token
 with open(ROOT / ".upstox_token.json") as f:
     token_data = json.load(f)
 access_token = token_data.get("access_token", "")
@@ -14,7 +12,6 @@ print(f"Token: {access_token[:30]}...")
 
 HEADERS = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
 
-# Known NSE_EQ instrument keys (ISIN-based)
 SYMBOLS = {
     "RELIANCE": "NSE_EQ|INE002A01018",
     "TCS": "NSE_EQ|INE467B01029",
@@ -23,7 +20,6 @@ SYMBOLS = {
     "ICICIBANK": "NSE_EQ|INE090A01021",
 }
 
-# Step 1: LTP for each (quick check)
 print("\n1. LTP quotes (V2)...")
 for sym, ik in SYMBOLS.items():
     start = time.time()
@@ -37,7 +33,6 @@ for sym, ik in SYMBOLS.items():
         print(f"   {sym}: HTTP {resp.status_code} ({elapsed:.2f}s)")
     time.sleep(0.3)
 
-# Step 2: Intraday data for first symbol
 print("\n2. Intraday 1min for RELIANCE...")
 start = time.time()
 resp = requests.get(

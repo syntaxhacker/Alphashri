@@ -41,7 +41,6 @@ export function getChartThemeColors(isDark: boolean, theme: UITheme | LegacyChar
   const t = theme as UITheme & LegacyChartTheme;
   const colors = t?.colors;
   const palette = t?.palette;
-  // Support both legacy (colors) and palette theme shapes; guard on missing theme fields
   if (colors?.dark && colors?.gray) {
     return {
       bgColor: isDark ? colors.dark[7] : t.white ?? CHART_BG,
@@ -110,8 +109,6 @@ export function formatVolume(vol: number): string {
   if (vol >= 1000) return (vol / 1000).toFixed(1) + "K";
   return vol.toString();
 }
-
-// === Holiday Helpers ===
 
 export interface HolidayMap {
   trading: Set<string>;
@@ -194,8 +191,6 @@ export function insertHolidayGaps(
   return { extendedTimeData, hasGaps: true };
 }
 
-// === Marker Configs ===
-
 export interface MarkerConfig {
   /** Receives a marker entry: either an entry marker or an exit marker whose
    *  closed trade carries `exit_reason`. */
@@ -258,8 +253,6 @@ export function getMarkerConfigs(): MarkerConfig[] {
     },
   ];
 }
-
-// === Zoom-to-Trade Highlight Helpers ===
 
 export function buildHighlightMarkers(
   entryMarker: EntryMarkerPrice,

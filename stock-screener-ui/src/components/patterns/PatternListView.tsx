@@ -23,20 +23,15 @@ export interface PatternListViewProps {
   hits: PatternHitDTO[];
   onSelect: (hit: PatternHitDTO) => void;
   onShowMembers?: (symbol: string) => void;
-  /** Active rail sort — seeds the table's sort so the header matches the rail. */
   sort?: string;
-  /** Hit currently shown in the docked chart — highlighted in the table. */
   activeHit?: PatternHitDTO | null;
   /** Emits the rows in rendered (post-sort) order for prev/next navigation. */
   onOrderChange?: (hits: PatternHitDTO[]) => void;
-  /** Hover intent for the right-side symbol preview (host debounces). */
   onSymbolPreview?: (symbol: string) => void;
   onSymbolPreviewEnd?: (symbol: string) => void;
-  /** Chart icon: open the symbol in the right-side chart. */
   onSymbolOpen?: (symbol: string) => void;
 }
 
-/** Rail sort -> the column the table seeds its sort indicator from. */
 function sortingFor(sort?: string): { id: string; desc: boolean }[] {
   if (sort === "newest") return [{ id: "bars_ago", desc: false }];
   if (sort === "range_pos") return [{ id: "range_pos", desc: true }];
@@ -47,21 +42,14 @@ function sortingFor(sort?: string): { id: string; desc: boolean }[] {
   return [{ id: "confidence", desc: true }];
 }
 
-/** Latest tradable price for the row (live close, falling back to the pattern end). */
 function priceOf(hit: PatternHitDTO): number | null {
   return hit.last_close ?? hit.end_price ?? null;
 }
 
-/** Range percentage with at most one decimal (`13` not `13.0`). */
 function gapPct(value: number): string {
   return `${Number.isInteger(value) ? String(value) : value.toFixed(1)}%`;
 }
 
-/**
- * Derived display status as a badge cell. `StatusBadge` renders the card-sized
- * `sm` pill; the results table uses the kit's centred `xs` badge instead, like
- * every other table.
- */
 function StatusCell(props: { hit: PatternHitDTO }) {
   const display = () => displayStatusForHit(props.hit);
   const label = () => {
@@ -94,7 +82,6 @@ function DirectionGlyph(props: { direction: string | null | undefined }) {
   );
 }
 
-/** Compact shape-quality letter: T/S/F/M with the tier color (full label in the title tooltip). */
 function QualityGlyph(props: { quality: string | null | undefined }) {
   const key = () => String(props.quality ?? "").toLowerCase();
   const info = () => QUALITY_INFO[key() as keyof typeof QUALITY_INFO];
@@ -116,7 +103,6 @@ function QualityGlyph(props: { quality: string | null | undefined }) {
   );
 }
 
-/** Dense scanner table: one row per hit, 23px compact rows, no sticky thead (see below). */
 export function PatternListView(props: PatternListViewProps) {
   const activeKey = () => (props.activeHit ? fullscreenDedupeKey(props.activeHit) : null);
 
@@ -146,8 +132,6 @@ export function PatternListView(props: PatternListViewProps) {
               weight={600}
               className="flex-1"
             />
-            {/* Results are equities, so only the F&O badge is shown — an ETF
-                tag is tolerated (no crash) but never rendered. */}
             <PatternTags
               tags={rowTags(hit)}
               symbol={symbol}
@@ -172,7 +156,9 @@ export function PatternListView(props: PatternListViewProps) {
       accessorKey: "pattern_name",
       size: 210,
       meta: { align: "left" },
-      cell: (ctx) => <TextCell value={ctx.row.original.pattern_name} />,
+      cell: (ctx) => (
+        <TextCell value={ctx.row.original.pattern_name} title={ctx.row.original.pattern_name ?? undefined} />
+      ),
     },
     {
       id: "confidence",
@@ -284,8 +270,6 @@ export function PatternListView(props: PatternListViewProps) {
           ctx.row.original.pattern_id === "consolidation" || (ctx.row.original.base_days ?? 0) > 0
             ? triggerDistancePct(ctx.row.original)
             : null;
-        // Below the trigger is the arming case, not an error — only an actual
-        // break above it earns the success colour.
         return (
           <NumCell
             value={distance}
@@ -299,17 +283,12 @@ export function PatternListView(props: PatternListViewProps) {
   ];
 
   return (
-    // `key` on a component is only a prop in Solid, so the table kept its mount
-    // sort forever. A keyed Show is the actual remount: changing the rail sort
-    // gives the table a fresh seed.
     <Show when={props.sort || "default"} keyed>
       <TanStackTable
         data={props.hits}
         columns={columns}
         dataTestId="patterns-list"
         fillContainer
-        // No sticky thead: the merged universe/results toolbar above is sticky
-        // (`top: 0`, higher z) and would cover a `top: 0` thead while scrolling.
         stickyHeader={false}
         // Sort keys match the server ordering (confidence desc / bars_ago asc /
         // range_pos desc / breakout_score desc).

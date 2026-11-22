@@ -22,10 +22,6 @@ from numpy.lib.stride_tricks import sliding_window_view
 
 OHLCV_COLUMNS = ["open", "high", "low", "close", "volume"]
 
-# ---------------------------------------------------------------------------
-# Frame-scoped memo storage
-# ---------------------------------------------------------------------------
-#
 # ``atr_value`` and ``envelope_line`` are called many times with the same frame
 # inside one ``detect_patterns`` pass (~19 detectors, 63% of envelope calls are
 # exact duplicates). Caching on ``df.attrs`` looked free but pandas 3 deep-copies
@@ -125,9 +121,6 @@ def _frame_entry(df: pd.DataFrame) -> _FrameEntry | None:
     return entry
 
 
-# ---------------------------------------------------------------------------
-# Normalisation
-# ---------------------------------------------------------------------------
 
 
 def _normalized_copy(df: pd.DataFrame) -> pd.DataFrame | None:
@@ -209,9 +202,6 @@ def normalize_ohlcv(df: pd.DataFrame | None) -> pd.DataFrame | None:
     return out
 
 
-# ---------------------------------------------------------------------------
-# Swing pivots (fractals)
-# ---------------------------------------------------------------------------
 
 
 def pivot_indices(
@@ -260,19 +250,16 @@ def _pivot_indices(values: np.ndarray, left: int, right: int, kind: str) -> list
 
 
 def find_swing_highs(high: pd.Series, left: int = 2, right: int = 2) -> list[int]:
-    """Positions ``i`` where ``high[i]`` is the local max of ``[i-left, i+right]``."""
     return _pivot_indices(np.asarray(high, dtype=float), left, right, "high")
 
 
 def find_swing_lows(low: pd.Series, left: int = 2, right: int = 2) -> list[int]:
-    """Positions ``i`` where ``low[i]`` is the local min of ``[i-left, i+right]``."""
     return _pivot_indices(np.asarray(low, dtype=float), left, right, "low")
 
 
 def swing_points(
     df: pd.DataFrame, left: int = 2, right: int = 2
 ) -> list[tuple[int, str, float]]:
-    """All pivots as ``(position, "H"|"L", price)`` sorted by position."""
     highs = find_swing_highs(df["high"], left, right)
     lows = find_swing_lows(df["low"], left, right)
     pts = [(i, "H", float(df["high"].iloc[i])) for i in highs]
@@ -282,7 +269,6 @@ def swing_points(
 
 
 def pivot_frame(df: pd.DataFrame, left: int = 2, right: int = 2) -> pd.DataFrame:
-    """Frame with ``high_pivot`` / ``low_pivot`` columns (NaN elsewhere)."""
     hi = pd.Series(np.nan, index=df.index, dtype=float)
     lo = pd.Series(np.nan, index=df.index, dtype=float)
     for i in find_swing_highs(df["high"], left, right):
@@ -292,9 +278,6 @@ def pivot_frame(df: pd.DataFrame, left: int = 2, right: int = 2) -> pd.DataFrame
     return pd.DataFrame({"high_pivot": hi, "low_pivot": lo}, index=df.index)
 
 
-# ---------------------------------------------------------------------------
-# Least-squares lines
-# ---------------------------------------------------------------------------
 
 
 def linreg_fit(
@@ -330,7 +313,6 @@ def linreg_fit(
 def fit_pivot_line(
     pivots: Sequence[tuple[int, float]]
 ) -> tuple[float, float, float] | None:
-    """Fit a line through ``(position, price)`` pivots. ``None`` if < 2 pivots."""
     if len(pivots) < 2:
         return None
     xs = [p for p, _ in pivots]
@@ -339,14 +321,12 @@ def fit_pivot_line(
 
 
 def line_value(slope: float, intercept: float, x: float) -> float:
-    """Evaluate a line at ``x``."""
     return float(slope) * float(x) + float(intercept)
 
 
 def sample_line(
     slope: float, intercept: float, x0: int, x1: int
 ) -> list[dict]:
-    """Serialise a straight line as its two endpoints for overlays."""
     return [
         {"t": x0, "price": line_value(slope, intercept, x0)},
         {"t": x1, "price": line_value(slope, intercept, x1)},
@@ -354,20 +334,15 @@ def sample_line(
 
 
 def relative_slope(slope: float, span: int, mean_price: float) -> float:
-    """Total price drift of a line over ``span`` bars as a fraction of price."""
     if mean_price <= 0 or span <= 0:
         return 0.0
     return float(slope) * float(span) / float(mean_price)
 
 
 def is_horizontal(slope: float, span: int, mean_price: float, tol: float = 0.03) -> bool:
-    """True when the line drifts less than ``tol`` of price over ``span`` bars."""
     return abs(relative_slope(slope, span, mean_price)) <= tol
 
 
-# ---------------------------------------------------------------------------
-# Polynomial / curvature helpers
-# ---------------------------------------------------------------------------
 
 
 def polyfit_values(
@@ -391,7 +366,6 @@ def polyfit_values(
 
 
 def r2_of(y: Sequence[float], fitted: Sequence[float]) -> float:
-    """Coefficient of determination of ``fitted`` against ``y``."""
     ys = np.asarray(y, dtype=float)
     fs = np.asarray(fitted, dtype=float)
     ss_tot = float(((ys - ys.mean()) ** 2).sum())
@@ -402,7 +376,6 @@ def r2_of(y: Sequence[float], fitted: Sequence[float]) -> float:
 
 
 def quadratic_fit(y: Sequence[float]) -> tuple[np.ndarray, np.ndarray, float, float]:
-    """Fit ``y`` against its own index; return ``(fitted, coeffs, r2, vertex)``."""
     xs = np.arange(len(y), dtype=float)
     fitted, coeffs = polyfit_values(y, degree=2, x=xs)
     r2 = r2_of(y, fitted)
@@ -423,13 +396,9 @@ def curvature_sign(coeffs: Sequence[float]) -> int:
     return 1 if lead > 0 else -1
 
 
-# ---------------------------------------------------------------------------
-# Volatility / volume / extremes
-# ---------------------------------------------------------------------------
 
 
 def atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
-    """Average True Range (Wilder-style EMA of true range)."""
     if df is None or len(df) == 0:
         return pd.Series(dtype=float)
     high = df["high"].to_numpy(dtype=float)
@@ -477,7 +446,6 @@ def atr_value(df: pd.DataFrame, period: int = 14) -> float:
 def is_volume_confirmed(
     df: pd.DataFrame, idx: int, mult: float = 1.2, lookback: int = 20
 ) -> bool:
-    """True when volume at ``idx`` exceeds ``mult`` x mean of prior ``lookback``."""
     if df is None or df.empty:
         return False
     vol = df["volume"].to_numpy(dtype=float)
@@ -501,7 +469,6 @@ def is_volume_confirmed(
 def swing_extremes(
     df: pd.DataFrame, start: int, end: int
 ) -> tuple[float, float, int, int]:
-    """Highest high / lowest low (and their positions) within ``[start, end]``."""
     if df is None or df.empty:
         return 0.0, 0.0, start, end
     start = max(0, int(start))
@@ -550,7 +517,7 @@ def _boundary_values(df: pd.DataFrame, side: str) -> np.ndarray:
         values = df.values[:, df.columns.get_loc(col)]
         if values.ndim == 1 and values.dtype == np.float64:
             return values
-    except Exception:  # non-unique columns, mixed dtypes, custom frame subclass
+    except Exception:
         pass
     return df[col].to_numpy(dtype=float, copy=False)
 
@@ -595,7 +562,7 @@ def envelope_line(
             # hash equal to their native counterparts, so this key is
             # interchangeable with the old converted form.
             pivot_key = tuple(P)
-            hash(pivot_key)  # reject unhashable pivot elements
+            hash(pivot_key)
             memo_key = (
                 side,
                 pivot_key,
@@ -622,7 +589,7 @@ def envelope_line(
     Q1 = qs[rows_j]
     span = X1 - X0
     slopes = (Q1 - Q0) / span
-    counts = span.astype(np.int64) + 1  # bars in [x0, x1], inclusive
+    counts = span.astype(np.int64) + 1
     num_pairs = len(X0)
     viol = np.zeros(num_pairs, dtype=np.int64)
     # Cell budget per block keeps peak memory bounded; blocks run in pair order
@@ -641,9 +608,9 @@ def envelope_line(
         Kf = K.astype(np.float64)
         y = Q0[Pidx] + slopes[Pidx] * (Kf - X0p)
         if side == "upper":
-            d = boundary[K] - y  # violation: price pierces above the line
+            d = boundary[K] - y
         else:
-            d = y - boundary[K]  # violation: price pierces below the line
+            d = y - boundary[K]
         over = d > tol
         # Pidx holds GLOBAL pair indices (np.arange(p0, p1)), so bincount would
         # size the result to the global max index instead of this block - offset
@@ -692,7 +659,6 @@ def count_touches(
     atr_val: float,
     tol_atr: float = 0.75,
 ) -> int:
-    """How many pivots lie within ``tol_atr * ATR`` of a trendline."""
     if atr_val <= 0:
         return 0
     n = 0
@@ -737,7 +703,6 @@ def penetration_ratio(
 
 
 def last_n(pivots: Sequence[tuple[int, float]], n: int) -> list[tuple[int, float]]:
-    """Last ``n`` pivots (pivots are position-ordered)."""
     if n <= 0:
         return []
     return list(pivots[-n:])
@@ -746,5 +711,4 @@ def last_n(pivots: Sequence[tuple[int, float]], n: int) -> list[tuple[int, float
 def between(
     pivots: Sequence[tuple[int, float]], lo: int, hi: int
 ) -> list[tuple[int, float]]:
-    """Pivots with ``lo <= position <= hi``."""
     return [(p, q) for p, q in pivots if lo <= p <= hi]

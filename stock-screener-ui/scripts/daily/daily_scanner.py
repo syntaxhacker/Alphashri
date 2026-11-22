@@ -1,4 +1,3 @@
-"""Screener and signal scanning functions for daily ORB trading."""
 
 import random
 from datetime import datetime, timedelta
@@ -13,7 +12,6 @@ console = Console()
 
 
 def refresh_watchlist(runner):
-    """Refresh watchlist from screener."""
     console.print("\n[cyan]Refreshing watchlist from screener...[/cyan]")
 
     screener = runner._get_screener()
@@ -56,7 +54,6 @@ def refresh_watchlist(runner):
 
 
 def fetch_or_data(runner, symbol: str) -> dict:
-    """Fetch opening range data for a symbol using intraday API."""
     try:
         fetcher = runner._get_data_fetcher()
 
@@ -93,7 +90,6 @@ def fetch_or_data(runner, symbol: str) -> dict:
 
 
 def fetch_live_price_for_exit(runner, symbol: str) -> dict:
-    """Fetch 1-minute data for accurate exit monitoring (checks candle high/low)."""
     try:
         fetcher = runner._get_data_fetcher()
 
@@ -119,7 +115,6 @@ def fetch_live_price_for_exit(runner, symbol: str) -> dict:
 
 
 def scan_for_signals(runner):
-    """Scan watchlist for ORB signals."""
     scan_items: List[dict] = []
 
     if not runner.is_trading_hours():

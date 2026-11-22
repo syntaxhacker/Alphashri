@@ -5,7 +5,6 @@ import { symbolMetrics, type SymbolMetrics } from "./symbolMetrics";
 import type { PressureSeries } from "./niftyPressure";
 import type { NiftyStrike } from "@/types/niftyReport";
 
-/** A quiet, coiled tape: wide swings early, the last 30 minutes in a 20-pt box. */
 function coilRows() {
   const out: Array<{ t: string; spot: number }> = [];
   for (let i = 0; i < 90; i++) {
@@ -166,7 +165,6 @@ describe("setupRadar", () => {
     expect(WALL_MIN_OI).toBe(10_000_000);
   });
 
-  // --- Symbol-aware thresholds (new) ---
 
   test("SENSEX: 100-pt strike step -> wallMaxDist=200, wallMinOi=1.875M (25% of 7.5M), levelMaxDist=120", () => {
     const metrics = makeMetrics(79_000, 100, 20, 7_500_000);

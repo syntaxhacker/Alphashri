@@ -147,7 +147,6 @@ describe("PatternImageManager", () => {
     expect(await screen.findByTestId("pattern-image-error-falling_wedge")).toHaveTextContent(
       "delete boom",
     );
-    // Failed clear keeps the uploaded image wired to the card.
     expect(screen.getByTestId("pattern-image-falling_wedge")).toBeInTheDocument();
   });
 

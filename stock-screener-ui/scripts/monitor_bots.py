@@ -1,12 +1,3 @@
-"""
-Monitor CPU, memory, and cycle timing for all running bot processes.
-
-Usage:
-    python scripts/monitor_bots.py [--interval 5] [--count 60]
-
-Sample every N seconds for M samples, print a live table.
-Press Ctrl+C to stop early.
-"""
 
 import argparse
 import os
@@ -26,7 +17,6 @@ except ImportError:
 
 
 def get_bot_pids():
-    """Find all runner_cli.py bot processes."""
     bots = []
     for proc in psutil.process_iter(['pid', 'cmdline', 'create_time']):
         try:
@@ -48,7 +38,6 @@ def get_bot_pids():
 
 
 def get_uvicorn_pids():
-    """Find uvicorn API server processes."""
     uvs = []
     for proc in psutil.process_iter(['pid', 'cmdline', 'name']):
         try:
@@ -65,7 +54,6 @@ def get_uvicorn_pids():
 
 
 def get_cycle_stats(bot_id, log_paths):
-    """Read bot log to extract recent cycle times."""
     for lp in log_paths:
         if not lp.exists():
             continue

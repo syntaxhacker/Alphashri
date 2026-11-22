@@ -19,7 +19,6 @@ const SOURCE_FILES = readdirSync(HERE)
   .filter((name) => /\.(ts|tsx)$/.test(name) && !name.includes(".test."))
   .sort();
 
-/** Tailwind arbitrary values, inline style objects (quoted or bare) and SVG attrs. */
 const FONT_SIZE =
   /text-\[(\d+(?:\.\d+)?)px\]|["']?font-size["']?\s*[:=]\s*["']?(\d+(?:\.\d+)?)px|\bfontSize\s*[:=]\s*["']?(\d+(?:\.\d+)?)|\bfont-size="(\d+(?:\.\d+)?)"/g;
 

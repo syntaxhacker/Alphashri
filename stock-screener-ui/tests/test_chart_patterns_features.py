@@ -55,9 +55,6 @@ def atr_frame() -> pd.DataFrame:
     )
 
 
-# ---------------------------------------------------------------------------
-# normalize_ohlcv
-# ---------------------------------------------------------------------------
 
 
 class TestNormalizeOhlcv:
@@ -305,9 +302,6 @@ class TestNormalizeOhlcv:
         assert fast_hits == plain_hits
 
 
-# ---------------------------------------------------------------------------
-# linreg_fit / relative_slope / is_horizontal
-# ---------------------------------------------------------------------------
 
 
 class TestLinregFit:
@@ -388,9 +382,6 @@ class TestRelativeSlopeAndHorizontal:
         assert F.is_horizontal(1.0, 10, 100.0, tol=0.05) is False
 
 
-# ---------------------------------------------------------------------------
-# atr / atr_value
-# ---------------------------------------------------------------------------
 
 
 class TestAtr:
@@ -481,9 +472,6 @@ class TestAtrValue:
         assert F.atr_value(narrow, period=2) != pytest.approx(1.375)
 
 
-# ---------------------------------------------------------------------------
-# is_volume_confirmed
-# ---------------------------------------------------------------------------
 
 
 class TestIsVolumeConfirmed:
@@ -544,9 +532,6 @@ class TestIsVolumeConfirmed:
         assert F.is_volume_confirmed(None, 0) is False
 
 
-# ---------------------------------------------------------------------------
-# count_touches
-# ---------------------------------------------------------------------------
 
 
 class TestCountTouches:
@@ -584,9 +569,6 @@ class TestCountTouches:
         assert F.count_touches([(0, 106.0)], 0.0, 100.0, 10.0, tol_atr=1.0) == 1
 
 
-# ---------------------------------------------------------------------------
-# r2_of / curvature_sign / polyfit_values
-# ---------------------------------------------------------------------------
 
 
 class TestR2Of:
@@ -687,9 +669,6 @@ class TestQuadraticFit:
         assert vertex == pytest.approx(1.0)  # near-zero lead -> midpoint fallback
 
 
-# ---------------------------------------------------------------------------
-# last_n / between
-# ---------------------------------------------------------------------------
 
 
 class TestLastN:
@@ -722,9 +701,6 @@ class TestBetween:
         assert F.between([(2, 3.0)], 2, 2) == [(2, 3.0)]
 
 
-# ---------------------------------------------------------------------------
-# find_swing_highs / find_swing_lows / swing_points / pivot_frame
-# ---------------------------------------------------------------------------
 
 
 class TestSwingPivots:
@@ -854,9 +830,6 @@ class TestSwingPointsAndPivotFrame:
         assert pf["low_pivot"].iloc[2] != pf["low_pivot"].iloc[2]  # NaN
 
 
-# ---------------------------------------------------------------------------
-# line_value / sample_line / fit_pivot_line
-# ---------------------------------------------------------------------------
 
 
 class TestLineHelpers:
@@ -880,9 +853,6 @@ class TestLineHelpers:
         assert r2 == pytest.approx(1.0)
 
 
-# ---------------------------------------------------------------------------
-# swing_extremes / envelope_line / penetration_ratio
-# ---------------------------------------------------------------------------
 
 
 class TestSwingExtremes:

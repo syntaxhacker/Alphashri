@@ -85,11 +85,6 @@ export {
 export type { TapeScale } from "./tapeFormat";
 export { getNiftyTapeColumns } from "./NiftyTapeColumns";
 
-/**
- * Cheap serialised signature of the live change-flash map. The flash map only
- * ever holds genuinely moved cells (tiny), so this string is cheap to build
- * and lets the column model keep a stable identity for equal content.
- */
 function serializeChangedCells(changed: Map<string, Set<string>>): string {
   if (changed.size === 0) return "";
   const parts: string[] = [];

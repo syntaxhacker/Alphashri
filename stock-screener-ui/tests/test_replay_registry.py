@@ -28,7 +28,6 @@ def _clear_cache():
     poc_nq._cache.clear()
 
 
-# ---------------- registry ----------------
 
 class TestRegistry:
 
@@ -56,7 +55,6 @@ class TestRegistry:
         assert {p["name"] for p in smc["params"]} == {"entries", "flip", "from_ist", "to_ist"}
 
 
-# ---------------- strategies listing endpoint ----------------
 
 
 class TestStrategiesEndpoint:
@@ -86,7 +84,6 @@ class TestStrategiesEndpoint:
         assert "strategy_id" not in data
 
 
-# ---------------- generic endpoint ----------------
 
 class TestGenericEndpoint:
 
@@ -126,7 +123,6 @@ class TestGenericEndpoint:
         assert res["trades"] == []
 
 
-# ---------------- legacy adapter == engine ----------------
 
 class TestAdapterMatchesEngine:
 

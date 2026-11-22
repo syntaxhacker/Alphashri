@@ -13,13 +13,6 @@ import { toEpochSeconds } from "@/utils/chart/time";
 import { createAxisIndex } from "./axisIndex";
 import { resolveVisibleStandalone } from "./standaloneLines";
 
-/**
- * Colours assigned in order to the patterns drawn on one chart: the selected
- * pattern takes the first colour, its siblings the next ones. Backward-compatible
- * alias of the shared `PATTERN_SERIES_COLORS` in `@/config/patterns` so the
- * TradingView adapter draws each pattern in the same colour as the ECharts
- * fullscreen view.
- */
 export const PATTERN_TV_COLORS: string[] = PATTERN_SERIES_COLORS;
 
 /** @deprecated Use `@/utils/chart/time.toEpochSeconds` directly for new code. */
@@ -31,7 +24,6 @@ export interface TVCandle {
   high: number;
   low: number;
   close: number;
-  /** Backend flagged the last bar as still forming (live tape / delayed feed). */
   isPartial?: boolean;
 }
 
@@ -60,7 +52,6 @@ export interface TVLine {
   dashed: boolean;
   width: number;
   name: string;
-  /** Inline end-label text (e.g. `"TLS · 4 touches"`); falls back to `name`. */
   label?: string;
   /**
    * Whether this line draws an inline end label. Only a pattern group's first
@@ -93,13 +84,8 @@ export interface BuildPatternTVDataInput {
   candles: ChartCandle[];
   hit?: PatternHitDTO | null;
   overlays?: TVSiblingOverlay[];
-  /**
-   * Standalone support/resistance lines. Defaults to the hit's own
-   * `trend_lines` when omitted (same fallback as the ECharts builder).
-   */
   trendLines?: TrendLine[];
   trendlinesView?: TrendlinesView;
-  /** Last N hits (newest first) to draw as historical patterns. */
   historyHits?: PatternHitDTO[];
   /**
    * IANA zone used to pin *naive* candle timestamps. Defaults to IST; pass
@@ -133,12 +119,6 @@ function dedupeByTime(points: TVLinePoint[]): TVLinePoint[] {
   return [...byTime.values()].sort(byTimeAsc);
 }
 
-/**
- * Pure mapper turning the same inputs the ECharts builder gets into
- * lightweight-charts data: sorted/unique candles + volume, horizontal
- * breakout/target/stop levels, pattern boundary trendlines + standalone
- * TLS/TLR 2-point segments, and pivot markers.
- */
 export function buildPatternTVData({
   candles,
   hit,
@@ -155,7 +135,6 @@ export function buildPatternTVData({
   // Axis parses once per build; every group/standalone lookup below reuses it.
   const axis = createAxisIndex(times);
 
-  /** Epoch per candle index; non-finite when the timestamp is unparseable. */
   const epochs: number[] = times.map((t) => toEpochSeconds(t, timeZone));
   const epochAt = (index: number): number =>
     index >= 0 && index < epochs.length ? epochs[index]! : NaN;
@@ -186,11 +165,8 @@ export function buildPatternTVData({
     color: c.c >= c.o ? withAlpha(POSITIVE, 0.9) : withAlpha(NEGATIVE, 0.9),
   }));
 
-  // Breakout/target/stop levels intentionally omitted: risk sizing is the
-  // trader's job, not the pattern engine's.
   const levels: TVLevel[] = [];
 
-  // Pattern boundary groups: the selected pattern solid, siblings dashed.
   const selectedId = hit?.pattern_id;
   const selectedStart = hit?.start_date ?? null;
   const isSelectedOverlay = (overlay: TVSiblingOverlay): boolean => {
@@ -238,8 +214,6 @@ export function buildPatternTVData({
     });
   });
 
-  // Two sibling instances can share a display name; disambiguate repeats while
-  // the first instance keeps the clean readable name (same as ECharts).
   const nameCounts = new Map<string, number>();
   const lines: TVLine[] = [];
   groups.forEach((group, index) => {
@@ -272,7 +246,6 @@ export function buildPatternTVData({
     });
   });
 
-  // Standalone support/resistance 2-point segments, gated by the view filter.
   const visibleStandalone = resolveVisibleStandalone(trendLines, hit, trendlinesView);
   visibleStandalone.forEach((line) => {
     const mapped = axis.mapStandaloneLine(line);
@@ -296,7 +269,6 @@ export function buildPatternTVData({
   });
   lines.sort((a, b) => (a.points[0]?.time ?? 0) - (b.points[0]?.time ?? 0));
 
-  // Pivot/key-point dot markers removed: the chart draws lines only.
   const markers: TVMarker[] = [];
 
   return { candles: tvCandles, volume, levels, lines, markers };

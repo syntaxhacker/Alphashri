@@ -26,7 +26,6 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# scripts/ -> stock-screener-ui/ (repo root for imports)
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -36,7 +35,6 @@ from api.reports_api.nifty_wall_events import recall_report  # noqa: E402
 
 
 def _fmt(event: dict) -> str:
-    """One-line rendering of a wall event."""
     level = event.get("level")
     try:
         level_txt = f"{float(level):,.0f}"

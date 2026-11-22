@@ -49,9 +49,6 @@ _TIME_RE = re.compile(r"(\d{2}):(\d{2})")
 _ROW_FIELDS = ("t", "close", "oi", "basis", "spot", "volume", "regime")
 
 
-# ---------------------------------------------------------------------------
-# row normalisation
-# ---------------------------------------------------------------------------
 def _clock(value: Any, where: str) -> str:
     if isinstance(value, str):
         match = _TIME_RE.search(value)
@@ -217,9 +214,6 @@ def _point_legend(color: str, label: str) -> tuple[str, str]:
     return (f"var(--rv-{color})", label)
 
 
-# ---------------------------------------------------------------------------
-# 1. futures close + open interest
-# ---------------------------------------------------------------------------
 def futures_price_oi(
     data: Any,
     *,
@@ -231,7 +225,6 @@ def futures_price_oi(
     span: int = 2,
     height: int = 320,
 ) -> str:
-    """Close on the left axis, open interest on the right axis."""
     records, _ = _records(data, ("close", "oi", "volume"))
     digits = spec.price_decimals
     price_pairs = _pairs(records, "close")
@@ -301,9 +294,6 @@ def futures_price_oi(
     )
 
 
-# ---------------------------------------------------------------------------
-# 2. basis (futures minus spot)
-# ---------------------------------------------------------------------------
 def futures_basis(
     data: Any,
     *,
@@ -315,11 +305,9 @@ def futures_basis(
     span: int = 1,
     height: int = 280,
 ) -> str:
-    """Basis in price points with spot alongside it, gaps preserved."""
     raw, _ = _split(data)
     records = _records_from_raw(raw, ("close", "spot", "basis"))
     if not any(isinstance(row, Mapping) and "basis" in row for row in raw):
-        # Upstream may publish only the two legs; the basis is their difference.
         for row in records:
             if row["close"] is not None and row["spot"] is not None:
                 row["basis"] = row["close"] - row["spot"]
@@ -392,9 +380,6 @@ def futures_basis(
     )
 
 
-# ---------------------------------------------------------------------------
-# 3. regimes (categorical bands on a time axis)
-# ---------------------------------------------------------------------------
 def _labels(meta: Mapping[str, Any]) -> dict[str, str]:
     labels = dict(REGIME_LABELS)
     extra = meta.get("regime_labels") or meta.get("labels") or {}
@@ -577,7 +562,6 @@ def futures_regimes(
     span: int = 2,
     height: int = 150,
 ) -> str:
-    """Categorical regime bands; every band is a shape, not a numeric line."""
     records, meta = _records(data, ("close", "oi", "volume"))
     digits = spec.price_decimals
     entries = meta.get("bands") or meta.get("regimes")
@@ -653,9 +637,6 @@ def futures_regimes(
     )
 
 
-# ---------------------------------------------------------------------------
-# 4. volume
-# ---------------------------------------------------------------------------
 def futures_volume(
     data: Any,
     *,
@@ -667,7 +648,6 @@ def futures_volume(
     span: int = 1,
     height: int = 260,
 ) -> str:
-    """Per-bar volume with the session's peak bar highlighted."""
     records, _ = _records(data, ("volume", "close", "oi"))
     pairs = _pairs(records, "volume")
     stats: dict[str, Any] = {

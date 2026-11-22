@@ -87,9 +87,6 @@ def test_bursts_feed_maps_wall_events_with_target():
     assert rej["severity"] == "alert"
 
 
-# ---------------------------------------------------------------------------
-# recall journal
-# ---------------------------------------------------------------------------
 
 from api.reports_api import nifty_wall_events as we  # noqa: E402
 

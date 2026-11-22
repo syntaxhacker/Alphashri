@@ -1,20 +1,4 @@
 #!/usr/bin/env python3
-"""Realistic SENSEX options backtest — matches LIVE fills, not mid-price.
-
-Fixes the 5 sins that made our backtests diverge from live:
-  1. bid/ask spread  — buy at ask, sell at bid (spread modeled from a rate)
-  2. slippage        — extra adverse move on each fill
-  3. poll cadence    — decisions every N seconds (30s like the live monitor)
-  4. costs           — Indian option charges (STT/brk/exch/GST)
-  5. expiry-aware    — time-to-close theta on expiry day
-
-Strategies: the top5 scalp configs + range/reversion configs (same families that
-ran live today). Run per-day or walk-forward.
-
-Usage:
-  python3 scripts/paper_sensex_realistic_backtest.py [--day 2026-08-06]
-      [--spread 2.0] [--slip 0.5] [--cadence 30] [--family all]
-"""
 from __future__ import annotations
 
 import argparse
@@ -49,21 +33,18 @@ def bs(side, spot, strike, t, iv=IV, r=0.05):
 
 
 def realistic_fill(side, mid, spread, slip):
-    """Buy pays ask (mid+spread/2) + slippage; sell receives bid (mid-spread/2) - slip."""
     if side == "CE":
         return mid + spread / 2 + slip
     return mid - spread / 2 - slip
 
 
 def scalp_entry(rows, i, style, lb, thr):
-    """Momentum/range entry on bar i. Returns 'CE'/'PE'/None."""
     if i < lb + 1:
         return None
     spot = float(rows[i][4])
     if style == "momentum":
         mom = spot - float(rows[i - lb][4])
         return "CE" if mom >= thr else ("PE" if mom <= -thr else None)
-    # range
     lows = [float(rows[j][3]) for j in range(i - lb, i)]
     highs = [float(rows[j][2]) for j in range(i - lb, i)]
     if spot <= min(lows) + 5:
@@ -74,7 +55,6 @@ def scalp_entry(rows, i, style, lb, thr):
 
 
 def range_entry(spot, lv, cfg):
-    """Replicate RangeStrategy decide_with_levels. Returns ('CE'/'PE'/None, reason)."""
     day = lv.get("day", {})
     low, high = day.get("low", 0), day.get("high", 0)
     if high <= low:
@@ -82,7 +62,6 @@ def range_entry(spot, lv, cfg):
     day_open = day.get("open", 0)
     down_day = day_open > 0 and spot < day_open
     up_day = day_open > 0 and spot > day_open
-    # trend filter
     if cfg.get("trend_filter", True):
         allow_long, allow_short = not down_day, not up_day
     else:
@@ -104,18 +83,15 @@ def range_entry(spot, lv, cfg):
 
 
 def run_day(cfg, rows, spread, slip, cadence_s, t_years, is_expiry):
-    """Replay one config on one day with realistic fills. Returns (net, trades, wins)."""
     trades = []
     pos = None
     n = len(rows)
     i = 0
-    # cadence: sample every ceil(cadence_s/60) minutes
     step = max(1, round(cadence_s / 60))
     while i < n:
         hm = rows[i][0][11:16]
         spot = float(rows[i][4])
         if pos:
-            # manage: check SL/TP on this bar (use bar high/low)
             hi = float(rows[i][2]); lo = float(rows[i][3])
             pnl_hi = (realistic_fill("PE", bs(pos["side"], hi, pos["strike"], t_years), spread, slip)
                       - pos["prem"]) * LOT if pos["side"] == "PE" else \
@@ -133,7 +109,6 @@ def run_day(cfg, rows, spread, slip, cadence_s, t_years, is_expiry):
             elif hm >= ("14:30" if is_expiry else "15:20"):
                 reason = "EOD"
             if reason:
-                # realistic exit: sell at bid-slip
                 exit_prem = realistic_fill("CE", bs(pos["side"], spot, pos["strike"], t_years), spread, slip) \
                     if pos["side"] == "CE" else realistic_fill("PE", bs(pos["side"], spot, pos["strike"], t_years), spread, slip)
                 gross = (exit_prem - pos["prem"]) * LOT if pos["side"] == "CE" else (pos["prem"] - exit_prem) * LOT
@@ -143,16 +118,13 @@ def run_day(cfg, rows, spread, slip, cadence_s, t_years, is_expiry):
                 i += step
                 continue
         else:
-            # entry
             family = cfg.get("family")
             side = None
             if family == "scalp":
                 side = scalp_entry(rows, i, cfg["style"], cfg.get("lb", 5), cfg.get("thr", 10))
             else:
-                # build levels like the range strategy
                 day_low = min(float(rows[j][3]) for j in range(n))
                 day_high = max(float(rows[j][2]) for j in range(n))
-                # cumulative up to now (no lookahead)
                 day_low = min(float(rows[j][3]) for j in range(0, i + 1))
                 day_high = max(float(rows[j][2]) for j in range(0, i + 1))
                 lv = {"day": {"open": float(rows[0][1]), "high": day_high, "low": day_low},
@@ -160,12 +132,10 @@ def run_day(cfg, rows, spread, slip, cadence_s, t_years, is_expiry):
                 side, _ = range_entry(spot, lv, cfg)
             if side:
                 strike = round(spot / 100) * 100 + (100 if side == "CE" else -100)
-                # realistic entry: buy at ask+slip
                 prem = realistic_fill("CE" if side == "CE" else "PE",
                                       bs(side, spot, strike, t_years), spread, slip)
                 pos = {"side": side, "strike": strike, "prem": prem}
         i += step
-    # leftover position at end -> EOD realistic
     if pos:
         exit_prem = realistic_fill("CE", bs(pos["side"], float(rows[-1][4]), pos["strike"], t_years), spread, slip) \
             if pos["side"] == "CE" else realistic_fill("PE", bs(pos["side"], float(rows[-1][4]), pos["strike"], t_years), spread, slip)
@@ -177,7 +147,6 @@ def run_day(cfg, rows, spread, slip, cadence_s, t_years, is_expiry):
 
 
 def build_configs():
-    """All candidate configs (scalp + range families)."""
     cfgs = []
     for style in ["momentum", "range"]:
         for lb in [3, 5]:

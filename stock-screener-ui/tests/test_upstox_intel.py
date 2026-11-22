@@ -31,9 +31,6 @@ def _args(**overrides):
     return argparse.Namespace(**base)
 
 
-# ---------------------------------------------------------------------------
-# OI
-# ---------------------------------------------------------------------------
 def test_parse_oi_enveloped():
     payload = {"status": "success", "data": {"total_call_oi": 100.0, "total_put_oi": 80.0}}
     assert parse_oi_payload(payload) == {"total_call_oi": 100.0, "total_put_oi": 80.0}
@@ -55,9 +52,6 @@ def test_parse_oi_missing_and_malformed():
     }
 
 
-# ---------------------------------------------------------------------------
-# change in OI + top-5
-# ---------------------------------------------------------------------------
 CHANGE_FIXTURE = {
     "status": "success",
     "data": {
@@ -124,9 +118,6 @@ def test_parse_change_oi_malformed_payload():
     assert parse_change_oi_payload({"data": []})["rows"] == []
 
 
-# ---------------------------------------------------------------------------
-# max pain / PCR / FII-DII
-# ---------------------------------------------------------------------------
 def test_parse_max_pain():
     parsed = parse_max_pain_payload(
         {"status": "success", "data": {"max_pain_strike": 26000, "spot_price": 26123.45}}
@@ -244,9 +235,6 @@ def test_parse_fii_dii_derives_net_and_degrades():
     }
 
 
-# ---------------------------------------------------------------------------
-# news
-# ---------------------------------------------------------------------------
 def test_parse_news_items_mapping_and_ist_conversion():
     # documented shape: {instrument_key: [items]}, published_time = epoch ms
     payload = {
@@ -297,9 +285,6 @@ def test_parse_news_items_malformed():
     assert parse_news_items({"data": "junk"}) == []
 
 
-# ---------------------------------------------------------------------------
-# expiry param
-# ---------------------------------------------------------------------------
 def test_expiry_param_current_week_defers_to_upstox():
     assert _expiry_param("current_week") == {"expiry": "current_week"}
     assert _expiry_param(None) == {"expiry": "current_week"}
@@ -339,9 +324,6 @@ def test_build_payload_retries_null_keyword_with_tuesday(monkeypatch):
     assert [c["params"]["expiry"] for c in oi_calls] == ["current_week", "2026-10-27"]
 
 
-# ---------------------------------------------------------------------------
-# graceful degradation
-# ---------------------------------------------------------------------------
 def test_build_payload_degrades_per_source(monkeypatch):
     import scripts.upstox_intel as intel
 

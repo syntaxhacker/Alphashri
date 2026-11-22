@@ -13,9 +13,6 @@ import { formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
 import type { SectorLeader, SectorLeaderBoard } from "../../types/report";
 import { REPORT_FONT } from "./reportTokens";
 
-/** One type treatment for every label / number on the strip, so a stat cell and
- *  a leader row cannot drift apart. Numbers are mono + tabular or the columns
- *  do not line up. */
 const STRIP_LABEL_STYLE = {
   "font-size": `${REPORT_FONT.micro}px`,
   "font-weight": 700,

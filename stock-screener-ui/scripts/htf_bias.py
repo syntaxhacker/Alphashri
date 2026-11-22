@@ -24,7 +24,6 @@ def fetch_daily(force=False):
 
 
 def swings(df):
-    """Confirmed 3-bar fractal swings: list of (idx, 'H'/'L', price)."""
     hi, lo = df["High"].values, df["Low"].values
     out = []
     for j in range(2, len(df) - 2):
@@ -36,7 +35,6 @@ def swings(df):
 
 
 def bias_for(df, date_str):
-    """+1/-1/0 using only information available before date_str (confirmation lag respected)."""
     import pandas as pd
     dates = [d.date().isoformat() for d in df.index]
     try:

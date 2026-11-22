@@ -151,7 +151,6 @@ describe("RangeInput", () => {
     track.releasePointerCapture = ((id: number) => captured.delete(id)) as never;
 
     fireEvent(track, new PointerEvent("pointerdown", { clientX: 6 + 100, bubbles: true, button: 0, pointerId: 1 }) as never);
-    // 50% of 0..100 → 50, nearer the 20 end.
     expect(onMinChange).toHaveBeenCalledWith(50);
     expect(onMaxChange).not.toHaveBeenCalled();
   });

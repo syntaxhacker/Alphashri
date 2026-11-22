@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-"""
-Benchmark Upstox Market Data: REST API (LTP V3) vs WebSocket V3 (MarketDataStreamerV3)
-
-Usage:
-    source .venv/bin/activate && python scripts/benchmark_upstox_data.py
-
-Token sources (checked in order):
-    1. DB (broker_connections table via get_shared_broker_token)
-    2. .upstox_token.json file
-    3. UPSTOX_ACCESS_TOKEN env var
-"""
 
 import sys
 import json

@@ -387,21 +387,18 @@ describe("preview → endPreview race (A then B)", () => {
     const enter = (el: HTMLElement) => fireEvent.mouseEnter(el, { relatedTarget: null });
     const leave = (el: HTMLElement) => fireEvent.mouseLeave(el, { relatedTarget: null });
 
-    // Enter A → 300 ms debounce → A preview opens
     enter(previewA);
     expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument();
 
     vi.advanceTimersByTime(300);
     await waitFor(() => expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON"));
 
-    // Leave A → close timer scheduled (800 ms); enter B → it must be cancelled
     leave(previewA);
     enter(previewB);
 
     vi.advanceTimersByTime(300);
     await waitFor(() => expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("RELIANCE"));
 
-    // Advance past the old close timer → dock still shows B, not closed, not A
     vi.advanceTimersByTime(800);
     await waitFor(() => expect(screen.getByTestId("symbol-dock")).toBeInTheDocument());
     expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("RELIANCE");

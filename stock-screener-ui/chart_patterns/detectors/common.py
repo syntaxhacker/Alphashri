@@ -16,7 +16,6 @@ import config
 
 from .. import features as F
 
-# --- tunables (CONTRACT §2) -------------------------------------------------
 PROXIMITY_PCT = 2.0  # % distance to breakout line treated as "forming"
 VOLUME_MULT = 1.2  # end swing volume vs mean(prior 20)
 ATR_STOP_K = 1.5  # stop is never wider than k * ATR(14)
@@ -51,16 +50,13 @@ class PatternHit:
     notes: str = ""
     symbol: str = ""
     timeframe: str = ""
-    # Swing points used to define the pattern, for on-chart markers + manual audit.
     pivots: list[dict] = field(default_factory=list)
-    # Consolidation-base metrics (only set by the ``consolidation`` detector).
     # Trailer fields so the frozen ``PatternHit`` field order above is intact.
     base_days: int = 0
     range_pct: float = 0.0
     range_pos: float = 0.0
 
 
-# pattern_id -> (display name, family, direction)
 PATTERN_CATALOG: dict[str, tuple[str, str, str]] = {
     "falling_wedge": ("Falling Wedge", "reversal", "bullish"),
     "rising_wedge": ("Rising Wedge", "reversal", "bearish"),
@@ -83,12 +79,10 @@ PATTERN_CATALOG: dict[str, tuple[str, str, str]] = {
     "consolidation": ("Consolidation", "continuation", "neutral"),
 }
 
-# pattern_id -> detect(df, ctx) -> list[PatternHit]
 DETECTORS: list[tuple[str, Callable]] = []
 
 
 def register(pattern_id: str, fn: Callable) -> None:
-    """Register ``fn`` for ``pattern_id`` (idempotent)."""
     for i, (pid, _) in enumerate(DETECTORS):
         if pid == pattern_id:
             DETECTORS[i] = (pattern_id, fn)
@@ -132,9 +126,6 @@ PATTERN_MIN_BARS: dict[str, int] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Date / line serialisation
-# ---------------------------------------------------------------------------
 
 
 def fmt_date(ts) -> str:
@@ -177,7 +168,6 @@ def iso_ts(ts) -> str:
 def line_points(
     df: pd.DataFrame, slope: float, intercept: float, start: int, end: int
 ) -> list[dict]:
-    """Two-point serialisation of a fitted trendline (start/end of pattern)."""
     index = df.index
     return [
         {"t": iso_ts(index[start]), "price": round(F.line_value(slope, intercept, start), 4)},
@@ -245,7 +235,6 @@ def envelope_pair(
     atr_val: float,
     tol_mult: float = 0.25,
 ):
-    """``(upper_env, lower_env)`` bounding lines through the highs/lows pivots."""
     tol = tol_mult * atr_val
     return (
         F.envelope_line(df, highs, "upper", tol),
@@ -254,7 +243,6 @@ def envelope_pair(
 
 
 def envelope_tolerance(atr_val: float) -> float:
-    """Quarter-ATR slack that keeps an envelope clear of candle piercings."""
     return 0.25 * float(atr_val)
 
 
@@ -301,7 +289,6 @@ def pivots_in(
 
 
 def segment_points(df: pd.DataFrame, x0: int, q0: float, x1: int, q1: float) -> list[dict]:
-    """Two-point line from explicit endpoint coordinates (pivot-anchored)."""
     index = df.index
     return [
         {"t": iso_ts(index[int(x0)]), "price": round(float(q0), 4)},
@@ -317,10 +304,6 @@ def pivot_markers(
     x1: int | None = None,
     limit: int = 80,
 ) -> list[dict]:
-    """Swing pivots within ``[x0, x1]`` as ``{t, price, kind}`` markers.
-
-    Powers the on-chart pivot dots and the manual-audit list in the detail pane.
-    """
     out: list[dict] = []
     index = df.index
     for kind, pivots in (("high", highs), ("low", lows)):
@@ -335,7 +318,6 @@ def pivot_markers(
 
 
 def flat_line_points(df: pd.DataFrame, price: float, start: int, end: int) -> list[dict]:
-    """Horizontal guide (neckline / range edge) across two positions."""
     p = round(float(price), 4)
     index = df.index
     return [
@@ -345,7 +327,6 @@ def flat_line_points(df: pd.DataFrame, price: float, start: int, end: int) -> li
 
 
 def curve_points(df: pd.DataFrame, start: int, fitted) -> list[dict]:
-    """Serialise a fitted curve (relative positions) as a polyline overlay."""
     index = df.index
     return [
         {"t": iso_ts(index[start + i]), "price": round(float(y), 4)}
@@ -353,15 +334,11 @@ def curve_points(df: pd.DataFrame, start: int, fitted) -> list[dict]:
     ]
 
 
-# ---------------------------------------------------------------------------
-# Swing cache
-# ---------------------------------------------------------------------------
 
 
 def get_swings(
     df: pd.DataFrame, ctx: dict | None = None, left: int = 2, right: int = 2
 ) -> tuple[list[tuple[int, float]], list[tuple[int, float]]]:
-    """Cached ``(high_pivots, low_pivots)`` as position-ordered price tuples."""
     key = (left, right)
     if ctx is not None:
         cache = ctx.setdefault("_swings", {})
@@ -380,7 +357,6 @@ def get_swings(
 
 
 def window_bounds(df: pd.DataFrame, lookback: int) -> tuple[int, int]:
-    """Inclusive ``(start, end)`` of the trailing detection window."""
     n = len(df)
     if n == 0:
         return 0, 0
@@ -391,7 +367,6 @@ def window_bounds(df: pd.DataFrame, lookback: int) -> tuple[int, int]:
 def window_slice(
     df: pd.DataFrame, lookback: int, min_bars: int
 ) -> tuple[int, int] | None:
-    """Trailing window that has at least ``min_bars`` bars, else ``None``."""
     start, end = window_bounds(df, lookback)
     if end - start + 1 < min_bars:
         return None
@@ -399,7 +374,6 @@ def window_slice(
 
 
 def mean_price(df: pd.DataFrame, start: int, end: int) -> float:
-    """Mean close over the inclusive window (price normaliser for slopes)."""
     return F.window_mean(df, start, end)
 
 
@@ -576,9 +550,6 @@ def pattern_end(
     return max(0, min(candidates))
 
 
-# ---------------------------------------------------------------------------
-# Level math
-# ---------------------------------------------------------------------------
 
 
 def compute_levels(
@@ -609,7 +580,7 @@ def compute_levels(
         stop = min(raw_stop, entry + cap) if cap > 0 else raw_stop
         risk = stop - entry
         reward = entry - target
-    else:  # bullish / neutral
+    else:
         target = entry + height
         raw_stop = float(opposite_extreme)
         stop = max(raw_stop, entry - cap) if cap > 0 else raw_stop
@@ -677,7 +648,6 @@ def _status_from_close(
     end_pos: int,
     tol: float,
 ) -> str:
-    """Status from an already-materialised close array (see ``classify_status``)."""
     if close.size == 0:
         return "forming"
     last = float(close[-1])
@@ -690,7 +660,7 @@ def _status_from_close(
         crossed = last < line
         distance = (line - last) / line * 100.0
         returned = bool((prior < line).any()) if prior.size else False
-    else:  # bullish / neutral
+    else:
         crossed = last > line
         distance = (last - line) / line * 100.0
         returned = bool((prior > line).any()) if prior.size else False
@@ -729,9 +699,6 @@ def classify_status(
     )
 
 
-# ---------------------------------------------------------------------------
-# Quality / confidence
-# ---------------------------------------------------------------------------
 
 
 def quality_from_score(score: float) -> str:
@@ -765,9 +732,6 @@ def score_quality(
     return quality_from_score(score), score
 
 
-# ---------------------------------------------------------------------------
-# Hit construction
-# ---------------------------------------------------------------------------
 
 
 def make_hit(
@@ -792,7 +756,6 @@ def make_hit(
     range_pct: float | None = None,
     range_pos: float | None = None,
 ) -> PatternHit:
-    """Assemble a fully-computed :class:`PatternHit`."""
     name, family, catalog_direction = PATTERN_CATALOG[pattern_id]
     direction = direction or catalog_direction
 

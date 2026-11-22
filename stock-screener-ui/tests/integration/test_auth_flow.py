@@ -20,7 +20,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-# Add project root to path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
@@ -44,7 +43,6 @@ class TestCompleteAuthFlow:
         3. Refresh expired access token
         4. Logout and verify session cleanup
         """
-        # Step 1: Register a new user
         user_data = {
             "email": "flowtest@example.com",
             "password": "SecurePass123!",
@@ -63,7 +61,6 @@ class TestCompleteAuthFlow:
         access_token = register_data["access_token"]
         refresh_token = register_data["refresh_token"]
 
-        # Step 2: Access protected route with access token
         headers = {"Authorization": f"Bearer {access_token}"}
         me_response = unauth_client.get("/api/auth/me", headers=headers)
 
@@ -73,7 +70,6 @@ class TestCompleteAuthFlow:
         assert user_info["display_name"] == user_data["display_name"]
         assert user_info["initial_capital"] == 1000000.0  # Default value
 
-        # Step 3: Update user settings
         update_response = unauth_client.put(
             "/api/auth/me",
             headers=headers,
@@ -88,7 +84,6 @@ class TestCompleteAuthFlow:
         assert updated_user["display_name"] == "Updated Flow User"
         assert updated_user["initial_capital"] == 2000000.0
 
-        # Step 4: Refresh the access token
         refresh_response = unauth_client.post(
             "/api/auth/refresh",
             json={"refresh_token": refresh_token}
@@ -99,24 +94,20 @@ class TestCompleteAuthFlow:
 
         assert "access_token" in refresh_data
         assert "refresh_token" in refresh_data
-        # Should get a NEW access token
         new_access_token = refresh_data["access_token"]
         assert new_access_token != access_token
 
-        # Step 5: Verify old access token still works (brief overlap period)
         old_headers = {"Authorization": f"Bearer {access_token}"}
         old_me_response = unauth_client.get("/api/auth/me", headers=old_headers)
 
         # Old token may or may not work depending on revocation implementation
         # This tests current behavior
 
-        # Step 6: Verify new token works
         new_headers = {"Authorization": f"Bearer {new_access_token}"}
         new_me_response = unauth_client.get("/api/auth/me", headers=new_headers)
 
         assert new_me_response.status_code == 200
 
-        # Step 7: Logout
         logout_response = unauth_client.post(
             "/api/auth/logout",
             headers={"Authorization": f"Bearer {refresh_token}"}
@@ -125,7 +116,6 @@ class TestCompleteAuthFlow:
         assert logout_response.status_code == 200
         assert logout_response.json()["message"] == "Logged out successfully"
 
-        # Step 8: Verify refresh token no longer works after logout
         failed_refresh = unauth_client.post(
             "/api/auth/refresh",
             json={"refresh_token": refresh_token}
@@ -144,7 +134,6 @@ class TestCompleteAuthFlow:
 
         client.post("/api/auth/register", json=user_data)
 
-        # Then login with same credentials
         login_response = client.post("/api/auth/login", json={
             "email": user_data["email"],
             "password": user_data["password"]
@@ -156,7 +145,6 @@ class TestCompleteAuthFlow:
         assert "access_token" in login_data
         assert "refresh_token" in login_data
 
-        # Verify we can access protected route
         headers = {"Authorization": f"Bearer {login_data['access_token']}"}
         me_response = client.get("/api/auth/me", headers=headers)
 
@@ -164,7 +152,6 @@ class TestCompleteAuthFlow:
 
     def test_multiple_sessions_for_same_user(self, client: TestClient):
         """Test that a user can have multiple active sessions."""
-        # Register a user
         user_data = {
             "email": "multisession@example.com",
             "password": "MultiSession123!",
@@ -179,17 +166,14 @@ class TestCompleteAuthFlow:
             "password": user_data["password"]
         }).json()
 
-        # Create second session (login again)
         session2 = client.post("/api/auth/login", json={
             "email": user_data["email"],
             "password": user_data["password"]
         }).json()
 
-        # Both should have valid tokens
         assert session1["access_token"] != session2["access_token"]
         assert session1["refresh_token"] != session2["refresh_token"]
 
-        # Both should work
         for session in [session1, session2]:
             headers = {"Authorization": f"Bearer {session['access_token']}"}
             me_response = client.get("/api/auth/me", headers=headers)
@@ -206,7 +190,6 @@ class TestCompleteAuthFlow:
         })
         assert failed_refresh.status_code == 401
 
-        # Second session should still work
         success_refresh = client.post("/api/auth/refresh", json={
             "refresh_token": session2["refresh_token"]
         })
@@ -218,7 +201,6 @@ class TestTokenLifecycle:
 
     def test_access_token_expiration_in_api(self, unauth_client):
         """Test that expired access tokens are rejected by API."""
-        # Create and register a user
         user_data = {
             "email": "expir test@example.com",
             "password": "ExpireTest123!",
@@ -227,7 +209,6 @@ class TestTokenLifecycle:
 
         unauth_client.post("/api/auth/register", json=user_data)
 
-        # Create an expired access token manually
         from api.auth import create_access_token
 
         # Get user ID from database
@@ -244,7 +225,6 @@ class TestTokenLifecycle:
         }
         expired_token = jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
-        # Try to use expired token
         headers = {"Authorization": f"Bearer {expired_token}"}
         me_response = unauth_client.get("/api/auth/me", headers=headers)
 
@@ -253,7 +233,6 @@ class TestTokenLifecycle:
 
     def test_refresh_token_expiration(self, client: TestClient, db: Session):
         """Test that expired refresh tokens are rejected."""
-        # Create a user
         from api.auth import hash_password
 
         user = User(
@@ -266,7 +245,6 @@ class TestTokenLifecycle:
         db.commit()
         db.refresh(user)
 
-        # Create an expired refresh token manually
         expire = datetime.utcnow() - timedelta(days=1)
         import secrets
 
@@ -284,7 +262,6 @@ class TestTokenLifecycle:
             algorithm=JWT_ALGORITHM
         )
 
-        # Try to refresh with expired token
         response = client.post("/api/auth/refresh", json={
             "refresh_token": expired_refresh_token
         })
@@ -293,7 +270,6 @@ class TestTokenLifecycle:
 
     def test_refresh_token_creates_new_session(self, client: TestClient, db: Session):
         """Test that refresh creates new session and revokes old one."""
-        # Register a user
         user_data = {
             "email": "newsession@example.com",
             "password": "NewSession123!",
@@ -305,7 +281,6 @@ class TestTokenLifecycle:
 
         first_refresh_token = register_data["refresh_token"]
 
-        # Decode token to get jti
         first_payload = jwt.decode(
             first_refresh_token,
             JWT_SECRET_KEY,
@@ -313,14 +288,12 @@ class TestTokenLifecycle:
         )
         first_jti = first_payload["jti"]
 
-        # Verify session exists in database
         first_session = db.query(UserSession).filter(
             UserSession.id == first_jti
         ).first()
         assert first_session is not None
         assert first_session.revoked is False
 
-        # Refresh the token
         refresh_response = client.post("/api/auth/refresh", json={
             "refresh_token": first_refresh_token
         })
@@ -329,11 +302,9 @@ class TestTokenLifecycle:
         refresh_data = refresh_response.json()
         new_refresh_token = refresh_data["refresh_token"]
 
-        # Verify old session is revoked
         db.refresh(first_session)
         assert first_session.revoked is True
 
-        # Verify new session exists
         new_payload = jwt.decode(
             new_refresh_token,
             JWT_SECRET_KEY,
@@ -347,7 +318,6 @@ class TestTokenLifecycle:
         assert new_session is not None
         assert new_session.revoked is False
 
-        # Old refresh token should no longer work
         failed_response = client.post("/api/auth/refresh", json={
             "refresh_token": first_refresh_token
         })
@@ -359,7 +329,6 @@ class TestSessionManagement:
 
     def test_session_persistence_across_requests(self, unauth_client):
         """Test that session persists across multiple API requests."""
-        # Register and login
         user_data = {
             "email": "persist@example.com",
             "password": "PersistTest123!",
@@ -370,7 +339,6 @@ class TestSessionManagement:
         access_token = register_response.json()["access_token"]
         headers = {"Authorization": f"Bearer {access_token}"}
 
-        # Make multiple requests with same token
         for i in range(5):
             me_response = unauth_client.get("/api/auth/me", headers=headers)
             assert me_response.status_code == 200
@@ -386,7 +354,6 @@ class TestSessionManagement:
 
     def test_concurrent_sessions_independent(self, client: TestClient):
         """Test that concurrent sessions are independent of each other."""
-        # Register a user
         user_data = {
             "email": "concurrent@example.com",
             "password": "Concurrent123!",
@@ -395,7 +362,6 @@ class TestSessionManagement:
 
         client.post("/api/auth/register", json=user_data)
 
-        # Create three separate sessions by logging in three times
         sessions = []
         for i in range(3):
             login_response = client.post("/api/auth/login", json={
@@ -404,7 +370,6 @@ class TestSessionManagement:
             })
             sessions.append(login_response.json())
 
-        # All sessions should be valid
         for session in sessions:
             headers = {"Authorization": f"Bearer {session['access_token']}"}
             me_response = client.get("/api/auth/me", headers=headers)
@@ -418,18 +383,15 @@ class TestSessionManagement:
             params={"display_name": "Updated via Session 1"}
         )
 
-        # Verify other sessions see the update
         for i, session in enumerate(sessions):
             headers = {"Authorization": f"Bearer {session['access_token']}"}
             me_response = client.get("/api/auth/me", headers=headers)
             assert me_response.json()["display_name"] == "Updated via Session 1"
 
-        # Logout second session only
         client.post("/api/auth/logout", headers={
             "Authorization": f"Bearer {sessions[1]['refresh_token']}"
         })
 
-        # Second session should no longer work
         failed_refresh = client.post("/api/auth/refresh", json={
             "refresh_token": sessions[1]["refresh_token"]
         })
@@ -448,7 +410,6 @@ class TestErrorRecovery:
 
     def test_recovery_after_invalid_token(self, unauth_client):
         """Test that user can recover after using invalid token."""
-        # Register a user
         user_data = {
             "email": "recovery@example.com",
             "password": "Recovery123!",
@@ -464,7 +425,6 @@ class TestErrorRecovery:
 
         assert failed_response.status_code == 401
 
-        # Now use valid token - should work
         valid_headers = {"Authorization": f"Bearer {access_token}"}
         success_response = unauth_client.get("/api/auth/me", headers=valid_headers)
 
@@ -472,7 +432,6 @@ class TestErrorRecovery:
 
     def test_recovery_after_expired_token(self, client: TestClient):
         """Test that user can recover by refreshing expired access token."""
-        # Register a user
         user_data = {
             "email": "refreshrecovery@example.com",
             "password": "RefreshRec123!",
@@ -482,14 +441,12 @@ class TestErrorRecovery:
         register_response = client.post("/api/auth/register", json=user_data)
         refresh_token = register_response.json()["refresh_token"]
 
-        # Manually create an expired access token
         from api.auth import create_access_token
 
         # We'll just simulate by using a very short expiration
         # In this test, we'll verify that refresh token still works
         # even if we pretend access token is expired
 
-        # Use refresh token to get new access token
         refresh_response = client.post("/api/auth/refresh", json={
             "refresh_token": refresh_token
         })
@@ -497,7 +454,6 @@ class TestErrorRecovery:
         assert refresh_response.status_code == 200
         new_access_token = refresh_response.json()["access_token"]
 
-        # Verify new token works
         headers = {"Authorization": f"Bearer {new_access_token}"}
         me_response = client.get("/api/auth/me", headers=headers)
 
@@ -514,7 +470,6 @@ class TestErrorRecovery:
 
         client.post("/api/auth/register", json=user_data)
 
-        # Try multiple failed logins
         for i in range(3):
             failed_response = client.post("/api/auth/login", json={
                 "email": user_data["email"],
@@ -537,10 +492,8 @@ class TestCleanupOnFailure:
 
     def test_no_user_created_on_failed_registration(self, client: TestClient, db: Session):
         """Test that no user is created when registration fails."""
-        # Count users before
         user_count_before = db.query(User).count()
 
-        # Try to register with existing email
         user_data = {
             "email": "cleanup@example.com",
             "password": "CleanupTest123!",
@@ -555,7 +508,6 @@ class TestCleanupOnFailure:
         second_response = client.post("/api/auth/register", json=user_data)
         assert second_response.status_code == 400
 
-        # Verify only one user was created
         user_count_after = db.query(User).count()
         assert user_count_after == user_count_before + 1
 
@@ -570,17 +522,14 @@ class TestCleanupOnFailure:
 
         client.post("/api/auth/register", json=user_data)
 
-        # Count sessions before failed login
         session_count_before = db.query(UserSession).count()
 
-        # Try failed login
         failed_response = client.post("/api/auth/login", json={
             "email": user_data["email"],
             "password": "WrongPassword123!"
         })
         assert failed_response.status_code == 401
 
-        # Verify no new session was created
         session_count_after = db.query(UserSession).count()
         assert session_count_after == session_count_before
 
@@ -590,7 +539,6 @@ class TestTokenPersistence:
 
     def test_access_token_works_until_expiration(self, unauth_client):
         """Test that access token continues to work until expiration."""
-        # Register user
         user_data = {
             "email": "tokenpersist@example.com",
             "password": "TokenPersist123!",
@@ -601,7 +549,6 @@ class TestTokenPersistence:
         access_token = register_response.json()["access_token"]
         headers = {"Authorization": f"Bearer {access_token}"}
 
-        # Use token multiple times
         for i in range(10):
             me_response = unauth_client.get("/api/auth/me", headers=headers)
             assert me_response.status_code == 200
@@ -609,7 +556,6 @@ class TestTokenPersistence:
 
     def test_refresh_token_validity_duration(self, client: TestClient, db: Session):
         """Test that refresh token remains valid for expected duration."""
-        # Register user
         user_data = {
             "email": "refreshduration@example.com",
             "password": "RefreshDur123!",
@@ -619,29 +565,24 @@ class TestTokenPersistence:
         register_response = client.post("/api/auth/register", json=user_data)
         refresh_token = register_response.json()["refresh_token"]
 
-        # Decode token to check expiration
         payload = jwt.decode(
             refresh_token,
             JWT_SECRET_KEY,
             algorithms=[JWT_ALGORITHM]
         )
 
-        # Check expiration is set correctly (7 days from now)
         exp_timestamp = payload["exp"]
         exp_datetime = datetime.utcfromtimestamp(exp_timestamp)
         expected_exp = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
 
-        # Allow 1 minute tolerance
         time_diff = abs((exp_datetime - expected_exp).total_seconds())
         assert time_diff < 60  # Less than 1 minute difference
 
-        # Verify session in database
         jti = payload["jti"]
         session = db.query(UserSession).filter(UserSession.id == jti).first()
 
         assert session is not None
         assert session.revoked is False
 
-        # Check session expiration matches token
         session_exp_diff = abs((session.expires_at - exp_datetime).total_seconds())
         assert session_exp_diff < 60

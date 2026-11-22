@@ -351,7 +351,6 @@ class TestResetStrategyConfig:
             )
 
         assert resp.status_code == 200
-        # Verify every default value was set
         assert mock_row.or_minutes == 45
         assert mock_row.sl_pct == 0.4
         assert mock_row.tp_pct == 1.2

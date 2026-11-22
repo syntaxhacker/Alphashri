@@ -73,24 +73,6 @@ export interface SymbolLinkProps {
   textClassName?: string;
 }
 
-/**
- * The app-wide symbol affordance.
- *
- * - Symbol text → TradingView (new tab) when `tvLink=true`, preserving the existing patterns
- *   contract (`patterns-*-tv-*` test ids).
- * - With `inAppText=true` the two destinations swap: the text becomes the in-app
- *   action (a focusable button) and the `↗` affordance is the TradingView link.
- * - When `tvLink=false` and `onTextClick` is provided, the text renders as a button
- *   with the custom click handler (ClickableSymbol use case).
- * - Trailing chart icon → the in-app right-side chart (`onOpen`, else the dock);
- *   a US `market` is forwarded to the dock so it routes to `?market=usa`.
- *   Controlled by `showChart`.
- * - Hover → `onPreview`; the host debounces and decides whether a preview is
- *   allowed (e.g. desktop only, and not while a chart is pinned).
- *
- * Router-free by design: it renders only when `onOpen` is supplied, so
- * presentational tests and storybook don't need a navigation context.
- */
 export function SymbolLink(props: SymbolLinkProps) {
   const [local] = splitProps(props, [
     "symbol",

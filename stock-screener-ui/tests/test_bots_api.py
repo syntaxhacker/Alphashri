@@ -28,9 +28,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from tests.helpers.db import import_all_models
 
 
-# ============================================
-# Test Fixtures
-# ============================================
 
 @pytest.fixture
 def app():
@@ -63,7 +60,6 @@ def db_session(app):
     import tempfile
     import os
 
-    # Create a temporary file strictly for isolation
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
 
@@ -73,7 +69,6 @@ def db_session(app):
     )
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-    # Import all models to ensure tables are created
     import_all_models()
     Base.metadata.create_all(bind=engine)
 
@@ -133,7 +128,6 @@ def cleanup_bot_processes():
     from api.bots_api.bots_router import _bot_processes as current_processes
     from api.bots_api.bots_router import _bot_logs as current_logs
 
-    # Stop any test processes
     for user_id, bots in current_processes.items():
         for bot_id, process in list(bots.items()):
             if bot_id not in original_processes.get(user_id, {}):
@@ -145,7 +139,6 @@ def cleanup_bot_processes():
                     pass
                 del current_processes[user_id][bot_id]
 
-    # Clean up logs
     for bot_id, log_path in list(current_logs.items()):
         if bot_id not in original_logs:
             if log_path and log_path.exists():
@@ -297,9 +290,6 @@ def mock_journal_with_trades():
     yield mock_journal
 
 
-# ============================================
-# 1. Bot CRUD Operations Tests
-# ============================================
 
 class TestBotCRUD:
     """Test bot CRUD operations."""
@@ -579,9 +569,6 @@ class TestBotCRUD:
                 del _bot_processes[1][bot.id]
 
 
-# ============================================
-# 2. Bot Control Tests
-# ============================================
 
 class TestBotControl:
     """Test bot control endpoints."""
@@ -790,7 +777,6 @@ class TestBotControl:
         from api.bots_api.bots_router import get_bot_log_path
 
         _bot_logs.clear()
-        # Ensure durable log file from previous runs doesn't leak into test
         try:
             # clean any existing file for this user/bot combo — id unknown until commit, so clean all logs/bots
             import shutil
@@ -815,7 +801,6 @@ class TestBotControl:
         db_session.add(bot)
         db_session.commit()
         db_session.refresh(bot)
-        # Remove file for this specific bot if it was recreated
         try:
             p = get_bot_log_path(bot.user_id, bot.id)
             if p.exists():
@@ -860,9 +845,6 @@ class TestBotControl:
             _bot_logs.pop(bot.id, None)
 
 
-# ============================================
-# 3. Available Strategies Endpoint Tests
-# ============================================
 
 class TestAvailableStrategies:
     """Test the available strategies endpoint."""
@@ -894,9 +876,6 @@ class TestAvailableStrategies:
             assert 'strategy_type' in s
 
 
-# ============================================
-# 4. Portfolio & Positions Endpoint Tests
-# ============================================
 
 class TestBotPortfolioPositions:
     """Test bot portfolio and positions endpoints."""
@@ -984,7 +963,6 @@ class TestBotPortfolioPositions:
         """Test filtering positions by strategy_id."""
         from db.models import BotConfig, StrategyConfig
 
-        # Create a strategy to satisfy lookup by get_strategy_by_uuid
         strategy = StrategyConfig(
             name="Test Strategy",
             strategy_type="ORB",
@@ -1048,7 +1026,6 @@ class TestBotPortfolioPositions:
         """Test filtering scan items by strategy_id."""
         from db.models import BotConfig, StrategyConfig
 
-        # Create a strategy to satisfy lookup by get_strategy_by_uuid
         strategy = StrategyConfig(
             name="Test Strategy",
             strategy_type="ORB",
@@ -1083,9 +1060,6 @@ class TestBotPortfolioPositions:
             assert item.get('strategy_id') == 1
 
 
-# ============================================
-# 5. Performance Endpoint Tests
-# ============================================
 
 class TestBotPerformance:
     """Test bot performance endpoints."""
@@ -1329,9 +1303,6 @@ class TestBotPerformance:
         assert response.status_code == 200
 
 
-# ============================================
-# 6. Multi-Strategy Bot Tests
-# ============================================
 
 class TestMultiStrategyBot:
     """Test multi-strategy bot creation and allocation."""
@@ -1373,9 +1344,6 @@ class TestMultiStrategyBot:
         assert response.status_code == 200
 
 
-# ============================================
-# 7. Bot Lifecycle Tests
-# ============================================
 
 class TestBotLifecycle:
     """Test full bot lifecycle."""
@@ -1384,7 +1352,6 @@ class TestBotLifecycle:
         """Test complete bot lifecycle: create, start, status, stop, delete."""
         from db.models import BotConfig, bot_strategies
 
-        # Create bot
         bot = BotConfig(
             name="Lifecycle Bot",
             user_id=1,
@@ -1396,7 +1363,6 @@ class TestBotLifecycle:
         db_session.commit()
         db_session.refresh(bot)
 
-        # Associate strategies
         for strat in test_strategies:
             stmt = bot_strategies.insert().values(
                 bot_id=bot.id,
@@ -1407,7 +1373,6 @@ class TestBotLifecycle:
             db_session.execute(stmt)
         db_session.commit()
 
-        # Start bot
         with patch('api.bots_api.bot_operations.start_bot_process') as mock_start, \
              patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)), \
              patch('api.bots_api.bot_operations._db_available', True):
@@ -1417,7 +1382,6 @@ class TestBotLifecycle:
             start_resp = client.post(f"/api/bots/{bot.id}/start")
             assert start_resp.status_code == 200
 
-        # Check status (running)
         with patch('api.bots_api.bot_status.is_bot_running', return_value=(True, 12345)), \
              patch('api.bots_api.bot_status.get_bot_state', return_value={"portfolio": {}, "positions": [], "strategies": {}, "timestamp": ""}), \
              patch('api.bots_api.bot_operations._db_available', True):
@@ -1425,7 +1389,6 @@ class TestBotLifecycle:
             assert status_resp.status_code == 200
             assert status_resp.json()['running'] is True
 
-        # Stop bot
         with patch('api.bots_api.bot_operations.stop_bot_process') as mock_stop, \
              patch('api.bots_api.bot_operations.is_bot_running', return_value=(True, 12345)), \
              patch('api.bots_api.bot_operations._db_available', True):
@@ -1433,16 +1396,12 @@ class TestBotLifecycle:
             assert stop_resp.status_code == 200
             mock_stop.assert_called_once()
 
-        # Delete bot
         with patch('api.bots_api.bots_router._bot_processes', {}), \
              patch('api.bots_api.bot_operations._db_available', True):
             del_resp = client.delete(f"/api/bots/{bot.id}")
             assert del_resp.status_code == 200
 
 
-# ============================================
-# 8. Bot Error Cases Tests
-# ============================================
 
 class TestBotErrorCases:
     """Test error handling in bot operations."""
@@ -1490,9 +1449,6 @@ class TestBotErrorCases:
         assert response.status_code == 422
 
 
-# ============================================
-# 9. Process Management Tests
-# ============================================
 
 class TestProcessManagement:
     """Test bot process management functions."""

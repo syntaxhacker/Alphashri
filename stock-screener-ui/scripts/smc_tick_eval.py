@@ -1,15 +1,3 @@
-"""SMC strategy evaluation on Dukascopy tick data (US 100 Tech Index CFD — NQ proxy).
-
-Pipeline per random session:
-  1. Fetch real ticks via dukascopy-node (installed separately, see DUKA_DIR).
-  2. Build 1m OHLC bars from bid ticks → run the REAL SMCSignalGenerator (trading/smc_signals.py)
-     bar-by-bar, history-only, identical to /api/poc/smc-trades.
-  3. Evaluate each signal on ticks: long fills at next ask tick after signal-bar close,
-     exits on bid (conservative) — first tick crossing SL or TP wins, else EOD at last tick.
-
-Usage:
-  source .venv/bin/activate && python scripts/smc_tick_eval.py --days 5 --seed 42
-"""
 import argparse
 import json
 import os
@@ -82,7 +70,6 @@ def build_1m_bars(ticks: list) -> list:
 
 
 def evaluate_on_ticks(signals: list, ticks: list, bars: list) -> list:
-    """Fill at next ask tick after signal bar close; exits on bid — SL/TP first tick wins, else EOD."""
     trades = []
     sig_iter = iter(signals)
     next_sig = next(sig_iter, None)
@@ -91,10 +78,10 @@ def evaluate_on_ticks(signals: list, ticks: list, bars: list) -> list:
         ts = t["timestamp"]
         sec = ts / 1000.0
         if open_trade is None and next_sig is not None:
-            sig_end_sec = next_sig["time"] + 60  # signal bar close (unix sec)
+            sig_end_sec = next_sig["time"] + 60
             if sec >= sig_end_sec:
                 open_trade = dict(next_sig)
-                open_trade["fill"] = t["askPrice"]  # buy at ask
+                open_trade["fill"] = t["askPrice"]
                 next_sig = next(sig_iter, None)
             continue
         if open_trade is None:
@@ -103,13 +90,13 @@ def evaluate_on_ticks(signals: list, ticks: list, bars: list) -> list:
         is_long = open_trade["side"] == "LONG"
         hit_sl = bid <= open_trade["sl"] if is_long else bid >= open_trade["sl"]
         hit_tp = bid >= open_trade["tp"] if is_long else bid <= open_trade["tp"]
-        if hit_sl:  # conservative: SL checked first on the same tick
+        if hit_sl:
             open_trade.update(result="SL", exit_time=int(ts // 1000), pnl=round(open_trade["sl"] - open_trade["fill"], 2))
             trades.append(open_trade); open_trade = None
         elif hit_tp:
             open_trade.update(result="TP", exit_time=int(ts // 1000), pnl=round(open_trade["tp"] - open_trade["fill"], 2))
             trades.append(open_trade); open_trade = None
-    if open_trade is not None:  # EOD — exit at last bid of the session
+    if open_trade is not None:
         last_tick = ticks[-1]
         open_trade.update(result="EOD", exit_time=int(last_tick["timestamp"] // 1000), pnl=round(last_tick["bidPrice"] - open_trade["fill"], 2))
         trades.append(open_trade)
@@ -134,7 +121,7 @@ def main():
     weekdays = []
     d = start_d
     while d <= end_d:
-        if d.weekday() < 5:  # Mon–Fri (Fri session ends early at market close — handled naturally)
+        if d.weekday() < 5:
             weekdays.append(d.isoformat())
         d += timedelta(days=1)
     sessions = sorted(random.sample(weekdays, args.days))

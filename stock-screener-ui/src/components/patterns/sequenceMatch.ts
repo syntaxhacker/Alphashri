@@ -1,11 +1,9 @@
 import type { PatternHitDTO } from "@/types/chartPatterns";
 
 export interface SequenceOptions {
-  /** Max days between one step's end and the next step's start. */
   maxGapDays?: number | null;
   /** The last step must be at most this many bars old (null = any). */
   maxBarsAgo?: number | null;
-  /** Allowed statuses for the earlier steps (empty = any). */
   stepStatuses?: string[];
 }
 

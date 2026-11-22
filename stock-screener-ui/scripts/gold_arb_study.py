@@ -37,7 +37,6 @@ HDR = {
     "Accept": "application/json,text/plain,*/*",
     "Accept-Language": "en-US,en;q=0.9",
 }
-# Decimal rates for a discount-broker intraday model.
 RATES = {
     "broker_pct": 0.0003, "broker_cap": 20.0,
     "cash_exchange": 0.0000307, "commodity_exchange": 0.000001,

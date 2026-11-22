@@ -7,26 +7,20 @@ import { MemoryRouter, createMemoryHistory } from "@solidjs/router";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import type { JSX } from "solid-js";
 
-// Mock fetch globally
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Mock useThemeColors
-
-// Mock useNewsWebSocket
 vi.mock("../../state/newsWebSocket", () => ({
   useNewsWebSocket: vi.fn(),
   NewsWebSocketProvider: (props: { children: JSX.Element }) => <>{props.children}</>,
 }));
 
-// Mock news API
 vi.mock("../../api/news", () => ({
   fetchNews: vi.fn(),
   fetchArticle: vi.fn(),
   fetchNewsSources: vi.fn(),
 }));
 
-// Mock localStorage helpers
 vi.mock("./NewsLocalStorage", () => ({
   getReadIds: vi.fn(() => new Set()),
   saveReadIds: vi.fn(),
@@ -42,7 +36,6 @@ vi.mock("./NewsLocalStorage", () => ({
   ],
 }));
 
-// Mock useNewsSourceGroups
 vi.mock("./useNewsSourceGroups", () => ({
   useNewsSourceGroups: vi.fn(() => ({
     groupedNewsItems: () => ({}),
@@ -83,7 +76,6 @@ const mockNewsItems = [
   },
 ];
 
-// Helper to set up grouped news items
 function setupNewsGroups(items: typeof mockNewsItems) {
   const grouped = items.reduce(
     (acc, item) => {
@@ -120,7 +112,6 @@ describe("NewsPanel2", () => {
     (fetchNews as any).mockResolvedValue(mockNewsItems);
     (fetchArticle as any).mockResolvedValue({ content: "<p>Article content</p>" });
 
-    // Set up default grouping
     setupNewsGroups(mockNewsItems);
   });
 

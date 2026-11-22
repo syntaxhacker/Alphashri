@@ -134,7 +134,6 @@ describe("structure formatting helpers", () => {
     expect(structureKindLabel("pcr_shift")).toBe("PCR SHIFT");
     expect(structureKindLabel("volume_spike")).toBe("VOL SPIKE");
     expect(structureKindLabel("level_break")).toBe("LEVEL BREAK");
-    // unknown -> readable raw string, never blank
     expect(structureKindLabel("mystery_shift")).toBe("MYSTERY SHIFT");
     expect(structureKindLabel("")).toBe("SHIFT");
     expect(structureKindLabel(null)).toBe("SHIFT");
@@ -245,7 +244,6 @@ describe("NiftyStructureShifts render", () => {
       </TestWrapper>
     ));
     const rows = screen.getAllByTestId("nifty-structure-row");
-    // newest-first: critical leads
     expect(within(rows[0]).getByText("13:06")).toBeInTheDocument();
     expect(within(rows[1]).getByText("09:20")).toBeInTheDocument();
   });
@@ -270,7 +268,6 @@ describe("NiftyStructureShifts render", () => {
     expect(rows[0]).toHaveTextContent("WALL FLIP");
     expect(rows[0]).toHaveTextContent("13:06");
     expect(rows[0]).toHaveTextContent("22,700 support became resistance");
-    // full text still reachable on hover; the visible cell truncates
     const detail = within(rows[0]).getByTestId("nifty-structure-detail");
     expect(detail).toHaveAttribute("title", "22,700 support became resistance");
     expect(detail).toHaveClass("overflow-hidden", "truncate", "whitespace-nowrap");

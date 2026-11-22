@@ -44,7 +44,6 @@ _movers_cache: dict[str, dict] = {}  # key: f"{index}" -> {"ts": float, "data": 
 # Upstox batch quote endpoint: max 50 symbols per request (conservative)
 MAX_SYMBOLS_PER_REQUEST = 50
 
-# ---- NIFTY 50 constituents & weights (Tickertape 2026-10-15) ----
 # Source: scripts/research/nifty_breadth/breadth_predictor.NIFTY50_WEIGHTS
 # Renormalised to 100% in the predictor. We use the same dict here.
 NIFTY50_WEIGHTS = {
@@ -102,7 +101,6 @@ NIFTY50_WEIGHTS = {
 NIFTY50_SYMBOLS = list(NIFTY50_WEIGHTS.keys())
 
 
-# ---- Instrument key mapping (NSE_EQ for quotes) ----
 # Upstox v2 quotes needs NSE_EQ|SYMBOL for equity quotes.
 # Index quotes use NSE_INDEX|Nifty 50 or BSE_INDEX|SENSEX.
 # For movers we need constituent equity quotes, not the index itself.
@@ -137,7 +135,6 @@ def _resolve_instrument_keys(symbols: list[str]) -> dict[str, str]:
         return {}
 
 
-# ---- Cache helpers ----
 def _cache_get(index: str) -> Optional[dict]:
     entry = _movers_cache.get(index)
     if not entry:
@@ -164,7 +161,6 @@ def _slice_movers(data: dict, limit_int: int) -> dict:
     return sliced
 
 
-# ---- Pure helpers (unit-testable) ----
 def _select_index_constituents(index: str) -> tuple[list[str], dict[str, float], str]:
     """Return (symbols, weights, source_label) for the given index."""
     idx = index.upper()
@@ -214,7 +210,6 @@ async def _fetch_quotes(symbols: list[str]) -> dict[str, dict]:
     # Only resolve symbols we can actually quote; one unknown key 400s the batch.
     symbols = [s for s in symbols if s in key_by_sym]
 
-    # Batch into chunks of MAX_SYMBOLS_PER_REQUEST
     for i in range(0, len(symbols), MAX_SYMBOLS_PER_REQUEST):
         chunk = symbols[i : i + MAX_SYMBOLS_PER_REQUEST]
         instrument_keys = ",".join(key_by_sym[s] for s in chunk)
@@ -295,12 +290,10 @@ def _build_rows(
             row["contribution_pct"] = _compute_contribution(q["change_pct"], weight)
         rows.append(row)
 
-    # Sort by change_pct descending
     rows.sort(key=lambda r: r["change_pct"], reverse=True)
     return rows
 
 
-# ---- Route ----
 @router.get("/movers")
 async def get_index_movers(
     index: str = Query(..., description="Index: NIFTY or SENSEX"),
@@ -329,7 +322,6 @@ async def get_index_movers(
     # Fetch constituents and weights first (needed for limit="all")
     symbols, weights, source = _select_index_constituents(idx)
 
-    # Parse limit parameter
     limit_int: int
     if limit == "all":
         limit_int = len(symbols)  # effectively no limit
@@ -344,7 +336,6 @@ async def get_index_movers(
     if cached:
         return _slice_movers(cached, limit_int)
 
-    # Fetch quotes
     quotes = await _fetch_quotes(symbols)
     if not quotes:
         # Structured 503 — never a raw 500
@@ -353,10 +344,8 @@ async def get_index_movers(
             detail={"code": "movers_unavailable", "message": "Upstox quotes unavailable or no token"},
         )
 
-    # Build rows
     all_rows = _build_rows(symbols, weights, quotes)
 
-    # Split into gainers/losers
     gainers = [r for r in all_rows if r["change_pct"] > 0]
     losers = [r for r in all_rows if r["change_pct"] < 0]
 

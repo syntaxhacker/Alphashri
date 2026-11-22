@@ -34,36 +34,26 @@ export interface HeatmapTapeRow {
    *  these are documentation — a row whose chain was shortened is not a row
    *  with missing data. */
   chain_truncated?: boolean;
-  /** Strike centre the served chain was trimmed around (the row's spot). */
   chain_center?: number | null;
-  /** Kept window in points around `chain_center`. */
   chain_window_pts?: number;
 }
 
 type HeatCellSign = "ce" | "pe" | "flat";
 
 interface HeatBucket {
-  /** ISO timestamp of the bucket's last row (empty when no tape row landed). */
   t: string;
-  /** Short HH:MM label of the bucket's representative (last) row. */
   label: string;
   /** HH:MM wall-clock start of the bucket — used for axis ticks. */
   startLabel: string;
-  /** Spot of the bucket's representative row; null for a padded empty bucket
-   *  (tape started after the session's first candle). */
   spot: number | null;
   maxPain: number | null;
   flip: number | null;
   atmStrike: number | null;
-  /** Closest row *inside* this bucket whose spot sat on the max-pain pin
-   *  (`|spot − row maxPain| ≤ touchTol`). Null when no row touched. */
   touch: HeatBucketTouch | null;
 }
 
 interface HeatBucketTouch {
-  /** HH:MM of the touching row (not necessarily the representative). */
   label: string;
-  /** Spot of the touching row — where the circle is drawn. */
   spot: number;
   maxPain: number;
   distance: number;
@@ -74,44 +64,28 @@ interface HeatCell {
   strike: number;
   ceDoi: number | null;
   peDoi: number | null;
-  /** CE/PE LTP change vs the previous data bucket (premium evidence). This is
-   *  computed regardless of the cell `metric` so a read can tell buyers from
-   *  writers: OI up + premium up = buying, OI up + premium down = writing. */
   cePremiumDoi: number | null;
   pePremiumDoi: number | null;
   sign: HeatCellSign;
-  /** 0..1, normalized by the largest |ΔOI| in the whole model. */
   intensity: number;
 }
 
 interface OiHeatmap {
   buckets: HeatBucket[];
-  /** Ascending, within spot ± widthPts of the last row's spot, capped to
-   * `maxStrikes` around spot so a pane cannot show more rows than it can label. */
   strikes: number[];
   cells: HeatCell[];
   /** Largest |ΔOI| across all cells (0 when there is no data). */
   maxAbs: number;
-  /** True when no row carried a usable chain. */
   empty: boolean;
-  /** Field the cells colour (OI change / volume / premium change). */
   metric: "oi" | "volume" | "premium";
-  /** Displayed half-window: strikes on each side of the nearest-to-spot row. */
   windowHalf: number;
-  /** Largest distance in points from reference spot to a displayed strike. */
   windowPts: number;
 }
 
 interface HeatmapOptions {
   bucketMin?: number;
   widthPts?: number;
-  /** Max-pain touch window in points (any row in the bucket). */
   touchTol?: number;
-  /**
-   * Which field the cells colour: OI change (default), traded volume, or
-   * premium change. Volume answers "where is the fight" (2026-10-23 13:33
-   * printed 17.5M at 22,450 before the break); premium answers "who is paying".
-   */
   metric?: "oi" | "volume" | "premium";
   /**
    * Session anchor for the time axis (the first intraday candle, 09:15). When
@@ -160,15 +134,9 @@ export function heatmapEmptyKind(args: {
   // A tape with rows but no chain snapshot is a *source* gap, not a clock gap:
   // the recorder was writing spot but never persisted a chain.
   if (args.hasTape && !args.hasChain) return "no-data";
-  // A recorded session that is over has nothing to do with today's clock;
-  // "market closed" would send the reader to wait for an open that will not
-  // fill a session that was already captured.
   if (args.pastSession) return "no-data";
   if (!args.marketOpen) return "market-closed";
   if (args.minutes != null && args.minutes < HEATMAP_FEED_GRACE_MINUTES) return "market-closed";
-  // Live session, past the grace window, and the tape has no rows at all: the
-  // fetch returned nothing. Rendering that as "quiet market" is the exact
-  // failure mode that hides a broken feed.
   return "failed";
 }
 
@@ -183,27 +151,17 @@ export function heatmapSessionDate(rows: HeatmapTapeRow[]): string | null {
 
 /** Today's IST calendar date — the anchor `heatmapSessionDate` is compared to. */
 export function istToday(now: Date = new Date()): string {
-  // en-CA formats as YYYY-MM-DD, which is exactly the tape stamp's prefix.
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
 }
 
 export interface HeatmapCoverage {
-  /** Tape rows handed to the builder. */
   rows: number;
-  /** Rows that actually carried a chain snapshot. */
   chainRows: number;
-  /** Distinct strikes seen across the tape's chains. */
   strikes: number;
-  /** First / last tape minute as HH:MM (empty when the tape is empty). */
   first: string;
   last: string;
 }
 
-/**
- * What the session actually recorded. "47 spot rows, zero chain rows" and "no
- * rows at all" are different diagnoses (recorder wrote spot only vs recorder
- * never ran), and either is more useful to the reader than the word "empty".
- */
 export function heatmapCoverage(rows: HeatmapTapeRow[]): HeatmapCoverage {
   const strikes = new Set<number>();
   let chainRows = 0;
@@ -244,7 +202,6 @@ function heatMinutes(t: string): number | null {
   return clockMinutes(heatTimeLabel(t));
 }
 
-/** Minutes-since-midnight → zero-padded HH:MM (wraps past midnight). */
 function clockLabel(minutes: number): string {
   const total = ((Math.round(minutes) % 1440) + 1440) % 1440;
   const h = Math.floor(total / 60);

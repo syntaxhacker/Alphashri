@@ -63,7 +63,6 @@ function model(layout: Layout, children: readonly number[], clientWidth: number)
     return { scrollWidth: Math.min(...children.map((w) => Math.min(w, clientWidth))), clientWidth, rects };
   }
 
-  // Wrapping row: pack whole children into lines, never splitting a value.
   let lineWidth = 0;
   let line = 0;
   children.forEach((w) => {

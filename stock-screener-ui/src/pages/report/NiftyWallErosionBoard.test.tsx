@@ -134,7 +134,6 @@ describe("NiftyWallErosionBoard", () => {
     expect(screen.getByTestId("wall-erosion-skeleton")).toBeInTheDocument();
     expect(within(board).queryByText("Waiting for walls data.")).toBeNull();
 
-    // Same two rows as the loaded state — the strip never collapses.
     expect(within(board).getAllByTestId("wall-erosion-row")).toHaveLength(2);
     expect(within(board).getByTestId("wall-erosion-call")).toBeInTheDocument();
     expect(within(board).getByTestId("wall-erosion-put")).toBeInTheDocument();
@@ -147,7 +146,6 @@ describe("NiftyWallErosionBoard", () => {
     expect(within(put).getAllByText("—").length).toBeGreaterThan(0);
     expect(within(put).getByText("FUEL 0")).toBeInTheDocument();
 
-    // Header slots stay in place so the title bar keeps its height.
     expect(within(board).getByText("as of —")).toBeInTheDocument();
   });
 
@@ -169,7 +167,6 @@ describe("NiftyWallErosionBoard", () => {
     expect(within(put).getAllByText("—").length).toBeGreaterThan(0);
     expect(within(put).getByText("FUEL 0")).toBeInTheDocument();
 
-    // No regime/flip chips when the payload omits them.
     expect(screen.queryByTestId("wall-erosion-regime")).toBeNull();
     expect(screen.queryByText(/flip /)).toBeNull();
   });

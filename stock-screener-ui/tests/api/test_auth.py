@@ -22,7 +22,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-# Add project root to path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -36,18 +35,12 @@ from api.auth import (
 )
 
 
-# =============================================================================
-# Test Constants
-# =============================================================================
 VALID_EMAIL = "test@example.com"
 VALID_PASSWORD = "SecurePassword123!"
 WEAK_PASSWORD = "123"
 INVALID_EMAIL = "invalid-email-format"
 
 
-# =============================================================================
-# 1. Register User Tests (7 test cases)
-# =============================================================================
 class TestRegisterUser:
     """Tests for POST /api/auth/register endpoint."""
 
@@ -67,7 +60,6 @@ class TestRegisterUser:
         assert data["token_type"] == "bearer"
         assert data["expires_in"] == ACCESS_TOKEN_EXPIRE_HOURS * 3600
 
-        # Verify user created in database
         user = db.query(User).filter(User.email == VALID_EMAIL).first()
         assert user is not None
         assert user.email == VALID_EMAIL
@@ -105,14 +97,12 @@ class TestRegisterUser:
         self, client: TestClient
     ):
         """Test: Register with missing fields (422 Validation Error)."""
-        # Missing password
         response = client.post("/api/auth/register", json={
             "email": VALID_EMAIL
         })
 
         assert response.status_code == 422
 
-        # Missing email
         response = client.post("/api/auth/register", json={
             "password": VALID_PASSWORD
         })
@@ -161,7 +151,6 @@ class TestRegisterUser:
         data = response.json()
         refresh_token = data["refresh_token"]
 
-        # Decode refresh token to get jti
         payload = jwt.decode(
             refresh_token,
             JWT_SECRET_KEY,
@@ -169,16 +158,12 @@ class TestRegisterUser:
         )
         jti = payload["jti"]
 
-        # Verify session exists in database
         session = db.query(UserSession).filter(UserSession.id == jti).first()
         assert session is not None
         assert session.revoked is False
         assert session.expires_at > datetime.utcnow()
 
 
-# =============================================================================
-# 2. Login User Tests (8 test cases)
-# =============================================================================
 class TestLoginUser:
     """Tests for POST /api/auth/login endpoint."""
 
@@ -302,9 +287,6 @@ class TestLoginUser:
             assert delta < timedelta(days=expected + 1)
 
 
-# =============================================================================
-# 3. Refresh Token Tests (7 test cases)
-# =============================================================================
 class TestRefreshToken:
     """Tests for POST /api/auth/refresh endpoint."""
 
@@ -321,7 +303,6 @@ class TestRefreshToken:
         assert "access_token" in data
         assert "refresh_token" in data
         assert data["token_type"] == "bearer"
-        # New tokens should be different
         assert data["refresh_token"] != valid_refresh_token
 
     def test_refresh_with_invalid_token_returns_401(
@@ -380,7 +361,6 @@ class TestRefreshToken:
         test_user: User
     ):
         """Test: Verify old session is revoked after refresh."""
-        # Get original token's jti
         old_payload = jwt.decode(
             valid_refresh_token,
             JWT_SECRET_KEY,
@@ -388,14 +368,12 @@ class TestRefreshToken:
         )
         old_jti = old_payload["jti"]
 
-        # Perform refresh
         response = client.post("/api/auth/refresh", json={
             "refresh_token": valid_refresh_token
         })
 
         assert response.status_code == 200
 
-        # Verify old session is revoked
         old_session = db.query(UserSession).filter(
             UserSession.id == old_jti
         ).first()
@@ -413,11 +391,9 @@ class TestRefreshToken:
         assert response.status_code == 200
         data = response.json()
 
-        # Verify both tokens exist
         assert "access_token" in data
         assert "refresh_token" in data
 
-        # Verify they are valid JWTs
         access_payload = jwt.decode(
             data["access_token"],
             JWT_SECRET_KEY,
@@ -433,9 +409,6 @@ class TestRefreshToken:
         assert refresh_payload["type"] == "refresh"
 
 
-# =============================================================================
-# 4. Logout Tests (4 test cases)
-# =============================================================================
 class TestLogout:
     """Tests for POST /api/auth/logout endpoint."""
 
@@ -443,7 +416,6 @@ class TestLogout:
         self, client: TestClient, valid_refresh_token: str, db: Session
     ):
         """Test: Logout with valid refresh token."""
-        # Get jti before logout
         payload = jwt.decode(
             valid_refresh_token,
             JWT_SECRET_KEY,
@@ -460,7 +432,6 @@ class TestLogout:
         data = response.json()
         assert "message" in data
 
-        # Verify session is revoked
         session = db.query(UserSession).filter(UserSession.id == jti).first()
         assert session.revoked is True
 
@@ -490,7 +461,6 @@ class TestLogout:
         data = login_response.json()
         refresh_token = data["refresh_token"]
 
-        # Get jti
         payload = jwt.decode(
             refresh_token,
             JWT_SECRET_KEY,
@@ -498,13 +468,11 @@ class TestLogout:
         )
         jti = payload["jti"]
 
-        # Logout
         client.post(
             "/api/auth/logout",
             headers={"Authorization": f"Bearer {refresh_token}"}
         )
 
-        # Verify session revoked
         session = db.query(UserSession).filter(UserSession.id == jti).first()
         assert session.revoked is True
 
@@ -524,9 +492,6 @@ class TestLogout:
         assert "message" in data
 
 
-# =============================================================================
-# 5. Get Current User Tests (6 test cases)
-# =============================================================================
 class TestGetCurrentUser:
     """Tests for GET /api/auth/me endpoint."""
 
@@ -543,7 +508,6 @@ class TestGetCurrentUser:
         assert "display_name" in data
         assert "initial_capital" in data
         assert "created_at" in data
-        # Verify email contains the expected pattern from auth_headers
         assert "authtest" in data["email"]
 
     def test_get_user_without_token_returns_401(
@@ -604,9 +568,6 @@ class TestGetCurrentUser:
         assert "detail" in data
 
 
-# =============================================================================
-# 6. Update User Settings Tests (4 test cases)
-# =============================================================================
 class TestUpdateUserSettings:
     """Tests for PUT /api/auth/me endpoint."""
 
@@ -673,9 +634,6 @@ class TestUpdateUserSettings:
         assert response.status_code == 401
 
 
-# =============================================================================
-# Database Constraint Tests
-# =============================================================================
 class TestDatabaseConstraints:
     """Tests for database-level constraints."""
 
@@ -687,7 +645,6 @@ class TestDatabaseConstraints:
         response1 = client.post("/api/auth/register", json=test_user_data)
         assert response1.status_code == 201
 
-        # Try to create duplicate user directly in DB
         user2 = User(
             email=test_user_data["email"],
             hashed_password=hash_password(test_user_data["password"]),
@@ -712,9 +669,6 @@ class TestDatabaseConstraints:
         assert user.initial_capital == 1000000.0  # 10 Lakhs default
 
 
-# =============================================================================
-# Additional Edge Case Tests
-# =============================================================================
 class TestEdgeCases:
     """Additional edge case and security tests."""
 
@@ -775,17 +729,14 @@ class TestEdgeCases:
         })
         data1 = response1.json()
 
-        # Login second time
         response2 = client.post("/api/auth/login", json={
             "email": test_user.email,
             "password": test_password
         })
         data2 = response2.json()
 
-        # Tokens should be different
         assert data1["refresh_token"] != data2["refresh_token"]
 
-        # Both sessions should exist
         sessions = db.query(UserSession).filter(
             UserSession.user_id == test_user.id,
             UserSession.revoked == False
@@ -810,7 +761,6 @@ class TestEdgeCases:
         assert response.status_code == 200
         data = response.json()
 
-        # Verify the token belongs to user1
         payload = jwt.decode(
             data["access_token"],
             JWT_SECRET_KEY,
@@ -819,9 +769,6 @@ class TestEdgeCases:
         assert int(payload["sub"]) == user1.id
 
 
-# =============================================================================
-# Current-user cache
-# =============================================================================
 class TestCurrentUserCache:
     """The per-request user lookup is cached for a short TTL.
 

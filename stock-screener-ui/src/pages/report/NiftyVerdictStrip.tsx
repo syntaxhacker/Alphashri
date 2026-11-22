@@ -15,10 +15,8 @@ import type {
   NiftyStrengthVerdict,
 } from "@/types/niftyReport";
 
-/** Rendered for any absent/null field so the strip never shows a blank/NaN. */
 export const VERDICT_DASH = "—";
 
-/** Locale number (Indian grouping) to fixed decimals, or dash when absent. */
 export function fmtVerdictNum(
   value: number | null | undefined,
   digits = 0,

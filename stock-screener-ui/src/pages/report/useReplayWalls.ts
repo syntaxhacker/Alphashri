@@ -27,14 +27,10 @@ export interface ReplayWallsOptions {
   date?: () => string | undefined;
   /** Replay cutoff (frame ISO timestamp). */
   at?: () => string | undefined;
-  /** The walls drawer is open (`map=1`) — bypass the throttle. */
   includeMap?: () => boolean;
   live: boolean;
-  /** Live `report` identity, throttled by the caller. */
   liveTick?: () => unknown;
-  /** Default 150 ms for EOD scrubbing; callers pass 4000 for live. */
   throttleMs?: number;
-  /** Injectable for tests. */
   fetcher?: typeof fetchOptionsWalls;
 }
 

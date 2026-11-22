@@ -16,7 +16,6 @@ interface ClickableSymbolProps {
   testId?: string;
 }
 
-/** Symbol button for tables: click navigates; hover does nothing. */
 export function ClickableSymbol(props: ClickableSymbolProps) {
   const navigate = useNavigate();
   const dock = useSymbolDock();

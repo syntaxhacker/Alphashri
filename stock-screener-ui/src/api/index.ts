@@ -1,7 +1,3 @@
-/**
- * API module for data fetching
- */
-
 import type { ScreenerData, ScreenerOption } from "../types";
 import { API_URL, SCREENERS_URL } from "../config/constants";
 import * as state from "../state";
@@ -20,7 +16,6 @@ export function setRenderCallback(cb: () => void) {
   renderCallback = cb;
 }
 
-// Default screener options (fallback)
 const DEFAULT_SCREENER_OPTIONS: ScreenerOption[] = [
   {
     id: "52w_high",
@@ -138,7 +133,6 @@ export async function fetchData(
   screener = state.activeScreener,
   source: FetchSource = "manual",
 ) {
-  // Abort any pending request before starting a new one
   const abortController = abortPendingRequest();
 
   // Only clear data when user manually switches to a different screener
@@ -148,12 +142,10 @@ export async function fetchData(
   state.setIsLoading(true);
   state.setError(null);
 
-  // Clear table data ONLY when manually switching to a different screener
   if (isManualScreenerSwitch) {
     state.setData({ ...state.DEFAULT_SCREENER_DATA });
   }
 
-  // Build filter params
   const filters = state.profileFilters;
   const filterParams = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {

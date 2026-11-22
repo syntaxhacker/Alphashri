@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""SNDK-style per-trade report for the wall-fade book.
-
-Reuses `report.fig_trade` (candlesticks, white entry triangle, yellow exit X,
-purple EMA9, teal VWAP, wall/max-pain lines) and `report.trade_sections`.
-
-Run:
-    .venv/bin/python scripts/wall_replay/fade_trades_report.py
-"""
 
 from __future__ import annotations
 
@@ -70,7 +62,6 @@ def main() -> None:
     trades.sort(key=lambda t: t["entry_time"])
     print(f"{len(trades)} trades on {len(dates)} sessions", flush=True)
 
-    # enrich + chart
     enriched = []
     charts: dict[int, Path] = {}
     for i, t in enumerate(trades, start=1):
@@ -83,7 +74,6 @@ def main() -> None:
         if i % 10 == 0:
             print(f"  {i}/{len(trades)} charts", flush=True)
 
-    # sidebar: days with trades + flat-day count
     days = OrderedDict()
     for t in enriched:
         days.setdefault(t["date"], []).append(t)

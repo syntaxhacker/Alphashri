@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Desktop alerts one minute before 1H and 4H candle closes for GOLD, NQ and OIL."""
 
 import argparse
 import sys
@@ -38,7 +37,6 @@ def parse_args(argv=None):
 
 
 def tick(now, quotes, fired, emit=True):
-    """Fire every due alert once; returns the list of (timeframe, body) pairs."""
     rows = build_rows(quotes, now)
     groups = {}
     for row in rows:

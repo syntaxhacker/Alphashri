@@ -14,7 +14,6 @@ from pathlib import Path
 from datetime import datetime
 from unittest.mock import Mock, patch, MagicMock
 
-# Add project path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from trading.shared_portfolio import (
@@ -29,9 +28,6 @@ from trading.global_risk_manager import (
 )
 
 
-# ============================================
-# SharedPortfolioManager Tests
-# ============================================
 
 class TestSharedPortfolioManager:
     """Tests for SharedPortfolioManager class."""
@@ -82,10 +78,8 @@ class TestSharedPortfolioManager:
         portfolio = SharedPortfolioManager(initial_capital=1_000_000)
         portfolio.set_strategy_allocation(1, "Test", 0.40, 3)
 
-        # Initially full allocation available
         assert portfolio.get_strategy_available_capital(1) == 400_000
 
-        # After using some capital
         portfolio.strategy_allocations[1].capital_used = 100_000
         assert portfolio.get_strategy_available_capital(1) == 300_000
 
@@ -112,7 +106,6 @@ class TestSharedPortfolioManager:
         portfolio = SharedPortfolioManager(initial_capital=1_000_000)
         portfolio.set_strategy_allocation(1, "Test", 0.40, 2)
 
-        # Simulate 2 positions already open
         portfolio.strategy_allocations[1].positions_count = 2
 
         allowed, reason = portfolio.can_open_position(
@@ -129,7 +122,6 @@ class TestSharedPortfolioManager:
         portfolio = SharedPortfolioManager(initial_capital=1_000_000)
         portfolio.set_strategy_allocation(1, "Test", 0.20, 3)
 
-        # Try to use more than allocated
         allowed, reason = portfolio.can_open_position(
             strategy_id=1,
             symbol="RELIANCE",
@@ -148,7 +140,6 @@ class TestSharedPortfolioManager:
         portfolio.set_strategy_allocation(1, "Test1", 0.40, 3)
         portfolio.set_strategy_allocation(2, "Test2", 0.40, 3)
 
-        # Simulate positions
         portfolio.strategy_allocations[1].positions_count = 1
         portfolio.strategy_allocations[2].positions_count = 1
 
@@ -170,7 +161,6 @@ class TestSharedPortfolioManager:
         portfolio.set_strategy_allocation(1, "Test1", 0.40, 3)
         portfolio.set_strategy_allocation(2, "Test2", 0.40, 3)
 
-        # Strategy 1 opens position in RELIANCE
         portfolio.open_position(
             strategy_id=1,
             strategy_name="Test1",
@@ -214,10 +204,8 @@ class TestSharedPortfolioManager:
         assert position.entry_price == 2000
         assert position.strategy_id == 1
 
-        # Check cash deducted
         assert portfolio.cash == 900_000
 
-        # Check strategy allocation updated
         assert portfolio.strategy_allocations[1].capital_used == 100_000
         assert portfolio.strategy_allocations[1].positions_count == 1
 
@@ -230,7 +218,6 @@ class TestSharedPortfolioManager:
         portfolio.set_strategy_allocation(1, "ORB Cons", 0.40, 3)
         portfolio.set_strategy_allocation(2, "ORB Aggr", 0.40, 3)
 
-        # Strategy 1 opens RELIANCE
         pos1 = portfolio.open_position(
             strategy_id=1,
             strategy_name="ORB Cons",
@@ -265,7 +252,6 @@ class TestSharedPortfolioManager:
         portfolio = SharedPortfolioManager(initial_capital=1_000_000)
         portfolio.set_strategy_allocation(1, "Test", 0.40, 3)
 
-        # Open position
         portfolio.open_position(
             strategy_id=1,
             strategy_name="Test",
@@ -277,7 +263,6 @@ class TestSharedPortfolioManager:
             take_profit=2200,
         )
 
-        # Close position at profit
         trade = portfolio.close_position(
             strategy_id=1,
             symbol="RELIANCE",
@@ -292,7 +277,6 @@ class TestSharedPortfolioManager:
         assert trade.pnl == 5000  # (2100 - 2000) * 50
         assert trade.net_pnl == 4900  # 5000 - 100
 
-        # Check position removed
         assert "1_RELIANCE" not in portfolio.positions
 
         # Check cash returned (entry deducted + exit value returned)
@@ -340,7 +324,6 @@ class TestSharedPortfolioManager:
             take_profit=2200,
         )
 
-        # Update prices
         portfolio.update_prices({"RELIANCE": 2100})
 
         pos = portfolio.positions["1_RELIANCE"]
@@ -348,9 +331,6 @@ class TestSharedPortfolioManager:
         assert pos.unrealized_pnl == 5000  # (2100 - 2000) * 50
 
 
-# ============================================
-# GlobalRiskManager Tests
-# ============================================
 
 class TestGlobalRiskManager:
     """Tests for GlobalRiskManager class."""
@@ -539,16 +519,12 @@ class TestGlobalRiskManager:
             assert "loss limit" in reason.lower()
 
 
-# ============================================
-# Integration Tests
-# ============================================
 
 class TestMultiStrategyIntegration:
     """Integration tests for multi-strategy system."""
 
     def test_full_trading_cycle(self):
         """Test a complete trading cycle with multiple strategies."""
-        # Setup
         portfolio = SharedPortfolioManager(
             initial_capital=1_000_000,
             max_total_capital_pct=0.80,
@@ -561,12 +537,10 @@ class TestMultiStrategyIntegration:
             max_symbol_exposure_pct=0.30,
         )
 
-        # Configure strategies
         portfolio.set_strategy_allocation(1, "ORB Conservative", 0.35, 3)
         portfolio.set_strategy_allocation(2, "ORB Aggressive", 0.35, 3)
         portfolio.set_strategy_allocation(3, "52W Chaser", 0.10, 2)
 
-        # Strategy 1 opens position
         pos1 = portfolio.open_position(
             strategy_id=1,
             strategy_name="ORB Conservative",
@@ -579,7 +553,6 @@ class TestMultiStrategyIntegration:
         )
         assert pos1 is not None
 
-        # Strategy 2 opens different position
         pos2 = portfolio.open_position(
             strategy_id=2,
             strategy_name="ORB Aggressive",
@@ -605,18 +578,15 @@ class TestMultiStrategyIntegration:
         )
         assert pos3 is not None  # Should succeed
 
-        # Update prices
         portfolio.update_prices({
             "TCS": 3600,
             "INFY": 1550,
         })
 
-        # Check portfolio status
         status = portfolio.get_portfolio_status()
         assert status['total_positions'] == 3
         assert status['cash'] < 1_000_000  # Some capital used
 
-        # Close a position
         trade = portfolio.close_position(
             strategy_id=1,
             symbol="TCS",
@@ -627,7 +597,6 @@ class TestMultiStrategyIntegration:
         assert trade is not None
         assert trade.pnl > 0  # Profit
 
-        # Verify final state
         final_status = portfolio.get_portfolio_status()
         assert final_status['total_positions'] == 2
 

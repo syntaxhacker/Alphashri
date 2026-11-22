@@ -240,8 +240,6 @@ export function setError(error: string | null) {
   patchState({ error });
 }
 
-// --- Orchestration actions ---
-
 export async function fetchStrategies(): Promise<ExperimentStrategy[]> {
   setLoading("strategies", true);
   try {
@@ -400,8 +398,6 @@ export async function selectRun(run: ExperimentRun): Promise<ExperimentChartData
   if (!symbol) return null;
   return fetchRunChart(run.run, symbol);
 }
-
-// --- Polling helpers ---
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 

@@ -33,9 +33,6 @@ from scripts.desk_check import (
 pytestmark = pytest.mark.unit
 
 
-# ---------------------------------------------------------------------------
-# IV / RV formatting
-# ---------------------------------------------------------------------------
 def test_iv_rv_ratio_basic():
     assert iv_rv_ratio(15.43, 12.92) == pytest.approx(1.194, abs=1e-3)
 
@@ -64,9 +61,6 @@ def test_fmt_iv_rv_degrades_to_na(iv, rv):
     assert fmt_iv_rv(iv, rv) == "n/a"
 
 
-# ---------------------------------------------------------------------------
-# 25-delta skew selection
-# ---------------------------------------------------------------------------
 def _ladder():
     """A realistic ladder where delta is monotone with strike."""
     rows = []
@@ -124,9 +118,6 @@ def test_skew_25d_ignores_zero_iv():
     assert skew_25d(rows) is None
 
 
-# ---------------------------------------------------------------------------
-# breadth gradient verdict
-# ---------------------------------------------------------------------------
 def test_breadth_all_up_is_risk_on():
     verdict, detail = breadth_verdict(
         {"NIFTY": 0.8, "BANK": 0.6, "MIDCAP": 1.1, "SMALLCAP": 1.4, "BROAD": 0.9}
@@ -178,9 +169,6 @@ def test_breadth_empty_is_unavailable():
     assert breadth_verdict(None) == ("unavailable", "no breadth data")
 
 
-# ---------------------------------------------------------------------------
-# manual vs coded realised P&L split
-# ---------------------------------------------------------------------------
 def test_classify_symbol_by_space():
     assert classify_symbol("NIFTY 2026-10-27 22700PE") == "manual"
     assert classify_symbol("NIFTY26OCT22700PE") == "coded"
@@ -220,9 +208,6 @@ def test_realised_split_empty_and_none_pnl():
     assert split["total"] == 100.0
 
 
-# ---------------------------------------------------------------------------
-# helpers used by the position / breadth blocks
-# ---------------------------------------------------------------------------
 def test_mark_premium_ce_pe_straddle():
     strikes = [
         {"strike": 22700.0, "ce": {"ltp": 196.3}, "pe": {"ltp": 169.6}},
@@ -252,9 +237,6 @@ def test_prev_close_uses_last_completed_session():
     assert prev_close_from_candles([], "2026-10-21") is None
 
 
-# ---------------------------------------------------------------------------
-# unusual-activity scan
-# ---------------------------------------------------------------------------
 def _leg(oi=0, oi_change=None, prev_oi=None, volume=0, iv=None, label=None):
     leg = {"oi": oi, "volume": volume, "iv": iv}
     if oi_change is not None:
@@ -518,9 +500,6 @@ def test_render_unchanged_without_unusual_and_appends_block_with_it():
 
 
 
-# ---------------------------------------------------------------------------
-# momentum speed (ATR / ROC / RVOL / verdict)
-# ---------------------------------------------------------------------------
 def _min_candles(n=20, start=23000.0, step=2.0, volume=0.0):
     """1-minute dict candles from 09:15 IST, deterministic drift."""
     base = __import__("datetime").datetime.fromisoformat("2026-10-21T09:15:00+05:30")

@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""v3.1 wall playbook — parameter sweep over the whole tape (one request).
-
-Signal at bar t, fill at t+1, stops/targets walked forward. The sweep is
-in-sample: it shows sensitivity, not proof. A config is only interesting if it
-keeps PF > 1.3 with enough trades, not if it wins the grid.
-"""
 
 from __future__ import annotations
 
@@ -125,7 +119,6 @@ _GEX = {}
 
 
 def gex_regime(date, row):
-    """Report GEX regime at the row's minute (snapshot), cached per date."""
     if date not in _GEX:
         out = {}
         p = ROOT / "experiments" / "data" / "nifty_snapshots" / f"{date}.jsonl"
@@ -320,7 +313,6 @@ def run(date, cfg):
         corridor = (res["strike"] - sup["strike"]) if (res and sup) else 0.0
         prev = float(rs[i - 1]["spot"])
 
-        # break up
         if res:
             w = res["strike"]
             if prev < w <= spot and (spot - w) >= cfg["break"]:
@@ -334,7 +326,6 @@ def run(date, cfg):
                     pos = _try_entry(cfg, rs, i, date, closes, spot, "break up", "CE", w, tgt)
                     if pos:
                         continue
-        # break down
         if sup:
             w = sup["strike"]
             if prev > w >= spot and (w - spot) >= cfg["break"]:
@@ -348,7 +339,6 @@ def run(date, cfg):
                     pos = _try_entry(cfg, rs, i, date, closes, spot, "break down", "PE", w, tgt)
                     if pos:
                         continue
-        # fade put
         if sup and top["put"][1] >= 3 and corridor >= cfg["corridor"]:
             if 0 <= spot - sup["strike"] <= max(5, 0.5 * a) and mp - spot >= cfg["room"]:
                 if (closes[i] > closes[i - 1] > closes[i - 2]) if cfg.get("fade_bars", 2) >= 2 else (closes[i] > closes[i - 1]):
@@ -359,7 +349,6 @@ def run(date, cfg):
                     pos = _try_entry(cfg, rs, i, date, closes, spot, "fade put", "CE", sup["strike"], tgt)
                     if pos:
                         continue
-        # fade call
         if res and top["call"][1] >= 3 and corridor >= cfg["corridor"]:
             if 0 <= res["strike"] - spot <= max(5, 0.5 * a) and spot - mp >= cfg["room"]:
                 if (closes[i] < closes[i - 1] < closes[i - 2]) if cfg.get("fade_bars", 2) >= 2 else (closes[i] < closes[i - 1]):
@@ -384,7 +373,6 @@ def stats(trades):
 
 def main():
     dates = sorted(p.stem for p in TAPE.glob("2026-*.jsonl") if ".gaps" not in p.stem)
-    # default run
     print("DEFAULT", DEFAULT)
     total = []
     for d in dates:
@@ -396,7 +384,6 @@ def main():
     n, w, net, pf = stats(total)
     print(f"  TOTAL n={n} win={w} net={net:+.0f} PF={pf:.2f}\n")
 
-    # sweep
     results = []
     for brk, oim, stp, arm, cor, rm in itertools.product(
             [1, 2, 3, 5], [100_000, 200_000, 300_000, 500_000],

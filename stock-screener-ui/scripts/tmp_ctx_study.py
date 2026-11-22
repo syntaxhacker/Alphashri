@@ -18,7 +18,7 @@ from datetime import timezone, datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config  # noqa: E402
-from scripts.smc_tick_eval import fetch_ticks  # cached, no download
+from scripts.smc_tick_eval import fetch_ticks
 
 IST = config.IST
 CACHE_NOTE = "experiments/data/duka_cache"
@@ -52,15 +52,11 @@ def run_date(date, gap_min=2.0, sl_buf=6.0, window="prime", verbose=True):
                 if datetime.fromtimestamp(x["time"], tz=timezone.utc).astimezone(IST).strftime("%H:%M") < "19:00"]
     onh = max((x["high"] for x in on_bars), default=None)
     onl = min((x["low"] for x in on_bars), default=None)
-    # per-TF FVG stores + last inversion events
     fvg_store = {tf: [] for tf in TF_ORDER}
-    # index maps: for each 1m bar time, find corresponding tf bar index
-    # simpler: walk 1m clock, advance each TF pointer
     ptr = {tf: 0 for tf in TF_ORDER}
-    last_inv = {tf: None for tf in TF_ORDER}  # (dir LONG/SHORT, age_base_idx)
+    last_inv = {tf: None for tf in TF_ORDER}
     trades = []
     in_pos = None
-    # tick buckets per 1m bar for fast SL-first eval
     from collections import defaultdict
     by_min = defaultdict(list)
     for t in ticks:
@@ -81,7 +77,6 @@ def run_date(date, gap_min=2.0, sl_buf=6.0, window="prime", verbose=True):
                 f = detect_fvg(bars, j, tf_gap[tf])
                 if f:
                     fvg_store[tf].append(f)
-                # check inversions of stored fvgs at this tf close
                 cl = bars[j]["close"]
                 for f in fvg_store[tf]:
                     if f.get("inv"):
@@ -95,12 +90,10 @@ def run_date(date, gap_min=2.0, sl_buf=6.0, window="prime", verbose=True):
                         f["inv_dir"] = "LONG"
                         last_inv[tf] = {"dir": "LONG", "at": i, "f": f}
                 ptr[tf] += 1
-        # manage open position on ticks of this minute (SL first, TP 1R)
         if in_pos:
             for tk in by_min.get(t, []):
                 bid, ask = tk["bidPrice"], tk["askPrice"]
                 p = in_pos
-                # STUDY: excursion in pts (fav/exitable vs adverse/stop side)
                 if p["side"] == "SHORT":
                     p["mfe"] = max(p["mfe"], p["entry"] - bid)
                     p["mae"] = min(p["mae"], p["entry"] - ask)
@@ -127,7 +120,6 @@ def run_date(date, gap_min=2.0, sl_buf=6.0, window="prime", verbose=True):
                 trades.append(p)
                 in_pos = None
                 continue
-            # give up after 90 min
             if i - in_pos["i_in"] > 90:
                 last = by_min.get(t, [None])[-1]
                 px = (last["bidPrice"] if in_pos["side"] == "SHORT" else last["askPrice"]) if last else b["close"]
@@ -140,7 +132,6 @@ def run_date(date, gap_min=2.0, sl_buf=6.0, window="prime", verbose=True):
                 trades.append(in_pos)
                 in_pos = None
             continue
-        # entry logic
         prime = "19:00" <= hm <= "19:30"
         if window == "prime" and not prime:
             continue
@@ -148,11 +139,10 @@ def run_date(date, gap_min=2.0, sl_buf=6.0, window="prime", verbose=True):
         if not lrl:
             continue
         want = "SHORT" if lrl["dir"] == "below" else "LONG"
-        # highest TF inversion agreeing with want (per-TF lookback in 1m bars)
         allow = {"30s": 5, "1m": 5, "2m": 8, "3m": 12}
         pick = None
         pick_age = None
-        for tf in reversed(TF_ORDER):  # 3m first
+        for tf in reversed(TF_ORDER):
             ev = last_inv[tf]
             if ev and ev["dir"] == want and i - ev["at"] <= allow[tf]:
                 pick = tf
@@ -160,7 +150,6 @@ def run_date(date, gap_min=2.0, sl_buf=6.0, window="prime", verbose=True):
                 break
         if not pick:
             continue
-        # SL beyond recent swing (5-bar fractal each side, fallback signal bar edge)
         swing_hi = swing_lo = None
         for k in range(max(0, i - 10), i):
             if k >= 4:
@@ -173,7 +162,6 @@ def run_date(date, gap_min=2.0, sl_buf=6.0, window="prime", verbose=True):
         if want == "SHORT":
             sl_ref = swing_hi if swing_hi else b["high"]
             sl = sl_ref + sl_buf
-            # entry next tick ask/bid: use next minute first tick bid (short)
             nxt = by_min.get(base[i + 1]["time"] if i + 1 < len(base) else t, [])
             entry = nxt[0]["bidPrice"] if nxt else b["close"]
             if entry > sl:
@@ -181,7 +169,7 @@ def run_date(date, gap_min=2.0, sl_buf=6.0, window="prime", verbose=True):
             risk = sl - entry
             if risk < 5:
                 continue
-            tp = entry - risk  # 1R
+            tp = entry - risk
         else:
             sl_ref = swing_lo if swing_lo else b["low"]
             sl = sl_ref - sl_buf
@@ -196,7 +184,6 @@ def run_date(date, gap_min=2.0, sl_buf=6.0, window="prime", verbose=True):
         in_pos = {"side": want, "entry": entry, "sl": sl, "tp": tp, "risk": risk,
                   "i_in": i, "t_in": t, "hm": hm, "tf": pick,
                   "lrl": lrl["dir"], "touches": lrl["touches"], "target": round(lrl["target"], 1),
-                  # STUDY ctx
                   "resid": round(lrl.get("resid", 0), 2), "inv_age": pick_age,
                   "min_open": (int(hm[:2]) * 60 + int(hm[3:])) - 19 * 60,
                   "dist_atr": round(abs(lrl["target"] - entry) / (atr(base, i) or 5.0), 2),
@@ -219,7 +206,6 @@ def run_date(date, gap_min=2.0, sl_buf=6.0, window="prime", verbose=True):
                 bl = max(cands, key=lambda x: x[0]) if cands else (None, None)
             in_pos["blocker"] = bl[1]
             in_pos["block_r"] = round(abs(bl[0] - entry) / risk, 2) if bl[0] is not None else None
-            # magnet: LRL target near a same-side reference (within 0.5R)?
             tgt = lrl["target"]
             mags = []
             for r, n in ((pdh, "PDH"), (pdl, "PDL"), (vah, "VAH"), (val, "VAL"), (onh, "ONH"), (onl, "ONL"),

@@ -214,7 +214,6 @@ def test_near_walls_respect_the_spot_band_and_fall_back():
 
 def test_pcr_vol_and_zero_call_volume():
     strikes = options_report.build_strikes(_chain())
-    # PE volume 50 / CE volume 100
     assert options_report.compute_pcr_vol(strikes) == 0.5
 
     zero_ce = [{"strike": 100.0,

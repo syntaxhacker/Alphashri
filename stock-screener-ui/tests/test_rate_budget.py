@@ -131,7 +131,6 @@ def _drain(limiter, n, clock, batch=40):
             clock["now"] += 1.0
 
 
-# --- isolation between consumers ---
 
 def test_bot_cap_does_not_starve_api(fake_redis, frozen_clock, monkeypatch, neutral_argv):
     monkeypatch.setenv("UPSTOX_RL_CAP_BOT", "5")
@@ -183,7 +182,6 @@ def test_global_per_second_still_enforced(fake_redis, frozen_clock, monkeypatch,
     assert bot.acquire(timeout=0.5) is False
 
 
-# --- reserved slice arithmetic ---
 
 def test_remaining_budget_reflects_reserved_slice(fake_redis, frozen_clock, monkeypatch, neutral_argv):
     for var in ("UPSTOX_RL_CAP_API", "UPSTOX_RL_CAP_BOT", "UPSTOX_RL_CAP_ORDERFLOW"):
@@ -206,7 +204,6 @@ def test_default_caps_sum_to_global_budget(monkeypatch, neutral_argv):
     assert total == GLOBAL_PER_MINUTE
 
 
-# --- plumbing ---
 
 def test_acquire_records_on_both_keys(fake_redis, frozen_clock, neutral_argv):
     api = UpstoxRateLimiter(redis_client=fake_redis, consumer="api")
@@ -232,7 +229,6 @@ def test_lua_checks_global_and_consumer_windows():
     assert ACQUIRE_LUA.count("ZADD") == 2
 
 
-# --- consumer resolution ---
 
 def test_explicit_consumer_is_normalized(fake_redis, neutral_argv):
     assert UpstoxRateLimiter(redis_client=fake_redis, consumer="API").consumer == "api"
@@ -264,7 +260,6 @@ def test_consumer_cap_env_override(monkeypatch, neutral_argv):
     assert resolve_consumer_cap("news") == GLOBAL_PER_MINUTE
 
 
-# --- QueuedRateLimiter wiring ---
 
 def test_queued_limiter_passes_consumer_through(monkeypatch, neutral_argv):
     q = QueuedRateLimiter(consumer="api")

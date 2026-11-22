@@ -204,7 +204,6 @@ describe("DailyReportPage", () => {
     }
     expect(screen.getByTestId("report-breakouts-table-row-RELIANCE")).toBeInTheDocument();
     expect(screen.getByTestId("report-breakouts-table-row-INFY")).toBeInTheDocument();
-    // sorted by pct_above desc: RELIANCE (1.8) before INFY (1.33)
     const rows = within(table).getAllByRole("row");
     const symbols = rows.map((r) => r.textContent ?? "");
     const relIdx = symbols.findIndex((t) => t.includes("RELIANCE"));

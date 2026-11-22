@@ -49,9 +49,6 @@ from api.auth import (
 from tests.helpers.db import import_all_models
 
 
-# =============================================================================
-# Test Configuration - Use in-memory SQLite for isolation
-# =============================================================================
 
 # Use in-memory database for test isolation (consistent with conftest.py)
 TEST_SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -73,9 +70,6 @@ def override_get_db():
         db.close()
 
 
-# =============================================================================
-# Fixtures
-# =============================================================================
 
 @pytest.fixture(scope="function")
 def db():
@@ -205,9 +199,6 @@ def sample_bot(db, test_user, sample_strategy):
     return bot
 
 
-# =============================================================================
-# 1. AUTHENTICATION SECURITY TESTS
-# =============================================================================
 
 @pytest.mark.unit
 class TestPasswordHashing:
@@ -465,9 +456,6 @@ class TestBruteForceProtection:
         assert "does not exist" not in data["detail"].lower()
 
 
-# =============================================================================
-# 2. INPUT VALIDATION TESTS
-# =============================================================================
 
 @pytest.mark.unit
 class TestSQLInjection:
@@ -656,9 +644,6 @@ class TestTypeCoercionAttacks:
         assert response.status_code in [200, 400, 422]
 
 
-# =============================================================================
-# 3. AUTHORIZATION TESTS
-# =============================================================================
 
 @pytest.mark.unit
 class TestUserIsolation:
@@ -765,9 +750,6 @@ class TestPrivilegeEscalation:
         assert "disabled" in response.json()["detail"].lower()
 
 
-# =============================================================================
-# 4. API SECURITY TESTS
-# =============================================================================
 
 @pytest.mark.unit
 class TestErrorInformationDisclosure:
@@ -942,9 +924,6 @@ class TestHTTPSecurityHeaders:
         cache_control = response.headers.get("cache-control", "")
 
 
-# =============================================================================
-# 5. DATA VALIDATION TESTS
-# =============================================================================
 
 class TestFinancialValueValidation:
     """Tests for financial value validation."""
@@ -1151,9 +1130,6 @@ class TestInvalidSymbolHandling:
         assert response.status_code in [200, 400, 422]
 
 
-# =============================================================================
-# 6. INTEGRATION SECURITY TESTS
-# =============================================================================
 
 class TestEndToEndSecurity:
     """End-to-end security tests."""
@@ -1243,9 +1219,6 @@ class TestSecurityRegression:
         assert token not in data
 
 
-# =============================================================================
-# RUN TESTS
-# =============================================================================
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])

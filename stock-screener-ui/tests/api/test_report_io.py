@@ -20,7 +20,6 @@ def _dump(rows: list[dict]) -> list[str]:
     return [json.dumps(row, separators=(",", ":")) for row in rows]
 
 
-# --- read_jsonl ---------------------------------------------------------------
 
 def test_read_jsonl_missing_file_returns_empty(tmp_path):
     assert read_jsonl(tmp_path / "missing.jsonl") == []
@@ -69,7 +68,6 @@ def test_read_jsonl_predicate_and_order(tmp_path):
     ]
 
 
-# --- read_jsonl_tail ----------------------------------------------------------
 
 def test_read_jsonl_tail_missing_file_returns_empty(tmp_path):
     assert read_jsonl_tail(tmp_path / "missing.jsonl") == []
@@ -110,7 +108,6 @@ def test_read_jsonl_tail_predicate(tmp_path):
     ) == [row for row in rows if row["keep"]]
 
 
-# --- symbol_or_400 ------------------------------------------------------------
 
 @pytest.mark.parametrize("raw,expected", [
     ("nifty", "NIFTY"),

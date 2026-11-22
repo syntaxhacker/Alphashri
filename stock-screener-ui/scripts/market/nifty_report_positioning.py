@@ -34,13 +34,11 @@ OUT_JSON = OUT_DIR / "data" / "positioning.json"
 OUT_HTML = OUT_DIR / "02-positioning.html"
 
 SESSION_START = datetime.fromisoformat(f"{DATE}T09:15:00+05:30")
-# Tape end, not chain end: the chain file runs two minutes longer.
-CLIP_MIN = 292.0  # 09:15 -> 14:07
+CLIP_MIN = 292.0
 BUCKET_MIN = 5
 STRIKES = list(range(25200, 25801, 50))
 
-# Windows named in the brief.
-W_1100 = 105  # 11:00
+W_1100 = 105
 W_1110 = 115
 W_1145 = 150
 W_1155 = 160
@@ -58,9 +56,6 @@ REGIME_LABEL = {
 }
 
 
-# --------------------------------------------------------------------------- #
-# loading
-# --------------------------------------------------------------------------- #
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     with path.open() as fh:
         return [json.loads(line) for line in fh if line.strip()]
@@ -83,21 +78,16 @@ def clip_snaps(snaps: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def rows_of(snap: dict[str, Any]) -> dict[int, list[float]]:
-    """`[strike, ce_ltp, ce_oi, ce_vol, pe_ltp, pe_oi, pe_vol]` -> strike map."""
     return {int(r[0]): r for r in snap["rows"]}
 
 
 def frame_at(snaps: list[dict[str, Any]], minute: float) -> dict[str, Any]:
-    """First snapshot at or after `minute` (snapshots are ordered)."""
     for snap in snaps:
         if minutes(snap["t"]) >= minute:
             return snap
     return snaps[-1]
 
 
-# --------------------------------------------------------------------------- #
-# derivations
-# --------------------------------------------------------------------------- #
 def build_heatmap(snaps: list[dict[str, Any]]) -> dict[str, Any]:
     bounds: list[float] = []
     b = 0.0
@@ -507,9 +497,6 @@ def build_payload() -> dict[str, Any]:
     }
 
 
-# --------------------------------------------------------------------------- #
-# HTML
-# --------------------------------------------------------------------------- #
 def render_html(payload: dict[str, Any]) -> str:
     body = json.dumps(payload, separators=(",", ":"))
     return TEMPLATE.replace("__PAYLOAD__", body)

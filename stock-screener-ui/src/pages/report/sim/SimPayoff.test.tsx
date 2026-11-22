@@ -18,8 +18,6 @@ vi.mock("../echartsSolid", () => ({
 
 import { createECharts } from "../echartsSolid";
 
-// Captures the same mock the factory installs; vi.mocked types it for the
-// toHaveBeenCalled assertions below.
 const setChartOption = vi.mocked(createECharts().setChartOption);
 
 function strategy(): SimStrategyResult {

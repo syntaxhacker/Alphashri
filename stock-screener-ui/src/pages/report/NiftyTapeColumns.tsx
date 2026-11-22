@@ -1,11 +1,3 @@
-/**
- * The tape table's column model.
- *
- * Split out of `NiftyTapeTable.tsx` so the table component only carries the
- * component itself. The columns are pure functions of the scale, the spot
- * deltas and the live flash map — no state, no hooks — which is what lets the
- * table memoise them on a cheap content signature.
- */
 
 import { Text } from "@/ui";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
@@ -39,22 +31,17 @@ import {
   REPORT_PAD,
 } from "./reportTokens";
 
-/** Row access by accessorKey; `Number()` coercion happens at call sites. */
 function rawCellValue(row: NiftyTapeRow, key: keyof NiftyTapeRow | string | undefined): unknown {
   return key ? (row as unknown as Record<string, unknown>)[key as string] ?? NaN : NaN;
 }
 
-/** Numeric cell with tabular figures + ellipsis; optional full-bleed tint. */
 function tapeCell(
   value: string,
   tone?: "success" | "error",
   tint?: string,
   testId?: string,
-  /** Direct text color override for terminal styling (wins over tone). */
   color?: string,
-  /** Bold terminal values (spot, net, flip). */
   bold?: boolean,
-  /** Live change-flash: pulse the cell when its value just moved. */
   flash?: boolean,
 ) {
   return (

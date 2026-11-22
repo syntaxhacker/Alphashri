@@ -9,7 +9,6 @@ import {
   type NiftyPnlPosition,
 } from "./niftyPnlAttribution";
 
-/** Segment opacity per component — green/red fill carries the sign. */
 const SEG_OPACITY: Record<string, number> = {
   delta: 1,
   vega: 0.7,

@@ -1,21 +1,4 @@
 #!/usr/bin/env python3
-"""Audit one desk day: are the numbers right, and did the reads predict?
-
-Replays the recorded 1-min tape through the desk's OWN functions (no
-reimplementation) and scores each signal against what the spot actually did
-next. Answers three questions:
-
-  1. Parity   - do the tape's recorded aggregates match the chain they came
-                from (OI totals, PCR, max pain, ATM strike/premium)?
-  2. Accuracy - conditional on the desk calling the tape bullish / bearish /
-                covering / fresh, what did the next 10/30 minutes do?
-  3. Trades   - for each manual trade, what was the premium path (MFE/MAE),
-                and did the stop/target/exit leave money on the table?
-
-Usage:
-    .venv/bin/python scripts/eval_desk_day.py --date 2026-10-22
-    .venv/bin/python scripts/eval_desk_day.py --date 2026-10-22 --md out.md
-"""
 
 from __future__ import annotations
 
@@ -76,7 +59,6 @@ def strikes_of(row: dict) -> list[dict]:
     return sorted(out, key=lambda x: x["strike"])
 
 
-# --------------------------------------------------------------------- parity
 def parity(rows: list[dict]) -> dict:
     bad = {"ce_oi": 0, "pe_oi": 0, "pcr": 0, "maxpain": 0, "atm": 0, "atm_ltp": 0}
     worst = {"ce_oi": 0.0, "pe_oi": 0.0, "pcr": 0.0, "maxpain": 0.0}
@@ -113,10 +95,7 @@ def parity(rows: list[dict]) -> dict:
             "maxpain_mismatch_at": mp_mismatch_at}
 
 
-# --------------------------------------------------------------------- phases
 def phases(rows: list[dict], thr: float = 30.0) -> list[dict]:
-    """Ex-post swing segments: an up/down leg is confirmed once price retraces
-    ``thr`` points from its extreme."""
     segs: list[dict] = []
     start = rows[0]
     direction = 0
@@ -151,7 +130,6 @@ def phase_at(segs: list[dict], t: str) -> str:
     return "flat"
 
 
-# ---------------------------------------------------------------- forward ret
 def forward(rows: list[dict], i: int, minutes: int) -> float | None:
     t0 = datetime.fromisoformat(rows[i]["t"])
     target = t0 + timedelta(minutes=minutes)
@@ -162,7 +140,6 @@ def forward(rows: list[dict], i: int, minutes: int) -> float | None:
             best, best_gap = j, dt
         if datetime.fromisoformat(rows[j]["t"]) > target + timedelta(minutes=3):
             break
-    # A forward window that had to jump a tape gap is not a measurement.
     if best is None or best_gap > 120:
         return None
     a, b = _f(rows[i]["spot"]), _f(rows[best]["spot"])
@@ -179,7 +156,6 @@ def score(name: str, outcomes: list[tuple[bool, float]]) -> dict:
             "avg_loss_pts": (sum(opp) / len(opp)) if opp else 0.0}
 
 
-# ------------------------------------------------------------------ the audit
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default=datetime.now().strftime("%Y-%m-%d"))
@@ -194,7 +170,6 @@ def main() -> int:
     w(f"\n_tape rows with a chain: **{len(rows)}** · "
       f"{rows[0]['t'][11:16]}–{rows[-1]['t'][11:16]}_\n")
 
-    # 1. parity
     p = parity(rows)
     w("## 1. Are the calculations right? (parity vs the chain)\n")
     w("| field | mismatches | worst delta |")
@@ -212,14 +187,12 @@ def main() -> int:
     else:
         w("\n`max_pain` matches the computed value on every row.")
 
-    # 2. phases
     w("\n## 2. What the day actually did (ex-post swings, 30-pt retrace)\n")
     w("| from | to | dir | move (pts) |")
     w("|---|---|---|---|")
     for s in segs:
         w(f"| {s['from'][11:16]} | {s['to'][11:16]} | {s['dir']} | {s['b'] - s['a']:+.0f} |")
 
-    # 3. signal accuracy
     w("\n## 3. Did the reads predict? (forward spot, 10m and 30m)\n")
     trend10, trend30 = [], []
     for i, r in enumerate(rows[:-1]):
@@ -233,7 +206,6 @@ def main() -> int:
         w(f"| {sc['name']} | n={sc['n']} | hit **{sc['hit']:.0f}%** | "
           f"right {sc['avg_win_pts']:+.1f} pts | wrong {sc['avg_loss_pts']:+.1f} pts |")
 
-    # trend split by phase direction
     w("\n### Trend label by phase\n")
     w("| phase | dir | n | hit% |")
     w("|---|---|---|---|")
@@ -325,7 +297,6 @@ def main() -> int:
         sc = score(f"{ph}-{side}", o)
         w(f"| {ph} | {side} | {sc['n']} | {sc['hit']:.0f}% |")
 
-    # 5. walls + max pain
     w("\n## 5. Walls and max pain\n")
     wall_hits, wall_breaks = 0, 0
     for i, r in enumerate(rows[:-1]):
@@ -359,7 +330,6 @@ def main() -> int:
               "computation. Any 'target = max pain' plan was anchored to a number that does "
               "not respond to the order flow.")
 
-    # 6. manual trades: direction vs management
     w("\n## 6. Manual trades: direction, or management?\n")
     csv_path = ROOT / "reports" / "OPTIONS_PAPER_DAILY" / a.date / "trades.csv"
     if not csv_path.exists():
@@ -398,7 +368,6 @@ def main() -> int:
         w(f"\nDirection correct **{right}/{len(trs)}**. Best favourable excursion under "
           f"+6% on **{never_green}/{len(trs)}** — the entries landed at the end of the "
           f"micro-move, so the trades never had a cushion to survive normal noise.")
-        # how often is a stop of S spot points hit by noise alone?
         sp = [_f(r["spot"]) for r in rows if _f(r["spot"])]
         for h in (20,):
             adv = []

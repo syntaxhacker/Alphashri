@@ -71,9 +71,6 @@ def _sine_base(n: int = 140, level: float = 100.0, half: float = 2.0):
     return level + half * np.sin(i * 2.0 * np.pi / 20.0)
 
 
-# ---------------------------------------------------------------------------
-# Synthetic frames (always run — no cache needed)
-# ---------------------------------------------------------------------------
 
 
 def test_golden_sine_base():
@@ -127,9 +124,6 @@ def test_golden_seeded_random_walk():
     ]
 
 
-# ---------------------------------------------------------------------------
-# Real cached frames (skip when the cache is absent)
-# ---------------------------------------------------------------------------
 
 
 def _real(symbol: str):

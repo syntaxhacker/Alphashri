@@ -1,16 +1,10 @@
-/**
- * Constants for Alphashri
- */
-
 import { API_BASE } from "@/api/config";
 export const API_URL = `${API_BASE}/api/screener`;
 export const SCREENERS_URL = `${API_BASE}/api/screeners`;
 
-// Timing constants
 export const NEW_ROW_HIGHLIGHT_MS = 12000;
 export const DEFAULT_AUTO_REFRESH_SECONDS = 60;
 
-// Chart timeframe options
 export const TIMEFRAMES = [
   { value: 1, label: "1m" },
   { value: 5, label: "5m" },
@@ -27,7 +21,6 @@ export const TIMEFRAMES = [
 export const TZ_IST = "Asia/Kolkata" as const;
 export const TZ_IST_LABEL = "IST" as const;
 
-// Opening range options
 export const OR_MINUTES_OPTIONS = [
   { value: 30, label: "OR 30m" },
   { value: 45, label: "OR 45m" },

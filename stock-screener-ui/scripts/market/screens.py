@@ -33,7 +33,6 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from market.tv_client import scanner_frame  # noqa: E402
 
-# Industries where generative AI is a direct substitute for the work itself.
 AI_FRAGILE = {
     "Packaged Software", "Internet Software/Services", "Information Technology Services",
     "Financial Publishing/Services", "Miscellaneous Commercial Services",
@@ -48,7 +47,6 @@ def _pct(series: pd.Series, invert: bool = False) -> pd.Series:
 
 
 def build() -> pd.DataFrame:
-    """One scanner request, flattened into the columns every mode needs."""
     df = scanner_frame("america", columns=[
         "name", "description", "type", "exchange", "industry", "sector", "close", "change", "volume",
         "average_volume_10d_calc", "market_cap_basic", "price_earnings_ttm",
@@ -63,7 +61,6 @@ def build() -> pd.DataFrame:
     if "type" in df:
         df = df[df["type"].eq("stock")]
     if "exchange" in df:
-        # the `america` market also carries OTC/foreign listings; keep the US venues
         df = df[df["exchange"].isin({"NASDAQ", "NYSE", "AMEX"})]
     df["mcap_bn"] = df["market_cap_basic"] / 1e9
     df["fcf_y"] = df["free_cash_flow_ttm"] / df["market_cap_basic"] * 100
@@ -100,7 +97,7 @@ def main() -> int:
 
     df = score(build())
     if args.universe == "sp500":
-        df = df[df["mcap_bn"] >= 15]          # S&P 500 proxy: >$15bn
+        df = df[df["mcap_bn"] >= 15]
     if args.max_price:
         df = df[df["close"] <= args.max_price]
 

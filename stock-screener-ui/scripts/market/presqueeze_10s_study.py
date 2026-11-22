@@ -1,22 +1,4 @@
 #!/usr/bin/env python3
-"""v2 pre-squeeze score on the raw 10-second chain — causal, out-of-sample.
-
-Uses only ``experiments/data/nifty_chain10s/<date>.jsonl``. At each snapshot:
-
-* fixed strike universe = strikes present in the FIRST snapshot of the day
-  (no future strikes leak in);
-* totals are summed over that fixed set;
-* the "wall" is the strike with the largest CE OI within +/-250 of spot, tracked
-  against its own OI two minutes earlier;
-* every feature uses snapshots ``<= i``; the label uses ``i+1 .. i+5min``.
-
-Score v2: put writing (2) + call short-covering (2) + premium residual (1) +
-wall erosion (1) + participation (1). Threshold 5, fixed a priori.
-
-Run:
-    .venv/bin/python scripts/market/presqueeze_10s_study.py
-    .venv/bin/python scripts/market/presqueeze_10s_study.py --date 2026-10-28 --timeline 12:30-13:05
-"""
 from __future__ import annotations
 
 import argparse
@@ -72,12 +54,10 @@ def features(rows: list[dict]) -> list[dict]:
         ce = sum(float(c[2]) for c in r.get("rows") or [] if len(c) >= 7 and float(c[0]) in fixed)
         pe = sum(float(c[5]) for c in r.get("rows") or [] if len(c) >= 7 and float(c[0]) in fixed)
         vol = sum(float(c[3]) + float(c[6]) for c in r.get("rows") or [] if len(c) >= 7 and float(c[0]) in fixed)
-        # ATM premium at the fixed strike nearest the day's first spot.
         atm_ref = min(fixed, key=lambda k: abs(k - spot0))
         atm = cell(r, atm_ref)
         cp = float(atm[1]) if atm else 0.0
         pp = float(atm[4]) if atm else 0.0
-        # Wall = biggest CE OI within +/-250 of current spot.
         wall = None
         row_oi: dict[float, float] = {}
         for c in r.get("rows") or []:
@@ -106,17 +86,15 @@ def score(series: list[dict], i: int, horizon_s: float = 120.0) -> tuple[int, li
     put = (cur["pe"] - prev["pe"] >= 300_000) and (cur["pp"] - prev["pp"] <= -1)
     cover = (cur["ce"] - prev["ce"] <= -500_000) and (cur["cp"] - prev["cp"] >= 1)
     if put:
-        comps += ["put", "put"]  # weight 2
+        comps += ["put", "put"]
     if cover:
-        comps += ["cover", "cover"]  # weight 2
+        comps += ["cover", "cover"]
     if prev["cp"] > 0 and (cur["cp"] - prev["cp"] - 0.5 * (cur["spot"] - prev["spot"])) / prev["cp"] > 0.01:
         comps.append("prem")
-    # wall: same strike, OI down 150k, price within 40
     if cur["wall_strike"] > 0 and abs(cur["spot"] - cur["wall_strike"]) <= 40:
         prev_oi = prev.get("row_oi", {}).get(cur["wall_strike"])
         if prev_oi is not None and cur["wall_oi"] - prev_oi <= -150_000:
             comps.append("wall")
-    # participation: 60s volume vs prior 20 min median
     k = ago(60)
     v = cur["vol"] - series[k]["vol"]
     base = []
@@ -157,7 +135,6 @@ def evaluate(date: str, horizon_s: float, move: float) -> dict:
         sc, comps = score(series, i)
         if sc >= 5:
             arm.append((i, sc, comps))
-    # forward up move within horizon
     events = 0
     caught = 0
     leads = []

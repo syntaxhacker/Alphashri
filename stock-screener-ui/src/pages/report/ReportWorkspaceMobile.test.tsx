@@ -112,7 +112,6 @@ describe("ReportWorkspace — mobile heatmap disclosure (390px)", () => {
     });
     expect(screen.queryByTestId("nifty-heatmap-wrap")).not.toBeInTheDocument();
     expect(screen.queryByTestId("nifty-heatmap-read")).not.toBeInTheDocument();
-    // Kept reachable: the metric toggle and the full-view control survive.
     expect(screen.getByTestId("nifty-heatmap-metric-toggle")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-heatmap-metric-volume")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-heatmap-expand")).toBeInTheDocument();

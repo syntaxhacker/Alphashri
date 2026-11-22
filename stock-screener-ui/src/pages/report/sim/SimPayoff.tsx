@@ -14,7 +14,6 @@ interface SimPayoffProps {
   strategy: SimStrategyResult | null;
   /** Playhead slice; realized/total come from here, never the finished day. */
   view?: StrategyView | null;
-  /** The user's plan (ATM refs), safe to show before the entry fill. */
   planLegs?: SimLegSpec[];
   entryTime?: string;
   spot: number;

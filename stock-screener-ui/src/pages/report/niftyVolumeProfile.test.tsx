@@ -18,7 +18,6 @@ function TestWrapper(props: { children?: JSX.Element }) {
   return <UIProvider>{props.children}</UIProvider>;
 }
 
-// chain[strike] = [ce_ltp, pe_ltp, ce_oi, pe_oi, ce_vol, pe_vol]
 function row(
   t: string,
   spot: number,
@@ -58,12 +57,10 @@ describe("buildVolumeProfile", () => {
   });
 
   test("ATM is the strike nearest the last spot", () => {
-    // last spot 25040 → nearest is 25000
     expect(buildVolumeProfile(ROWS).atmStrike).toBe(25000);
   });
 
   test("top-volume strike carries the most CE+PE volume", () => {
-    // 24900: 270 · 25000: 850 · 25100: 670
     expect(buildVolumeProfile(ROWS).topStrike).toBe(25000);
   });
 
@@ -72,7 +69,6 @@ describe("buildVolumeProfile", () => {
     const s = p.points.find((x) => x.strike === 25000)!;
     expect(s.ceVol).toBe(200);
     expect(s.peVol).toBe(100);
-    // OI stays latest even in delta mode
     expect(s.ceOi).toBe(2200);
   });
 
@@ -90,7 +86,6 @@ describe("buildVolumeProfile", () => {
 
   test("widthPts windows far-OTM strikes out", () => {
     const p = buildVolumeProfile(ROWS, { widthPts: 50 });
-    // |strike − 25040| ≤ 50 → only 25000
     expect(p.points.map((x) => x.strike)).toEqual([25000]);
   });
 

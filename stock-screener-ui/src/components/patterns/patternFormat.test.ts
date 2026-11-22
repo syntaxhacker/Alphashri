@@ -59,8 +59,6 @@ describe("formatOneDecimal", () => {
     expect(formatOneDecimal(-2.25)).toBe("-2.3");
   });
 
-  // A streamed hit can arrive before `to_52w_high` is populated; formatting
-  // NaN used to print "52W: -NaN%" on the card.
   test("renders an em dash for missing or non-finite values", () => {
     expect(formatOneDecimal(null)).toBe("—");
     expect(formatOneDecimal(undefined)).toBe("—");

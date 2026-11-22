@@ -15,7 +15,6 @@ import {
   sentimentSign,
 } from "./optionSentiment";
 
-/** Cap on ranked legs — one CE row + one PE row per strike compete for slots. */
 const UNUSUAL_TOP_N = 30;
 
 interface UnusualLegRow {
@@ -24,22 +23,13 @@ interface UnusualLegRow {
   leg: "CE" | "PE";
   volume: number;
   oi: number;
-  /** Volume÷OI; null when OI is 0 (nothing to divide by). */
   volOi: number | null;
-  /** Rank key: Vol÷OI when OI > 0, raw volume when OI = 0. */
   rankKey: number;
-  /** % of this leg's total chain volume. */
   share: number;
   sentiment: string;
   rank: number;
 }
 
-/**
- * Expand the chain to one row per strike-leg, keep the top-30 legs by
- * volume (filters far-OTM noise where tiny OI inflates the ratio), then
- * rank that pool by Vol÷OI desc — the unusualness key. OI=0 legs fall
- * back to raw volume as their rank key.
- */
 export function buildUnusualRows(strikes: NiftyStrike[]): UnusualLegRow[] {
   const list = strikes ?? [];
   let ceTotal = 0;

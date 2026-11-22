@@ -55,7 +55,6 @@ export function RingProgress(props: UIRingProgressProps) {
   const trackColor = palette.TEXT_MUTED; // grey[200]
   const strokeCap = known.roundCaps ? "round" : "butt";
 
-  // Build arcs for each section, drawn clockwise from the top (12 o'clock).
   let acc = 0;
   const arcs: { col: string; startLen: number; arcLen: number }[] = [];
   for (const section of effSections) {

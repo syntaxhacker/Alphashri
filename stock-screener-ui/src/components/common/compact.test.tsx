@@ -71,6 +71,17 @@ describe("CompactPanel", () => {
     expect(screen.getByText("Content").closest('[data-testid="my-panel"]')).toBeInTheDocument();
   });
 
+  it("uses theme surface/border tokens rather than baked palette hexes", () => {
+    render(() => (<CompactPanel testId="token-panel" title="Panel">Content</CompactPanel>));
+    const panel = screen.getByTestId("token-panel");
+    expect(panel.style.backgroundColor).toBe("var(--color-fin-surface)");
+    expect(panel.getAttribute("style")).toContain("var(--color-fin-border)");
+    expect(panel.getAttribute("style")).not.toMatch(/#[0-9a-f]{6}/i);
+    const header = document.querySelector('[data-compact-header]') as HTMLElement;
+    expect(header.getAttribute("style")).toContain("var(--color-fin-border)");
+    expect(screen.getByText("Panel").style.color).toBe("var(--color-fin-primary)");
+  });
+
   it("renders without header when no title, description, or action", () => {
     const { container } = render(() => (<CompactPanel>Content</CompactPanel>));
     expect(container.querySelector('[data-testid="group"]')).toBeNull();
@@ -82,7 +93,6 @@ describe("CompactPanel", () => {
       </CompactPanel>),
     );
     expect(screen.getByText("ScrollContent")).toBeInTheDocument();
-    // scrollable adds inner Box for overflow — check that a container with overflow exists
     expect(screen.getByText("Scrollable")).toBeInTheDocument();
   });
 
@@ -300,12 +310,27 @@ describe("CompactStat terminal cell", () => {
     expect(value.style.fontVariantNumeric).toBe("tabular-nums");
   });
 
-  it("is one 41px row with no border of its own", () => {
-    render(() => (<CompactStat label="PnL" value="+123.45" />));
+  it("is auto-height with a min height so label, value and hint never clip", () => {
+    render(() => (<CompactStat label="PnL" value="+123.45" hint="vs yesterday" />));
     const card = document.querySelector('[data-compact-stat]') as HTMLElement;
     const cell = card.firstElementChild as HTMLElement;
-    expect(cell.style.height).toBe("41px");
+    expect(cell.style.height).toBe("auto");
+    expect(cell.style.minHeight).toBe("48px");
+    expect(cell.style.rowGap).toBe("2px");
     expect(card.style.border).toBe("");
+  });
+
+  it("keeps a tighter floor in dense mode", () => {
+    render(() => (<CompactStat dense label="PnL" value="+123.45" />));
+    const card = document.querySelector('[data-compact-stat]') as HTMLElement;
+    expect((card.firstElementChild as HTMLElement).style.minHeight).toBe("40px");
+  });
+
+  it("paints its surface with the theme token, never a baked hex", () => {
+    render(() => (<CompactStat label="PnL" value="+123.45" />));
+    const card = document.querySelector('[data-compact-stat]') as HTMLElement;
+    expect(card.className).toContain("bg-fin-surface");
+    expect(card.style.backgroundColor).toBe("var(--color-fin-surface)");
   });
 });
 

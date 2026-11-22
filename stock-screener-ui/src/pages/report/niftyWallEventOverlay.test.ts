@@ -24,12 +24,10 @@ const REJECT = {
 describe("wallEventOverlay", () => {
   test("maps the 2026-11-03 test + rejection to lines and a marker", () => {
     const out = wallEventOverlay([TEST_EVENT, REJECT]);
-    // one line for the tested wall, one for the max-pain target
     expect(out.markLines.map((l) => l.yAxis)).toEqual([23700, 23650]);
     expect(out.markLines[0].label.formatter).toContain("CALL WALL");
     expect(out.markLines[0].lineStyle.type).toBe("dashed");
     expect(out.markLines[1].label.formatter).toContain("TARGET");
-    // only the rejection produces a marker; it carries the arrow + label
     expect(out.markers).toHaveLength(1);
     expect(out.markers[0]).toMatchObject({
       time: "2026-11-03T12:10:00+05:30",

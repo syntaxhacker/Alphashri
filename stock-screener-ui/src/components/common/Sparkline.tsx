@@ -1,9 +1,5 @@
 import { Show, createMemo } from "solid-js";
 
-/**
- * Tiny inline sparkline for a per-minute series (max pain drift, PCR drift).
- * Pure SVG, no chart lib — it lives inside a 12px-tall stat cell.
- */
 export function Sparkline(props: {
   values: Array<number | null | undefined>;
   width?: number;

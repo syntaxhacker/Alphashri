@@ -50,8 +50,8 @@ describe("nextWallMoveState", () => {
     const { movesPerStep } = fold([
       { call: 25_700, put: null },
       { call: 25_800, put: null },
-      { call: 25_700, put: null }, // return to A: A was seeded, not flashed → fires
-      { call: 25_800, put: null }, // B already flashed → silent
+      { call: 25_700, put: null },
+      { call: 25_800, put: null },
     ]);
     expect(movesPerStep.map((m) => m.map((x) => x.to))).toEqual([[], [25_800], [25_700], []]);
   });

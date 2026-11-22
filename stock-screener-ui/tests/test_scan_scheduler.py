@@ -57,9 +57,6 @@ def _today_payload(rows: int = 3) -> dict:
     return _payload(rows=rows, generated_at=gen)
 
 
-# ---------------------------------------------------------------------------
-# (a) persist -> hydrate round trip
-# ---------------------------------------------------------------------------
 
 
 def test_persist_hydrate_round_trip():
@@ -85,9 +82,6 @@ def test_persist_hydrate_round_trip():
     assert restored["status"]["updated_at"] == payload["generated_at"]
 
 
-# ---------------------------------------------------------------------------
-# (b) stale cache -> exactly one scan; fresh cache -> none
-# ---------------------------------------------------------------------------
 
 
 def test_stale_triggers_one_scan_fresh_triggers_none(monkeypatch):
@@ -115,9 +109,6 @@ def test_stale_triggers_one_scan_fresh_triggers_none(monkeypatch):
     assert len(calls) == 1
 
 
-# ---------------------------------------------------------------------------
-# (c) no overlapping scans
-# ---------------------------------------------------------------------------
 
 
 def test_no_overlapping_scans(monkeypatch):
@@ -149,9 +140,6 @@ def test_no_overlapping_scans(monkeypatch):
     assert len(calls) == 1
 
 
-# ---------------------------------------------------------------------------
-# (d) corrupt / missing latest.json is ignored, never raises
-# ---------------------------------------------------------------------------
 
 
 def test_corrupt_or_missing_latest_json_is_ignored():
@@ -174,9 +162,6 @@ def test_corrupt_or_missing_latest_json_is_ignored():
     assert scan_data._CACHE["payload"] is None
 
 
-# ---------------------------------------------------------------------------
-# (e) SCAN_INTERVAL_SEC env override
-# ---------------------------------------------------------------------------
 
 
 def test_scan_interval_env_override(monkeypatch):
@@ -191,9 +176,6 @@ def test_scan_interval_env_override(monkeypatch):
     assert scan_data._env_interval() == 300
 
 
-# ---------------------------------------------------------------------------
-# (f) off-hours behaviour
-# ---------------------------------------------------------------------------
 
 
 def test_offhours_no_scan_when_payload_from_today(monkeypatch):
@@ -240,9 +222,6 @@ def test_offhours_disabled_never_scans(monkeypatch):
     assert calls == []
 
 
-# ---------------------------------------------------------------------------
-# ensure_started / build_scan wiring (no real thread work / no network)
-# ---------------------------------------------------------------------------
 
 
 def test_ensure_started_hydrates_and_is_idempotent(monkeypatch):

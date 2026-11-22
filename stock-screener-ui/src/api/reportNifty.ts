@@ -1,7 +1,3 @@
-/**
- * Nifty report API client.
- */
-
 import { fetchWithAuth } from "../state/auth";
 import { apiErrorFromResponse, asApiError, isAbortError } from "./apiError";
 import { safeNum } from "../utils/reportParsers";
@@ -2032,9 +2028,7 @@ export async function fetchOptionsExpiries(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Walls / 0-DTE pin state — backend-computed, the UI only renders it.
-// ---------------------------------------------------------------------------
 
 /** Writer/long behaviour on the wall, as classified by the backend. */
 export type WallsFlow =

@@ -57,7 +57,6 @@ class TestSkipUpdatedToday:
         mock_db = MagicMock()
         mock_db.query.return_value.all.return_value = [mock_row, mock_row2]
         with patch("scripts.compute_52w_ranges_upstox.SessionLocal", return_value=mock_db):
-            # Simulate the skip_updated_today filtering block
             today = datetime.now(config.IST).date()
             symbols = ["RELIANCE", "TCS", "INFY"]
             fresh = {r.symbol for r in [mock_row, mock_row2] if r.updated_at and r.updated_at.date() >= today}

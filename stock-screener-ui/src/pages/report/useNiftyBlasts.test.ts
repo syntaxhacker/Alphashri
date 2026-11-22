@@ -32,7 +32,6 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-/** Prime the hook under fake timers with an empty first fetch. */
 async function primeEmptyBlasts() {
   vi.useFakeTimers();
   vi.mocked(fetchNiftyBlasts).mockResolvedValueOnce([]);
@@ -135,7 +134,6 @@ describe("useNiftyBlasts", () => {
     const { cleanup: unmount } = renderHook(() => useNiftyBlasts(() => true));
     await vi.advanceTimersByTimeAsync(0);
 
-    // The poll passes an AbortSignal so an unmount cancels the request.
     expect(vi.mocked(fetchNiftyBlasts)).toHaveBeenCalledWith(
       5,
       40,

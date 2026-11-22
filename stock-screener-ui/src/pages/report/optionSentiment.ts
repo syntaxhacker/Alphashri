@@ -20,7 +20,6 @@
 
 export type OptionSide = "CE" | "PE";
 
-/** Full class label per 2-letter code. Unknown values render raw. */
 export const SENTIMENT_NAMES: Record<string, string> = {
   LB: "Long Buildup",
   SB: "Short Buildup",
@@ -38,7 +37,6 @@ const BEARISH_CLASS: Record<OptionSide, ReadonlySet<string>> = {
   PE: new Set(["LB", "SC"]),
 };
 
-/** The chain may carry the full class name instead of the 2-letter code. */
 const FULL_NAME_CODES: Record<string, string> = {
   "LONG BUILDUP": "LB",
   "SHORT BUILDUP": "SB",
@@ -48,14 +46,12 @@ const FULL_NAME_CODES: Record<string, string> = {
   "LONG UNWINDING": "LU",
 };
 
-/** Normalise a chain sentiment to `LB`/`SB`/`SC`/`LU`; `""` when unknown. */
 export function sentimentCode(sentiment: string | null | undefined): string {
   const code = String(sentiment ?? "").trim().toUpperCase();
   if (SENTIMENT_NAMES[code]) return code;
   return FULL_NAME_CODES[code] ?? "";
 }
 
-/** Tolerate the chain's lowercase `ce`/`pe` keys and the badge's uppercase. */
 function normaliseSide(side: string): OptionSide {
   return side.trim().toUpperCase() === "PE" ? "PE" : "CE";
 }
@@ -66,7 +62,6 @@ export function sentimentLabel(sentiment: string | null | undefined): string {
   return SENTIMENT_NAMES[sentimentCode(raw)] ?? raw;
 }
 
-/** +1 = bullish, -1 = bearish, 0 = neutral/unknown. */
 export function sentimentSign(
   sentiment: string | null | undefined,
   side: string,

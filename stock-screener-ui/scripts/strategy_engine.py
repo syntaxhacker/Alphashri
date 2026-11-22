@@ -1,27 +1,4 @@
 #!/usr/bin/env python3
-"""Reusable strategy engine — one base class for spot/chain strategies.
-
-The pattern used by every engine in `scripts/wall_replay/` is the same:
-
-    load rows -> loop bars -> signal() -> fill at t+1 -> exit_rules() -> costs
-
-Subclass `StrategyEngine` and override `signal()` / `exit_rules()`. The base
-handles the tape, ATM/ITM strike selection, costs, one-position-at-a-time,
-cooldowns, EOD, and the standard stats (n / win / net / PF / DD / avg).
-
-Example:
-    class EmaCross(StrategyEngine):
-        def signal(self, i, ctx):
-            if ctx.ema9 > ctx.ema21 and ctx.prev_ema9 <= ctx.prev_ema21:
-                return "CE"
-            if ctx.ema9 < ctx.ema21 and ctx.prev_ema9 >= ctx.prev_ema21:
-                return "PE"
-            return None
-
-    eng = EmaCross(tape=HIST)
-    trades = eng.run_all(dates, {"stop": 0.2, "hold": 30})
-    print(eng.stats(trades))
-"""
 
 from __future__ import annotations
 
@@ -41,7 +18,6 @@ LOT = 65
 
 @dataclass
 class Context:
-    """Everything a signal may need at bar i."""
     rows: list
     closes: list
     i: int
@@ -66,7 +42,6 @@ class StrategyEngine:
         self.tape = Path(tape) if tape else self.tape
         self._cache: dict[str, list] = {}
 
-    # ---------- data ----------
     def dates(self) -> list[str]:
         return sorted(p.stem for p in self.tape.glob("*.jsonl")
                       if not p.stem.startswith("_") and ".gaps" not in p.stem)
@@ -78,13 +53,10 @@ class StrategyEngine:
             self._cache[date] = [json.loads(l) for l in p.read_text().splitlines() if l.strip()]
         return self._cache[date]
 
-    # ---------- hooks ----------
     def signal(self, i: int, ctx: Context) -> Optional[str]:
-        """Return 'CE' (long call) or 'PE' (long put) or None."""
         raise NotImplementedError
 
     def exit_rules(self, pos: dict, i: int, ctx: Context) -> Optional[str]:
-        """Return an exit reason or None. Default: stop / target / EOD."""
         p = self.px(ctx, pos["strike"], pos["opt"])
         if p <= 0:
             return None
@@ -96,7 +68,6 @@ class StrategyEngine:
             return "EOD"
         return None
 
-    # ---------- helpers ----------
     @staticmethod
     def px(ctx: Context, strike: float, opt: str) -> float:
         leg = (ctx.chain or {}).get(str(int(strike)))
@@ -111,7 +82,6 @@ class StrategyEngine:
         off = cfg.get("strike_offset", 0)
         return a - off if opt == "CE" else a + off
 
-    # ---------- run ----------
     def run(self, date: str, cfg: dict) -> list[dict]:
         rows = self.rows(date)
         if len(rows) < 60:
@@ -184,7 +154,6 @@ class StrategyEngine:
         cl = closes[max(0, i - n): i + 1]
         return sum(abs(cl[j] - cl[j - 1]) for j in range(1, len(cl))) / max(1, len(cl) - 1)
 
-    # ---------- batch + stats ----------
     def run_all(self, dates: Iterable[str], cfg: dict) -> list[dict]:
         out = []
         for d in dates:

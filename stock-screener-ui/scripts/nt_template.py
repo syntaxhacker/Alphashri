@@ -1,8 +1,3 @@
-"""NT dark-chart template for concept/failure cards (theme: src/ui/palette.ts:168-180).
-
-Usage:
-    from nt_template import new_fig, candles, zone, riskbox, note, save
-"""
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -42,7 +37,6 @@ def candles(ax, bars, w=0.55):
 
 
 def zone(ax, top, bottom, kind="ifvg", label=None):
-    """Full-width zone band (concept cards)."""
     fill = {"bull": FVG_BULL_F, "bear": FVG_BEAR_F, "ifvg": IFVG_F}[kind]
     ax.axhspan(bottom, top, color=fill)
     edge = {"bull": BULL, "bear": BEAR, "ifvg": IFVG_S}[kind]

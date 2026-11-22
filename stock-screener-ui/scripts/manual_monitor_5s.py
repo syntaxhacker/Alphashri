@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""5-second monitor for the MANUAL paper book only.
-
-Fires the armed manual triggers and manages open manual positions through the
-existing ``options_paper.manual`` functions. No coded strategies, no broker
-orders — paper only. Runs until the 15:30 session close (or until killed).
-"""
 
 from __future__ import annotations
 

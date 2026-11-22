@@ -183,9 +183,6 @@ def test_refresh_clears_only_target_symbol_enrichment(monkeypatch):
     assert ("INFY", "1D") in cp_api._known_frame
 
 
-# ---------------------------------------------------------------------------
-# close_bar_date: the frame's last-bar date travels with its close.
-# ---------------------------------------------------------------------------
 
 
 def test_results_item_carries_close_bar_date_from_frame(monkeypatch):
@@ -528,9 +525,6 @@ def test_universe_refresh_clears_a_frame_without_enrichment(monkeypatch):
     assert [scope for scope in cp_api._known_frame if scope[1] == "1D"] == []
 
 
-# ---------------------------------------------------------------------------
-# Live 1D display edge: a lagging official daily frame must not hide today's bar.
-# ---------------------------------------------------------------------------
 
 
 def _daily_frame(closes, session: str) -> pd.DataFrame:

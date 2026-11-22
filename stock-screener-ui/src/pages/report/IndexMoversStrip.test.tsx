@@ -4,7 +4,6 @@ import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
 import { IndexMoversStrip } from "./IndexMoversStrip";
 import { fetchIndexMovers, IndexMoversResponse } from "@/api/indexMovers";
 
-// Mock the API
 vi.mock("@/api/indexMovers", () => ({
   fetchIndexMovers: vi.fn(),
 }));
@@ -147,7 +146,6 @@ describe("IndexMoversStrip", () => {
       <IndexMoversStrip index="SENSEX" onExpand={onExpand} />);
 
     await waitFor(() => expect(screen.getByTestId("movers-strip")).toBeInTheDocument(), { timeout: 10000 });
-    // Text is split across elements, use regex on the container
     expect(screen.getByTestId("movers-strip")).toHaveTextContent(/SENSEX 30/);
   });
 
@@ -166,8 +164,6 @@ describe("IndexMoversStrip", () => {
       render(() =>
       <IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
 
-      // Flush the initial effect/promise without waitFor (which stalls under
-      // fake timers).
       await vi.advanceTimersByTimeAsync(0);
       expect(mockFetchIndexMovers).toHaveBeenCalledTimes(1);
       expect(screen.getByText("HDFCBANK")).toBeInTheDocument();

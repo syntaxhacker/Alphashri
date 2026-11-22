@@ -24,7 +24,6 @@ function positioning(): NiftyPositioningBlock {
   };
 }
 
-/** Short-gamma book: cumulative gamma at spot is negative, flip above spot. */
 function shortGex(overrides: Partial<NiftyGex> = {}): NiftyGex {
   return {
     strikes: [
@@ -53,7 +52,6 @@ function r(node: () => JSX.Element) {
   return render(node, { wrapper: UIProvider });
 }
 
-/** Long-gamma book: cumulative gamma at spot is positive, flip below spot. */
 function longGex(overrides: Partial<NiftyGex> = {}): NiftyGex {
   return shortGex({
     strikes: [

@@ -21,9 +21,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 @pytest.fixture
 def sample_1min_candles():
@@ -142,9 +139,6 @@ def sample_journal_trade():
     return t
 
 
-# ---------------------------------------------------------------------------
-# Tests: _resample_to_timeframe
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 @pytest.mark.slow
@@ -160,7 +154,6 @@ class TestResampleTimeframe:
             response = client.get("/api/paper/chart/ONGC?timeframe=5min", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
-        # Verify more candles than 15min would have (at least 15 candles from 75)
         assert len(data["candles"]) >= 14, f"Expected >=14 candles for 5min, got {len(data['candles'])}"
         assert data["timeframe"] == "5min"
 
@@ -168,7 +161,6 @@ class TestResampleTimeframe:
         """Verify larger timeframe produces fewer candles."""
         mock_trader, mock_journal = mock_trading_deps
 
-        # Get 5min candles
         mock_api = MagicMock()
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
 
@@ -232,9 +224,6 @@ class TestResampleTimeframe:
         assert len(response.json()["candles"]) >= 75
 
 
-# ---------------------------------------------------------------------------
-# Tests: Cache hit/miss
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 @pytest.mark.slow
@@ -271,9 +260,6 @@ class TestCacheHitMiss:
         assert mock_save.called, "save_cached_candles must be called on cache miss"
 
 
-# ---------------------------------------------------------------------------
-# Tests: intraday_only filter
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 @pytest.mark.slow
@@ -301,9 +287,6 @@ class TestIntradayOnly:
             assert len(dates) <= 2  # at most boundary candles from adjacent day
 
 
-# ---------------------------------------------------------------------------
-# Tests: ORB levels
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 @pytest.mark.slow
@@ -328,9 +311,7 @@ class TestORBLevels:
         assert "or_range" in orb
         assert "or_range_pct" in orb
         assert "or_minutes" in orb
-        # Verify high > low (not flipped to min())
         assert orb["or_high"] > orb["or_low"], f"or_high({orb['or_high']}) must be > or_low({orb['or_low']})"
-        # Verify or_range is positive
         assert orb["or_range"] > 0, f"or_range must be positive, got {orb['or_range']}"
 
     def test_orb_levels_with_strategy_id(self, client, auth_headers, sample_1min_df, mock_trading_deps):
@@ -370,9 +351,6 @@ class TestORBLevels:
         assert orb["or_minutes"] == 30
 
 
-# ---------------------------------------------------------------------------
-# Tests: EMA series
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 @pytest.mark.slow
@@ -444,9 +422,6 @@ class TestEMASeries:
         assert len(data["candles"]) > 0
 
 
-# ---------------------------------------------------------------------------
-# Tests: Pivot levels
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 @pytest.mark.slow
@@ -468,7 +443,6 @@ class TestPivotLevels:
         pivots = data.get("pivot_levels")
         assert pivots is not None
         assert "pp" in pivots
-        # Verify pivot relationships: r1 > pp > s1
         assert pivots["r1"] > pivots["pp"], f"r1({pivots['r1']}) must be > pp({pivots['pp']})"
         assert pivots["pp"] > pivots["s1"], f"pp({pivots['pp']}) must be > s1({pivots['s1']})"
         # If formula flipped (2*pp + prev_l instead of 2*pp - prev_l), these would fail
@@ -480,9 +454,6 @@ class TestPivotLevels:
         assert pivots["pp"] >= pivots["s1"]
 
 
-# ---------------------------------------------------------------------------
-# Tests: Trade markers
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 @pytest.mark.slow
@@ -510,9 +481,6 @@ class TestTradeMarkers:
 
 
 
-# ---------------------------------------------------------------------------
-# Tests: Current position overlay
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 @pytest.mark.slow
@@ -551,9 +519,6 @@ class TestCurrentPosition:
         assert data.get("current_position") is None
 
 
-# ---------------------------------------------------------------------------
-# Tests: _find_last_trading_day
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 @pytest.mark.slow
@@ -609,9 +574,6 @@ class TestFindLastTradingDay:
         assert result == "2026-03-30"
 
 
-# ---------------------------------------------------------------------------
-# Tests: Weekend/holiday fallback
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 @pytest.mark.slow
@@ -643,9 +605,6 @@ class TestWeekendFallback:
         assert len(data["candles"]) > 0
 
 
-# ---------------------------------------------------------------------------
-# Tests: Error handling
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 @pytest.mark.slow
@@ -678,9 +637,6 @@ class TestChartErrors:
         assert "error" in data
 
 
-# ---------------------------------------------------------------------------
-# Tests: Direct TF timeframe filtering (4h, 2h, 12h)
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 @pytest.mark.slow
@@ -806,9 +762,6 @@ class TestDirectTimeframeFiltering:
         assert len(data["candles"]) > 0
 
 
-# ---------------------------------------------------------------------------
-# Tests: Response shape
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 @pytest.mark.slow

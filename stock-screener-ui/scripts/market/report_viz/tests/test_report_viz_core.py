@@ -56,7 +56,7 @@ def test_page_loads_core_assets_and_cdn_once():
     assert "rv-shell" in html
     assert "d3@7.9.0" in html
     assert "plotly-2.35.2" in html
-    assert html.count("assets/core.js") == 0  # assets are inlined, not linked
+    assert html.count("assets/core.js") == 0
 
 
 def test_spec_formats_currency_and_price_decimals():

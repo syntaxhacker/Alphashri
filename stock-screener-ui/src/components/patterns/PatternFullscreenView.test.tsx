@@ -97,7 +97,6 @@ describe("PatternFullscreenView", () => {
     expect(screen.queryByTestId("patterns-chart-legend")).toBeNull();
     expect(screen.getByTestId("patterns-fullscreen-panel")).toBeInTheDocument();
 
-    // Meta lives in the panel; the breakout/target/stop/rr/confidence row is gone.
     expect(screen.getByTestId("patterns-status-confirmed")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-quality-strong")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-close-label")).toBeInTheDocument();
@@ -167,7 +166,6 @@ describe("PatternFullscreenView", () => {
     render(() => (
       <PatternFullscreenView opened docked onClose={vi.fn()} hit={null} symbol="IRCON" candles={[]} loading />
     ));
-    // A spinner in the toolbar is not permission to say "No chart data".
     expect(screen.queryByText("No chart data")).toBeNull();
   });
 
@@ -236,7 +234,6 @@ describe("PatternFullscreenView", () => {
     expect(screen.getByTestId("patterns-tv-chart")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-chart-legend")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-chart-legend-item-TLS")).toBeInTheDocument();
-    // Risk levels and dot markers are not drawn any more.
     expect(screen.queryByTestId("patterns-chart-legend-item-Breakout")).toBeNull();
     expect(screen.queryByTestId("patterns-chart-legend-item-Target")).toBeNull();
     expect(screen.queryByTestId("patterns-chart-legend-item-Stop")).toBeNull();
@@ -337,7 +334,6 @@ describe("PatternFullscreenView", () => {
     expect(screen.queryByTestId("patterns-fullscreen-timeframe")).not.toBeInTheDocument();
 
     cleanup();
-    // onTimeframeChange without a timeframe: still hidden.
     render(() =>       <PatternFullscreenView
         opened
         onClose={vi.fn()}
@@ -348,7 +344,6 @@ describe("PatternFullscreenView", () => {
     expect(screen.queryByTestId("patterns-fullscreen-timeframe")).not.toBeInTheDocument();
 
     cleanup();
-    // timeframe without a handler: still hidden.
     render(() =>       <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} timeframe="1D" />,
     );
     expect(screen.queryByTestId("patterns-fullscreen-timeframe")).not.toBeInTheDocument();
@@ -394,15 +389,12 @@ describe("PatternFullscreenView patterns list (single-select)", () => {
       />);
     expect(screen.getByTestId("patterns-fullscreen-list")).toBeInTheDocument();
     expect(screen.getByText("Patterns (1)")).toBeInTheDocument();
-    // Only the newest pattern is listed.
     expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Bull Flag");
     expect(screen.queryByTestId("patterns-fullscreen-list-item-1")).not.toBeInTheDocument();
-    // The newest (active) row is selected…
     expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveAttribute(
       "data-selected",
       "true",
     );
-    // …while the active-pattern meta below still shows the hit.
     expect(screen.getByTestId("patterns-fullscreen-panel")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-detail-pivots")).toBeInTheDocument();
   });

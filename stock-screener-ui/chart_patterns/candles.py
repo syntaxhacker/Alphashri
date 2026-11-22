@@ -55,7 +55,6 @@ EMPTY_RESULT_TTL_SECONDS = 90.0
 _EMPTY_CACHE_MAX = 512
 
 def _attr(spec: Any, name: str, default=None):
-    """Read a field from a TFSpec dataclass, namedtuple or dict."""
     if spec is None:
         return default
     if isinstance(spec, dict):
@@ -65,7 +64,7 @@ def _attr(spec: Any, name: str, default=None):
 
 def _resolve_timeframe(tf_id: str):
     try:
-        from chart_patterns.timeframes import get_timeframe  # local import: Agent 1 module
+        from chart_patterns.timeframes import get_timeframe
     except Exception as exc:  # pragma: no cover - integration env always has it
         raise RuntimeError("chart_patterns.timeframes unavailable") from exc
     return get_timeframe(tf_id)
@@ -77,7 +76,6 @@ def _is_today(date_str: str) -> bool:
 
 
 def _asof_date_part(value: Optional[str]) -> Optional[str]:
-    """Date (``YYYY-MM-DD``) portion of an as-of/from value, else ``None``."""
     if value is None:
         return None
     text = str(value).strip()
@@ -151,7 +149,6 @@ def truncate_frame_to(df: pd.DataFrame, to_dt: datetime) -> Optional[pd.DataFram
 
 
 def _is_trading_day(d: date) -> bool:
-    """Weekday that is not an NSE trading holiday."""
     from trading import utils as trading_utils
 
     if d.weekday() >= 5:
@@ -163,7 +160,6 @@ def _is_trading_day(d: date) -> bool:
 
 
 def _now_ist() -> datetime:
-    """The single clock read for session math (tests freeze this one seam)."""
     from trading.timezone import IST
 
     return datetime.now(IST)
@@ -343,7 +339,6 @@ def _read_cached(
 
 
 def _read_pickle_any(path: Path) -> Optional[pd.DataFrame]:
-    """Read a cache entry ignoring freshness (for incremental top-ups)."""
     try:
         if not path.exists():
             return None
@@ -355,7 +350,6 @@ def _read_pickle_any(path: Path) -> Optional[pd.DataFrame]:
 
 
 def _merge_frames(old: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
-    """Append only the rows that are new/updated, newest wins."""
     merged = pd.concat([old, new])
     return merged[~merged.index.duplicated(keep="last")].sort_index()
 
@@ -453,7 +447,6 @@ def clear_cache(
                     candidates.extend((CACHE_DIR / tf).glob(suffix))
             else:
                 candidates.extend(CACHE_DIR.glob(f"*/{suffix}"))
-                # Tolerate stray files directly under CACHE_DIR.
                 candidates.extend(
                     p for p in CACHE_DIR.glob(suffix) if p.is_file()
                 )
@@ -531,9 +524,6 @@ def _resample_ohlcv(
     return out
 
 
-# ---------------------------------------------------------------------------
-# In-flight singleflight + negative (empty-result) cache
-#
 # Concurrent chart opens for the same symbol/timeframe must not each fire a
 # broker fetch (10–14 s apiece, and the shared Upstox budget cannot take it).
 # Two cheap guards live at this layer:
@@ -545,7 +535,6 @@ def _resample_ohlcv(
 #   results, scoped per session. Errors are deliberately NOT cached: a raise
 #   means something is broken, not that the symbol has no data, and callers
 #   (API retry, SSE worker) should see the failure each time.
-# ---------------------------------------------------------------------------
 
 _INFLIGHT: dict[tuple, Future] = {}
 _INFLIGHT_LOCK = threading.Lock()
@@ -584,7 +573,6 @@ def _empty_cache_put(key: tuple) -> None:
 
 
 def clear_empty_cache() -> None:
-    """Drop all negative-cache entries (tests + operator resets)."""
     with _EMPTY_LOCK:
         _EMPTY_CACHE.clear()
 
@@ -917,7 +905,6 @@ def _with_partial_today(
     """
     if df is None or df.empty:
         return df
-    # No session today (weekend/holiday): skip the intraday call entirely.
     if not _today_is_session():
         return df
     try:
@@ -1001,7 +988,7 @@ def _f(value: Any, default: float = 0.0) -> float:
         if value is None:
             return default
         out = float(value)
-        if out != out or math.isinf(out):  # NaN or +/-Inf
+        if out != out or math.isinf(out):
             return default
         return out
     except Exception:

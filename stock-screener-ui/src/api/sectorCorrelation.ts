@@ -1,7 +1,3 @@
-/**
- * Sector Correlation API Client
- */
-
 import { fetchWithAuth } from "../state/auth";
 import { jsonOrThrow } from "./utils/request";
 import { API_ENDPOINTS } from "./config";

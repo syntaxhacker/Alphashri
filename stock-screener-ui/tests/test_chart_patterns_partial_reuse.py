@@ -49,9 +49,6 @@ def _market_open(monkeypatch):
     monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: True)
 
 
-# ---------------------------------------------------------------------------
-# ISSUE 1: _process_symbol threads include_partial_today for daily scans.
-# ---------------------------------------------------------------------------
 
 
 def _run_process(monkeypatch, cp_store, timeframe="1D", **kwargs):
@@ -120,9 +117,6 @@ def test_run_job_threads_partial_flag_from_params(cp_store, monkeypatch):
     assert "include_partial_today" not in seen
 
 
-# ---------------------------------------------------------------------------
-# ISSUE 2: reuse records reused* fields; signature change forces recompute.
-# ---------------------------------------------------------------------------
 
 
 def _fresh_prev(job_id="cpj_reuse_prev", signature=None):
@@ -236,9 +230,6 @@ def test_reused_fields_survive_restart_read(cp_store, monkeypatch):
     assert dto["reused_finished_at"] is not None
 
 
-# ---------------------------------------------------------------------------
-# ISSUE 3: _scope_signature covers result-changing params.
-# ---------------------------------------------------------------------------
 
 
 def test_scope_signature_distinguishes_volume_and_replay():
@@ -289,9 +280,6 @@ def test_asof_date_change_does_not_coalesce(cp_store):
         release.set()
 
 
-# ---------------------------------------------------------------------------
-# ALSO: GET /api/chart-patterns/market-status contract.
-# ---------------------------------------------------------------------------
 
 
 def test_market_status_shape():

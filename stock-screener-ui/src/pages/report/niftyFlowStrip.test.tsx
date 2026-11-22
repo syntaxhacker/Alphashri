@@ -137,7 +137,6 @@ describe("groupFlowRuns", () => {
   });
 
   test("a single burst keeps its original label", () => {
-    // put OI 3M → 0 is a 3M unwind on one minute.
     const events = buildFlowEvents([
       base({ t: hm(0), put_doi: 3_000_000 }),
       base({ t: hm(1), put_doi: 0 }),
@@ -155,9 +154,9 @@ describe("groupFlowRuns", () => {
   test("consecutive same-direction prints collapse, sum and keep the peak", () => {
     const events = buildFlowEvents([
       base({ t: hm(0), put_doi: 10_000_000 }),
-      base({ t: hm(1), put_doi: 7_900_000 }), // −2.10M
-      base({ t: hm(2), put_doi: 5_700_000 }), // −2.20M
-      base({ t: hm(3), put_doi: 2_700_000 }), // −3.00M
+      base({ t: hm(1), put_doi: 7_900_000 }),
+      base({ t: hm(2), put_doi: 5_700_000 }),
+      base({ t: hm(3), put_doi: 2_700_000 }),
     ]);
     const buckets = groupFlowRuns(events);
     expect(buckets).toHaveLength(1);
@@ -169,7 +168,6 @@ describe("groupFlowRuns", () => {
     expect(buckets[0].start).toBe(hm(1));
     expect(buckets[0].end).toBe(hm(3));
     expect(buckets[0].label).toBe("Put unwind −7.30M over 3m (peak −3.00M)");
-    // Detail keeps every raw print for the tooltip.
     expect(buckets[0].detail).toContain(`${hm(1)} Put unwind −2.10M`);
     expect(buckets[0].detail).toContain(`${hm(3)} Put unwind −3.00M`);
   });

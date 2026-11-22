@@ -80,9 +80,7 @@ export {
   type TapeSpotPoint,
 } from "./niftyChartData";
 
-/** Chart height presets (px) for the "Nifty chart" panel size control. */
 export const CHART_HEIGHTS = { s: 180, m: 320, l: 520, xl: 760 } as const;
-/** `fill` (default) grows with the report row; S/M/L/XL pin a fixed height. */
 export type ChartSize = keyof typeof CHART_HEIGHTS | "fill";
 /** DESK fill cap: the chart body stops at 300px (min 260px on short screens). */
 export const FILL_MAX_HEIGHT = 300;
@@ -94,11 +92,8 @@ export const CHART_ROW_CHROME = 48;
 /** Mobile (390px) chart-body target. Reached by collapsing the SESSION/WINDOWS
  *  flow band so the flex-1 main row grows; asserted by the layout contract test. */
 export const MOBILE_CHART_TARGET = 240;
-/** Collision estimate used by the fill layout (no fixed pixel height). */
 const FILL_LABEL_HEIGHT = 480;
 
-/** Chart timeframe presets and their bar size in minutes. The `intraday`
-    feed is 1-minute; 5m/15m are resampled client-side (see `resampleCandles`). */
 export type ChartTimeframe = "1m" | "5m" | "15m";
 export const CHART_TF_MINUTES: Record<ChartTimeframe, number> = {
   "1m": 1,
@@ -106,7 +101,6 @@ export const CHART_TF_MINUTES: Record<ChartTimeframe, number> = {
   "15m": 15,
 };
 
-/** Module-level toggle data so memoized parents never see a new array. */
 const CHART_TF_OPTIONS: { value: string; label: string }[] = [
   { value: "1m", label: "1m" },
   { value: "5m", label: "5m" },
@@ -120,7 +114,6 @@ const CHART_SIZE_OPTIONS: { value: string; label: string }[] = [
   { value: "xl", label: "XL" },
 ];
 
-/** Which series the chart visualises. Distinct from the chart/depth `view`. */
 const CHART_SOURCE_OPTIONS: { value: string; label: string }[] = [
   { value: "live", label: "LIVE" },
   { value: "patterns", label: "PATTERNS" },
@@ -145,8 +138,6 @@ function isFyersUnderlying(symbol: string): boolean {
   return FYERS_UNDERLYINGS.has(key) || key.includes(":");
 }
 
-/** Fold a tick into the *existing* last bar. A tick is a price update, not a
- *  new minute: appending a bar per tick would draw one candle per second. */
 function overlayFyersTick(bars: ReplayCandle[], tick: FyersTick | null): ReplayCandle[] {
   if (!tick || bars.length === 0) return bars;
   const last = bars[bars.length - 1];
@@ -167,12 +158,8 @@ function overlayFyersTick(bars: ReplayCandle[], tick: FyersTick | null): ReplayC
   return [...bars.slice(0, -1), updated];
 }
 
-/** What the chart level tags mean. GEX tags exist in live mode only. */
 interface LevelLegendProps {
   live: boolean;
-  /** Live GEX block. When supplied, only levels the chart can actually draw
-   *  keep a legend row — a null/side-gated level is hidden instead of being
-   *  advertised over a line that does not exist. */
   gex?: NiftyGex;
   spot?: number;
 }

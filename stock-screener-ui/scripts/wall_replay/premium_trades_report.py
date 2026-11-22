@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""SNDK-style per-trade report for the premium-selling strangle book.
-
-Each trade: spot candles with the short CE/PE strikes, entry/exit markers, and a
-premium panel with the two short legs. Sidebar with days + TRAIN/TEST tags.
-
-Run:
-    .venv/bin/python scripts/wall_replay/premium_trades_report.py
-"""
 
 from __future__ import annotations
 

@@ -120,7 +120,7 @@ export function ArticleView(props: {
         justify="space-between"
         align="center"
         className="news-article-header"
-        style={{ "border-bottom": `1px solid ${/* divider */ "" }`, "border-bottom-color": "" }}
+        style={{ "border-bottom": `1px solid ${"" }`, "border-bottom-color": "" }}
       >
         <Button
           variant="subtle"

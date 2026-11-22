@@ -12,9 +12,6 @@ sys.path.insert(0, str(ROOT))
 
 from fastapi.testclient import TestClient
 
-# =====================
-# Replay API Tests
-# =====================
 
 class TestReplayAPI:
     """Tests for POST /api/replay/run"""
@@ -30,7 +27,6 @@ class TestReplayAPI:
         mock_runner_class._load_bot_config.return_value = mock_bot_config
         mock_runner_class.create_for_replay.return_value = mock_runner
 
-        # Simulate replay events via on_event callback
         def fake_run_replay(date_str, symbols, strategy_filter, on_event, end_date_str=None):
             on_event({
                 "type": "started",
@@ -64,11 +60,9 @@ class TestReplayAPI:
         }
         response = client.post("/api/replay/run", json=payload)
 
-        # Assert streaming response
         assert response.status_code == 200
         assert "text/event-stream" in response.headers["content-type"]
 
-        # Collect streamed events
         events = []
         for line in response.iter_lines():
             if not line:
@@ -82,7 +76,6 @@ class TestReplayAPI:
                 except json.JSONDecodeError:
                     pass
 
-        # Verify we got expected events
         assert len(events) >= 5  # started + 3 progress + completed
         assert events[0]["type"] == "started"
         assert events[-1]["type"] == "completed"
@@ -90,7 +83,6 @@ class TestReplayAPI:
         progress_events = [e for e in events if e["type"] == "progress"]
         assert len(progress_events) == 3
 
-        # Verify mocks
         mock_get_watchlist.assert_called_once()
         mock_runner_class._load_bot_config.assert_called_once_with(1)
         mock_runner_class.create_for_replay.assert_called_once_with(bot_config=mock_bot_config)
@@ -133,7 +125,6 @@ class TestReplayAPI:
         response = client.post("/api/replay/run", json=payload)
         assert response.status_code == 200
 
-        # Collect events
         events = []
         for line in response.iter_lines():
             if line and isinstance(line, bytes):
@@ -144,7 +135,6 @@ class TestReplayAPI:
                 except:
                     pass
 
-        # Should contain an error event with message
         error_events = [e for e in events if e.get("type") == "error"]
         assert len(error_events) >= 1
         assert "Replay failed catastrophically" in error_events[0]["message"]

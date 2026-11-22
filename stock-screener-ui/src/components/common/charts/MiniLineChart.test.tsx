@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { describe, expect, test, afterEach } from "vitest";
+import { describe, expect, test, afterEach, vi } from "vitest";
 import type { JSX } from "solid-js";
-import { cleanup, render, screen } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
@@ -12,6 +13,7 @@ import {
   scaleValue,
   seriesBounds,
 } from "./MiniLineChart";
+import type { MiniSeries } from "./MiniLineChart";
 
 afterEach(cleanup);
 
@@ -20,6 +22,20 @@ function TestWrapper({ children }: { children: JSX.Element }) {
 }
 
 const BOUNDS = { min: 0, max: 10 };
+
+// The SVG viewBox is 600 wide; happy-dom reports zero-size rects unless stubbed.
+function stubRect(svg: SVGElement) {
+  svg.getBoundingClientRect = () =>
+    ({ left: 0, top: 0, right: 600, bottom: 180, width: 600, height: 180, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+}
+
+function svgOf(testId: string) {
+  return screen.getByTestId(testId).querySelector("svg")!;
+}
+
+function linePathOf(svg: SVGElement) {
+  return svg.querySelector('path[stroke]')!;
+}
 
 describe("seriesBounds", () => {
   test("returns min/max across finite points", () => {
@@ -133,7 +149,6 @@ describe("scaleValue / sqrt scale", () => {
         scale,
       );
       const d = buildLinePath(points, bounds, 100, 50, scale);
-      // "M x y L x y L x y" — the second vertex is the raw 100 point.
       return Number(d.split(" ").slice(2, 4)[1]);
     };
     // Linear puts 100 at 99% of the height; sqrt lifts it to 90%.
@@ -182,5 +197,166 @@ describe("MiniLineChart render", () => {
     );
     expect(screen.getByText("Nothing to plot")).toBeInTheDocument();
     expect(screen.getByTestId("mini-chart-empty").querySelector("svg")).toBeNull();
+  });
+});
+
+describe("MiniLineChart edge cases", () => {
+  test("null points break the rendered line and show a dash in the readout", () => {
+    render(() => (<MiniLineChart
+        series={[{ name: "a", points: [0, null, 10], color: palette.PRIMARY }]}
+        labels={["a", "b", "c"]}
+        testId="gap-chart"
+      />),
+      { wrapper: TestWrapper },
+    );
+    const svg = svgOf("gap-chart");
+    const d = linePathOf(svg).getAttribute("d")!;
+    expect(d.match(/M/g)?.length).toBe(2);
+    expect(d).not.toMatch(/L/);
+
+    stubRect(svg);
+    fireEvent.mouseMove(svg, { clientX: 300 });
+    const readout = screen.getByTestId("gap-chart-readout");
+    expect(readout).toHaveTextContent("b · a —");
+  });
+
+  test("a single point draws one move-to and keeps its raw value on hover", () => {
+    render(() => (<MiniLineChart
+        series={[{ name: "a", points: [4], color: palette.PRIMARY }]}
+        labels={["only"]}
+        testId="single-chart"
+      />),
+      { wrapper: TestWrapper },
+    );
+    const svg = svgOf("single-chart");
+    const d = linePathOf(svg).getAttribute("d")!;
+    expect(d.match(/M/g)?.length).toBe(1);
+    expect(d).not.toMatch(/L/);
+
+    stubRect(svg);
+    fireEvent.mouseMove(svg, { clientX: 100 });
+    expect(screen.getByTestId("single-chart-readout")).toHaveTextContent("only · a 4.00");
+  });
+
+  test("hover neither reformats the series nor rebuilds the path nodes", () => {
+    const format = vi.fn((v: number) => `v${v}`);
+    render(() => (<MiniLineChart
+        series={[
+          { name: "a", points: [1, 2, 3], color: palette.PRIMARY },
+          { name: "b", points: [3, 2, 1], color: palette.WARNING },
+        ]}
+        labels={["x", "y", "z"]}
+        formatValue={format}
+        testId="perf-chart"
+      />),
+      { wrapper: TestWrapper },
+    );
+    const svg = svgOf("perf-chart");
+    const pathBefore = linePathOf(svg);
+    const dBefore = pathBefore.getAttribute("d");
+
+    stubRect(svg);
+    fireEvent.mouseMove(svg, { clientX: 100 });
+    const readout = screen.getByTestId("perf-chart-readout");
+    const firstText = readout.textContent;
+    const callsAfterFirstHover = format.mock.calls.length;
+    expect(callsAfterFirstHover).toBeGreaterThan(0);
+
+    fireEvent.mouseMove(svg, { clientX: 300 });
+    expect(readout.textContent).not.toBe(firstText);
+    fireEvent.mouseMove(svg, { clientX: 500 });
+    expect(format.mock.calls.length).toBe(callsAfterFirstHover);
+
+    const pathAfter = linePathOf(svg);
+    expect(pathAfter).toBe(pathBefore);
+    expect(pathAfter.getAttribute("d")).toBe(dBefore);
+  });
+
+  test("height changes resize the SVG and recompute path geometry", () => {
+    const [height, setHeight] = createSignal(100);
+    render(() => (<MiniLineChart
+        series={[{ name: "a", points: [1, 3, 2], color: palette.PRIMARY }]}
+        labels={["x", "y", "z"]}
+        height={height()}
+        testId="responsive-chart"
+      />),
+      { wrapper: TestWrapper },
+    );
+    const svg = svgOf("responsive-chart");
+    expect(svg.getAttribute("viewBox")).toBe("0 0 600 100");
+    expect(svg.getAttribute("preserveAspectRatio")).toBe("none");
+    expect(svg.style.width).toBe("100%");
+    expect(svg.style.height).toBe("100px");
+    const dBefore = linePathOf(svg).getAttribute("d");
+
+    setHeight(240);
+    expect(svg.getAttribute("viewBox")).toBe("0 0 600 240");
+    expect(svg.style.height).toBe("240px");
+    expect(linePathOf(svg).getAttribute("d")).not.toBe(dBefore);
+  });
+
+  test("series and scale changes both recompute path geometry", () => {
+    const [series, setSeries] = createSignal<MiniSeries[]>([
+      { name: "a", points: [1, 2, 3], color: palette.PRIMARY },
+    ]);
+    const [scale, setScale] = createSignal<"linear" | "sqrt">("linear");
+    render(() => (<MiniLineChart
+        series={series()}
+        labels={["x", "y", "z"]}
+        scale={scale()}
+        testId="input-chart"
+      />),
+      { wrapper: TestWrapper },
+    );
+    const svg = svgOf("input-chart");
+    const dInitial = linePathOf(svg).getAttribute("d");
+
+    setSeries([{ name: "a", points: [3, 2, 1], color: palette.PRIMARY }]);
+    const dReversed = linePathOf(svg).getAttribute("d");
+    expect(dReversed).not.toBe(dInitial);
+
+    setScale("sqrt");
+    expect(linePathOf(svg).getAttribute("d")).not.toBe(dReversed);
+  });
+
+  test("sqrt scale keeps the hover readout on raw values", () => {
+    render(() => (<MiniLineChart
+        series={[{ name: "a", points: [0, 1, 10000], color: palette.PRIMARY }]}
+        labels={["a", "b", "c"]}
+        scale="sqrt"
+        testId="sqrt-readout-chart"
+      />),
+      { wrapper: TestWrapper },
+    );
+    const svg = svgOf("sqrt-readout-chart");
+    stubRect(svg);
+    fireEvent.mouseMove(svg, { clientX: 600 });
+    expect(screen.getByTestId("sqrt-readout-chart-readout")).toHaveTextContent("10000.00");
+  });
+
+  test("zero line and markers survive hover and keep their test ids", () => {
+    render(() => (<MiniLineChart
+        series={[{ name: "a", points: [-5, 5], color: palette.PRIMARY }]}
+        labels={["low", "high"]}
+        zeroLine
+        markers={[{ index: 1, label: "peak", color: palette.WARNING }]}
+        testId="deco-chart"
+      />),
+      { wrapper: TestWrapper },
+    );
+    const svg = svgOf("deco-chart");
+    const lines = Array.from(svg.querySelectorAll("line"));
+    expect(lines).toHaveLength(2);
+    const zero = lines.find((l) => l.getAttribute("stroke-dasharray") === "3 3")!;
+    const marker = lines.find((l) => l.getAttribute("stroke-dasharray") === "2 3")!;
+    expect(zero).toBeDefined();
+    expect(marker).toBeDefined();
+    expect(marker.getAttribute("x1")).toBe(marker.getAttribute("x2"));
+    expect(Number(marker.getAttribute("x1"))).toBeGreaterThan(Number(zero.getAttribute("x1")));
+
+    stubRect(svg);
+    fireEvent.mouseMove(svg, { clientX: 200 });
+    expect(screen.getByTestId("deco-chart-readout")).toBeInTheDocument();
+    expect(svg.querySelectorAll("line")).toHaveLength(3);
   });
 });

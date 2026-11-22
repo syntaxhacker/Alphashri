@@ -18,9 +18,6 @@ SPOT = 23_000.0
 DTE = 0.25  # ~3 months
 
 
-# ---------------------------------------------------------------------------
-# Fixtures / helpers
-# ---------------------------------------------------------------------------
 
 def _leg(oi, delta, gamma, theta, vega, iv, iv_valid=True):
     return {
@@ -71,9 +68,6 @@ REQUIRED_KEYS = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Contract / synthetic ATM chain
-# ---------------------------------------------------------------------------
 
 class TestAtmChain:
     def test_contract_shape_and_clean_numbers(self):
@@ -107,9 +101,6 @@ class TestAtmChain:
         assert abs(vals[0]) > abs(vals[-1])
 
 
-# ---------------------------------------------------------------------------
-# GEX parity with the shared formula
-# ---------------------------------------------------------------------------
 
 class TestGexParity:
     def test_aggregate_and_per_strike_gex_match_shared_helper(self):
@@ -130,9 +121,6 @@ class TestGexParity:
         assert "gex_degraded" in out["warnings"]
 
 
-# ---------------------------------------------------------------------------
-# DEX signs
-# ---------------------------------------------------------------------------
 
 class TestDexSigns:
     def test_call_only_chain_is_positive_delta_exposure(self):
@@ -164,9 +152,6 @@ class TestDexSigns:
         assert out["strikes"][0]["netDex"] < 0
 
 
-# ---------------------------------------------------------------------------
-# Missing greeks / IV -> null, never 0-fill
-# ---------------------------------------------------------------------------
 
 class TestMissingData:
     def test_missing_delta_nulls_only_that_strikes_dex(self):
@@ -230,9 +215,6 @@ class TestMissingData:
         _assert_clean(out)
 
 
-# ---------------------------------------------------------------------------
-# Zero gamma / gamma flip crossing
-# ---------------------------------------------------------------------------
 
 class TestZeroGamma:
     def test_crossing_from_cumulative_gex_series(self):
@@ -255,9 +237,6 @@ class TestZeroGamma:
             assert out["gammaFlip"]["flipped"] is False
 
 
-# ---------------------------------------------------------------------------
-# No NaN / Inf leaks from malformed input
-# ---------------------------------------------------------------------------
 
 class TestNoNanInf:
     def test_junk_rows_and_values_are_sanitised(self):
@@ -299,9 +278,6 @@ class TestNoNanInf:
         _assert_clean(out)
 
 
-# ---------------------------------------------------------------------------
-# Vanna/charm units — real chains carry IV in vol points
-# ---------------------------------------------------------------------------
 
 class TestVolPointIvUnits:
     def test_vol_point_iv_yields_material_vanna_and_charm(self):

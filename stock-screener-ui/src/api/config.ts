@@ -1,7 +1,3 @@
-/**
- * Centralized API configuration for the frontend.
- */
-
 const isProd = import.meta.env.PROD;
 
 export const API_BASE =

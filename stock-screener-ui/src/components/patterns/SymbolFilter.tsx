@@ -17,11 +17,6 @@ const EMPTY_SYMBOLS: string[] = [];
 export interface SymbolFilterProps {
   filters: PatternFilters;
   setFilter: (key: string, value: any) => void;
-  /**
-   * Override how a selection change is applied. Defaults to
-   * `setFilter("symbols", …)`. The Patterns scan bar passes the custom-scope
-   * action so picking symbols switches to (and defines) a custom scan.
-   */
   onChange?: (symbols: string[]) => void;
   placeholder?: string;
   helperText?: string;
@@ -33,12 +28,6 @@ export function readSelectedSymbols(filters: PatternFilters): string[] {
   return Array.isArray(symbols) ? symbols : EMPTY_SYMBOLS;
 }
 
-/**
- * Multi-symbol picker for the Patterns workspace. Debounces async symbol search
- * (via `searchSymbols`) and keeps the selection in `filters.symbols`. By default
- * it narrows results server-side through `setFilter`; the scan bar overrides
- * that with the custom-scope action so the selection drives a targeted scan.
- */
 export function SymbolFilter(props: SymbolFilterProps) {
   const selected = () => readSelectedSymbols(props.filters);
   const placeholder = () => props.placeholder ?? "Filter symbols…";

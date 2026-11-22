@@ -64,9 +64,6 @@ def _patch_http(monkeypatch, intraday):
     return calls
 
 
-# ---------------------------------------------------------------------------
-# futures
-# ---------------------------------------------------------------------------
 
 async def test_futures_15m_long_buildup(monkeypatch):
     payload = candles([25296.5] * 15 + [25347.0],
@@ -148,9 +145,6 @@ def test_parse_series_drops_previous_session_and_bad_rows():
         "2026-11-17T09:15:00+05:30", "2026-11-17T09:16:00+05:30"]
 
 
-# ---------------------------------------------------------------------------
-# ITM put flow
-# ---------------------------------------------------------------------------
 
 def _cell(ce_ltp, pe_ltp, ce_oi, pe_oi, ce_vol, pe_vol):
     return [ce_ltp, pe_ltp, ce_oi, pe_oi, ce_vol, pe_vol]
@@ -221,9 +215,6 @@ def test_itm_pe_flow_needs_two_rows():
     assert nifty.compute_itm_pe_flow(TAPE[:1]) is None
 
 
-# ---------------------------------------------------------------------------
-# report payload
-# ---------------------------------------------------------------------------
 
 async def test_payload_keeps_building_when_futures_raises(monkeypatch):
     boom = AsyncMock(side_effect=RuntimeError("feed down"))

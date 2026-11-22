@@ -13,9 +13,7 @@ import {
 } from "@/ui/palette";
 import type { DisplayTone } from "./patternDisplayStatus";
 
-/** Semantic badge colours (FIN palette tokens). */
 export type BadgeTone = "success" | "info" | "error" | "warning" | "primary" | "default";
-/** Text/`c` tones understood by `@/ui` Text. */
 export type TextTone = "success" | "error" | "dimmed";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -32,7 +30,6 @@ const STATUS_BADGE_TONE: Record<string, BadgeTone> = {
   marginal: "warning",
 };
 
-/** Raw chart colours (canvas/SVG), deliberately not theme tokens. */
 const STATUS_CHART_COLOR: Record<string, string> = {
   confirmed: PATTERN_CONFIRMED,
   forming: PATTERN_FORMING,
@@ -64,7 +61,6 @@ export function qualityBadgeTone(quality: string | null | undefined): BadgeTone 
   return QUALITY_BADGE_TONE[String(quality ?? "").toLowerCase()] ?? "default";
 }
 
-/** Full quality label; `fallback` covers empty/unknown tiers (surfaces differ). */
 export function qualityLabel(
   quality: string | null | undefined,
   fallback = "Unknown",
@@ -75,19 +71,16 @@ export function qualityLabel(
   return key ? key.charAt(0).toUpperCase() + key.slice(1) : fallback;
 }
 
-/** Positive/negative change as raw chart colour. */
 export function changeChartColor(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return TEXT_MUTED;
   return value >= 0 ? PATTERN_CONFIRMED : PATTERN_FAILED;
 }
 
-/** Positive/negative change as a `Text c` tone. */
 export function changeTextTone(value: number | null | undefined): TextTone {
   if (value == null || !Number.isFinite(value)) return "dimmed";
   return value >= 0 ? "success" : "error";
 }
 
-/** `TextTone` → raw chart/hex colour. Unknown tones mute to `TEXT_MUTED`. */
 export function textToneChartColor(tone: string | null | undefined): string {
   switch (String(tone ?? "").toLowerCase()) {
     case "success":
@@ -107,7 +100,6 @@ const DISPLAY_TONE_COLOR: Record<DisplayTone, string> = {
   neutral: NEUTRAL,
 };
 
-/** Derived display-status tone → palette colour (status pill dot + text). */
 export function displayToneColor(tone: DisplayTone): string {
   return DISPLAY_TONE_COLOR[tone] ?? NEUTRAL;
 }

@@ -62,9 +62,6 @@ SEED = 42
 SESSION_OPEN_MIN = 9 * 60 + 15
 
 
-# --------------------------------------------------------------------------- #
-# helpers
-# --------------------------------------------------------------------------- #
 def _f(value, default=None):
     """float or ``default``; never raises, never returns NaN/inf."""
     try:
@@ -93,7 +90,6 @@ def _hhmm(iso):
 
 
 def _minute_of_day(stamp):
-    """Minute-of-day from either an ISO timestamp or a bare ``HH:MM``."""
     s = str(stamp or "")
     try:
         if len(s) == 5:
@@ -143,7 +139,6 @@ def _describe(values):
 
 
 def _binomial_two_sided(k, n):
-    """Exact two-sided sign-test p-value."""
     if n <= 0:
         return None
     k = int(k)
@@ -152,7 +147,6 @@ def _binomial_two_sided(k, n):
 
 
 def _bootstrap_mean_ci(values, blocks, n_boot=4000, seed=SEED, alpha=0.05):
-    """Percentile CI resampling whole blocks (sessions), not observations."""
     pairs = [(float(v), b) for v, b in zip(values, blocks) if v is not None]
     if not pairs:
         return None
@@ -264,12 +258,10 @@ def _fmt(value, spec=",.2f", dash="n/a"):
 
 
 def _reasons(counts):
-    """``{'poll-gap': 13}`` -> ``poll-gap ×13``."""
     return ", ".join(f"{k} ×{v}" for k, v in sorted(counts.items())) or "none"
 
 
 def _ord(value):
-    """``63`` -> ``63rd``; ``n/a`` when unknown."""
     v = _f(value)
     if v is None:
         return "n/a"
@@ -281,9 +273,6 @@ def _ord(value):
     return f"{n}{suffix}"
 
 
-# --------------------------------------------------------------------------- #
-# loaders
-# --------------------------------------------------------------------------- #
 def load_jsonl(path: Path):
     rows = []
     if not path.exists():
@@ -325,7 +314,6 @@ def load_chain10s(date):
 
 
 def _tail_last_json(path: Path, window=6_000_000):
-    """Last parseable JSON object of a huge jsonl, without reading all of it."""
     if not path.exists():
         return None
     with open(path, "rb") as fh:
@@ -342,7 +330,6 @@ def _tail_last_json(path: Path, window=6_000_000):
 
 
 def snapshot_times(date):
-    """Every snapshot row's timestamp, without keeping the payloads."""
     out = []
     path = SNAP_DIR / f"{date}.jsonl"
     if not path.exists():
@@ -418,9 +405,7 @@ def session_bars(snapshot):
     return [dedup[k] for k in sorted(dedup)]
 
 
-# --------------------------------------------------------------------------- #
 # 1. coverage
-# --------------------------------------------------------------------------- #
 def _count_by(rows, key):
     out = {}
     for row in rows or []:
@@ -531,9 +516,6 @@ def coverage(date, tape, raw_tape, futures, chain10s, snap_times, gaps_tape,
     }
 
 
-# --------------------------------------------------------------------------- #
-# 2. session
-# --------------------------------------------------------------------------- #
 def session_stats(bars, prev_close, recorder_read=None):
     live = [b for b in bars if _hhmm(b["t"]) <= LAST_LIVE_HHMM]
     if not live:
@@ -632,9 +614,6 @@ def session_stats(bars, prev_close, recorder_read=None):
     }
 
 
-# --------------------------------------------------------------------------- #
-# 3. futures
-# --------------------------------------------------------------------------- #
 def _quadrant(dp, doi):
     if dp is None or doi is None:
         return None
@@ -795,11 +774,7 @@ def futures_stats(rows):
     }
 
 
-# --------------------------------------------------------------------------- #
-# 4. options
-# --------------------------------------------------------------------------- #
 def _chain_cell(cell):
-    """``[ce_ltp, pe_ltp, ce_oi, pe_oi, ce_vol, pe_vol]`` or None."""
     if not isinstance(cell, (list, tuple)) or len(cell) < 6:
         return None
     return {
@@ -1001,9 +976,6 @@ def options_stats(tape, controls):
     }
 
 
-# --------------------------------------------------------------------------- #
-# 5. flow: ITM put OI, prior-moneyness attribution
-# --------------------------------------------------------------------------- #
 def _flow_interval(a, b, fixed=None):
     """Per-strike OI deltas between two consecutive recorded rows.
 
@@ -1064,7 +1036,6 @@ def _flow_interval(a, b, fixed=None):
 
 
 def _session_deltas(rows, fixed=None):
-    """Consecutive-recorded-row flow intervals for one session."""
     out = []
     for a, b in zip(rows, rows[1:]):
         if _minute_of_day(b["t"]) - _minute_of_day(a["t"]) > 4:
@@ -1259,11 +1230,7 @@ def flow_analysis(tape, controls):
     }
 
 
-# --------------------------------------------------------------------------- #
-# 6. cross-session context
-# --------------------------------------------------------------------------- #
 def full_sessions(exclude_date):
-    """Every snapshot date whose tail carries a usable 1-minute session."""
     out = {}
     for path in sorted(SNAP_DIR.glob("*.jsonl")):
         date = path.stem
@@ -1292,7 +1259,6 @@ def full_sessions(exclude_date):
 
 
 def tape_flow_history(exclude_date):
-    """5-minute ITM-put flow per prior session, for the event study."""
     out = {}
     for path in sorted(TAPE_DIR.glob("*.jsonl")):
         if path.name.endswith(".gaps.jsonl"):
@@ -1335,7 +1301,6 @@ def quant_context(session, sessions, flows_hist, flow_today, futures_today,
     out = {}
     today_closes = session.get("closes") or {}
 
-    # --- today's move sizes vs prior sessions -----------------------------
     comparisons = {}
     for k in (5, 15, 30):
         pooled, per_session = [], {}
@@ -1388,7 +1353,6 @@ def quant_context(session, sessions, flows_hist, flow_today, futures_today,
         }
     out["move_size_vs_history"] = comparisons
 
-    # --- gap and day-return distribution ---------------------------------
     gaps, day_rets = [], []
     for date, sess in sessions.items():
         if not sess["complete"] or not sess["prev_close"]:
@@ -1411,7 +1375,6 @@ def quant_context(session, sessions, flows_hist, flow_today, futures_today,
                                    session.get("day_change_pct_to_last_live")), 1)},
         }
 
-    # --- morning selloff -> rest of session ------------------------------
     cutoff = "11:00"
     states = []
     for date, sess in sessions.items():
@@ -1419,7 +1382,7 @@ def quant_context(session, sessions, flows_hist, flow_today, futures_today,
         if cutoff not in closes or not sess["open"]:
             continue
         to_cut = (closes[cutoff] - sess["open"]) / sess["open"] * 100.0
-        fwd = _forward_pts(closes, cutoff, 254)     # 11:00 -> 15:14
+        fwd = _forward_pts(closes, cutoff, 254)
         if fwd is None:
             continue
         states.append({"date": date, "to_cutoff_pct": to_cut,
@@ -1460,7 +1423,6 @@ def quant_context(session, sessions, flows_hist, flow_today, futures_today,
                       "fwd_pct": _round(s["fwd_pct"], 3)} for s in states],
         }
 
-    # --- basis extremes (today only) -------------------------------------
     live_fut = [r for r in futures_today
                 if _hhmm(r["t"]) <= LAST_LIVE_HHMM
                 and _f(r.get("basis")) is not None]
@@ -1504,7 +1466,6 @@ def quant_context(session, sessions, flows_hist, flow_today, futures_today,
             "effective_n_15m_blocks": len(set(blocks(base_rows))),
         }
 
-    # --- ITM put bursts -> forward return --------------------------------
     if flows_hist:
         pooled_pct = []
         for _date, flow in flows_hist.items():
@@ -1582,13 +1543,11 @@ def quant_context(session, sessions, flows_hist, flow_today, futures_today,
                 "today_event_count": len(today_ev),
             }
 
-    # --- last-hour OI unwind vs history ----------------------------------
     out["oi_unwind_into_close"] = unwind_compare(today_date)
     return out
 
 
 def unwind_compare(today_date):
-    """CE/PE OI change over 14:28-15:29, against every tape on disk."""
     def measure(date):
         rows = [r for r in load_tape(date) if not r.get("backfilled")
                 and _f(r.get("ce_oi")) is not None]
@@ -1599,7 +1558,6 @@ def unwind_compare(today_date):
         if not start or not end:
             return None
         a, b = start[-1], end[-1]
-        # A tape that stops mid-afternoon cannot measure a last-hour change.
         if _hhmm(b["t"]) < "15:15":
             return None
         return {"date": date, "from": _hhmm(a["t"]), "to": _hhmm(b["t"]),
@@ -1633,9 +1591,6 @@ def unwind_compare(today_date):
     }
 
 
-# --------------------------------------------------------------------------- #
-# 7. narrative
-# --------------------------------------------------------------------------- #
 def simple_read(payload):
     s, f, o, fl = (payload["session"], payload["futures"], payload["options"],
                    payload["flow"])
@@ -1926,9 +1881,6 @@ def evidence_table(payload):
     return rows
 
 
-# --------------------------------------------------------------------------- #
-# markdown
-# --------------------------------------------------------------------------- #
 def render_markdown(payload):
     s, f, o, fl, q = (payload["session"], payload["futures"], payload["options"],
                       payload["flow"], payload["quant_context"])
@@ -2270,9 +2222,6 @@ def render_markdown(payload):
     return "\n".join(L)
 
 
-# --------------------------------------------------------------------------- #
-# main
-# --------------------------------------------------------------------------- #
 def build(date):
     raw_tape = load_jsonl(TAPE_DIR / f"{date}.jsonl")
     tape = load_tape(date)

@@ -438,9 +438,6 @@ def test_report_uses_live_path_when_md_live():
     live.assert_called_with("2026-10-29")
 
 
-# ---------------------------------------------------------------------------
-# SPOT source selection (NIFTY_SPOT_SOURCE)
-# ---------------------------------------------------------------------------
 
 
 def test_spot_source_defaults_to_v3(monkeypatch):

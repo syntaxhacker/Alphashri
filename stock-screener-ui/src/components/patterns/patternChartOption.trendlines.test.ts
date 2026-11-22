@@ -57,7 +57,6 @@ describe("buildPatternChartOption standalone trendlines", () => {
     expect(support[0].lineStyle?.type).toBe("solid");
     expect(support[0].silent).toBe(true);
     expect(support[0].z).toBeGreaterThan(1);
-    // Candles are always present.
     expect(series.some((s) => s.type === "candlestick")).toBe(true);
   });
 
@@ -108,7 +107,6 @@ describe("buildPatternChartOption standalone trendlines", () => {
     const names = namesOf(option);
     expect(names).not.toContain("TLS");
     expect(names).not.toContain("TLR");
-    // …but the candles are still drawn.
     expect(seriesOf<SeriesLike>(option).some((s) => s.type === "candlestick")).toBe(true);
   });
 
@@ -252,7 +250,6 @@ describe("buildPatternChartOption candles are always present", () => {
     const candles = candleSeries(option);
     expect(candles).toHaveLength(1);
     expect(candles[0].data).toEqual([]);
-    // No window → no standalone line can map.
     expect(series.map((s) => s.name)).not.toContain("TLS");
     expect(series.map((s) => s.name)).not.toContain("TLR");
   });

@@ -42,9 +42,6 @@ const OPENING_OI_MIN_M = 4.0;
 const OPENING_VOL_MIN_M = 30.0;
 const ALERT_GAP_MS = 15_000;
 const OPENING_ALERT_GAP_MS = 60_000;
-/** Cap on the dedupe keys kept for the session. The feed only looks back a few
- *  minutes, so an unbounded set of `kind:side:timestamp` keys would grow for
- *  the whole session without ever preventing a repeat. */
 const MAX_SEEN_BLASTS = 500;
 
 /** Minutes since midnight in IST, from the blast's ISO timestamp. The server
@@ -76,8 +73,6 @@ function windowSeconds(label: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
-/** Raise the gate during the opening bell. Returns true when the blast is
- *  worth an alert (or when it is outside the opening window). */
 function passesOpeningGate(b: NiftyBlast): boolean {
   if (!isOpeningWindow(b.t)) return true;
   if (b.kind === "spot") {
@@ -94,7 +89,6 @@ export interface BlastState {
 }
 
 export interface BlastOptions {
-  /** How far back the server scans (default 5 min). */
   lookbackMin?: number;
 }
 

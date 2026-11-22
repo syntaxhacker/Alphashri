@@ -44,10 +44,6 @@ export interface TradeStats {
   losers: number;
 }
 
-/**
- * Shared derivations for the replay + strategy-runner stats panels.
- * A supplied `summary` wins; otherwise the numbers are derived from `trades`.
- */
 export function computeTradeStats(
   trades: readonly TradeStatsTradeLike[],
   summary: TradeStatsSummaryLike | null,
@@ -79,11 +75,6 @@ interface TradeStatsGridProps {
   progressBar?: { percent: number; style?: CSSProperties } | null;
 }
 
-/**
- * Presentational stats grid shared by the replay and strategy-runner panels:
- * Total Trades, Win Rate, Profit Factor, Net P&L, Winners / Losers, plus
- * caller-supplied extra stats, an optional progress stat and progress bar.
- */
 export function TradeStatsGrid(props: TradeStatsGridProps) {
   const isRunning = () => props.isRunning;
   const showEmpty = () => props.trades.length === 0 && !isRunning();

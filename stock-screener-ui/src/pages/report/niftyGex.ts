@@ -20,7 +20,6 @@
 import type { NiftyGex } from "@/types/niftyReport";
 import { sortByField } from "@/utils/ui-helpers";
 
-/** A single point of the per-strike net-GEX profile (sorted ascending). */
 export interface GexProfilePoint {
   strike: number;
   netGex: number;
@@ -28,8 +27,6 @@ export interface GexProfilePoint {
 
 /** Coerce a payload field to a finite number (NaN when absent/blank). */
 function num(v: unknown): number {
-  // `Number(null)` and `Number("")` are 0 — treat those as absent so a null
-  // leg is dropped instead of being plotted as a genuine zero exposure.
   if (v === null || v === undefined || v === "") return NaN;
   const n = Number(v);
   return Number.isFinite(n) ? n : NaN;

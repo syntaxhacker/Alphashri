@@ -23,25 +23,14 @@ import type { StandaloneLineResult } from "./standaloneLines";
 
 /** Parsed view of a candle time axis, built once per chart build. */
 export interface AxisIndex {
-  /** Number of entries on the axis. */
   readonly length: number;
-  /**
-   * Resolve an engine timestamp to a candle index: exact string first, then
-   * (date-only strings only) the first candle of that day, then the nearest
-   * timestamp. Returns `undefined` when the timestamp cannot be resolved.
-   */
   resolveIndex(t: string): number | undefined;
-  /** Nearest candle index for an already-parsed timestamp (ties → earliest). */
   nearestIndex(target: number): number | undefined;
-  /** Axis-point equivalent of `mapTrendlines` for this axis. */
   mapTrendlines(trendlines: Trendline[] | undefined): AxisPoint[][];
-  /** Axis-point equivalent of `mapTimeSegment` for this axis. */
   mapTimeSegment(startT: string, startP: number, endT: string, endP: number): AxisPoint[];
-  /** Axis-point equivalent of `mapStandaloneLine` for this axis. */
   mapStandaloneLine(line: TrendLine): StandaloneLineResult | null;
 }
 
-/** First position in `vals` whose value is `>= v`. `vals` is ascending. */
 function lowerBound(vals: number[], v: number): number {
   let lo = 0;
   let hi = vals.length;
@@ -147,8 +136,6 @@ export function createAxisIndex(times: string[]): AxisIndex {
     if (Number.isNaN(wStart) || Number.isNaN(wEnd)) return [];
     if (t1 < wStart || t0 > wEnd) return [];
 
-    // Degenerate zero-span segment: dot-mark at its instant, matching the
-    // original behaviour.
     if (t1 === t0) {
       const i = nearestIndex(t0);
       if (i === undefined) return [];

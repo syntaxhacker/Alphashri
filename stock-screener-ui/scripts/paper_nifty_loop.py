@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 TAPE = ROOT / "experiments" / "data" / "nifty_tape"
 LOG = Path("/tmp/opencode/paper_nifty_loop.log")
 JOURNAL = Path("/tmp/opencode/paper_nifty_journal.jsonl")
-LOT_QTY = 225  # 3 NIFTY lots
+LOT_QTY = 225
 DAILY_STOP = 15_000.0
 TARGET_PROFIT = 50_000.0
 POLL_SEC = 10
@@ -194,7 +194,6 @@ def main() -> int:
             time.sleep(POLL_SEC)
             continue
 
-        # Trigger: price through the wall AND the wall OI falling.
         short_trigger = spot < 22900 and pe_oi < previous["pe_oi"]
         long_trigger = spot > 23000 and ce_oi < previous["ce_oi"]
 

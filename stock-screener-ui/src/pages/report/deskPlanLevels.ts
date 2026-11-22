@@ -1,33 +1,18 @@
-/**
- * The numbers the desk plan is built on — the structural levels (support,
- * resistance, walls, session extremes) and the thresholds that shape them.
- *
- * Pure and total: a report missing `gex`, `pivots` or `strikes` still yields
- * a usable set of levels, with absent values reported as `null`.
- */
 
 import type { NiftyReport, NiftyWall } from "@/types/niftyReport";
 import { formatReportNum } from "./reportFormat";
 
-/** Indian-grouped number, no decimals by default (levels are index points). */
 export function fmtDeskNum(value: number | null | undefined, digits = 0): string {
   return formatReportNum(value, { digits, minDigits: digits });
 }
 
-/** Touches of a level count when the wick comes within this much of it. */
 export const TOUCH_TOLERANCE_PCT = 0.0015;
-/** Stop sits beyond the trigger by the larger of 8 index points or 0.08%. */
 export const MIN_STOP_PTS = 8;
 export const STOP_BUFFER_PCT = 0.0008;
-/** A target must pay at least this much for the risk taken. */
 export const MIN_RR = 1.5;
-/** When no structural target pays, project this multiple of risk. */
 export const PROJECT_R = 2;
-/** A 5-min run beyond this many index points is a chase, not an entry. */
 export const CHASE_PTS = 30;
-/** Premium already up this much since the reference open is a chase too. */
 export const CHASE_PREMIUM_PCT = 5;
-/** IV/RV above this is "rich" — buying premium into a level has no edge. */
 export const RICH_IV_RV = 1.15;
 
 export function finite(value: unknown): number | null {
@@ -35,7 +20,6 @@ export function finite(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Positive-only numeric (price, strike, OI, IV); zero/absent → null. */
 export function positive(value: unknown): number | null {
   const n = finite(value);
   return n !== null && n > 0 ? n : null;
@@ -63,7 +47,6 @@ export function topWall(list: NiftyWall[] | undefined | null): NiftyWall | null 
   return best;
 }
 
-/** Nearest finite positive level strictly below or above `level`. */
 function nearestLevel(
   levels: Array<number | null | undefined>,
   level: number,
@@ -109,7 +92,6 @@ function sessionExtremes(report: NiftyReport): SessionExtremes {
   return { low, high };
 }
 
-/** Every wall strike, not just the biggest one — the nearest wall is the level. */
 export function wallStrikes(list: NiftyWall[] | undefined | null): number[] {
   if (!Array.isArray(list)) return [];
   return list
@@ -123,7 +105,6 @@ export interface Levels {
   resistance: number | null;
   sessionLow: number | null;
   sessionHigh: number | null;
-  /** Confirmation for a downside break: the lower of support and session low. */
   downsideBreak: number | null;
   callWalls: number[];
   putWalls: number[];
@@ -139,11 +120,6 @@ export function computeLevels(report: NiftyReport): Levels {
   const maxPain = positive(report.maxPain);
   const session = sessionExtremes(report);
 
-  // Call walls (all strikes, not only the top-OI one) and max pain are the
-  // levels a rally has to reclaim; the old "top wall" pick skipped the nearer
-  // wall and pushed the bull trigger hundreds of points away from spot. The
-  // session high joins them: a high printed above spot is the first supply the
-  // rally has to clear, symmetric to the session low on the support side.
   const support =
     spot === null
       ? null
@@ -162,8 +138,6 @@ export function computeLevels(report: NiftyReport): Levels {
           "above",
         );
 
-  // A downside break needs the weaker of the two: price has already traded the
-  // session low, so that is the level a close below confirms distribution.
   const downsideBreak =
     support === null
       ? session.low

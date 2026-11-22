@@ -37,7 +37,6 @@ const GREEKS: NiftyPnlGreeks[] = [
 describe("attributeNiftyPnl", () => {
   test("long CE: spot rise books a positive delta part", () => {
     const { legs } = attributeNiftyPnl([LONG_CE], GREEKS, 25100);
-    // (25100 − 25000) × 0.5 × 50
     expect(legs[0].delta).toBe(2500);
   });
 
@@ -45,16 +44,13 @@ describe("attributeNiftyPnl", () => {
     const short: NiftyPnlPosition = { ...LONG_CE, direction: "short" };
     const { legs } = attributeNiftyPnl([short], GREEKS, 25100);
     expect(legs[0].delta).toBe(-2500);
-    // IV rose 12 → 14: long gains, short loses
     expect(legs[0].vega).toBe(-500);
   });
 
   test("vega follows the IV move, theta accrues decay", () => {
     const { legs } = attributeNiftyPnl([LONG_CE], GREEKS, 25000);
-    // Δspot 0 → delta 0; (14 − 12) × 5 × 50
     expect(legs[0].delta).toBe(0);
     expect(legs[0].vega).toBe(500);
-    // −2 × 0.5 × 50
     expect(legs[0].theta).toBe(-50);
   });
 
@@ -72,7 +68,6 @@ describe("attributeNiftyPnl", () => {
 
   test("residual is total minus the three explained parts", () => {
     const { legs } = attributeNiftyPnl([LONG_CE], GREEKS, 25100);
-    // total = (130 − 100) × 50 = 1500; parts = 2500 + 500 − 50
     expect(legs[0].total).toBe(1500);
     expect(legs[0].residual).toBe(1500 - (2500 + 500 - 50));
   });

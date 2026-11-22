@@ -31,9 +31,9 @@ pd.set_option("display.max_rows", 200)
 
 print(f"INDIA MID / SMALL-CAP STOCK SNAPSHOT — {now:%a %d %b %Y %H:%M} IST\n")
 
-MIDCAP_MIN = 5_000_000_000   # ₹5,000 cr
-MIDCAP_MAX = 20_000_000_000  # ₹20,000 cr
-SMALLCAP_MAX = 5_000_000_000 # ₹5,000 cr
+MIDCAP_MIN = 5_000_000_000
+MIDCAP_MAX = 20_000_000_000
+SMALLCAP_MAX = 5_000_000_000
 
 STOCK_COLS = ["name", "description", "close", "change", "volume",
               "relative_volume_10d_calc", "market_cap_basic", "sector",
@@ -93,9 +93,7 @@ def rsi_flags(df, label):
     print(os_[["sym", "close", "change", "RSI", "vs_sma20_pct", "mcap_cr", "sector"]]
           .head(10).to_string(index=False))
 
-# ===========================================================================
 # MID-CAP
-# ===========================================================================
 print("=" * 70)
 print("MID-CAP STOCKS (₹5,000 – ₹20,000 cr mcap)")
 print("=" * 70)
@@ -112,9 +110,7 @@ show_movers(mid, "MID-CAP")
 sector_rotation(mid, "MID-CAP")
 rsi_flags(mid, "MID-CAP")
 
-# ===========================================================================
 # SMALL-CAP
-# ===========================================================================
 print("\n\n" + "=" * 70)
 print("SMALL-CAP STOCKS (<₹5,000 cr mcap)")
 print("=" * 70)

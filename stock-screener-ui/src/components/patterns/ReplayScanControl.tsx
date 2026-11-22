@@ -7,20 +7,12 @@ export interface ReplayScanArgs {
 }
 
 export interface ReplayScanControlProps {
-  /** Called with the replay window when the user runs an as-of scan. */
   onReplayScan?: (args: ReplayScanArgs) => void;
   disabled?: boolean;
   /** Testid prefix namespace; defaults to the `patterns-replay-*` contract ids. */
   testIdPrefix?: string;
 }
 
-/**
- * As-of replay scan control: a switch enabling replay mode plus From/To
- * `datetime-local` inputs. Running calls back with `{ asOf, from }` so the
- * parent can `startScan({ ..., as_of_date: asOf, from_date: from })`.
- * Replay scans recompute history up to the cutoff, so they are slower —
- * the warning says so whenever replay mode is on.
- */
 export function ReplayScanControl(props: ReplayScanControlProps) {
   const [enabled, setEnabled] = createSignal(false);
   const [asOf, setAsOf] = createSignal("");

@@ -61,23 +61,15 @@ from api.reports_api.nifty_bursts import (
 )
 from options_paper.costs import option_round_trip_cost
 
-QTY = 65  # 1 NIFTY lot
+QTY = 65
 STOP_PCT = 15.0
 TARGET_PCT = 25.0
 HORIZON_MIN = 15
 DEDUP_MIN = 5
 
 
-# ---------------------------------------------------------------- pure helpers
 
 def event_bearish(event: dict) -> bool | None:
-    """The event's market direction, or None when it is not decidable.
-
-    ``bearish`` comes straight from the detector's ``classify_flow`` (a put
-    unwind with the premium DOWN is a liquidation -> bearish; a put unwind
-    with the premium UP is a covering -> bullish). When only ``flow`` is
-    present it is translated the same way.
-    """
     if not isinstance(event, dict):
         return None
     raw = event.get("bearish")
@@ -227,7 +219,6 @@ def find_bar_at_or_after(rows: list[dict], start: int, when: datetime,
 
 def last_bar_exit(rows: list[dict], start: int, strike: float,
                   leg: str) -> tuple[int, float] | None:
-    """EOD exit: last bar AFTER ``start`` quoting the entry strike."""
     return last_quote_after(rows, start, strike, leg)
 
 
@@ -255,13 +246,11 @@ def stop_target_exit(rows: list[dict], entry_idx: int, entry_px: float,
             return j, px, "target"
     eod = last_bar_exit(rows, entry_idx, strike, leg)
     if eod is None:
-        # The leg died right after the fill: there is no honest exit price.
         return None, 0.0, "unpriced"
     return eod[0], eod[1], "eod_fallback"
 
 
 def apply_cost(entry_px: float, exit_px: float, qty: int = QTY) -> dict:
-    """Gross/net P&L for one long leg incl. realistic round-trip costs."""
     r = option_round_trip_cost(entry_px, exit_px, qty, is_short=False)
     return {"gross": r["gross_pnl"], "costs": r["costs"], "net": r["net_pnl"]}
 
@@ -290,11 +279,6 @@ def dedupe_events(events: list[dict], minutes: float = DEDUP_MIN) -> list[dict]:
 
 
 def summarize(trades: list[dict]) -> dict:
-    """n, win rate, total/avg/best/worst net P&L over simulated trades.
-
-    Unpriced trades (the leg printed nothing after the fill) carry no P&L:
-    they are counted in ``unpriced`` and excluded from every average.
-    """
     nets = [t["net"] for t in trades if t.get("net") is not None]
     unpriced = sum(1 for t in trades if t.get("net") is None)
     if not nets:
@@ -312,10 +296,8 @@ def summarize(trades: list[dict]) -> dict:
     }
 
 
-# ------------------------------------------------------------- tape evaluation
 
 def _row_index(rows: list[dict]) -> dict[str, int]:
-    """Map a row's ``t`` to its index in the chronologically sorted rows."""
     ordered = sorted(rows, key=lambda r: str(r.get("t") or ""))
     return {str(r.get("t")): i for i, r in enumerate(ordered)}
 
@@ -425,7 +407,6 @@ def eval_day(date_str: str) -> list[dict]:
 
 
 def tape_has_chain(date_str: str) -> bool:
-    """True when any raw row of the day's tape carries a per-strike chain."""
     try:
         return any(isinstance(r.get("chain"), dict) for r in read_tape(date_str))
     except OSError:

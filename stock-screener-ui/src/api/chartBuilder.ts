@@ -1,8 +1,4 @@
 /**
- * Chart Data Builder
- *
- * Converts raw backtest data to ECharts format.
- *
  * DATA FORMATS FROM API:
  * - Candles: index is IST without timezone "2025-10-24T09:15:00"
  * - Trades: entry_time/exit_time are IST without timezone "2025-10-27T11:25:00"
@@ -42,18 +38,14 @@ interface RawTrade {
   exit_reason: "TP" | "SL" | "EOD";
   hold_duration_minutes: number;
   date: string; // YYYY-MM-DD
-  // ORB strategy fields
   or_high?: number;
   or_low?: number;
-  // S/R Breakout strategy fields
   pp?: number; // Pivot Point
   r1?: number; // Resistance 1
   s1?: number; // Support 1
   r2?: number; // Resistance 2
   s2?: number; // Support 2
-  // 52W Chaser strategy fields
   "52w_high"?: number;
-  // 52W Target strategy fields
   "52w_high_entry"?: number;
   trailing_active?: boolean;
   /** Trade direction — "LONG" | "SHORT" (backend `base.py:344`). */
@@ -67,16 +59,12 @@ export function buildChartData(
 ): SymbolChartData {
   const candles = formatCandleData(rawCandles);
 
-  // Get unique trade dates to filter ORB zones
   const tradeDates = new Set(rawTrades.map((t) => t.date));
 
-  // Only calculate ORB zones for days with trades
   const orbZones = formatORBZones(candles, orMinutes).filter((z) => tradeDates.has(z.date_raw));
 
-  // Extract pivot levels from trades (for S/R Breakout strategy)
   const pivotLevels = extractPivotLevels(rawTrades);
 
-  // Extract 52W high levels from trades (for 52W Chaser strategy)
   const week52Levels = extractWeek52Levels(rawTrades);
   const trades = formatTradeMarkers(rawTrades, candles);
   const startDates = candles.map((c) => c.date_raw).filter((d) => d);
@@ -142,9 +130,6 @@ function formatCandleData(raw: RawCandle): CandleData[] {
   return candles;
 }
 
-/**
- * Helper to create an ORB zone from candles
- */
 function createORBZone(date: string, orCandles: CandleData[], orEndMinutes: number): ORBZone {
   const orHigh = Math.max(...orCandles.map((c) => c.high));
   const orLow = Math.min(...orCandles.map((c) => c.low));
@@ -166,9 +151,7 @@ function formatORBZones(candles: CandleData[], orMinutes: number): ORBZone[] {
     const timeParts = candle.time_str.split(":");
     const candleMinutes = parseInt(timeParts[0]) * 60 + parseInt(timeParts[1]);
 
-    // New day
     if (candle.date !== currentDate) {
-      // Process previous day's OR
       if (orCandles.length > 0 && currentDate) {
         zones.push(createORBZone(currentDate, orCandles, orEndMinutes));
       }
@@ -176,13 +159,11 @@ function formatORBZones(candles: CandleData[], orMinutes: number): ORBZone[] {
       orCandles = [];
     }
 
-    // Collect OR candles (before 10:00 for 45-min OR)
     if (candleMinutes < orEndMinutes) {
       orCandles.push(candle);
     }
   }
 
-  // Process last day
   if (orCandles.length > 0 && currentDate) {
     zones.push(createORBZone(currentDate, orCandles, orEndMinutes));
   }
@@ -197,7 +178,6 @@ function extractPivotLevels(trades: RawTrade[]): PivotLevels[] {
   const levelsByDate = new Map<string, PivotLevels>();
   for (const trade of trades) {
     if (trade.pp && trade.r1 && trade.s1) {
-      // Only add if not already added for this date
       if (!levelsByDate.has(trade.date)) {
         levelsByDate.set(trade.date, {
           date: trade.date,
@@ -284,7 +264,6 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
       side: trade.side,
     };
 
-    // Entry marker
     markers.push({
       trade_id: idx + 1,
       type: "entry",
@@ -300,7 +279,6 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
       trade: tradeData,
     });
 
-    // Exit marker
     markers.push({
       trade_id: idx + 1,
       type: "exit",
@@ -326,7 +304,6 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
  */
 function normalizeTradeTime(time: string): string {
   if (!time) return "";
-  // Remove timezone suffix, fractional seconds, and truncate to HH:MM
   return time
     .replace(/\+00:00$/, "")
     .replace(/\+05:30$/, "")
@@ -342,8 +319,6 @@ function normalizeTradeTime(time: string): string {
  */
 function normalizeTradeTimeToDate(time: string): string {
   if (!time) return "";
-  // Handle timezone-aware times: parse and convert to date-only string
-  // Input: "2026-04-02T09:14:52.867891+00" or "2025-10-27T11:25:00"
   if (time.includes("+")) {
     const date = time.split("T")[0];
     return `${date}T00:00`;
@@ -352,7 +327,6 @@ function normalizeTradeTimeToDate(time: string): string {
   return `${datePart}T00:00`;
 }
 
-// Helper to convert chart trades to Trade[] for modal
 export function chartTradesToTrades(chartTrades: ChartTrade[]): Trade[] {
   const trades: Trade[] = [];
   chartTrades
@@ -381,7 +355,6 @@ export function chartTradesToTrades(chartTrades: ChartTrade[]): Trade[] {
         s1: ct.trade.s1,
         r2: ct.trade.r2,
         s2: ct.trade.s2,
-        // 52W Chaser fields
         "52w_high": ct.trade["52w_high"],
         trailing_active: ct.trade.trailing_active,
         side: ct.trade.side,

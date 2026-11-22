@@ -147,7 +147,6 @@ describe("TanStackTable column controls — off by default", () => {
       />
     ));
     expect(screen.queryByTestId("table-column-picker-trigger")).toBeNull();
-    // ...and the prefs are inert: the declared default layout renders.
     expect(headerIds()).toEqual(["symbol", "name", "price", "change", "volume"]);
   });
 
@@ -176,7 +175,6 @@ describe("TanStackTable column controls — visibility", () => {
     // `order: []` — hiding a column is not an opinion about order, so a future
     // default reorder must still be able to take effect.
     expect(onChange).toHaveBeenLastCalledWith({ order: [], hidden: ["change"] });
-    // Cells follow the header: 4 cells per row now, and no -0.5 value anywhere.
     const firstRow = screen.getByTestId("row-AAA");
     expect(firstRow.querySelectorAll("td")).toHaveLength(4);
     expect(screen.queryByText("-0.5")).toBeNull();
@@ -234,7 +232,6 @@ describe("TanStackTable column controls — visibility", () => {
         onColumnPrefsChange={() => {}}
       />
     ));
-    // Saved order first, new columns appended in declared order.
     expect(headerIds()).toEqual(["symbol", "price", "change", "volume", "extra"]);
   });
 });
@@ -245,7 +242,6 @@ describe("TanStackTable column controls — order", () => {
     render(() => <ControlledTable onChange={onChange} />);
     openPicker();
 
-    // "price" is index 2; ArrowUp moves it to index 1.
     fireEvent.keyDown(screen.getByTestId("table-column-picker-handle-price"), { key: "ArrowUp" });
 
     expect(headerIds()).toEqual(["symbol", "price", "name", "change", "volume"]);
@@ -261,10 +257,9 @@ describe("TanStackTable column controls — order", () => {
     openPicker();
     const handle = () => screen.getByTestId("table-column-picker-handle-volume");
 
-    fireEvent.keyDown(handle(), { key: "ArrowDown" }); // already last — no-op
+    fireEvent.keyDown(handle(), { key: "ArrowDown" });
     expect(headerIds()).toEqual(["symbol", "name", "price", "change", "volume"]);
 
-    // Now the first row cannot move up either.
     fireEvent.keyDown(screen.getByTestId("table-column-picker-handle-symbol"), { key: "ArrowUp" });
     expect(headerIds()).toEqual(["symbol", "name", "price", "change", "volume"]);
   });
@@ -286,12 +281,10 @@ describe("TanStackTable column controls — order", () => {
     render(() => <ControlledTable initial={{ order: ["symbol", "name", "price", "change", "volume"], hidden: [] }} />);
     const priceTh = screen.getByText("Price").closest("th")!;
     fireEvent.click(priceTh);
-    // Descending: 200 (BBB) before 100 (AAA).
     const bodyRows = Array.from(document.querySelectorAll<HTMLTableRowElement>("tbody tr"));
     expect(bodyRows[0].textContent).toContain("Beta");
     expect(bodyRows[1].textContent).toContain("Alpha");
     expect(priceTh.textContent).toContain("▼");
-    // Column order unchanged by the sort.
     expect(headerIds()).toEqual(["symbol", "name", "price", "change", "volume"]);
   });
 
@@ -317,7 +310,6 @@ describe("TanStackTable column controls — locked columns", () => {
     render(() => (
       <ControlledTable lockVisible={["symbol"]} initial={{ order: [], hidden: ["symbol", "name"] }} />
     ));
-    // symbol survives the merge; only the hideable "name" disappears.
     expect(headerIds()).toEqual(["symbol", "price", "change", "volume"]);
   });
 

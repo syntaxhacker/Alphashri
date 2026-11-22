@@ -14,7 +14,6 @@ sys.path.insert(0, str(ROOT))
 from db.models import User
 from api.auth import hash_password, create_access_token
 
-# Fixtures for admin user and headers
 
 @pytest.fixture
 def admin_user(db: Session):
@@ -37,9 +36,6 @@ def admin_auth_headers(admin_user: User):
     token, _ = create_access_token(admin_user.id)
     return {"Authorization": f"Bearer {token}"}
 
-# =====================
-# LLM Stats Tests
-# =====================
 
 class TestAdmin52wRange:
     """Tests for 52W range batch admin endpoints."""
@@ -309,9 +305,6 @@ class TestAdminLLMStats:
         assert response.status_code == 500
         assert "db locked" in response.json()["detail"]
 
-# =====================
-# Cache Stats Tests
-# =====================
 
 class TestAdminCacheStats:
     """Tests for GET/POST /api/admin/cache-stats"""
@@ -362,9 +355,6 @@ class TestAdminCacheStats:
         response = client.post("/api/admin/cache-stats/reset")
         assert response.status_code == 401
 
-# =====================
-# Cache Keys Tests
-# =====================
 
 class TestAdminCacheKeys:
     """Tests for GET /api/admin/cache-keys"""
@@ -405,9 +395,6 @@ class TestAdminCacheKeys:
         response = client.get("/api/admin/cache-keys", headers=admin_auth_headers)
         assert response.status_code == 500
 
-# =====================
-# Invalidate Backtest Cache Tests
-# =====================
 
 class TestAdminCacheInvalidateBacktest:
     """Tests for DELETE /api/cache/backtest and /api/cache/backtest/{strategy_id}"""
@@ -450,9 +437,6 @@ class TestAdminCacheInvalidateBacktest:
         response = client.delete("/api/cache/backtest?user_id=1", headers=admin_auth_headers)
         assert response.status_code == 500
 
-# =====================
-# Invalidate News Cache Tests
-# =====================
 
 class TestAdminCacheInvalidateNews:
     """Tests for DELETE /api/cache/news"""
@@ -485,9 +469,6 @@ class TestAdminCacheInvalidateNews:
         response = client.delete("/api/cache/news", headers=admin_auth_headers)
         assert response.status_code == 500
 
-# =====================
-# Invalidate Screener Cache Tests
-# =====================
 
 class TestAdminCacheInvalidateScreener:
     """Tests for DELETE /api/cache/screener"""

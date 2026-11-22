@@ -134,9 +134,9 @@ describe("gammaStats fallbacks", () => {
       calls: [{ strike: 26100, oi: 5000 }],
       puts: [{ strike: 25400, oi: 6000 }],
     });
-    expect(stats.now).toBe(42.123); // frame gex.netTotal wins over the minute tape
-    expect(stats.flip).toBe(25680); // spot-aware gex flip wins over tape flip
-    expect(stats.callWall).toBe(26100); // report.walls.calls[0], not a GEX extremum
+    expect(stats.now).toBe(42.123);
+    expect(stats.flip).toBe(25680);
+    expect(stats.callWall).toBe(26100);
     expect(stats.putWall).toBe(25400);
   });
 
@@ -236,10 +236,8 @@ describe("NiftyGammaTime render", () => {
     );
 
     expect(screen.getByTestId("nifty-gamma-time-panel")).toBeInTheDocument();
-    // The frame's book total (gex.netTotal) wins over the last minute's tape row.
     expect(screen.getByTestId("nifty-gamma-now")).toHaveTextContent("+42.12 Cr");
     expect(screen.getByTestId("nifty-gamma-flip")).toHaveTextContent("25,680");
-    // No chain wall list passed → the tape's own walls are the fallback.
     expect(screen.getByTestId("nifty-gamma-callwall")).toHaveTextContent("26,000");
     expect(screen.getByTestId("nifty-gamma-putwall")).toHaveTextContent("25,500");
 

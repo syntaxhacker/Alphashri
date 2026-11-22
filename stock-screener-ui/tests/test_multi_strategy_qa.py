@@ -12,7 +12,6 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-# Add project path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from trading.shared_portfolio import (
@@ -26,9 +25,6 @@ from trading.global_risk_manager import (
     GlobalRiskManager,
     GlobalRiskConfig,
 )
-# ============================================
-# Test Fixtures - Dummy Data
-# ============================================
 
 @pytest.fixture
 def dummy_strategies():
@@ -110,9 +106,6 @@ def risk_manager():
     )
 
 
-# ============================================
-# QA Test: Complete Trading Day Simulation
-# ============================================
 
 class TestCompleteTradingDay:
     """
@@ -129,9 +122,6 @@ class TestCompleteTradingDay:
         """Simulate a full trading day with entries, updates, and exits."""
         portfolio = portfolio_with_strategies
 
-        # ========================================
-        # PHASE 1: Market Open - Initial Positions
-        # ========================================
         print("\n=== PHASE 1: Market Open - Initial Positions ===")
 
         # Strategy 1 (ORB Conservative) opens RELIANCE
@@ -210,17 +200,12 @@ class TestCompleteTradingDay:
         assert pos_2 is not None
         print(f"✓ Strategy 2 opened TCS: {trade_2_result['shares']} shares @ ₹3500")
 
-        # Verify initial state
         status = portfolio.get_portfolio_status()
         assert status['total_positions'] == 2
         print(f"✓ Portfolio has 2 positions, cash: ₹{status['cash']:,.0f}")
 
-        # ========================================
-        # PHASE 2: Both Strategies Trade Same Symbol
-        # ========================================
         print("\n=== PHASE 2: Both Strategies Trade Same Symbol ===")
 
-        # Strategy 1 opens INFY
         pos_3 = portfolio.open_position(
             strategy_id=1,
             strategy_name="ORB Conservative",
@@ -248,17 +233,12 @@ class TestCompleteTradingDay:
         assert pos_4 is not None, "Strategy 2 should be able to trade INFY!"
         print(f"✓ Strategy 2 ALSO opened INFY: 40 shares @ ₹1505")
 
-        # Verify both positions exist with different keys
         assert "1_INFY" in portfolio.positions
         assert "2_INFY" in portfolio.positions
         print("✓ Both strategies have separate INFY positions")
 
-        # ========================================
-        # PHASE 3: Price Updates and P&L Tracking
-        # ========================================
         print("\n=== PHASE 3: Price Updates ===")
 
-        # Update prices
         price_updates = {
             'RELIANCE': 2520,  # +0.8%
             'TCS': 3480,       # -0.6% (near SL)
@@ -266,22 +246,16 @@ class TestCompleteTradingDay:
         }
         portfolio.update_prices(price_updates)
 
-        # Check RELIANCE P&L
         reli_pos = portfolio.positions["1_RELIANCE"]
         assert reli_pos.unrealized_pnl > 0, "RELIANCE should be profitable"
         print(f"✓ RELIANCE unrealized P&L: ₹{reli_pos.unrealized_pnl:.2f}")
 
-        # Check TCS P&L
         tcs_pos = portfolio.positions["2_TCS"]
         assert tcs_pos.unrealized_pnl < 0, "TCS should be at a loss"
         print(f"✓ TCS unrealized P&L: ₹{tcs_pos.unrealized_pnl:.2f}")
 
-        # ========================================
-        # PHASE 4: Position Exits
-        # ========================================
         print("\n=== PHASE 4: Position Exits ===")
 
-        # Close RELIANCE at profit (TP hit)
         trade_1 = portfolio.close_position(
             strategy_id=1,
             symbol="RELIANCE",
@@ -293,7 +267,6 @@ class TestCompleteTradingDay:
         assert trade_1.pnl > 0
         print(f"✓ RELIANCE closed at TP: P&L ₹{trade_1.pnl:.2f}, Net ₹{trade_1.net_pnl:.2f}")
 
-        # Close TCS at loss (SL hit)
         trade_2 = portfolio.close_position(
             strategy_id=2,
             symbol="TCS",
@@ -305,7 +278,6 @@ class TestCompleteTradingDay:
         assert trade_2.pnl < 0
         print(f"✓ TCS closed at SL: P&L ₹{trade_2.pnl:.2f}, Net ₹{trade_2.net_pnl:.2f}")
 
-        # Close both INFY positions
         trade_3 = portfolio.close_position(
             strategy_id=1,
             symbol="INFY",
@@ -321,12 +293,8 @@ class TestCompleteTradingDay:
             costs=40,
         )
 
-        # ========================================
-        # PHASE 5: Verify Final State
-        # ========================================
         print("\n=== PHASE 5: Final State Verification ===")
 
-        # All positions closed
         assert len(portfolio.positions) == 0
         print("✓ All positions closed")
 
@@ -335,9 +303,6 @@ class TestCompleteTradingDay:
         print(f"✓ 4 trades recorded")
 
 
-# ============================================
-# QA Test: Risk Management Edge Cases
-# ============================================
 
 class TestRiskManagementEdgeCases:
     """Test edge cases in risk management."""
@@ -350,8 +315,6 @@ class TestRiskManagementEdgeCases:
         """Verify strategy position limits are enforced."""
         portfolio = portfolio_with_strategies
 
-        # Strategy 1 has max 3 positions
-        # Open 3 positions
         for symbol in ['A', 'B', 'C']:
             pos = portfolio.open_position(
                 strategy_id=1,
@@ -365,7 +328,6 @@ class TestRiskManagementEdgeCases:
             )
             assert pos is not None, f"Should open position {symbol}"
 
-        # Try to open 4th - should fail
         allowed, reason = portfolio.can_open_position(
             strategy_id=1,
             symbol='D',
@@ -383,7 +345,6 @@ class TestRiskManagementEdgeCases:
         portfolio = portfolio_with_strategies
         portfolio.max_total_positions = 4  # Set lower limit for testing
 
-        # Open positions across strategies
         portfolio.open_position(1, "S1", "A", OrderSide.BUY, 10, 100, 99, 102)
         portfolio.open_position(1, "S1", "B", OrderSide.BUY, 10, 100, 99, 102)
         portfolio.open_position(2, "S2", "C", OrderSide.BUY, 10, 100, 99, 102)
@@ -391,7 +352,6 @@ class TestRiskManagementEdgeCases:
 
         assert portfolio.get_total_positions() == 4
 
-        # Try 5th position
         allowed, reason = portfolio.can_open_position(
             strategy_id=3,
             symbol='E',
@@ -443,7 +403,6 @@ class TestRiskManagementEdgeCases:
         strategy_status = portfolio.get_strategy_status(3)
         assert strategy_status['allocated_capital'] == 100_000
 
-        # Try to use more than allocated
         allowed, reason = portfolio.can_open_position(
             strategy_id=3,
             symbol="TEST",
@@ -460,10 +419,8 @@ class TestRiskManagementEdgeCases:
         """Verify trades rejected when cash is insufficient."""
         portfolio = portfolio_with_strategies
 
-        # Use up most cash
         portfolio.cash = 10_000  # Only 10k left
 
-        # Try large trade
         allowed, reason = portfolio.can_open_position(
             strategy_id=1,
             symbol="TEST",
@@ -474,9 +431,6 @@ class TestRiskManagementEdgeCases:
         print(f"✓ Insufficient cash handled: {reason}")
 
 
-# ============================================
-# QA Test: Concurrent Strategy Operations
-# ============================================
 
 class TestConcurrentOperations:
     """Test concurrent operations across strategies."""
@@ -485,7 +439,6 @@ class TestConcurrentOperations:
         """Test that multiple strategies can simultaneously trade same symbol."""
         portfolio = portfolio_with_strategies
 
-        # Both strategies trade HDFC at similar prices
         pos1 = portfolio.open_position(
             strategy_id=1,
             strategy_name="ORB Conservative",
@@ -514,7 +467,6 @@ class TestConcurrentOperations:
         assert "2_HDFC" in portfolio.positions
         print("✓ Both strategies have HDFC positions")
 
-        # Update prices
         portfolio.update_prices({'HDFC': 1610})
 
         # Both should show different P&L based on entry prices
@@ -528,7 +480,6 @@ class TestConcurrentOperations:
         """Test that strategy capital usage is tracked independently."""
         portfolio = portfolio_with_strategies
 
-        # Strategy 1 uses capital
         portfolio.open_position(1, "S1", "A", OrderSide.BUY, 50, 1000, 990, 1020)
         portfolio.open_position(1, "S1", "B", OrderSide.BUY, 50, 1000, 990, 1020)
 
@@ -543,10 +494,6 @@ class TestConcurrentOperations:
         print(f"✓ Strategy 2 capital available: ₹{status2['available_capital']:,.0f}")
 
 
-# ============================================
-# Run Tests
-# ============================================
 
 if __name__ == "__main__":
-    # Run with verbose output
     pytest.main([__file__, "-v", "-s", "--tb=short"])

@@ -23,14 +23,7 @@ import {
   formatReportRatio,
 } from "./reportFormat";
 
-/**
- * Terminal palette — matches the reference tape screenshot (pitch-black
- * desk, blue call/put deltas, brown Net, blue/brown Spot-flip).
- * Scoped to this table only; the global app palette stays untouched.
- */
 export const TAPE_TERM_BG = palette.BG;
-// Tape-scoped hairlines/hover/latest-row shades + terminal series hues — the
-// global palette stays untouched; the values are the tape's own named tokens.
 export const TAPE_CELL_RULE = palette.TAPE_CELL_RULE;
 export const TAPE_HEADER_RULE = palette.TAPE_HEADER_RULE;
 export const TAPE_COL_RULE = palette.TAPE_COL_RULE;
@@ -48,27 +41,22 @@ export const TAPE_FLIP_NEG_TEXT = palette.TAPE_FLIP_NEG_TEXT;
 export const TAPE_TICK_POS = palette.POSITIVE;
 export const TAPE_TICK_NEG = palette.NEGATIVE;
 
-/** Signed compact OI delta: +170.16M / +5.53M / +850 / -12. */
 export function formatTapeCompact(v: number | null | undefined): string {
   return formatReportCompact(v, { sign: "always" });
 }
 
-/** Spot / strike-style price with Indian grouping. */
 export function formatTapePrice(v: number | null | undefined): string {
   return formatReportNum(v, { digits: 2 });
 }
 
-/** Signed points, e.g. +12 / -8. */
 export function formatTapeSigned(v: number | null | undefined): string {
   return formatReportNum(v, { digits: 2, sign: "always" });
 }
 
-/** Signed percent with 2 decimals. */
 export function formatTapePct(v: number | null | undefined): string {
   return formatReportPct(v, { digits: 2, sign: "always" });
 }
 
-/** Plain ratio with 2 decimals (PCR vol/OI). */
 export function formatTapeRatio(v: number | null | undefined): string {
   return formatReportRatio(v);
 }
@@ -87,7 +75,6 @@ export function formatIstClock(ms: number): string {
   return formatReportClock(ms);
 }
 
-/** Per-column max |value| across the rendered rows — the heat scale. */
 export interface TapeScale {
   call_doi: number;
   put_doi: number;
@@ -99,7 +86,6 @@ export interface TapeScale {
   spot_flip: number;
 }
 
-/** Largest |value| per heat column. Empty rows → all zeros (no tint). */
 export function computeTapeScale(rows: NiftyTapeRow[]): TapeScale {
   const maxAbs = (pick: (r: NiftyTapeRow) => number | null | undefined): number =>
     rows.reduce((m, r) => {
@@ -118,12 +104,6 @@ export function computeTapeScale(rows: NiftyTapeRow[]): TapeScale {
   };
 }
 
-/**
- * Magnitude heat: background alpha scales with |value| ÷ column max, so a
- * big print glows and a quiet one barely registers — "more has more
- * background, less has lesser opacity". `floor` keeps the hue legible even
- * at the minimum, `ceil` caps the strongest fill.
- */
 export function tapeHeat(
   v: number,
   max: number,
@@ -136,10 +116,6 @@ export function tapeHeat(
   return hexToRgba(hue, floor + (ceil - floor) * r);
 }
 
-/**
- * Spot change vs the previous chronological minute, keyed by row timestamp.
- * The first recorded row (and any unparseable pair) has no entry.
- */
 export function computeSpotDeltas(rows: NiftyTapeRow[]): Map<string, number> {
   const asc = ascTapeByTime(rows);
   const out = new Map<string, number>();
@@ -152,18 +128,11 @@ export function computeSpotDeltas(rows: NiftyTapeRow[]): Map<string, number> {
   return out;
 }
 
-/** Session roll-up for the tape footer: spot range + biggest OI prints. */
 export function computeTapeSession(rows: NiftyTapeRow[]): {
   spotHi: number;
   spotLo: number;
   maxCallDoi: number;
   maxPutDoi: number;
-  /**
-   * The CUMULATIVE net (put ΔOI − call ΔOI) at the last recorded minute.
-   * The tape's `net` is already a running total vs the baseline, so summing
-   * the column added the same cumulative figure up once per minute — a
-   * meaningless number that grew with the length of the session.
-   */
   netLast: number;
 } {
   let spotHi = -Infinity;
@@ -192,7 +161,6 @@ export function computeTapeSession(rows: NiftyTapeRow[]): {
   };
 }
 
-/** Row fields that participate in the live change-flash. */
 export const TAPE_FLASH_FIELDS = [
   "spot",
   "call_doi",
@@ -205,12 +173,6 @@ export const TAPE_FLASH_FIELDS = [
   "spot_flip",
 ] as const;
 
-/**
- * Compare the previous snapshot against the current rows and report which
- * cells actually moved, keyed by minute (`t`) → set of changed fields. Only
- * rows present in both snapshots can "change" — a brand-new minute is a
- * different event (the row flash), so it never appears here.
- */
 export function computeChangedCells(
   prev: Map<string, NiftyTapeRow>,
   rows: NiftyTapeRow[],
@@ -234,8 +196,6 @@ export function formatTapeBaseline(t: string | null | undefined): string {
   return formatTapeTime(t).slice(0, 5);
 }
 
-/** Earliest chronological row's HH:MM — explicit `tape.baseline_t` wins,
- * otherwise the first row's `t`; null when there is nothing to anchor to. */
 export function getTapeBaseline(tape?: NiftyTape, rows?: NiftyTapeRow[]): string | null {
   const explicit =
     tape?.baseline_t && tape.baseline_t.length > 0
@@ -250,7 +210,6 @@ export function getTapeBaseline(tape?: NiftyTape, rows?: NiftyTapeRow[]): string
   return null;
 }
 
-/** Honest ΔOI label: deltas are measured vs the baseline, not the open. */
 export function tapeDoiLabel(tape?: NiftyTape, rows?: NiftyTapeRow[]): string {
   const baseline = getTapeBaseline(tape, rows);
   return baseline ? `PCR ΔOI since ${baseline}` : "PCR ΔOI since open";
