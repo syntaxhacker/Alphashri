@@ -164,7 +164,7 @@ def _passes_fallback(row: dict[str, Any], spec: dict[str, Any],
             return False
     if spec.get("require_low_de"):
         de = get(row.get("debt_to_equity_fq"))
-        if de is None or de >= 1.0:
+        if de is None or de > 1.0:
             return False
     if spec.get("exclude_negative_fcf"):
         fcf = get(row.get("free_cash_flow_ttm"))

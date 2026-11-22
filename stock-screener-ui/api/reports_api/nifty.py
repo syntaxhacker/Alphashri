@@ -410,7 +410,7 @@ def _fetch_nifty_candles_cached(date_str: str, walkback_days: int = 0) -> list[d
     if hit and now - hit["ts"] < _CANDLES_TTL:
         return hit["data"]
     data = _fetch_nifty_candles(date_str, walkback_days)
-    _candles_cache[key] = {"ts": now, "data": data}
+    _cache_put(_candles_cache, key, {"ts": now, "data": data})
     return data
 
 

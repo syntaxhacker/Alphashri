@@ -181,6 +181,17 @@ def test_sectors_filter_case_insensitive():
     assert apply_filters([make_row()], {"sectors": ["technology", "banks"]}) != []
 
 
+def test_sectors_filter_accepts_comma_separated_query_string():
+    """The UI sends ?sectors=Banks,Technology — never iterate it char-by-char."""
+    bank = make_row(sector="Banks")
+    tech = make_row(sector="Technology")
+    rows = [bank, tech]
+    assert apply_filters(rows, {"sectors": "banks"}) == [bank]
+    assert apply_filters(rows, {"sectors": "Banks, Technology"}) == rows
+    assert apply_filters(rows, {"sectors": "Banks,Energy"}) == [bank]
+    assert apply_filters(rows, {"sectors": "Energy"}) == []
+
+
 def test_bounds_are_inclusive():
     assert apply_filters([make_row(price_earnings_ttm=12.0)], {"max_pe": 12}) != []
     assert apply_filters([make_row(price_earnings_ttm=12.01)], {"max_pe": 12}) == []
