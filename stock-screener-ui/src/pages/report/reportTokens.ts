@@ -115,12 +115,31 @@ export const REPORT_STRIP_CELL_MIN = {
   chipGamma: 196,
 } as const;
 
-/** Flex weights sized to carry the cell minimums above on a 1764px strip. */
+/**
+ * Flex weights **derived** from the cell minimums, never hand-picked.
+ *
+ * They were hand-tuned (3 / 3.1 / 3 / 4.35) against the old, smaller type. When
+ * `04491dea` grew every cell to fit the bigger numerals it left these alone, so
+ * PRICE was allotted 389px while its five cells needed 547 — `Regime` (439→621)
+ * and `Max-OI call` (553→656) overlapped by 68px on the same row.
+ *
+ * Weighting by requirement makes the strip plus its padding correct by
+ * construction: change a cell minimum and the weight follows.
+ */
 export const REPORT_STRIP_GROUP_WEIGHT = {
-  price: 3,
-  walls: 3.1,
-  volatility: 3,
-  flow: 4.35,
+  price: REPORT_STRIP_CELL_MIN.symbol +
+    REPORT_STRIP_CELL_MIN.change +
+    REPORT_STRIP_CELL_MIN.spot +
+    REPORT_STRIP_CELL_MIN.regime +
+    REPORT_STRIP_CELL_MIN.flip,
+  walls: REPORT_STRIP_CELL_MIN.callWall +
+    REPORT_STRIP_CELL_MIN.putWall +
+    REPORT_STRIP_CELL_MIN.pin +
+    REPORT_STRIP_CELL_MIN.maxPain,
+  volatility: REPORT_STRIP_CELL_MIN.pcrOi + REPORT_STRIP_CELL_MIN.pcrVol,
+  // FLOW's cells are conditional (`Show`), so its requirement is the widest one
+  // that renders, not the sum: it must not reserve space for absent chips.
+  flow: REPORT_STRIP_CELL_MIN.chipGamma,
 } as const;
 
 /**
