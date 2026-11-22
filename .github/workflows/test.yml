@@ -12,6 +12,16 @@ on:
       - '.github/workflows/**'
       - 'stock-screener-ui/src/**'
       - 'stock-screener-ui/tests/**'
+      # Python-only changes had NO checks: the filter listed src/ but never the
+      # backend, so an api/**-only PR ran just GitGuardian. Caught when #232
+      # (a one-line dashboard constant) produced no test run at all.
+      - 'stock-screener-ui/api/**'
+      - 'stock-screener-ui/trading/**'
+      - 'stock-screener-ui/chart_patterns/**'
+      - 'stock-screener-ui/backtest/**'
+      - 'stock-screener-ui/db/**'
+      - 'stock-screener-ui/config.py'
+      - 'stock-screener-ui/api_server_fastapi.py'
       # A knip.json edit changes what the unused-code gate considers acceptable,
       # and a test_cases/ edit is a test artefact. Neither triggered CI before,
       # so a PR that touched only those landed with no checks at all.
