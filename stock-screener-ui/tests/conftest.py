@@ -5,6 +5,7 @@ Provides both integration test fixtures (real DB) and unit test fixtures (mocks)
 import pytest
 import uuid
 import json
+import bcrypt
 from pathlib import Path
 from datetime import datetime
 from typing import Generator
@@ -19,6 +20,13 @@ from db.models import User, BotConfig, StrategyConfig
 from fastapi import FastAPI
 from api.auth import hash_password, get_current_user
 from tests.helpers.db import import_all_models
+
+
+def _fixture_hash(password: str) -> str:
+    """Fixture-only bcrypt hash at cost 4; production hashing is untouched."""
+    return bcrypt.hashpw(
+        password.encode("utf-8"), bcrypt.gensalt(rounds=4)
+    ).decode("utf-8")
 
 
 # CI selects unit/API tests with a marker *exclusion* filter, which also has to
@@ -48,23 +56,38 @@ def pytest_collection_modifyitems(items):
                 item.add_marker(pytest.mark.integration)
 
 
-@pytest.fixture(scope="function")
-def test_db_engine():
-    """Create isolated in-memory SQLite database for each test."""
-    from sqlalchemy.pool import StaticPool
-
+@pytest.fixture(scope="session")
+def _schema_template():
+    """Schema-only in-memory engine shared as the clone source for every test."""
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool
     )
-    
     import_all_models()
     Base.metadata.create_all(bind=engine)
-    
     yield engine
-    
-    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def test_db_engine(_schema_template):
+    """Fresh in-memory SQLite database per test, cloned from the shared schema.
+
+    A full SQLite backup of an empty schema is ~3 ms versus ~80-180 ms for
+    ``create_all`` + ``drop_all``. Each test still gets its own connection and
+    database, so direct ``sessionmaker(bind=test_db_engine)`` consumers that
+    commit cannot leak rows into the next test.
+    """
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool
+    )
+    with _schema_template.raw_connection() as src_proxy:
+        with engine.raw_connection() as dst_proxy:
+            src_proxy.driver_connection.backup(dst_proxy.driver_connection)
+    yield engine
     engine.dispose()
 
 
@@ -97,7 +120,10 @@ def test_db(test_db_engine):
 # ============================================================================
 
 @pytest.fixture(scope="function")
-def test_engine():
+def test_engine(_schema_template):
+    # `db` rolls back a connection transaction but a committed session still
+    # writes to the engine, so each test needs its own database. Cloning the
+    # shared schema keeps that isolation without a per-test create_all.
     from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument, Trade, Position, MarketHoliday, Stock52WeekTouch, Screener
 
     engine = create_engine(
@@ -105,9 +131,10 @@ def test_engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool
     )
-    Base.metadata.create_all(bind=engine)
+    with _schema_template.raw_connection() as src:
+        with engine.raw_connection() as dst:
+            src.driver_connection.backup(dst.driver_connection)
     yield engine
-    Base.metadata.drop_all(bind=engine)
     engine.dispose()
 
 
@@ -148,7 +175,7 @@ def auth_client(db: Session) -> TestClient:
 
     test_user = User(
         email="test@example.com",
-        hashed_password=hash_password("TestPassword123!"),
+        hashed_password=_fixture_hash("TestPassword123!"),
         display_name="Test User",
         is_active=True,
         id=1,

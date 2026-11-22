@@ -25,6 +25,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import jwt
+import bcrypt
 import pandas as pd
 import numpy as np
 from fastapi.testclient import TestClient
@@ -50,21 +51,78 @@ from api.auth import (
 )
 
 
+def _install_network_free_news_stubs():
+    """Unconditionally replace news network entry points with deterministic ones.
+
+    This runs before ``api_server_fastapi`` binds the fetch helpers, so even a
+    test that forgets to patch them cannot reach a live site. The real scraper
+    classes are kept: the scraper unit tests exercise their pure helpers.
+    """
+    try:
+        import scrapling.fetchers as _fetchers
+        _fetchers.Fetcher.get = staticmethod(lambda *args, **kwargs: None)
+    except Exception:  # pragma: no cover - scrapling not installed
+        pass
+
+    # news_api lives in the sibling checkout, whose path is otherwise added
+    # later by api.news.news_poller. Add it here so the patches below apply
+    # before api_server_fastapi binds the fetch helpers.
+    import sys as _sys
+    _news_dir = str(ROOT.parent / "moneycontrol-scraper")
+    if _news_dir not in _sys.path:
+        _sys.path.insert(0, _news_dir)
+
+    try:
+        import news_api as _news
+    except Exception:  # pragma: no cover - sibling checkout unavailable
+        return
+
+    _news.fetch_news = lambda *args, **kwargs: []
+    _news.fetch_article_content = lambda url, *args, **kwargs: {
+        "error": "network disabled in tests", "sourceUrl": url,
+    }
+    _aggregator = getattr(_news, "_aggregator", None)
+    if _aggregator is not None:
+        _aggregator.fetch_all = lambda *args, **kwargs: []
+        _aggregator.fetch_from_source = lambda *args, **kwargs: []
+        _aggregator.fetch_article = lambda *args, **kwargs: {
+            "error": "network disabled in tests",
+        }
+
+
+_install_network_free_news_stubs()
+
 from api_server_fastapi import app
 
 
+def _fixture_hash(password: str) -> str:
+    """Fixture-only bcrypt hash at cost 4.
+
+    Production ``hash_password`` (cost 12) is untouched; ``verify_password``
+    reads the cost from the hash, so login assertions still pass. The real
+    hashing path stays covered by tests/api/test_auth.py.
+    """
+    return bcrypt.hashpw(
+        password.encode("utf-8"), bcrypt.gensalt(rounds=4)
+    ).decode("utf-8")
+
+
 @pytest.fixture(scope="function")
-def test_engine():
+def test_engine(_schema_template):
+    # Clone the shared schema instead of running create_all/drop_all per test.
+    # A fresh database per test keeps `db`'s commit semantics isolated: the
+    # fixture's rollback does not undo commits, only discarding the engine does.
     from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument, Trade, Position, MarketHoliday, Stock52WeekTouch, Screener
-    
+
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool
     )
-    Base.metadata.create_all(bind=engine)
+    with _schema_template.raw_connection() as src:
+        with engine.raw_connection() as dst:
+            src.driver_connection.backup(dst.driver_connection)
     yield engine
-    Base.metadata.drop_all(bind=engine)
     engine.dispose()
 
 
@@ -185,7 +243,7 @@ def auth_client(db: Session) -> TestClient:
 
     test_user = User(
         email="test@example.com",
-        hashed_password=hash_password("TestPassword123!"),
+        hashed_password=_fixture_hash("TestPassword123!"),
         display_name="Test User",
         is_active=True,
         id=1,
@@ -238,7 +296,7 @@ def test_user(db: Session, test_user_data: dict) -> User:
     """
     user = User(
         email=test_user_data["email"],
-        hashed_password=hash_password(test_user_data["password"]),
+        hashed_password=_fixture_hash(test_user_data["password"]),
         display_name=test_user_data["display_name"],
         is_active=True,
     )
@@ -257,7 +315,7 @@ def inactive_user(db: Session, test_password: str) -> User:
     """
     user = User(
         email="inactive@example.com",
-        hashed_password=hash_password(test_password),
+        hashed_password=_fixture_hash(test_password),
         display_name="Inactive User",
         is_active=False,
     )
@@ -437,7 +495,7 @@ def multiple_users(db: Session, test_password: str) -> list[User]:
     users = [
         User(
             email=f"user{i}@example.com",
-            hashed_password=hash_password(test_password),
+            hashed_password=_fixture_hash(test_password),
             display_name=f"User {i}",
             is_active=True,
         )

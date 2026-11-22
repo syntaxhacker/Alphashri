@@ -13,13 +13,6 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-if 'news_api' not in sys.modules:
-    news_api_stub = MagicMock()
-    news_api_stub.fetch_article_content = MagicMock()
-    news_api_stub._aggregator = MagicMock()
-    news_api_stub._aggregator.fetch_all = MagicMock(return_value=[])
-    sys.modules['news_api'] = news_api_stub
-
 from api_server_fastapi import app
 from fastapi.testclient import TestClient
 
