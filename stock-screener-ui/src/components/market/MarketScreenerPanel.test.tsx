@@ -2485,3 +2485,91 @@ describe("MarketScreenerPanel — Vis toolbar at phone width (390px)", () => {
   });
 });
 
+describe("MarketScreenerPanel — market breadth strip", () => {
+  const BREADTH_ROWS: MarketRow[] = [
+    row("UP", { change: 2, close: 130, volume: 2000 }),
+    row("DOWN", { change: -1, close: 75, low52w: 75, volume: 1500 }),
+    row("FLAT", { change: 0 }),
+    row("ETF1", { etf: true, change: 9, close: 200 }),
+  ];
+
+  beforeEach(() => {
+    mockUseMarketSnapshot.mockReturnValue(
+      hookResult({
+        rows: BREADTH_ROWS,
+        total: BREADTH_ROWS.length,
+        asOf: "2026-11-22T09:41:00+05:30",
+      }),
+    );
+  });
+
+  test("sits directly below the toolbar and above the view toggle, fixed-height", () => {
+    r(() => <MarketScreenerPanel />);
+    const toolbar = screen.getByTestId("market-toolbar");
+    const breadth = screen.getByTestId("market-breadth");
+    const toggle = screen.getByTestId("market-view-toggle");
+    // The view toggle lives inside the toolbar; the strip is its next sibling.
+    expect(toolbar.contains(toggle)).toBe(true);
+    expect(toolbar.compareDocumentPosition(breadth) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(breadth.parentElement).toBe(toolbar.parentElement);
+    expect(breadth).toHaveClass("flex-shrink-0");
+    expect(screen.getByTestId("market-breadth-as-of")).toHaveTextContent("as of");
+  });
+
+  test("breadth is computed from the full snapshot even after a filter narrows the table", () => {
+    r(() => <MarketScreenerPanel />);
+    expect(screen.getByTestId("market-breadth-rows")).toHaveTextContent("4 (1 ETF excluded)");
+    expect(screen.getByTestId("market-breadth-advances")).toHaveTextContent("1");
+
+    fireEvent.input(screen.getByTestId("market-search"), { target: { value: "UP" } });
+    expect(screen.getByTestId("market-result-count")).toHaveTextContent("1 / 4");
+    expect(screen.getByTestId("market-breadth-rows")).toHaveTextContent("4 (1 ETF excluded)");
+    expect(screen.getByTestId("market-breadth-advances")).toHaveTextContent("1");
+    expect(screen.getByTestId("market-breadth-declines")).toHaveTextContent("1");
+  });
+
+  test("hidden in Movers and Deep Value like the chips row", async () => {
+    r(() => <MarketScreenerPanel />);
+    expect(screen.getByTestId("market-breadth")).toBeInTheDocument();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Movers" }));
+    await screen.findByTestId("screener-dashboard");
+    expect(screen.queryByTestId("market-breadth")).not.toBeInTheDocument();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Deep Value" }));
+    await screen.findByTestId("market-value-region");
+    expect(screen.queryByTestId("market-breadth")).not.toBeInTheDocument();
+  });
+
+  test("hidden for the US universe", async () => {
+    r(() => <MarketScreenerPanel />);
+    expect(screen.getByTestId("market-breadth")).toBeInTheDocument();
+    const combo = screen.getByTestId("market-universe-select").querySelector(
+      '[role="combobox"]',
+    ) as HTMLInputElement;
+    await fireEvent.focus(combo);
+    await fireEvent.mouseDown(await screen.findByRole("option", { name: "USA" }));
+    expect(screen.queryByTestId("market-breadth")).not.toBeInTheDocument();
+  });
+
+  test("loading and empty states come from the snapshot hook", async () => {
+    mockUseMarketSnapshot.mockReturnValue(
+      hookResult({ rows: [], total: 0, snapshot: null, isLoading: true }),
+    );
+    r(() => <MarketScreenerPanel />);
+    expect(screen.getByTestId("market-breadth-loading")).toBeInTheDocument();
+    cleanup();
+
+    mockUseMarketSnapshot.mockReturnValue(
+      hookResult({ rows: [], total: 0, snapshot: null, isLoading: false }),
+    );
+    r(() => <MarketScreenerPanel />);
+    // The empty state appears once config hydration releases the loading gate.
+    await waitFor(() =>
+      expect(screen.getByTestId("market-breadth-empty-text")).toHaveTextContent(
+        "No rows loaded — breadth unavailable",
+      ),
+    );
+  });
+});
+

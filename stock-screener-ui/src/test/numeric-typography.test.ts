@@ -20,8 +20,6 @@ const SRC = join(fileURLToPath(new URL(".", import.meta.url)), "..");
  * Files still to migrate. May only shrink — every entry is known debt.
  */
 const ALLOWLIST = new Set([
-  "pages/report/ReportDeliveryStrip.tsx",
-  "pages/report/EventWatch.tsx",
   "pages/report/NiftyWallsCard.tsx",
   "pages/report/NiftyDepthMap.tsx",
   "components/screener/DashboardView.tsx",

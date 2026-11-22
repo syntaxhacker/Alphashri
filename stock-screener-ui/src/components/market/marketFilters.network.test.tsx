@@ -200,4 +200,24 @@ describe("value filters are local to the cached snapshot", () => {
     expect(mockValueScan.mock.calls).toHaveLength(callsBefore.valueScan);
     expect(mockGetUserConfig.mock.calls).toHaveLength(callsBefore.configGet);
   });
+
+  test("breadth stays on the full snapshot and adds no fetch when a filter narrows the table", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    try {
+      r(() => <MarketScreenerPanel />);
+      await waitFor(() => expect(mockLookupPatterns).toHaveBeenCalled());
+      const snapshotCalls = mockUseMarketSnapshot.mock.calls.length;
+
+      expect(screen.getByTestId("market-breadth-rows")).toHaveTextContent("2");
+      fireEvent.click(screen.getByTestId("market-value-toggle"));
+      fireEvent.input(screen.getByTestId("market-filter-peMax-input"), { target: { value: "15" } });
+
+      expect(screen.getByTestId("market-result-count")).toHaveTextContent("1 / 2");
+      expect(screen.getByTestId("market-breadth-rows")).toHaveTextContent("2");
+      expect(mockUseMarketSnapshot.mock.calls).toHaveLength(snapshotCalls);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });

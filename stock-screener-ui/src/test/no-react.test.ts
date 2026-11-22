@@ -23,8 +23,6 @@ const SELF = fileURLToPath(import.meta.url);
  * fails the guard.
  */
 const ALLOWLIST: string[] = [
-  "pages/report/DailyReportPage.test.tsx",
-  "pages/report/EventWatch.test.tsx",
   "pages/report/NiftyChartPanel.test.tsx",
   "pages/report/NiftyPositionsDrawer.test.tsx",
 ];

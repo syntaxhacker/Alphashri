@@ -76,6 +76,7 @@ import { FilterStatusRow } from "../common/FilterStatusRow";
 import { useTablePrefs } from "../common/useTablePrefs";
 import { ChartDockOutlet } from "../common/ChartDockOutlet";
 import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
+import { MarketBreadthStrip } from "./MarketBreadthStrip";
 import { useSymbolDock } from "../common/symbolDockContext";
 import { useMarketConfig, type MarketConfigValue } from "./useMarketConfig";
 
@@ -944,6 +945,17 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
           </Button>
         </Show>
       </Paper>
+
+      {/* The snapshot hook is the only source for this strip: no extra fetch,
+          and the full rows (not the filtered table) define market breadth.
+          US rows carry no index component, so the India desk strip is hidden. */}
+      <Show when={showMarketChrome() && universe() !== "us"}>
+        <MarketBreadthStrip
+          rows={rows()}
+          asOf={asOf()}
+          isLoading={isLoading() || waitingForConfig()}
+        />
+      </Show>
 
       <Show when={showWarmingHint() && viewMode() !== "value"}>
         <Box

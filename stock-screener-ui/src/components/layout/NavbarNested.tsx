@@ -14,7 +14,6 @@ import {
   IconChartCandle,
   IconAdjustments,
   IconFlask,
-  IconReportAnalytics,
   IconLeaf,
 } from "../common/Icons";
 import { For, Show, createMemo } from "solid-js";
@@ -41,7 +40,6 @@ const navItems = [
   { label: "Sector Analysis", icon: IconBuildingFactory, link: "/sector" },
   { label: "Agri Prices", icon: IconLeaf, link: "/agri" },
   { label: "Patterns", icon: IconChartCandle, link: "/patterns" },
-  { label: "Reports", icon: IconReportAnalytics, link: "/report" },
   { label: "Strategies", icon: IconChartBar, link: "/strategies" },
   { label: "Bots", icon: IconRobot, link: "/bots" },
   { label: "Options", icon: IconChartArea, link: "/options" },
