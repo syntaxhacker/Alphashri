@@ -8,11 +8,3 @@ version: 2
 matches-ignore:
   - name: Finnhub API key (removed from code in 90e6c08)
     hash: c9b3c39c657e019b47974f425b8ad789f24198677b6b7db4052cfc18c48589ef
-
-  # Local seeded QA account password — test-only credential, not a production secret.
-  - name: Local seeded QA test password
-    hash: e97af628deabddcc642d00c9b0fa3c488e54fe9bbe557975e5f45e5c9f04ea82
-
-  # Password placeholder used in the latency contract test before b25ef6ab.
-  - name: Latency contract test password placeholder (b25ef6ab)
-    hash: 43d6d63b060c2e893fe63263b0b7f6fd04f2c16cb05d4036ebc7e21279243b55

@@ -18,8 +18,4 @@ secret:
     - name: "TEST_REFRESH_TOKEN"
       match: "test_refresh_token_12345"
 
-    # Known local seeded QA account password (scripts/seed_qa_data.py, start.sh);
-    # test-only credential, not a production secret. New benchmark code reads it
-    # from BENCH_QA_PASSWORD instead of embedding it.
-    - name: "LOCAL_QA_SEEDED_TEST_PASSWORD"
-      match: "[REDACTED]"
+
