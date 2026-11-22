@@ -56,6 +56,8 @@ class OptionChainSnapshot(Base, IdMixin):
         Index("ix_ocs_underlying_ts", "underlying", "ts"),
         Index("ix_ocs_underlying_expiry_ts", "underlying", "expiry", "ts"),
         Index("ix_ocs_underlying_session_date", "underlying", "session_date"),
+        # Retention/delete scans by ts only (`purge_old_snapshots`).
+        Index("ix_ocs_ts", "ts"),
     )
 
     def to_dict(self) -> dict:
