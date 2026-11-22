@@ -1,7 +1,7 @@
 import { Show, For } from "solid-js";
 import { Box, Modal, Text, Badge, Divider } from "@/ui";
 import type { ValueRow } from "../../api/valueScan";
-import { VALUE_NA, formatValueNum, formatValuePct } from "./valueFormat";
+import { VALUE_NA, formatValueNum, formatValuePct, subscorePercent } from "./valueFormat";
 
 interface ValueDetailDrawerProps {
   row: ValueRow | null;
@@ -80,7 +80,11 @@ export function ValueDetailDrawer(props: ValueDetailDrawerProps) {
                       {s.label}
                     </Text>
                     <Box className="h-1.5 flex-1 overflow-hidden rounded-[2px] bg-fin-border">
-                      <Box className="h-full bg-fin-primary" style={{ width: `${r().subscores[s.key]}%` }} />
+                      <Box
+                          className="h-full bg-fin-primary"
+                          data-testid={`value-detail-sub-bar-${r().symbol}-${s.key}`}
+                          style={{ width: `${subscorePercent(r().subscores[s.key])}%` }}
+                        />
                     </Box>
                     <Text size="xs" fw={600} className="w-7 text-right">
                       {r().subscores[s.key]}

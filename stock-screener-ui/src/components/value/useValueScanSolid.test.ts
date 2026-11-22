@@ -38,7 +38,7 @@ function row(symbol: string, currency = "INR"): ValueRow {
     vs_200dma: 2,
     off_52w_high: -12,
     score: 78,
-    subscores: { value: 80, quality: 75, growth: 70, health: 82 },
+    subscores: { value: 20, quality: 19, growth: 17, health: 22 },
     peer: { bucket: "Banks", pe_median: 11, roe_median: 12, fcf_yield_median: 4 },
     flags: [],
     derived: {

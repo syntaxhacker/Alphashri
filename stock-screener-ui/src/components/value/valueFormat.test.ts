@@ -7,6 +7,7 @@ import {
   formatValueNum,
   formatValuePct,
   formatValuePrice,
+  subscorePercent,
 } from "./valueFormat";
 
 function row(overrides: Partial<ValueRow> = {}): ValueRow {
@@ -41,6 +42,22 @@ describe("formatValueMcap", () => {
     expect(formatValueMcap(row())).toBe("₹331.0B");
     expect(formatValueMcap(row({ currency: "USD" }))).toBe("$331.0B");
     expect(formatValueMcap(row({ currency: null as unknown as string }))).toBe("₹331.0B");
+  });
+});
+
+describe("subscorePercent", () => {
+  it("maps the 0–25 subscore range onto a full bar", () => {
+    expect(subscorePercent(0)).toBe(0);
+    expect(subscorePercent(12.5)).toBe(50);
+    expect(subscorePercent(25)).toBe(100);
+  });
+
+  it("clamps out-of-range and malformed values", () => {
+    expect(subscorePercent(-1)).toBe(0);
+    expect(subscorePercent(999)).toBe(100);
+    expect(subscorePercent(Number.NaN)).toBe(0);
+    expect(subscorePercent(undefined)).toBe(0);
+    expect(subscorePercent(null)).toBe(0);
   });
 });
 

@@ -1,7 +1,7 @@
 import { For, createMemo } from "solid-js";
 import { Box, Badge, Tooltip, Text } from "@/ui";
 import type { ValuePeer, ValueSubscores } from "../../api/valueScan";
-import { formatValueMedian } from "./valueFormat";
+import { formatValueMedian, subscorePercent } from "./valueFormat";
 
 interface ValueScoreCellProps {
   score: number;
@@ -37,6 +37,8 @@ export function ValueScoreCell(props: ValueScoreCellProps) {
         <Badge size="xs" color={scoreColor(props.score)} data-testid={`value-score-chip-${props.symbol}`}>
           {Math.round(props.score)}
         </Badge>
+        {/* Four bars share one dense table row; stacking horizontal bars would
+            double its height. The tooltip carries the exact numbers. */}
         <Box className="flex items-center gap-[2px]" aria-hidden>
           <For each={BAR_KEYS}>
             {(k) => (
@@ -45,7 +47,8 @@ export function ValueScoreCell(props: ValueScoreCellProps) {
               >
                 <Box
                   className="absolute bottom-0 left-0 right-0 bg-fin-primary"
-                  style={{ height: `${Math.max(0, Math.min(100, sub()[k]))}%` }}
+                  data-testid={`value-score-bar-${props.symbol}-${k}`}
+                  style={{ height: `${subscorePercent(sub()[k])}%` }}
                 />
               </Box>
             )}

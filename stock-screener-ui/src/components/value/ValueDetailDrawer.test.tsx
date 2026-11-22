@@ -35,7 +35,7 @@ function row(overrides: Partial<ValueRow> = {}): ValueRow {
     vs_200dma: 1.5,
     off_52w_high: -14,
     score: 81,
-    subscores: { value: 84, quality: 78, growth: 76, health: 85 },
+    subscores: { value: 21, quality: 20, growth: 18, health: 22 },
     peer: { bucket: "Energy", pe_median: 19.4, roe_median: 11.2, fcf_yield_median: 4.1 },
     flags: ["LOW_PE"],
     derived: {
@@ -110,5 +110,32 @@ describe("ValueDetailDrawer dismissal (real @/ui)", () => {
 
     await fireEvent.click(screen.getByTestId("value-detail-RELIANCE"));
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe("ValueDetailDrawer subscore bars", () => {
+  test("maps the 0–25 range to the full bar width and clamps malformed values", () => {
+    render(() => (
+      <UIProvider>
+        <ValueDetailDrawer
+          row={row({
+            subscores: {
+              value: 25,
+              quality: 0,
+              growth: 12.5,
+              health: Number.NaN,
+            },
+          })}
+          onClose={vi.fn()}
+        />
+      </UIProvider>
+    ));
+
+    const width = (key: string): string =>
+      (screen.getByTestId(`value-detail-sub-bar-RELIANCE-${key}`) as HTMLElement).style.width;
+    expect(width("value")).toBe("100%");
+    expect(width("quality")).toBe("0%");
+    expect(width("growth")).toBe("50%");
+    expect(width("health")).toBe("0%");
   });
 });

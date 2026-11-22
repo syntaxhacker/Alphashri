@@ -21,6 +21,18 @@ const VALUE_DASH = "–";
 /** Glyph the drawer and the score cell print for a missing value. */
 export const VALUE_NA = "n/a";
 
+/** `api/value_scan/scoring.py::_clamp25` caps each sub-score at 25; the four sum to 0–100. */
+export const SUBSCORE_MAX = 25;
+
+/**
+ * Convert a 0–25 sub-score to a bar fill percentage. Clamping and the finite
+ * check keep a malformed payload from overflowing or blanking a bar with NaN.
+ */
+export function subscorePercent(value: number | null | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return (Math.max(0, Math.min(SUBSCORE_MAX, value)) / SUBSCORE_MAX) * 100;
+}
+
 /**
  * Signed percentage — `+1.2%` / `-0.8%` / `0.0%`.
  * A missing value prints `dash`.
