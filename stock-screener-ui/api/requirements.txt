@@ -24,7 +24,7 @@ upstox-python-sdk>=2.30.0
 # TradingView screener
 tradingview-screener>=2.0.0
 rich>=13.0.0
-scrapling>=0.4.0
+scrapling[fetchers]>=0.4.0
 curl_cffi>=0.5.0
 playwright>=1.40.0
 browserforge>=1.0.0

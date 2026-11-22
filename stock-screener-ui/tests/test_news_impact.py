@@ -11,6 +11,8 @@ import pytest
 
 from api.news import news_impact
 
+pytestmark = pytest.mark.unit
+
 
 class _Resp:
     def __init__(self, status_code=200, payload=None):

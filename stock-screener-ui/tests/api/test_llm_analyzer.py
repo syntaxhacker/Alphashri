@@ -8,6 +8,7 @@ Test cases cover:
 """
 import sys
 import os
+import json
 from pathlib import Path
 from unittest.mock import patch
 import pytest
@@ -15,12 +16,14 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-# ``preciz`` is an optional git dependency (api/requirements.txt). Without it
-# the import below raises at COLLECTION time, which aborts the whole backend
-# run - not just this module. Skip cleanly where it is not installed.
-pytest.importorskip("preciz", reason="optional agent SDK (git dep) not installed")
+pytestmark = pytest.mark.unit
 
-from llm_analyzer import ArticleAnalyzer
+from llm_analyzer import (
+    ArticleAnalyzer,
+    DEFAULT_OPENROUTER_MODEL,
+    _call_llm_json,
+    _extract_json_object,
+)
 
 @pytest.fixture
 def analyzer_db(tmp_path):
@@ -29,6 +32,63 @@ def analyzer_db(tmp_path):
     analyzer = ArticleAnalyzer(db_path=str(db_file))
     yield analyzer
     # cleanup handled by tmp_path
+
+
+class _Resp:
+    def __init__(self, status_code=200, payload=None):
+        self.status_code = status_code
+        self._payload = payload
+        self.text = json.dumps(payload) if payload is not None else ""
+
+    def json(self):
+        if self._payload is None:
+            raise ValueError("not json")
+        return self._payload
+
+
+class TestOpenRouterClient:
+    def test_default_model_is_the_requested_free_model(self):
+        assert DEFAULT_OPENROUTER_MODEL == "inclusionai/ling-3.2-flash:free"
+
+    def test_extract_json_object_tolerates_fences_and_prose(self):
+        expected = {"summary": "ok", "sentiment": "NEUTRAL"}
+        raw = json.dumps(expected)
+        assert _extract_json_object(raw) == expected
+        assert _extract_json_object(f"```json\n{raw}\n```") == expected
+        assert _extract_json_object(f"Here you go:\n{raw}\nDone") == expected
+        assert _extract_json_object("not json") is None
+
+    def test_falls_back_to_ernie_when_primary_is_rate_limited(self):
+        calls = []
+
+        def _post(url, headers=None, json=None, timeout=None):
+            calls.append(json["model"])
+            if len(calls) == 1:
+                return _Resp(429, {"error": "rate limited"})
+            return _Resp(
+                200,
+                {
+                    "choices": [{"message": {"content": '{"summary":"ok"}'}}],
+                    "usage": {"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7},
+                },
+            )
+
+        with patch("llm_analyzer.requests.post", side_effect=_post):
+            out = _call_llm_json([{"role": "user", "content": "hi"}])
+
+        assert calls[0] == "inclusionai/ling-3.2-flash:free"
+        assert calls[1] == "baidu/ernie-5.5-flash-preview:free"
+        assert out["summary"] == "ok"
+        assert out["_usage"]["total_tokens"] == 7
+
+    def test_raises_after_all_models_fail(self):
+        with patch(
+            "llm_analyzer.requests.post",
+            return_value=_Resp(500, {"error": "down"}),
+        ):
+            with pytest.raises(RuntimeError, match="HTTP 500"):
+                _call_llm_json([{"role": "user", "content": "hi"}])
+
 
 class TestArticleAnalyzer:
     def test_cache_initialization(self, analyzer_db):
