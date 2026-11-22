@@ -40,6 +40,11 @@ unmeasured work is marked **in progress**.
   resize no longer triggers a full ECharts relayout/recolour (60-tile fixture:
   **+1 setOption and +60 tile recolours → 0**). Real label-changing resizes
   still repaint. 11 heatmap performance tests pass.
+- **TradingView single-source:** shared `api.tv.cache` gateway (TTL +
+  single-flight) serves dashboard, sector groups and rotation. Cold
+  groups+rotation scans **2 → 1**; symbol-search repeats **5 → 1** and
+  8 concurrent searches **8 → 1**. Sector `/` and heatmap keep intentionally
+  distinct descriptors. Field aliases now resolve known TV name drift.
 - **Report endpoints:** profitability/options-report read paths de-duplicated.
   `compute_report` cold **245.3ms → 87.5ms median (~2.8×)**; eager date
   formatting **331.9ms → 24–33ms (~10–13×)**; repeated tape reads
