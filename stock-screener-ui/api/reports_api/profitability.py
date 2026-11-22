@@ -236,7 +236,7 @@ def _signal_at(
 
 
 def _frame_to_lists(df: Any) -> Optional[dict]:
-    """Daily frame -> column lists + date labels. None when unusable."""
+    """Daily frame -> column lists + raw index. None when unusable."""
     try:
         if df is None or getattr(df, "empty", True):
             return None

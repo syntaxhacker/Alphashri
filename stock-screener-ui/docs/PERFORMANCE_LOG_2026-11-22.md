@@ -40,8 +40,11 @@ unmeasured work is marked **in progress**.
   resize no longer triggers a full ECharts relayout/recolour (60-tile fixture:
   **+1 setOption and +60 tile recolours → 0**). Real label-changing resizes
   still repaint. 11 heatmap performance tests pass.
-- **Report endpoints:** profitability/options-report read paths de-duplicated;
-  61 targeted tests pass.
+- **Report endpoints:** profitability/options-report read paths de-duplicated.
+  `compute_report` cold **245.3ms → 87.5ms median (~2.8×)**; eager date
+  formatting **331.9ms → 24–33ms (~10–13×)**; repeated tape reads
+  **24.31ms → 0.03ms** via an mtime/size cache. 61 targeted tests pass; warm
+  profitability benchmark PASS.
 
 ## Final state at 19:12 IST
 
