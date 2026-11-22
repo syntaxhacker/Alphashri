@@ -27,6 +27,21 @@ import {
 } from "./NiftyTapeTable";
 import type { NiftyTape, NiftyTapeRow } from "@/types/niftyReport";
 
+// Count tape sorts without changing behaviour: the wrapper forwards to the
+// real sorter. Guards the per-tick budget (seven derivations used to sort the
+// same snapshot independently).
+const perf = vi.hoisted(() => ({ ascSorts: 0 }));
+vi.mock("./tapeRange", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./tapeRange")>();
+  return {
+    ...actual,
+    ascTapeByTime: (rows: Parameters<typeof actual.ascTapeByTime>[0]) => {
+      perf.ascSorts += 1;
+      return actual.ascTapeByTime(rows);
+    },
+  };
+});
+
 vi.mock("@/components/common/states", () => ({ InlineLoader: () => null }));
 
 function r(ui: () => JSX.Element) {
@@ -572,6 +587,36 @@ describe("tape burst spine", () => {
     r(() => <NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} />);
     const legend = screen.getByTestId("nifty-tape-heat-legend");
     expect(within(legend).getByTestId("nifty-tape-burst-legend")).toHaveTextContent("burst minute");
+  });
+});
+
+describe("tape sort budget", () => {
+  function manyRows(n: number): NiftyTapeRow[] {
+    return Array.from({ length: n }, (_, i) => {
+      const min = 9 * 60 + 15 + i;
+      const t = `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+      return tapeRow({ t, spot: 25_000 + i, call_doi: i, put_doi: -i, net: i });
+    }).reverse(); // worst case for a stable ascending sort
+  }
+
+  test("one tape sort per snapshot, not one per derivation", () => {
+    vi.useFakeTimers();
+    try {
+      perf.ascSorts = 0;
+      const [feed, setFeed] = createSignal(manyRows(240));
+      r(() => <NiftyTapeTable rows={feed()} />);
+      expect(perf.ascSorts).toBe(1);
+
+      // A tick with a fresh-but-equivalent array (one non-flash field revised)
+      // still recomputes every derivation — but sorts the rows only once.
+      perf.ascSorts = 0;
+      const next = manyRows(240);
+      next[0] = { ...next[0], pcr_vol: 1.23 };
+      setFeed(next);
+      expect(perf.ascSorts).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
