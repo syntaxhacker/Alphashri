@@ -1,19 +1,21 @@
 import os
+import re
 import json
 import hashlib
 import sqlite3
 import time
 from typing import Dict, Any, Optional, List
-import config
-from preciz import _call_llm_json
 
-# Best free OpenRouter model (550B reasoning, 1M ctx, $0). Free `:free` IDs
-# rotate, so the news poller retries a fallback list — see
-# api/news/news_impact.py:FALLBACK_MODELS.
-DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+import requests
+
+import config
+from news_llm_config import DEFAULT_MODEL, OPENROUTER_URL, model_candidates
+
+DEFAULT_OPENROUTER_MODEL = DEFAULT_MODEL
 
 OPENROUTER_PRICING = {
     DEFAULT_OPENROUTER_MODEL: {"prompt": 0, "completion": 0},
+    "baidu/ernie-5.5-flash-preview:free": {"prompt": 0, "completion": 0},
     "nvidia/nemotron-3.5-lightning:free": {"prompt": 0, "completion": 0},
     "thinkingmachines/inkling:free": {"prompt": 0, "completion": 0},
     "openrouter/owl-alpha": {"prompt": 0, "completion": 0},
@@ -27,6 +29,90 @@ OPENROUTER_PRICING = {
     "meta-llama/llama-3.1-70b-instruct": {"prompt": 0.52, "completion": 0.75},
     "meta-llama/llama-3.1-8b-instruct": {"prompt": 0.06, "completion": 0.06},
 }
+
+_JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def _extract_json_object(text: str) -> Optional[Dict[str, Any]]:
+    """First JSON object in a model reply, tolerating fences and prose."""
+    if not text:
+        return None
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
+        cleaned = re.sub(r"\n?```$", "", cleaned).strip()
+    try:
+        parsed = json.loads(cleaned)
+        return parsed if isinstance(parsed, dict) else None
+    except ValueError:
+        pass
+    match = _JSON_OBJECT_RE.search(cleaned)
+    if not match:
+        return None
+    try:
+        parsed = json.loads(match.group(0))
+        return parsed if isinstance(parsed, dict) else None
+    except ValueError:
+        return None
+
+
+def _call_llm_json(
+    messages: list[dict[str, str]],
+    model: Optional[str] = None,
+    timeout: float = 90.0,
+) -> Dict[str, Any]:
+    """Call OpenRouter free models and return the first valid JSON object.
+
+    The old implementation imported ``preciz``, an optional SDK that is not
+    installed in this deployment; that made the whole news analyzer unavailable.
+    Free model IDs rotate, so every candidate is tried in order and the last
+    failure is surfaced only after all of them fail.
+    """
+    api_key = getattr(config, "OPENROUTER_API_KEY", None)
+    if not api_key:
+        raise RuntimeError("OPENROUTER_API_KEY not set")
+
+    last_error = "no OpenRouter model candidates configured"
+    for candidate in model_candidates(model):
+        body = {
+            "model": candidate,
+            "messages": messages,
+            "temperature": 0,
+        }
+        try:
+            resp = requests.post(
+                OPENROUTER_URL,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://alphashri.local",
+                    "X-Title": "Alphashri news analyzer",
+                },
+                json=body,
+                timeout=timeout,
+            )
+        except requests.RequestException as exc:
+            last_error = f"{candidate}: {exc}"
+            continue
+        if resp.status_code != 200:
+            last_error = f"{candidate}: HTTP {resp.status_code} {resp.text[:160]}"
+            continue
+        try:
+            payload = resp.json()
+            content = payload["choices"][0]["message"]["content"]
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
+            last_error = f"{candidate}: unparseable envelope ({exc})"
+            continue
+        parsed = _extract_json_object(content)
+        if parsed is None:
+            last_error = f"{candidate}: no JSON object in reply"
+            continue
+        usage = payload.get("usage")
+        if isinstance(usage, dict):
+            parsed["_usage"] = usage
+        return parsed
+    raise RuntimeError(last_error)
+
 
 class ArticleAnalyzer:
     """Class to analyze financial news articles using OpenRouter LLMs with SQLite caching."""

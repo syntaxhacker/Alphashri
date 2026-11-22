@@ -77,7 +77,6 @@ jobs:
           cd stock-screener-ui
           uv run --python 3.12 pytest -o addopts="" --collect-only -q \
             -m "unit and not slow" \
-            --ignore=tests/api/test_llm_analyzer.py 2>/dev/null \
             | grep '::' > /tmp/all-tests.txt
           awk -v s=${{ matrix.shard }} -v n=6 '((NR-1) % n) == (s-1)' /tmp/all-tests.txt > /tmp/shard.txt
           echo "shard ${{ matrix.shard }}/6: $(wc -l < /tmp/shard.txt) of $(wc -l < /tmp/all-tests.txt) tests"
