@@ -301,6 +301,48 @@ class TestNormalizeOhlcv:
         assert fast_hits == full_hits
         assert fast_hits == plain_hits
 
+    def test_repeated_normalization_returns_equal_independent_frames(self):
+        # The normalization memo must return a fresh defensive copy on every
+        # hit: callers may mutate the result without corrupting the template
+        # or a previous result.
+        F._NORM_CACHE.clear()
+        df = make_frame([100.0, 101.0, 102.0, 103.0])
+        first = F.normalize_ohlcv(df)
+        second = F.normalize_ohlcv(df)
+        third = F.normalize_ohlcv(df)
+        assert first is not df and second is not df
+        assert first is not second and second is not third
+        pd.testing.assert_frame_equal(first, second)
+        pd.testing.assert_frame_equal(second, third)
+        first.iloc[0, first.columns.get_loc("close")] = -1.0
+        assert df["close"].iloc[0] == pytest.approx(100.0)
+        assert second["close"].iloc[0] == pytest.approx(100.0)
+
+    def test_normalization_memo_invalidated_by_in_place_edit(self):
+        F._NORM_CACHE.clear()
+        df = make_frame([100.0, 101.0, 102.0])
+        assert F.normalize_ohlcv(df)["close"].tolist() == [100.0, 101.0, 102.0]
+        df.loc[:, "close"] = [200.0, 201.0, 202.0]
+        edited = F.normalize_ohlcv(df)
+        # A fresh source object with the same values has no memo entry, so it
+        # recomputes; the edited frame must match that fresh result.
+        pd.testing.assert_frame_equal(edited, F.normalize_ohlcv(df.copy()))
+        assert edited["close"].tolist() == [200.0, 201.0, 202.0]
+
+    def test_normalization_memo_invalidated_by_column_reassignment(self):
+        F._NORM_CACHE.clear()
+        df = make_frame([100.0, 101.0, 102.0])
+        F.normalize_ohlcv(df)
+        df["close"] = [7.0, 8.0, 9.0]
+        assert F.normalize_ohlcv(df)["close"].tolist() == [7.0, 8.0, 9.0]
+
+    def test_normalization_memo_is_scoped_per_frame(self):
+        F._NORM_CACHE.clear()
+        a = make_frame([100.0, 101.0])
+        b = make_frame([200.0, 201.0])
+        assert F.normalize_ohlcv(a)["close"].tolist() == [100.0, 101.0]
+        assert F.normalize_ohlcv(b)["close"].tolist() == [200.0, 201.0]
+
 
 
 

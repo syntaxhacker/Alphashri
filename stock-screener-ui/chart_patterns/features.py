@@ -56,6 +56,92 @@ class _FrameEntry:
 _FRAME_CACHE: "OrderedDict[int, _FrameEntry]" = OrderedDict()
 
 
+# ``normalize_ohlcv`` produces a defensive copy, so every call allocates a
+# fresh frame. That is correct for callers (they mutate the result), but it
+# means repeated normalization of the *same* source — the scan path normalizes
+# once for detection and again for trendlines; live API reads normalize again
+# — pays the full validation/copy cost each time and throws away the frame
+# memo. This store caches the normalized template by source-frame identity,
+# keyed by a cheap fingerprint so an in-place edit (or a recycled ``id``)
+# misses rather than serving stale data. Hits still return a fresh defensive
+# copy; only the template is hidden, never handed to a caller.
+_NORM_CACHE_MAX = 32
+
+
+class _NormEntry:
+    __slots__ = ("ref", "fingerprint", "template")
+
+    def __init__(self, fingerprint: tuple, template: pd.DataFrame) -> None:
+        self.ref = None
+        self.fingerprint = fingerprint
+        self.template = template
+
+
+_NORM_CACHE: "OrderedDict[int, _NormEntry]" = OrderedDict()
+
+
+def _norm_fingerprint(df: pd.DataFrame) -> tuple | None:
+    """Fingerprint of everything the normalization fast path reads.
+
+    Returns ``None`` for frames that cannot be hashed as a float block (the
+    full coercion path is left uncached). ``hash(bytes)`` is O(columns*rows)
+    in C, far cheaper than the pandas Series construction it replaces.
+    """
+    try:
+        columns = tuple(str(c) for c in df.columns)
+        values = df.to_numpy(dtype=float, copy=False)
+        if values.dtype != np.float64:
+            return None
+        index = df.index
+        raw = getattr(index, "asi8", None)
+        index_sig = hash(raw.tobytes()) if raw is not None else hash(tuple(index))
+        return (columns, len(df), index_sig, hash(values.tobytes()))
+    except Exception:
+        return None
+
+
+def _norm_dropper(key: int, entry: _NormEntry):
+    def _drop(_ref) -> None:
+        if _NORM_CACHE.get(key) is entry:
+            _NORM_CACHE.pop(key, None)
+
+    return _drop
+
+
+def _norm_lookup(df: pd.DataFrame, fingerprint: tuple) -> _NormEntry | None:
+    try:
+        key = id(df)
+    except Exception:
+        return None
+    entry = _NORM_CACHE.get(key)
+    if (
+        entry is not None
+        and entry.ref is not None
+        and entry.ref() is df
+        and entry.fingerprint == fingerprint
+    ):
+        return entry
+    return None
+
+
+def _norm_store(df: pd.DataFrame, fingerprint: tuple, template: pd.DataFrame) -> None:
+    try:
+        key = id(df)
+    except Exception:
+        return
+    entry = _NormEntry(fingerprint, template)
+    try:
+        entry.ref = weakref.ref(df, _norm_dropper(key, entry))
+    except TypeError:
+        return
+    _NORM_CACHE[key] = entry
+    if len(_NORM_CACHE) > _NORM_CACHE_MAX:
+        try:
+            _NORM_CACHE.popitem(last=False)
+        except KeyError:
+            pass
+
+
 def _frame_token(df: pd.DataFrame) -> tuple | None:
     """Shape + index-edge fingerprint used to reject a recycled ``id``.
 
@@ -173,9 +259,16 @@ def normalize_ohlcv(df: pd.DataFrame | None) -> pd.DataFrame | None:
     if not isinstance(df, pd.DataFrame) or df.empty:
         return None
 
+    fingerprint = _norm_fingerprint(df)
+    cached = _norm_lookup(df, fingerprint) if fingerprint is not None else None
+    if cached is not None:
+        return cached.template.copy()
+
     fast = _normalized_copy(df)
     if fast is not None:
-        return fast
+        if fingerprint is not None:
+            _norm_store(df, fingerprint, fast)
+        return fast.copy()
 
     out = df.copy()
     out.columns = [str(c).lower() for c in out.columns]
