@@ -56,8 +56,12 @@ import type { ReplayCandle } from "@/types/replay";
  */
 export {
   buildMarkLines,
+  candlePriceRange,
   emaSeries,
   labelGapPctFor,
+  levelBelongsToScale,
+  levelsWithinScale,
+  mergeCollidingLabels,
   resampleCandles,
 } from "./niftyChartMath";
 export {
