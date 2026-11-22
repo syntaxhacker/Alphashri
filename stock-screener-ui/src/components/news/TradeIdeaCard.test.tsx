@@ -4,7 +4,7 @@ import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { TradeIdeaCard } from "./TradeIdeaCard";
 import type { TradeIdea } from "./news-types";
-import { TestWrapper } from "../../test/test-utils";
+import { TestWrapper } from "@/test-utils/renderWithProviders";
 
 describe("TradeIdeaCard", () => {
   const baseIdea: TradeIdea = {

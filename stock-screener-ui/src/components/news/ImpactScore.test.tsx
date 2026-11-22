@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import { TestWrapper } from "../../test/test-utils";
+import { TestWrapper } from "@/test-utils/renderWithProviders";
 import { ImpactScore } from "./ImpactScore";
 
 describe("ImpactScore", () => {

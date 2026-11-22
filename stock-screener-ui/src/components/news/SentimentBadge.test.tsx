@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { SentimentBadge } from "./SentimentBadge";
-import { TestWrapper } from "../../test/test-utils";
+import { TestWrapper } from "@/test-utils/renderWithProviders";
 
 describe("SentimentBadge", () => {
   beforeEach(() => {

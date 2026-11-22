@@ -4,7 +4,7 @@ import { render, screen, cleanup } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import "@testing-library/jest-dom/vitest";
 import { NewsListContent } from "./NewsHelpers";
-import { TestWrapper } from "../../test/test-utils";
+import { TestWrapper } from "@/test-utils/renderWithProviders";
 import type { NewsItem } from "./news-types";
 
 const SOURCES = ["Reuters", "Bloomberg", "Moneycontrol", "Economic Times", "Mint", "CNBC"];
