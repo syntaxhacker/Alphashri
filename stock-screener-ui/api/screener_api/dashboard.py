@@ -25,8 +25,9 @@ rupees before paneling).
 
 Fail-soft: any error returns ``{sections: []}`` (never 500). A small
 in-process TTL cache (60 s) keyed by (universe, limit, min_market_cap_cr)
-avoids rebuilding panels, and the upstream TV frame is cached once by its
-query and shared across every universe and filter combo. A background
+avoids rebuilding panels, and the upstream TV frame is cached by the shared
+``api.tv.cache`` (one descriptor, one scan per window) across every universe
+and filter combo. A background
 ``dashboard_prewarm_task`` (same pattern as ``watch_snapshot_task``) keeps
 the default universe(s) warm every ~60 s in market hours.
 """
@@ -36,7 +37,6 @@ from __future__ import annotations
 import asyncio
 import math
 import re
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -45,7 +45,8 @@ from typing import Any, Optional
 from fastapi import APIRouter, Query
 
 from api.utils import _sanitize_for_json
-from api.tv import get_scanner_data, SCREENER_COLUMNS
+from api.tv import SCREENER_COLUMNS
+from api.tv.cache import FrameDescriptor, invalidate, scan_frame_cached
 
 router = APIRouter(prefix="/api/screener", tags=["screener"])
 
@@ -67,12 +68,12 @@ TV_LIMIT = 4000
 
 _cache: dict[str, tuple[float, dict]] = {}
 
-# The scanner query is the full India frame for every universe and every set
-# of UI filters. Cache it by the query, not by the request's cache key, so
-# prewarm and all filter variants share one upstream scan per TTL window.
-_FRAME_CACHE_KEY = "india-tv-frame"
-_frame_cache: dict[str, tuple[float, Any]] = {}
-_frame_cache_lock = threading.Lock()
+# The full India frame is the same scan for every universe and every set of UI
+# filters. The shared api.tv.cache owns its TTL/LRU/singleflight; this module
+# only names the query so prewarm and all filter variants hit the same entry.
+_INDIA_FRAME = FrameDescriptor(
+    market="india", columns=TV_FIELDS, limit=TV_LIMIT,
+)
 
 
 def logo_url(logoid: Any) -> Optional[str]:
@@ -132,39 +133,6 @@ def _row_symbol(row: dict) -> str:
     if ":" in ticker:
         ticker = ticker.split(":")[-1]
     return ticker
-
-
-def _fetch_tv_frame() -> Any:
-    from tradingview_screener import Query
-
-    q = (
-        Query()
-        .select(*TV_FIELDS)
-        .set_markets("india")
-        .limit(TV_LIMIT)
-    )
-    _, df = get_scanner_data(q)
-    return df
-
-
-def _get_tv_frame() -> Any:
-    """Return the shared India TV frame, scanning at most once per TTL window.
-
-    ``_fetch_tv_frame`` runs the same full-market query for every dashboard
-    request; universe and the cap/limit gates are Python-side filters applied
-    later. The lock closes the gap between prewarm and on-demand callers so a
-    cold window produces exactly one upstream scan.
-    """
-    hit = _frame_cache.get(_FRAME_CACHE_KEY)
-    if hit and time.time() - hit[0] < CACHE_TTL_SECONDS:
-        return hit[1]
-    with _frame_cache_lock:
-        hit = _frame_cache.get(_FRAME_CACHE_KEY)
-        if hit and time.time() - hit[0] < CACHE_TTL_SECONDS:
-            return hit[1]
-        frame = _fetch_tv_frame()
-        _frame_cache[_FRAME_CACHE_KEY] = (time.time(), frame)
-        return frame
 
 
 def _fetch_sparks(symbols: list[str]) -> dict[str, list[float]]:
@@ -587,7 +555,8 @@ async def run_dashboard_prewarm_once(
             from chart_patterns.universes import get_universe
 
             allowed = {str(s).upper() for s in get_universe(uid)}
-            df = await asyncio.to_thread(_get_tv_frame)
+            df = await asyncio.to_thread(
+                scan_frame_cached, _INDIA_FRAME, CACHE_TTL_SECONDS)
             records = _frame_to_records(df, allowed)
             floor = float(min_market_cap_cr) * 1e7
             records = [
@@ -659,7 +628,8 @@ async def screener_dashboard(
         from chart_patterns.universes import get_universe
 
         allowed = {str(s).upper() for s in get_universe(uid)}
-        df = await asyncio.to_thread(_get_tv_frame)
+        df = await asyncio.to_thread(
+            scan_frame_cached, _INDIA_FRAME, CACHE_TTL_SECONDS)
         records = _frame_to_records(df, allowed)
         floor = float(min_market_cap_cr) * 1e7
         records = [
@@ -676,6 +646,6 @@ async def screener_dashboard(
 
 
 def clear_cache() -> None:
-    """Test hook: drop the in-process TTL caches."""
+    """Test hook: drop the payload cache and the shared India frame."""
     _cache.clear()
-    _frame_cache.clear()
+    invalidate(_INDIA_FRAME)
