@@ -14,14 +14,14 @@ import {
   TEXT_MUTED,
 } from "@/ui/palette";
 import { contrastRatio, parseColor, pickTextColor } from "@/utils/contrast";
-import { REPORT_FONT } from "./reportTokens";
+import { REPORT_FONT, REPORT_RADIUS } from "./reportTokens";
 import { DeskDock } from "./DeskDock";
 import type { DeskDockTab } from "./DeskDock";
 import { NiftyCoilGauge } from "./NiftyCoilGauge";
 import type { NiftyRegimeBlock } from "@/types/niftyReport";
 
 const HERE = join(process.cwd(), "src/pages/report");
-const FLOOR = 11;
+const FLOOR = REPORT_FONT.micro;
 const AA_TEXT = 4.5;
 const AA_GRAPHIC = 3;
 
@@ -73,7 +73,7 @@ const FIN_TOKEN: Record<string, string> = {
 afterEach(cleanup);
 
 describe("Index Report typography floor — owned files", () => {
-  test("(a) no font-size below 11px in any owned file", () => {
+  test(`(a) no font-size below ${FLOOR}px in any owned file`, () => {
     const offenders = literalSizes().filter(({ px }) => px < FLOOR);
     expect(
       offenders.map(({ file, line, px }) => `${file}:${line} = ${px}px`),
@@ -81,18 +81,25 @@ describe("Index Report typography floor — owned files", () => {
     ).toEqual([]);
   });
 
-  test("(e) the type scale stays closed — canonical ladder plus the dense-table step", () => {
+  test("display is the DS Title xl 24px, with no private 23px verdict", () => {
+    expect(REPORT_FONT.display).toBe(24);
+    expect(REPORT_FONT.verdict).toBe(REPORT_FONT.display);
+  });
+
+  test("radii come only from the terminal 2/4/6/10 vocabulary", () => {
+    expect(Object.values(REPORT_RADIUS).filter((v) => typeof v === "number")).toEqual([2, 4, 6, 10]);
+  });
+
+  test("(e) the type scale stays closed — one 12/13/17/24 ladder", () => {
     const tokens = Object.entries(REPORT_FONT)
       .filter(([, value]) => typeof value === "number")
       .map(([, value]) => value as number);
     const sizes = new Set([...tokens, ...literalSizes().map(({ px }) => px)]);
 
-    // The canonical ladder is REPORT_FONT's micro 11 / body 13 / value 17 /
-    // display 23. 12px survives only as the dense-table step (OI chain
-    // expander, pressure-desk readouts), so the owned files may emit one size
-    // beyond the ladder — never a sixth, and never anything new.
-    const DENSE_TABLE_STEP = 12;
-    const ladder = [...new Set([...tokens, DENSE_TABLE_STEP])].sort((a, b) => a - b);
+    // The canonical ladder is REPORT_FONT's micro 12 / body 13 / value 17 /
+    // display 24. 12 is the shared floor now, not a sixth dense-table step, so
+    // an owned file cannot emit a size outside the ladder.
+    const ladder = [...new Set(tokens)].sort((a, b) => a - b);
 
     expect([...sizes].sort((a, b) => a - b)).toEqual(ladder);
     expect(sizes.size).toBeLessThanOrEqual(ladder.length);

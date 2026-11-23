@@ -6,6 +6,7 @@ import { LocalCompactPanel, LocalCompactStat, LocalEmptyState } from "./reportBi
 import * as palette from "@/ui/palette";
 import { gexFlipAtSpot } from "./niftyGex";
 import type { NiftyGex, NiftyTape, NiftyTapeRow, NiftyWall } from "@/types/niftyReport";
+import { REPORT_RADIUS } from "./reportTokens";
 
 /**
  * "Cumulative net gamma" panel — the intraday trajectory of dealer net gamma
@@ -286,7 +287,7 @@ export function NiftyGammaTime(props: NiftyGammaTimeProps) {
         "background-color": palette.TERM_BG,
         "border": `1px solid ${palette.TERM_BORDER}`,
         "border-color": palette.TERM_BORDER,
-        "border-radius": "8px",
+        "border-radius": `${REPORT_RADIUS.md}px`,
       }}
     >
       {/* Tight column + tight stat row: plain grids instead of

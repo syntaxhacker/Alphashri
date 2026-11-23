@@ -8,12 +8,12 @@ import type { JSX } from "solid-js";
 // Font sizes (px) — one four-step ladder for the whole report surface:
 // display > value > body > micro. Every legacy name below is an alias of one
 // of those four steps, so an unmigrated caller cannot reintroduce a fifth size
-// (or make the 11px floor the page default again).
+// (or make the old 11px private step the page default again).
 export const REPORT_FONT = {
-  display: 23,
+  display: 24, // DS Title xl — the one display step; no private 23px dialect
   value: 17,
   body: 13,
-  micro: 11, // axis ticks, hints, timestamps — the hard 11px floor
+  micro: 12, // axis ticks, hints, timestamps — the shared 12px floor
 
   // Legacy aliases → nearest canonical step. Kept so callers that have not
   // migrated to the named steps still compile without widening the scale.
@@ -23,7 +23,7 @@ export const REPORT_FONT = {
   md: 13,
   lg: 17,
   xl: 17,
-  verdict: 23,
+  verdict: 24, // alias of display, never a separate 23px verdict size
 
   px: (
     step:
@@ -192,12 +192,18 @@ export const REPORT_SECTION_ALIGN = {
   ].join(" "),
 } as const;
 
+/**
+ * Terminal radius vocabulary — 2 / 4 / 6 / 10 only. The report's old 8px cards
+ * and 12px containers read as a separate skin next to the shared controls;
+ * `xs` is the hairline/skeleton surface the shell paints at 2px.
+ */
 export const REPORT_RADIUS = {
+  xs: 2,   // error reads, skeletons, hairline surfaces
   sm: 4,   // chips, badges, inline pills
-  md: 8,   // cards, panels, modals
-  lg: 12,  // large containers
+  md: 6,   // cards, panels, modals — the control radius
+  lg: 10,  // large containers
   /** Helper */
-  px: (step: "sm" | "md" | "lg"): number => REPORT_RADIUS[step],
+  px: (step: "xs" | "sm" | "md" | "lg"): number => REPORT_RADIUS[step],
 } as const;
 
 // Line heights (unitless, relative to fontSize)

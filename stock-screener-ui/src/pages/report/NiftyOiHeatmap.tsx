@@ -608,20 +608,20 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
             style={{ "background-color": TERM_HEADER }}
           >
           <div
-            class="flex items-center gap-2 px-2 py-1 border-b border-fin-border text-[11px] leading-[16px] text-fin-text-muted"
+            class="flex items-center gap-2 px-2 py-1 border-b border-fin-border text-[12px] leading-[16px] text-fin-text-muted"
             style={{ "background-color": alpha(TERM_HEADER, 0.9) }}
           >
             <span
               data-testid="nifty-heatmap-legend-title"
-              class="text-[11px] tracking-[0.08em] text-fin-text whitespace-nowrap"
+              class="text-[12px] tracking-[0.08em] text-fin-text whitespace-nowrap"
               title="OI change heatmap"
             >
               HEATMAP
             </span>
-            <span data-testid="nifty-heatmap-empty-state" class="text-[11px] whitespace-nowrap">
+            <span data-testid="nifty-heatmap-empty-state" class="text-[12px] whitespace-nowrap">
               {emptyKind().replace("-", " ")}
             </span>
-            <span class="ml-auto text-[11px] whitespace-nowrap tabular-nums font-mono" title="What this session recorded">
+            <span class="ml-auto text-[12px] whitespace-nowrap tabular-nums font-mono" title="What this session recorded">
               {coverageText()}
             </span>
           </div>
@@ -663,7 +663,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
         <div
           data-testid="nifty-heatmap-legend"
           aria-label="Heatmap legend"
-          class="flex items-center gap-2 min-w-0 shrink-0 px-2 py-1 border-b border-fin-border text-[11px] leading-[16px] font-mono text-fin-text-muted"
+          class="flex items-center gap-2 min-w-0 shrink-0 px-2 py-1 border-b border-fin-border text-[12px] leading-[16px] font-mono text-fin-text-muted"
           style={{ "background-color": alpha(TERM_HEADER, 0.55) }}
         >
           <span
@@ -680,7 +680,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
           </span>
           <span
             data-testid="nifty-heatmap-window"
-            class="shrink-0 px-1 rounded-[3px] text-[11px] whitespace-nowrap"
+            class="shrink-0 px-1 rounded-[3px] text-[12px] whitespace-nowrap"
             title={windowTitle()}
             style={{ "background-color": alpha(TERM_HEADER, 0.9) }}
           >
@@ -691,7 +691,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
             class="flex-1 min-w-0 flex items-center gap-1"
             title="Cell colour: net call-led (blue) → no ΔOI (grey) → net put-led (amber). Opacity scales with the larger leg's change."
           >
-            <span class="shrink-0 text-[11px] whitespace-nowrap">CALL-LED</span>
+            <span class="shrink-0 text-[12px] whitespace-nowrap">CALL-LED</span>
             <span
               data-testid="nifty-heatmap-ramp-bar"
               class="flex-1 min-w-0 h-[6px] rounded-[3px]"
@@ -699,10 +699,10 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
                 "background": `linear-gradient(90deg, ${OI_CALL} 0%, ${alpha(TEXT_MUTED, 0.28)} 50%, ${OI_PUT} 100%)`,
               }}
             />
-            <span class="shrink-0 text-[11px] whitespace-nowrap">PUT-LED</span>
+            <span class="shrink-0 text-[12px] whitespace-nowrap">PUT-LED</span>
           </span>
           <details data-testid="nifty-heatmap-key" class="shrink-0">
-            <summary class="text-[11px] cursor-pointer whitespace-nowrap" title="Full heatmap key">
+            <summary class="text-[12px] cursor-pointer whitespace-nowrap" title="Full heatmap key">
               KEY
             </summary>
             <div class="flex flex-wrap gap-x-2 gap-y-1 pt-1 max-w-[400px]">
@@ -739,18 +739,18 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
         <div
           data-testid="nifty-heatmap-read"
           title={readText() || readFallback()}
-          class="px-2 py-1 shrink-0 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-[1.3] font-mono text-fin-text whitespace-normal break-words"
+          class="px-2 py-1 shrink-0 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-[1.3] font-mono text-fin-text whitespace-normal break-words"
         >
           <span
             data-testid="nifty-heatmap-read-label"
-            class="shrink-0 text-[11px] tracking-[0.08em] text-fin-text-muted"
+            class="shrink-0 text-[12px] tracking-[0.08em] text-fin-text-muted"
           >
             READ
           </span>
           <Show
             when={spotRead()}
             fallback={
-              <span class="text-[11px] text-fin-text-muted whitespace-nowrap">AWAITING CHAIN</span>
+              <span class="text-[12px] text-fin-text-muted whitespace-nowrap">AWAITING CHAIN</span>
             }
           >
             {(s) => (
@@ -771,7 +771,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
           <Show when={read().ceStrike !== null}>
             <span
               data-testid="nifty-heatmap-read-ce"
-              class="shrink-0 text-[11px] text-fin-text-muted whitespace-nowrap"
+              class="shrink-0 text-[12px] text-fin-text-muted whitespace-nowrap"
               title="Strongest call-side ΔOI build on this tape"
             >
               CE {formatNumberIN(read().ceStrike as number)}
@@ -780,7 +780,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
           <Show when={read().peStrike !== null}>
             <span
               data-testid="nifty-heatmap-read-pe"
-              class="shrink-0 text-[11px] text-fin-text-muted whitespace-nowrap"
+              class="shrink-0 text-[12px] text-fin-text-muted whitespace-nowrap"
               title="Strongest put-side ΔOI build on this tape"
             >
               PE {formatNumberIN(read().peStrike as number)}
@@ -906,7 +906,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
               y={rowOf(s) * cellH() + cellH() / 2}
               text-anchor="end"
               dominant-baseline="middle"
-              font-size="11"
+              font-size="12"
               fill="currentColor"
               opacity={0.65}
             >
@@ -921,7 +921,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
             transform={`rotate(-90 14 ${gridH() / 2})`}
             text-anchor="middle"
             dominant-baseline="middle"
-            font-size="11"
+            font-size="12"
             fill="currentColor"
             opacity={0.8}
             font-family={MONO}
@@ -935,7 +935,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
             y={VB_H() - 10}
             text-anchor="end"
             dominant-baseline="middle"
-            font-size="11"
+            font-size="12"
             fill="currentColor"
             opacity={0.8}
             font-family={MONO}
@@ -954,7 +954,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
                 y={VB_H() - 10}
                 text-anchor={isFirst ? "start" : isLast ? "end" : "middle"}
                 dominant-baseline="middle"
-                font-size="11"
+                font-size="12"
                 fill="currentColor"
                 opacity={0.9}
                 font-family={MONO}
@@ -987,7 +987,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
         <Show when={hoverCell() && hover() !== null}>
           <div
             data-testid="nifty-heatmap-hover"
-            class="absolute right-1 top-[14px] px-1 py-[1px] border border-fin-border rounded-[3px] text-[11px] leading-[1.2] font-mono text-fin-text whitespace-nowrap pointer-events-none z-[3]"
+            class="absolute right-1 top-[14px] px-1 py-[1px] border border-fin-border rounded-[3px] text-[12px] leading-[1.2] font-mono text-fin-text whitespace-nowrap pointer-events-none z-[3]"
             style={{ "background-color": TERM_HEADER, "border-color": TERM_BORDER }}
           >
             {buckets()[hover()!.bucket]?.label ?? ""} · {formatNumberIN(hover()!.strike)} · CE{" "}

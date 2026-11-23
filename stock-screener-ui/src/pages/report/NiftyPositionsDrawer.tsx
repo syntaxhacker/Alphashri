@@ -203,9 +203,9 @@ function GreekStat(props: { testId: string; label: string; value: number | null 
         "background-color": palette.TERM_BG,
       }}
     >
-      <span class="text-[11px] text-fin-text-muted tracking-[0.06em]">{props.label}</span>
+      <span class="text-[12px] text-fin-text-muted tracking-[0.06em]">{props.label}</span>
       <span
-        class="text-[11px] font-bold font-mono whitespace-nowrap"
+        class="text-[12px] font-bold font-mono whitespace-nowrap"
         style={{ color: toneFor(props.value) }}
       >
         {formatGreek(props.value, props.label.includes("Δ") ? 1 : 2)}
@@ -322,7 +322,7 @@ export function NiftyPositionsDrawer(props: NiftyPositionsDrawerProps) {
             // container; theme it to the desk surface via descendant selectors.
             <div
               data-testid="nifty-positions-table-wrap"
-              class="min-w-0 [&_.paper-tanstack-container]:[background:var(--desk-bg)]! [&_.paper-tanstack-container]:[border:none]! [&_.paper-tanstack-scroll]:[background:var(--desk-bg)]! [&_.paper-tanstack-table]:[background:var(--desk-bg)]! [&_.paper-tanstack-header-cell]:[background:var(--desk-header)]! [&_.paper-tanstack-header-cell]:[border-color:var(--desk-border)]! [&_.paper-tanstack-header-cell]:[color:var(--desk-muted)]! [&_.paper-tanstack-header-cell]:text-[11px]! [&_.paper-tanstack-header-cell]:tracking-[0.05em]! [&_.paper-tanstack-cell]:bg-transparent! [&_.paper-tanstack-cell]:[border-color:var(--desk-border)]! [&_.paper-tanstack-cell]:text-[11px]! [&_.paper-tanstack-cell]:[font-family:var(--desk-mono)]! [&_.paper-tanstack-cell]:[padding:2px_8px]! [&_.paper-tanstack-cell]:h-[22px]! [&_.paper-tanstack-cell]:leading-[1.1]!"
+              class="min-w-0 [&_.paper-tanstack-container]:[background:var(--desk-bg)]! [&_.paper-tanstack-container]:[border:none]! [&_.paper-tanstack-scroll]:[background:var(--desk-bg)]! [&_.paper-tanstack-table]:[background:var(--desk-bg)]! [&_.paper-tanstack-header-cell]:[background:var(--desk-header)]! [&_.paper-tanstack-header-cell]:[border-color:var(--desk-border)]! [&_.paper-tanstack-header-cell]:[color:var(--desk-muted)]! [&_.paper-tanstack-header-cell]:text-[12px]! [&_.paper-tanstack-header-cell]:tracking-[0.05em]! [&_.paper-tanstack-cell]:bg-transparent! [&_.paper-tanstack-cell]:[border-color:var(--desk-border)]! [&_.paper-tanstack-cell]:text-[12px]! [&_.paper-tanstack-cell]:[font-family:var(--desk-mono)]! [&_.paper-tanstack-cell]:[padding:2px_8px]! [&_.paper-tanstack-cell]:h-[22px]! [&_.paper-tanstack-cell]:leading-[1.1]!"
               style={{
                 "--desk-bg": palette.TERM_BG,
                 "--desk-header": palette.TERM_HEADER,

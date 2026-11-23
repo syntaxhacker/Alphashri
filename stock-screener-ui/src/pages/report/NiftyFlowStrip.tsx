@@ -79,9 +79,9 @@ function FlowLegend() {
     <div
       data-testid="nifty-flowstrip-legend"
       aria-label="Flow strip legend"
-      class="flex flex-wrap items-center gap-x-2 gap-y-[2px] text-[11px] leading-[1.2] font-mono text-fin-text-muted px-[6px] py-[2px] border-b border-fin-border bg-white/[0.03]"
+      class="flex flex-wrap items-center gap-x-2 gap-y-[2px] text-[12px] leading-[1.2] font-mono text-fin-text-muted px-[6px] py-[2px] border-b border-fin-border bg-white/[0.03]"
     >
-      <span class="text-[11px] tracking-[0.08em] opacity-60">
+      <span class="text-[12px] tracking-[0.08em] opacity-60">
         FLOW
       </span>
       <For each={FLOW_LEGEND}>
@@ -198,7 +198,7 @@ export function NiftyFlowStrip(props: NiftyFlowStripProps) {
         ref={(el) => (labelsRef = el)}
         data-testid="nifty-flowstrip-labels"
         title={summary().fullText}
-        class="flex items-center gap-x-[6px] min-w-0 max-w-full overflow-hidden whitespace-nowrap font-mono text-[11px] leading-[1.2] text-fin-text-muted tabular-nums px-[6px] py-[2px]"
+        class="flex items-center gap-x-[6px] min-w-0 max-w-full overflow-hidden whitespace-nowrap font-mono text-[12px] leading-[1.2] text-fin-text-muted tabular-nums px-[6px] py-[2px]"
       >
         <Show when={summary().showMarker && summary().hidden > 0}>
           <span

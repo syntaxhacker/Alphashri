@@ -133,7 +133,7 @@ export function NiftyDeskGuide(props: NiftyDeskGuideProps) {
               >
                 {entry.term}
               </div>
-              <div style={{ "font-size": "11px", "line-height": 1.35, "color": palette.TEXT }}>
+              <div style={{ "font-size": `${REPORT_FONT.micro}px`, "line-height": 1.35, "color": palette.TEXT }}>
                 {entry.text}
               </div>
             </div>

@@ -722,7 +722,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
         onClick={() => scanPatterns(chartTf())}
         disabled={patternScan().status === "loading"}
         title={`Run the chart-pattern detector on ${symbol()} ${chartTf()}`}
-        style={{ "min-width": "0px", "padding-left": "6px", "padding-right": "6px", "padding-top": "0px", "padding-bottom": "0px", "height": "20px", "font-size": "11px", "font-weight": 800, "letter-spacing": "0.06em" }}
+        style={{ "min-width": "0px", "padding-left": "6px", "padding-right": "6px", "padding-top": "0px", "padding-bottom": "0px", "height": "20px", "font-size": `${REPORT_FONT.micro}px`, "font-weight": 800, "letter-spacing": "0.06em" }}
       >
         {patternScan().status === "loading" ? "…" : "PATTERNS"}
       </Button>
@@ -776,7 +776,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
             <Text
               data-testid="nifty-chart-event-badge"
               style={{
-                "font-size": "11px",
+                "font-size": `${REPORT_FONT.micro}px`,
                 "font-weight": 700,
                 "letter-spacing": "0.4em",
                 "text-transform": "uppercase",
@@ -818,7 +818,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
                   aria-expanded={controlsOpen()}
                   aria-controls="nifty-chart-controls-extra"
                   onClick={() => setControlsOpen((v) => !v)}
-                  style={{ height: "26px", "min-height": "26px", "min-width": "44px", padding: "0 5px", "font-size": "11px", "font-weight": 800 }}
+                  style={{ height: "26px", "min-height": "26px", "min-width": "44px", padding: "0 5px", "font-size": `${REPORT_FONT.micro}px`, "font-weight": 800 }}
                 >
                   {controlsOpen() ? "LESS ▴" : "MORE ▾"}
                 </Button>

@@ -98,7 +98,7 @@ const EXPAND_GLYPH_STYLE: JSX.CSSProperties = { "font-size": "12px", "line-heigh
 const HEAT_METRICS: HeatMetric[] = ["oi", "volume", "premium"];
 
 const HEATMAP_EXPAND_CLASS =
-  "absolute top-0 right-0 w-[22px] h-[18px] min-w-[22px] px-0 py-0 leading-[18px] text-[11px] z-[3]";
+  "absolute top-0 right-0 w-[22px] h-[18px] min-w-[22px] px-0 py-0 leading-[18px] text-[12px] z-[3]";
 
 // A 57px treemap is noise. On a phone the side row becomes just the tab strip
 // plus this summary, and the heatmap moves to the existing full-view drawer.
@@ -114,7 +114,7 @@ const MOBILE_HEAT_METRIC_STYLE: JSX.CSSProperties = {
   "padding-right": "4px",
   "padding-top": "0",
   "padding-bottom": "0",
-  "font-size": "11px",
+  "font-size": `${REPORT_FONT.micro}px`,
   "line-height": "1.2",
 };
 
@@ -123,7 +123,7 @@ const MOBILE_HEAT_OPEN_STYLE: JSX.CSSProperties = {
   "min-height": "22px",
   "padding-left": "6px",
   "padding-right": "6px",
-  "font-size": "11px",
+  "font-size": `${REPORT_FONT.micro}px`,
   "line-height": "1.2",
 };
 
@@ -486,7 +486,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
                       </Button>
                     )}
                   </For>
-                  <Text className="ml-auto mr-5 text-[11px] text-fin-text-muted">OI change</Text>
+                  <Text className="ml-auto mr-5 text-[12px] text-fin-text-muted">OI change</Text>
                 </Box>
                 <Box data-testid="nifty-heatmap-wrap" className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
                   <Suspense fallback={<PanelSkeleton h={220} />}>

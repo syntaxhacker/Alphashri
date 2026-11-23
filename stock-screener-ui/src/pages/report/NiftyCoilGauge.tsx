@@ -142,7 +142,7 @@ export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
           c={accent()}
           span
           style={{
-            "font-size": "11px",
+            "font-size": "12px",
             "line-height": 1.2,
             "white-space": "nowrap",
             "flex-shrink": 0,
@@ -157,7 +157,7 @@ export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
           c="dimmed"
           span
           style={{
-            "font-size": "11px",
+            "font-size": "12px",
             "line-height": 1.2,
             "font-variant-numeric": "tabular-nums",
             "white-space": "nowrap",
@@ -172,7 +172,7 @@ export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
           c="dimmed"
           span
           style={{
-            "font-size": "11px",
+            "font-size": "12px",
             "line-height": 1.2,
             "font-variant-numeric": "tabular-nums",
             "white-space": "nowrap",
@@ -205,7 +205,7 @@ export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
           c={accent()}
           span
           style={{
-            "font-size": "11px",
+            "font-size": "12px",
             "line-height": 1.3,
             "white-space": "nowrap",
             "flex-shrink": 0,
@@ -220,7 +220,7 @@ export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
           c="dimmed"
           span
           style={{
-            "font-size": "11px",
+            "font-size": "12px",
             "line-height": 1.3,
             "font-variant-numeric": "tabular-nums",
             "white-space": "nowrap",
@@ -235,7 +235,7 @@ export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
         c="dimmed"
         span
         style={{
-          "font-size": "11px",
+          "font-size": "12px",
           "line-height": 1.3,
           "white-space": "normal",
           "overflow-wrap": "anywhere",
@@ -249,7 +249,7 @@ export function NiftyCoilGauge(props: NiftyCoilGaugeProps) {
         c="dimmed"
         span
         style={{
-          "font-size": "11px",
+          "font-size": "12px",
           "line-height": 1.3,
           "font-variant-numeric": "tabular-nums",
           "white-space": "nowrap",

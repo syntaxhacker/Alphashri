@@ -20,7 +20,7 @@ import {
   gexRegimeAtSpot,
   type GexProfilePoint,
 } from "./niftyGex";
-import { REPORT_FONT } from "./reportTokens";
+import { REPORT_FONT, REPORT_RADIUS } from "./reportTokens";
 
 /* The spot-relative regime/flip math lives in the pure `niftyGex` module so
    the desk plan, the tape and the heatmap can read the same numbers without
@@ -513,7 +513,7 @@ export function NiftyGexProfile(props: NiftyGexProfileProps) {
         "background-color": palette.TERM_BG,
         "border": `1px solid ${palette.TERM_BORDER}`,
         "border-color": palette.TERM_BORDER,
-        "border-radius": "8px",
+        "border-radius": `${REPORT_RADIUS.md}px`,
       }}
     >
       {/* Tight stat row: plain grid instead of CompactStatGrid (whose

@@ -3,6 +3,7 @@ import type { SimLegSpec, SimStrategySpec } from "@/types/reportSim";
 import { ActionIcon, Alert, Badge, Button, Divider, NumberInput, Select, Text, TextInput, ToolbarRow } from "@/ui";
 import * as palette from "@/ui/palette";
 import { IconX } from "@/components/common/Icons";
+import { REPORT_FONT } from "../reportTokens";
 
 const IconPlus = (props: { size?: number }) => (
   <svg
@@ -53,7 +54,7 @@ function Ctx(props: { label: string; value: JSX.Element; hint?: JSX.Element }) {
         span
         size="xs"
         style={{
-          "font-size": "11px",
+          "font-size": `${REPORT_FONT.micro}px`,
           "letter-spacing": "0.06em",
           "text-transform": "uppercase",
           color: palette.TEXT_MUTED,
@@ -229,7 +230,7 @@ export function SimBuilder(props: SimBuilderProps) {
                     size="xs"
                     data-testid={`sim-leg-${index()}-resolved`}
                     style={{
-                      "font-size": "11px",
+                      "font-size": `${REPORT_FONT.micro}px`,
                       color: preview() === null ? palette.NEGATIVE : palette.TEXT_MUTED,
                     }}
                   >

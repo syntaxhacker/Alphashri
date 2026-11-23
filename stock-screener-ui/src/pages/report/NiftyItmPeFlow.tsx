@@ -10,6 +10,7 @@ import {
   formatReportPct,
   formatReportPoints,
 } from "./reportFormat";
+import { REPORT_FONT } from "./reportTokens";
 
 const TOP_STRIKES = 5;
 
@@ -100,7 +101,7 @@ export function NiftyItmPeFlowPanel(props: {
         trigger: "axis",
         "background-color": palette.TOOLTIP_BG,
         borderColor: palette.TOOLTIP_BORDER,
-        textStyle: { color: palette.TOOLTIP_TEXT, "font-size": "11px" },
+        textStyle: { color: palette.TOOLTIP_TEXT, "font-size": `${REPORT_FONT.micro}px` },
         axisPointer: { type: "shadow", shadowStyle: { color: palette.alpha(palette.TEXT, 0.06) } },
         formatter: (params: unknown) => {
           const list = Array.isArray(params) ? params : [params];
@@ -123,7 +124,7 @@ export function NiftyItmPeFlowPanel(props: {
         axisLine: { lineStyle: { color: palette.AXIS_LINE } },
         axisLabel: {
           color: palette.CHART_MUTED,
-          "font-size": "11px",
+          "font-size": `${REPORT_FONT.micro}px`,
           hideOverlap: true,
           interval: Math.max(0, Math.ceil(rows.length / 6) - 1),
         },
@@ -135,7 +136,7 @@ export function NiftyItmPeFlowPanel(props: {
           axisTick: { show: false },
           axisLabel: {
             color: palette.TERM_PE,
-            "font-size": "11px",
+            "font-size": `${REPORT_FONT.micro}px`,
             formatter: (value: number) => formatReportCompact(value, { round: true }),
           },
           splitLine: { lineStyle: { color: palette.AXIS_SPLIT } },
@@ -148,7 +149,7 @@ export function NiftyItmPeFlowPanel(props: {
           axisTick: { show: false },
           axisLabel: {
             color: palette.PRIMARY,
-            "font-size": "11px",
+            "font-size": `${REPORT_FONT.micro}px`,
             formatter: (value: number) => `${Math.round(value)}%`,
           },
           splitLine: { show: false },
@@ -185,7 +186,7 @@ export function NiftyItmPeFlowPanel(props: {
           <span
             data-testid="nifty-itm-pe-share"
             title="ITM put volume ÷ all put volume — where hedges and stop-outs printed"
-            class="inline-flex items-center rounded-[3px] px-[5px] py-[1px] text-[11px] font-extrabold tracking-[0.06em] whitespace-nowrap tabular-nums"
+            class="inline-flex items-center rounded-[3px] px-[5px] py-[1px] text-[12px] font-extrabold tracking-[0.06em] whitespace-nowrap tabular-nums"
             style={{
               color: palette.TERM_PE,
               "background-color": palette.alpha(palette.TERM_PE, 0.14),
@@ -288,7 +289,7 @@ export function NiftyItmPeFlowPanel(props: {
                       }}
                     >
                       <span
-                        style={{ color: palette.TERM_PE, "font-weight": 700, "font-size": "11px" }}
+                        style={{ color: palette.TERM_PE, "font-weight": 700, "font-size": `${REPORT_FONT.micro}px` }}
                       >
                         {formatReportNum(row.strike, { round: true })}
                       </span>
@@ -311,14 +312,14 @@ export function NiftyItmPeFlowPanel(props: {
                         />
                       </span>
                       <span
-                        style={{ "text-align": "right", "font-size": "11px", color: palette.TEXT }}
+                        style={{ "text-align": "right", "font-size": `${REPORT_FONT.micro}px`, color: palette.TEXT }}
                       >
                         {formatReportCompact(row.volume, { round: true })}
                       </span>
                       <span
                         style={{
                           "text-align": "right",
-                          "font-size": "11px",
+                          "font-size": `${REPORT_FONT.micro}px`,
                           color: palette.TEXT_MUTED,
                         }}
                       >

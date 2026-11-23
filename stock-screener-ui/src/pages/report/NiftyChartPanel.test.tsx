@@ -21,6 +21,7 @@ import {
 } from "./NiftyChartPanel";
 import type { NiftyGex, NiftyReport } from "@/types/niftyReport";
 import { detectPatterns } from "@/api/chartPatterns";
+import { REPORT_FONT } from "./reportTokens";
 
 vi.mock("@/components/chart/TradingViewChart", async () => {
   const { onMount } = await import("solid-js");
@@ -1159,7 +1160,7 @@ describe("NiftyChartPanel PATTERNS visible result", () => {
     expect(detectPatterns).not.toHaveBeenCalled();
   });
 
-  test("(b) a no-pattern result states the lookback and result legibly, not in a 9px whisper", async () => {
+  test("(b) a no-pattern result states the lookback and result legibly, at the 12px floor", async () => {
     vi.mocked(detectPatterns).mockResolvedValueOnce({
       symbol: "NIFTY",
       timeframe: "1m",
@@ -1172,7 +1173,7 @@ describe("NiftyChartPanel PATTERNS visible result", () => {
     const strip = await scanAndWait();
     expect(strip).toHaveTextContent(/no pattern/i);
     expect(strip.textContent).toMatch(/150[\s\S]*bars/i);
-    expect(strip).toHaveStyle({ "font-size": "11px" });
+    expect(strip).toHaveStyle({ "font-size": `${REPORT_FONT.micro}px` });
     const badge = screen.getByTestId("nifty-patterns-chart-badge");
     expect(badge).toHaveTextContent(/150.*1m.*no pattern/i);
     expect(strip.title).toContain("2026-10-12 15:30:00");

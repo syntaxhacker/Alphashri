@@ -3,7 +3,7 @@
  * Typography-floor guard for the Index Report surface.
  *
  * The audit found 91 sub-10px declarations on /report/index. The redesign
- * target is a 13/12/11 scale (docs/INDEX_REPORT_REDESIGN.md), and the report
+ * target is a 17/13/12 scale (docs/INDEX_REPORT_REDESIGN.md), and the report
  * token scale owns the floor. A literal that slips under it is a legibility
  * bug, not a style choice — including text drawn inside an SVG chart.
  */
@@ -33,7 +33,7 @@ const GUARDED_FILES = [
   "BreadthStrip.tsx",
 ] as const;
 
-const FLOOR = 11;
+const FLOOR = REPORT_FONT.micro;
 
 const FONT_SIZE =
   /text-\[(\d+(?:\.\d+)?)px\]|"font-size":\s*"(\d+(?:\.\d+)?)px"|fontSize:\s*(\d+(?:\.\d+)?)\b|font-size="(\d+(?:\.\d+)?)"/g;
@@ -59,7 +59,7 @@ function belowFloor(file: string): string[] {
 }
 
 describe("report typography floor", () => {
-  it("REPORT_FONT.micro is the 11px floor and the scale is monotone", () => {
+  it("REPORT_FONT.micro is the 12px floor and the scale is monotone", () => {
     expect(REPORT_FONT.micro).toBe(FLOOR);
     const steps = ["micro", "xs", "xsPlus", "sm", "md", "lg", "xl"] as const;
     const values = steps.map((step) => REPORT_FONT[step]);
@@ -68,7 +68,7 @@ describe("report typography floor", () => {
     }
   });
 
-  it("no font size below 11px in the owned report files", () => {
+  it("no font size below the 12px floor in the owned report files", () => {
     const offenders = GUARDED_FILES.flatMap(belowFloor);
     expect(offenders, `\n${offenders.join("\n")}`).toEqual([]);
   });

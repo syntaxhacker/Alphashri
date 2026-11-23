@@ -143,7 +143,7 @@ function StatusPill(props: { status: string | null | undefined }) {
   const tone = statusColor(props.status);
   return (
     <span
-      class="inline-flex items-center gap-1 rounded-sm px-1 py-[2px] font-mono text-[11px] font-black tracking-[0.08em] leading-tight whitespace-nowrap"
+      class="inline-flex items-center gap-1 rounded-sm px-1 py-[2px] font-mono text-[12px] font-black tracking-[0.08em] leading-tight whitespace-nowrap"
       style={{
         border: `1px solid ${tone}`,
         "border-radius": `${REPORT_RADIUS.sm}px`,
@@ -218,26 +218,26 @@ function FlowPlane(props: FlowPlaneProps) {
               />
             </g>
           )}</For>
-          <text x={x0 + 4} y={y0 + 11} fill={MUTED} font-size="11" font-family={MONO}>
+          <text x={x0 + 4} y={y0 + 11} fill={MUTED} font-size={`${REPORT_FONT.micro}`} font-family={MONO}>
             COVER
           </text>
-          <text x={x1 - 4} y={y0 + 11} fill={MUTED} font-size="11" font-family={MONO} text-anchor="end">
+          <text x={x1 - 4} y={y0 + 11} fill={MUTED} font-size={`${REPORT_FONT.micro}`} font-family={MONO} text-anchor="end">
             BUILD
           </text>
-          <text x={x0 + 4} y={y1 - 5} fill={MUTED} font-size="11" font-family={MONO}>
+          <text x={x0 + 4} y={y1 - 5} fill={MUTED} font-size={`${REPORT_FONT.micro}`} font-family={MONO}>
             UNWIND
           </text>
-          <text x={x1 - 4} y={y1 - 5} fill={MUTED} font-size="11" font-family={MONO} text-anchor="end">
+          <text x={x1 - 4} y={y1 - 5} fill={MUTED} font-size={`${REPORT_FONT.micro}`} font-family={MONO} text-anchor="end">
             SELL
           </text>
-          <text x={(x0 + x1) / 2} y={H - 8} fill={MUTED} font-size="11" font-family={MONO} text-anchor="middle">
+          <text x={(x0 + x1) / 2} y={H - 8} fill={MUTED} font-size={`${REPORT_FONT.micro}`} font-family={MONO} text-anchor="middle">
             OI Δ / 30m %
           </text>
           <text
             x={12}
             y={(y0 + y1) / 2}
             fill={MUTED}
-            font-size="11"
+            font-size={`${REPORT_FONT.micro}`}
             font-family={MONO}
             text-anchor="middle"
             transform={`rotate(-90 12 ${(y0 + y1) / 2})`}
@@ -317,7 +317,7 @@ function FlowPlane(props: FlowPlaneProps) {
                   x={x1 + 22}
                   y={ly}
                   fill={selected ? SELECTED : MUTED}
-                  font-size="11"
+                  font-size={`${REPORT_FONT.micro}`}
                   font-weight={selected ? 700 : 400}
                   font-family={MONO}
                   pointer-events="none"
@@ -329,17 +329,17 @@ function FlowPlane(props: FlowPlaneProps) {
           }}</For>
         </svg>
       </div>
-      <div class="mt-1 font-mono text-[11px] text-fin-text-muted">
+      <div class="mt-1 font-mono text-[12px] text-fin-text-muted">
         x = OI Δ / 30m · y = premium Δ / 30m · ±16% · click a dot or a row
       </div>
       <div class="flex items-center gap-2 mt-1">
         <div class="flex items-center gap-[3px]">
           <SideMark side="CALL" />
-          <div class="text-[11px] text-fin-text-muted">call</div>
+          <div class="text-[12px] text-fin-text-muted">call</div>
         </div>
         <div class="flex items-center gap-[3px]">
           <SideMark side="PUT" />
-          <div class="text-[11px] text-fin-text-muted">put</div>
+          <div class="text-[12px] text-fin-text-muted">put</div>
         </div>
       </div>
     </div>
@@ -357,10 +357,10 @@ function HistoryPanel(props: {
   if (finite.length < 2) {
     return (
       <g>
-        <text x={8} y={props.top + 10} fill={props.color} font-size="11" font-family={MONO}>
+        <text x={8} y={props.top + 10} fill={props.color} font-size={`${REPORT_FONT.micro}`} font-family={MONO}>
           {props.label} · INDEX 100
         </text>
-        <text x={272} y={props.top + 10} fill={MUTED} font-size="11" text-anchor="end" font-family={MONO}>
+        <text x={272} y={props.top + 10} fill={MUTED} font-size={`${REPORT_FONT.micro}`} text-anchor="end" font-family={MONO}>
           no history
         </text>
       </g>
@@ -390,13 +390,13 @@ function HistoryPanel(props: {
         stroke-width={1}
         stroke-dasharray="2 3"
       />
-      <text x={8} y={props.top + 10} fill={props.color} font-size="11" font-family={MONO}>
+      <text x={8} y={props.top + 10} fill={props.color} font-size={`${REPORT_FONT.micro}`} font-family={MONO}>
         {props.label} · INDEX 100
       </text>
-      <text x={272} y={props.top + 10} fill={props.color} font-size="11" text-anchor="end" font-family={MONO}>
+      <text x={272} y={props.top + 10} fill={props.color} font-size={`${REPORT_FONT.micro}`} text-anchor="end" font-family={MONO}>
         {last.toFixed(1)}
       </text>
-      <text x={272} y={y(100) - 3} fill={MUTED} font-size="11" text-anchor="end" font-family={MONO}>
+      <text x={272} y={y(100) - 3} fill={MUTED} font-size={`${REPORT_FONT.micro}`} text-anchor="end" font-family={MONO}>
         100
       </text>
       <polyline points={points} fill="none" stroke={props.color} stroke-width={1.7} />
@@ -420,14 +420,14 @@ function WallHistory(props: HistoryProps) {
       >
         <HistoryPanel values={oi()} color={color()} label="OI" top={12} height={78} />
         <HistoryPanel values={prem()} color={palette.TEXT_MUTED} label="PREM" top={118} height={78} />
-        <text x={8} y={226} fill={MUTED} font-size="11" font-family={MONO}>
+        <text x={8} y={226} fill={MUTED} font-size={`${REPORT_FONT.micro}`} font-family={MONO}>
           last 30 tape minutes
         </text>
-        <text x={272} y={226} fill={MUTED} font-size="11" text-anchor="end" font-family={MONO}>
+        <text x={272} y={226} fill={MUTED} font-size={`${REPORT_FONT.micro}`} text-anchor="end" font-family={MONO}>
           indexed at start
         </text>
       </svg>
-      <div class="mt-[2px] font-mono text-[11px] text-fin-text-muted">
+      <div class="mt-[2px] font-mono text-[12px] text-fin-text-muted">
         30m path · <span style={{ color: palette.TEXT }}>{pathRead(props.wall.row)}</span>
       </div>
     </div>
@@ -438,7 +438,7 @@ function Detail(props: { label: string; value: string; color?: string }) {
   return (
     <div class="min-w-0">
       <div
-        class="text-[11px] text-fin-text-muted tracking-[0.08em]"
+        class="text-[12px] text-fin-text-muted tracking-[0.08em]"
         style={{ "font-size": `${REPORT_FONT.micro}px`, color: MUTED, "letter-spacing": REPORT_LETTER_SPACING.wide }}
       >
         {props.label}
@@ -477,29 +477,29 @@ function WallRead(props: WallReadProps) {
         <SideMark side={props.wall.side} size={9} />
         <div
           data-testid="pressure-read-name"
-          class="text-[14px] font-bold tracking-[-0.01em]"
+          class="text-[17px] font-bold tracking-[-0.01em]"
           style={{ "font-size": `${REPORT_FONT.lg}px`, "font-weight": String(REPORT_FONT_WEIGHT.bold), "letter-spacing": "-0.01em" }}
         >
           {wallLabel(props.wall.side, props.wall.strike)}
         </div>
-        <div class="font-mono text-[11px] font-black tracking-[0.08em] text-fin-text-muted uppercase">
+        <div class="font-mono text-[12px] font-black tracking-[0.08em] text-fin-text-muted uppercase">
           {quadrantFlowText(props.wall.quadrant)}
         </div>
       </div>
       <div class="flex items-center gap-2 mt-1">
-        <div class="font-mono text-[11px] text-fin-text-muted tracking-[0.08em]">
+        <div class="font-mono text-[12px] text-fin-text-muted tracking-[0.08em]">
           FUEL
         </div>
-        <div class="font-mono text-[15px] font-semibold">{row().fuel_score ?? "—"}</div>
+        <div class="font-mono text-[17px] font-semibold">{row().fuel_score ?? "—"}</div>
         <FuelBar score={row().fuel_score} width={76} />
-        <div class="ml-auto font-mono text-[11px] text-fin-text-muted">
+        <div class="ml-auto font-mono text-[12px] text-fin-text-muted">
           {short() ? "SHORT Γ" : "LONG Γ"}
         </div>
       </div>
-      <div class="mt-1.5 text-[11.5px] leading-loose text-fin-text" style={{ "font-size": `${REPORT_FONT.xsPlus}px`, "line-height": REPORT_LINE_HEIGHT.loose, color: palette.TEXT }}>
+      <div class="mt-1.5 text-[12px] leading-loose text-fin-text" style={{ "font-size": `${REPORT_FONT.xsPlus}px`, "line-height": REPORT_LINE_HEIGHT.loose, color: palette.TEXT }}>
         {sentence()}
       </div>
-      <div class="mt-[2px] text-[11px] leading-loose text-fin-text-muted" style={{ "font-size": `${REPORT_FONT.xs}px`, "line-height": REPORT_LINE_HEIGHT.loose, color: MUTED }}>
+      <div class="mt-[2px] text-[12px] leading-loose text-fin-text-muted" style={{ "font-size": `${REPORT_FONT.xs}px`, "line-height": REPORT_LINE_HEIGHT.loose, color: MUTED }}>
         {why()}
       </div>
       <div
@@ -519,7 +519,7 @@ function WallRead(props: WallReadProps) {
       </div>
       <div class="flex items-center flex-wrap gap-2 mt-1.5">
         <StatusPill status={status()} />
-        <div class="font-mono text-[11px] text-fin-text-muted">
+        <div class="font-mono text-[12px] text-fin-text-muted">
           {confidence().level} confidence · {confidence().text}
         </div>
       </div>
@@ -539,7 +539,7 @@ function WallList(props: WallListProps) {
     <div class="min-w-0 flex flex-col h-full">
       <div class="mb-1.5" style={{ ...panelTitleStyles() }}>Walls</div>
       <div
-        class="grid grid-cols-[minmax(0,1fr)_50px_46px_58px] gap-1.5 pb-[2px] border-b border-fin-border font-mono text-[11px] font-black tracking-[0.08em] text-fin-text-muted uppercase"
+        class="grid grid-cols-[minmax(0,1fr)_50px_46px_58px] gap-1.5 pb-[2px] border-b border-fin-border font-mono text-[12px] font-black tracking-[0.08em] text-fin-text-muted uppercase"
         style={{
           display: "grid",
           "grid-template-columns": "minmax(0,1fr) 50px 46px 58px",
@@ -596,7 +596,7 @@ function WallList(props: WallListProps) {
                   <div class="flex items-center gap-1 min-w-0">
                     <SideMark side={wall.side} />
                     <div
-                      class={`font-mono text-[11px] text-fin-text whitespace-nowrap overflow-hidden overflow-ellipsis ${selected ? "font-bold" : "font-medium"}`}
+                      class={`font-mono text-[12px] text-fin-text whitespace-nowrap overflow-hidden overflow-ellipsis ${selected ? "font-bold" : "font-medium"}`}
                       style={{
                         "font-family": MONO,
                         "font-size": `${REPORT_FONT.xs}px`,
@@ -610,9 +610,9 @@ function WallList(props: WallListProps) {
                       {wall.strike.toLocaleString("en-IN")}
                     </div>
                   </div>
-                  <div class="font-mono text-[11px] text-fin-text text-right">{fmtOI(wall.row.oi)}</div>
+                  <div class="font-mono text-[12px] text-fin-text text-right">{fmtOI(wall.row.oi)}</div>
                   <div
-                    class="font-mono text-[11px] text-right"
+                    class="font-mono text-[12px] text-right"
                     style={{
                       "font-family": MONO,
                       "font-size": `${REPORT_FONT.xs}px`,
@@ -624,7 +624,7 @@ function WallList(props: WallListProps) {
                   </div>
                   <div class="flex items-center justify-end gap-[3px]">
                     <FuelBar score={wall.row.fuel_score} width={34} />
-                    <div class="font-mono text-[11px] text-fin-text-muted">{wall.row.fuel_score ?? "—"}</div>
+                    <div class="font-mono text-[12px] text-fin-text-muted">{wall.row.fuel_score ?? "—"}</div>
                   </div>
                 </div>
               );
@@ -632,7 +632,7 @@ function WallList(props: WallListProps) {
           </div>
         )}</For>
       </div>
-      <div class="mt-auto pt-1 border-t border-fin-border font-mono text-[11px] text-fin-text-muted">
+      <div class="mt-auto pt-1 border-t border-fin-border font-mono text-[12px] text-fin-text-muted">
         nearest{" "}
         <span style={{ color: palette.TEXT }}>
           {nearest() ? wallLabel(nearest()!.side, nearest()!.strike) : "—"}
@@ -794,7 +794,7 @@ function PressureTable(props: {
 function SummaryChip(props: { label: string; value: string }) {
   return (
     <span
-      class="inline-flex items-center gap-1 rounded-sm border px-1.5 py-[2px] text-[11px] font-mono whitespace-nowrap"
+      class="inline-flex items-center gap-1 rounded-sm border px-1.5 py-[2px] text-[12px] font-mono whitespace-nowrap"
       style={{
         height: "20px",
         "border-color": BORDER,
@@ -828,7 +828,7 @@ export function NiftyPressureDesk(props: NiftyPressureDeskProps) {
 
   const title = (
     <div class="flex items-center gap-1.5 min-w-0">
-      <div class="font-mono text-[11px] font-black tracking-[0.1em] text-fin-text whitespace-nowrap">
+      <div class="font-mono text-[12px] font-black tracking-[0.1em] text-fin-text whitespace-nowrap">
         PRESSURE DESK
       </div>
       <Show when={props.walls}>
@@ -888,7 +888,7 @@ export function NiftyPressureDesk(props: NiftyPressureDeskProps) {
             <div class="mt-2 pt-[6px] border-t border-fin-border min-w-0" style={{ "border-top": `1px solid ${BORDER}`, "min-width": "0" }}>
               <div class="flex items-baseline justify-between gap-2 mb-1">
                 <div class="mb-1.5" style={{ ...panelTitleStyles() }}>Current minute · full values</div>
-                <div class="font-mono text-[11px] text-fin-text-muted">% vs 5 / 15 / 30m</div>
+                <div class="font-mono text-[12px] text-fin-text-muted">% vs 5 / 15 / 30m</div>
               </div>
               <PressureTable walls={allWalls()} selectedKey={sel().key} onSelect={setSelectedKey} />
             </div>

@@ -2,10 +2,10 @@
 /**
  * Typography-floor guard for the report label/strip lane.
  *
- * The desktop audit found ~57 text nodes below the 11px floor across these
+ * The desktop audit found ~57 text nodes below the 12px floor across these
  * files — including canvas labels inside ECharts config objects. A literal
  * under the floor is a legibility bug, not a style choice: 9px terminal text
- * reads as a debug page at 1920px. Keep every declaration at or above 11px.
+ * reads as a debug page at 1920px. Keep every declaration at or above 12px.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import { REPORT_FONT } from "./reportTokens";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
-const FLOOR = 11;
+const FLOOR = REPORT_FONT.micro;
 
 const GUARDED_FILES = [
   "NiftyPressureDesk.tsx",
@@ -50,11 +50,11 @@ function belowFloor(file: string): string[] {
 }
 
 describe("report label/strip lane typography floor", () => {
-  it("REPORT_FONT.micro is the 11px floor", () => {
+  it("REPORT_FONT.micro is the 12px floor", () => {
     expect(REPORT_FONT.micro).toBe(FLOOR);
   });
 
-  it("no font size below 11px in the label/strip lane files", () => {
+  it("no font size below the 12px floor in the label/strip lane files", () => {
     const offenders = GUARDED_FILES.flatMap(belowFloor);
     expect(offenders, `\n${offenders.join("\n")}`).toEqual([]);
   });

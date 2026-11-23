@@ -13,6 +13,7 @@ import {
   type DeskReasonTag,
   type DeskSide,
 } from "./deskPlan";
+import { REPORT_FONT } from "./reportTokens";
 
 
 const TAG_COLORS: Record<DeskReasonTag, string> = {
@@ -40,7 +41,7 @@ function SectionLabel(props: { children: JSX.Element; color: string; testId?: st
       span
       style={{
         "color": props.color,
-        "font-size": "11px",
+        "font-size": `${REPORT_FONT.micro}px`,
         "line-height": 1.2,
         "letter-spacing": "0.1em",
         "text-transform": "uppercase",
@@ -71,7 +72,7 @@ function BiasBadge(props: { bias: DeskBias; side: "bull" | "bear" }) {
         span
         size="xs"
         fw={800}
-        style={{ color: accent, "font-size": "11px", "line-height": 1.2, "letter-spacing": "0.08em" }}
+        style={{ color: accent, "font-size": `${REPORT_FONT.micro}px`, "line-height": 1.2, "letter-spacing": "0.08em" }}
       >
         {props.bias.toUpperCase()}
       </Text>
@@ -126,7 +127,7 @@ function InlineStats(props: { side: DeskSide; noTrade: boolean }) {
             fw={700}
             c="dimmed"
             span
-            style={{ "font-size": "11px", "line-height": 1.2, "letter-spacing": "0.06em", "text-transform": "uppercase" }}
+            style={{ "font-size": `${REPORT_FONT.micro}px`, "line-height": 1.2, "letter-spacing": "0.06em", "text-transform": "uppercase" }}
           >
             {stat.label}
           </Text>
@@ -174,7 +175,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
           span
           size="xs"
           fw={800}
-          style={{ color: accent(), "font-size": "11px", "line-height": 1.2, "letter-spacing": "0.08em" }}
+          style={{ color: accent(), "font-size": `${REPORT_FONT.micro}px`, "line-height": 1.2, "letter-spacing": "0.08em" }}
         >
           {label()}
         </Text>
@@ -194,7 +195,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
           size="xs"
           fw={700}
           lh={1.3}
-          style={{ "font-size": "11px" }}
+          style={{ "font-size": `${REPORT_FONT.micro}px` }}
         >
           {side().action}
         </Text>
@@ -203,7 +204,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
           size="xs"
           c="dimmed"
           lh={1.35}
-          style={{ "font-size": "11px" }}
+          style={{ "font-size": `${REPORT_FONT.micro}px` }}
         >
           {noTrade() ? NO_TRADE : trigger()}
         </Text>
@@ -225,10 +226,10 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
             class="flex items-start min-w-0"
             style={{ gap: "6px" }}
           >
-            <Text span size="xs" fw={800} style={{ color: palette.WARNING, "font-size": "11px", "line-height": 1.35 }}>
+            <Text span size="xs" fw={800} style={{ color: palette.WARNING, "font-size": `${REPORT_FONT.micro}px`, "line-height": 1.35 }}>
               ×
             </Text>
-            <Text size="xs" c="dimmed" lh={1.35} style={{ "font-size": "11px" }}>
+            <Text size="xs" c="dimmed" lh={1.35} style={{ "font-size": `${REPORT_FONT.micro}px` }}>
               {line}
             </Text>
           </div>
@@ -258,7 +259,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
                   size="xs"
                   fw={700}
                   c="dimmed"
-                  style={{ "font-size": "11px", "line-height": 1.4, "min-width": "12px", "font-variant-numeric": "tabular-nums" }}
+                  style={{ "font-size": `${REPORT_FONT.micro}px`, "line-height": 1.4, "min-width": "12px", "font-variant-numeric": "tabular-nums" }}
                 >
                   {index() + 1}.
                 </Text>
@@ -279,7 +280,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
                     fw={800}
                     style={{
                       color: TAG_COLORS[reason.tag],
-                      "font-size": "11px",
+                      "font-size": `${REPORT_FONT.micro}px`,
                       "line-height": 1.5,
                       "letter-spacing": "0.06em",
                       "text-transform": "uppercase",
@@ -288,7 +289,7 @@ function DeskSideColumn(props: { side: DeskSide; label: string; noTrade: boolean
                     {reason.tag}
                   </Text>
                 </div>
-                <Text size="xs" c="dimmed" lh={1.4} style={{ "font-size": "11px" }}>
+                <Text size="xs" c="dimmed" lh={1.4} style={{ "font-size": `${REPORT_FONT.micro}px` }}>
                   {reason.text}
                 </Text>
               </li>
@@ -320,10 +321,10 @@ export function NiftyDeskPlan(props: NiftyDeskPlanProps) {
     >
       <div class="flex items-center justify-between gap-2 px-2 py-1 border-b border-fin-border">
         <div class="flex flex-col min-w-0">
-          <span class="text-[11px] font-bold uppercase tracking-[0.07em] text-fin-text-secondary">
+          <span class="text-[12px] font-bold uppercase tracking-[0.07em] text-fin-text-secondary">
             Desk plan
           </span>
-          <span class="text-[11px] text-fin-text-muted">Both sides · ordered by weight</span>
+          <span class="text-[12px] text-fin-text-muted">Both sides · ordered by weight</span>
         </div>
         <button
           type="button"
@@ -364,7 +365,7 @@ export function NiftyDeskPlan(props: NiftyDeskPlanProps) {
                 "border-bottom": `1px solid ${palette.TERM_BORDER}`,
               }}
             >
-              <Text size="xs" fw={700} c="dimmed" lh={1.3} style={{ "font-size": "11px" }}>
+              <Text size="xs" fw={700} c="dimmed" lh={1.3} style={{ "font-size": `${REPORT_FONT.micro}px` }}>
                 {plan().waitNote}
               </Text>
             </div>

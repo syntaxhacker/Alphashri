@@ -296,7 +296,7 @@ export function DeskDock(props: {
           data-testid="desk-dock-idle"
           class="flex-1 min-h-0 flex items-center justify-center px-2"
         >
-          <span class="text-[11px]" style={{ color: palette.TEXT_MUTED }}>
+          <span class="text-[12px]" style={{ color: palette.TEXT_MUTED }}>
             Select a desk panel below · ALT+1..{props.tabs.length} to toggle · ESC to close
           </span>
         </div>
@@ -314,7 +314,7 @@ export function DeskDock(props: {
         }}
       >
         <span
-          class="shrink-0 whitespace-nowrap font-black tracking-[0.08em] text-[11px]"
+          class="shrink-0 whitespace-nowrap font-black tracking-[0.08em] text-[12px]"
           style={{ color: palette.TEXT, "padding-right": "8px" }}
         >
           DESK BAY
@@ -325,7 +325,7 @@ export function DeskDock(props: {
         <Show when={layout().showHint}>
           <span
             data-testid="desk-dock-hint"
-            class="ml-auto shrink-0 whitespace-nowrap text-[11px] font-normal"
+            class="ml-auto shrink-0 whitespace-nowrap text-[12px] font-normal"
             style={{
               color: palette.TEXT_MUTED,
               "padding-left": "8px",

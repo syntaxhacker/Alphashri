@@ -273,7 +273,7 @@ function VerdictCell(props: VerdictCellProps) {
             c={props.accent}
             span
             style={{
-              "font-size": "11px",
+              "font-size": "12px",
               "line-height": "1.2",
               "letter-spacing": "0.04em",
               "min-width": "0",
@@ -287,7 +287,7 @@ function VerdictCell(props: VerdictCellProps) {
             c="dimmed"
             span
             style={{
-              "font-size": "11px",
+              "font-size": "12px",
               "line-height": "1.2",
               "min-width": "0",
               "white-space": "normal",
@@ -321,7 +321,7 @@ function VerdictCell(props: VerdictCellProps) {
           span
           truncate
           style={{
-            "font-size": "11px",
+            "font-size": "12px",
             "line-height": "1.3",
             "letter-spacing": "0.04em",
           }}
@@ -335,7 +335,7 @@ function VerdictCell(props: VerdictCellProps) {
         c="dimmed"
         span
         style={{
-          "font-size": "11px",
+          "font-size": "12px",
           "line-height": "1.2",
           "min-width": "0",
           "white-space": "normal",

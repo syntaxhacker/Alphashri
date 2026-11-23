@@ -332,36 +332,36 @@ export function NiftyTapeTable(props: {
           }}
         >
           <div data-testid="nifty-tape-pcr" class="flex items-baseline" style={{ gap: "4px" }}>
-            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>PCR OI</Text>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>PCR OI</Text>
             <Text span fw={700} data-testid="nifty-tape-head-pcr-oi" style={{ "font-size": `${REPORT_FONT.sm}px` }}>{formatTapeRatio(head().pcrOi)}</Text>
-            <Text span c="dimmed" style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>snapshot</Text>
+            <Text span c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>snapshot</Text>
           </div>
           <div data-testid="nifty-tape-head-pcr-doi" class="flex items-baseline" style={{ gap: "4px" }}>
-            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>{doiLabel()}</Text>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>{doiLabel()}</Text>
             <Text span fw={700} c={TAPE_CALL_DOI} style={{ "font-size": `${REPORT_FONT.sm}px` }}>{formatTapeSigned(head().pcrDoiDelta)}</Text>
           </div>
           <div data-testid="nifty-tape-max-pain" class="flex items-baseline" style={{ gap: "4px" }}>
-            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>Max pain</Text>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>Max pain</Text>
             <Text span fw={700} data-testid="nifty-tape-head-max-pain" style={{ "font-size": `${REPORT_FONT.sm}px` }}>{formatTapePrice(head().maxPain)}</Text>
           </div>
           <div data-testid="nifty-tape-flip" class="flex items-baseline" style={{ gap: "4px" }}>
-            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>Flip</Text>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>Flip</Text>
             <Text span fw={700} data-testid="nifty-tape-head-flip" style={{ "font-size": `${REPORT_FONT.sm}px` }}>
               {formatTapePrice(head().flip)}{" "}
-              <Text span fw={700} c={head().flipDeltaPts >= 0 ? TAPE_FLIP_POS_TEXT : TAPE_FLIP_NEG_TEXT} style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>
+              <Text span fw={700} c={head().flipDeltaPts >= 0 ? TAPE_FLIP_POS_TEXT : TAPE_FLIP_NEG_TEXT} style={{ "font-size": `${REPORT_FONT.micro}px` }}>
                 {flipSigned()}
               </Text>
             </Text>
-            <Text span c="dimmed" style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>spot−flip</Text>
+            <Text span c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>spot−flip</Text>
           </div>
           <div data-testid="nifty-tape-walls" class="flex items-baseline" style={{ gap: "4px" }}>
-            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>Walls</Text>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>Walls</Text>
             <Text span fw={700} data-testid="nifty-tape-head-walls" style={{ "font-size": `${REPORT_FONT.sm}px` }}>
               {formatTapePrice(head().wallCall)} / {formatTapePrice(head().wallPut)}
             </Text>
-            <Text span c="dimmed" style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>call / put</Text>
+            <Text span c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>call / put</Text>
           </div>
-          <Text c="dimmed" ta="left" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>
+          <Text c="dimmed" ta="left" span style={{ "font-size": `${REPORT_FONT.micro}px` }}>
             TICKS {props.rows.length} · one per minute
           </Text>
           <Show when={updatedStamp()}>
@@ -370,7 +370,7 @@ export function NiftyTapeTable(props: {
                 data-testid="nifty-tape-updated"
                 c="dimmed"
                 span
-                style={{ "font-variant-numeric": "tabular-nums", "font-size": `${REPORT_FONT.xs - 1}px` }}
+                style={{ "font-variant-numeric": "tabular-nums", "font-size": `${REPORT_FONT.micro}px` }}
               >
                 upd {formatIstClock(stamp())}
                 {props.nextUpdateAtMs !== null && props.nextUpdateAtMs !== undefined
@@ -379,22 +379,22 @@ export function NiftyTapeTable(props: {
               </Text>
             )}
           </Show>
-          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>
+          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }}>
             SPOT {formatTapePrice(session().spotLo)}–{formatTapePrice(session().spotHi)}
           </Text>
           <div class="flex items-baseline" style={{ gap: "4px" }}>
-            <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>MAX ΔOI</Text>
-            <Text span fw={700} c={TAPE_CALL_DOI} style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>C {formatTapeCompact(session().maxCallDoi)}</Text>
-            <Text span fw={700} c={TAPE_PUT_DOI} style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>P {formatTapeCompact(session().maxPutDoi)}</Text>
+            <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }}>MAX ΔOI</Text>
+            <Text span fw={700} c={TAPE_CALL_DOI} style={{ "font-size": `${REPORT_FONT.micro}px` }}>C {formatTapeCompact(session().maxCallDoi)}</Text>
+            <Text span fw={700} c={TAPE_PUT_DOI} style={{ "font-size": `${REPORT_FONT.micro}px` }}>P {formatTapeCompact(session().maxPutDoi)}</Text>
           </div>
           <div class="flex items-baseline" style={{ gap: "4px" }}>
-            <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>NET</Text>
+            <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }}>NET</Text>
             <Text
               span
               fw={700}
               c={session().netLast >= 0 ? TAPE_NET_TEXT : TAPE_FLIP_NEG_TEXT}
               title="Cumulative put ΔOI − call ΔOI at the last recorded minute (the tape's `net` is already a running total — the column is never summed)"
-              style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}
+              style={{ "font-size": `${REPORT_FONT.micro}px` }}
             >
               {formatTapeCompact(session().netLast)}
             </Text>
@@ -435,7 +435,7 @@ export function NiftyTapeTable(props: {
                   animation: "tapePulse 1.8s ease-out infinite",
                 }}
               />
-              <Text span fw={700} c={palette.POSITIVE} style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>LIVE</Text>
+              <Text span fw={700} c={palette.POSITIVE} style={{ "font-size": `${REPORT_FONT.micro}px` }}>LIVE</Text>
             </div>
           </Show>
         </div>
@@ -472,29 +472,29 @@ export function NiftyTapeTable(props: {
           "line-height": REPORT_LINE_HEIGHT.snug,
         }}
       >
-        <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>HEAT</Text>
+        <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }}>HEAT</Text>
         <div class="flex items-center" style={{ gap: "4px" }}>
           <div style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_POS_HUE, 0.18), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
           <div style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_POS_HUE, 0.45), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
           <div style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_POS_HUE, 0.7), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
-          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }} title="Positive value in the signed columns — net put-led, call/put tick volume up, PCR up, spot above the flip">positive</Text>
+          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }} title="Positive value in the signed columns — net put-led, call/put tick volume up, PCR up, spot above the flip">positive</Text>
         </div>
         <div class="flex items-center" style={{ gap: "4px" }}>
           <div style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_NEG_HUE, 0.18), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
           <div style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_NEG_HUE, 0.45), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
           <div style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_NEG_HUE, 0.7), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
-          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }} title="Negative value in the signed columns — net call-led, call/put tick volume down, PCR down, spot below the flip">negative</Text>
+          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }} title="Negative value in the signed columns — net call-led, call/put tick volume down, PCR down, spot below the flip">negative</Text>
         </div>
         <div class="flex items-center" style={{ gap: "4px" }}>
           <div style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_NET_HUE, 0.7), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
-          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>net ΔOI (put−call)</Text>
+          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }}>net ΔOI (put−call)</Text>
         </div>
         <div data-testid="nifty-tape-burst-legend" class="flex items-center" style={{ gap: "4px" }}>
           <div style={{ width: "10px", height: "8px", background: TAPE_CALL_DOI, "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
           <div style={{ width: "10px", height: "8px", background: TAPE_PUT_DOI, "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
-          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>burst minute</Text>
+          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }}>burst minute</Text>
         </div>
-        <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.xs - 1}px` }}>· brighter = bigger print</Text>
+        <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }}>· brighter = bigger print</Text>
       </div>
     </div>
   );

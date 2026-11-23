@@ -81,8 +81,8 @@ function Field(props: {
       class="inline-flex items-baseline gap-1 shrink-0 min-w-0"
       style={{ color: palette.TEXT_MUTED }}
     >
-      <span class="text-[11px] tracking-[0.04em]">{props.label}</span>
-      <span class="font-bold text-[11px] font-mono tabular-nums whitespace-nowrap" style={{ "color": props.tone }}>
+      <span class="text-[12px] tracking-[0.04em]">{props.label}</span>
+      <span class="font-bold text-[12px] font-mono tabular-nums whitespace-nowrap" style={{ "color": props.tone }}>
         {props.value}
       </span>
     </div>
@@ -106,8 +106,8 @@ function StrikeRows(props: { rows: NiftyIntelStrike[]; side: "call" | "put" }) {
               data-testid={`nifty-intel-modal-${props.side}-${Math.round(row.strike)}`}
               class="flex items-baseline justify-between gap-1 border-b border-fin-border py-[2px] font-mono tabular-nums"
             >
-              <span class="text-[11px]">{fmtIntelInt(row.strike)}</span>
-              <span class="font-bold text-[11px]" style={{ "color": oiTone(row.doi, props.side, palette) }}>
+              <span class="text-[12px]">{fmtIntelInt(row.strike)}</span>
+              <span class="font-bold text-[12px]" style={{ "color": oiTone(row.doi, props.side, palette) }}>
                 {fmtIntelOi(row.doi)}
               </span>
             </div>
@@ -228,7 +228,7 @@ function IntelBody(props: { intel: NiftyIntel; eod?: boolean }) {
                   class="flex items-baseline gap-1 py-[3px] border-b border-fin-border min-w-0"
                 >
                   <span
-                    class="shrink-0 w-[92px] text-[11px] font-mono tabular-nums"
+                    class="shrink-0 w-[92px] text-[12px] font-mono tabular-nums"
                     style={{ color: palette.TEXT_MUTED }}
                   >
                     {item.published}
@@ -239,12 +239,12 @@ function IntelBody(props: { intel: NiftyIntel; eod?: boolean }) {
                       href={item.link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      class="text-[11px] text-fin-text decoration-none min-w-0 overflow-hidden overflow-ellipsis whitespace-nowrap hover:text-fin-positive hover:underline"
+                      class="text-[12px] text-fin-text decoration-none min-w-0 overflow-hidden overflow-ellipsis whitespace-nowrap hover:text-fin-positive hover:underline"
                     >
                       {item.heading}
                     </a>
                   ) : (
-                    <span class="text-[11px] text-fin-text min-w-0">{item.heading}</span>
+                    <span class="text-[12px] text-fin-text min-w-0">{item.heading}</span>
                   )}
                 </li>
               )}
@@ -376,7 +376,7 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
         onKeyDown={onKeyDown}
         class={`flex items-center gap-1 shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface cursor-pointer whitespace-nowrap font-mono hover:border-fin-text-muted focus-visible:outline-1 focus-visible:outline-fin-positive focus-visible:outline-offset-0 ${layout().wrap ? "flex-wrap h-auto min-h-[24px] py-0.5" : "h-[24px] min-h-[24px]"}`}
       >
-        <span class="font-bold shrink-0 text-[11px] tracking-[0.08em]" style={{ color: palette.TEXT_MUTED }}>
+        <span class="font-bold shrink-0 text-[12px] tracking-[0.08em]" style={{ color: palette.TEXT_MUTED }}>
           INTEL
         </span>
         <Field
@@ -400,16 +400,16 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
           title="Official change in OI — call / put units (contracts × lot size)"
           class="flex items-baseline gap-1 shrink-0"
         >
-          <span class="text-[11px] tracking-[0.04em]" style={{ color: palette.TEXT_MUTED }}>
+          <span class="text-[12px] tracking-[0.04em]" style={{ color: palette.TEXT_MUTED }}>
             ΔOI (official) C
           </span>
-          <span class="font-bold text-[11px] font-mono tabular-nums" style={{ color: oiTone(data().dce_oi, "call", palette) }}>
+          <span class="font-bold text-[12px] font-mono tabular-nums" style={{ color: oiTone(data().dce_oi, "call", palette) }}>
             {fmtIntelOi(data().dce_oi)}
           </span>
-          <span class="text-[11px]" style={{ color: palette.TEXT_MUTED, opacity: 0.8 }}>
+          <span class="text-[12px]" style={{ color: palette.TEXT_MUTED, opacity: 0.8 }}>
             / P
           </span>
-          <span class="font-bold text-[11px] font-mono tabular-nums" style={{ color: oiTone(data().dpe_oi, "put", palette) }}>
+          <span class="font-bold text-[12px] font-mono tabular-nums" style={{ color: oiTone(data().dpe_oi, "put", palette) }}>
             {fmtIntelOi(data().dpe_oi)}
           </span>
         </div>
@@ -421,12 +421,12 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
         <div
           data-testid="nifty-intel-news"
           title={data().news.length ? data().news.map((n) => n.heading).join("\n") : "No headlines"}
-          class="text-[11px] font-mono tabular-nums shrink-0"
+          class="text-[12px] font-mono tabular-nums shrink-0"
           style={{ color: palette.TEXT_MUTED }}
         >
           {data().news.length ? `${data().news.length} news` : "no news"}
         </div>
-        <span aria-hidden class="ml-auto shrink-0 text-[11px]" style={{ color: palette.TEXT_MUTED }}>
+        <span aria-hidden class="ml-auto shrink-0 text-[12px]" style={{ color: palette.TEXT_MUTED }}>
           ▸
         </span>
       </div>

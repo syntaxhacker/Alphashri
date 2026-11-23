@@ -2,8 +2,11 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render, screen } from "@solidjs/testing-library";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createSignal } from "solid-js";
 import { UIProvider } from "@/ui";
+import { REPORT_FONT } from "./reportTokens";
 
 // The shell is a section-order contract here: every heavy section is stubbed
 // so the test only sees the order the desk reader meets them in.
@@ -159,5 +162,31 @@ describe("NiftyReportShell KPI strip at 390", () => {
     const narrowRules = panel.className.split(" ").filter((c) => c.includes("max-[600px]"));
     expect(narrowRules.length).toBeGreaterThan(0);
     for (const rule of narrowRules) expect(rule).toContain("max-[600px]:");
+  });
+});
+
+describe("NiftyReportShell shared-scale contract", () => {
+  test("the replay banner uses the shared type floor, not the legacy 11px step", async () => {
+    setReport({ spot: 25_980 });
+    const liveMode = mockStore.selection.mode;
+    mockStore.selection.mode = () => "eod";
+    try {
+      mount();
+      const banner = await screen.findByTestId("nifty-replay-mode-banner");
+      expect(banner.className).toContain(`text-[${REPORT_FONT.micro}px]`);
+      expect(banner.className).not.toContain("text-[11px]");
+    } finally {
+      mockStore.selection.mode = liveMode;
+    }
+  });
+
+  test("shell radii come from the terminal vocabulary, never an arbitrary 8/12", () => {
+    const source = readFileSync(
+      join(process.cwd(), "src/pages/report/NiftyReportShell.tsx"),
+      "utf8",
+    );
+    expect(source).toContain("REPORT_RADIUS.xs");
+    expect(source).not.toContain('"border-radius": "8px"');
+    expect(source).not.toContain('"border-radius": "12px"');
   });
 });

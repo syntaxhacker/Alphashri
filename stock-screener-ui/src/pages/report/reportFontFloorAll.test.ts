@@ -4,7 +4,7 @@
  *
  * The two earlier guards each own a hand-maintained file list. This one walks
  * the report directory so a new file — or a file that was outside an earlier
- * lane's scope — cannot reintroduce sub-11px text unnoticed. SVG attributes,
+ * lane's scope — cannot reintroduce sub-floor text unnoticed. SVG attributes,
  * Tailwind arbitrary values and inline styles all count.
  */
 import { readFileSync, readdirSync } from "node:fs";
@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import { REPORT_FONT } from "./reportTokens";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
-const FLOOR = 11;
+const FLOOR = REPORT_FONT.micro;
 
 const SOURCE_FILES = readdirSync(HERE)
   .filter((name) => /\.(ts|tsx)$/.test(name) && !name.includes(".test."))
@@ -41,11 +41,11 @@ describe("report surface typography floor (all files)", () => {
     expect(SOURCE_FILES).toContain("ReportWorkspace.tsx");
   });
 
-  it("REPORT_FONT.micro is the 11px floor", () => {
+  it("REPORT_FONT.micro is the 12px floor", () => {
     expect(REPORT_FONT.micro).toBe(FLOOR);
   });
 
-  it("no literal font size below 11px in any report source file", () => {
+  it("no literal font size below the 12px floor in any report source file", () => {
     const offenders = SOURCE_FILES.flatMap(belowFloor);
     expect(offenders, `\n${offenders.join("\n")}`).toEqual([]);
   });

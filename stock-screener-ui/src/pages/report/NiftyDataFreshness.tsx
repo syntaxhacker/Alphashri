@@ -68,7 +68,7 @@ export function NiftyDataFreshness(props: NiftyDataFreshnessProps) {
       data-testid="nifty-data-freshness"
       data-state={freshness().isStale ? "stale" : "fresh"}
       title={freshness().detail}
-      class="inline-flex items-center shrink-0 whitespace-nowrap border rounded-full px-2 py-[2px] text-[11px]"
+      class="inline-flex items-center shrink-0 whitespace-nowrap border rounded-full px-2 py-[2px] text-[12px]"
       style={{
         "border-color": freshness().isStale ? palette.WARNING : palette.TERM_BORDER,
         "color": freshness().isStale ? palette.WARNING : palette.TEXT_MUTED,

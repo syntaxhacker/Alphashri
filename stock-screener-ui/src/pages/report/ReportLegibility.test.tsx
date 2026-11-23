@@ -12,6 +12,7 @@ import { UIProvider } from "@/ui";
 import { NiftyOiHeatmap } from "./NiftyOiHeatmap";
 import { NiftyVerdictStrip } from "./NiftyVerdictStrip";
 import { getNiftyOiColumns } from "./reportCells";
+import { REPORT_FONT } from "./reportTokens";
 import { chainAt, isoAt, r } from "./reportTestFixtures";
 
 afterEach(cleanup);
@@ -62,7 +63,7 @@ describe("verdict detail in the compact context row", () => {
     expect(secondary).not.toHaveClass("sr-only");
     expect(secondary.style.textOverflow).toBe("");
     expect(secondary.style.whiteSpace).toBe("normal");
-    expect(secondary.style.fontSize).toBe("11px");
+    expect(secondary.style.fontSize).toBe(`${REPORT_FONT.micro}px`);
     expect(secondary.style.height).toBe("");
     expect(control).toHaveAttribute("title", expect.stringContaining(expected));
 
@@ -76,14 +77,14 @@ describe("verdict detail in the compact context row", () => {
     expect(vixSecondary).not.toHaveClass("sr-only");
   });
 
-  test("the full strip keeps its detail as a wrapping line at 11px", () => {
+  test(`the full strip keeps its detail as a wrapping line at ${REPORT_FONT.micro}px`, () => {
     render(() => (
       <UIProvider>
         <NiftyVerdictStrip report={verdictReport()} />
       </UIProvider>
     ));
     const regime = screen.getByTestId("nifty-verdict-regime-secondary");
-    expect(regime.style.fontSize).toBe("11px");
+    expect(regime.style.fontSize).toBe(`${REPORT_FONT.micro}px`);
     expect(regime.style.whiteSpace).toBe("normal");
     expect(regime.style.textOverflow).toBe("");
   });
@@ -100,20 +101,22 @@ describe("heatmap read + axis legibility", () => {
     expect(read.textContent?.length).toBeGreaterThan(40);
   });
 
-  test("the strike and ΔOI labels fit their boxes at the 11px floor", () => {
+  test(`the strike and ΔOI labels fit their boxes at the ${REPORT_FONT.micro}px floor`, () => {
     r(() => <NiftyOiHeatmap rows={rows} bucketMin={5} widthPts={500} />);
     for (const el of screen.getAllByTestId("nifty-heatmap-strike-label")) {
-      expect(el.getAttribute("font-size")).toBe("11");
+      expect(el.getAttribute("font-size")).toBe(String(REPORT_FONT.micro));
       expect(el.getAttribute("dominant-baseline")).toBe("middle");
       expect(Number(el.getAttribute("y"))).toBeGreaterThan(0);
       expect(Number(el.getAttribute("y"))).toBeLessThan(150);
     }
     const oi = screen.getByTestId("nifty-heatmap-oi-label");
     expect(oi).toHaveTextContent("ΔOI");
-    expect(oi.getAttribute("font-size")).toBe("11");
+    expect(oi.getAttribute("font-size")).toBe(String(REPORT_FONT.micro));
     expect(oi.getAttribute("dominant-baseline")).toBe("middle");
     expect(Number(oi.getAttribute("x"))).toBeGreaterThanOrEqual(14);
-    expect(screen.getByTestId("nifty-heatmap-time-axis").getAttribute("font-size")).toBe("11");
+    expect(screen.getByTestId("nifty-heatmap-time-axis").getAttribute("font-size")).toBe(
+      String(REPORT_FONT.micro),
+    );
   });
 });
 
@@ -149,14 +152,14 @@ describe("report typography floor", () => {
   const FONT_SIZE =
     /text-\[(\d+(?:\.\d+)?)px\]|"font-size":\s*"(\d+(?:\.\d+)?)px"|fontSize:\s*(\d+(?:\.\d+)?)\b|font-size="(\d+(?:\.\d+)?)"/g;
 
-  test("no report text is below 11px in the legibility lane's files", () => {
+  test(`no report text is below ${REPORT_FONT.micro}px in the legibility lane's files`, () => {
     const offenders = FILES.flatMap((file) =>
       readFileSync(resolve(HERE, file), "utf8")
         .split("\n")
         .flatMap((line, i) =>
           [...line.matchAll(FONT_SIZE)]
             .map((m) => Number(m[1] ?? m[2] ?? m[3] ?? m[4]))
-            .filter((px) => px < 11)
+            .filter((px) => px < REPORT_FONT.micro)
             .map((px) => `${file}:${i + 1} (${px}px)`),
         ),
     );

@@ -10,6 +10,7 @@ import type { SimStrategyResult, SimTrade } from "@/types/reportSim";
 import { fmtInr, fmtPoints, fmtSignedInr, fmtTime, toneFor } from "./simFormat";
 import type { StrategyView } from "./simView";
 import { isOpenTrade } from "./simView";
+import { REPORT_FONT } from "../reportTokens";
 
 interface SimRunsProps {
   strategy: SimStrategyResult | null;
@@ -63,13 +64,13 @@ export function SimRuns(props: SimRunsProps) {
       xAxis: {
         type: "category",
         data: points.map((point) => fmtTime(point.t)),
-        axisLabel: { color: palette.CHART_MUTED, "font-size": "11px", hideOverlap: true },
+        axisLabel: { color: palette.CHART_MUTED, "font-size": `${REPORT_FONT.micro}px`, hideOverlap: true },
         axisLine: { lineStyle: { color: palette.AXIS_LINE } },
       },
       yAxis: {
         type: "value",
         scale: true,
-        axisLabel: { color: palette.CHART_MUTED, "font-size": "11px" },
+        axisLabel: { color: palette.CHART_MUTED, "font-size": `${REPORT_FONT.micro}px` },
         axisLine: { lineStyle: { color: palette.AXIS_LINE } },
         splitLine: { lineStyle: { color: palette.AXIS_SPLIT } },
       },
