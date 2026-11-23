@@ -412,6 +412,69 @@ describe("option-chain row emphasis and panel sizing", () => {
   });
 });
 
+describe("desk chain row text stays visible", () => {
+  const STRIKES = [22100, 22200, 22300, 22400, 22500];
+
+  function mountDesk() {
+    return render(() => (
+      <NiftyOiChain
+        strikes={STRIKES.map((strike) => chainRow(strike))}
+        columns={getNiftyOiColumns(22300, { showLegChange: false })}
+        getRowStyle={() => undefined}
+        getRowTestId={(row) => `nifty-strike-row-${row.strike}`}
+        panelTestId="nifty-oi-panel"
+        tableTestId="nifty-oi-table"
+        wrapTestId="nifty-oi-wrap"
+      />
+    ));
+  }
+
+  test("the panel has a definite width so the table's width:100% cannot blow up intrinsic sizing", () => {
+    mountDesk();
+    const panel = screen.getByTestId("nifty-oi-panel") as HTMLElement;
+    // With flex:0 0 auto and only `contain: layout paint`, Chrome sizes the
+    // panel from its content; the table's `width: 100%` then circularly
+    // resolves to ~1,000,000px and every right-aligned cell moves off-screen.
+    expect(panel.style.getPropertyValue("width")).toBe("100%");
+    expect(panel.style.getPropertyValue("flex")).toBe("0 0 auto");
+  });
+
+  test("all five desk rows render STRIKE / CE ΔOI / CE SIG / PE SIG / PE ΔOI text", () => {
+    const { container } = mountDesk();
+    const headers = Array.from(container.querySelectorAll("thead th")).map((th) => th.textContent);
+    expect(headers).toEqual(["CE ΔOI", "CE SIG", "STRIKE", "PE SIG", "PE ΔOI"]);
+
+    const rows = Array.from(container.querySelectorAll("tbody tr"));
+    expect(rows).toHaveLength(STRIKES.length);
+    for (const [index, row] of rows.entries()) {
+      const cells = Array.from(row.querySelectorAll("td"));
+      expect(cells).toHaveLength(5);
+      const strike = STRIKES[index].toLocaleString("en-IN");
+      expect(cells[0].textContent).toMatch(/\d/);
+      expect(cells[1].querySelector('[data-testid="nifty-oi-signal-ce"]')?.textContent).toBeTruthy();
+      expect(cells[2]).toHaveTextContent(strike);
+      expect(cells[3].querySelector('[data-testid="nifty-oi-signal-pe"]')?.textContent).toBeTruthy();
+      expect(cells[4].textContent).toMatch(/\d/);
+    }
+  });
+
+  test("no desk value is ellipsised or sized to zero", () => {
+    const { container } = mountDesk();
+    const wrap = screen.getByTestId("nifty-oi-wrap");
+    // The shared table inlines `text-overflow: ellipsis`; this `!important`
+    // rule on the chain wrapper is what keeps every value whole in the browser.
+    expect(wrap.className).toContain("[&_td]:[text-overflow:clip]!");
+    expect(wrap.className).toContain("[&_td]:[height:26px]!");
+
+    const numbers = Array.from(container.querySelectorAll("tbody td span.text-ui-micro"));
+    expect(numbers.length).toBeGreaterThanOrEqual(STRIKES.length * 3);
+    for (const text of numbers) {
+      expect((text as HTMLElement).style.getPropertyValue("color")).not.toBe("transparent");
+      expect((text as HTMLElement).style.getPropertyValue("font-size")).not.toBe("0px");
+    }
+  });
+});
+
 describe("full-density chain — bounded scroll and ATM auto-centre", () => {
   const VIEW_H = OI_CHAIN_MAX_HEIGHT;
   const CONTENT_H = OI_CHAIN_HEADER_HEIGHT + 29 * OI_CHAIN_METRICS.rowHeight;
@@ -529,7 +592,11 @@ describe("full-density chain — bounded scroll and ATM auto-centre", () => {
     const wrap = screen.getByTestId("desk-wrap") as HTMLElement;
     expect(wrap.className).toContain(`[&_td]:[height:${OI_CHAIN_METRICS.rowHeight}px]!`);
     expect(wrap.style.maxHeight).toBe("360px");
-    expect(screen.getByTestId("desk-panel").style.maxHeight).toBe("360px");
+    const panel = screen.getByTestId("desk-panel") as HTMLElement;
+    expect(panel.style.maxHeight).toBe("360px");
+    // Definite panel width: without it the table's `width: 100%` resolves
+    // against an intrinsic panel and right-aligned values land off-screen.
+    expect(panel.style.width).toBe("100%");
     const desk = getNiftyOiColumns(null, { showLegChange: false });
     expect(desk.reduce((sum, c) => sum + (c.size ?? 0), 0)).toBe(OI_CHAIN_DESK_WIDTH);
     expect(OI_CHAIN_DESK_WIDTH).toBe(384);
