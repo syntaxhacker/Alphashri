@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it } from "vitest";
 import { createSignal } from "solid-js";
 import { TYPE_CLASS, TYPE_SCALE } from "@/ui";
@@ -167,12 +167,12 @@ describe("LiveTapeDisclosure", () => {
 
     const toggle = screen.getByTestId("nifty-live-tape-toggle");
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(toggle).toHaveAttribute("aria-controls", "nifty-live-tape-content");
     expect(toggle).toHaveTextContent("FLOW WINDOWS");
     expect(screen.getByTestId("nifty-live-tape-chevron")).toHaveAttribute("aria-hidden", "true");
 
     const content = screen.getByTestId("nifty-live-tape-content");
-    expect(content.id).toBe("nifty-live-tape-content");
+    expect(content.id).toBeTruthy();
+    expect(toggle).toHaveAttribute("aria-controls", content.id);
     expect(content.style.display).toBe("none");
     expect(screen.getByTestId("band")).toBeInTheDocument();
 
@@ -190,6 +190,37 @@ describe("LiveTapeDisclosure", () => {
     expect(tokens(toggle.className)).toContain("min-h-7");
     expect(tokens(toggle.className)).toContain("flex-wrap");
     expect(tokens(toggle.className)).toContain("max-[480px]:h-auto");
+  });
+
+  it("gives each mounted instance a unique content id that its own toggle controls", () => {
+    render(() => (
+      <>
+        <LiveTapeDisclosure open={false} onToggle={() => {}} testId="disc-a" label="FLOW WINDOWS">
+          <div data-testid="band-a" />
+        </LiveTapeDisclosure>
+        <LiveTapeDisclosure open={true} onToggle={() => {}} testId="disc-b" label="LIVE TAPE">
+          <div data-testid="band-b" />
+        </LiveTapeDisclosure>
+      </>
+    ));
+
+    const discA = screen.getByTestId("disc-a");
+    const discB = screen.getByTestId("disc-b");
+    const toggleA = within(discA).getByTestId("nifty-live-tape-toggle");
+    const toggleB = within(discB).getByTestId("nifty-live-tape-toggle");
+    const contentA = within(discA).getByTestId("nifty-live-tape-content");
+    const contentB = within(discB).getByTestId("nifty-live-tape-content");
+
+    expect(contentA.id).toBeTruthy();
+    expect(contentB.id).toBeTruthy();
+    expect(contentA.id).not.toBe(contentB.id);
+    expect(contentA.id).not.toBe("nifty-live-tape-content");
+    expect(contentB.id).not.toBe("nifty-live-tape-content");
+    // Each toggle points at its own region, never the sibling's shared id.
+    expect(toggleA).toHaveAttribute("aria-controls", contentA.id);
+    expect(toggleB).toHaveAttribute("aria-controls", contentB.id);
+    expect(toggleA).not.toHaveAttribute("aria-controls", contentB.id);
+    expect(toggleB).not.toHaveAttribute("aria-controls", contentA.id);
   });
 
   it("toggles the same content without unmounting it", () => {

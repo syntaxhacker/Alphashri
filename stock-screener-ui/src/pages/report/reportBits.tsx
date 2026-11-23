@@ -1,4 +1,4 @@
-import { Show, type JSX } from "solid-js";
+import { Show, createUniqueId, type JSX } from "solid-js";
 import { Button } from "@/ui";
 
 export function LocalCompactPanel(props: {
@@ -105,6 +105,10 @@ export function LiveTapeDisclosure(props: {
   closedHint?: string;
 }) {
   const open = () => props.open;
+  // Per-instance id: this primitive mounts several times on one screen, so a
+  // shared id would produce duplicate DOM ids and point every toggle at one
+  // content region. The data-testids stay stable for targeted queries.
+  const contentId = `nifty-live-tape-content-${createUniqueId()}`;
   return (
     <div
       data-testid={props.testId ?? "nifty-live-tape-disclosure"}
@@ -117,7 +121,7 @@ export function LiveTapeDisclosure(props: {
         size="xs"
         variant="default"
         aria-expanded={open()}
-        aria-controls="nifty-live-tape-content"
+        aria-controls={contentId}
         onClick={() => props.onToggle()}
         className="h-7 min-h-7 w-full flex-wrap justify-start gap-x-2 gap-y-1 px-2 rounded-[2px] text-ui-label font-extrabold uppercase tracking-[0.08em] text-fin-text-muted max-[480px]:h-auto"
       >
@@ -130,7 +134,7 @@ export function LiveTapeDisclosure(props: {
         </span>
       </Button>
       <div
-        id="nifty-live-tape-content"
+        id={contentId}
         data-testid="nifty-live-tape-content"
         class="flex flex-col gap-1 w-full min-w-0"
         style={{ display: open() ? "flex" : "none" }}
