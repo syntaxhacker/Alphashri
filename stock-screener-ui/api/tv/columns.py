@@ -117,6 +117,17 @@ CORE_FIELDS = [
     "return_on_equity_fq", "free_cash_flow_ttm", "close",
 ]
 
+#: Intraday price-change periods -> TradingView scanner field. These are
+#: separate from ``PERFORMANCE_FIELDS``: ``change|N`` is the percentage move
+#: over N minutes, while ``Perf.1M`` etc. are calendar returns. Verified against
+#: the live scanner: ``change|1``, ``change|5`` and ``change|15`` return
+#: numbers; ``change_1m``/``change_5m`` are not scanner fields.
+INTRADAY_CHANGE_FIELDS = {
+    "1m": "change|1",
+    "5m": "change|5",
+    "15m": "change|15",
+}
+
 #: Rotation period -> scanner field.
 PERFORMANCE_FIELDS = {
     "1D": "change",

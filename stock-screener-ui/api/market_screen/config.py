@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from api.tv import USA_EXCHANGES
+from api.tv import INTRADAY_CHANGE_FIELDS, USA_EXCHANGES
 
 #: Dashboard screener frame (the exact current row contract).
 COLUMNS = [
@@ -21,6 +21,10 @@ COLUMNS = [
     "exchange",
     "close",
     "change",
+    # `change` is the session/day move. The intraday 1m/5m deltas come from
+    # TV's `change|N` fields; `Perf.1M` below is the one-month return.
+    INTRADAY_CHANGE_FIELDS["1m"],
+    INTRADAY_CHANGE_FIELDS["5m"],
     "relative_volume_10d_calc",
     "market_cap_basic",
     "RSI",

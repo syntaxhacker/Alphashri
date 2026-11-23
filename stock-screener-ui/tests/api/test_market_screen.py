@@ -71,6 +71,7 @@ RELIANCE_ROW = {
     "name": "NSE:RELIANCE", "description": "Reliance Industries",
     "sector": "Energy", "exchange": "NSE",
     "close": 2946.0, "change": 0.82,
+    "change|1": 0.11, "change|5": 0.42,
     "relative_volume_10d_calc": 1.4, "market_cap_basic": 1990000000000.0,
     "RSI": 61.2, "ADX": 24.1,
     "SMA20": 2880.0, "SMA50": 2800.0, "SMA200": 2600.0,
@@ -113,6 +114,7 @@ NIFTYBEES_ROW = _etf_row("NIFTYBEES", "Nippon India ETF Nifty 50 BeES", 287.89)
 EXPECTED_RELIANCE_ROW = {
     "symbol": "RELIANCE", "name": "Reliance Industries", "sector": "Energy", "exchange": "NSE",
     "close": 2946.0, "change": 0.82,
+    "change_1m": 0.11, "change_5m": 0.42,
     "relative_volume": 1.4, "market_cap_cr": 199000.0, "cap_tier": "large",
     "rsi": 61.2, "adx": 24.1,
     "sma20": 2880.0, "sma50": 2800.0, "sma200": 2600.0,
@@ -520,7 +522,8 @@ def test_missing_numerics_are_null(client, mock_tv):
     assert r["symbol"] == "NODATA"
     assert r["name"] == "No Data"
     assert r["sector"] is None
-    for key in ("close", "change", "relative_volume", "market_cap_cr",
+    for key in ("close", "change", "change_1m", "change_5m",
+                "relative_volume", "market_cap_cr",
                 "rsi", "adx", "sma20", "sma50",
                 "sma200", "perf_w", "perf_1m", "high_52w",
                 "low_52w", "pos_52w", "volume", "avg_volume", "gap", "atr",

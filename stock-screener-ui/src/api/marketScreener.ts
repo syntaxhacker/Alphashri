@@ -3,6 +3,10 @@ import { API_BASE } from "@/api/config";
 import { finiteNumber, finiteText } from "./wireParse";
 import { MARKET_ROW_CAP, MARKET_SYMBOL_CAP } from "../config/apiLimits";
 import { MARKET_UNIVERSE_DESCRIPTORS } from "../config/marketUniverses";
+import {
+  MARKET_INTRADAY_CHANGES,
+  type MarketIntradayField,
+} from "../config/marketIntraday";
 import type { MarketRow, MarketSnapshot, MarketUniverse } from "../types/marketScreener";
 import { apiErrorFromResponse } from "./apiError";
 import { isRecord } from "../utils/isRecord";
@@ -139,6 +143,8 @@ interface RawMarketRow {
   exchange?: unknown;
   close?: unknown;
   change?: unknown;
+  change_1m?: unknown;
+  change_5m?: unknown;
   relative_volume?: unknown;
   market_cap_cr?: unknown;
   /** Backend emits camelCase; accept the snake_case spelling too. */
@@ -208,6 +214,9 @@ export function mapMarketRow(raw: RawMarketRow | null | undefined): MarketRow {
   const r = raw ?? {};
   const currency = toCurrency(r.currency);
   const usdCap = finiteNumber(r.marketCapUsdB) ?? finiteNumber(r.market_cap_usd_b);
+  const intraday = Object.fromEntries(
+    MARKET_INTRADAY_CHANGES.map((spec) => [spec.field, finiteNumber(r[spec.raw])]),
+  ) as Record<MarketIntradayField, number | null>;
   return {
     symbol: finiteText(r.symbol) ?? "",
     name: finiteText(r.name) ?? "",
@@ -215,6 +224,7 @@ export function mapMarketRow(raw: RawMarketRow | null | undefined): MarketRow {
     exchange: finiteText(r.exchange),
     close: finiteNumber(r.close),
     change: finiteNumber(r.change),
+    ...intraday,
     relativeVolume: finiteNumber(r.relative_volume),
     // One cap unit per currency: never let a stale field leak a ₹ figure into a
     // USD row (or the reverse). The backend already emits the other as null.

@@ -33,7 +33,7 @@ from typing import Any
 import pandas as pd
 import requests
 
-from api.tv import scan_frame, to_tv_ticker, tv_name_to_symbol
+from api.tv import INTRADAY_CHANGE_FIELDS, scan_frame, to_tv_ticker, tv_name_to_symbol
 from api.tv.auth import refresh_tv_cookies
 from api.tv.status import tv_feed_status
 from chart_patterns.tags import etf_symbols, fno_symbols
@@ -466,6 +466,10 @@ def _shape_rows(rows: list[dict[str, Any]], *, universe: str = "all_equity") -> 
             "exchange": _text(raw.get("exchange")),
             "close": close,
             "change": _num(raw.get("change")),
+            # TradingView intraday deltas. They are null on fields/markets TV
+            # has no intraday coverage for, so the UI must render a dash.
+            "change_1m": _num(raw.get(INTRADAY_CHANGE_FIELDS["1m"])),
+            "change_5m": _num(raw.get(INTRADAY_CHANGE_FIELDS["5m"])),
             "relative_volume": _num(raw.get("relative_volume_10d_calc")),
             **mcap_fields,
             "cap_tier": cap_tier,

@@ -25,6 +25,10 @@ export interface MarketRow {
   close: number | null;
   /** Day change in percent. */
   change: number | null;
+  /** Intraday 1-minute change in percent (TradingView `change|1`). */
+  change1m?: number | null;
+  /** Intraday 5-minute change in percent (TradingView `change|5`). */
+  change5m?: number | null;
   /** Today's volume vs the trailing average (x). */
   relativeVolume: number | null;
   /** Market cap in ₹ crore (derived from raw market cap server-side). Null for USD rows. */
