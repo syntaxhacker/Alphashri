@@ -7,7 +7,7 @@ Scope: `src/ui/**` and `src/components/common/**` component modules (100 files).
 ## Story catalog
 
 - Story files scanned: **93** (93 centralized under `src/stories/` — design-system + components, 0 co-located).
-- Story entries parsed from `export const …`: **384**.
+- Story entries parsed from `export const …`: **385**.
 - Distinct exported component names imported by those stories: **149**.
 - A module is marked "yes" in the Story column only when a story imports one of its **actual exported names**, resolved through `@/ui` re-exports and relative co-located imports. Filename string matches are no longer used.
 
@@ -27,7 +27,7 @@ Scope: `src/ui/**` and `src/components/common/**` component modules (100 files).
 ## Status
 
 - Audited modules exercised by a story: **84/100**
-- Modules with a co-located test: **88/100**
+- Modules with a co-located test: **93/100**
 - Violations: **0**
 
 No rule violations.
@@ -87,7 +87,7 @@ No rule violations.
 | `ui/feedback/RingProgress.tsx` | yes | `RingProgress` | yes | 0 | 0 |
 | `ui/feedback/Skeleton.tsx` | yes | `Skeleton` | yes | 0 | 0 |
 | `ui/form/FormField.tsx` | yes | `FormField` | yes | 0 | 0 |
-| `ui/icons.tsx` | yes | `IconActivity`, `IconAlertCircle`, `IconAlertTriangle`, `IconBolt`, `IconBookmarkPlus`, `IconPencil`, `IconPlayerPlay`, `IconRefresh`, `IconTrash` | — | 0 | 0 |
+| `ui/icons.tsx` | yes | `IconActivity`, `IconAlertCircle`, `IconAlertTriangle`, `IconBolt`, `IconBookmarkPlus`, `IconPencil`, `IconPlayerPlay`, `IconRefresh`, `IconTrash` | yes | 0 | 0 |
 | `ui/inputs/ActionIcon.tsx` | yes | `ActionIcon` | yes | 0 | 0 |
 | `ui/inputs/Button.tsx` | yes | `Button` | yes | 0 | 0 |
 | `ui/inputs/Checkbox.tsx` | yes | `Checkbox` | yes | 0 | 0 |
@@ -105,15 +105,15 @@ No rule violations.
 | `ui/inputs/UnstyledButton.tsx` | yes | `UnstyledButton` | yes | 0 | 0 |
 | `ui/layout/Box.tsx` | yes | `Box` | yes | 0 | 0 |
 | `ui/layout/Card.tsx` | yes | `Card` | yes | 0 | 0 |
-| `ui/layout/Center.tsx` | yes | `Center` | — | 0 | 0 |
+| `ui/layout/Center.tsx` | yes | `Center` | yes | 0 | 0 |
 | `ui/layout/Col.tsx` | yes | `Col` | yes | 0 | 0 |
 | `ui/layout/Collapse.tsx` | yes | `Collapse` | yes | 0 | 0 |
 | `ui/layout/Divider.tsx` | yes | `Divider` | yes | 0 | 0 |
 | `ui/layout/Flex.tsx` | yes | `Flex` | yes | 0 | 0 |
 | `ui/layout/Grid.tsx` | yes | `Grid`, `GridCol` | yes | 0 | 0 |
 | `ui/layout/Group.tsx` | yes | `Group` | yes | 0 | 0 |
-| `ui/layout/Paper.tsx` | yes | `Paper` | — | 0 | 0 |
-| `ui/layout/Portal.tsx` | yes | `Portal` | — | 0 | 0 |
+| `ui/layout/Paper.tsx` | yes | `Paper` | yes | 0 | 0 |
+| `ui/layout/Portal.tsx` | yes | `Portal` | yes | 0 | 0 |
 | `ui/layout/Row.tsx` | yes | `Row` | yes | 0 | 0 |
 | `ui/layout/ScrollArea.tsx` | yes | `ScrollArea` | yes | 0 | 0 |
 | `ui/layout/SimpleGrid.tsx` | yes | `SimpleGrid` | yes | 0 | 0 |
@@ -124,7 +124,7 @@ No rule violations.
 | `ui/misc/ThemeIcon.tsx` | yes | `ThemeIcon` | yes | 0 | 0 |
 | `ui/navigation/AppShell.tsx` | yes | `AppShell`, `AppShellHeader`, `AppShellMain`, `AppShellNavbar`, `AppShellSection` | yes | 0 | 0 |
 | `ui/navigation/NavLink.tsx` | yes | `NavLink` | yes | 0 | 0 |
-| `ui/notifications.tsx` | yes | `Notifications`, `showError`, `showNotification`, `showSuccess` | — | 0 | 0 |
+| `ui/notifications.tsx` | yes | `Notifications`, `showError`, `showNotification`, `showSuccess` | yes | 0 | 0 |
 | `ui/overlay/FloatingWindow.tsx` | — | — | yes | 0 | 0 |
 | `ui/overlay/Modal.tsx` | yes | `Modal` | yes | 0 | 0 |
 | `ui/overlay/Overlay.tsx` | yes | `Overlay` | yes | 0 | 0 |
