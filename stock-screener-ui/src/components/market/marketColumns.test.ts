@@ -386,7 +386,7 @@ describe("PATTERNS column", () => {
     const badge = screen.getByTestId("market-patterns-RELIANCE");
     expect(badge).toHaveTextContent("2▲");
     // Tone derives from the palette anchor — a re-theme moves both together.
-    expect(badge.style.color).toBe(palette.POSITIVE_COLOR);
+    expect(badge.style.color).toBe("var(--ui-badge-positive-main)");
   });
 
   test("a bearish set renders the down glyph in the negative tone", () => {
@@ -397,7 +397,7 @@ describe("PATTERNS column", () => {
 
     const badge = screen.getByTestId("market-patterns-RELIANCE");
     expect(badge).toHaveTextContent("1▼");
-    expect(badge.style.color).toBe(palette.NEGATIVE_COLOR);
+    expect(badge.style.color).toBe("var(--ui-badge-negative-main)");
   });
 
   test("mixed directions show the count alone in the neutral tone", () => {
@@ -408,7 +408,7 @@ describe("PATTERNS column", () => {
 
     const badge = screen.getByTestId("market-patterns-RELIANCE");
     expect(badge).toHaveTextContent(/^2$/);
-    expect(badge.style.color).toBe(palette.TEXT_MUTED);
+    expect(badge.style.color).toBe("var(--ui-badge-muted-main)");
   });
 
   test("the tooltip lists every pattern name with its confidence", async () => {
