@@ -76,12 +76,18 @@ SolidJS 1.9 + Vite 8 + Tailwind CSS 4 + TypeScript. Backend: FastAPI (Python).
 - `bun run storybook` — Storybook dev server on port 6006 (local primitive/component visual review)
 - `bun run build-storybook` — static Storybook build; regenerates `storybook-static/index.json` consumed by `src/test/storybook-catalog.test.ts`
 - `bun run audit:components` — regenerate `docs/COMPONENT_AUDIT.md` (component/style + story-import audit)
+- `bun run audit:typography:check` — type-floor / no-private-font-size guard (also runs in CI)
+- `bun run visual:test` / `bun run visual:update` — Storybook pixel baselines at 1600 & 390 (12 PNGs; needs `bun run build-storybook` first)
+- `bun run audit:evidence` — gate on committed `docs/screenshots/**` existence + 1600/390 dimensions
+- `bun run evidence:all` — capture real-app route screenshots (requires running server)
+- `APP_A11Y=1 npx playwright test tests/e2e/app-a11y.spec.ts` — App-route axe/a11y step
 - `source .venv/bin/activate && python -m pytest tests/` — backend tests
 
 ## Storybook / design-system catalog
 
 Storybook is live and checked in via its config (`.storybook/main.ts`, `.storybook/preview.ts`) and stories in `src/stories/design-system/*.stories.tsx` (plus any co-located `*.stories.tsx`). Run `bun run storybook` for interactive review and `bun run build-storybook` before relying on the static catalog guard (`npx vitest run src/test/storybook-catalog.test.ts` skips itself when `storybook-static/` is absent).
 
+- Six Storybook stories are pixel-baselined at 1600/390 against 12 committed PNGs (`visual:test` / `visual:update`, after `bun run build-storybook`) — a primitive-level guard, not the real-app PR evidence below.
 - Read [`docs/COMPONENT_AUDIT.md`](./docs/COMPONENT_AUDIT.md) for the generated, honest story/coverage counts (`bun run audit:components` regenerates it). The catalog is **primitive-level** — tokens, layout/input/feedback primitives and a few shared widgets — not a claim that every audited module is covered or visually reviewed.
 - Full setup, groups and link policy: [`STORYBOOK.md`](./STORYBOOK.md).
 - Storybook is a review aid, not a substitute for the real app: the PR screenshot rule above still requires **1600 and 390** captures (plus every changed mode/selector/empty/loading/error state) committed under `docs/screenshots/<feature>/`, each PNG read back before claiming done. The catalog guard only checks catalog integrity (entry counts, unique ids/titles, no duplicate `(title,name)`, Overview `?path=/story/...` links resolve).
