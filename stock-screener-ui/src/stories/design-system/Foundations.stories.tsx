@@ -1,10 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import type { JSX } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
-import { Card, Divider, Flex, Paper, Stack, Text, Title } from "@/ui";
+import {
+  Button, Card, Divider, Flex, Group, List, ListItem, Paper, SegmentedControl, Stack, Text, Title,
+} from "@/ui";
 import { DENSITY_TOKENS } from "@/ui";
 import { sp } from "@/ui/layout/spacing";
 import * as palette from "@/ui/palette";
+import { contrastRatio, pickTextColor } from "@/utils/contrast";
 
 const meta: Meta = {
   title: "Design System/Foundations",
@@ -13,7 +16,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "The tokens and scales the terminal actually renders with. Names, values and uses below are read from palette.ts, spacing.ts, Paper/Card and density.tsx at render time — this file defines no colours of its own.",
+          "The tokens and scales the terminal renders with. Colour and spacing values are read from palette.ts, spacing.ts and density.tsx at render time; Paper/Card radius and named shadows are documented literals that mirror the maps hardcoded in those components, not exported tokens. No colour hex is authored in this file.",
       },
     },
   },
@@ -22,7 +25,7 @@ export default meta;
 
 type Story = StoryObj;
 
-/** Every value here is read from a token at render time; no literal colour is authored in this file. */
+/** Swatch colours come from palette tokens; the caption is documentation, not a token read. */
 const Swatch = (props: {
   name: string;
   value: string;
@@ -101,6 +104,21 @@ const borders = [
   { name: "BORDER_WARNING", value: palette.BORDER_WARNING, use: "Warning state outline" },
   { name: "BORDER_INFO", value: palette.BORDER_INFO, use: "Informational outline" },
   { name: "BORDER_DISABLED", value: palette.BORDER_DISABLED, use: "Disabled edge (TEXT_MUTED at 0.25)" },
+];
+
+/** Key paint pairs, measured with the same WCAG helper the guard tests use. */
+const CONTRAST_PAIRS = [
+  { label: "TEXT on BG", fg: palette.TEXT, bg: palette.BG, min: 4.5 },
+  { label: "TEXT on SURFACE", fg: palette.TEXT, bg: palette.SURFACE, min: 4.5 },
+  { label: "TEXT on SURFACE_ALT", fg: palette.TEXT, bg: palette.SURFACE_ALT, min: 4.5 },
+  { label: "TEXT_MUTED on SURFACE", fg: palette.TEXT_MUTED, bg: palette.SURFACE, min: 4.5 },
+  { label: "TEXT_MUTED on SURFACE_ALT", fg: palette.TEXT_MUTED, bg: palette.SURFACE_ALT, min: 4.5 },
+  { label: "POSITIVE on SURFACE", fg: palette.POSITIVE, bg: palette.SURFACE, min: 4.5 },
+  { label: "NEGATIVE on SURFACE", fg: palette.NEGATIVE, bg: palette.SURFACE, min: 4.5 },
+  { label: "INFO on SURFACE", fg: palette.INFO, bg: palette.SURFACE, min: 4.5 },
+  { label: "WARNING on SURFACE", fg: palette.WARNING, bg: palette.SURFACE, min: 4.5 },
+  { label: "pickTextColor(PRIMARY) on PRIMARY", fg: pickTextColor(palette.PRIMARY), bg: palette.PRIMARY, min: 4.5 },
+  { label: "PRIMARY focus ring on SURFACE (graphic)", fg: palette.PRIMARY, bg: palette.SURFACE, min: 3 },
 ];
 
 export const ColorTokens: Story = {
@@ -252,7 +270,7 @@ export const RadiusElevationMotion: Story = {
       <Stack gap="lg" style={{ "max-width": "980px" }}>
         <Section
           title="Radius — Paper and Card"
-          note="Two documented scales. Paper: xs 2 · sm 4 · md 6 · lg 10 · xl 14. Card: xs 4 · sm 8 · md 16 · lg 24 · xl 32. They are not interchangeable."
+          note="Two documented scales. Paper: xs 2 · sm 4 · md 6 · lg 10 · xl 14. Card: xs 4 · sm 8 · md 16 · lg 24 · xl 32. The px figures mirror maps hardcoded inside Paper.tsx / Card.tsx (they are not exported tokens); the named shadow steps map to Tailwind shadow-* utilities. The scales are not interchangeable."
         >
           <Flex gap="sm" wrap="wrap">
             {(["xs", "sm", "md", "lg", "xl"] as const).map((r) => (
@@ -317,6 +335,68 @@ export const RadiusElevationMotion: Story = {
               </Flex>
             );
           })}
+        </Section>
+      </Stack>
+    )),
+};
+
+export const KeyboardAndContrast: Story = {
+  render: () =>
+    solidStory(() => (
+      <Stack gap="lg" style={{ "max-width": "900px" }}>
+        <Section
+          title="Focus-visible and keyboard"
+          note="tailwind.css paints one ring for every native control: :focus-visible on button/a/[role=button]/summary and :focus on input/select/textarea use outline 2px var(--color-fin-primary), offset 1px. Never suppress it — a focus style is the keyboard user's position indicator."
+        >
+          <Group gap="sm" align="center">
+            <Button>Tab to focus</Button>
+            <SegmentedControl
+              aria-label="View mode"
+              defaultValue="table"
+              data={[
+                { value: "table", label: "TABLE" },
+                { value: "grid", label: "GRID" },
+              ]}
+            />
+          </Group>
+          <List size="sm" withPadding>
+            <ListItem>Tab / Shift+Tab move through controls in DOM order; Enter or Space activates a focused button.</ListItem>
+            <ListItem>Escape closes an open Select, Menu, Modal or Popover and returns focus to its trigger.</ListItem>
+            <ListItem>Searchable Select: ArrowDown opens, Up/Down move the highlight, Enter commits, Escape cancels.</ListItem>
+            <ListItem>Never label a control by colour alone — every form field here has a visible label or an aria-label.</ListItem>
+          </List>
+        </Section>
+
+        <Section
+          title="Contrast ratios (WCAG 2.1)"
+          note="Measured at render time with contrastRatio() from utils/contrast.ts over the same palette tokens shown above. AA text needs 4.5:1; meaningful graphics (including the focus ring) need 3:1. Decorative hairlines are exempt."
+        >
+          <div>
+            {CONTRAST_PAIRS.map((pair) => {
+              const ratio = contrastRatio(pair.fg, pair.bg);
+              const passes = ratio >= pair.min;
+              return (
+                <Flex gap="sm" align="center" style={{ padding: "4px 0", "border-bottom": "1px solid var(--color-fin-border)" }}>
+                  <div
+                    style={{
+                      width: "36px", height: "22px", "flex-shrink": 0,
+                      background: pair.bg, color: pair.fg,
+                      border: `1px solid ${palette.BORDER}`,
+                      display: "grid", "place-items": "center",
+                      "font-family": palette.MONO, "font-size": "10px",
+                    }}
+                  >
+                    Aa
+                  </div>
+                  <Text size="xs" c="default" className="font-mono" style={{ width: "320px" }}>{pair.label}</Text>
+                  <Text size="xs" c="default" className="font-mono">{`${ratio.toFixed(2)}:1`}</Text>
+                  <Text size="xs" c={passes ? "success" : "error"}>
+                    {`${passes ? "pass" : "fail"} ≥ ${pair.min}`}
+                  </Text>
+                </Flex>
+              );
+            })}
+          </div>
         </Section>
       </Stack>
     )),

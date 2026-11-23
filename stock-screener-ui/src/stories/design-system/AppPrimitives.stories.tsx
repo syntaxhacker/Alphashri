@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
+import { createSignal, Show } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
-import { Box, Group, Stack, Text } from "@/ui";
+import { Group, Stack, Text } from "@/ui";
 import { KeyValue } from "@/components/common/KeyValue";
 import { ExitReasonBadge, SideBadge, StatusBadge, TradingModeBadge } from "@/components/common/BadgeComponents";
 import { PnlText } from "@/components/common/PnlText";
@@ -12,15 +13,29 @@ const meta: Meta = { title: "Design System/App primitives", tags: ["autodocs"] }
 export default meta;
 type Story = StoryObj;
 
-// One mock market snapshot shared by every story in this group: the spot,
-// change, expiry and as-of time must agree wherever they are repeated.
+// One labelled quote fixture shared by every story in this group: spot, change
+// and OI are a single frozen snapshot. The expiry is relative to the IST
+// session so a fixed weekly date can never become a past-dated promise.
+const NIFTY_FIXTURE_LABEL = "frozen NIFTY quote fixture";
 const NIFTY_SPOT = 23_450.85;
 const NIFTY_SPOT_LABEL = "23,450.85";
 const NIFTY_CHANGE = 18.42;
 const NIFTY_CHANGE_PCT = 0.08;
-const NIFTY_EXPIRY = "26 Nov 2026";
 const NIFTY_MAX_PAIN = "23,400";
 const AS_OF = "12:03:15 IST";
+const NIFTY_EXPIRY = (() => {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const part = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  const sessionUtc = Date.UTC(part("year"), part("month") - 1, part("day"));
+  const daysToThursday = (4 - new Date(sessionUtc).getUTCDay() + 7) % 7;
+  const expiry = new Date(sessionUtc + daysToThursday * 86_400_000);
+  const label = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "UTC", day: "2-digit", month: "short", year: "numeric",
+  }).format(expiry);
+  return `${label} · next weekly`;
+})();
 
 interface MarketRow {
   symbol: string;
@@ -62,7 +77,8 @@ const marketColumns: TableColumnDef<MarketRow>[] = [
 export const KeyValueRows: Story = {
   render: () =>
     solidStory(() => (
-      <Box style={{ width: "320px" }}>
+      <Stack gap="xs" style={{ width: "320px" }}>
+        <Text size="xs" c="dimmed">{NIFTY_FIXTURE_LABEL}</Text>
         <KeyValue
           label="Spot"
           value={NIFTY_SPOT_LABEL}
@@ -74,8 +90,8 @@ export const KeyValueRows: Story = {
         <KeyValue label="Expiry" value={NIFTY_EXPIRY} align="left" />
         <KeyValue label="PCR (OI)" value="1.12" dense />
         <KeyValue label="Max pain" value={NIFTY_MAX_PAIN} align="left" />
-        <KeyValue label="Updated" value={AS_OF} tone="dimmed" />
-      </Box>
+        <KeyValue label="Updated (fixture)" value={AS_OF} tone="dimmed" />
+      </Stack>
     )),
 };
 
@@ -106,23 +122,44 @@ export const MarketBadges: Story = {
 
 export const States: Story = {
   render: () =>
-    solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "620px" }}>
-        <EmptyState title="No rows for this filter" description="Widen the strike range or switch expiry." />
-        <ErrorAlert title="Feed unavailable" message="The options tape returned 503." withRetry onRetry={() => {}} />
-        <InlineLoader message="Loading option chain" />
-        <Text size="xs" c="dimmed">
-          Shared app primitives keep the same spacing, type scale and semantic tones as the design system.
-        </Text>
-      </Stack>
-    )),
+    solidStory(() => {
+      const [attempts, setAttempts] = createSignal(0);
+      const [failed, setFailed] = createSignal(true);
+      return (
+        <Stack gap="lg" style={{ "max-width": "620px" }}>
+          <EmptyState title="No rows for this filter" description="Widen the strike range or switch expiry." />
+          <Show
+            when={failed()}
+            fallback={
+              <Text size="xs" c="success">
+                {`Tape reloaded after ${attempts()} retry${attempts() === 1 ? "" : "ies"}.`}
+              </Text>
+            }
+          >
+            <ErrorAlert
+              title="Feed unavailable"
+              message="The options tape returned 503."
+              withRetry
+              onRetry={() => {
+                setAttempts((n) => n + 1);
+                setFailed(false);
+              }}
+            />
+          </Show>
+          <InlineLoader message="Loading option chain" />
+          <Text size="xs" c="dimmed">
+            Shared app primitives keep the same spacing, type scale and semantic tones as the design system.
+          </Text>
+        </Stack>
+      );
+    }),
 };
 
 export const CompactPanels: Story = {
   render: () =>
     solidStory(() => (
       <Stack gap="md" style={{ width: "720px" }}>
-        <CompactPanel title="NIFTY option chain" description={`Spot ${NIFTY_SPOT_LABEL} · ${NIFTY_EXPIRY} expiry`}>
+        <CompactPanel title={`NIFTY option chain · ${NIFTY_FIXTURE_LABEL}`} description={`Spot ${NIFTY_SPOT_LABEL} · ${NIFTY_EXPIRY} expiry`}>
           <Text size="xs" c="dimmed">458 strike rows · {AS_OF}</Text>
         </CompactPanel>
         <CompactStatGrid cols={4}>
@@ -144,7 +181,7 @@ export const TableNormal: Story = {
   render: () =>
     solidStory(() => (
       <Stack gap="xs" style={{ width: "640px" }}>
-        <Text size="xs" c="dimmed">{`NIFTY ${NIFTY_SPOT_LABEL} · ${NIFTY_EXPIRY} expiry · ${AS_OF}`}</Text>
+        <Text size="xs" c="dimmed">{`${NIFTY_FIXTURE_LABEL} · NIFTY ${NIFTY_SPOT_LABEL} · ${NIFTY_EXPIRY} expiry · ${AS_OF}`}</Text>
         <TanStackTable
           data={marketRows}
           columns={marketColumns}
@@ -160,7 +197,7 @@ export const TableDense: Story = {
   render: () =>
     solidStory(() => (
       <Stack gap="xs" style={{ width: "640px" }}>
-        <Text size="xs" c="dimmed">{`NIFTY ${NIFTY_SPOT_LABEL} · ${NIFTY_EXPIRY} expiry · ${AS_OF}`}</Text>
+        <Text size="xs" c="dimmed">{`${NIFTY_FIXTURE_LABEL} · NIFTY ${NIFTY_SPOT_LABEL} · ${NIFTY_EXPIRY} expiry · ${AS_OF}`}</Text>
         <TanStackTable
           data={marketRows}
           columns={marketColumns}

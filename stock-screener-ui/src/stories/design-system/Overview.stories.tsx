@@ -21,7 +21,9 @@ export default meta;
 
 type Story = StoryObj;
 
-const storyHref = (id: string) => `?path=/story/${id}`;
+// Links must leave the iframe and land on the Storybook manager, not re-open a
+// second preview inside the current one.
+const storyHref = (id: string) => `../?path=/story/${id}`;
 
 const StoryLink = (props: { id: string; label: string }) => (
   <Anchor href={storyHref(props.id)} target="_top" c="info" size="sm" underline="hover">{props.label}</Anchor>
@@ -91,8 +93,10 @@ const groups: Array<{ title: string; id: string; description: string; stories: A
     description: "Text tones, weights and modifiers; Title orders and sizes; Anchor, Code and List variants.",
     stories: [
       { id: "design-system-typography--text-tones", label: "Text tones" },
+      { id: "design-system-typography--text-weights-and-sizes", label: "Weights / sizes" },
       { id: "design-system-typography--text-layout-props", label: "Modifiers" },
       { id: "design-system-typography--truncation-and-clamp", label: "Truncation" },
+      { id: "design-system-typography--element-composition", label: "Elements" },
       { id: "design-system-typography--title-variants", label: "Title" },
       { id: "design-system-typography--anchor-variants", label: "Anchor" },
       { id: "design-system-typography--code-variants", label: "Code" },
@@ -101,12 +105,16 @@ const groups: Array<{ title: string; id: string; description: string; stories: A
   },
   {
     title: "Layout",
-    id: "design-system-layout--boxes-and-surfaces",
-    description: "Box, Paper, Card, Flex, Stack, Group, grids, ScrollArea and Collapse.",
+    id: "design-system-layout--surfaces",
+    description: "Box, Paper, Card, Flex, Stack, Group, grids, control rows, ScrollArea, Collapse and a 390px review.",
     stories: [
-      { id: "design-system-layout--boxes-and-surfaces", label: "Surfaces" },
-      { id: "design-system-layout--flex-and-stack", label: "Flex / Stack" },
-      { id: "design-system-layout--grids", label: "Grids" },
+      { id: "design-system-layout--surfaces", label: "Surfaces" },
+      { id: "design-system-layout--box-and-flex", label: "Box / Flex" },
+      { id: "design-system-layout--grid-matrix", label: "Grid matrix" },
+      { id: "design-system-layout--row-matrix", label: "Row matrix" },
+      { id: "design-system-layout--simple-grid", label: "Simple grid" },
+      { id: "design-system-layout--control-rows", label: "Control rows" },
+      { id: "design-system-layout--responsive-390", label: "Responsive 390" },
       { id: "design-system-layout--scroll-and-collapse", label: "Scroll / Collapse" },
     ],
   },
@@ -129,7 +137,10 @@ const groups: Array<{ title: string; id: string; description: string; stories: A
     stories: [
       { id: "design-system-data-display--tabs-example", label: "Tabs" },
       { id: "design-system-data-display--accordion-example", label: "Accordion" },
+      { id: "design-system-data-display--timeline-example", label: "Timeline" },
       { id: "design-system-data-display--tree-example", label: "Tree" },
+      { id: "design-system-data-display--menu-example", label: "Menu" },
+      { id: "design-system-data-display--list-example", label: "List" },
       { id: "design-system-data-display--density-stack", label: "Density" },
     ],
   },
@@ -140,6 +151,7 @@ const groups: Array<{ title: string; id: string; description: string; stories: A
     stories: [
       { id: "design-system-feedback--badges", label: "Badges" },
       { id: "design-system-feedback--alerts", label: "Alerts" },
+      { id: "design-system-feedback--notifications-example", label: "Notifications" },
       { id: "design-system-feedback--progress-and-loaders", label: "Progress" },
       { id: "design-system-feedback--skeletons-and-indicators", label: "Skeletons" },
     ],
@@ -159,10 +171,12 @@ const groups: Array<{ title: string; id: string; description: string; stories: A
   {
     title: "Navigation",
     id: "design-system-navigation--nav-links",
-    description: "NavLink and the AppShell layout primitives.",
+    description: "NavLink plus app shell composition, collapsed chrome and responsive navbar widths.",
     stories: [
       { id: "design-system-navigation--nav-links", label: "Nav links" },
-      { id: "design-system-navigation--app-shell-layout", label: "App shell" },
+      { id: "design-system-navigation--app-shell-composition", label: "App shell" },
+      { id: "design-system-navigation--collapsed-header-and-navbar", label: "Collapsed chrome" },
+      { id: "design-system-navigation--navbar-width-presets", label: "Navbar width presets" },
     ],
   },
   {
@@ -186,6 +200,9 @@ const groups: Array<{ title: string; id: string; description: string; stories: A
       { id: "design-system-app-primitives--key-value-rows", label: "KeyValue" },
       { id: "design-system-app-primitives--market-badges", label: "Badges" },
       { id: "design-system-app-primitives--states", label: "States" },
+      { id: "design-system-app-primitives--compact-panels", label: "Compact" },
+      { id: "design-system-app-primitives--table-normal", label: "Table" },
+      { id: "design-system-app-primitives--table-dense", label: "Dense table" },
     ],
   },
   {
@@ -232,6 +249,7 @@ export const Overview: Story = {
               <Code>src/ui/layout</Code>
               <Code color="dimmed">tailwind.css @theme</Code>
             </Flex>
+            <StoryLink id="design-system-overview--overview" label="Open this overview in Storybook ↗" />
           </Stack>
         </Paper>
 

@@ -12,6 +12,9 @@ on:
       - '.github/workflows/**'
       - 'stock-screener-ui/src/**'
       - 'stock-screener-ui/tests/**'
+      - 'stock-screener-ui/api/**'
+      - 'stock-screener-ui/options_paper/**'
+      - 'stock-screener-ui/.storybook/**'
       # A knip.json edit changes what the unused-code gate considers acceptable,
       # and a test_cases/ edit is a test artefact. Neither triggered CI before,
       # so a PR that touched only those landed with no checks at all.
@@ -203,6 +206,8 @@ jobs:
         run: cd stock-screener-ui && bun run typecheck
       - name: Typecheck tests ratchet
         run: cd stock-screener-ui && bun run typecheck:ratchet
+      - name: Build Storybook
+        run: cd stock-screener-ui && bun run build-storybook
   frontend-unit:
     name: Frontend Unit Tests
     runs-on: ubuntu-24.04

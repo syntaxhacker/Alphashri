@@ -97,19 +97,30 @@ export const Sparklines: Story = {
 
 export const ValuesAndStates: Story = {
   render: () =>
-    solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "640px" }}>
-        <Group gap="md" align="center">
-          <Text size="sm">Animated values:</Text>
-          <AnimatedValue value={NIFTY_SPOT} format={(v) => v.toLocaleString("en-IN", { minimumFractionDigits: 2 })} />
-          <AnimatedValue value={1240.5} />
-          <AnimatedValue value={null} />
-        </Group>
-        <TableEmptyState message="No rows for this filter" action={<Button size="xs">Reset filters</Button>} />
-        <TableLoadingState message="Loading paper positions" />
-        <BrokerAuthNotice connectTestId="story-connect" />
-      </Stack>
-    )),
+    solidStory(() => {
+      const [resets, setResets] = createSignal(0);
+      return (
+        <Stack gap="lg" style={{ "max-width": "640px" }}>
+          <Group gap="md" align="center">
+            <Text size="sm">Animated values:</Text>
+            <AnimatedValue value={NIFTY_SPOT} format={(v) => v.toLocaleString("en-IN", { minimumFractionDigits: 2 })} />
+            <AnimatedValue value={1240.5} />
+            <AnimatedValue value={null} />
+          </Group>
+          <TableEmptyState
+            message="No rows for this filter"
+            action={
+              <Button size="xs" onClick={() => setResets((n) => n + 1)}>
+                Reset filters
+              </Button>
+            }
+          />
+          <Text size="xs" c="dimmed">{`Filter resets: ${resets()}`}</Text>
+          <TableLoadingState message="Loading paper positions" />
+          <BrokerAuthNotice connectTestId="story-connect" />
+        </Stack>
+      );
+    }),
 };
 
 export const TradeStats: Story = {

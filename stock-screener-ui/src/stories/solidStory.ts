@@ -20,10 +20,6 @@ export function disposeSolidStories(): void {
 }
 
 export function solidStory(component: () => JSX.Element): HTMLElement {
-  // Storybook replaces the canvas between stories without knowing about Solid
-  // roots. Dispose the previous story before mounting the next one; doing this
-  // in `afterEach` would remove the story that is currently being reviewed.
-  disposeSolidStories();
   const host = document.createElement("div");
   host.style.cssText = `min-height:100%;background:${palette.BG_COLOR};color:${palette.TEXT_COLOR};padding:12px`;
   activeRoots.push(render(component, host));

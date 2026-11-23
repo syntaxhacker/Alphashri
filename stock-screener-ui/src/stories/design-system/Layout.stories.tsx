@@ -445,8 +445,8 @@ export const ControlRows: Story = {
                   <Box p="sm" style={{ border: `1px solid ${BORDER}`, "border-radius": "4px" }}>
                     <Note>{`gap = ${g}px`}</Note>
                     <ToolbarRow gap={g} style={{ "margin-top": "8px" }}>
-                      <Select size="xs" w={120} defaultValue="nifty50" data={UNIVERSE_OPTIONS} />
-                      <NumberInput size="xs" w={88} defaultValue={75} hideControls />
+                      <Select size="xs" w={120} aria-label="Universe" defaultValue="nifty50" data={UNIVERSE_OPTIONS} />
+                      <NumberInput size="xs" w={88} aria-label="Minimum score" defaultValue={75} hideControls />
                       <Button size="xs" variant="light">Apply</Button>
                     </ToolbarRow>
                   </Box>
@@ -464,9 +464,9 @@ export const ControlRows: Story = {
             <Demo label="wrap={false} in a 360px host keeps the band on one line; the controls scroll horizontally instead of stacking.">
               <Box w={360} style={{ overflow: "auto", border: `1px solid ${BORDER}`, "border-radius": "4px", padding: "8px" }}>
                 <ToolbarRow gap={8} wrap={false}>
-                  <Select size="xs" w={140} defaultValue="nifty500" data={UNIVERSE_OPTIONS} />
-                  <Select size="xs" w={120} defaultValue="15m" data={TIMEFRAME_OPTIONS} />
-                  <NumberInput size="xs" w={88} defaultValue={80} hideControls />
+                  <Select size="xs" w={140} aria-label="Universe" defaultValue="nifty500" data={UNIVERSE_OPTIONS} />
+                  <Select size="xs" w={120} aria-label="Timeframe" defaultValue="15m" data={TIMEFRAME_OPTIONS} />
+                  <NumberInput size="xs" w={88} aria-label="Minimum score" defaultValue={80} hideControls />
                   <Button size="xs" variant="outline">Reset</Button>
                   <Button size="xs">Run</Button>
                 </ToolbarRow>
@@ -615,7 +615,7 @@ export const Surfaces: Story = {
       <Page>
         <Section
           title="Surfaces"
-          caption="Paper and Card share the surface ramp but not the radius scale: Paper follows the control-friendly 2/4/6/10/14 ramp, Card is a full step larger at every name."
+          caption="Paper and Card share the surface ramp but not the radius scale: Paper follows the control-friendly 2/4/6/10/14 ramp, Card is a full step larger at every name. The px figures are documented values mirroring the scales hardcoded inside Paper.tsx / Card.tsx — they are not exported tokens."
         >
           <Stack gap="lg">
             <Demo label="Paper radius scale — xs 2 · sm 4 · md 6 · lg 10 · xl 14. shadow='xs' and component='div' keep the comparison neutral.">
@@ -705,14 +705,31 @@ export const Surfaces: Story = {
 };
 
 export const Responsive390: Story = {
+  // Storybook 10 reads story-level globals for the viewport; `defaultViewport`
+  // is kept alongside it as the declarative pin requested by the story contract.
+  globals: { viewport: "mobile1" },
+  parameters: {
+    viewport: {
+      defaultViewport: "mobile1",
+      // The built-in mobile1 preset is 320px; the handset fixture here is 390px,
+      // so useMediaQuery resolves the same base branch a 390px device sees.
+      options: {
+        mobile1: {
+          name: "Handset 390",
+          styles: { width: "390px", height: "844px" },
+          type: "mobile",
+        },
+      },
+    },
+  },
   render: () =>
     solidStory(() => (
       <Page>
         <Section
           title="Responsive390"
-          caption="A 390px host — the handset width. Col breakpoints and useMediaQuery resolve against the canvas viewport, so resize Storybook to 390px to see the base branches below take over."
+          caption="Pinned to a 390px viewport — the handset width. matchMedia / useMediaQuery resolve against the iframe width, so the readout below reads base (<640) and the 12 → 6 → 4 → 3 Col branches stay stacked here."
         >
-          <Box w={390} p="md" bg="var(--color-fin-surface)" style={{ border: `1px solid ${BORDER}`, "border-radius": "6px" }}>
+          <Box w={390} p="md" bg="var(--color-fin-surface)" style={{ border: `1px solid ${BORDER}`, "border-radius": "6px", "max-width": "100%" }}>
             <Stack gap="lg">
               <Demo label="base spans are viewport-independent: 6/6 and 4/4/4 inside 390px.">
                 <Stack gap="xs">
@@ -747,8 +764,8 @@ export const Responsive390: Story = {
               <Demo label="wrap={false} keeps one band; the same controls scroll horizontally instead.">
                 <Box w="100%" style={{ overflow: "auto", border: `1px solid ${BORDER}`, "border-radius": "4px", padding: "8px" }}>
                   <ToolbarRow gap={8} wrap={false}>
-                    <Select size="xs" w={140} defaultValue="nifty500" data={UNIVERSE_OPTIONS} />
-                    <NumberInput size="xs" w={92} defaultValue={80} hideControls />
+                    <Select size="xs" w={140} aria-label="Universe" defaultValue="nifty500" data={UNIVERSE_OPTIONS} />
+                    <NumberInput size="xs" w={92} aria-label="Minimum score" defaultValue={80} hideControls />
                     <Button size="xs" variant="outline">Reset</Button>
                     <Button size="xs">Run</Button>
                   </ToolbarRow>
