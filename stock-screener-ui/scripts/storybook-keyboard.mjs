@@ -599,14 +599,18 @@ async function checkTabsVertical(page, storyId) {
 
 async function checkPopover(page, storyId) {
   const frame = await openStoryFrame(page, storyId);
-  const trigger = frame.getByRole('button', { name: 'Open dropdown' });
+  // While trapFocus is open the trigger is deliberately aria-hidden/inert, so
+  // an accessibility-role locator would time out. Resolve the DOM node by text.
+  const trigger = frame.locator('button:has-text("Open dropdown")').first();
   assert((await trigger.count()) === 1, 'expected one "Open dropdown" popover trigger');
   const controls = await trigger.getAttribute('aria-controls');
   assert(controls, 'the trigger should advertise aria-controls for its dropdown');
   const dropdown = frame.locator(`[id="${controls}"]`);
   assert((await dropdown.count()) === 1, 'the story starts with an open dropdown');
 
-  // The story starts open; close it first so the walkthrough opens it itself.
+  // The story starts open; focus the trigger so Escape reaches the story
+  // iframe, then close it before the walkthrough opens it itself.
+  await trigger.focus();
   await page.keyboard.press('Escape');
   await frame.waitForFunction(() => document.querySelectorAll('[aria-expanded="true"]').length === 0, null, {
     timeout: 5000,

@@ -44,7 +44,11 @@ export function NavLink(props: UINavLinkProps) {
       {known.label ? (
         <>
           <span className="font-medium">{known.label}</span>
-          {known.description ? <span className="text-xs text-fin-text-muted">{known.description}</span> : null}
+          {known.description ? (
+            <span className={activeState ? "text-xs text-fin-bg/80" : "text-xs text-fin-text-muted"}>
+              {known.description}
+            </span>
+          ) : null}
         </>
       ) : null}
       {known.rightSection ?? null}
@@ -54,7 +58,7 @@ export function NavLink(props: UINavLinkProps) {
   const baseClass = cn(
     "inline-flex items-center gap-2 rounded-sm cursor-pointer select-none text-fin-text",
     "px-3 py-2 text-sm",
-    activeState ? "bg-fin-primary text-fin-bg hover:bg-fin-primary/90" : "hover:bg-fin-surface-alt",
+    activeState ? "bg-fin-primary text-fin-bg! hover:bg-fin-primary/90" : "hover:bg-fin-surface-alt",
     disabledState ? "opacity-50 pointer-events-none" : "",
     known.className,
   );

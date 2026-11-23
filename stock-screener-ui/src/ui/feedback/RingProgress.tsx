@@ -86,6 +86,7 @@ export function RingProgress(props: UIRingProgressProps) {
       data-testid={known["data-testid"]}
       id={known.id}
       role="progressbar"
+      aria-label={typeof known.label === "string" ? known.label : "Progress"}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={progressValue}

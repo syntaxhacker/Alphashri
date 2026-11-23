@@ -91,7 +91,7 @@ export function Avatar(props: UIAvatarProps) {
       {hasSrc ? (
         <img src={known.src ?? undefined} alt={known.alt ?? ""} className="w-full h-full object-cover" />
       ) : (
-        <span className="text-fin-text font-medium leading-none">{display}</span>
+        <span className="font-medium leading-none">{display}</span>
       )}
     </div>
   );

@@ -11,6 +11,13 @@ describe("Progress", () => {
     expect(pg).toHaveAttribute("aria-valuenow", "66");
   });
 
+  test("every progressbar has an accessible name", () => {
+    render(() => <Progress value={66} data-testid="pg" />);
+    expect(screen.getByTestId("pg")).toHaveAttribute("aria-label", "Progress");
+    render(() => <Progress value={65} label="Upload" sections={[{ value: 100, color: "info" }]} data-testid="pg2" />);
+    expect(screen.getByTestId("pg2")).toHaveAttribute("aria-label", "Upload");
+  });
+
   test("renders section bars", () => {
     render(() => (
       <Progress value={65} sections={[{ value: 40, color: "info" }, { value: 25, color: "warning" }]} data-testid="pg2" />));

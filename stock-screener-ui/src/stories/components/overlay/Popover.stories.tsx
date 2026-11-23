@@ -164,7 +164,7 @@ export const FocusAndDismissal: Story = {
         <Page>
           <Specimen
             title="Focus and dismissal"
-            note="Escape and an outside click both dismiss. trapFocus is passed as true here, but this primitive does not capture Tab."
+            note="Escape and an outside click both dismiss. trapFocus keeps Tab inside the dropdown and contains the page behind it."
           >
             <Stack gap="sm">
               <Readout>opened: {String(opened())} · last closed by: {lastClosedBy()}</Readout>
@@ -175,7 +175,7 @@ export const FocusAndDismissal: Story = {
                     if (!next) setLastClosedBy("onChange(false)");
                     setOpened(next);
                   }}
-                  onClose={() => setLastClosedBy("onClose")}
+                  onClose={() => close("onClose")}
                   position="bottom-start"
                   trapFocus
                   closeOnClickOutside
@@ -185,7 +185,7 @@ export const FocusAndDismissal: Story = {
                   </PopoverTarget>
                   <PopoverDropdown p="sm">
                     <Stack gap="xs">
-                      <Text size="xs" c="dimmed">Tab from the target to reach this field — no trap is applied.</Text>
+                      <Text size="xs" c="dimmed">Tab stays inside this dropdown; Escape returns focus to the target.</Text>
                       <input aria-label="Dropdown field" placeholder="Focus me with Tab" />
                       <Button size="xs" onClick={() => close("explicit button")}>Close explicitly</Button>
                     </Stack>
