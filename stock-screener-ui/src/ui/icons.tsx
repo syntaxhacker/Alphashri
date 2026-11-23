@@ -35,7 +35,11 @@ function makeIcon(paths: string[]) {
         stroke-linejoin="round"
         aria-hidden={
           rest["aria-hidden"] ??
-          (rest["aria-label"] || rest.role === "img" || rest.title ? undefined : "true")
+          (rest["aria-label"] ||
+          rest.role === "img" ||
+          (rest as Record<string, unknown>).title
+            ? undefined
+            : "true")
         }
         {...rest}
       >
