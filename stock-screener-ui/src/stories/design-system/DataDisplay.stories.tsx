@@ -175,9 +175,6 @@ const ScanStatesSpecimen = (props: { initial?: ScanState; withSelector?: boolean
         onWiden={() => setState("scanning")}
         onRetry={() => setState("scanning")}
       />
-      <div data-testid="story-result-state-active">
-        <Text size="xs" c="dimmed">{`Showing: ${RESULT_STATE_COPY[state()].label}`}</Text>
-      </div>
     </Stack>
   );
 };
