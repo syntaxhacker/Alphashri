@@ -11,6 +11,7 @@
 - 390 fixes: Navigation shell stacks instead of clipping, FloatingWindow fits its host, filter chips separate from `Clear all`, and the Overview coverage index stacks with links on one line.
 - Typography is one six-step `text-ui-*` contract with a 12px floor; `Text/Title/Anchor/List` sizes resolve through `SIZE_ROLE` → `TYPE_CLASS` (no private rem map or 18px step) and the old 9px copy is retired.
 - Evidence hygiene: `alerts` captures the real `variants-and-radius` story; `table` captures the App primitives family page.
+- Catalog coverage is current in `docs/COMPONENT_AUDIT.md`: **100 audited modules, 96 story files / 403 story entries, 88/100 modules with a story, 100/100 with a co-located test, 0 violations**. The modules with no standalone story are context providers, error boundaries, chart adapters and other composition-only helpers, listed in `docs/COMPONENT_AUDIT_EXCEPTIONS.md`.
 
 **Still open / unverified:**
 
