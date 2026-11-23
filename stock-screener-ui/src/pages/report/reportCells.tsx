@@ -313,7 +313,11 @@ export function buildOvernightLevels(report: NiftyReport): {
   return { resistance, support, painPull, pcrVerdict };
 }
 
-export function sentimentBadge(sentiment: string, side: "ce" | "pe"): JSX.Element {
+export function sentimentBadge(
+  sentiment: string,
+  side: "ce" | "pe",
+  emphasis = false,
+): JSX.Element {
   const raw = String(sentiment ?? "").trim();
   const code = sentimentCode(raw);
   const label = sentimentLabel(raw);
@@ -342,11 +346,11 @@ export function sentimentBadge(sentiment: string, side: "ce" | "pe"): JSX.Elemen
         display: "inline-flex",
         "align-items": "center",
         "justify-content": "center",
-        gap: "4px",
+        gap: "3px",
         "max-width": "100%",
         overflow: "hidden",
-        "padding-left": "4px",
-        "padding-right": "4px",
+        "padding-left": "3px",
+        "padding-right": "3px",
         "padding-top": "1px",
         "padding-bottom": "1px",
         "border-radius": "3px",
@@ -364,7 +368,12 @@ export function sentimentBadge(sentiment: string, side: "ce" | "pe"): JSX.Elemen
           "flex-shrink": 0,
         }}
       />
-      <Text size="xs" fw={700} span style={{ color: tone }}>
+      <Text
+        size="xs"
+        fw={emphasis ? REPORT_FONT_WEIGHT.extrabold : REPORT_FONT_WEIGHT.bold}
+        span
+        style={{ color: tone, opacity: emphasis ? 1 : 0.88 }}
+      >
         {short}
       </Text>
     </span>
@@ -402,15 +411,15 @@ export function wallTag(
       style={{
         display: "inline-flex",
         "align-items": "center",
-        gap: "3px",
+        gap: "2px",
         "flex-shrink": 0,
       }}
     >
       <span
         aria-hidden
         style={{
-          width: "5px",
-          height: "5px",
+          width: "4px",
+          height: "4px",
           "border-radius": "50%",
           "background-color": color,
           "flex-shrink": 0,
@@ -456,7 +465,7 @@ export function oiChangeBarCell(
       <Text
         size="xs"
         span
-        fw={500}
+        fw={600}
         style={{ color: legHue, "font-size": `${OI_CHAIN_METRICS.valueSize}px` }}
       >
         {text}
@@ -512,7 +521,7 @@ export function legChangeCell(leg: NiftyStrike["ce"], legHue: string): JSX.Eleme
       <Text
         size="xs"
         span
-        fw={500}
+        fw={600}
         style={{ color: tone, "font-size": `${OI_CHAIN_METRICS.valueSize}px` }}
       >
         {pointsText}
@@ -573,14 +582,26 @@ export const OI_CHAIN_METRICS = {
   valueSize: REPORT_FONT.body, // 13 — numbers and badges they describe
 } as const;
 
+// Full chain (390px): roomy columns behind the wrapper's horizontal scroll.
 const OI_CE_CHG_W = 116;
 const OI_CE_OI_W = 96;
-// 80px holds a 6-character mono header ("CE SIG"/"PE SIG") at the 12px floor
-// plus the roomier 4px/8px cell inset; the old 64px let the header bleed into
-// STRIKE / PE OI Chg and 72px left no breathing room for the status badge.
 const OI_SIG_W = 80;
-// STRIKE carries the number plus up to two wall tags (CW/PW) on the same line.
 const OI_STRIKE_W = 128;
+
+/**
+ * Desk chain (1600px): five core columns must fit the measured ~420px side
+ * panel with no clipping. Widths are the smallest that still hold the widest
+ * real value at the 12/13px scale — ΔOI "2.69 Cr", signal "BULL", STRIKE
+ * "25,700" plus two wall tags — with the 4px/8px cell inset.
+ */
+const OI_DESK_OI_W = 76;
+const OI_DESK_SIG_W = 60;
+const OI_DESK_STRIKE_W = 112;
+/** Measured width of the report's right-hand chain panel at 1600px. */
+export const OI_CHAIN_PANEL_BUDGET = 420;
+/** 76 + 60 + 112 + 60 + 76 — deliberately below the panel budget. */
+export const OI_CHAIN_DESK_WIDTH =
+  OI_DESK_OI_W * 2 + OI_DESK_SIG_W * 2 + OI_DESK_STRIKE_W;
 
 /**
  * Two-tone column label: the side token is the header, the metric token is its
@@ -612,6 +633,28 @@ export function getNiftyOiColumns(
   atmStrike: number | null,
   opts?: NiftyOiColumnOpts,
 ): TableColumnDef<NiftyStrike>[] {
+  // The caller's `showLegChange: false` is the desk/core selection: fit the
+  // ~420px side panel. The full seven-column chain stays roomy and scrolls.
+  const compact = opts?.showLegChange === false;
+  const oiW = compact ? OI_DESK_OI_W : OI_CE_OI_W;
+  const sigW = compact ? OI_DESK_SIG_W : OI_SIG_W;
+  const strikeW = compact ? OI_DESK_STRIKE_W : OI_STRIKE_W;
+  // ATM and max-OI wall strikes are the rows worth scanning first. Carry the
+  // predicate on the strike column so the table host can mark the whole row
+  // without a second copy of the wall/ATM rules.
+  const rowFocus = (row: NiftyStrike): boolean => {
+    const strike = Number(row.strike);
+    if (atmStrike !== null && strike === atmStrike) return true;
+    const walls = opts?.walls ?? {};
+    const flags =
+      opts?.spot != null && Number.isFinite(opts.spot)
+        ? rowFlags(row, opts.spot, walls)
+        : null;
+    return flags
+      ? flags.callWall || flags.putWall
+      : (walls.calls ?? []).some((w) => w.strike === strike) ||
+          (walls.puts ?? []).some((w) => w.strike === strike);
+  };
   const legChangeColumns: TableColumnDef<NiftyStrike>[] = [
     {
       id: "ceChg",
@@ -629,7 +672,7 @@ export function getNiftyOiColumns(
       header: chainHeader("CE", "ΔOI", "CE OI Chg — change in call open interest since the previous snapshot"),
       accessorKey: "ce.oiChange",
       accessorFn: (row) => row.ce.oiChange,
-      size: OI_CE_OI_W,
+      size: oiW,
       meta: { align: "right" },
       cell: (info) => {
         const v = Number(info.row.original.ce.oiChange);
@@ -641,16 +684,22 @@ export function getNiftyOiColumns(
       header: chainHeader("CE", "SIG", "CE Signal — call-side position build/unwind: bullish, bearish or neutral"),
       accessorKey: "ce.sentiment",
       accessorFn: (row) => row.ce.sentiment,
-      size: OI_SIG_W,
+      size: sigW,
       meta: { align: "center" },
-      cell: (info) => sentimentBadge(String(info.row.original.ce.sentiment ?? ""), "ce"),
+      cell: (info) =>
+        sentimentBadge(
+          String(info.row.original.ce.sentiment ?? ""),
+          "ce",
+          rowFocus(info.row.original),
+        ),
     },
     {
       id: "strike",
       header: <span title="Strike price (₹)">STRIKE</span>,
       accessorKey: "strike",
-      size: OI_STRIKE_W,
+      size: strikeW,
       meta: { align: "right" },
+      chainRowFocus: rowFocus,
       cell: (info) => {
         const strike = Number(info.row.original.strike);
         const isAtm = atmStrike !== null && strike === atmStrike;
@@ -665,6 +714,7 @@ export function getNiftyOiColumns(
         const isPW = flags
           ? flags.putWall
           : (walls.puts ?? []).some((w) => w.strike === strike);
+        const focused = isAtm || isCW || isPW;
         const spot = opts?.spot ?? 0;
         return (
           <span
@@ -672,7 +722,7 @@ export function getNiftyOiColumns(
               display: "flex",
               "align-items": "center",
               "justify-content": "flex-end",
-              gap: "4px",
+              gap: "3px",
               overflow: "hidden",
               "font-variant-numeric": "tabular-nums",
             }}
@@ -682,11 +732,15 @@ export function getNiftyOiColumns(
             <Text
               size="xs"
               span
-              fw={700}
+              fw={focused ? REPORT_FONT_WEIGHT.extrabold : REPORT_FONT_WEIGHT.bold}
               c={isAtm ? palette.TERM_FLIP : undefined}
               data-testid={isAtm ? "nifty-strike-atm-badge" : undefined}
               title={isAtm ? "ATM strike" : undefined}
-              style={{ "font-size": `${OI_CHAIN_METRICS.valueSize}px` }}
+              data-chain-focus-text={focused ? "1" : undefined}
+              style={{
+                "font-size": `${OI_CHAIN_METRICS.valueSize}px`,
+                ...(focused ? { color: palette.TERM_FLIP } : {}),
+              }}
             >
               {formatNumberIN(strike)}
             </Text>
@@ -699,16 +753,21 @@ export function getNiftyOiColumns(
       header: chainHeader("PE", "SIG", "PE Signal — put-side position build/unwind: bullish, bearish or neutral"),
       accessorKey: "pe.sentiment",
       accessorFn: (row) => row.pe.sentiment,
-      size: OI_SIG_W,
+      size: sigW,
       meta: { align: "center" },
-      cell: (info) => sentimentBadge(String(info.row.original.pe.sentiment ?? ""), "pe"),
+      cell: (info) =>
+        sentimentBadge(
+          String(info.row.original.pe.sentiment ?? ""),
+          "pe",
+          rowFocus(info.row.original),
+        ),
     },
     {
       id: "peOiChange",
       header: chainHeader("PE", "ΔOI", "PE OI Chg — change in put open interest since the previous snapshot"),
       accessorKey: "pe.oiChange",
       accessorFn: (row) => row.pe.oiChange,
-      size: OI_CE_OI_W,
+      size: oiW,
       meta: { align: "right" },
       cell: (info) => {
         const v = Number(info.row.original.pe.oiChange);
@@ -733,7 +792,18 @@ const OI_CHAIN_PANEL_CLASS = "min-w-0 min-h-0";
 const OI_CHAIN_PANEL_STYLE: JSX.CSSProperties = {
   "background-color": palette.TERM_BG,
   "border-color": palette.TERM_BORDER,
-  contain: "size",
+  // `contain: size` made the panel's intrinsic height zero, so the parent's
+  // flex:1 stretched a five-row chain across the whole chart row. Layout/paint
+  // isolation without size containment lets the panel hug its real rows.
+  contain: "layout paint",
+  flex: "0 0 auto",
+  "align-self": "flex-start",
+};
+
+/** Real ATM/wall row emphasis — no placeholder tint on the other rows. */
+const OI_CHAIN_FOCUS_STYLE: JSX.CSSProperties = {
+  "background-color": hexToRgba(palette.TERM_FLIP, 0.16),
+  "box-shadow": `inset 3px 0 0 ${palette.TERM_FLIP}`,
 };
 
 /**
@@ -757,7 +827,7 @@ const OI_CHAIN_WRAP_CLASS = [
   "[&_td]:[text-overflow:clip]!",
 ].join(" ");
 const OI_CHAIN_WRAP_STYLE: JSX.CSSProperties = {
-  height: "100%",
+  height: "auto",
   "overflow-x": "auto",
 };
 
@@ -784,6 +854,19 @@ export interface NiftyOiChainProps {
 }
 
 export function NiftyOiChain(props: NiftyOiChainProps) {
+  const focusOf = (row: NiftyStrike): boolean => {
+    const strikeColumn = props.columns.find((c) => c.id === "strike") as
+      | (TableColumnDef<NiftyStrike> & { chainRowFocus?: (row: NiftyStrike) => boolean })
+      | undefined;
+    return strikeColumn?.chainRowFocus?.(row) ?? false;
+  };
+  const rowStyle = (row: NiftyStrike): JSX.CSSProperties => ({
+    ...props.getRowStyle(row),
+    ...(focusOf(row) ? OI_CHAIN_FOCUS_STYLE : {}),
+  });
+  const rowAttributes = (row: NiftyStrike) => ({
+    "data-chain-focus": focusOf(row) ? "1" : undefined,
+  });
   return (
     <CompactPanel
       flush
@@ -813,6 +896,7 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
         data-testid={props.wrapTestId}
         data-chain-row-height={OI_CHAIN_METRICS.rowHeight}
         data-chain-value-size={OI_CHAIN_METRICS.valueSize}
+        data-chain-variant={props.columns.length <= 5 ? "compact" : "full"}
         data-chain-scroll="1"
         className={OI_CHAIN_WRAP_CLASS}
         style={OI_CHAIN_WRAP_STYLE}
@@ -824,7 +908,8 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
           emptyMessage="No strikes for this expiry"
           fillContainer
           style={OI_CHAIN_TABLE_STYLE}
-          getRowStyle={props.getRowStyle}
+          getRowStyle={rowStyle}
+          getRowAttributes={rowAttributes}
           getRowTestId={props.getRowTestId}
         />
       </Box>
