@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, Show, onCleanup } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
 import type { JSX } from "solid-js";
 import { Loader, Text, Tooltip } from "@/ui";
 import { IconChevronRight } from "@/components/common/Icons";
@@ -15,6 +15,132 @@ interface IndexMoversStripProps {
   liveOnly?: boolean;
   loading?: boolean;
   error?: string | null;
+  /** Other live-only surfaces (e.g. WINDOWS, WALLS) named by this one status row. */
+  unavailableSurfaces?: string[];
+  /** Single recovery control for every surface named in the status row. */
+  onRetry?: () => void;
+}
+
+/** One status row for any number of empty surfaces. A fixed 30px, never-wrap
+ *  row keeps 390 and 1600 to a single header line; the named surfaces appear
+ *  once, next to the one Retry, instead of stacking an empty band per surface. */
+export function UnavailableBandsStrip(props: {
+  surfaces?: string[];
+  testId?: string;
+  surfacesTestId?: string;
+  retryTestId?: string;
+  onRetry?: () => void;
+  onToggle?: () => void;
+  open?: boolean;
+  label?: string;
+  message?: string;
+  negative?: boolean;
+  children?: JSX.Element;
+}) {
+  const surfaces = () => props.surfaces ?? [];
+  return (
+    <div
+      data-testid={props.testId ?? "report-unavailable-strip"}
+      data-surfaces={surfaces().join("|")}
+      data-empty="true"
+      class="flex items-center gap-2 h-[30px] min-h-[30px] w-full max-w-full min-w-0 shrink-0 px-2 bg-fin-surface font-mono text-ui-micro whitespace-nowrap"
+    >
+      <Show when={props.label}>
+        <Text
+          span
+          size="xs"
+          fw={700}
+          c="dimmed"
+          data-report-text="label"
+          class="text-ui-micro font-extrabold uppercase tracking-[0.08em] shrink-0"
+          style={{ color: palette.TEXT_MUTED }}
+        >
+          {props.label}
+        </Text>
+      </Show>
+      <Show when={props.message}>
+        <Text
+          span
+          size="xs"
+          data-report-text="value"
+          class={`text-ui-micro shrink-0 ${props.negative ? "text-fin-negative" : "text-fin-text-muted"}`}
+        >
+          {props.message}
+        </Text>
+      </Show>
+      {props.children}
+      <Show when={surfaces().length > 0}>
+        <span
+          data-testid={props.surfacesTestId ?? "report-unavailable-surfaces"}
+          data-report-text="value"
+          class="text-ui-micro text-fin-text-muted min-w-0"
+        >
+          {surfaces().join(" · ")}
+        </span>
+      </Show>
+      <Show when={props.onRetry || props.onToggle}>
+        <span class="flex items-center gap-2 ml-auto shrink-0">
+          <Show when={props.onToggle}>
+            <button
+              type="button"
+              aria-expanded={props.open ?? false}
+              onClick={() => props.onToggle?.()}
+              class="inline-flex items-center justify-center whitespace-nowrap rounded-fin border border-fin-text-muted bg-transparent text-fin-text-muted hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 h-[20px] px-1 text-ui-micro font-bold tracking-[0.08em] uppercase"
+            >
+              {props.open ? "hide" : "details"}
+            </button>
+          </Show>
+          <Show when={props.onRetry}>
+            <button
+              type="button"
+              data-testid={props.retryTestId ?? "report-unavailable-retry"}
+              onClick={() => props.onRetry?.()}
+              class="inline-flex items-center justify-center whitespace-nowrap rounded-fin border border-fin-text-muted bg-transparent text-fin-text-muted hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 h-[20px] px-2 text-ui-micro font-bold"
+            >
+              Retry
+            </button>
+          </Show>
+        </span>
+      </Show>
+    </div>
+  );
+}
+
+export interface BandSlot {
+  label: string;
+  available: () => boolean;
+  band: () => JSX.Element;
+}
+
+/** Renders real bands only where data exists and collapses every empty surface
+ *  into one status row. All-empty → one strip; partial → only available bands. */
+export function AvailableBands(props: {
+  bands: BandSlot[];
+  testId?: string;
+  surfacesTestId?: string;
+  retryTestId?: string;
+  onRetry?: () => void;
+  onToggle?: () => void;
+  open?: boolean;
+}) {
+  const present = createMemo(() => props.bands.filter((b) => b.available()));
+  const missing = createMemo(() => props.bands.filter((b) => !b.available()).map((b) => b.label));
+  return (
+    <>
+      <For each={present()}>{(slot) => <>{slot.band()}</>}</For>
+      <Show when={missing().length > 0}>
+        <UnavailableBandsStrip
+          testId={props.testId}
+          surfacesTestId={props.surfacesTestId}
+          retryTestId={props.retryTestId}
+          surfaces={missing()}
+          onRetry={props.onRetry}
+          onToggle={props.onToggle}
+          open={props.open}
+        />
+      </Show>
+    </>
+  );
 }
 
 const GAINER_COLOR = palette.POSITIVE;
@@ -150,15 +276,6 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
   // Stale detection: backend sets the `stale` flag
   const isStale = () => data()?.stale === true;
 
-  const stripChrome = (children: JSX.Element) => (
-    <div
-      data-testid="movers-strip"
-      class="flex items-center gap-2 h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-ui-micro"
-    >
-      {children}
-    </div>
-  );
-
   const gainers = () => data()?.gainers ?? [];
   const losers = () => data()?.losers ?? [];
 
@@ -234,55 +351,27 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
           when={isLoading() && !data()}
           fallback={
             <Show when={isError() && !data()} fallback={dataView()}>
-              {stripChrome(
-                <>
-                  <Text
-                    span
-                    size="xs"
-                    fw={700}
-                    c="dimmed"
-                    data-report-text="label"
-                    class="text-ui-micro"
-                    style={{ "letter-spacing": "0.08em" }}
-                  >
-                    MOVERS
-                  </Text>
-                  <Text span size="xs" c="error" data-report-text="value" class="text-ui-body">
-                    unavailable
-                  </Text>
-                  <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-text-muted text-fin-text-muted bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 px-2 py-0 text-ui-micro font-bold ml-auto min-w-0"
-                    onClick={() => void poll()}
-                  >
-                    Retry
-                  </button>
-                </>,
-              )}
+              <UnavailableBandsStrip
+                testId="movers-strip"
+                retryTestId="movers-retry"
+                label="MOVERS"
+                message="unavailable"
+                negative
+                surfaces={props.unavailableSurfaces}
+                onRetry={props.onRetry ?? (() => void poll())}
+              />
             </Show>
           }
         >
-          {stripChrome(
-            <>
-              <Text
-                span
-                size="xs"
-                fw={700}
-                c="dimmed"
-                data-report-text="label"
-                class="text-ui-micro"
-                style={{ "letter-spacing": "0.08em" }}
-              >
-                MOVERS
-              </Text>
-              <span class="inline-flex items-center gap-2">
-                <Loader size="xs" color={palette.PRIMARY} />
-                <Text span size="xs" c="dimmed" data-report-text="value" class="text-ui-body">
-                  loading…
-                </Text>
-              </span>
-            </>,
-          )}
+          <UnavailableBandsStrip
+            testId="movers-strip"
+            retryTestId="movers-retry"
+            label="MOVERS"
+            message="loading…"
+            surfaces={props.unavailableSurfaces}
+          >
+            <Loader size="xs" color={palette.PRIMARY} />
+          </UnavailableBandsStrip>
         </Show>
       }
     >
