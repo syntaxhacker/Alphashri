@@ -3,7 +3,16 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
-import { expiryControlTitle, expiryOptionLabel, ReportToolbar } from "./ReportToolbar";
+import {
+  expiryControlTitle,
+  expiryOptionLabel,
+  ReportToolbar,
+  TOOLBAR_ACTIONS_CLASS,
+  TOOLBAR_CLASS,
+  TOOLBAR_PRIMARY_CLASS,
+  TOOLBAR_SECONDARY_CLASS,
+  TOOLBAR_STRIP_CLASS,
+} from "./ReportToolbar";
 
 const harness = vi.hoisted(() => ({ store: {} as Record<string, unknown> }));
 
@@ -108,7 +117,7 @@ describe("ReportToolbar freshness indicators", () => {
     }
   });
 
-  test("the narrow actions group wraps instead of clipping the far-right action", () => {
+  test("the header is two deliberate bands at 390 and one dense row at 1600", () => {
     render(() => (
       <UIProvider>
         <ReportToolbar />
@@ -116,22 +125,111 @@ describe("ReportToolbar freshness indicators", () => {
     ));
 
     const toolbar = screen.getByTestId("nifty-toolbar");
-    expect(toolbar.className).toMatch(/(^|\s)flex-wrap(\s|$)/);
-    expect(toolbar.className).not.toMatch(/(^|\s)overflow-hidden(\s|$)/);
+    const primary = screen.getByTestId("toolbar-primary-row");
+    const secondary = screen.getByTestId("toolbar-secondary-row");
 
-    // This group held Refresh + clock + DATA + Snapshot + guide in one
-    // flex-none row, so Snapshot was cut off at 390 with no affordance. It must
-    // wrap internally, be clamped to the toolbar width, and return to one row
-    // on desktop.
-    const actions = screen.getByTestId("toolbar-group-status");
-    expect(actions.parentElement).toBe(toolbar);
-    expect(actions).toHaveAttribute("aria-label", "Actions and data freshness");
-    expect(actions.className).toMatch(/(^|\s)flex-wrap(\s|$)/);
-    expect(actions.className).toContain("max-w-full");
-    expect(actions.className).toContain("min-w-0");
-    expect(actions.className).toContain("min-[1200px]:flex-nowrap");
+    // Both bands are direct children — no fourth ad-hoc row can appear between
+    // them, and the replay bar (when present) stays outside the header.
+    expect([...toolbar.children]).toEqual([primary, secondary]);
+    expect(toolbar.className).toContain("flex-wrap");
+    expect(toolbar.className).toContain("min-[1200px]:flex-nowrap");
 
-    // The clipped action must keep its full accessible label — no truncation.
+    // At 390 each band owns its full width; from 1200 both go inline (w-auto).
+    expect(TOOLBAR_PRIMARY_CLASS).toContain("w-full");
+    expect(TOOLBAR_PRIMARY_CLASS).toContain("min-[1200px]:w-auto");
+    expect(TOOLBAR_PRIMARY_CLASS).toContain("min-[1200px]:flex-1");
+    expect(TOOLBAR_SECONDARY_CLASS).toContain("w-full");
+    expect(TOOLBAR_SECONDARY_CLASS).toContain("min-[1200px]:w-auto");
+    expect(TOOLBAR_SECONDARY_CLASS).toContain("min-[1200px]:ml-auto");
+
+    // Subject / session / state / actions are all in the primary band; the
+    // freshness readouts are in the labelled secondary band only.
+    for (const id of [
+      "toolbar-group-subject",
+      "toolbar-group-session",
+      "toolbar-group-state",
+      "toolbar-group-actions",
+    ]) {
+      expect(primary.contains(screen.getByTestId(id)), id).toBe(true);
+    }
+    for (const id of ["toolbar-data-label", "toolbar-group-status"]) {
+      expect(secondary.contains(screen.getByTestId(id)), id).toBe(true);
+      expect(primary.contains(screen.getByTestId(id)), id).toBe(false);
+    }
+    expect(screen.getByTestId("toolbar-data-label").textContent).toBe("DATA");
+  });
+
+  test("the Depth tab strip scrolls with a visible cue instead of clipping a word", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const strip = screen.getByTestId("toolbar-strip");
+    expect(strip.className).toContain(TOOLBAR_STRIP_CLASS);
+    expect(TOOLBAR_STRIP_CLASS).toMatch(/(^|\s)flex-nowrap(\s|$)/);
+    expect(TOOLBAR_STRIP_CLASS).toContain("overflow-x-auto");
+    expect(TOOLBAR_STRIP_CLASS).toContain("min-[1200px]:overflow-visible");
+    expect(strip.parentElement?.contains(screen.getByTestId("toolbar-strip-fade"))).toBe(true);
+
+    // The cue is reachable by keyboard, has an accessible name, and disappears
+    // on the desktop single-row layout.
+    const cue = screen.getByTestId("toolbar-scroll-cue");
+    expect(cue.tagName).toBe("BUTTON");
+    expect(cue).toHaveAttribute("aria-label", "Scroll report controls");
+    expect(cue.className).toContain("min-[1200px]:hidden");
+    expect(screen.getByTestId("toolbar-strip-fade").className).toContain("min-[1200px]:hidden");
+
+    // No control is allowed to shrink below its own text: the SegmentedControl
+    // track clips with overflow-hidden, so a squeezed "Depth" was the bug.
+    for (const id of ["nifty-index-toggle", "nifty-view-toggle", "nifty-desk-toggle"]) {
+      const toggle = screen.getByTestId(id);
+      expect(toggle.className, id).toContain("shrink-0");
+      expect(toggle.className, id).not.toMatch(/(^|\s)(truncate|text-ellipsis)(\s|$)/);
+      for (const button of toggle.querySelectorAll("button")) {
+        expect(button.className, `${id}: ${button.textContent}`).toContain("whitespace-nowrap");
+      }
+    }
+    const depth = [...screen.getByTestId("nifty-view-toggle").querySelectorAll("button")].find(
+      (b) => b.textContent === "Depth",
+    );
+    expect(depth?.textContent).toBe("Depth");
+  });
+
+  test("the scroll cue actually moves the strip to its far edge and back", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const strip = screen.getByTestId("toolbar-strip") as HTMLDivElement;
+    const scrollTo = vi.fn();
+    strip.scrollTo = scrollTo;
+    Object.defineProperty(strip, "scrollWidth", { value: 800, configurable: true });
+    Object.defineProperty(strip, "clientWidth", { value: 340, configurable: true });
+
+    const cue = screen.getByTestId("toolbar-scroll-cue");
+    fireEvent.click(cue);
+    expect(scrollTo).toHaveBeenCalledWith({ left: 460, behavior: "smooth" });
+
+    Object.defineProperty(strip, "scrollLeft", { value: 460, configurable: true });
+    fireEvent.click(cue);
+    expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, behavior: "smooth" });
+  });
+
+  test("actions keep their full labels and never duplicate a control", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const actions = screen.getByTestId("toolbar-group-actions");
+    expect(actions.parentElement).toBe(screen.getByTestId("toolbar-primary-row"));
+    expect(actions.className).toBe(TOOLBAR_ACTIONS_CLASS);
+
     const refresh = screen.getByTestId("nifty-refresh-button");
     const snapshot = screen.getByTestId("nifty-snapshot-button");
     for (const [button, label] of [[refresh, "Refresh"], [snapshot, "Snapshot"]] as const) {
@@ -140,7 +238,11 @@ describe("ReportToolbar freshness indicators", () => {
       expect(button.className).toMatch(/(^|\s)whitespace-nowrap(\s|$)/);
       expect(button.className).not.toMatch(/(^|\s)(truncate|text-ellipsis)(\s|$)/);
     }
-    expect(screen.getByTestId("nifty-data-freshness").textContent).toMatch(/^DATA /);
+
+    // One control per concept: the old symbol Select is gone and the DATA
+    // badge appears exactly once, in the secondary band.
+    expect(screen.queryByTestId("nifty-symbol-select")).toBeNull();
+    expect(screen.getAllByTestId("nifty-data-freshness")).toHaveLength(1);
   });
 
   test("exactly one control chooses the underlying, and it drives the symbol", () => {
@@ -231,6 +333,7 @@ describe("ReportToolbar freshness indicators", () => {
     const toolbar = screen.getByTestId("nifty-toolbar");
     expect(toolbar.className).toContain("flex-wrap");
     expect(toolbar.className).toContain("min-[1200px]:overflow-x-auto");
+    expect(TOOLBAR_CLASS).toBe(toolbar.className);
   });
 });
 
