@@ -42,11 +42,10 @@ Resolved since the first draft (verified against source/CI, not memory):
 - `Select`/`MultiSelect` no longer accept `allowDeselect`, `maxDropdownHeight`, `comboboxProps` or `withinPortal` (`@ts-expect-error` tests assert they are absent). `legacyProps.ts` is now only a defensive strip for Text/Number/Password inputs; `InputProps` is still accepted on write and stripped in `UISelectProps`, so the swallowed-prop debt is reduced, not zero.
 - Automated a11y is no longer happy-dom-only: `src/test/a11y-smoke.test.tsx` runs in vitest and `node scripts/storybook-a11y.mjs` runs axe-core in real Chromium over representative stories (serious/critical fail the job). Scoped UI coverage (`bun run test:coverage:ui`), the Storybook catalog guard (after a CI Storybook build) and `design-scale.test.ts` (no `ui/` exemption) also run in CI. Local catalog-guard runs still skip without a built manifest.
 - A real-browser keyboard walkthrough (`scripts/storybook-keyboard.mjs`) now runs after the axe gate: Modal trap/Escape/focus return, Tree arrows/expand/select, Menu roving focus/Escape and automatic Tabs activation. 5/5 pass.
-- Typography has one tier: `src/ui/typography.ts` + `--text-ui-*` in `tailwind.css`, with a 12px hard floor, a 12/13/14/16/20/24 ladder and `uiTheme.fontSizes` aliases. `scripts/typography-audit.mjs` measures private declarations; the migration from 9/10/11px labels is in progress across `src/ui`, `src/components`, pages, report and stories.
+- Typography has one tier: `src/ui/typography.ts` + `--text-ui-*` in `tailwind.css`, with a 12px hard floor, a 12/13/14/16/20/24 ladder and `uiTheme.fontSizes` aliases. The migration is complete: `node scripts/typography-audit.mjs` reports **0 private size declarations** across non-test/non-story source; `design-scale.test.ts` rejects any new one, and `audit:typography:check` is a CI step. The report now derives `REPORT_FONT` from the same scale (12/13/16/24), and every family/component showcase was recaptured at 1600 and 390.
 
 Still open — keep the A+ verdict honest:
 
-- **Typography adoption.** The tier exists, but the app still carries private `text-[Npx]` / inline `fontSize` declarations and a handful of sub-12px sector/report labels. The 2026-11-23 wave is migrating them by directory; the gate is not met until `node scripts/typography-audit.mjs --check` is clean and the report floor tests pass.
 - **Token-accessor adoption vs dark-only scope.** Light mode, i18n/RTL and SSR are out of scope by product decision, but dark-token consistency is unfinished: `src/ui/tokens.ts` exists, yet almost no app code calls `tokenColor`/`useTokenColor`. A literal grep finds ~240 non-test, non-PoC source files importing `src/ui/palette.ts` directly; the old "~57 modules" figure is not reproducible from current source.
 - **API callback conventions.** `onChange` is value-based on most inputs but event-based on `Checkbox`/`Switch`; `onClick` is an event in `UIBaseProps` but void in `NavLink`/`MenuItem`/`CloseButton`. No single convention per family yet.
 - **Two tables.** `components/common/TanStackTable.tsx` and `components/paper-trading/TanStackTable.tsx` remain separate implementations with different feature sets.
@@ -56,3 +55,16 @@ Still open — keep the A+ verdict honest:
 - DatePicker is intentionally single-date; no range/time/locale.
 - Tooltip requires a focusable child unless the opt-in tab stop is used.
 - Screenshots are current only after the latest visual recapture; check commit dates before quoting them.
+
+## P5 evidence (2026-11-23)
+
+| Check | Result |
+|---|---|
+| `bun run typecheck` / `bun run lint` | 0 errors / 0 warnings |
+| Typography audit | 0 private declarations; 12px floor clean |
+| Frontend suite | 11,968 passed, 1 fixed theme assertion; the only remaining worker error is a pre-existing `PatternsPage.test.tsx` fork OOM (reproduced on the pre-typography commit) |
+| Production build | clean (198 chunks) |
+| Storybook build + catalog | clean |
+| Browser axe (6 representative stories) | 0 serious/critical violations |
+| Browser keyboard walkthrough | 5/5 |
+| Screenshots | `docs/screenshots/showcase/` recaptured at 1600 and 390, read back |
