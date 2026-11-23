@@ -7,6 +7,7 @@ import {
   MARKET_INTRADAY_CHANGES,
   type MarketIntradayField,
 } from "../config/marketIntraday";
+import { MARKET_EXTRA_COLUMNS } from "../config/marketExtraColumns";
 import type { MarketRow, MarketSnapshot, MarketUniverse } from "../types/marketScreener";
 import { apiErrorFromResponse } from "./apiError";
 import { isRecord } from "../utils/isRecord";
@@ -137,6 +138,7 @@ export function buildMarketSnapshotUrl(params: MarketSnapshotParams = {}): strin
 
 /** Wire shape (snake_case) — kept loose; the mapper is the validation boundary. */
 interface RawMarketRow {
+  [key: string]: unknown;
   symbol?: unknown;
   name?: unknown;
   sector?: unknown;
@@ -201,6 +203,46 @@ interface RawMarketSnapshot {
   cached?: unknown;
 }
 
+/** Most extra fields are snake_case on the wire; these are the exceptions. */
+const EXTRA_RAW_OVERRIDES: Record<string, string> = {
+  bbUpper: "bb_upper",
+  bbLower: "bb_lower",
+  macdSignal: "macd_signal",
+  macdHist: "macd_hist",
+  stochK: "stoch_k",
+  stochD: "stoch_d",
+  stochRsiK: "stoch_rsi_k",
+  stochRsiD: "stoch_rsi_d",
+  adxPlus: "adx_plus",
+  adxMinus: "adx_minus",
+  hullMa9: "hull_ma9",
+  volatilityD: "volatility_d",
+  volatilityW: "volatility_w",
+  perf3m: "perf_3m",
+  perf6m: "perf_6m",
+  perfYtd: "perf_ytd",
+  perfY: "perf_y",
+  recommendAll: "recommend_all",
+  avgVolume30d: "avg_volume_30d",
+  avgVolume: "avg_volume",
+  valueTraded: "value_traded",
+  to52wHighPct: "to_52w_high_pct",
+  from52wLowPct: "from_52w_low_pct",
+  rangeVsAtr: "range_vs_atr",
+  peRatio: "pe_ratio",
+  pbRatio: "pb_ratio",
+  psRatio: "ps_ratio",
+  dividendYield: "dividend_yield",
+  fcfYield: "fcf_yield",
+  debtToEquity: "debt_to_equity",
+  currentRatio: "current_ratio",
+  grossMargin: "gross_margin",
+  operatingMargin: "operating_margin",
+  revYoy: "rev_yoy",
+  epsYoy: "eps_yoy",
+  netIncome: "net_income",
+};
+
 function toBool(value: unknown): boolean {
   return value === true || value === 1 || value === "true";
 }
@@ -217,6 +259,15 @@ export function mapMarketRow(raw: RawMarketRow | null | undefined): MarketRow {
   const intraday = Object.fromEntries(
     MARKET_INTRADAY_CHANGES.map((spec) => [spec.field, finiteNumber(r[spec.raw])]),
   ) as Record<MarketIntradayField, number | null>;
+  // Optional columns are omitted when TV has no value: the base row stays the
+  // same size for every symbol, and a 4000-row frame does not grow by ~50 null
+  // keys per row just because the picker offers them.
+  const extra = Object.fromEntries(
+    MARKET_EXTRA_COLUMNS.flatMap((spec) => {
+      const value = finiteNumber(r[EXTRA_RAW_OVERRIDES[spec.field] ?? spec.field]);
+      return value == null ? [] : [[spec.field, value]];
+    }),
+  ) as Record<string, number>;
   return {
     symbol: finiteText(r.symbol) ?? "",
     name: finiteText(r.name) ?? "",
@@ -225,6 +276,7 @@ export function mapMarketRow(raw: RawMarketRow | null | undefined): MarketRow {
     close: finiteNumber(r.close),
     change: finiteNumber(r.change),
     ...intraday,
+    ...extra,
     relativeVolume: finiteNumber(r.relative_volume),
     // One cap unit per currency: never let a stale field leak a ₹ figure into a
     // USD row (or the reverse). The backend already emits the other as null.
