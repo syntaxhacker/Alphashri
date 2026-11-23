@@ -25,7 +25,8 @@ const meta: Meta<CheckboxArgs> = {
         component:
           "src/ui/inputs/Checkbox.tsx — a native checkbox with a painted box. `indeterminate` is synced " +
           "as a DOM property, not an attribute, and renders a dash. `checked` with `onChange` is controlled; " +
-          "the event's currentTarget.checked is the new value. Box sizes are xs 14 / sm–md 16 / lg–xl 18 px, " +
+          "`onChange` receives the new checked state as a boolean value, not an event — e.g. `onChange={setChecked}`. " +
+          "Box sizes are xs 14 / sm–md 16 / lg–xl 18 px, " +
           "and `color` tints the checked fill and frame together.",
       },
     },
@@ -56,13 +57,13 @@ const meta: Meta<CheckboxArgs> = {
     indeterminate: { control: "boolean", description: "Mixed state; rendered as a dash and set as a DOM property." },
     disabled: { control: "boolean", description: "Non-interactive, reduced opacity." },
     error: { control: "boolean", description: "Negative frame for validation failures." },
-    checked: { control: "boolean", description: "Controlled checked state." },
+    checked: { control: "boolean", description: "Controlled checked state; `onChange` emits the new value as a boolean." },
   },
 };
 export default meta;
 type Story = StoryObj<CheckboxArgs>;
 
-/** Controlled checkbox with a live readout of the emitted state. */
+/** Controlled checkbox with a live readout of the emitted boolean value. */
 export const Playground: Story = {
   render: (args) =>
     solidStory(() => {

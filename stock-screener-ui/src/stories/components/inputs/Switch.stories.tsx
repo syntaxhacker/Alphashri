@@ -24,7 +24,8 @@ const meta: Meta<SwitchArgs> = {
         component:
           "src/ui/inputs/Switch.tsx — a track with a knob, not a checked square. The knob travel is " +
           "derived from each size's track box (xs 26×14 … md 36×20). `checked` with `onChange` makes it " +
-          "controlled; the event's currentTarget.checked is the new value. `color` tints the on-track, " +
+          "controlled; `onChange` receives the new on/off state as a boolean value, not an event — " +
+          "e.g. `onChange={setChecked}`. `color` tints the on-track, " +
           "`error` turns the frame negative. A visible `label` (or an aria-label) is mandatory for icon-less use.",
       },
     },
@@ -53,13 +54,13 @@ const meta: Meta<SwitchArgs> = {
     },
     disabled: { control: "boolean", description: "Overrides the fill and keeps the knob in its state position." },
     error: { control: "boolean", description: "Negative frame to indicate a validation failure." },
-    checked: { control: "boolean", description: "Controlled on/off state." },
+    checked: { control: "boolean", description: "Controlled on/off state; `onChange` emits the new value as a boolean." },
   },
 };
 export default meta;
 type Story = StoryObj<SwitchArgs>;
 
-/** Controlled switch: the signal follows the native checkbox event. */
+/** Controlled switch: the signal follows the emitted boolean value. */
 export const Playground: Story = {
   render: (args) =>
     solidStory(() => {
