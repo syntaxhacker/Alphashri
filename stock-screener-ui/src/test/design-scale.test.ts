@@ -106,7 +106,7 @@ describe("icon scale", () => {
     for (const path of walk(SRC)) {
       if (/\.test\.|\.stories\./.test(path)) continue;
       const rel = relative(SRC, path);
-      if (rel.startsWith("ui/") || ICON_DECORATIVE.test(rel)) continue;
+      if (ICON_DECORATIVE.test(rel)) continue;
       readFileSync(path, "utf8")
         .split("\n")
         .forEach((text, i) => {
@@ -129,7 +129,6 @@ describe("type scale", () => {
     for (const path of walk(SRC)) {
       if (/\.test\.|\.stories\./.test(path)) continue;
       const rel = relative(SRC, path);
-      if (rel.startsWith("ui/")) continue; // the kit owns its own type map
       readFileSync(path, "utf8")
         .split("\n")
         .forEach((text, i) => {
@@ -154,7 +153,6 @@ describe("control scale", () => {
     for (const path of walk(SRC)) {
       if (/\.test\.|\.stories\./.test(path)) continue;
       const rel = relative(SRC, path);
-      if (rel.includes("ui/")) continue; // the kit owns its own scale
       const lines = readFileSync(path, "utf8").split("\n");
       lines.forEach((text, i) => {
         for (const m of text.matchAll(/height:\s*"(\d+)px"/g)) {
