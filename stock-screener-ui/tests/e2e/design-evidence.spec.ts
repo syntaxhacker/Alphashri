@@ -30,7 +30,7 @@ type EvidenceRoute = {
   path: string;
   ready?: string;
   setup?: (page: Page) => Promise<void>;
-  navigate?: (page: Page) => Promise<void>;
+  afterGoto?: (page: Page) => Promise<void>;
   verify?: (page: Page) => Promise<void>;
   waitForNetworkIdle?: boolean;
 };
@@ -68,9 +68,9 @@ const ROUTES: readonly EvidenceRoute[] = [
       await setupNewsMocks(page);
       await setupHomeDeskMocks(page);
     },
-    navigate: async (page) => {
-      await page.goto("/");
-      await page.getByTestId("nav-home").click();
+    // The rail is behind a drawer below 900px, so `nav-home` is not clickable
+    // at 390. Load the real route directly, then switch it to the desk view.
+    afterGoto: async (page) => {
       await expect(page).toHaveURL(/\/home$/);
       await expect(page.getByTestId("home-page")).toBeVisible();
       await page.getByTestId("home-view-desk").click();
@@ -99,8 +99,8 @@ for (const [width, height] of [
       await setupApiMocks(page);
       await loginAsTestUser(page);
       await route.setup?.(page);
-      if (route.navigate) await route.navigate(page);
-      else await page.goto(route.path);
+      await page.goto(route.path);
+      await route.afterGoto?.(page);
       if (route.ready) await page.waitForSelector(route.ready, { timeout: 20000 });
       if (route.waitForNetworkIdle !== false) await page.waitForLoadState("networkidle");
       await page.waitForTimeout(400);
