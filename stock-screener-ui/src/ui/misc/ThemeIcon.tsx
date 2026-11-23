@@ -2,9 +2,20 @@ import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import { sxTheme } from "../sxTheme";
 import { alpha } from "../palette";
-import { typeSize } from "../typography";
+import { TYPE_SCALE, typeSize } from "../typography";
 import { pickTextColor } from "@/utils/contrast";
 import type { UIThemeIconProps } from "../types";
+
+const SCALE_STEPS = Object.values(TYPE_SCALE).map((s) => s.size);
+
+/** Decorative glyph: half the icon box, snapped to the shared ladder, never < 12px. */
+function snapTypeSize(px: number): number {
+  const nearest = SCALE_STEPS.reduce(
+    (best, step) => (Math.abs(step - px) <= Math.abs(best - px) ? step : best),
+    SCALE_STEPS[0],
+  );
+  return Math.max(typeSize("micro"), nearest);
+}
 
 function toPx(size: UIThemeIconProps["size"]): string | undefined {
   if (size == null) return undefined;
@@ -57,7 +68,8 @@ export function ThemeIcon(props: UIThemeIconProps) {
   const px = toPx(known.size);
   const borderRadius = _radiusValue(known.radius);
 
-  const baseSize = px != null ? { width: px, height: px, "font-size": `${Number(px.replace("px", "")) * 0.5}px` } : { width: "36px", height: "36px", "font-size": `${typeSize("heading")}px` };
+  const boxPx = px != null ? Number(px.replace("px", "")) : 36;
+  const baseSize = { width: px ?? "36px", height: px ?? "36px", "font-size": `${snapTypeSize(boxPx * 0.5)}px` };
   const tint = (fill: string) =>
     fill.startsWith("#") ? alpha(fill, 0.12) : `color-mix(in srgb, ${fill} 12%, transparent)`;
 

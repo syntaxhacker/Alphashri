@@ -1,15 +1,23 @@
 import { Show, splitProps } from "solid-js";
 import { cn } from "../cn";
+import { TYPE_CLASS, type TypeRole } from "../typography";
 import type { JSX } from "solid-js";
 import type { UIListProps, UIListItemProps } from "../types";
 
-const sizeMap: Record<string, string> = {
-  xs: "0.75rem",
-  sm: "0.875rem",
-  md: "1rem",
-  lg: "1.125rem",
-  xl: "1.25rem",
+/** Body copy tops out at `heading`; see Text for the shared-alias rationale. */
+const SIZE_ROLE: Record<string, TypeRole> = {
+  xs: "micro",
+  sm: "label",
+  md: "title",
+  lg: "heading",
+  xl: "heading",
 };
+
+function sizeClass(size: UIListProps["size"]): string | undefined {
+  if (size == null) return undefined;
+  const role = SIZE_ROLE[String(size)];
+  return role ? TYPE_CLASS[role] : undefined;
+}
 
 const LIST_TAGS: Record<string, (props: any) => JSX.Element> = {
   ol: (props) => <ol {...props} />,
@@ -30,13 +38,12 @@ export function List(props: UIListProps & Record<string, unknown>) {
 
   return (
     <Root
-      className={cn(known.className)}
+      className={cn(known.className, sizeClass(known.size))}
       style={{
         margin: 0,
         padding: 0,
         ...(known.withPadding ? { "padding-left": "24px" } : { "padding-left": "0px" }),
         "list-style-position": "inside",
-        ...(known.size != null ? { "font-size": sizeMap[known.size as string] ?? (known.size as string) } : {}),
         ...(known.listStyleType ? { "list-style-type": known.listStyleType } : {}),
         ...(known.center ? { "text-align": "center" } : {}),
         ...(known.type === "ordered" ? {} : { "list-style-type": known.listStyleType ?? "disc" }),

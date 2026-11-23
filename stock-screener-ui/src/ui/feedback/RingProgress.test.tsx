@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, test } from "vitest";
 import { render, screen } from "@solidjs/testing-library";
+import { TYPE_SCALE, typeSize } from "../typography";
 import { RingProgress } from "./RingProgress";
 
 const arc = (ring: HTMLElement, index = 0) =>
@@ -73,5 +74,18 @@ describe("RingProgress", () => {
     expect(arc(ring).getAttribute("stroke-width")).toBe("10");
     expect(arc(ring).getAttribute("stroke-linecap")).toBe("round");
     expect(ring).toHaveTextContent("70%");
+    const label = ring.querySelector(".pointer-events-none") as HTMLElement;
+    expect(label.style.fontSize).toBe(`${typeSize("display")}px`);
+  });
+
+  test("the centre label snaps to the shared ladder and never drops below 12px", () => {
+    const scale = Object.values(TYPE_SCALE).map((s) => s.size);
+    for (const size of [8, 40, 48, 80, 100, 120, 160] as const) {
+      render(() => <RingProgress value={50} size={size} label="50%" data-testid={`ring-${size}`} />);
+      const label = screen.getByTestId(`ring-${size}`).querySelector(".pointer-events-none") as HTMLElement;
+      const px = Number.parseFloat(label.style.fontSize);
+      expect(scale, `size ${size}`).toContain(px);
+      expect(px, `size ${size}`).toBeGreaterThanOrEqual(typeSize("micro"));
+    }
   });
 });

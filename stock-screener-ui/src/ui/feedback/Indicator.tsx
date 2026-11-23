@@ -1,8 +1,19 @@
 import { splitProps, Show } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
-import { typeSize } from "../typography";
+import { TYPE_SCALE, typeSize } from "../typography";
 import type { UIIndicatorProps } from "../types";
+
+const SCALE_STEPS = Object.values(TYPE_SCALE).map((s) => s.size);
+
+/** Decorative dot label: proportional to the dot, snapped to the shared ladder. */
+function snapTypeSize(px: number): number {
+  const nearest = SCALE_STEPS.reduce(
+    (best, step) => (Math.abs(step - px) <= Math.abs(best - px) ? step : best),
+    SCALE_STEPS[0],
+  );
+  return Math.max(typeSize("micro"), nearest);
+}
 
 const COLOR_MAIN: Record<string, string> = {
   primary: palette.PRIMARY,
@@ -85,7 +96,7 @@ export function Indicator(props: UIIndicatorProps) {
                 "background-color": col,
                 transform,
                 ...(known.label != null
-                  ? { color: palette.BG, "font-size": `${Math.max(typeSize("micro"), dotSize * 0.5)}px`, "font-weight": 600 }
+                  ? { color: palette.BG, "font-size": `${snapTypeSize(dotSize * 0.5)}px`, "font-weight": 600 }
                   : {}),
               }}
             >

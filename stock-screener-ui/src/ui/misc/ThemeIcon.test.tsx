@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
 import { cleanup, render } from "@solidjs/testing-library";
 import { sxTheme } from "../sxTheme";
-import { typeSize } from "../typography";
+import { TYPE_SCALE, typeSize, type TypeRole } from "../typography";
 import { alpha } from "../palette";
 import type { UIThemeIconProps } from "../types";
 import { ThemeIcon } from "./ThemeIcon";
@@ -16,24 +16,33 @@ function renderIcon(props: UIThemeIconProps = {}): HTMLSpanElement {
 }
 
 describe("ThemeIcon", () => {
-  test("maps size presets, numeric sizes and the default to a square with half-size glyph", () => {
-    const cases: Array<[UIThemeIconProps["size"], string]> = [
-      [undefined, "36px"],
-      ["xs", "20px"],
-      ["sm", "28px"],
-      ["md", "36px"],
-      ["lg", "48px"],
-      ["xl", "56px"],
-      [24, "24px"],
-      ["40", "40px"],
+  test("maps size presets, numeric sizes and the default to a square with an on-scale glyph", () => {
+    const cases: Array<[UIThemeIconProps["size"], string, TypeRole]> = [
+      [undefined, "36px", "heading"],
+      ["xs", "20px", "micro"],
+      ["sm", "28px", "label"],
+      ["md", "36px", "heading"],
+      ["lg", "48px", "display"],
+      ["xl", "56px", "display"],
+      [24, "24px", "micro"],
+      ["40", "40px", "heading"],
     ];
 
-    for (const [size, px] of cases) {
+    for (const [size, px, role] of cases) {
       const icon = renderIcon({ size });
       expect(icon.style.width, `size ${String(size)} width`).toBe(px);
       expect(icon.style.height, `size ${String(size)} height`).toBe(px);
-      const glyph = size == null ? `${typeSize("heading")}px` : `${Number(px.replace("px", "")) / 2}px`;
-      expect(icon.style.fontSize, `size ${String(size)} glyph`).toBe(glyph);
+      expect(icon.style.fontSize, `size ${String(size)} glyph`).toBe(`${typeSize(role)}px`);
+    }
+  });
+
+  test("every decorative glyph stays on the shared ladder and above the floor", () => {
+    const scale = Object.values(TYPE_SCALE).map((s) => s.size);
+    for (const size of [1, 8, 20, 24, 28, 36, 48, 56, 64] as const) {
+      const glyph = Number.parseFloat(renderIcon({ size }).style.fontSize);
+      expect(scale, `size ${size}`).toContain(glyph);
+      expect(glyph, `size ${size}`).toBeGreaterThanOrEqual(typeSize("micro"));
+      cleanup();
     }
   });
 
