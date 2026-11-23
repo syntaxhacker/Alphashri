@@ -214,6 +214,19 @@ describe("PaperTradingView", () => {
         expect(refreshLiveData).toHaveBeenCalled();
       });
     });
+
+    test("starts live auto-refresh on a fresh load with no bots", async () => {
+      const { listBots } = await import("../../api/paperTrading");
+      (listBots as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      const { initLiveAutoRefresh, refreshLiveData } = await import("../../api/paperTrading");
+
+      r();
+
+      await vi.waitFor(() => {
+        expect(initLiveAutoRefresh).toHaveBeenCalled();
+        expect(refreshLiveData).toHaveBeenCalled();
+      });
+    });
   });
 
   describe("error alert", () => {

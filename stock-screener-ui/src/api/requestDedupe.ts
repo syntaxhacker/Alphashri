@@ -59,19 +59,26 @@ export function dedupeInFlight<T>(
     release();
     return Promise.resolve(null);
   }
-  const onAbort = () => release();
-  callerSignal?.addEventListener("abort", onAbort, { once: true });
-  const promise = joined.promise as Promise<T>;
-  return promise.then(
-    (value) => {
-      callerSignal?.removeEventListener("abort", onAbort);
+
+  return new Promise<T | null>((resolve, reject) => {
+    const onAbort = () => {
       release();
-      return value;
-    },
-    (error: unknown) => {
-      callerSignal?.removeEventListener("abort", onAbort);
-      release();
-      throw error;
-    },
-  );
+      // An aborted caller settles null even when the shared loader later
+      // resolves — the value belongs to the callers that stayed subscribed.
+      resolve(null);
+    };
+    callerSignal?.addEventListener("abort", onAbort, { once: true });
+    joined.promise.then(
+      (value) => {
+        callerSignal?.removeEventListener("abort", onAbort);
+        release();
+        resolve(value as T | null);
+      },
+      (error: unknown) => {
+        callerSignal?.removeEventListener("abort", onAbort);
+        release();
+        reject(error);
+      },
+    );
+  });
 }

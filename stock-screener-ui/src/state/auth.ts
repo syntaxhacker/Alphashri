@@ -242,6 +242,10 @@ export async function logout(): Promise<void> {
 }
 
 export async function checkAuth(): Promise<boolean> {
+  return checkAuthOnce(true);
+}
+
+async function checkAuthOnce(allowRefresh: boolean): Promise<boolean> {
   const token = getAccessToken();
   const storedUser = getStoredUser();
 
@@ -262,6 +266,16 @@ export async function checkAuth(): Promise<boolean> {
     });
   }
 
+  const fail = () => {
+    clearTokens();
+    updateState({
+      isAuthenticated: false,
+      user: null,
+      loading: false,
+    });
+    return false;
+  };
+
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/auth/me`);
     if (response.ok) {
@@ -273,19 +287,13 @@ export async function checkAuth(): Promise<boolean> {
         loading: false,
       });
       return true;
-    } else {
-      const refreshed = await refreshTokensOnce();
-      if (!refreshed) {
-        clearTokens();
-        updateState({
-          isAuthenticated: false,
-          user: null,
-          loading: false,
-        });
-        return false;
-      }
-      return checkAuth();
     }
+    // Only a 401 can be repaired by a refresh; a 500 (or any other status)
+    // will fail identically on a retry and must not burn a rotation token.
+    if (response.status !== 401 || !allowRefresh) return fail();
+    if (!(await refreshTokensOnce())) return fail();
+    // One retry only: a still-failing /me clears auth instead of recursing.
+    return checkAuthOnce(false);
   } catch {
     updateState({
       isAuthenticated: false,

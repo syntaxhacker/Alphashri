@@ -24,6 +24,31 @@ import {
 export type SymbolChartPayload = Awaited<ReturnType<typeof fetchSymbolChart>>;
 const SYMBOL_CHART_CACHE_MS = 60_000;
 
+/**
+ * Cache identity for one symbol/timeframe phase. Lookback and trendline options
+ * change the response, so they belong in the key: a reload that drops or
+ * changes them must not reuse a payload fetched with different options.
+ */
+export function fullscreenChartCacheKey(
+  symbol: string,
+  tf: string,
+  phase: "l" | "p",
+  options: {
+    lookbackBars?: number | null;
+    computeTrendlines?: boolean;
+    asOf?: string | null;
+    fromDate?: string | null;
+  },
+): string {
+  const lookback = options.lookbackBars ?? "d";
+  const trendlines = options.computeTrendlines == null
+    ? "d"
+    : options.computeTrendlines
+      ? "t"
+      : "f";
+  return `${symbol}|${tf}|${phase}|${lookback}|${trendlines}|${options.asOf ?? ""}|${options.fromDate ?? ""}`;
+}
+
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const istDayFmt = new Intl.DateTimeFormat("en-CA", {
   timeZone: TZ_IST,
@@ -413,7 +438,7 @@ export function usePatternFullscreen({
           ? { ...prev, patternsLoading: true }
           : prev,
       );
-      const key = `${symbol}|${tf}|p|${extra.asOf ?? ""}|${extra.fromDate ?? ""}`;
+      const key = fullscreenChartCacheKey(symbol, tf, "p", extra);
       const cached = symbolChartCache.get(key);
       if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
         applyPatterns(cached.chart);
@@ -436,7 +461,7 @@ export function usePatternFullscreen({
     const forceLive = detectPatterns || extra.asOf != null;
 
     const phase1 = async () => {
-      const key = `${symbol}|${tf}|l|${extra.asOf ?? ""}|${extra.fromDate ?? ""}`;
+      const key = fullscreenChartCacheKey(symbol, tf, "l", extra);
       const cached = symbolChartCache.get(key);
       if (cached && Date.now() - cached.ts < SYMBOL_CHART_CACHE_MS) {
         applyCandles(cached.chart);
@@ -599,9 +624,10 @@ export function usePatternFullscreen({
         : prev,
     );
     void runTwoPhase(symbol, tf, token, current.detectPatterns !== false, {
+      lookbackBars,
+      computeTrendlines,
       asOf,
       fromDate,
-      computeTrendlines: undefined,
     });
     // The reload for the new timeframe repopulates the quote via its poll.
     if (asOf == null) startLivePoll(symbol, token);

@@ -85,9 +85,11 @@ export function usePatternsPage(props: PatternsPageProps) {
     timeframe: timeframe(),
     lookbackBars: lookbackBars(),
     computeTrendlines: computeTrendlines(),
-    // Universe/timeframe identity only — filter edits (search, direction…)
-    // must not close the open chart. A scope change does.
-    scopeKey: () => `${universe()}|${timeframe()}`,
+    // Universe/timeframe/chart-option identity only — filter edits (search,
+    // direction…) must not close the open chart. Changing the lookback or
+    // trendline options produces a different payload, so it is a scope change.
+    scopeKey: () =>
+      `${universe()}|${timeframe()}|${lookbackBars() ?? "d"}|${computeTrendlines() ? "t" : "f"}`,
     // Exactly one re-resolution per completed scan: the timestamp changes
     // once when the job finishes, not once per rendered item.
     resolutionKey: () => summary()?.last_scan_at ?? job()?.finished_at ?? null,

@@ -4,7 +4,7 @@ import { renderSolidHook } from "@/test-utils/solidRenderHook";
 import { fetchPatternHit, fetchSymbolChart } from "@/api/chartPatterns";
 import { fetchQuotes } from "@/api/marketScreener";
 import type { ChartPayload, PatternHitDTO } from "@/types/chartPatterns";
-import { usePatternFullscreen } from "./usePatternFullscreenSolid";
+import { fullscreenChartCacheKey, usePatternFullscreen } from "./usePatternFullscreenSolid";
 
 vi.mock("@/api/chartPatterns", () => ({
   fetchPatternHit: vi.fn(),
@@ -327,6 +327,78 @@ describe("usePatternFullscreen refreshSymbolChart", () => {
     await settled(api);
     expect(api.fullscreen()?.timeframe).toBe("1h");
     expect(api.fullscreen()?.hit?.id).toBe(oldest.id);
+  });
+});
+
+describe("usePatternFullscreen timeframe options and cache identity", () => {
+  beforeEach(() => {
+    framePrice = 1000;
+    vi.mocked(fetchPatternHit).mockResolvedValue(null as never);
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => chartPayload(framePrice));
+    vi.mocked(fetchQuotes).mockResolvedValue([
+      { symbol: "KAYNES", close: 2986, change: -12.94 },
+    ]);
+  });
+
+  afterEach(() => {
+    hook?.unmount();
+    hook = undefined;
+    vi.clearAllMocks();
+  });
+
+  test("a timeframe switch forwards lookbackBars and computeTrendlines to every phase", async () => {
+    hook = renderSolidHook(() => usePatternFullscreen({
+      timeframe: "1D",
+      lookbackBars: 250,
+      computeTrendlines: false,
+    }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+    vi.mocked(fetchSymbolChart).mockClear();
+
+    api.changeFullscreenTimeframe("1h");
+    await settled(api);
+
+    const calls = vi.mocked(fetchSymbolChart).mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every((call) => {
+      const opts = call[2] as { lookbackBars?: number; computeTrendlines?: boolean } | undefined;
+      return opts?.lookbackBars === 250 && opts?.computeTrendlines === false;
+    })).toBe(true);
+  });
+
+  test("a timeframe switch fetches the new timeframe instead of reusing cached candles", async () => {
+    hook = renderSolidHook(() => usePatternFullscreen({
+      timeframe: "1D",
+      lookbackBars: 250,
+      computeTrendlines: true,
+    }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+    expect(api.fullscreen()?.candles[0].c).toBe(1000);
+
+    framePrice = 2000;
+    vi.mocked(fetchSymbolChart).mockClear();
+    api.changeFullscreenTimeframe("1h");
+    await settled(api);
+
+    expect(api.fullscreen()?.candles[0].c).toBe(2000);
+    expect(vi.mocked(fetchSymbolChart).mock.calls.some((call) =>
+      call[0] === "KAYNES" && call[1] === "1h" &&
+      (call[2] as { detectPatterns?: boolean })?.detectPatterns === false,
+    )).toBe(true);
+  });
+
+  test("cache keys separate lookback and trendline options", () => {
+    const base = { asOf: null, fromDate: null };
+    const keys = [
+      fullscreenChartCacheKey("KAYNES", "1D", "l", { ...base, lookbackBars: 250, computeTrendlines: true }),
+      fullscreenChartCacheKey("KAYNES", "1D", "l", { ...base, lookbackBars: null, computeTrendlines: true }),
+      fullscreenChartCacheKey("KAYNES", "1D", "l", { ...base, lookbackBars: 250, computeTrendlines: false }),
+    ];
+    expect(new Set(keys).size).toBe(3);
   });
 });
 
