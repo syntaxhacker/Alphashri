@@ -6,9 +6,9 @@ Scope: `src/ui/**` and `src/components/common/**` component modules (100 files).
 
 ## Story catalog
 
-- Story files scanned: **93** (93 centralized under `src/stories/` — design-system + components, 0 co-located).
-- Story entries parsed from `export const …`: **385**.
-- Distinct exported component names imported by those stories: **149**.
+- Story files scanned: **96** (96 centralized under `src/stories/` — design-system + components, 0 co-located).
+- Story entries parsed from `export const …`: **403**.
+- Distinct exported component names imported by those stories: **154**.
 - A module is marked "yes" in the Story column only when a story imports one of its **actual exported names**, resolved through `@/ui` re-exports and relative co-located imports. Filename string matches are no longer used.
 
 **Scope of the claim:** this is a primitive-level design-system catalog (tokens, layout/input/feedback primitives and a handful of shared widgets). It is **not** a claim that all 100 audited modules are tested or visually reviewed. "Story: yes" means a story imports and renders that export, nothing more.
@@ -26,8 +26,8 @@ Scope: `src/ui/**` and `src/components/common/**` component modules (100 files).
 
 ## Status
 
-- Audited modules exercised by a story: **84/100**
-- Modules with a co-located test: **93/100**
+- Audited modules exercised by a story: **88/100**
+- Modules with a co-located test: **100/100**
 - Violations: **0**
 
 No rule violations.
@@ -38,7 +38,7 @@ No rule violations.
 |---|---|---|---|---|---|
 | `components/common/AnimatedValue.tsx` | yes | `AnimatedValue` | yes | 0 | 0 |
 | `components/common/BadgeComponents.tsx` | yes | `ExitReasonBadge`, `SideBadge`, `StatusBadge`, `TradingModeBadge` | yes | 0 | 0 |
-| `components/common/BrokerAuthNotice.tsx` | yes | `BrokerAuthNotice` | — | 0 | 0 |
+| `components/common/BrokerAuthNotice.tsx` | yes | `BrokerAuthNotice` | yes | 0 | 0 |
 | `components/common/ChartDockOutlet.tsx` | — | — | yes | 0 | 0 |
 | `components/common/ChartErrorBoundary.tsx` | — | — | yes | 0 | 0 |
 | `components/common/charts/MiniLineChart.tsx` | yes | `MiniLineChart` | yes | 0 | 0 |
@@ -51,25 +51,25 @@ No rule violations.
 | `components/common/FilterStatusRow.tsx` | yes | `FILTER_STATUS_CLEAR_ALL_LABEL`, `FILTER_STATUS_ROW_ARIA_LABEL`, `FILTER_STATUS_ROW_HEIGHT_CLASS`, `FilterStatusRow` | yes | 0 | 0 |
 | `components/common/Icons.tsx` | yes | `Icon`, `IconActivity`, `IconAlertCircle`, `IconAlertTriangle`, `IconArrowDown`, `IconArrowUp`, `IconChartCandle`, `IconChartLine`, `IconCheck`, `IconChevronRight`, `IconDatabaseOff`, `IconExternalLink`, `IconMoon`, `IconSearch`, `IconSettings` | yes | 0 | 0 |
 | `components/common/KeyValue.tsx` | yes | `Delta`, `KeyValue`, `KeyValueGrid`, `KeyValuePair` | yes | 0 | 0 |
-| `components/common/MembersDrawer.tsx` | — | — | — | 0 | 0 |
+| `components/common/MembersDrawer.tsx` | yes | `MembersDrawer` | yes | 0 | 0 |
 | `components/common/PanelModal.tsx` | — | — | yes | 0 | 0 |
 | `components/common/PnlText.tsx` | yes | `PnlBadge`, `PnlText` | yes | 0 | 0 |
-| `components/common/preview/ExpandedPanel.tsx` | — | — | — | 0 | 0 |
-| `components/common/preview/HoverPreview.tsx` | — | — | — | 0 | 0 |
+| `components/common/preview/ExpandedPanel.tsx` | yes | `ExpandedPanel` | yes | 0 | 0 |
+| `components/common/preview/HoverPreview.tsx` | yes | `HoverPreview` | yes | 0 | 0 |
 | `components/common/PreviewChartProvider.tsx` | — | — | yes | 0 | 0 |
 | `components/common/RangeInput.tsx` | yes | `RangeInput` | yes | 0 | 0 |
-| `components/common/SectionHeader.tsx` | yes | `SectionHeader` | — | 0 | 0 |
+| `components/common/SectionHeader.tsx` | yes | `SectionHeader` | yes | 0 | 0 |
 | `components/common/Sparkline.tsx` | yes | `Sparkline` | yes | 0 | 0 |
 | `components/common/states.tsx` | yes | `EmptyCompact`, `EmptyState`, `ErrorAlert`, `InlineLoader` | yes | 0 | 0 |
 | `components/common/SymbolAutocomplete.tsx` | — | — | yes | 0 | 0 |
 | `components/common/SymbolDockProvider.tsx` | — | — | yes | 0 | 0 |
 | `components/common/SymbolLink.tsx` | yes | `SymbolLink` | yes | 0 | 0 |
-| `components/common/table/renderers.tsx` | — | — | — | 0 | 0 |
+| `components/common/table/renderers.tsx` | — | — | yes | 0 | 0 |
 | `components/common/tableCells.tsx` | yes | `BadgeCell`, `DashCell`, `FlashValue`, `NumCell`, `SymbolCell`, `TextCell` | yes | 0 | 0 |
 | `components/common/TableEmptyState.tsx` | yes | `TableEmptyState` | yes | 0 | 0 |
 | `components/common/TableLoadingState.tsx` | yes | `TableLoadingState` | yes | 0 | 0 |
 | `components/common/TanStackTable.tsx` | yes | `TABLE_METRICS`, `TanStackTable` | yes | 0 | 0 |
-| `components/common/TradeStatsGrid.tsx` | yes | `TradeStatsGrid`, `computeTradeStats`, `formatCurrencySigned` | — | 0 | 0 |
+| `components/common/TradeStatsGrid.tsx` | yes | `TradeStatsGrid`, `computeTradeStats`, `formatCurrencySigned` | yes | 0 | 0 |
 | `components/common/TradingDatePicker.tsx` | yes | `TradingDatePicker` | yes | 0 | 0 |
 | `ui/data-display/Accordion.tsx` | yes | `Accordion`, `AccordionControl`, `AccordionItem`, `AccordionPanel` | yes | 0 | 0 |
 | `ui/data-display/Menu.tsx` | yes | `Menu`, `MenuDropdown`, `MenuItem`, `MenuTarget` | yes | 0 | 0 |
@@ -130,7 +130,7 @@ No rule violations.
 | `ui/overlay/Overlay.tsx` | yes | `Overlay` | yes | 0 | 0 |
 | `ui/overlay/Popover.tsx` | yes | `Popover`, `PopoverDropdown`, `PopoverTarget` | yes | 0 | 0 |
 | `ui/overlay/Tooltip.tsx` | yes | `Tooltip` | yes | 0 | 0 |
-| `ui/theme.tsx` | — | — | yes | 0 | 0 |
+| `ui/theme.tsx` | yes | `UIProvider`, `uiTheme` | yes | 0 | 0 |
 | `ui/typography/Anchor.tsx` | yes | `Anchor` | yes | 0 | 0 |
 | `ui/typography/Code.tsx` | yes | `Code` | yes | 0 | 0 |
 | `ui/typography/List.tsx` | yes | `List`, `ListItem` | yes | 0 | 0 |
