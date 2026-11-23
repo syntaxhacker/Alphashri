@@ -173,7 +173,7 @@ export function DecisionHero(props: { view: DecisionView }): JSX.Element {
               0.18,
             ),
             color:
-              view.decision().chip === "decision" ? palette.TEXT_MUTED : palette.WARNING,
+              view.decision().chip === "decision" ? palette.TEXT_MUTED : palette.PRIMARY,
           }}
         >
           {view.decision().stateLabel}

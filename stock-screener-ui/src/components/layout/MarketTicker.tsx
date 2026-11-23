@@ -355,7 +355,7 @@ export function MarketStatus(props: { compact?: boolean }) {
           c="dimmed"
           title={`· ${detail()}`}
           style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2", "margin-top": "2px" }}
-          className="opacity-75 w-full min-w-0 break-words line-clamp-2"
+          className="w-full min-w-0 break-words line-clamp-2"
         >
           · {detail()}
         </Text>

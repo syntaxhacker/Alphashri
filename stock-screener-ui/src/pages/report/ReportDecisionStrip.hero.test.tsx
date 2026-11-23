@@ -391,7 +391,7 @@ describe("decision hero — one status token, neutral tone, no duplicate copy", 
   test("the awaiting status is amber/neutral, never positive green", () => {
     mountLiveWithoutCall();
     const state = screen.getByTestId("nifty-decision-state");
-    expect([palette.WARNING, palette.TEXT_MUTED]).toContain(state.style.color);
+    expect([palette.PRIMARY, palette.TEXT_MUTED]).toContain(state.style.color);
     expect(state.style.color).not.toBe(palette.POSITIVE);
     expect(screen.getByTestId("nifty-plan-headline").style.color).toBe(palette.TEXT_MUTED);
   });
