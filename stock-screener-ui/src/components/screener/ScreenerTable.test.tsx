@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@solidjs/testing-library";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerTable } from "./ScreenerTable";
@@ -10,6 +10,7 @@ import type { Stock } from "../../types";
 import type { ColumnDef } from "./columns";
 import type { SavedConfigTransport } from "../../state/savedConfig";
 import type { UseTablePrefsResult } from "../common/useTablePrefs";
+import { toggleSymbolSelection } from "../../state";
 
 type Sorting = Array<{ id: string; desc: boolean }>;
 
@@ -232,6 +233,35 @@ describe("ScreenerTable", () => {
     ));
     const rows = document.querySelectorAll("tbody tr");
     expect(rows.length).toBe(mockStocks.length);
+  });
+
+  it("keeps the dense table in a horizontal scroll region with a sideways cue and full column widths", () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerTable {...defaultProps} />
+      </UIProvider>
+    ));
+    const wrapper = screen.getByTestId("screener-table-scroll-wrapper");
+    expect(wrapper).toHaveClass("overflow-x-auto");
+    expect(within(wrapper).getByTestId("screener-table")).toBeInTheDocument();
+    expect(screen.getByTestId("screener-table-scroll-cue")).toHaveTextContent("Scroll sideways");
+
+    const inner = wrapper.firstElementChild as HTMLElement;
+    expect(Number.parseInt(inner.style.minWidth, 10)).toBeGreaterThanOrEqual(720);
+    // No column is dropped or clipped away to make the table fit 390px.
+    expect(document.querySelectorAll("thead tr th").length).toBe(mockColumns.length + 1);
+    expect(screen.getByTestId("number-cell-RELIANCE-tv_price")).toHaveTextContent("2.5K");
+  });
+
+  it("keeps row selection usable from inside the mobile scroll wrapper", () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerTable {...defaultProps} />
+      </UIProvider>
+    ));
+    const wrapper = screen.getByTestId("screener-table-scroll-wrapper");
+    fireEvent.click(within(wrapper).getByTestId("sel-checkbox-RELIANCE"));
+    expect(toggleSymbolSelection).toHaveBeenCalledWith("RELIANCE");
   });
 
   it("handles empty stocks array gracefully", () => {

@@ -20,6 +20,13 @@ export function ChainTableHeader(props: ChainTableHeaderProps) {
     gap: "8px",
     padding: "8px",
   } as CSSProperties;
+  // Center strike stays put while the CE/PE columns scroll past it.
+  const strikeCell = {
+    ...headerCell,
+    position: "sticky",
+    left: "calc(50% - 40px)",
+    "z-index": 12,
+  } as CSSProperties;
   return (
     <Box
       className="chain-table-header"
@@ -34,7 +41,8 @@ export function ChainTableHeader(props: ChainTableHeaderProps) {
       </Box>
       <Box
         className="chain-header-cell chain-strike-header"
-        style={{ ...headerCell, color: palette.WARNING, "background-color": palette.SURFACE } as CSSProperties}
+        data-testid="options-chain-strike-header"
+        style={{ ...strikeCell, color: palette.WARNING, "background-color": palette.SURFACE } as CSSProperties}
       >
         STRIKE
       </Box>

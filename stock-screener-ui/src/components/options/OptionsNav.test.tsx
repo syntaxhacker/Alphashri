@@ -21,6 +21,34 @@ describe("OptionsNav", () => {
     expect(screen.queryByText("Greeks")).not.toBeInTheDocument();
   });
 
+  it("keeps all five tab labels on one scrollable line without structural overlap", () => {
+    render(() => <OptionsNav activeTab="chain" onTabChange={vi.fn()} />);
+    const list = screen.getByTestId("options-nav-list");
+    const tabs = screen.getAllByRole("tab");
+
+    // The 34px bar cannot wrap, so the strip scrolls instead of letting
+    // adjacent labels overlap at 390px.
+    expect(list).toHaveClass("flex-nowrap");
+    expect(list).toHaveClass("overflow-x-auto");
+    expect(screen.getByTestId("options-nav-wrapper")).toHaveClass("w-full", "min-w-0");
+    expect(screen.getByTestId("options-analytics-link")).toHaveClass("shrink-0", "whitespace-nowrap");
+
+    expect(tabs).toHaveLength(5);
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual([
+      "Option Chain",
+      "Positions",
+      "Premium",
+      "Simulator",
+      "Positioning",
+    ]);
+    for (const tab of tabs) {
+      expect(tab).toHaveClass("shrink-0");
+      expect(tab).toHaveClass("whitespace-nowrap");
+      expect(tab).not.toHaveClass("truncate");
+      expect(tab.textContent).not.toMatch(/\s{2,}/);
+    }
+  });
+
   it("has clickable tabs", async () => {
     const onTabChange = vi.fn();
     render(() => <OptionsNav activeTab="chain" onTabChange={onTabChange} />);

@@ -99,6 +99,33 @@ describe("OptionChainTable", () => {
     expect(screen.getByTestId("options-scroll-bottom-btn")).toBeInTheDocument();
   });
 
+  it("keeps header, subheader and rows in one min-width horizontal scroll region with a sideways cue", () => {
+    render(() => <OptionChainTable {...defaultProps} strikeMatrix={[]} />);
+    const scroll = screen.getByTestId("options-chain-table-scrollarea");
+    expect(scroll.style.overflow).toBe("auto");
+    const inner = within(scroll).getByTestId("options-chain-table-inner");
+    expect(inner.style.minWidth).toBe("980px");
+    expect(within(scroll).getByTestId("options-chain-table-header")).toBeInTheDocument();
+    expect(within(scroll).getByTestId("options-chain-table-subheader")).toBeInTheDocument();
+    expect(screen.getByTestId("options-chain-scroll-cue")).toHaveTextContent("Scroll sideways");
+  });
+
+  it("keeps the strike column sticky in the header, subheader and every row", () => {
+    const strikeMatrix = [
+      { strike: 24500, ce: makeContract({ strike: 24500 }), pe: makeContract({ strike: 24500, type: "PE" }) },
+    ];
+    render(() => <OptionChainTable {...defaultProps} strikeMatrix={strikeMatrix} />);
+    const nodes = [
+      screen.getByTestId("options-chain-strike-header"),
+      screen.getByTestId("options-chain-strike-subheader"),
+      screen.getByTestId("strike-cell"),
+    ];
+    for (const node of nodes) {
+      expect(node.style.position).toBe("sticky");
+      expect(node.style.left).toBe("calc(50% - 40px)");
+    }
+  });
+
   it("renders footer with ITM, ATM legend and sentiment badges", () => {
     render(() => <OptionChainTable {...defaultProps} strikeMatrix={[]} />,
     );

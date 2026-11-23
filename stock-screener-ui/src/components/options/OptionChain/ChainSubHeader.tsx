@@ -26,6 +26,10 @@ export function ChainSubHeader(props: ChainSubHeaderProps) {
     "text-align": "center",
     gap: "8px",
     padding: "8px",
+    // Matches the sticky strike column in the header and in every row.
+    position: "sticky",
+    left: "calc(50% - 40px)",
+    "z-index": 11,
   };
   return (
     <Box
@@ -38,7 +42,7 @@ export function ChainSubHeader(props: ChainSubHeaderProps) {
       <Box style={numericHeader}>VOL</Box>
       <Box style={numericHeader}>IV</Box>
       <Box style={numericHeader}>LTP</Box>
-      <Box style={strikeHeader}></Box>
+      <Box style={strikeHeader} data-testid="options-chain-strike-subheader"></Box>
       <Box style={numericHeader}>LTP</Box>
       <Box style={numericHeader}>IV</Box>
       <Box style={numericHeader}>VOL</Box>

@@ -4,6 +4,12 @@ import * as palette from "@/ui/palette";
 
 export type ThemeType = any;
 
+/**
+ * Below this width the eleven numeric columns stop being scannable and the
+ * chain scrolls sideways as one unit (header, subheader and rows together).
+ */
+export const CHAIN_TABLE_MIN_WIDTH = 980;
+
 function resolveFontSize(_theme: any, key: "sm" | "md"): number {
   return key === "sm" ? typeSize("micro") : typeSize("label");
 }
@@ -57,6 +63,10 @@ export const getStyles = (_theme: ThemeType, _isDark: boolean) => ({
   row: {
     display: "grid",
     gridTemplateColumns: "repeat(5, 1fr) 80px repeat(5, 1fr)",
+    // Same gap/padding as the header and subheader so all three grids share
+    // one column geometry — the strike column must line up end to end.
+    gap: "8px",
+    padding: "8px",
     transition: "background 0.18s ease",
     position: "relative" as const,
     backgroundColor: palette.BG,

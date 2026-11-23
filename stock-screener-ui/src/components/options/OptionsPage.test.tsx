@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createSignal } from "solid-js";
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { OptionsPage } from "./OptionsPage";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
@@ -53,6 +53,23 @@ describe("OptionsPage", () => {
   it("shows chain panel by default", () => {
     render(() => <OptionsPage {...defaultProps} />);
     expect(screen.getByTestId("options-chain-panel")).toBeInTheDocument();
+  });
+
+  it("keeps the tab strip scrollable inside the fixed nav bar with every tab reachable", () => {
+    render(() => <OptionsPage {...defaultProps} />);
+    const bar = document.querySelector("#options-nav-bar")!;
+    const list = screen.getByTestId("options-nav-list");
+    expect(bar).toContainElement(list);
+    expect(list).toHaveClass("overflow-x-auto");
+    for (const id of [
+      "nav-tab-chain",
+      "nav-tab-positions",
+      "nav-tab-premium",
+      "nav-tab-simulator",
+      "nav-tab-positioning",
+    ]) {
+      expect(within(list).getByTestId(id)).toBeInTheDocument();
+    }
   });
 
   it("shows positions panel when activeTab is positions", () => {

@@ -57,6 +57,9 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
 
   const testId = () => props.testId ?? "screener-table";
   const containerTestId = () => (testId() === "screener-table" ? undefined : testId());
+  // Every column keeps a scannable width; at 390px the extra width becomes a
+  // horizontal scroll instead of clipped numbers (selection stays first/left).
+  const scrollMinWidth = createMemo(() => Math.max(720, (props.columns.length + 1) * 112));
 
   const tanStackColumns = createMemo<TableColumnDef<Stock>[]>(() => {
     const cols: TableColumnDef<Stock>[] = [
@@ -243,9 +246,18 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
   });
 
     return (
-      <Box className="w-full overflow-hidden rounded-sm" data-testid={containerTestId()}>
+      <Box className="w-full rounded-sm" data-testid={containerTestId()}>
         <Stack spacing={0} className="w-full">
-          <Box className="w-full flex justify-center">
+          <Box className="flex w-full items-center justify-end px-3 py-1 sm:hidden" data-testid="screener-table-scroll-cue">
+            <Text size="sm" className="text-fin-text-muted">
+              Scroll sideways →
+            </Text>
+          </Box>
+          <Box
+            className="w-full overflow-x-auto overscroll-x-contain"
+            data-testid="screener-table-scroll-wrapper"
+          >
+            <Box style={{ "min-width": `${scrollMinWidth()}px` }}>
               <TanStackTable<Stock>
                 data={props.stocks}
                 columns={tanStackColumns()}
@@ -255,12 +267,14 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
                 onSortingChange={setSorting}
                 stickyHeader
                 className="w-full min-w-0"
+                minTableWidth={scrollMinWidth()}
                 getRowTestId={(row) => `stock-row-${row.symbol}`}
                 onRowClick={(row) => props.onSymbolClick(row.symbol)}
                 rowWindowSize={props.stocks.length > 120 ? 80 : undefined}
               />
             </Box>
-          </Stack>
+          </Box>
+        </Stack>
       </Box>
   );
 }

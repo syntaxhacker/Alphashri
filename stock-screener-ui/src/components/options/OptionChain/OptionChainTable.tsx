@@ -19,7 +19,7 @@ import { getMoneyness } from "../../../utils/options";
 import { clamp, formatNumber, getPnLTextColor } from "../../../utils/ui-helpers";
 import type { OptionContract } from "../../../api/upstoxOptions";
 import { hexToRgba, getCellPalette, type CellKind } from "./cellPalette";
-import { getStyles } from "./chainStyles";
+import { CHAIN_TABLE_MIN_WIDTH, getStyles } from "./chainStyles";
 import { ChainTableHeader } from "./ChainTableHeader";
 import { ChainSubHeader } from "./ChainSubHeader";
 import { ChainFooter } from "./ChainFooter";
@@ -518,15 +518,30 @@ export function OptionChainTable(props: OptionChainTableProps) {
         </Text>
       </Box>
 
-      <ChainTableHeader theme={theme} styles={styles} />
-      <ChainSubHeader styles={styles} />
+      <Box className="flex w-full items-center justify-end px-3 py-1 sm:hidden" data-testid="options-chain-scroll-cue">
+        <Text size="sm" className="text-fin-text-muted">
+          Scroll sideways →
+        </Text>
+      </Box>
 
+      {/* One scrollport owns both axes: header, subheader and rows scroll
+          horizontally together, while the header pair stays sticky vertically. */}
       <div
         ref={(el) => (viewportRef = el)}
-        style={{ flex: 1, "min-height": 0, overflow: "auto" }}
+        style={{ flex: 1, "min-height": 0, overflow: "auto", "overscroll-behavior": "contain" }}
         data-testid="options-chain-table-scrollarea"
       >
-        <Box style={{ "min-width": "800px", "padding-bottom": "152px" } as CSSProperties}>
+        <Box
+          style={
+            {
+              "min-width": `${CHAIN_TABLE_MIN_WIDTH}px`,
+              "padding-bottom": "152px",
+            } as CSSProperties
+          }
+          data-testid="options-chain-table-inner"
+        >
+          <ChainTableHeader theme={theme} styles={styles} />
+          <ChainSubHeader styles={styles} />
           <Index each={visibleRows()}>
             {(row) => {
               const index = () => row().index;
