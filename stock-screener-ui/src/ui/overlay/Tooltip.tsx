@@ -1,10 +1,15 @@
-import { createEffect, createSignal, onCleanup, splitProps } from "solid-js";
+import { createEffect, createSignal, createUniqueId, onCleanup, splitProps } from "solid-js";
 import { Portal } from "solid-js/web";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import type { UITooltipProps } from "../types";
 
-type TooltipProps = UITooltipProps & { transitionProps?: { duration?: number } };
+type TooltipProps = UITooltipProps & {
+  transitionProps?: { duration?: number };
+  onFocus?: (e: FocusEvent) => void;
+  onBlur?: (e: FocusEvent) => void;
+  "aria-describedby"?: string;
+};
 
 type TooltipPosition = NonNullable<UITooltipProps["position"]>;
 
@@ -61,11 +66,17 @@ export function Tooltip(props: TooltipProps) {
     "data-testid",
     "onMouseEnter",
     "onMouseLeave",
+    "onFocus",
+    "onBlur",
+    "aria-describedby",
     "withinPortal",
     "transitionProps",
   ]);
 
   const [open, setOpen] = createSignal(false);
+  // Stable across renders; the floating copy only exists while open, but the
+  // trigger must never point at an id that is not in the document.
+  const tipId = createUniqueId();
   let timer: ReturnType<typeof setTimeout> | null = null;
   onCleanup(() => {
     if (timer) clearTimeout(timer);
@@ -143,18 +154,60 @@ export function Tooltip(props: TooltipProps) {
 
   if (known.disabled) return <>{known.children}</>;
 
-  // A string label is the tooltip's accessible description. Surface it on the
-  // wrapper so it stays queryable without hovering — the floating copy only
-  // exists while open. A child that already carries its own accessible name
-  // keeps it, so the name is never announced twice.
+  // A string label stays the wrapper's accessible-name fallback; while open,
+  // the same copy is also exposed as the tooltip description via aria-describedby.
+  // A child that already carries its own accessible name keeps it, so the name
+  // is never announced twice.
   const childEl = known.children as any;
-  const childHasName =
-    childEl != null &&
-    typeof childEl === "object" &&
-    "props" in childEl &&
-    (childEl.props as { "aria-label"?: string; "aria-labelledby"?: string })["aria-label"] != null;
-  const ariaLabel =
-    typeof known.label === "string" && !childHasName ? known.label : undefined;
+  const childProps = childEl != null && typeof childEl === "object" && "props" in childEl
+    ? (childEl.props as { "aria-label"?: string; "aria-labelledby"?: string })
+    : undefined;
+  const [childHasName, setChildHasName] = createSignal(
+    childProps?.["aria-label"] != null || childProps?.["aria-labelledby"] != null,
+  );
+  createEffect(() => {
+    // Reading the props tracks dynamic aria-label/aria-labelledby values. The
+    // DOM check is also needed because Solid bakes *static* attributes into
+    // the compiled template, where they never appear on `props`.
+    const dynamic = childProps?.["aria-label"] != null || childProps?.["aria-labelledby"] != null;
+    const el = wrapEl?.firstElementChild as HTMLElement | null;
+    setChildHasName(
+      dynamic ||
+        (el != null &&
+          (el.hasAttribute("aria-label") ||
+            el.hasAttribute("aria-labelledby") ||
+            el.hasAttribute("title"))),
+    );
+  });
+  const ariaLabel = () =>
+    typeof known.label === "string" && !childHasName() ? known.label : undefined;
+
+  /**
+   * Only reference the portalled node while it is mounted. A caller-supplied
+   * describedby is preserved (and appended to) rather than overwritten.
+   */
+  const describedBy = (): string | undefined => {
+    const external = known["aria-describedby"];
+    if (!open() || !known.label) return external;
+    return external ? `${external} ${tipId}` : tipId;
+  };
+
+  /**
+   * `focusin`/`focusout` are used as well as `focus`/`blur`: focus does not
+   * bubble, so a keyboard user focusing the actual trigger element (a button
+   * inside the wrapper) would otherwise never open the tooltip.
+   */
+  const handleFocus = (e: FocusEvent) => {
+    // A wrapper that is itself focused emits both `focus` and `focusin`.
+    if (e.type !== "focusin" || e.target !== wrapEl) known.onFocus?.(e);
+    show();
+  };
+  const handleBlur = (e: FocusEvent) => {
+    if (e.type !== "focusout" || e.target !== wrapEl) known.onBlur?.(e);
+    const next = e.relatedTarget as Node | null;
+    if (next && wrapEl?.contains(next)) return;
+    hide();
+  };
 
   const activePlacement = (): TooltipPosition => pos()?.placement ?? placement;
 
@@ -183,7 +236,7 @@ export function Tooltip(props: TooltipProps) {
       }}
       id={known.id}
       data-testid={known["data-testid"] ? `${known["data-testid"]}-wrapper` : undefined}
-      aria-label={ariaLabel}
+      aria-label={ariaLabel()}
       className={cn("inline-flex relative", known.className)}
       style={known.style}
       onMouseEnter={(e) => {
@@ -194,7 +247,12 @@ export function Tooltip(props: TooltipProps) {
         known.onMouseLeave?.(e);
         hide();
       }}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onFocusIn={handleFocus}
+      onFocusOut={handleBlur}
       {...(rest as Record<string, unknown>)}
+      aria-describedby={describedBy()}
     >
       {known.children}
       {open() && known.label && (
@@ -203,6 +261,7 @@ export function Tooltip(props: TooltipProps) {
             ref={(el) => {
               tipEl = el;
             }}
+            id={tipId}
             data-testid={known["data-testid"]}
             role="tooltip"
             className={cn(
