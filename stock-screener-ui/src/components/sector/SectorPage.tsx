@@ -203,13 +203,24 @@ function SectorPerformancePanel(props: { sectors: SectorItem[] }) {
     <Box
       className="flex flex-col overflow-hidden border border-fin-border rounded-[2px] min-w-0 min-h-0"
     >
-      <Box className="flex h-6 shrink-0 items-center border-b border-fin-border px-2">
+      <Box className="flex h-6 shrink-0 items-center justify-between gap-2 border-b border-fin-border px-2">
         <Text fw={600} className="text-ui-micro">Sector Performance</Text>
+        <Text
+          data-testid="sector-table-scroll-cue"
+          title="Scroll sideways to see every column"
+          c="dimmed"
+          className="text-ui-micro lg:hidden"
+        >
+          Scroll sideways →
+        </Text>
       </Box>
       <Box
         id="sector-table-container"
         data-testid="sector-table-container"
-        className="min-h-0 flex-1 overflow-auto"
+        role="region"
+        aria-label="Sector performance table, scroll sideways for all columns"
+        tabIndex={0}
+        className="min-h-0 flex-1 overflow-auto focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
       >
         <SectorTable sectors={props.sectors} />
       </Box>
@@ -522,24 +533,38 @@ function SectorPageHeader(props: {
         ]}
         onChange={(v) => props.setMarket(v as "india" | "america")}
       />
-      <Tabs value={props.activeTab} onChange={props.setActiveTab} className="min-h-0 shrink-0">
-        {/* The band already draws the section rule; a second bordered pill inside it is the nested-box anti-pattern. */}
-        <Tabs.List
-          className="gap-1"
-          style={{ border: "0", background: "transparent", padding: "0", "min-height": "0" }}
+      <Box
+        data-testid="sector-tabs-region"
+        className="relative flex min-w-0 flex-1 items-center lg:flex-initial"
+      >
+        <Tabs value={props.activeTab} onChange={props.setActiveTab} className="min-h-0 min-w-0 flex-1">
+          {/* The band already draws the section rule; a second bordered pill inside it is the nested-box anti-pattern.
+              The strip itself is the scroll container so arrow-key focus stays inside the tablist. */}
+          <Tabs.List
+            data-testid="sector-tabs-list"
+            className="sector-tabs-strip flex-nowrap gap-1 overflow-x-auto whitespace-nowrap"
+            style={{ border: "0", background: "transparent", padding: "0", "min-height": "0" }}
+          >
+            <Tabs.Tab value="dashboard" className="shrink-0 whitespace-nowrap text-ui-micro" icon={<IconChartBar size={12} />}>
+              Live Dashboard
+            </Tabs.Tab>
+            <Tabs.Tab value="correlation" className="shrink-0 whitespace-nowrap text-ui-micro" icon={<IconNetwork size={12} />}>
+              Sector Correlation
+            </Tabs.Tab>
+            <Tabs.Tab value="rotation" className="shrink-0 whitespace-nowrap text-ui-micro" icon={<IconArrowsExchange size={12} />}>
+              Rotation
+            </Tabs.Tab>
+          </Tabs.List>
+        </Tabs>
+        <Box
+          data-testid="sector-tabs-overflow-cue"
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-0 flex items-center bg-gradient-to-l from-fin-surface via-fin-surface to-transparent pl-4 pr-1 text-fin-primary lg:hidden"
         >
-          <Tabs.Tab value="dashboard" className="text-ui-micro" icon={<IconChartBar size={12} />}>
-            Live Dashboard
-          </Tabs.Tab>
-          <Tabs.Tab value="correlation" className="text-ui-micro" icon={<IconNetwork size={12} />}>
-            Sector Correlation
-          </Tabs.Tab>
-          <Tabs.Tab value="rotation" className="text-ui-micro" icon={<IconArrowsExchange size={12} />}>
-            Rotation
-          </Tabs.Tab>
-        </Tabs.List>
-      </Tabs>
-      <Box className="flex-1" />
+          <Text fw={700} className="text-ui-micro">→</Text>
+        </Box>
+      </Box>
+      <Box className="hidden flex-1 lg:block" />
       <Show when={props.showRefresh}>
         {/* @/ui Button reads `disabled`/`loading` once at construction, so the
             button is rebuilt whenever the loading flag flips. */}

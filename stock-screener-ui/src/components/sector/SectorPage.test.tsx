@@ -199,6 +199,46 @@ describe("SectorPage", () => {
     expect(screen.getByText("Rotation")).toBeInTheDocument();
   });
 
+  it("keeps the tab strip scrollable with one-line labels and an overflow cue", () => {
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    render(() => <SectorPage />);
+    const strip = screen.getByTestId("sector-tabs-list");
+    expect(strip).toHaveClass("overflow-x-auto");
+    expect(strip).toHaveClass("flex-nowrap");
+    for (const label of ["Live Dashboard", "Sector Correlation", "Rotation"]) {
+      const tab = screen.getByText(label).closest('[role="tab"]');
+      expect(tab).toHaveClass("whitespace-nowrap");
+    }
+    const cue = screen.getByTestId("sector-tabs-overflow-cue");
+    expect(cue).toHaveTextContent("→");
+    expect(cue).toHaveClass("lg:hidden");
+  });
+
+  it("reaches and selects off-screen tabs with arrow keys inside the scroll strip", async () => {
+    window.history.replaceState({}, "", "/sector");
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    render(() => <SectorPage />);
+    const dashboardTab = screen.getByText("Live Dashboard").closest('[role="tab"]')!;
+    fireEvent.keyDown(dashboardTab, { key: "ArrowRight" });
+    await waitFor(() => {
+      expect(screen.getByText("Sector Correlation").closest('[role="tab"]')).toHaveAttribute("aria-selected", "true");
+    });
+    expect(window.location.search).toContain("tab=correlation");
+  });
+
+  it("exposes a keyboard-focusable scroll region and a visible sideways cue for the table", async () => {
+    mockFetchSectorPerformance.mockResolvedValue(mockResponse);
+    render(() => <SectorPage />);
+    await waitFor(() => expect(screen.getByText("Sector Performance")).toBeInTheDocument());
+    const region = screen.getByTestId("sector-table-container");
+    expect(region).toHaveClass("overflow-auto");
+    expect(region).toHaveAttribute("role", "region");
+    expect(region).toHaveAttribute("tabindex", "0");
+    const cue = screen.getByTestId("sector-table-scroll-cue");
+    expect(cue).toHaveTextContent("Scroll sideways");
+    expect(cue).toHaveClass("lg:hidden");
+  });
+
   it("does not render the legacy Historical Cycles tab", () => {
     mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
     render(() => <SectorPage />);

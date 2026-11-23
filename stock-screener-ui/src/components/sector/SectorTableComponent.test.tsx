@@ -2,7 +2,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import { SectorTable } from "./SectorTable";
+import { SectorTable, SECTOR_TABLE_MIN_WIDTH } from "./SectorTable";
 import type { SectorItem } from "../../types/sector";
 
 afterEach(() => {
@@ -121,5 +121,28 @@ describe("SectorTable rendering", () => {
     render(() => <SectorTable sectors={mockSectors} />);
     expect(screen.getByText("30 : 20")).toBeInTheDocument();
     expect(screen.getByText("15 : 25")).toBeInTheDocument();
+  });
+});
+
+describe("SectorTable horizontal overflow", () => {
+  it("sets a minimum table width wider than a 390px viewport so later columns scroll", () => {
+    render(() => <SectorTable sectors={mockSectors} />);
+    expect(SECTOR_TABLE_MIN_WIDTH).toBeGreaterThan(390);
+    expect(screen.getByTestId("sector-table")).toHaveStyle({ "min-width": `${SECTOR_TABLE_MIN_WIDTH}px` });
+  });
+
+  it("keeps the A/D values and numeric cells intact rather than ellipsising them", () => {
+    render(() => <SectorTable sectors={mockSectors} />);
+    expect(screen.getByText("30 : 20")).toHaveClass("whitespace-nowrap");
+    expect(screen.getByText("+2.50%")).toHaveClass("whitespace-nowrap");
+    expect(screen.getByText("15 : 25")).toHaveTextContent("15 : 25");
+  });
+
+  it("pins the SECTOR column while the remaining columns scroll", () => {
+    render(() => <SectorTable sectors={mockSectors} />);
+    const stickyRule = screen.getByTestId("sector-table-sticky-style").textContent ?? "";
+    expect(stickyRule).toContain('[data-testid="sector-table"] td:first-child');
+    expect(stickyRule).toContain("position: sticky");
+    expect(stickyRule).toContain("left: 0");
   });
 });
