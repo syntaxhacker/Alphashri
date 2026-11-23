@@ -16,6 +16,7 @@ import {
   typeStyle,
 } from "@/ui";
 import { IconAdjustmentsHorizontal, IconDotsVertical } from "@/components/common/Icons";
+import { PatternScrollRegion } from "@/components/patterns/PatternScrollRegion";
 import { SymbolFilter } from "@/components/patterns/SymbolFilter";
 import { TimeframeSelect } from "@/components/patterns/TimeframeSelect";
 import { LookbackSelect } from "@/components/patterns/LookbackSelect";
@@ -67,14 +68,21 @@ export interface ResultsToolbarProps {
 /** Both rows of scan/result controls rendered below the UniverseBar band. */
 export function ResultsToolbar(props: ResultsToolbarProps) {
   return (
-    <Box className="flex w-full min-w-0 flex-row flex-nowrap items-center gap-2">
-      <ToolbarRow
-        justify="flex-start"
-        gap={8}
-        wrap={false}
-        className="min-w-0"
-        data-testid="patterns-results-toolbar"
-      >
+    <PatternScrollRegion
+      testId="patterns-results-toolbar-scroll-region"
+      cueTestId="patterns-results-toolbar-scroll-cue"
+      ariaLabel="Pattern filters and result controls, scroll sideways for more"
+      className="w-full"
+      cueClassName="px-1 pb-0.5"
+    >
+      <Box className="flex w-max min-w-full flex-row flex-nowrap items-center gap-2">
+        <ToolbarRow
+          justify="flex-start"
+          gap={8}
+          wrap={false}
+          className="min-w-0"
+          data-testid="patterns-results-toolbar"
+        >
         <Box
           data-testid="patterns-scan-scope"
           role="group"
@@ -120,14 +128,14 @@ export function ResultsToolbar(props: ResultsToolbarProps) {
             </Box>
           </Tooltip>
         </Box>
-      </ToolbarRow>
-      <ToolbarRow
-        justify="flex-end"
-        gap={8}
-        wrap={false}
-        className="ml-auto shrink-0"
-        data-testid="patterns-results-view-toolbar"
-      >
+        </ToolbarRow>
+        <ToolbarRow
+          justify="flex-end"
+          gap={8}
+          wrap={false}
+          className="ml-auto shrink-0"
+          data-testid="patterns-results-view-toolbar"
+        >
         <ResultsSearch filters={props.filters()} setFilter={props.setFilter} />
         <SegmentedControl
           data={[
@@ -235,7 +243,8 @@ export function ResultsToolbar(props: ResultsToolbarProps) {
             {`loading more… ${props.rawResultCount()} of ${props.total()}`}
           </Text>
         ) : null}
-      </ToolbarRow>
-    </Box>
+        </ToolbarRow>
+      </Box>
+    </PatternScrollRegion>
   );
 }

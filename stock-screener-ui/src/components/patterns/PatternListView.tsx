@@ -11,6 +11,7 @@ import { QUALITY_INFO } from "@/config/patternCatalog";
 import { SymbolLink } from "@/components/common/SymbolLink";
 import { hasIndexMembers } from "@/config/indexGroups";
 import { MembersButton } from "./MembersButton";
+import { PatternScrollRegion } from "./PatternScrollRegion";
 import { displayStatusForHit } from "./patternDisplayStatus";
 import { triggerDistancePct } from "./triggerDistance";
 import { directionGlyph, directionTone } from "./symbolMatrix";
@@ -297,36 +298,43 @@ export function PatternListView(props: PatternListViewProps) {
   ];
 
   return (
-    <Show when={props.sort || "default"} keyed>
-      <TanStackTable
-        data={props.hits}
-        columns={columns}
-        dataTestId="patterns-list"
-        dense
-        fillContainer
-        stickyHeader={false}
-        // Sort keys match the server ordering (confidence desc / bars_ago asc /
-        // range_pos desc / breakout_score desc).
-        initialState={{ sorting: sortingFor(props.sort) }}
-        onRowClick={props.onSelect}
-        onSortedRowsChange={props.onOrderChange}
-        getRowStyle={(hit) => {
-          const key = activeKey();
-          return key && rowKey(hit) === key
-            ? {
-                "background-color": alpha(PRIMARY, 0.12),
-                "box-shadow": `inset 3px 0 0 ${PRIMARY}`,
-              }
-            : undefined;
-        }}
-        getRowAttributes={(hit) => {
-          const key = activeKey();
-          return { "data-active": key && rowKey(hit) === key ? "true" : undefined };
-        }}
-        getRowTestId={(hit) =>
-          `patterns-list-row-${hit.symbol}-${hit.pattern_id}${hit.id != null ? `-${hit.id}` : ""}`
-        }
-      />
-    </Show>
+    <PatternScrollRegion
+      testId="patterns-list-scroll-region"
+      cueTestId="patterns-list-scroll-cue"
+      ariaLabel="Pattern list, scroll sideways for more columns"
+      stickyFirstColumn
+    >
+      <Show when={props.sort || "default"} keyed>
+        <TanStackTable
+          data={props.hits}
+          columns={columns}
+          dataTestId="patterns-list"
+          dense
+          fillContainer
+          stickyHeader={false}
+          // Sort keys match the server ordering (confidence desc / bars_ago asc /
+          // range_pos desc / breakout_score desc).
+          initialState={{ sorting: sortingFor(props.sort) }}
+          onRowClick={props.onSelect}
+          onSortedRowsChange={props.onOrderChange}
+          getRowStyle={(hit) => {
+            const key = activeKey();
+            return key && rowKey(hit) === key
+              ? {
+                  "background-color": alpha(PRIMARY, 0.12),
+                  "box-shadow": `inset 3px 0 0 ${PRIMARY}`,
+                }
+              : undefined;
+          }}
+          getRowAttributes={(hit) => {
+            const key = activeKey();
+            return { "data-active": key && rowKey(hit) === key ? "true" : undefined };
+          }}
+          getRowTestId={(hit) =>
+            `patterns-list-row-${hit.symbol}-${hit.pattern_id}${hit.id != null ? `-${hit.id}` : ""}`
+          }
+        />
+      </Show>
+    </PatternScrollRegion>
   );
 }

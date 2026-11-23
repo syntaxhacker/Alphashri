@@ -9,6 +9,7 @@ import type { PatternHitDTO } from "@/types/chartPatterns";
 import { SymbolLink } from "@/components/common/SymbolLink";
 import { hasIndexMembers } from "@/config/indexGroups";
 import { MembersButton } from "./MembersButton";
+import { PatternScrollRegion } from "./PatternScrollRegion";
 import {
   directionGlyph,
   directionTone,
@@ -37,6 +38,10 @@ export interface PatternSymbolMatrixProps {
 }
 
 const MAX_CHIPS = 8;
+// Sized numeric columns already carry their values at 390px; the extra width
+// keeps the unsized chip column from collapsing into a mid-word clip.
+const MIN_MATRIX_WIDTH = 720;
+const MIN_COLUMN_WIDTH = 76;
 
 interface PreparedChips {
   shown: PatternHitDTO[];
@@ -379,8 +384,15 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
         meta: { align: "center" },
         cell: (ctx) => {
           const chips = chipsByRow.get(ctx.row.original) ?? EMPTY_CHIPS;
+          const title = () => {
+            const labels = chips.shown.map(
+              (hit) => `${hit.pattern_name} ${formatTfLabel(hit.timeframe)}`,
+            );
+            if (chips.extra > 0) labels.push(`+${chips.extra} more`);
+            return labels.join(", ") || undefined;
+          };
           return (
-            <Box className="flex items-center gap-1 overflow-hidden">
+            <Box className="flex items-center gap-1 overflow-hidden" title={title()}>
               <For each={chips.shown}>
                 {(hit) => <PatternChip hit={hit} onSelect={props.onSelect} />}
               </For>
@@ -399,33 +411,40 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
   const activeSymbol = () => props.activeSymbol ?? null;
 
   return (
-    <TanStackTable<PatternMatrixRow>
-      data={visibleRows()}
-      columns={columns()}
-      dataTestId="patterns-symbol-matrix"
-      loading={props.loading}
-      emptyMessage={props.emptyMessage ?? "No symbols match the current filters."}
-      enableSorting
-      stickyHeader
-      fillContainer
-      // One derived width keeps the table inside its panel: it scrolls rather
-      // than widening the docked-chart viewport at 1366px.
-      minTableWidth={Math.max(560, columns().length * 72)}
-      rowWindowSize={80}
-      onRowClick={onRowClick}
-      getRowStyle={(row) =>
-        activeSymbol() && row.symbol === activeSymbol()
-          ? {
-              background: alpha(palette.PRIMARY, 0.12),
-              boxShadow: "inset 3px 0 0 var(--color-fin-primary)",
-            }
-          : undefined
-      }
-      getRowAttributes={(row) => ({
-        "data-active": activeSymbol() && row.symbol === activeSymbol() ? "true" : undefined,
-      })}
-      getRowTestId={(row) => `patterns-matrix-row-${row.symbol}`}
-      onSortedRowsChange={props.onRowsChange}
-    />
+    <PatternScrollRegion
+      testId="patterns-matrix-scroll-region"
+      cueTestId="patterns-matrix-scroll-cue"
+      ariaLabel="Pattern matrix, scroll sideways for more columns"
+      stickyFirstColumn
+    >
+      <TanStackTable<PatternMatrixRow>
+        data={visibleRows()}
+        columns={columns()}
+        dataTestId="patterns-symbol-matrix"
+        loading={props.loading}
+        emptyMessage={props.emptyMessage ?? "No symbols match the current filters."}
+        enableSorting
+        stickyHeader
+        fillContainer
+        // One derived width keeps the table inside its panel: it scrolls rather
+        // than widening the docked-chart viewport at 1366px.
+        minTableWidth={Math.max(MIN_MATRIX_WIDTH, columns().length * MIN_COLUMN_WIDTH)}
+        rowWindowSize={80}
+        onRowClick={onRowClick}
+        getRowStyle={(row) =>
+          activeSymbol() && row.symbol === activeSymbol()
+            ? {
+                background: alpha(palette.PRIMARY, 0.12),
+                boxShadow: "inset 3px 0 0 var(--color-fin-primary)",
+              }
+            : undefined
+        }
+        getRowAttributes={(row) => ({
+          "data-active": activeSymbol() && row.symbol === activeSymbol() ? "true" : undefined,
+        })}
+        getRowTestId={(row) => `patterns-matrix-row-${row.symbol}`}
+        onSortedRowsChange={props.onRowsChange}
+      />
+    </PatternScrollRegion>
   );
 }

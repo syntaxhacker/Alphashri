@@ -251,6 +251,13 @@ describe("PatternSymbolMatrix", () => {
     expect(onSelect).toHaveBeenCalledWith(hit1d);
   });
 
+  test("keeps every chip label in the cell title when the column is too narrow to show them", () => {
+    const { rowA } = fixtureRows();
+    render(() => <PatternSymbolMatrix rows={[rowA]} timeframes={["5m", "1D"]} onSelect={vi.fn()} />);
+    const cell = within(screen.getByTestId("patterns-matrix-row-AAA")).getAllByRole("cell")[7];
+    expect(within(cell).getByTitle("Double Bottom 5m, Head and Shoulders 1D")).toBeInTheDocument();
+  });
+
   test("matrix chips are keyboard-activatable", async () => {
     const onSelect = vi.fn();
     const { rowA, rowB, hit1d } = fixtureRows();
@@ -431,10 +438,25 @@ describe("PatternSymbolMatrix", () => {
     const { rowA, rowB } = fixtureRows();
     render(() => <PatternSymbolMatrix rows={[rowA, rowB]} timeframes={["5m", "1D", "1W"]} onSelect={vi.fn()} />);
     const table = screen.getByTestId("patterns-symbol-matrix");
-    expect(table.style.minWidth).toBe(`${Math.max(560, 9 * 72)}px`);
+    expect(table.style.minWidth).toBe(`${Math.max(720, 9 * 76)}px`);
     const panel = table.closest(".paper-tanstack-container") as HTMLElement;
     expect(panel.style.maxHeight).toBe("");
     expect(panel.style.flex).toContain("1 1 0%");
+  });
+
+  test("exposes a narrow horizontal scroll region with a cue and sticky symbol column", () => {
+    const { rowA } = fixtureRows();
+    render(() => <PatternSymbolMatrix rows={[rowA]} timeframes={["5m", "1D", "1W"]} onSelect={vi.fn()} />);
+    const region = screen.getByTestId("patterns-matrix-scroll-region");
+    expect(region).toHaveAttribute("role", "region");
+    expect(region).toHaveAttribute("aria-label", "Pattern matrix, scroll sideways for more columns");
+    expect(region.className).toContain("overflow-x-auto");
+    expect(region.className).toContain("[&_td:first-of-type]:sticky");
+    expect(region).toContainElement(screen.getByTestId("patterns-symbol-matrix"));
+    const cue = screen.getByTestId("patterns-matrix-scroll-cue");
+    expect(cue).toHaveTextContent("Scroll sideways →");
+    expect(cue.className).toContain("md:hidden");
+    expect(region).not.toContainElement(cue);
   });
 
   test("numeric cells are mono, tabular and right-aligned", () => {
