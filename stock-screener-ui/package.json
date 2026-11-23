@@ -43,6 +43,7 @@
     "evidence:app": "SCREENSHOT_EVIDENCE=1 playwright test tests/e2e/design-evidence.spec.ts --workers=1",
     "evidence:screener": "SCREENSHOT_EVIDENCE=1 playwright test tests/e2e/screener-evidence.spec.ts --workers=1",
     "evidence:patterns": "SCREENSHOT_EVIDENCE=1 playwright test tests/e2e/patterns-evidence.spec.ts --workers=1",
+    "evidence:all": "SCREENSHOT_EVIDENCE=1 playwright test tests/e2e/design-evidence.spec.ts --workers=1 && SCREENSHOT_EVIDENCE=1 playwright test tests/e2e/screener-evidence.spec.ts --workers=1 && SCREENSHOT_EVIDENCE=1 playwright test tests/e2e/patterns-evidence.spec.ts --workers=1 && echo 'Captures complete — gate with: bun run audit:evidence'",
     "audit:typography": "node scripts/typography-audit.mjs",
     "audit:typography:check": "node scripts/typography-audit.mjs --check",
     "visual:test": "node scripts/visual-regression.mjs",

@@ -165,6 +165,16 @@ From `stock-screener-ui/`, each command sets `SCREENSHOT_EVIDENCE=1` (so the spe
 writes PNGs instead of only asserting the DOM) and pins `--workers=1` for a
 deterministic capture:
 
+`evidence:all` runs all three specs sequentially (each `SCREENSHOT_EVIDENCE=1`
+and `--workers=1`, chained with `&&` so a failure stops the run) and prints a
+reminder that `bun run audit:evidence` is the gate:
+
+```
+bun run evidence:all        # design-evidence → screener-evidence → patterns-evidence, then prints the audit:evidence gate reminder
+```
+
+The individual captures are still available if you only need one route family:
+
 ```
 bun run evidence:app        # design-evidence.spec.ts — report/sector/options/home → docs/screenshots/app/{report,sector,options,home}-{1600,390}.png
 bun run evidence:screener   # screener-evidence.spec.ts — bare /screener → docs/screenshots/app/screener-{1600,390}.png
