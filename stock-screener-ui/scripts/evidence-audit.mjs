@@ -25,7 +25,9 @@ const VIEWPORTS = [
   { suffix: "390", width: 390, height: 844 },
 ];
 
-const APP_ROUTES = ["report", "sector", "home", "options", "screener", "patterns"];
+// Options is explicitly out of scope for the design-system evidence wave (it
+// has its own feature spec); it is deliberately not a manifest route.
+const APP_ROUTES = ["report", "sector", "home", "screener", "patterns"];
 
 const SHOWCASE_NAMES = [
   // Family landings

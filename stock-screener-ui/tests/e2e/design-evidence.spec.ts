@@ -5,11 +5,11 @@
  * leave the tree untouched. These are real app routes with the shared API mocks,
  * not Storybook substitutes: the review gate needs both.
  *
- * Index Report, Sector, Options and Home are verified: their shared mocks
- * render honestly. The bare `/screener` and `/patterns` routes remain
- * unverified unless another agent adds them — their shared mocks are incomplete
- * and render errors or broken layouts, so they are absent until honest mocks
- * exist.
+ * Index Report, Sector and Home are verified: their shared mocks render
+ * honestly. The `/options` route is explicitly out of scope for the
+ * design-system evidence wave (it has its own feature spec) — not an
+ * unverified gap. Bare `/screener` and `/patterns` have their own capture specs;
+ * they stay pending until their PNGs are committed.
  */
 import { test, expect, type Page } from "@playwright/test";
 import {
@@ -17,7 +17,6 @@ import {
   setupApiMocks,
   setupHomeDeskMocks,
   setupNiftyReportMocks,
-  setupOptionsMocks,
   setupSectorMocks,
 } from "../mocks/apiResponses";
 import { collectConsoleErrors } from "./helpers/flowsB";
@@ -48,12 +47,6 @@ const ROUTES: readonly EvidenceRoute[] = [
     path: "/sector",
     ready: '[data-testid="sector-analysis-view"]',
     setup: (page) => setupSectorMocks(page),
-  },
-  {
-    name: "options",
-    path: "/options",
-    ready: '[data-testid="options-chain-panel"]',
-    setup: (page) => setupOptionsMocks(page),
   },
   {
     name: "home",
