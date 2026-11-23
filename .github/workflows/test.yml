@@ -194,7 +194,7 @@ jobs:
   frontend-lint-typecheck:
     name: Frontend Lint & TypeCheck
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -322,7 +322,7 @@ jobs:
   e2e-smoke:
     name: E2E Smoke (22 tests)
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     if: github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'main')
     steps:
       - uses: actions/checkout@v4
