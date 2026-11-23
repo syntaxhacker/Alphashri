@@ -1,4 +1,4 @@
-import { createEffect, Show } from "solid-js";
+import { createEffect, onCleanup, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { Box, Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -170,8 +170,13 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
     const strikes = props.strikes;
     const columns = props.columns;
     if (strikes.length === 0 || columns.length === 0) return;
-    // The table stamps its rows after this effect; centre once they are in the DOM.
-    queueMicrotask(() => centreChainAtm(wrapEl));
+    // TanStack stamps rows on its own schedule. A microtask can run before
+    // that; the zero-delay retry runs after layout, so the ATM row is present
+    // when the phone viewport is scrolled.
+    const centre = () => centreChainAtm(wrapEl);
+    queueMicrotask(centre);
+    const timer = setTimeout(centre, 0);
+    onCleanup(() => clearTimeout(timer));
   });
 
   return (

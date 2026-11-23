@@ -20,6 +20,7 @@ import {
   type ChartTimeframe,
 } from "./NiftyChartPanel.constants";
 import { computePatternStripTitle, type ScanBadge } from "./NiftyChartPanel.annotations";
+import { phoneViewport, usePinnedChartRange } from "./NiftyChartPanel.range";
 
 type ChartProps = ComponentProps<typeof TradingViewChart>;
 
@@ -33,14 +34,6 @@ export const MOBILE_CUTOFF_LANE = 16;
 export const MOBILE_CUTOFF_LABEL_GAP = 6;
 export const MOBILE_CUTOFF_RIGHT =
   MOBILE_EDGE_GUTTER + MOBILE_AXIS_MIN_WIDTH + MOBILE_CUTOFF_LANE;
-
-function phoneViewport(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(max-width: 600px)").matches
-  );
-}
 
 interface ChartBodyProps {
   view: "chart" | "depth";
@@ -130,6 +123,13 @@ export function ChartBody(props: ChartBodyProps) {
     setChartVersion((v) => v + 1);
   };
 
+  usePinnedChartRange(
+    () => chartRef,
+    () => props.chartCandles.length,
+    cutoffRight,
+    chartVersion,
+  );
+
   // TradingViewChart re-enables the volume tag whenever the candle series
   // changes. Re-apply after the current flush so the phone axis stays clear.
   createEffect(() => {
@@ -216,6 +216,7 @@ export function ChartBody(props: ChartBodyProps) {
             {...(props.chartHeight != null ? { height: props.chartHeight! } : {})}
             fitMarkLines
             hideLastValueTag={phone()}
+            rightOffsetBars={0}
             onChartReady={chartReady}
           />
           <Show when={props.lastDataBoundary}>

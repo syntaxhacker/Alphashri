@@ -78,6 +78,9 @@ export interface TradingViewChartProps {
    *  round-number tick (e.g. 22364.00 over 22360.00). The horizontal last-price
    *  line stays. Desktop leaves this off and keeps its tag. */
   hideLastValueTag?: boolean;
+  /** Extra blank bars after the last candle. The report uses 0 so its explicit
+   *  cutoff lane, not a six-bar tail, owns the right gutter. */
+  rightOffsetBars?: number;
   /** Solid imperative-handle pattern: called with the handle on mount. */
   ref?: (handle: TradingViewChartHandle) => void;
 }
@@ -485,7 +488,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
       ...(fixedHeight != null
         ? { width: el.clientWidth, height: fixedHeight }
         : { autoSize: true }),
-      timeScale: { borderColor: c.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 5, tickMarkFormatter: tvTickMarkFormatter },
+      timeScale: { borderColor: c.grid, timeVisible: true, secondsVisible: false, rightOffset: untrack(() => props.rightOffsetBars ?? 0), barSpacing: 5, tickMarkFormatter: tvTickMarkFormatter },
       localization: { locale: "en-IN", timeFormatter: tvTimeFormatter },
       rightPriceScale: { borderColor: c.grid },
       crosshair: { mode: 1 },

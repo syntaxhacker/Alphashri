@@ -301,6 +301,18 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
     gexDegraded() ? undefined : store.data.report()?.gex,
   );
 
+  // The phone rail only has room for two full rows. Open on the ATM pair
+  // rather than the lowest strikes; the expand action still carries the whole
+  // ladder, and there is no invisible scroll position to hunt for.
+  const chainStrikes = createMemo(() => {
+    const all = store.data.visibleStrikes();
+    if (!isMobile() || all.length <= 2) return all;
+    const atm = store.data.atmStrike();
+    const index = atm === null ? -1 : all.findIndex((row) => Number(row.strike) === atm);
+    const start = Math.max(0, Math.min(all.length - 2, index));
+    return all.slice(start, start + 2);
+  });
+
   const getOiRowStyle = (row: NiftyStrike): JSX.CSSProperties | undefined => {
     const atm = store.data.atmStrike();
     return atm !== null && row.strike === atm
@@ -486,7 +498,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
           <Show when={showChain()}>
             <Box data-side-slot="chain" className={deskSplit() ? CHAIN_SLOT_HUG : CHAIN_SLOT_FILL}>
               <NiftyOiChain
-                strikes={store.data.visibleStrikes()}
+                strikes={chainStrikes()}
                 columns={oiColumns()}
                 getRowStyle={getOiRowStyle}
                 getRowTestId={getOiRowTestId}
