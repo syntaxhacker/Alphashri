@@ -138,3 +138,12 @@ Counting imports overstates adoption: `src/pages/report` imports `@/ui` in 124 f
 - Whether the mobile title overlap is still present after the uncommitted DS edits is unknown; source at `AppLayout.tsx:63-82` still places the toggle at fixed `top:8/left:8`.
 - 1600/390 screenshots exist for only a subset of the 30 routes (`docs/ROUTE_SURFACE_AUDIT.md:32-63`); backtest, paper, bots, strategies, sector and settings were not visually audited.
 - Chart palette consistency: report/agri charts still import `src/ui/palette` directly rather than `useTokenColor()`; because the product is dark-only, this is a token-discipline issue, but a liveScheme flip was not tested (and light mode is explicitly out of scope per `docs/DESIGN_SYSTEM_BENCHMARK_2026-11-23.md:8`).
+
+---
+
+## Current status (2026-11-23 P5 — supersedes the scale findings)
+
+- The report no longer has a private 9/10/11/23px scale. `src/pages/report/reportTokens.ts` derives `REPORT_FONT` from the shared `TYPE_SCALE` (report uses 12/13/16/24) and report radii are 2/4/6/10; `ReportLegibility`/`ReportTypographyContrast` enforce the 12px floor and the closed ladder.
+- Typography primitives (`Text/Title/Anchor/List`) were the remaining blind spot: their named sizes still map through a rem table with an 18px step. That is being folded onto `TYPE_CLASS` now; until it lands, the “one scale” claim is not true for direct primitive use.
+- Replay error copy now separates a human message from collapsed technical detail; dense tabs/table regions scroll intentionally at 390.
+- Still unverified in this doc: the mobile-nav gutter fix and fresh 1600/390 captures of the live app routes. Storybook showcase images are **not** a substitute for app screenshots. Treat those findings as open until a route capture exists.

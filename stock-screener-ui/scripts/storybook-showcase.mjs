@@ -32,9 +32,9 @@ const SHOTS = {
   grid: "design-system-components-layout-grid--playground",
   keyvalue: "design-system-components-app-keyvalue--playground",
   loader: "design-system-components-feedback-loader--playground",
-  alerts: "design-system-components-feedback-alert--playground",
+  alerts: "design-system-components-feedback-alert--variants-and-radius",
   skeleton: "design-system-components-feedback-skeleton--playground",
-  table: "design-system-components-app-tablecells--playground",
+  table: "design-system-app-primitives--family-landing",
   notifications: "design-system-components-feedback-notifications--tones",
 };
 
@@ -74,7 +74,7 @@ try {
         await page.evaluate(() => document.fonts.ready);
         await page.waitForTimeout(250);
         const file = join(OUT, `${name}-${width}.png`);
-        await page.screenshot({ path: file });
+        await page.screenshot({ path: file, fullPage: true });
         console.log(`${name}-${width}.png`);
       }
       await page.close();

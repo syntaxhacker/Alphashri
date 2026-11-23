@@ -208,7 +208,7 @@ function MenuSpecimen() {
   const [action, setAction] = createSignal<string | null>(null);
   return (
     <Stack gap="sm">
-      <Text size="xs" c="dimmed">{action() ? `Last action: ${action()}` : "Choose an action from the menu."}</Text>
+      <Text size="xs" c="dimmed">{action() ? `${action()} selected` : "Choose an action from the menu."}</Text>
       <Box style={{ width: "320px" }}>
         <Menu opened={opened()} onChange={setOpened}>
           <MenuTarget><Button variant="outline">Actions</Button></MenuTarget>

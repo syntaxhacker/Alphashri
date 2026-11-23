@@ -205,3 +205,15 @@ The 12px floor is enforced by the `design-scale` guard (`src/test/design-scale.t
 **This pass (`src/stories/**` only):** all 15 inline `font-size` declarations (9/10/11/12/13px) were replaced with `text-ui-*` or `typeStyle()` — before 15, after 0 (the only remaining `font-size` match is prose in a `note` prop). Grid/Layout ruler cells grew 14→20px and 18→20px so 12px digits are not clipped at 390, and the stale "9px floor" copy in Overview and Badge stories was corrected. Nothing was hidden.
 
 **Remaining exceptions (outside this scope, not edited here):** the `Tab` primitive still carries a default `text-[11px]` class in `src/ui/data-display/Tabs.tsx` (the Sizes story overrides it with `typeStyle()`); `Textarea` `size="xs"` is described in its story as an 11px step; dense table stories still describe 10px row type. Those live in `src/ui` / feature components and belong to the component pass. Intentional `truncate`/`lineClamp` demos in Text/Anchor/SimpleGrid stories are kept — they teach an API and carry the full string in `title`.
+
+---
+
+## Current status (2026-11-23 P5 — supersedes §7–8)
+
+The fixed items below are now visible in the committed `docs/screenshots/showcase/` images (all read back; captured with `scripts/storybook-showcase.mjs`):
+
+- **Fixed:** card style forwarding, one `FamilyLanding` template, centred measures, responsive Navigation shell, FloatingWindow fitting its 390 host, filter-chip separation, Overview coverage-index stacking, footer paths, stale `381/92/79` counts and the false “no axe gate” claim in `STORYBOOK.md`.
+- **Fixed:** every story font-size declaration now uses `text-ui-*` / `typeStyle`; the old 9px copy is retired.
+- **Open:** `Text/Title/Anchor/List` still expose a private rem `sizeMap` with an 18px step; a dedicated lane is folding those aliases onto `TYPE_CLASS`. Until it lands, the Typography page’s “What Typography owns” row is documenting an API that is not yet the shared scale.
+- **Open:** the app routes still lack fresh route-level 1600/390 captures; Storybook evidence does not prove the live app.
+- **Evidence:** showcase captures are now full-page, so the Data display result-states panel and Overview coverage index are in-frame. `alerts` captures the full variants-and-radius story, and `table` captures the App primitives family page instead of the one-row debug playground.

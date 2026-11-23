@@ -290,11 +290,13 @@ export const Overview: Story = {
             {groups.map((g) => (
               <div>
                 <Divider label={g.title} labelPosition="left" />
-                <Flex gap="md" align="baseline" style={{ padding: "6px 0" }}>
-                  <Text size="xs" c="default" className="font-mono" style={{ width: "260px" }}>{g.title}</Text>
+                <div className="flex flex-col gap-1 py-1.5 sm:flex-row sm:items-baseline sm:gap-4">
+                  <Text size="xs" c="default" className="font-mono sm:w-[220px] sm:shrink-0">{g.title}</Text>
                   <Text size="xs" c="dimmed">{g.description}</Text>
-                  <StoryLink id={g.id} label="open ↗" />
-                </Flex>
+                  <div className="sm:ml-auto">
+                    <StoryLink id={g.id} label="open ↗" />
+                  </div>
+                </div>
               </div>
             ))}
           </Stack>
