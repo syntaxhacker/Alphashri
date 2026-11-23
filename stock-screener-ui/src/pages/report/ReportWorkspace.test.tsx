@@ -109,7 +109,9 @@ describe("ReportWorkspace grid", () => {
 
     const grid = screen.getByTestId("nifty-main-row");
     expect(grid).toHaveAttribute("data-report-order", "chart");
-    expect(grid.className).toContain("max-[600px]:order-2");
+    // The shell owns the single phone order slot for the chart; a local order
+    // here would tie with the shell rule and re-open the old preview ambiguity.
+    expect(grid.className).not.toContain("max-[600px]:order-");
     expect(grid.className).toContain("max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,80px)]!");
     // Grid children and their testids are unchanged by the reorder.
     expect(Array.from(grid.children)[1]).toBe(screen.getByTestId("nifty-side-col"));

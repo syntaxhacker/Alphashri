@@ -365,6 +365,8 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
 
   return (
     <>
+      {/* The shell owns the phone order for every content child; declaring it
+          here as well would tie the chart with the shell's own rule. */}
       <Box
         data-testid="nifty-main-row"
         data-left-edge={String(REPORT_GUTTER.inline)}
@@ -373,7 +375,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
         data-chart-row-share={isDesk() ? DESK_CHART_ROW_SHARE : undefined}
         data-chart-chain={CHART_FILL_CHAIN}
         data-chart-floor={isDesk() ? String(DESK_CHART_FLOOR_PX) : undefined}
-        className={`grid grid-cols-1 ${isDesk() ? "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,624px)]"} grid-rows-[minmax(0,1fr)_minmax(0,120px)] ${mobileHeatmap() ? MOBILE_GRID_HEATMAP : `${MOBILE_GRID_DEFAULT} ${MOBILE_GRID_CHAIN}`} min-[1200px]:grid-rows-[minmax(0,1fr)] gap-0 items-stretch w-full max-w-full min-w-0 flex-1 min-h-[300px] overflow-hidden max-[600px]:order-2${isDesk() ? ` ${DESK_CHART_ROW_MAX_CLASS}` : ""}`}
+        className={`grid grid-cols-1 ${isDesk() ? "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,624px)]"} grid-rows-[minmax(0,1fr)_minmax(0,120px)] ${mobileHeatmap() ? MOBILE_GRID_HEATMAP : `${MOBILE_GRID_DEFAULT} ${MOBILE_GRID_CHAIN}`} min-[1200px]:grid-rows-[minmax(0,1fr)] gap-0 items-stretch w-full max-w-full min-w-0 flex-1 min-h-[300px] overflow-hidden${isDesk() ? ` ${DESK_CHART_ROW_MAX_CLASS}` : ""}`}
         style={{
           "max-height":
             isDesk() && chartSize() !== "fill" ? `${chartRowHeight()}px` : undefined,
