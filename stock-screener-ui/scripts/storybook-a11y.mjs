@@ -3,9 +3,9 @@
  * Real-browser accessibility gate for the static Storybook build.
  *
  * Runs axe-core (WCAG 2.1 A/AA) inside Storybook's preview iframe for all 13
- * family landings, the overlay playables and representative component states,
- * and fails the process on serious/critical violations. It starts and stops
- * its own static HTTP server, so it is safe to
+ * family landings, the overlay playables, representative component states and
+ * the newer pinned visible states, and fails the process on serious/critical
+ * violations. It starts and stops its own static HTTP server, so it is safe to
  * run as `node scripts/storybook-a11y.mjs` in CI without any external setup.
  *
  * NOTE: This script only owns its own file. It never modifies the build, the
@@ -103,7 +103,43 @@ const COMPONENT_REPRESENTATIVES = [
 
 const REPRESENTATIVES = [...LANDINGS, ...OVERLAY_PLAYABLES, ...COMPONENT_REPRESENTATIVES];
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// Added after the original 21-story gate. Pinned by exact story id so the
+// static index is the single source of truth for whether each state is present.
+const NEW_VISIBLE_STATES = [
+  {
+    label: 'App/BrokerAuthNotice (default)',
+    id: 'design-system-components-app-brokerauthnotice--default',
+  },
+  {
+    label: 'App/MembersDrawer (populated)',
+    id: 'design-system-components-app-membersdrawer--populated',
+  },
+  {
+    label: 'App/ChartPreviews (hover with data)',
+    id: 'design-system-components-app-chartpreviews--hover-with-data',
+  },
+  {
+    label: 'App/ChartPreviews (expanded with data)',
+    id: 'design-system-components-app-chartpreviews--expanded-with-data',
+  },
+  {
+    label: 'Foundations/Theme bridge',
+    id: 'design-system-foundations--theme-bridge',
+  },
+  {
+    label: 'Data display/Result states (empty)',
+    id: 'design-system-data-display--result-states-empty',
+  },
+  {
+    label: 'Data display/Result states (scanning)',
+    id: 'design-system-data-display--result-states-scanning',
+  },
+  {
+    label: 'Data display/Result states (feed error)',
+    id: 'design-system-data-display--result-states-feed-error',
+  },
+];
+
 const norm = (value) => String(value ?? '').trim().toLowerCase();
 
 // ---------------------------------------------------------------------------
@@ -127,7 +163,8 @@ if (!existsSync(AXE_PATH)) {
 }
 
 // ---------------------------------------------------------------------------
-// Resolve representative story ids from index.json by title + name
+// Resolve story ids from index.json: original representatives by title + name,
+// new visible states by exact id
 // ---------------------------------------------------------------------------
 
 function resolveStories() {
@@ -144,7 +181,7 @@ function resolveStories() {
   );
 
   const missing = [];
-  const resolved = REPRESENTATIVES.map((spec) => {
+  const resolvedRepresentatives = REPRESENTATIVES.map((spec) => {
     const match = entries.find(
       (entry) =>
         norm(entry.title) === norm(spec.title) && norm(entry.name) === norm(spec.name),
@@ -162,15 +199,24 @@ function resolveStories() {
     return { ...spec, id: match.id };
   });
 
+  const resolvedNewStates = NEW_VISIBLE_STATES.map((spec) => {
+    const match = entries.find((entry) => norm(entry.id) === norm(spec.id));
+    if (!match) {
+      missing.push(`  - ${spec.label}: no story with id="${spec.id}" in index.json`);
+      return null;
+    }
+    return { ...spec, id: match.id };
+  });
+
   if (missing.length) {
     console.error(
-      '[storybook-a11y] FAIL: index.json exists but required representative stories are missing:',
+      '[storybook-a11y] FAIL: index.json exists but required stories are missing:',
     );
     console.error(missing.join('\n'));
     process.exit(1);
   }
 
-  return resolved;
+  return [...resolvedRepresentatives, ...resolvedNewStates];
 }
 
 const STORIES = resolveStories();
@@ -345,7 +391,7 @@ async function main() {
     `[storybook-a11y] Serving ${path.relative(PROJECT_ROOT, STATIC_DIR)} at ${BASE_URL} ` +
       `on port ${PORT}.`,
   );
-  console.log(`[storybook-a11y] Resolved ${STORIES.length} representative stories:`);
+  console.log(`[storybook-a11y] Resolved ${STORIES.length} stories:`);
   for (const story of STORIES) console.log(`  - ${story.label}: ${story.id}`);
 
   await startServer();
