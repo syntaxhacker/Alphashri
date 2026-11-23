@@ -77,6 +77,19 @@ describe("Index Report shell/workspace readability rhythm", () => {
     }
   });
 
+  test("the shell source carries no force-open verdict disclosure rule", () => {
+    // A max-width `!important` rule reaching into the decision strip's
+    // disclosure would win over its `data-open`/inline display state and
+    // desync the MORE STATS toggle from what the reader sees.
+    const disclosureRules = SHELL.split("\n").filter((line) =>
+      /max-\[600px\][^\n]*disclosure/.test(line),
+    );
+    expect(disclosureRules).toEqual([]);
+    for (const id of ["nifty-verdict-disclosure", "nifty-flow-windows-disclosure"]) {
+      expect(SHELL, `force-open rule for ${id}`).not.toContain(`${id}']_[data-testid=`);
+    }
+  });
+
   test("compact chrome is shell-owned and never hides a toolbar overflow affordance", () => {
     expect(SHELL).toContain('data-compact-chrome="true"');
     expect(SHELL).toContain("max-[600px]:pb-1!");
