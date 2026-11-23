@@ -60,8 +60,9 @@ describe("Box", () => {
   });
 
   test("adds px to numeric style lengths but leaves unitless values alone", () => {
+    const width = 440;
     render(() => (
-      <Box data-testid="box" style={{ width: 440, opacity: 0.5, "z-index": 2, "line-height": 1.4 }} />
+      <Box data-testid="box" style={{ width, opacity: 0.5, "z-index": 2, "line-height": 1.4 }} />
     ));
 
     const box = screen.getByTestId("box");
