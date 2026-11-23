@@ -1,0 +1,119 @@
+# Visual regression (1600 / 390 pixel baseline)
+
+This is the automated pixel gate referenced as still open in
+[`DESIGN_SYSTEM_A_PLUS_GATE.md`](./DESIGN_SYSTEM_A_PLUS_GATE.md). It turns the
+checked-in Storybook screenshots into an assertion: a visual change now fails a
+run instead of only being visible in a diff review.
+
+## Files
+
+| Path | Role |
+| --- | --- |
+| `scripts/visual-regression.mjs` | Single entry point. Validates the static build and baselines, then launches Playwright. Supports `UPDATE_SNAPSHOTS=1`. |
+| `tests/visual/visual-regression.spec.ts` | The six Storybook stories, captured full-page at both breakpoints and compared with `toHaveScreenshot`. |
+| `tests/visual/playwright.visual.config.ts` | Standalone Playwright config (does **not** use the app's `playwright.config.ts`). Starts its own static server, defines the two viewport projects, pins the diff budget. |
+| `tests/visual/__screenshots__/` | Committed baseline PNGs (12 files). Currently contains only a README — see "One-time baseline creation". |
+
+The default `playwright.config.ts` targets `tests/e2e` and the Vite dev server
+on `localhost:5173`. This gate deliberately has its own config so it can only
+ever capture the static Storybook build.
+
+## How it works
+
+1. `scripts/visual-regression.mjs` requires
+   `storybook-static/index.json` to exist and to contain all six target story
+   IDs. If it is missing or stale, the script fails with the exact rebuild
+   command. There is no dev-server fallback.
+2. It then requires all 12 baseline PNGs to be present. A normal run never
+   writes a missing baseline (`updateSnapshots: "none"`), so a missing baseline
+   is a hard failure, not a silent pass.
+3. The visual config starts a short-lived static server:
+   `python3 -m http.server 6133 --bind 127.0.0.1 -d storybook-static`, and waits
+   for `/index.json` before the first test. It is torn down at the end of the
+   run.
+4. For each story/viewport pair the spec opens
+   `/iframe.html?id=<story-id>&viewMode=story`, waits for the Storybook root,
+   fonts, and network idle, then captures a **full-page** screenshot and
+   compares it against the matching PNG in `tests/visual/__screenshots__/`.
+5. The diff budget is small: `threshold: 0.1` (~10% per-pixel colour tolerance)
+   and `maxDiffPixels: 100`. Anything beyond that fails the test and Playwright
+   writes an actual/diff image into `test-results/visual/`.
+
+### Baseline set
+
+| Name | Story ID |
+| --- | --- |
+| `typography-landing` | `design-system-typography--landing` |
+| `overview` | `design-system-overview--overview` |
+| `inputs-landing` | `design-system-inputs--landing` |
+| `data-display-landing` | `design-system-data-display--family-landing` |
+| `overlay-landing` | `design-system-overlay--family-landing` |
+| `foundations-landing` | `design-system-foundations--landing` |
+
+Each name is captured for projects `desktop-1600` (1600×1000) and `mobile-390`
+(390×844), producing files like
+`tests/visual/__screenshots__/overview-desktop-1600.png`.
+
+## When it runs
+
+**Only when a static Storybook build exists.** `storybook-static/` is
+gitignored, so build it locally first. Nothing here is wired into `package.json`
+or CI by this change; run the commands below explicitly (or have the main agent
+add a script/CI step if desired).
+
+Requires the already-installed `python3`, `@playwright/test`, and Playwright
+Chromium browser binaries (`npx playwright install chromium` if absent).
+
+## One-time baseline creation / intentional update
+
+From `stock-screener-ui/`:
+
+```sh
+# 1. fresh static build (storybook-static/ is gitignored)
+npm run build-storybook
+
+# 2. generate/regenerate the 12 baselines
+UPDATE_SNAPSHOTS=1 node scripts/visual-regression.mjs
+
+# 3. inspect what changed, then commit only the intended PNGs
+git status --short tests/visual/__screenshots__
+git diff -- tests/visual/__screenshots__
+git add tests/visual/__screenshots__
+```
+
+`UPDATE_SNAPSHOTS=1` sets Playwright's update mode to `all` (and passes
+`--update-snapshots`), so existing PNGs are overwritten as well as missing ones
+created. **Review the diff before committing** — an accidental re-baseline is
+how a visual regression gets approved by mistake.
+
+## Routine verification
+
+```sh
+npm run build-storybook              # only needed if storybook-static/ changed
+node scripts/visual-regression.mjs
+```
+
+Exit code is the pass/fail signal: `0` means all 12 baselines matched, non-zero
+means at least one story drifted or a precondition failed.
+
+## Failure messages
+
+| Message | Cause / fix |
+| --- | --- |
+| `Static Storybook build not found: storybook-static/index.json` | Run `npm run build-storybook`. |
+| `... is stale: ... target story/stories are absent` | The build predates a story rename; rebuild. |
+| `Missing N of 12 baseline screenshot(s) ...` | First run, or someone deleted a PNG. Run the `UPDATE_SNAPSHOTS=1` flow above. |
+| `Screenshot name ... must have '.png' extension` / comparison failure | Real visual drift, or browser/font environment differs from the one that generated the baselines. Compare the diff image in `test-results/visual/`; only re-baseline if the change is intentional. |
+
+## Scope notes
+
+- The six stories are the same representative landing pages used by
+  `scripts/storybook-showcase.mjs` (Typography, Overview, Inputs, Data display,
+  Overlay, Foundations), so the pixel gate and the evidence screenshots cover
+  the same surfaces.
+- Screenshots are full-page (`fullPage: true`) to match the showcase evidence.
+  At 390px wide a landing page can be tall; the diff budget is per-image, not
+  per-viewport.
+- Focus-ring proof and app-route evidence remain separate
+  (`scripts/storybook-showcase.mjs`, `tests/e2e/design-evidence.spec.ts`); this
+  gate does not replace them.
