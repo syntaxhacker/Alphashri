@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
-import { createSignal, Show } from "solid-js";
+import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
 import {
   Box, Button, FloatingWindow, Group, Modal, Overlay,
@@ -56,7 +56,7 @@ const TicketChromeSpecimen = () => {
           </PopoverDropdown>
         </Popover>
         <Button size="sm" onClick={() => setOpened(true)}>Open paper order</Button>
-        <Text size="xs" c="dimmed">Dialog: {String(opened())}</Text>
+        <Text size="xs" c="dimmed">{opened() ? "Paper order dialog is open" : "No dialog open"}</Text>
       </Group>
       <Modal opened={opened()} onClose={() => setOpened(false)} title="Paper order" size="md">
         <Stack gap="sm">
@@ -96,10 +96,33 @@ const OverlaySpecimen = () => {
   );
 };
 
+const FLOATING_GUTTER = 16;
+
 const FloatingSpecimen = () => {
   const [visible, setVisible] = createSignal(true);
   const [minimized, setMinimized] = createSignal(false);
-  const [geometry, setGeometry] = createSignal({ x: 24, y: 24, width: 420, height: 240 });
+  const [geometry, setGeometry] = createSignal({ x: 24, y: 12, width: 420, height: 228 });
+  let host: HTMLDivElement | undefined;
+
+  // Geometry is numeric px, so the window cannot wrap on a phone: clamp it to
+  // the measured host instead of letting the 420px box clip in this panel.
+  onMount(() => {
+    const fit = () => {
+      const avail = host?.clientWidth;
+      if (!avail) return;
+      setGeometry((g) => {
+        const width = Math.min(g.width, Math.max(200, avail - FLOATING_GUTTER * 2));
+        const x = Math.min(g.x, Math.max(FLOATING_GUTTER, avail - width - FLOATING_GUTTER));
+        return width === g.width && x === g.x ? g : { ...g, width, x };
+      });
+    };
+    fit();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(fit);
+    if (host) observer.observe(host);
+    onCleanup(() => observer.disconnect());
+  });
+
   return (
     <Stack gap="sm">
       <Group gap="sm" align="center" wrap="wrap">
@@ -109,26 +132,28 @@ const FloatingSpecimen = () => {
         <Button size="xs" variant="outline" disabled={!visible()} onClick={() => setMinimized((v) => !v)}>
           {minimized() ? "Restore" : "Minimize"}
         </Button>
-        <Text size="xs" c="dimmed">geometry: {geometry().width} by {geometry().height}</Text>
+        <Text size="xs" c="dimmed">{geometry().width < 420 ? "Compact layout — fits a phone" : "Wide layout — full desk window"}</Text>
       </Group>
       <Box style={{ position: "relative", height: "260px", border: `1px solid ${palette.BORDER}`, background: palette.SURFACE_ALT, overflow: "hidden" }}>
-        <Show when={visible()}>
-          <FloatingWindow
-            title="OPTIONS REPLAY"
-            geometry={geometry()}
-            z-index={3}
-            minimized={minimized()}
-            onClose={() => setVisible(false)}
-            onMinimize={() => setMinimized((v) => !v)}
-            onGeometryChange={setGeometry}
-            testid="story-floating-window"
-          >
-            <Box p="sm">
-              <Text size="sm" fw={600}>Replay path · NIFTY</Text>
-              <Text size="xs" c="dimmed">Drag the title bar or any edge to resize; the readout above updates.</Text>
-            </Box>
-          </FloatingWindow>
-        </Show>
+        <div ref={(el) => { host = el; }} style={{ position: "absolute", inset: "0" }}>
+          <Show when={visible()}>
+            <FloatingWindow
+              title="OPTIONS REPLAY"
+              geometry={geometry()}
+              z-index={3}
+              minimized={minimized()}
+              onClose={() => setVisible(false)}
+              onMinimize={() => setMinimized((v) => !v)}
+              onGeometryChange={setGeometry}
+              testid="story-floating-window"
+            >
+              <Box p="sm">
+                <Text size="sm" fw={600}>Replay path · NIFTY</Text>
+                <Text size="xs" c="dimmed">Drag the title bar or any edge to resize; the label above follows the layout.</Text>
+              </Box>
+            </FloatingWindow>
+          </Show>
+        </div>
       </Box>
     </Stack>
   );
@@ -164,7 +189,7 @@ export const FamilyLanding: Story = {
             </Group>
           </Box>
         </SpecimenPanel>
-        <FamilyFooter source="src/ui" pages="src/stories/components/Overlay" />
+        <FamilyFooter source="src/ui" pages="src/stories/components/overlay" />
       </FamilyPage>
     )),
 };

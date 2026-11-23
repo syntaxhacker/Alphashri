@@ -39,6 +39,7 @@ const VIEW_OPTIONS = [
 const Specimen = () => {
   const [view, setView] = createSignal("table");
   const [live, setLive] = createSignal(true);
+  const viewLabel = () => VIEW_OPTIONS.find((option) => option.value === view())?.label.toLowerCase() ?? "table";
   return (
     <div
       style={{
@@ -97,10 +98,10 @@ const Specimen = () => {
               onChange={setView}
               data={VIEW_OPTIONS}
             />
-            <Text size="xs" c="dimmed">{`selected: ${view()}`}</Text>
+            <Text size="xs" c="dimmed">Showing the {viewLabel()} view.</Text>
             <Divider />
             <Text size="xs" c="dimmed">
-              Every control keeps its real props: a visible label or aria-label, a size, and a signal for its value.
+              Each control carries a clear label and follows the shared size scale.
             </Text>
           </Stack>
         </Box>
@@ -168,6 +169,19 @@ export const Landing: Story = {
     )),
 };
 
+/** Real focusable controls: the first field is focused so the treatment is visible on load. */
+const FocusSpecimen = () => {
+  const [live, setLive] = createSignal(false);
+  return (
+    <Flex gap="sm" align="flex-end" wrap="wrap">
+      <TextInput size="sm" w={200} label="Symbol" defaultValue="NIFTY" autoFocus />
+      <Select size="sm" w={180} label="Universe" defaultValue="nifty500" data={UNIVERSE_OPTIONS} />
+      <Switch label="Live quotes" checked={live()} onChange={(event) => setLive(event.currentTarget.checked)} />
+      <Button size="sm">Run screen</Button>
+    </Flex>
+  );
+};
+
 /** The remaining family-level demo: size and state at a glance, with real controls. */
 export const SizesAndStates: Story = {
   render: () =>
@@ -192,6 +206,12 @@ export const SizesAndStates: Story = {
             <TextInput size="sm" w={180} label="Symbol" defaultValue="NIFTY" />
             <Checkbox label="Include expired" defaultChecked />
           </Flex>
+        </SpecimenPanel>
+        <SpecimenPanel
+          title="Focus states"
+          note="Real controls with their focus treatment; press Tab or Shift+Tab to move through them."
+        >
+          <FocusSpecimen />
         </SpecimenPanel>
       </FamilyPage>
     )),

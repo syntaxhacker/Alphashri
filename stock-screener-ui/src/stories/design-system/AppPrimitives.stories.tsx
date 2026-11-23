@@ -146,7 +146,7 @@ const StatesSpecimen = () => {
       >
         <ErrorAlert
           title="Feed unavailable"
-          message="The options tape returned 503."
+          message="The options tape is temporarily unavailable."
           withRetry
           onRetry={() => { setAttempts((n) => n + 1); setFailed(false); }}
         />
@@ -199,7 +199,7 @@ export const FamilyLanding: Story = {
         <SpecimenPanel title="Table density" note="One grid, one toggle; column alignment stays fixed in both modes.">
           <TableSpecimen />
         </SpecimenPanel>
-        <FamilyFooter source="src/components/common" pages="src/stories/components/App" />
+        <FamilyFooter source="src/components/common" pages="src/stories/components/app" />
       </FamilyPage>
     )),
 };

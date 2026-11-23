@@ -56,7 +56,7 @@ const Specimen = () => (
             Open interest builds at the call wall while spot holds above the put wall; the short read stays constructive into expiry.
           </Text>
           <Flex gap="sm" align="center" wrap="wrap">
-            <Code color="primary">useValueFlash</Code>
+            <Code color="primary">NIFTY 24,500 CE</Code>
             <Anchor href={docsHref("design-system-components-typography-anchor--docs")} target="_top" size="sm" underline="hover">
               Anchor docs
             </Anchor>
