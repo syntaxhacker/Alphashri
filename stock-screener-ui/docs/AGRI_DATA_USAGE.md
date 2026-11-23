@@ -16,7 +16,8 @@ bar, and never present a partial day as complete.
 - **Current-day cross-check** — data.gov.in resource `9ef84268-d588-465a-a308-a864a43d0070` (42 rows observed 2026-11-22). Not used for history.
 - **Local cache** — `reports/agri/agri_prices.db`, table `agri_mandi_prices`, a local build artifact (not committed). Measured coverage: **2,328,450 rows, 391 distinct dates (2025-10-27 → 2026-11-21), 22 commodity keys**. The router opens it read-only; a missing cache is `data_source: "empty"`, never a successful empty load.
 
-Ingestion state lives in `agri_ingest_partitions` (keyed by `source`, `arrival_date`). For `agmarknet_daily`: **171 `complete` partitions** (2026-06-01 → 2026-11-21) and **3 `partial` partitions**:
+Ingestion state lives in `agri_ingest_partitions` (keyed by `source`, `arrival_date`). For `agmarknet_daily`: **171 `complete` partitions** (2026-06-01 → 2026-11-21) and **3 `partial` partitions**.
+The CKAN seed has no daily ledger rows; its 217 dates were packaged separately from the verified local cache and uploaded as `data-2025-10` … `data-2026-05` release assets. GitHub release history now covers **388 daily assets** (2025-10-27 → 2026-11-21); the three partial daily partitions remain excluded.
 
 | Arrival date | Status | Fetched / expected | Missing tracked keys |
 |---|---|---:|---|
@@ -161,11 +162,13 @@ sha256sum build/agri/2026-11-20.jsonl.gz   # must equal manifest sha256
 gzip -cd build/agri/2026-11-20.jsonl.gz | wc -l   # must equal manifest rows
 ```
 
-Current packaging: **171 complete days**, about **20 MB** of gzip (measured
-19.9 MB of `.jsonl.gz` plus 171 manifests); partials are excluded. Local
-`build/` artifacts may exist, but **packaging is not upload**: creating or
-uploading a GitHub Release asset is a separate step (`gh release upload` /
-`refresh-agri.yml`). Local files do not prove an asset exists remotely —
+Current release history: **388 complete days**, 2025-10-27 → 2026-11-21,
+about **43 MB** of gzip plus 388 manifests. The 2026-06 → 2026-11 block is the
+daily data.gov.in feed; 2025-10-27 → 2026-05-31 is the CKAN seed packaged from
+the verified local cache. Partials are excluded. Local `build/` artifacts may
+exist, but **packaging is not upload**: creating or uploading a GitHub Release
+asset is a separate step (`gh release upload` / `refresh-agri.yml`). Local files
+do not prove an asset exists remotely —
 verify with `gh release view data-YYYY-MM --json assets` before relying on it.
 Never upload the SQLite DB itself; the compact delta is the intended asset.
 
