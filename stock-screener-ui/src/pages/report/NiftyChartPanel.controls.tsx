@@ -250,7 +250,7 @@ export function ChartControls(props: ChartControlsProps) {
             size="xs"
             variant="subtle"
             aria-expanded={props.controlsOpen}
-            aria-controls="nifty-chart-controls-extra"
+            aria-controls={props.controlsOpen ? "nifty-chart-controls-extra" : undefined}
             onClick={props.onToggleControls}
             style={{ height: "26px", "min-height": "26px", "min-width": "56px", padding: "0 6px", "font-size": `${REPORT_FONT.micro}px`, "font-weight": 800 }}
           >

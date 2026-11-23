@@ -8,6 +8,11 @@ import {
   CHART_HEADER_METRICS,
   CHART_PLOT_MARGIN,
 } from "./NiftyChartPanel";
+import {
+  MOBILE_AXIS_MIN_WIDTH,
+  MOBILE_CUTOFF_RIGHT,
+  MOBILE_EDGE_GUTTER,
+} from "./NiftyChartPanel.body";
 import { REPORT_FONT, REPORT_PAD } from "./reportTokens";
 
 const env = vi.hoisted(() => ({ mobile: false }));
@@ -162,6 +167,35 @@ describe("NiftyChartPanel — plot domain and annotation margins", () => {
     const boundary = screen.getByTestId("nifty-chart-last-data-boundary");
     expect(boundary).toHaveTextContent("LAST DATA 10:00 · market closed");
     expect(boundary).toHaveStyle({ right: `${CHART_CUTOFF_RIGHT}px` });
+  });
+
+  test("the phone reserves a real right-axis gutter so a full price tag renders", () => {
+    // "22300.00" is eight glyphs plus axis padding; the 88px desktop minimum
+    // clipped it to "00" at 390. The phone axis must be measurably wider.
+    expect(MOBILE_AXIS_MIN_WIDTH).toBeGreaterThanOrEqual(CHART_PLOT_MARGIN.axisMinWidth + 32);
+    expect(MOBILE_EDGE_GUTTER).toBeGreaterThan(CHART_PLOT_MARGIN.edgeGutter);
+    expect(MOBILE_CUTOFF_RIGHT).toBe(
+      MOBILE_EDGE_GUTTER + MOBILE_AXIS_MIN_WIDTH + CHART_PLOT_MARGIN.dataCutoffLane,
+    );
+
+    env.mobile = true;
+    mount();
+    const wrap = screen.getByTestId("nifty-chart-wrap");
+    expect(wrap).toHaveStyle({ "padding-right": `${MOBILE_EDGE_GUTTER}px` });
+    expect(wrap.style.getPropertyValue("--chart-cutoff-right")).toBe(`${MOBILE_CUTOFF_RIGHT}px`);
+    expect(wrap).toHaveAttribute("data-mobile-axis-gutter", String(MOBILE_AXIS_MIN_WIDTH));
+    // The cutoff rule moves with the wider axis so it still marks the last bar.
+    expect(screen.getByTestId("nifty-chart-last-data-boundary")).toHaveStyle({
+      right: `${MOBILE_CUTOFF_RIGHT}px`,
+    });
+
+    const { chart, calls } = fakeChart();
+    tv.onChartReady!(chart, null);
+    const rightAxis = calls.filter((c) => c.scale === "price" && c.id === "right").at(-1);
+    expect(rightAxis?.options).toMatchObject({
+      minimumWidth: MOBILE_AXIS_MIN_WIDTH,
+      entireTextOnly: true,
+    });
   });
 });
 

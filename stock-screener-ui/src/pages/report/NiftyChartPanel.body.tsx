@@ -1,4 +1,5 @@
-import { Show, type ComponentProps } from "solid-js";
+import { Show, createSignal, onCleanup, onMount, type ComponentProps } from "solid-js";
+import type { IChartApi } from "lightweight-charts";
 import { Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TradingViewChart } from "@/components/chart/TradingViewChart";
@@ -21,6 +22,25 @@ import {
 import { computePatternStripTitle, type ScanBadge } from "./NiftyChartPanel.annotations";
 
 type ChartProps = ComponentProps<typeof TradingViewChart>;
+
+/**
+ * The 88px desktop price axis fits "22,350.00" but clips a full "22300.00" at
+ * 390 (it read "00", over the volume tag). On a phone the axis gets the width
+ * the tag actually needs, plus a real outer gutter so neither tag reaches the
+ * card edge. Desktop geometry is untouched.
+ */
+export const MOBILE_AXIS_MIN_WIDTH = 132;
+export const MOBILE_EDGE_GUTTER = 12;
+export const MOBILE_CUTOFF_RIGHT =
+  MOBILE_EDGE_GUTTER + MOBILE_AXIS_MIN_WIDTH + CHART_PLOT_MARGIN.dataCutoffLane;
+
+function phoneViewport(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(max-width: 600px)").matches
+  );
+}
 
 interface ChartBodyProps {
   view: "chart" | "depth";
@@ -49,6 +69,27 @@ interface ChartBodyProps {
 /** Chart + depth view wrappers. Both stay mounted after first use; the
  *  inactive wrapper is `display: none` so switching never remounts an engine. */
 export function ChartBody(props: ChartBodyProps) {
+  const [phone, setPhone] = createSignal(phoneViewport());
+  onMount(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(max-width: 600px)");
+    setPhone(mq.matches);
+    const onChange = (event: MediaQueryListEvent) => setPhone(event.matches);
+    mq.addEventListener("change", onChange);
+    onCleanup(() => mq.removeEventListener("change", onChange));
+  });
+
+  const cutoffRight = () => (phone() ? MOBILE_CUTOFF_RIGHT : CHART_CUTOFF_RIGHT);
+  const chartReady = (chart: IChartApi) => {
+    applyChartPlotMargin(chart);
+    if (phone()) {
+      chart.priceScale("right").applyOptions({
+        minimumWidth: MOBILE_AXIS_MIN_WIDTH,
+        entireTextOnly: true,
+      });
+    }
+  };
+
   return (
     <div
       data-testid="nifty-chart-view"
@@ -99,11 +140,12 @@ export function ChartBody(props: ChartBodyProps) {
           data-cutoff-right={CHART_CUTOFF_RIGHT}
           data-cutoff-lane={CHART_PLOT_MARGIN.dataCutoffLane}
           data-axis-gutter={CHART_PLOT_MARGIN.edgeGutter}
+          data-mobile-axis-gutter={MOBILE_AXIS_MIN_WIDTH}
           class="w-full max-w-full min-w-0 shrink-0 overflow-hidden flex-1 min-h-0"
           style={{
             position: "relative",
-            "padding-right": `${CHART_PLOT_MARGIN.edgeGutter}px`,
-            ["--chart-cutoff-right"]: `${CHART_CUTOFF_RIGHT}px`,
+            "padding-right": phone() ? `${MOBILE_EDGE_GUTTER}px` : `${CHART_PLOT_MARGIN.edgeGutter}px`,
+            ["--chart-cutoff-right"]: `${cutoffRight()}px`,
             ...(props.chartHeight == null ? undefined : { height: `${props.chartHeight}px` }),
             display: props.chartCandles.length > 0 ? "flex" : "none",
             flex: props.chartHeight == null ? "1" : undefined,
@@ -120,7 +162,7 @@ export function ChartBody(props: ChartBodyProps) {
             touchMarkers={props.touchMarkers}
             {...(props.chartHeight != null ? { height: props.chartHeight! } : {})}
             fitMarkLines
-            onChartReady={applyChartPlotMargin}
+            onChartReady={chartReady}
           />
           <Show when={props.lastDataBoundary}>
             {(boundary) => (
@@ -295,7 +337,13 @@ export function PatternStrip(props: PatternStripProps) {
               data-on={props.drawPattern ? "1" : "0"}
               role="button"
               aria-pressed={props.drawPattern}
+              tabIndex={0}
               onClick={props.onToggleDraw}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                props.onToggleDraw();
+              }}
               title={
                 tf === props.chartTf
                   ? `${props.drawPattern ? "Hide" : "Show"} the pattern on the chart`
