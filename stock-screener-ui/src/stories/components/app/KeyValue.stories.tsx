@@ -1,5 +1,7 @@
+import type { JSX } from "solid-js";
+import { Show } from "solid-js";
 import type { Meta, StoryObj } from "@storybook/html-vite";
-import { SimpleGrid, Stack } from "@/ui";
+import { Box, Group, Paper, SimpleGrid, Stack, Text } from "@/ui";
 import {
   Delta,
   KeyValue,
@@ -8,11 +10,89 @@ import {
   type KeyValueTone,
 } from "@/components/common/KeyValue";
 import { solidStory } from "@/stories/solidStory";
-import { DemoPanel, DemoStack, Specimen } from "./StoryFrame";
+import { Specimen } from "./StoryFrame";
 
 const FIXTURE_LABEL = "frozen NIFTY quote · 2026-11-20 09:15 IST";
 const SPOT = "23,450.85";
 const CHANGE = "+18.42 (0.08%)";
+
+const PANEL_MAX = 880;
+/** Below this cell width a nowrap figure would be clipped by the panel's overflow. */
+const GRID_MIN = 240;
+
+/**
+ * StoryFrame's DemoPanel pins width to 880px, which widened the 390 capture to
+ * 900px (20px host padding + 880px panel). This frame keeps the same surface
+ * but flexes down with the viewport, so every figure stays inside the panel.
+ */
+function KVFrame(props: { children: JSX.Element }): JSX.Element {
+  return (
+    <Stack
+      gap="md"
+      style={{ width: "100%", "max-width": `${PANEL_MAX}px`, "min-width": 0, margin: "0 auto" }}
+    >
+      {props.children}
+    </Stack>
+  );
+}
+
+function KVPanel(props: {
+  title: string;
+  detail?: string;
+  meta?: string;
+  testId?: string;
+  children: JSX.Element;
+}): JSX.Element {
+  return (
+    <Paper
+      component="section"
+      w="100%"
+      maw={PANEL_MAX}
+      radius={6}
+      testId={props.testId}
+      style={{
+        border: "1px solid var(--color-fin-border)",
+        "background-color": "var(--color-fin-surface)",
+        overflow: "hidden",
+        "box-sizing": "border-box",
+      }}
+    >
+      <Stack
+        gap="xs"
+        style={{
+          padding: "12px 16px",
+          "background-color": "var(--color-fin-surface-alt)",
+          "border-bottom": "1px solid var(--color-fin-border)",
+        }}
+      >
+        <Group justify="space-between" align="center" gap="md" wrap="wrap">
+          <Text size="sm" fw={700} c="default">{props.title}</Text>
+          <Show when={props.meta}>
+            <Text size="xs" c="secondary" style={{ "font-variant-numeric": "tabular-nums" }}>
+              {props.meta}
+            </Text>
+          </Show>
+        </Group>
+        <Show when={props.detail}>
+          <Text size="xs" c="secondary">{props.detail}</Text>
+        </Show>
+      </Stack>
+      <Box style={{ padding: "16px", "min-width": 0 }}>{props.children}</Box>
+    </Paper>
+  );
+}
+
+/** Auto-fit cells so two-up specimens stack before their nowrap values clip. */
+function KVSpecimenGrid(props: { children: JSX.Element }): JSX.Element {
+  return (
+    <SimpleGrid
+      spacing="md"
+      style={{ "grid-template-columns": `repeat(auto-fit, minmax(min(100%, ${GRID_MIN}px), 1fr))` }}
+    >
+      {props.children}
+    </SimpleGrid>
+  );
+}
 
 type KeyValueArgs = {
   label: string;
@@ -71,15 +151,15 @@ type Story = StoryObj<KeyValueArgs>;
 export const Playground: Story = {
   render: (args) =>
     solidStory(() => (
-      <DemoStack>
-        <DemoPanel
+      <KVFrame>
+        <KVPanel
           title="Key / value · playground"
           detail={FIXTURE_LABEL}
           meta={`tone: ${args.tone} · align: ${args.align}`}
           testId="story-kv-playground-frame"
         >
           <Specimen label="Live control binding" detail="Args map straight onto KeyValueProps.">
-            <Stack gap="xs" style={{ width: "360px" }}>
+            <Stack gap="xs" style={{ width: "100%", "max-width": "360px" }}>
               <KeyValue
                 label={args.label}
                 value={args.value}
@@ -92,22 +172,22 @@ export const Playground: Story = {
               />
             </Stack>
           </Specimen>
-        </DemoPanel>
-      </DemoStack>
+        </KVPanel>
+      </KVFrame>
     )),
 };
 
 export const Tones: Story = {
   render: () =>
     solidStory(() => (
-      <DemoStack>
-        <DemoPanel
+      <KVFrame>
+        <KVPanel
           title="Key / value · semantic tones"
           detail={FIXTURE_LABEL}
           meta="7 tones · frozen quote fields"
           testId="story-kv-tones-frame"
         >
-          <SimpleGrid cols={2} spacing="md">
+          <KVSpecimenGrid>
             <KeyValue label="Spot" value={SPOT} hint={CHANGE} tone="success" mono />
             <KeyValue label="Day P&L" value="-₹1,880.00" tone="error" mono />
             <KeyValue label="Margin" value="82% used" tone="warning" />
@@ -115,23 +195,23 @@ export const Tones: Story = {
             <KeyValue label="Source" value="Upstox V3" tone="primary" />
             <KeyValue label="Notes" value="no notes" tone="dimmed" />
             <KeyValue label="Default" value="1.12" />
-          </SimpleGrid>
-        </DemoPanel>
-      </DemoStack>
+          </KVSpecimenGrid>
+        </KVPanel>
+      </KVFrame>
     )),
 };
 
 export const AlignmentAndDensity: Story = {
   render: () =>
     solidStory(() => (
-      <DemoStack>
-        <DemoPanel
+      <KVFrame>
+        <KVPanel
           title="Key / value · alignment and density"
           detail={`${FIXTURE_LABEL} · left vs right, regular vs dense`}
           meta="2 alignments · 2 densities"
           testId="story-kv-alignment-frame"
         >
-          <SimpleGrid cols={2} spacing="md">
+          <KVSpecimenGrid>
             <Specimen label="Left aligned">
               <Stack gap="xs">
                 <KeyValue label="Expiry" value="26 Nov 2026 · weekly" align="left" />
@@ -144,17 +224,17 @@ export const AlignmentAndDensity: Story = {
                 <KeyValue label="PCR (OI)" value="1.12" align="right" dense />
               </Stack>
             </Specimen>
-          </SimpleGrid>
-        </DemoPanel>
-      </DemoStack>
+          </KVSpecimenGrid>
+        </KVPanel>
+      </KVFrame>
     )),
 };
 
 export const Deltas: Story = {
   render: () =>
     solidStory(() => (
-      <DemoStack>
-        <DemoPanel
+      <KVFrame>
+        <KVPanel
           title="Delta and KeyValuePair · spoken P&L"
           detail={`${FIXTURE_LABEL} · grouped spoken phrase, aria-hidden separators`}
           meta="3 delta directions · 1 composed pair"
@@ -188,22 +268,22 @@ export const Deltas: Story = {
               />
             </Specimen>
           </Stack>
-        </DemoPanel>
-      </DemoStack>
+        </KVPanel>
+      </KVFrame>
     )),
 };
 
 export const Grid: Story = {
   render: () =>
     solidStory(() => (
-      <DemoStack>
-        <DemoPanel
-          title="KeyValueGrid · four columns"
-          detail={`${FIXTURE_LABEL} · fixed 4-column KeyValueGrid`}
+      <KVFrame>
+        <KVPanel
+          title="KeyValueGrid · auto-fit columns"
+          detail={`${FIXTURE_LABEL} · auto-fit KeyValueGrid, stacks before a figure clips`}
           meta="8 frozen fields"
           testId="story-kv-grid-frame"
         >
-          <KeyValueGrid cols={4} gap="md" testId="story-kv-grid">
+          <KeyValueGrid gap="md" testId="story-kv-grid">
             <KeyValue label="Spot" value={SPOT} tone="success" mono />
             <KeyValue label="Change" value="+18.42" hint="0.08%" tone="success" mono />
             <KeyValue label="PCR (OI)" value="1.12" mono />
@@ -213,7 +293,7 @@ export const Grid: Story = {
             <KeyValue label="Updated" value="09:15:00 IST" tone="dimmed" />
             <KeyValue label="Feed" value="DELAYED" tone="info" />
           </KeyValueGrid>
-        </DemoPanel>
-      </DemoStack>
+        </KVPanel>
+      </KVFrame>
     )),
 };

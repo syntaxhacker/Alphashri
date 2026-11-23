@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { Delta, KeyValue, KeyValueGrid, KeyValuePair, type KeyValueTone } from "./KeyValue";
+import { Grid, Playground } from "../../stories/components/app/KeyValue.stories";
+import { disposeSolidStories } from "../../stories/solidStory";
 
 afterEach(() => {
   cleanup();
@@ -195,6 +197,47 @@ describe("KeyValueGrid", () => {
     const grid = screen.getByTestId("grid");
     expect(grid.style.gridTemplateColumns).toBe("repeat(3, minmax(0, 1fr))");
     expect(grid.style.gap).toBe("16px");
+  });
+});
+
+describe("showcase frame at 390px", () => {
+  it("flexes the panel and its header instead of pinning an 880px canvas", () => {
+    const host = Playground.render!({
+      label: "Spot",
+      value: "23,450.85",
+      hint: "+18.42 (0.08%)",
+      tone: "success",
+      align: "right",
+      mono: true,
+      dense: false,
+      testId: "story-kv-playground",
+    } as never);
+    const panel = host.querySelector<HTMLElement>('[data-testid="story-kv-playground-frame"]');
+    expect(panel).not.toBeNull();
+    expect(panel!.style.width).toBe("100%");
+    expect(panel!.style.maxWidth).toBe("880px");
+    expect(panel!.style.boxSizing).toBe("border-box");
+    expect(panel!.firstElementChild?.firstElementChild?.getAttribute("style")).toContain("flex-wrap: wrap");
+
+    const specimen = host.querySelector<HTMLElement>('[data-testid="story-kv-playground"]')?.parentElement;
+    expect(specimen?.style.width).toBe("100%");
+    expect(specimen?.style.maxWidth).toBe("360px");
+    const fixedWidths = [...host.querySelectorAll<HTMLElement>("*")]
+      .map((el) => el.style.width)
+      .filter((width) => width === "880px" || width === "360px");
+    expect(fixedWidths).toEqual([]);
+    expect(host.querySelector('[data-testid="story-kv-playground-value"]')).toHaveTextContent("23,450.85");
+    expect(host.querySelector('[data-testid="story-kv-playground-hint"]')).toHaveTextContent("+18.42 (0.08%)");
+    disposeSolidStories();
+  });
+
+  it("auto-fits the key/value grid so figures stack before they clip", () => {
+    const host = Grid.render!({} as never);
+    const grid = host.querySelector<HTMLElement>('[data-testid="story-kv-grid"]');
+    expect(grid?.style.gridTemplateColumns).toContain("auto-fit");
+    expect(grid).toHaveTextContent("1,204,500");
+    expect(grid).toHaveTextContent("09:15:00 IST");
+    disposeSolidStories();
   });
 });
 
