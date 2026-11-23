@@ -47,6 +47,20 @@ const DESK_TOGGLE_DATA: { value: string; label: string }[] = [
 
 const EXPIRY_SELECT_CLASS = "w-[104px] min-w-[104px] max-w-[104px] flex-none";
 
+// A native <select> clips "Nearest expiry" to "Nearest expi" inside the 104px
+// chevron-guttered field. Show a whole word instead and carry the full label in
+// the wrapper title and the control's accessible name; widening the field would
+// push Snapshot off the 1600 toolbar (it already has ~16px of slack).
+const EXPIRY_NEAREST_SHORT_LABEL = "Nearest";
+
+export function expiryOptionLabel(option: { value: string; label: string }): string {
+  return option.value === "nearest" ? EXPIRY_NEAREST_SHORT_LABEL : option.label;
+}
+
+export function expiryControlTitle(fullLabel: string): string {
+  return `Selected expiry: ${fullLabel}`;
+}
+
 // Narrow screens wrap the primary controls onto a second row instead of
 // hiding them behind a horizontal scrollbar (a dead end for touch/keyboard).
 // The desktop single-row contract is preserved by the min-[1200px] variants.
@@ -116,6 +130,9 @@ export function ReportToolbar(_props: { onOpenSymbol?: (s: string) => void }) {
   const replay = () => store.replay.replay();
 
   const sessionDate = () => report()?.market?.session_date ?? tape()?.date ?? report()?.date;
+
+  const selectedExpiryLabel = () =>
+    store.selection.expiryData().find((option) => option.value === expiry())?.label ?? expiry();
 
   const replayForBar = () => {
     const current = replay();
@@ -190,16 +207,21 @@ export function ReportToolbar(_props: { onOpenSymbol?: (s: string) => void }) {
           role="group"
           aria-label="Expiry and history date"
         >
-          <Select
-            data-testid="nifty-expiry-select"
-            value={expiry()}
-            onChange={(value) => store.selection.handleExpiryChange(value)}
-            data={store.selection.expiryData()}
-            size="xs"
-            w={104}
-            h={22}
-            className={EXPIRY_SELECT_CLASS}
-          />
+          <Box title={expiryControlTitle(selectedExpiryLabel())} className="flex-none">
+            <Select
+              data-testid="nifty-expiry-select"
+              value={expiry()}
+              onChange={(value) => store.selection.handleExpiryChange(value)}
+              data={store.selection
+                .expiryData()
+                .map((option) => ({ ...option, label: expiryOptionLabel(option) }))}
+              size="xs"
+              w={104}
+              h={22}
+              className={EXPIRY_SELECT_CLASS}
+              aria-label={expiryControlTitle(selectedExpiryLabel())}
+            />
+          </Box>
           <Show when={mode() === "eod"}>
             <TextInput
               data-testid="nifty-date-input"

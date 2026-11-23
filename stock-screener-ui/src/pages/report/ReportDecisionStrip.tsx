@@ -89,6 +89,13 @@ export const VERDICT_BLOCK_HEIGHT = 48;
 /** Widest inline gap allowed between the claim and the evidence it rests on. */
 export const VERDICT_EVIDENCE_GAP = 8;
 
+/** The desktop grid track sizes to the groups' summed minimums (~1.8k), wider
+ *  than a 1600 viewport, so the FLOW group cannot be relied on to wrap by
+ *  itself. Pinning it to its own line fixes its left edge; capping the chip row
+ *  keeps the last chip inside the frame. 700px is the measured 13px readout
+ *  requirement (Setup ~226 + Intel ~228 + Gamma ~219 + two 4px gaps) rounded up. */
+export const FLOW_CELLS_MAX_WIDTH = 700;
+
 /** A neutral plan emits `confidence: 0` as a sentinel for "no directional call",
  *  not as a measured 0% (a non-neutral plan is always >= 20). Rendering it as a
  *  meter makes a no-trade read look like a confidently worthless one. */
@@ -185,6 +192,11 @@ function StatGroup(props: {
   weight: number;
   divider?: boolean;
   cellsTestId?: string;
+  /** Claim a whole flex line on desktop and shrink the min-content footprint
+   *  to the widest single cell, so the group no longer widens the grid track. */
+  fullRow?: boolean;
+  wrapCells?: boolean;
+  cellsMaxWidth?: number;
   children: JSX.Element;
 }) {
   const m = REPORT_STRIP_METRICS;
@@ -194,13 +206,12 @@ function StatGroup(props: {
       data-group-label={props.label}
       className="flex flex-col"
       style={{
-        flex: `${props.weight} 1 0%`,
-        // The weight is the group's cells' summed minimum, in px. Without this
-        // floor `min-w-0` lets the group shrink below its content and the cells
-        // spill into the next group — at 1280px `Regime` overlapped `Max-OI
-        // call`. With it the strip's `flex-wrap` moves whole groups to the next
-        // row instead of letting them overlap.
-        "min-width": `${props.weight}px`,
+        flex: props.fullRow ? "1 0 100%" : `${props.weight} 1 0%`,
+        // A full-row group keeps only its widest cell as the floor: the summed
+        // weight would re-widen the grid track past the viewport and pin this
+        // group to the far right again. Every other group keeps the full floor
+        // so its cells cannot shrink into their neighbour.
+        "min-width": `${props.fullRow ? REPORT_STRIP_CELL_MIN.chipGamma : props.weight}px`,
         gap: `${m.cellGap}px`,
         ...(props.divider
           ? {
@@ -215,8 +226,13 @@ function StatGroup(props: {
       </span>
       <Box
         data-testid={props.cellsTestId ?? `${props.testId}-cells`}
-        className="flex items-stretch flex-1 min-w-0"
-        style={{ gap: `${m.cellGap}px` }}
+        className={`flex items-stretch flex-1 min-w-0 ${props.wrapCells ? "flex-wrap" : ""}`}
+        style={{
+          gap: `${m.cellGap}px`,
+          ...(props.cellsMaxWidth != null
+            ? { "max-width": `${props.cellsMaxWidth}px` }
+            : {}),
+        }}
       >
         {props.children}
       </Box>
@@ -838,15 +854,18 @@ export function ReportDecisionStrip() {
               />
             </StatGroup>
 
-            {/* The FLOW floor is the sum of all three chips, so the strip's
-                flex-wrap moves the whole group to its own row instead of
-                letting a chip run under the strip's clipped right edge. */}
+            {/* Claim a whole line and keep the chips at their measured width:
+                the old summed floor widened the grid track past 1600, so the
+                group sat at the far right and Institutional flows read "Ins". */}
             <Show when={isDesk()}>
               <StatGroup
                 testId="nifty-stat-group-flow"
                 label="FLOW & ACTION"
                 weight={REPORT_STRIP_GROUP_WEIGHT.flow}
                 divider
+                fullRow={!narrow()}
+                wrapCells
+                cellsMaxWidth={FLOW_CELLS_MAX_WIDTH}
               >
                 <DecisionChip
                   testId="nifty-chip-setup"

@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
-import { ReportToolbar } from "./ReportToolbar";
+import { expiryControlTitle, expiryOptionLabel, ReportToolbar } from "./ReportToolbar";
 
 const harness = vi.hoisted(() => ({ store: {} as Record<string, unknown> }));
 
@@ -180,6 +180,57 @@ describe("ReportToolbar freshness indicators", () => {
     ) as HTMLButtonElement;
     fireEvent.click(reliance);
     expect(handleSymbolChange).toHaveBeenCalledWith("RELIANCE");
+  });
+
+  test("the expiry options end at a word boundary and keep the full label in a title", () => {
+    (harness.store.selection as { expiryData: () => { value: string; label: string }[] }).expiryData =
+      () => [
+        { value: "nearest", label: "Nearest expiry" },
+        { value: "2026-11-26", label: "2026-11-26" },
+      ];
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const root = screen.getByTestId("nifty-expiry-select");
+    const select = root.querySelector("select")!;
+    const options = [...select.querySelectorAll("option")].map((option) => option.textContent ?? "");
+    expect(options).toEqual(["Nearest", "2026-11-26"]);
+
+    // A visible label is either the whole label or a whole-word prefix of it —
+    // never a prefix sliced through a word ("Nearest expi").
+    const fullLabels = ["Nearest expiry", "2026-11-26"];
+    for (const [visible, full] of options.map((label, i) => [label, fullLabels[i]] as const)) {
+      if (visible !== full) {
+        expect(full.startsWith(visible)).toBe(true);
+        expect(full[visible.length], `${visible} must end at a word boundary`).toBe(" ");
+      }
+    }
+
+    const wrapper = root.parentElement!;
+    expect(wrapper.getAttribute("title")).toBe(expiryControlTitle("Nearest expiry"));
+    expect(select.getAttribute("aria-label")).toBe(expiryControlTitle("Nearest expiry"));
+    expect(expiryOptionLabel({ value: "nearest", label: "Nearest expiry" })).toBe("Nearest");
+    expect(expiryOptionLabel({ value: "2026-11-26", label: "2026-11-26" })).toBe("2026-11-26");
+  });
+
+  test("the expiry field keeps its 104px budget without a mid-word readout", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+    const root = screen.getByTestId("nifty-expiry-select");
+    expect(root.style.width).toBe("104px");
+    expect(root.className).toContain("min-w-[104px]");
+    expect(root.className).toContain("max-w-[104px]");
+    expect(root.parentElement!.className).toContain("flex-none");
+    // The toolbar keeps its wrap contract at 390 and its scroll fallback at 1600.
+    const toolbar = screen.getByTestId("nifty-toolbar");
+    expect(toolbar.className).toContain("flex-wrap");
+    expect(toolbar.className).toContain("min-[1200px]:overflow-x-auto");
   });
 });
 

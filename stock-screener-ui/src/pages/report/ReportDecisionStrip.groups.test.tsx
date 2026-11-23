@@ -86,7 +86,7 @@ vi.mock("./reportBits", () => ({
   LiveTapeDisclosure: (props: any) => <div data-testid={props.testId}>{props.children}</div>,
 }));
 
-import { ReportDecisionStrip, statStripGaps } from "./ReportDecisionStrip";
+import { FLOW_CELLS_MAX_WIDTH, ReportDecisionStrip, statStripGaps } from "./ReportDecisionStrip";
 import {
   REPORT_STRIP_METRICS,
   REPORT_STRIP_CELL_MIN,
@@ -309,8 +309,26 @@ describe("decision strip — readout width and no-inline-ellipsis contract", () 
     expect(screen.getByTestId("nifty-stat-group-walls").style.minWidth).toBe(
       `${REPORT_STRIP_GROUP_WEIGHT.walls}px`,
     );
-    expect(screen.getByTestId("nifty-stat-group-flow").style.minWidth).toBe(
-      `${REPORT_STRIP_GROUP_WEIGHT.flow}px`,
+    // The FLOW group no longer contributes its summed weight to the desktop
+    // grid's min-content width; its floor is the widest single chip instead.
+    const flow = screen.getByTestId("nifty-stat-group-flow");
+    expect(flow.style.minWidth).toBe(`${REPORT_STRIP_CELL_MIN.chipGamma}px`);
+    expect(flow.style.flex).toBe("1 0 100%");
+    expect(REPORT_STRIP_GROUP_WEIGHT.flow).toBe(
+      REPORT_STRIP_CELL_MIN.chipSetup +
+        REPORT_STRIP_CELL_MIN.chipIntel +
+        REPORT_STRIP_CELL_MIN.chipGamma,
+    );
+  });
+
+  test("the FLOW chip row wraps and cannot grow past the 1600-safe width", () => {
+    mount();
+    const cells = screen.getByTestId("nifty-stat-group-flow-cells");
+    expect(cells.className).toMatch(/(^|\s)flex-wrap(\s|$)/);
+    expect(cells.style.maxWidth).toBe(`${FLOW_CELLS_MAX_WIDTH}px`);
+    // 700px clears the measured 13px readout requirement of all three chips.
+    expect(FLOW_CELLS_MAX_WIDTH).toBeGreaterThanOrEqual(
+      REPORT_STRIP_GROUP_WEIGHT.flow + 3 * 16,
     );
   });
 

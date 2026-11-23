@@ -138,6 +138,24 @@ describe("decision strip — labels and help", () => {
     expect(gamma.getAttribute("aria-label")).toContain("Dealer gamma");
   });
 
+  test("every FLOW chip label renders whole, with no mid-word ellipsis", () => {
+    renderStrip();
+    const labels: Record<string, string> = {
+      "nifty-chip-setup": "Setup checks",
+      "nifty-chip-intel": "Institutional flows",
+      "nifty-chip-gamma": "Dealer gamma",
+    };
+    for (const [id, fullLabel] of Object.entries(labels)) {
+      const chip = screen.getByTestId(id);
+      const label = chip.children[0] as HTMLElement;
+      expect(label.textContent, `${id} label`).toBe(fullLabel);
+      expect(label.textContent, `${id} must not be cut mid-word`).not.toMatch(/…|\.\.\./);
+      expect(label.style.textOverflow || "", `${id} label ellipsis`).not.toBe("ellipsis");
+      expect(chip.getAttribute("title"), `${id} title`).toContain(fullLabel);
+      expect(chip.getAttribute("aria-label"), `${id} aria-label`).toContain(fullLabel);
+    }
+  });
+
   test("the gamma concept uses one vocabulary — plain dealer gamma, not Γ or GEX", () => {
     renderStrip();
     const text = screen.getByTestId("nifty-stat-strip").textContent ?? "";
