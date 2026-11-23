@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { solidStory } from "@/stories/solidStory";
 import { Badge, Box, Button, Divider, Flex, Stack, Text } from "@/ui";
-import { DENSITY_TOKENS } from "@/ui";
+import { DENSITY_TOKENS, UIProvider, uiTheme } from "@/ui";
 import { sp } from "@/ui/layout/spacing";
 import * as palette from "@/ui/palette";
 import { contrastRatio, pickTextColor } from "@/utils/contrast";
@@ -226,5 +226,71 @@ export const Contrast: Story = {
           </Stack>
         </SpecimenPanel>
       </FamilyPage>
+    )),
+};
+
+const THEME_COLORS = [
+  ["primary", uiTheme.colors.primary],
+  ["success", uiTheme.colors.success],
+  ["error", uiTheme.colors.error],
+  ["warning", uiTheme.colors.warning],
+  ["info", uiTheme.colors.info],
+  ["text", uiTheme.colors.text],
+  ["textMuted", uiTheme.colors.textMuted],
+  ["background", uiTheme.colors.background],
+  ["surface", uiTheme.colors.surface],
+  ["surfaceAlt", uiTheme.colors.surfaceAlt],
+  ["border", uiTheme.colors.border],
+] as const;
+
+const CHART_TYPE_ROLES = [
+  ["micro", uiTheme.fontSizes.micro],
+  ["body", uiTheme.fontSizes.body],
+  ["label", uiTheme.fontSizes.label],
+  ["title", uiTheme.fontSizes.title],
+  ["heading", uiTheme.fontSizes.heading],
+  ["display", uiTheme.fontSizes.display],
+] as const;
+
+/** uiTheme is the JS bridge chart builders read; it must agree with palette.ts and the type scale. */
+export const ThemeBridge: Story = {
+  render: () =>
+    solidStory(() => (
+      <UIProvider forceColorScheme="dark">
+        <FamilyPage width="900px" padding="0">
+          <SpecimenPanel
+            title="uiTheme · chart-facing tokens"
+            note="The colour aliases point at palette.ts and the font sizes at TYPE_SCALE. Chart option builders read these values instead of restating a palette."
+          >
+            <Stack gap="sm">
+              <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">Semantic colours</Text>
+              <Flex gap="sm" wrap="wrap">
+                {THEME_COLORS.map(([name, value]) => (
+                  <FamilyChip name={name} value={value} swatch={value} />
+                ))}
+              </Flex>
+              <Divider />
+              <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">Chart type scale</Text>
+              <Stack gap="xs">
+                {CHART_TYPE_ROLES.map(([role, size]) => (
+                  <Flex gap="sm" align="center" wrap="wrap" style={{ "border-bottom": `1px solid ${palette.BORDER}`, padding: "4px 0" }}>
+                    <Text size="xs" fw={700} className="font-mono" style={{ width: "72px" }}>{role}</Text>
+                    <Text size="xs" c="dimmed" className="font-mono" style={{ width: "44px" }}>{size}</Text>
+                    <Text
+                      style={{
+                        "font-family": uiTheme.fontFamily,
+                        "font-size": size,
+                        color: uiTheme.colors.text,
+                      }}
+                    >
+                      NIFTY 23,450.85
+                    </Text>
+                  </Flex>
+                ))}
+              </Stack>
+            </Stack>
+          </SpecimenPanel>
+        </FamilyPage>
+      </UIProvider>
     )),
 };
