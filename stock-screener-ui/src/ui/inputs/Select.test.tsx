@@ -350,3 +350,54 @@ describe("Select — controlled value follows the signal", () => {
     expect(select.selectedIndex).toBe(1);
   });
 });
+
+describe("Select — form error accessibility", () => {
+  test("a string error is associated with the native select", () => {
+    render(() => <Select data-testid="sel" id="universe" data={["a"]} error="Pick a universe" />);
+    const select = screen.getByTestId("sel").querySelector("select")!;
+    const message = screen.getByText("Pick a universe");
+
+    expect(message.id).toBe("universe-error");
+    expect(select).toHaveAttribute("aria-invalid", "true");
+    expect(select).toHaveAttribute("aria-describedby", message.id);
+  });
+
+  test("a JSX error renders as elements, never [object Object]", () => {
+    const { container } = render(() => (
+      <Select
+        data-testid="sel"
+        id="universe"
+        data={["a"]}
+        error={<span data-testid="jsx-error"><b>Invalid</b> universe</span>}
+      />
+    ));
+    const select = screen.getByTestId("sel").querySelector("select")!;
+
+    expect(screen.getByTestId("jsx-error").querySelector("b")).not.toBeNull();
+    expect(container.textContent).not.toContain("[object Object]");
+    expect(select).toHaveAttribute("aria-invalid", "true");
+    expect(select).toHaveAttribute("aria-describedby", "universe-error");
+  });
+
+  test("the searchable combobox gets the same error wiring and keeps working", async () => {
+    render(() => (
+      <Select searchable data-testid="sel" id="universe" data={["a", "b"]} error="Pick a universe" />
+    ));
+    const combo = screen.getByTestId("sel").querySelector('[role="combobox"]')!;
+
+    expect(combo).toHaveAttribute("aria-invalid", "true");
+    expect(combo).toHaveAttribute("aria-describedby", "universe-error");
+    fireEvent.focus(combo);
+    expect(await screen.findByRole("listbox")).toBeInTheDocument();
+    expect(combo).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("a description is described by the select with aria-invalid false", () => {
+    render(() => <Select data-testid="sel" id="universe" data={["a"]} description="Choose one" />);
+    const select = screen.getByTestId("sel").querySelector("select")!;
+
+    expect(select).toHaveAttribute("aria-invalid", "false");
+    expect(select).toHaveAttribute("aria-describedby", "universe-error");
+    expect(screen.getByText("Choose one")).toHaveAttribute("id", "universe-error");
+  });
+});

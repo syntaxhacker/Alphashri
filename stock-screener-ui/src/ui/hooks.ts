@@ -109,6 +109,11 @@ function storedScheme(): "light" | "dark" | null {
   return null;
 }
 
+/** True when the user already saved a scheme — used to keep `defaultColorScheme` a seed. */
+export function hasStoredColorScheme(): boolean {
+  return storedScheme() !== null;
+}
+
 function initialScheme(): "light" | "dark" {
   // The pre-paint bootstrap already resolved the scheme onto <html>. Follow it
   // so JS tokens (e.g. the agri chart) cannot disagree with the painted CSS.
@@ -140,6 +145,19 @@ function applyScheme(scheme: "light" | "dark") {
  * kept the old value until it remounted.
  */
 const [colorScheme, setColorSchemeSignal] = createSignal<"light" | "dark">(initialScheme());
+
+/**
+ * Apply a prop-driven scheme (UIProvider's force/default) without persisting it.
+ * The stored `color-scheme` key is the user's choice and is written only by the
+ * toolbar's `setColorScheme`/`toggleColorScheme`, so a provider prop cannot
+ * silently overwrite it. Updating the shared signal keeps every `useColorScheme`
+ * consumer (charts, toolbar, JS token accessor) on the same scheme; applying the
+ * attribute here rather than waiting for the effect makes it visible immediately.
+ */
+export function applyColorScheme(scheme: "light" | "dark"): void {
+  setColorSchemeSignal(scheme);
+  applyScheme(scheme);
+}
 
 export function useColorScheme(): UIUseColorSchemeResult {
   createEffect(() => {

@@ -149,3 +149,112 @@ describe("Modal dismissal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 });
+
+describe("Modal keyboard containment", () => {
+  function focusableContent() {
+    return (
+      <>
+        <button>first</button>
+        <input aria-label="middle" />
+        <button>last</button>
+      </>
+    );
+  }
+
+  test("Tab wraps from the last focusable descendant to the first (the ×)", () => {
+    render(() => (
+      <Modal opened onClose={() => {}} title="Details">
+        {focusableContent()}
+      </Modal>
+    ));
+
+    const last = screen.getByRole("button", { name: "last" });
+    const close = screen.getByLabelText("close");
+    last.focus();
+    fireEvent.keyDown(last, { key: "Tab" });
+    expect(document.activeElement).toBe(close);
+  });
+
+  test("Shift+Tab wraps from the first focusable descendant to the last", () => {
+    render(() => (
+      <Modal opened onClose={() => {}} title="Details">
+        {focusableContent()}
+      </Modal>
+    ));
+
+    const close = screen.getByLabelText("close");
+    const last = screen.getByRole("button", { name: "last" });
+    close.focus();
+    fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+  });
+
+  test("Tab stays on a dialog with no tabbable descendants", () => {
+    const { container } = render(() => (
+      <Modal opened onClose={() => {}}>
+        just text
+      </Modal>
+    ));
+    const dialog = backdrop(container);
+    dialog.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(dialog);
+  });
+
+  test("a titled dialog is labelled by its visible title; untitled keeps the fallback name", () => {
+    const { container } = render(() => (
+      <Modal opened onClose={() => {}} title="Details">
+        body
+      </Modal>
+    ));
+    const dialog = backdrop(container);
+    const labelledby = dialog.getAttribute("aria-labelledby");
+    if (!labelledby) throw new Error("aria-labelledby missing");
+    expect(document.getElementById(labelledby)).toHaveTextContent("Details");
+    expect(dialog).not.toHaveAttribute("aria-label");
+
+    cleanup();
+    const untitled = render(() => (
+      <Modal opened onClose={() => {}}>
+        body
+      </Modal>
+    ));
+    expect(backdrop(untitled.container)).toHaveAttribute("aria-label", "dialog");
+    expect(backdrop(untitled.container)).not.toHaveAttribute("aria-labelledby");
+  });
+
+  test("focus returns to the opener when the modal closes", async () => {
+    function Harness() {
+      const [opened, setOpened] = createSignal(false);
+      return (
+        <>
+          <button onClick={() => setOpened(true)}>open</button>
+          <Modal opened={opened()} onClose={() => setOpened(false)} title="Details">
+            body
+          </Modal>
+        </>
+      );
+    }
+    render(() => <Harness />);
+    const opener = screen.getByRole("button", { name: "open" });
+    opener.focus();
+    await fireEvent.click(opener);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(document.activeElement).toHaveAttribute("role", "dialog");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(document.activeElement).toBe(opener);
+  });
+
+  test("the close button keeps the global focus ring and an accessible label", () => {
+    render(() => (
+      <Modal opened onClose={() => {}} title="Details">
+        body
+      </Modal>
+    ));
+    const close = screen.getByLabelText("close");
+    expect(close).toHaveAttribute("type", "button");
+    expect(close.className).not.toContain("focus:outline-none");
+  });
+});

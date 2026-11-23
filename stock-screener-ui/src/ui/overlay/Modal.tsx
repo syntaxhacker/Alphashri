@@ -1,4 +1,4 @@
-import { createEffect, onCleanup, Show, splitProps } from "solid-js";
+import { createEffect, createUniqueId, onCleanup, Show, splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UIModalProps, UISize } from "../types";
 
@@ -16,6 +16,36 @@ function paddingSize(v: UISize | number | string): string {
   if (typeof v === "number") return `${v * 8}px`;
   const m: Record<string, string> = { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px" };
   return m[v as string] ?? String(v);
+}
+
+// Only elements in the tab sequence belong to the cycle: `tabindex="-1"`,
+// disabled and hidden controls are reachable programmatically, not by Tab.
+const FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "area[href]",
+  "button:not([disabled])",
+  "input:not([disabled]):not([type='hidden'])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "iframe",
+  "object",
+  "embed",
+  "audio[controls]",
+  "video[controls]",
+  "summary",
+  "[contenteditable]:not([contenteditable='false'])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
+function getFocusable(root: HTMLElement | undefined): HTMLElement[] {
+  if (!root) return [];
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((el) => {
+    if (el.getAttribute("tabindex") === "-1" || el.hasAttribute("disabled")) return false;
+    if (el.hasAttribute("hidden") || el.getAttribute("aria-hidden") === "true") return false;
+    if (el.closest("[inert]")) return false;
+    const computed = window.getComputedStyle(el);
+    return computed.display !== "none" && computed.visibility !== "hidden";
+  });
 }
 
 /**
@@ -51,6 +81,8 @@ export function Modal(props: ModalProps) {
 
   // The testid travels with the dialog, so the close button can derive its own.
   const testId = known["data-testid"];
+  // One stable id per instance, used only when there is a visible title to name it.
+  const titleId = `modal-title-${createUniqueId()}`;
 
   // `?? true` rather than a truthiness check: an explicit `false` is a
   // deliberate opt-out (irreversible dialogs) and must survive.
@@ -83,9 +115,36 @@ export function Modal(props: ModalProps) {
     const previous = document.activeElement as HTMLElement | null;
     const frame = window.requestAnimationFrame(() => dialogRef?.focus());
     const onDocKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || !closeOnEscape()) return;
-      if (escapeBelongsToPopup()) return;
-      known.onClose?.();
+      if (e.key === "Escape" && closeOnEscape() && !escapeBelongsToPopup()) {
+        known.onClose?.();
+        return;
+      }
+      if (e.key !== "Tab" || e.altKey || e.ctrlKey || e.metaKey) return;
+
+      // Cycle Tab/Shift+Tab through the dialog's tabbable descendants. The
+      // dialog itself (tabIndex=-1) is the initial focus target and the last
+      // resort when there is nothing tabbable inside.
+      const focusables = getFocusable(dialogRef);
+      if (focusables.length === 0) {
+        e.preventDefault();
+        dialogRef?.focus();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (active === last && !e.shiftKey) {
+        e.preventDefault();
+        first.focus();
+      } else if (active === first && e.shiftKey) {
+        e.preventDefault();
+        last.focus();
+      } else if (active == null || !focusables.includes(active)) {
+        // Focus sits on the dialog, on a programmatic-only element, or outside
+        // the modal entirely: bring it back to the appropriate edge.
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      }
     };
     document.addEventListener("keydown", onDocKey, true);
     const previousOverflow = document.body.style.overflow;
@@ -140,7 +199,8 @@ export function Modal(props: ModalProps) {
         onClick={handleBackdropClick}
         role="dialog"
         aria-modal="true"
-        aria-label={typeof known.title === "string" ? known.title : "dialog"}
+        aria-labelledby={known.title ? titleId : undefined}
+        aria-label={known.title ? undefined : "dialog"}
         tabIndex={-1}
         {...(rest as Record<string, unknown>)}
       >
@@ -157,6 +217,7 @@ export function Modal(props: ModalProps) {
             <div className="relative flex items-center justify-between border-b border-fin-border bg-fin-surface/50 px-3 py-2">
               {known.title && (
                 <div
+                  id={titleId}
                   className={cn(
                     "flex-1 text-sm font-medium text-fin-text truncate",
                     showCloseButton() ? "pr-8" : undefined,
@@ -171,7 +232,7 @@ export function Modal(props: ModalProps) {
                   aria-label="close"
                   data-testid={testId ? `${testId}-close` : undefined}
                   onClick={() => known.onClose?.()}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 flex size-6 items-center justify-center rounded text-fin-text-muted hover:text-fin-text hover:bg-fin-border focus:outline-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 flex size-6 items-center justify-center rounded text-fin-text-muted hover:text-fin-text hover:bg-fin-border"
                 >
                   ×
                 </button>

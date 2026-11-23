@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { describe, expect, test, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@solidjs/testing-library";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { NumberInput, coerceNumberInput } from "./NumberInput";
+
+afterEach(cleanup);
 
 describe("NumberInput", () => {
   test("exposes the testid on the wrapper; the input is a fillable spinbutton", () => {
@@ -39,5 +41,40 @@ describe("NumberInput", () => {
     }
     expect(coerceNumberInput("1.")).toBe("1.");
     expect(coerceNumberInput("-")).toBe("-");
+  });
+});
+
+describe("NumberInput — form error accessibility", () => {
+  test("a string error is associated with the spinbutton, not the wrapper", () => {
+    render(() => <NumberInput data-testid="num" id="price" error="Price is required" />);
+    const wrapper = screen.getByTestId("num");
+    const input = within(wrapper).getByRole("spinbutton");
+    const message = screen.getByText("Price is required");
+
+    expect(message.id).toBe("price-error");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-describedby", message.id);
+    expect(wrapper).not.toHaveAttribute("aria-invalid");
+  });
+
+  test("a JSX error renders as elements, never [object Object]", () => {
+    const { container } = render(() => (
+      <NumberInput data-testid="num" id="price" error={<span data-testid="jsx-error"><b>Invalid</b> price</span>} />
+    ));
+    const input = within(screen.getByTestId("num")).getByRole("spinbutton");
+
+    expect(screen.getByTestId("jsx-error").querySelector("b")).not.toBeNull();
+    expect(container.textContent).not.toContain("[object Object]");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-describedby", "price-error");
+  });
+
+  test("a description is described by the input with aria-invalid false", () => {
+    render(() => <NumberInput data-testid="num" id="price" description="Enter a number" />);
+    const input = within(screen.getByTestId("num")).getByRole("spinbutton");
+
+    expect(input).toHaveAttribute("aria-invalid", "false");
+    expect(input).toHaveAttribute("aria-describedby", "price-error");
+    expect(screen.getByText("Enter a number")).toHaveAttribute("id", "price-error");
   });
 });

@@ -1,6 +1,7 @@
-import { createMemo, createSignal, createUniqueId, splitProps } from "solid-js";
+import { createMemo, createSignal, splitProps } from "solid-js";
 import { cn } from "../cn";
 import { stripLegacyInputProps } from "./legacyProps";
+import { createFieldA11y } from "./fieldError";
 import type { UITextInputProps } from "../types";
 
 type FieldBox = { h: number; fs: number; padY: number; padX: number };
@@ -55,7 +56,13 @@ export function TextInput(props: UITextInputProps) {
     "data-testid",
   ] as Array<keyof UITextInputProps>);
   const forwarded = stripLegacyInputProps(_rest);
-  const resolvedId = props.id ?? createUniqueId();
+  const field = createFieldA11y({
+    id: props.id,
+    error: () => props.error,
+    description: () => props.description,
+    externalDescribedBy: () => (_rest as Record<string, unknown>)["aria-describedby"] as string | undefined,
+  });
+  const resolvedId = field.controlId;
   const [focused, setFocused] = createSignal(false);
   const explicitWidth = createMemo(() =>
     props.w != null ? (typeof props.w === "number" ? `${props.w}px` : props.w) : undefined,
@@ -63,14 +70,8 @@ export function TextInput(props: UITextInputProps) {
   const explicitHeight = createMemo(() =>
     props.h != null ? (typeof props.h === "number" ? `${props.h}px` : props.h) : undefined,
   );
-  const isError = createMemo(() => Boolean(props.error));
-  const helperText = createMemo(() =>
-    isError()
-      ? typeof props.error === "string"
-        ? props.error
-        : String(props.error ?? "")
-      : (props.description as string | undefined),
-  );
+  const isError = field.isError;
+  const helperText = field.message;
 
   const wrapperStyle = createMemo(() =>
     explicitWidth() ? { width: explicitWidth()!, ...props.style } : (props.style ?? {}),
@@ -126,6 +127,8 @@ export function TextInput(props: UITextInputProps) {
         <input
           {...(forwarded as Record<string, unknown>)}
           id={resolvedId}
+          aria-invalid={isError()}
+          aria-describedby={field.describedBy()}
           type={props.type ?? "text"}
           value={(isControlled() ? props.value : props.defaultValue) ?? ""}
           onInput={(e) => props.onChange?.(e.currentTarget.value)}
@@ -153,7 +156,9 @@ export function TextInput(props: UITextInputProps) {
         {props.rightSection && <div className="shrink-0">{props.rightSection}</div>}
       </div>
       {helperText() && (
-        <span className={cn("text-xs", isError() ? "text-fin-negative" : "text-fin-text-muted")}>{helperText()}</span>
+        <span id={field.messageId} className={cn("text-xs", isError() ? "text-fin-negative" : "text-fin-text-muted")}>
+          {helperText()}
+        </span>
       )}
     </div>
   );

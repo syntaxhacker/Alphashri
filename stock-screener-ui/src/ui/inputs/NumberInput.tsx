@@ -1,6 +1,7 @@
-import { createMemo, createSignal, createUniqueId, splitProps } from "solid-js";
+import { createMemo, createSignal, splitProps } from "solid-js";
 import { cn } from "../cn";
 import { stripLegacyInputProps } from "./legacyProps";
+import { createFieldA11y } from "./fieldError";
 import type { UINumberInputProps } from "../types";
 
 /**
@@ -100,7 +101,13 @@ export function NumberInput(props: UINumberInputProps) {
     "onKeyDown",
   ]);
 
-  const resolvedId = known.id ?? createUniqueId();
+  const field = createFieldA11y({
+    id: known.id,
+    error: () => known.error,
+    description: () => known.description,
+    externalDescribedBy: () => (_rest as Record<string, unknown>)["aria-describedby"] as string | undefined,
+  });
+  const resolvedId = field.controlId;
   const [focused, setFocused] = createSignal(false);
   const explicitWidth = createMemo(() =>
     known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined,
@@ -108,14 +115,8 @@ export function NumberInput(props: UINumberInputProps) {
   const explicitHeight = createMemo(() =>
     known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined,
   );
-  const isError = createMemo(() => Boolean(known.error));
-  const helperText = createMemo(() =>
-    isError()
-      ? typeof known.error === "string"
-        ? known.error
-        : String(known.error ?? "")
-      : (known.description as string | undefined),
-  );
+  const isError = field.isError;
+  const helperText = field.message;
 
   const isControlledInput = createMemo(
     () => known.value !== undefined || (known.onChange !== undefined && known.defaultValue === undefined),
@@ -280,6 +281,8 @@ export function NumberInput(props: UINumberInputProps) {
             style={inputStyle()}
             data-testid={inputTestId}
             {...(forwarded as Record<string, unknown>)}
+            aria-invalid={isError()}
+            aria-describedby={field.describedBy()}
           />
           {showSteppers() && (
             <div
@@ -322,6 +325,7 @@ export function NumberInput(props: UINumberInputProps) {
         <span
           className={cn("text-xs", isError() ? "text-fin-negative" : "text-fin-text-muted")}
           {...(isError() ? (known.errorProps as Record<string, unknown> | undefined) : undefined)}
+          id={field.messageId}
         >
           {helperText()}
         </span>
