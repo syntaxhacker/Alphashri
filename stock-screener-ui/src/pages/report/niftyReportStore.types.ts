@@ -8,7 +8,7 @@ import type {
   NiftySensex,
   NiftyTape,
 } from "@/types/niftyReport";
-import type { FlipWatchState, FlowLastFlip, OiPoint } from "./niftyFlowRead";
+import type { FlowLastFlip, OiPoint } from "./niftyFlowRead";
 import type { MinutePremium, OiBurst } from "./niftyOiBursts";
 import type { NiftyPnlPosition } from "./niftyPnlAttribution";
 import type { PreMovePoint } from "./niftyPreMoveHistory";

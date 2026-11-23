@@ -52,7 +52,6 @@ export function createEffectsCore(s: StoreState, d: StoreDerived, rh: ReportHand
     setOiAlertsHandle,
     setBlastsHandle,
     setStreamHandle,
-    setDeskModeValue,
     deskMode,
     sideTab,
     setPaperPositions,

@@ -19,7 +19,6 @@ import type { OiBurst } from "./niftyOiBursts";
 import type { PreMovePoint } from "./niftyPreMoveHistory";
 import type { PreMoveScore } from "./niftyPreMove";
 import { createWallMoveState } from "./niftyWallMoves";
-import type { WallMoveState } from "./niftyWallMoves";
 import type { useReplayWalls } from "./useReplayWalls";
 import type { useNiftyOiAlerts } from "./useNiftyOiAlerts";
 import type { WallSnapshot } from "./NiftySqueezeRadar";
