@@ -117,7 +117,7 @@ export const FamilyLanding: Story = {
               <Skeleton circle h={40} w={40} />
               <Skeleton h={64} w={200} />
             </Group>
-            <Group gap="xl" align="center" wrap="wrap">
+            <Group gap="xl" align="center" wrap="wrap" style={{ "padding-bottom": "8px" }}>
               <Indicator label="3" color="error"><Button variant="outline">Alerts</Button></Indicator>
               <Indicator label="LIVE" color="success"><Button variant="outline">Feed</Button></Indicator>
               <Indicator label="9+" color="warning"><Button variant="outline">Queue</Button></Indicator>
