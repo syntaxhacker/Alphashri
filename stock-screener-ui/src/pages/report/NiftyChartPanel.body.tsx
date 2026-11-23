@@ -191,10 +191,12 @@ export function ChartBody(props: ChartBodyProps) {
           data-axis-gutter={CHART_PLOT_MARGIN.edgeGutter}
           data-mobile-axis-gutter={MOBILE_AXIS_MIN_WIDTH}
           data-mobile-cutoff-lane={MOBILE_CUTOFF_LANE}
+          data-mobile-left-gutter={phone() ? "6" : "0"}
           data-hide-last-value-tag={phone() ? "1" : "0"}
           class="w-full max-w-full min-w-0 shrink-0 overflow-hidden flex-1 min-h-0"
           style={{
             position: "relative",
+            "padding-left": phone() ? "6px" : undefined,
             "padding-right": phone() ? `${MOBILE_EDGE_GUTTER}px` : `${CHART_PLOT_MARGIN.edgeGutter}px`,
             ["--chart-cutoff-right"]: `${cutoffRight()}px`,
             ...(props.chartHeight == null ? undefined : { height: `${props.chartHeight}px` }),

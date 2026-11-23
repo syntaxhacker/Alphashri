@@ -31,6 +31,8 @@ export interface NiftyOiColumnOpts {
   spot?: number;
   walls?: ChainWalls;
   showLegChange?: boolean;
+  /** Phone: keep only ΔOI / STRIKE / ΔOI, where the 390px table fits whole. */
+  hideSignals?: boolean;
 }
 
 export function getNiftyOiColumns(
@@ -207,6 +209,9 @@ export function getNiftyOiColumns(
       },
     },
   ];
+  if (opts?.hideSignals) {
+    return coreColumns.filter((column) => column.id !== "ceSignal" && column.id !== "peSignal");
+  }
   if (opts?.showLegChange === false) return coreColumns;
   const peChg: TableColumnDef<NiftyStrike> = {
     id: "peChg",

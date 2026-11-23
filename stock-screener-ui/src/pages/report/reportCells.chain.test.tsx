@@ -201,6 +201,13 @@ describe("option-chain rhythm and column hierarchy", () => {
     expect(metric.style.color).not.toBe(group.style.color);
   });
 
+  test("the 390 chain drops the SIG columns so every value fits whole", () => {
+    const columns = getNiftyOiColumns(null, { showLegChange: false, hideSignals: true });
+    expect(columns.map((column) => column.id)).toEqual(["ceOiChange", "strike", "peOiChange"]);
+    const total = columns.reduce((sum, column) => sum + Number(column.size ?? 0), 0);
+    expect(total).toBeLessThanOrEqual(300);
+  });
+
   test("the 1600 desk chain fits the ~420px panel with all five core columns", () => {
     const desk = getNiftyOiColumns(null, { showLegChange: false });
     expect(desk.map((c) => c.id)).toEqual([

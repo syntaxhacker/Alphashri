@@ -282,6 +282,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
       spot: store.data.report()?.spot,
       walls: store.data.oiWalls(),
       showLegChange: !store.ui.isDesk(),
+      hideSignals: isMobile(),
     });
   });
 
