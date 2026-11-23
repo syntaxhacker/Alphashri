@@ -82,7 +82,7 @@ const CARD_TAGS: Record<string, (p: any) => JSX.Element> = {
     <Tag
       id={known.id}
       className={cn("bg-fin-surface", known.className)}
-      style={styleObj}
+      style={{ ...styleObj, ...(known.style as JSX.CSSProperties) }}
       data-testid={testId}
       onClick={known.onClick}
       {...rest}
