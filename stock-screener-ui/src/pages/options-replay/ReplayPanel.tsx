@@ -1,7 +1,8 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import {
-  Alert, Badge, Box, Button, Paper, Select, Tab, Tabs, TabsList, TabsPanel, Text, ToolbarRow, useMediaQuery,
+  ActionIcon, Alert, Badge, Box, Button, Paper, Select, Slider, Tab, Tabs, TabsList, TabsPanel, Text,
+  ToolbarRow, useMediaQuery,
 } from "@/ui";
 import { showNotification } from "@/ui/notifications";
 import { CompactStat, CompactStatGrid } from "@/components/common/compact";
@@ -84,6 +85,17 @@ function rangeValueToIndex(value: number): number | null {
 
 /** Explanations travel with every placeholder, so a bare "—" never stands alone. */
 const NO_PAYOFF_NOTE = "No payoff curve — no priced frames were returned.";
+
+/**
+ * Transport/parser messages are kept out of the primary alert copy. They stay
+ * available as a native tooltip on the message and in a collapsed detail line.
+ */
+const LOAD_ERROR_COPY =
+  "Couldn't load this replay. The recorded frames aren't available right now — reopen the structure from the Options Dock and try again.";
+const COMMIT_ERROR_COPY =
+  "Couldn't commit this structure to the paper book. No order was placed — try again.";
+const CHART_ERROR_COPY =
+  "The P&L chart couldn't be drawn. The payoff figures below are still current.";
 
 interface MatrixExpiry {
   date: string;
@@ -188,6 +200,56 @@ const STAT_VALUE_SHRINK = "[&>div>div:nth-child(2)>p]:min-w-0";
 // instead of resting a full-contrast border on a full-contrast border.
 const NO_DIVIDE = "[&>*]:border-l-0!";
 
+/** Keeps the raw exception one gesture away without making it the headline. */
+function ErrorDetail(props: { detail: string | null }) {
+  return (
+    <Show when={props.detail}>
+      <details className="mt-1 text-[11px]">
+        <summary className="cursor-pointer">Technical detail</summary>
+        <Text span size="xs" c="dimmed" className="block break-words">
+          {props.detail}
+        </Text>
+      </details>
+    </Show>
+  );
+}
+
+function PlayGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M7 4v16l13 -8l-13 -8" />
+    </svg>
+  );
+}
+
+function PauseGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M9 5v14M15 5v14" />
+    </svg>
+  );
+}
+
 function StatValue(props: { text: string; tooltip?: string }) {
   return (
     <Text
@@ -249,7 +311,9 @@ export function ReplayPanel(props: ReplayPanelProps) {
   const [index, setIndex] = createSignal(0);
   const [playing, setPlaying] = createSignal(false);
   const [speed, setSpeed] = createSignal(15);
+  /** Raw transport detail; never rendered as the primary message. */
   const [localError, setLocalError] = createSignal<string | null>(null);
+  const [commitBlocked, setCommitBlocked] = createSignal<string | null>(null);
   const [chartError, setChartError] = createSignal<string | null>(null);
   const [committedId, setCommittedId] = createSignal<number | null>(null);
   /** The dock stores ATM IV in vol points; the matrix model wants decimal vol. */
@@ -363,6 +427,7 @@ export function ReplayPanel(props: ReplayPanelProps) {
     setReplayError(null);
     setStoreError(null);
     setLocalError(null);
+    setCommitBlocked(null);
     const task = id != null
       ? fetchReplayFrames(id)
       : previewOptionPaperOrder({
@@ -424,9 +489,10 @@ export function ReplayPanel(props: ReplayPanelProps) {
   const commit = async () => {
     const pending = getOptionsPaperState().pendingOrder;
     if (!pending) {
-      setLocalError("There is no pending structure to commit.");
+      setCommitBlocked("There is no pending structure to commit.");
       return;
     }
+    setCommitBlocked(null);
     setLocalError(null);
     setReplayLoading(true);
     try {
@@ -439,6 +505,7 @@ export function ReplayPanel(props: ReplayPanelProps) {
         upsertPosition(placed.position);
         setCommittedId(placed.position.id);
         setPendingOrder(null);
+        setLocalError(null);
         props.onCommitted?.(placed.position.id);
       }
     } catch (error) {
@@ -448,7 +515,9 @@ export function ReplayPanel(props: ReplayPanelProps) {
     }
   };
 
-  const error = () => localError() ?? storeError() ?? null;
+  const errorDetail = () => localError() ?? storeError();
+  const errorCopy = () =>
+    commitBlocked() ?? (localError() ? COMMIT_ERROR_COPY : storeError() ? LOAD_ERROR_COPY : null);
   const skipped = () => result()?.skipped ?? null;
 
   // The playhead index flips the transform target; the CSS transition does the
@@ -498,9 +567,10 @@ export function ReplayPanel(props: ReplayPanelProps) {
         </Show>
       </ToolbarRow>
 
-      <Show when={error()}>
+      <Show when={errorCopy()}>
         <Alert color="error" data-testid="replay-error" className="shrink-0">
-          {error()}
+          <Text size="sm" title={errorDetail() ?? undefined}>{errorCopy()}</Text>
+          <ErrorDetail detail={errorDetail()} />
         </Alert>
       </Show>
       <Show when={skipped()}>
@@ -510,7 +580,8 @@ export function ReplayPanel(props: ReplayPanelProps) {
       </Show>
       <Show when={chartError()}>
         <Alert color="error" data-testid="replay-chart-error" className="shrink-0">
-          P&L chart unavailable: {chartError()}
+          <Text size="sm" title={chartError() ?? undefined}>{CHART_ERROR_COPY}</Text>
+          <ErrorDetail detail={chartError()} />
         </Alert>
       </Show>
       <Show when={isCommitted()}>
@@ -557,10 +628,12 @@ export function ReplayPanel(props: ReplayPanelProps) {
         <div className="flex-1 min-h-0 w-full flex flex-col gap-3 overflow-y-auto">
           <WorkstationPanel title="PLAYBACK" testId="replay-playback" className="flex-1 min-h-[260px]">
             <ToolbarRow gap={8} data-testid="replay-controls" className="shrink-0">
-              <Button
-                size="xs"
+              <ActionIcon
+                size="sm"
+                variant="light"
+                color="primary"
                 data-testid="replay-play"
-                className="shrink-0 whitespace-nowrap"
+                className={buttonMotion()}
                 aria-label={playing() ? "Pause replay" : "Play replay"}
                 title={playing() ? "Pause replay (Space)" : "Play replay (Space)"}
                 onClick={() => {
@@ -568,8 +641,10 @@ export function ReplayPanel(props: ReplayPanelProps) {
                   setPlaying(!playing());
                 }}
               >
-                {playing() ? "❚❚ PAUSE" : "▶ PLAY"}
-              </Button>
+                <Show when={playing()} fallback={<PlayGlyph />}>
+                  <PauseGlyph />
+                </Show>
+              </ActionIcon>
               <Select
                 data-testid="replay-speed"
                 size="xs"
@@ -579,21 +654,23 @@ export function ReplayPanel(props: ReplayPanelProps) {
                 data={SPEEDS.map((value) => ({ value: String(value), label: `${value}×` }))}
                 aria-label="Replay speed"
               />
-              <input
-                data-testid="replay-scrubber"
-                type="range"
-                min={0}
-                max={Math.max(0, frames().length - 1)}
-                step={1}
-                value={index()}
-                onInput={(event) => {
-                  setPlaying(false);
-                  setIndex(Number(event.currentTarget.value));
-                }}
-                className="h-6 min-w-20 flex-1"
-                aria-label="Replay playhead"
-                aria-valuetext={`Frame ${Math.min(index() + 1, frames().length)} of ${frames().length} at ${asOf() ?? "no priced frame"}`}
-              />
+              <Box className="min-w-20 flex-1">
+                <Slider
+                  testId="replay-scrubber"
+                  label="Replay playhead"
+                  min={0}
+                  max={Math.max(0, frames().length - 1)}
+                  step={1}
+                  value={index()}
+                  onChange={(value) => {
+                    setPlaying(false);
+                    setIndex(value);
+                  }}
+                  formatValue={(value) =>
+                    `Frame ${Math.min(value + 1, frames().length)} of ${frames().length} at ${frames()[value]?.t ?? "no priced frame"}`
+                  }
+                />
+              </Box>
               <Text
                 size="xs"
                 className={`font-mono tabular-nums shrink-0 ${playheadMotion()}`}
@@ -601,15 +678,17 @@ export function ReplayPanel(props: ReplayPanelProps) {
               >
                 {asOf() ? asOf()!.replace("T", " ").slice(0, 16) : "no priced frame"}
               </Text>
-              <Badge
-                size="xs"
-                variant="outline"
-                color="warning"
-                className={`shrink-0 ${playheadMotion()}`}
-                data-testid="replay-playhead"
-              >
-                PLAYHEAD
-              </Badge>
+              <Show when={!isNarrow()}>
+                <Badge
+                  size="xs"
+                  variant="outline"
+                  color="warning"
+                  className={`shrink-0 ${playheadMotion()}`}
+                  data-testid="replay-playhead"
+                >
+                  PLAYHEAD
+                </Badge>
+              </Show>
             </ToolbarRow>
 
             <Show when={gapCount() > 0 || view().priced === false}>
@@ -630,22 +709,20 @@ export function ReplayPanel(props: ReplayPanelProps) {
                 so a single pair of testids moves every payoff view together. */}
             <ToolbarRow gap={8} className="shrink-0" data-testid="replay-range-controls">
               <Text size="xs" fw={700} className="uppercase shrink-0">SPOT RANGE / IV</Text>
-              <input
-                data-testid="replay-range-slider"
-                type="range"
-                min={0}
-                max={RANGE_STEPS.length - 1}
-                step={1}
-                value={rangeIndex()}
-                onInput={(event) => {
-                  const next = Number(event.currentTarget.value);
-                  if (Number.isInteger(next) && next >= 0 && next < RANGE_STEPS.length) setRangeIndex(next);
-                }}
-                className="h-6 w-28 shrink-0"
-                aria-label="Payoff matrix spot range"
-                aria-valuetext={`Plus minus ${rangePct()} percent spot range`}
-                title={`Spot range ±${rangePct()}%`}
-              />
+              <Box className="w-28 shrink-0" title={`Spot range ±${rangePct()}%`}>
+                <Slider
+                  testId="replay-range-slider"
+                  label="Payoff matrix spot range"
+                  min={0}
+                  max={RANGE_STEPS.length - 1}
+                  step={1}
+                  value={rangeIndex()}
+                  onChange={(value) => {
+                    if (Number.isInteger(value) && value >= 0 && value < RANGE_STEPS.length) setRangeIndex(value);
+                  }}
+                  formatValue={(value) => `Plus minus ${RANGE_STEPS[value] ?? rangePct()} percent spot range`}
+                />
+              </Box>
               <Text size="xs" className="font-mono tabular-nums shrink-0" data-testid="replay-range-label">
                 ±{rangePct()}%
               </Text>
@@ -668,33 +745,53 @@ export function ReplayPanel(props: ReplayPanelProps) {
               data-testid="replay-view-tabs"
             >
               <TabsList
-                className="shrink-0"
+                className="shrink-0 overflow-x-auto"
                 data-testid="replay-view-tablist"
                 style={{ "border-bottom-color": "var(--color-fin-border-subtle)" }}
               >
-                <Tab value="payoff" data-testid="replay-view-tab-payoff">EXPIRY PAYOFF</Tab>
-                <Tab value="path" data-testid="replay-view-tab-path">P&L PATH</Tab>
-                <Tab value="table" data-testid="replay-view-tab-table">
-                  ADVANCED · TABLE{ivUnavailable() ? " · INTRINSIC ONLY" : ""}
+                <Tab value="payoff" data-testid="replay-view-tab-payoff" className="shrink-0 whitespace-nowrap">
+                  {isNarrow() ? "PAYOFF" : "EXPIRY PAYOFF"}
                 </Tab>
-                <Tab value="matrix" data-testid="replay-view-tab-matrix">
-                  ADVANCED · PAYOFF MATRIX{ivUnavailable() ? " · INTRINSIC ONLY" : ""}
+                <Tab value="path" data-testid="replay-view-tab-path" className="shrink-0 whitespace-nowrap">
+                  {isNarrow() ? "PATH" : "P&L PATH"}
+                </Tab>
+                <Tab value="table" data-testid="replay-view-tab-table" className="shrink-0 whitespace-nowrap">
+                  {isNarrow() ? "TABLE" : `ADVANCED · TABLE${ivUnavailable() ? " · INTRINSIC ONLY" : ""}`}
+                </Tab>
+                <Tab value="matrix" data-testid="replay-view-tab-matrix" className="shrink-0 whitespace-nowrap">
+                  {isNarrow() ? "MATRIX" : `ADVANCED · PAYOFF MATRIX${ivUnavailable() ? " · INTRINSIC ONLY" : ""}`}
                 </Tab>
               </TabsList>
 
               <TabsPanel value="table" keepMounted className="flex-1 min-h-0" data-testid="replay-table-panel">
                 <div className="flex flex-col h-full min-h-[240px] min-w-0">
-                  <PayoffTable
-                    legs={matrixLegs()}
-                    spot={spot()}
-                    iv={ivDecimal()}
-                    rangePct={rangePct() / 100}
-                    asOf={matrixAsOf()}
-                    onSelectCell={selectCell}
-                    onRangeChange={changeTableRange}
-                    onViewChange={changeTableView}
-                    testIdPrefix="replay-table"
-                  />
+                  {/* The payoff grid has a natural floor wider than 390px; give it a
+                      scroll container instead of letting columns clip. */}
+                  <div
+                    role="region"
+                    aria-label="Payoff table, scroll sideways for more strikes"
+                    data-testid="replay-table-scroll"
+                    className="flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden"
+                  >
+                    <div className="h-full min-w-[520px]">
+                      <PayoffTable
+                        legs={matrixLegs()}
+                        spot={spot()}
+                        iv={ivDecimal()}
+                        rangePct={rangePct() / 100}
+                        asOf={matrixAsOf()}
+                        onSelectCell={selectCell}
+                        onRangeChange={changeTableRange}
+                        onViewChange={changeTableView}
+                        testIdPrefix="replay-table"
+                      />
+                    </div>
+                  </div>
+                  <Show when={isNarrow()}>
+                    <Text size="xs" c="dimmed" data-testid="replay-table-scroll-hint" className="shrink-0">
+                      Scroll sideways to see more strikes.
+                    </Text>
+                  </Show>
                 </div>
               </TabsPanel>
 

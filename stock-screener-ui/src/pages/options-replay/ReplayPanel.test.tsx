@@ -306,6 +306,12 @@ function workbenchInr(value: number | null | undefined): string {
   return `${value > 0 ? "+" : ""}₹${formatNumberIN(value)}`;
 }
 
+// The DS Slider exposes keyboard on its max thumb; happy-dom has no track
+// geometry, so pointer dragging is covered by the primitive's own suite.
+function moveSlider(testId: string, key: "Home" | "End") {
+  fireEvent.keyDown(screen.getByTestId(`${testId}-max`), { key });
+}
+
 /** The snapshot the workbench derives from the same props ReplayPanel passes. */
 function workbenchSnapshot(ivVolPoints: number | null = null, spot = 83, rangePct = 8) {
   const legs = toDockLegs(
@@ -432,7 +438,7 @@ describe("ReplayPanel", () => {
     expect(screen.getByTestId("replay-total")).toHaveTextContent("-25");
     expect(preview.mock.calls[0][0]).toMatchObject({ source: "replay", underlying: "IRFC" });
 
-    fireEvent.input(screen.getByTestId("replay-scrubber"), { target: { value: "0" } });
+    moveSlider("replay-scrubber", "Home");
     expect(screen.getByTestId("replay-total")).toHaveTextContent("-125");
     expect(screen.getByTestId("replay-clock")).toHaveTextContent("2026-11-17 09:48");
     expect(setChartOption).toHaveBeenCalled();
@@ -682,7 +688,7 @@ describe("ReplayPanel", () => {
     expect(workbenchMocks.props.rangePct).toBe(8);
     expect(screen.getByTestId("replay-range-label")).toHaveTextContent("±8%");
 
-    fireEvent.input(screen.getByTestId("replay-range-slider"), { target: { value: "3" } });
+    moveSlider("replay-range-slider", "End");
     expect(matrixMocks.heatmapProps.rangePct).toBe(0.2);
     expect(screen.getByTestId("replay-range-label")).toHaveTextContent("±20%");
     await waitFor(() => expect(workbenchMocks.props.rangePct).toBe(20));
@@ -717,13 +723,13 @@ describe("ReplayPanel", () => {
     render(() => <ReplayPanel />);
     await screen.findByTestId("mock-payoff-table");
 
-    const slider = screen.getByTestId("replay-range-slider") as HTMLInputElement;
+    const slider = screen.getByTestId("replay-range-slider-max");
     expect(tableMocks.props.rangePct).toBe(0.08);
-    expect(slider.value).toBe("1");
+    expect(slider).toHaveAttribute("aria-valuenow", "1");
 
     fireEvent.click(screen.getByTestId("mock-table-range"));
     expect(screen.getByTestId("replay-range-label")).toHaveTextContent("±20%");
-    expect(slider.value).toBe("3");
+    expect(slider).toHaveAttribute("aria-valuenow", "3");
     expect(matrixMocks.heatmapProps.rangePct).toBe(0.2);
     expect(tableMocks.props.rangePct).toBe(0.2);
     await waitFor(() => expect(workbenchMocks.props.rangePct).toBe(20));
@@ -734,7 +740,7 @@ describe("ReplayPanel", () => {
     render(() => <ReplayPanel />);
     await screen.findByTestId("mock-table-select-cell");
 
-    fireEvent.input(screen.getByTestId("replay-scrubber"), { target: { value: "0" } });
+    moveSlider("replay-scrubber", "Home");
     expect(screen.getByTestId("replay-clock")).toHaveTextContent("2026-11-17 09:48");
 
     fireEvent.click(screen.getByTestId("mock-table-select-cell"));
@@ -826,7 +832,7 @@ describe("ReplayPanel", () => {
     render(() => <ReplayPanel />);
     await screen.findByTestId("mock-select-cell");
 
-    fireEvent.input(screen.getByTestId("replay-scrubber"), { target: { value: "0" } });
+    moveSlider("replay-scrubber", "Home");
     expect(screen.getByTestId("replay-clock")).toHaveTextContent("2026-11-17 09:48");
 
     fireEvent.click(screen.getByTestId("mock-select-cell"));
@@ -891,6 +897,68 @@ describe("ReplayPanel", () => {
     expect(screen.getByTestId("replay-empty")).toHaveTextContent("No replay frames");
   });
 
+  test("a failed preview leads with human copy and demotes the API error to detail", async () => {
+    preview.mockRejectedValueOnce(new Error("HTTP 502 upstream connect ECONNRESET"));
+    setPendingOrder(request);
+    render(() => <ReplayPanel />);
+
+    const alert = await screen.findByTestId("replay-error");
+    expect(alert.textContent ?? "").toContain("Couldn't load this replay");
+    expect(alert.textContent?.startsWith("HTTP")).toBe(false);
+    expect(alert.querySelector("details")?.textContent).toContain("ECONNRESET");
+    expect(alert.querySelector("[title]")).toHaveAttribute("title", "HTTP 502 upstream connect ECONNRESET");
+  });
+
+  test("a failed commit leads with human copy and keeps the transport error in detail", async () => {
+    place.mockRejectedValueOnce(new Error("POST /api/options/paper/order 500"));
+    setPendingOrder(request);
+    render(() => <ReplayPanel />);
+
+    const commit = await screen.findByTestId("replay-commit");
+    await waitFor(() => expect(screen.queryByTestId("replay-loading")).toBeNull());
+    fireEvent.click(commit);
+
+    const alert = await screen.findByTestId("replay-error");
+    expect(alert.textContent ?? "").toContain("Couldn't commit this structure");
+    expect(alert.querySelector("details")?.textContent).toContain("POST /api/options/paper/order 500");
+  });
+
+  test("390px keeps tab labels on one line and the dense table scrollable", async () => {
+    stubNarrowViewport();
+    setPendingOrder(request);
+    render(() => <ReplayPanel />);
+    await screen.findByTestId("replay-table-scroll");
+
+    const tablist = screen.getByTestId("replay-view-tablist");
+    expect(tablist.className).toContain("overflow-x-auto");
+    for (const testId of [
+      "replay-view-tab-payoff", "replay-view-tab-path", "replay-view-tab-table", "replay-view-tab-matrix",
+    ]) {
+      const tab = screen.getByTestId(testId);
+      expect(tab.className).toContain("whitespace-nowrap");
+      expect((tab.textContent ?? "").trim().split(/\s+/)).toHaveLength(1);
+    }
+    expect(screen.getByTestId("replay-view-tab-table")).toHaveTextContent("TABLE");
+    expect(screen.getByTestId("replay-view-tab-matrix")).toHaveTextContent("MATRIX");
+    expect(screen.queryByTestId("replay-playhead")).toBeNull();
+
+    const scroller = screen.getByTestId("replay-table-scroll");
+    expect(scroller.className).toContain("overflow-x-auto");
+    expect(scroller).toHaveAttribute("aria-label", "Payoff table, scroll sideways for more strikes");
+    expect(screen.getByTestId("replay-table-scroll-hint")).toHaveTextContent("Scroll sideways");
+  });
+
+  test("wide viewports keep descriptive tab labels and no scroll hint", async () => {
+    setPendingOrder(request);
+    render(() => <ReplayPanel />);
+    await screen.findByTestId("replay-table-scroll");
+
+    expect(screen.getByTestId("replay-view-tab-table")).toHaveTextContent("ADVANCED · TABLE");
+    expect(screen.getByTestId("replay-view-tab-matrix")).toHaveTextContent("PAYOFF MATRIX");
+    expect(screen.queryByTestId("replay-table-scroll-hint")).toBeNull();
+    expect(screen.getByTestId("replay-playhead")).toBeInTheDocument();
+  });
+
   test("payoff-at-spot and summary placeholders explain the missing curve and range", async () => {
     preview.mockResolvedValue({ ...replay, payoff: { spots: [], expiry: [] }, breakevens: [] });
     setPendingOrder(request);
@@ -933,11 +1001,11 @@ describe("ReplayPanel", () => {
     expect(screen.getByTestId("replay-view-tab-table")).toHaveTextContent("INTRINSIC ONLY");
     expect(screen.getByTestId("replay-view-tab-matrix")).toHaveTextContent("INTRINSIC ONLY");
 
-    const scrubber = screen.getByTestId("replay-scrubber");
-    expect(scrubber).toHaveAttribute("aria-label", "Replay playhead");
+    const scrubber = screen.getByTestId("replay-scrubber-max");
+    expect(scrubber).toHaveAttribute("aria-label", "Replay playhead maximum");
     expect(scrubber.getAttribute("aria-valuetext") ?? "").toContain("Frame 2 of 2");
-    const range = screen.getByTestId("replay-range-slider");
-    expect(range).toHaveAttribute("aria-label", "Payoff matrix spot range");
+    const range = screen.getByTestId("replay-range-slider-max");
+    expect(range).toHaveAttribute("aria-label", "Payoff matrix spot range maximum");
     expect(range.getAttribute("aria-valuetext") ?? "").toContain("8 percent");
 
     const play = screen.getByTestId("replay-play");
@@ -1063,7 +1131,10 @@ describe("ReplayPanel data provenance", () => {
     setPendingOrder(request);
     render(() => <ReplayPanel />);
 
-    expect(await screen.findByTestId("replay-chart-error")).toHaveTextContent("echarts chunk failed");
+    const alert = await screen.findByTestId("replay-chart-error");
+    expect(alert).toHaveTextContent("The P&L chart couldn't be drawn");
+    expect(alert.querySelector("details")?.textContent).toContain("echarts chunk failed");
+    expect(alert.querySelector("[title]")).toHaveAttribute("title", "echarts chunk failed");
   });
 
   test("a cached preview is reused only for the exact structure that produced it", async () => {
