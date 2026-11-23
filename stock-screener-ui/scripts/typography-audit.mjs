@@ -54,6 +54,14 @@ const REM = [
 const MAP_INDEX = /\b(?:sizeMap|SIZE_MAP|fontSizeMap|FONT_SIZE_MAP)\s*\[/g;
 
 /** Computed (template-literal) font-size declarations. */
+/** Parent-relative em sizes are private too: they evade the token ladder. */
+const EM = [
+  /text-\[(\d+(?:\.\d+)?)em\]/g,
+  /"font-size"\s*:\s*"(\d+(?:\.\d+)?)em"/g,
+  /font-size\s*=\s*"(\d+(?:\.\d+)?)em"/g,
+  /fontSize\s*:\s*"(\d+(?:\.\d+)?)em"/g,
+];
+
 const COMPUTED = [
   /"font-size"\s*:\s*`([^`]*)`/g,
   /"fontSize"\s*:\s*`([^`]*)`/g,
@@ -103,6 +111,12 @@ for (const path of walk(SRC)) {
       pattern.lastIndex = 0;
       for (const match of lineText.matchAll(pattern)) {
         record(rel, index + 1, Number(match[1]) * REM_ROOT_PX, `${match[0]} (rem)`);
+      }
+    }
+    for (const pattern of EM) {
+      pattern.lastIndex = 0;
+      for (const match of lineText.matchAll(pattern)) {
+        record(rel, index + 1, NaN, `${match[0]} (em)`);
       }
     }
     if (!inDesignSystem) return;

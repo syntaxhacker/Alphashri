@@ -124,7 +124,7 @@ describe("icon scale", () => {
 // One tier in src/ui/typography.ts. A private px declaration is drift even
 // when its number happens to be in the ladder; use text-ui-* or typeStyle().
 const PRIVATE_SIZE =
-  /text-\[(\d+(?:\.\d+)?)px\]|"font-size"\s*:\s*"(\d+(?:\.\d+)?)px"|fontSize\s*:\s*(\d+(?:\.\d+)?)\b|font-size="(\d+(?:\.\d+)?)"/g;
+  /text-\[(\d+(?:\.\d+)?)(?:px|em)\]|"font-size"\s*:\s*"(\d+(?:\.\d+)?)(?:px|em)"|fontSize\s*:\s*(\d+(?:\.\d+)?)\b|font-size="(\d+(?:\.\d+)?)"/g;
 
 /** rem literals and private alias ladders (the old sizeMap rem rungs). */
 const PRIVATE_REM = [
@@ -154,7 +154,8 @@ export function findTypographyOffenders(file: string, source: string, inDesignSy
   const out: Offender[] = [];
   source.split("\n").forEach((text, i) => {
     for (const m of text.matchAll(PRIVATE_SIZE)) {
-      out.push({ file, line: i + 1, detail: `${m[1] ?? m[2] ?? m[3] ?? m[4]}px` });
+      const unit = /em["\]]/.test(m[0]) ? "em" : "px";
+      out.push({ file, line: i + 1, detail: `${m[1] ?? m[2] ?? m[3] ?? m[4]}${unit}` });
     }
     for (const m of text.matchAll(MAP_INDEX)) {
       out.push({ file, line: i + 1, detail: m[0] });
@@ -176,13 +177,15 @@ export function findTypographyOffenders(file: string, source: string, inDesignSy
 }
 
 describe("type scale", () => {
-  it("detects rem rungs, sizeMap indices and raw computed font sizes", () => {
+  it("detects rem/em rungs, sizeMap indices and raw computed font sizes", () => {
     const found = findTypographyOffenders("f.tsx", [
       'const sizeMap = { xs: "0.75rem", sm: "0.875rem" };',
       'style={{ "font-size": sizeMap[size] }}',
       '<p style={{ "font-size": "1.125rem" }} />',
       '<p className="text-[1.25rem]" />',
       'style={{ "font-size": `${side - 4}px` }}',
+      '<code style={{ "font-size": "0.875em" }} />',
+      '<code className="text-[1.1em]" />',
     ].join("\n"), true);
     expect(found.map((o) => o.detail)).toEqual([
       "0.75rem",
@@ -191,6 +194,8 @@ describe("type scale", () => {
       "1.125rem",
       "1.25rem",
       "computed font-size: ${side - 4}px",
+      "0.875em",
+      "1.1em",
     ]);
   });
 

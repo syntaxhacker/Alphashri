@@ -2,6 +2,7 @@ import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import { pickTextColor } from "../../utils/contrast";
+import { TYPE_CLASS } from "../typography";
 import type { JSX } from "solid-js";
 import type { UICodeProps } from "../types";
 
@@ -39,7 +40,6 @@ export function Code(props: UICodeProps & Record<string, unknown>) {
   const colorValue = resolveColorValue(known.color as string | undefined);
 
   const baseStyle: Record<string, string | number | undefined> = {
-    "font-size": "0.875em",
     padding: "2px 6px",
     "border-radius": "1px",
     ...(known.color != null
@@ -58,7 +58,7 @@ export function Code(props: UICodeProps & Record<string, unknown>) {
   if (known.block) {
     return (
       <Root
-        className={cn(known.className, "font-mono")}
+        className={cn(known.className, "font-mono", TYPE_CLASS.body)}
         style={{
           ...baseStyle,
           display: "block",
@@ -80,7 +80,7 @@ export function Code(props: UICodeProps & Record<string, unknown>) {
 
   return (
     <Root
-      className={cn(known.className, "font-mono")}
+      className={cn(known.className, "font-mono", TYPE_CLASS.body)}
       style={{ ...baseStyle, ...(known.style as Record<string, unknown> | undefined) }}
       id={known.id}
       data-testid={known["data-testid"]}

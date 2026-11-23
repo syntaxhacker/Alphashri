@@ -329,14 +329,12 @@ export interface UIUnstyledButtonProps extends UIBaseProps {
 }
 
 /**
- * Props carried over from the Mantine-era API. Accepted so old call sites keep
- * compiling, stripped before render — they can never affect the DOM.
+ * The one Mantine-era input prop with a real DOM target: `errorProps` is spread
+ * onto the rendered message node. The other styling props were never used and
+ * are not advertised on any public input type.
  */
 export interface UIInputCompatProps {
   errorProps?: Record<string, unknown>;
-  styles?: Record<string, unknown>;
-  loading?: boolean;
-  variant?: string;
 }
 
 export interface UIInputWrapperProps extends UIBaseProps {
