@@ -757,20 +757,35 @@ export interface UICloseButtonProps extends UIBaseProps {
   onClick?: () => void;
 }
 
+/** Copy shown by the date control. Override every string to localise the primitive. */
+export interface UIDatePickerLabels {
+  /** Accessible name for the clear button. */
+  clear?: string;
+  /** Live-region message announced when a pick is rejected. */
+  invalid?: string;
+  /** Accessible name for the input when no visible `placeholder` label is supplied. */
+  input?: string;
+}
+
+/**
+ * A single calendar date on a native `<input type="date">`.
+ *
+ * Single dates only: there is deliberately no range, time, timezone or locale
+ * model, and no custom calendar grid. `placeholder` doubles as the visible
+ * label. Removed from the old Mantine-era surface: `size`, `weekendDays`,
+ * `valueFormat`, `getDayProps` — none could be painted by a native date input.
+ */
 export interface UIDatePickerProps extends UIBaseProps {
   value?: Date | null;
   defaultValue?: Date | null;
   onChange?: (date: Date | null) => void;
   placeholder?: string;
-  size?: UISize;
   clearable?: boolean;
   minDate?: Date;
   maxDate?: Date;
   excludeDate?: (date: Date) => boolean;
-  weekendDays?: number[];
-  valueFormat?: string;
   disabled?: boolean;
-  getDayProps?: (date: Date) => Record<string, unknown>;
+  labels?: UIDatePickerLabels;
 }
 
 export interface UIInputLabelProps extends UIBaseProps {

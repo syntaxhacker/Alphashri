@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
+import type { UIDatePickerProps } from "../types";
 import { DatePicker } from "./DatePicker";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -127,5 +128,123 @@ describe("DatePicker — excludeDate", () => {
 
     expect(inputOf(container).value).toBe("2026-04-23");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+describe("DatePicker — public contract", () => {
+  it("is one native date input, not a range or calendar grid", () => {
+    const { container } = render(() => <DatePicker placeholder="Expiry" />);
+    expect(container.querySelectorAll('input[type="date"]')).toHaveLength(1);
+    expect(container.querySelector("table")).toBeNull();
+    expect(container.querySelectorAll("input")).toHaveLength(1);
+  });
+
+  it("never paints the removed Mantine-era props, even if a JS caller forces them through", () => {
+    // size / weekendDays / valueFormat / getDayProps are gone from UIDatePickerProps.
+    const legacy = {
+      size: "xs",
+      weekendDays: [0, 6],
+      valueFormat: "MMM D",
+      getDayProps: () => ({ "data-day": true }),
+    } as unknown as UIDatePickerProps;
+    const { container } = render(() => <DatePicker {...legacy} placeholder="Expiry" />);
+    const root = container.firstElementChild as HTMLElement;
+    const input = inputOf(container);
+
+    for (const key of ["size", "weekenddays", "valueformat", "getdayprops", "data-day"]) {
+      expect(root).not.toHaveAttribute(key);
+      expect(input).not.toHaveAttribute(key);
+    }
+    expect(input).toHaveAttribute("type", "date");
+    expect(container.querySelectorAll('input[type="date"]')).toHaveLength(1);
+  });
+
+  it("gives the input a stable id and associates the visible label", () => {
+    const { container } = render(() => <DatePicker placeholder="Expiry" />);
+    const input = inputOf(container);
+
+    expect(input.id).toBeTruthy();
+    expect(screen.getByLabelText("Expiry")).toBe(input);
+    expect(container.querySelector(`label[for="${input.id}"]`)).toBeInTheDocument();
+  });
+
+  it("reuses an explicit id, then data-testid, as the input id", () => {
+    const explicit = render(() => <DatePicker id="expiry" placeholder="Expiry" />);
+    expect(inputOf(explicit.container)).toHaveAttribute("id", "expiry");
+
+    explicit.unmount();
+
+    const tested = render(() => <DatePicker data-testid="expiry-test" placeholder="Expiry" />);
+    expect(inputOf(tested.container)).toHaveAttribute("id", "expiry-test");
+  });
+
+  it("names a label-less input through labels.input, defaulting to 'Date'", () => {
+    const bare = render(() => <DatePicker />);
+    expect(inputOf(bare.container)).toHaveAttribute("aria-label", "Date");
+    bare.unmount();
+
+    const localised = render(() => <DatePicker labels={{ input: "Fecha" }} />);
+    expect(inputOf(localised.container)).toHaveAttribute("aria-label", "Fecha");
+  });
+
+  it("exposes rejected state as aria-invalid and points at the alert", () => {
+    const { container } = render(() => (
+      <DatePicker value={new Date(2026, 3, 20)} excludeDate={() => true} />
+    ));
+    const input = inputOf(container);
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(input).not.toHaveAttribute("aria-describedby");
+
+    fireEvent.input(input, { target: { value: "2026-04-21" } });
+
+    const alert = screen.getByRole("alert");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(alert.id).toBeTruthy();
+    expect(input).toHaveAttribute("aria-describedby", alert.id);
+  });
+
+  it("keeps a visible focus ring on the native input", () => {
+    const { container } = render(() => <DatePicker />);
+    const className = inputOf(container).className;
+    expect(className).toContain("focus:ring-fin-primary");
+    expect(className).toContain("focus-visible:ring-2");
+  });
+});
+
+describe("DatePicker — labels", () => {
+  it("uses the backward-compatible English defaults", () => {
+    const onChange = vi.fn();
+    const { container } = render(() => (
+      <DatePicker value={new Date(2026, 3, 20)} clearable onChange={onChange} excludeDate={() => true} />
+    ));
+
+    expect(screen.getByRole("button", { name: "Clear date" })).toBeInTheDocument();
+
+    fireEvent.input(inputOf(container), { target: { value: "2026-04-21" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("Selected date is not available");
+  });
+
+  it("uses caller-supplied clear and invalid strings", () => {
+    const { container } = render(() => (
+      <DatePicker
+        value={new Date(2026, 3, 20)}
+        clearable
+        excludeDate={() => true}
+        labels={{ clear: "Effacer", invalid: "Date indisponible" }}
+      />
+    ));
+
+    expect(screen.getByRole("button", { name: "Effacer" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear date" })).not.toBeInTheDocument();
+
+    fireEvent.input(inputOf(container), { target: { value: "2026-04-21" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("Date indisponible");
+    expect(screen.queryByText("Selected date is not available")).not.toBeInTheDocument();
+  });
+
+  it("falls back per key when only some labels are supplied", () => {
+    const { container } = render(() => <DatePicker clearable value={new Date(2026, 3, 20)} labels={{ clear: "Löschen" }} />);
+    expect(screen.getByRole("button", { name: "Löschen" })).toBeInTheDocument();
+    expect(inputOf(container)).toHaveAttribute("aria-label", "Date");
   });
 });

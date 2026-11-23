@@ -24,11 +24,12 @@ const meta: Meta<DatePickerArgs> = {
     docs: {
       description: {
         component:
-          "src/ui/inputs/dates/DatePicker.tsx — a native date input with local-calendar ISO conversion " +
-          "(no UTC day shift). `placeholder` doubles as the visible label bound to the input. `minDate`, " +
-          "maxDate` and `excludeDate` constrain picks; a rejected date restores the previous value and " +
-          "shows an alert. `value` with `onChange` is controlled and emits Date | null. The `size`, " +
-          "weekendDays, valueFormat and getDayProps entries in the prop type are not painted by this component.",
+          "src/ui/dates/DatePicker.tsx — a native date input with local-calendar ISO conversion " +
+          "(no UTC day shift). Single date only: not a range picker, with no time, timezone or locale model. " +
+          "`placeholder` doubles as the visible label bound to the input; `labels` overrides the clear, " +
+          "invalid and bare-input strings. `minDate`, `maxDate` and `excludeDate` constrain picks; a " +
+          "rejected date restores the previous value and announces an alert through aria-describedby. " +
+          "`value` with `onChange` is controlled and emits Date | null.",
       },
     },
   },
