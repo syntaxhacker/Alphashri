@@ -130,11 +130,14 @@ The live day had **15,843 rows** at the API, not 3,942. A whole-date pull is
 
 ---
 
-## 4. Backfill the 2026-06-01 → 2026-11-21 hole
+## 4. Backfill a date range
 
-There are **173 missing dates** in the local cache (`2026-06-01` through
-`2026-11-20`). Dispatch in weekly chunks, newest-first for freshness, and
-verify each release asset before starting the next chunk.
+As of 2026-11-23, GitHub releases cover **2025-10-27 → 2026-11-21 (388 daily
+assets)**; the old `2026-06-01 → 2026-11-21` hole is closed. Keep this recipe
+for a future hole. Dispatch in chunks of at most 31 days, newest-first for
+freshness, and verify each release asset before starting the next chunk. The
+workflow file must exist on the default branch before `gh workflow run` can
+dispatch it (this repository's copy lives on `develop` until released).
 
 ```bash
 for range in \
