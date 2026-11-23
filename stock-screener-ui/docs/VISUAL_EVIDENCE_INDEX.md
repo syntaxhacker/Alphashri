@@ -96,6 +96,7 @@ results.
 | Axe, **app routes** | `tests/e2e/app-a11y.spec.ts` **runs in CI** in the `e2e-smoke` job (step `Verify app routes with axe`, `APP_A11Y=1`, 2 workers), after the smoke tests and reusing the same API + dev server. Real-browser axe audits of `/report/index`, `/sector`, `/options`, `/home` (desk) and bare `/screener` with shared mocks; WCAG 2.0/2.1 A/AA tags; fails on serious/critical only (`color-contrast` incompletes documented/allowed). | **Wired into CI.** Configuration change only — no committed run artifact accompanies this index, so treat the pass as a CI gate claim, not fresh evidence here. |
 | Keyboard, **10 walkthroughs** | `scripts/storybook-keyboard.mjs`: Modal open (Tab cycle/Shift+Tab wrap), Modal dismissal (Escape/focus return), Tree (arrows/expand/select), Menu (arrows/Home/End/Escape), horizontal Tabs, vertical Tabs, Popover, Tooltip, modal FloatingWindow, NavLink (button[role=link] Enter/Space activation, disabled inert, href stays an anchor). | **Configured.** `DESIGN_SYSTEM_A_PLUS_GATE.md:90` documents 10/10; no committed run artifact accompanies this index, so treat 10/10 as a documented claim, not fresh evidence. |
 | Visual baseline, **12 images** | `tests/visual/__screenshots__/README.md` and `docs/VISUAL_REGRESSION.md`: 6 stories × 2 viewports — `typography-landing`, `overview`, `inputs-landing`, `data-display-landing`, `overlay-landing`, `foundations-landing` at `desktop-1600` / `mobile-390`; `bun run visual:test` must find all 12 (no writes). | **Harness + CI step configured (`ff939b9a`), baselines pending.** Directory contains only `README.md`; 0 of 12 PNGs exist. `bun run build-storybook` + `bun run visual:update` must produce and commit them before the gate can pass; do not call it green. |
+| Screenshot evidence, **60 PNGs** | `scripts/evidence-audit.mjs` via `bun run audit:evidence`: gating structural check of 8 app-route PNGs (`1600×1000` / `390×844`) and 52 showcase PNGs (width 1600 / 390, height ≥ viewport); each must exist, be a valid PNG and be ≥8 KiB. **Runs in CI** in the `frontend-lint-typecheck` job (step `Verify screenshot evidence`, immediately after `Verify Storybook visual baseline`). | **Wired into CI (gating, exits 1 on missing/invalid/too-small/wrong-dimension).** Current `HEAD` has known pending app-route captures (§5) — intentional until the final capture commit adds them; do not call it green before that commit lands. |
 
 ## 4. Evidence vs claims — the line
 
@@ -139,7 +140,10 @@ Each must exist, be a valid PNG, be at least 8 KiB, and have the expected IHDR
 dimensions (app exactly 1600×1000 / 390×844; showcase width 1600 / 390 and
 height ≥ viewport). It does not decode pixels or rate visuals. **The default
 `audit:evidence` is gating: it lists missing, invalid, too-small and
-wrong-dimension PNGs and exits 1 if any fail.**
+wrong-dimension PNGs and exits 1 if any fail.** This gating command is the one
+wired into CI in the `frontend-lint-typecheck` job (step `Verify screenshot
+evidence`, right after `Verify Storybook visual baseline`), so a PR with
+missing/invalid/wrong-dimension committed screenshots fails.
 
 While captures are still in progress (see §5), use the non-gating variant:
 

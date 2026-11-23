@@ -220,6 +220,8 @@ jobs:
         run: cd stock-screener-ui && bun x playwright install --with-deps chromium
       - name: Verify Storybook visual baseline
         run: cd stock-screener-ui && bun run visual:test
+      - name: Verify screenshot evidence
+        run: cd stock-screener-ui && bun run audit:evidence
       - name: Verify Storybook in a real browser (axe)
         run: cd stock-screener-ui && node scripts/storybook-a11y.mjs
       - name: Verify Storybook keyboard walkthrough
