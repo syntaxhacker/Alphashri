@@ -755,7 +755,10 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
   return (
     <LocalCompactPanel
       title={
-        <span style={{ display: "inline-flex", "align-items": "center", gap: "6px", "white-space": "nowrap", "flex-shrink": 0 }}>
+        <span
+          data-testid="nifty-chart-title"
+          class="inline-flex items-center gap-[6px] whitespace-nowrap shrink-0 max-[640px]:whitespace-normal max-[640px]:shrink"
+        >
           {view() === "depth" ? `${symbol()} depth map` : `${symbol()} chart`}
           <Show when={feedView()}>
             {(view) => (
@@ -766,7 +769,8 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
                 fw={700}
                 span
                 title={view().title}
-                style={{ color: view().color, "white-space": "nowrap" }}
+                class="whitespace-nowrap max-[640px]:whitespace-normal"
+                style={{ color: view().color }}
               >
                 {view().label}
               </Text>
@@ -789,7 +793,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
         </span>
       }
       testId="nifty-chart-panel"
-      class="[&_[data-compact-card-content]]:flex-1 [&_[data-compact-card-content]]:min-h-0 [&_[data-compact-card-content]]:overflow-hidden max-[600px]:[&_[data-compact-card-content]]:p-0 max-[600px]:[&_[data-compact-card-content]]:gap-0"
+      class="[&_[data-compact-card-content]]:flex-1 [&_[data-compact-card-content]]:min-h-0 [&_[data-compact-card-content]]:overflow-hidden max-[600px]:[&_[data-compact-card-content]]:p-0 max-[600px]:[&_[data-compact-card-content]]:gap-0 max-[640px]:[&>div:first-child]:flex-col max-[640px]:[&>div:first-child]:items-stretch max-[640px]:[&>div:first-child]:gap-y-1"
       style={{ "min-width": "0px", "min-height": "0px", height: "100%", overflow: "hidden", display: "flex", "flex-direction": "column" }}
       action={
         view() === "chart" ? (

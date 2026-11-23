@@ -379,6 +379,74 @@ describe("NiftyOiChain", () => {
   });
 });
 
+describe("option-chain header and signal badge collisions", () => {
+  function chainWithSentiments(ce: string, pe: string): NiftyStrike {
+    const row = chainRow(25700);
+    return {
+      ...row,
+      ce: { ...row.ce, sentiment: ce },
+      pe: { ...row.pe, sentiment: pe },
+    } as NiftyStrike;
+  }
+
+  function mountChain(rows: NiftyStrike[]) {
+    return render(() => (
+      <NiftyOiChain
+        strikes={rows}
+        columns={getNiftyOiColumns(25700, { showLegChange: false })}
+        getRowStyle={() => undefined}
+        getRowTestId={() => "nifty-oi-row"}
+        panelTestId="nifty-oi-panel"
+        tableTestId="nifty-oi-table"
+        wrapTestId="nifty-oi-wrap"
+      />
+    ));
+  }
+
+  test("compact chain headers fit their columns and keep the full name in title", () => {
+    mountChain([chainRow(25700)]);
+    const headers = Array.from(screen.getByTestId("nifty-oi-table").querySelectorAll("thead th"));
+    expect(headers.map((th) => th.textContent)).toEqual([
+      "CE ΔOI",
+      "CE SIG",
+      "STRIKE",
+      "PE SIG",
+      "PE ΔOI",
+    ]);
+    for (const th of headers) {
+      expect((th.textContent ?? "").length, `header ${th.textContent} must stay short`).toBeLessThanOrEqual(6);
+      expect(th.textContent).not.toMatch(/SIGNAL|OI CHG/i);
+      const labelled = th.querySelector("[title]");
+      expect(labelled).not.toBeNull();
+      expect((labelled!.getAttribute("title") ?? "").length).toBeGreaterThan(6);
+    }
+    const columns = getNiftyOiColumns(null, { showLegChange: false });
+    for (const id of ["ceSignal", "peSignal"]) {
+      expect(columns.find((c) => c.id === id)?.size, `${id} width`).toBeGreaterThanOrEqual(72);
+    }
+  });
+
+  test("free-text Bearish/Bullish badges show a whole word with the reported text in title and aria", () => {
+    const { container } = mountChain([chainWithSentiments("Bullish", "Bearish")]);
+    const badge = (side: "ce" | "pe") =>
+      container.querySelector(`[data-testid="nifty-oi-signal-${side}"]`) as HTMLElement;
+    expect(badge("ce").textContent).toBe("BULL");
+    expect(badge("pe").textContent).toBe("BEAR");
+    for (const [side, word] of [["ce", "Bullish"], ["pe", "Bearish"]] as const) {
+      expect(badge(side).getAttribute("title")).toContain(word);
+      expect(badge(side).getAttribute("aria-label")).toContain(word);
+      expect(badge(side).textContent).not.toContain("…");
+      expect(badge(side).textContent).not.toMatch(/^Beari/);
+    }
+  });
+
+  test("registry codes stay compact and an empty sentiment shows a dash", () => {
+    const { container } = mountChain([chainWithSentiments("LB", "")]);
+    expect(container.querySelector('[data-testid="nifty-oi-signal-ce"]')?.textContent).toBe("LB");
+    expect(container.querySelector('[data-testid="nifty-oi-signal-pe"]')?.textContent).toBe("—");
+  });
+});
+
 describe("NiftySpotValue", () => {
   test("follows the live tick and falls back to the report spot", () => {
     setLiveTick(null);

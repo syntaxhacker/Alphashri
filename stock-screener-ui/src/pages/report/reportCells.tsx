@@ -312,17 +312,29 @@ export function buildOvernightLevels(report: NiftyReport): {
 }
 
 export function sentimentBadge(sentiment: string, side: "ce" | "pe"): JSX.Element {
-  const code = sentimentCode(sentiment);
-  const label = sentimentLabel(sentiment);
-  const sign = sentimentSign(sentiment, side);
-  const tone = sign === 0 ? palette.TEXT_MUTED : sign > 0 ? palette.POSITIVE : palette.NEGATIVE;
-  const short = sign === 0 ? label || "—" : code;
+  const raw = String(sentiment ?? "").trim();
+  const code = sentimentCode(raw);
+  const label = sentimentLabel(raw);
+  const sign = sentimentSign(raw, side);
+  // Free-text payloads ("Bullish"/"Bearish") are outside the LB/SB/SC/LU
+  // registry. Rendering them verbatim in a 72px chain cell cut "Bearish" to
+  // "Beari…"; a direction word keeps the badge whole, with the reported text
+  // preserved in the tooltip and the accessible name.
+  const direction = code ? sign : /bull/i.test(raw) ? 1 : /bear/i.test(raw) ? -1 : 0;
+  const short = code || (direction > 0 ? "BULL" : direction < 0 ? "BEAR" : "—");
   const upperSide: "CE" | "PE" = side === "ce" ? "CE" : "PE";
   const title = code
     ? `${label} (${upperSide}) — ${sentimentNote(code, upperSide)}`
-    : label || sentiment;
+    : label
+      ? `${label} (${upperSide}) — reported sentiment`
+      : `No sentiment reported (${upperSide})`;
+  const tone =
+    direction === 0 ? palette.TEXT_MUTED : direction > 0 ? palette.POSITIVE : palette.NEGATIVE;
   return (
     <span
+      data-testid={`nifty-oi-signal-${side}`}
+      role="img"
+      aria-label={title}
       title={title}
       style={{
         display: "inline-flex",
@@ -350,7 +362,7 @@ export function sentimentBadge(sentiment: string, side: "ce" | "pe"): JSX.Elemen
           "flex-shrink": 0,
         }}
       />
-      <Text size="xs" fw={700} span truncate style={{ color: tone }}>
+      <Text size="xs" fw={700} span style={{ color: tone }}>
         {short}
       </Text>
     </span>
@@ -541,7 +553,10 @@ export function findAtmStrike(strikes: NiftyStrike[], spot: number): number | nu
 
 const OI_CE_CHG_W = 110;
 const OI_CE_OI_W = 88;
-const OI_SIG_W = 64;
+// 72px holds a 6-character mono header ("CE SIG"/"PE SIG") at the 12px floor
+// plus cell inset; at 64px the header text spilled into the neighbouring
+// columns and "CE SIGNAL"/"PE SIGNAL" ran into STRIKE / PE OI Chg.
+const OI_SIG_W = 72;
 const OI_STRIKE_W = 92;
 
 export interface NiftyOiColumnOpts {
@@ -570,7 +585,7 @@ export function getNiftyOiColumns(
   const coreColumns: TableColumnDef<NiftyStrike>[] = [
     {
       id: "ceOiChange",
-      header: "CE OI Chg",
+      header: <span title="CE OI Chg — change in call open interest since the previous snapshot">CE ΔOI</span>,
       accessorKey: "ce.oiChange",
       accessorFn: (row) => row.ce.oiChange,
       size: OI_CE_OI_W,
@@ -582,7 +597,7 @@ export function getNiftyOiColumns(
     },
     {
       id: "ceSignal",
-      header: "CE Signal",
+      header: <span title="CE Signal — call-side position build/unwind: bullish, bearish or neutral">CE SIG</span>,
       accessorKey: "ce.sentiment",
       accessorFn: (row) => row.ce.sentiment,
       size: OI_SIG_W,
@@ -591,7 +606,7 @@ export function getNiftyOiColumns(
     },
     {
       id: "strike",
-      header: "Strike",
+      header: <span title="Strike price (₹)">STRIKE</span>,
       accessorKey: "strike",
       size: OI_STRIKE_W,
       meta: { align: "right" },
@@ -639,7 +654,7 @@ export function getNiftyOiColumns(
     },
     {
       id: "peSignal",
-      header: "PE Signal",
+      header: <span title="PE Signal — put-side position build/unwind: bullish, bearish or neutral">PE SIG</span>,
       accessorKey: "pe.sentiment",
       accessorFn: (row) => row.pe.sentiment,
       size: OI_SIG_W,
@@ -648,7 +663,7 @@ export function getNiftyOiColumns(
     },
     {
       id: "peOiChange",
-      header: "PE OI Chg",
+      header: <span title="PE OI Chg — change in put open interest since the previous snapshot">PE ΔOI</span>,
       accessorKey: "pe.oiChange",
       accessorFn: (row) => row.pe.oiChange,
       size: OI_CE_OI_W,

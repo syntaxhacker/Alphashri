@@ -121,6 +121,32 @@ describe("NiftyChartPanel — mobile header controls (390px)", () => {
     expect(cls).toContain("max-[600px]:[&_[data-compact-card-content]]:gap-0");
   });
 
+  test("the chart title stacks above the controls below 640px and keeps its full text", () => {
+    env.mobile = true;
+    mount();
+
+    const panel = screen.getByTestId("nifty-chart-panel");
+    const header = panel.firstElementChild as HTMLElement;
+    const title = screen.getByTestId("nifty-chart-title");
+    const controls = screen.getByTestId("nifty-chart-controls-mobile");
+    expect(header.children[0]).toContainElement(title);
+    expect(header.children[1]).toBe(controls);
+
+    expect(title).toHaveTextContent("NIFTY chart");
+    expect(title.className).toContain("max-[640px]:whitespace-normal");
+    expect(title.className).toContain("max-[640px]:shrink");
+    expect(title.style.whiteSpace).toBe("");
+
+    const cls = panel.className;
+    for (const rule of [
+      "max-[640px]:[&>div:first-child]:flex-col",
+      "max-[640px]:[&>div:first-child]:items-stretch",
+      "max-[640px]:[&>div:first-child]:gap-y-1",
+    ]) {
+      expect(cls).toContain(rule);
+    }
+  });
+
   test("desktop keeps the original single control row", () => {
     env.mobile = false;
     mount();
