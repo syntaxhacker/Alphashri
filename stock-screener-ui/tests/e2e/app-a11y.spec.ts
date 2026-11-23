@@ -189,9 +189,12 @@ const ROUTES: readonly AuditRoute[] = [
       await setupNewsMocks(page);
       await setupHomeDeskMocks(page);
     },
+    // Load the real /home route directly (as design-evidence.spec.ts does)
+    // rather than clicking `nav-home` from "/"; the rail is behind a drawer at
+    // narrow widths and the desk root/window-manager are the real readiness
+    // signals. Switch to the desk view before the axe audit.
     navigate: async (page) => {
-      await page.goto("/");
-      await page.getByTestId("nav-home").click();
+      await page.goto("/home");
       await expect(page).toHaveURL(/\/home$/);
       await expect(page.getByTestId("home-page")).toBeVisible();
       await page.getByTestId("home-view-desk").click();
