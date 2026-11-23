@@ -151,6 +151,33 @@ describe("contrast — Index Report strip controls", () => {
   });
 });
 
+describe("contrast — narrow-viewport scroll cues and focus rings", () => {
+  // The "Scroll sideways →" affordance and the sector/options trailing-arrow
+  // overflow cues paint text-fin-primary (amber) on bg-fin-surface. Both CSS
+  // custom properties are pinned in src/tailwind.css to PRIMARY / SURFACE.
+  const CUE_TEXT_CASES = [
+    ["Scroll sideways → cue", PRIMARY, SURFACE],
+    ["sector overflow cue", PRIMARY, SURFACE],
+    ["options overflow cue", PRIMARY, SURFACE],
+  ] as const;
+
+  it.each(CUE_TEXT_CASES)("%s keeps amber ink at >= 4.5:1 on the surface", (_cue, fg, bg) => {
+    const ratio = contrastRatio(fg, bg);
+    expect(ratio, `${fg} on ${bg} = ${ratio.toFixed(2)}:1, need >= ${AA_TEXT}:1`).toBeGreaterThanOrEqual(
+      AA_TEXT,
+    );
+  });
+
+  it("keeps the primary focus ring visible against the page background", () => {
+    // ring-fin-primary / outline-fin-primary is a meaningful non-text
+    // indicator, so WCAG needs >= 3:1 here rather than the 4.5:1 text floor.
+    const ratio = contrastRatio(PRIMARY, BG);
+    expect(ratio, `${PRIMARY} on ${BG} = ${ratio.toFixed(2)}:1, need >= ${AA_GRAPHIC}:1`).toBeGreaterThanOrEqual(
+      AA_GRAPHIC,
+    );
+  });
+});
+
 describe("contrast — hostile input never throws", () => {
   const bad = [undefined, null, 42, {}, Number.NaN] as unknown as string[];
 
