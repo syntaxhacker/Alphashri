@@ -36,7 +36,7 @@ const mode = createSignal<"live" | "eod">("live");
 const wallsData = createSignal<unknown>(null);
 
 // A real snapshot needs levels, not just metadata — one side is enough.
-const wallsWithLevels = { state: "positioning", calls: [{ strike: 22_500 }], puts: [] };
+const wallsWithLevels = { state: "positioning", calls: [{ strike: 22_500, oi: 1_200 }], puts: [] };
 
 vi.mock("./ReportContext", () => ({
   useNiftyReport: () => ({
@@ -124,6 +124,14 @@ describe("ReportStrips", () => {
   test("a metadata-only live payload with empty call and put rows stays compact", () => {
     mode[1]("live");
     wallsData[1]({ state: "positioning", calls: [], puts: [], spot: 22_350 });
+    render(() => <ReportStrips />);
+    expect(screen.getByTestId("nifty-walls-card")).toHaveTextContent(/waiting for walls data/i);
+    expect(screen.queryByTestId("walls-stub")).toBeNull();
+  });
+
+  test("placeholder rows with zero OI stay compact", () => {
+    mode[1]("live");
+    wallsData[1]({ state: "positioning", calls: [{ strike: 22_500, oi: 0 }], puts: [] });
     render(() => <ReportStrips />);
     expect(screen.getByTestId("nifty-walls-card")).toHaveTextContent(/waiting for walls data/i);
     expect(screen.queryByTestId("walls-stub")).toBeNull();

@@ -73,12 +73,15 @@ export function ReportStrips() {
   const symbol = () => store.selection.symbol();
   const wallsPayload = () => store.walls.data();
 
-  // A live recorder can hand back a truthy, row-less envelope before the chain
-  // has produced levels. That is no more a walls snapshot than null: only real
-  // call/put rows justify the full card and its reserved height.
+  // A live recorder can hand back a truthy envelope with placeholder rows
+  // before the chain has produced OI. That is no more a walls snapshot than
+  // null: only a strike with positive open interest justifies the full card.
   const realWalls = createMemo((): WallsPayload | null => {
     const walls = wallsPayload();
-    return walls && (walls.calls?.length ?? 0) + (walls.puts?.length ?? 0) > 0 ? walls : null;
+    const hasOi = [...(walls?.calls ?? []), ...(walls?.puts ?? [])].some(
+      (row) => (row.strike ?? 0) > 0 && (row.oi ?? 0) > 0,
+    );
+    return walls && hasOi ? walls : null;
   });
 
   const spotMove1m = createMemo(() => {
