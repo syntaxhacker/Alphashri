@@ -1,7 +1,17 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fireEvent, render, screen } from "@solidjs/testing-library";
+import {
+  ALERT_TONE_SUFFIXES,
+  ALERT_TOKEN_NAMES,
+  TONE_ANCHORS,
+  UI_TONES,
+  alertTone,
+  componentTokenProperty,
+} from "../componentTokens";
 import * as palette from "../palette";
 import { pickTextColor } from "@/utils/contrast";
 import { Alert } from "./Alert";
@@ -40,13 +50,64 @@ describe("Alert", () => {
     const el = screen.getByTestId("al4");
     expect(el.style.backgroundColor).toBe("transparent");
     expect(el.style.border).toBe("");
-    expect(el.style.color).toBe(palette.WARNING);
+    expect(el.style.color).toBe("var(--ui-alert-warning-main)");
   });
 
   test("filled alerts pick an ink that clears the contrast floor", () => {
     render(() => <Alert variant="filled" color="warning" data-testid="al5">watch</Alert>);
     const filled = screen.getByTestId("al5");
-    expect(filled.style.backgroundColor).toBe(palette.WARNING);
-    expect(filled.style.color).toBe(pickTextColor(palette.WARNING, palette.TEXT, palette.BG));
+    expect(filled.style.backgroundColor).toBe("var(--ui-alert-warning-main)");
+    expect(filled.style.color).toBe(pickTextColor(TONE_ANCHORS.warning, palette.TEXT, palette.BG));
+  });
+});
+
+describe("Alert — component token tier", () => {
+  const css = readFileSync(resolve(process.cwd(), "src/tailwind.css"), "utf8");
+
+  test("declares every alert token in tailwind.css", () => {
+    const missing = ALERT_TOKEN_NAMES.filter((name) => !css.includes(`${componentTokenProperty(name)}:`));
+    expect(missing).toEqual([]);
+  });
+
+  test("maps every colour alias and every tone to a declared token", () => {
+    for (const color of [
+      "success", "error", "danger", "warning", "info", "primary", "secondary", "unmapped", undefined,
+    ]) {
+      const tone = alertTone(color);
+      expect(UI_TONES, String(color)).toContain(tone);
+      for (const suffix of ALERT_TONE_SUFFIXES) {
+        const name = `ui-alert-${tone}-${suffix}`;
+        expect(ALERT_TOKEN_NAMES, name).toContain(name);
+        expect(css, name).toContain(`${componentTokenProperty(name as (typeof ALERT_TOKEN_NAMES)[number])}:`);
+      }
+    }
+  });
+
+  test("every variant paints from tokens (filled / light / outline / transparent / unset)", () => {
+    for (const variant of ["filled", "light", "outline", "transparent", undefined] as const) {
+      const { container } = render(() => <Alert variant={variant} color="success" data-testid={`v-${variant}`}>v</Alert>);
+      const style = (container.firstElementChild as HTMLElement).getAttribute("style") ?? "";
+      expect(style, String(variant)).toMatch(/var\(--ui-alert-/);
+    }
+  });
+
+  test("every tone keeps a contrast-safe filled ink from pickTextColor", () => {
+    for (const tone of UI_TONES) {
+      const { container } = render(() => <Alert variant="filled" color={tone}>filled</Alert>);
+      const el = container.firstElementChild as HTMLElement;
+      // Alert's historical table maps `primary` to INFO, so use the same map.
+      const resolved = alertTone(tone);
+      expect(el.style.backgroundColor, tone).toBe(`var(--ui-alert-${resolved}-main)`);
+      expect(el.style.color, tone).toBe(pickTextColor(TONE_ANCHORS[resolved], palette.TEXT, palette.BG));
+    }
+  });
+
+  test("raw caller colours keep their own contrast-picked ink", () => {
+    for (const color of [palette.PRIMARY, palette.INFO, "rgb(12, 34, 56)"]) {
+      const { container } = render(() => <Alert variant="filled" color={color}>raw</Alert>);
+      const el = container.firstElementChild as HTMLElement;
+      expect(el.style.backgroundColor).toBe(color);
+      expect(el.style.color).toBe(pickTextColor(color, palette.TEXT, palette.BG));
+    }
   });
 });

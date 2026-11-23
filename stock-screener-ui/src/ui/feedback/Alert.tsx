@@ -1,23 +1,20 @@
 import { Show, splitProps } from "solid-js";
+import { alertTone, componentTokenVar, isCustomColor, TONE_ANCHORS } from "../componentTokens";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import { pickTextColor } from "@/utils/contrast";
 import type { UIAlertProps } from "../types";
 
-const SEVERITY_MAIN: Record<string, string> = {
-  success: palette.POSITIVE_COLOR,
-  error: palette.NEGATIVE_COLOR,
-  danger: palette.NEGATIVE_COLOR,
-  warning: palette.WARNING,
-  info: palette.INFO,
-  primary: palette.INFO,
-  secondary: palette.TEXT_MUTED,
-};
+/* Painted colours come from the `--ui-alert-*` tier; the raw anchors in
+ * TONE_ANCHORS are used only to feed the contrast helper for filled inks. */
+const toneMain = (color: UIAlertProps["color"]) => componentTokenVar(`ui-alert-${alertTone(color)}-main`);
+const toneWash = (color: UIAlertProps["color"]) => componentTokenVar(`ui-alert-${alertTone(color)}-wash`);
+const toneWashBorder = (color: UIAlertProps["color"]) =>
+  componentTokenVar(`ui-alert-${alertTone(color)}-wash-border`);
 
 function resolveColor(color: UIAlertProps["color"]): string {
-  if (!color) return palette.INFO;
-  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl")) return color;
-  return SEVERITY_MAIN[color] ?? palette.INFO;
+  if (isCustomColor(color)) return color;
+  return toneMain(color);
 }
 
 function hexRgb(hex: string): string {
@@ -53,11 +50,13 @@ export function Alert(props: UIAlertProps) {
   ]);
 
   const main = resolveColor(known.color);
+  const custom = isCustomColor(known.color);
+  const tone = alertTone(known.color);
   const isFilled = known.variant === "filled";
   const isOutline = known.variant === "outline";
   const isTransparent = known.variant === "transparent";
   const br = radiusValue(known.radius);
-  const rgb = hexRgb(main);
+  const rgb = custom ? hexRgb(main) : undefined;
 
   let bg: string | undefined;
   let borderColor: string | undefined;
@@ -66,8 +65,9 @@ export function Alert(props: UIAlertProps) {
     bg = main;
     borderColor = main;
     // A solid severity fill is only as readable as its ink; never force the
-    // page token onto a tone that resolves lighter than the text anchor.
-    textColor = pickTextColor(main, palette.TEXT, palette.BG);
+    // page token onto a tone that resolves lighter than the text anchor. The
+    // helper needs a parseable colour, so named tones pass their raw anchor.
+    textColor = pickTextColor(custom ? main : TONE_ANCHORS[tone], palette.TEXT, palette.BG);
   } else if (isOutline) {
     bg = "transparent";
     borderColor = main;
@@ -76,8 +76,8 @@ export function Alert(props: UIAlertProps) {
     bg = "transparent";
     textColor = main;
   } else {
-    bg = `rgba(${rgb}, 0.10)`;
-    borderColor = `rgba(${rgb}, 0.35)`;
+    bg = custom ? `rgba(${rgb}, 0.10)` : toneWash(known.color);
+    borderColor = custom ? `rgba(${rgb}, 0.35)` : toneWashBorder(known.color);
     textColor = main;
   }
 

@@ -1,8 +1,17 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createSignal } from "solid-js";
 import { fireEvent, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
+import {
+  BUTTON_TONE_SUFFIXES,
+  BUTTON_TOKEN_NAMES,
+  UI_TONES,
+  buttonTone,
+  componentTokenProperty,
+} from "../componentTokens";
 import { Button } from "./Button";
 import type { UIButtonProps } from "../types";
 
@@ -43,29 +52,29 @@ describe("Button — variants are distinct treatments", () => {
     const neutral = classSet("default");
 
     // filled: solid fill, no visible border, heavier weight
-    expect(filled).toContain("bg-fin-primary");
+    expect(filled).toContain("bg-[var(--ui-button-primary-bg)]");
     expect(filled).toContain("border-transparent");
     expect(filled).toContain("font-semibold");
 
     // light: 12% accent wash, still no visible border
-    expect(light).toContain("bg-fin-primary/12");
+    expect(light).toContain("bg-[var(--ui-button-primary-wash)]");
     expect(light).toContain("border-transparent");
-    expect(light).not.toContain("bg-fin-primary");
+    expect(light).not.toContain("bg-[var(--ui-button-primary-bg)]");
 
     // outline: hairline, no fill
-    expect(outline).toContain("border-fin-border");
+    expect(outline).toContain("border-[var(--ui-button-neutral-border)]");
     expect(outline).toContain("bg-transparent");
-    expect(outline).not.toContain("bg-fin-primary");
+    expect(outline).not.toContain("bg-[var(--ui-button-primary-bg)]");
 
     // subtle: fully flat, hover-only wash
     expect(subtle).toContain("bg-transparent");
     expect(subtle).toContain("border-transparent");
-    expect(subtle).toContain("text-fin-text-muted");
+    expect(subtle).toContain("text-[var(--ui-button-neutral-muted)]");
 
     // default: neutral filled + hairline (a form button, not a CTA)
-    expect(neutral).toContain("bg-fin-surface-alt");
-    expect(neutral).toContain("border-fin-border");
-    expect(neutral).not.toContain("bg-fin-primary");
+    expect(neutral).toContain("bg-[var(--ui-button-neutral-surface-alt)]");
+    expect(neutral).toContain("border-[var(--ui-button-neutral-border)]");
+    expect(neutral).not.toContain("bg-[var(--ui-button-primary-bg)]");
   });
 
   it("shifts the whole treatment — not just the text — for color=error", () => {
@@ -75,8 +84,8 @@ describe("Button — variants are distinct treatments", () => {
       </Button>
     ));
     const cls = container.firstElementChild as HTMLElement;
-    expect(cls.className).toContain("bg-fin-negative");
-    expect(cls.className).not.toContain("bg-fin-primary");
+    expect(cls.className).toContain("bg-[var(--ui-button-negative-bg)]");
+    expect(cls.className).not.toContain("bg-[var(--ui-button-primary-bg)]");
 
     const outlined = render(() => (
       <Button variant="outline" color="error">
@@ -84,21 +93,21 @@ describe("Button — variants are distinct treatments", () => {
       </Button>
     ));
     const out = outlined.container.firstElementChild as HTMLElement;
-    expect(out.className).toContain("border-fin-negative");
-    expect(out.className).toContain("text-fin-negative");
+    expect(out.className).toContain("border-[var(--ui-button-negative-text)]");
+    expect(out.className).toContain("text-[var(--ui-button-negative-text)]");
 
     const tinted = render(() => (
       <Button variant="light" color="error">
         Danger
       </Button>
     ));
-    expect((tinted.container.firstElementChild as HTMLElement).className).toContain("bg-fin-negative/12");
+    expect((tinted.container.firstElementChild as HTMLElement).className).toContain("bg-[var(--ui-button-negative-wash)]");
   });
 
   it("keeps outline and default neutral when no color is given", () => {
-    expect(classSet("outline")).toContain("border-fin-border");
-    expect(classSet("outline")).not.toContain("text-fin-primary");
-    expect(classSet("default")).not.toContain("border-fin-primary");
+    expect(classSet("outline")).toContain("border-[var(--ui-button-neutral-border)]");
+    expect(classSet("outline")).not.toContain("text-[var(--ui-button-primary-text)]");
+    expect(classSet("default")).not.toContain("border-[var(--ui-button-primary-text)]");
   });
 
   it("keeps an explicit transparent control out of the boxed height map", () => {
@@ -220,14 +229,14 @@ describe("Button — behaviour preserved", () => {
       </Button>
     ));
     const btn = screen.getByRole("button", { name: "live" });
-    expect(btn.className).toContain("bg-fin-primary");
+    expect(btn.className).toContain("bg-[var(--ui-button-primary-bg)]");
     expect(btn.className).toContain("h-[24px]");
 
     setVariant("subtle");
     setSize("lg");
     const tokens = new Set(btn.className.split(" "));
-    expect(tokens.has("bg-fin-primary")).toBe(false);
-    expect(btn.className).toContain("text-fin-text-muted");
+    expect(tokens.has("bg-[var(--ui-button-primary-bg)]")).toBe(false);
+    expect(btn.className).toContain("text-[var(--ui-button-neutral-muted)]");
     expect(btn.className).toContain("h-[38px]");
   });
 
@@ -239,5 +248,50 @@ describe("Button — behaviour preserved", () => {
     ));
     expect(screen.getByTestId("l")).toBeInTheDocument();
     expect(screen.getByTestId("r")).toBeInTheDocument();
+  });
+});
+
+describe("Button — component token tier", () => {
+  const css = readFileSync(resolve(process.cwd(), "src/tailwind.css"), "utf8");
+
+  it("declares every button token in tailwind.css", () => {
+    const missing = BUTTON_TOKEN_NAMES.filter((name) => !css.includes(`${componentTokenProperty(name)}:`));
+    expect(missing).toEqual([]);
+  });
+
+  it("maps every colour alias used by Button to a declared tone token", () => {
+    const colors: Array<UIButtonProps["color"]> = [
+      "primary", "success", "error", "danger", "warning", "info", "secondary", "unmapped", undefined,
+    ];
+    for (const color of colors) {
+      const tone = buttonTone(color);
+      expect(UI_TONES, String(color)).toContain(tone);
+      for (const suffix of BUTTON_TONE_SUFFIXES) {
+        const name = `ui-button-${tone}-${suffix}`;
+        expect(BUTTON_TOKEN_NAMES, name).toContain(name);
+        expect(css, name).toContain(`${componentTokenProperty(name as (typeof BUTTON_TOKEN_NAMES)[number])}:`);
+      }
+    }
+  });
+
+  it("every variant reads a component token, not a re-derived palette value", () => {
+    const variants: Array<UIButtonProps["variant"]> = [...VARIANTS, "white", "transparent", undefined];
+    for (const variant of variants) {
+      const { container } = render(() => <Button variant={variant}>{String(variant)}</Button>);
+      const cls = (container.firstElementChild as HTMLElement).className;
+      expect(cls, String(variant)).toMatch(/var\(--ui-button-/);
+    }
+  });
+
+  it("keeps the five size height steps while colour stays tokenised", () => {
+    const heights: Record<NonNullable<UIButtonProps["size"]>, string> = {
+      xs: "h-[24px]", sm: "h-[30px]", md: "h-[34px]", lg: "h-[38px]", xl: "h-[42px]",
+    };
+    for (const size of Object.keys(heights) as Array<NonNullable<UIButtonProps["size"]>>) {
+      const { container } = render(() => <Button size={size} color="error">{size}</Button>);
+      const cls = (container.firstElementChild as HTMLElement).className;
+      expect(cls, size).toContain(heights[size]);
+      expect(cls, size).toContain("bg-[var(--ui-button-negative-bg)]");
+    }
   });
 });

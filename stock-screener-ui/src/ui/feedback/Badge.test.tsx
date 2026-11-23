@@ -1,7 +1,16 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fireEvent, render, screen } from "@solidjs/testing-library";
+import {
+  BADGE_TONE_SUFFIXES,
+  BADGE_TOKEN_NAMES,
+  UI_TONES,
+  badgeTone,
+  componentTokenProperty,
+} from "../componentTokens";
 import * as palette from "../palette";
 import { pickTextColor } from "@/utils/contrast";
 import { Badge } from "./Badge";
@@ -21,10 +30,10 @@ describe("Badge — status label", () => {
 
   test("filled badge foreground is the theme var, not a fixed hex", () => {
     render(() => <Badge variant="filled" color="error" data-testid="fb">SL</Badge>);
-    expect(screen.getByTestId("fb").style.color).toBe("var(--color-fin-bg)");
+    expect(screen.getByTestId("fb").style.color).toBe("var(--ui-badge-filled-ink)");
   });
 
-  test("filled badge background is a theme var so light mode can re-tone it", () => {
+  test("filled badge background is a component token, never a raw anchor", () => {
     render(() => (
       <>
         <Badge variant="filled" color="success" data-testid="fs">up</Badge>
@@ -34,18 +43,18 @@ describe("Badge — status label", () => {
         <Badge variant="filled" color="primary" data-testid="fp">LIVE</Badge>
       </>
     ));
-    expect(screen.getByTestId("fs").style.backgroundColor).toBe("var(--color-fin-positive)");
-    expect(screen.getByTestId("fe").style.backgroundColor).toBe("var(--color-fin-negative)");
-    expect(screen.getByTestId("fw").style.backgroundColor).toBe("var(--color-fin-warning)");
-    expect(screen.getByTestId("fi").style.backgroundColor).toBe("var(--color-fin-info)");
-    expect(screen.getByTestId("fp").style.backgroundColor).toBe("var(--color-fin-primary)");
-    // The fixed dark anchors fail contrast with the near-white light-mode text.
+    expect(screen.getByTestId("fs").style.backgroundColor).toBe("var(--ui-badge-positive-main)");
+    expect(screen.getByTestId("fe").style.backgroundColor).toBe("var(--ui-badge-negative-main)");
+    expect(screen.getByTestId("fw").style.backgroundColor).toBe("var(--ui-badge-warning-main)");
+    expect(screen.getByTestId("fi").style.backgroundColor).toBe("var(--ui-badge-info-main)");
+    expect(screen.getByTestId("fp").style.backgroundColor).toBe("var(--ui-badge-primary-main)");
+    // Paint must go through the token tier so the tone stays a single source.
     for (const id of ["fs", "fe", "fw", "fi", "fp"]) {
       expect(screen.getByTestId(id).style.backgroundColor).not.toContain("#");
     }
   });
 
-  test("outline and light variants keep the tone colour instead of the token fill", () => {
+  test("outline keeps the tone token and light uses its wash token", () => {
     render(() => (
       <>
         <Badge variant="outline" color="success" data-testid="os">ok</Badge>
@@ -53,14 +62,14 @@ describe("Badge — status label", () => {
       </>
     ));
     expect(screen.getByTestId("os").style.backgroundColor).toBe("transparent");
-    expect(screen.getByTestId("os").style.borderColor).toBe("#2FA36B");
-    expect(screen.getByTestId("ls").style.backgroundColor).toBe("rgba(47, 163, 107, 0.12)");
-    expect(screen.getByTestId("ls").style.color).toBe("#2FA36B");
+    expect(screen.getByTestId("os").style.borderColor).toBe("var(--ui-badge-positive-main)");
+    expect(screen.getByTestId("ls").style.backgroundColor).toBe("var(--ui-badge-positive-wash)");
+    expect(screen.getByTestId("ls").style.color).toBe("var(--ui-badge-positive-main)");
   });
 
   test("non-filled badge foreground stays the tone colour", () => {
     render(() => <Badge variant="outline" color="success" data-testid="nb">ok</Badge>);
-    expect(screen.getByTestId("nb").style.color).toBe("#2FA36B");
+    expect(screen.getByTestId("nb").style.color).toBe("var(--ui-badge-positive-main)");
   });
 
   test("leftSection and rightSection render", () => {
@@ -137,7 +146,7 @@ describe("Badge — shape language", () => {
     expect(el.style.borderRadius).toBe("0px");
     const dot = el.querySelector("span[aria-hidden='true']");
     expect(dot).not.toBeNull();
-    expect((dot as HTMLElement).style.backgroundColor).toBe("#4A8FD8");
+    expect((dot as HTMLElement).style.backgroundColor).toBe("var(--ui-badge-info-main)");
   });
 });
 
@@ -187,5 +196,60 @@ describe("Badge / Chip / SegmentedControl — distinct shapes", () => {
     expect(screen.getByTestId("cur-chip").style.cursor).toBe("pointer");
     const segItem = screen.getByTestId("cur-seg").querySelector("button") as HTMLButtonElement;
     expect(segItem.className).toContain("cursor-pointer");
+  });
+});
+
+describe("Badge — component token tier", () => {
+  const css = readFileSync(resolve(process.cwd(), "src/tailwind.css"), "utf8");
+
+  test("declares every badge token in tailwind.css", () => {
+    const missing = BADGE_TOKEN_NAMES.filter((name) => !css.includes(`${componentTokenProperty(name)}:`));
+    expect(missing).toEqual([]);
+  });
+
+  test("maps every colour alias and every tone to a declared token", () => {
+    for (const color of [
+      "primary", "success", "error", "danger", "warning", "info",
+      "secondary", "default", "neutral", "dimmed", "unmapped", undefined,
+    ]) {
+      const tone = badgeTone(color);
+      expect(UI_TONES, String(color)).toContain(tone);
+      for (const suffix of BADGE_TONE_SUFFIXES) {
+        const name = `ui-badge-${tone}-${suffix}`;
+        expect(BADGE_TOKEN_NAMES, name).toContain(name);
+        expect(css, name).toContain(`${componentTokenProperty(name as (typeof BADGE_TOKEN_NAMES)[number])}:`);
+      }
+    }
+  });
+
+  test("every variant paints from a token (filled / light / outline / dot / white / unset)", () => {
+    for (const variant of ["filled", "light", "outline", "dot", "white", undefined] as const) {
+      const { container } = render(() => <Badge variant={variant} color="success" data-testid={`v-${variant}`}>v</Badge>);
+      const style = (container.firstElementChild as HTMLElement).getAttribute("style") ?? "";
+      expect(style, String(variant)).toMatch(/var\(--ui-badge-/);
+    }
+  });
+
+  test("every size keeps its own box metrics while the colour stays tokenised", () => {
+    const boxes: Record<string, [string, string]> = {
+      xs: ["14px", "9px"], sm: ["16px", "9px"], md: ["18px", "10px"],
+      lg: ["20px", "10px"], xl: ["22px", "10px"],
+    };
+    for (const [size, [height, font]] of Object.entries(boxes)) {
+      render(() => <Badge size={size as "sm"} variant="filled" color="error" data-testid={`sz-${size}`}>s</Badge>);
+      const el = screen.getByTestId(`sz-${size}`);
+      expect(el.style.height, size).toBe(height);
+      expect(el.style.fontSize, size).toBe(font);
+      expect(el.style.backgroundColor, size).toBe("var(--ui-badge-negative-main)");
+    }
+  });
+
+  test("raw caller fills still get their ink from pickTextColor", () => {
+    for (const color of [palette.PRIMARY, palette.WARNING, "rgb(12, 34, 56)"]) {
+      const { container } = render(() => <Badge variant="filled" color={color}>raw</Badge>);
+      const el = container.firstElementChild as HTMLElement;
+      expect(el.style.backgroundColor).toBe(color);
+      expect(el.style.color).toBe(pickTextColor(color, palette.TEXT, palette.BG));
+    }
   });
 });

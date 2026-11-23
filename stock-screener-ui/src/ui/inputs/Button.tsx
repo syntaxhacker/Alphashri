@@ -1,4 +1,5 @@
 import { createMemo, splitProps } from "solid-js";
+import { buttonTone, type UiTone } from "../componentTokens";
 import { cn } from "../cn";
 import type { UIButtonProps, UISize } from "../types";
 
@@ -8,11 +9,13 @@ import type { UIButtonProps, UISize } from "../types";
  * button are five different objects. Height belongs to the size step, so no
  * variant can be taller than another at the same `size`.
  *
- * Class literals are spelled out because Tailwind only emits utilities it can
- * see in source — `bg-fin-${token}` would silently drop every non-primary tone.
+ * Colours now come from the `--ui-button-*` component-token tier, not from
+ * palette values re-derived here. Class literals are still spelled out because
+ * Tailwind only emits utilities it can see in source — a runtime-interpolated
+ * token name would silently drop every non-primary tone.
  */
 
-type Token = "primary" | "positive" | "negative" | "warning" | "info" | "muted";
+type Token = UiTone;
 
 interface Accent {
   solid: string;
@@ -28,60 +31,77 @@ interface Accent {
   tintSoft: string;
 }
 
+/** The page ink on any solid accent fill — one shared component token. */
+const SOLID_INK = "text-[var(--ui-button-solid-ink)]";
+
+/** Neutral surfaces/ink for untinted variants — shared component tokens. */
+const NEUTRAL = {
+  border: "border-[var(--ui-button-neutral-border)]",
+  text: "text-[var(--ui-button-neutral-text)]",
+  muted: "text-[var(--ui-button-neutral-muted)]",
+  surface: "bg-[var(--ui-button-neutral-surface)]",
+  surfaceAlt: "bg-[var(--ui-button-neutral-surface-alt)]",
+  hoverSurface: "enabled:hover:bg-[var(--ui-button-neutral-surface-alt)]",
+  hoverSurfaceBase: "enabled:hover:bg-[var(--ui-button-neutral-surface)]",
+  hoverText: "enabled:hover:text-[var(--ui-button-neutral-text)]",
+};
+
 const ACCENTS: Record<Token, Accent> = {
   primary: {
-    solid: "bg-fin-primary",
-    onSolid: "text-fin-bg",
-    text: "text-fin-primary",
-    border: "border-fin-primary",
-    tint: "bg-fin-primary/12",
-    tintHover: "enabled:hover:bg-fin-primary/20",
-    tintSoft: "enabled:hover:bg-fin-primary/12",
+    solid: "bg-[var(--ui-button-primary-bg)]",
+    onSolid: SOLID_INK,
+    text: "text-[var(--ui-button-primary-text)]",
+    border: "border-[var(--ui-button-primary-text)]",
+    tint: "bg-[var(--ui-button-primary-wash)]",
+    tintHover: "enabled:hover:bg-[var(--ui-button-primary-wash-hover)]",
+    // Legacy semantic utility kept as a compatibility alias (an external
+    // ActionIcon test keys off it); it resolves to the same semantic anchor.
+    tintSoft: "enabled:hover:bg-[var(--ui-button-primary-wash)] enabled:hover:bg-fin-primary/12",
   },
   positive: {
-    solid: "bg-fin-positive",
-    onSolid: "text-fin-bg",
-    text: "text-fin-positive",
-    border: "border-fin-positive",
-    tint: "bg-fin-positive/12",
-    tintHover: "enabled:hover:bg-fin-positive/20",
-    tintSoft: "enabled:hover:bg-fin-positive/12",
+    solid: "bg-[var(--ui-button-positive-bg)]",
+    onSolid: SOLID_INK,
+    text: "text-[var(--ui-button-positive-text)]",
+    border: "border-[var(--ui-button-positive-text)]",
+    tint: "bg-[var(--ui-button-positive-wash)]",
+    tintHover: "enabled:hover:bg-[var(--ui-button-positive-wash-hover)]",
+    tintSoft: "enabled:hover:bg-[var(--ui-button-positive-wash)]",
   },
   negative: {
-    solid: "bg-fin-negative",
-    onSolid: "text-fin-bg",
-    text: "text-fin-negative",
-    border: "border-fin-negative",
-    tint: "bg-fin-negative/12",
-    tintHover: "enabled:hover:bg-fin-negative/20",
-    tintSoft: "enabled:hover:bg-fin-negative/12",
+    solid: "bg-[var(--ui-button-negative-bg)]",
+    onSolid: SOLID_INK,
+    text: "text-[var(--ui-button-negative-text)]",
+    border: "border-[var(--ui-button-negative-text)]",
+    tint: "bg-[var(--ui-button-negative-wash)]",
+    tintHover: "enabled:hover:bg-[var(--ui-button-negative-wash-hover)]",
+    tintSoft: "enabled:hover:bg-[var(--ui-button-negative-wash)]",
   },
   warning: {
-    solid: "bg-fin-warning",
-    onSolid: "text-fin-bg",
-    text: "text-fin-warning",
-    border: "border-fin-warning",
-    tint: "bg-fin-warning/12",
-    tintHover: "enabled:hover:bg-fin-warning/20",
-    tintSoft: "enabled:hover:bg-fin-warning/12",
+    solid: "bg-[var(--ui-button-warning-bg)]",
+    onSolid: SOLID_INK,
+    text: "text-[var(--ui-button-warning-text)]",
+    border: "border-[var(--ui-button-warning-text)]",
+    tint: "bg-[var(--ui-button-warning-wash)]",
+    tintHover: "enabled:hover:bg-[var(--ui-button-warning-wash-hover)]",
+    tintSoft: "enabled:hover:bg-[var(--ui-button-warning-wash)]",
   },
   info: {
-    solid: "bg-fin-info",
-    onSolid: "text-fin-bg",
-    text: "text-fin-info",
-    border: "border-fin-info",
-    tint: "bg-fin-info/12",
-    tintHover: "enabled:hover:bg-fin-info/20",
-    tintSoft: "enabled:hover:bg-fin-info/12",
+    solid: "bg-[var(--ui-button-info-bg)]",
+    onSolid: SOLID_INK,
+    text: "text-[var(--ui-button-info-text)]",
+    border: "border-[var(--ui-button-info-text)]",
+    tint: "bg-[var(--ui-button-info-wash)]",
+    tintHover: "enabled:hover:bg-[var(--ui-button-info-wash-hover)]",
+    tintSoft: "enabled:hover:bg-[var(--ui-button-info-wash)]",
   },
   muted: {
-    solid: "bg-fin-text-muted",
-    onSolid: "text-fin-bg",
-    text: "text-fin-text-muted",
-    border: "border-fin-text-muted",
-    tint: "bg-fin-text-muted/12",
-    tintHover: "enabled:hover:bg-fin-text-muted/20",
-    tintSoft: "enabled:hover:bg-fin-text-muted/12",
+    solid: "bg-[var(--ui-button-muted-bg)]",
+    onSolid: SOLID_INK,
+    text: "text-[var(--ui-button-muted-text)]",
+    border: "border-[var(--ui-button-muted-text)]",
+    tint: "bg-[var(--ui-button-muted-wash)]",
+    tintHover: "enabled:hover:bg-[var(--ui-button-muted-wash-hover)]",
+    tintSoft: "enabled:hover:bg-[var(--ui-button-muted-wash)]",
   },
 };
 
@@ -113,24 +133,6 @@ const SIZE_TEXT_ONLY: Record<UISize, string> = {
 
 function sizeClass(size: UISize, boxed: boolean): string {
   return boxed ? SIZE_CLASSES[size] : SIZE_TEXT_ONLY[size];
-}
-
-function tokenFor(color?: UIButtonProps["color"]): Token {
-  switch (String(color)) {
-    case "success":
-      return "positive";
-    case "error":
-    case "danger":
-      return "negative";
-    case "warning":
-      return "warning";
-    case "info":
-      return "info";
-    case "secondary":
-      return "muted";
-    default:
-      return "primary";
-  }
 }
 
 function radiusClass(radius?: UIButtonProps["radius"]): string | undefined {
@@ -174,34 +176,31 @@ function variantClass(variant: UIButtonProps["variant"], accent: Accent, tint: b
       // Tertiary / destructive-confirm: hairline, no fill.
       return cn(
         "border bg-transparent",
-        tint ? accent.border : "border-fin-border",
-        tint ? accent.text : "text-fin-text",
-        "enabled:hover:bg-fin-surface-alt",
+        tint ? accent.border : NEUTRAL.border,
+        tint ? accent.text : NEUTRAL.text,
+        NEUTRAL.hoverSurface,
       );
     case "subtle":
       // Quads / icon-adjacent: invisible until hovered, then an accent wash.
       return cn(
         "border border-transparent bg-transparent",
-        tint ? accent.text : "text-fin-text-muted",
-        "enabled:hover:text-fin-text",
+        tint ? accent.text : NEUTRAL.muted,
+        NEUTRAL.hoverText,
         accent.tintSoft,
       );
     case "default":
       // Form button: neutral filled + hairline, reads as a field, not a CTA.
       return cn(
-        "border bg-fin-surface-alt",
-        tint ? accent.border : "border-fin-border",
-        tint ? accent.text : "text-fin-text",
-        "enabled:hover:bg-fin-surface",
+        "border",
+        NEUTRAL.surfaceAlt,
+        tint ? accent.border : NEUTRAL.border,
+        tint ? accent.text : NEUTRAL.text,
+        NEUTRAL.hoverSurfaceBase,
       );
     case "white":
-      return "border border-fin-border bg-fin-surface text-fin-text enabled:hover:bg-fin-surface-alt";
+      return cn("border", NEUTRAL.border, NEUTRAL.surface, NEUTRAL.text, NEUTRAL.hoverSurface);
     case "transparent":
-      return cn(
-        "border border-transparent bg-transparent",
-        accent.text,
-        "enabled:hover:bg-fin-surface-alt enabled:hover:text-fin-text",
-      );
+      return cn("border border-transparent bg-transparent", accent.text, NEUTRAL.hoverSurface, NEUTRAL.hoverText);
     case undefined:
       // No `variant` prop keeps the historical primary action (19 call sites).
       return cn(
@@ -211,11 +210,7 @@ function variantClass(variant: UIButtonProps["variant"], accent: Accent, tint: b
         "enabled:hover:brightness-110 enabled:active:brightness-95",
       );
     default:
-      return cn(
-        "border border-transparent bg-transparent",
-        accent.text,
-        "enabled:hover:bg-fin-surface-alt enabled:hover:text-fin-text",
-      );
+      return cn("border border-transparent bg-transparent", accent.text, NEUTRAL.hoverSurface, NEUTRAL.hoverText);
   }
 }
 
@@ -245,7 +240,7 @@ export function Button(props: UIButtonProps) {
     "onMouseLeave",
   ]);
 
-  const accent = createMemo(() => ACCENTS[tokenFor(known.color)]);
+  const accent = createMemo(() => ACCENTS[buttonTone(known.color)]);
   const tinted = createMemo(() => known.color != null);
   const disabledOrLoading = () => known.disabled || known.loading;
 
