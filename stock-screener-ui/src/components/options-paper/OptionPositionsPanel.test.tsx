@@ -137,7 +137,9 @@ describe("OptionPositionsPanel", () => {
     await screen.findByTestId("option-positions-row-1");
     const header = screen.getByTestId("option-positions-header");
     expect(header.className).toContain("border-fin-border-subtle");
-    expect(within(header).getByText("PAPER BOOK")).toHaveStyle({ "font-size": "18px" });
+    const title = within(header).getByText("PAPER BOOK");
+    expect(title.className).toContain("text-ui-heading");
+    expect(title.style.fontSize).toBe("");
 
     const wrap = screen.getByTestId("option-positions-table-wrap");
     expect(wrap.className).toContain("[&_td]:px-3!");
