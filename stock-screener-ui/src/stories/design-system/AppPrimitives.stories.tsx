@@ -67,6 +67,9 @@ const marketRows: MarketRow[] = [
   { symbol: "BANKNIFTY", ltp: 51284.5, chg: -0.18, oi: 884200 },
   { symbol: "FINNIFTY", ltp: 23410.2, chg: 0.12, oi: 402100 },
   { symbol: "MIDCPNIFTY", ltp: 12884.0, chg: -0.44, oi: 118900 },
+  { symbol: "NIFTYNEXT50", ltp: 68210.4, chg: 0.21, oi: 96500 },
+  { symbol: "SENSEX", ltp: 77420.6, chg: 0.05, oi: 210400 },
+  { symbol: "BANKEX", ltp: 58110.15, chg: -0.27, oi: 88400 },
 ];
 
 const marketColumns: TableColumnDef<MarketRow>[] = [

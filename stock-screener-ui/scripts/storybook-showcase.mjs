@@ -79,6 +79,16 @@ try {
       }
       await page.close();
     }
+
+    const focusPage = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+    await focusPage.goto(`${BASE}/iframe.html?id=design-system-foundations--landing&viewMode=story`, {
+      waitUntil: "networkidle",
+    });
+    await focusPage.getByRole("button", { name: "Tab to focus" }).focus();
+    await focusPage.waitForTimeout(150);
+    await focusPage.screenshot({ path: join(OUT, "focus-ring-1600.png"), fullPage: false });
+    console.log("focus-ring-1600.png");
+    await focusPage.close();
   } finally {
     await browser.close();
   }

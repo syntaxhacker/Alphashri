@@ -53,7 +53,7 @@ describe("ui icons", () => {
     expect(stringSized).toHaveAttribute("height", "2rem");
   });
 
-  it("is decorative by default; callers opt into hidden or labelled semantics", () => {
+  it("is hidden from AT by default; callers opt into labelled semantics", () => {
     render(() => (
       <>
         <IconX data-testid="bare" />
@@ -63,7 +63,7 @@ describe("ui icons", () => {
     ));
 
     const bare = screen.getByTestId("bare");
-    expect(bare).not.toHaveAttribute("aria-hidden");
+    expect(bare).toHaveAttribute("aria-hidden", "true");
     expect(bare).not.toHaveAttribute("role");
     expect(bare).not.toHaveAttribute("aria-label");
 
