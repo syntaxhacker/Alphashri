@@ -335,3 +335,114 @@ describe("Menu — viewport placement", () => {
     expect(Number.parseFloat(dropdown.style.top)).toBeLessThan(before);
   });
 });
+
+function KeyMenu(props: { loop?: boolean; onPick?: (label: string) => void }) {
+  return (
+    <Menu loop={props.loop}>
+      <Menu.Target>
+        <button type="button" data-testid="trigger">
+          Open
+        </button>
+      </Menu.Target>
+      <Menu.Dropdown data-testid="dropdown">
+        <Menu.Item data-testid="item-one" onClick={() => props.onPick?.("one")}>
+          One
+        </Menu.Item>
+        <Menu.Item data-testid="item-two" disabled>
+          Two
+        </Menu.Item>
+        <Menu.Item data-testid="item-three" onClick={() => props.onPick?.("three")}>
+          Three
+        </Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
+
+const openKeyMenu = (props: { loop?: boolean; onPick?: (label: string) => void } = {}) => {
+  render(() => <KeyMenu loop={props.loop} onPick={props.onPick} />);
+  fireEvent.click(screen.getByTestId("trigger"));
+  return screen.getAllByRole("menuitem");
+};
+
+describe("Menu — keyboard navigation", () => {
+  test("opens with a single tab stop on the first enabled item", () => {
+    const items = openKeyMenu();
+
+    expect(screen.getByRole("menu")).toBe(screen.getByTestId("dropdown"));
+    expect(items).toHaveLength(3);
+    expect(document.activeElement).toBe(items[0]);
+    expect(items[0]).toHaveAttribute("tabindex", "0");
+    expect(items[2]).toHaveAttribute("tabindex", "-1");
+  });
+
+  test("ArrowDown skips disabled items; ArrowUp wraps by default", () => {
+    const items = openKeyMenu();
+
+    fireEvent.keyDown(items[0], { key: "ArrowDown" });
+    expect(document.activeElement).toBe(items[2]);
+
+    fireEvent.keyDown(items[2], { key: "ArrowDown" });
+    expect(document.activeElement).toBe(items[0]);
+
+    fireEvent.keyDown(items[0], { key: "ArrowUp" });
+    expect(document.activeElement).toBe(items[2]);
+  });
+
+  test("loop={false} clamps at both ends", () => {
+    const items = openKeyMenu({ loop: false });
+
+    fireEvent.keyDown(items[0], { key: "ArrowUp" });
+    expect(document.activeElement).toBe(items[0]);
+
+    items[2].focus();
+    fireEvent.keyDown(items[2], { key: "ArrowDown" });
+    expect(document.activeElement).toBe(items[2]);
+  });
+
+  test("Home and End jump to the first and last enabled items", () => {
+    const items = openKeyMenu();
+
+    fireEvent.keyDown(items[0], { key: "End" });
+    expect(document.activeElement).toBe(items[2]);
+
+    fireEvent.keyDown(items[2], { key: "Home" });
+    expect(document.activeElement).toBe(items[0]);
+  });
+
+  test("Enter and Space each activate once and dismiss the menu", () => {
+    const onPick = vi.fn();
+    const items = openKeyMenu({ onPick });
+
+    fireEvent.keyDown(items[0], { key: "Enter" });
+    expect(onPick).toHaveBeenCalledTimes(1);
+    expect(onPick).toHaveBeenCalledWith("one");
+    expect(screen.queryByTestId("dropdown")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("trigger"));
+    const reopened = screen.getAllByRole("menuitem");
+    fireEvent.keyDown(reopened[0], { key: " " });
+    expect(onPick).toHaveBeenCalledTimes(2);
+    expect(onPick).toHaveBeenLastCalledWith("one");
+    expect(screen.queryByTestId("dropdown")).toBeNull();
+  });
+
+  test("hover opening and Escape dismissal still work", () => {
+    render(() => (
+      <Menu trigger="click-hover">
+        <Menu.Target data-testid="hover-target">
+          <button type="button">Hover</button>
+        </Menu.Target>
+        <Menu.Dropdown data-testid="hover-dropdown">
+          <Menu.Item>Only</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ));
+
+    fireEvent.mouseEnter(screen.getByTestId("hover-target"));
+    expect(screen.getByTestId("hover-dropdown")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("hover-dropdown")).toBeNull();
+  });
+});

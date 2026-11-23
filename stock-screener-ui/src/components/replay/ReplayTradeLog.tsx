@@ -224,7 +224,6 @@ export function ReplayTradeLog(props: ReplayTradeLogProps) {
           data={strategyOptions()}
           value={props.strategyFilter}
           onChange={(v) => props.setStrategyFilter(v ?? "ALL")}
-          allowDeselect={false}
           data-testid="replay-trade-log-strategy-filter"
         />
         <Select
@@ -233,7 +232,6 @@ export function ReplayTradeLog(props: ReplayTradeLogProps) {
           data={symbolOptions()}
           value={symbolFilter()}
           onChange={(v) => setSymbolFilter(v ?? "ALL")}
-          allowDeselect={false}
           data-testid="replay-trade-log-symbol-filter"
         />
         <Text size="xs" c="dimmed" className="font-mono tabular-nums">

@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
-import type { JSX } from "solid-js";
 import { createSignal } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
 import {
-  Accordion, Anchor, Badge, Box, Button, Card, Divider, DENSITY_TOKENS, Flex, Group, List, ListItem,
-  Menu, MenuDropdown, MenuItem, MenuTarget, Paper, Stack, Tab, Tabs, TabsList, TabsPanel, Text, Timeline, Title, Tree,
+  Accordion, Badge, Box, Button, DENSITY_TOKENS, Group, List, ListItem,
+  Menu, MenuDropdown, MenuItem, MenuTarget, Stack, Tab, Tabs, TabsList, TabsPanel, Text, Timeline, Tree,
   type Density,
 } from "@/ui";
 import * as palette from "@/ui/palette";
+import { ComponentIndex, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
 
 const meta: Meta = {
   title: "Design System/Data display",
@@ -24,70 +24,13 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-const docsHref = (id: string) => `../?path=/docs/${id}`;
-const DocsLink = (props: { id: string; label: string }) => (
-  <Anchor href={docsHref(props.id)} target="_top" c="info" size="sm" underline="hover">{props.label}</Anchor>
-);
-
-type ComponentRef = { id: string; name: string; note: string };
-const components: ComponentRef[] = [
+const components: FamilyComponentRef[] = [
   { id: "design-system-components-data-display-accordion--docs", name: "Accordion", note: "Separated disclosure panels" },
   { id: "design-system-components-data-display-menu--docs", name: "Menu", note: "Action list with target and divider" },
   { id: "design-system-components-data-display-tabs--docs", name: "Tabs", note: "Controlled views with a disabled tab" },
   { id: "design-system-components-data-display-timeline--docs", name: "Timeline", note: "Ordered events with an active step" },
   { id: "design-system-components-data-display-tree--docs", name: "Tree", note: "Hierarchical universe navigator" },
 ];
-
-const FamilyHero = (props: { name: string; purpose: string; count: number; specimen: JSX.Element }) => (
-  <Paper p="lg" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}`, "border-left": `3px solid ${palette.PRIMARY}` }}>
-    <Stack gap="md">
-      <Flex gap="sm" align="center" wrap="wrap">
-        <Text size="xs" c="primary" tt="uppercase" fw={500} className="font-mono">Design system · family</Text>
-        <Badge size="xs" variant="light" color="primary">{props.count} component pages</Badge>
-      </Flex>
-      <Stack gap="xs">
-        <Title order={1} size="xl">{props.name}</Title>
-        <Text size="sm" c="default" style={{ "max-width": "780px" }}>{props.purpose}</Text>
-      </Stack>
-      <Divider />
-      <Text size="xs" c="dimmed" tt="uppercase" fw={500} className="font-mono">Overview · scan workflow</Text>
-      {props.specimen}
-    </Stack>
-  </Paper>
-);
-
-const ComponentIndex = (props: { items: ComponentRef[] }) => (
-  <Stack gap="sm">
-    <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">Index</Text>
-    <Flex gap="sm" align="baseline" wrap="wrap">
-      <Title order={2} size="lg">Components in this family</Title>
-      <Text size="xs" c="dimmed">Open each card to reach its dedicated page.</Text>
-    </Flex>
-    <div style={{ display: "grid", "grid-template-columns": "repeat(auto-fill, minmax(220px, 1fr))", gap: "8px" }}>
-      {props.items.map((item) => (
-        <Card key={item.id} p="sm" radius="sm" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-          <Stack gap="xs">
-            <DocsLink id={item.id} label={item.name} />
-            <Text size="xs" c="dimmed">{item.note}</Text>
-          </Stack>
-        </Card>
-      ))}
-    </div>
-  </Stack>
-);
-
-const Specimen = (props: { title: string; note: string; children: JSX.Element }) => (
-  <Paper p="md" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-    <Stack gap="sm">
-      <Flex gap="sm" align="baseline" wrap="wrap">
-        <Title order={3} size="md">{props.title}</Title>
-        <Text size="xs" c="dimmed">{props.note}</Text>
-      </Flex>
-      <Divider />
-      {props.children}
-    </Stack>
-  </Paper>
-);
 
 const treeData = [
   {
@@ -174,15 +117,16 @@ const DensitySurface = (props: { density: Density }) => {
 export const FamilyLanding: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1120px", margin: "0 auto", padding: "4px 0 24px" }}>
+      <FamilyPage>
         <FamilyHero
           name="Data display"
           count={components.length}
+          caption="scan workflow"
           purpose="Primitives that make structured data scannable: split a view into tabs, disclose detail in an accordion, order events on a timeline, traverse a tree or expose actions in a menu. They share one spacing and type rhythm with the rest of the terminal."
           specimen={<WorkflowSpecimen />}
         />
         <ComponentIndex items={components} />
-        <Specimen title="Accordion" note="Separated variant keeps each section independently collapsible.">
+        <SpecimenPanel title="Accordion" note="Separated variant keeps each section independently collapsible.">
           <Box style={{ "max-width": "640px" }}>
             <Accordion defaultValue="filters" variant="separated">
               <Accordion.Item value="filters">
@@ -199,18 +143,18 @@ export const FamilyLanding: Story = {
               </Accordion.Item>
             </Accordion>
           </Box>
-        </Specimen>
-        <Specimen title="Menu" note="Target button, grouped items and a destructive action.">
+        </SpecimenPanel>
+        <SpecimenPanel title="Menu" note="Target button, grouped items and a destructive action.">
           <MenuSpecimen />
-        </Specimen>
-        <Specimen title="Density" note="Tree and timeline read the shared DENSITY_TOKENS rhythm at both settings.">
+        </SpecimenPanel>
+        <SpecimenPanel title="Density" note="Tree and timeline read the shared DENSITY_TOKENS rhythm at both settings.">
           <Group gap="md" align="flex-start" wrap="wrap">
             <DensitySurface density="compact" />
             <DensitySurface density="comfortable" />
           </Group>
-        </Specimen>
-        <Text size="xs" c="dimmed">Source: <code>src/ui</code> · per-component pages: <code>src/stories/components/Data display</code>.</Text>
-      </Stack>
+        </SpecimenPanel>
+        <FamilyFooter source="src/ui" pages="src/stories/components/Data display" />
+      </FamilyPage>
     )),
 };
 

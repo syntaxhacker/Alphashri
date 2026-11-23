@@ -3,8 +3,44 @@
 // `useColorScheme` signal so CSS vars, charts and JS token readers agree.
 import { createEffect, on, type JSX } from "solid-js";
 import { applyColorScheme, hasStoredColorScheme } from "./hooks";
+import * as palette from "./palette";
 
-export const uiTheme = {} as any;
+/**
+ * JS-side tokens for chart option builders and token readers. The colour
+ * aliases point straight at palette.ts so there is no second palette to drift;
+ * the font values mirror the fallbacks the chart code already carries, so
+ * reading them from the theme changes nothing visually.
+ */
+export const uiTheme = {
+  fontFamily: '"IBM Plex Sans", "Roboto", system-ui, sans-serif',
+  fontSizes: {
+    sm: "12px",
+    md: "14px",
+    lg: "16px",
+    xl: "20px",
+  },
+  fontWeights: {
+    normal: 400,
+    medium: 500,
+    semibold: 600,
+    bold: 700,
+  },
+  colors: {
+    primary: palette.PRIMARY,
+    success: palette.POSITIVE,
+    error: palette.NEGATIVE,
+    warning: palette.WARNING,
+    info: palette.INFO,
+    text: palette.TEXT,
+    textMuted: palette.TEXT_MUTED,
+    background: palette.BG,
+    surface: palette.SURFACE,
+    surfaceAlt: palette.SURFACE_ALT,
+    border: palette.BORDER,
+  },
+} as const;
+
+export type UiTheme = typeof uiTheme;
 
 type ColorScheme = "light" | "dark";
 

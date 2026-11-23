@@ -208,6 +208,8 @@ jobs:
         run: cd stock-screener-ui && bun run typecheck:ratchet
       - name: Build Storybook
         run: cd stock-screener-ui && bun run build-storybook
+      - name: Verify Storybook catalog
+        run: cd stock-screener-ui && bun x vitest run src/test/storybook-catalog.test.ts
   frontend-unit:
     name: Frontend Unit Tests
     runs-on: ubuntu-24.04

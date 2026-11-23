@@ -1,8 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
-import type { JSX } from "solid-js";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
-import { Anchor, Badge, Box, Button, Card, Chip, Divider, Flex, Group, Paper, Stack, Text, Title } from "@/ui";
+import { Box, Button, Chip, Flex, Group, Stack, Text } from "@/ui";
 import { BrokerAuthNotice } from "@/components/common/BrokerAuthNotice";
 import { FilterStatusRow, FILTER_STATUS_CLEAR_ALL_LABEL } from "@/components/common/FilterStatusRow";
 import { RangeInput } from "@/components/common/RangeInput";
@@ -11,7 +10,7 @@ import { Sparkline } from "@/components/common/Sparkline";
 import { TableEmptyState } from "@/components/common/TableEmptyState";
 import { TableLoadingState } from "@/components/common/TableLoadingState";
 import { TradeStatsGrid } from "@/components/common/TradeStatsGrid";
-import * as palette from "@/ui/palette";
+import { ComponentIndex, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
 
 const meta: Meta = {
   title: "Design System/Shared primitives",
@@ -28,13 +27,7 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-const docsHref = (id: string) => `../?path=/docs/${id}`;
-const DocsLink = (props: { id: string; label: string }) => (
-  <Anchor href={docsHref(props.id)} target="_top" c="info" size="sm" underline="hover">{props.label}</Anchor>
-);
-
-type ComponentRef = { id: string; name: string; note: string };
-const components: ComponentRef[] = [
+const components: FamilyComponentRef[] = [
   { id: "design-system-components-app-sectionheader--docs", name: "SectionHeader", note: "Title with badge and tone" },
   { id: "design-system-components-app-filterstatusrow--docs", name: "FilterStatusRow", note: "Active chips and clear-all" },
   { id: "design-system-components-app-rangeinput--docs", name: "RangeInput", note: "Two-ended numeric range" },
@@ -43,56 +36,6 @@ const components: ComponentRef[] = [
   { id: "design-system-components-app-tradestatsgrid--docs", name: "TradeStatsGrid", note: "Trade summary metrics" },
   { id: "design-system-components-app-states--docs", name: "States", note: "Empty, error and inline loading" },
 ];
-
-const FamilyHero = (props: { name: string; purpose: string; count: number; specimen: JSX.Element }) => (
-  <Paper p="lg" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}`, "border-left": `3px solid ${palette.PRIMARY}` }}>
-    <Stack gap="md">
-      <Flex gap="sm" align="center" wrap="wrap">
-        <Text size="xs" c="primary" tt="uppercase" fw={500} className="font-mono">Design system · family</Text>
-        <Badge size="xs" variant="light" color="primary">{props.count} component pages</Badge>
-      </Flex>
-      <Stack gap="xs">
-        <Title order={1} size="xl">{props.name}</Title>
-        <Text size="sm" c="default" style={{ "max-width": "780px" }}>{props.purpose}</Text>
-      </Stack>
-      <Divider />
-      <Text size="xs" c="dimmed" tt="uppercase" fw={500} className="font-mono">At a glance · screener toolbar</Text>
-      {props.specimen}
-    </Stack>
-  </Paper>
-);
-
-const ComponentIndex = (props: { items: ComponentRef[] }) => (
-  <Stack gap="sm">
-    <Flex gap="sm" align="baseline" wrap="wrap">
-      <Title order={2} size="lg">Components in this family</Title>
-      <Text size="xs" c="dimmed">Open each card to reach its dedicated page.</Text>
-    </Flex>
-    <div style={{ display: "grid", "grid-template-columns": "repeat(auto-fill, minmax(220px, 1fr))", gap: "8px" }}>
-      {props.items.map((item) => (
-        <Card key={item.id} p="sm" radius="sm" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-          <Stack gap="xs">
-            <DocsLink id={item.id} label={item.name} />
-            <Text size="xs" c="dimmed">{item.note}</Text>
-          </Stack>
-        </Card>
-      ))}
-    </div>
-  </Stack>
-);
-
-const Specimen = (props: { title: string; note: string; children: JSX.Element }) => (
-  <Paper p="md" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-    <Stack gap="sm">
-      <Flex gap="sm" align="baseline" wrap="wrap">
-        <Title order={3} size="md">{props.title}</Title>
-        <Text size="xs" c="dimmed">{props.note}</Text>
-      </Flex>
-      <Divider />
-      {props.children}
-    </Stack>
-  </Paper>
-);
 
 const FILTER_LABELS = ["Large cap", "Positive", "NIFTY 500"];
 const TREND_UP = [3, 4, 3.5, 6, 5, 7, 8];
@@ -202,21 +145,22 @@ const TableStatesSpecimen = () => {
 export const FamilyLanding: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1120px", margin: "0 auto", padding: "4px 0 24px" }}>
+      <FamilyPage>
         <FamilyHero
           name="Shared primitives"
           count={components.length}
+          caption="screener toolbar"
           purpose="Widgets owned by screen features but reused across them: headers, filter chips, range controls, sparklines, table states, broker notices and trade summaries. Keeping them here means a screener and a paper page show the same empty row and the same filter chip."
           specimen={<ToolbarSpecimen />}
         />
         <ComponentIndex items={components} />
-        <Specimen title="Range and sparklines" note="A bounded selection plus three frozen trend shapes, without motion.">
+        <SpecimenPanel title="Range and sparklines" note="A bounded selection plus three frozen trend shapes, without motion.">
           <RangeSpecimen />
-        </Specimen>
-        <Specimen title="Table states" note="Empty, loading and connect-notice states share one layout.">
+        </SpecimenPanel>
+        <SpecimenPanel title="Table states" note="Empty, loading and connect-notice states share one layout.">
           <TableStatesSpecimen />
-        </Specimen>
-        <Specimen title="Trade stats" note="Frozen three-trade summary; gross and net figures stay readable at a glance.">
+        </SpecimenPanel>
+        <SpecimenPanel title="Trade stats" note="Frozen three-trade summary; gross and net figures stay readable at a glance.">
           <Box style={{ "max-width": "760px" }}>
             <TradeStatsGrid
               trades={[{ pnl: 120, net_pnl: 110 }, { pnl: -40, net_pnl: -48 }, { pnl: 80, net_pnl: 72 }]}
@@ -226,8 +170,8 @@ export const FamilyLanding: Story = {
               testId="story-trade-stats"
             />
           </Box>
-        </Specimen>
-        <Text size="xs" c="dimmed">Source: <code>src/components/common</code> · per-component pages: <code>src/stories/components/App</code>.</Text>
-      </Stack>
+        </SpecimenPanel>
+        <FamilyFooter source="src/components/common" pages="src/stories/components/App" />
+      </FamilyPage>
     )),
 };

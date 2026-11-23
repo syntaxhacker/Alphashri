@@ -31,13 +31,15 @@ A+ is the **median of three independent raters**, each scoring the table above f
 5. Repeat until the median is ≥ 9 on every in-scope dimension and no P0/P1 remains.
 6. Only then mark the task finished.
 
-## Current known gaps (as of 2026-11-23)
+## Current known gaps (as of 2026-11-23, after P0–P3)
 
 - ~57 chart/ink modules still import static dark palette values instead of the token accessor.
-- Checkbox/Switch still have no error text slot beyond ARIA (P2).
+- API consistency is the weakest score: value-vs-event `onChange`, event-vs-void `onClick`, swallowed legacy Mantine props, `Menu.loop`/Tree keyboard gaps.
 - DatePicker is intentionally single-date; no range/time/locale.
-- Tooltip requires a focusable child unless the new opt-in tab stop is used.
-- Common table and paper-trading table remain two implementations.
-- Icon modules are duplicated between `src/ui` and `src/components`.
-- Storybook catalog guard skips when `storybook-static/` is absent.
-- No visual regression baseline; screenshots are manual evidence.
+- Tooltip requires a focusable child unless the opt-in tab stop is used.
+- Common table and paper-trading table remain two implementations; no visual regression baseline.
+- Icon duplication is reduced by 11 re-exports; `components/common/Icons.tsx` still overlaps.
+- Storybook catalog guard now builds and runs in the CI lint job; local runs still skip without a manifest.
+- Axe is happy-dom only; real-browser contrast/focus/order is unverified.
+- `Tree`/`Menu` keyboard contracts are being closed in the current wave.
+- Screenshots are current only after the latest visual recapture; check commit dates before quoting them.

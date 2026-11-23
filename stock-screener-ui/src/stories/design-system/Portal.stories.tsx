@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
-import type { JSX } from "solid-js";
 import { createSignal, onMount, Show } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
 import {
-  Anchor, Badge, Box, Button, Card, Divider, Flex, Group, Paper, Portal, Stack, Text, Title,
+  Box, Button, Group, Portal, Stack, Text,
 } from "@/ui";
 import * as palette from "@/ui/palette";
+import { ComponentIndex, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
 
 const meta: Meta = {
   title: "Design System/Portal",
@@ -22,66 +22,9 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-const docsHref = (id: string) => `../?path=/docs/${id}`;
-const DocsLink = (props: { id: string; label: string }) => (
-  <Anchor href={docsHref(props.id)} target="_top" c="info" size="sm" underline="hover">{props.label}</Anchor>
-);
-
-type ComponentRef = { id: string; name: string; note: string };
-const components: ComponentRef[] = [
+const components: FamilyComponentRef[] = [
   { id: "design-system-components-layout-portal--docs", name: "Portal", note: "Teleport to document.body or a named host" },
 ];
-
-const FamilyHero = (props: { name: string; purpose: string; count: number; specimen: JSX.Element }) => (
-  <Paper p="lg" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}`, "border-left": `3px solid ${palette.PRIMARY}` }}>
-    <Stack gap="md">
-      <Flex gap="sm" align="center" wrap="wrap">
-        <Text size="xs" c="primary" tt="uppercase" fw={500} className="font-mono">Design system · family</Text>
-        <Badge size="xs" variant="light" color="primary">{props.count} component page</Badge>
-      </Flex>
-      <Stack gap="xs">
-        <Title order={1} size="xl">{props.name}</Title>
-        <Text size="sm" c="default" style={{ "max-width": "780px" }}>{props.purpose}</Text>
-      </Stack>
-      <Divider />
-      <Text size="xs" c="dimmed" tt="uppercase" fw={500} className="font-mono">Overview · source tree to host</Text>
-      {props.specimen}
-    </Stack>
-  </Paper>
-);
-
-const ComponentIndex = (props: { items: ComponentRef[] }) => (
-  <Stack gap="sm">
-    <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">Index</Text>
-    <Flex gap="sm" align="baseline" wrap="wrap">
-      <Title order={2} size="lg">Components in this family</Title>
-      <Text size="xs" c="dimmed">Open the card to reach the dedicated page.</Text>
-    </Flex>
-    <div style={{ display: "grid", "grid-template-columns": "repeat(auto-fill, minmax(220px, 1fr))", gap: "8px" }}>
-      {props.items.map((item) => (
-        <Card key={item.id} p="sm" radius="sm" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-          <Stack gap="xs">
-            <DocsLink id={item.id} label={item.name} />
-            <Text size="xs" c="dimmed">{item.note}</Text>
-          </Stack>
-        </Card>
-      ))}
-    </div>
-  </Stack>
-);
-
-const Specimen = (props: { title: string; note: string; children: JSX.Element }) => (
-  <Paper p="md" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-    <Stack gap="sm">
-      <Flex gap="sm" align="baseline" wrap="wrap">
-        <Title order={3} size="md">{props.title}</Title>
-        <Text size="xs" c="dimmed">{props.note}</Text>
-      </Flex>
-      <Divider />
-      {props.children}
-    </Stack>
-  </Paper>
-);
 
 const Landed = (props: { text: string }) => (
   <Box p="sm" style={{ background: palette.SURFACE_ALT, border: `1px solid ${palette.PRIMARY}` }}>
@@ -171,21 +114,22 @@ const ToggleTargetSpecimen = () => {
 export const FamilyLanding: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1120px", margin: "0 auto", padding: "4px 0 24px" }}>
+      <FamilyPage>
         <FamilyHero
           name="Portal"
           count={components.length}
+          caption="source tree to host"
           purpose="A small escape hatch for layered UI: declare content beside its state, then render it into document.body or a named host. Overlay surfaces use it so stacking and clipping stay independent of the source tree."
           specimen={<TargetSpecimen />}
         />
         <ComponentIndex items={components} />
-        <Specimen title="Default target" note="No target means the document body is the host.">
+        <SpecimenPanel title="Default target" note="No target means the document body is the host.">
           <DefaultTargetSpecimen />
-        </Specimen>
-        <Specimen title="Mount toggle" note="Show controls the portal children, not the host element.">
+        </SpecimenPanel>
+        <SpecimenPanel title="Mount toggle" note="Show controls the portal children, not the host element.">
           <ToggleTargetSpecimen />
-        </Specimen>
-        <Text size="xs" c="dimmed">Source: <code>src/ui</code> · dedicated page: <code>src/stories/components/Layout/Portal.stories.tsx</code>.</Text>
-      </Stack>
+        </SpecimenPanel>
+        <FamilyFooter source="src/ui" pages="src/stories/components/Layout/Portal.stories.tsx" pagesLabel="dedicated page" />
+      </FamilyPage>
     )),
 };

@@ -4,8 +4,23 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { createSignal } from "solid-js";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { MultiSelect, tagFoldCount } from "./MultiSelect";
+import type { UIMultiSelectProps } from "../types";
 
 afterEach(cleanup);
+
+describe("MultiSelect — legacy props are outside the public type", () => {
+  test("the swallowed Mantine props are rejected by UIMultiSelectProps", () => {
+    const props: UIMultiSelectProps = { data: ["a"] };
+    // @ts-expect-error allowDeselect is not a public MultiSelect prop
+    expect(props.allowDeselect).toBeUndefined();
+    // @ts-expect-error maxDropdownHeight is not a public MultiSelect prop
+    expect(props.maxDropdownHeight).toBeUndefined();
+    // @ts-expect-error comboboxProps is not a public MultiSelect prop
+    expect(props.comboboxProps).toBeUndefined();
+    // @ts-expect-error withinPortal is not public; the listbox is always portalled
+    expect(props.withinPortal).toBeUndefined();
+  });
+});
 
 describe("MultiSelect search handling", () => {
   test("forwards genuine typing to onSearchChange with reason 'input'", () => {

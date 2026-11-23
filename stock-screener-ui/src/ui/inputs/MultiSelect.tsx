@@ -157,10 +157,6 @@ export function MultiSelect(props: UIMultiSelectProps) {
     "w",
     "h",
     "data-testid",
-    "allowDeselect",
-    "maxDropdownHeight",
-    "comboboxProps",
-    "withinPortal",
     "InputProps",
     "aria-label",
   ]);

@@ -212,10 +212,6 @@ export function Select(props: UISelectProps) {
     "w",
     "h",
     "data-testid",
-    "allowDeselect",
-    "maxDropdownHeight",
-    "comboboxProps",
-    "withinPortal",
     "InputProps",
     "aria-label",
   ]);
@@ -385,7 +381,6 @@ export function Select(props: UISelectProps) {
           aria-label={known["aria-label"]}
           leftSection={known.leftSection}
           rightSection={known.rightSection}
-          withinPortal={known.withinPortal}
         />
       </Show>
       {helperText() && <p id={field.messageId} className={helperTextClass()}>{helperText()}</p>}
@@ -409,7 +404,6 @@ function SearchableSelect(props: {
   describedBy?: string;
   leftSection?: JSX.Element;
   rightSection?: JSX.Element;
-  withinPortal?: boolean;
   "aria-label"?: string;
 }) {
   const [query, setQuery] = createSignal("");
@@ -419,7 +413,6 @@ function SearchableSelect(props: {
   const listboxId = `${props.inputId}-listbox`;
   let listboxEl: HTMLUListElement | undefined;
   let fieldEl: HTMLDivElement | undefined;
-  const portalMenu = createMemo(() => props.withinPortal !== false);
 
   const filtered = createMemo(() =>
     props.options.filter(
@@ -484,7 +477,7 @@ function SearchableSelect(props: {
   };
 
   createEffect(() => {
-    if (!open() || !portalMenu()) {
+    if (!open()) {
       setMenuPos(null);
       return;
     }
@@ -493,7 +486,7 @@ function SearchableSelect(props: {
   });
 
   createEffect(() => {
-    if (!open() || !portalMenu()) return;
+    if (!open()) return;
     pruneDetachedMenus();
     // A scroll inside the menu itself must not reposition it — only an ancestor
     // scroller or the window moving the field does that.
@@ -603,20 +596,13 @@ function SearchableSelect(props: {
       id={listboxId}
       role="listbox"
       data-part="select-listbox"
-      className={cn(
-        "border border-fin-border rounded-[6px] bg-fin-surface text-fin-text max-h-48 overflow-y-auto outline-none",
-        portalMenu() ? "fixed z-[1300] shadow-md" : "absolute z-50 left-0 right-0 mt-1",
-      )}
-      style={
-        portalMenu()
-          ? {
-              top: `${menuPos()?.top ?? 0}px`,
-              left: `${menuPos()?.left ?? 0}px`,
-              width: menuPos()?.width != null ? `${menuPos()!.width}px` : undefined,
-              visibility: menuPos() ? "visible" : "hidden",
-            }
-          : undefined
-      }
+      className="border border-fin-border rounded-[6px] bg-fin-surface text-fin-text max-h-48 overflow-y-auto outline-none fixed z-[1300] shadow-md"
+      style={{
+        top: `${menuPos()?.top ?? 0}px`,
+        left: `${menuPos()?.left ?? 0}px`,
+        width: menuPos()?.width != null ? `${menuPos()!.width}px` : undefined,
+        visibility: menuPos() ? "visible" : "hidden",
+      }}
     >
       {filtered().length === 0 ? (
         <li role="option" aria-disabled className="px-3 py-2 text-xs text-fin-text-muted">
@@ -676,11 +662,9 @@ function SearchableSelect(props: {
           {props.rightSection && <span className="shrink-0">{props.rightSection}</span>}
         </div>
         <Show when={open()}>
-          <Show when={portalMenu()} fallback={<Listbox />}>
-            <Portal ref={trackMenu}>
-              <Listbox />
-            </Portal>
-          </Show>
+          <Portal ref={trackMenu}>
+            <Listbox />
+          </Portal>
         </Show>
       </div>
     </div>

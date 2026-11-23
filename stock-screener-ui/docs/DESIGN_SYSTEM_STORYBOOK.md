@@ -19,10 +19,13 @@ renders a whole group at once, so disposing roots there would blank every story
 but the last. There is no `afterEach` teardown.
 
 Docs and accessibility panels are enabled via `@storybook/addon-docs` and
-`@storybook/addon-a11y`. The a11y addon is a manual review panel; there is no
-axe gate in CI and no viewport toolbar addon. The palette is dark-only and
-single-sourced in `src/ui/palette.ts` — stories read CSS variables and token
-modules, never a second palette or a light/dark toggle.
+`@storybook/addon-a11y`. The addon is a manual review panel; a separate
+happy-dom axe smoke gate (`src/test/a11y-smoke.test.tsx`) runs in vitest and the
+CI Storybook job builds the catalog and runs the catalog guard in the same job.
+Real-browser contrast/focus/order still need a manual or Playwright pass. There
+is no viewport toolbar addon. The palette is dark-only and single-sourced in
+`src/ui/palette.ts` — stories read CSS variables and token modules, never a
+second palette or a light/dark toggle.
 
 Overview links use the manager form `../?path=/story/<id>` with `target="_top"`,
 so they leave the preview iframe instead of nesting another Storybook.

@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
-import type { JSX } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
-import { Anchor, Badge, Box, Card, Code, Divider, Flex, List, ListItem, Paper, Stack, Text, Title } from "@/ui";
+import { Anchor, Box, Code, Divider, Flex, List, ListItem, Stack, Text, Title } from "@/ui";
 import * as palette from "@/ui/palette";
+import { ComponentIndex, docsHref, FamilyChip, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
 
 const meta: Meta = {
   title: "Design System/Typography",
@@ -19,50 +19,6 @@ const meta: Meta = {
 export default meta;
 
 type Story = StoryObj;
-
-// Links must leave the preview iframe and open the Storybook manager.
-const docsHref = (id: string) => `../?path=/docs/${id}`;
-
-const DocsCard = (props: { id: string; label: string; note: string }) => (
-  <Paper p="sm" radius="sm" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-    <Stack gap="xs">
-      <Anchor href={docsHref(props.id)} target="_top" c="primary" fw={600} size="sm" underline="hover">
-        {props.label}
-      </Anchor>
-      <Text size="xs" c="dimmed">{props.note}</Text>
-    </Stack>
-  </Paper>
-);
-
-const PropChip = (props: { name: string; value: string }) => (
-  <Flex
-    gap="xs"
-    align="center"
-    wrap="wrap"
-    style={{
-      padding: "8px 10px",
-      "border-radius": "6px",
-      border: `1px solid ${palette.BORDER}`,
-      background: palette.SURFACE_ALT,
-    }}
-  >
-    <Text size="xs" fw={600} className="font-mono">{props.name}</Text>
-    <Text size="xs" c="dimmed" className="font-mono">{props.value}</Text>
-  </Flex>
-);
-
-const Section = (props: { eyebrow: string; title: string; note: string; children: JSX.Element }) => (
-  <Box component="section" style={{ width: "100%" }}>
-    <Stack gap="sm">
-      <Stack gap="xs">
-        <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">{props.eyebrow}</Text>
-        <Title order={2} size="md">{props.title}</Title>
-        <Text size="sm" c="dimmed">{props.note}</Text>
-      </Stack>
-      {props.children}
-    </Stack>
-  </Box>
-);
 
 /** One composite specimen: hierarchy, tone, mono figures and inline utilities in a quote card. */
 const Specimen = () => (
@@ -141,73 +97,49 @@ const PROPS = [
   { name: "utility", value: "font-mono for price, P&L, OI and IV" },
 ];
 
-const COMPONENTS = [
-  { id: "design-system-components-typography-text--docs", label: "Text", note: "Sizes, tones, weights and truncation." },
-  { id: "design-system-components-typography-title--docs", label: "Title", note: "Semantic h1–h6 with a separate size scale." },
-  { id: "design-system-components-typography-anchor--docs", label: "Anchor", note: "Underline behaviour, tones and targets." },
-  { id: "design-system-components-typography-code--docs", label: "Code", note: "Inline and block mono with semantic fills." },
-  { id: "design-system-components-typography-list--docs", label: "List", note: "Ordered, unordered and icon-aligned items." },
+const COMPONENTS: FamilyComponentRef[] = [
+  { id: "design-system-components-typography-text--docs", name: "Text", note: "Sizes, tones, weights and truncation." },
+  { id: "design-system-components-typography-title--docs", name: "Title", note: "Semantic h1–h6 with a separate size scale." },
+  { id: "design-system-components-typography-anchor--docs", name: "Anchor", note: "Underline behaviour, tones and targets." },
+  { id: "design-system-components-typography-code--docs", name: "Code", note: "Inline and block mono with semantic fills." },
+  { id: "design-system-components-typography-list--docs", name: "List", note: "Ordered, unordered and icon-aligned items." },
 ];
 
 export const Landing: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1100px", margin: "0 auto" }}>
-        <Card p="lg" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-          <Stack gap="md">
-            <Flex gap="sm" align="center" wrap="wrap">
-              <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">Design system / Typography</Text>
-              <Badge size="xs" color="info">5 component pages</Badge>
-            </Flex>
-            <Stack gap="xs">
-              <Title order={1} size="xl">Typography</Title>
-              <Text size="sm" c="dimmed">
-                One type scale for terminal copy, headings and numeric data — expressed through five local primitives.
-              </Text>
-            </Stack>
-            <Box style={{ "border-top": `1px solid ${palette.BORDER}`, "padding-top": "16px" }}>
-              <Specimen />
-            </Box>
-          </Stack>
-        </Card>
+      <FamilyPage width="1100px" padding="0">
+        <FamilyHero
+          name="Typography"
+          count={5}
+          caption="type hierarchy"
+          purpose="One type scale for terminal copy, headings and numeric data — expressed through five local primitives."
+          specimen={<Specimen />}
+        />
 
-        <Section
-          eyebrow="Tokens"
+        <SpecimenPanel
           title="What Typography owns"
           note="Only the props exposed by the typography primitives; values come from their implementations, not a parallel scale."
         >
           <Flex gap="sm" wrap="wrap">
-            {PROPS.map((prop) => <PropChip name={prop.name} value={prop.value} />)}
+            {PROPS.map((prop) => <FamilyChip name={prop.name} value={prop.value} />)}
           </Flex>
-        </Section>
+        </SpecimenPanel>
 
-        <Section
-          eyebrow="Index"
-          title="Components in this family"
+        <ComponentIndex
+          items={COMPONENTS}
           note="Each page carries the full prop matrix and state variants; this landing page keeps one representative specimen."
-        >
-          <Box
-            style={{
-              display: "grid",
-              "grid-template-columns": "repeat(auto-fit, minmax(240px, 1fr))",
-              gap: "8px",
-            }}
-          >
-            {COMPONENTS.map((component) => (
-              <DocsCard id={component.id} label={component.label} note={component.note} />
-            ))}
-          </Box>
-        </Section>
-      </Stack>
+        />
+        <FamilyFooter source="src/ui/typography" pages="src/stories/components/typography" />
+      </FamilyPage>
     )),
 };
 
 export const ScaleAndTones: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="md" style={{ "max-width": "820px", margin: "0 auto" }}>
-        <Section
-          eyebrow="Real demo"
+      <FamilyPage width="820px" padding="0">
+        <SpecimenPanel
           title="Scale and tones"
           note="Rendered with the real Text primitive. Title's order prop selects the semantic tag; its size prop selects the type scale."
         >
@@ -237,7 +169,7 @@ export const ScaleAndTones: Story = {
             <Text size="sm" fw={700} c="error" className="font-mono">-318.25</Text>
             <Text size="xs" c="dimmed" className="font-mono">IV 18.42%</Text>
           </Flex>
-        </Section>
-      </Stack>
+        </SpecimenPanel>
+      </FamilyPage>
     )),
 };

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { createSignal } from "solid-js";
 import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { Select } from "./Select";
+import type { UISelectProps } from "../types";
 
 afterEach(cleanup);
 
@@ -59,7 +60,7 @@ const UNIVERSES = [
   { value: "nifty50", label: "Nifty 50" },
 ];
 
-function UniverseHarness(props: { onChange?: (v: string | null) => void; withinPortal?: boolean }) {
+function UniverseHarness(props: { onChange?: (v: string | null) => void }) {
   const [value, setValue] = createSignal<string | null>(null);
   return (
     <Select
@@ -70,7 +71,6 @@ function UniverseHarness(props: { onChange?: (v: string | null) => void; withinP
         setValue(v);
         props.onChange?.(v);
       }}
-      withinPortal={props.withinPortal}
       aria-label="Universe"
       placeholder="Universe"
     />
@@ -163,23 +163,17 @@ describe("Select — portalled listbox (searchable)", () => {
   });
 });
 
-describe("Select — withinPortal={false} keeps the inline listbox", () => {
-  test("renders the listbox inside the field container with absolute positioning", async () => {
-    const { container } = render(() => <UniverseHarness withinPortal={false} />);
-    const menu = await openMenu();
-    expect(container.contains(menu)).toBe(true);
-    expect(menu.classList.contains("absolute")).toBe(true);
-    expect(menu.classList.contains("fixed")).toBe(false);
-  });
-
-  test("still commits on mousedown", async () => {
-    const onChange = vi.fn();
-    render(() => <UniverseHarness onChange={onChange} withinPortal={false} />);
-    await openMenu();
-    const row = option("Nifty 50");
-    fireEvent.mouseDown(row);
-    fireEvent.click(row);
-    expect(onChange).toHaveBeenCalledWith("nifty50");
+describe("Select — legacy props are outside the public type", () => {
+  test("the swallowed Mantine props are rejected by UISelectProps", () => {
+    const props: UISelectProps = { data: ["a"] };
+    // @ts-expect-error allowDeselect is not a public Select prop
+    expect(props.allowDeselect).toBeUndefined();
+    // @ts-expect-error maxDropdownHeight is not a public Select prop
+    expect(props.maxDropdownHeight).toBeUndefined();
+    // @ts-expect-error comboboxProps is not a public Select prop
+    expect(props.comboboxProps).toBeUndefined();
+    // @ts-expect-error withinPortal is not public; the listbox is always portalled
+    expect(props.withinPortal).toBeUndefined();
   });
 });
 

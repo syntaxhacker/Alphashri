@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
-import type { JSX } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
-import { Anchor, Badge, Box, Button, Card, Divider, Flex, Paper, Stack, Text, Title } from "@/ui";
+import { Badge, Box, Button, Divider, Flex, Stack, Text } from "@/ui";
 import { DENSITY_TOKENS } from "@/ui";
 import { sp } from "@/ui/layout/spacing";
 import * as palette from "@/ui/palette";
 import { contrastRatio, pickTextColor } from "@/utils/contrast";
+import { ComponentIndex, FamilyChip, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
 
 const meta: Meta = {
   title: "Design System/Foundations",
@@ -22,62 +22,6 @@ const meta: Meta = {
 export default meta;
 
 type Story = StoryObj;
-
-// Links must leave the preview iframe and open the Storybook manager.
-const docsHref = (id: string) => `../?path=/docs/${id}`;
-
-const DocsCard = (props: { id: string; label: string; note: string }) => (
-  <Paper p="sm" radius="sm" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-    <Stack gap="xs">
-      <Anchor href={docsHref(props.id)} target="_top" c="primary" fw={600} size="sm" underline="hover">
-        {props.label}
-      </Anchor>
-      <Text size="xs" c="dimmed">{props.note}</Text>
-    </Stack>
-  </Paper>
-);
-
-const TokenChip = (props: { name: string; value: string; swatch?: string }) => (
-  <Flex
-    gap="xs"
-    align="center"
-    wrap="wrap"
-    style={{
-      padding: "8px 10px",
-      "border-radius": "6px",
-      border: `1px solid ${palette.BORDER}`,
-      background: palette.SURFACE_ALT,
-    }}
-  >
-    {props.swatch ? (
-      <Box
-        style={{
-          width: "14px",
-          height: "14px",
-          "flex-shrink": 0,
-          "border-radius": "3px",
-          background: props.swatch,
-          border: `1px solid ${palette.BORDER}`,
-        }}
-      />
-    ) : null}
-    <Text size="xs" fw={600} className="font-mono">{props.name}</Text>
-    <Text size="xs" c="dimmed" className="font-mono">{props.value}</Text>
-  </Flex>
-);
-
-const Section = (props: { eyebrow: string; title: string; note: string; children: JSX.Element }) => (
-  <Box component="section" style={{ width: "100%" }}>
-    <Stack gap="sm">
-      <Stack gap="xs">
-        <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">{props.eyebrow}</Text>
-        <Title order={2} size="md">{props.title}</Title>
-        <Text size="sm" c="dimmed">{props.note}</Text>
-      </Stack>
-      {props.children}
-    </Stack>
-  </Box>
-);
 
 /** One composite specimen: a desk panel that uses the ramp, tones, spacing and focus token together. */
 const Specimen = () => (
@@ -189,65 +133,46 @@ const TOKENS = [
   },
 ];
 
-const COMPONENTS = [
-  { id: "design-system-components-layout-box--docs", label: "Box", note: "Named spacing becomes padding and gaps." },
-  { id: "design-system-components-layout-paper--docs", label: "Paper", note: "Control-friendly radius and named shadows." },
-  { id: "design-system-components-layout-card--docs", label: "Card", note: "The wider, panel-level radius scale." },
-  { id: "design-system-components-typography-text--docs", label: "Text", note: "Type sizes, tones and mono figures." },
-  { id: "design-system-components-feedback-badge--docs", label: "Badge", note: "Semantic fills for status and direction." },
-  { id: "design-system-components-app-tanstacktable--docs", label: "TanStackTable", note: "Where density is written to CSS." },
+const COMPONENTS: FamilyComponentRef[] = [
+  { id: "design-system-components-layout-box--docs", name: "Box", note: "Named spacing becomes padding and gaps." },
+  { id: "design-system-components-layout-paper--docs", name: "Paper", note: "Control-friendly radius and named shadows." },
+  { id: "design-system-components-layout-card--docs", name: "Card", note: "The wider, panel-level radius scale." },
+  { id: "design-system-components-typography-text--docs", name: "Text", note: "Type sizes, tones and mono figures." },
+  { id: "design-system-components-feedback-badge--docs", name: "Badge", note: "Semantic fills for status and direction." },
+  { id: "design-system-components-app-tanstacktable--docs", name: "TanStackTable", note: "Where density is written to CSS." },
 ];
 
 export const Landing: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1100px", margin: "0 auto" }}>
-        <Card p="lg" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-          <Stack gap="md">
-            <Flex gap="sm" align="center" wrap="wrap">
-              <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">Design system / Foundations</Text>
-              <Badge size="xs" color="info">79 component pages use these tokens</Badge>
-            </Flex>
-            <Stack gap="xs">
-              <Title order={1} size="xl">Foundations</Title>
-              <Text size="sm" c="dimmed">
-                Colour, spacing, radius, elevation and density — shared by every component page, with no dedicated Foundations primitives.
-              </Text>
-            </Stack>
-            <Box style={{ "border-top": `1px solid ${palette.BORDER}`, "padding-top": "16px" }}>
-              <Specimen />
-            </Box>
-          </Stack>
-        </Card>
+      <FamilyPage width="1100px" padding="0">
+        <FamilyHero
+          name="Foundations"
+          count={79}
+          countNote="use these tokens"
+          caption="token composite"
+          purpose="Colour, spacing, radius, elevation and density — shared by every component page, with no dedicated Foundations primitives."
+          specimen={<Specimen />}
+        />
 
-        <Section
-          eyebrow="Tokens"
+        <SpecimenPanel
           title="What Foundations owns"
           note="Values below are read from the source modules at render time. No colour literal is authored in this file."
         >
           <Flex gap="sm" wrap="wrap">
-            {TOKENS.map((token) => <TokenChip name={token.name} value={token.value} swatch={token.swatch} />)}
+            {TOKENS.map((token) => <FamilyChip name={token.name} value={token.value} swatch={token.swatch} />)}
           </Flex>
-        </Section>
+        </SpecimenPanel>
 
-        <Section
-          eyebrow="Index"
-          title="Components in this family"
+        <ComponentIndex
+          items={COMPONENTS}
           note="Foundations owns no per-component pages. These are the primitives that give its tokens a concrete shape; full variant docs live on each page."
-        >
-          <Box
-            style={{
-              display: "grid",
-              "grid-template-columns": "repeat(auto-fit, minmax(240px, 1fr))",
-              gap: "8px",
-            }}
-          >
-            {COMPONENTS.map((component) => (
-              <DocsCard id={component.id} label={component.label} note={component.note} />
-            ))}
-          </Box>
-        </Section>
-      </Stack>
+        />
+        <FamilyFooter
+          source="src/ui/palette.ts, src/ui/layout/spacing.ts, src/ui/density.tsx"
+          pages="src/stories/components"
+        />
+      </FamilyPage>
     )),
 };
 
@@ -265,9 +190,8 @@ const CONTRAST_PAIRS = [
 export const Contrast: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="md" style={{ "max-width": "820px", margin: "0 auto" }}>
-        <Section
-          eyebrow="Real demo"
+      <FamilyPage width="820px" padding="0">
+        <SpecimenPanel
           title="Contrast pairs"
           note="Measured at render time over the tokens shown above. AA text needs 4.5:1; meaningful graphics such as the focus ring need 3:1."
         >
@@ -300,7 +224,7 @@ export const Contrast: Story = {
               );
             })}
           </Stack>
-        </Section>
-      </Stack>
+        </SpecimenPanel>
+      </FamilyPage>
     )),
 };

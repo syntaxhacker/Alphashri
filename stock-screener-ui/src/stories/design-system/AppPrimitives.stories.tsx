@@ -1,15 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
-import type { JSX } from "solid-js";
 import { createSignal, Show } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
-import { Anchor, Badge, Button, Card, Divider, Flex, Group, Paper, Stack, Text, Title } from "@/ui";
+import { Badge, Button, Flex, Group, Stack, Text } from "@/ui";
 import { KeyValue } from "@/components/common/KeyValue";
 import { ExitReasonBadge, SideBadge, StatusBadge, TradingModeBadge } from "@/components/common/BadgeComponents";
 import { PnlText } from "@/components/common/PnlText";
 import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
 import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
 import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
-import * as palette from "@/ui/palette";
+import { ComponentIndex, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
 
 const meta: Meta = {
   title: "Design System/App primitives",
@@ -26,13 +25,7 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-const docsHref = (id: string) => `../?path=/docs/${id}`;
-const DocsLink = (props: { id: string; label: string }) => (
-  <Anchor href={docsHref(props.id)} target="_top" c="info" size="sm" underline="hover">{props.label}</Anchor>
-);
-
-type ComponentRef = { id: string; name: string; note: string };
-const components: ComponentRef[] = [
+const components: FamilyComponentRef[] = [
   { id: "design-system-components-app-badges--docs", name: "Badges", note: "Side, status, exit and mode badges" },
   { id: "design-system-components-app-compactpanels--docs", name: "CompactPanels", note: "Titled panel with a stat grid" },
   { id: "design-system-components-app-errorboundary--docs", name: "ErrorBoundary", note: "Contain a failed render" },
@@ -52,57 +45,6 @@ const components: ComponentRef[] = [
   { id: "design-system-components-app-tradingdatepicker--docs", name: "TradingDatePicker", note: "Session-aware date choice" },
   { id: "design-system-components-app-valuesandstates--docs", name: "ValuesAndStates", note: "Live value and table state widgets" },
 ];
-
-const FamilyHero = (props: { name: string; purpose: string; count: number; specimen: JSX.Element }) => (
-  <Paper p="lg" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}`, "border-left": `3px solid ${palette.PRIMARY}` }}>
-    <Stack gap="md">
-      <Flex gap="sm" align="center" wrap="wrap">
-        <Text size="xs" c="primary" tt="uppercase" fw={500} className="font-mono">Design system · family</Text>
-        <Badge size="xs" variant="light" color="primary">{props.count} component pages</Badge>
-      </Flex>
-      <Stack gap="xs">
-        <Title order={1} size="xl">{props.name}</Title>
-        <Text size="sm" c="default" style={{ "max-width": "780px" }}>{props.purpose}</Text>
-      </Stack>
-      <Divider />
-      <Text size="xs" c="dimmed" tt="uppercase" fw={500} className="font-mono">Overview · NIFTY chain header</Text>
-      {props.specimen}
-    </Stack>
-  </Paper>
-);
-
-const ComponentIndex = (props: { items: ComponentRef[] }) => (
-  <Stack gap="sm">
-    <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">Index</Text>
-    <Flex gap="sm" align="baseline" wrap="wrap">
-      <Title order={2} size="lg">Components in this family</Title>
-      <Text size="xs" c="dimmed">Open each card to reach its dedicated page.</Text>
-    </Flex>
-    <div style={{ display: "grid", "grid-template-columns": "repeat(auto-fill, minmax(220px, 1fr))", gap: "8px" }}>
-      {props.items.map((item) => (
-        <Card key={item.id} p="sm" radius="sm" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-          <Stack gap="xs">
-            <DocsLink id={item.id} label={item.name} />
-            <Text size="xs" c="dimmed">{item.note}</Text>
-          </Stack>
-        </Card>
-      ))}
-    </div>
-  </Stack>
-);
-
-const Specimen = (props: { title: string; note: string; children: JSX.Element }) => (
-  <Paper p="md" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-    <Stack gap="sm">
-      <Flex gap="sm" align="baseline" wrap="wrap">
-        <Title order={3} size="md">{props.title}</Title>
-        <Text size="xs" c="dimmed">{props.note}</Text>
-      </Flex>
-      <Divider />
-      {props.children}
-    </Stack>
-  </Paper>
-);
 
 // One labelled fixture shared by every example: spot, change and OI are a
 // single frozen snapshot so the page never implies a live quote.
@@ -239,24 +181,25 @@ const TableSpecimen = () => {
 export const FamilyLanding: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1120px", margin: "0 auto", padding: "4px 0 24px" }}>
+      <FamilyPage>
         <FamilyHero
           name="App primitives"
           count={components.length}
+          caption="NIFTY chain header"
           purpose="Composed widgets the app screens reuse: data rows, semantic badges, state messages, compact stat panels and the shared table. They inherit spacing, type and semantic tones from the same tokens the lower-level primitives use."
           specimen={<ChainHeaderSpecimen />}
         />
         <ComponentIndex items={components} />
-        <Specimen title="KeyValue and badges" note="One frozen quote rendered as label-value rows and semantic markers.">
+        <SpecimenPanel title="KeyValue and badges" note="One frozen quote rendered as label-value rows and semantic markers.">
           <KeyValueSpecimen />
-        </Specimen>
-        <Specimen title="Shared states" note="Empty, error with retry and inline loading use the same vocabulary across screens.">
+        </SpecimenPanel>
+        <SpecimenPanel title="Shared states" note="Empty, error with retry and inline loading use the same vocabulary across screens.">
           <StatesSpecimen />
-        </Specimen>
-        <Specimen title="Table density" note="One grid, one toggle; column alignment stays fixed in both modes.">
+        </SpecimenPanel>
+        <SpecimenPanel title="Table density" note="One grid, one toggle; column alignment stays fixed in both modes.">
           <TableSpecimen />
-        </Specimen>
-        <Text size="xs" c="dimmed">Source: <code>src/components/common</code> · per-component pages: <code>src/stories/components/App</code>.</Text>
-      </Stack>
+        </SpecimenPanel>
+        <FamilyFooter source="src/components/common" pages="src/stories/components/App" />
+      </FamilyPage>
     )),
 };

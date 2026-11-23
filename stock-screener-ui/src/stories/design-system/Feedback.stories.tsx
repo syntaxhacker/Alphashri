@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
-import type { JSX } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
 import {
-  Alert, Anchor, Badge, Box, Button, Card, Divider, Flex, Group, Indicator, Loader, LoadingOverlay,
-  Notifications, Paper, Progress, RingProgress, Skeleton, Stack, Text, Title,
+  Alert, Badge, Box, Button, Flex, Group, Indicator, Loader, LoadingOverlay,
+  Notifications, Progress, RingProgress, Skeleton, Stack, Text,
   showError, showNotification, showSuccess,
 } from "@/ui";
 import * as palette from "@/ui/palette";
+import { ComponentIndex, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
 
 const meta: Meta = {
   title: "Design System/Feedback",
@@ -23,13 +23,7 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-const docsHref = (id: string) => `../?path=/docs/${id}`;
-const DocsLink = (props: { id: string; label: string }) => (
-  <Anchor href={docsHref(props.id)} target="_top" c="info" size="sm" underline="hover">{props.label}</Anchor>
-);
-
-type ComponentRef = { id: string; name: string; note: string };
-const components: ComponentRef[] = [
+const components: FamilyComponentRef[] = [
   { id: "design-system-components-feedback-alert--docs", name: "Alert", note: "Inline success, warning and error messages" },
   { id: "design-system-components-feedback-badge--docs", name: "Badge", note: "Tone, variant, dot and count treatments" },
   { id: "design-system-components-feedback-indicator--docs", name: "Indicator", note: "Count and status markers on controls" },
@@ -40,57 +34,6 @@ const components: ComponentRef[] = [
   { id: "design-system-components-feedback-ringprogress--docs", name: "RingProgress", note: "Segmented radial progress with a label" },
   { id: "design-system-components-feedback-skeleton--docs", name: "Skeleton", note: "Shape placeholders for pending content" },
 ];
-
-const FamilyHero = (props: { name: string; purpose: string; count: number; specimen: JSX.Element }) => (
-  <Paper p="lg" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}`, "border-left": `3px solid ${palette.PRIMARY}` }}>
-    <Stack gap="md">
-      <Flex gap="sm" align="center" wrap="wrap">
-        <Text size="xs" c="primary" tt="uppercase" fw={500} className="font-mono">Design system · family</Text>
-        <Badge size="xs" variant="light" color="primary">{props.count} component pages</Badge>
-      </Flex>
-      <Stack gap="xs">
-        <Title order={1} size="xl">{props.name}</Title>
-        <Text size="sm" c="default" style={{ "max-width": "780px" }}>{props.purpose}</Text>
-      </Stack>
-      <Divider />
-      <Text size="xs" c="dimmed" tt="uppercase" fw={500} className="font-mono">Overview · order acknowledgement</Text>
-      {props.specimen}
-    </Stack>
-  </Paper>
-);
-
-const ComponentIndex = (props: { items: ComponentRef[] }) => (
-  <Stack gap="sm">
-    <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">Index</Text>
-    <Flex gap="sm" align="baseline" wrap="wrap">
-      <Title order={2} size="lg">Components in this family</Title>
-      <Text size="xs" c="dimmed">Open each card to reach its dedicated page.</Text>
-    </Flex>
-    <div style={{ display: "grid", "grid-template-columns": "repeat(auto-fill, minmax(220px, 1fr))", gap: "8px" }}>
-      {props.items.map((item) => (
-        <Card key={item.id} p="sm" radius="sm" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-          <Stack gap="xs">
-            <DocsLink id={item.id} label={item.name} />
-            <Text size="xs" c="dimmed">{item.note}</Text>
-          </Stack>
-        </Card>
-      ))}
-    </div>
-  </Stack>
-);
-
-const Specimen = (props: { title: string; note: string; children: JSX.Element }) => (
-  <Paper p="md" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-    <Stack gap="sm">
-      <Flex gap="sm" align="baseline" wrap="wrap">
-        <Title order={3} size="md">{props.title}</Title>
-        <Text size="xs" c="dimmed">{props.note}</Text>
-      </Flex>
-      <Divider />
-      {props.children}
-    </Stack>
-  </Paper>
-);
 
 const AcknowledgementSpecimen = () => (
   <Stack gap="sm" style={{ "max-width": "720px" }}>
@@ -118,15 +61,16 @@ const AcknowledgementSpecimen = () => (
 export const FamilyLanding: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1120px", margin: "0 auto", padding: "4px 0 24px" }}>
+      <FamilyPage>
         <FamilyHero
           name="Feedback"
           count={components.length}
+          caption="order acknowledgement"
           purpose="A status vocabulary for the desk: badges label state, alerts explain it inline, toasts report background work, and progress, loaders, skeletons and indicators say how far along it is. Tones map to the same semantic colours as the rest of the system."
           specimen={<AcknowledgementSpecimen />}
         />
         <ComponentIndex items={components} />
-        <Specimen title="Notifications" note="Three entry points stack toasts in the bottom-right toaster.">
+        <SpecimenPanel title="Notifications" note="Three entry points stack toasts in the bottom-right toaster.">
           <Notifications>
             <Stack gap="sm">
               <Text size="xs" c="dimmed">showNotification maps the colour option to the matching toast variant.</Text>
@@ -140,8 +84,8 @@ export const FamilyLanding: Story = {
               </Group>
             </Stack>
           </Notifications>
-        </Specimen>
-        <Specimen title="Progress and loaders" note="Determinate bars, spinners and a region-level overlay.">
+        </SpecimenPanel>
+        <SpecimenPanel title="Progress and loaders" note="Determinate bars, spinners and a region-level overlay.">
           <Stack gap="md" style={{ "max-width": "640px" }}>
             <Flex gap="sm" direction="column" style={{ "max-width": "420px" }}>
               <Text size="xs" c="dimmed">Progress · 62%</Text>
@@ -164,8 +108,8 @@ export const FamilyLanding: Story = {
               <LoadingOverlay visible />
             </Box>
           </Stack>
-        </Specimen>
-        <Specimen title="Skeletons and indicators" note="Placeholders hold layout while counts mark unread or live state.">
+        </SpecimenPanel>
+        <SpecimenPanel title="Skeletons and indicators" note="Placeholders hold layout while counts mark unread or live state.">
           <Stack gap="lg">
             <Group gap="md" align="center" wrap="wrap">
               <Skeleton h={18} w={180} />
@@ -179,8 +123,8 @@ export const FamilyLanding: Story = {
               <Indicator label="9+" color="warning"><Button variant="outline">Queue</Button></Indicator>
             </Group>
           </Stack>
-        </Specimen>
-        <Text size="xs" c="dimmed">Source: <code>src/ui</code> · per-component pages: <code>src/stories/components/Feedback</code>.</Text>
-      </Stack>
+        </SpecimenPanel>
+        <FamilyFooter source="src/ui" pages="src/stories/components/Feedback" />
+      </FamilyPage>
     )),
 };

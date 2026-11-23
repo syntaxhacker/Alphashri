@@ -105,7 +105,6 @@ export function StrategyRunnerConfig(props: Props) {
               clearable
               placeholder="Select bots..."
               nothingFoundMessage="No bots found"
-              maxDropdownHeight={200}
             />
           </Box>
 
@@ -158,7 +157,6 @@ export function StrategyRunnerConfig(props: Props) {
                 hidePickedOptions
                 placeholder="Search symbols..."
                 nothingFoundMessage="No symbols found"
-                maxDropdownHeight={200}
               />
               <Show when={allWatchlistSymbols().length > 0}>
                 <Tooltip label="Add all watchlist symbols">

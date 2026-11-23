@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
-import type { JSX } from "solid-js";
 import { createSignal } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
 import {
-  Anchor, AppShell, AppShellHeader, AppShellMain, AppShellNavbar, AppShellSection, Badge, Box,
-  Button, Card, Divider, Flex, Group, NavLink, Paper, Stack, Text, Title,
+  AppShell, AppShellHeader, AppShellMain, AppShellNavbar, AppShellSection, Badge, Box,
+  Button, Divider, Flex, Group, NavLink, Stack, Text,
 } from "@/ui";
 import * as palette from "@/ui/palette";
+import { ComponentIndex, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
 
 const meta: Meta = {
   title: "Design System/Navigation",
@@ -23,66 +23,10 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-const docsHref = (id: string) => `../?path=/docs/${id}`;
-const DocsLink = (props: { id: string; label: string }) => (
-  <Anchor href={docsHref(props.id)} target="_top" c="info" size="sm" underline="hover">{props.label}</Anchor>
-);
-
-type ComponentRef = { id: string; name: string; note: string };
-const components: ComponentRef[] = [
+const components: FamilyComponentRef[] = [
   { id: "design-system-components-navigation-appshell--docs", name: "AppShell", note: "Header, navbar, main and section parts" },
   { id: "design-system-components-navigation-navlink--docs", name: "NavLink", note: "Active, nested and disabled rail links" },
 ];
-
-const FamilyHero = (props: { name: string; purpose: string; count: number; specimen: JSX.Element }) => (
-  <Paper p="lg" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}`, "border-left": `3px solid ${palette.PRIMARY}` }}>
-    <Stack gap="md">
-      <Flex gap="sm" align="center" wrap="wrap">
-        <Text size="xs" c="primary" tt="uppercase" fw={500} className="font-mono">Design system · family</Text>
-        <Badge size="xs" variant="light" color="primary">{props.count} component pages</Badge>
-      </Flex>
-      <Stack gap="xs">
-        <Title order={1} size="xl">{props.name}</Title>
-        <Text size="sm" c="default" style={{ "max-width": "780px" }}>{props.purpose}</Text>
-      </Stack>
-      <Divider />
-      <Text size="xs" c="dimmed" tt="uppercase" fw={500} className="font-mono">At a glance · shell composition</Text>
-      {props.specimen}
-    </Stack>
-  </Paper>
-);
-
-const ComponentIndex = (props: { items: ComponentRef[] }) => (
-  <Stack gap="sm">
-    <Flex gap="sm" align="baseline" wrap="wrap">
-      <Title order={2} size="lg">Components in this family</Title>
-      <Text size="xs" c="dimmed">Open each card to reach its dedicated page.</Text>
-    </Flex>
-    <div style={{ display: "grid", "grid-template-columns": "repeat(auto-fill, minmax(220px, 1fr))", gap: "8px" }}>
-      {props.items.map((item) => (
-        <Card key={item.id} p="sm" radius="sm" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-          <Stack gap="xs">
-            <DocsLink id={item.id} label={item.name} />
-            <Text size="xs" c="dimmed">{item.note}</Text>
-          </Stack>
-        </Card>
-      ))}
-    </div>
-  </Stack>
-);
-
-const Specimen = (props: { title: string; note: string; children: JSX.Element }) => (
-  <Paper p="md" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-    <Stack gap="sm">
-      <Flex gap="sm" align="baseline" wrap="wrap">
-        <Title order={3} size="md">{props.title}</Title>
-        <Text size="xs" c="dimmed">{props.note}</Text>
-      </Flex>
-      <Divider />
-      {props.children}
-    </Stack>
-  </Paper>
-);
 
 /**
  * Real shell parts laid out in flow, not at fixed offsets: the navbar keeps its
@@ -181,15 +125,16 @@ const CollapsedChrome = () => {
 export const FamilyLanding: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1120px", margin: "0 auto", padding: "4px 0 24px" }}>
+      <FamilyPage>
         <FamilyHero
           name="Navigation"
           count={components.length}
+          caption="shell composition"
           purpose="The chrome around every screen: a rail of NavLinks for destination and state, and an AppShell whose header, navbar, main and section each render their own semantic element. Collapsing a bar also removes the matching margin from main."
           specimen={<ShellComposition />}
         />
         <ComponentIndex items={components} />
-        <Specimen title="NavLink" note="Active, described, nested and disabled rail entries.">
+        <SpecimenPanel title="NavLink" note="Active, described, nested and disabled rail entries.">
           <Box style={{ width: "320px", background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
             <NavLink label="Market" description="Screener and breadth" active />
             <NavLink label="Options" description="Chain, paper, replay" />
@@ -200,11 +145,11 @@ export const FamilyLanding: Story = {
               <NavLink label="Nested item 2" />
             </NavLink>
           </Box>
-        </Specimen>
-        <Specimen title="Collapsed chrome" note="Toggle each fixed bar independently; main follows the remaining edge.">
+        </SpecimenPanel>
+        <SpecimenPanel title="Collapsed chrome" note="Toggle each fixed bar independently; main follows the remaining edge.">
           <CollapsedChrome />
-        </Specimen>
-        <Text size="xs" c="dimmed">Source: <code>src/ui</code> · per-component pages: <code>src/stories/components/Navigation</code>.</Text>
-      </Stack>
+        </SpecimenPanel>
+        <FamilyFooter source="src/ui" pages="src/stories/components/Navigation" />
+      </FamilyPage>
     )),
 };

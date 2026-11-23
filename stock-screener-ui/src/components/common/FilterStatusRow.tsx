@@ -63,8 +63,13 @@ export function shouldShowScrollAffordance(
  * live on one line and scroll horizontally instead of wrapping to new rows.
  *
  * A right-edge fade + chevron appears only while there is more content to the
- * right. It is absolutely positioned over the row (so it never affects the
+ * right. It is absolutely positioned over the chip lane (so it never affects the
  * scroll width or the 24px height), with pointer events on the chevron alone.
+ *
+ * The chip lane and the optional clear-all button are separate flex items in a
+ * `gap-1` row: the lane owns `overflow-x-auto` and can shrink (`min-w-0 flex-1`),
+ * while the button keeps its own box (`shrink-0`). This is why chips can never
+ * paint over the button at 390px — no media-query workaround is needed.
  */
 export function FilterStatusRow(props: FilterStatusRowProps) {
   let rowEl: HTMLDivElement | undefined;
@@ -118,62 +123,64 @@ export function FilterStatusRow(props: FilterStatusRowProps) {
   });
 
   return (
-    <Box className="relative min-w-0 shrink-0">
-      <div
-        ref={(el) => (rowEl = el)}
-        data-testid={props.testId}
-        role="region"
-        aria-label={FILTER_STATUS_ROW_ARIA_LABEL}
-        tabIndex={0}
-        class={`flex ${FILTER_STATUS_ROW_HEIGHT_CLASS} min-w-0 shrink-0 items-center gap-1 overflow-x-auto whitespace-nowrap outline-none focus-visible:ring-1 focus-visible:ring-fin-primary ${props.className ?? ""}`}
-        style={{ "scrollbar-width": "none" }}
-      >
-        <Show
-          when={props.hasFilters}
-          fallback={
-            <Text
-              c="dimmed"
-              className="text-[10px] leading-none whitespace-nowrap"
-              data-testid={`${props.testId}-${FILTER_STATUS_EMPTY_TESTID_SUFFIX}`}
-            >
-              {props.placeholder ?? FILTER_STATUS_ROW_PLACEHOLDER}
-            </Text>
-          }
+    <Box className={`relative flex ${FILTER_STATUS_ROW_HEIGHT_CLASS} min-w-0 shrink-0 items-center gap-1`}>
+      <div className="relative min-w-0 flex-1">
+        <div
+          ref={(el) => (rowEl = el)}
+          data-testid={props.testId}
+          role="region"
+          aria-label={FILTER_STATUS_ROW_ARIA_LABEL}
+          tabIndex={0}
+          class={`flex ${FILTER_STATUS_ROW_HEIGHT_CLASS} min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap outline-none focus-visible:ring-1 focus-visible:ring-fin-primary ${props.className ?? ""}`}
+          style={{ "scrollbar-width": "none" }}
         >
-          <Box className="inline-flex min-w-0 items-center gap-1 whitespace-nowrap">
-            {props.children}
-          </Box>
-          <Show when={props.onClearAll}>
-            <Button
-              size="xs"
-              variant="subtle"
-              className="ml-auto shrink-0"
-              onClick={() => props.onClearAll?.()}
-              data-testid={props.clearAllTestId}
-            >
-              {props.clearAllLabel ?? FILTER_STATUS_CLEAR_ALL_LABEL}
-            </Button>
+          <Show
+            when={props.hasFilters}
+            fallback={
+              <Text
+                c="dimmed"
+                className="text-[10px] leading-none whitespace-nowrap"
+                data-testid={`${props.testId}-${FILTER_STATUS_EMPTY_TESTID_SUFFIX}`}
+              >
+                {props.placeholder ?? FILTER_STATUS_ROW_PLACEHOLDER}
+              </Text>
+            }
+          >
+            <Box className="inline-flex min-w-0 items-center gap-1 whitespace-nowrap">
+              {props.children}
+            </Box>
           </Show>
+        </div>
+        <Show when={showAffordance()}>
+          <Box
+            className="pointer-events-none absolute inset-y-0 right-0 flex w-8 items-center justify-end"
+            style={{ background: `linear-gradient(to right, ${alpha(SURFACE, 0)}, ${SURFACE})` }}
+          >
+            <button
+              type="button"
+              aria-label={FILTER_STATUS_SCROLL_LABEL}
+              data-testid={`${props.testId}-${FILTER_STATUS_SCROLL_TESTID_SUFFIX}`}
+              // The region already scrolls with the arrow keys when focused; this
+              // stays out of the tab order so there is only one tab stop.
+              tabIndex={-1}
+              className="pointer-events-auto flex h-5 w-5 items-center justify-center rounded-sm text-fin-text hover:text-fin-primary"
+              onClick={scrollRight}
+            >
+              <IconChevronRight size={14} />
+            </button>
+          </Box>
         </Show>
       </div>
-      <Show when={showAffordance()}>
-        <Box
-          className="pointer-events-none absolute inset-y-0 right-0 flex w-8 items-center justify-end"
-          style={{ background: `linear-gradient(to right, ${alpha(SURFACE, 0)}, ${SURFACE})` }}
+      <Show when={props.hasFilters && props.onClearAll}>
+        <Button
+          size="xs"
+          variant="subtle"
+          className="shrink-0"
+          onClick={() => props.onClearAll?.()}
+          data-testid={props.clearAllTestId}
         >
-          <button
-            type="button"
-            aria-label={FILTER_STATUS_SCROLL_LABEL}
-            data-testid={`${props.testId}-${FILTER_STATUS_SCROLL_TESTID_SUFFIX}`}
-            // The region already scrolls with the arrow keys when focused; this
-            // stays out of the tab order so there is only one tab stop.
-            tabIndex={-1}
-            className="pointer-events-auto flex h-5 w-5 items-center justify-center rounded-sm text-fin-text hover:text-fin-primary"
-            onClick={scrollRight}
-          >
-            <IconChevronRight size={14} />
-          </button>
-        </Box>
+          {props.clearAllLabel ?? FILTER_STATUS_CLEAR_ALL_LABEL}
+        </Button>
       </Show>
     </Box>
   );

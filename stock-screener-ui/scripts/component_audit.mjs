@@ -170,7 +170,7 @@ Scope: \`src/ui/**\` and \`src/components/common/**\` component modules (${rows.
 
 ## Story catalog
 
-- Story files scanned: **${allStories.length}** (${centralizedStories.length} centralized under \`src/stories/design-system/\`, ${colocatedStories.length} co-located).
+- Story files scanned: **${allStories.length}** (${centralizedStories.length} centralized under \`src/stories/\` — design-system + components, ${colocatedStories.length} co-located).
 - Story entries parsed from \`export const …\`: **${storyEntries}**.
 - Distinct exported component names imported by those stories: **${exercisedExports.size}**.
 - A module is marked "yes" in the Story column only when a story imports one of its **actual exported names**, resolved through \`@/ui\` re-exports and relative co-located imports. Filename string matches are no longer used.

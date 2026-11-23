@@ -20,6 +20,9 @@ type MenuContextValue = {
   trigger: () => string | undefined;
   registerDropdownEl: (el: HTMLElement | null) => void;
   unregisterDropdownEl: (el: HTMLElement | null) => void;
+  /** Live, enabled menu items in DOM order — the source of truth for arrow navigation. */
+  getMenuItems: () => HTMLElement[];
+  loop: () => boolean;
 };
 
 const MenuContext = createContext<MenuContextValue | null>(null);
@@ -226,6 +229,14 @@ export function Menu(props: UIMenuProps) {
     setDropdownEl((current) => (current === el ? null : current));
   };
 
+  const getMenuItems = () => {
+    const dropdown = dropdownElRef();
+    if (!dropdown) return [];
+    return Array.from(dropdown.querySelectorAll<HTMLElement>('[role="menuitem"]')).filter(
+      (el) => !el.hasAttribute("disabled") && el.getAttribute("aria-disabled") !== "true",
+    );
+  };
+
   createEffect(() => {
     // Outside-dismiss is the default: a menu that stays open until Escape or a
     // second target click reads as stuck. Callers opt out explicitly.
@@ -268,6 +279,8 @@ export function Menu(props: UIMenuProps) {
     trigger: () => known.trigger,
     registerDropdownEl,
     unregisterDropdownEl,
+    getMenuItems,
+    loop: () => known.loop ?? true,
   };
 
   return (
@@ -343,6 +356,8 @@ export function MenuDropdown(props: UIMenuDropdownProps) {
     containerEl,
     registerDropdownEl,
     unregisterDropdownEl,
+    getMenuItems,
+    loop,
   } = useMenuContext();
 
   // `equals: false` so a re-created element is re-registered even when the new
@@ -426,6 +441,66 @@ export function MenuDropdown(props: UIMenuDropdownProps) {
     onCleanup(() => unregisterDropdownEl(el));
   });
 
+  const focusItem = (el: HTMLElement) => {
+    for (const item of getMenuItems()) item.setAttribute("tabindex", item === el ? "0" : "-1");
+    el.focus();
+  };
+
+  createEffect(() => {
+    if (!open() || !dropdownEl()) return;
+    // Arrow keys move a single tab stop; the first item owns it on open.
+    const items = getMenuItems();
+    if (items.length) focusItem(items[0]);
+  });
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    const items = getMenuItems();
+    if (!items.length) return;
+    const activeIndex = items.indexOf(document.activeElement as HTMLElement);
+    let next: HTMLElement | undefined;
+
+    switch (e.key) {
+      case "ArrowDown":
+        next = activeIndex < 0
+          ? items[0]
+          : loop()
+            ? items[(activeIndex + 1) % items.length]
+            : items[Math.min(activeIndex + 1, items.length - 1)];
+        break;
+      case "ArrowUp":
+        next = activeIndex < 0
+          ? items[items.length - 1]
+          : loop()
+            ? items[(activeIndex - 1 + items.length) % items.length]
+            : items[Math.max(activeIndex - 1, 0)];
+        break;
+      case "Home":
+        next = items[0];
+        break;
+      case "End":
+        next = items[items.length - 1];
+        break;
+      case "Enter":
+      case " ":
+      case "Spacebar": {
+        const item = activeIndex >= 0 ? items[activeIndex] : items[0];
+        if (!item) return;
+        // Suppress the native button activation so this fires exactly once in
+        // browsers too (Enter on keydown, Space on keyup).
+        e.preventDefault();
+        e.stopPropagation();
+        item.click();
+        return;
+      }
+      default:
+        return;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+    if (next) focusItem(next);
+  };
+
   createEffect(() => {
     if (!open()) return;
     // A scroll inside the menu itself must not move it; only an ancestor
@@ -472,6 +547,7 @@ export function MenuDropdown(props: UIMenuDropdownProps) {
           withArrow() ? "with-arrow" : "",
           known.className,
         )}
+        onKeyDown={handleKeyDown}
         style={dropdownStyle()}
         data-testid={known["data-testid"]}
         {...(rest as Record<string, unknown>)}
@@ -550,6 +626,7 @@ export function MenuItem(props: UIMenuItemProps) {
       type="button"
       role="menuitem"
       id={known.id}
+      tabIndex={-1}
       aria-disabled={known.disabled || undefined}
       disabled={known.disabled}
       className={cls()}
