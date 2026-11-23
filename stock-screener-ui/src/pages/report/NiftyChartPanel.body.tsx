@@ -95,7 +95,9 @@ export function ChartBody(props: ChartBodyProps) {
   /** The volume histogram is the only overlay series on this chart. Its
    *  "109K" last-value tag shares the right axis with the price tag and, at
    *  390px, stacks against it at the pane bottom. The bars still render — only
-   *  the redundant axis tag is suppressed. */
+   *  the redundant axis tag is suppressed. The candle series' own last-value
+   *  tag is suppressed on the same phone axis via `hideLastValueTag`; the live
+   *  spot stays visible in the decision strip's HTML `NiftySpotValue` chip. */
   const volumeSeriesOf = (chart: IChartApi) => {
     for (const pane of chart.panes?.() ?? []) {
       for (const series of pane.getSeries()) {
@@ -197,6 +199,7 @@ export function ChartBody(props: ChartBodyProps) {
           data-cutoff-lane={CHART_PLOT_MARGIN.dataCutoffLane}
           data-axis-gutter={CHART_PLOT_MARGIN.edgeGutter}
           data-mobile-axis-gutter={MOBILE_AXIS_MIN_WIDTH}
+          data-hide-last-value-tag={phone() ? "1" : "0"}
           class="w-full max-w-full min-w-0 shrink-0 overflow-hidden flex-1 min-h-0"
           style={{
             position: "relative",
@@ -218,6 +221,7 @@ export function ChartBody(props: ChartBodyProps) {
             touchMarkers={props.touchMarkers}
             {...(props.chartHeight != null ? { height: props.chartHeight! } : {})}
             fitMarkLines
+            hideLastValueTag={phone()}
             onChartReady={chartReady}
           />
           <Show when={props.lastDataBoundary}>
