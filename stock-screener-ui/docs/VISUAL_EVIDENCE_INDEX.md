@@ -94,7 +94,7 @@ results.
 | --- | --- | --- |
 | Axe, **29 stories** | `scripts/storybook-a11y.mjs`: 13 family landings + 3 overlay playables + 5 component representatives + 8 pinned visible states (BrokerAuthNotice, MembersDrawer ×2 ChartPreviews states, Foundations theme bridge, 3 data-display result states). WCAG 2.0/2.1 A/AA; fails on serious/critical. | **Configured, not re-certified here.** No committed run log for the 29-story set. `DESIGN_SYSTEM_A_PLUS_GATE.md` agrees with the script at **29** stories; only the missing run log, not a doc mismatch, keeps 29 from being called green here. |
 | Keyboard, **10 walkthroughs** | `scripts/storybook-keyboard.mjs`: Modal open (Tab cycle/Shift+Tab wrap), Modal dismissal (Escape/focus return), Tree (arrows/expand/select), Menu (arrows/Home/End/Escape), horizontal Tabs, vertical Tabs, Popover, Tooltip, modal FloatingWindow, NavLink (button[role=link] Enter/Space activation, disabled inert, href stays an anchor). | **Configured.** `DESIGN_SYSTEM_A_PLUS_GATE.md:90` documents 10/10; no committed run artifact accompanies this index, so treat 10/10 as a documented claim, not fresh evidence. |
-| Visual baseline, **12 images** | `tests/visual/__screenshots__/README.md` and `docs/VISUAL_REGRESSION.md`: 6 stories × 2 viewports — `typography-landing`, `overview`, `inputs-landing`, `data-display-landing`, `overlay-landing`, `foundations-landing` at `desktop-1600` / `mobile-390`; `bun run visual:test` must find all 12 (no writes). | **Pending capture.** Directory contains only `README.md`; 0 of 12 PNGs exist. The gate fails on missing baselines until `bun run build-storybook` + `bun run visual:update` produce and commit them. |
+| Visual baseline, **12 images** | `tests/visual/__screenshots__/README.md` and `docs/VISUAL_REGRESSION.md`: 6 stories × 2 viewports — `typography-landing`, `overview`, `inputs-landing`, `data-display-landing`, `overlay-landing`, `foundations-landing` at `desktop-1600` / `mobile-390`; `bun run visual:test` must find all 12 (no writes). | **Harness + CI step configured (`ff939b9a`), baselines pending.** Directory contains only `README.md`; 0 of 12 PNGs exist. `bun run build-storybook` + `bun run visual:update` must produce and commit them before the gate can pass; do not call it green. |
 
 ## 4. Evidence vs claims — the line
 
@@ -107,8 +107,9 @@ results.
 - Script definitions are gate *configuration*; a pass result needs a run/artifact.
   The 29-story axe number comes from the script, and `DESIGN_SYSTEM_A_PLUS_GATE.md`
   agrees at 29 — still configuration, not a committed run result.
-- No committed pixel-diff baseline exists, so "visual regression gate passes" is
-  not a supportable claim today.
+- The pixel-diff harness and CI step exist (`ff939b9a`), but no baseline PNGs
+  have been generated or committed yet (0 of 12), so "visual regression gate
+  passes" is not a supportable claim today.
 - Screenshot captions in `VISUAL_AUDIT_APP.md` describe `sector-390.png` as
   committed; git does not. Trust the file state in §1.
 
