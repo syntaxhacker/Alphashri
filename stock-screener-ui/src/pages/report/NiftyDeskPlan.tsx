@@ -343,43 +343,44 @@ export function NiftyDeskPlan(props: NiftyDeskPlanProps) {
           {open() ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
         </button>
       </div>
-      <Show when={open()}>
-        <div
-          id={BODY_ID}
-          data-testid="desk-plan-body"
-          class="min-w-0"
-          style={{
-            "padding": "8px",
-            "min-width": 0,
-            // Keep the chart inside the first 1080p screen; the body scrolls
-            // internally when both reason lists run long.
-            "max-height": "320px",
-            "overflow-y": "auto",
-            "scrollbar-gutter": "stable",
-          }}
-        >
-          <Show when={noTrade()}>
-            <div
-              data-testid="desk-wait-note"
-              class="flex items-center min-w-0"
-              style={{
-                "gap": "6px",
-                "padding-bottom": "4px",
-                "margin-bottom": "4px",
-                "border-bottom": `1px solid ${palette.TERM_BORDER}`,
-              }}
-            >
-              <Text size="xs" fw={700} c="dimmed" lh={1.3} style={{ "font-size": `${REPORT_FONT.micro}px` }}>
-                {plan().waitNote}
-              </Text>
-            </div>
-          </Show>
-          <div class="grid grid-cols-1 min-[900px]:grid-cols-2 gap-2 min-w-0">
-            <DeskSideColumn side={plan().bull} label="BULL" noTrade={noTrade()} />
-            <DeskSideColumn side={plan().bear} label="BEAR" noTrade={noTrade()} />
+      <div
+        id={BODY_ID}
+        data-testid="desk-plan-body"
+        class="min-w-0"
+        style={{
+          // Keep the region mounted so aria-controls always resolves; display:none
+          // drops the collapsed content out of the tab order (no focus leak).
+          display: open() ? "block" : "none",
+          "padding": "8px",
+          "min-width": 0,
+          // Keep the chart inside the first 1080p screen; the body scrolls
+          // internally when both reason lists run long.
+          "max-height": "320px",
+          "overflow-y": "auto",
+          "scrollbar-gutter": "stable",
+        }}
+      >
+        <Show when={noTrade()}>
+          <div
+            data-testid="desk-wait-note"
+            class="flex items-center min-w-0"
+            style={{
+              "gap": "6px",
+              "padding-bottom": "4px",
+              "margin-bottom": "4px",
+              "border-bottom": `1px solid ${palette.TERM_BORDER}`,
+            }}
+          >
+            <Text size="xs" fw={700} c="dimmed" lh={1.3} style={{ "font-size": `${REPORT_FONT.micro}px` }}>
+              {plan().waitNote}
+            </Text>
           </div>
+        </Show>
+        <div class="grid grid-cols-1 min-[900px]:grid-cols-2 gap-2 min-w-0">
+          <DeskSideColumn side={plan().bull} label="BULL" noTrade={noTrade()} />
+          <DeskSideColumn side={plan().bear} label="BEAR" noTrade={noTrade()} />
         </div>
-      </Show>
+      </div>
     </div>
   );
 }

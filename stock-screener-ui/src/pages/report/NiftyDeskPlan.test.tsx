@@ -237,15 +237,33 @@ describe("NiftyDeskPlan", () => {
   test("the header chevron collapses and reopens the body", () => {
     renderPlan(bearishReport());
     const toggle = screen.getByTestId("desk-plan-toggle");
+    const body = screen.getByTestId("desk-plan-body");
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByTestId("desk-plan-body")).toBeInTheDocument();
+    expect(body).not.toHaveStyle({ display: "none" });
 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByTestId("desk-plan-body")).not.toBeInTheDocument();
+    expect(body).toHaveStyle({ display: "none" });
 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByTestId("desk-plan-body")).toBeInTheDocument();
+    expect(body).not.toHaveStyle({ display: "none" });
+  });
+
+  test("the toggle's aria-controls resolves to a mounted body in both states", () => {
+    renderPlan(bearishReport());
+    const toggle = screen.getByTestId("desk-plan-toggle");
+
+    const openId = toggle.getAttribute("aria-controls");
+    expect(openId).toBe("nifty-desk-plan-body");
+    const body = document.getElementById(openId!);
+    expect(body).toBe(screen.getByTestId("desk-plan-body"));
+    expect(body).not.toHaveStyle({ display: "none" });
+
+    fireEvent.click(toggle);
+    const collapsedId = toggle.getAttribute("aria-controls");
+    expect(collapsedId).toBe("nifty-desk-plan-body");
+    expect(document.getElementById(collapsedId!)).toBe(body);
+    expect(body).toHaveStyle({ display: "none" });
   });
 });
