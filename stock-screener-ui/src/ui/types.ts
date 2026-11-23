@@ -550,6 +550,15 @@ export interface UITooltipProps extends UIBaseProps {
   multiline?: boolean;
   color?: UIColor;
   /**
+   * Make the wrapper itself a tab stop so keyboard users can reach a tooltip
+   * whose trigger is plain text or otherwise not focusable. Off by default:
+   * buttons, links and inputs already carry the tab stop, and adding a second
+   * one around them would trap keyboard users in a duplicate stop. The
+   * opt-in wrapper is named from `label` and gains a visible focus ring, but
+   * is not an action — no Enter/Space activation is synthesised.
+   */
+  focusable?: boolean;
+  /**
    * Legacy Mantine-compat prop. Accepted so existing call sites keep
    * typechecking, but intentionally swallowed — the component handles portal rendering internally and must never receive this as a DOM attribute.
    */

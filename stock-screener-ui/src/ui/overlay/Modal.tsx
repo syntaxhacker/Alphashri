@@ -49,6 +49,95 @@ function getFocusable(root: HTMLElement | undefined): HTMLElement[] {
 }
 
 /**
+ * Background containment. While a dialog is open, everything outside it must
+ * be unreachable by Tab and invisible to assistive tech. We mark the siblings
+ * of each ancestor on the path to <body> — never an ancestor itself, since
+ * that contains the dialog — with both `inert` (keyboard/pointer) and
+ * `aria-hidden="true"` (AT fallback). Attributes are snapshotted per element
+ * and restored verbatim, so we never clobber a caller's own values.
+ *
+ * The open set lives here rather than per instance: every change recomputes
+ * from the full set, so an inner dialog can hide more of the page, and closing
+ * it restores exactly the state the still-open outer dialog needs. It also
+ * keeps Escape and the Tab cycle owned by the innermost dialog only.
+ */
+interface AttributeSnapshot {
+  inert: string | null;
+  ariaHidden: string | null;
+}
+
+const openDialogs: HTMLElement[] = [];
+const hiddenBackground = new Map<Element, AttributeSnapshot>();
+
+function restoreHiddenBackground() {
+  for (const [el, snapshot] of hiddenBackground) {
+    if (snapshot.inert === null) el.removeAttribute("inert");
+    else el.setAttribute("inert", snapshot.inert);
+    if (snapshot.ariaHidden === null) el.removeAttribute("aria-hidden");
+    else el.setAttribute("aria-hidden", snapshot.ariaHidden);
+  }
+  hiddenBackground.clear();
+}
+
+function hideBackground(el: Element) {
+  if (!hiddenBackground.has(el)) {
+    hiddenBackground.set(el, {
+      inert: el.getAttribute("inert"),
+      ariaHidden: el.getAttribute("aria-hidden"),
+    });
+  }
+  el.setAttribute("inert", "");
+  el.setAttribute("aria-hidden", "true");
+}
+
+function syncBackground() {
+  // SSR: effects never run server-side, but keep module evaluation guarded.
+  if (typeof document === "undefined") return;
+  restoreHiddenBackground();
+  if (openDialogs.length === 0) return;
+
+  // The dialogs and their ancestor chain are the foreground. A dialog's own
+  // subtree is never walked — that is the content being shown.
+  const foreground = new Set<Element>();
+  const ancestors = new Set<Element>();
+  for (const dialog of openDialogs) {
+    if (!dialog.isConnected) continue;
+    let node: Element | null = dialog;
+    foreground.add(node);
+    while ((node = node.parentElement) !== null) {
+      foreground.add(node);
+      ancestors.add(node);
+      if (node === document.body) break;
+    }
+  }
+  for (const parent of ancestors) {
+    for (const child of Array.from(parent.children)) {
+      if (!foreground.has(child)) hideBackground(child);
+    }
+  }
+}
+
+function registerDialog(dialog: HTMLElement) {
+  if (openDialogs.includes(dialog)) return;
+  openDialogs.push(dialog);
+  syncBackground();
+}
+
+function unregisterDialog(dialog: HTMLElement) {
+  const index = openDialogs.indexOf(dialog);
+  if (index !== -1) openDialogs.splice(index, 1);
+  syncBackground();
+}
+
+/** Innermost open dialog: the only one that handles Escape and Tab. */
+function topDialog(): HTMLElement | undefined {
+  for (let i = openDialogs.length - 1; i >= 0; i--) {
+    if (openDialogs[i].isConnected) return openDialogs[i];
+  }
+  return undefined;
+}
+
+/**
  * Dismissal defaults, whenever `onClose` is given: a titled modal always shows
  * a × in its title bar, Escape closes, and a backdrop click closes. Dialogs
  * that would discard something irreversible opt out explicitly with
@@ -113,8 +202,12 @@ export function Modal(props: ModalProps) {
   createEffect(() => {
     if (!known.opened) return;
     const previous = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef;
     const frame = window.requestAnimationFrame(() => dialogRef?.focus());
     const onDocKey = (e: KeyboardEvent) => {
+      // A nested dialog owns the keyboard; the outer one must not also close
+      // on the same Escape or pull focus back with its own Tab cycle.
+      if (topDialog() !== dialogRef) return;
       if (e.key === "Escape" && closeOnEscape() && !escapeBelongsToPopup()) {
         known.onClose?.();
         return;
@@ -149,10 +242,14 @@ export function Modal(props: ModalProps) {
     document.addEventListener("keydown", onDocKey, true);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    if (dialog) registerDialog(dialog);
     onCleanup(() => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onDocKey, true);
       document.body.style.overflow = previousOverflow;
+      // Restore the background before focusing the opener: it may have been
+      // inert while this dialog was on top.
+      if (dialog) unregisterDialog(dialog);
       previous?.focus?.();
     });
   });

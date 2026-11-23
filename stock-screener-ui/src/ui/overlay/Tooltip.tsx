@@ -59,6 +59,7 @@ export function Tooltip(props: TooltipProps) {
     "disabled",
     "multiline",
     "color",
+    "focusable",
     "children",
     "className",
     "style",
@@ -183,6 +184,21 @@ export function Tooltip(props: TooltipProps) {
     typeof known.label === "string" && !childHasName() ? known.label : undefined;
 
   /**
+   * `focusable` is opt-in so buttons/links keep their single, native tab stop.
+   * The wrapper needs an explicit role for `aria-label` to be a legal
+   * accessible name (a bare <span> forbids author naming), and a ring of its
+   * own because it has no native focus styling. It is not an action: focus
+   * alone reveals the description, and no Enter/Space activation is added —
+   * any key behaviour remains with callbacks forwarded through `rest`.
+   */
+  const wrapperRole = () => (known.focusable ? "button" : undefined);
+  const wrapperTabIndex = () => (known.focusable ? 0 : undefined);
+  const focusRingClass = () =>
+    known.focusable
+      ? "outline-none focus:ring-1 focus:ring-fin-primary focus-visible:ring-2"
+      : undefined;
+
+  /**
    * Only reference the portalled node while it is mounted. A caller-supplied
    * describedby is preserved (and appended to) rather than overwritten.
    */
@@ -237,7 +253,7 @@ export function Tooltip(props: TooltipProps) {
       id={known.id}
       data-testid={known["data-testid"] ? `${known["data-testid"]}-wrapper` : undefined}
       aria-label={ariaLabel()}
-      className={cn("inline-flex relative", known.className)}
+      className={cn("inline-flex relative", focusRingClass(), known.className)}
       style={known.style}
       onMouseEnter={(e) => {
         known.onMouseEnter?.(e);
@@ -253,6 +269,8 @@ export function Tooltip(props: TooltipProps) {
       onFocusOut={handleBlur}
       {...(rest as Record<string, unknown>)}
       aria-describedby={describedBy()}
+      role={wrapperRole()}
+      tabIndex={wrapperTabIndex()}
     >
       {known.children}
       {open() && known.label && (

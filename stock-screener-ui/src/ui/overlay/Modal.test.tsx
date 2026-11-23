@@ -2,7 +2,8 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { createSignal, Show } from "solid-js";
+import { Portal } from "solid-js/web";
 import { Modal } from "./Modal";
 
 afterEach(cleanup);
@@ -256,5 +257,171 @@ describe("Modal keyboard containment", () => {
     const close = screen.getByLabelText("close");
     expect(close).toHaveAttribute("type", "button");
     expect(close.className).not.toContain("focus:outline-none");
+  });
+});
+
+describe("Modal background containment", () => {
+  test("background siblings are inert and aria-hidden while open, then restored", () => {
+    function Harness() {
+      const [opened, setOpened] = createSignal(false);
+      return (
+        <>
+          <button onClick={() => setOpened(true)}>background action</button>
+          <Modal opened={opened()} onClose={() => setOpened(false)} title="Settings">
+            body
+          </Modal>
+        </>
+      );
+    }
+    render(() => <Harness />);
+    const background = screen.getByRole("button", { name: "background action" });
+    expect(background).not.toHaveAttribute("inert");
+    expect(background).not.toHaveAttribute("aria-hidden");
+
+    fireEvent.click(background);
+    const dialog = screen.getByRole("dialog", { name: "Settings" });
+    expect(background).toHaveAttribute("inert");
+    expect(background).toHaveAttribute("aria-hidden", "true");
+    // The dialog and its ancestors must stay usable — only siblings are hidden.
+    expect(dialog).not.toHaveAttribute("inert");
+    expect(dialog).not.toHaveAttribute("aria-hidden");
+    expect(dialog.parentElement).not.toHaveAttribute("inert");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(background).not.toHaveAttribute("inert");
+    expect(background).not.toHaveAttribute("aria-hidden");
+  });
+
+  test("pre-existing inert and aria-hidden values are restored verbatim", () => {
+    function Harness() {
+      const [opened, setOpened] = createSignal(false);
+      return (
+        <>
+          <div aria-hidden="false" data-testid="aria-host">
+            <button onClick={() => setOpened(true)}>background action</button>
+          </div>
+          <div data-testid="already-inert">outside</div>
+          <Modal opened={opened()} onClose={() => setOpened(false)} title="Settings">
+            body
+          </Modal>
+        </>
+      );
+    }
+    render(() => <Harness />);
+    const opener = screen.getByRole("button", { name: "background action" });
+    const ariaHost = screen.getByTestId("aria-host");
+    const alreadyInert = screen.getByTestId("already-inert");
+    // A caller-supplied value (including a non-empty one) must survive both
+    // directions of the containment toggle.
+    alreadyInert.setAttribute("inert", "kept");
+
+    fireEvent.click(opener);
+    expect(ariaHost).toHaveAttribute("aria-hidden", "true");
+    expect(alreadyInert).toHaveAttribute("inert");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(ariaHost).toHaveAttribute("aria-hidden", "false");
+    expect(alreadyInert).toHaveAttribute("inert", "kept");
+  });
+
+  test("nested modals: closing the inner restores only the outer's containment", () => {
+    function Harness() {
+      const [outer, setOuter] = createSignal(false);
+      const [inner, setInner] = createSignal(false);
+      return (
+        <>
+          <button onClick={() => setOuter(true)}>open outer</button>
+          <Modal opened={outer()} onClose={() => setOuter(false)} title="Outer">
+            <button onClick={() => setInner(true)}>open inner</button>
+            <Modal opened={inner()} onClose={() => setInner(false)} title="Inner">
+              inner body
+            </Modal>
+          </Modal>
+        </>
+      );
+    }
+    render(() => <Harness />);
+    const pageAction = screen.getByRole("button", { name: "open outer" });
+
+    fireEvent.click(pageAction);
+    expect(screen.getByRole("dialog", { name: "Outer" })).toBeInTheDocument();
+    expect(pageAction).toHaveAttribute("inert");
+    const innerOpener = screen.getByRole("button", { name: "open inner" });
+    expect(innerOpener).not.toHaveAttribute("inert");
+
+    fireEvent.click(innerOpener);
+    expect(screen.getByRole("dialog", { name: "Inner" })).toBeInTheDocument();
+    // The outer dialog's own content is background now; the inner dialog is not.
+    expect(innerOpener).toHaveAttribute("inert");
+    expect(pageAction).toHaveAttribute("inert");
+
+    // Escape belongs to the innermost dialog only.
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Inner" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Outer" })).toBeInTheDocument();
+    expect(innerOpener).not.toHaveAttribute("inert");
+    expect(pageAction).toHaveAttribute("inert");
+    expect(pageAction).toHaveAttribute("aria-hidden", "true");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(pageAction).not.toHaveAttribute("inert");
+    expect(pageAction).not.toHaveAttribute("aria-hidden");
+  });
+
+  test("a portalled dialog hides the app root but leaves its own subtree usable", () => {
+    function Harness() {
+      const [opened, setOpened] = createSignal(false);
+      return (
+        <>
+          <button onClick={() => setOpened(true)}>background action</button>
+          <Portal>
+            <Modal opened={opened()} onClose={() => setOpened(false)} title="Portalled">
+              body
+            </Modal>
+          </Portal>
+        </>
+      );
+    }
+    const { container: appRoot } = render(() => <Harness />);
+    const background = screen.getByRole("button", { name: "background action" });
+
+    fireEvent.click(background);
+    const dialog = screen.getByRole("dialog", { name: "Portalled" });
+    // The dialog lives in a body-level portal, so the app root itself — not a
+    // sibling inside it — is the background that must be hidden.
+    expect(appRoot).toHaveAttribute("inert");
+    expect(appRoot).toHaveAttribute("aria-hidden", "true");
+    const portalHost = dialog.parentElement;
+    if (!portalHost) throw new Error("portal host missing");
+    expect(portalHost).not.toHaveAttribute("inert");
+    expect(portalHost).not.toHaveAttribute("aria-hidden");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(appRoot).not.toHaveAttribute("inert");
+    expect(appRoot).not.toHaveAttribute("aria-hidden");
+  });
+
+  test("unmounting the Modal restores the background", () => {
+    const [mounted, setMounted] = createSignal(true);
+    render(() => (
+      <>
+        <Show when={mounted()}>
+          <Modal opened onClose={() => {}} title="Settings">
+            body
+          </Modal>
+        </Show>
+        <button>other background</button>
+      </>
+    ));
+    // getByText (not getByRole): the background is deliberately aria-hidden.
+    const background = screen.getByText("other background");
+    expect(background).toHaveAttribute("inert");
+
+    setMounted(false);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(background).not.toHaveAttribute("inert");
+    expect(background).not.toHaveAttribute("aria-hidden");
   });
 });
