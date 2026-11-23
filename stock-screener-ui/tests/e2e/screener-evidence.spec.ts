@@ -47,7 +47,9 @@ for (const [width, height] of [
       // Below `sm` the table scrolls sideways; the cue is the only affordance.
       // Missing cue => fail before writing the PNG rather than commit a clipped,
       // misleading 390 capture.
-      await expect(page.getByTestId("screener-table-scroll-cue")).toBeVisible();
+      // The approaching/touched panels each mount their own table cue; either
+      // one visible proves the 390 scroll affordance rendered.
+      await expect(page.getByTestId("screener-table-scroll-cue").first()).toBeVisible();
     }
 
     await page.waitForLoadState("networkidle");

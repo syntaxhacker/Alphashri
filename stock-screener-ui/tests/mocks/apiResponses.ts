@@ -680,6 +680,12 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
       body: JSON.stringify(mockDashboardResponse),
     });
   });
+
+  // The app shell fetches news sources even on non-news routes; an unmocked
+  // call logs a console error and fails the evidence honesty guards.
+  await page.route(apiRoute("news/sources"), async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ sources: [] }) });
+  });
 }
 
 // Mock strategy config
