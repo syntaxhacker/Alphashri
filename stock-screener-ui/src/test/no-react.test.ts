@@ -97,6 +97,10 @@ function findOffenders(): Offender[] {
   for (const file of walk(SRC_DIR)) {
     if (file === SELF) continue;
     const rel = relative(SRC_DIR, file);
+    // The `.stories.` suffix already excludes story modules; centralized story
+    // fixtures/specimen helpers are story-only and legitimately import the
+    // Storybook HTML renderer. Do not flag those support files as React debt.
+    if (rel.startsWith("stories/")) continue;
     if (ALLOWLIST.includes(rel)) continue;
     for (const hit of scanSource(readFileSync(file, "utf8"))) {
       offenders.push({ file: rel, ...hit });
