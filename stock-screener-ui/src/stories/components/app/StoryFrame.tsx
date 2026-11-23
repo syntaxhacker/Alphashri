@@ -79,7 +79,7 @@ export function Specimen(props: {
 /** Page-level wrapper: one column, consistent gaps, no nested borders. */
 export function DemoStack(props: { width?: number; children: JSX.Element }): JSX.Element {
   return (
-    <Stack gap="md" style={{ width: `${props.width ?? DEMO_WIDTH}px`, "max-width": "100%", "min-width": 0 }}>
+    <Stack gap="md" style={{ width: `${props.width ?? DEMO_WIDTH}px`, "max-width": "100%", "min-width": 0, margin: "0 auto" }}>
       {props.children}
     </Stack>
   );

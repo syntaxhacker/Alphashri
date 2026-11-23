@@ -1,4 +1,5 @@
 import { Show, splitProps } from "solid-js";
+import { badgeTone, componentTokenVar, isCustomColor } from "../componentTokens";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import { pickTextColor } from "@/utils/contrast";
@@ -10,44 +11,19 @@ import type { UIBadgeProps } from "../types";
  * hover fill so it can never be mistaken for something clickable.
  * `variant="dot"` drops the pill chrome entirely — a dot plus inline text.
  */
-const COLOR_MAIN: Record<string, string> = {
-  primary: palette.PRIMARY,
-  success: palette.POSITIVE_COLOR,
-  error: palette.NEGATIVE_COLOR,
-  danger: palette.NEGATIVE_COLOR,
-  warning: palette.WARNING,
-  info: palette.INFO,
-  secondary: palette.TEXT_MUTED,
-  default: palette.TEXT_MUTED,
-  neutral: palette.TEXT_MUTED,
-  dimmed: palette.TEXT_MUTED,
-};
 
 /**
- * Filled badges invert: the tone becomes the background and the page colour
- * becomes the foreground. `COLOR_MAIN` holds the fixed dark-theme anchors, so
- * using it as a fill leaves near-white text on a mid-green/red and fails
- * contrast in light mode (2.4–3.1:1). The fill therefore has to come from the
- * theme token, which resolves to the same anchors on dark and to the darker
- * light-theme tones where near-white text passes.
+ * Tone colours come from the `--ui-badge-*` component-token tier, which aliases
+ * the semantic tokens. One token carries text, outline, dot and the inverted
+ * fill: the old file kept a hex map and a semantic map for the same value.
  */
-const COLOR_FILL: Record<string, string> = {
-  primary: "var(--color-fin-primary)",
-  success: "var(--color-fin-positive)",
-  error: "var(--color-fin-negative)",
-  danger: "var(--color-fin-negative)",
-  warning: "var(--color-fin-warning)",
-  info: "var(--color-fin-info)",
-  secondary: "var(--color-fin-text-muted)",
-  default: "var(--color-fin-text-muted)",
-  neutral: "var(--color-fin-text-muted)",
-  dimmed: "var(--color-fin-text-muted)",
-};
+const toneMain = (color: UIBadgeProps["color"]) => componentTokenVar(`ui-badge-${badgeTone(color)}-main`);
+const toneWash = (color: UIBadgeProps["color"]) => componentTokenVar(`ui-badge-${badgeTone(color)}-wash`);
+const FILLED_INK = componentTokenVar("ui-badge-filled-ink");
 
-function resolveFill(color: UIBadgeProps["color"]): string {
-  if (!color) return COLOR_FILL.primary;
-  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl")) return color;
-  return COLOR_FILL[color] ?? COLOR_FILL.primary;
+function resolveColor(color: UIBadgeProps["color"]): string {
+  if (isCustomColor(color)) return color;
+  return toneMain(color);
 }
 
 type BadgeBox = { h: number; font: number; px: number };
@@ -62,12 +38,6 @@ const BADGE_BOX: Record<string, BadgeBox> = {
 
 function badgeBox(size: UIBadgeProps["size"]): BadgeBox {
   return BADGE_BOX[String(size)] ?? BADGE_BOX.sm;
-}
-
-function resolveColor(color: UIBadgeProps["color"]): string {
-  if (!color) return palette.PRIMARY;
-  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl")) return color;
-  return COLOR_MAIN[color] ?? palette.PRIMARY;
 }
 
 function radiusValue(radius: UIBadgeProps["radius"] | undefined): string {
@@ -100,11 +70,14 @@ export function Badge(props: UIBadgeProps) {
   ]);
 
   const main = resolveColor(known.color);
-  const fill = resolveFill(known.color);
-  // Theme fills already pair with the page token in both schemes. A raw caller
-  // colour cannot make that guarantee, so contrast-pick its ink instead.
+  // Filled badges invert the same tone: text, outline, dot and fill share one
+  // component token. A raw caller colour has no token pairing, so its ink still
+  // goes through the contrast helper.
+  const fill = main;
   const filledInk = (): string =>
-    fill.startsWith("var(") ? "var(--color-fin-bg)" : pickTextColor(fill, palette.TEXT, palette.BG);
+    isCustomColor(known.color) ? pickTextColor(fill, palette.TEXT, palette.BG) : FILLED_INK;
+  const wash = (): string =>
+    isCustomColor(known.color) ? palette.alpha(fill, 0.12) : toneWash(known.color);
   const isFilled = known.variant === "filled" || known.variant === "white";
   const isOutline = known.variant === "outline";
   const isDot = known.variant === "dot";
@@ -129,8 +102,12 @@ export function Badge(props: UIBadgeProps) {
     return {
       height: `${box.h}px`,
       "border-radius": radiusValue(known.radius),
-      border: isOutline ? `1px solid ${main}` : "none",
-      "background-color": isFilled ? fill : isOutline ? "transparent" : palette.alpha(main, 0.12),
+      // Longhands: a `var()` inside the `border` shorthand is mis-parsed by
+      // happy-dom (it lands in borderWidth). Same paint in the browser.
+      ...(isOutline
+        ? { "border-width": "1px", "border-style": "solid", "border-color": main }
+        : { border: "none" }),
+      "background-color": isFilled ? fill : isOutline ? "transparent" : wash(),
       "font-size": `${box.font}px`,
       "font-weight": "600",
       "line-height": "1",

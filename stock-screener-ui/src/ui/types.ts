@@ -359,6 +359,45 @@ export interface UIInputWrapperProps extends UIBaseProps {
   h?: number | string;
 }
 
+/** ARIA props handed to the one control wrapped by `FormField`. */
+export interface UIFormFieldControlProps {
+  /** Stable control id; already wired to the label's `htmlFor`. */
+  id: string;
+  /** Ids of the rendered description/error nodes plus any forwarded ids. */
+  "aria-describedby"?: string;
+  /** Mirrors the field's `error` state. */
+  "aria-invalid": boolean;
+  /** Mirrors the field's `required`; absent when the field is not required. */
+  "aria-required"?: true;
+}
+
+/** Payload passed to `FormField`'s render prop. Values stay live across updates. */
+export interface UIFormFieldIds extends UIFormFieldControlProps {
+  /** Id of the description node (stable even when no description is rendered). */
+  descriptionId: string;
+  /** Id of the error node (stable even when no error is rendered). */
+  errorId: string;
+  /** The same props grouped for `{...ids.controlProps}` spreading. */
+  controlProps: UIFormFieldControlProps;
+}
+
+/**
+ * Unstyled label + description + error wrapper around a single control.
+ * `id` names the control (not the wrapper), matching the input family.
+ */
+export interface UIFormFieldProps extends Omit<UIBaseProps, "children"> {
+  label?: JSX.Element;
+  description?: JSX.Element;
+  /** Message or flag; JSX is rendered as elements, never stringified. */
+  error?: boolean | string | JSX.Element;
+  /** Renders the `*` marker and sets `aria-required` on the control. */
+  required?: boolean;
+  /** Extra ids appended to `aria-describedby` (deduplicated). */
+  "aria-describedby"?: string;
+  /** The sole control; receives stable ids and ARIA props. */
+  children: (ids: UIFormFieldIds) => JSX.Element;
+}
+
 export interface UITextInputProps extends UIInputWrapperProps {
   /** Native autocomplete hint, forwarded to the input. */
   autoComplete?: string;

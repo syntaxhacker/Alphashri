@@ -6,12 +6,12 @@ import { SideBadge, ExitReasonBadge, StatusBadge, TradingModeBadge } from "./Bad
 // Filled badges paint the tone as a theme token, not the fixed dark anchor:
 // the fill must re-tone in light mode or the near-white label fails contrast.
 const TONE_COLOR: Record<string, string> = {
-  success: "var(--color-fin-positive)",
-  error: "var(--color-fin-negative)",
-  warning: "var(--color-fin-warning)",
-  info: "var(--color-fin-info)",
-  secondary: "var(--color-fin-text-muted)",
-  neutral: "var(--color-fin-text-muted)",
+  success: "var(--ui-badge-positive-main)",
+  error: "var(--ui-badge-negative-main)",
+  warning: "var(--ui-badge-warning-main)",
+  info: "var(--ui-badge-info-main)",
+  secondary: "var(--ui-badge-muted-main)",
+  neutral: "var(--ui-badge-muted-main)",
 };
 
 function expectTone(el: HTMLElement, tone: keyof typeof TONE_COLOR) {

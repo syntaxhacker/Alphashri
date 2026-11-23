@@ -39,6 +39,7 @@ export { Checkbox } from "./inputs/Checkbox";
 export { Chip } from "./inputs/Chip";
 export { SegmentedControl } from "./inputs/SegmentedControl";
 export { CopyButton } from "./inputs/CopyButton";
+export { FormField } from "./form/FormField";
 
 export { Badge } from "./feedback/Badge";
 export { Alert } from "./feedback/Alert";
@@ -96,6 +97,7 @@ export type {
   UILoadingOverlayProps, UIOverlayProps,
   UIButtonProps, UIActionIconProps, UIUnstyledButtonProps,
   UITextInputProps, UINumberInputProps, UISelectProps, UIMultiSelectProps,
+  UIFormFieldProps, UIFormFieldIds, UIFormFieldControlProps,
   UITextareaProps, UIPasswordInputProps,
   UISwitchProps, UICheckboxProps, UIChipProps, UISegmentedControlProps,
   UIModalProps, UITooltipProps, UIPopoverProps, UIPopoverTargetProps, UIPopoverDropdownProps,

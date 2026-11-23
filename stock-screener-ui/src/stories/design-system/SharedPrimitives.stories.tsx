@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import type { JSX } from "solid-js";
-import { createSignal, For } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
 import { Anchor, Badge, Box, Button, Card, Chip, Divider, Flex, Group, Paper, Stack, Text, Title } from "@/ui";
 import { BrokerAuthNotice } from "@/components/common/BrokerAuthNotice";
-import { FilterStatusRow } from "@/components/common/FilterStatusRow";
+import { FilterStatusRow, FILTER_STATUS_CLEAR_ALL_LABEL } from "@/components/common/FilterStatusRow";
 import { RangeInput } from "@/components/common/RangeInput";
 import { SectionHeader } from "@/components/common/SectionHeader";
 import { Sparkline } from "@/components/common/Sparkline";
@@ -98,8 +98,27 @@ const FILTER_LABELS = ["Large cap", "Positive", "NIFTY 500"];
 const TREND_UP = [3, 4, 3.5, 6, 5, 7, 8];
 const TREND_DOWN = [8, 7, 7.5, 6, 5, 4, 3];
 
+/**
+ * The chip strip is a fixed 24px, horizontally scrolling row. Its clear-all
+ * button is pinned inside that same row, which collides with the last chip on
+ * a phone. Below 640px the action moves to its own row below the chips.
+ */
+const useNarrowHost = () => {
+  const [narrow, setNarrow] = createSignal(false);
+  onMount(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const query = window.matchMedia("(max-width: 639px)");
+    const update = () => setNarrow(query.matches);
+    update();
+    query.addEventListener("change", update);
+    onCleanup(() => query.removeEventListener("change", update));
+  });
+  return narrow;
+};
+
 const ToolbarSpecimen = () => {
   const [checked, setChecked] = createSignal<boolean[]>([true, true, false]);
+  const narrow = useNarrowHost();
   const clearAll = () => setChecked(FILTER_LABELS.map(() => false));
   return (
     <Stack gap="sm" style={{ "max-width": "760px" }}>
@@ -107,7 +126,7 @@ const ToolbarSpecimen = () => {
       <FilterStatusRow
         testId="story-hero-filter-status"
         hasFilters={checked().some(Boolean)}
-        onClearAll={clearAll}
+        onClearAll={narrow() ? undefined : clearAll}
       >
         <For each={FILTER_LABELS}>
           {(label, index) => (
@@ -119,6 +138,13 @@ const ToolbarSpecimen = () => {
           )}
         </For>
       </FilterStatusRow>
+      <Show when={narrow()}>
+        <Flex justify="flex-end" wrap="wrap">
+          <Button size="xs" variant="subtle" onClick={clearAll} data-testid="story-hero-filter-clear-all">
+            {FILTER_STATUS_CLEAR_ALL_LABEL}
+          </Button>
+        </Flex>
+      </Show>
       <Flex gap="lg" align="center" wrap="wrap">
         <Text size="xs" c="dimmed"> breadth trend</Text>
         <Sparkline values={TREND_UP} color="var(--color-fin-positive)" testId="hero-up" />
@@ -176,7 +202,7 @@ const TableStatesSpecimen = () => {
 export const FamilyLanding: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1120px", padding: "4px 0 24px" }}>
+      <Stack gap="lg" style={{ "max-width": "1120px", margin: "0 auto", padding: "4px 0 24px" }}>
         <FamilyHero
           name="Shared primitives"
           count={components.length}

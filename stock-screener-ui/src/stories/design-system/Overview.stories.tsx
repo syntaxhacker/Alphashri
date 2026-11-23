@@ -153,7 +153,7 @@ const groups: Array<{ title: string; id: string; description: string; stories: A
 export const Overview: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1120px", padding: "8px 4px 24px" }}>
+      <Stack gap="lg" style={{ "max-width": "1120px", margin: "0 auto", padding: "8px 4px 24px" }}>
         <Paper
           p="lg"
           radius="md"

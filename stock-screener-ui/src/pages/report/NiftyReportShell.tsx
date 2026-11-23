@@ -47,6 +47,33 @@ const DESK_CONTENT_GRID_CLASS =
   "min-[1200px]:grid min-[1200px]:grid-rows-[auto_minmax(0,70fr)_minmax(0,30fr)]";
 
 /**
+ * The stat strip's per-cell minimums are tuned for the 1600px desk — PRICE
+ * alone asks for 547px — so at 390 the groups overflow the viewport and the
+ * value ellipsis cuts figures mid-number (`22,363.…`, `22,4…`). Below 600px
+ * the groups stack and each group's cells flow two-per-row (~180px each in a
+ * 390px viewport), which holds a full 17px mono price. The ellipsis is
+ * disabled: a truncated price is a wrong price. Full text stays in the DOM and
+ * each cell's title/hint still carries the explanation.
+ */
+const REPORT_NARROW_KPI_CLASS = [
+  // One group per row, each owning the full strip width (overrides the inline
+  // `min-width: <sum of cell minimums>px` and the 1600-tuned flex weight).
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']]:flex-col",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']]:flex-nowrap!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']>*]:min-w-full!",
+  // Two cells per row inside every group. Inline `flex: 1 1 0%` would otherwise
+  // shrink every base to zero and keep all cells on one clipped row.
+  "max-[600px]:[&_[data-testid^='nifty-stat-group-']>:last-child]:flex-wrap",
+  "max-[600px]:[&_[data-testid^='nifty-stat-group-']>:last-child>*]:grow-0!",
+  "max-[600px]:[&_[data-testid^='nifty-stat-group-']>:last-child>*]:shrink-0!",
+  "max-[600px]:[&_[data-testid^='nifty-stat-group-']>:last-child>*]:basis-[calc(50%_-_2px)]!",
+  "max-[600px]:[&_[data-testid^='nifty-stat-group-']>:last-child>*]:min-w-0!",
+  // Never end a numeric readout in an ellipsis.
+  "max-[600px]:[&_[data-testid$='-value']]:text-clip!",
+  "max-[600px]:[&_[data-testid$='-value']]:overflow-visible!",
+].join(" ");
+
+/**
  * Futures basis and ITM premium flow sit above the chart because both explain
  * the same question the chart answers: *why* did spot move. A block the payload
  * does not carry is not painted at all — a placeholder row above the chart is
@@ -158,7 +185,7 @@ function ReportBody() {
   return (
     <Box
       data-testid="nifty-report-panel"
-      class={`flex flex-col h-full min-h-0 w-full overflow-hidden ${REPORT_SECTION_ALIGN.panel}`}
+      class={`flex flex-col h-full min-h-0 w-full overflow-hidden ${REPORT_SECTION_ALIGN.panel} ${REPORT_NARROW_KPI_CLASS}`}
       style={{
         display: "flex",
         "flex-direction": "column",

@@ -54,6 +54,9 @@ export function RingProgress(props: UIRingProgressProps) {
   const circumference = 2 * Math.PI * r;
   const trackColor = palette.TEXT_MUTED; // grey[200]
   const strokeCap = known.roundCaps ? "round" : "butt";
+  // Section values accumulate into the same 0–100 scale as `value`, so a single
+  // determinate reading can describe either shape to assistive technology.
+  const progressValue = Math.max(0, Math.min(100, effSections.reduce((sum, section) => sum + section.value, 0)));
 
   let acc = 0;
   const arcs: { col: string; startLen: number; arcLen: number }[] = [];
@@ -70,6 +73,10 @@ export function RingProgress(props: UIRingProgressProps) {
     <div
       data-testid={known["data-testid"]}
       id={known.id}
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={progressValue}
       className={cn("relative inline-flex items-center justify-center shrink-0", known.className)}
       style={{ width: `${size}px`, height: `${size}px`, ...(known.style as Record<string, string | undefined>) }}
     >

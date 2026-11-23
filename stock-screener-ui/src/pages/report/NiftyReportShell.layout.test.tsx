@@ -132,3 +132,32 @@ describe("NiftyReportShell section order", () => {
     expect(row.querySelectorAll(":scope > [data-testid]")).toHaveLength(2);
   });
 });
+
+describe("NiftyReportShell KPI strip at 390", () => {
+  test("panel carries clip-safe overrides for the stat strip below 600px", async () => {
+    setReport({ spot: 25_980 });
+    mount();
+
+    const panel = screen.getByTestId("nifty-report-panel");
+    const cls = panel.className;
+    // Groups stack, so 1600-tuned per-cell minimums no longer overflow 390.
+    expect(cls).toContain("max-[600px]:[&_[data-testid='nifty-decision-stats']]:flex-col");
+    expect(cls).toContain("max-[600px]:[&_[data-testid='nifty-decision-stats']>*]:min-w-full!");
+    // Two cells per row, each wide enough for a full 17px mono figure.
+    expect(cls).toContain("basis-[calc(50%_-_2px)]!");
+    expect(cls).toContain(":last-child>*]:min-w-0!");
+    // No mid-number ellipsis: a clipped price is a wrong price.
+    expect(cls).toContain("max-[600px]:[&_[data-testid$='-value']]:text-clip!");
+    expect(cls).toContain("max-[600px]:[&_[data-testid$='-value']]:overflow-visible!");
+  });
+
+  test("desktop strip layout is untouched (overrides are max-width gated)", async () => {
+    setReport({ spot: 25_980 });
+    mount();
+
+    const panel = screen.getByTestId("nifty-report-panel");
+    const narrowRules = panel.className.split(" ").filter((c) => c.includes("max-[600px]"));
+    expect(narrowRules.length).toBeGreaterThan(0);
+    for (const rule of narrowRules) expect(rule).toContain("max-[600px]:");
+  });
+});

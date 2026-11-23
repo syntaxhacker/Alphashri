@@ -373,7 +373,7 @@ describe("ReplayPanel", () => {
     expect(meta.style.gap).toBe("16px");
     const symbol = screen.getByTestId("replay-symbol-chip");
     expect(symbol).toHaveTextContent("NO STRUCTURE SELECTED");
-    expect(["#9B9B9B", "rgb(155, 155, 155)"]).toContain(symbol.style.color);
+    expect(symbol.style.color).toBe("var(--ui-badge-muted-main)");
     expect(screen.queryByTestId("replay-expiry-chip")).toBeNull();
     expect(screen.queryByTestId("replay-commit-badge")).toBeNull();
   });

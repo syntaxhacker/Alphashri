@@ -35,7 +35,7 @@ export function Specimen(props: {
 /** Consistent outer rhythm and a readable measure for every inputs story. */
 export function SpecimenCanvas(props: { children: JSX.Element }) {
   return (
-    <Stack gap="lg" style={{ width: "100%", "max-width": "960px" }}>
+    <Stack gap="lg" style={{ width: "100%", "max-width": "960px", margin: "0 auto" }}>
       {props.children}
     </Stack>
   );

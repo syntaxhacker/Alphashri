@@ -45,6 +45,25 @@ describe("CompactPage", () => {
   });
 });
 
+describe("CompactPage mobile header gutter", () => {
+  it("reserves the nav toggle's 44px inset below 900px", () => {
+    const { container } = render(() => (<CompactPage title="My Page">Content</CompactPage>));
+    const header = container.querySelector('[data-compact-page-header]') as HTMLElement;
+    expect(header).not.toBeNull();
+    // 44px fallback, applied only under the 900px desktop breakpoint where the
+    // nav control is a fixed top-left overlay. AppLayout overrides the custom
+    // property to 0px because its real nav bar reserves the gutter in flow.
+    expect(header.className).toContain(
+      "max-[899px]:pl-[var(--app-mobile-nav-gutter,44px)]",
+    );
+  });
+
+  it("keeps the header and its title usable at the gutter", () => {
+    render(() => (<CompactPage title="My Page">Content</CompactPage>));
+    expect(screen.getByText("My Page")).toBeInTheDocument();
+  });
+});
+
 describe("CompactPanel", () => {
   it("renders children", () => {
     render(() => (<CompactPanel>Panel Content</CompactPanel>));

@@ -293,4 +293,78 @@ describe("AppLayout", () => {
 
     expect(screen.getByTestId("app-navbar").getAttribute("style")).toMatch(/width:\s*48px/);
   });
+
+  it("omits the mobile nav bar on desktop", () => {
+    // The file-level matchMedia mock reports min-width:900px as matching.
+    render(() => (<TestWrapper>
+        <AppLayout>
+          <div>Content</div>
+        </AppLayout>
+      </TestWrapper>),
+    );
+
+    expect(screen.queryByTestId("app-mobile-nav-bar")).not.toBeInTheDocument();
+  });
+});
+
+describe("AppLayout mobile nav gutter", () => {
+  beforeEach(() => {
+    // Every media query false — the desktop rail is not mounted, so the mobile
+    // nav bar must reserve the toggle's gutter instead.
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+  });
+
+  it("reserves a real 44px sticky bar above page content, with the toggle inside it", () => {
+    render(() => (<TestWrapper>
+        <AppLayout>
+          <div data-testid="page-header">Page title</div>
+        </AppLayout>
+      </TestWrapper>),
+    );
+
+    const bar = screen.getByTestId("app-mobile-nav-bar");
+    expect(bar).toBeInTheDocument();
+    expect(bar.style.height).toBe("44px");
+    expect(bar.style.position).toBe("sticky");
+    expect(bar.style.top).toBe("0px");
+    // The bar owns the gutter in flow, so CompactPage's fallback inset is off.
+    expect(document.documentElement.style.getPropertyValue("--app-mobile-nav-gutter")).toBe("0px");
+
+    const toggle = screen.getByTestId("app-mobile-nav-toggle");
+    expect(bar).toContainElement(toggle);
+    // No longer position:fixed over the first header.
+    expect(toggle.style.position).toBe("");
+    expect(toggle.getAttribute("style")).not.toContain("top: 8px");
+  });
+
+  it("puts the bar before the content column so headers never start under the toggle", () => {
+    render(() => (<TestWrapper>
+        <AppLayout>
+          <div data-testid="page-header">Page title</div>
+        </AppLayout>
+      </TestWrapper>),
+    );
+
+    const main = screen.getByTestId("app-main");
+    const bar = screen.getByTestId("app-mobile-nav-bar");
+    const children = Array.from(main.children);
+    // The bar is the first thing in the main column; the content wrapper that
+    // follows it holds every page header, so no title can start at y=0.
+    expect(children[0]).toBe(bar);
+    const contentColumn = children[1] as HTMLElement;
+    expect(contentColumn).toContainElement(screen.getByTestId("page-header"));
+    expect(contentColumn.className).toContain("flex-1");
+  });
 });

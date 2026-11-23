@@ -35,6 +35,91 @@
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
+/*
+ * Component-token tier: Button / Badge / Alert read these instead of re-deriving
+ * palette values per component. Every alias resolves through an existing
+ * semantic token, so the dark appearance is unchanged (the 12/20% button
+ * washes use the same oklab mix Tailwind emitted for `/12` and `/20`; the
+ * badge 12% and alert 10/35% washes use the srgb alpha of the old palette.alpha
+ * calls). Dark-only: this tier has no scheme overrides. Mirrored for TS in
+ * src/ui/componentTokens.ts — keep both lists in sync.
+ */
+:root {
+  /* Button — tone fill, tone ink (also the tone hairline) and hover washes. */
+  --ui-button-primary-bg: var(--color-fin-primary);
+  --ui-button-primary-text: var(--color-fin-primary);
+  --ui-button-primary-wash: color-mix(in oklab, var(--color-fin-primary) 12%, transparent);
+  --ui-button-primary-wash-hover: color-mix(in oklab, var(--color-fin-primary) 20%, transparent);
+
+  --ui-button-positive-bg: var(--color-fin-positive);
+  --ui-button-positive-text: var(--color-fin-positive);
+  --ui-button-positive-wash: color-mix(in oklab, var(--color-fin-positive) 12%, transparent);
+  --ui-button-positive-wash-hover: color-mix(in oklab, var(--color-fin-positive) 20%, transparent);
+
+  --ui-button-negative-bg: var(--color-fin-negative);
+  --ui-button-negative-text: var(--color-fin-negative);
+  --ui-button-negative-wash: color-mix(in oklab, var(--color-fin-negative) 12%, transparent);
+  --ui-button-negative-wash-hover: color-mix(in oklab, var(--color-fin-negative) 20%, transparent);
+
+  --ui-button-warning-bg: var(--color-fin-warning);
+  --ui-button-warning-text: var(--color-fin-warning);
+  --ui-button-warning-wash: color-mix(in oklab, var(--color-fin-warning) 12%, transparent);
+  --ui-button-warning-wash-hover: color-mix(in oklab, var(--color-fin-warning) 20%, transparent);
+
+  --ui-button-info-bg: var(--color-fin-info);
+  --ui-button-info-text: var(--color-fin-info);
+  --ui-button-info-wash: color-mix(in oklab, var(--color-fin-info) 12%, transparent);
+  --ui-button-info-wash-hover: color-mix(in oklab, var(--color-fin-info) 20%, transparent);
+
+  --ui-button-muted-bg: var(--color-fin-text-muted);
+  --ui-button-muted-text: var(--color-fin-text-muted);
+  --ui-button-muted-wash: color-mix(in oklab, var(--color-fin-text-muted) 12%, transparent);
+  --ui-button-muted-wash-hover: color-mix(in oklab, var(--color-fin-text-muted) 20%, transparent);
+
+  /* Button — roles shared by every tone. */
+  --ui-button-solid-ink: var(--color-fin-bg);
+  --ui-button-neutral-border: var(--color-fin-border);
+  --ui-button-neutral-text: var(--color-fin-text);
+  --ui-button-neutral-muted: var(--color-fin-text-muted);
+  --ui-button-neutral-surface: var(--color-fin-surface);
+  --ui-button-neutral-surface-alt: var(--color-fin-surface-alt);
+
+  /* Badge — one tone ink carries text, outline, dot and the inverted fill. */
+  --ui-badge-primary-main: var(--color-fin-primary);
+  --ui-badge-primary-wash: color-mix(in srgb, var(--color-fin-primary) 12%, transparent);
+  --ui-badge-positive-main: var(--color-fin-positive);
+  --ui-badge-positive-wash: color-mix(in srgb, var(--color-fin-positive) 12%, transparent);
+  --ui-badge-negative-main: var(--color-fin-negative);
+  --ui-badge-negative-wash: color-mix(in srgb, var(--color-fin-negative) 12%, transparent);
+  --ui-badge-warning-main: var(--color-fin-warning);
+  --ui-badge-warning-wash: color-mix(in srgb, var(--color-fin-warning) 12%, transparent);
+  --ui-badge-info-main: var(--color-fin-info);
+  --ui-badge-info-wash: color-mix(in srgb, var(--color-fin-info) 12%, transparent);
+  --ui-badge-muted-main: var(--color-fin-text-muted);
+  --ui-badge-muted-wash: color-mix(in srgb, var(--color-fin-text-muted) 12%, transparent);
+  --ui-badge-filled-ink: var(--color-fin-bg);
+
+  /* Alert — tone ink plus the light variant's fill and hairline. */
+  --ui-alert-primary-main: var(--color-fin-primary);
+  --ui-alert-primary-wash: color-mix(in srgb, var(--color-fin-primary) 10%, transparent);
+  --ui-alert-primary-wash-border: color-mix(in srgb, var(--color-fin-primary) 35%, transparent);
+  --ui-alert-positive-main: var(--color-fin-positive);
+  --ui-alert-positive-wash: color-mix(in srgb, var(--color-fin-positive) 10%, transparent);
+  --ui-alert-positive-wash-border: color-mix(in srgb, var(--color-fin-positive) 35%, transparent);
+  --ui-alert-negative-main: var(--color-fin-negative);
+  --ui-alert-negative-wash: color-mix(in srgb, var(--color-fin-negative) 10%, transparent);
+  --ui-alert-negative-wash-border: color-mix(in srgb, var(--color-fin-negative) 35%, transparent);
+  --ui-alert-warning-main: var(--color-fin-warning);
+  --ui-alert-warning-wash: color-mix(in srgb, var(--color-fin-warning) 10%, transparent);
+  --ui-alert-warning-wash-border: color-mix(in srgb, var(--color-fin-warning) 35%, transparent);
+  --ui-alert-info-main: var(--color-fin-info);
+  --ui-alert-info-wash: color-mix(in srgb, var(--color-fin-info) 10%, transparent);
+  --ui-alert-info-wash-border: color-mix(in srgb, var(--color-fin-info) 35%, transparent);
+  --ui-alert-muted-main: var(--color-fin-text-muted);
+  --ui-alert-muted-wash: color-mix(in srgb, var(--color-fin-text-muted) 10%, transparent);
+  --ui-alert-muted-wash-border: color-mix(in srgb, var(--color-fin-text-muted) 35%, transparent);
+}
+
 @layer base {
   /*
    * Light theme. Every utility and primitive compiles to `var(--color-fin-*)`,
