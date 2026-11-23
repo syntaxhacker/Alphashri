@@ -27,15 +27,16 @@ export function NavLink(props: UINavLinkProps) {
   const [internalOpen, setInternalOpen] = createSignal(Boolean(known.defaultOpened));
   const isControlled = known.opened !== undefined;
   const open = createMemo(() => (isControlled ? Boolean(known.opened) : internalOpen()));
+  const disabledState = Boolean(known.disabled);
 
   const handleClick = () => {
+    if (disabledState) return;
     if (hasChildren && !isControlled) setInternalOpen((v: boolean) => !v);
     known.onClick?.();
   };
 
   const isLink = Boolean(known.href);
   const activeState = Boolean(known.active);
-  const disabledState = Boolean(known.disabled);
 
   const renderKids = () => (
     <>

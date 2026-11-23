@@ -21,13 +21,15 @@ export function Divider(props: UIDividerProps & Record<string, unknown>) {
   const base = vertical ? "h-full border-r border-fin-border" : "border-fin-border";
   const forwarded = ariaAttributes(props as Record<string, unknown>);
 
-  if (vertical) {
+  // An <hr> is void, so a horizontal divider with a label needs a container
+  // that can actually render it. Keep the separator role on that container.
+  if (vertical || props.label != null) {
     return (
       <div
         role="separator"
-        aria-orientation="vertical"
+        aria-orientation={vertical ? "vertical" : "horizontal"}
         id={props.id}
-        className={cn(base, props.className)}
+        className={cn(base, !vertical && "flex items-center gap-2 border-t", props.className)}
         style={props.style}
         data-testid={props["data-testid"]}
         {...forwarded}
