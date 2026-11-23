@@ -108,6 +108,97 @@ export function planConfidenceLabel(confidence: number | null | undefined) {
   };
 }
 
+/** The first viewport owns one decision band, not a stack of four. The narrow
+ *  band is content-sized up to 72px; the desktop band is a fixed 60px header. */
+export const DECISION_HERO_HEIGHT = { narrowMax: 72, wide: 60 } as const;
+/** Desktop's second band: one line of evidence and a More stats affordance. */
+export const DECISION_CONTEXT_HEIGHT = 28;
+
+/** Evidence is data the report actually carries. Zero of these means the plan
+ *  has nothing to rest on, so its no-call must not be printed as a conclusion. */
+export interface DecisionEvidenceInput {
+  regimeVerdict?: string | null;
+  controlVerdict?: string | null;
+  gexPresent: boolean;
+  hasWalls: boolean;
+  hasTape: boolean;
+  hasFlow: boolean;
+  vixPresent: boolean;
+  setupReady: boolean;
+}
+
+export function decisionEvidenceSources(input: DecisionEvidenceInput): string[] {
+  const sources: string[] = [];
+  if (input.hasWalls) sources.push("chain");
+  if (input.gexPresent) sources.push("gamma");
+  if (input.regimeVerdict) sources.push("regime");
+  if (input.controlVerdict || input.hasFlow) sources.push("flow");
+  if (input.vixPresent) sources.push("vix");
+  if (input.setupReady) sources.push("setup");
+  return sources;
+}
+
+/** Never invent a time: only a clock the payload carries can name the snapshot. */
+export function snapshotTimeLabel(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const clock = raw.match(/(\d{1,2}):(\d{2})/);
+  if (!clock) return null;
+  const hour = Number(clock[1]);
+  const minute = Number(clock[2]);
+  if (hour > 23 || minute > 59) return null;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+export interface DecisionStateInput {
+  marketClosed: boolean;
+  eod: boolean;
+  snapshotTime: string | null;
+  evidenceSources: string[];
+  headline: string | null;
+  confidenceComputed: boolean;
+}
+
+export interface DecisionState {
+  kind: "closed" | "awaiting" | "live";
+  stateLabel: string;
+  claim: string;
+  chip: string;
+}
+
+/** One explicit overall state replaces the old repeated no-trade verdict.
+ *  A closed or evidence-less report names its condition and the time of the
+ *  snapshot; a directional call is only a claim once evidence backs it. */
+export function resolveDecisionState(input: DecisionStateInput): DecisionState {
+  const closed = input.marketClosed || input.eod;
+  const hasEvidence = input.evidenceSources.length > 0;
+  const directional = hasEvidence && input.confidenceComputed && !!input.headline;
+  const snapshot = input.snapshotTime
+    ? `showing ${input.snapshotTime} snapshot`
+    : "showing last snapshot";
+  if (closed) {
+    return {
+      kind: "closed",
+      stateLabel: `MARKET CLOSED · ${snapshot}`,
+      claim: directional ? input.headline! : "awaiting data",
+      chip: hasEvidence ? "snapshot read" : "awaiting data",
+    };
+  }
+  if (!hasEvidence) {
+    return {
+      kind: "awaiting",
+      stateLabel: "AWAITING DATA · no live evidence",
+      claim: "awaiting data",
+      chip: "awaiting data",
+    };
+  }
+  return {
+    kind: "live",
+    stateLabel: directional ? "LIVE READ" : "NO DIRECTIONAL CALL",
+    claim: directional ? input.headline! : "awaiting trigger",
+    chip: directional ? "decision" : "awaiting trigger",
+  };
+}
+
 const PLAN_HEADLINE_STYLE: JSX.CSSProperties = {
   // Content-sized, not flex:1 — a stretched headline shoves confidence to the
   // far edge of the strip. Natural width keeps the qualifier beside the claim.
@@ -130,6 +221,38 @@ const PLAN_CONFIDENCE_STYLE: JSX.CSSProperties = {
   "font-variant-numeric": "tabular-nums",
   "white-space": "nowrap",
   "flex-shrink": 0,
+};
+
+/** The hero claim uses the 16px value step, never the 24px display step: a
+ *  decision that must fit beside SPOT and CHANGE cannot also be the loudest
+ *  text on a page whose evidence is absent. */
+const HERO_CLAIM_STYLE: JSX.CSSProperties = {
+  ...planHeadlineStyle(false),
+  "font-size": `${REPORT_FONT.value}px`,
+};
+
+const HERO_VALUE_STYLE: JSX.CSSProperties = {
+  "font-size": `${REPORT_FONT.value}px`,
+  "font-weight": REPORT_FONT_WEIGHT.bold,
+  "font-family": palette.MONO,
+  "font-variant-numeric": "tabular-nums",
+  "white-space": "nowrap",
+  "line-height": REPORT_LINE_HEIGHT.tight,
+};
+
+const STATE_CHIP_STYLE: JSX.CSSProperties = {
+  "font-size": `${REPORT_FONT.micro}px`,
+  "font-weight": REPORT_FONT_WEIGHT.bold,
+  "letter-spacing": "0.04em",
+  "text-transform": "uppercase",
+  "white-space": "nowrap",
+  "padding-left": "4px",
+  "padding-right": "4px",
+  "padding-top": "1px",
+  "padding-bottom": "1px",
+  "border-radius": "3px",
+  "background-color": palette.alpha(palette.TERM_BORDER, 0.18),
+  color: palette.TEXT_MUTED,
 };
 
 const TAPE_BADGE_STYLE: JSX.CSSProperties = {
@@ -500,78 +623,114 @@ export function ReportDecisionStrip() {
 
   const planConfidence = createMemo(() => planConfidenceLabel(planSummary()?.confidence));
 
-  /** The claim: verdict state on top, its qualifier underneath. Stacking keeps
-   *  the evidence a few px away instead of a confidence string stretching the
-   *  gap; both stay in one parent so the qualifier can never be stranded. */
-  const planClaim = () => (
-    <Show when={planSummary()}>
-      {(summary) => (
-        <Box
-          data-testid="nifty-plan-oneliner"
-          className="flex items-center gap-2 min-w-0 shrink-0"
-          style={{ ...PLAN_ONELINER_STYLE, width: narrow() ? "100%" : "auto" }}
+  const evidenceSources = createMemo(() =>
+    decisionEvidenceSources({
+      regimeVerdict: report()?.regime?.verdict,
+      controlVerdict: report()?.control?.verdict,
+      gexPresent: !gexDegraded() && report()?.gex != null,
+      hasWalls: !!(maxCallWall() || maxPutWall()),
+      hasTape: tapeRows().length > 0,
+      hasFlow: !!flowReport() || !!report()?.flow_window,
+      vixPresent: Number.isFinite(report()?.vix?.ltp ?? NaN),
+      setupReady: setupCounts().passed > 0,
+    }),
+  );
+
+  const decision = createMemo(() =>
+    resolveDecisionState({
+      marketClosed: report()?.market?.is_open === false,
+      eod: mode() === "eod",
+      snapshotTime: snapshotTimeLabel(
+        report()?.market?.as_of ?? report()?.snapshotAt ?? report()?.fetchedAt ?? null,
+      ),
+      evidenceSources: evidenceSources(),
+      headline: planSummary()?.headline ?? null,
+      confidenceComputed: planConfidence().computed,
+    }),
+  );
+
+  const claimTone = () => {
+    const state = decision();
+    if (state.kind === "live" && state.chip === "decision") return planTone();
+    return palette.TEXT_MUTED;
+  };
+
+  /** One hero claim, once. The headline node keeps its contract but now carries
+   *  the overall state instead of an unbacked "NEUTRAL · no trade" conclusion. */
+  const heroClaim = () => (
+    <Box
+      data-testid="nifty-plan-oneliner"
+      className="flex flex-row flex-wrap items-center gap-x-2 min-w-0"
+      style={PLAN_ONELINER_STYLE}
+    >
+      <Box
+        data-testid="nifty-plan-headline"
+        data-decision-kind={decision().kind}
+        title={`${decision().stateLabel} — ${decision().claim}`}
+        className="min-w-0"
+        style={{ ...HERO_CLAIM_STYLE, color: claimTone() }}
+      >
+        {decision().claim}
+      </Box>
+      <Box
+        data-testid="nifty-plan-confidence"
+        data-confidence-computed={planConfidence().computed ? "true" : "false"}
+        title={
+          planConfidence().computed
+            ? "Weighted confidence behind the active side"
+            : "No directional call, so there is no confidence to compute"
+        }
+        className="shrink-0"
+        style={PLAN_CONFIDENCE_STYLE}
+      >
+        {planConfidence().text}
+      </Box>
+    </Box>
+  );
+
+  /** The research rail reuses the read without duplicating the hero's testids. */
+  const railClaim = () => (
+    <Box className="flex items-center gap-1 min-w-0">
+      <span className="min-w-0" style={{ ...HERO_CLAIM_STYLE, color: claimTone() }}>
+        {decision().claim}
+      </span>
+    </Box>
+  );
+
+  /** Tape speed is evidence, not a second verdict; the plan button lives in the
+   *  hero so its testid appears exactly once per render. */
+  const tapeBadgeControl = () => (
+    <Show when={tapeBadge()}>
+      {(current) => (
+        <span
+          data-testid="nifty-plan-tape"
+          data-conflict={current().conflict ? "true" : "false"}
+          title={`Last 5 min ${current().up ? "+" : ""}${Math.round(current().delta)} pts — ${current().ratio.toFixed(1)}× the median 5-min move${current().conflict ? " · this OPPOSES the plan side" : ""}`}
+          style={{
+            ...TAPE_BADGE_STYLE,
+            // Inside the bordered stat strip: a second border would be a
+            // card-inside-card, so the tone lives in text and tint only.
+            "background-color": palette.alpha(current().tone, 0.18),
+            color: current().tone,
+          }}
         >
-          <Box className="flex flex-col min-w-0" style={{ gap: "2px" }}>
-            <Box
-              data-testid="nifty-plan-headline"
-              title={`${summary().action} · ${planConfidence().text}`}
-              className="min-w-0"
-              style={{ ...planHeadlineStyle(narrow()), color: planTone() }}
-            >
-              {summary().headline}
-            </Box>
-            <Box
-              data-testid="nifty-plan-confidence"
-              data-confidence-computed={planConfidence().computed ? "true" : "false"}
-              title={
-                planConfidence().computed
-                  ? "Weighted confidence behind the active side"
-                  : "No directional call, so there is no confidence to compute"
-              }
-              className="shrink-0"
-              style={PLAN_CONFIDENCE_STYLE}
-            >
-              {planConfidence().text}
-            </Box>
-          </Box>
-        </Box>
+          {current().conflict ? "⚠ " : ""}TAPE {current().up ? "↑" : "↓"} {current().ratio.toFixed(1)}×
+        </span>
       )}
     </Show>
   );
 
-  /** Trailing controls follow the evidence, so the claim reads as the cause and
-   *  the chips as its proof. Kept as a fragment for the non-desk context rail. */
-  const planControls = () => (
-    <>
-      <Show when={tapeBadge()}>
-        {(current) => (
-          <span
-            data-testid="nifty-plan-tape"
-            data-conflict={current().conflict ? "true" : "false"}
-            title={`Last 5 min ${current().up ? "+" : ""}${Math.round(current().delta)} pts — ${current().ratio.toFixed(1)}× the median 5-min move${current().conflict ? " · this OPPOSES the plan side" : ""}`}
-            style={{
-              ...TAPE_BADGE_STYLE,
-              // Inside the bordered stat strip: a second border would be a
-              // card-inside-card, so the tone lives in text and tint only.
-              "background-color": palette.alpha(current().tone, 0.18),
-              color: current().tone,
-            }}
-          >
-            {current().conflict ? "⚠ " : ""}TAPE {current().up ? "↑" : "↓"} {current().ratio.toFixed(1)}×
-          </span>
-        )}
-      </Show>
-      <Button
-        data-testid="nifty-plan-reasons-button"
-        size="xs"
-        variant="subtle"
-        aria-label="Open the full two-sided desk plan"
-        title="Open the full two-sided desk plan (E)"
-        onClick={store.ui.openPlanReasons}
-      >
-        ▸
-      </Button>
-    </>
+  const reasonsButton = () => (
+    <Button
+      data-testid="nifty-plan-reasons-button"
+      size="xs"
+      variant="subtle"
+      aria-label="Open the full two-sided desk plan"
+      title="Open the full two-sided desk plan (E)"
+      onClick={store.ui.openPlanReasons}
+    >
+      ▸
+    </Button>
   );
 
   const verdictContent = () => (
@@ -584,8 +743,8 @@ export function ReportDecisionStrip() {
         overflow: wrapLayout().overflow,
       }}
     >
-      {/* One decision surface: a tone rail, the claim, a divider, then the
-          evidence chips that justify it. Nothing here is 1000px apart. */}
+      {/* Evidence only. The verdict claim is rendered once, in the hero; a
+          second copy here is what made "NEUTRAL · no trade" the loudest text. */}
       <Box
         data-testid="nifty-verdict-block"
         className={`flex items-center min-w-0 flex-1 rounded-[4px] px-2 ${narrow() ? "flex-col items-stretch py-1" : "flex-nowrap"}`}
@@ -598,23 +757,8 @@ export function ReportDecisionStrip() {
         <span
           aria-hidden="true"
           data-testid="nifty-verdict-rail"
-          style={{ ...PLAN_BAR_STYLE, "background-color": planTone() }}
+          style={{ ...PLAN_BAR_STYLE, "background-color": claimTone() }}
         />
-        <Show when={isDesk()}>
-          {planClaim()}
-          <span
-            aria-hidden="true"
-            data-testid="nifty-verdict-divider"
-            className="shrink-0"
-            style={{
-              width: "1px",
-              "align-self": "stretch",
-              "margin-top": "6px",
-              "margin-bottom": "6px",
-              "background-color": palette.TERM_BORDER,
-            }}
-          />
-        </Show>
         <Box data-testid="nifty-verdict-evidence" className="flex flex-1 min-w-0 items-stretch gap-2">
           <span className="shrink-0 self-center" style={GROUP_LABEL_STYLE}>
             Evidence
@@ -623,8 +767,20 @@ export function ReportDecisionStrip() {
             <NiftyVerdictStrip report={report()!} mode="context" />
           </Box>
         </Box>
+        <span
+          aria-hidden="true"
+          data-testid="nifty-verdict-divider"
+          className="shrink-0"
+          style={{
+            width: "1px",
+            "align-self": "stretch",
+            "margin-top": "6px",
+            "margin-bottom": "6px",
+            "background-color": palette.TERM_BORDER,
+          }}
+        />
         <Show when={isDesk()}>
-          <Box className="flex items-center gap-1 shrink-0">{planControls()}</Box>
+          <Box className="flex items-center gap-1 shrink-0">{tapeBadgeControl()}</Box>
         </Show>
       </Box>
       <Show when={symbol() !== "NIFTY"}>
@@ -647,7 +803,83 @@ export function ReportDecisionStrip() {
         className="flex flex-col border border-[var(--desk-border)] rounded-[4px] overflow-hidden w-full max-w-full min-w-0 shrink-0 px-2"
         style={DECISION_STRIP_STYLE}
       >
-        <Box className="flex flex-wrap min-[1200px]:flex-nowrap items-stretch min-w-0 min-h-[28px]">
+        {/* The first viewport gets one decision band. Everything below it is
+            detail and stays behind the single More stats disclosure. */}
+        <Box
+          data-testid="nifty-decision-hero"
+          data-report-band="decision-hero"
+          className={`flex min-w-0 shrink-0 ${narrow() ? "flex-col gap-0.5 py-1" : "flex-row items-center gap-3 py-1"}`}
+          style={{
+            height: narrow() ? "auto" : `${DECISION_HERO_HEIGHT.wide}px`,
+            "min-height": narrow() ? "56px" : `${DECISION_HERO_HEIGHT.wide}px`,
+            "max-height": narrow() ? `${DECISION_HERO_HEIGHT.narrowMax}px` : undefined,
+            overflow: "hidden",
+          }}
+        >
+          <Box className="flex items-center gap-2 min-w-0">
+            <Box data-testid="nifty-hero-spot" className="flex items-baseline gap-1 shrink-0">
+              <span style={{ ...GROUP_LABEL_STYLE, "font-size": `${REPORT_FONT.micro}px` }}>
+                SPOT
+              </span>
+              <span data-testid="nifty-hero-spot-read" style={HERO_VALUE_STYLE}>
+                <NiftySpotValue live={mode() === "live"} fallback={report()?.spot ?? 0} />
+              </span>
+            </Box>
+            <Box data-testid="nifty-hero-change" className="flex items-baseline gap-1 shrink-0">
+              <span style={{ ...GROUP_LABEL_STYLE, "font-size": `${REPORT_FONT.micro}px` }}>
+                CHANGE
+              </span>
+              <span data-testid="nifty-hero-change-read" style={{ ...HERO_VALUE_STYLE, color: changeTone() }}>
+                {sessionChange() ? formatSignedPoints(sessionChange()!.pts) : "—"}
+              </span>
+            </Box>
+            <Box className="ml-auto shrink-0">{reasonsButton()}</Box>
+          </Box>
+          <Box className={`flex flex-wrap items-center gap-2 min-w-0 ${narrow() ? "" : "flex-1"}`}>
+            <span
+              data-testid="nifty-decision-state"
+              data-decision-kind={decision().kind}
+              title={decision().kind === "closed" ? "No live feed — this is a stored snapshot" : decision().stateLabel}
+              style={{
+                "font-size": `${REPORT_FONT.micro}px`,
+                "font-weight": REPORT_FONT_WEIGHT.bold,
+                "letter-spacing": "0.04em",
+                "white-space": "nowrap",
+                color: decision().kind === "live" ? palette.TEXT_MUTED : palette.WARNING,
+              }}
+            >
+              {decision().stateLabel}
+            </span>
+            <Show when={decision().chip !== "decision"}>
+              <span data-testid="nifty-decision-chip" style={STATE_CHIP_STYLE}>
+                {decision().chip}
+              </span>
+            </Show>
+            <Show when={!narrow()}>{heroClaim()}</Show>
+          </Box>
+          <Show when={narrow()}>{heroClaim()}</Show>
+        </Box>
+        <Box
+          data-report-band="more-stats"
+          className="w-full min-w-0 shrink-0"
+          style={{ "min-height": `${DECISION_CONTEXT_HEIGHT}px` }}
+        >
+          <LiveTapeDisclosure
+            open={verdictOpen()}
+            onToggle={() => setVerdictOpen((v) => !v)}
+            testId="nifty-verdict-disclosure"
+            label="MORE STATS"
+            openHint="hide"
+            closedHint="walls · volatility · evidence"
+          >
+            {/* The shell promotes the old verdict body at 390. This inner gate
+                keeps the new More stats detail genuinely collapsed there; only
+                the toggle can open it. */}
+            <Box
+              className="flex flex-col gap-1 w-full min-w-0"
+              style={{ display: verdictOpen() ? "flex" : "none" }}
+            >
+            <Box className="flex flex-wrap min-[1200px]:flex-nowrap items-stretch min-w-0 min-h-[28px]">
           <Box
             data-testid="nifty-decision-stats"
             className="flex flex-wrap flex-auto min-w-0 w-full [&_[data-testid$='-value']]:text-right"
@@ -906,18 +1138,10 @@ export function ReportDecisionStrip() {
             </Show>
           </Box>
         </Box>
-        <Show when={narrow()} fallback={verdictContent()}>
-          <LiveTapeDisclosure
-            open={verdictOpen()}
-            onToggle={() => setVerdictOpen((v) => !v)}
-            testId="nifty-verdict-disclosure"
-            label="VERDICT / PLAN"
-            openHint="hide"
-            closedHint="regime · plan"
-          >
             {verdictContent()}
+            </Box>
           </LiveTapeDisclosure>
-        </Show>
+        </Box>
       </Box>
 
       <Show when={flowReport()}>
@@ -970,8 +1194,8 @@ export function ReportDecisionStrip() {
           <Show when={planSummary() != null}>
             <Box className="flex-[38_1_0] min-w-0 flex [&>*]:w-full [&>*]:min-w-0">
               <Box className="flex items-center gap-1 min-w-0">
-                {planClaim()}
-                {planControls()}
+                {railClaim()}
+                {tapeBadgeControl()}
               </Box>
             </Box>
           </Show>
