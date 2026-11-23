@@ -525,3 +525,144 @@ describe("Menu — focus follows placement", () => {
     expect(screen.queryByTestId("hover-dropdown")).toBeNull();
   });
 });
+
+describe("Menu — disclosure ARIA on the trigger", () => {
+  const renderDisclosure = (dropdownId?: string) => {
+    render(() => (
+      <Menu>
+        <Menu.Target data-testid="target-anchor">
+          <button type="button" data-testid="trigger">
+            Open
+          </button>
+        </Menu.Target>
+        <Menu.Dropdown id={dropdownId} data-testid="dropdown">
+          <Menu.Item>Action</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ));
+    return {
+      trigger: screen.getByTestId("trigger") as HTMLElement,
+      anchor: screen.getByTestId("target-anchor") as HTMLElement,
+    };
+  };
+
+  test("enriches a focusable child rather than the non-focusable wrapper", () => {
+    const { trigger, anchor } = renderDisclosure();
+
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(anchor.tagName).toBe("SPAN");
+    expect(anchor).not.toHaveAttribute("aria-haspopup");
+  });
+
+  test("Enter and Space toggle the menu and aria-expanded", () => {
+    const { trigger } = renderDisclosure();
+
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    expect(screen.getByTestId("dropdown")).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.keyDown(trigger, { key: " " });
+    expect(screen.queryByTestId("dropdown")).toBeNull();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("aria-controls resolves to the dropdown panel", () => {
+    const { trigger } = renderDisclosure();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+
+    const id = trigger.getAttribute("aria-controls");
+    expect(id).toBeTruthy();
+    expect(document.getElementById(id!)).toBe(screen.getByTestId("dropdown"));
+  });
+
+  test("an explicit dropdown id is reused for aria-controls", () => {
+    const { trigger } = renderDisclosure("custom-menu-panel");
+    fireEvent.keyDown(trigger, { key: "Enter" });
+
+    expect(trigger).toHaveAttribute("aria-controls", "custom-menu-panel");
+    expect(document.getElementById("custom-menu-panel")).toBe(screen.getByTestId("dropdown"));
+  });
+
+  test("a non-focusable child becomes a real, keyboard-reachable button", () => {
+    render(() => (
+      <Menu>
+        <Menu.Target data-testid="text-trigger">Open menu</Menu.Target>
+        <Menu.Dropdown data-testid="dropdown">
+          <Menu.Item>Action</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ));
+    const trigger = screen.getByTestId("text-trigger") as HTMLButtonElement;
+
+    expect(trigger.tagName).toBe("BUTTON");
+    expect(trigger).toHaveAttribute("type", "button");
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    expect(screen.getByTestId("dropdown")).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("a component that renders a button is enriched as well", () => {
+    const GhostButton = () => (
+      <button type="button" data-testid="component-trigger">
+        Open
+      </button>
+    );
+    render(() => (
+      <Menu>
+        <Menu.Target>
+          <GhostButton />
+        </Menu.Target>
+        <Menu.Dropdown data-testid="dropdown">
+          <Menu.Item>Action</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ));
+    const trigger = screen.getByTestId("component-trigger");
+
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    expect(screen.getByTestId("dropdown")).toBeInTheDocument();
+  });
+
+  test("a disabled button child stays a single, non-nested control", () => {
+    render(() => (
+      <Menu>
+        <Menu.Target data-testid="anchor">
+          <button type="button" disabled data-testid="disabled-trigger">
+            Open
+          </button>
+        </Menu.Target>
+        <Menu.Dropdown data-testid="dropdown">
+          <Menu.Item>Action</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ));
+
+    expect(screen.getByTestId("anchor").tagName).toBe("SPAN");
+    expect(screen.getByTestId("disabled-trigger")).toHaveAttribute("aria-haspopup", "menu");
+    expect(document.querySelectorAll("button")).toHaveLength(1);
+  });
+
+  test("advertised-but-unused renderTarget never reaches the DOM", () => {
+    const { container } = render(() => (
+      <Menu renderTarget={() => <button type="button">custom</button>}>
+        <Menu.Target>
+          <button type="button">Open</button>
+        </Menu.Target>
+        <Menu.Dropdown data-testid="dropdown">
+          <Menu.Item>Action</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ));
+
+    expect(container.innerHTML).not.toMatch(/renderTarget/i);
+  });
+});

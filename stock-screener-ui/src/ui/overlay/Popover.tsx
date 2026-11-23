@@ -1,4 +1,4 @@
-import { Show, createContext, createEffect, createMemo, createSignal, onCleanup, splitProps, useContext } from "solid-js";
+import { Show, createContext, createEffect, createMemo, createSignal, createUniqueId, onCleanup, splitProps, useContext } from "solid-js";
 import { cn } from "../cn";
 import type {
   UIPopoverProps,
@@ -22,6 +22,9 @@ type PopoverContextValue = {
   controlledOpen: () => boolean | undefined;
   closeOnClickOutside: () => boolean;
   trapFocus: () => boolean | undefined;
+  /** Id of the live dropdown, shared with the target for `aria-controls`. */
+  dropdownId: () => string;
+  setDropdownId: (id: string) => void;
 };
 
 const PopoverContext = createContext<PopoverContextValue | null>(null);
@@ -30,6 +33,21 @@ function usePopoverContext() {
   const ctx = useContext(PopoverContext);
   if (!ctx) throw new Error("Popover compound components must be used within Popover");
   return ctx;
+}
+
+const INTRINSICALLY_FOCUSABLE = new Set(["BUTTON", "INPUT", "SELECT", "TEXTAREA"]);
+
+/**
+ * An interactive child already owns (or intentionally opts out of) the tab
+ * stop. Enriching it avoids nesting two controls — a disabled button must stay
+ * one disabled control rather than gaining a focusable button around it.
+ */
+function interactiveChildElement(node: unknown): HTMLElement | undefined {
+  if (typeof HTMLElement === "undefined" || !(node instanceof HTMLElement)) return undefined;
+  if (INTRINSICALLY_FOCUSABLE.has(node.tagName)) return node;
+  if (node.tagName === "A" && node.hasAttribute("href")) return node;
+  const tabIndex = node.getAttribute("tabindex");
+  return tabIndex !== null && tabIndex !== "-1" ? node : undefined;
 }
 
 const SHADOW_MAP: Record<string, string> = {
@@ -98,6 +116,7 @@ export function Popover(props: PopoverProps) {
 
   const [internalAnchorEl, setInternalAnchorEl] = createSignal<HTMLElement | null>(null);
   const [uncontrolledOpen, setUncontrolledOpen] = createSignal(false);
+  const [dropdownId, setDropdownId] = createSignal(createUniqueId());
 
   const isControlled = createMemo(() => known.opened !== undefined);
   const open = createMemo(() => (isControlled() ? !!known.opened : uncontrolledOpen()));
@@ -149,6 +168,8 @@ export function Popover(props: PopoverProps) {
     controlledOpen: () => known.opened,
     closeOnClickOutside: () => known.closeOnClickOutside ?? true,
     trapFocus: () => known.trapFocus,
+    dropdownId,
+    setDropdownId,
   };
 
   // Solid's `children` prop is a lazy getter: reading `known.children` twice
@@ -183,10 +204,14 @@ export function Popover(props: PopoverProps) {
 
 export function PopoverTarget(props: UIPopoverTargetProps) {
   const [known, rest] = splitProps(props, ["children", "className", "style", "id", "data-testid", "onClick"]);
-  const { setAnchorEl, anchorEl, open, controlledOpen, onChange } = usePopoverContext();
+  const { setAnchorEl, anchorEl, open, controlledOpen, onChange, dropdownId } = usePopoverContext();
 
-  const handleClick = (e: MouseEvent) => {
-    const target = e.currentTarget as HTMLElement;
+  // `children` is a lazy getter: read it once, then reuse the same node.
+  const child = known.children;
+  const interactiveChild = interactiveChildElement(child);
+  let wrapperEl: HTMLElement | undefined;
+
+  const toggle = (target: HTMLElement) => {
     if (controlledOpen() !== undefined) {
       setAnchorEl(target);
       onChange?.(!open());
@@ -195,27 +220,67 @@ export function PopoverTarget(props: UIPopoverTargetProps) {
     } else {
       setAnchorEl(target);
     }
+  };
+
+  const handleClick = (e: MouseEvent) => {
+    toggle(e.currentTarget as HTMLElement);
     known.onClick?.(e);
   };
 
-  return (
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+    e.preventDefault();
+    toggle(e.currentTarget as HTMLElement);
+  };
+
+  createEffect(() => {
+    const el = interactiveChild ?? wrapperEl;
+    if (!el) return;
+    el.setAttribute("aria-haspopup", "dialog");
+    el.setAttribute("aria-expanded", String(open()));
+    const id = dropdownId();
+    if (id) el.setAttribute("aria-controls", id);
+    else el.removeAttribute("aria-controls");
+  });
+
+  return interactiveChild ? (
     <span
+      {...(rest as Record<string, unknown>)}
       id={known.id}
       data-testid={known["data-testid"]}
       className={cn("inline-block", known.className)}
       style={{ display: "inline-block", ...(known.style as Record<string, string | undefined>) }}
+      ref={(el) => (wrapperEl = el)}
       onClick={handleClick}
-      {...(rest as Record<string, unknown>)}
+      onKeyDown={handleKeyDown}
     >
-      {known.children}
+      {child}
     </span>
+  ) : (
+    <button
+      type="button"
+      {...(rest as Record<string, unknown>)}
+      id={known.id}
+      data-testid={known["data-testid"]}
+      className={cn("inline-block", known.className)}
+      style={{ display: "inline-block", ...(known.style as Record<string, string | undefined>) }}
+      ref={(el) => (wrapperEl = el)}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+    >
+      {child}
+    </button>
   );
 }
 
 export function PopoverDropdown(props: UIPopoverDropdownProps & { p?: number | string }) {
-  const [known, rest] = splitProps(props, ["children", "className", "style", "p"]);
-  const { anchorEl, open, onClose, position, offset, width, shadow, closeOnClickOutside, trapFocus } =
+  const [known, rest] = splitProps(props, ["children", "className", "style", "p", "id"]);
+  const { anchorEl, open, onClose, position, offset, width, shadow, closeOnClickOutside, trapFocus, dropdownId, setDropdownId } =
     usePopoverContext();
+  // Publish the panel id so the target's `aria-controls` names the live element,
+  // including when the caller supplies an explicit id.
+  const resolvedId = createMemo(() => known.id ?? dropdownId());
+  createEffect(() => setDropdownId(resolvedId()));
   const [placeEl, setPlaceEl] = createSignal<HTMLDivElement | undefined>(undefined);
   const [place, setPlace] = createSignal<Record<string, string | undefined>>({});
 
@@ -341,6 +406,7 @@ export function PopoverDropdown(props: UIPopoverDropdownProps & { p?: number | s
   return (
     <Show when={open()}>
       <div
+        id={resolvedId()}
         ref={(el) => setPlaceEl(el)}
         className={cn("z-50 bg-fin-surface border border-fin-border rounded-sm overflow-auto", shadowClass, known.className)}
         style={{ ...place(), ...padStyle, ...(known.style as Record<string, string | undefined>) }}

@@ -1,4 +1,4 @@
-import { createContext, createEffect, createMemo, createSignal, onCleanup, Show, splitProps, untrack, useContext } from "solid-js";
+import { createContext, createEffect, createMemo, createSignal, createUniqueId, onCleanup, Show, splitProps, untrack, useContext } from "solid-js";
 import type { JSX } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
@@ -18,6 +18,9 @@ type MenuContextValue = {
   withArrow: () => boolean | undefined;
   shadow: () => string | undefined;
   trigger: () => string | undefined;
+  /** Id of the live dropdown, shared with the target for `aria-controls`. */
+  dropdownId: () => string;
+  setDropdownId: (id: string) => void;
   registerDropdownEl: (el: HTMLElement | null) => void;
   unregisterDropdownEl: (el: HTMLElement | null) => void;
   /** Live, enabled menu items in DOM order — the source of truth for arrow navigation. */
@@ -34,6 +37,21 @@ function useMenuContext() {
 }
 
 const DEFAULT_SHADOW = palette.DIALOG_SHADOW;
+
+const INTRINSICALLY_FOCUSABLE = new Set(["BUTTON", "INPUT", "SELECT", "TEXTAREA"]);
+
+/**
+ * An interactive child already owns (or intentionally opts out of) the tab
+ * stop. Enriching it avoids nesting two controls — a disabled button must stay
+ * one disabled control rather than gaining a focusable button around it.
+ */
+function interactiveChildElement(node: unknown): HTMLElement | undefined {
+  if (typeof HTMLElement === "undefined" || !(node instanceof HTMLElement)) return undefined;
+  if (INTRINSICALLY_FOCUSABLE.has(node.tagName)) return node;
+  if (node.tagName === "A" && node.hasAttribute("href")) return node;
+  const tabIndex = node.getAttribute("tabindex");
+  return tabIndex !== null && tabIndex !== "-1" ? node : undefined;
+}
 
 /** Viewport gutter the dropdown may never cross. */
 const VIEWPORT_PAD = 8;
@@ -172,6 +190,9 @@ export function Menu(props: UIMenuProps) {
   ]);
 
   const [internalAnchorEl, setInternalAnchorEl] = createSignal<HTMLElement | null>(null);
+  // Stable across renders so `aria-controls` resolves even before the dropdown
+  // (which only exists while open) has mounted.
+  const [dropdownId, setDropdownId] = createSignal(createUniqueId());
   // The dropdown node the outside-click handler must treat as "inside". It is
   // written by `MenuDropdown` only after that node has been inserted, so a
   // construction pass that never reaches the DOM cannot win the slot.
@@ -277,6 +298,8 @@ export function Menu(props: UIMenuProps) {
     withArrow: () => known.withArrow,
     shadow: () => known.shadow,
     trigger: () => known.trigger,
+    dropdownId,
+    setDropdownId,
     registerDropdownEl,
     unregisterDropdownEl,
     getMenuItems,
@@ -309,38 +332,79 @@ export function MenuTarget(props: UIMenuTargetProps) {
     "onClick",
     "onMouseEnter",
   ]);
-  const { setAnchorEl, anchorEl, open, onClose, trigger } = useMenuContext();
+  const { setAnchorEl, anchorEl, open, onClose, trigger, dropdownId } = useMenuContext();
   const isHover = createMemo(() => trigger() === "hover" || trigger() === "click-hover");
 
+  // `children` is a lazy getter — every read builds a fresh element tree. Read
+  // it once and reuse the resulting node so enrichment lands on the live child.
+  const child = known.children;
+  const interactiveChild = interactiveChildElement(child);
+  let wrapperEl: HTMLElement | undefined;
+
+  const toggle = (target: HTMLElement) => {
+    if (open() && anchorEl() === target) onClose();
+    else setAnchorEl(target);
+  };
+
   const handleClick = (e: MouseEvent) => {
-    const target = e.currentTarget as HTMLElement;
-    if (open() && anchorEl() === target) {
-      onClose();
-    } else {
-      setAnchorEl(target);
-    }
+    toggle(e.currentTarget as HTMLElement);
     known.onClick?.(e);
   };
 
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+    // The child is usually a native button. Cancel its activation so the menu
+    // toggles once instead of opening on keydown then closing on the click.
+    e.preventDefault();
+    toggle(e.currentTarget as HTMLElement);
+  };
+
   const handleMouseEnter = (e: MouseEvent) => {
-    if (isHover()) {
-      if (!open()) setAnchorEl(e.currentTarget as HTMLElement);
-    }
+    if (isHover() && !open()) setAnchorEl(e.currentTarget as HTMLElement);
     known.onMouseEnter?.(e);
   };
 
-  return (
+  createEffect(() => {
+    const el = interactiveChild ?? wrapperEl;
+    if (!el) return;
+    el.setAttribute("aria-haspopup", "menu");
+    el.setAttribute("aria-expanded", String(open()));
+    const id = dropdownId();
+    if (id) el.setAttribute("aria-controls", id);
+    else el.removeAttribute("aria-controls");
+  });
+
+  // A focusable child keeps its own tab stop and carries the disclosure ARIA;
+  // otherwise the wrapper itself becomes the real, keyboard-reachable trigger.
+  return interactiveChild ? (
     <span
+      {...(rest as Record<string, unknown>)}
       id={known.id}
       data-testid={known["data-testid"]}
       className={cn(known.className)}
       style={known.style as Record<string, string | undefined>}
+      ref={(el) => (wrapperEl = el)}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
       onMouseEnter={handleMouseEnter}
-      {...(rest as Record<string, unknown>)}
     >
-      {known.children}
+      {child}
     </span>
+  ) : (
+    <button
+      type="button"
+      {...(rest as Record<string, unknown>)}
+      id={known.id}
+      data-testid={known["data-testid"]}
+      className={cn(known.className)}
+      style={known.style as Record<string, string | undefined>}
+      ref={(el) => (wrapperEl = el)}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      onMouseEnter={handleMouseEnter}
+    >
+      {child}
+    </button>
   );
 }
 
@@ -358,7 +422,14 @@ export function MenuDropdown(props: UIMenuDropdownProps) {
     unregisterDropdownEl,
     getMenuItems,
     loop,
+    dropdownId,
+    setDropdownId,
   } = useMenuContext();
+
+  // An explicit dropdown id wins; otherwise publish the generated one so the
+  // target's `aria-controls` always names the element this component renders.
+  const resolvedId = createMemo(() => known.id ?? dropdownId());
+  createEffect(() => setDropdownId(resolvedId()));
 
   // `equals: false` so a re-created element is re-registered even when the new
   // node compares equal; the previous node is unregistered by this effect's
@@ -545,7 +616,7 @@ export function MenuDropdown(props: UIMenuDropdownProps) {
   return (
     <Show when={open()}>
       <div
-        id={known.id}
+        id={resolvedId()}
         ref={(el) => setDropdownEl(el)}
         role="menu"
         className={cn(
@@ -610,9 +681,9 @@ export function MenuItem(props: UIMenuItemProps) {
     }
   });
 
-  const handleClick = () => {
+  const handleClick = (e: MouseEvent) => {
     if (known.disabled) return;
-    known.onClick?.();
+    known.onClick?.(e);
     if (closeOnItemClick) onClose();
   };
 

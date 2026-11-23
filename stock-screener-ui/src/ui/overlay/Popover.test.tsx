@@ -134,3 +134,128 @@ describe("Popover trapFocus", () => {
     expect(plain).not.toHaveAttribute("tabindex");
   });
 });
+
+describe("Popover — disclosure ARIA on the trigger", () => {
+  function DisclosureHarness(props: { dropdownId?: string; middlewares?: unknown; keepMounted?: boolean } = {}) {
+    const [opened, setOpened] = createSignal(false);
+    return (
+      <Popover
+        opened={opened()}
+        onChange={setOpened}
+        middlewares={props.middlewares}
+        keepMounted={props.keepMounted}
+      >
+        <PopoverTarget data-testid="target-anchor">
+          <button type="button" data-testid="trigger">
+            Open
+          </button>
+        </PopoverTarget>
+        <PopoverDropdown id={props.dropdownId} data-testid="dropdown">
+          <button type="button">inside</button>
+        </PopoverDropdown>
+      </Popover>
+    );
+  }
+
+  const renderHarness = (props: { dropdownId?: string } = {}) => {
+    render(() => <DisclosureHarness {...props} />);
+    return {
+      trigger: screen.getByTestId("trigger") as HTMLElement,
+      anchor: screen.getByTestId("target-anchor") as HTMLElement,
+    };
+  };
+
+  test("enriches a focusable child rather than the non-focusable wrapper", () => {
+    const { trigger, anchor } = renderHarness();
+
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(anchor.tagName).toBe("SPAN");
+    expect(anchor).not.toHaveAttribute("aria-haspopup");
+  });
+
+  test("Enter and Space toggle the popover and aria-expanded", () => {
+    const { trigger } = renderHarness();
+
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    expect(screen.getByTestId("dropdown")).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.keyDown(trigger, { key: " " });
+    expect(screen.queryByTestId("dropdown")).toBeNull();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("aria-controls resolves to the dropdown panel", () => {
+    const { trigger } = renderHarness();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+
+    const id = trigger.getAttribute("aria-controls");
+    expect(id).toBeTruthy();
+    expect(document.getElementById(id!)).toBe(screen.getByTestId("dropdown"));
+  });
+
+  test("an explicit dropdown id is reused for aria-controls", () => {
+    const { trigger } = renderHarness({ dropdownId: "custom-popover-panel" });
+    fireEvent.keyDown(trigger, { key: "Enter" });
+
+    expect(trigger).toHaveAttribute("aria-controls", "custom-popover-panel");
+    expect(document.getElementById("custom-popover-panel")).toBe(screen.getByTestId("dropdown"));
+  });
+
+  test("a non-focusable child becomes a real, keyboard-reachable button", () => {
+    render(() => (
+      <Popover>
+        <PopoverTarget data-testid="text-trigger">Open popover</PopoverTarget>
+        <PopoverDropdown data-testid="dropdown">
+          <button type="button">inside</button>
+        </PopoverDropdown>
+      </Popover>
+    ));
+    const trigger = screen.getByTestId("text-trigger") as HTMLButtonElement;
+
+    expect(trigger.tagName).toBe("BUTTON");
+    expect(trigger).toHaveAttribute("type", "button");
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    expect(screen.getByTestId("dropdown")).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("a component that renders a button is enriched as well", () => {
+    const GhostButton = () => (
+      <button type="button" data-testid="component-trigger">
+        Open
+      </button>
+    );
+    render(() => (
+      <Popover>
+        <PopoverTarget>
+          <GhostButton />
+        </PopoverTarget>
+        <PopoverDropdown data-testid="dropdown">
+          <button type="button">inside</button>
+        </PopoverDropdown>
+      </Popover>
+    ));
+    const trigger = screen.getByTestId("component-trigger");
+
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    expect(screen.getByTestId("dropdown")).toBeInTheDocument();
+  });
+
+  test("advertised-but-unused middlewares and keepMounted never reach the DOM", () => {
+    const { container } = render(() => (
+      <DisclosureHarness middlewares={[{ name: "flip" }]} keepMounted />
+    ));
+
+    expect(container.innerHTML).not.toMatch(/middlewares|keepMounted/i);
+  });
+});
