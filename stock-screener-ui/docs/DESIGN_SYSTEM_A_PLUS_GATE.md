@@ -31,15 +31,24 @@ A+ is the **median of three independent raters**, each scoring the table above f
 5. Repeat until the median is ≥ 9 on every in-scope dimension and no P0/P1 remains.
 6. Only then mark the task finished.
 
-## Current known gaps (as of 2026-11-23, after P0–P3)
+## Current known gaps (as of 2026-11-23, after P5)
 
-- ~57 chart/ink modules still import static dark palette values instead of the token accessor.
-- API consistency is the weakest score: value-vs-event `onChange`, event-vs-void `onClick`, swallowed legacy Mantine props, `Menu.loop`/Tree keyboard gaps.
+Resolved since the first draft (verified against source/CI, not memory):
+
+- `uiTheme` is typed (`as const` + `export type UiTheme` in `src/ui/theme.tsx`) and `UIProvider` now applies the colour-scheme props through the shared signal. The old "no-op theme stub" claim is stale.
+- `FormField` (`src/ui/form/FormField.tsx`, with story and co-located test) owns ids, `aria-describedby` and `aria-invalid`; `Checkbox` and `Switch` now expose `error`/`description` slots and wire the same attributes. The "no error slot on Checkbox/Switch" claim is stale.
+- `Tree` and `Menu` keyboard contracts are closed: Arrow/Home/End roving focus, `loop={false}` clamping, Escape dismissal, with regression tests in `Tree.test.tsx` / `Menu.test.tsx`. They are no longer "being closed in the current wave".
+- `Select`/`MultiSelect` no longer accept `allowDeselect`, `maxDropdownHeight`, `comboboxProps` or `withinPortal` (`@ts-expect-error` tests assert they are absent). `legacyProps.ts` is now only a defensive strip for Text/Number/Password inputs; `InputProps` is still accepted on write and stripped in `UISelectProps`, so the swallowed-prop debt is reduced, not zero.
+- Automated a11y is no longer happy-dom-only: `src/test/a11y-smoke.test.tsx` runs in vitest and `node scripts/storybook-a11y.mjs` runs axe-core in real Chromium over representative stories (serious/critical fail the job). Scoped UI coverage (`bun run test:coverage:ui`), the Storybook catalog guard (after a CI Storybook build) and `design-scale.test.ts` (no `ui/` exemption) also run in CI. Local catalog-guard runs still skip without a built manifest.
+
+Still open — keep the A+ verdict honest:
+
+- **Token-accessor adoption vs dark-only scope.** Light mode, i18n/RTL and SSR are out of scope by product decision, but dark-token consistency is unfinished: `src/ui/tokens.ts` exists, yet almost no app code calls `tokenColor`/`useTokenColor`. A literal grep finds ~240 non-test, non-PoC source files importing `src/ui/palette.ts` directly; the old "~57 modules" figure is not reproducible from current source.
+- **API callback conventions.** `onChange` is value-based on most inputs but event-based on `Checkbox`/`Switch`; `onClick` is an event in `UIBaseProps` but void in `NavLink`/`MenuItem`/`CloseButton`. No single convention per family yet.
+- **Two tables.** `components/common/TanStackTable.tsx` and `components/paper-trading/TanStackTable.tsx` remain separate implementations with different feature sets.
+- **App dialects.** Feature-local duplicates (paper-trading table, `PanelModal`/`ExpandedPanel`, `components/common/Icons.tsx`, `RangeInput` vs `RangeSlider`, `TradingDatePicker`) still drift from `@/ui`.
+- **Visual regression baseline.** Browser axe covers representative stories for serious/critical violations, including rendered contrast; it does not assert pixels. No 1600/390 snapshot baseline for the catalog, and keyboard focus order/trap plus screen-reader output still need a manual or Playwright walkthrough.
+- **Coverage is scoped, not universal.** 84/100 audited modules have a story and 88/100 a co-located test; "story: yes" means one exported name is imported, not that every state is reviewed.
 - DatePicker is intentionally single-date; no range/time/locale.
 - Tooltip requires a focusable child unless the opt-in tab stop is used.
-- Common table and paper-trading table remain two implementations; no visual regression baseline.
-- Icon duplication is reduced by 11 re-exports; `components/common/Icons.tsx` still overlaps.
-- Storybook catalog guard now builds and runs in the CI lint job; local runs still skip without a manifest.
-- Axe is happy-dom only; real-browser contrast/focus/order is unverified.
-- `Tree`/`Menu` keyboard contracts are being closed in the current wave.
 - Screenshots are current only after the latest visual recapture; check commit dates before quoting them.
