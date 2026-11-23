@@ -5,6 +5,8 @@
 **Method:** source/palette/types/tests/`.storybook`/story catalog/docs read directly; no stories-only judgement. Read-only audit: no builds, servers, or source edits; only `find`, ripgrep-backed content search, and `git status`/`git log`.
 **Evidence rule:** every claim below is tied to a file/line or a generated document. Where something cannot be proven from the repo it is marked **unknown**, not guessed.
 
+**Scope decision (2026-11-23): the product is dark-only. Light mode is explicitly out of scope.** It is not a benchmark gap, not a scoring dimension, and not a migration target. The CSS light override remains inert; do not spend design-system work on it. The remaining theming work is dark-token consistency for JS/chart consumers.
+
 ---
 
 ## 1. Blunt verdict
@@ -41,7 +43,7 @@ Storybook's 381 stories and `COMPONENT_AUDIT.md`'s 0 violations are real achieve
 | 2 | Component breadth | **5** | ~79 exported component symbols in `src/ui/index.ts:1-72`, but no Form, Table, Drawer, Pagination, Steps, Breadcrumb, DateRange, TreeSelect, Upload, Dropdown-button family. | AntD 60+ component catalog |
 | 3 | Component API consistency | **4** | Mixed event-vs-value callbacks, divergent `variant` sets, `class` alias only on `Text`, Mantine compat props accepted-but-swallowed (`inputs/legacyProps.ts`), 8 `any` leaks in `types.ts`. | AntD `size`/`variant`/`onChange` prop conventions |
 | 4 | Accessibility | **5** | Real roles on Tabs/Menu/Select/Switch/Alert, global focus ring (`tailwind.css:98-102`), reduced-motion CSS; but no axe gate, no Modal focus trap, error text not programmatically associated, close button uses `focus:outline-none`. | AntD `rc-*` a11y semantics + `@ant-design/tests` |
-| 5 | Theming / light mode | **4** | `:root[data-color-scheme="light"]` overrides ~22 CSS vars (`tailwind.css:47-69`) and a shared scheme signal (`hooks.ts:142-169`); provider is a stub and `palette.ts` JS consumers (≈57 files) stay dark. | `ConfigProvider` + `theme.darkAlgorithm` |
+| 5 | Dark theming (light mode out of scope) | **7** | CSS variable tokens, a real `UIProvider` and `useTokenColor()` now exist; ~57 chart/ink modules still use static dark palette values, which is dark-token consistency work, not theme switching. | `ConfigProvider` + `theme.darkAlgorithm` |
 | 6 | Motion | **6** | CSS-only transitions/flash/shimmer with `prefers-reduced-motion` in `tailwind.css:133`, `style.css:111,144`, `replayMotion.ts:42`; no central motion token or documented spec. | AntD motion presets / `rc-motion` |
 | 7 | Density | **5** | Two-level, table-centred density module (`density.tsx`) with localStorage + CSS var; no app-wide compact/cozy component size. | `ConfigProvider.componentSize` + `Compact` |
 | 8 | Forms / validation | **3** | `error` prop + native `required` only; no Form/rules/schema, no `aria-describedby`/`aria-invalid` wiring, JSX `error` → `[object Object]`. | AntD `Form` + `rules` + `Form.Item` |
@@ -97,7 +99,7 @@ Missing:
 
 ### 3.3 Theming / light mode / i18n / RTL / SSR / forms / date / motion
 
-- **Theming:** `src/ui/theme.tsx` is a 8-line stub. `UIProvider` accepts `defaultColorScheme`/`forceColorScheme` and ignores both. `useColorScheme` is a module-level signal that writes `data-color-scheme` on `<html>`/`<body>` and localStorage (`hooks.ts:126-169`); `index.html` duplicates the bootstrap, guarded by a parity test (`useColorScheme.test.ts:147-183`). Light CSS overrides exist only for the `fin-*` CSS variables. Runtime JS palette imports stay dark: ≈57 files import `@/ui/palette` / `sxTheme`, including charts (`pages/report/*`, `components/options-dock/analytics/*`, `pages/agri/*`). Storybook is explicitly dark-only with no toggle (`DESIGN_SYSTEM_STORYBOOK.md:22-25`). **Conclusion: light mode is partial and per-feature, not a theme contract.**
+- **Theming:** the product is **dark-only by decision**; light mode is out of scope. `UIProvider` + `useTokenColor()` now provide a real dark token contract (`src/ui/theme.tsx`, `src/ui/tokens.ts`). Runtime JS palette imports remain in ≈57 files, including charts (`pages/report/*`, `components/options-dock/analytics/*`, `pages/agri/*`), so the remaining work is dark-token consistency, not a second theme. Storybook is dark-only by design (`DESIGN_SYSTEM_STORYBOOK.md:22-25`).
 - **i18n:** no i18n dependency in `package.json`; hard-coded English UI strings in primitives (`dates/DatePicker.tsx:115,123`, `overlay/Modal.tsx:143,171`, `feedback/Alert.tsx:113`, `feedback/Loader.tsx:38-51`, `inputs/PasswordInput.tsx:190`). `Intl.*` usage found in the repo is number/date **formatting** (`config/currency.ts`, `utils/istChartTime.ts`), not translation.
 - **RTL:** no `dir="rtl"`, no `direction: rtl`, no logical CSS properties (`margin-inline`, `padding-inline`, `inset-inline`, `text-start`, `text-end`) in `src/ui`. Physical classes (`leftSection`, `rightSection`, `absolute right-2`, `translateX`) are pervasive. Not supported.
 - **SSR:** no `renderToString`, `renderToStream`, `@solidjs/start`, or hydration entry in `src/`; the only `hydrate()` calls are the app's saved-config store. It is a client-only SPA. Code has SSR guards (`density.tsx:52,61`) but no SSR implementation.
@@ -155,7 +157,7 @@ Also note `src/components/paper-trading/TanStackTable.tsx` and `src/components/c
 
 | # | Pri | Gap | Exact files / paths | Smallest high-value fix |
 |---:|---|---|---|---|
-| 1 | **P0** | Theme provider is a no-op and JS palette never flips in light mode; toolbar toggle paints CSS but charts/states stay dark. | `src/ui/theme.tsx:4-8`, `src/ui/hooks.ts:126-169`, `src/tailwind.css:47-69`, `src/ui/palette.ts`, ≈57 palette importers | Make `UIProvider` actually apply `defaultColorScheme`/`forceColorScheme`; add one `useTokenColor('primary' \| 'surface' \| …)` accessor that reads `getComputedStyle(var(--color-fin-*))`, and migrate the top 5 chart ink modules. Add a guard asserting every dark `fin-*` var has a light override. |
+| 1 | **P0** | Theme provider was a no-op; JS palette consumers bypass the dark token contract. | `src/ui/theme.tsx:4-8`, `src/ui/tokens.ts`, `src/ui/palette.ts`, ≈57 palette importers | **Contract fixed in #257** (`UIProvider` + `useTokenColor`). Remaining: migrate chart/ink modules to the accessor for dark-token consistency. Light mode is deliberately out of scope. |
 | 2 | **P0** | Form errors are inaccessible and JSX errors render as `[object Object]`. | `src/ui/inputs/TextInput.tsx:67-73,126-157`; same pattern in `NumberInput`, `Select`, `MultiSelect`, `Textarea`; `src/ui/types.ts:346` | Render `error` as JSX (not `String()`), add `id={resolvedId + '-error'}` to the helper span, set `aria-describedby` and `aria-invalid` on the input; fix the 5 inputs in one pass with a shared helper. |
 | 3 | **P0** | Modal is not keyboard-contained; its close button removes the focus ring. | `src/ui/overlay/Modal.tsx:81-99,141-175` | Add a `keydown` Tab-cycle over focusable descendants inside the dialog; delete `focus:outline-none` from the close button; link title via `aria-labelledby`. |
 | 4 | **P1** | DatePicker silently ignores 4 declared props and ships hard-coded English; no range/time/locale. | `src/ui/types.ts:760-774` vs `src/ui/dates/DatePicker.tsx:29-43,84-128` | Remove `valueFormat`/`weekendDays`/`getDayProps`/`size` from the type (or implement them); add a `labels={{ clear, invalid }}` prop; state "single date only" in docs so callers stop expecting Mantine parity. |
@@ -176,8 +178,8 @@ Also note `src/components/paper-trading/TanStackTable.tsx` and `src/components/c
 - Ship gaps 1–3: real provider + token accessor, form error semantics, Modal focus containment.
 - Ship gap 5: regenerate `docs/DESIGN.md` from `palette.ts`; add the guard.
 - Add the axe smoke suite from gap 6 as a **report-only** CI job; record the baseline count.
-- Publish a one-page "Support matrix" in `docs/`: dark + light CSS-var theme, single-language, LTR only, client-only SPA, no visual regression yet. Mark RTL/SSR/i18n **not supported** rather than silent.
-- Exit gate: all `src/ui/` tests green, 0 new axe violations vs baseline, theme toggle verified in both schemes in the real app at 1600 and 390.
+- Publish a one-page "Support matrix" in `docs/`: **dark-only** CSS-var theme, single-language, LTR only, client-only SPA, no visual regression yet. Mark RTL/SSR/i18n **not supported** rather than silent.
+- Exit gate: all `src/ui/` tests green, 0 new axe violations vs baseline, dark theme verified in the real app at 1600 and 390.
 
 ### Days 31–60 — Consolidate and prove (API, duplicates, coverage)
 - Ship gaps 4, 7, 8, 9: trim DatePicker's false API, deprecate/remove legacy props with a codemod, one winner per duplicated family, virtualize or honestly de-scope the table.
@@ -196,7 +198,7 @@ Also note `src/components/paper-trading/TanStackTable.tsx` and `src/components/c
 - Target scores at day 90: tokens 8, API 7, a11y 8, forms 7, theming 7, docs 8, versioning 6; overall ≈6.5/10 — a credible Tier 3+ / entry Tier 4, not AntD parity, and that is the right goal for a domain terminal kit.
 
 ### What NOT to copy from AntD
-1. **Do not copy the seed→map→alias token algorithm.** Flat CSS variables with 22 light overrides are simpler, debuggable, and already work. AntD's theme engine exists for dozens of themes; we have two.
+1. **Do not copy the seed→map→alias token algorithm.** Flat dark CSS variables are simpler, debuggable and already work. AntD's theme engine exists for dozens of themes; we have one.
 2. **Do not chase component count.** Adding Drawer/Steps/Breadcrumb/Upload to "match 60+" would dilute a finance-terminal kit. Breadth is not the missing tier; contracts are.
 3. **Do not copy the bundle weight.** AntD + rc-* + icon packages are large; our largest chunk is ECharts (494.75 kB), not the DS (147.9 kB). Keep per-component chunks, zero runtime theme JS, no moment/lodash-class dependencies.
 4. **Do not copy `rc-motion` choreography.** CSS-only transitions plus `prefers-reduced-motion` are correct for a terminal rendering live tick data; spring physics and coordinated enter/leave sequences add cost without user value here.
@@ -213,7 +215,7 @@ Also note `src/components/paper-trading/TanStackTable.tsx` and `src/components/c
 | Component breadth | 5/10 | Overlays | 6/10 |
 | API consistency | 4/10 | i18n / RTL | 1/10 |
 | Accessibility | 5/10 | Docs | 6/10 |
-| Theming / light mode | 4/10 | Test strategy | 6/10 |
+| Dark theming (light out of scope) | 7/10 | Test strategy | 6/10 |
 | Motion | 6/10 | Performance | 6/10 |
 | Density | 5/10 | Versioning / release | 2/10 |
 | Forms / validation | 3/10 | Adoption | 6/10 |
@@ -238,11 +240,11 @@ Cloned `https://github.com/CRED-CLUB/neopop-web` (Apache-2.0) into `/tmp/opencod
 
 **What we do better:**
 - breadth (79 exported UI symbols vs 16), tests (44 UI test files, 771 frontend tests vs none), accessibility roles, token guards, catalog integrity, table/data primitives, and a real app integration.
-- We already have 10-step scales (`SCALE_*`), semantic border tokens, light CSS-variable overrides, and contrast tests. CRED does not have our guard suite.
+- We already have 10-step scales (`SCALE_*`), semantic border tokens, a real dark-token provider/accessor, and contrast tests. CRED does not have our guard suite.
 
 **What to adopt, not copy:**
 1. Add the missing **component-token tier** (`--button-primary-bg`, `--input-error-fg`, etc.) above the semantic tokens.
-2. Make **theme maps explicit and testable** for both schemes; stop mixing static JS dark hex with CSS-var light mode.
+2. Make **dark component-token maps explicit and testable**; stop mixing static JS dark hex with CSS-var tokens.
 3. Give **primary controls a subtle press/elevation response** (cheap transform/box-shadow, not NeoPOP's full 3D edge) so buttons feel deliberate.
 4. Add a **motion token scale** (`fast 120ms`, `base 180ms`, `slow 240ms`, standard easing) and use it.
 5. Keep the **playground/catalog** we have; add a real variant playground to each component page where useful.
@@ -255,7 +257,7 @@ Cloned `https://github.com/CRED-CLUB/neopop-web` (Apache-2.0) into `/tmp/opencod
 
 ## 8. Unknowns (not inferred)
 
-- Real runtime appearance of light mode (no screenshots or builds were run; CSS override block exists but was not visually verified).
+- Dark-only runtime appearance was not re-benchmarked after the P0/P1 changes; screenshots live in `docs/screenshots/showcase/`.
 - Actual WCAG conformance (no axe run; manual a11y panel only).
 - Frontend coverage percentage, test pass counts, bundle numbers after this branch's changes (no builds/tests run; `perf/bundle-sizes.json` is a checked-in report of unknown age).
 - Cross-product / multi-team adoption and consumer satisfaction outside this repository.
