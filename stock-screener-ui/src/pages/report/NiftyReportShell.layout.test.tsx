@@ -32,19 +32,36 @@ vi.mock("./ReportContext", () => ({
   useNiftyReport: () => mockStore,
 }));
 vi.mock("./ReportToolbar", () => ({ ReportToolbar: () => <div data-testid="toolbar-stub" /> }));
+// Mirror the real facade's sibling shape: the stat strip followed by its tail
+// sections. A single decision stub would hide the default-order siblings that
+// used to paint above the hero and chart.
 vi.mock("./ReportDecisionStrip", () => ({
-  ReportDecisionStrip: () => <div data-testid="decision-stub" />,
+  ReportDecisionStrip: () => (
+    <>
+      <div data-testid="nifty-stat-strip" data-report-section="true">
+        <div data-testid="decision-stub"><button type="button" data-testid="decision-focus" /></div>
+      </div>
+      <div data-testid="nifty-flow-windows-disclosure" data-open="false">
+        <div data-testid="nifty-flow-windows" />
+      </div>
+      <div data-testid="movers-strip" />
+      <div data-testid="nifty-context-rail" />
+      <div data-testid="nifty-setup-radar" />
+    </>
+  ),
 }));
-vi.mock("./ReportStrips", () => ({ ReportStrips: () => <div data-testid="strips-stub" /> }));
+vi.mock("./ReportStrips", () => ({
+  ReportStrips: () => <div data-testid="strips-stub"><button type="button" data-testid="strips-focus" /></div>,
+}));
 vi.mock("./ReportWorkspace", () => ({
-  ReportWorkspace: () => <div data-testid="workspace-stub" />,
+  ReportWorkspace: () => <div data-testid="workspace-stub"><button type="button" data-testid="workspace-focus" /></div>,
 }));
 vi.mock("./ReportAnalytics", () => ({
-  ReportAnalytics: () => <div data-testid="analytics-stub" />,
+  ReportAnalytics: () => <div data-testid="analytics-stub"><button type="button" data-testid="analytics-focus" /></div>,
 }));
 vi.mock("./ReportOverlays", () => ({ ReportOverlays: () => null }));
 vi.mock("./NiftyFuturesPanel", () => ({
-  NiftyFuturesPanel: () => <div data-testid="futures-stub" />,
+  NiftyFuturesPanel: () => <div data-testid="futures-stub"><button type="button" data-testid="flow-focus" /></div>,
 }));
 vi.mock("./NiftyItmPeFlow", () => ({
   NiftyItmPeFlowPanel: () => <div data-testid="itm-stub" />,
@@ -71,13 +88,28 @@ function sectionOrder(): string[] {
     );
 }
 
+/** Read the phone `order` slot a band gets, whether the rule lives on the
+ *  content ancestor (shell-owned) or on the band's own class. */
+function mobileOrder(cls: string, testId: string): number | null {
+  if (testId === "nifty-flow-windows-disclosure") {
+    const wrapper = /:has\(\[data-testid='nifty-flow-windows'\]\)\]:order-(\d+)/.exec(cls);
+    return wrapper ? Number(wrapper[1]) : null;
+  }
+  const shell =
+    new RegExp(`\\[&_\\[data-testid='${testId}'\\]\\]:max-\\[600px\\]:order-(\\d+)`).exec(cls) ??
+    new RegExp(`max-\\[600px\\]:\\[&_\\[data-testid='${testId}'\\]\\]:order-(\\d+)`).exec(cls);
+  if (shell) return Number(shell[1]);
+  const self = /(?:^|\s)max-\[600px\]:order-(\d+)(?=\s|$)/.exec(cls);
+  return self ? Number(self[1]) : null;
+}
+
 afterEach(() => {
   cleanup();
   setReport(null);
 });
 
 describe("NiftyReportShell section order", () => {
-  test("decision → flow → chart → strips → analytics", async () => {
+  test("decision → chart → flow → strips → analytics", async () => {
     setReport({
       spot: 25_980,
       futures: { series: [], regime: "neutral" },
@@ -88,11 +120,50 @@ describe("NiftyReportShell section order", () => {
     await screen.findByTestId("workspace-stub");
     expect(sectionOrder()).toEqual([
       "decision-stub",
-      "nifty-flow-above-chart",
       "workspace-stub",
+      "nifty-flow-above-chart",
       "strips-stub",
       "analytics-stub",
     ]);
+  });
+
+  test("mobile section DOM order is the focus sequence (WCAG 1.3.2 / 2.4.3)", async () => {
+    setReport({
+      spot: 25_980,
+      futures: { series: [], regime: "neutral" },
+      itm_pe_flow: { series: [], top: [] },
+    });
+    mount();
+    await screen.findByTestId("workspace-stub");
+
+    // Tab order follows the document when nothing carries a positive tabindex:
+    // assert both the section sequence and the focusable sequence in the DOM.
+    expect(sectionOrder()).toEqual([
+      "decision-stub",
+      "workspace-stub",
+      "nifty-flow-above-chart",
+      "strips-stub",
+      "analytics-stub",
+    ]);
+
+    const content = screen.getByTestId("nifty-report-content");
+    const focusables = Array.from(
+      content.querySelectorAll<HTMLElement>("button, [href], input, select, textarea, [tabindex]"),
+    );
+    expect(
+      focusables
+        .map((el) => el.getAttribute("data-testid"))
+        .filter((id) => id?.endsWith("-focus")),
+    ).toEqual([
+      "decision-focus",
+      "workspace-focus",
+      "flow-focus",
+      "strips-focus",
+      "analytics-focus",
+    ]);
+    for (const el of content.querySelectorAll<HTMLElement>("[tabindex]")) {
+      expect(Number(el.getAttribute("tabindex"))).toBeLessThanOrEqual(0);
+    }
   });
 
   test("the flow row is absent when neither block was recorded", async () => {
@@ -238,7 +309,7 @@ describe("NiftyReportShell 390 composition", () => {
     expect(cls).toContain("nifty-decision-stats']_[data-testid$='-cells']]:gap-1!");
   });
 
-  test("DOM order keeps decision → flow → chart; visual order promotes the chart at 390", async () => {
+  test("DOM order is decision → chart → flow → strips → analytics (mobile reading order)", async () => {
     setReport({
       spot: 25_980,
       futures: { series: [], regime: "neutral" },
@@ -249,17 +320,110 @@ describe("NiftyReportShell 390 composition", () => {
 
     expect(sectionOrder()).toEqual([
       "decision-stub",
-      "nifty-flow-above-chart",
       "workspace-stub",
+      "nifty-flow-above-chart",
       "strips-stub",
       "analytics-stub",
     ]);
 
     const contentCls = screen.getByTestId("nifty-report-content").className;
+    // Phone paint slots still match the DOM; the desk overrides are negative
+    // orders so the 1600 grid placement is unchanged.
     expect(contentCls).toContain("nifty-stat-strip']]:order-1");
     expect(contentCls).toContain("nifty-main-row']]:order-2");
-    expect(contentCls).toContain("nifty-report-strips']]:order-4");
-    expect(screen.getByTestId("nifty-flow-above-chart").className).toContain("max-[600px]:order-3");
+    expect(contentCls).toContain("nifty-stat-strip']]:-order-3");
+    expect(screen.getByTestId("nifty-flow-above-chart").className).toContain("min-[1200px]:-order-1");
+  });
+});
+
+describe("NiftyReportShell 390 visual order (including decision tail)", () => {
+  function mountFull() {
+    setReport({
+      spot: 25_980,
+      futures: { series: [], regime: "neutral" },
+      itm_pe_flow: { series: [], top: [] },
+    });
+    mount();
+  }
+
+  test("every content band owns one unique slot: hero → chart → dock/flow/tail → strips → analytics", async () => {
+    mountFull();
+    await screen.findByTestId("workspace-stub");
+
+    const content = screen.getByTestId("nifty-report-content").className;
+    const flow = screen.getByTestId("nifty-flow-above-chart").className;
+    const slots: Array<[string, number | null]> = [
+      ["nifty-stat-strip", mobileOrder(content, "nifty-stat-strip")],
+      ["nifty-main-row", mobileOrder(content, "nifty-main-row")],
+      ["desk-dock-region", mobileOrder(content, "desk-dock-region")],
+      ["nifty-flow-windows-disclosure", mobileOrder(content, "nifty-flow-windows-disclosure")],
+      ["nifty-flow-above-chart", mobileOrder(flow, "nifty-flow-above-chart")],
+      ["movers-strip", mobileOrder(content, "movers-strip")],
+      ["nifty-context-rail", mobileOrder(content, "nifty-context-rail")],
+      ["nifty-setup-radar", mobileOrder(content, "nifty-setup-radar")],
+      ["nifty-report-strips", mobileOrder(content, "nifty-report-strips")],
+      ["nifty-analytics-row", mobileOrder(content, "nifty-analytics-row")],
+      ["nifty-iv-skew-row", mobileOrder(content, "nifty-iv-skew-row")],
+    ];
+    expect(slots.map(([, order]) => order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(new Set(slots.map(([, order]) => order)).size).toBe(slots.length);
+  });
+
+  test("the decision tail no longer paints above the hero or chart", async () => {
+    mountFull();
+    await screen.findByTestId("workspace-stub");
+
+    const content = screen.getByTestId("nifty-report-content").className;
+    const chartOrder = mobileOrder(content, "nifty-main-row")!;
+    for (const id of [
+      "nifty-flow-windows-disclosure",
+      "movers-strip",
+      "nifty-context-rail",
+      "nifty-setup-radar",
+    ]) {
+      expect(screen.getByTestId(id)).toBeInTheDocument();
+      expect(mobileOrder(content, id), `${id} still default-orders above the chart`).toBeGreaterThan(
+        chartOrder,
+      );
+    }
+    // The only full bands ahead of the chart are the toolbar chrome and the
+    // hero; no unavailable band is allowed a slot at or before the chart.
+    for (const id of ["desk-dock-region", "movers-strip", "nifty-flow-windows-disclosure"]) {
+      expect(mobileOrder(content, id)).toBeGreaterThan(mobileOrder(content, "nifty-stat-strip")!);
+    }
+  });
+
+  test("no unavailable full band or wrapped dock row spends the first viewport", async () => {
+    mountFull();
+    await screen.findByTestId("workspace-stub");
+
+    const content = screen.getByTestId("nifty-report-content").className;
+    expect(content).toContain(
+      "max-[600px]:[&_[data-testid='movers-strip']:not([data-report-spacing])]:hidden!",
+    );
+    expect(content).toContain("max-[600px]:[&_[data-testid='desk-dock']]:flex-nowrap!");
+    expect(content).toContain("max-[600px]:[&_[data-testid='desk-dock']]:overflow-x-auto!");
+  });
+
+  test("focus follows the unchanged DOM sequence; no positive tabindex shortcut", async () => {
+    mountFull();
+    await screen.findByTestId("workspace-stub");
+
+    const panel = screen.getByTestId("nifty-report-panel");
+    const positive = Array.from(panel.querySelectorAll("[tabindex]")).filter(
+      (el) => Number(el.getAttribute("tabindex")) > 0,
+    );
+    expect(positive).toEqual([]);
+
+    const ids = Array.from(panel.querySelectorAll("[data-testid]")).map(
+      (el) => el.getAttribute("data-testid") ?? "",
+    );
+    expect(ids.indexOf("decision-stub")).toBeLessThan(
+      ids.indexOf("nifty-flow-windows-disclosure"),
+    );
+    expect(ids.indexOf("nifty-flow-windows-disclosure")).toBeLessThan(ids.indexOf("movers-strip"));
+    expect(ids.indexOf("movers-strip")).toBeLessThan(ids.indexOf("nifty-context-rail"));
+    expect(ids.indexOf("nifty-context-rail")).toBeLessThan(ids.indexOf("workspace-stub"));
   });
 });
 

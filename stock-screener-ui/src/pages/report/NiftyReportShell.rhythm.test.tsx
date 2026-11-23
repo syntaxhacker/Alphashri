@@ -68,6 +68,8 @@ describe("Index Report shell/workspace readability rhythm", () => {
       "max-[600px]:[&_[data-testid='nifty-stat-strip']]:order-1",
       "max-[600px]:[&_[data-testid='nifty-main-row']]:order-2",
       "max-[600px]:order-3",
+      "min-[1200px]:[&_[data-testid='nifty-stat-strip']]:-order-3",
+      "min-[1200px]:-order-1",
       "data-report-order=\"chart\"",
     ]) {
       expect(SHELL + WORKSPACE, `chart-first order: ${rule}`).toContain(rule);
@@ -75,6 +77,15 @@ describe("Index Report shell/workspace readability rhythm", () => {
     for (const id of ["nifty-stat-strip", "nifty-main-row"]) {
       expect(SHELL, `data contract: ${id}`).toContain(id);
     }
+  });
+
+  test("the shell DOM puts the chart before the flow band and never uses positive tabindex", () => {
+    const workspaceAt = SHELL.indexOf("<ReportWorkspace");
+    const flowAt = SHELL.indexOf("<ReportFlowRow");
+    expect(workspaceAt).toBeGreaterThan(-1);
+    expect(flowAt).toBeGreaterThan(workspaceAt);
+    expect(SHELL).not.toMatch(/tabindex\s*=\s*["']?[1-9]/);
+    expect(WORKSPACE).not.toMatch(/tabindex\s*=\s*["']?[1-9]/);
   });
 
   test("the shell source carries no force-open verdict disclosure rule", () => {

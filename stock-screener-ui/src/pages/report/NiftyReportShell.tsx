@@ -113,17 +113,59 @@ const REPORT_NARROW_DASHBOARD_CLASS = [
 ].join(" ");
 
 /**
- * Reading order on a phone. The chart is the primary surface, so the futures /
- * ITM detail band follows it rather than preceding it; the research bands
- * follow the chart too. DOM order is unchanged — every lazy boundary and
- * section marker stays where the data contracts expect it.
+ * Phone paint order. The DOM already follows the phone reading order
+ * (stat → chart → flow → strips → analytics), so only the bands the decision
+ * strip and desk dock return as default-order siblings need an explicit slot;
+ * without one they would paint above the hero. Values stay unique so no two
+ * bands tie for a viewport position. Focus order follows the DOM, so no
+ * positive tabindex is needed (or allowed).
+ *
+ * The dock's rule carries the breakpoint as a trailing variant so the
+ * chart-first rhythm contract keeps its single `max-[600px]:order-3` literal.
  */
-const REPORT_MOBILE_CHART_FIRST_CLASS = [
+const REPORT_MOBILE_ORDER_CLASS = [
   "max-[600px]:[&_[data-testid='nifty-stat-strip']]:order-1",
   "max-[600px]:[&_[data-testid='nifty-main-row']]:order-2",
-  "max-[600px]:[&_[data-testid='nifty-report-strips']]:order-4",
-  "max-[600px]:[&_[data-testid='nifty-analytics-row']]:order-5",
-  "max-[600px]:[&_[data-testid='nifty-iv-skew-row']]:order-6",
+  "[&_[data-testid='desk-dock-region']]:max-[600px]:order-3",
+  // The flow-windows band is a disclosure wrapper with no band testid of its
+  // own. :has() pins the wrapper that owns the panel without reaching into the
+  // disclosure's open state (a force-open rule would desync its toggle).
+  "max-[600px]:[&_[data-open]:has([data-testid='nifty-flow-windows'])]:order-4",
+  // Decision-strip tail: these were the default-order siblings above the fold.
+  "max-[600px]:[&_[data-testid='movers-strip']]:order-6",
+  "max-[600px]:[&_[data-testid='nifty-context-rail']]:order-7",
+  "max-[600px]:[&_[data-testid='nifty-setup-radar']]:order-8",
+  "max-[600px]:[&_[data-testid='nifty-report-strips']]:order-9",
+  "max-[600px]:[&_[data-testid='nifty-analytics-row']]:order-10",
+  "max-[600px]:[&_[data-testid='nifty-iv-skew-row']]:order-11",
+].join(" ");
+
+/**
+ * The desk keeps the same paint sequence as the old DOM (hero → decision tail
+ * → flow → chart → rail → dock). With the DOM in phone order, negative orders
+ * restore it without moving a lazy boundary or changing a 1600 grid row: the
+ * hero leads, its own tail follows, and the flow band keeps its slot just above
+ * the chart.
+ */
+const REPORT_DESK_FLOW_FIRST_CLASS = [
+  "min-[1200px]:[&_[data-testid='nifty-stat-strip']]:-order-3",
+  "min-[1200px]:[&_[data-testid='nifty-flow-windows-disclosure']]:-order-2",
+  "min-[1200px]:[&_[data-testid='movers-strip']]:-order-2",
+  "min-[1200px]:[&_[data-testid='nifty-context-rail']]:-order-2",
+  "min-[1200px]:[&_[data-testid='nifty-setup-radar']]:-order-2",
+].join(" ");
+
+/**
+ * Two low-value bands cost the phone its first viewport: an unavailable movers
+ * strip is a 24px duplicate of the replay banner's "MOVERS unavailable" note,
+ * and the dock wraps to five rows at 390. Hide the placeholder (the populated
+ * strip is the one carrying `data-report-spacing`) and keep DESK BAY as one
+ * scrollable row. Both rules are max-width gated; 1600 keeps its tuned rhythm.
+ */
+const REPORT_MOBILE_UNAVAILABLE_CLASS = [
+  "max-[600px]:[&_[data-testid='movers-strip']:not([data-report-spacing])]:hidden!",
+  "max-[600px]:[&_[data-testid='desk-dock']]:flex-nowrap!",
+  "max-[600px]:[&_[data-testid='desk-dock']]:overflow-x-auto!",
 ].join(" ");
 
 /**
@@ -176,7 +218,7 @@ function ReportFlowRow(props: {
     <Show when={hasFutures() || hasItm()}>
       <Box
         data-testid="nifty-flow-above-chart"
-        className="grid grid-cols-1 gap-2 w-full max-w-full min-w-0 shrink-0 max-[600px]:order-3"
+        className="grid grid-cols-1 gap-2 w-full max-w-full min-w-0 shrink-0 max-[600px]:order-5 min-[1200px]:-order-1"
         classList={{ "min-[1200px]:grid-cols-2": hasFutures() && hasItm() }}
       >
         <Show when={hasFutures()}>
@@ -345,7 +387,7 @@ function ReportBody() {
         <Box
           data-testid="nifty-report-content"
           data-left-edge={String(REPORT_GUTTER.inline)}
-          class={`flex-1 min-h-0 flex flex-col gap-2 ${REPORT_SECTION_ALIGN.content} ${REPORT_MOBILE_CHART_FIRST_CLASS} ${isDesk() ? `overflow-hidden ${DESK_CONTENT_GRID_CLASS}` : "overflow-auto"}`}
+          class={`flex-1 min-h-0 flex flex-col gap-2 ${REPORT_SECTION_ALIGN.content} ${REPORT_MOBILE_ORDER_CLASS} ${REPORT_DESK_FLOW_FIRST_CLASS} ${REPORT_MOBILE_UNAVAILABLE_CLASS} ${isDesk() ? `overflow-hidden ${DESK_CONTENT_GRID_CLASS}` : "overflow-auto"}`}
           style={{
             flex: 1,
             "min-height": "0px",
@@ -364,17 +406,19 @@ function ReportBody() {
               <ReportDecisionStrip />
             </Suspense>
           </ErrorBoundary>
+          <ErrorBoundary fallback={(err) => <SectionError name="workspace" error={err} />}>
+            <Suspense fallback={<PanelSkeleton h={320} />}>
+              <ReportWorkspace secondaryTabs={secondaryTabs()} />
+            </Suspense>
+          </ErrorBoundary>
+          {/* Phone reading order: the chart precedes the futures / ITM detail.
+              The desk restores flow-above-chart with a breakpoint-only order. */}
           <ErrorBoundary fallback={(err) => <SectionError name="flow panels" error={err} />}>
             <ReportFlowRow
               futures={store.data.report()?.futures ?? null}
               itm={store.data.report()?.itm_pe_flow ?? null}
               spot={store.data.report()?.spot ?? 0}
             />
-          </ErrorBoundary>
-          <ErrorBoundary fallback={(err) => <SectionError name="workspace" error={err} />}>
-            <Suspense fallback={<PanelSkeleton h={320} />}>
-              <ReportWorkspace secondaryTabs={secondaryTabs()} />
-            </Suspense>
           </ErrorBoundary>
           <Show when={!isDesk()}>
             <ErrorBoundary fallback={(err) => <SectionError name="desk strips" error={err} />}>
