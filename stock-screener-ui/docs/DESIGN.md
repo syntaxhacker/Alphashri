@@ -1,7 +1,7 @@
 # Design language — "tastylive terminal"
 
 Dense, high-contrast, calm. The screen should look like a professional options
-desk, not a dashboard template: dark slate surfaces, one violet accent for
+desk, not a dashboard template: black/terminal surfaces, one amber accent for
 interaction, colour reserved for meaning (P&L, side, warnings), numbers always
 aligned and tabular.
 
@@ -9,17 +9,17 @@ aligned and tabular.
 
 | Role | Token | Value | Use |
 |---|---|---|---|
-| Body | `BG_COLOR` / `bg-fin-bg` | `#0E1012` | page background |
-| Panel | `SURFACE_COLOR` / `bg-fin-surface` | `#1A1D21` | cards, tables, chrome |
-| Raised | `SURFACE_ALT` / `bg-fin-surface-alt` | `#15181C` | sticky headers, hover, wells |
-| Hairline | `BORDER_COLOR` / `border-fin-border` | `#2A2E35` | 1px separators only |
-| Text | `TEXT_COLOR` / `text-fin-text` | `#FFFFFF` | primary copy, prices |
-| Muted | `TEXT_MUTED_COLOR` | `#A0A6B1` | labels, units, timestamps, headers |
-| Accent | `PRIMARY` / `bg-fin-primary` | `#E11D2E` | LIVE, focus, selection, active tab, CTA |
-| Up | `POSITIVE_COLOR` / `text-fin-positive` | `#00C853` | gains, long, bullish |
-| Down | `NEGATIVE_COLOR` / `text-fin-negative` | `#FF3B30` | losses, short, bearish |
-| Warning | `WARNING` / `text-fin-warning` | `#F5A524` | stale data, muted alerts, EOD |
-| Info | `INFO` / `text-fin-info` | `#00B4D8` | links, category tags, chart highlights |
+| Body | `BG_COLOR` / `bg-fin-bg` | `#000000` | page background |
+| Panel | `SURFACE_COLOR` / `bg-fin-surface` | `#13161C` | cards, tables, chrome |
+| Raised | `SURFACE_ALT` / `bg-fin-surface-alt` | `#1F242D` | sticky headers, hover, wells |
+| Hairline | `BORDER_COLOR` / `border-fin-border` | `#2C313B` | 1px separators only |
+| Text | `TEXT_COLOR` / `text-fin-text` | `#E8E8E8` | primary copy, prices |
+| Muted | `TEXT_MUTED_COLOR` | `#9B9B9B` | labels, units, timestamps, headers |
+| Accent | `PRIMARY` / `bg-fin-primary` | `#D9902A` | LIVE, focus, selection, active tab, CTA |
+| Up | `POSITIVE_COLOR` / `text-fin-positive` | `#2FA36B` | gains, long, bullish |
+| Down | `NEGATIVE_COLOR` / `text-fin-negative` | `#E5606A` | losses, short, bearish |
+| Warning | `WARNING` / `text-fin-warning` | `#C9912F` | stale data, muted alerts, EOD |
+| Info | `INFO` / `text-fin-info` | `#4A8FD8` | links, category tags, chart highlights |
 
 Rules:
 
@@ -29,7 +29,7 @@ Rules:
   good"; it is positive because P&L > 0, and the class comes from a signal.
 - Options legs keep the desk convention: CE blue, PE orange (`TERM_CE`,
   `TERM_PE`). Do not recolour them to the brand accent.
-- Selection uses the violet accent at ~16-18% alpha, never a solid fill.
+- Selection uses the amber accent at ~16-18% alpha, never a solid fill.
 
 ## Type and rhythm
 
