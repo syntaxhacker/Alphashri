@@ -339,6 +339,8 @@ describe("AppLayout mobile nav gutter", () => {
     expect(bar.style.height).toBe("44px");
     expect(bar.style.position).toBe("sticky");
     expect(bar.style.top).toBe("0px");
+    // The bar owns the gutter in flow, so CompactPage's fallback inset is off.
+    expect(document.documentElement.style.getPropertyValue("--app-mobile-nav-gutter")).toBe("0px");
 
     const toggle = screen.getByTestId("app-mobile-nav-toggle");
     expect(bar).toContainElement(toggle);
