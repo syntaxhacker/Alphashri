@@ -98,7 +98,6 @@ export function TextInput(props: UITextInputProps) {
       "font-size": `${box.fs}px`,
       "line-height": "1",
       padding: `${box.padY}px ${box.padX}px`,
-      "outline": "none",
       ...(props.disabled ? { opacity: "0.45", cursor: "not-allowed" } : {}),
     };
   });

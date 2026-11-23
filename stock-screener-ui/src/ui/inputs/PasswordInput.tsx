@@ -125,7 +125,6 @@ export function PasswordInput(props: UIPasswordInputProps) {
       "letter-spacing": visible() ? "normal" : "0.12em",
       "line-height": "1",
       padding: `${box.padY}px ${box.padX + 20}px ${box.padY}px ${box.padX}px`,
-      "outline": "none",
       ...(known.disabled ? { opacity: "0.45", cursor: "not-allowed" } : {}),
     };
   });

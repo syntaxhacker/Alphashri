@@ -177,7 +177,6 @@ export function NumberInput(props: UINumberInputProps) {
       "line-height": "1",
       padding: `${box.padY}px ${box.padX}px`,
       "padding-right": showSteppers() ? `${box.padX + 16}px` : `${box.padX}px`,
-      "outline": "none",
       ...(known.disabled ? { opacity: "0.45", cursor: "not-allowed" } : {}),
     };
   });

@@ -98,7 +98,6 @@ export function Textarea(props: UITextareaProps) {
       "font-size": fontOf(known.size),
       "line-height": `${lineHeight}px`,
       padding: "8px 10px",
-      "outline": "none",
       resize: resizeStyle(known.resize, known.autosize),
       "text-align": "left",
       "vertical-align": "top",
