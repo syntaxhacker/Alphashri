@@ -343,7 +343,7 @@ export const Grouped: Story = {
             grouping={["side"]}
             getGroupRowTestId={(value) => `story-paper-group-${String(value)}`}
             renderGroupHeader={(group) => (
-              <span style={{ "font-size": "12px", color: "var(--color-fin-primary)" }}>
+              <span className="text-ui-micro" style={{ color: "var(--color-fin-primary)" }}>
                 {String(group.value)} · {group.rows.length} positions · {group.isExpanded() ? "expanded" : "collapsed"}
               </span>
             )}

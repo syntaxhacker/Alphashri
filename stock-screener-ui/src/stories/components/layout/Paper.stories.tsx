@@ -119,7 +119,7 @@ export const SurfacesAndPadding: Story = {
               <div style={{ display: "grid", "grid-template-columns": "repeat(5, minmax(0,1fr))", gap: "8px" }}>
                 {(["xs", "sm", "md", "lg", "xl"] as const).map((p) => (
                   <Paper p={p} radius="sm" component="div" className="border border-fin-border">
-                    <Box bg={C.alt} p="xs" style={{ "font-family": MONO, "font-size": "10px" }}>content</Box>
+                    <Box bg={C.alt} p="xs" className="text-ui-micro" style={{ "font-family": MONO }}>content</Box>
                     <Note>{`p='${p}'`}</Note>
                   </Paper>
                 ))}

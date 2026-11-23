@@ -202,6 +202,7 @@ export const Contrast: Story = {
               return (
                 <Flex gap="sm" align="center" wrap="wrap" style={{ padding: "6px 0", "border-bottom": `1px solid ${palette.BORDER}` }}>
                   <Box
+                    className="text-ui-micro"
                     style={{
                       width: "36px",
                       height: "22px",
@@ -212,7 +213,6 @@ export const Contrast: Story = {
                       display: "grid",
                       "place-items": "center",
                       "font-family": palette.MONO,
-                      "font-size": "10px",
                     }}
                   >
                     Aa

@@ -184,3 +184,24 @@ The token layer is genuinely good (#E8E8E8 on #13161C is 6.52:1, PRIMARY 6.88:1,
 ## Closing note
 
 Nothing in this audit contradicts the benchmark's tier conclusion (`docs/DESIGN_SYSTEM_BENCHMARK_2026-11-23.md`: Tier 3, avg 4.8/10). The tokens and guards are the strongest part; the **visual presentation of the Storybook catalog is the weakest part of an otherwise competent system**, and it is the part a designer or user sees first. Fix #1 (the swallowed `Card` style) and #3 (centring) alone would remove the two most damaging first impressions; #2 (one template) is what would make the catalog read as a system rather than eight copies of a page.
+
+---
+
+## Typography tier (2026-11-23 update)
+
+Supersedes the "9px floor" wording in fix #8 above. Type is now one six-step contract owned by `src/ui/typography.ts` and emitted as `text-ui-*` utilities from `@theme` in `src/tailwind.css`. Product copy picks a role, never a private `text-[Npx]` or inline `font-size`. The live specimen is Storybook story `design-system-typography--type-scale` (Design System / Typography → TypeScale).
+
+| Token | Size / leading | Where used |
+|---|---|---|
+| `--text-ui-micro` · `text-ui-micro` | 12px / 16px | Dense labels, badges, chart axes, table metadata — the hard floor |
+| `--text-ui-body` · `text-ui-body` | 13px / 18px | Body copy and table cells |
+| `--text-ui-label` · `text-ui-label` | 14px / 20px | Form labels and control text |
+| `--text-ui-title` · `text-ui-title` | 16px / 24px | Card and panel titles |
+| `--text-ui-heading` · `text-ui-heading` | 20px / 28px | Page-section headings |
+| `--text-ui-display` · `text-ui-display` | 24px / 32px | Page titles and hero values |
+
+The 12px floor is enforced by the `design-scale` guard (`src/test/design-scale.test.ts`); the old 9px allowance is retired.
+
+**This pass (`src/stories/**` only):** all 15 inline `font-size` declarations (9/10/11/12/13px) were replaced with `text-ui-*` or `typeStyle()` — before 15, after 0 (the only remaining `font-size` match is prose in a `note` prop). Grid/Layout ruler cells grew 14→20px and 18→20px so 12px digits are not clipped at 390, and the stale "9px floor" copy in Overview and Badge stories was corrected. Nothing was hidden.
+
+**Remaining exceptions (outside this scope, not edited here):** the `Tab` primitive still carries a default `text-[11px]` class in `src/ui/data-display/Tabs.tsx` (the Sizes story overrides it with `typeStyle()`); `Textarea` `size="xs"` is described in its story as an 11px step; dense table stories still describe 10px row type. Those live in `src/ui` / feature components and belong to the component pass. Intentional `truncate`/`lineClamp` demos in Text/Anchor/SimpleGrid stories are kept — they teach an API and carry the full string in `title`.

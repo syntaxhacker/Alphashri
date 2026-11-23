@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { solidStory } from "@/stories/solidStory";
-import { Anchor, Box, Code, Divider, Flex, List, ListItem, Stack, Text, Title } from "@/ui";
+import {
+  Anchor, Box, Code, Divider, Flex, List, ListItem, Stack, Text, Title,
+  TYPE_CLASS, TYPE_SCALE, typeSize, type TypeRole,
+} from "@/ui";
 import * as palette from "@/ui/palette";
 import { ComponentIndex, docsHref, FamilyChip, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
 
@@ -131,6 +134,54 @@ export const Landing: Story = {
           note="Each page carries the full prop matrix and state variants; this landing page keeps one representative specimen."
         />
         <FamilyFooter source="src/ui/typography" pages="src/stories/components/typography" />
+      </FamilyPage>
+    )),
+};
+
+/** Product guidance: the role, the copy it is meant for, and a live sample. */
+const TYPE_ROLES: Array<{ role: TypeRole; use: string; sample: string }> = [
+  { role: "micro", use: "Labels · badges, chart axes and dense table metadata.", sample: "NIFTY 50 · 24,318.40" },
+  { role: "body", use: "Body · dense copy and table cells; the default reading size.", sample: "Spot holds above the put wall into expiry." },
+  { role: "label", use: "Controls · form labels and input text.", sample: "Strike price" },
+  { role: "title", use: "Card title · panel and card headings.", sample: "Option chain" },
+  { role: "heading", use: "Section · page-section headings.", sample: "Market breadth" },
+  { role: "display", use: "Page title · page titles and hero values.", sample: "Index report" },
+];
+
+/**
+ * The product type scale. Each row renders the real `text-ui-*` utility so the
+ * px size and leading a reader sees are exactly what the product ships.
+ */
+export const TypeScale: Story = {
+  render: () =>
+    solidStory(() => (
+      <FamilyPage width="820px" padding="0">
+        <SpecimenPanel
+          title="Typography scale"
+          note="Six roles cover every product surface. Choose the role for the job — one definition owns the utility, the pixel size and the line height."
+        >
+          <Stack gap="xs">
+            {TYPE_ROLES.map(({ role, use, sample }) => (
+              <Flex
+                gap="md"
+                align="center"
+                wrap="wrap"
+                style={{ padding: "10px 0", "border-bottom": `1px solid ${palette.BORDER}` }}
+              >
+                <Box style={{ width: "116px", "flex-shrink": 0 }}>
+                  <Text size="xs" fw={700} c="primary" className="font-mono">{TYPE_CLASS[role]}</Text>
+                  <Text size="xs" c="dimmed" className="font-mono">{`${typeSize(role)}px / ${TYPE_SCALE[role].lineHeight}px`}</Text>
+                </Box>
+                <Box className={TYPE_CLASS[role]} style={{ "flex": "1 1 200px", "min-width": "0" }}>{sample}</Box>
+                <Text size="xs" c="dimmed" style={{ "flex": "1 1 180px", "min-width": "0" }}>{use}</Text>
+              </Flex>
+            ))}
+          </Stack>
+          <Divider label="The floor" labelPosition="left" />
+          <Text size="sm" c="default">
+            Nothing renders below 12px. The 12px floor is enforced by <code>design-scale</code> tests — reach for <code>text-ui-micro</code> on the densest labels rather than a private pixel size.
+          </Text>
+        </SpecimenPanel>
       </FamilyPage>
     )),
 };

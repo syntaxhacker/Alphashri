@@ -33,7 +33,7 @@ const ruler = (gap: number | string) => (
   <Grid cols={12} gap={gap} style={{ "margin-bottom": "6px" }}>
     {Array.from({ length: 12 }, (_, i) => (
       <GridCol span={1}>
-        <Box style={{ height: "14px", display: "grid", "place-items": "center", border: `1px solid ${C.border}`, background: C.alt, color: C.muted, "font-family": MONO, "font-size": "9px" }}>
+        <Box className="text-ui-micro" style={{ height: "20px", display: "grid", "place-items": "center", border: `1px solid ${C.border}`, background: C.alt, color: C.muted, "font-family": MONO }}>
           {i + 1}
         </Box>
       </GridCol>

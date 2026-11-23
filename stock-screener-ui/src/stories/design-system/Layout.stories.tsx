@@ -155,15 +155,15 @@ const Ruler = () => (
     {Array.from({ length: 12 }, (_, i) => (
       <GridCol span={1}>
         <Box
+          className="text-ui-micro"
           style={{
-            height: "18px",
+            height: "20px",
             display: "grid",
             "place-items": "center",
             border: `1px solid ${palette.BORDER}`,
             background: palette.SURFACE_ALT,
             color: palette.TEXT_MUTED,
             "font-family": palette.MONO,
-            "font-size": "9px",
           }}
         >
           {i + 1}

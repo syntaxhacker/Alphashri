@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/html-vite";
 import type { JSX } from "solid-js";
 import { createSignal } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
-import { Badge, Group, Stack, Tab, Tabs, TabsList, TabsPanel, Text } from "@/ui";
+import { Badge, Group, Stack, Tab, Tabs, TabsList, TabsPanel, Text, typeStyle } from "@/ui";
 import { Page, Readout, SampleRow, Specimen, SpecimenGrid } from "./fixtures";
 
 const meta: Meta = {
@@ -117,9 +117,9 @@ export const Orientations: Story = {
 };
 
 const tabSizeStyles: Record<string, JSX.CSSProperties> = {
-  compact: { "min-height": "24px", padding: "0 8px", "font-size": "10px" },
-  default: { "min-height": "30px", padding: "0 12px", "font-size": "11px" },
-  roomy: { "min-height": "38px", padding: "0 16px", "font-size": "13px" },
+  compact: { "min-height": "24px", padding: "0 8px", ...typeStyle("micro") },
+  default: { "min-height": "30px", padding: "0 12px", ...typeStyle("micro") },
+  roomy: { "min-height": "38px", padding: "0 16px", ...typeStyle("body") },
 };
 
 export const Sizes: Story = {

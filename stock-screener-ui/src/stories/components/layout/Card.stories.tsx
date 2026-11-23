@@ -79,7 +79,7 @@ export const PaddingScale: Story = {
             {(["xs", "sm", "md", "lg", "xl"] as const).map((sz) => (
               <Box>
                 <Card padding={sz} radius="sm" component="article" className="border border-fin-border">
-                  <Box bg={C.alt} p="xs" style={{ "font-family": MONO, "font-size": "10px" }}>content</Box>
+                  <Box bg={C.alt} p="xs" className="text-ui-micro" style={{ "font-family": MONO }}>content</Box>
                 </Card>
                 <Note>{`padding='${sz}'`}</Note>
               </Box>

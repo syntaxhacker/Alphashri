@@ -208,7 +208,7 @@ export const Overview: Story = {
               </List.Item>
               <List.Item icon={<Text size="xs" c="primary" span>04</Text>}>
                 <Text size="sm" span c="default" fw={500}>Dense but legible.</Text>{" "}
-                8pt spacing, 4/6/10 control radii, tabular mono numerals and a 9px type floor.
+                8pt spacing, 4/6/10 control radii, tabular mono numerals and a 12px type floor enforced by design-scale tests.
               </List.Item>
               <List.Item icon={<Text size="xs" c="primary" span>05</Text>}>
                 <Text size="sm" span c="default" fw={500}>Measure and look.</Text>{" "}

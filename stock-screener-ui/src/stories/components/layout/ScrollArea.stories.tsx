@@ -146,7 +146,7 @@ export const EdgeStates: Story = {
               </Demo>
               <Demo label="Raw CSS height/width strings also work (h='50vh' resolves as-is).">
                 <ScrollArea h="96px" w="100%" style={{ border: `1px solid ${C.info}` }}>
-                  <Box p="sm" style={{ width: "140%", "font-family": MONO, "font-size": "11px" }}>Wide content · scroll horizontally</Box>
+                  <Box p="sm" className="text-ui-micro" style={{ width: "140%", "font-family": MONO }}>Wide content · scroll horizontally</Box>
                 </ScrollArea>
               </Demo>
             </Stack>
