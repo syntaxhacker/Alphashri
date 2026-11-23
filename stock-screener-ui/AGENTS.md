@@ -124,7 +124,7 @@ Single source is `src/ui/palette.ts`; `src/tailwind.css` mirrors it (guarded by 
 - **Never hardcode a hex outside `palette.ts`.** The guard scans every `.ts`/`.tsx` and fails on any `#RRGGBB`.
 - **Derive tints, never restate them:** `alpha(palette.POSITIVE, 0.12)`, not `"rgba(0,200,83,0.12)"`. Three separate green/red pairs had accumulated and disagreed about what "positive" means.
 - **Surface ramp** (each adjacent step ≥1.15:1, asserted): page `BG #000000` → panel `SURFACE #13161C` → raised `SURFACE_ALT #1F242D`, hairline `BORDER #2C313B`. Page == panel means the panel does not exist — that was the real cause of "everything looks the same".
-- **Radius** `4` (small) / `6` (controls) / `10` (large); `--radius-fin: 6px` is the control alias. **Control heights** `xs 24 · sm 30 · md 34 · lg 38`. **Type floor is 9px.** All four are guarded by `design-scale.test.ts` — see `SUBAGENT_RULES.md § 7.1`.
+- **Radius** `4` (small) / `6` (controls) / `10` (large); `--radius-fin: 6px` is the control alias. **Control heights** `xs 24 · sm 30 · md 34 · lg 38`. **Type floor is 12px** on the `text-ui-*` scale; no private `font-size` literals. All four are guarded by `design-scale.test.ts` — see `SUBAGENT_RULES.md § 7.1` and `docs/TYPOGRAPHY.md`.
 - Use the local `@/ui` components (`Box/Flex/Stack/Group/Center/Grid/SimpleGrid/Paper/Card/ScrollArea`) + `CompactPanel/CompactStat/CompactStatGrid` (`components/common/compact.tsx`). They render semantic HTML + Tailwind.
 - 8pt grid: outer `16`, inner `8`, table `8px 12px 12px`, header `48`, gaps `xs4 sm8 md16` — no raw `6px` slop
 - `TanStackTable` `src/components/common/TanStackTable.tsx` `ROW_ESTIMATED 28` `cell 8/12/12` `sticky shadow` — dense but scannable (12px)

@@ -208,11 +208,12 @@ Layout invariants:
 | Radius | 0/1/2/3/4/6/8/10, `9999px`, `50%` | controls 6, small items 4. Never a new inline radius |
 | Control height | 16–48 from the scale | six heights (22/26/28/30/32/34/36) for one job reads as inconsistent spacing at a glance |
 | Icon size | 8/12/14/16/18/20/24/32/40 | 10/11/13/15/22 was drift, not intent |
-| Type floor | **≥9px** | 7px/8px is a smudge at 1x, not a label |
+| Typography | only `text-ui-*` / `typeSize()` | one six-step scale, 12px floor; a private `text-[Npx]` or inline `font-size` is drift even when the number looks reasonable |
 | Focus | one `@layer base` rule rings every `button/a/[role=button]/summary` + `input/select/textarea` | 55 of 61 raw buttons had no focus state; not fixable per component |
 
-Exempt by design: `src/ui/**` (owns its own `xs/sm/md/lg` map), chart/canvas containers
-(a 340px sparkline is content, not a control), decorative hero/empty-state art.
+Exempt by design: chart/canvas *containers* (a 340px sparkline is content, not a control)
+and decorative hero/empty-state art. Text inside charts still uses `typeSize()`; there is no
+`src/ui` exemption — the primitives use the same tier.
 
 **Colour derives, it never repeats.** `TINT_POSITIVE`/`VOLUME_BULLISH`/`ORB_AREA` all come
 from `alpha(anchor, a)`. Three independent green/red pairs had accumulated (#2FA36B/#D94A55,
