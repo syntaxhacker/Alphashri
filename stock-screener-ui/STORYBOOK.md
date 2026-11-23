@@ -72,13 +72,18 @@ there would blank all but the last one. There is no `afterEach` hook.
 `.storybook/main.ts` wires the framework and two addons:
 
 - `@storybook/addon-docs` — the docs pages and description blocks.
-- `@storybook/addon-a11y` — an in-panel accessibility checker for manual review.
+- `@storybook/addon-a11y` — an in-panel accessibility checker for manual review;
+  the automated axe and keyboard gates run in CI (below).
 
-There is no Chromatic/Loki visual diffing and no viewport toolbar addon. CI does
-build the static catalog, check the catalog manifest (`storybook-catalog.test.ts`),
-run a real-browser axe audit (`scripts/storybook-a11y.mjs`) and run a real-browser
-keyboard walkthrough (`scripts/storybook-keyboard.mjs`) after lint/typecheck. The
-catalog is still a review surface, not a coverage guarantee.
+There is no Chromatic/Loki addon and no viewport toolbar addon, but a custom
+pixel-diff harness (`scripts/visual-regression.mjs`, `bun run visual:test`) and
+its CI step exist; the **12 baseline PNGs are still pending generation**, so that
+gate is configured, not green. CI does build the static catalog, check the
+catalog manifest (`storybook-catalog.test.ts`), run a real-browser axe audit over
+**30 stories** (`scripts/storybook-a11y.mjs`) and a **10-walkthrough** browser
+keyboard gate (`scripts/storybook-keyboard.mjs`, focus order, roving focus and
+Modal/Popover/FloatingWindow containment) after lint/typecheck. The catalog is
+still a review surface, not a coverage guarantee.
 
 ## 3. Theme: dark only
 
