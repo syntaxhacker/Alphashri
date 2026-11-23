@@ -126,7 +126,7 @@ describe("Index Report shell/workspace readability rhythm", () => {
     }
     // The workspace gives the reclaimed phone band back to the chart, but keeps
     // the original 96px track token intact for the desktop contract.
-    expect(WORKSPACE).toContain("max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,80px)]!");
+    expect(WORKSPACE).toContain("max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,156px)]!");
     expect(WORKSPACE).toContain("max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,96px)]");
   });
 

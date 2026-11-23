@@ -7,6 +7,7 @@ import { CompactPanel } from "@/components/common/compact";
 import { MarketAlertLog, MarketAlertStack } from "@/components/notifications/MarketAlertCard";
 
 import { BreadthStrip, REPLAY_UNAVAILABLE_TEXT } from "./BreadthStrip";
+import { snapshotTimeLabel } from "./ReportDecisionStrip.format";
 import { LevelsInPlayContent } from "./LevelsInPlay";
 import { Nifty10sStrip } from "./Nifty10sStrip";
 import { NiftyDeskPlan } from "./NiftyDeskPlan";
@@ -24,14 +25,6 @@ import { OI_ALERT_TOAST_MAX } from "./useNiftyOiAlerts";
 
 const EMPTY_WALL_HISTORY: WallSnapshot[] = [];
 
-/** The report's as-of is an IST wall-clock stamp. Keep only its HH:MM: a closed
- *  snapshot is named by the time it was taken, not by the next session's open. */
-export function wallsSnapshotTime(asOf?: string | null): string | null {
-  if (typeof asOf !== "string") return null;
-  const match = /T(\d{2}):(\d{2})/.exec(asOf);
-  return match ? `${match[1]}:${match[2]}` : null;
-}
-
 /** One truthful reason for the missing walls band. A closed/stale frame names
  *  its own as-of time; a live frame still waiting on the recorder says so.
  *  Neither promises an open time — the page may be showing a closed snapshot. */
@@ -40,7 +33,7 @@ export function wallsUnavailableCopy(args: {
   asOf?: string | null;
 }): { kind: "no-data" | "market-closed"; text: string } {
   if (args.closed) {
-    const time = wallsSnapshotTime(args.asOf);
+    const time = snapshotTimeLabel(args.asOf ?? null);
     return {
       kind: "market-closed",
       text: time ? `No walls snapshot for ${time}` : "No walls snapshot for this session",
@@ -135,7 +128,12 @@ export function ReportStrips() {
   const wallsBand = createMemo(() =>
     wallsUnavailableCopy({
       closed: report()?.market?.is_open === false,
-      asOf: report()?.market?.as_of ?? null,
+      asOf:
+        report()?.market?.as_of ??
+        report()?.snapshotAt ??
+        report()?.fetchedAt ??
+        replayAsOf() ??
+        null,
     }),
   );
 

@@ -234,7 +234,7 @@ export function ReportToolbar(props: ReportToolbarProps) {
   const tape = () => store.data.tape();
   const loading = () => store.data.loading();
   const snapshotting = () => store.data.snapshotting();
-  const marketClosed = () => store.data.freshness.marketClosed();
+  const marketClosed = () => store.data.freshness.marketClosed() || report()?.market?.is_open === false;
   const isStale = () => store.data.freshness.isStale();
   const updatedAtMs = () => store.data.freshness.updatedAtMs();
   const staleMins = () => store.data.freshness.staleMins();

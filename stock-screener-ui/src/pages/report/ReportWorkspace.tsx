@@ -128,7 +128,9 @@ const MOBILE_GRID_CHAIN = "max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,156px)]
 // scrollable and fade the clipped label under a chevron instead of cutting the
 // word in half; the cue sits over the bar but never takes a pointer event.
 const DOCK_OVERFLOW_WRAP_CLASS = [
-  "relative mt-auto w-full shrink-0",
+  // The shell pins the dock region at order-3; this wrapper is now the flex
+  // child, so it must carry that slot or the dock paints above the hero.
+  "relative mt-auto w-full shrink-0 max-[600px]:order-3",
   "max-[600px]:[&_[data-testid='desk-dock']]:flex-nowrap!",
   "max-[600px]:[&_[data-testid='desk-dock']]:overflow-x-auto!",
 ].join(" ");

@@ -1883,6 +1883,11 @@ export async function setupStrategiesErrorMocks(page: import("@playwright/test")
 export const mockNiftyReport = {
   mode: "live",
   date: "2026-10-12",
+  market: {
+    is_open: false,
+    session_date: "2026-10-12",
+    as_of: "2026-10-12T10:00:00+05:30",
+  },
   expiry: "2026-10-14",
   spot: 22363.35,
   ohlc: { open: 22300, high: 22410.5, low: 22280, close: 22363.35 },
