@@ -37,7 +37,9 @@
     "check:bundle": "node scripts/check_bundle_interop.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "audit:components": "node scripts/component_audit.mjs"
+    "audit:components": "node scripts/component_audit.mjs",
+    "audit:typography": "node scripts/typography-audit.mjs",
+    "audit:typography:check": "node scripts/typography-audit.mjs --check"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
