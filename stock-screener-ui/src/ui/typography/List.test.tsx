@@ -50,4 +50,14 @@ describe("List", () => {
     render(() => <List data-testid="lst" />);
     expect(screen.getByTestId("lst")).toHaveStyle("list-style-type: disc");
   });
+
+  it("separates a list icon from its text", () => {
+    render(() => (
+      <List data-testid="lst">
+        <List.Item icon={<span>01</span>}>One source of truth</List.Item>
+      </List>
+    ));
+    const icon = screen.getByText("01").parentElement as HTMLElement;
+    expect(icon.style.marginRight).toBe("8px");
+  });
 });

@@ -71,7 +71,7 @@ export function ListItem(props: UIListItemProps & { icon?: JSX.Element }) {
       data-testid={known["data-testid"]}
       {...rest}
     >
-      <Show when={known.icon}><span>{known.icon}</span></Show>
+      <Show when={known.icon}><span style={{ "margin-right": "8px" }}>{known.icon}</span></Show>
       {known.children}
     </li>
   );

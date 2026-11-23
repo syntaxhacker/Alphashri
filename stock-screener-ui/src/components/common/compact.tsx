@@ -69,7 +69,7 @@ export function CompactPage(props: CompactPageProps) {
           <Stack spacing="sm" className="flex flex-start">
             <Show when={own.title}>
               <Show when={isStringTitle()} fallback={<Box className="flex items-center flex-start">{own.title}</Box>}>
-                <Title order={2} size="h4">{own.title}</Title>
+                <Title order={2} size="lg">{own.title}</Title>
               </Show>
             </Show>
             <Show when={own.description}>

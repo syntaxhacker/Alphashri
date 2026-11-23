@@ -2,14 +2,8 @@ import { splitProps } from "solid-js";
 import type { JSX } from "solid-js";
 import { cn } from "../cn";
 import type { UICardProps } from "../types";
+import { containerRadius } from "./Paper";
 import { sp, toSz } from "./spacing";
-
-const rad = (v: unknown): string | undefined => {
-  if (v == null) return undefined;
-  if (typeof v === "number") return `${v}px`;
-  const m: Record<string, string> = { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px" };
-  return (m[v as string] ?? v) as string;
-};
 
 const CARD_KNOWN = [
   "children", "className", "style", "id", "data-testid", "testId", "onClick",
@@ -27,7 +21,7 @@ export function Card(props: UICardProps & Record<string, unknown>) {
   const pad = known.padding ?? known.p;
 
   const styleObj: Record<string, string | number | undefined> = {};
-  if (known.radius != null) styleObj["border-radius"] = rad(known.radius);
+  if (known.radius != null) styleObj["border-radius"] = containerRadius(known.radius);
   if (pad != null) styleObj.padding = sp(pad);
   if (known.padding == null && known.px != null) { styleObj["padding-left"] = sp(known.px); styleObj["padding-right"] = sp(known.px); }
   if (known.padding == null && known.py != null) { styleObj["padding-top"] = sp(known.py); styleObj["padding-bottom"] = sp(known.py); }

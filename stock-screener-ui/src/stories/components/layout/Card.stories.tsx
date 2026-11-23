@@ -3,7 +3,7 @@ import { createMemo } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
 import { Badge, Box, Card, Divider, Stack, Text, useMediaQuery } from "@/ui";
 import {
-  arg, asStoryComponent, CARD_RADIUS_PX, C, Demo, MONO, Note, Page, RADIUS_TOKENS,
+  arg, asStoryComponent, C, Demo, MONO, Note, Page, PAPER_RADIUS_PX as CONTAINER_RADIUS_PX, RADIUS_TOKENS,
   ResponsiveReadout, Section,
 } from "./fixtures";
 
@@ -15,7 +15,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "Card is a themed panel built for content, with the same surface as Paper but a larger radius ramp: xs 4 · sm 8 · md 16 · lg 24 · xl 32 px. Inset uses padding (p is a fallback alias). It renders article by default. The shadow prop is accepted for API compatibility but is not applied — elevation is supplied by a Tailwind shadow-* className or an inline boxShadow. Avoid nesting bordered cards; separate sections with Divider instead.",
+          "Card is a themed panel built for content, with the same surface and the same shared container radius ramp as Paper: xs 2 · sm 4 · md 6 · lg 10 · xl 14 px (4 / 6 / 10 are the separate control aliases). Inset uses padding (p is a fallback alias). It renders article by default. The shadow prop is accepted for API compatibility but is not applied — elevation is supplied by a Tailwind shadow-* className or an inline boxShadow. Avoid nesting bordered cards; separate sections with Divider instead.",
       },
     },
   },
@@ -54,14 +54,14 @@ export const RadiusScale: Story = {
   render: () =>
     solidStory(() => (
       <Page>
-        <Section title="Radius" caption="Card's ramp is one full step larger than Paper's at every name: xs 4 · sm 8 · md 16 · lg 24 · xl 32 px.">
+        <Section title="Radius" caption="Card uses the same container radius ramp as Paper: xs 2 · sm 4 · md 6 · lg 10 · xl 14 px.">
           <div style={{ display: "grid", "grid-template-columns": `repeat(${RADIUS_TOKENS.length}, minmax(0,1fr))`, gap: "8px" }}>
             {RADIUS_TOKENS.map((r, i) => (
               <Box>
                 <Card padding="sm" radius={r} className="border border-fin-border h-14 grid place-items-center">
                   <Text size="sm" fw={700} fs={MONO}>{r}</Text>
                 </Card>
-                <Note>{CARD_RADIUS_PX[i]}</Note>
+                <Note>{CONTAINER_RADIUS_PX[i]}</Note>
               </Box>
             ))}
           </div>

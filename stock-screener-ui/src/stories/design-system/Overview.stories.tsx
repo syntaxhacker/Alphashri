@@ -251,12 +251,12 @@ export const Overview: Story = {
                   ))}
                 </Flex>
                 <Flex gap="sm" align="center" wrap="wrap" style={{ padding: "8px 0" }}>
-                  <Text size="xs" c="dimmed" className="font-mono">Paper radius</Text>
+                  <Text size="xs" c="dimmed" className="font-mono">Container radius</Text>
                   <Text size="xs" c="default" className="font-mono">2 / 4 / 6 / 10 / 14</Text>
                 </Flex>
                 <Flex gap="sm" align="center" wrap="wrap" style={{ padding: "8px 0" }}>
-                  <Text size="xs" c="dimmed" className="font-mono">Card radius</Text>
-                  <Text size="xs" c="default" className="font-mono">4 / 8 / 16 / 24 / 32</Text>
+                  <Text size="xs" c="dimmed" className="font-mono">Control radius</Text>
+                  <Text size="xs" c="default" className="font-mono">4 / 6 / 10</Text>
                 </Flex>
                 <Flex gap="sm" align="center" wrap="wrap" style={{ padding: "8px 0" }}>
                   <Text size="xs" c="dimmed" className="font-mono">density rows</Text>
