@@ -17,6 +17,7 @@ import {
   marketSectorOptions,
   marketSectors,
   MOVER_PRESETS,
+  mergeMoverPresetFilters,
   resetUniverseSpecificFilters,
   sectorPercentiles,
   sortMarketRows,
@@ -1145,6 +1146,19 @@ const MOVER_ROWS: MarketRow[] = [
 function applyPreset(preset: MoverPreset): MarketFilterState {
   return filters({ ...preset.filters, sort: preset.sort });
 }
+
+test("switching from Gap Up to Gainers clears the previous preset's bounds", () => {
+  const gapUp = MOVER_PRESETS.find((preset) => preset.id === "gapUp")!;
+  const gainers = MOVER_PRESETS.find((preset) => preset.id === "gainers")!;
+  const withUserFilter = { ...applyPreset(gapUp), sectors: ["IT"] };
+  const next = mergeMoverPresetFilters(withUserFilter, gainers.filters);
+  expect(next.gapMin).toBeNull();
+  expect(next.mcapMinCr).toBe(gapUp.filters.mcapMinCr);
+  expect(next.sectors).toEqual(["IT"]);
+  expect(next.gapMax).toBeNull();
+  expect(next.relVolMin).toBeNull();
+  expect(next.to52wHighMin).toBeNull();
+});
 
 const PRESET_SUBSETS: Record<string, string[]> = {
   gainers: symbols(MOVER_ROWS),
