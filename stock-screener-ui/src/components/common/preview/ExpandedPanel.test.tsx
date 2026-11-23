@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { fireEvent, screen } from "@solidjs/testing-library";
 import { renderWithProviders } from "@/test-utils/renderWithProviders";
@@ -82,6 +83,33 @@ describe("ExpandedPanel", () => {
     expect(screen.getByTestId("preview-close-btn")).toBeInTheDocument();
     expect(screen.getByTestId("preview-open-full-link")).toHaveTextContent("Open Full Chart");
     expect(screen.getByTestId("preview-open-full-btn")).toBeInTheDocument();
+  });
+
+  test("names the close control, both selects and the icon-only full-chart button", () => {
+    renderWithProviders(() => <ExpandedPanel {...props()} />);
+
+    const tf = screen.getByTestId("preview-tf-select").querySelector("select") as HTMLSelectElement;
+    const or = screen.getByTestId("preview-or-select").querySelector("select") as HTMLSelectElement;
+    expect(tf).toHaveAttribute("aria-label", "Chart timeframe");
+    expect(or).toHaveAttribute("aria-label", "Opening range in minutes");
+    expect(screen.getByTestId("preview-close-btn")).toHaveAttribute("aria-label", "close");
+    expect(screen.getByTestId("preview-open-full-btn")).toHaveAttribute("aria-label", "Open full chart");
+
+    expect(screen.getByRole("combobox", { name: "Chart timeframe" })).toBe(tf);
+    expect(screen.getByRole("combobox", { name: "Opening range in minutes" })).toBe(or);
+    expect(screen.getByRole("button", { name: "close" })).toBe(screen.getByTestId("preview-close-btn"));
+    expect(screen.getByRole("button", { name: "Open full chart" })).toBe(screen.getByTestId("preview-open-full-btn"));
+  });
+
+  test("axe: the expanded dialog has no unlabeled button or select", async () => {
+    const view = renderWithProviders(() => <ExpandedPanel {...props({ error: "Upstream down" })} />);
+    const result = await axe.run(view.container, {
+      runOnly: { type: "rule", values: ["button-name", "select-name"] },
+    });
+    const executed = [...result.passes, ...result.violations, ...result.incomplete].map((check) => check.id);
+    expect(executed).toContain("button-name");
+    expect(executed).toContain("select-name");
+    expect(result.violations).toEqual([]);
   });
 
   test("forwards timeframe, OR-window, full-chart and retry actions to the host", () => {

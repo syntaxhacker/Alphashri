@@ -111,6 +111,7 @@ export function ExpandedPanel(props: ExpandedPanelProps) {
             value={String(props.timeframe)}
             onChange={props.onTimeframeChange}
             data-testid="preview-tf-select"
+            aria-label="Chart timeframe"
           />
           <Select
             size="xs"
@@ -119,6 +120,7 @@ export function ExpandedPanel(props: ExpandedPanelProps) {
             value={String(props.orMinutes)}
             onChange={props.onOrMinutesChange}
             data-testid="preview-or-select"
+            aria-label="Opening range in minutes"
           />
           <CloseButton className="ml-auto" size="md" onClick={props.onClose} data-testid="preview-close-btn" />
         </Group>
@@ -194,6 +196,7 @@ export function ExpandedPanel(props: ExpandedPanelProps) {
             color="primary"
             onClick={() => props.onOpenFull(props.symbol)}
             data-testid="preview-open-full-btn"
+            {...({ "aria-label": "Open full chart" } as Record<string, unknown>)}
           >
             <IconArrowsMaximize size={16} />
           </ActionIcon>
