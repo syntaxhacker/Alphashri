@@ -198,6 +198,16 @@ function EmptyPanel() {
   );
 }
 
+const SECTOR_TABLE_SCROLL_STEP = 80;
+
+/** Arrow keys must move the same element that carries focus and `role=region`. */
+function onSectorTableRegionKeyDown(event: KeyboardEvent) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  const region = event.currentTarget as HTMLElement;
+  region.scrollLeft += event.key === "ArrowRight" ? SECTOR_TABLE_SCROLL_STEP : -SECTOR_TABLE_SCROLL_STEP;
+  event.preventDefault();
+}
+
 function SectorPerformancePanel(props: { sectors: SectorItem[] }) {
   return (
     <Box
@@ -214,13 +224,25 @@ function SectorPerformancePanel(props: { sectors: SectorItem[] }) {
           Scroll sideways →
         </Text>
       </Box>
+      {/* The shared table owns a scrollport of its own. Switching it off here
+          leaves this region as the single horizontal scroller, so keyboard
+          focus and the scrolled element are the same node. Sticky columns (in
+          SectorTable's own style) still pin against this region. */}
+      <style data-testid="sector-table-scroll-style">{`
+        [data-testid="sector-table-container"] .paper-tanstack-container,
+        [data-testid="sector-table-container"] .paper-tanstack-scroll {
+          overflow: visible !important;
+        }
+      `}</style>
       <Box
         id="sector-table-container"
         data-testid="sector-table-container"
+        data-scroll="horizontal"
         role="region"
         aria-label="Sector performance table, scroll sideways for all columns"
         tabIndex={0}
-        className="min-h-0 flex-1 overflow-auto focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
+        onKeyDown={onSectorTableRegionKeyDown}
+        className="min-h-0 min-w-0 flex-1 overflow-auto focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
       >
         <SectorTable sectors={props.sectors} />
       </Box>

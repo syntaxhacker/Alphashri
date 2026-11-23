@@ -226,17 +226,37 @@ describe("SectorPage", () => {
     expect(window.location.search).toContain("tab=correlation");
   });
 
-  it("exposes a keyboard-focusable scroll region and a visible sideways cue for the table", async () => {
+  it("makes the focusable region the sole horizontal scroller with a sideways cue", async () => {
     mockFetchSectorPerformance.mockResolvedValue(mockResponse);
     render(() => <SectorPage />);
     await waitFor(() => expect(screen.getByText("Sector Performance")).toBeInTheDocument());
     const region = screen.getByTestId("sector-table-container");
-    expect(region).toHaveClass("overflow-auto");
     expect(region).toHaveAttribute("role", "region");
+    expect(region).toHaveAttribute("aria-label", "Sector performance table, scroll sideways for all columns");
     expect(region).toHaveAttribute("tabindex", "0");
+    expect(region).toHaveAttribute("data-scroll", "horizontal");
+    expect(region).toHaveClass("overflow-auto");
+    // The shared table's own scrollport is switched off, so there is no
+    // nested overflow:auto competing with the focused region.
+    const scrollStyle = screen.getByTestId("sector-table-scroll-style").textContent ?? "";
+    expect(scrollStyle).toContain('[data-testid="sector-table-container"] .paper-tanstack-container');
+    expect(scrollStyle).toContain('[data-testid="sector-table-container"] .paper-tanstack-scroll');
+    expect(scrollStyle).toContain("overflow: visible");
     const cue = screen.getByTestId("sector-table-scroll-cue");
     expect(cue).toHaveTextContent("Scroll sideways");
     expect(cue).toHaveClass("lg:hidden");
+  });
+
+  it("scrolls the focused table region itself with arrow keys", async () => {
+    mockFetchSectorPerformance.mockResolvedValue(mockResponse);
+    render(() => <SectorPage />);
+    await waitFor(() => expect(screen.getByText("Sector Performance")).toBeInTheDocument());
+    const region = screen.getByTestId("sector-table-container") as HTMLElement;
+    region.scrollLeft = 10;
+    fireEvent.keyDown(region, { key: "ArrowRight" });
+    expect(region.scrollLeft).toBe(90);
+    fireEvent.keyDown(region, { key: "ArrowLeft" });
+    expect(region.scrollLeft).toBe(10);
   });
 
   it("does not render the legacy Historical Cycles tab", () => {
