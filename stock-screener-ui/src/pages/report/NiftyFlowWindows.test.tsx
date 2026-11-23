@@ -26,6 +26,17 @@ function r(jsx: () => JSX.Element) {
 afterEach(cleanup);
 
 describe("NiftyFlowWindows session units", () => {
+  test("a dash-only report still mounts its cells; the parent names WINDOWS in the shared strip", () => {
+    r(() => (
+      <NiftyFlowWindows
+        report={report({ control: { verdict: null, flow_bias: null }, flow_window: null })}
+      />
+    ));
+    expect(screen.getByTestId("flow-session")).toHaveTextContent("—");
+    expect(screen.getByTestId("flow-15m")).toHaveTextContent("—");
+    expect(screen.getByTestId("flow-5m")).toHaveTextContent("—");
+  });
+
   test("hides the ₹cr amount for a generic underlying but keeps the verdict", () => {
     r(() => <NiftyFlowWindows report={report()} showSessionValue={false} />);
     const session = screen.getByTestId("flow-session");

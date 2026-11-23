@@ -266,10 +266,10 @@ describe("NiftyChartPanel — header control rows", () => {
 });
 
 /**
- * 390px regression: the price tag used to read "00" under the volume tag.
- * Model the axis tags as boxes measured from the report's 12px mono floor so
- * the reserved lane, the cutoff label and the volume tag are checked as
- * geometry rather than as isolated constants.
+ * 390px regression: axis tags overlapped at the pane bottom ("00" peeking
+ * below a price tag, "109K" crowded against the PW label). Model the tags as
+ * boxes measured from the report's 12px mono floor so the reserved lane, the
+ * cutoff label and the volume tag are checked as geometry, not bare constants.
  */
 describe("NiftyChartPanel — 390px axis label/tag bounds", () => {
   const MONO_ADVANCE_PX = 7.2;
