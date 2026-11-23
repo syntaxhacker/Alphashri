@@ -1,7 +1,6 @@
 import { createFieldSubscriber } from "./createSubscriber";
 import { authState, subscribe as subscribeToAuth } from "./auth";
 import type {
-  OptionPaperOrderRequest,
   OptionPaperPendingOrder,
   OptionPaperPosition,
   OptionPaperStatus,
