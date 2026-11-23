@@ -25,7 +25,7 @@ const VIEWPORTS = [
   { suffix: "390", width: 390, height: 844 },
 ];
 
-const APP_ROUTES = ["report", "sector", "home", "options"];
+const APP_ROUTES = ["report", "sector", "home", "options", "screener", "patterns"];
 
 const SHOWCASE_NAMES = [
   // Family landings
