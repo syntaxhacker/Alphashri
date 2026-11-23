@@ -123,3 +123,19 @@ results.
    10 keyboard walkthroughs.
 6. Live-app focus/keyboard, actual contrast ratios and reduced-motion evidence —
    currently source-only or Storybook-only.
+
+## 6. Evidence guard
+
+From `stock-screener-ui/`:
+
+```
+node scripts/evidence-audit.mjs
+```
+
+Dependency-free structural check of the manifest declared in the script: 8 app
+route PNGs and 52 Storybook showcase PNGs. Each must exist, be a valid PNG, be
+at least 8 KiB, and have the expected IHDR dimensions (app exactly 1600×1000 /
+390×844; showcase width 1600 / 390 and height ≥ viewport). It lists
+missing/wrong/too-small/invalid files and exits 1 if any fail; it does not
+decode pixels or rate visuals. `--allow-missing` prints the same list as pending
+and exits 0.
