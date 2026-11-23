@@ -10,6 +10,7 @@ import {
 } from "./NiftyChartPanel";
 import {
   MOBILE_AXIS_MIN_WIDTH,
+  MOBILE_CUTOFF_LABEL_GAP,
   MOBILE_CUTOFF_RIGHT,
   MOBILE_EDGE_GUTTER,
 } from "./NiftyChartPanel.body";
@@ -261,5 +262,92 @@ describe("NiftyChartPanel — header control rows", () => {
     expect(source.style.getPropertyValue("--report-font-body")).toBe("12px");
     const row = screen.getByTestId("nifty-chart-controls-desktop");
     expect(row).toHaveStyle({ gap: "8px" });
+  });
+});
+
+/**
+ * 390px regression: the price tag used to read "00" under the volume tag.
+ * Model the axis tags as boxes measured from the report's 12px mono floor so
+ * the reserved lane, the cutoff label and the volume tag are checked as
+ * geometry rather than as isolated constants.
+ */
+describe("NiftyChartPanel — 390px axis label/tag bounds", () => {
+  const MONO_ADVANCE_PX = 7.2;
+  const AXIS_TAG_PADDING_PX = 20; // engine tick + inner/outer padding
+  const tagWidth = (text: string) => Math.ceil(text.length * MONO_ADVANCE_PX) + AXIS_TAG_PADDING_PX;
+
+  function fakeChartWithVolume() {
+    const volumeOptions = { lastValueVisible: true };
+    const calls: { scale: string; id?: string; options: Record<string, unknown> }[] = [];
+    const volumeSeries = {
+      seriesType: () => "Histogram",
+      options: () => volumeOptions,
+      applyOptions: (options: Record<string, unknown>) => Object.assign(volumeOptions, options),
+    };
+    return {
+      volumeOptions,
+      chart: {
+        timeScale: () => ({
+          applyOptions: (options: Record<string, unknown>) => calls.push({ scale: "time", options }),
+        }),
+        priceScale: (id: string) => ({
+          applyOptions: (options: Record<string, unknown>) => calls.push({ scale: "price", id, options }),
+        }),
+        panes: () => [{ getSeries: () => [volumeSeries] }],
+      },
+      calls,
+    };
+  }
+
+  test("the dedicated lane fits the full price tag and the volume tag", () => {
+    // The comma-bearing session tag is the widest label on the axis.
+    expect(tagWidth("22,300.00")).toBeLessThanOrEqual(MOBILE_AXIS_MIN_WIDTH);
+    expect(tagWidth("22300.00")).toBeLessThanOrEqual(MOBILE_AXIS_MIN_WIDTH);
+    expect(tagWidth("109K")).toBeLessThanOrEqual(MOBILE_AXIS_MIN_WIDTH);
+    // Both tags start at the axis' left edge, so each has its own full box
+    // inside the lane; neither can be cut at the card edge.
+    expect(tagWidth("22,300.00") + MOBILE_EDGE_GUTTER).toBeLessThan(MOBILE_CUTOFF_RIGHT);
+    expect(MOBILE_AXIS_MIN_WIDTH).toBeGreaterThan(CHART_PLOT_MARGIN.axisMinWidth);
+  });
+
+  test("the cutoff label box clears the axis lane on both sides", () => {
+    const axisLeftFromWrapRight = MOBILE_EDGE_GUTTER + MOBILE_AXIS_MIN_WIDTH;
+    const labelRightFromWrapRight = MOBILE_CUTOFF_RIGHT - MOBILE_CUTOFF_LABEL_GAP;
+    // The label ends to the LEFT of the axis, with a real gap — never on an
+    // axis tag. It also stays inside the cutoff lane (does not cross the edge).
+    expect(labelRightFromWrapRight).toBeGreaterThan(axisLeftFromWrapRight);
+    expect(labelRightFromWrapRight - axisLeftFromWrapRight).toBe(
+      CHART_PLOT_MARGIN.dataCutoffLane - MOBILE_CUTOFF_LABEL_GAP,
+    );
+    expect(MOBILE_CUTOFF_RIGHT - labelRightFromWrapRight).toBe(MOBILE_CUTOFF_LABEL_GAP);
+    // The cutoff lane is the separator between the label and the axis tags.
+    expect(CHART_PLOT_MARGIN.dataCutoffLane).toBeGreaterThan(MOBILE_CUTOFF_LABEL_GAP + 4);
+  });
+
+  test("the engine keeps label alignment on and suppresses only the volume axis tag on a phone", () => {
+    env.mobile = true;
+    mount();
+    const { chart, volumeOptions, calls } = fakeChartWithVolume();
+    tv.onChartReady!(chart, null);
+
+    const axis = calls.filter((c) => c.scale === "price" && c.id === "right").at(-1);
+    expect(axis?.options).toMatchObject({
+      minimumWidth: MOBILE_AXIS_MIN_WIDTH,
+      alignLabels: true,
+      entireTextOnly: true,
+    });
+    // Volume bars still render; only the last-value tag that crowded the
+    // price tag at the pane bottom is removed.
+    expect(volumeOptions.lastValueVisible).toBe(false);
+  });
+
+  test("desktop keeps its 88px axis and the volume tag", () => {
+    mount();
+    const { chart, volumeOptions, calls } = fakeChartWithVolume();
+    tv.onChartReady!(chart, null);
+
+    const axis = calls.filter((c) => c.scale === "price" && c.id === "right").at(-1);
+    expect(axis?.options).toMatchObject({ minimumWidth: CHART_PLOT_MARGIN.axisMinWidth });
+    expect(volumeOptions.lastValueVisible).toBe(true);
   });
 });

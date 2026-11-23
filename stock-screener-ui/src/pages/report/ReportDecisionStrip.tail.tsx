@@ -1,6 +1,7 @@
 import { Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { Box } from "@/ui";
+import type { NiftyReport } from "@/types/niftyReport";
 import { NiftyFlowWindows } from "./NiftyFlowWindows";
 import { IndexMoversStrip } from "./IndexMoversStrip";
 import { NiftyIntelStrip } from "./NiftyIntelStrip";
@@ -11,8 +12,27 @@ import { REPORT_SECTION_ATTR } from "./reportTokens";
 import type { DecisionView } from "./ReportDecisionStrip.derive";
 import { RailClaim, TapeBadgeControl } from "./ReportDecisionStrip.hero";
 
+/** A flow report is not a flow band: a freshly booted snapshot ships a full
+ *  report with a null window and no session flow, so every cell is a dash.
+ *  Only a numeric session or OI leg justifies a full-width WINDOWS row; the
+ *  empty case is named once by the shared MOVERS status strip instead. */
+export function flowWindowsBandAvailable(flow: NiftyReport | null | undefined): boolean {
+  if (!flow) return false;
+  if (Number.isFinite(flow.control?.flow_bias ?? NaN)) return true;
+  const window = flow.flow_window;
+  const realLeg = (leg: { ce?: number; pe?: number } | null | undefined) =>
+    !!leg && Number.isFinite(leg.ce ?? NaN) && Number.isFinite(leg.pe ?? NaN);
+  return realLeg(window?.["5m"]) || realLeg(window?.["15m"]);
+}
+
+export function windowsAvailable(view: DecisionView): boolean {
+  return flowWindowsBandAvailable(view.flowReport());
+}
+
 /** SESSION/15m/5m flow stacks to ~144px on a phone. Collapse it behind the
- *  same disclosure the tape bands use so the chart row keeps that height. */
+ *  same disclosure the tape bands use so the chart row keeps that height.
+ *  With no flow numbers the whole section stays mounted (testids survive) but
+ *  takes no height — the one status row below names WINDOWS with MOVERS. */
 export function FlowWindowsSection(props: {
   view: DecisionView;
   open: boolean;
@@ -22,33 +42,37 @@ export function FlowWindowsSection(props: {
   return (
     <Show when={view.flowReport()}>
       {(flow) => (
-        <Show
-          when={view.narrow()}
-          fallback={
-            <Box {...{ [REPORT_SECTION_ATTR]: true }} className="contents">
+        <Box
+          {...{ [REPORT_SECTION_ATTR]: true }}
+          className="contents"
+          style={{ display: windowsAvailable(view) ? undefined : "none" }}
+        >
+          <Show
+            when={view.narrow()}
+            fallback={
               <NiftyFlowWindows
                 report={flow()}
                 lastFlip={view.lastFlip()}
                 showSessionValue={view.symbol() === "NIFTY"}
               />
-            </Box>
-          }
-        >
-          <LiveTapeDisclosure
-            open={props.open}
-            onToggle={props.onToggle}
-            testId="nifty-flow-windows-disclosure"
-            label="FLOW WINDOWS"
-            openHint="hide"
-            closedHint="session · 15m · 5m"
+            }
           >
-            <NiftyFlowWindows
-              report={flow()}
-              lastFlip={view.lastFlip()}
-              showSessionValue={view.symbol() === "NIFTY"}
-            />
-          </LiveTapeDisclosure>
-        </Show>
+            <LiveTapeDisclosure
+              open={props.open}
+              onToggle={props.onToggle}
+              testId="nifty-flow-windows-disclosure"
+              label="FLOW WINDOWS"
+              openHint="hide"
+              closedHint="session · 15m · 5m"
+            >
+              <NiftyFlowWindows
+                report={flow()}
+                lastFlip={view.lastFlip()}
+                showSessionValue={view.symbol() === "NIFTY"}
+              />
+            </LiveTapeDisclosure>
+          </Show>
+        </Box>
       )}
     </Show>
   );
@@ -63,6 +87,7 @@ export function MoversSection(props: { view: DecisionView }): JSX.Element {
           index={view.symbol() === "NIFTY" ? "NIFTY" : "SENSEX"}
           onExpand={view.store.ui.openMovers}
           liveOnly={view.mode() === "eod" || view.report()?.market?.is_open === false}
+          unavailableSurfaces={windowsAvailable(view) ? [] : ["WINDOWS"]}
         />
       </Box>
     </Show>

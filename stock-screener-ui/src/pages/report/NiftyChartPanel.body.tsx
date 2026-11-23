@@ -1,4 +1,4 @@
-import { Show, createSignal, onCleanup, onMount, type ComponentProps } from "solid-js";
+import { Show, createEffect, createSignal, onCleanup, onMount, type ComponentProps } from "solid-js";
 import type { IChartApi } from "lightweight-charts";
 import { Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -24,13 +24,20 @@ import { computePatternStripTitle, type ScanBadge } from "./NiftyChartPanel.anno
 type ChartProps = ComponentProps<typeof TradingViewChart>;
 
 /**
- * The 88px desktop price axis fits "22,350.00" but clips a full "22300.00" at
- * 390 (it read "00", over the volume tag). On a phone the axis gets the width
- * the tag actually needs, plus a real outer gutter so neither tag reaches the
- * card edge. Desktop geometry is untouched.
+ * The 88px desktop price axis fits "22,350.00" but clips a full "22,300.00"
+ * at 390 (it read "00", under the volume tag). Lightweight-charts draws axis
+ * tags from the axis' left edge rightwards, so a tag only renders whole when
+ * the lane is wider than its text plus the engine's tick/padding; the price
+ * tag and the "109K" volume tag also have to stack without either being cut
+ * at the pane's bottom edge. On a phone we reserve a dedicated 144px lane
+ * (the 9-glyph session tag + volume tag + engine padding) and a 12px outer
+ * gutter, so the axis never touches the card edge. Desktop is untouched.
  */
-export const MOBILE_AXIS_MIN_WIDTH = 132;
+export const MOBILE_AXIS_MIN_WIDTH = 144;
 export const MOBILE_EDGE_GUTTER = 12;
+/** The cutoff label is right-aligned inside the cutoff lane. This gap keeps
+ *  its box clear of the axis lane so it can never sit on an axis tag. */
+export const MOBILE_CUTOFF_LABEL_GAP = 6;
 export const MOBILE_CUTOFF_RIGHT =
   MOBILE_EDGE_GUTTER + MOBILE_AXIS_MIN_WIDTH + CHART_PLOT_MARGIN.dataCutoffLane;
 
@@ -80,15 +87,64 @@ export function ChartBody(props: ChartBodyProps) {
   });
 
   const cutoffRight = () => (phone() ? MOBILE_CUTOFF_RIGHT : CHART_CUTOFF_RIGHT);
-  const chartReady = (chart: IChartApi) => {
-    applyChartPlotMargin(chart);
-    if (phone()) {
+
+  let chartRef: IChartApi | null = null;
+  let mobileAxisApplied = false;
+  const [chartVersion, setChartVersion] = createSignal(0);
+
+  /** The volume histogram is the only overlay series on this chart. Its
+   *  "109K" last-value tag shares the right axis with the price tag and, at
+   *  390px, stacks against it at the pane bottom. The bars still render — only
+   *  the redundant axis tag is suppressed. */
+  const volumeSeriesOf = (chart: IChartApi) => {
+    for (const pane of chart.panes?.() ?? []) {
+      for (const series of pane.getSeries()) {
+        if (series.seriesType() === "Histogram") return series;
+      }
+    }
+    return null;
+  };
+  const applyMobileAxis = () => {
+    const chart = chartRef;
+    if (!chart) return;
+    const isPhone = phone();
+    if (isPhone) {
       chart.priceScale("right").applyOptions({
         minimumWidth: MOBILE_AXIS_MIN_WIDTH,
+        // Keep the engine's overlap resolver on so a stacked tag is shifted
+        // inside the pane instead of drawing its tail ("00") past the bottom.
+        alignLabels: true,
         entireTextOnly: true,
       });
+      mobileAxisApplied = true;
+    } else if (mobileAxisApplied) {
+      chart.priceScale("right").applyOptions({
+        minimumWidth: CHART_PLOT_MARGIN.axisMinWidth,
+      });
+      mobileAxisApplied = false;
+    }
+    const volume = volumeSeriesOf(chart);
+    if (!volume) return;
+    if (volume.options().lastValueVisible !== !isPhone) {
+      volume.applyOptions({ lastValueVisible: !isPhone });
     }
   };
+  const chartReady = (chart: IChartApi) => {
+    chartRef = chart;
+    mobileAxisApplied = false;
+    applyChartPlotMargin(chart);
+    applyMobileAxis();
+    setChartVersion((v) => v + 1);
+  };
+
+  // TradingViewChart re-enables the volume tag whenever the candle series
+  // changes. Re-apply after the current flush so the phone axis stays clear.
+  createEffect(() => {
+    void props.chartCandles;
+    phone();
+    chartVersion();
+    queueMicrotask(applyMobileAxis);
+  });
 
   return (
     <div
@@ -182,7 +238,7 @@ export function ChartBody(props: ChartBodyProps) {
                   class="absolute whitespace-nowrap"
                   style={{
                     top: "4px",
-                    right: "4px",
+                    right: phone() ? `${MOBILE_CUTOFF_LABEL_GAP}px` : "4px",
                     "max-width": "100%",
                     padding: "1px 4px",
                     "font-family": palette.MONO,
