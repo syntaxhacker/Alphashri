@@ -1,7 +1,8 @@
-import { createMemo, createSignal, createUniqueId, splitProps } from "solid-js";
+import { createMemo, createSignal, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
 import { stripLegacyInputProps } from "./legacyProps";
+import { createFieldA11y } from "./fieldError";
 import type { UIPasswordInputProps } from "../types";
 
 type FieldBox = { h: number; fs: number; padY: number; padX: number };
@@ -61,7 +62,13 @@ export function PasswordInput(props: UIPasswordInputProps) {
     "h",
   ]);
 
-  const resolvedId = known.id ?? createUniqueId();
+  const field = createFieldA11y({
+    id: known.id,
+    error: () => known.error,
+    description: () => known.description,
+    externalDescribedBy: () => (_rest as Record<string, unknown>)["aria-describedby"] as string | undefined,
+  });
+  const resolvedId = field.controlId;
   const [focused, setFocused] = createSignal(false);
   const explicitWidth = createMemo(() =>
     known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined,
@@ -69,14 +76,8 @@ export function PasswordInput(props: UIPasswordInputProps) {
   const explicitHeight = createMemo(() =>
     known.h != null ? (typeof known.h === "number" ? `${known.h}px` : known.h) : undefined,
   );
-  const isError = createMemo(() => Boolean(known.error));
-  const helperText = createMemo(() =>
-    isError()
-      ? typeof known.error === "string"
-        ? known.error
-        : String(known.error ?? "")
-      : (known.description as string | undefined),
-  );
+  const isError = field.isError;
+  const helperText = field.message;
 
   const [internalVisible, setInternalVisible] = createSignal(false);
   const isControlled = createMemo(() => known.visible !== undefined);
@@ -169,6 +170,8 @@ export function PasswordInput(props: UIPasswordInputProps) {
         <div className="relative flex-1 min-w-0">
           <input
             id={resolvedId}
+            aria-invalid={isError()}
+            aria-describedby={field.describedBy()}
             type={visible() ? "text" : "password"}
             value={(isControlledInput() ? known.value : known.defaultValue) ?? ""}
             onInput={(e) => known.onChange?.(e.currentTarget.value)}
@@ -203,7 +206,9 @@ export function PasswordInput(props: UIPasswordInputProps) {
         {known.rightSection && <div className="shrink-0">{known.rightSection}</div>}
       </div>
       {helperText() && (
-        <span className={cn("text-xs", isError() ? "text-fin-negative" : "text-fin-text-muted")}>{helperText()}</span>
+        <span id={field.messageId} className={cn("text-xs", isError() ? "text-fin-negative" : "text-fin-text-muted")}>
+          {helperText()}
+        </span>
       )}
     </div>
   );

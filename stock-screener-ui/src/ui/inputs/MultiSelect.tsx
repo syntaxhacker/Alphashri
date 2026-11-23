@@ -1,7 +1,8 @@
-import { createMemo, createSignal, createUniqueId, createEffect, For, onCleanup, Show, splitProps } from "solid-js";
+import { createMemo, createSignal, createEffect, For, onCleanup, Show, splitProps } from "solid-js";
 import { Portal } from "solid-js/web";
 import { cn } from "../cn";
 import { Checkbox } from "./Checkbox";
+import { createFieldA11y } from "./fieldError";
 import * as palette from "../palette";
 import type { UIMultiSelectProps } from "../types";
 
@@ -164,7 +165,13 @@ export function MultiSelect(props: UIMultiSelectProps) {
     "aria-label",
   ]);
 
-  const inputId = known.id ?? createUniqueId();
+  const field = createFieldA11y({
+    id: known.id,
+    error: () => known.error,
+    description: () => known.description,
+    externalDescribedBy: () => (_rest as Record<string, unknown>)["aria-describedby"] as string | undefined,
+  });
+  const inputId = field.controlId;
   const labelId = createMemo(() => (known.label ? `${inputId}-multiselect-label` : undefined));
   const explicitWidth = createMemo(() =>
     known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined,
@@ -174,15 +181,9 @@ export function MultiSelect(props: UIMultiSelectProps) {
   );
   const options = createMemo(() => normalizeOptions(known.data));
   const byValue = createMemo(() => new Map(options().map((o) => [o.value, o])));
-  const isError = createMemo(() => Boolean(known.error));
+  const isError = field.isError;
   let rootEl: HTMLDivElement | undefined;
-  const helperText = createMemo(() =>
-    isError()
-      ? typeof known.error === "string"
-        ? known.error
-        : String(known.error ?? "")
-      : (known.description as string | undefined),
-  );
+  const helperText = field.message;
 
   const [internalSelected, setInternalSelected] = createSignal<string[]>(
     (known.defaultValue ?? []).filter((v) => options().some((o) => o.value === v)),
@@ -491,6 +492,8 @@ export function MultiSelect(props: UIMultiSelectProps) {
             aria-activedescendant={activeDescendant()}
             aria-haspopup="listbox"
             aria-multiselectable="true"
+            aria-invalid={isError()}
+            aria-describedby={field.describedBy()}
             value={query()}
             onInput={handleInputChange}
             onFocus={() => setOpen(true)}
@@ -566,7 +569,7 @@ export function MultiSelect(props: UIMultiSelectProps) {
           </Portal>
         </Show>
       </div>
-      {helperText() && <p className={helperTextClass()}>{helperText()}</p>}
+      {helperText() && <p id={field.messageId} className={helperTextClass()}>{helperText()}</p>}
     </div>
   );
 }

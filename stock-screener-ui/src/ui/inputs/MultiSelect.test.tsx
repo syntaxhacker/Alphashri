@@ -334,3 +334,48 @@ describe("MultiSelect — tag picker geometry", () => {
   });
 });
 
+describe("MultiSelect — form error accessibility", () => {
+  test("a string error is associated with the combobox, not the wrapper", () => {
+    render(() => (
+      <MultiSelect data-testid="ms" id="sectors" data={["IT"]} value={[]} onChange={vi.fn()} error="Pick a sector" />
+    ));
+    const combo = screen.getByTestId("ms").querySelector('[role="combobox"]')!;
+    const message = screen.getByText("Pick a sector");
+
+    expect(message.id).toBe("sectors-error");
+    expect(combo).toHaveAttribute("aria-invalid", "true");
+    expect(combo).toHaveAttribute("aria-describedby", message.id);
+    expect(screen.getByTestId("ms")).not.toHaveAttribute("aria-invalid");
+  });
+
+  test("a JSX error renders as elements, never [object Object]", () => {
+    const { container } = render(() => (
+      <MultiSelect
+        data-testid="ms"
+        id="sectors"
+        data={["IT"]}
+        value={[]}
+        onChange={vi.fn()}
+        error={<span data-testid="jsx-error"><b>Invalid</b> sector</span>}
+      />
+    ));
+    const combo = screen.getByTestId("ms").querySelector('[role="combobox"]')!;
+
+    expect(screen.getByTestId("jsx-error").querySelector("b")).not.toBeNull();
+    expect(container.textContent).not.toContain("[object Object]");
+    expect(combo).toHaveAttribute("aria-invalid", "true");
+    expect(combo).toHaveAttribute("aria-describedby", "sectors-error");
+  });
+
+  test("a description is described by the combobox with aria-invalid false", () => {
+    render(() => (
+      <MultiSelect data-testid="ms" id="sectors" data={["IT"]} value={[]} onChange={vi.fn()} description="Choose many" />
+    ));
+    const combo = screen.getByTestId("ms").querySelector('[role="combobox"]')!;
+
+    expect(combo).toHaveAttribute("aria-invalid", "false");
+    expect(combo).toHaveAttribute("aria-describedby", "sectors-error");
+    expect(screen.getByText("Choose many")).toHaveAttribute("id", "sectors-error");
+  });
+});
+

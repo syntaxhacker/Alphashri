@@ -1,6 +1,7 @@
-import { For, Show, createEffect, createMemo, createSignal, createUniqueId, onCleanup, splitProps, type JSX } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, splitProps, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import { cn } from "../cn";
+import { createFieldA11y } from "./fieldError";
 import type { UISelectProps } from "../types";
 
 /** Gap between the field and the listbox, and the minimum viewport edge inset. */
@@ -219,7 +220,13 @@ export function Select(props: UISelectProps) {
     "aria-label",
   ]);
 
-  const inputId = known.id ?? createUniqueId();
+  const field = createFieldA11y({
+    id: known.id,
+    error: () => known.error,
+    description: () => known.description,
+    externalDescribedBy: () => (_rest as Record<string, unknown>)["aria-describedby"] as string | undefined,
+  });
+  const inputId = field.controlId;
   const labelId = createMemo(() => (known.label ? `${inputId}-label` : undefined));
   const explicitWidth = createMemo(() =>
     known.w != null ? (typeof known.w === "number" ? `${known.w}px` : known.w) : undefined,
@@ -229,18 +236,12 @@ export function Select(props: UISelectProps) {
   );
   const options = createMemo(() => (known.data && known.data.length > 0 ? normalizeOptions(known.data) : optionsFromChildren(known.children)));
   const groupedOptions = createMemo(() => groupOptions(options()));
-  const isError = createMemo(() => Boolean(known.error));
+  const isError = field.isError;
   let rootEl: HTMLDivElement | undefined;
   const isControlled = createMemo(
     () => known.value !== undefined || (known.onChange !== undefined && known.defaultValue === undefined),
   );
-  const helperText = createMemo(() =>
-    isError()
-      ? typeof known.error === "string"
-        ? known.error
-        : String(known.error ?? "")
-      : (known.description as string | undefined),
-  );
+  const helperText = field.message;
 
   const rootClass = createMemo(() =>
     cn(
@@ -316,6 +317,8 @@ export function Select(props: UISelectProps) {
           disabled={known.disabled}
           required={known.required}
           aria-label={known["aria-label"]}
+          aria-invalid={isError()}
+          aria-describedby={field.describedBy()}
           className={cn(
             "appearance-none flex w-full min-w-0 border bg-fin-surface leading-none outline-none py-0",
             fieldPadding(known.size),
@@ -378,13 +381,14 @@ export function Select(props: UISelectProps) {
           inputId={inputId}
           labelId={labelId()}
           isError={isError()}
+          describedBy={field.describedBy()}
           aria-label={known["aria-label"]}
           leftSection={known.leftSection}
           rightSection={known.rightSection}
           withinPortal={known.withinPortal}
         />
       </Show>
-      {helperText() && <p className={helperTextClass()}>{helperText()}</p>}
+      {helperText() && <p id={field.messageId} className={helperTextClass()}>{helperText()}</p>}
     </div>
   );
 }
@@ -402,6 +406,7 @@ function SearchableSelect(props: {
   inputId: string;
   labelId: string | undefined;
   isError: boolean;
+  describedBy?: string;
   leftSection?: JSX.Element;
   rightSection?: JSX.Element;
   withinPortal?: boolean;
@@ -637,6 +642,8 @@ function SearchableSelect(props: {
               aria-haspopup="listbox"
               aria-controls={listboxId}
               aria-multiselectable="false"
+              aria-invalid={props.isError}
+              aria-describedby={props.describedBy}
               value={displayValue()}
               onInput={(e) => {
                 setTyping(true);
