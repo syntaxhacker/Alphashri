@@ -43,6 +43,20 @@ describe("UserButton", () => {
     expect(screen.getByTestId("user-email")).toHaveTextContent("test@example.com");
   });
 
+  it("exposes the full email with a title and word-boundary breaks instead of a mid-word clip", () => {
+    renderWithTheme(<UserButton {...defaultProps} />);
+
+    const email = screen.getByTestId("user-email");
+    expect(email).toHaveTextContent("test@example.com");
+    expect(email).toHaveAttribute("title", "test@example.com");
+    // No truncate/nowrap/ellipsis: the address wraps inside the rail footer.
+    expect(email.style.whiteSpace).toBe("");
+    expect(email.style.textOverflow).toBe("");
+    expect(email).toHaveClass("break-words");
+    // One break opportunity after `@` and one after `.`; `<wbr>` adds no text.
+    expect(email.querySelectorAll("wbr")).toHaveLength(2);
+  });
+
   it("renders user avatar", () => {
     renderWithTheme(<UserButton {...defaultProps} />);
 

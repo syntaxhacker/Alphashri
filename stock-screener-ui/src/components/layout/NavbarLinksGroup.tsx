@@ -39,17 +39,19 @@ export function NavbarLinksGroup(props: NavbarLinksGroupProps) {
             : {}),
         }}
       >
-        <Box className="flex items-center justify-center min-w-[20px]" style={{ color: props.active ? palette.PRIMARY : palette.TEXT_MUTED }}>
+        <Box className="flex items-center justify-center min-w-[20px] shrink-0" style={{ color: props.active ? palette.PRIMARY : palette.TEXT_MUTED }}>
           <IconC size={16} />
         </Box>
         <Show when={!collapsed()}>
           <Text
             size="sm"
+            title={props.label}
+            className="min-w-0 flex-1 break-words leading-[1.2]"
             style={{
               "font-size": `${typeSize("micro")}px`,
               "font-family": palette.MONO,
               "letter-spacing": "0.06em",
-              "white-space": "nowrap",
+              "white-space": "normal",
               "text-transform": "uppercase",
               "font-weight": props.active ? 600 : 500,
               color: props.active ? palette.PRIMARY : undefined,

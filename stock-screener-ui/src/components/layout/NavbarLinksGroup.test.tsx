@@ -134,7 +134,30 @@ describe("NavbarLinksGroup", () => {
     const el = label as HTMLElement;
     const px = parseFloat(el.style.fontSize || getComputedStyle(el).fontSize);
     expect(px).toBeGreaterThanOrEqual(11);
-    // Long labels must stay on one line so the icon and label keep aligning.
-    expect(el.style.whiteSpace).toBe("nowrap");
+    // Long labels wrap inside the fixed-width rail instead of being clipped.
+    expect(el.style.whiteSpace).toBe("normal");
   });
+
+  it.each(["Strategy Runner", "Sector Analysis", "Profitability"])(
+    "wraps the %s label at word boundaries with a full title instead of clipping it",
+    (label) => {
+      render(() => (<UIProvider>
+          <NavbarLinksGroup {...defaultProps} label={label} active />
+        </UIProvider>),
+      );
+
+      const navItem = screen.getByRole("button", { name: label });
+      const labelEl = navItem.querySelector("p") as HTMLElement;
+      expect(labelEl).toHaveTextContent(label);
+      // The pill and the label both expose the untruncated name on hover.
+      expect(navItem).toHaveAttribute("title", label);
+      expect(labelEl).toHaveAttribute("title", label);
+      // No nowrap / ellipsis: the text is free to wrap within the 148px rail.
+      expect(labelEl.style.whiteSpace).toBe("normal");
+      expect(labelEl.style.textOverflow).toBe("");
+      expect(labelEl).toHaveClass("break-words", "min-w-0", "flex-1");
+      // The icon keeps its 20px slot so wrapping cannot squeeze it.
+      expect(navItem.firstElementChild).toHaveClass("shrink-0");
+    },
+  );
 });

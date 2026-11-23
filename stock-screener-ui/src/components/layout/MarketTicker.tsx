@@ -248,7 +248,7 @@ function TickerStatus(props: { label: string; detail?: string | null }) {
   return (
     <Box
       data-testid="market-ticker-status"
-      className="flex items-center gap-0.75 min-w-0 overflow-hidden"
+      className="flex items-start gap-0.75 min-w-0 overflow-hidden"
       style={{ "padding-left": "4px", "padding-right": "4px" }}
     >
       <Box
@@ -261,8 +261,9 @@ function TickerStatus(props: { label: string; detail?: string | null }) {
         <Text
           size="sm"
           c="dimmed"
+          title={`· ${props.detail}`}
           style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2" }}
-          className="opacity-75 min-w-0 overflow-hidden truncate"
+          className="opacity-75 min-w-0 break-words line-clamp-2"
         >
           · {props.detail}
         </Text>
@@ -315,7 +316,7 @@ export function MarketStatus(props: { compact?: boolean }) {
     <Box
       data-testid="app-market-status"
       title={title()}
-      className="flex items-center min-w-0 overflow-hidden"
+      className="flex items-start min-w-0 overflow-hidden"
       style={{
         "justify-content": compact() ? "center" : "flex-start",
         gap: compact() ? 0 : "6px",
@@ -342,8 +343,9 @@ export function MarketStatus(props: { compact?: boolean }) {
           <Text
             size="sm"
             c="dimmed"
+            title={`· ${detail()}`}
             style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2" }}
-            className="opacity-75 min-w-0 overflow-hidden truncate"
+            className="opacity-75 min-w-0 break-words line-clamp-2"
           >
             · {detail()}
           </Text>

@@ -458,6 +458,10 @@ describe("MarketTicker", () => {
     expect(screen.getByText(/Republic Day/)).toBeInTheDocument();
     expect(screen.queryByTestId("market-ticker-loading")).not.toBeInTheDocument();
     expect(mockFetch).not.toHaveBeenCalled();
+
+    const detail = screen.getByTestId("market-ticker-status").querySelector("p:last-child") as HTMLElement;
+    expect(detail).toHaveAttribute("title", "· Republic Day");
+    expect(detail).toHaveClass("break-words", "line-clamp-2");
   });
 
   it("returns null when disabled", () => {
@@ -535,6 +539,21 @@ describe("MarketStatus", () => {
     expect(screen.getByTestId("app-market-status")).toBeInTheDocument();
     expect(screen.getByTestId("app-market-status-dot")).toBeInTheDocument();
     expect(screen.getByText("Market closed")).toBeInTheDocument();
+  });
+
+  it("clamps the closed-session detail at a word boundary with a full title", () => {
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
+    render(() => (<UIProvider>
+        <MarketStatus />
+      </UIProvider>),
+    );
+
+    const detail = screen.getByTestId("app-market-status").querySelector("p:last-child") as HTMLElement;
+    const full = "· Closed at 15:30 IST · Opens 09:15 IST";
+    expect(detail).toHaveTextContent(full);
+    expect(detail).toHaveAttribute("title", full);
+    // Two-line clamp breaks between words; the ellipsis never cuts a word.
+    expect(detail).toHaveClass("break-words", "line-clamp-2");
   });
 
   it("hides the label but keeps the dot when compact (collapsed rail)", () => {

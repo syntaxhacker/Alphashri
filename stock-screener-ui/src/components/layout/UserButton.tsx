@@ -14,6 +14,17 @@ declare global {
   }
 }
 
+/** `@` and `.` are the only word boundaries in an address. Mark them as break
+ *  opportunities so a long email wraps between tokens instead of being clipped
+ *  mid-token; `<wbr>` contributes no text, so the full address stays in the DOM. */
+function breakableEmail(email: string) {
+  return email.split(/(@|\.)/).map((part) => (
+    <>
+      {part}{(part === "@" || part === ".") && <wbr />}
+    </>
+  ));
+}
+
 export function UserButton(props: { collapsed?: boolean }) {
   const collapsed = () => props.collapsed ?? false;
   // Prefer the auth context so the button re-renders when the user loads.
@@ -52,8 +63,14 @@ export function UserButton(props: { collapsed?: boolean }) {
                   {user().displayName}
                 </Text>
 
-                <Text c="dimmed" size="xs" truncate data-testid="user-email">
-                  {user().email}
+                <Text
+                  c="dimmed"
+                  size="xs"
+                  title={user().email}
+                  className="break-words"
+                  data-testid="user-email"
+                >
+                  {breakableEmail(user().email)}
                 </Text>
               </Box>
             </Show>
