@@ -316,40 +316,49 @@ export function MarketStatus(props: { compact?: boolean }) {
     <Box
       data-testid="app-market-status"
       title={title()}
-      className="flex items-start min-w-0 overflow-hidden"
+      className="flex flex-col min-w-0 w-full"
       style={{
-        "justify-content": compact() ? "center" : "flex-start",
-        gap: compact() ? 0 : "6px",
+        "align-items": compact() ? "center" : "stretch",
         "padding-left": compact() ? 0 : "2px",
         "padding-right": compact() ? 0 : "2px",
       }}
     >
       <Box
-        aria-hidden
-        data-testid="app-market-status-dot"
-        style={{
-          width: "6px",
-          height: "6px",
-          "border-radius": "50%",
-          "flex-shrink": "0",
-          "background-color": closed() ? palette.TEXT_MUTED : palette.POSITIVE,
-        }}
-      />
-      <Show when={!compact()}>
-        <Text size="sm" fw={600} c="dimmed" style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2", "white-space": "nowrap" }}>
-          {label()}
-        </Text>
-        <Show when={detail()}>
-          <Text
-            size="sm"
-            c="dimmed"
-            title={`· ${detail()}`}
-            style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2" }}
-            className="opacity-75 min-w-0 break-words line-clamp-2"
-          >
-            · {detail()}
+        data-testid="app-market-status-headline"
+        className="flex items-center min-w-0"
+        style={{ gap: compact() ? 0 : "6px" }}
+      >
+        <Box
+          aria-hidden
+          data-testid="app-market-status-dot"
+          style={{
+            width: "6px",
+            height: "6px",
+            "border-radius": "50%",
+            "flex-shrink": "0",
+            "background-color": closed() ? palette.TEXT_MUTED : palette.POSITIVE,
+          }}
+        />
+        <Show when={!compact()}>
+          <Text size="sm" fw={600} c="dimmed" style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2", "white-space": "nowrap" }}>
+            {label()}
           </Text>
         </Show>
+      </Box>
+      {/* The detail sits on its own full-width row: beside the nowrap label it
+          only got ~40px of the 148px rail and broke words mid-token. At full
+          width it wraps at whitespace and the title still carries the reason. */}
+      <Show when={!compact() && detail()}>
+        <Text
+          data-testid="app-market-status-detail"
+          size="sm"
+          c="dimmed"
+          title={`· ${detail()}`}
+          style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2", "margin-top": "2px" }}
+          className="opacity-75 w-full min-w-0 break-words line-clamp-2"
+        >
+          · {detail()}
+        </Text>
       </Show>
     </Box>
   );

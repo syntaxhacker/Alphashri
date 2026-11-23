@@ -541,19 +541,27 @@ describe("MarketStatus", () => {
     expect(screen.getByText("Market closed")).toBeInTheDocument();
   });
 
-  it("clamps the closed-session detail at a word boundary with a full title", () => {
+  it("gives the closed-session detail a full-width row that wraps at word boundaries with a full title", () => {
     setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
     render(() => (<UIProvider>
         <MarketStatus />
       </UIProvider>),
     );
 
-    const detail = screen.getByTestId("app-market-status").querySelector("p:last-child") as HTMLElement;
+    const root = screen.getByTestId("app-market-status");
+    const headline = screen.getByTestId("app-market-status-headline");
+    const detail = screen.getByTestId("app-market-status-detail");
     const full = "· Closed at 15:30 IST · Opens 09:15 IST";
     expect(detail).toHaveTextContent(full);
     expect(detail).toHaveAttribute("title", full);
-    // Two-line clamp breaks between words; the ellipsis never cuts a word.
-    expect(detail).toHaveClass("break-words", "line-clamp-2");
+    // The detail owns a full-width row instead of being squeezed next to the
+    // nowrap label, so it wraps at whitespace and no word is cut mid-token.
+    expect(root).toHaveClass("flex", "flex-col", "min-w-0", "w-full");
+    expect(detail).toHaveClass("w-full", "min-w-0", "break-words", "line-clamp-2");
+    expect(root).toContainElement(detail);
+    expect(headline).toContainElement(screen.getByTestId("app-market-status-dot"));
+    expect(headline).toHaveTextContent("Market closed");
+    expect(headline).not.toContainElement(detail);
   });
 
   it("hides the label but keeps the dot when compact (collapsed rail)", () => {
@@ -564,6 +572,7 @@ describe("MarketStatus", () => {
     );
     expect(screen.getByTestId("app-market-status-dot")).toBeInTheDocument();
     expect(screen.queryByText("Market closed")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("app-market-status-detail")).not.toBeInTheDocument();
     expect(screen.getByTestId("app-market-status").getAttribute("title")).toContain("Market closed");
   });
 
