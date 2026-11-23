@@ -60,9 +60,11 @@ describe("NumCell", () => {
     expect(screen.getByTestId("f")).toHaveTextContent("12.3%");
   });
 
-  test("uses the 12px body size so numeric columns match comfortable rows", () => {
+  test("uses the micro token so numeric columns match comfortable rows", () => {
     render(() => <NumCell value={1} testId="size" />);
-    expect(screen.getByTestId("size")).toHaveStyle("font-size: 12px");
+    const cell = screen.getByTestId("size");
+    expect(cell.className).toContain("text-ui-micro");
+    expect(cell.style.fontSize).toBe("");
   });
 });
 

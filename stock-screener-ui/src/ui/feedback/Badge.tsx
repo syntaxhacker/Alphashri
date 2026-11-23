@@ -132,7 +132,7 @@ export function Badge(props: UIBadgeProps) {
         ...shape(),
         color: isFilled
           ? filledInk()
-          : isOutline
+          : isOutline || isDot
             ? main
             : pickTextColor(wash(), main, palette.TEXT),
         ...known.style,

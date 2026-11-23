@@ -65,7 +65,7 @@ describe("Badge — status label", () => {
     expect(screen.getByTestId("os").style.backgroundColor).toBe("transparent");
     expect(screen.getByTestId("os").style.borderColor).toBe("var(--ui-badge-positive-main)");
     expect(screen.getByTestId("ls").style.backgroundColor).toBe("var(--ui-badge-positive-wash)");
-    expect(screen.getByTestId("ls").style.color).toBe("var(--ui-badge-positive-main)");
+    expect(screen.getByTestId("ls").style.color).toBe(palette.TEXT);
   });
 
   test("non-filled badge foreground stays the tone colour", () => {
