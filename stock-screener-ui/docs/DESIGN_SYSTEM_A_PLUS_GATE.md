@@ -52,14 +52,22 @@ Still open — keep the A+ verdict honest:
 - **Coverage is scoped, not universal.** `docs/COMPONENT_AUDIT.md` reports **100 audited modules, 96 story files / 403 story entries, 88/100 with a story, 100/100 with a co-located test, 0 violations**; the 12 modules without a standalone story are context providers, error boundaries, chart adapters and similar composition-only helpers listed in `docs/COMPONENT_AUDIT_EXCEPTIONS.md`. "story: yes" means one exported name is imported, not that every state is reviewed.
 - DatePicker is intentionally single-date; no range/time/locale.
 - Tooltip requires a focusable child unless the opt-in tab stop is used.
-- Screenshots are current only after the latest visual recapture; check commit dates before quoting them.
+- Screenshots are current at the final HEAD `6a75a298` (62/62, read back at
+  1600/390); re-check commit dates before quoting them after any later recapture.
+
+## Index Report independent certification — 2026-11-23
+
+Three read-only raters reviewed the committed report pair at `6d25b3c8` and
+scored **7 / 8.5 / 8** — **not A++**. No P0 was found. Remaining P1s: mobile
+pre-chart chrome, duplicated closed-state signalling, mobile chain window, and
+the final polish items. `6a75a298` removes the desktop volume-tag overlap and
+the mobile dock hint, but it has not been re-rated. **No A++ / A+ certification
+is claimed.** The final response must not close the gate until a fresh three-rater
+panel scores every dimension ≥9 with zero P0/P1.
 
 ## Latest independent rating — 2026-11-23 (pre-fix wave)
 
 Three read-only raters scored the P5 tree. **Not A+**: no P0, multiple P1s.
-This remains the last independent certification. No rater has scored the Index
-Report composition wave below, so nothing here is an A+ verdict on the current
-tree.
 
 | Dimension | Target | Rater 1 | Rater 2 | Rater 3 |
 |---|---:|---:|---:|---:|
@@ -91,31 +99,34 @@ names a target shape, not an achieved grade.
 | One decision hero | `ReportDecisionStrip.hero.tsx` / `.derive.ts` / `.format.ts`: a single `data-report-band="decision-hero"` band with spot/change, one neutral status (`MARKET CLOSED` / `AWAITING DATA` / `AWAITING TRIGGER` / `LIVE READ`), one reason and one claim. No-call states are neutral, never a green verdict. | `.hero.test.tsx`, `.hierarchy.test.tsx`; `87b2c0a1` |
 | Chart-first at both widths | `NiftyReportShell.tsx` `REPORT_MOBILE_ORDER_CLASS`: stat strip (hero + More stats) order 1, chart order 2, then dock/flow/movers/rail/analytics; desk keeps its paint order via negative orders. Chart gains a labelled last-data cutoff lane and a mobile axis gutter. | `NiftyReportShell.layout.test.tsx`, `ReportWorkspaceMobile.test.tsx`, `ReportChartMobileBudget.test.tsx`, `NiftyChartPanelGeometry.test.tsx`; `474f7434`, `e30103d6`, `ab2bdde5` |
 | Chain | `reportCells.chainMetrics.ts` / `.chainPanel.tsx`: definite 384px desk width under the 420px panel budget, 360px **px** height cap (never `max-height: 100%`), ATM centring/emphasis; the full chain scrolls inside its own region at 390. | `reportCells.chain.test.tsx`, `reportCells.chain.panel.test.tsx`; `b0ff34d1`, `9b52b77c`, `fac47217` (scroll-region a11y) |
+| Chart pinned to candles | `niftyChartData.ts` `effectiveSessionDate()` / `selectBaseCandles()` — the chart's base series is **session-scoped OHLC candles** (intraday → EOD → spot-derived 1-minute with wicks), so neither a stale previous-session series nor a bare tape-spot line can be mixed into today's chart. Confirmed in the final 1600/390 read-back. | `niftyChartData.math.test.ts`, `niftyChartData.session.test.ts`, `NiftyChartPanel.interactions.test.tsx`; final HEAD `6a75a298` |
+| Phone chain opens on ATM | `reportCells.chainPanel.tsx` `centreChainAtm()` — at the 390 phone viewport the chain opens on the `nifty-strike-atm-badge` row, pinned just **below** the sticky header (not centred under it) with the next row visible as a vertical scroll cue; re-centring is idempotent via `data-chain-atm-centered`. Confirmed in the final 390 read-back. | `reportCells.chain.panel.test.tsx`, `reportCells.chain.test.tsx`; final HEAD `6a75a298` |
 | Compact walls / window strips | Compact walls surfaces; the walls card mounts only on real OI; `NiftyFlowWindows` collapses empty windows; movers/flow/heatmap unavailable bands collapse to one reason line instead of reserving empty rows. | `ReportStrips.tsx` + `ReportStrips.test.tsx` (`e715fd3e`), `NiftyFlowWindows.test.tsx` (`51fa3412`), `bcc5535e`, `fbc606dc` |
 | Two-row toolbar | `ReportToolbar.tsx`: below 1200 exactly `TOOLBAR_PRIMARY_HEIGHT = 48` + `TOOLBAR_SECONDARY_HEIGHT = 20` = 68px, no third row from padding/gap; selector strip scrolls behind a fade with a native-select cue; ≥1200 both bands inline. | `ReportToolbar.test.tsx`; `cf4b55ee`, `699cb297` |
 | Decomposition | 11 report facades now re-export satellites that own constants, pure helpers and rendering, each with a `*.structure.test.ts`: `niftyReportStore`, `NiftyWallsCard`, `NiftyWallsExpanded`, `NiftyPressureDesk`, `NiftyOiHeatmap`, `niftyOiBursts`, `NiftyChartPanel`, `ReportDecisionStrip`, `reportCells`, `NiftyDepthMap`, `NiftyGexProfile`. | `*.structure.test.ts`; `e4cfca16`, `ec679d1d`, `3d9c9197`, `185cde52`, `851d5848`, `699cb297` |
 | a11y fixes | Unique disclosure content ids, accessible option-chain scroll region, chart-draw and mobile-disclosure accessibility, mobile chart-first focus order, 390 app-route axe audits added to `app-a11y.spec.ts`, `report-keyboard.spec.ts` walkthrough and `NiftyChartPanel.a11y.test.tsx`. | `f806a852`, `fac47217`, `2995d67e`, `e30103d6`, `0ee91f5b`; config/tests only — no committed run artifact |
 
-Verification status: **source- and test-derived, not a measurement claim.** The
-density contract explicitly labels its verification that way and states that the
-final 1600/390 read-back and the independent rating are **not claimed**. All 62
-screenshot files now exist at `HEAD` (`VISUAL_EVIDENCE_INDEX.md`), but the two
-`report-*.png` files still have an uncommitted re-capture, and no final read-back
-log or new rater report is evidenced in the sources consulted (density contract,
-evidence index, working ledger).
+Verification status: the **final 1600/390 screenshot read-back is done at HEAD
+`6a75a298`** — all PNGs were opened and checked for hero/chart/chain/toolbar
+legibility, no blank canvas and no `undefined`/`NaN`. The read-back confirms the
+chart is pinned to session-scoped candles (no stale/tape-only or two-day series)
+and the 390 option chain opens on the ATM strike, pinned below the sticky header
+with the next row as a scroll cue. **62/62** screenshot files are present at that
+commit (`VISUAL_EVIDENCE_INDEX.md`), including the committed `report-*.png`
+re-capture. Three independent raters at `6d25b3c8` scored **7 / 8.5 / 8** and
+said **not A++**; `6a75a298` only removes two polish defects. No A+ / A++ verdict
+is claimed here.
 
-**PENDING — do not mark finished:**
+**OPEN — do not mark finished:**
 
-- Final 1600 and 390 screenshot **read-back** at the final HEAD: open each PNG and
-  check hero/chart/chain/toolbar legibility, no blank canvas or `undefined`/`NaN`.
-- A fresh **independent rating** (three read-only raters, median per dimension).
-  The last recorded rating (P5, above) is pre-wave; implementer self-scoring does
-  not count.
+- A fresh **independent rating** after `6a75a298` (three read-only raters, median
+  per dimension). The panel at `6d25b3c8` is not an A++ certification.
 - Re-run of the integrated gates on a quiet tree (typecheck, lint, affected tests,
   axe/keyboard gates, gating `bun run audit:evidence`).
 
-No P0/P1 closure claim and no A+ / A++ claim is made for this wave until those
-items are evidenced.
+The final 1600/390 read-back is complete at HEAD `6a75a298` (62/62). No P0/P1
+closure claim and no A+ / A++ claim is made for this wave until the rating and
+gate items above are evidenced.
 
 ## P5 evidence (2026-11-23)
 
@@ -133,8 +144,9 @@ it is not evidence for the current report tree.
 | Screenshots | `docs/screenshots/showcase/` recaptured at 1600/390 with focus-ring proof (`scripts/storybook-showcase.mjs`); Index Report app route captured at 1600×1000 / 390×844 by `tests/e2e/design-evidence.spec.ts` into `docs/screenshots/app/report-{1600,390}.png` — reproduce with `SCREENSHOT_EVIDENCE=1 npx playwright test tests/e2e/design-evidence.spec.ts`; the 1600/390 pixel-diff harness and CI step landed in `ff939b9a`; its 12 baseline PNGs are committed in `tests/visual/__screenshots__/` and `bun run visual:test` passes **12/12** |
 | Browser keyboard | 10/10 (Modal, Tree, Menu, horizontal/vertical Tabs, Popover, Tooltip, modal FloatingWindow, NavLink, modal dismissal) |
 
-Current capture state: all five in-scope app routes (report, sector, home,
-screener, patterns) and all 26 showcase names have committed PNGs at 1600 and 390;
-the 62-image structural audit is the gate. See `VISUAL_EVIDENCE_INDEX.md` for the
-file-by-file state. That is evidence of presence, not of a final visual read-back
-or an independent rating — both remain PENDING as recorded above.
+Current capture state at final HEAD `6a75a298`: all five in-scope app routes
+(report, sector, home, screener, patterns) and all 26 showcase names have
+committed PNGs at 1600 and 390; **62/62** manifest images are present and the
+final visual read-back is done. See `VISUAL_EVIDENCE_INDEX.md` for the file-by-file
+state. The independent rating is **not certified** (7 / 8.5 / 8 at `6d25b3c8`);
+no A++ claim is made.

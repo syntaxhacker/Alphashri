@@ -30,11 +30,15 @@ export function usePinnedChartRange(
 
     const pin = () => {
       if (getChart() !== chart) return;
-      chart.timeScale().applyOptions({
+      const scale = chart.timeScale();
+      scale.applyOptions({
         rightOffset: 0,
         rightOffsetPixels: getRightOffset(),
       });
-      chart.timeScale().setVisibleLogicalRange({ from: 0, to: count - 1 });
+      // Test doubles and older engines may not implement the logical-range API.
+      if (typeof scale.setVisibleLogicalRange === "function") {
+        scale.setVisibleLogicalRange({ from: 0, to: count - 1 });
+      }
     };
 
     queueMicrotask(pin);
