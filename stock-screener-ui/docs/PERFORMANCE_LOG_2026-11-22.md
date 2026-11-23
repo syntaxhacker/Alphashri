@@ -125,5 +125,6 @@ unmeasured work is marked **in progress**.
   from 22.8s on 8.0.1); TS 7 check 8.6s / ratchet 4.7s; `typecheck` is now
   **0 errors**. Type-aware lint is 138 warnings report-only.
 
-- **Storybook (2026-11-23):** added 40+ design-system stories across 11 groups
-  (foundations through shared primitives); static build passes in ~7s.
+- **Storybook (2026-11-23):** added 66 design-system stories + 13 docs across
+  13 groups (overview/foundations through shared primitives); static build
+  passes in ~7s with docs/a11y addons.

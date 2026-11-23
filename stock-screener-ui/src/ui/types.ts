@@ -138,12 +138,10 @@ export interface UISimpleGridProps extends UIBaseProps {
   cols?: number;
   spacing?: UIGap;
   verticalSpacing?: UIGap;
-  type?: "container" | "media";
 }
 
 export interface UIGridProps extends UIBaseProps {
   gutter?: UIGap;
-  grow?: boolean;
   columns?: number;
 }
 

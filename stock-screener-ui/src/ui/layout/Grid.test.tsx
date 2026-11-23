@@ -20,24 +20,23 @@ describe("Grid", () => {
     expect(screen.getByTestId("grid")).toHaveStyle("gap: 16px");
   });
 
-  it("Grid.Col applies span as flex-basis / max-width percent", () => {
+  it("Grid.Col applies span as a grid-column span", () => {
     render(() => (
       <Grid data-testid="grid">
         <Grid.Col data-testid="col" span={6} />
       </Grid>
     ));
     const col = screen.getByTestId("col");
-    expect(col).toHaveStyle("flex-basis: 50%");
-    expect(col).toHaveStyle("max-width: 50%");
+    expect(col).toHaveStyle("grid-column: span 6 / span 6");
   });
 
-  it("Grid.Col applies offset as margin-left percent", () => {
+  it("Grid.Col applies offset as grid-column-start", () => {
     render(() => (
       <Grid data-testid="grid">
         <Grid.Col data-testid="col" offset={4} />
       </Grid>
     ));
-    expect(screen.getByTestId("col")).toHaveStyle("margin-left: 33.33333333333333%");
+    expect(screen.getByTestId("col")).toHaveStyle("grid-column-start: 5");
   });
 
   it("Grid.Col applies order", () => {

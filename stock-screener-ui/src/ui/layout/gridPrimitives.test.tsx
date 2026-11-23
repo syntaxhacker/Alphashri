@@ -57,9 +57,7 @@ describe("Grid", () => {
       </Grid>
     ));
     const col = screen.getByTestId("col");
-    expect(col).toHaveStyle("flex-basis: 50%");
-    expect(col).toHaveStyle("max-width: 50%");
-    expect(col).toHaveStyle("margin-left: 33.33333333333333%");
+    expect(col).toHaveStyle("grid-column: 5 / span 6");
     expect(col).toHaveStyle("order: 2");
   });
 

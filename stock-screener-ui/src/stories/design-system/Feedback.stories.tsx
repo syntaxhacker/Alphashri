@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/html-vite";
 import { solidStory } from "@/stories/solidStory";
 import {
   Alert, Badge, Box, Button, Group, Indicator, Loader, LoadingOverlay, Notifications, Progress,
-  RingProgress, Skeleton, Stack, Text, showSuccess,
+  RingProgress, Skeleton, Stack, Text, showError, showNotification, showSuccess,
 } from "@/ui";
 
 const meta: Meta = { title: "Design System/Feedback", tags: ["autodocs"] };
@@ -47,9 +47,57 @@ export const NotificationsExample: Story = {
   render: () =>
     solidStory(() => (
       <Notifications>
-        <Button onClick={() => showSuccess("Order accepted", "The paper order was written to the book.")}>
-          Show success notification
-        </Button>
+        <Stack gap="sm" style={{ "max-width": "560px" }}>
+          <Text size="xs" c="dimmed">
+            Toasts stack in the bottom-right toaster. Use the buttons to exercise each entry point;
+            <code> showNotification</code> maps <code>color</code> to the toast variant.
+          </Text>
+          <Group gap="sm">
+            <Button
+              color="success"
+              onClick={() => showSuccess("Order accepted", "The paper order was written to the book.")}
+            >
+              showSuccess
+            </Button>
+            <Button
+              color="error"
+              onClick={() => showError("Feed unavailable", "The options chain returned 503.")}
+            >
+              showError
+            </Button>
+          </Group>
+          <Group gap="sm">
+            <Button
+              variant="outline"
+              color="error"
+              onClick={() => showNotification({ title: "Rejected", message: "Margin check failed for the short leg.", color: "error" })}
+            >
+              showNotification · error
+            </Button>
+            <Button
+              variant="outline"
+              color="warning"
+              onClick={() => showNotification({ title: "Partial fill", message: "Only 1 of 2 legs was filled.", color: "warning" })}
+            >
+              showNotification · warning
+            </Button>
+          </Group>
+          <Group gap="sm">
+            <Button
+              variant="outline"
+              color="info"
+              onClick={() => showNotification({ title: "Feed resumed", message: "Market data stream reconnected.", color: "info" })}
+            >
+              showNotification · info
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => showNotification({ title: "Notice", message: "A neutral notification with no colour.", autoClose: 6000 })}
+            >
+              showNotification · default
+            </Button>
+          </Group>
+        </Stack>
       </Notifications>
     )),
 };
