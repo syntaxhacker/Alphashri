@@ -11,7 +11,8 @@ Status of the worktree at `HEAD` = `fd219bdd` (2026-11-23):
 - `docs/screenshots/showcase/` — 52 PNGs committed (26 names × 2 viewports).
 - `docs/screenshots/app/` — only `report-{1600,390}.png` committed. `sector-*` exist
   in the worktree but are **untracked**; `home-*` and `options-*` do not exist.
-- `tests/visual/__screenshots__/` — README committed, **0 PNGs**.
+- `tests/visual/__screenshots__/` — README plus **12 baseline PNGs committed**
+  (6 stories × 2 viewports); `bun run visual:test` passes **12/12**.
 
 ## 1. App-route captures (`docs/screenshots/app/`)
 
@@ -98,7 +99,7 @@ results.
 | Axe, **30 stories** | `scripts/storybook-a11y.mjs`: 13 family landings + 3 overlay playables + 5 component representatives + 9 pinned visible states (BrokerAuthNotice, MembersDrawer, ×2 ChartPreviews states, Foundations theme bridge, 3 data-display result states, NavLink states). WCAG 2.0/2.1 A/AA; fails on serious/critical. | **Configured, not re-certified here.** No committed run log for the 30-story set. `DESIGN_SYSTEM_A_PLUS_GATE.md` agrees with the script at **30** stories; only the missing run log, not a doc mismatch, keeps 30 from being called green here. |
 | Axe, **app routes** | `tests/e2e/app-a11y.spec.ts` **runs in CI** in the `e2e-smoke` job (step `Verify app routes with axe`, `APP_A11Y=1`, 2 workers), after the smoke tests and reusing the same API + dev server. Real-browser axe audits of `/report/index`, `/sector`, `/options`, `/home` (desk) and bare `/screener` with shared mocks; WCAG 2.0/2.1 A/AA tags; fails on serious/critical only (`color-contrast` incompletes documented/allowed). | **Wired into CI.** Configuration change only — no committed run artifact accompanies this index, so treat the pass as a CI gate claim, not fresh evidence here. |
 | Keyboard, **10 walkthroughs** | `scripts/storybook-keyboard.mjs`: Modal open (Tab cycle/Shift+Tab wrap), Modal dismissal (Escape/focus return), Tree (arrows/expand/select), Menu (arrows/Home/End/Escape), horizontal Tabs, vertical Tabs, Popover, Tooltip, modal FloatingWindow, NavLink (button[role=link] Enter/Space activation, disabled inert, href stays an anchor). | **Configured.** `DESIGN_SYSTEM_A_PLUS_GATE.md:90` documents 10/10; no committed run artifact accompanies this index, so treat 10/10 as a documented claim, not fresh evidence. |
-| Visual baseline, **12 images** | `tests/visual/__screenshots__/README.md` and `docs/VISUAL_REGRESSION.md`: 6 stories × 2 viewports — `typography-landing`, `overview`, `inputs-landing`, `data-display-landing`, `overlay-landing`, `foundations-landing` at `desktop-1600` / `mobile-390`; `bun run visual:test` must find all 12 (no writes). | **Harness + CI step configured (`ff939b9a`), baselines pending.** Directory contains only `README.md`; 0 of 12 PNGs exist. `bun run build-storybook` + `bun run visual:update` must produce and commit them before the gate can pass; do not call it green. |
+| Visual baseline, **12 images** | `tests/visual/__screenshots__/README.md` and `docs/VISUAL_REGRESSION.md`: 6 stories × 2 viewports — `typography-landing`, `overview`, `inputs-landing`, `data-display-landing`, `overlay-landing`, `foundations-landing` at `desktop-1600` / `mobile-390`; `bun run visual:test` must find all 12 (no writes). | **12/12 passing.** Harness + CI step landed in `ff939b9a`; all 12 baseline PNGs (6 stories × 2 viewports) are generated and committed in `tests/visual/__screenshots__/`, and `bun run visual:test` passes **12/12** with no writes. This gate is green. |
 | Screenshot evidence, **64 PNGs** | `scripts/evidence-audit.mjs` via `bun run audit:evidence`: gating structural check of 12 app-route PNGs (`1600×1000` / `390×844`) and 52 showcase PNGs (width 1600 / 390, height ≥ viewport); each must exist, be a valid PNG and be ≥8 KiB. The 12 app-route PNGs cover report, sector, home, options, **screener and patterns** — screener/patterns are now gated by the manifest (previously ungated). **Runs in CI** in the `frontend-lint-typecheck` job (step `Verify screenshot evidence`, immediately after `Verify Storybook visual baseline`). | **Wired into CI (gating, exits 1 on missing/invalid/too-small/wrong-dimension).** Current `HEAD` has known pending app-route captures (§5), including screener/patterns — intentional until the final capture commit adds them; do not call it green before that commit lands. |
 
 ## 4. Evidence vs claims — the line
@@ -112,9 +113,9 @@ results.
 - Script definitions are gate *configuration*; a pass result needs a run/artifact.
   The 30-story axe number comes from the script, and `DESIGN_SYSTEM_A_PLUS_GATE.md`
   agrees at 30 — still configuration, not a committed run result.
-- The pixel-diff harness and CI step exist (`ff939b9a`), but no baseline PNGs
-  have been generated or committed yet (0 of 12), so "visual regression gate
-  passes" is not a supportable claim today.
+- The pixel-diff harness, CI step and all 12 committed baseline PNGs exist
+  (`tests/visual/__screenshots__/`), and `bun run visual:test` passes **12/12** —
+  "visual regression gate passes" is now a supportable claim.
 - Screenshot captions in `VISUAL_AUDIT_APP.md` describe `sector-390.png` as
   committed; git does not. Trust the file state in §1.
 
@@ -123,10 +124,9 @@ results.
 1. `sector-{1600,390}.png` — commit the existing worktree files (or re-capture).
 2. `home-{1600,390}.png` and `options-{1600,390}.png` — capture both routes.
 3. Bare `/screener` and `/patterns` route captures at 1600/390 (no files at all).
-4. All 12 visual-baseline PNGs in `tests/visual/__screenshots__/`.
-5. A committed run result for the 30-story axe gate; a committed run result for
+4. A committed run result for the 30-story axe gate; a committed run result for
    10 keyboard walkthroughs.
-6. Live-app focus/keyboard, actual contrast ratios and reduced-motion evidence —
+5. Live-app focus/keyboard, actual contrast ratios and reduced-motion evidence —
    currently source-only or Storybook-only.
 
 ## 6. Evidence guard

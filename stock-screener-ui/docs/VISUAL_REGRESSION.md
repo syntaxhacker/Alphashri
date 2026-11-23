@@ -1,11 +1,12 @@
 # Visual regression (1600 / 390 pixel baseline)
 
-This is the automated pixel gate tracked as a known gap in
+This is the automated pixel gate in
 [`DESIGN_SYSTEM_A_PLUS_GATE.md`](./DESIGN_SYSTEM_A_PLUS_GATE.md). The harness and
 CI step landed in `ff939b9a`; it turns the Storybook screenshots into an
-assertion: once baselines exist, a visual change fails a run instead of only
-being visible in a diff review. **Current status: the 12 baseline PNGs are still
-pending generation by the main agent, so the gate is configured, not green.**
+assertion: a visual change fails a run instead of only being visible in a diff
+review. The 12 baseline PNGs (6 stories × 2 viewports) are generated and
+committed under `tests/visual/__screenshots__/`, and `bun run visual:test` passes
+**12/12**. **Current status: green.**
 
 ## Files
 
@@ -14,7 +15,7 @@ pending generation by the main agent, so the gate is configured, not green.**
 | `scripts/visual-regression.mjs` | Single entry point, invoked by `bun run visual:test` / `bun run visual:update`. Validates the static build and baselines, then launches Playwright. Supports `UPDATE_SNAPSHOTS=1`. |
 | `tests/visual/visual-regression.spec.ts` | The six Storybook stories, captured full-page at both breakpoints and compared with `toHaveScreenshot`. |
 | `tests/visual/playwright.visual.config.ts` | Standalone Playwright config (does **not** use the app's `playwright.config.ts`). Starts its own static server, defines the two viewport projects, pins the diff budget. |
-| `tests/visual/__screenshots__/` | Baseline PNGs (12 files: 6 stories × 2 breakpoints) — **pending generation by the main agent; 0 present as of this revision**. They **must be generated and committed** to the repo for the gate to pass in CI — see "One-time baseline creation / intentional update". |
+| `tests/visual/__screenshots__/` | **Committed baseline PNGs** (12 files: 6 stories × 2 breakpoints), generated and verified at **12/12** by `bun run visual:test`. See "One-time baseline creation / intentional update" for intentional updates. |
 
 The default `playwright.config.ts` targets `tests/e2e` and the Vite dev server
 on `localhost:5173`. This gate deliberately has its own config so it can only
@@ -69,11 +70,10 @@ This gate **runs in CI** on every PR. In the `frontend-lint-typecheck` job,
 `Build Storybook` produces the static build, `Install Playwright Chromium`
 provides the browser, and the `Verify Storybook visual baseline` step runs
 `bun run visual:test` alongside the axe and keyboard gates. A normal run never
-writes baselines (`updateSnapshots: "none"`), so the 12 PNGs **must be
-generated and committed** to the repo — otherwise CI fails with a
-missing-baseline error. As of this revision none have been generated yet, so
-that CI step currently fails on missing baselines; do not call the pixel gate
-green.
+writes baselines (`updateSnapshots: "none"`), so the 12 PNGs **must remain
+committed** to the repo — otherwise CI fails with a missing-baseline error.
+They are now committed and `bun run visual:test` passes **12/12**, so this CI
+step passes alongside the axe and keyboard gates.
 
 ## Prerequisite
 
@@ -88,9 +88,9 @@ Chromium browser binaries (`npx playwright install chromium` if absent).
 
 ## One-time baseline creation / intentional update
 
-The **first `bun run visual:update` creates all 12 baselines** (six stories ×
-two breakpoints). This has not been done yet; the generated PNGs must become
-committed artefacts — review the diff and commit them before
+`bun run visual:update` creates all 12 baselines (six stories × two
+breakpoints); this has been done and the PNGs are committed artefacts. For an
+intentional update, review the diff and commit the intended PNGs before
 `bun run visual:test` can pass for anyone else (including CI). From
 `stock-screener-ui/`:
 
