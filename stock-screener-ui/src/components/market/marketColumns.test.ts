@@ -6,7 +6,6 @@ import { buildMarketColumns } from "./marketColumns";
 import { MARKET_EXTRA_COLUMNS } from "../../config/marketExtraColumns";
 import type { PatternSummaryItem } from "./usePatternSummary";
 import type { MarketRow } from "../../types/marketScreener";
-import * as palette from "@/ui/palette";
 
 const ROW: MarketRow = {
   symbol: "RELIANCE",
