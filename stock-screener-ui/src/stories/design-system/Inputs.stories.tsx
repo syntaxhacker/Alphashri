@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { createSignal } from "solid-js";
-import type { JSX } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
 import {
-  Anchor, Badge, Box, Button, Card, Checkbox, Divider, Flex, NumberInput, Paper,
-  SegmentedControl, Select, Stack, Switch, Text, TextInput, Title,
+  Box, Button, Checkbox, Divider, Flex, NumberInput,
+  SegmentedControl, Select, Stack, Switch, Text, TextInput,
 } from "@/ui";
 import * as palette from "@/ui/palette";
+import { ComponentIndex, FamilyChip, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
 
 const meta: Meta = {
   title: "Design System/Inputs",
@@ -23,50 +23,6 @@ const meta: Meta = {
 export default meta;
 
 type Story = StoryObj;
-
-// Links must leave the preview iframe and open the Storybook manager.
-const docsHref = (id: string) => `../?path=/docs/${id}`;
-
-const DocsCard = (props: { id: string; label: string; note: string }) => (
-  <Paper p="sm" radius="sm" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-    <Stack gap="xs">
-      <Anchor href={docsHref(props.id)} target="_top" c="primary" fw={600} size="sm" underline="hover">
-        {props.label}
-      </Anchor>
-      <Text size="xs" c="dimmed">{props.note}</Text>
-    </Stack>
-  </Paper>
-);
-
-const PropChip = (props: { name: string; value: string }) => (
-  <Flex
-    gap="xs"
-    align="center"
-    wrap="wrap"
-    style={{
-      padding: "8px 10px",
-      "border-radius": "6px",
-      border: `1px solid ${palette.BORDER}`,
-      background: palette.SURFACE_ALT,
-    }}
-  >
-    <Text size="xs" fw={600} className="font-mono">{props.name}</Text>
-    <Text size="xs" c="dimmed" className="font-mono">{props.value}</Text>
-  </Flex>
-);
-
-const Section = (props: { eyebrow: string; title: string; note: string; children: JSX.Element }) => (
-  <Box component="section" style={{ width: "100%" }}>
-    <Stack gap="sm">
-      <Stack gap="xs">
-        <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">{props.eyebrow}</Text>
-        <Title order={2} size="md">{props.title}</Title>
-        <Text size="sm" c="dimmed">{props.note}</Text>
-      </Stack>
-      {props.children}
-    </Stack>
-  </Box>
-);
 
 const UNIVERSE_OPTIONS = [
   { value: "nifty50", label: "NIFTY 50" },
@@ -162,76 +118,53 @@ const PROPS = [
   { name: "state", value: "disabled · loading · error where supported" },
 ];
 
-const COMPONENTS = [
-  { id: "design-system-components-inputs-button--docs", label: "Button", note: "Variants, sizes, tones and loading." },
-  { id: "design-system-components-inputs-actionicon--docs", label: "ActionIcon", note: "Icon-only control with an aria-label." },
-  { id: "design-system-components-inputs-unstyledbutton--docs", label: "UnstyledButton", note: "Behaviour without the button skin." },
-  { id: "design-system-components-inputs-textinput--docs", label: "TextInput", note: "Single-line text with label and sections." },
-  { id: "design-system-components-inputs-numberinput--docs", label: "NumberInput", note: "Numeric bounds and step controls." },
-  { id: "design-system-components-inputs-textarea--docs", label: "Textarea", note: "Multi-line notes and theses." },
-  { id: "design-system-components-inputs-passwordinput--docs", label: "PasswordInput", note: "Masked text with visibility toggle." },
-  { id: "design-system-components-inputs-select--docs", label: "Select", note: "Single choice from a data list." },
-  { id: "design-system-components-inputs-multiselect--docs", label: "MultiSelect", note: "Multiple choices with removable values." },
-  { id: "design-system-components-inputs-segmentedcontrol--docs", label: "SegmentedControl", note: "Small exclusive view switcher." },
-  { id: "design-system-components-inputs-checkbox--docs", label: "Checkbox", note: "Boolean with label and description." },
-  { id: "design-system-components-inputs-switch--docs", label: "Switch", note: "On/off setting with a live readout." },
-  { id: "design-system-components-inputs-chip--docs", label: "Chip", note: "Compact selectable filter." },
-  { id: "design-system-components-inputs-slider--docs", label: "Slider", note: "Single numeric range." },
-  { id: "design-system-components-inputs-rangeslider--docs", label: "RangeSlider", note: "Lower and upper numeric bounds." },
-  { id: "design-system-components-inputs-datepicker--docs", label: "DatePicker", note: "Calendar date selection." },
-  { id: "design-system-components-inputs-copybutton--docs", label: "CopyButton", note: "Copy-to-clipboard feedback." },
+const COMPONENTS: FamilyComponentRef[] = [
+  { id: "design-system-components-inputs-button--docs", name: "Button", note: "Variants, sizes, tones and loading." },
+  { id: "design-system-components-inputs-actionicon--docs", name: "ActionIcon", note: "Icon-only control with an aria-label." },
+  { id: "design-system-components-inputs-unstyledbutton--docs", name: "UnstyledButton", note: "Behaviour without the button skin." },
+  { id: "design-system-components-inputs-textinput--docs", name: "TextInput", note: "Single-line text with label and sections." },
+  { id: "design-system-components-inputs-numberinput--docs", name: "NumberInput", note: "Numeric bounds and step controls." },
+  { id: "design-system-components-inputs-textarea--docs", name: "Textarea", note: "Multi-line notes and theses." },
+  { id: "design-system-components-inputs-passwordinput--docs", name: "PasswordInput", note: "Masked text with visibility toggle." },
+  { id: "design-system-components-inputs-select--docs", name: "Select", note: "Single choice from a data list." },
+  { id: "design-system-components-inputs-multiselect--docs", name: "MultiSelect", note: "Multiple choices with removable values." },
+  { id: "design-system-components-inputs-segmentedcontrol--docs", name: "SegmentedControl", note: "Small exclusive view switcher." },
+  { id: "design-system-components-inputs-checkbox--docs", name: "Checkbox", note: "Boolean with label and description." },
+  { id: "design-system-components-inputs-switch--docs", name: "Switch", note: "On/off setting with a live readout." },
+  { id: "design-system-components-inputs-chip--docs", name: "Chip", note: "Compact selectable filter." },
+  { id: "design-system-components-inputs-slider--docs", name: "Slider", note: "Single numeric range." },
+  { id: "design-system-components-inputs-rangeslider--docs", name: "RangeSlider", note: "Lower and upper numeric bounds." },
+  { id: "design-system-components-inputs-datepicker--docs", name: "DatePicker", note: "Calendar date selection." },
+  { id: "design-system-components-inputs-copybutton--docs", name: "CopyButton", note: "Copy-to-clipboard feedback." },
 ];
 
 export const Landing: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1100px", margin: "0 auto" }}>
-        <Card p="lg" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-          <Stack gap="md">
-            <Flex gap="sm" align="center" wrap="wrap">
-              <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">Design system / Inputs</Text>
-              <Badge size="xs" color="info">17 component pages</Badge>
-            </Flex>
-            <Stack gap="xs">
-              <Title order={1} size="xl">Inputs</Title>
-              <Text size="sm" c="dimmed">
-                Buttons, fields, selectors and toggles that keep one size scale, one focus ring and one labelling contract.
-              </Text>
-            </Stack>
-            <Box style={{ "border-top": `1px solid ${palette.BORDER}`, "padding-top": "16px" }}>
-              <Specimen />
-            </Box>
-          </Stack>
-        </Card>
+      <FamilyPage width="1100px" padding="0">
+        <FamilyHero
+          name="Inputs"
+          count={17}
+          caption="screen filter"
+          purpose="Buttons, fields, selectors and toggles that keep one size scale, one focus ring and one labelling contract."
+          specimen={<Specimen />}
+        />
 
-        <Section
-          eyebrow="Tokens"
+        <SpecimenPanel
           title="What Inputs owns"
           note="Real props from the input implementations. No synthetic controls: every value below is either a documented size/props row or a live control in the specimen."
         >
           <Flex gap="sm" wrap="wrap">
-            {PROPS.map((prop) => <PropChip name={prop.name} value={prop.value} />)}
+            {PROPS.map((prop) => <FamilyChip name={prop.name} value={prop.value} />)}
           </Flex>
-        </Section>
+        </SpecimenPanel>
 
-        <Section
-          eyebrow="Index"
-          title="Components in this family"
+        <ComponentIndex
+          items={COMPONENTS}
           note="Seventeen component pages hold the full state and variant matrices; the landing page keeps one realistic filter composition."
-        >
-          <Box
-            style={{
-              display: "grid",
-              "grid-template-columns": "repeat(auto-fit, minmax(240px, 1fr))",
-              gap: "8px",
-            }}
-          >
-            {COMPONENTS.map((component) => (
-              <DocsCard id={component.id} label={component.label} note={component.note} />
-            ))}
-          </Box>
-        </Section>
-      </Stack>
+        />
+        <FamilyFooter source="src/ui/inputs" pages="src/stories/components/inputs" />
+      </FamilyPage>
     )),
 };
 
@@ -239,9 +172,8 @@ export const Landing: Story = {
 export const SizesAndStates: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="md" style={{ "max-width": "820px", margin: "0 auto" }}>
-        <Section
-          eyebrow="Real demo"
+      <FamilyPage width="820px" padding="0">
+        <SpecimenPanel
           title="Sizes and states"
           note="Control heights follow the shared size scale; labelled fields carry an explicit width when they share a row."
         >
@@ -260,7 +192,7 @@ export const SizesAndStates: Story = {
             <TextInput size="sm" w={180} label="Symbol" defaultValue="NIFTY" />
             <Checkbox label="Include expired" defaultChecked />
           </Flex>
-        </Section>
-      </Stack>
+        </SpecimenPanel>
+      </FamilyPage>
     )),
 };

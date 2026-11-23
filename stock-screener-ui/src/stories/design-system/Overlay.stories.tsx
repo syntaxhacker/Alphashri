@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
-import type { JSX } from "solid-js";
 import { createSignal, Show } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
 import {
-  Anchor, Badge, Box, Button, Card, Divider, Flex, FloatingWindow, Group, Modal, Overlay, Paper,
-  Popover, PopoverDropdown, PopoverTarget, Stack, Text, Title, Tooltip,
+  Box, Button, FloatingWindow, Group, Modal, Overlay,
+  Popover, PopoverDropdown, PopoverTarget, Stack, Text, Tooltip,
 } from "@/ui";
 import * as palette from "@/ui/palette";
+import { ComponentIndex, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
 
 const meta: Meta = {
   title: "Design System/Overlay",
@@ -23,70 +23,13 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-const docsHref = (id: string) => `../?path=/docs/${id}`;
-const DocsLink = (props: { id: string; label: string }) => (
-  <Anchor href={docsHref(props.id)} target="_top" c="info" size="sm" underline="hover">{props.label}</Anchor>
-);
-
-type ComponentRef = { id: string; name: string; note: string };
-const components: ComponentRef[] = [
+const components: FamilyComponentRef[] = [
   { id: "design-system-components-overlay-floatingwindow--docs", name: "FloatingWindow", note: "Draggable, resizable title-bar window" },
   { id: "design-system-components-overlay-modal--docs", name: "Modal", note: "Focused dialog with backdrop dismissal" },
   { id: "design-system-components-overlay-overlay--docs", name: "Overlay", note: "Block or dim a bounded region" },
   { id: "design-system-components-overlay-popover--docs", name: "Popover", note: "Anchored settings panel" },
   { id: "design-system-components-overlay-tooltip--docs", name: "Tooltip", note: "Hover hint with an optional arrow" },
 ];
-
-const FamilyHero = (props: { name: string; purpose: string; count: number; specimen: JSX.Element }) => (
-  <Paper p="lg" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}`, "border-left": `3px solid ${palette.PRIMARY}` }}>
-    <Stack gap="md">
-      <Flex gap="sm" align="center" wrap="wrap">
-        <Text size="xs" c="primary" tt="uppercase" fw={500} className="font-mono">Design system · family</Text>
-        <Badge size="xs" variant="light" color="primary">{props.count} component pages</Badge>
-      </Flex>
-      <Stack gap="xs">
-        <Title order={1} size="xl">{props.name}</Title>
-        <Text size="sm" c="default" style={{ "max-width": "780px" }}>{props.purpose}</Text>
-      </Stack>
-      <Divider />
-      <Text size="xs" c="dimmed" tt="uppercase" fw={500} className="font-mono">Overview · order ticket chrome</Text>
-      {props.specimen}
-    </Stack>
-  </Paper>
-);
-
-const ComponentIndex = (props: { items: ComponentRef[] }) => (
-  <Stack gap="sm">
-    <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">Index</Text>
-    <Flex gap="sm" align="baseline" wrap="wrap">
-      <Title order={2} size="lg">Components in this family</Title>
-      <Text size="xs" c="dimmed">Open each card to reach its dedicated page.</Text>
-    </Flex>
-    <div style={{ display: "grid", "grid-template-columns": "repeat(auto-fill, minmax(220px, 1fr))", gap: "8px" }}>
-      {props.items.map((item) => (
-        <Card key={item.id} p="sm" radius="sm" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-          <Stack gap="xs">
-            <DocsLink id={item.id} label={item.name} />
-            <Text size="xs" c="dimmed">{item.note}</Text>
-          </Stack>
-        </Card>
-      ))}
-    </div>
-  </Stack>
-);
-
-const Specimen = (props: { title: string; note: string; children: JSX.Element }) => (
-  <Paper p="md" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-    <Stack gap="sm">
-      <Flex gap="sm" align="baseline" wrap="wrap">
-        <Title order={3} size="md">{props.title}</Title>
-        <Text size="xs" c="dimmed">{props.note}</Text>
-      </Flex>
-      <Divider />
-      {props.children}
-    </Stack>
-  </Paper>
-);
 
 const TicketChromeSpecimen = () => {
   const [opened, setOpened] = createSignal(false);
@@ -194,21 +137,22 @@ const FloatingSpecimen = () => {
 export const FamilyLanding: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1120px", margin: "0 auto", padding: "4px 0 24px" }}>
+      <FamilyPage>
         <FamilyHero
           name="Overlay"
           count={components.length}
+          caption="order ticket chrome"
           purpose="Surfaces that sit above the current view: tooltips for a hint, popovers for a short task, modals for confirmation, overlays to block a region and floating windows for a persistent side desk. Open one at a time and give each a clear dismissal path."
           specimen={<TicketChromeSpecimen />}
         />
         <ComponentIndex items={components} />
-        <Specimen title="Overlay" note="A local blocker keeps the rest of the panel visible and readable.">
+        <SpecimenPanel title="Overlay" note="A local blocker keeps the rest of the panel visible and readable.">
           <OverlaySpecimen />
-        </Specimen>
-        <Specimen title="FloatingWindow" note="Title bar and edges drive geometry through the same controlled props.">
+        </SpecimenPanel>
+        <SpecimenPanel title="FloatingWindow" note="Title bar and edges drive geometry through the same controlled props.">
           <FloatingSpecimen />
-        </Specimen>
-        <Specimen title="Tooltip placement" note="Top and bottom positions with arrows; hover to inspect.">
+        </SpecimenPanel>
+        <SpecimenPanel title="Tooltip placement" note="Top and bottom positions with arrows; hover to inspect.">
           <Box style={{ padding: "56px 8px 8px" }}>
             <Group gap="lg" align="center" wrap="wrap">
               <Tooltip label="Refresh the option chain" position="top" withArrow>
@@ -219,8 +163,8 @@ export const FamilyLanding: Story = {
               </Tooltip>
             </Group>
           </Box>
-        </Specimen>
-        <Text size="xs" c="dimmed">Source: <code>src/ui</code> · per-component pages: <code>src/stories/components/Overlay</code>.</Text>
-      </Stack>
+        </SpecimenPanel>
+        <FamilyFooter source="src/ui" pages="src/stories/components/Overlay" />
+      </FamilyPage>
     )),
 };

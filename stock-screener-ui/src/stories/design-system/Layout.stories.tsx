@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
-import type { JSX } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
 import {
-  Anchor, Badge, Box, Button, Card, Col, Divider, Flex, Grid, GridCol, NumberInput,
-  Paper, Row, Select, Stack, Text, Title, ToolbarRow, useMediaQuery,
+  Box, Button, Col, Divider, Flex, Grid, GridCol, NumberInput,
+  Paper, Row, Select, Stack, Text, ToolbarRow, useMediaQuery,
 } from "@/ui";
 import { sp } from "@/ui/layout/spacing";
 import * as palette from "@/ui/palette";
+import { ComponentIndex, FamilyChip, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
 
 const meta: Meta = {
   title: "Design System/Layout",
@@ -23,50 +23,6 @@ const meta: Meta = {
 export default meta;
 
 type Story = StoryObj;
-
-// Links must leave the preview iframe and open the Storybook manager.
-const docsHref = (id: string) => `../?path=/docs/${id}`;
-
-const DocsCard = (props: { id: string; label: string; note: string }) => (
-  <Paper p="sm" radius="sm" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-    <Stack gap="xs">
-      <Anchor href={docsHref(props.id)} target="_top" c="primary" fw={600} size="sm" underline="hover">
-        {props.label}
-      </Anchor>
-      <Text size="xs" c="dimmed">{props.note}</Text>
-    </Stack>
-  </Paper>
-);
-
-const PropChip = (props: { name: string; value: string }) => (
-  <Flex
-    gap="xs"
-    align="center"
-    wrap="wrap"
-    style={{
-      padding: "8px 10px",
-      "border-radius": "6px",
-      border: `1px solid ${palette.BORDER}`,
-      background: palette.SURFACE_ALT,
-    }}
-  >
-    <Text size="xs" fw={600} className="font-mono">{props.name}</Text>
-    <Text size="xs" c="dimmed" className="font-mono">{props.value}</Text>
-  </Flex>
-);
-
-const Section = (props: { eyebrow: string; title: string; note: string; children: JSX.Element }) => (
-  <Box component="section" style={{ width: "100%" }}>
-    <Stack gap="sm">
-      <Stack gap="xs">
-        <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">{props.eyebrow}</Text>
-        <Title order={2} size="md">{props.title}</Title>
-        <Text size="sm" c="dimmed">{props.note}</Text>
-      </Stack>
-      {props.children}
-    </Stack>
-  </Box>
-);
 
 const cell = (label: string, sub?: string, tone = palette.BORDER) => (
   <Box
@@ -146,74 +102,51 @@ const PROPS = [
   { name: "surfaces", value: "BG → SURFACE → SURFACE_ALT · BORDER hairline" },
 ];
 
-const COMPONENTS = [
-  { id: "design-system-components-layout-box--docs", label: "Box", note: "Semantic tag, sizing and spacing." },
-  { id: "design-system-components-layout-flex--docs", label: "Flex", note: "Direction, wrap, justify and align." },
-  { id: "design-system-components-layout-stack--docs", label: "Stack", note: "Column flow with a single gap." },
-  { id: "design-system-components-layout-group--docs", label: "Group", note: "Inline clusters with wrap control." },
-  { id: "design-system-components-layout-toolbarrow--docs", label: "ToolbarRow", note: "Centred control rows with explicit gap." },
-  { id: "design-system-components-layout-grid--docs", label: "Grid", note: "12 tracks with GridCol spans and offsets." },
-  { id: "design-system-components-layout-row--docs", label: "Row", note: "Responsive bands with Col overrides." },
-  { id: "design-system-components-layout-simplegrid--docs", label: "SimpleGrid", note: "Equal columns for card sets." },
-  { id: "design-system-components-layout-paper--docs", label: "Paper", note: "Panel surface and named shadows." },
-  { id: "design-system-components-layout-card--docs", label: "Card", note: "Raised panel with its own radius scale." },
-  { id: "design-system-components-layout-center--docs", label: "Center", note: "Centres content in a host." },
-  { id: "design-system-components-layout-divider--docs", label: "Divider", note: "Hairline separation with optional label." },
-  { id: "design-system-components-layout-collapse--docs", label: "Collapse", note: "Reveals content without a fixed-height hole." },
-  { id: "design-system-components-layout-scrollarea--docs", label: "ScrollArea", note: "Owns its own scroll viewport." },
-  { id: "design-system-components-layout-portal--docs", label: "Portal", note: "Mounts content outside the local flow." },
+const COMPONENTS: FamilyComponentRef[] = [
+  { id: "design-system-components-layout-box--docs", name: "Box", note: "Semantic tag, sizing and spacing." },
+  { id: "design-system-components-layout-flex--docs", name: "Flex", note: "Direction, wrap, justify and align." },
+  { id: "design-system-components-layout-stack--docs", name: "Stack", note: "Column flow with a single gap." },
+  { id: "design-system-components-layout-group--docs", name: "Group", note: "Inline clusters with wrap control." },
+  { id: "design-system-components-layout-toolbarrow--docs", name: "ToolbarRow", note: "Centred control rows with explicit gap." },
+  { id: "design-system-components-layout-grid--docs", name: "Grid", note: "12 tracks with GridCol spans and offsets." },
+  { id: "design-system-components-layout-row--docs", name: "Row", note: "Responsive bands with Col overrides." },
+  { id: "design-system-components-layout-simplegrid--docs", name: "SimpleGrid", note: "Equal columns for card sets." },
+  { id: "design-system-components-layout-paper--docs", name: "Paper", note: "Panel surface and named shadows." },
+  { id: "design-system-components-layout-card--docs", name: "Card", note: "Raised panel with its own radius scale." },
+  { id: "design-system-components-layout-center--docs", name: "Center", note: "Centres content in a host." },
+  { id: "design-system-components-layout-divider--docs", name: "Divider", note: "Hairline separation with optional label." },
+  { id: "design-system-components-layout-collapse--docs", name: "Collapse", note: "Reveals content without a fixed-height hole." },
+  { id: "design-system-components-layout-scrollarea--docs", name: "ScrollArea", note: "Owns its own scroll viewport." },
+  { id: "design-system-components-layout-portal--docs", name: "Portal", note: "Mounts content outside the local flow." },
 ];
 
 export const Landing: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1100px", margin: "0 auto" }}>
-        <Card p="lg" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
-          <Stack gap="md">
-            <Flex gap="sm" align="center" wrap="wrap">
-              <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">Design system / Layout</Text>
-              <Badge size="xs" color="info">15 component pages</Badge>
-            </Flex>
-            <Stack gap="xs">
-              <Title order={1} size="xl">Layout</Title>
-              <Text size="sm" c="dimmed">
-                Box, flex, grid and surface primitives that compose terminal panels without inventing a second spacing system.
-              </Text>
-            </Stack>
-            <Box style={{ "border-top": `1px solid ${palette.BORDER}`, "padding-top": "16px" }}>
-              <Specimen />
-            </Box>
-          </Stack>
-        </Card>
+      <FamilyPage width="1100px" padding="0">
+        <FamilyHero
+          name="Layout"
+          count={15}
+          caption="toolbar and 12-track split"
+          purpose="Box, flex, grid and surface primitives that compose terminal panels without inventing a second spacing system."
+          specimen={<Specimen />}
+        />
 
-        <Section
-          eyebrow="Tokens"
+        <SpecimenPanel
           title="What Layout owns"
           note="Named spacing values plus the radius and surface scales mirrored in Paper and Card. Per-prop behaviour is documented on each component page."
         >
           <Flex gap="sm" wrap="wrap">
-            {PROPS.map((prop) => <PropChip name={prop.name} value={prop.value} />)}
+            {PROPS.map((prop) => <FamilyChip name={prop.name} value={prop.value} />)}
           </Flex>
-        </Section>
+        </SpecimenPanel>
 
-        <Section
-          eyebrow="Index"
-          title="Components in this family"
+        <ComponentIndex
+          items={COMPONENTS}
           note="Fifteen component pages cover every layout primitive; the landing page keeps only one composite specimen and the grid contract."
-        >
-          <Box
-            style={{
-              display: "grid",
-              "grid-template-columns": "repeat(auto-fit, minmax(240px, 1fr))",
-              gap: "8px",
-            }}
-          >
-            {COMPONENTS.map((component) => (
-              <DocsCard id={component.id} label={component.label} note={component.note} />
-            ))}
-          </Box>
-        </Section>
-      </Stack>
+        />
+        <FamilyFooter source="src/ui/layout" pages="src/stories/components/layout" />
+      </FamilyPage>
     )),
 };
 
@@ -244,9 +177,8 @@ const Ruler = () => (
 export const GridContract: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="md" style={{ "max-width": "900px", margin: "0 auto" }}>
-        <Section
-          eyebrow="Real demo"
+      <FamilyPage width="900px" padding="0">
+        <SpecimenPanel
           title="The 12-track contract"
           note="GridCol span writes a real grid-column; offset sets grid-column-start. The numbered ruler makes both values checkable by eye."
         >
@@ -270,8 +202,8 @@ export const GridContract: Story = {
               </Grid>
             </Stack>
           </Stack>
-        </Section>
-      </Stack>
+        </SpecimenPanel>
+      </FamilyPage>
     )),
 };
 
@@ -303,9 +235,8 @@ export const Responsive390: Story = {
   },
   render: () =>
     solidStory(() => (
-      <Stack gap="md" style={{ "max-width": "100%" }}>
-        <Section
-          eyebrow="Real demo"
+      <FamilyPage width="100%" padding="0">
+        <SpecimenPanel
           title="390px handset"
           note="matchMedia resolves against the iframe width, so the base branches below are what a 390px device sees."
         >
@@ -338,7 +269,7 @@ export const Responsive390: Story = {
               </ToolbarRow>
             </Stack>
           </Stack>
-        </Section>
-      </Stack>
+        </SpecimenPanel>
+      </FamilyPage>
     )),
 };
