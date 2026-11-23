@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, splitProps } from "solid-js";
+import { createEffect, createMemo, createSignal, createUniqueId, splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UICheckboxProps } from "../types";
 
@@ -52,6 +52,12 @@ export function Checkbox(props: UICheckboxProps) {
     "onMouseEnter",
     "onMouseLeave",
   ]);
+
+  const uid = createUniqueId();
+  const messageId = `${uid}-message`;
+  const message = () =>
+    typeof known.error === "string" && known.error.trim() ? known.error : known.description;
+  const describedBy = () => (message() ? messageId : undefined);
 
   let inputEl: HTMLInputElement | undefined;
   const [uncontrolled, setUncontrolled] = createSignal(known.defaultChecked ?? false);
@@ -131,7 +137,9 @@ export function Checkbox(props: UICheckboxProps) {
         onBlur={() => setFocused(false)}
         disabled={known.disabled}
         name={known.name}
-        id={known.id}
+        id={known.id ?? `${uid}-control`}
+        aria-invalid={known.error ? "true" : undefined}
+        aria-describedby={describedBy()}
         data-testid={known["data-testid"]}
         // The global `:is(input, …):focus` rule paints an amber outline on every
         // mouse click; the box below is this control's own indicator, so the
@@ -161,7 +169,14 @@ export function Checkbox(props: UICheckboxProps) {
       {control}
       <span className="leading-none">
         {known.label ? <span className="text-fin-text">{known.label}</span> : null}
-        {known.description ? <span className="text-xs text-fin-text-muted">{known.description}</span> : null}
+        {message() ? (
+          <span
+            id={messageId}
+            className={known.error ? "text-xs text-fin-negative" : "text-xs text-fin-text-muted"}
+          >
+            {message()}
+          </span>
+        ) : null}
       </span>
     </label>
   );

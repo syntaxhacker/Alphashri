@@ -80,4 +80,13 @@ describe("Checkbox — square selection box", () => {
     expect(style).toContain("border-color: var(--color-fin-primary)");
     expect(style).toContain("box-shadow: 0 0 0 1px var(--color-fin-primary)");
   });
+
+  it("exposes an error message and invalid state on the checkbox", () => {
+    render(() => <Checkbox label="Accept" error="Required" data-testid="cb" />);
+    const input = screen.getByTestId("cb");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    const describedBy = input.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy!)).toHaveTextContent("Required");
+  });
 });
