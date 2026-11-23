@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
-import { createSignal, Match, Switch } from "solid-js";
+import { createSignal, Match, Show, Switch } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
 import {
   Accordion, Badge, Box, Button, DENSITY_TOKENS, Group, List, ListItem,
@@ -117,43 +117,83 @@ const DensitySurface = (props: { density: Density }) => {
   );
 };
 
+type ScanState = "empty" | "scanning" | "error";
+
+const RESULT_STATE_COPY: Record<ScanState, { label: string; message: string }> = {
+  empty: { label: "NO MATCHES", message: "No symbols matched this filter" },
+  scanning: { label: "SCANNING", message: "Scanning the universe" },
+  error: { label: "FEED ERROR", message: "The options chain is temporarily unavailable." },
+};
+
+/** One results surface, pinned to a state, with a stable id and honest copy. */
+const ResultStateSurface = (props: { state: ScanState; onWiden?: () => void; onRetry?: () => void }) => (
+  <div
+    data-testid={`story-result-state-${props.state}`}
+    data-story-result-state={props.state}
+    style={{ border: `1px solid ${palette.BORDER}`, background: palette.SURFACE, "min-height": "180px", padding: "8px" }}
+  >
+    <Switch fallback={
+      <TableEmptyState
+        message={RESULT_STATE_COPY.empty.message}
+        action={<Button size="xs" variant="outline" onClick={props.onWiden}>Widen the filter</Button>}
+      />
+    }>
+      <Match when={props.state === "scanning"}>
+        <TableLoadingState message={RESULT_STATE_COPY.scanning.message} />
+      </Match>
+      <Match when={props.state === "error"}>
+        <ErrorAlert
+          title="Feed unavailable"
+          message={RESULT_STATE_COPY.error.message}
+          withRetry
+          onRetry={props.onRetry}
+        />
+      </Match>
+    </Switch>
+  </div>
+);
+
 /** One results surface shown in its three real states, switched by a real control. */
-const ScanStatesSpecimen = () => {
-  const [state, setState] = createSignal("empty");
+const ScanStatesSpecimen = (props: { initial?: ScanState; withSelector?: boolean }) => {
+  const [state, setState] = createSignal<ScanState>(props.initial ?? "empty");
   return (
     <Stack gap="sm" style={{ "max-width": "640px" }}>
-      <SegmentedControl
-        aria-label="Scan result state"
-        value={state()}
-        onChange={setState}
-        data={[
-          { value: "empty", label: "NO MATCHES" },
-          { value: "loading", label: "SCANNING" },
-          { value: "error", label: "FEED ERROR" },
-        ]}
+      <Show when={props.withSelector !== false}>
+        <SegmentedControl
+          aria-label="Scan result state"
+          value={state()}
+          onChange={(next) => setState(next as ScanState)}
+          data={[
+            { value: "empty", label: RESULT_STATE_COPY.empty.label },
+            { value: "scanning", label: RESULT_STATE_COPY.scanning.label },
+            { value: "error", label: RESULT_STATE_COPY.error.label },
+          ]}
+        />
+      </Show>
+      <ResultStateSurface
+        state={state()}
+        onWiden={() => setState("scanning")}
+        onRetry={() => setState("scanning")}
       />
-      <Box style={{ border: `1px solid ${palette.BORDER}`, background: palette.SURFACE, "min-height": "180px" }}>
-        <Switch fallback={
-          <TableEmptyState
-            message="No symbols matched this filter"
-            action={<Button size="xs" variant="outline" onClick={() => setState("loading")}>Widen the filter</Button>}
-          />
-        }>
-          <Match when={state() === "loading"}>
-            <TableLoadingState message="Scanning the universe" />
-          </Match>
-          <Match when={state() === "error"}>
-            <ErrorAlert
-              title="Feed unavailable"
-              message="The options chain is temporarily unavailable."
-              withRetry
-              onRetry={() => setState("loading")}
-            />
-          </Match>
-        </Switch>
-      </Box>
+      <div data-testid="story-result-state-active">
+        <Text size="xs" c="dimmed">{`Showing: ${RESULT_STATE_COPY[state()].label}`}</Text>
+      </div>
     </Stack>
   );
+};
+
+const PinnedResultStateStory = (state: ScanState): Story => {
+  const label = RESULT_STATE_COPY[state].label;
+  return {
+    name: `Result states · ${label}`,
+    render: () =>
+      solidStory(() => (
+        <Stack gap="sm">
+          <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">{`Result states · ${label}`}</Text>
+          <ScanStatesSpecimen initial={state} withSelector={false} />
+        </Stack>
+      )),
+  };
 };
 
 export const FamilyLanding: Story = {
@@ -202,6 +242,10 @@ export const FamilyLanding: Story = {
       </FamilyPage>
     )),
 };
+
+export const ResultStatesEmpty: Story = PinnedResultStateStory("empty");
+export const ResultStatesScanning: Story = PinnedResultStateStory("scanning");
+export const ResultStatesFeedError: Story = PinnedResultStateStory("error");
 
 function MenuSpecimen() {
   const [opened, setOpened] = createSignal(false);
