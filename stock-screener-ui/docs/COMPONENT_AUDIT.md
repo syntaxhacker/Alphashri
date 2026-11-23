@@ -6,9 +6,9 @@ Scope: `src/ui/**` and `src/components/common/**` component modules (99 files).
 
 ## Story catalog
 
-- Story files scanned: **13** (13 centralized under `src/stories/design-system/`, 0 co-located).
-- Story entries parsed from `export const …`: **67**.
-- Distinct exported component names imported by those stories: **101**.
+- Story files scanned: **92** (92 centralized under `src/stories/design-system/`, 0 co-located).
+- Story entries parsed from `export const …`: **381**.
+- Distinct exported component names imported by those stories: **147**.
 - A module is marked "yes" in the Story column only when a story imports one of its **actual exported names**, resolved through `@/ui` re-exports and relative co-located imports. Filename string matches are no longer used.
 
 **Scope of the claim:** this is a primitive-level design-system catalog (tokens, layout/input/feedback primitives and a handful of shared widgets). It is **not** a claim that all 99 audited modules are tested or visually reviewed. "Story: yes" means a story imports and renders that export, nothing more.
@@ -26,8 +26,8 @@ Scope: `src/ui/**` and `src/components/common/**` component modules (99 files).
 
 ## Status
 
-- Audited modules exercised by a story: **76/99**
-- Modules with a co-located test: **68/99**
+- Audited modules exercised by a story: **83/99**
+- Modules with a co-located test: **69/99**
 - Violations: **0**
 
 No rule violations.
@@ -41,43 +41,43 @@ No rule violations.
 | `components/common/BrokerAuthNotice.tsx` | yes | `BrokerAuthNotice` | — | 0 | 0 |
 | `components/common/ChartDockOutlet.tsx` | — | — | yes | 0 | 0 |
 | `components/common/ChartErrorBoundary.tsx` | — | — | yes | 0 | 0 |
-| `components/common/charts/MiniLineChart.tsx` | — | — | yes | 0 | 0 |
+| `components/common/charts/MiniLineChart.tsx` | yes | `MiniLineChart` | yes | 0 | 0 |
 | `components/common/ClickableSymbol.tsx` | — | — | yes | 0 | 0 |
 | `components/common/ColumnPicker.tsx` | — | — | yes | 0 | 0 |
-| `components/common/compact.tsx` | yes | `CompactPanel`, `CompactStat`, `CompactStatGrid` | yes | 0 | 0 |
+| `components/common/compact.tsx` | yes | `CompactPage`, `CompactPanel`, `CompactStat`, `CompactStatGrid` | yes | 0 | 0 |
 | `components/common/CorrelationHeatmap.tsx` | — | — | yes | 0 | 0 |
 | `components/common/EChart.tsx` | — | — | yes | 0 | 0 |
-| `components/common/ErrorBoundary.tsx` | — | — | yes | 0 | 0 |
-| `components/common/FilterStatusRow.tsx` | yes | `FilterStatusRow` | yes | 0 | 0 |
-| `components/common/Icons.tsx` | — | — | yes | 0 | 0 |
-| `components/common/KeyValue.tsx` | yes | `KeyValue` | yes | 0 | 0 |
+| `components/common/ErrorBoundary.tsx` | yes | `ErrorBoundary` | yes | 0 | 0 |
+| `components/common/FilterStatusRow.tsx` | yes | `FILTER_STATUS_ROW_ARIA_LABEL`, `FILTER_STATUS_ROW_HEIGHT_CLASS`, `FilterStatusRow` | yes | 0 | 0 |
+| `components/common/Icons.tsx` | yes | `Icon`, `IconActivity`, `IconAlertCircle`, `IconAlertTriangle`, `IconArrowDown`, `IconArrowUp`, `IconChartCandle`, `IconChartLine`, `IconCheck`, `IconChevronRight`, `IconDatabaseOff`, `IconExternalLink`, `IconMoon`, `IconSearch`, `IconSettings` | yes | 0 | 0 |
+| `components/common/KeyValue.tsx` | yes | `Delta`, `KeyValue`, `KeyValueGrid`, `KeyValuePair` | yes | 0 | 0 |
 | `components/common/MembersDrawer.tsx` | — | — | — | 0 | 0 |
 | `components/common/PanelModal.tsx` | — | — | yes | 0 | 0 |
-| `components/common/PnlText.tsx` | yes | `PnlText` | yes | 0 | 0 |
+| `components/common/PnlText.tsx` | yes | `PnlBadge`, `PnlText` | yes | 0 | 0 |
 | `components/common/preview/ExpandedPanel.tsx` | — | — | — | 0 | 0 |
 | `components/common/preview/HoverPreview.tsx` | — | — | — | 0 | 0 |
 | `components/common/PreviewChartProvider.tsx` | — | — | yes | 0 | 0 |
 | `components/common/RangeInput.tsx` | yes | `RangeInput` | yes | 0 | 0 |
 | `components/common/SectionHeader.tsx` | yes | `SectionHeader` | — | 0 | 0 |
 | `components/common/Sparkline.tsx` | yes | `Sparkline` | yes | 0 | 0 |
-| `components/common/states.tsx` | yes | `EmptyState`, `ErrorAlert`, `InlineLoader` | yes | 0 | 0 |
+| `components/common/states.tsx` | yes | `EmptyCompact`, `EmptyState`, `ErrorAlert`, `InlineLoader` | yes | 0 | 0 |
 | `components/common/SymbolAutocomplete.tsx` | — | — | yes | 0 | 0 |
 | `components/common/SymbolDockProvider.tsx` | — | — | yes | 0 | 0 |
-| `components/common/SymbolLink.tsx` | — | — | yes | 0 | 0 |
+| `components/common/SymbolLink.tsx` | yes | `SymbolLink` | yes | 0 | 0 |
 | `components/common/table/renderers.tsx` | — | — | — | 0 | 0 |
-| `components/common/tableCells.tsx` | — | — | yes | 0 | 0 |
+| `components/common/tableCells.tsx` | yes | `BadgeCell`, `DashCell`, `FlashValue`, `NumCell`, `SymbolCell`, `TextCell` | yes | 0 | 0 |
 | `components/common/TableEmptyState.tsx` | yes | `TableEmptyState` | yes | 0 | 0 |
 | `components/common/TableLoadingState.tsx` | yes | `TableLoadingState` | yes | 0 | 0 |
-| `components/common/TanStackTable.tsx` | yes | `TanStackTable` | yes | 0 | 0 |
-| `components/common/TradeStatsGrid.tsx` | yes | `TradeStatsGrid` | — | 0 | 0 |
-| `components/common/TradingDatePicker.tsx` | — | — | yes | 0 | 0 |
-| `ui/data-display/Accordion.tsx` | yes | `Accordion` | yes | 0 | 0 |
+| `components/common/TanStackTable.tsx` | yes | `TABLE_METRICS`, `TanStackTable` | yes | 0 | 0 |
+| `components/common/TradeStatsGrid.tsx` | yes | `TradeStatsGrid`, `computeTradeStats`, `formatCurrencySigned` | — | 0 | 0 |
+| `components/common/TradingDatePicker.tsx` | yes | `TradingDatePicker` | yes | 0 | 0 |
+| `ui/data-display/Accordion.tsx` | yes | `Accordion`, `AccordionControl`, `AccordionItem`, `AccordionPanel` | yes | 0 | 0 |
 | `ui/data-display/Menu.tsx` | yes | `Menu`, `MenuDropdown`, `MenuItem`, `MenuTarget` | yes | 0 | 0 |
 | `ui/data-display/Tabs.tsx` | yes | `Tab`, `Tabs`, `TabsList`, `TabsPanel` | — | 0 | 0 |
 | `ui/data-display/Timeline.tsx` | yes | `Timeline` | — | 0 | 0 |
 | `ui/data-display/Tree.tsx` | yes | `Tree` | yes | 0 | 0 |
 | `ui/dates/DatePicker.tsx` | yes | `DatePicker` | yes | 0 | 0 |
-| `ui/density.tsx` | yes | `DENSITY_TOKENS` | yes | 0 | 0 |
+| `ui/density.tsx` | yes | `DENSITY_TOKENS`, `DensityProvider` | yes | 0 | 0 |
 | `ui/feedback/Alert.tsx` | yes | `Alert` | yes | 0 | 0 |
 | `ui/feedback/Badge.tsx` | yes | `Badge` | yes | 0 | 0 |
 | `ui/feedback/Indicator.tsx` | yes | `Indicator` | yes | 0 | 0 |
@@ -85,8 +85,8 @@ No rule violations.
 | `ui/feedback/LoadingOverlay.tsx` | yes | `LoadingOverlay` | yes | 0 | 0 |
 | `ui/feedback/Progress.tsx` | yes | `Progress` | yes | 0 | 0 |
 | `ui/feedback/RingProgress.tsx` | yes | `RingProgress` | — | 0 | 0 |
-| `ui/feedback/Skeleton.tsx` | yes | `Skeleton` | — | 0 | 0 |
-| `ui/icons.tsx` | — | — | — | 0 | 0 |
+| `ui/feedback/Skeleton.tsx` | yes | `Skeleton` | yes | 0 | 0 |
+| `ui/icons.tsx` | yes | `IconActivity`, `IconAlertCircle`, `IconAlertTriangle`, `IconBolt`, `IconBookmarkPlus`, `IconPencil`, `IconPlayerPlay`, `IconRefresh`, `IconTrash` | — | 0 | 0 |
 | `ui/inputs/ActionIcon.tsx` | yes | `ActionIcon` | yes | 0 | 0 |
 | `ui/inputs/Button.tsx` | yes | `Button` | yes | 0 | 0 |
 | `ui/inputs/Checkbox.tsx` | yes | `Checkbox` | yes | 0 | 0 |

@@ -1,6 +1,7 @@
 import { Show, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
+import { pickTextColor } from "@/utils/contrast";
 import type { UIBadgeProps } from "../types";
 
 /**
@@ -54,7 +55,7 @@ type BadgeBox = { h: number; font: number; px: number };
 const BADGE_BOX: Record<string, BadgeBox> = {
   xs: { h: 14, font: 9, px: 4 },
   sm: { h: 16, font: 9, px: 5 },
-  md: { h: 18, font: 9, px: 6 },
+  md: { h: 18, font: 10, px: 6 },
   lg: { h: 20, font: 10, px: 7 },
   xl: { h: 22, font: 10, px: 8 },
 };
@@ -100,6 +101,10 @@ export function Badge(props: UIBadgeProps) {
 
   const main = resolveColor(known.color);
   const fill = resolveFill(known.color);
+  // Theme fills already pair with the page token in both schemes. A raw caller
+  // colour cannot make that guarantee, so contrast-pick its ink instead.
+  const filledInk = (): string =>
+    fill.startsWith("var(") ? "var(--color-fin-bg)" : pickTextColor(fill, palette.TEXT, palette.BG);
   const isFilled = known.variant === "filled" || known.variant === "white";
   const isOutline = known.variant === "outline";
   const isDot = known.variant === "dot";
@@ -145,7 +150,7 @@ export function Badge(props: UIBadgeProps) {
         known.fullWidth ? "w-full" : "shrink-0",
         known.className,
       )}
-      style={{ ...shape(), color: isFilled ? "var(--color-fin-bg)" : main, ...known.style }}
+      style={{ ...shape(), color: isFilled ? filledInk() : main, ...known.style }}
       onClick={(e) => known.onClick?.(e)}
       onMouseEnter={(e) => known.onMouseEnter?.(e)}
       onMouseLeave={(e) => known.onMouseLeave?.(e)}

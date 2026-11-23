@@ -5,7 +5,7 @@ import { Loader } from "./Loader";
 import type { UILoadingOverlayProps } from "../types";
 
 function resolveColor(color: string | undefined): string {
-  if (!color) return withAlpha(palette.SURFACE, 0.55);
+  if (!color) return palette.alpha(palette.SURFACE, 0.72);
   if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl")) return color;
   const m: Record<string, string> = {
     primary: palette.PRIMARY,
@@ -16,13 +16,7 @@ function resolveColor(color: string | undefined): string {
     info: palette.INFO,
     secondary: palette.TEXT_MUTED,
   };
-  return m[color] ?? withAlpha(palette.SURFACE, 0.55);
-}
-
-function withAlpha(hex: string, alpha: number): string {
-  let h = hex.replace("#", "");
-  if (h.length === 3) h = h.split("").map((ch) => ch + ch).join("");
-  return `rgba(${parseInt(h.slice(0, 2), 16)}, ${parseInt(h.slice(2, 4), 16)}, ${parseInt(h.slice(4, 6), 16)}, ${alpha})`;
+  return m[color] ?? palette.alpha(palette.SURFACE, 0.72);
 }
 
 export function LoadingOverlay(props: UILoadingOverlayProps) {
@@ -45,7 +39,7 @@ export function LoadingOverlay(props: UILoadingOverlayProps) {
         id={known.id}
         className={cn("inset-0 z-10 flex items-center justify-center", known.overlayProps?.fixed ? "fixed" : "absolute", known.className)}
         style={{
-          "z-index": known.zIndex,
+          "z-index": known.zIndex ?? known.overlayProps?.zIndex,
           "background-color": resolveColor(known.overlayProps?.color),
           opacity: known.overlayProps?.opacity,
           "backdrop-filter":
@@ -53,11 +47,16 @@ export function LoadingOverlay(props: UILoadingOverlayProps) {
               ? `blur(${typeof known.overlayProps.blur === "number" ? `${known.overlayProps.blur}px` : known.overlayProps.blur})`
               : undefined,
           "border-radius": "inherit",
+          "box-sizing": "border-box",
           ...known.style,
         }}
         {...rest}
+        aria-busy="true"
       >
-        <div className="flex items-center justify-center w-full h-full">
+        <div
+          className="flex items-center justify-center w-full h-full"
+          style={{ "min-width": 0, "min-height": 0, padding: "16px" }}
+        >
           <Loader {...known.loaderProps} />
         </div>
         {known.children}

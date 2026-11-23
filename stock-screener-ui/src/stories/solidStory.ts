@@ -21,7 +21,10 @@ export function disposeSolidStories(): void {
 
 export function solidStory(component: () => JSX.Element): HTMLElement {
   const host = document.createElement("div");
-  host.style.cssText = `min-height:100%;background:${palette.BG_COLOR};color:${palette.TEXT_COLOR};padding:12px`;
+  // A surfaced canvas keeps panels, tables and bare controls readable against
+  // the page; the app itself uses BG, but a story screenshot is a specimen,
+  // not a blank terminal screen.
+  host.style.cssText = `min-height:100%;background:${palette.SURFACE};color:${palette.TEXT};padding:20px;box-sizing:border-box`;
   activeRoots.push(render(component, host));
   return host;
 }

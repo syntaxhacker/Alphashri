@@ -5,7 +5,7 @@ import { dirname, join, relative, resolve } from "node:path";
 const ROOT = new URL("../", import.meta.url).pathname.replace(/\/$/, "");
 const SRC = join(ROOT, "src");
 const GROUPS = ["ui", "components/common"];
-const STORY_ROOT = join(SRC, "stories", "design-system");
+const STORY_ROOT = join(SRC, "stories");
 
 const HEX = /#[0-9a-fA-F]{6}\b/g;
 const LEGACY_RADIUS = /rounded-\[(8|12)px\]|"border-radius":\s*"(8|12)px"/g;

@@ -21,4 +21,19 @@ describe("LoadingOverlay", () => {
       </LoadingOverlay>));
     expect(screen.queryByTestId("ov2")).toBeNull();
   });
+
+  test("is marked busy and uses a palette-derived alpha fill", () => {
+    render(() => <LoadingOverlay visible data-testid="ov3" />);
+    const overlay = screen.getByTestId("ov3");
+    expect(overlay).toHaveAttribute("aria-busy", "true");
+    expect(overlay.style.backgroundColor).toContain("rgba(");
+    expect(overlay.style.backgroundColor).not.toContain("#");
+    expect(overlay.querySelector("[role='progressbar']")).not.toBeNull();
+  });
+
+  test("gives the centred loader breathing room so it cannot clip", () => {
+    render(() => <LoadingOverlay visible data-testid="ov4" loaderProps={{ size: "xl" }} />);
+    const loader = screen.getByTestId("ov4").querySelector("[role='progressbar']") as HTMLElement;
+    expect(loader.parentElement?.style.padding).toBe("16px");
+  });
 });

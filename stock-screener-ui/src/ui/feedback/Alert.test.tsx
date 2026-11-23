@@ -2,6 +2,8 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi } from "vitest";
 import { fireEvent, render, screen } from "@solidjs/testing-library";
+import * as palette from "../palette";
+import { pickTextColor } from "@/utils/contrast";
 import { Alert } from "./Alert";
 
 describe("Alert", () => {
@@ -31,5 +33,20 @@ describe("Alert", () => {
     render(() => <Alert data-testid="al3">plain</Alert>);
     expect(screen.getByTestId("al3").textContent).toBe("plain");
     expect(screen.getByTestId("al3").querySelector("button")).toBeNull();
+  });
+
+  test("transparent variant really has no fill or border", () => {
+    render(() => <Alert variant="transparent" color="warning" data-testid="al4">quiet</Alert>);
+    const el = screen.getByTestId("al4");
+    expect(el.style.backgroundColor).toBe("transparent");
+    expect(el.style.border).toBe("");
+    expect(el.style.color).toBe(palette.WARNING);
+  });
+
+  test("filled alerts pick an ink that clears the contrast floor", () => {
+    render(() => <Alert variant="filled" color="warning" data-testid="al5">watch</Alert>);
+    const filled = screen.getByTestId("al5");
+    expect(filled.style.backgroundColor).toBe(palette.WARNING);
+    expect(filled.style.color).toBe(pickTextColor(palette.WARNING, palette.TEXT, palette.BG));
   });
 });

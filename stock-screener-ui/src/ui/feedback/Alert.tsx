@@ -1,6 +1,7 @@
 import { Show, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
+import { pickTextColor } from "@/utils/contrast";
 import type { UIAlertProps } from "../types";
 
 const SEVERITY_MAIN: Record<string, string> = {
@@ -54,6 +55,7 @@ export function Alert(props: UIAlertProps) {
   const main = resolveColor(known.color);
   const isFilled = known.variant === "filled";
   const isOutline = known.variant === "outline";
+  const isTransparent = known.variant === "transparent";
   const br = radiusValue(known.radius);
   const rgb = hexRgb(main);
 
@@ -63,10 +65,15 @@ export function Alert(props: UIAlertProps) {
   if (isFilled) {
     bg = main;
     borderColor = main;
-    textColor = palette.BG;
+    // A solid severity fill is only as readable as its ink; never force the
+    // page token onto a tone that resolves lighter than the text anchor.
+    textColor = pickTextColor(main, palette.TEXT, palette.BG);
   } else if (isOutline) {
     bg = "transparent";
     borderColor = main;
+    textColor = main;
+  } else if (isTransparent) {
+    bg = "transparent";
     textColor = main;
   } else {
     bg = `rgba(${rgb}, 0.10)`;
