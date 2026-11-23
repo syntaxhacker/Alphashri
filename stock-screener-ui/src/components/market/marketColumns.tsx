@@ -15,6 +15,8 @@ import {
 } from "../../config/marketUniverses";
 import type { PatternSummaryItem } from "./usePatternSummary";
 import { MARKET_INTRADAY_CHANGES, type MarketIntradayChange } from "../../config/marketIntraday";
+import { MARKET_EXTRA_COLUMNS, type MarketExtraColumn } from "../../config/marketExtraColumns";
+import { formatCurrencyCompact, formatNumber } from "../../utils/ui-helpers";
 import { DashCell, FlashValue } from "../common/tableCells";
 
 const DASH = "–";
@@ -194,6 +196,43 @@ function intradayChangeColumn(spec: MarketIntradayChange): ColumnDef<MarketRow> 
           data-testid={`market-${spec.dash}-${row.original.symbol}`}
         >
           {fmtPct(value)}
+        </Text>
+      );
+    },
+  };
+}
+
+/** One optional technical/fundamental column from the shared registry. */
+function extraColumn(spec: MarketExtraColumn): ColumnDef<MarketRow> {
+  return {
+    id: spec.id,
+    header: spec.header,
+    size: spec.size,
+    accessorFn: (row) => row[spec.field],
+    meta: { align: "right", defaultHidden: true },
+    cell: ({ row }) => {
+      const value = row.original[spec.field];
+      if (typeof value !== "number" || !finite(value)) {
+        return <DashCell testId={`market-dash-${row.original.symbol}-${spec.id}`} />;
+      }
+      const descriptor = rowDescriptor(row.original);
+      const text =
+        spec.format === "price"
+          ? `${descriptor.currencySymbol}${formatPrice(value, descriptor)}`
+          : spec.format === "pct"
+            ? fmtPct(value)
+            : spec.format === "volume"
+              ? formatNumber(value)
+              : spec.format === "value"
+                ? formatCurrencyCompact(value, descriptor.currency)
+                : fmtNum(value, 2);
+      const tone =
+        (spec.format === "pct" && spec.id.startsWith("perf")) || spec.id === "gap"
+          ? pctColor(value)
+          : undefined;
+      return (
+        <Text size="xs" c={tone} data-testid={`market-${spec.id}-${row.original.symbol}`}>
+          {text}
         </Text>
       );
     },
@@ -488,6 +527,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
         );
       },
     },
+    ...MARKET_EXTRA_COLUMNS.map(extraColumn),
     {
       id: "patterns",
       header: "PATTERNS",

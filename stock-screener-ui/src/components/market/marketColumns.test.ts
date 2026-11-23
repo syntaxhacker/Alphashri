@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { buildMarketColumns } from "./marketColumns";
+import { MARKET_EXTRA_COLUMNS } from "../../config/marketExtraColumns";
 import type { PatternSummaryItem } from "./usePatternSummary";
 import type { MarketRow } from "../../types/marketScreener";
 import * as palette from "@/ui/palette";
@@ -84,6 +85,32 @@ describe("buildMarketColumns", () => {
 
     expect(without).toEqual(full.filter((id) => id !== "sector"));
     expect(without).toEqual(expect.arrayContaining(["symbol", "name", "close", "change", "market_cap_cr"]));
+  });
+
+  test("adds every selectable technical/fundamental column as default-hidden", () => {
+    const columns = buildMarketColumns();
+    const byId = new Map(columns.map((column) => [column.id, column]));
+    for (const spec of MARKET_EXTRA_COLUMNS) {
+      const column = byId.get(spec.id);
+      expect(column, spec.id).toBeDefined();
+      expect(column?.header, spec.id).toBe(spec.header);
+      expect(column?.meta?.defaultHidden, spec.id).toBe(true);
+    }
+  });
+
+  test("renders formatted values for extra columns", () => {
+    const columns = buildMarketColumns();
+    const ema = columns.find((column) => column.id === "ema20");
+    const perf = columns.find((column) => column.id === "perf_3m");
+    const pe = columns.find((column) => column.id === "peRatio");
+    if (!ema?.cell || !perf?.cell || !pe?.cell) throw new Error("extra columns missing");
+    const row = { ...ROW, ema20: 2870.5, perf3m: 8.4, peRatio: 22.1 };
+    render(() => ema.cell!(cellArgs(row, ema)));
+    render(() => perf.cell!(cellArgs(row, perf)));
+    render(() => pe.cell!(cellArgs(row, pe)));
+    expect(screen.getByTestId("market-ema20-RELIANCE")).toHaveTextContent("₹2,870.50");
+    expect(screen.getByTestId("market-perf_3m-RELIANCE")).toHaveTextContent("+8.40%");
+    expect(screen.getByTestId("market-peRatio-RELIANCE")).toHaveTextContent("22.10");
   });
 
   test("renders 1m and 5m intraday change columns with their own labels", () => {

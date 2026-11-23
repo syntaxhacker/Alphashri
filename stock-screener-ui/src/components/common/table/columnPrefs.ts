@@ -24,11 +24,13 @@ export function resolveColumnPrefs(
   columnIds: string[],
   prefs: ColumnPrefs | undefined,
   lockVisible: string[] = [],
+  defaultHidden: string[] = [],
 ): ResolvedColumnPrefs {
   const known = new Set(columnIds);
+  const explicitOrder = prefs?.order ?? [];
   const order: string[] = [];
   const placed = new Set<string>();
-  for (const id of prefs?.order ?? []) {
+  for (const id of explicitOrder) {
     if (!known.has(id) || placed.has(id)) continue;
     placed.add(id);
     order.push(id);
@@ -41,6 +43,12 @@ export function resolveColumnPrefs(
 
   const locked = new Set(lockVisible.filter((id) => known.has(id)));
   const hiddenSet = new Set<string>();
+  // Default-hidden columns stay hidden until the saved order explicitly names
+  // them. A reset clears `order`, so the next render returns to the defaults.
+  const explicit = new Set(explicitOrder);
+  for (const id of defaultHidden) {
+    if (known.has(id) && !explicit.has(id) && !locked.has(id)) hiddenSet.add(id);
+  }
   for (const id of prefs?.hidden ?? []) {
     if (!known.has(id) || locked.has(id)) continue;
     hiddenSet.add(id);
@@ -68,6 +76,9 @@ export function useColumnPrefs<T>(props: TableProps<T>) {
   /** Declared columns that are not visibility-spacers (`size: 0`). */
   const declaredColumns = createMemo(() => props.columns.filter((col) => getColumnWidth(col) !== 0));
   const declaredIds = createMemo(() => declaredColumns().map((col) => col.id));
+  const defaultHiddenIds = createMemo(() =>
+    declaredColumns().filter((col) => col.meta?.defaultHidden).map((col) => col.id),
+  );
 
   // One pass per prefs/columns change — never per row. Cell rendering reads
   // `visibleColumns()` inside `<For>`, which only re-runs when this memo's
@@ -79,6 +90,7 @@ export function useColumnPrefs<T>(props: TableProps<T>) {
       // `enableColumnControls` off keeps the historical declared layout.
       props.enableColumnControls ? props.columnPrefs : undefined,
       props.enableColumnControls ? props.lockVisible : undefined,
+      props.enableColumnControls ? defaultHiddenIds() : undefined,
     ),
   );
 
@@ -104,8 +116,17 @@ export function useColumnPrefs<T>(props: TableProps<T>) {
    */
   const prefsForEmit = (order: string[], hiddenIds: string[]): ColumnPrefs => {
     const declared = declaredIds();
-    const sameOrder = order.length === declared.length && order.every((id, i) => id === declared[i]);
-    return { order: sameOrder ? [] : order, hidden: hiddenIds };
+    const hidden = new Set(hiddenIds);
+    const visibleOrder = order.filter((id) => !hidden.has(id));
+    const sameFullOrder = order.length === declared.length && order.every((id, i) => id === declared[i]);
+    // Only a visible default-hidden column needs an explicit order: that is the
+    // signal that the user turned it on. Ordinary hide/reorder keeps the old
+    // `order: []` contract, so a reorder-free config never freezes the layout.
+    const hasVisibleDefaultHidden = defaultHiddenIds().some((id) => !hidden.has(id));
+    return {
+      order: hasVisibleDefaultHidden || !sameFullOrder ? visibleOrder : [],
+      hidden: hiddenIds,
+    };
   };
 
   const toggleColumnPref = (id: string, visible: boolean) => {

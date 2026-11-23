@@ -13,6 +13,8 @@ from typing import Any
 
 from api.tv import INTRADAY_CHANGE_FIELDS, USA_EXCHANGES
 
+from .fields import EXTRA_COLUMNS
+
 #: Dashboard screener frame (the exact current row contract).
 COLUMNS = [
     "name",
@@ -34,6 +36,7 @@ COLUMNS = [
     "SMA200",
     "Perf.W",
     "Perf.1M",
+    *EXTRA_COLUMNS,
     "price_52_week_high",
     "price_52_week_low",
     # Fundamentals ride along in the same scan; the treemap colours by them.

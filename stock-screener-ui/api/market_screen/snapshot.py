@@ -47,6 +47,7 @@ from .config import (
     CapTierSpec,
     UniverseSpec,
 )
+from .fields import EXTRA_FIELDS
 
 log = logging.getLogger("market_screen.snapshot")
 
@@ -480,6 +481,7 @@ def _shape_rows(rows: list[dict[str, Any]], *, universe: str = "all_equity") -> 
             "sma200": _num(raw.get("SMA200")),
             "perf_w": _num(raw.get("Perf.W")),
             "perf_1m": _num(raw.get("Perf.1M")),
+            **{key: _num(raw.get(tv)) for key, tv in EXTRA_FIELDS.items()},
             "high_52w": high,
             "low_52w": low,
             "pos_52w": pos_52w,

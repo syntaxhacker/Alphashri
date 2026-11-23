@@ -16,7 +16,38 @@ export type MarketUniverse =
 /** Derived from the descriptor registries; never a second literal vocabulary. */
 export type MarketCapTier = CapTierKey;
 
-export interface MarketRow {
+/** Optional technical/fundamental columns fetched in the same TV scan. */
+export interface MarketExtraFields {
+  ema20: number | null;
+  ema50: number | null;
+  ema200: number | null;
+  vwap: number | null;
+  bbUpper: number | null;
+  bbLower: number | null;
+  macd: number | null;
+  macdSignal: number | null;
+  macdHist: number | null;
+  stochK: number | null;
+  stochD: number | null;
+  stochRsiK: number | null;
+  stochRsiD: number | null;
+  cci20: number | null;
+  momentum: number | null;
+  adxPlus: number | null;
+  adxMinus: number | null;
+  hullMa9: number | null;
+  psar: number | null;
+  volatilityD: number | null;
+  volatilityW: number | null;
+  perf3m: number | null;
+  perf6m: number | null;
+  perfYtd: number | null;
+  perfY: number | null;
+  recommendAll: number | null;
+  avgVolume30d: number | null;
+}
+
+export interface MarketRow extends Partial<MarketExtraFields> {
   symbol: string;
   name: string;
   sector: string | null;

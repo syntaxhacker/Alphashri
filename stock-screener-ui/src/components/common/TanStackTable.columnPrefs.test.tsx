@@ -121,6 +121,26 @@ describe("resolveColumnPrefs — merge rules", () => {
     expect(resolved.hidden).toEqual(["b"]);
   });
 
+  it("default-hidden columns stay in the picker order but are not visible", () => {
+    const resolved = resolveColumnPrefs(["a", "b", "c"], undefined, [], ["b"]);
+    expect(resolved.order).toEqual(["a", "b", "c"]);
+    expect(resolved.hidden).toEqual(["b"]);
+    expect(resolved.visible).toEqual(["a", "c"]);
+  });
+
+  it("an explicit visible order reveals a default-hidden column", () => {
+    const resolved = resolveColumnPrefs(["a", "b", "c"], { order: ["c", "b"], hidden: [] }, [], ["b"]);
+    expect(resolved.visible).toEqual(["c", "b", "a"]);
+    expect(resolved.hidden).toEqual([]);
+  });
+
+  it("reset hides default-hidden columns again", () => {
+    const shown = resolveColumnPrefs(["a", "b"], { order: ["b", "a"], hidden: [] }, [], ["b"]);
+    const reset = resolveColumnPrefs(["a", "b"], { order: [], hidden: [] }, [], ["b"]);
+    expect(shown.visible).toContain("b");
+    expect(reset.visible).toEqual(["a"]);
+  });
+
   it("survives an empty column list", () => {
     expect(resolveColumnPrefs([], { order: ["a"], hidden: ["a"] }, ["a"])).toEqual({
       order: [],

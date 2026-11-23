@@ -14,6 +14,11 @@ export interface SortEntry {
  */
 export interface TableColumnMeta {
   align?: "left" | "center" | "right";
+  /**
+   * A column that exists in the picker but is not part of the default layout.
+   * The picker can turn it on; reset returns it to hidden.
+   */
+  defaultHidden?: boolean;
 }
 
 /** Persisted shape of a table's column layout. `[]` means "declared default". */
