@@ -1,5 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { createSignal } from "solid-js";
@@ -70,12 +72,14 @@ const { ReportStrips } = await import("./ReportStrips");
 
 afterEach(cleanup);
 describe("ReportStrips", () => {
-  test("mounts every band inside one gap-1 column", () => {
+  test("mounts every band inside one deliberate 8px column", () => {
     mode[1]("live");
     render(() => <ReportStrips />);
     const root = screen.getByTestId("nifty-report-strips");
     expect(root.className).toContain("flex-col");
-    expect(root.className).toContain("gap-1");
+    expect(root.className).toContain("gap-2");
+    expect(root).toHaveAttribute("data-report-spacing", "8");
+    expect(root.className).not.toContain("gap-1");
     expect(root.className).not.toContain("gap-4");
     expect(screen.getByTestId("nifty-10s-stub")).toBeInTheDocument();
     expect(screen.getByTestId("walls-stub")).toBeInTheDocument();
@@ -96,5 +100,13 @@ describe("ReportStrips", () => {
     expect(liveOnly.parentElement?.className).toContain("h-6");
     expect(liveOnly.parentElement?.className).toContain("min-h-6");
     expect(screen.queryByTestId("nifty-breadth-strip")).not.toBeInTheDocument();
+  });
+
+  test("uses the 8/12px section rhythm and a 16px section title", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/pages/report/ReportStrips.tsx"), "utf8");
+    expect(source).toContain('data-report-spacing="8"');
+    expect(source).toContain('gap: "8px"');
+    expect(source).toContain("`${REPORT_FONT.value}px`");
+    expect(source).not.toContain("gap-1 ");
   });
 });

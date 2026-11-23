@@ -19,8 +19,9 @@ interface IndexMoversStripProps {
 
 const GAINER_COLOR = palette.POSITIVE;
 const LOSER_COLOR = palette.NEGATIVE;
-// 11px keeps 5+5 worst-case symbols inside a 1440px strip.
-const VALUE_FONT = REPORT_FONT.xs;
+// Values stay at the 13px body step; on a phone the strip wraps whole mover
+// groups rather than shrinking or ellipsing a symbol/percentage.
+const VALUE_FONT = REPORT_FONT.body;
 const ARROW_GAINER = "▲";
 const ARROW_LOSER = "▼";
 
@@ -32,18 +33,14 @@ function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
   const signed = () => (isGainer() ? "+" : "");
   return (
     <span
-      class="inline-flex items-center gap-1 shrink-0 whitespace-nowrap"
+      class="inline-flex items-center gap-2 shrink-0 whitespace-nowrap"
     >
       <Text
         span
         size="xs"
-        fw={700}
-        style={{
-          "font-size": `${VALUE_FONT}px`,
-          "font-variant-numeric": "tabular-nums",
-          color: color(),
-          "font-family": palette.MONO,
-        }}
+        data-report-text="label"
+        class="text-ui-micro"
+        style={{ color: color() }}
       >
         {arrow()}
       </Text>
@@ -51,6 +48,8 @@ function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
         span
         size="xs"
         fw={700}
+        data-report-text="value"
+        class="text-ui-body"
         style={{
           "font-size": `${VALUE_FONT}px`,
           "font-variant-numeric": "tabular-nums",
@@ -64,6 +63,8 @@ function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
         span
         size="xs"
         fw={700}
+        data-report-text="value"
+        class="text-ui-body tabular-nums"
         style={{
           "font-size": `${VALUE_FONT}px`,
           "font-variant-numeric": "tabular-nums",
@@ -152,7 +153,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
   const stripChrome = (children: JSX.Element) => (
     <div
       data-testid="movers-strip"
-      class="flex items-center h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-ui-micro"
+      class="flex items-center gap-2 h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-ui-micro"
     >
       {children}
     </div>
@@ -164,15 +165,17 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
   const dataView = () => (
     <div
       data-testid="movers-strip"
-      class="flex items-center justify-between gap-2 h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-ui-micro whitespace-nowrap overflow-hidden shrink-0"
+      data-report-spacing="8"
+      class="flex items-center justify-between gap-2 h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-ui-micro whitespace-nowrap shrink-0 max-[700px]:h-auto max-[700px]:min-h-0 max-[700px]:flex-wrap max-[700px]:gap-y-1 max-[700px]:py-1"
     >
-      <span class="inline-flex items-center gap-1 min-w-0 flex-auto">
+      <span class="inline-flex items-center gap-2 min-w-0 flex-auto max-[700px]:flex-wrap max-[700px]:gap-y-1">
         <Text
           span
           size="xs"
           fw={700}
           c="dimmed"
-          className="shrink-0 tracking-[0.1em] text-ui-micro"
+          data-report-text="label"
+          className="shrink-0 tracking-[0.08em] text-ui-micro"
           style={{ color: palette.TEXT_MUTED }}
         >
           MOVERS · {index()} {index() === "NIFTY" ? "50" : "30"}
@@ -182,9 +185,10 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         <MoverSection rows={gainers()} isGainer={true} />
 
         {/* Separator — fixed 1px: a stretched flex item would push the
-            losers past the strip's `overflow: hidden`. */}
+            losers past the strip edge. On a phone the groups wrap instead. */}
         <span
-          class="shrink-0 self-center mx-[2px] h-[10px] w-[1px] min-w-[1px]"
+          aria-hidden="true"
+          class="shrink-0 self-center mx-2 h-[10px] w-[1px] min-w-[1px]"
           style={{ "background-color": palette.alpha(palette.BORDER, 0.6) }}
         />
 
@@ -193,7 +197,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
       </span>
 
       {/* Right side: EXPAND button + stale badge */}
-      <span class="flex items-center gap-1 shrink-0">
+      <span class="flex items-center gap-2 shrink-0">
         <Show when={isStale()}>
           <Tooltip label={`Data is stale (${data()?.as_of})`} position="bottom-start">
             <span
@@ -232,10 +236,18 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
             <Show when={isError() && !data()} fallback={dataView()}>
               {stripChrome(
                 <>
-                  <Text span size="xs" fw={700} c="dimmed" style={{ "letter-spacing": "0.1em" }}>
+                  <Text
+                    span
+                    size="xs"
+                    fw={700}
+                    c="dimmed"
+                    data-report-text="label"
+                    class="text-ui-micro"
+                    style={{ "letter-spacing": "0.08em" }}
+                  >
                     MOVERS
                   </Text>
-                  <Text span size="xs" c="error" className="ml-2">
+                  <Text span size="xs" c="error" data-report-text="value" class="text-ui-body">
                     unavailable
                   </Text>
                   <button
@@ -252,12 +264,20 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         >
           {stripChrome(
             <>
-              <Text span size="xs" fw={700} c="dimmed" style={{ "letter-spacing": "0.1em" }}>
+              <Text
+                span
+                size="xs"
+                fw={700}
+                c="dimmed"
+                data-report-text="label"
+                class="text-ui-micro"
+                style={{ "letter-spacing": "0.08em" }}
+              >
                 MOVERS
               </Text>
-              <span class="ml-2 inline-flex items-center gap-1">
+              <span class="inline-flex items-center gap-2">
                 <Loader size="xs" color={palette.PRIMARY} />
-                <Text span size="xs" c="dimmed">
+                <Text span size="xs" c="dimmed" data-report-text="value" class="text-ui-body">
                   loading…
                 </Text>
               </span>

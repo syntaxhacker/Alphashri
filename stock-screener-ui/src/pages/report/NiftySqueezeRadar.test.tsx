@@ -297,6 +297,40 @@ describe("NiftySqueezeRadar", () => {
     expect(screen.getByTestId("nifty-squeeze-wall")).toHaveTextContent(/-3\.4%\/30m/);
   });
 
+  it("uses a 16px section title, 13px values and 8px spacing without clipping the legend", () => {
+    render(() => <NiftySqueezeRadar report={report({})} preMove={preMove} setup={setup} history={history} />);
+    const root = screen.getByTestId("nifty-squeeze-radar");
+    expect(root.getAttribute("data-report-spacing")).toBe("8");
+    expect(root.className).toContain("gap-2");
+    expect(root.className).toContain("p-2");
+
+    const title = root.querySelector('[data-report-text="title"]') as HTMLElement;
+    expect(title.textContent).toBe("SQUEEZE");
+    expect(title.className).toContain("text-ui-title");
+    expect(screen.getByTestId("nifty-squeeze-proximity").className).toContain("text-ui-title");
+
+    for (const label of root.querySelectorAll('[data-report-text="label"]')) {
+      let node: HTMLElement | null = label as HTMLElement;
+      let sized = false;
+      while (node && node !== root) {
+        if (node.className?.includes("text-ui-micro")) sized = true;
+        node = node.parentElement;
+      }
+      expect(sized, `${label.textContent} must inherit the 12px label step`).toBe(true);
+    }
+    expect(screen.getByTestId("nifty-squeeze-wall").className).toContain("text-ui-body");
+    const erosion = screen.getByTestId("squeeze-erosion");
+    expect(erosion.querySelectorAll('[data-report-text="value"]').length).toBe(4);
+    for (const value of erosion.querySelectorAll('[data-report-text="value"]')) {
+      expect(value.className).toContain("text-ui-body");
+    }
+    const chip = screen.getByTestId("nifty-squeeze-chip-put-writing");
+    expect(chip.querySelector('[data-report-text="value"]')?.className).toContain("text-ui-body");
+    expect(root.innerHTML).not.toContain("text-ellipsis");
+    expect(root.innerHTML).not.toContain("truncate");
+    expect(screen.getByTestId("nifty-squeeze-calibration").className).toContain("whitespace-nowrap");
+  });
+
   it("does not show PRE-BLAST for a LONG regime or low fuel", () => {
     const strongWall = {
       strike: 22_700,

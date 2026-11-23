@@ -39,9 +39,8 @@ interface NiftyIntelStripProps {
 
 type Status = "loading" | "ready" | "error";
 
-/** Intel-strip geometry. Desktop keeps the original 24px row but scrolls
- *  horizontally instead of clipping the tail of a value; a phone wraps the
- *  readouts onto extra rows. */
+/** Intel-strip geometry. Desktop keeps the compact 24px row; a phone wraps the
+ *  whole readouts onto extra rows so no label or value is clipped mid-number. */
 export function intelStripLayout(narrow: boolean) {
   return {
     wrap: narrow,
@@ -78,11 +77,15 @@ function Field(props: {
           ? `${props.title ?? props.label} — no value in this snapshot`
           : props.title
       }
-      class="inline-flex items-baseline gap-1 shrink-0 min-w-0"
+      class="inline-flex items-baseline gap-2 shrink-0 min-w-0"
       style={{ color: palette.TEXT_MUTED }}
     >
-      <span class="text-ui-micro tracking-[0.04em]">{props.label}</span>
-      <span class="font-bold text-ui-micro font-mono tabular-nums whitespace-nowrap" style={{ "color": props.tone }}>
+      <span data-report-text="label" class="text-ui-micro tracking-[0.04em]">{props.label}</span>
+      <span
+        data-report-text="value"
+        class="font-bold text-ui-body font-mono tabular-nums whitespace-nowrap"
+        style={{ "color": props.tone }}
+      >
         {props.value}
       </span>
     </div>
@@ -106,8 +109,12 @@ function StrikeRows(props: { rows: NiftyIntelStrike[]; side: "call" | "put" }) {
               data-testid={`nifty-intel-modal-${props.side}-${Math.round(row.strike)}`}
               class="flex items-baseline justify-between gap-1 border-b border-fin-border py-[2px] font-mono tabular-nums"
             >
-              <span class="text-ui-micro">{fmtIntelInt(row.strike)}</span>
-              <span class="font-bold text-ui-micro" style={{ "color": oiTone(row.doi, props.side, palette) }}>
+              <span data-report-text="label" class="text-ui-micro">{fmtIntelInt(row.strike)}</span>
+              <span
+                data-report-text="value"
+                class="font-bold text-ui-body whitespace-nowrap"
+                style={{ "color": oiTone(row.doi, props.side, palette) }}
+              >
                 {fmtIntelOi(row.doi)}
               </span>
             </div>
@@ -188,6 +195,8 @@ function IntelBody(props: { intel: NiftyIntel; eod?: boolean }) {
           <Text
             size="xs"
             fw={700}
+            data-report-text="title"
+            class="text-ui-body"
             title="Total change in call OI across the chain, in units (contracts × lot size)"
             style={{ color: palette.NEGATIVE, "letter-spacing": "0.06em" }}
           >
@@ -199,6 +208,8 @@ function IntelBody(props: { intel: NiftyIntel; eod?: boolean }) {
           <Text
             size="xs"
             fw={700}
+            data-report-text="title"
+            class="text-ui-body"
             title="Total change in put OI across the chain, in units (contracts × lot size)"
             style={{ color: palette.POSITIVE, "letter-spacing": "0.06em" }}
           >
@@ -209,7 +220,13 @@ function IntelBody(props: { intel: NiftyIntel; eod?: boolean }) {
       </div>
 
       <div data-testid="nifty-intel-modal-news" class="min-w-0">
-        <Text size="xs" fw={700} style={{ color: palette.TEXT_MUTED, "letter-spacing": "0.06em" }}>
+        <Text
+          size="xs"
+          fw={700}
+          data-report-text="title"
+          class="text-ui-body"
+          style={{ color: palette.TEXT_MUTED, "letter-spacing": "0.06em" }}
+        >
           NEWS ({intel().news.length})
         </Text>
         <Show
@@ -239,12 +256,12 @@ function IntelBody(props: { intel: NiftyIntel; eod?: boolean }) {
                       href={item.link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      class="text-ui-micro text-fin-text decoration-none min-w-0 overflow-hidden overflow-ellipsis whitespace-nowrap hover:text-fin-positive hover:underline"
+                      class="text-ui-body text-fin-text decoration-none min-w-0 whitespace-normal break-words hover:text-fin-positive hover:underline"
                     >
                       {item.heading}
                     </a>
                   ) : (
-                    <span class="text-ui-micro text-fin-text min-w-0">{item.heading}</span>
+                    <span class="text-ui-body text-fin-text min-w-0 whitespace-normal break-words">{item.heading}</span>
                   )}
                 </li>
               )}
@@ -374,9 +391,10 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
         }`}
         onClick={openModal}
         onKeyDown={onKeyDown}
-        class={`flex items-center gap-1 shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface cursor-pointer whitespace-nowrap font-mono hover:border-fin-text-muted focus-visible:outline-1 focus-visible:outline-fin-positive focus-visible:outline-offset-0 ${layout().wrap ? "flex-wrap h-auto min-h-[24px] py-0.5" : "h-[24px] min-h-[24px]"}`}
+        data-report-spacing="8"
+        class={`flex items-center gap-2 shrink-0 px-2 border border-fin-border rounded-[4px] bg-fin-surface cursor-pointer whitespace-nowrap font-mono hover:border-fin-text-muted focus-visible:outline-1 focus-visible:outline-fin-positive focus-visible:outline-offset-0 ${layout().wrap ? "flex-wrap h-auto min-h-[24px] py-1" : "h-[24px] min-h-[24px]"}`}
       >
-        <span class="font-bold shrink-0 text-ui-micro tracking-[0.08em]" style={{ color: palette.TEXT_MUTED }}>
+        <span data-report-text="label" class="font-bold shrink-0 text-ui-micro tracking-[0.08em]" style={{ color: palette.TEXT_MUTED }}>
           INTEL
         </span>
         <Field
@@ -398,18 +416,18 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
         <div
           data-testid="nifty-intel-doi"
           title="Official change in OI — call / put units (contracts × lot size)"
-          class="flex items-baseline gap-1 shrink-0"
+          class="flex items-baseline gap-2 shrink-0"
         >
-          <span class="text-ui-micro tracking-[0.04em]" style={{ color: palette.TEXT_MUTED }}>
+          <span data-report-text="label" class="text-ui-micro tracking-[0.04em]" style={{ color: palette.TEXT_MUTED }}>
             ΔOI (official) C
           </span>
-          <span class="font-bold text-ui-micro font-mono tabular-nums" style={{ color: oiTone(data().dce_oi, "call", palette) }}>
+          <span data-report-text="value" class="font-bold text-ui-body font-mono tabular-nums whitespace-nowrap" style={{ color: oiTone(data().dce_oi, "call", palette) }}>
             {fmtIntelOi(data().dce_oi)}
           </span>
-          <span class="text-ui-micro" style={{ color: palette.TEXT_MUTED, opacity: 0.8 }}>
+          <span data-report-text="label" class="text-ui-micro" style={{ color: palette.TEXT_MUTED, opacity: 0.8 }}>
             / P
           </span>
-          <span class="font-bold text-ui-micro font-mono tabular-nums" style={{ color: oiTone(data().dpe_oi, "put", palette) }}>
+          <span data-report-text="value" class="font-bold text-ui-body font-mono tabular-nums whitespace-nowrap" style={{ color: oiTone(data().dpe_oi, "put", palette) }}>
             {fmtIntelOi(data().dpe_oi)}
           </span>
         </div>
@@ -421,7 +439,8 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
         <div
           data-testid="nifty-intel-news"
           title={data().news.length ? data().news.map((n) => n.heading).join("\n") : "No headlines"}
-          class="text-ui-micro font-mono tabular-nums shrink-0"
+          data-report-text="value"
+          class="text-ui-body font-mono tabular-nums shrink-0 whitespace-nowrap"
           style={{ color: palette.TEXT_MUTED }}
         >
           {data().news.length ? `${data().news.length} news` : "no news"}
@@ -433,7 +452,11 @@ export function NiftyIntelStrip(props: NiftyIntelStripProps) {
 
       <LocalPanelModal
         open={open()}
-        title="Institutional flows — foreign & domestic · open-interest change · news"
+        title={
+          <span class="text-ui-title font-extrabold tracking-[0.04em] text-fin-text">
+            Institutional flows — foreign &amp; domestic · open-interest change · news
+          </span>
+        }
         onClose={() => setOpen(false)}
       >
         <IntelBody intel={data()} eod={eod()} />

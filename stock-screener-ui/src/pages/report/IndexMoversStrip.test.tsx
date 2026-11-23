@@ -149,6 +149,28 @@ describe("IndexMoversStrip", () => {
     expect(screen.getByTestId("movers-strip")).toHaveTextContent(/SENSEX 30/);
   });
 
+  it("keeps 12px labels and 13px whole values, wrapping on a phone", async () => {
+    mockFetchIndexMovers.mockResolvedValue(createMockResponse());
+    render(() => <IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
+
+    await waitFor(() => expect(screen.getByText("HDFCBANK")).toBeInTheDocument(), { timeout: 10000 });
+    const strip = screen.getByTestId("movers-strip");
+    expect(strip.getAttribute("data-report-spacing")).toBe("8");
+    expect(strip.className).toContain("max-[700px]:flex-wrap");
+    expect(strip.className).not.toContain("overflow-hidden");
+    expect(strip.innerHTML).not.toContain("text-ellipsis");
+    expect(strip.innerHTML).not.toContain("truncate");
+
+    const label = strip.querySelector('[data-report-text="label"]') as HTMLElement;
+    expect(label.className).toContain("text-ui-micro");
+    const values = strip.querySelectorAll('[data-report-text="value"]');
+    expect(values.length).toBe(12);
+    for (const value of values) expect((value as HTMLElement).style.fontSize).toBe("13px");
+    expect(strip).toHaveTextContent("HDFCBANK");
+    expect(strip).toHaveTextContent("+1.92%");
+    expect(strip).toHaveTextContent("-2.52%");
+  });
+
   describe("polling behavior", () => {
     beforeEach(() => {
       vi.useFakeTimers();

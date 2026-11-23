@@ -4,7 +4,7 @@ import { describe, expect, test, vi } from "vitest";
 import type { JSX } from "solid-js";
 import { render, screen, within, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
-import { NiftyIntelStrip } from "./NiftyIntelStrip";
+import { NiftyIntelStrip, intelStripLayout } from "./NiftyIntelStrip";
 import {
   fmtIntelInt,
   fmtIntelOi,
@@ -67,6 +67,27 @@ describe("NiftyIntelStrip — compact fields", () => {
     r(() => <NiftyIntelStrip fetcher={vi.fn().mockResolvedValue(intel())} />);
     const strip = await screen.findByTestId("nifty-intel-strip");
     expect(strip).toHaveAttribute("style", expect.stringContaining("height:24px"));
+  });
+
+  test("keeps 12px labels and 13px whole values, wrapping at 390", async () => {
+    expect(intelStripLayout(true)).toMatchObject({ wrap: true, height: "auto" });
+    expect(intelStripLayout(false)).toMatchObject({ wrap: false, height: "24px" });
+
+    r(() => <NiftyIntelStrip fetcher={vi.fn().mockResolvedValue(intel())} />);
+    await screen.findByTestId("nifty-intel-fii");
+    const strip = screen.getByTestId("nifty-intel-strip");
+    expect(strip.getAttribute("data-report-spacing")).toBe("8");
+    expect(strip.className).toContain("gap-2");
+    for (const label of strip.querySelectorAll('[data-report-text="label"]')) {
+      expect(label.className).toContain("text-ui-micro");
+    }
+    for (const value of strip.querySelectorAll('[data-report-text="value"]')) {
+      expect(value.className).toContain("text-ui-body");
+      expect(value.className).toContain("whitespace-nowrap");
+      expect(value.className).not.toContain("text-ellipsis");
+      expect(value.className).not.toContain("truncate");
+    }
+    expect(strip.querySelectorAll('[data-report-text="value"]').length).toBeGreaterThanOrEqual(6);
   });
 
   test("keeps the strip to a dash per field when only some sources are available", async () => {

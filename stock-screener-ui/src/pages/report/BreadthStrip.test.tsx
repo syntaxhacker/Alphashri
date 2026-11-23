@@ -51,6 +51,26 @@ describe("BreadthStrip", () => {
     expect(strip.className).not.toContain("border ");
   });
 
+  test("separates 12px labels from 13px whole values and wraps at 390", () => {
+    render(() => <BreadthStrip data={payload()} />);
+    const strip = screen.getByTestId("nifty-breadth-strip");
+    expect(strip.className).toContain("max-[600px]:h-auto");
+    expect(strip.className).toContain("max-[600px]:overflow-visible");
+    const grid = strip.firstElementChild as HTMLElement;
+    expect(grid.className).toContain("max-[600px]:flex-wrap");
+
+    for (const label of strip.querySelectorAll('[data-report-text="label"]')) {
+      expect(label.className).toContain("text-ui-micro");
+    }
+    for (const value of strip.querySelectorAll('[data-report-text="value"]')) {
+      expect(value.className).toContain("text-ui-body");
+      expect(value.className).toContain("whitespace-nowrap");
+    }
+    expect(strip.querySelectorAll('[data-report-text="value"]').length).toBe(6);
+    expect(strip.innerHTML).not.toContain("text-ellipsis");
+    expect(strip.innerHTML).not.toContain("truncate");
+  });
+
   test("renders nothing when the quote path is down", () => {
     render(() => <BreadthStrip data={payload({ available: false })} />);
     expect(screen.queryByTestId("nifty-breadth-strip")).not.toBeInTheDocument();

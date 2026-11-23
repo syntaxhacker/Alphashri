@@ -83,9 +83,9 @@ interface WallListProps {
 
 function panelTitleStyles(): JSX.CSSProperties {
   return {
-    "font-size": `${REPORT_FONT.micro}px`,
+    "font-size": `${REPORT_FONT.value}px`,
     "font-weight": String(REPORT_FONT_WEIGHT.extrabold),
-    "letter-spacing": REPORT_LETTER_SPACING.wider,
+    "letter-spacing": REPORT_LETTER_SPACING.wide,
     "text-transform": "uppercase",
     color: MUTED,
     "line-height": REPORT_LINE_HEIGHT.tight,
@@ -94,7 +94,7 @@ function panelTitleStyles(): JSX.CSSProperties {
 
 function PanelTitle(props: { children: string }) {
   return (
-    <div class="mb-1.5" style={{ ...panelTitleStyles() }}>
+    <div data-report-text="title" class="mb-2" style={{ ...panelTitleStyles() }}>
       {props.children}
     </div>
   );
@@ -411,7 +411,7 @@ function WallHistory(props: HistoryProps) {
   const color = () => sideColor(props.wall.side);
   return (
     <div class="mt-1.5 border-t border-fin-border pt-1">
-      <div class="mb-[2px]" style={{ ...panelTitleStyles() }}>30m path</div>
+      <div data-report-text="title" class="mb-1" style={{ ...panelTitleStyles() }}>30m path</div>
       <svg
         viewBox="0 0 280 230"
         role="img"
@@ -438,13 +438,15 @@ function Detail(props: { label: string; value: string; color?: string }) {
   return (
     <div class="min-w-0">
       <div
+        data-report-text="label"
         class="text-ui-micro text-fin-text-muted tracking-[0.08em]"
         style={{ "font-size": `${REPORT_FONT.micro}px`, color: MUTED, "letter-spacing": REPORT_LETTER_SPACING.wide }}
       >
         {props.label}
       </div>
       <div
-        class="font-mono text-ui-micro font-semibold tabular-nums whitespace-nowrap"
+        data-report-text="value"
+        class="font-mono text-ui-body font-semibold tabular-nums whitespace-nowrap"
         style={{
           "font-family": MONO,
           "font-size": `${REPORT_FONT.sm}px`,
@@ -472,7 +474,7 @@ function WallRead(props: WallReadProps) {
 
   return (
     <div class="min-w-0 flex flex-col h-full">
-      <div class="mb-1.5" style={{ ...panelTitleStyles() }}>Selected wall</div>
+      <div data-report-text="title" class="mb-2" style={{ ...panelTitleStyles() }}>Selected wall</div>
       <div class="flex items-center flex-wrap gap-1.5">
         <SideMark side={props.wall.side} size={9} />
         <div
@@ -499,12 +501,13 @@ function WallRead(props: WallReadProps) {
       <div class="mt-1.5 text-ui-micro leading-loose text-fin-text" style={{ "font-size": `${REPORT_FONT.xsPlus}px`, "line-height": REPORT_LINE_HEIGHT.loose, color: palette.TEXT }}>
         {sentence()}
       </div>
-      <div class="mt-[2px] text-ui-micro leading-loose text-fin-text-muted" style={{ "font-size": `${REPORT_FONT.xs}px`, "line-height": REPORT_LINE_HEIGHT.loose, color: MUTED }}>
+      <div class="mt-1 text-ui-micro leading-loose text-fin-text-muted" style={{ "font-size": `${REPORT_FONT.xs}px`, "line-height": REPORT_LINE_HEIGHT.loose, color: MUTED }}>
         {why()}
       </div>
       <div
-        class="mt-1.5 grid grid-cols-[1fr_1fr] gap-1.5 row-gap-[3px]"
-        style={{ "margin-top": "6px", display: "grid", "grid-template-columns": "1fr 1fr", "column-gap": "12px", "row-gap": "3px" }}
+        data-report-spacing="12"
+        class="mt-2 grid grid-cols-[1fr_1fr] gap-2"
+        style={{ display: "grid", "grid-template-columns": "1fr 1fr", "column-gap": "12px", "row-gap": "8px" }}
       >
         <Detail label="OI" value={fmtOI(row().oi)} />
         <Detail label="Open" value={fmtOI(row().oi_open)} />
@@ -537,13 +540,14 @@ function WallList(props: WallListProps) {
 
   return (
     <div class="min-w-0 flex flex-col h-full">
-      <div class="mb-1.5" style={{ ...panelTitleStyles() }}>Walls</div>
+      <div data-report-text="title" class="mb-2" style={{ ...panelTitleStyles() }}>Walls</div>
       <div
-        class="grid grid-cols-[minmax(0,1fr)_50px_46px_58px] gap-1.5 pb-[2px] border-b border-fin-border font-mono text-ui-micro font-black tracking-[0.08em] text-fin-text-muted uppercase"
+        data-report-spacing="8"
+        class="grid grid-cols-[minmax(0,1fr)_50px_46px_58px] gap-2 pb-1 border-b border-fin-border font-mono text-ui-micro font-black tracking-[0.08em] text-fin-text-muted uppercase"
         style={{
           display: "grid",
           "grid-template-columns": "minmax(0,1fr) 50px 46px 58px",
-          "column-gap": "6px",
+          "column-gap": "8px",
           "border-bottom": `1px solid ${BORDER}`,
           "font-family": MONO,
           "font-size": `${REPORT_FONT.micro}px`,
@@ -561,7 +565,13 @@ function WallList(props: WallListProps) {
       <div class="overflow-auto min-h-0 max-h-[430px]">
         <For each={view()}>{(group) => (
           <div>
-            <div class="mb-1.5" style={{ ...panelTitleStyles(), "margin-top": "6px", "margin-bottom": "2px" }}>{group.label}</div>
+            <div
+              data-report-text="label"
+              class="mb-1"
+              style={{ ...panelTitleStyles(), "font-size": `${REPORT_FONT.micro}px`, "margin-top": "8px", "margin-bottom": "4px" }}
+            >
+              {group.label}
+            </div>
             <For each={group.rows}>{(wall) => {
               const selected = wall.key === props.selectedKey;
               const borderLeft = selected ? `2px solid ${SELECTED}` : "2px solid transparent";
@@ -579,11 +589,11 @@ function WallList(props: WallListProps) {
                       props.onSelect(wall.key);
                     }
                   }}
-                  class="grid grid-cols-[minmax(0,1fr)_50px_46px_58px] gap-1.5 items-center min-h-[28px] px-1 cursor-pointer hover:bg-fin-surface-alt"
+                  class="grid grid-cols-[minmax(0,1fr)_50px_46px_58px] gap-2 items-center min-h-[28px] px-2 cursor-pointer hover:bg-fin-surface-alt"
                   style={{
                     display: "grid",
                     "grid-template-columns": "minmax(0,1fr) 50px 46px 58px",
-                    "column-gap": "6px",
+                    "column-gap": "8px",
                     "align-items": "center",
                     "min-height": "28px",
                     "margin-left": "2px",
@@ -596,15 +606,14 @@ function WallList(props: WallListProps) {
                   <div class="flex items-center gap-1 min-w-0">
                     <SideMark side={wall.side} />
                     <div
-                      class={`font-mono text-ui-micro text-fin-text whitespace-nowrap overflow-hidden overflow-ellipsis ${selected ? "font-bold" : "font-medium"}`}
+                      data-report-text="value"
+                      class={`font-mono text-ui-body text-fin-text whitespace-nowrap ${selected ? "font-bold" : "font-medium"}`}
                       style={{
                         "font-family": MONO,
-                        "font-size": `${REPORT_FONT.xs}px`,
+                        "font-size": `${REPORT_FONT.body}px`,
                         "font-weight": String(selected ? REPORT_FONT_WEIGHT.bold : REPORT_FONT_WEIGHT.medium),
                         color: palette.TEXT,
                         "white-space": "nowrap",
-                        overflow: "hidden",
-                        "text-overflow": "ellipsis",
                       }}
                     >
                       {wall.strike.toLocaleString("en-IN")}
@@ -794,7 +803,7 @@ function PressureTable(props: {
 function SummaryChip(props: { label: string; value: string }) {
   return (
     <span
-      class="inline-flex items-center gap-1 rounded-sm border px-1.5 py-[2px] text-ui-micro font-mono whitespace-nowrap"
+      class="inline-flex items-baseline gap-2 rounded-sm border px-2 py-[2px] text-ui-micro font-mono whitespace-nowrap"
       style={{
         height: "20px",
         "border-color": BORDER,
@@ -802,10 +811,10 @@ function SummaryChip(props: { label: string; value: string }) {
         border: `1px solid ${BORDER}`,
       }}
     >
-      <span class="text-fin-text-muted" style={{ "margin-right": "4px" }}>
-        {props.label}
-      </span>
-      {props.value}
+      <Show when={props.label}>
+        <span data-report-text="label" class="text-fin-text-muted">{props.label}</span>
+      </Show>
+      <span data-report-text="value" class="text-ui-body">{props.value}</span>
     </span>
   );
 }
@@ -827,8 +836,11 @@ export function NiftyPressureDesk(props: NiftyPressureDeskProps) {
   });
 
   const title = (
-    <div class="flex items-center gap-1.5 min-w-0">
-      <div class="font-mono text-ui-micro font-black tracking-[0.1em] text-fin-text whitespace-nowrap">
+    <div class="flex items-center gap-2 min-w-0">
+      <div
+        data-report-text="title"
+        class="font-mono text-ui-title font-black tracking-[0.08em] text-fin-text whitespace-nowrap"
+      >
         PRESSURE DESK
       </div>
       <Show when={props.walls}>
@@ -855,7 +867,7 @@ export function NiftyPressureDesk(props: NiftyPressureDeskProps) {
 
   return (
     <LocalPanelModal open={props.open} onClose={props.onClose} maxWidth={1480} title={title}>
-      <div data-testid="pressure-desk" class="p-1 min-h-0">
+      <div data-testid="pressure-desk" data-report-spacing="8" class="p-2 min-h-0">
         <Show
           when={props.walls && allWalls().length > 0 ? selected() : null}
           fallback={
@@ -886,8 +898,8 @@ export function NiftyPressureDesk(props: NiftyPressureDeskProps) {
               </div>
             </div>
             <div class="mt-2 pt-[6px] border-t border-fin-border min-w-0" style={{ "border-top": `1px solid ${BORDER}`, "min-width": "0" }}>
-              <div class="flex items-baseline justify-between gap-2 mb-1">
-                <div class="mb-1.5" style={{ ...panelTitleStyles() }}>Current minute · full values</div>
+              <div class="flex items-baseline justify-between gap-2 flex-wrap">
+                <div data-report-text="title" class="mb-2" style={{ ...panelTitleStyles() }}>Current minute · full values</div>
                 <div class="font-mono text-ui-micro text-fin-text-muted">% vs 5 / 15 / 30m</div>
               </div>
               <PressureTable walls={allWalls()} selectedKey={sel().key} onSelect={setSelectedKey} />

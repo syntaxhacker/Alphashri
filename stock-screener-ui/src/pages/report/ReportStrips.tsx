@@ -75,7 +75,8 @@ export function ReportStrips() {
   return (
     <Box
       data-testid="nifty-report-strips"
-      className="flex flex-col gap-1 w-full max-w-full min-w-0 shrink-0"
+      data-report-spacing="8"
+      className="flex flex-col gap-2 w-full max-w-full min-w-0 shrink-0"
     >
       <LiveTapeDisclosure
         open={tapeOpen()}
@@ -177,12 +178,13 @@ export function ReportStrips() {
             flush
             title={
               <span
+                data-report-text="title"
                 style={{
                   display: "inline-flex",
                   "align-items": "center",
-                  gap: "4px",
+                  gap: "8px",
                   "min-width": 0,
-                  "font-size": `${REPORT_FONT.body}px`,
+                  "font-size": `${REPORT_FONT.value}px`,
                   "line-height": 1.2,
                 }}
               >
@@ -206,7 +208,7 @@ export function ReportStrips() {
             }
             testId="nifty-oi-bursts-panel"
             action={
-              <Box className="flex gap-1 items-center">
+              <Box className="flex gap-2 items-center">
                 <Button
                   data-testid="nifty-alert-sound-toggle"
                   size="sm"

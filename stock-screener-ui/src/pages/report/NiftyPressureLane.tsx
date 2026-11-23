@@ -193,6 +193,7 @@ export function NiftyPressureLane(props: NiftyPressureLaneProps) {
     <div data-testid="nifty-pressure-lane" class="w-full min-w-0 relative">
       <span
         aria-hidden="true"
+        data-report-text="label"
         class="absolute left-0 top-0 text-ui-micro tracking-[0.06em] pointer-events-none"
         style={{ color: palette.TEXT_MUTED }}
       >
@@ -243,8 +244,9 @@ export function NiftyPressureLane(props: NiftyPressureLaneProps) {
       </svg>
       <span
         data-testid="nifty-pressure-last"
+        data-report-text="value"
         title={`${last().t}: ${last().ratio.toFixed(1)}× the 20-min median (CE ${formatNumberIN(Math.round(last().ce))} ${last().ceFlow ?? "?"}, PE ${formatNumberIN(Math.round(last().pe))} ${last().peFlow ?? "?"})`}
-        class="absolute right-0 top-2 text-ui-micro font-black font-mono whitespace-nowrap"
+        class="absolute right-0 top-2 text-ui-body font-black font-mono whitespace-nowrap"
         style={{ color: lastColor() }}
       >
         {last().ratio > 0 ? `${last().ratio.toFixed(1)}×` : "—"}
@@ -252,7 +254,8 @@ export function NiftyPressureLane(props: NiftyPressureLaneProps) {
       <Show when={hoverPoint() && showAxis()}>
         <div
           data-testid="nifty-pressure-readout"
-          class="absolute top-0 px-1 py-[1px] rounded-[3px] text-ui-micro font-mono whitespace-nowrap pointer-events-none z-2"
+          data-report-text="value"
+          class="absolute top-0 px-2 py-1 rounded-[3px] text-ui-body font-mono whitespace-nowrap pointer-events-none z-2"
           style={{
             left: `${hoverPct()}%`,
             transform: readoutShift(),
@@ -272,7 +275,7 @@ export function NiftyPressureLane(props: NiftyPressureLaneProps) {
         <>
           <div
             data-testid="nifty-pressure-axis"
-            class="relative h-[12px] mt-[2px] w-full pointer-events-none"
+            class="relative h-[12px] mt-1 w-full pointer-events-none"
           >
             <For each={axisTicks(points())}>{({ i, t }) => {
               const pct = xOfBar(i);
@@ -294,7 +297,8 @@ export function NiftyPressureLane(props: NiftyPressureLaneProps) {
           </div>
           <div
             data-testid="nifty-pressure-legend"
-            class="flex items-center gap-[10px] flex-wrap mt-[3px] text-ui-micro font-mono text-fin-text-muted"
+            data-report-spacing="12"
+            class="flex items-center gap-3 flex-wrap mt-2 text-ui-micro font-mono text-fin-text-muted"
           >
             <span class="inline-flex items-center gap-1">
               <span class="w-2 h-2 rounded-[1px]" style={{ "background-color": palette.TERM_CE }} />
@@ -329,8 +333,9 @@ export function NiftyPressureLane(props: NiftyPressureLaneProps) {
               ≥2× burst (4× climax)
             </span>
             <span
-              class="inline-flex items-center gap-1"
+              class="inline-flex items-center gap-1 text-ui-body whitespace-nowrap"
               data-testid="nifty-pressure-flow"
+              data-report-text="value"
               title="Volume traded by aggressive buyers vs sellers, per leg (premium richer/cheaper than delta-implied)"
             >
               CE buy {compactVol(series().flow.ceBuy)} / sell {compactVol(series().flow.ceSell)} · PE buy{" "}
