@@ -39,7 +39,9 @@
     "build-storybook": "storybook build",
     "audit:components": "node scripts/component_audit.mjs",
     "audit:typography": "node scripts/typography-audit.mjs",
-    "audit:typography:check": "node scripts/typography-audit.mjs --check"
+    "audit:typography:check": "node scripts/typography-audit.mjs --check",
+    "visual:test": "node scripts/visual-regression.mjs",
+    "visual:update": "UPDATE_SNAPSHOTS=1 node scripts/visual-regression.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

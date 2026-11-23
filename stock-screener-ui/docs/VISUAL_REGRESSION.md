@@ -9,7 +9,7 @@ run instead of only being visible in a diff review.
 
 | Path | Role |
 | --- | --- |
-| `scripts/visual-regression.mjs` | Single entry point. Validates the static build and baselines, then launches Playwright. Supports `UPDATE_SNAPSHOTS=1`. |
+| `scripts/visual-regression.mjs` | Single entry point, invoked by `bun run visual:test` / `bun run visual:update`. Validates the static build and baselines, then launches Playwright. Supports `UPDATE_SNAPSHOTS=1`. |
 | `tests/visual/visual-regression.spec.ts` | The six Storybook stories, captured full-page at both breakpoints and compared with `toHaveScreenshot`. |
 | `tests/visual/playwright.visual.config.ts` | Standalone Playwright config (does **not** use the app's `playwright.config.ts`). Starts its own static server, defines the two viewport projects, pins the diff budget. |
 | `tests/visual/__screenshots__/` | Committed baseline PNGs (12 files). Currently contains only a README — see "One-time baseline creation". |
@@ -54,26 +54,42 @@ Each name is captured for projects `desktop-1600` (1600×1000) and `mobile-390`
 (390×844), producing files like
 `tests/visual/__screenshots__/overview-desktop-1600.png`.
 
-## When it runs
+## Commands
 
-**Only when a static Storybook build exists.** `storybook-static/` is
-gitignored, so build it locally first. Nothing here is wired into `package.json`
-or CI by this change; run the commands below explicitly (or have the main agent
-add a script/CI step if desired).
+Two package scripts are the entry points (run from `stock-screener-ui/`):
+
+| Script | Command | Purpose |
+| --- | --- | --- |
+| `bun run visual:test` | `node scripts/visual-regression.mjs` | Verify all 12 baselines (no writes). |
+| `bun run visual:update` | `UPDATE_SNAPSHOTS=1 node scripts/visual-regression.mjs` | Create/regenerate the 12 baselines. |
+
+This gate is deliberately **not wired into CI** — the baselines do not exist
+yet. Add a CI step only after the first `bun run visual:update` baselines are
+reviewed and committed.
+
+## Prerequisite
+
+**Only runs when a static Storybook build exists.** `storybook-static/` is
+gitignored, so build it locally first with `bun run build-storybook`. The harness
+has no dev-server fallback and fails with the rebuild command if the build is
+missing or stale.
 
 Requires the already-installed `python3`, `@playwright/test`, and Playwright
 Chromium browser binaries (`npx playwright install chromium` if absent).
 
 ## One-time baseline creation / intentional update
 
-From `stock-screener-ui/`:
+The **first `bun run visual:update` creates all 12 baselines** (six stories ×
+two breakpoints). These are committed artefacts: review the diff and commit them
+before `bun run visual:test` can pass for anyone else. From
+`stock-screener-ui/`:
 
 ```sh
-# 1. fresh static build (storybook-static/ is gitignored)
-npm run build-storybook
+# 1. fresh static build (storybook-static/ is gitignored) — prerequisite
+bun run build-storybook
 
-# 2. generate/regenerate the 12 baselines
-UPDATE_SNAPSHOTS=1 node scripts/visual-regression.mjs
+# 2. first run creates the 12 baselines (later runs regenerate them)
+bun run visual:update
 
 # 3. inspect what changed, then commit only the intended PNGs
 git status --short tests/visual/__screenshots__
@@ -81,7 +97,7 @@ git diff -- tests/visual/__screenshots__
 git add tests/visual/__screenshots__
 ```
 
-`UPDATE_SNAPSHOTS=1` sets Playwright's update mode to `all` (and passes
+`bun run visual:update` sets Playwright's update mode to `all` (and passes
 `--update-snapshots`), so existing PNGs are overwritten as well as missing ones
 created. **Review the diff before committing** — an accidental re-baseline is
 how a visual regression gets approved by mistake.
@@ -89,8 +105,8 @@ how a visual regression gets approved by mistake.
 ## Routine verification
 
 ```sh
-npm run build-storybook              # only needed if storybook-static/ changed
-node scripts/visual-regression.mjs
+bun run build-storybook   # only needed if storybook-static/ changed
+bun run visual:test
 ```
 
 Exit code is the pass/fail signal: `0` means all 12 baselines matched, non-zero
@@ -100,9 +116,9 @@ means at least one story drifted or a precondition failed.
 
 | Message | Cause / fix |
 | --- | --- |
-| `Static Storybook build not found: storybook-static/index.json` | Run `npm run build-storybook`. |
-| `... is stale: ... target story/stories are absent` | The build predates a story rename; rebuild. |
-| `Missing N of 12 baseline screenshot(s) ...` | First run, or someone deleted a PNG. Run the `UPDATE_SNAPSHOTS=1` flow above. |
+| `Static Storybook build not found: storybook-static/index.json` | Run `bun run build-storybook`. |
+| `... is stale: ... target story/stories are absent` | The build predates a story rename; rebuild with `bun run build-storybook`. |
+| `Missing N of 12 baseline screenshot(s) ...` | First run, or someone deleted a PNG. Run the `bun run visual:update` flow above. |
 | `Screenshot name ... must have '.png' extension` / comparison failure | Real visual drift, or browser/font environment differs from the one that generated the baselines. Compare the diff image in `test-results/visual/`; only re-baseline if the change is intentional. |
 
 ## Scope notes
