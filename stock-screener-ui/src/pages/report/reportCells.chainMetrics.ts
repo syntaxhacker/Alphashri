@@ -26,6 +26,21 @@ export const OI_CHAIN_MAX_HEIGHT = 360;
 /** Header row height the cap is derived around (see OI_CHAIN_MAX_HEIGHT). */
 export const OI_CHAIN_HEADER_HEIGHT = 28;
 
+/**
+ * Phone chain track. 32px of CHAIN/HEATMAP tabs + ~40px compact panel header
+ * (the 30px expand button inside a 4px/4px inset and a hairline) + the 28px
+ * table header + two 26px strike rows = 152px; 156px leaves a sliver of the
+ * next row as the vertical scroll cue. The chart keeps the first grid track,
+ * so this is the smallest reserve that still shows two full rows.
+ */
+export const OI_CHAIN_MOBILE_ROW_PX = 156;
+/**
+ * A scroll viewport at or below this height is the phone chain. Pin ATM just
+ * under the sticky table header (instead of centring it in the viewport) so a
+ * second full strike row stays visible next to the emphasised ATM row.
+ */
+export const OI_CHAIN_MOBILE_VIEWPORT_MAX = 112;
+
 // Full chain (390px): roomy columns behind the wrapper's horizontal scroll.
 export const OI_CE_CHG_W = 116;
 export const OI_CE_OI_W = 96;

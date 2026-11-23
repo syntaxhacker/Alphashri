@@ -156,7 +156,7 @@ describe("ReportWorkspace — mobile heatmap disclosure (390px)", () => {
     // Order is declared once, on the shell's content wrapper, for every band.
     expect(grid.className).not.toContain("max-[600px]:order-");
     expect(grid.className).toContain("max-[600px]:grid-rows-[minmax(0,1fr)_auto]");
-    expect(grid.className).not.toContain("minmax(0,80px)]!");
+    expect(grid.className).not.toContain("minmax(0,156px)]!");
   });
 
   test("desktop keeps the inline heatmap and its original grid row", async () => {

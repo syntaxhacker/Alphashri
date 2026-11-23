@@ -12,6 +12,8 @@ import {
   OI_CHAIN_HEADER_HEIGHT,
   OI_CHAIN_MAX_HEIGHT,
   OI_CHAIN_METRICS,
+  OI_CHAIN_MOBILE_ROW_PX,
+  OI_CHAIN_MOBILE_VIEWPORT_MAX,
 } from "./reportCells";
 import { chainRow } from "./reportCells.fixtures";
 
@@ -149,6 +151,13 @@ describe("option-chain row emphasis and panel sizing", () => {
     expect(panel.style.getPropertyValue("flex")).toBe("0 0 auto");
     expect(panel.style.getPropertyValue("contain")).toBe("layout paint");
     expect(screen.getByTestId("nifty-oi-wrap").style.getPropertyValue("height")).toBe("auto");
+  });
+
+  test("the phone reserve fits two full strike rows below the sticky header", () => {
+    const chrome = 32 + 40 + OI_CHAIN_HEADER_HEIGHT; // tabs + panel header + table header
+    const rowsArea = OI_CHAIN_MOBILE_ROW_PX - chrome;
+    expect(rowsArea).toBeGreaterThanOrEqual(2 * OI_CHAIN_METRICS.rowHeight);
+    expect(rowsArea).toBeLessThan(3 * OI_CHAIN_METRICS.rowHeight);
   });
 });
 
@@ -343,5 +352,29 @@ describe("full-density chain — bounded scroll and ATM auto-centre", () => {
     // First row: target 60 − 167 = −107 → clamped to 0, not 333 + (−107).
     expect(scroller.scrollTop).toBe(0);
     expect(wrap).toHaveAttribute("data-chain-atm-centered", "1");
+  });
+
+  test("a phone-height viewport pins ATM below the header with a full neighbour row", async () => {
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.classList?.contains("paper-tanstack-scroll") ? 84 : 0;
+      },
+    });
+    mount(() => 26400);
+    await settle();
+
+    const wrap = screen.getByTestId("nifty-oi-wrap") as HTMLElement;
+    const scroller = wrap.querySelector(".paper-tanstack-scroll") as HTMLElement;
+    expect(scroller.clientHeight).toBe(84);
+    expect(scroller.clientHeight).toBeLessThanOrEqual(OI_CHAIN_MOBILE_VIEWPORT_MAX);
+    // rowTop 500 − 28px sticky header = 472; ATM is the first full row and the
+    // next row is fully visible under it. Centring (500 − 167) hid it instead.
+    expect(scroller.scrollTop).toBe(472);
+    expect(wrap).toHaveAttribute("data-chain-atm-centered", "1");
+    expect(wrap).toHaveAttribute("data-chain-mobile-row", String(OI_CHAIN_MOBILE_ROW_PX));
+    expect(wrap.className).toContain("max-[600px]:max-h-full!");
+    expect(screen.getByTestId("nifty-oi-panel").className).toContain("max-[600px]:flex-1!");
+    expect(screen.getByTestId("nifty-chain-scroll-cue")).toHaveTextContent("⇄");
   });
 });

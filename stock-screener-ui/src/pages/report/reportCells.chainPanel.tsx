@@ -1,6 +1,6 @@
 import { createEffect, Show } from "solid-js";
 import type { JSX } from "solid-js";
-import { Box, Button } from "@/ui";
+import { Box, Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { hexToRgba } from "@/utils/color";
 import { CompactPanel } from "@/components/common/compact";
@@ -8,12 +8,18 @@ import { TanStackTable } from "@/components/common/TanStackTable";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 import type { NiftyStrike } from "@/types/niftyReport";
 import {
+  OI_CHAIN_HEADER_HEIGHT,
   OI_CHAIN_MAX_HEIGHT,
   OI_CHAIN_METRICS,
+  OI_CHAIN_MOBILE_ROW_PX,
+  OI_CHAIN_MOBILE_VIEWPORT_MAX,
 } from "./reportCells.chainMetrics";
 import { ReportPanelTitle } from "./reportCells.decision";
 
-const OI_CHAIN_PANEL_CLASS = "min-w-0 min-h-0";
+// On a phone the slot is a fixed grid track, so the panel fills it instead of
+// hugging five rows: the body then owns a definite height and the table scrolls
+// inside it. At 1600 the `flex: 0 0 auto` hug is unchanged.
+const OI_CHAIN_PANEL_CLASS = "min-w-0 min-h-0 max-[600px]:flex-1!";
 const OI_CHAIN_PANEL_STYLE: JSX.CSSProperties = {
   "background-color": palette.TERM_BG,
   "border-color": palette.TERM_BORDER,
@@ -51,9 +57,13 @@ const OI_CHAIN_FOCUS_STYLE: JSX.CSSProperties = {
  * at 390: the seven-column chain keeps its full width instead of tearing values
  * mid-word to fit the phone. The inner table scroll area carries the vertical
  * overflow once the panel hits its max-height; a thin scrollbar is the cue.
+ * At 390 the wrap is capped by its definite parent instead of the 360px cap, so
+ * the table viewport (not a clipped panel body) is what scrolls and ATM centring
+ * lands on rows the user can actually see.
  */
 const OI_CHAIN_WRAP_CLASS = [
   "flex min-w-0 min-h-0 overflow-x-auto overflow-y-auto",
+  "max-[600px]:max-h-full!",
   "[&_td]:[padding:4px_8px]!",
   "[&_td]:[height:26px]!",
   "[&_td]:[font-size:var(--text-ui-body)]!",
@@ -112,7 +122,14 @@ function centreChainAtm(root: HTMLElement | undefined): void {
   const target = row.getBoundingClientRect();
   const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
   const rowTop = target.top - viewport.top + scroller.scrollTop;
-  scroller.scrollTop = Math.max(0, Math.min(rowTop - (viewport.height - target.height) / 2, max));
+  // A phone viewport only holds two rows, so centring would tuck ATM under the
+  // sticky header. Pin it directly below the header: ATM plus the row under it
+  // are both full, and the sliver below is the vertical scroll cue.
+  const inset =
+    scroller.clientHeight <= OI_CHAIN_MOBILE_VIEWPORT_MAX
+      ? OI_CHAIN_HEADER_HEIGHT
+      : (viewport.height - target.height) / 2;
+  scroller.scrollTop = Math.max(0, Math.min(rowTop - inset, max));
   root.setAttribute("data-chain-atm-centered", "1");
 }
 
@@ -164,19 +181,29 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
       title={<ReportPanelTitle>Option-chain OI (±750 ATM)</ReportPanelTitle>}
       testId={props.panelTestId}
       action={
-        <Show when={props.onExpand}>
-          <Button
-            data-testid="nifty-oi-expand"
-            size="sm"
-            variant="subtle"
-            aria-label="Expand the option chain"
-            title="Expand the option chain"
-            onClick={() => props.onExpand?.()}
-            className={OI_CHAIN_EXPAND_CLASS}
+        <Box className="flex items-center gap-1">
+          <Text
+            data-testid="nifty-chain-scroll-cue"
+            aria-hidden="true"
+            className="hidden max-[600px]:inline-flex whitespace-nowrap text-ui-micro font-bold"
+            style={{ color: palette.TEXT_MUTED }}
           >
-            ⤢
-          </Button>
-        </Show>
+            ⇄
+          </Text>
+          <Show when={props.onExpand}>
+            <Button
+              data-testid="nifty-oi-expand"
+              size="sm"
+              variant="subtle"
+              aria-label="Expand the option chain"
+              title="Expand the option chain"
+              onClick={() => props.onExpand?.()}
+              className={OI_CHAIN_EXPAND_CLASS}
+            >
+              ⤢
+            </Button>
+          </Show>
+        </Box>
       }
       className={OI_CHAIN_PANEL_CLASS}
       style={OI_CHAIN_PANEL_STYLE}
@@ -189,6 +216,7 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
         data-chain-variant={props.columns.length <= 5 ? "compact" : "full"}
         data-chain-scroll="1"
         data-chain-v-scroll="1"
+        data-chain-mobile-row={OI_CHAIN_MOBILE_ROW_PX}
         role="region"
         aria-label="Option chain"
         tabIndex={0}

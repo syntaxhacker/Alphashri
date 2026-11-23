@@ -117,11 +117,29 @@ const HEATMAP_EXPAND_CLASS =
 // Static literals so Tailwind emits both variants.
 const MOBILE_GRID_DEFAULT = "max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,96px)]";
 const MOBILE_GRID_HEATMAP = "max-[600px]:grid-rows-[minmax(0,1fr)_auto]";
-// The chain rail only needs a few strike rows on a phone. Its old 96px reserve
-// was dead band above the fold; 80px keeps the ATM row and the scroll cue while
-// handing the reclaimed height to the chart. Heatmap keeps its content-sized
-// row — the treemap is replaced by the disclosure, not squeezed into 80px.
-const MOBILE_GRID_CHAIN = "max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,80px)]!";
+// The chain rail needs two full strike rows on a phone, not just its header.
+// 156px = 32px tabs + ~40px panel header + 28px table header + 2×26px rows,
+// with a few pixels of the next row showing as the vertical scroll cue. The old
+// 80px reserve showed only the sticky table header — an empty strip. The chart
+// still owns the first grid track; heatmap keeps its content-sized row.
+const MOBILE_GRID_CHAIN = "max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,156px)]!";
+
+// The phone dock bar has more tabs than the viewport. Keep it horizontally
+// scrollable and fade the clipped label under a chevron instead of cutting the
+// word in half; the cue sits over the bar but never takes a pointer event.
+const DOCK_OVERFLOW_WRAP_CLASS = [
+  "relative mt-auto w-full shrink-0",
+  "max-[600px]:[&_[data-testid='desk-dock']]:flex-nowrap!",
+  "max-[600px]:[&_[data-testid='desk-dock']]:overflow-x-auto!",
+].join(" ");
+const DOCK_OVERFLOW_CUE_CLASS =
+  "pointer-events-none absolute right-0 bottom-0 z-30 hidden h-[36px] w-[28px] items-center justify-center max-[600px]:flex";
+const DOCK_OVERFLOW_CUE_STYLE: JSX.CSSProperties = {
+  background: `linear-gradient(to left, ${palette.TERM_HEADER} 45%, transparent)`,
+  color: palette.TEXT_MUTED,
+  "font-size": `${REPORT_FONT.micro}px`,
+  "font-weight": 800,
+};
 
 const MOBILE_HEAT_METRIC_STYLE: JSX.CSSProperties = {
   height: "24px",
@@ -588,11 +606,21 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
       </Show>
 
       <Show when={isDesk()}>
-        <DeskDock
-          tabs={deskTabs()}
-          active={store.ui.deskDockTab()}
-          onActiveChange={(key) => store.ui.setDeskDockTab(key)}
-        />
+        <Box data-testid="desk-dock-overflow-wrap" className={DOCK_OVERFLOW_WRAP_CLASS}>
+          <DeskDock
+            tabs={deskTabs()}
+            active={store.ui.deskDockTab()}
+            onActiveChange={(key) => store.ui.setDeskDockTab(key)}
+          />
+          <Box
+            data-testid="desk-dock-overflow-cue"
+            aria-hidden="true"
+            className={DOCK_OVERFLOW_CUE_CLASS}
+            style={DOCK_OVERFLOW_CUE_STYLE}
+          >
+            ›
+          </Box>
+        </Box>
       </Show>
 
       <Show when={!isDesk()}>
