@@ -154,3 +154,37 @@ bun run audit:evidence:pending
 This is the `node scripts/evidence-audit.mjs --allow-missing` flag: it prints
 the same list of problems, labelled as pending evidence, and exits 0 so the
 capture-in-progress state does not fail the gate.
+
+## 7. Capture commands
+
+From `stock-screener-ui/`, each command sets `SCREENSHOT_EVIDENCE=1` (so the spec
+writes PNGs instead of only asserting the DOM) and pins `--workers=1` for a
+deterministic capture:
+
+```
+bun run evidence:app        # design-evidence.spec.ts — report/sector/options/home → docs/screenshots/app/{report,sector,options,home}-{1600,390}.png
+bun run evidence:screener   # screener-evidence.spec.ts — bare /screener → docs/screenshots/app/screener-{1600,390}.png
+bun run evidence:patterns   # patterns-evidence.spec.ts — /patterns → docs/screenshots/app/patterns-{1600,390}.png
+```
+
+Prerequisite: **the app/API or preview server must already be running with the
+local API env before any capture command.** `playwright.config.ts` sets
+`baseURL: http://localhost:5173` and declares no `webServer`, so Playwright will
+not start one for you — bring up the UI server yourself (`./start.sh`, or
+`bun run dev` / `bun run preview`). Start it with the local API env in place: the
+Vite proxy targets `VITE_API_BASE_URL || http://localhost:8765`, so the UI must
+point at the local API (default `localhost:8765`) for `/api` mock interception
+and route readiness to behave as the specs expect.
+
+After capturing, run the gating check from §6 and **it must pass before the
+PNGs are committed**:
+
+```
+bun run audit:evidence
+```
+
+It exits 0 only when all 8 app-route PNGs and 52 showcase PNGs exist, are valid
+PNG files, are ≥8 KiB and have the expected dimensions; a missing/invalid PNG
+fails the command. While captures are still incomplete, `audit:evidence:pending`
+may report the gaps non-fatally, but the final capture commit must satisfy the
+gating `audit:evidence`.
