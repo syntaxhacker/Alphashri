@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
 import { cleanup, render } from "@solidjs/testing-library";
 import { sxTheme } from "../sxTheme";
+import { alpha } from "../palette";
 import type { UIThemeIconProps } from "../types";
 import { ThemeIcon } from "./ThemeIcon";
 
@@ -49,32 +50,33 @@ describe("ThemeIcon", () => {
 
   test("resolves semantic colours from the shared sxTheme palette", () => {
     const error = renderIcon({ color: "error" });
-    expect(error.style.backgroundColor).toBe(sxTheme.palette.error.main);
-    expect(error.style.color).toBe(sxTheme.palette.error.contrastText);
+    expect(error.style.backgroundColor).toBe(alpha(sxTheme.palette.error.main, 0.12));
+    expect(error.style.color).toBe(sxTheme.palette.error.main);
 
     const success = renderIcon({ color: "success" });
-    expect(success.style.backgroundColor).toBe(sxTheme.palette.success.main);
-    expect(success.style.color).toBe(sxTheme.palette.success.contrastText);
+    expect(success.style.backgroundColor).toBe(alpha(sxTheme.palette.success.main, 0.12));
+    expect(success.style.color).toBe(sxTheme.palette.success.main);
   });
 
   test("variants choose contrast fill, transparent outline and paper surfaces", () => {
     const filled = renderIcon({ variant: "filled", color: "primary" });
-    expect(filled.style.backgroundColor).toBe(sxTheme.palette.primary.contrastText);
-    expect(filled.className).toContain("text-white");
-    expect(filled.style.color).toBe("");
+    expect(filled.style.backgroundColor).toBe(sxTheme.palette.primary.main);
+    expect(filled.style.color).toBe(sxTheme.palette.primary.contrastText);
 
     const outline = renderIcon({ variant: "outline", color: "primary" });
     expect(outline.style.backgroundColor).toBe("transparent");
-    expect(outline.style.color).toBe(sxTheme.palette.primary.contrastText);
+    expect(outline.style.color).toBe(sxTheme.palette.primary.main);
 
     const white = renderIcon({ variant: "white", color: "primary" });
     expect(white.style.backgroundColor).toBe(sxTheme.palette.background.paper);
-    expect(white.style.color).toBe(sxTheme.palette.primary.contrastText);
+    expect(white.style.color).toBe(sxTheme.palette.primary.main);
 
     const plain = renderIcon({ variant: "default", color: "primary" });
-    expect(plain.style.backgroundColor).toBe(sxTheme.palette.background.paper);
+    expect(plain.style.backgroundColor).toBe(alpha(sxTheme.palette.primary.main, 0.12));
+    expect(plain.style.color).toBe(sxTheme.palette.primary.main);
 
     const light = renderIcon({ variant: "light", color: "primary" });
-    expect(light.style.backgroundColor).toBe(sxTheme.palette.primary.main);
+    expect(light.style.backgroundColor).toBe(alpha(sxTheme.palette.primary.main, 0.12));
+    expect(light.style.color).toBe(sxTheme.palette.primary.main);
   });
 });

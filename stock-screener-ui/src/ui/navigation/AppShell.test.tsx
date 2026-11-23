@@ -30,6 +30,13 @@ describe("AppShell", () => {
     expect(main.style.marginLeft).toBe("220px");
     expect(main.style.marginTop).toBe("48px");
     expect(main.style.padding).toBe("16px");
+
+    cleanup();
+    render(() => (
+      <AppShell data-testid="named-shell" header={{ height: 48 }} padding="md">Body</AppShell>
+    ));
+    const namedMain = screen.getByTestId("named-shell-main") as HTMLElement;
+    expect(namedMain.style.padding).toBe("16px");
     expect(within(main).getByTestId("content")).toHaveTextContent("Screener");
   });
 
@@ -98,6 +105,10 @@ describe("AppShell", () => {
     expect(navbar.tagName).toBe("NAV");
     expect(navbar.style.width).toBe("280px");
     expect(navbar.style.padding).toBe("8px");
+
+    cleanup();
+    render(() => <AppShellNavbar data-testid="named-navbar" p="xs">Nav</AppShellNavbar>);
+    expect((screen.getByTestId("named-navbar") as HTMLElement).style.padding).toBe("4px");
     expect(navbar).toHaveTextContent("Nav");
     expect(main.tagName).toBe("MAIN");
     expect(main.className).toContain("p-4");

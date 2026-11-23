@@ -1,6 +1,8 @@
 import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import { sxTheme } from "../sxTheme";
+import { alpha } from "../palette";
+import { pickTextColor } from "@/utils/contrast";
 import type { UIThemeIconProps } from "../types";
 
 function toPx(size: UIThemeIconProps["size"]): string | undefined {
@@ -23,7 +25,9 @@ function resolveColor(color?: string): { main: string; dark: string } {
   const primaryDark = sxTheme.palette.primary.contrastText ?? sxTheme.palette.primary.main;
   const primary = { main: sxTheme.palette.primary.main, dark: primaryDark };
   if (!color) return primary;
-  if (color.startsWith("#") || color.startsWith("rgb")) return { main: color, dark: color };
+  if (color.startsWith("#") || color.startsWith("rgb")) {
+    return { main: color, dark: pickTextColor(color) };
+  }
   const key = color.split(".")[0];
   const entry = (sxTheme.palette as unknown as Record<string, { main?: string; contrastText?: string; dark?: string }>)[key];
   if (entry) {
@@ -53,38 +57,42 @@ export function ThemeIcon(props: UIThemeIconProps) {
   const borderRadius = _radiusValue(known.radius);
 
   const baseSize = px != null ? { width: px, height: px, "font-size": `${Number(px.replace("px", "")) * 0.5}px` } : { width: "36px", height: "36px", "font-size": "18px" };
+  const tint = (fill: string) =>
+    fill.startsWith("#") ? alpha(fill, 0.12) : `color-mix(in srgb, ${fill} 12%, transparent)`;
 
   let backgroundColor: string | undefined;
   let colorValue: string | undefined;
-  const isFilled = known.variant === "filled";
   switch (known.variant) {
     case "filled":
-      backgroundColor = dark;
+      backgroundColor = main;
+      colorValue = dark;
       break;
     case "outline":
       backgroundColor = "transparent";
-      colorValue = dark;
+      colorValue = main;
       break;
     case "white":
-    case "default":
       backgroundColor = sxTheme.palette.background.paper;
-      colorValue = dark;
+      colorValue = main;
+      break;
+    case "default":
+      backgroundColor = tint(main);
+      colorValue = main;
       break;
     default:
-      // subtle filled tint (was `alpha(main, 0.11)`)
-      backgroundColor = main;
-      colorValue = dark;
+      backgroundColor = tint(main);
+      colorValue = main;
       break;
   }
 
   return (
     <span
-      className={cn("inline-flex items-center justify-center shrink-0", isFilled ? "text-white" : "", known.className)}
+      className={cn("inline-flex items-center justify-center shrink-0", known.className)}
       style={{
         ...baseSize,
         "border-radius": borderRadius,
         "background-color": backgroundColor,
-        color: isFilled ? undefined : colorValue,
+        color: colorValue,
         ...(known.style as Record<string, string | undefined>),
       }}
       id={known.id}

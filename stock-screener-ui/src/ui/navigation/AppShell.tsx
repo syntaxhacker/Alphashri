@@ -1,4 +1,5 @@
 import { splitProps } from "solid-js";
+import { sp } from "../layout/spacing";
 import { cn } from "../cn";
 import type { UIAppShellProps, UIAppShellHeaderProps, UIAppShellNavbarProps, UIAppShellMainProps, UIAppShellSectionProps } from "../types";
 
@@ -72,7 +73,7 @@ export function AppShell(props: UIAppShellProps) {
         style={{
           "margin-left": `${navbarCollapsed || !known.navbar ? 0 : navbarWidth}px`,
           "margin-top": `${headerCollapsed || !known.header ? 0 : headerHeight}px`,
-          padding: known.padding != null ? (typeof known.padding === "number" ? `${known.padding}px` : String(known.padding)) : "0px",
+          padding: known.padding != null ? sp(known.padding) : "0px",
           "min-width": 0,
           "min-height": 0,
         }}
@@ -100,7 +101,9 @@ export function AppShellHeader(props: UIAppShellHeaderProps) {
 
 export function AppShellNavbar(props: UIAppShellNavbarProps) {
   const [known, _rest] = splitProps(props, ["p", "children", "className", "style", "data-testid", "id"]);
-  const pad = known.p != null ? (typeof known.p === "number" ? `${known.p * 8}px` : String(known.p)) : undefined;
+  const pad = known.p != null
+    ? (typeof known.p === "number" ? `${known.p * 8}px` : sp(known.p))
+    : undefined;
   return (
     <nav
       className={cn("fixed inset-y-0 left-0 z-40 flex-shrink-0 w-[280px]", known.className)}
