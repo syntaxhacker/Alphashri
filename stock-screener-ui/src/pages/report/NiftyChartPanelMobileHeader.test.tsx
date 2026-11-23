@@ -3,7 +3,8 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 import { UIProvider } from "@/ui";
-import { MOBILE_CHART_TARGET } from "./NiftyChartPanel";
+import { CHART_HEADER_METRICS, MOBILE_CHART_TARGET } from "./NiftyChartPanel";
+import { REPORT_FONT } from "./reportTokens";
 
 const env = vi.hoisted(() => ({ mobile: false }));
 
@@ -141,7 +142,7 @@ describe("NiftyChartPanel — mobile header controls (390px)", () => {
     for (const rule of [
       "max-[640px]:[&>div:first-child]:flex-col",
       "max-[640px]:[&>div:first-child]:items-stretch",
-      "max-[640px]:[&>div:first-child]:gap-y-1",
+      "max-[640px]:[&>div:first-child]:gap-y-2",
     ]) {
       expect(cls).toContain(rule);
     }
@@ -154,5 +155,68 @@ describe("NiftyChartPanel — mobile header controls (390px)", () => {
     for (const id of ["nifty-chart-source", "nifty-tf-toggle", "nifty-chart-size", "nifty-patterns-scan", "nifty-chart-expand"]) {
       expect(screen.getByTestId(id)).toBeInTheDocument();
     }
+  });
+});
+
+describe("NiftyChartPanel — header hierarchy and spacing", () => {
+  test("the title is the primary step and the feed badge is secondary metadata", () => {
+    env.mobile = true;
+    mount();
+
+    expect(CHART_HEADER_METRICS.titleSize).toBe(REPORT_FONT.body);
+    expect(CHART_HEADER_METRICS.metaSize).toBe(REPORT_FONT.micro);
+    expect(CHART_HEADER_METRICS.gap).toBeGreaterThanOrEqual(8);
+
+    const title = screen.getByTestId("nifty-chart-title");
+    expect(title).toHaveAttribute("data-header-role", "title");
+    expect(title).toHaveStyle({
+      "font-size": `${CHART_HEADER_METRICS.titleSize}px`,
+      "font-weight": "800",
+      "margin-right": `${CHART_HEADER_METRICS.gap}px`,
+    });
+    expect(title.style.letterSpacing).not.toBe("");
+    expect(title.style.textOverflow).not.toBe("ellipsis");
+    expect(title).not.toHaveClass("truncate");
+    expect(title).toHaveTextContent("NIFTY chart");
+
+    // The feed label stays whole: no mid-word ellipsis, only the glyph its
+    // "connecting" state itself prints.
+    const feed = screen.getByTestId("nifty-fyers-feed");
+    expect(feed).toHaveStyle({ "font-size": `${CHART_HEADER_METRICS.metaSize}px` });
+    expect(feed).toHaveTextContent("FYERS LINK…");
+    expect(feed.style.textOverflow).not.toBe("ellipsis");
+  });
+
+  test("desktop uses one compact 8px row with a source/secondary divider", () => {
+    env.mobile = false;
+    mount();
+
+    const panel = screen.getByTestId("nifty-chart-panel");
+    expect(panel.className).toContain("[&>div:first-child]:gap-x-2");
+    const row = screen.getByTestId("nifty-chart-controls-desktop");
+    expect(row).toHaveStyle({ gap: `${CHART_HEADER_METRICS.gap}px` });
+    const divider = row.children[1] as HTMLElement;
+    expect(divider).toHaveAttribute("aria-hidden", "true");
+    expect(divider.className).toContain("w-px");
+    expect(divider.className).toContain("bg-fin-border");
+  });
+
+  test("phone controls stack with an 8px gutter and a whole MORE affordance", () => {
+    env.mobile = true;
+    mount();
+
+    const wrap = screen.getByTestId("nifty-chart-controls-mobile");
+    expect(wrap).toHaveStyle({ gap: `${CHART_HEADER_METRICS.gap}px` });
+    const more = screen.getByTestId("nifty-chart-controls-more");
+    expect(more).toHaveStyle({ "min-width": "56px" });
+    expect(more).toHaveTextContent("MORE ▾");
+    expect(more.style.textOverflow).not.toBe("ellipsis");
+
+    fireEvent.click(more);
+    const extra = screen.getByTestId("nifty-chart-controls-extra");
+    expect(extra).toHaveStyle({
+      gap: `${CHART_HEADER_METRICS.gap}px`,
+      "padding-top": `${CHART_HEADER_METRICS.gap}px`,
+    });
   });
 });

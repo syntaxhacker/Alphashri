@@ -23,6 +23,8 @@ import {
   REPORT_FONT_WEIGHT,
   REPORT_LETTER_SPACING,
   REPORT_LINE_HEIGHT,
+  REPORT_PAD,
+  REPORT_ROW,
 } from "./reportTokens";
 import type { NiftyReport, NiftyStrike } from "@/types/niftyReport";
 
@@ -451,7 +453,12 @@ export function oiChangeBarCell(
         "font-variant-numeric": "tabular-nums",
       }}
     >
-      <Text size="xs" span fw={500} style={{ color: legHue }}>
+      <Text
+        size="xs"
+        span
+        fw={500}
+        style={{ color: legHue, "font-size": `${OI_CHAIN_METRICS.valueSize}px` }}
+      >
         {text}
       </Text>
       <span
@@ -497,14 +504,17 @@ export function legChangeCell(leg: NiftyStrike["ce"], legHue: string): JSX.Eleme
       title={change.label}
       style={{
         display: "block",
-        overflow: "hidden",
-        "text-overflow": "ellipsis",
         "white-space": "nowrap",
         "font-family": palette.MONO,
         "font-variant-numeric": "tabular-nums",
       }}
     >
-      <Text size="xs" span fw={500} style={{ color: tone }}>
+      <Text
+        size="xs"
+        span
+        fw={500}
+        style={{ color: tone, "font-size": `${OI_CHAIN_METRICS.valueSize}px` }}
+      >
         {pointsText}
       </Text>
       <Show when={pctText}>
@@ -551,13 +561,44 @@ export function findAtmStrike(strikes: NiftyStrike[], spot: number): number | nu
   return best;
 }
 
-const OI_CE_CHG_W = 110;
-const OI_CE_OI_W = 88;
-// 72px holds a 6-character mono header ("CE SIG"/"PE SIG") at the 12px floor
-// plus cell inset; at 64px the header text spilled into the neighbouring
-// columns and "CE SIGNAL"/"PE SIGNAL" ran into STRIKE / PE OI Chg.
-const OI_SIG_W = 72;
-const OI_STRIKE_W = 92;
+/**
+ * Chain rhythm. Column labels stay at the 12px floor while the numbers they
+ * label read at the 13px body step; the old `dense` preset squeezed both into
+ * 18px rows with 1px/6px insets, which cut wall tags and ΔOI values mid-word.
+ */
+export const OI_CHAIN_METRICS = {
+  rowHeight: REPORT_ROW.walls, // 26 — deliberate row height, no 18px cram
+  cellPadding: `${REPORT_PAD.sm}px ${REPORT_PAD.md}px`, // 4px 8px
+  labelSize: REPORT_FONT.micro, // 12 — column labels
+  valueSize: REPORT_FONT.body, // 13 — numbers and badges they describe
+} as const;
+
+const OI_CE_CHG_W = 116;
+const OI_CE_OI_W = 96;
+// 80px holds a 6-character mono header ("CE SIG"/"PE SIG") at the 12px floor
+// plus the roomier 4px/8px cell inset; the old 64px let the header bleed into
+// STRIKE / PE OI Chg and 72px left no breathing room for the status badge.
+const OI_SIG_W = 80;
+// STRIKE carries the number plus up to two wall tags (CW/PW) on the same line.
+const OI_STRIKE_W = 128;
+
+/**
+ * Two-tone column label: the side token is the header, the metric token is its
+ * subheader. Kept in one compact label so the 6-character textContent (and the
+ * existing header test) still holds while the eye gets a stable left anchor on
+ * each side of STRIKE. The full description stays in the native tooltip.
+ */
+function chainHeader(side: string, metric: string, title: string): JSX.Element {
+  return (
+    <span title={title}>
+      <span style={{ color: palette.TEXT, "font-weight": REPORT_FONT_WEIGHT.extrabold }}>{side}</span>
+      <span style={{ color: palette.TEXT_MUTED, "font-weight": REPORT_FONT_WEIGHT.medium }}>
+        {" "}
+        {metric}
+      </span>
+    </span>
+  );
+}
 
 export interface NiftyOiColumnOpts {
   maxCeOiChange?: number;
@@ -574,7 +615,7 @@ export function getNiftyOiColumns(
   const legChangeColumns: TableColumnDef<NiftyStrike>[] = [
     {
       id: "ceChg",
-      header: <span title="points (LTP − prev close)">CE Chg</span>,
+      header: chainHeader("CE", "Chg", "points (LTP − prev close)"),
       accessorKey: "ce.priceChange",
       accessorFn: (row) => formatLegChange(row.ce).points,
       size: OI_CE_CHG_W,
@@ -585,7 +626,7 @@ export function getNiftyOiColumns(
   const coreColumns: TableColumnDef<NiftyStrike>[] = [
     {
       id: "ceOiChange",
-      header: <span title="CE OI Chg — change in call open interest since the previous snapshot">CE ΔOI</span>,
+      header: chainHeader("CE", "ΔOI", "CE OI Chg — change in call open interest since the previous snapshot"),
       accessorKey: "ce.oiChange",
       accessorFn: (row) => row.ce.oiChange,
       size: OI_CE_OI_W,
@@ -597,7 +638,7 @@ export function getNiftyOiColumns(
     },
     {
       id: "ceSignal",
-      header: <span title="CE Signal — call-side position build/unwind: bullish, bearish or neutral">CE SIG</span>,
+      header: chainHeader("CE", "SIG", "CE Signal — call-side position build/unwind: bullish, bearish or neutral"),
       accessorKey: "ce.sentiment",
       accessorFn: (row) => row.ce.sentiment,
       size: OI_SIG_W,
@@ -645,6 +686,7 @@ export function getNiftyOiColumns(
               c={isAtm ? palette.TERM_FLIP : undefined}
               data-testid={isAtm ? "nifty-strike-atm-badge" : undefined}
               title={isAtm ? "ATM strike" : undefined}
+              style={{ "font-size": `${OI_CHAIN_METRICS.valueSize}px` }}
             >
               {formatNumberIN(strike)}
             </Text>
@@ -654,7 +696,7 @@ export function getNiftyOiColumns(
     },
     {
       id: "peSignal",
-      header: <span title="PE Signal — put-side position build/unwind: bullish, bearish or neutral">PE SIG</span>,
+      header: chainHeader("PE", "SIG", "PE Signal — put-side position build/unwind: bullish, bearish or neutral"),
       accessorKey: "pe.sentiment",
       accessorFn: (row) => row.pe.sentiment,
       size: OI_SIG_W,
@@ -663,7 +705,7 @@ export function getNiftyOiColumns(
     },
     {
       id: "peOiChange",
-      header: <span title="PE OI Chg — change in put open interest since the previous snapshot">PE ΔOI</span>,
+      header: chainHeader("PE", "ΔOI", "PE OI Chg — change in put open interest since the previous snapshot"),
       accessorKey: "pe.oiChange",
       accessorFn: (row) => row.pe.oiChange,
       size: OI_CE_OI_W,
@@ -677,7 +719,7 @@ export function getNiftyOiColumns(
   if (opts?.showLegChange === false) return coreColumns;
   const peChg: TableColumnDef<NiftyStrike> = {
     id: "peChg",
-    header: <span title="points (LTP − prev close)">PE Chg</span>,
+    header: chainHeader("PE", "Chg", "points (LTP − prev close)"),
     accessorKey: "pe.priceChange",
     accessorFn: (row) => formatLegChange(row.pe).points,
     size: OI_CE_CHG_W,
@@ -694,8 +736,30 @@ const OI_CHAIN_PANEL_STYLE: JSX.CSSProperties = {
   contain: "size",
 };
 
-const OI_CHAIN_WRAP_CLASS = "flex min-w-0 min-h-0";
-const OI_CHAIN_WRAP_STYLE: JSX.CSSProperties = { height: "100%" };
+/**
+ * TanStackTable paints padding/height/size inline on every cell. An `!important`
+ * rule on the cell itself is the only way to keep the chain's own rhythm
+ * without forking the shared table (a custom property on an ancestor loses to
+ * the table's inline declaration). Font sizes reference the shared `--text-ui-*`
+ * tokens, never a private px literal. `overflow-x: auto` is the real scroll cue
+ * at 390: the seven-column chain keeps its full width instead of tearing values
+ * mid-word to fit the phone.
+ */
+const OI_CHAIN_WRAP_CLASS = [
+  "flex min-w-0 min-h-0 overflow-x-auto",
+  "[&_td]:[padding:4px_8px]!",
+  "[&_td]:[height:26px]!",
+  "[&_td]:[font-size:var(--text-ui-body)]!",
+  "[&_th]:[padding:4px_8px]!",
+  "[&_th]:[height:28px]!",
+  "[&_th]:[font-size:var(--text-ui-micro)]!",
+  "[&_thead_th]:[border-bottom:2px_solid_var(--color-fin-border)]!",
+  "[&_td]:[text-overflow:clip]!",
+].join(" ");
+const OI_CHAIN_WRAP_STYLE: JSX.CSSProperties = {
+  height: "100%",
+  "overflow-x": "auto",
+};
 
 const OI_CHAIN_TABLE_STYLE: JSX.CSSProperties = { "min-width": 0 };
 
@@ -747,6 +811,9 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
       <Box
         ref={props.wrapRef}
         data-testid={props.wrapTestId}
+        data-chain-row-height={OI_CHAIN_METRICS.rowHeight}
+        data-chain-value-size={OI_CHAIN_METRICS.valueSize}
+        data-chain-scroll="1"
         className={OI_CHAIN_WRAP_CLASS}
         style={OI_CHAIN_WRAP_STYLE}
       >
@@ -757,7 +824,6 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
           emptyMessage="No strikes for this expiry"
           fillContainer
           style={OI_CHAIN_TABLE_STYLE}
-          dense
           getRowStyle={props.getRowStyle}
           getRowTestId={props.getRowTestId}
         />

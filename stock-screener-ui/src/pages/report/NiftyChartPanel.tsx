@@ -16,6 +16,10 @@ import {
 } from "./niftyPatternOverlay";
 import {
   REPORT_FONT,
+  REPORT_FONT_WEIGHT,
+  REPORT_LETTER_SPACING,
+  REPORT_LINE_HEIGHT,
+  REPORT_PAD,
   REPORT_CONTROL_LABEL_CLASS,
   REPORT_CONTROL_LABEL_STYLE,
 } from "./reportTokens";
@@ -113,6 +117,17 @@ const CHART_SOURCE_OPTIONS: { value: string; label: string }[] = [
   { value: "patterns", label: "PATTERNS" },
   { value: "offline", label: "OFFLINE" },
 ];
+
+/**
+ * Header rhythm. The title is the primary 13px step; feed/event badges are 12px
+ * metadata, so the eye lands on the symbol before the status. Wide screens keep
+ * one compact 8px row; phones stack with the same 8px gutter instead of 4px slop.
+ */
+export const CHART_HEADER_METRICS = {
+  titleSize: REPORT_FONT.body,
+  metaSize: REPORT_FONT.micro,
+  gap: REPORT_PAD.md,
+} as const;
 
 /** Mirrors the explicit underlyings in `/ws/fyers/ticks` (including its
  *  aliases). Other symbols — notably RELIANCE — are rejected by that endpoint,
@@ -757,7 +772,15 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
       title={
         <span
           data-testid="nifty-chart-title"
+          data-header-role="title"
           class="inline-flex items-center gap-[6px] whitespace-nowrap shrink-0 max-[640px]:whitespace-normal max-[640px]:shrink"
+          style={{
+            "font-size": `${CHART_HEADER_METRICS.titleSize}px`,
+            "font-weight": REPORT_FONT_WEIGHT.extrabold,
+            "letter-spacing": REPORT_LETTER_SPACING.wide,
+            "line-height": REPORT_LINE_HEIGHT.snug,
+            "margin-right": `${CHART_HEADER_METRICS.gap}px`,
+          }}
         >
           {view() === "depth" ? `${symbol()} depth map` : `${symbol()} chart`}
           <Show when={feedView()}>
@@ -770,7 +793,13 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
                 span
                 title={view().title}
                 class="whitespace-nowrap max-[640px]:whitespace-normal"
-                style={{ color: view().color }}
+                style={{
+                  color: view().color,
+                  "font-size": `${CHART_HEADER_METRICS.metaSize}px`,
+                  "font-weight": REPORT_FONT_WEIGHT.bold,
+                  "letter-spacing": REPORT_LETTER_SPACING.normal,
+                  "line-height": 1,
+                }}
               >
                 {view().label}
               </Text>
@@ -793,17 +822,22 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
         </span>
       }
       testId="nifty-chart-panel"
-      class="[&_[data-compact-card-content]]:flex-1 [&_[data-compact-card-content]]:min-h-0 [&_[data-compact-card-content]]:overflow-hidden max-[600px]:[&_[data-compact-card-content]]:p-0 max-[600px]:[&_[data-compact-card-content]]:gap-0 max-[640px]:[&>div:first-child]:flex-col max-[640px]:[&>div:first-child]:items-stretch max-[640px]:[&>div:first-child]:gap-y-1"
+      class="[&>div:first-child]:gap-x-2 [&_[data-compact-card-content]]:flex-1 [&_[data-compact-card-content]]:min-h-0 [&_[data-compact-card-content]]:overflow-hidden max-[600px]:[&_[data-compact-card-content]]:p-0 max-[600px]:[&_[data-compact-card-content]]:gap-0 max-[640px]:[&>div:first-child]:flex-col max-[640px]:[&>div:first-child]:items-stretch max-[640px]:[&>div:first-child]:gap-y-2"
       style={{ "min-width": "0px", "min-height": "0px", height: "100%", overflow: "hidden", display: "flex", "flex-direction": "column" }}
       action={
         view() === "chart" ? (
           <Show
             when={isMobile()}
             fallback={
-              // Desktop keeps the original single row; no mobile-only rule
-              // reaches it.
-              <div class="flex flex-1 min-w-0 items-center justify-end overflow-x-auto" style={{ gap: "4px" }}>
+              // Desktop keeps one compact row; the hairline separates the
+              // source decision from the secondary timeframe/size controls.
+              <div
+                data-testid="nifty-chart-controls-desktop"
+                class="flex flex-1 min-w-0 items-center justify-end overflow-x-auto"
+                style={{ gap: `${CHART_HEADER_METRICS.gap}px` }}
+              >
                 {sourceToggle()}
+                <span aria-hidden="true" class="shrink-0 h-[16px] w-px bg-fin-border" />
                 {secondaryControls()}
               </div>
             }
@@ -811,9 +845,9 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
             <div
               data-testid="nifty-chart-controls-mobile"
               className="flex flex-col items-stretch min-w-0"
-              style={{ gap: "2px" }}
+              style={{ gap: `${CHART_HEADER_METRICS.gap}px` }}
             >
-              <div className="flex items-center justify-end min-w-0" style={{ gap: "4px" }}>
+              <div className="flex items-center justify-end min-w-0" style={{ gap: `${CHART_HEADER_METRICS.gap}px` }}>
                 <div className="shrink-0">{sourceToggle()}</div>
                 <Button
                   data-testid="nifty-chart-controls-more"
@@ -822,7 +856,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
                   aria-expanded={controlsOpen()}
                   aria-controls="nifty-chart-controls-extra"
                   onClick={() => setControlsOpen((v) => !v)}
-                  style={{ height: "26px", "min-height": "26px", "min-width": "44px", padding: "0 5px", "font-size": `${REPORT_FONT.micro}px`, "font-weight": 800 }}
+                  style={{ height: "26px", "min-height": "26px", "min-width": "56px", padding: "0 6px", "font-size": `${REPORT_FONT.micro}px`, "font-weight": 800 }}
                 >
                   {controlsOpen() ? "LESS ▴" : "MORE ▾"}
                 </Button>
@@ -832,7 +866,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
                   id="nifty-chart-controls-extra"
                   data-testid="nifty-chart-controls-extra"
                   className="flex flex-wrap items-center justify-end min-w-0"
-                  style={{ gap: "4px", "padding-top": "2px" }}
+                  style={{ gap: `${CHART_HEADER_METRICS.gap}px`, "padding-top": `${CHART_HEADER_METRICS.gap}px` }}
                 >
                   {secondaryControls()}
                 </div>

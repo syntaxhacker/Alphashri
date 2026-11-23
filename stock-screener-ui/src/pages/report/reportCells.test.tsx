@@ -20,10 +20,12 @@ import {
   formatSignedPoints,
   getNiftyOiColumns,
   gexRegimeText,
+  OI_CHAIN_METRICS,
   oiBurstLogHeight,
   replayFromMeta,
   setupBannerHeadline,
 } from "./reportCells";
+import { REPORT_FONT, REPORT_PAD, REPORT_ROW } from "./reportTokens";
 
 afterEach(() => {
   setLiveTick(null);
@@ -444,6 +446,106 @@ describe("option-chain header and signal badge collisions", () => {
     const { container } = mountChain([chainWithSentiments("LB", "")]);
     expect(container.querySelector('[data-testid="nifty-oi-signal-ce"]')?.textContent).toBe("LB");
     expect(container.querySelector('[data-testid="nifty-oi-signal-pe"]')?.textContent).toBe("—");
+  });
+});
+
+describe("option-chain rhythm and column hierarchy", () => {
+  function mount(rows: NiftyStrike[], columns = getNiftyOiColumns(null)) {
+    return render(() => (
+      <NiftyOiChain
+        strikes={rows}
+        columns={columns}
+        getRowStyle={() => undefined}
+        getRowTestId={() => "nifty-oi-row"}
+        panelTestId="nifty-oi-panel"
+        tableTestId="nifty-oi-table"
+        wrapTestId="nifty-oi-wrap"
+      />
+    ));
+  }
+
+  test("labels sit at the 12px floor, values one step larger, with a deliberate row/pad rhythm", () => {
+    expect(OI_CHAIN_METRICS.labelSize).toBe(REPORT_FONT.micro);
+    expect(OI_CHAIN_METRICS.valueSize).toBe(REPORT_FONT.body);
+    expect(OI_CHAIN_METRICS.labelSize).toBeGreaterThanOrEqual(12);
+    expect(OI_CHAIN_METRICS.valueSize).toBeGreaterThan(OI_CHAIN_METRICS.labelSize);
+    expect(OI_CHAIN_METRICS.rowHeight).toBe(REPORT_ROW.walls);
+    expect(OI_CHAIN_METRICS.rowHeight).toBeGreaterThanOrEqual(24);
+    expect(OI_CHAIN_METRICS.cellPadding).toBe(`${REPORT_PAD.sm}px ${REPORT_PAD.md}px`);
+    const [vertical, horizontal] = OI_CHAIN_METRICS.cellPadding
+      .split(" ")
+      .map((v) => Number.parseFloat(v));
+    expect(vertical).toBeGreaterThanOrEqual(4);
+    expect(horizontal).toBeGreaterThanOrEqual(8);
+  });
+
+  test("the wrapper pins those metrics and exposes a real horizontal scroll cue", () => {
+    mount([chainRow(25700)], getNiftyOiColumns(25700));
+    const wrap = screen.getByTestId("nifty-oi-wrap");
+    for (const rule of [
+      `[&_td]:[padding:${OI_CHAIN_METRICS.cellPadding.replace(" ", "_")}]!`,
+      `[&_td]:[height:${OI_CHAIN_METRICS.rowHeight}px]!`,
+      "[&_td]:[font-size:var(--text-ui-body)]!",
+      "[&_th]:[font-size:var(--text-ui-micro)]!",
+      "[&_th]:[height:28px]!",
+      "[&_thead_th]:[border-bottom:2px_solid_var(--color-fin-border)]!",
+      "[&_td]:[text-overflow:clip]!",
+      "overflow-x-auto",
+    ]) {
+      expect(wrap.className, rule).toContain(rule);
+    }
+    expect(wrap).toHaveAttribute("data-chain-row-height", String(OI_CHAIN_METRICS.rowHeight));
+    expect(wrap).toHaveAttribute("data-chain-value-size", String(OI_CHAIN_METRICS.valueSize));
+    expect(wrap).toHaveAttribute("data-chain-scroll", "1");
+    expect(wrap.style.getPropertyValue("overflow-x")).toBe("auto");
+  });
+
+  test("headers split side from metric but keep the whole compact label and its title", () => {
+    mount([chainRow(25700)], getNiftyOiColumns(25700, { showLegChange: false }));
+    const headers = Array.from(screen.getByTestId("nifty-oi-table").querySelectorAll("thead th"));
+    expect(headers.map((th) => th.textContent)).toEqual([
+      "CE ΔOI",
+      "CE SIG",
+      "STRIKE",
+      "PE SIG",
+      "PE ΔOI",
+    ]);
+    for (const th of headers) {
+      const labelled = th.querySelector("[title]");
+      expect(labelled).not.toBeNull();
+      expect((labelled!.getAttribute("title") ?? "").length).toBeGreaterThan(6);
+      expect(th.style.fontSize).toBe(`${OI_CHAIN_METRICS.labelSize}px`);
+    }
+    const [group, metric] = Array.from(headers[0].querySelectorAll("span[title] > span"));
+    expect(group.textContent).toBe("CE");
+    expect(metric.textContent).toBe(" ΔOI");
+    expect(group.style.fontWeight).toBe("800");
+    expect(metric.style.fontWeight).toBe("500");
+    expect(metric.style.color).not.toBe(group.style.color);
+  });
+
+  test("wide columns keep full values: strike holds two wall tags, no cell ellipsises", () => {
+    const columns = getNiftyOiColumns(25700);
+    expect(columns.find((c) => c.id === "strike")?.size).toBeGreaterThanOrEqual(120);
+    for (const id of ["ceChg", "ceOiChange", "ceSignal", "peSignal", "peOiChange", "peChg"]) {
+      expect(columns.find((c) => c.id === id)?.size, id).toBeGreaterThanOrEqual(80);
+    }
+
+    const { container } = mount([chainRow(25700)], columns);
+    const strikeText = Array.from(container.querySelectorAll("tbody span"))
+      .filter((s) => s.textContent === "25,700")
+      .at(-1) as HTMLElement;
+    expect(strikeText).toBeTruthy();
+    expect(strikeText.style.fontSize).toBe(`${OI_CHAIN_METRICS.valueSize}px`);
+
+    const oiBar = container.querySelector('[data-testid="nifty-oi-bar-ce"]') as HTMLElement;
+    const oiText = oiBar.parentElement?.parentElement?.firstElementChild as HTMLElement;
+    expect(oiText.style.fontSize).toBe(`${OI_CHAIN_METRICS.valueSize}px`);
+
+    const clipped = Array.from(container.querySelectorAll("tbody td *")).filter(
+      (el) => (el as HTMLElement).style.textOverflow === "ellipsis",
+    );
+    expect(clipped, "chain cell renderers must not cut values mid-word").toEqual([]);
   });
 });
 
