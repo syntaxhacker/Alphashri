@@ -267,7 +267,7 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
       <Show when={chainStatus() === "loading"}>
         <Box
           data-testid="options-analytics-chain-loading"
-          className="shrink-0 px-2 py-1 text-[10px] text-fin-text-muted"
+          className="shrink-0 px-2 py-1 text-ui-micro text-fin-text-muted"
         >
           Loading chain…
         </Box>
@@ -276,7 +276,7 @@ function OptionsAnalyticsWindow(props: { context: Accessor<DockPanelContext> }) 
       <Show when={chainStatus() === "empty"}>
         <Box
           data-testid="options-analytics-chain-empty"
-          className="flex shrink-0 flex-col gap-1 px-2 py-1 text-[11px] text-fin-text-muted"
+          className="flex shrink-0 flex-col gap-1 px-2 py-1 text-ui-micro text-fin-text-muted"
         >
           <Text size="xs" c="dimmed">
             No strikes listed for {symbol() || "—"} {selectedExpiry() || "— choose an expiry"}

@@ -218,7 +218,7 @@ function ChainSideToggle(props: {
             aria-pressed={props.value === item.side}
             data-testid={`options-chain-side-${item.side.toLowerCase()}`}
             onClick={() => props.onChange(item.side)}
-            className={`inline-flex h-full min-w-8 cursor-pointer items-center justify-center border-0 px-2 font-mono text-[11px] font-bold leading-[14px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary ${
+            className={`inline-flex h-full min-w-8 cursor-pointer items-center justify-center border-0 px-2 font-mono text-ui-micro font-bold leading-[14px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary ${
               props.value === item.side
                 ? "bg-fin-surface-alt text-fin-text"
                 : "bg-transparent text-fin-text-muted"
@@ -574,7 +574,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                 <Box className="flex min-h-0 flex-1 items-center justify-center">
                   <Box
                     component="span"
-                    className="font-mono text-[11px] leading-[14px] uppercase text-fin-text-muted"
+                    className="font-mono text-ui-micro leading-[14px] uppercase text-fin-text-muted"
                   >
                     Loading analytics
                   </Box>
@@ -678,7 +678,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
               data-testid="options-expiry-select"
               value={optionsDockState.expiry ?? ""}
               onChange={(event) => setExpiry(event.currentTarget.value)}
-              className="h-8 min-w-0 cursor-pointer rounded-fin border border-fin-border-default bg-fin-surface px-2 font-mono text-[11px] leading-[14px] text-fin-text"
+              className="h-8 min-w-0 cursor-pointer rounded-fin border border-fin-border-default bg-fin-surface px-2 font-mono text-ui-micro leading-[14px] text-fin-text"
             >
               <For each={optionsDockState.expiries}>
                 {(entry) => <option value={entry.date}>{expiryLabel(entry, now())}</option>}
@@ -715,7 +715,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
               <Tooltip label={`Rate limited — refreshing in ${retrySeconds()} s`}>
                 <Box
                   component="span"
-                  className="font-mono text-[11px] leading-[14px] uppercase text-fin-warning"
+                  className="font-mono text-ui-micro leading-[14px] uppercase text-fin-warning"
                   data-testid="options-refresh-paused"
                 >
                   Refreshing paused
@@ -725,7 +725,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
             <Show when={marketClosed() && !optionsDockState.paused}>
               <Box
                 component="span"
-                className="font-mono text-[11px] leading-[14px] uppercase text-fin-text-muted"
+                className="font-mono text-ui-micro leading-[14px] uppercase text-fin-text-muted"
                 data-testid="options-market-closed"
               >
                 {asOfLabel() ? `closed · as of ${asOfLabel()}` : "market closed"}
@@ -738,7 +738,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                 aria-label="Open option paper positions"
                 data-testid="options-positions-chip"
                 onClick={() => setPositionsOpen(true)}
-                className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-fin border border-fin-border-default bg-transparent px-2 font-mono text-[11px] leading-[14px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+                className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-fin border border-fin-border-default bg-transparent px-2 font-mono text-ui-micro leading-[14px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
               >
                 POSITIONS {openPaperPositions().length} · {formatSignedPnl(paperPnl())}
               </Box>
@@ -919,7 +919,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                         aria-label="Reset to strike order"
                         data-testid="options-chain-reset-sort"
                         onClick={() => setChainSorting([...DEFAULT_CHAIN_SORTING])}
-                        className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-fin border border-fin-border-default bg-transparent px-2 font-mono text-[11px] leading-[14px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+                        className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-fin border border-fin-border-default bg-transparent px-2 font-mono text-ui-micro leading-[14px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
                       >
                         <IconRotate size={12} />
                         <span className="hidden sm:inline">Strike</span>
@@ -931,7 +931,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                   </Show>
                   <Box
                     component="span"
-                    className="inline-flex items-baseline gap-2 font-mono tabular-nums text-[11px] leading-[14px] text-fin-text-muted"
+                    className="inline-flex items-baseline gap-2 font-mono tabular-nums text-ui-micro leading-[14px] text-fin-text-muted"
                   >
                     <span>{chain()!.rows.length}</span>
                     <span>strikes</span>
@@ -957,7 +957,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                 >
                   <Box
                     component="span"
-                    className="min-w-0 flex-1 truncate font-mono text-[11px] leading-[14px] font-bold"
+                    className="min-w-0 flex-1 truncate font-mono text-ui-micro leading-[14px] font-bold"
                     style={{ color: bannerColor(optionsDockState.error!) }}
                   >
                     {bannerMessage(optionsDockState.error!, retrySeconds())}
@@ -968,7 +968,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                     aria-label="Retry option chain refresh"
                     data-testid="options-dock-retry"
                     onClick={() => void refresh()}
-                    className="inline-flex min-h-6 shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 font-mono text-[11px] leading-[14px] font-bold hover:underline"
+                    className="inline-flex min-h-6 shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 font-mono text-ui-micro leading-[14px] font-bold hover:underline"
                     style={{ color: bannerColor(optionsDockState.error!) }}
                   >
                     Retry
@@ -1014,7 +1014,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                 // PAYOFF itself stays a placeholder until there is something to price.
                 <DockSection title="PAYOFF" testId="options-payoff-placeholder">
                   {renderStrip()}
-                  <Box className="flex flex-wrap items-baseline gap-2 text-[11px] leading-4 text-fin-text-muted">
+                  <Box className="flex flex-wrap items-baseline gap-2 text-ui-micro leading-4 text-fin-text-muted">
                     <span className="font-mono tabular-nums">
                       {formatDte(selectedExpiry()?.dteDays ?? 0)}
                     </span>

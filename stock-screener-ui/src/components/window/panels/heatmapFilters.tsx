@@ -102,7 +102,7 @@ export function HeatmapFiltersControl(props: HeatmapFiltersControlProps) {
     props.onChange({ sectors: [...next] });
   };
 
-  const labelClass = "text-[10px] uppercase tracking-[0.06em] text-fin-text-muted";
+  const labelClass = "text-ui-micro uppercase tracking-[0.06em] text-fin-text-muted";
 
   return (
     <>

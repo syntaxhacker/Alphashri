@@ -14,6 +14,7 @@ import {
   TabsList,
   Tab,
   ToolbarRow,
+  typeSize,
 } from "@/ui";
 import { CompactPanel } from "../common/compact";
 import { RangeInput } from "../common/RangeInput";
@@ -379,7 +380,7 @@ function DetailMetric(props: {
         size="xs"
         c="dimmed"
         className="truncate uppercase"
-        style={{ "font-size": "9px", "letter-spacing": "0.06em", "line-height": "1.1" }}
+        style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.06em", "line-height": "1.1" }}
       >
         {props.label}
       </Text>
@@ -387,7 +388,7 @@ function DetailMetric(props: {
         size="xs"
         fw={700}
         className="truncate font-mono tabular-nums"
-        style={{ "font-size": "11px", "line-height": "1.2", color: props.tone }}
+        style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2", color: props.tone }}
       >
         {props.value}
       </Text>
@@ -412,7 +413,7 @@ function GreekStrip(props: { row: FnoScreenerRow }) {
             <Text
               size="xs"
               c="dimmed"
-              style={{ "font-size": "10px", "font-style": "italic" }}
+              style={{ "font-size": `${typeSize("micro")}px`, "font-style": "italic" }}
             >
               {g.label}
             </Text>
@@ -420,7 +421,7 @@ function GreekStrip(props: { row: FnoScreenerRow }) {
               size="xs"
               fw={600}
               className="font-mono tabular-nums"
-              style={{ "font-size": "10px", color: g.tone }}
+              style={{ "font-size": `${typeSize("micro")}px`, color: g.tone }}
             >
               {g.value}
             </Text>
@@ -476,7 +477,7 @@ export function FnoRowDetail(props: { row: FnoScreenerRow; expiry?: string }) {
           size="xs"
           fw={700}
           className="font-mono tabular-nums uppercase"
-          style={{ "font-size": "11px", "letter-spacing": "0.08em", color: palette.PRIMARY }}
+          style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.08em", color: palette.PRIMARY }}
         >
           {row().symbol}
         </Text>
@@ -491,7 +492,7 @@ export function FnoRowDetail(props: { row: FnoScreenerRow; expiry?: string }) {
             size="xs"
             c="dimmed"
             className="font-mono tabular-nums"
-            style={{ "font-size": "10px" }}
+            style={{ "font-size": `${typeSize("micro")}px` }}
           >
             EXP {props.expiry}
           </Text>
@@ -503,7 +504,7 @@ export function FnoRowDetail(props: { row: FnoScreenerRow; expiry?: string }) {
               fw={700}
               className="font-mono tabular-nums"
               style={{
-                "font-size": "10px",
+                "font-size": `${typeSize("micro")}px`,
                 color: pnlTone(snapshot()?.expectedPnl),
               }}
               data-testid="fno-detail-epnl-header"

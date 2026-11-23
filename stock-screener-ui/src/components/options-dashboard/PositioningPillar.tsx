@@ -1,5 +1,5 @@
 import { createMemo } from "solid-js";
-import { Box } from "@/ui";
+import { Box, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { useChartInk } from "@/components/options-dock/analytics/chartInk";
 import { axis, baseOption, CHART_GRID, guideSeries, legend, paddedDomain, tooltip, WALL_COLOR } from "./chartBase";
@@ -153,7 +153,7 @@ export function PositioningPillar(props: PanelProps) {
                   ).map((mark) => ({
                     ...mark,
                     lineStyle: { color: palette.LEVEL_MAX_PAIN, width: 1, type: "dashed" as const },
-                    label: { show: true, formatter: mark.name, color, fontSize: 10 },
+                    label: { show: true, formatter: mark.name, color, fontSize: typeSize("micro") },
                   })),
                 }
               : undefined,
@@ -185,7 +185,7 @@ export function PositioningPillar(props: PanelProps) {
             symbol: "none",
             data: [{ yAxis: 1, name: "1.0" }],
             lineStyle: { color: palette.BORDER, width: 1, type: "dashed" as const },
-            label: { show: true, formatter: "1.0", color, fontSize: 10 },
+            label: { show: true, formatter: "1.0", color, fontSize: typeSize("micro") },
           },
         },
         guideSeries(color, marks()),

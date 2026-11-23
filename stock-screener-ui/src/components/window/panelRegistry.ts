@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui";
 import type { DockPanelContext, DockPanelSpec } from "../dock/types";
 import { CATALYST_RADAR_PANEL } from "./panels/catalystRadar";
 import { lazyPanelSpec } from "./panels/lazyPanel";
@@ -198,8 +199,8 @@ export function openPanelPopOut(
   const html = [
     "<!doctype html><html lang='en'><head><meta charset='utf-8'>",
     `<title>${escapeHtml(title)}</title>`,
-    "<style>body{font:14px system-ui,sans-serif;background:Canvas;color:CanvasText;padding:24px}",
-    "h1{font-size:18px}li{margin:4px 0}p{opacity:.7}</style></head><body>",
+    `<style>body{font:${typeSize("label")}px system-ui,sans-serif;background:Canvas;color:CanvasText;padding:24px}`,
+    `h1{font-size:${typeSize("heading")}px}li{margin:4px 0}p{opacity:.7}</style></head><body>`,
     `<h1>${escapeHtml(title)}</h1>`,
     rows ? `<ul>${rows}</ul>` : "",
     "<p>Alphashri desk snapshot. Live panel data stays in the main window.</p>",

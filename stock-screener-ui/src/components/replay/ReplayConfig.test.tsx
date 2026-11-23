@@ -138,8 +138,8 @@ describe("ReplayConfig", () => {
         />
       </UIProvider>,
     );
-    expect(screen.getByText("From")).toHaveClass("text-[11px]");
-    expect(screen.getByText("To")).toHaveClass("text-[11px]");
+    expect(screen.getByText("From")).toHaveClass("text-ui-micro");
+    expect(screen.getByText("To")).toHaveClass("text-ui-micro");
   });
 
   it("does NOT render Strategy Select (removed — bot has strategies)", () => {

@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui";
 /**
  * Intuition layer for the IV smile: strike on the x-axis, 25Δ wings as first
  * class markers, and a plain-language read of which side is rich. All of it is
@@ -78,7 +79,7 @@ export function atmStrikeOf(
 const roundIv = (iv: number): number => Number(iv.toFixed(2));
 
 /** Chart text floor: the analytics band is 206px tall, sub-10px ticks vanish. */
-export const CHART_LABEL_FONT_SIZE = 10;
+export const CHART_LABEL_FONT_SIZE = typeSize("micro");
 
 /** At most five strike labels across the plot — 38 quotes must never merge. */
 export const SMILE_MAX_AXIS_LABELS = 5;
@@ -208,7 +209,7 @@ export function buildSmileOption(input: SmileChartInput): Record<string, unknown
       trigger: "axis",
       backgroundColor: palette.TOOLTIP_BG,
       borderColor: palette.TOOLTIP_BORDER,
-      textStyle: { color: palette.OPTION_PAYOFF_TOOLTIP_TEXT, fontSize: 10 },
+      textStyle: { color: palette.OPTION_PAYOFF_TOOLTIP_TEXT, fontSize: typeSize("micro") },
       formatter: tooltipFormatter,
     },
     xAxis: {

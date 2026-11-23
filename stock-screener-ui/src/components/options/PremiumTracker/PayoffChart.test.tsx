@@ -8,7 +8,8 @@ import type { PayoffLeg } from "./payoff";
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
-  return mockSolidUi();
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
 });
 
 const mocks = vi.hoisted(() => ({

@@ -3,10 +3,11 @@ import "@testing-library/jest-dom/vitest";
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
+  const { typeSize } = await import("@/ui/typography");
   // The real Chip so `aria-checked` (what a screen reader reports for a filter
   // chip) is observable; the stub only exposes aria-pressed.
   const { Chip } = await import("@/ui/inputs/Chip");
-  return mockSolidUi({ Chip });
+  return { ...mockSolidUi({ Chip }), typeSize };
 });
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";

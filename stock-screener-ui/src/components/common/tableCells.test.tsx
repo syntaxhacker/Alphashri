@@ -125,7 +125,7 @@ describe("BadgeCell", () => {
     render(() => <BadgeCell label="GAP" testId="b" />);
     const badge = screen.getByTestId("b");
     expect(badge).toHaveTextContent("GAP");
-    expect(badge.style.fontSize).toBe("11px");
+    expect(badge.style.fontSize).toBe("12px");
     expect(badge.style.height).toBe("18px");
   });
 
@@ -133,7 +133,7 @@ describe("BadgeCell", () => {
     render(() => <BadgeCell label="GAP" size="lg" testId="b" />);
     const badge = screen.getByTestId("b");
     expect(badge.style.paddingLeft).toBe("7px");
-    expect(badge.style.fontSize).toBe("11px");
+    expect(badge.style.fontSize).toBe("12px");
   });
 });
 

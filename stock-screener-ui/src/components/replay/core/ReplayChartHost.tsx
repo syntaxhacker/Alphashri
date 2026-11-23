@@ -3,6 +3,7 @@
 // strategies can reuse the host; the page drives it through the imperative `paint(now)`.
 import { createEffect, onCleanup } from "solid-js";
 import { createChart, ColorType, CandlestickSeries, LineSeries, createSeriesMarkers, type IChartApi, type Time } from "lightweight-charts";
+import { typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import { TZ_IST } from "@/config/constants";
@@ -253,7 +254,7 @@ export default function ReplayChartHost(props: ReplayChartHostProps) {
         ctx.clearRect(0, 0, rect.width, H);
         const t2x = (t: number) => chart.timeScale().timeToCoordinate(t as Time);
         const p2y = (p: number) => cs.priceToCoordinate(p);
-        ctx.font = "600 10px monospace";
+        ctx.font = `600 ${typeSize("micro")}px monospace`;
         for (const t of shown) {
           // endT must be an exact bar time (exchange-style: forming bar while open)
           const liveEnd = t.exit_time <= now ? t.exit_time : now;

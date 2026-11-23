@@ -6,7 +6,7 @@ import { Box, Text } from "@/ui";
  * One labelled band of the options dock.
  *
  * The dock is a single narrow column, so hierarchy comes from a 40px header and
- * the 14/12/11 type scale — not from more hairlines. Sections are separated by
+ * the shared type tiers — not from more hairlines. Sections are separated by
  * one `border-fin-border-subtle` rule inside the same surface; bodies use the
  * 12px panel padding and 12px inner gap so no two text runs touch.
  */

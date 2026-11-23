@@ -8,7 +8,8 @@ let notify: (() => void) | null = null;
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
-  return mockSolidUi();
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
 });
 
 vi.mock("../../state", () => ({

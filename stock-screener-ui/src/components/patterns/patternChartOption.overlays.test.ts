@@ -184,7 +184,7 @@ describe("buildPatternChartOption overlay grouping and legend naming", () => {
     expect(bigSel?.lineStyle?.width).toBe(3);
     expect(baseSib?.lineStyle?.width).toBe(1.5);
     expect(bigSib?.lineStyle?.width).toBe(2);
-    expect(baseSel?.endLabel?.fontSize).toBe(10);
+    expect(baseSel?.endLabel?.fontSize).toBe(12);
     expect(bigSel?.endLabel?.fontSize).toBe(12);
   });
 });

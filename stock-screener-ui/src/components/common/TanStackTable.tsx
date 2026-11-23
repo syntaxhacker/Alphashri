@@ -1,5 +1,5 @@
 import { For, Show, createEffect } from "solid-js";
-import { Button, Paper, ScrollArea, ToolbarRow, useDensity } from "@/ui";
+import { Button, Paper, ScrollArea, ToolbarRow, useDensity, typeSize } from "@/ui";
 import { InlineLoader } from "./states";
 import { ColumnPicker } from "./ColumnPicker";
 import { resolveColumnPrefs, useColumnPrefs } from "./table/columnPrefs";
@@ -38,9 +38,9 @@ export interface TableMetrics {
  * screener / market tables — those numbers are a contract, do not drift them.
  */
 export const TABLE_METRICS: Record<"default" | "comfortable" | "dense", TableMetrics> = {
-  default: { rowHeight: 32, cellPadding: "8px 12px", fontSize: 12, headerFontSize: 11 },
-  comfortable: { rowHeight: 36, cellPadding: "10px 14px", fontSize: 12, headerFontSize: 11 },
-  dense: { rowHeight: 18, cellPadding: "1px 6px", fontSize: 10, headerFontSize: 10 },
+  default: { rowHeight: 32, cellPadding: "8px 12px", fontSize: typeSize("micro"), headerFontSize: typeSize("micro") },
+  comfortable: { rowHeight: 36, cellPadding: "10px 14px", fontSize: typeSize("micro"), headerFontSize: typeSize("micro") },
+  dense: { rowHeight: 18, cellPadding: "1px 6px", fontSize: typeSize("micro"), headerFontSize: typeSize("micro") },
 };
 
 export function TanStackTable<T>(props: TableProps<T>) {
@@ -64,7 +64,7 @@ export function TanStackTable<T>(props: TableProps<T>) {
     el.style.setProperty("--tbl-cell-pad", m.cellPadding);
     el.style.setProperty("--tbl-fs", `${m.fontSize}px`);
     // Re-derive on column changes so a newly mounted <th> (the renderer pins
-    // 10px inline) picks up the same size as the cells it labels.
+    // its own inline size) picks up the same size as the cells it labels.
     const visibleIds = new Set(cols.visibleColumns().map((c) => String(c.id)));
     for (const th of el.querySelectorAll<HTMLElement>("thead th")) {
       if (visibleIds.has(th.id.replace("paper-tanstack-header-", ""))) {
@@ -176,7 +176,7 @@ export function TanStackTable<T>(props: TableProps<T>) {
       </ScrollArea>
       <Show when={win.hiddenCount() > 0}>
         <div
-          class="flex items-center justify-between gap-2 px-2 h-[22px] shrink-0 border-t border-fin-border text-[10px] text-fin-text-muted font-mono tabular-nums"
+          class="flex items-center justify-between gap-2 px-2 h-[22px] shrink-0 border-t border-fin-border text-ui-micro text-fin-text-muted font-mono tabular-nums"
           data-testid="table-window-footer"
         >
           <span>

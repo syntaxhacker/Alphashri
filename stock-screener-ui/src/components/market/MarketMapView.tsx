@@ -8,7 +8,7 @@ import {
   onMount,
   type JSX,
 } from "solid-js";
-import { Box, SegmentedControl, Select, Text, ToolbarRow, useColorScheme } from "@/ui";
+import { Box, SegmentedControl, Select, Text, ToolbarRow, useColorScheme, typeSize } from "@/ui";
 import type { HeatmapStock } from "@/api/heatmap";
 import {
   buildStockTreemapOption,
@@ -113,7 +113,7 @@ const EMPTY: MarketRow[] = [];
 const TREEMAP_STYLE: StockTreemapStyle = {
   borderDark: palette.SURFACE,
   borderLight: palette.CREAM,
-  label: { fontSize: 10, fontWeight: "bold", lineHeight: 14 },
+  label: { fontSize: typeSize("micro"), fontWeight: "bold", lineHeight: 14 },
   colorSaturation: [0.35, 0.5],
   changePositive: palette.POSITIVE_COLOR,
   changeNegative: palette.NEGATIVE_COLOR,

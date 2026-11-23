@@ -1,6 +1,6 @@
 import { createSignal, createEffect, createMemo, onCleanup, onMount, Show } from "solid-js";
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { ActionIcon, Badge, Collapse, Text, Card } from "@/ui";
+import { ActionIcon, Badge, Collapse, Text, Card, typeSize } from "@/ui";
 import { IconChevronDown, IconChevronRight } from "@/components/common/Icons";
 import { loadEcharts } from "../../utils/loadEcharts";
 import {
@@ -54,14 +54,14 @@ export function OptionPayoffChart(props: {
       {
         xAxis: strike,
         lineStyle: { color: CHART_AVG_ENTRY, width: 1, type: "dashed" },
-        label: { formatter: `K ${strike}`, color: CHART_AVG_ENTRY, fontSize: 10, position: "insideEndTop" },
+        label: { formatter: `K ${strike}`, color: CHART_AVG_ENTRY, fontSize: typeSize("micro"), position: "insideEndTop" },
       },
     ];
     if (props.breakeven != null) {
       markLineData.push({
         xAxis: props.breakeven,
         lineStyle: { color: CHART_MUTED, width: 1, type: "dotted" },
-        label: { formatter: `BE ${Math.round(props.breakeven)}`, color: CHART_MUTED, fontSize: 10, position: "insideEndTop" },
+        label: { formatter: `BE ${Math.round(props.breakeven)}`, color: CHART_MUTED, fontSize: typeSize("micro"), position: "insideEndTop" },
       });
     }
     return {
@@ -71,7 +71,7 @@ export function OptionPayoffChart(props: {
         trigger: "axis",
         backgroundColor: SURFACE_ALT,
         borderColor: CHART_MUTED,
-        textStyle: { color: OPTION_PAYOFF_TOOLTIP_TEXT, fontSize: 11 },
+        textStyle: { color: OPTION_PAYOFF_TOOLTIP_TEXT, fontSize: typeSize("micro") },
         formatter: (params: unknown) => {
           const p = Array.isArray(params) ? params[0] : params;
           const v = (p as { value?: [number, number] } | undefined)?.value;
@@ -88,7 +88,7 @@ export function OptionPayoffChart(props: {
         splitLine: { show: false },
         axisLabel: {
           color: CHART_MUTED,
-          fontSize: 10,
+          fontSize: typeSize("micro"),
           hideOverlap: true,
           formatter: (v: number) => String(Math.round(v)),
         },
@@ -99,7 +99,7 @@ export function OptionPayoffChart(props: {
         axisLine: { show: false },
         axisTick: { show: false },
         splitLine: { lineStyle: { color: SURFACE_ALT, type: "dashed", opacity: 0.55 } },
-        axisLabel: { color: CHART_MUTED, fontSize: 10, formatter: (v: number) => fmtK(v) },
+        axisLabel: { color: CHART_MUTED, fontSize: typeSize("micro"), formatter: (v: number) => fmtK(v) },
       },
       series: [
         {
@@ -194,7 +194,7 @@ function Stat(props: { label: string; value: string; tone?: "pos" | "neg" }) {
   const color = () => props.tone === "pos" ? POSITIVE : props.tone === "neg" ? NEGATIVE : undefined;
   return (
     <div class="flex flex-col min-w-0">
-      <Text size="xs" c="dimmed" className="uppercase" style={{ "font-size": "9px", "letter-spacing": "0.5px" }}>
+      <Text size="xs" c="dimmed" className="uppercase" style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.5px" }}>
         {props.label}
       </Text>
       <Text

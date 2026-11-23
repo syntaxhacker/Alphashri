@@ -164,7 +164,7 @@ function SymbolCell(props: {
         </Show>
       </Box>
       <Show when={row().name}>
-        <Text c="dimmed" truncate title={row().name ?? undefined} className="text-[10px] leading-[1.1]">
+        <Text c="dimmed" truncate title={row().name ?? undefined} className="text-ui-micro leading-[1.1]">
           {row().name}
         </Text>
       </Show>
@@ -177,7 +177,7 @@ function TfGlyph(props: { cell: MatrixCell | undefined }) {
   const cell = () => props.cell;
   if (!cell()) {
     return (
-      <Text c="dimmed" className="text-[11px] leading-[1.1]">
+      <Text c="dimmed" className="text-ui-micro leading-[1.1]">
         —
       </Text>
     );
@@ -192,11 +192,11 @@ function TfGlyph(props: { cell: MatrixCell | undefined }) {
       }
       className="inline-flex items-center justify-center gap-[1px]"
     >
-      <span className="text-[11px] font-bold leading-none" style={{ color: textToneChartColor(tone()) }}>
+      <span className="text-ui-micro font-bold leading-none" style={{ color: textToneChartColor(tone()) }}>
         {directionGlyph(cell()!.direction)}
       </span>
       <Show when={cell()!.count > 1}>
-        <span className="text-[9px] leading-none" style={{ color: palette.TEXT_MUTED }}>
+        <span className="text-ui-micro leading-none" style={{ color: palette.TEXT_MUTED }}>
           {cell()!.count}
         </span>
       </Show>
@@ -224,7 +224,7 @@ function PatternChip(props: { hit: PatternHitDTO; onSelect: (hit: PatternHitDTO)
         props.onSelect(hit());
       }}
       title={`${label()} — ${String(hit().status ?? "")}`}
-      className="inline-flex h-4 shrink-0 cursor-pointer select-none items-center whitespace-nowrap rounded-[3px] border px-1 text-[10px] leading-none"
+      className="inline-flex h-4 shrink-0 cursor-pointer select-none items-center whitespace-nowrap rounded-[3px] border px-1 text-ui-micro leading-none"
       style={{
         "border-color": alpha(textToneChartColor(tone()), 0.45),
         background: alpha(textToneChartColor(tone()), 0.14),
@@ -385,7 +385,7 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
                 {(hit) => <PatternChip hit={hit} onSelect={props.onSelect} />}
               </For>
               <Show when={chips.extra > 0}>
-                <Text c="dimmed" className="shrink-0 text-[10px] leading-none">
+                <Text c="dimmed" className="shrink-0 text-ui-micro leading-none">
                   {`+${chips.extra}`}
                 </Text>
               </Show>

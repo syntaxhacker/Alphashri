@@ -32,7 +32,7 @@ describe("KeyValue", () => {
     render(() => <KeyValue testId="kv" label="net debit" value="1" />);
     const label = screen.getByTestId("kv-label");
     expect(label).toHaveClass("uppercase");
-    expect(label.style.fontSize).toBe("11px");
+    expect(label.style.fontSize).toBe("12px");
   });
 
   it("renders the value at 12px with tabular figures", () => {
@@ -60,7 +60,7 @@ describe("KeyValue", () => {
     expect(screen.getByTestId("kv")).toHaveClass("gap-2");
     setDense(true);
     expect(screen.getByTestId("kv")).toHaveClass("gap-1");
-    expect(screen.getByTestId("kv-value").style.fontSize).toBe("11px");
+    expect(screen.getByTestId("kv-value").style.fontSize).toBe("12px");
   });
 
   it("applies the requested tone class without a hardcoded colour", () => {

@@ -5,7 +5,8 @@ import "@testing-library/jest-dom/vitest";
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
-  return mockSolidUi();
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
 });
 
 import { ChainSubHeader } from "./ChainSubHeader";
@@ -17,7 +18,7 @@ afterEach(() => {
 
 const mockStyles = {
   subHeader: { display: "flex" },
-  subHeaderCell: { flex: 1, textAlign: "center" as const, fontSize: "10px" },
+  subHeaderCell: { flex: 1, textAlign: "center" as const, fontSize: "12px" },
 };
 
 describe("ChainSubHeader", () => {

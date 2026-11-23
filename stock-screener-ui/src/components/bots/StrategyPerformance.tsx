@@ -1,5 +1,5 @@
 import { Show, createSignal, onMount } from "solid-js";
-import { Text, Paper, Badge, Box, ToolbarRow } from "@/ui";
+import { Text, Paper, Badge, Box, ToolbarRow, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
 import { TanStackTable } from "../common/TanStackTable";
@@ -117,7 +117,7 @@ export function StrategyPerformance() {
         <Paper radius="sm" p={0} className="flex h-full min-h-0 flex-col overflow-hidden">
           <ToolbarRow gap={8} wrap={false} className="shrink-0 px-2" style={{ height: "28px", "border-bottom": "1px solid var(--color-fin-border)" }}>
             <Box w={4} h={16} style={{ "border-radius": "2px", "background-color": palette.INFO }} />
-            <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ "font-size": "10px", "letter-spacing": "0.06em", "text-transform": "uppercase" }}>
+            <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.06em", "text-transform": "uppercase" }}>
               Strategy Performance
             </Text>
             <Badge size="xs" variant="light" color="info">last {d().days} days</Badge>

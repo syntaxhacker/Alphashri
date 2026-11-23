@@ -1,6 +1,6 @@
 import { createMemo, createSignal, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { Alert, Badge, Box, Button, NumberInput, Text, ToolbarRow } from "@/ui";
+import { Alert, Badge, Box, Button, NumberInput, Text, ToolbarRow, typeSize } from "@/ui";
 import { showSuccess } from "@/ui/notifications";
 import {
   fetchReplaySessions,
@@ -240,10 +240,10 @@ export function PaperOrderBand(props: PaperOrderBandProps) {
           <Text size="xs" fw={700} className="shrink-0 font-mono uppercase tracking-[0.06em]">
             PAPER ORDER
           </Text>
-          <Badge size="sm" color="info" variant="light" style={{ "font-size": "11px", height: "20px" }}>
+          <Badge size="sm" color="info" variant="light" style={{ "font-size": `${typeSize("micro")}px`, height: "20px" }}>
             SIMULATED
           </Badge>
-          <Text c="dimmed" truncate className="min-w-0 flex-1 text-right text-[11px]">
+          <Text c="dimmed" truncate className="min-w-0 flex-1 text-right text-ui-micro">
             No real funds · fills at chain LTP
           </Text>
         </Box>
@@ -257,7 +257,7 @@ export function PaperOrderBand(props: PaperOrderBandProps) {
               size="sm"
               variant="outline"
               color="info"
-              style={{ "font-size": "11px", height: "20px" }}
+              style={{ "font-size": `${typeSize("micro")}px`, height: "20px" }}
               data-testid="paper-order-type"
               title="Paper orders fill at the live chain LTP plus the slippage ticks below."
             >
@@ -312,7 +312,7 @@ export function PaperOrderBand(props: PaperOrderBandProps) {
             size="sm"
             color="warning"
             variant="light"
-            style={{ "font-size": "11px", height: "20px" }}
+            style={{ "font-size": `${typeSize("micro")}px`, height: "20px" }}
             data-testid="paper-order-margin-warning"
           >
             SELL legs need margin — keep the structure defined-risk
@@ -323,7 +323,7 @@ export function PaperOrderBand(props: PaperOrderBandProps) {
       <Show when={loading()}>
         <Text
           c="dimmed"
-          className={`text-[11px] ${transitionClass("state")} ${reducedMotionClass()} animate-pulse motion-reduce:animate-none`}
+          className={`text-ui-micro ${transitionClass("state")} ${reducedMotionClass()} animate-pulse motion-reduce:animate-none`}
           data-testid="paper-order-loading"
         >
           Submitting paper order…
@@ -333,7 +333,7 @@ export function PaperOrderBand(props: PaperOrderBandProps) {
       <Show when={error()}>
         {(message) => (
           <Alert color="error" variant="light" data-testid="paper-order-error">
-            <Text c="error" className="text-[11px]">{message()}</Text>
+            <Text c="error" className="text-ui-micro">{message()}</Text>
           </Alert>
         )}
       </Show>

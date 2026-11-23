@@ -83,7 +83,7 @@ export function RangeInput(props: RangeInputProps) {
     <Box className="flex flex-col gap-1 min-w-0 w-full" data-testid={props.testId}>
       <Box className="flex items-center gap-1 min-w-0">
         <Show when={props.label}>
-          <span className="min-w-0 flex-1 truncate text-[10px] font-semibold uppercase tracking-[0.4px] text-fin-text-muted">
+          <span className="min-w-0 flex-1 truncate text-ui-micro font-semibold uppercase tracking-[0.4px] text-fin-text-muted">
             {props.label}
           </span>
         </Show>
@@ -102,7 +102,7 @@ export function RangeInput(props: RangeInputProps) {
             data-testid={props.testId ? `${props.testId}-min` : undefined}
           />
         </Box>
-        <span className="shrink-0 text-[10px] text-fin-text-muted" aria-hidden="true">–</span>
+        <span className="shrink-0 text-ui-micro text-fin-text-muted" aria-hidden="true">–</span>
         <Box className="w-[60px] shrink-0">
           <NumberInput
             placeholder="Max"

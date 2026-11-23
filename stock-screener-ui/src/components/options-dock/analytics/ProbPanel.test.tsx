@@ -132,7 +132,7 @@ describe("ProbPanel scenario row", () => {
     expect(row).toHaveTextContent("+10% −₹3");
     expect(screen.getAllByTestId(/^prob-scenario-\d+$/)).toHaveLength(5);
     // The ladder is chart-adjacent text: 10px is the readability floor.
-    expect((screen.getByTestId("prob-scenario-0") as HTMLElement).style.fontSize).toBe("10px");
+    expect((screen.getByTestId("prob-scenario-0") as HTMLElement).style.fontSize).toBe("12px");
   });
 });
 

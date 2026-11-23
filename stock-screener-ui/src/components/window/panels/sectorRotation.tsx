@@ -146,7 +146,7 @@ function SectorRotationPanel(props: { ctx: Accessor<DockPanelContext> }) {
             </Text>
             <button
               type="button"
-              class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+              class="rounded-sm border border-fin-border px-2 text-ui-micro text-fin-text hover:bg-fin-surface-alt"
               data-testid="sector-rotation-error-retry"
               onClick={() => setRetryTick((n) => n + 1)}
             >
@@ -175,7 +175,7 @@ function SectorRotationPanel(props: { ctx: Accessor<DockPanelContext> }) {
             </Text>
             <button
               type="button"
-              class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+              class="rounded-sm border border-fin-border px-2 text-ui-micro text-fin-text hover:bg-fin-surface-alt"
               data-testid="sector-rotation-empty-retry"
               onClick={() => setRetryTick((n) => n + 1)}
             >

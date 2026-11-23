@@ -1,5 +1,5 @@
 import { Show, createEffect, createMemo, onCleanup } from "solid-js";
-import { Box, Loader, Flex, Stack, Text, useColorScheme } from "@/ui";
+import { Box, Loader, Flex, Stack, Text, useColorScheme, typeSize } from "@/ui";
 import { loadEcharts } from "../../utils/loadEcharts";
 import {
   CREAM,
@@ -94,7 +94,7 @@ export function CorrelationHeatmap(props: CorrelationHeatmapProps) {
   };
   /** Below ~34px a cell cannot hold "87%" without it overlapping the border. */
   const showCellLabels = () => cellPx() >= 34;
-  const cellLabelSize = () => (cellPx() >= 52 ? 14 : cellPx() >= 42 ? 12 : 11);
+  const cellLabelSize = () => (cellPx() >= 52 ? typeSize("label") : typeSize("micro"));
   let chartInstance: any = null;
 
   createEffect(() => {
@@ -140,13 +140,13 @@ export function CorrelationHeatmap(props: CorrelationHeatmapProps) {
       xAxis: {
         type: "category" as const,
         data: symbols,
-        axisLabel: { rotate: 45, fontSize: 10, color: colors.axisLabel },
+        axisLabel: { rotate: 45, fontSize: typeSize("micro"), color: colors.axisLabel },
         axisLine: { lineStyle: { color: colors.axisLine } },
       },
       yAxis: {
         type: "category" as const,
         data: symbols,
-        axisLabel: { fontSize: 11, color: colors.axisLabel },
+        axisLabel: { fontSize: typeSize("micro"), color: colors.axisLabel },
         axisLine: { lineStyle: { color: colors.axisLine } },
       },
       visualMap: {
@@ -157,7 +157,7 @@ export function CorrelationHeatmap(props: CorrelationHeatmapProps) {
         right: 0,
         top: "center",
         inRange: { color: COLOR_STOPS.map((c) => c.color) },
-        textStyle: { color: colors.axisLabel, fontSize: 10 },
+        textStyle: { color: colors.axisLabel, fontSize: typeSize("micro") },
       },
       series: [
         {

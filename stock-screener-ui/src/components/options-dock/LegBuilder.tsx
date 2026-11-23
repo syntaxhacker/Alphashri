@@ -33,20 +33,20 @@ export function LegBuilder(props: {
         <Box className="flex items-baseline gap-2">
           <Box
             component="span"
-            className="font-mono tabular-nums text-[11px] leading-[14px] text-fin-text-muted"
+            className="font-mono tabular-nums text-ui-micro leading-[14px] text-fin-text-muted"
             data-testid="options-leg-count"
           >
             {props.legs.length}/{MAX_LEGS}
           </Box>
           <Box
             component="span"
-            className="text-[11px] leading-[14px] uppercase text-fin-text-muted"
+            className="text-ui-micro leading-[14px] uppercase text-fin-text-muted"
           >
             {props.netPremium >= 0 ? "net credit" : "net debit"}
           </Box>
           <Box
             component="span"
-            className={`font-mono tabular-nums text-[11px] leading-[14px] font-bold ${
+            className={`font-mono tabular-nums text-ui-micro leading-[14px] font-bold ${
               props.netPremium >= 0 ? "text-fin-positive" : "text-fin-negative"
             }`}
             data-testid="options-net-premium"
@@ -63,7 +63,7 @@ export function LegBuilder(props: {
             data-testid="options-legs-empty"
             kind="no-data"
             layout="row"
-            className="text-[11px]"
+            className="text-ui-micro"
             title="No legs yet"
             description="Click a chain price to add a leg · shift-click to sell"
           />
@@ -83,7 +83,7 @@ export function LegBuilder(props: {
                     aria-label={`${leg.type} ${leg.strike} ${leg.side} — toggle side`}
                     data-testid={`options-leg-side-${leg.type}-${leg.strike}`}
                     onClick={() => toggleLegSide(leg.key)}
-                    className="border-0 bg-transparent p-0 font-mono text-[11px] leading-[14px] font-bold uppercase"
+                    className="border-0 bg-transparent p-0 font-mono text-ui-micro leading-[14px] font-bold uppercase"
                     style={{
                       color:
                         leg.side === "sell" ? "var(--color-fin-negative)" : "var(--color-fin-positive)",
@@ -94,13 +94,13 @@ export function LegBuilder(props: {
                 </Tooltip>
                 <Box
                   component="span"
-                  className="font-mono tabular-nums text-[11px] leading-[14px] font-bold text-fin-text"
+                  className="font-mono tabular-nums text-ui-micro leading-[14px] font-bold text-fin-text"
                 >
                   {leg.strike}
                 </Box>
                 <Box
                   component="span"
-                  className="font-mono text-[11px] leading-[14px] uppercase text-fin-text-muted"
+                  className="font-mono text-ui-micro leading-[14px] uppercase text-fin-text-muted"
                 >
                   {leg.type}
                 </Box>
@@ -118,7 +118,7 @@ export function LegBuilder(props: {
                   </Box>
                   <Box
                     component="span"
-                    className="min-w-[14px] text-center font-mono tabular-nums text-[11px] leading-[14px]"
+                    className="min-w-[14px] text-center font-mono tabular-nums text-ui-micro leading-[14px]"
                     data-testid={`options-leg-lots-${leg.type}-${leg.strike}`}
                   >
                     ×{leg.lots}
@@ -137,7 +137,7 @@ export function LegBuilder(props: {
 
                 <Box
                   component="span"
-                  className="font-mono tabular-nums text-[11px] leading-[14px] text-fin-text-muted"
+                  className="font-mono tabular-nums text-ui-micro leading-[14px] text-fin-text-muted"
                 >
                   @{leg.premium.toFixed(1)}
                 </Box>
@@ -163,7 +163,7 @@ export function LegBuilder(props: {
       <Show when={staleCount() > 0}>
         <Box
           component="span"
-          className="border-l-2 border-fin-border-warning pl-2 text-[11px] leading-4 text-fin-warning"
+          className="border-l-2 border-fin-border-warning pl-2 text-ui-micro leading-4 text-fin-warning"
           data-testid="options-legs-expiry-mismatch"
         >
           {staleCount()} leg{staleCount() === 1 ? "" : "s"} on a different expiry

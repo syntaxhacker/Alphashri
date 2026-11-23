@@ -1,6 +1,6 @@
 import { createEffect, onCleanup, onMount, Show } from "solid-js";
 import type * as ECharts from "echarts";
-import { Box, Text } from "@/ui";
+import { Box, Text, typeSize } from "@/ui";
 import {
   breakevens,
   curveSpots,
@@ -58,7 +58,7 @@ export function PayoffChart(props: PayoffChartProps) {
       ...bes.map((be) => ({
         xAxis: be,
         lineStyle: { color: CHART_AVG_ENTRY, type: "dotted" },
-        label: { formatter: String(be), fontSize: 10 },
+        label: { formatter: String(be), fontSize: typeSize("micro") },
       })),
     ];
     const markPointData =

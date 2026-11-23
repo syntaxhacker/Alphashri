@@ -146,7 +146,7 @@ describe("OptionPositionsPanel", () => {
     ).toBeNull();
 
     const hint = screen.getByTestId("option-positions-scroll-hint");
-    expect(within(hint).getByText(/Scroll horizontally/).className).toContain("text-[11px]");
+    expect(within(hint).getByText(/Scroll horizontally/).className).toContain("text-ui-micro");
     expect(hint).toHaveTextContent("↔");
   });
 

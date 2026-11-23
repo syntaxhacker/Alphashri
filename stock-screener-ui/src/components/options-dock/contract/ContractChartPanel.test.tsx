@@ -222,7 +222,7 @@ describe("buildContractChartOption", () => {
     expect(grid).toHaveLength(2);
     expect(grid.every((item) => item.containLabel === true)).toBe(true);
     expect(xAxis).toHaveLength(2);
-    expect((xAxis[1].axisLabel as Record<string, unknown>).fontSize).toBe(10);
+    expect((xAxis[1].axisLabel as Record<string, unknown>).fontSize).toBe(12);
     expect((xAxis[1].axisLabel as Record<string, unknown>).color).toBe(palette.CHART_MUTED);
     expect(series.map((item) => item.type)).toEqual(["line", "bar"]);
     expect(series[0].data).toEqual([

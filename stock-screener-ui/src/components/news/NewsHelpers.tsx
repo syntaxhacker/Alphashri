@@ -18,6 +18,7 @@ import {
   Title,
   ToolbarRow,
   Tooltip,
+  typeSize,
 } from "@/ui";
 import * as palette from "@/ui/palette";
 import { IconArrowLeft, IconChartLine, IconChevronDown, IconChevronUp, IconExternalLink, IconNews, IconRefresh, IconX } from "../common/Icons";
@@ -474,7 +475,7 @@ export function NewsListHeader(props: {
         </Text>
         <Show when={props.wsConnected}>
           <Tooltip label="Live updates connected">
-            <Box style={{ color: palette.POSITIVE, "font-size": "9px" }}>
+            <Box style={{ color: palette.POSITIVE, "font-size": `${typeSize("micro")}px` }}>
               <Box style={{ width: "8px", height: "8px", "border-radius": "50%", "background-color": palette.POSITIVE }} />
             </Box>
           </Tooltip>

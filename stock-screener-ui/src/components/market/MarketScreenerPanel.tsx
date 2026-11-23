@@ -1015,7 +1015,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
               onClick={() => removeChip(chip.key)}
               aria-label={`Remove filter ${chip.label}`}
               data-testid={`market-filter-chip-${chip.key}`}
-              className="inline-flex items-center gap-1 h-[22px] px-1.5 rounded-[11px] border border-fin-border bg-fin-surface text-fin-text text-[11px] leading-none cursor-pointer hover:border-fin-primary hover:text-fin-primary"
+              className="inline-flex items-center gap-1 h-[22px] px-1.5 rounded-[11px] border border-fin-border bg-fin-surface text-fin-text text-ui-micro leading-none cursor-pointer hover:border-fin-primary hover:text-fin-primary"
             >
               <Text size="xs" className="leading-none">
                 {chip.label}
@@ -1030,7 +1030,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
               onClick={() => props.onClearSymbolAllowlist?.()}
               aria-label="Clear symbol allowlist"
               data-testid="market-symbol-allowlist"
-              className="inline-flex items-center gap-1 h-[22px] px-1.5 rounded-[11px] border border-fin-border bg-fin-surface text-fin-text text-[11px] leading-none cursor-pointer hover:border-fin-primary hover:text-fin-primary"
+              className="inline-flex items-center gap-1 h-[22px] px-1.5 rounded-[11px] border border-fin-border bg-fin-surface text-fin-text text-ui-micro leading-none cursor-pointer hover:border-fin-primary hover:text-fin-primary"
             >
               <Text size="xs" className="leading-none">
                 Movers · {props.symbolAllowlist!.length} symbols ×

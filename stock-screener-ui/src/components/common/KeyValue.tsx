@@ -1,6 +1,6 @@
 import type { JSX } from "solid-js";
 import { Show } from "solid-js";
-import { SimpleGrid, Text } from "@/ui";
+import { SimpleGrid, Text, typeSize } from "@/ui";
 import { cn } from "@/ui/cn";
 import { getPnLTextColor } from "@/utils/ui-helpers";
 
@@ -38,7 +38,7 @@ export function KeyValue(props: KeyValueProps): JSX.Element {
         data-testid={tid("label")}
         className="text-fin-text-muted uppercase"
         style={{
-          "font-size": dense() ? "10px" : "11px",
+          "font-size": `${typeSize("micro")}px`,
           "letter-spacing": "0.06em",
           "line-height": "1.2",
           "text-align": textAlign(),
@@ -58,7 +58,7 @@ export function KeyValue(props: KeyValueProps): JSX.Element {
           data-testid={tid("value")}
           className={cn("leading-none whitespace-nowrap", props.mono && "font-mono")}
           style={{
-            "font-size": dense() ? "11px" : "12px",
+            "font-size": `${typeSize("micro")}px`,
             "font-variant-numeric": "tabular-nums",
             "text-align": textAlign(),
           }}
@@ -70,7 +70,7 @@ export function KeyValue(props: KeyValueProps): JSX.Element {
             component="span"
             c="dimmed"
             data-testid={tid("hint")}
-            style={{ "font-size": "10px", "line-height": "1.2", "text-align": textAlign() }}
+            style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2", "text-align": textAlign() }}
           >
             {props.hint}
           </Text>

@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui";
 import type { ChartCandle, PatternHitDTO, PatternOverlay, Trendline, TrendLine, TrendlinesView } from "@/types/chartPatterns";
 import { PATTERN_SERIES_COLORS } from "@/config/patterns";
 import {
@@ -127,21 +128,21 @@ export function buildPatternChartOption({
     if (hit.breakout_level) {
       markData.push({
         yAxis: hit.breakout_level,
-        label: { formatter: "Breakout", position: "insideEndTop", color: PRIMARY, fontSize: large ? 12 : 10 },
+        label: { formatter: "Breakout", position: "insideEndTop", color: PRIMARY, fontSize: typeSize("micro") },
         lineStyle: { color: PRIMARY, type: "dashed", width: 1 },
       });
     }
     if (hit.target) {
       markData.push({
         yAxis: hit.target,
-        label: { formatter: "Target", position: "insideEndTop", color: MARKER_TP, fontSize: large ? 12 : 10 },
+        label: { formatter: "Target", position: "insideEndTop", color: MARKER_TP, fontSize: typeSize("micro") },
         lineStyle: { color: MARKER_TP, type: "dashed", width: 1 },
       });
     }
     if (hit.stop) {
       markData.push({
         yAxis: hit.stop,
-        label: { formatter: "Stop", position: "insideEndBottom", color: MARKER_SL, fontSize: large ? 12 : 10 },
+        label: { formatter: "Stop", position: "insideEndBottom", color: MARKER_SL, fontSize: typeSize("micro") },
         lineStyle: { color: MARKER_SL, type: "dashed", width: 1 },
       });
     }
@@ -240,7 +241,7 @@ export function buildPatternChartOption({
                 show: true,
                 formatter: seriesName,
                 color,
-                fontSize: large ? 12 : 10,
+                fontSize: typeSize("micro"),
                 fontWeight: group.selected ? 600 : 400,
                 distance: 6,
                 padding: [2, 4],
@@ -283,7 +284,7 @@ export function buildPatternChartOption({
             show: true,
             formatter: `${name} · ${line.touches} touches`,
             color,
-            fontSize: large ? 12 : 10,
+            fontSize: typeSize("micro"),
             fontWeight: 600,
             distance: 6,
             padding: [2, 4],
@@ -344,7 +345,7 @@ export function buildPatternChartOption({
     }
   }
 
-  const fontSize = large ? 12 : 10;
+  const fontSize = typeSize("micro");
 
   return {
     animation: false,

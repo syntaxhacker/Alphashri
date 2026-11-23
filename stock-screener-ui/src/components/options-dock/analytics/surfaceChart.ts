@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui";
 /**
  * Pure helpers for the strike × expiry IV surface. Kept DOM- and Solid-free so
  * the lattice (quoted vs. missing) can be asserted directly in tests and reused
@@ -12,7 +13,7 @@ import type { SurfaceGrid } from "@/utils/optionsAnalyticsMath";
 import * as palette from "@/ui/palette";
 
 /** Chart text floor: the analytics band is 206px tall, sub-10px ticks vanish. */
-export const CHART_LABEL_FONT_SIZE = 10;
+export const CHART_LABEL_FONT_SIZE = typeSize("micro");
 
 /** Colour-bar geometry: a horizontal legend must be wider than it is tall. */
 export const SURFACE_LEGEND_ITEM_WIDTH = 44;
@@ -168,7 +169,7 @@ export function buildSurfaceOption(input: SurfaceChartInput): Record<string, unk
       position: "top",
       backgroundColor: palette.TOOLTIP_BG,
       borderColor: palette.TOOLTIP_BORDER,
-      textStyle: { color: palette.OPTION_PAYOFF_TOOLTIP_TEXT, fontSize: 10 },
+      textStyle: { color: palette.OPTION_PAYOFF_TOOLTIP_TEXT, fontSize: typeSize("micro") },
     },
     xAxis: {
       type: "category",

@@ -1,6 +1,6 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import type { JSX } from "solid-js";
-import { Box, Button, Chip, Divider, MultiSelect, Select, Switch, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
+import { Box, Button, Chip, Divider, MultiSelect, Select, Switch, Text, TextInput, ToolbarRow, Tooltip, typeSize } from "@/ui";
 import { CompactPanel } from "@/components/common/compact";
 import { IconX, IconRestore } from "@/ui/icons";
 import type {
@@ -57,7 +57,7 @@ function Section(props: {
   return (
     <Box className="flex min-w-0 flex-col gap-1">
       <Box className="flex items-center gap-1">
-        <Text c="dimmed" className="text-[10px] font-semibold uppercase tracking-[0.06em]">
+        <Text c="dimmed" className="text-ui-micro font-semibold uppercase tracking-[0.06em]">
           {props.title}
         </Text>
         {props.info}
@@ -372,7 +372,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
               className="flex flex-col gap-0.5"
               data-testid={`patterns-filter-family-group-${family.id}`}
             >
-              <Text size="xs" c="dimmed" fw={600} style={{ "font-size": "10px" }}>
+              <Text size="xs" c="dimmed" fw={600} style={{ "font-size": `${typeSize("micro")}px` }}>
                 {family.label}
               </Text>
               <Box

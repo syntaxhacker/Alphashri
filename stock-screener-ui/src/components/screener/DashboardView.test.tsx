@@ -19,6 +19,7 @@ vi.mock("../../api/screenerDashboard", () => ({
 // the real implementation.
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
+  const { typeSize } = await import("@/ui/typography");
   const { For } = await import("solid-js");
   // The repo's stubs are near-miss twins: they drop `data-testid` from
   // SegmentedControl's root and Chip's onChange toggle. These match the real
@@ -64,7 +65,7 @@ vi.mock("@/ui", async () => {
       </button>
     );
   };
-  return mockSolidUi({ SegmentedControl, Chip });
+  return { ...mockSolidUi({ SegmentedControl, Chip }), typeSize };
 });
 
 import {

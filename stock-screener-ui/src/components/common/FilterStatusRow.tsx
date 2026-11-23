@@ -139,7 +139,7 @@ export function FilterStatusRow(props: FilterStatusRowProps) {
             fallback={
               <Text
                 c="dimmed"
-                className="text-[10px] leading-none whitespace-nowrap"
+                className="text-ui-micro leading-none whitespace-nowrap"
                 data-testid={`${props.testId}-${FILTER_STATUS_EMPTY_TESTID_SUFFIX}`}
               >
                 {props.placeholder ?? FILTER_STATUS_ROW_PLACEHOLDER}

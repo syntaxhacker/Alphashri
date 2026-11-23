@@ -59,7 +59,7 @@ function SectorTablePanel() {
                 <Text size="xs" c="error">{state().error}</Text>
                 <button
                   type="button"
-                  class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+                  class="rounded-sm border border-fin-border px-2 text-ui-micro text-fin-text hover:bg-fin-surface-alt"
                   onClick={() => void loadSectorData(state().market)}
                 >
                   Retry
@@ -74,7 +74,7 @@ function SectorTablePanel() {
                   <Text size="xs" c="dimmed">No sector data for this market.</Text>
                   <button
                     type="button"
-                    class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+                    class="rounded-sm border border-fin-border px-2 text-ui-micro text-fin-text hover:bg-fin-surface-alt"
                     data-testid="sector-table-empty-retry"
                     onClick={() => void loadSectorData(state().market)}
                   >

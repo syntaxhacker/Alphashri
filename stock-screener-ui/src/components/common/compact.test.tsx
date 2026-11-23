@@ -316,7 +316,7 @@ describe("CompactStat terminal cell", () => {
   it("renders the label 10px uppercase muted left-aligned", () => {
     render(() => (<CompactStat label="PnL" value="+123.45" />));
     const label = screen.getByText("PnL");
-    expect(label.style.fontSize).toBe("10px");
+    expect(label.style.fontSize).toBe("12px");
     expect(label.style.textTransform).toBe("uppercase");
     expect(label.style.textAlign).toBe("left");
   });

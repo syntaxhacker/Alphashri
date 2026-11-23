@@ -3,7 +3,7 @@ import { Portal } from "@/ui/layout/Portal";
 import { IconX } from "./Icons";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
-import { Box, Text } from "@/ui";
+import { Box, Text, typeSize } from "@/ui";
 
 // `solid-js` does not re-export JSX.CSSProperties from its package root.
 type CSSProperties = JSX.CSSProperties;
@@ -194,7 +194,7 @@ export function PanelModal(props: PanelModalProps) {
                     size="xs"
                     fw={700}
                     style={{
-                      "font-size": "10px",
+                      "font-size": `${typeSize("micro")}px`,
                       "line-height": 1.2,
                       "letter-spacing": "0.08em",
                       "text-transform": "uppercase",

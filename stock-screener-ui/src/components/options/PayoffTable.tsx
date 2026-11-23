@@ -9,7 +9,7 @@ import {
   type JSX,
   type Setter,
 } from "solid-js";
-import { Box, Flex, Slider } from "@/ui";
+import { Box, Flex, Slider, typeSize } from "@/ui";
 import { useValueFlash, type ValueFlash } from "@/utils/valueFlash";
 import * as palette from "@/ui/palette";
 import { TanStackTable } from "../common/TanStackTable";
@@ -177,13 +177,13 @@ export function PayoffTable(props: PayoffTableProps) {
       >
         <span
           className="font-mono tabular-nums"
-          style={{ "font-size": "11px", color: row.isAtm ? palette.PRIMARY : palette.TEXT, "line-height": "1.2" }}
+          style={{ "font-size": `${typeSize("micro")}px`, color: row.isAtm ? palette.PRIMARY : palette.TEXT, "line-height": "1.2" }}
         >
           {formatStrike(row.strike)}
         </span>
         <span
           className="font-mono tabular-nums"
-          style={{ "font-size": "9px", color: palette.TEXT_MUTED, "line-height": "1.2" }}
+          style={{ "font-size": `${typeSize("micro")}px`, color: palette.TEXT_MUTED, "line-height": "1.2" }}
         >
           {formatSpotPct(row.spotPct)}
         </span>
@@ -195,7 +195,7 @@ export function PayoffTable(props: PayoffTableProps) {
                   data-testid={`${prefix()}-leg-tag-${rowIndex}-${tagIndex()}`}
                   className="font-mono uppercase"
                   style={{
-                    "font-size": "9px",
+                    "font-size": `${typeSize("micro")}px`,
                     color: leg.action === "BUY" ? palette.POSITIVE : palette.NEGATIVE,
                     "letter-spacing": "0.04em",
                   }}
@@ -260,7 +260,7 @@ export function PayoffTable(props: PayoffTableProps) {
           data-flash-direction={flash.direction()}
           tabIndex={active() ? 0 : -1}
           className={`payoff-cell-gridcell font-mono tabular-nums ${flash.className()}`}
-          style={{ color: inkColor(), "font-size": "11px", "justify-content": "flex-end" }}
+          style={{ color: inkColor(), "font-size": `${typeSize("micro")}px`, "justify-content": "flex-end" }}
           ref={(node: HTMLElement) => { cellRefs.set(`${rowIndex}:${colIndex}`, node); }}
           onClick={() => selectCell(rowIndex, colIndex)}
           onKeyDown={(event: KeyboardEvent) => onCellKeyDown(event, rowIndex, colIndex)}
@@ -363,11 +363,11 @@ export function PayoffTable(props: PayoffTableProps) {
       >
         <span
           className="font-mono uppercase"
-          style={{ "font-size": "9px", color: palette.PRIMARY, "letter-spacing": "0.08em" }}
+          style={{ "font-size": `${typeSize("micro")}px`, color: palette.PRIMARY, "letter-spacing": "0.08em" }}
         >
           STRIKES
         </span>
-        <span className="font-mono tabular-nums" style={{ "font-size": "9px", color: palette.TEXT_MUTED }}>
+        <span className="font-mono tabular-nums" style={{ "font-size": `${typeSize("micro")}px`, color: palette.TEXT_MUTED }}>
           {rows().length} × {table().expiries.length}
         </span>
       </Flex>
@@ -380,7 +380,7 @@ export function PayoffTable(props: PayoffTableProps) {
               data-testid={`${prefix()}-table-empty`}
               className="h-full w-full items-center justify-center"
             >
-              <span className="font-mono" style={{ "font-size": "11px", color: palette.TEXT_MUTED }}>
+              <span className="font-mono" style={{ "font-size": `${typeSize("micro")}px`, color: palette.TEXT_MUTED }}>
                 No payoff data — add a leg to build the table
               </span>
             </Flex>
@@ -406,7 +406,7 @@ export function PayoffTable(props: PayoffTableProps) {
       <Flex
         data-testid={`${prefix()}-kpis`}
         className="h-[26px] shrink-0 items-center gap-3 border-t border-fin-border px-2 font-mono tabular-nums"
-        style={{ "font-size": "9px", color: palette.TEXT_MUTED }}
+        style={{ "font-size": `${typeSize("micro")}px`, color: palette.TEXT_MUTED }}
       >
         <span data-testid={`${prefix()}-kpi-debit`}>NET {formatCellPnl(kpis().netDebit)}</span>
         <span data-testid={`${prefix()}-kpi-max-profit`}>MAX {formatCellPnl(kpis().maxProfit)}</span>
@@ -428,7 +428,7 @@ export function PayoffTable(props: PayoffTableProps) {
               aria-pressed={activeView() === view.id}
               className="flex-1 whitespace-nowrap px-1 font-mono"
               style={{
-                "font-size": "9px",
+                "font-size": `${typeSize("micro")}px`,
                 color: activeView() === view.id ? palette.PRIMARY : palette.TEXT_MUTED,
                 "border-bottom": `2px solid ${activeView() === view.id ? palette.PRIMARY : "transparent"}`,
                 background: "transparent",

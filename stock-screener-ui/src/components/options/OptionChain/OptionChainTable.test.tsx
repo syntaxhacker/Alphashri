@@ -18,7 +18,8 @@ const rgbTriple = (hex: string) => normColor(hexToRgb(hex)).replace(/^rgb\(|\)$/
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
-  return mockSolidUi();
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
 });
 
 beforeEach(() => setupBrowserMocks());

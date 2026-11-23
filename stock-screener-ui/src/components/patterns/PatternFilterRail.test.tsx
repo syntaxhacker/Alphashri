@@ -8,7 +8,8 @@ import { PatternFilterRail, type PatternFilterRailProps } from "./PatternFilterR
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
-  return mockSolidUi();
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
 });
 
 const FILTERS: PatternFilters = { ...DEFAULT_PATTERN_FILTERS };

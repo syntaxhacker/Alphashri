@@ -124,7 +124,7 @@ describe("AddLegDialog", () => {
     setNumber("add-leg-strike", "0");
     fireEvent.click(screen.getByTestId("add-leg-submit"));
     await waitFor(() => {
-      expect(screen.getByTestId("add-leg-error").innerHTML).toContain("text-[11px]");
+      expect(screen.getByTestId("add-leg-error").innerHTML).toContain("text-ui-micro");
     });
   });
 

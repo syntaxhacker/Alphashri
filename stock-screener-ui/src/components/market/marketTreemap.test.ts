@@ -126,7 +126,7 @@ const noFundamentals: MarketRow = {
 const STYLE = {
   borderDark: "#000",
   borderLight: "#fff",
-  label: { fontSize: 11, fontWeight: 600 as const, lineHeight: 1 },
+  label: { fontSize: 12, fontWeight: 600 as const, lineHeight: 1 },
   changePositive: "#0f0",
   changeNegative: "#f00",
   sortTilesByValueDesc: true,
@@ -222,7 +222,7 @@ describe("a row with no fundamentals must never crash the map", () => {
         buildStockTreemapOption(rows, metric.value, MARKET_METRICS, true, {
           borderDark: "#000",
           borderLight: "#fff",
-          label: { fontSize: 11, fontWeight: 600, lineHeight: 1 },
+          label: { fontSize: 12, fontWeight: 600, lineHeight: 1 },
           changePositive: "#0f0",
           changeNegative: "#f00",
         }),

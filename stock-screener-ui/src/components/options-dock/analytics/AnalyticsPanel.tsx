@@ -1,5 +1,5 @@
 import { Match, Show, Switch, createEffect, on, untrack } from "solid-js";
-import { Box as UiBox, Text as UiText } from "@/ui";
+import { Box as UiBox, Text as UiText, typeSize } from "@/ui";
 import type { ChainRow } from "@/api/optionsDock";
 import type { DockLeg } from "@/state/optionsDock";
 import { loadAnalytics, optionsAnalyticsState, refreshAnalytics } from "@/state/optionsAnalytics";
@@ -32,7 +32,7 @@ function LoadingSkeleton() {
         className="h-2 w-1/2"
         style={{ "border-radius": "2px", "background-color": "var(--color-fin-surface-alt)" }}
       />
-      <UiText size="xs" c="dimmed" className="font-mono uppercase" style={{ "font-size": "9px" }}>
+      <UiText size="xs" c="dimmed" className="font-mono uppercase" style={{ "font-size": `${typeSize("micro")}px` }}>
         Loading analytics
       </UiText>
     </UiBox>
@@ -117,7 +117,7 @@ export function AnalyticsPanel(props: {
           <UiText
             size="xs"
             className="min-w-0 flex-1 truncate font-mono"
-            style={{ "font-size": "10px", color: "var(--color-fin-negative)" }}
+            style={{ "font-size": `${typeSize("micro")}px`, color: "var(--color-fin-negative)" }}
           >
             {optionsAnalyticsState.error?.message ?? "Could not load the options analytics"}
           </UiText>
@@ -127,7 +127,7 @@ export function AnalyticsPanel(props: {
             aria-label="Retry analytics"
             data-testid="analytics-retry"
             onClick={() => void refreshAnalytics()}
-            className="inline-flex h-[20px] shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 font-mono text-[10px] font-semibold hover:underline"
+            className="inline-flex h-[20px] shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 font-mono text-ui-micro font-semibold hover:underline"
             style={{ color: "var(--color-fin-negative)" }}
           >
             Retry

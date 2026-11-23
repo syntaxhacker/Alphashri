@@ -1,6 +1,6 @@
 import { Show, For } from "solid-js";
 import type { JSX } from "solid-js";
-import { Box, Badge, Button, Paper, Text } from "@/ui";
+import { Box, Badge, Button, Paper, Text, typeSize } from "@/ui";
 import { subscribe, profileMetaById } from "../../state";
 import { useStoreSnapshot } from "../../hooks/useStoreSubscription";
 import { fetchData } from "../../api";
@@ -36,7 +36,7 @@ export function ScreenerInlineFilters(props: ScreenerInlineFiltersProps) {
     <>
       <FilterNotes notes={notes()} />
       <Show when={status()}>
-        <Text className="text-[11px]" c="dimmed" truncate data-testid="screener-status" title={status()}>
+        <Text className="text-ui-micro" c="dimmed" truncate data-testid="screener-status" title={status()}>
           {status()}
         </Text>
       </Show>
@@ -81,7 +81,7 @@ function FilterNotes(props: { notes: string[] }) {
       <Text
         c="dimmed"
         truncate
-        className="text-[11px] min-w-0 flex-shrink"
+        className="text-ui-micro min-w-0 flex-shrink"
         title={props.notes.join(" · ")}
         data-testid="screener-52w-high-banner"
       >
@@ -103,14 +103,14 @@ function FilterChips(props: {
       <Show when={props.showPlaceholder}>
         <Text
           c="dimmed"
-          className="text-[11px] leading-none whitespace-nowrap"
+          className="text-ui-micro leading-none whitespace-nowrap"
           data-testid={SCREENER_INLINE_FILTERS_EMPTY_TESTID}
         >
           {SCREENER_INLINE_FILTERS_PLACEHOLDER}
         </Text>
       </Show>
       <Show when={hasFilters()}>
-        <Text className="text-[11px] flex-shrink-0" c="dimmed" fw={600}>
+        <Text className="text-ui-micro flex-shrink-0" c="dimmed" fw={600}>
           Filters:
         </Text>
         <For each={props.filters}>
@@ -122,7 +122,7 @@ function FilterChips(props: {
               title={f.label}
               data-testid={`filter-chip-${f.key}`}
               style={{
-                "font-size": "11px",
+                "font-size": `${typeSize("micro")}px`,
                 height: "24px",
                 "background-color": palette.SURFACE_ALT,
                 color: palette.TEXT,
@@ -144,7 +144,7 @@ function FilterChips(props: {
           color="inherit"
           data-testid="apply-filters-btn"
           onClick={() => fetchData("upstox", "intraday", props.activeScreener, "manual")}
-          style={{ "font-size": "11px", height: "24px", "text-transform": "none" }}
+          style={{ "font-size": `${typeSize("micro")}px`, height: "24px", "text-transform": "none" }}
         >
           Apply
         </Button>

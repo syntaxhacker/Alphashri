@@ -1,4 +1,4 @@
-import { Box, Text, Tooltip } from "@/ui";
+import { Box, Text, Tooltip, typeSize } from "@/ui";
 import { Show, type Component } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import * as palette from "@/ui/palette";
@@ -46,7 +46,7 @@ export function NavbarLinksGroup(props: NavbarLinksGroupProps) {
           <Text
             size="sm"
             style={{
-              "font-size": "11px",
+              "font-size": `${typeSize("micro")}px`,
               "font-family": palette.MONO,
               "letter-spacing": "0.06em",
               "white-space": "nowrap",

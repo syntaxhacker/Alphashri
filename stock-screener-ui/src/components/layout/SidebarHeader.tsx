@@ -1,6 +1,6 @@
 import { Show } from "solid-js";
 import { IconBell, IconChevronLeft, IconChevronRight } from "../common/Icons";
-import { ActionIcon, Badge, Box, Stack, Text, Tooltip } from "@/ui";
+import { ActionIcon, Badge, Box, Stack, Text, Tooltip, typeSize } from "@/ui";
 import NewsPanel2 from "../news/NewsPanel";
 import { MarketStatus, MarketTicker } from "./MarketTicker";
 import { surgeAriaLabel, surgeBadgeText, surgeTooltip } from "../notifications/surgeAlertCount";
@@ -90,7 +90,7 @@ export function SidebarHeader(props: SidebarHeaderProps) {
             id={testId("app-logo")}
             data-testid={testId("app-logo")}
             fw={700}
-            style={{ "font-size": "13px", "line-height": 1, "letter-spacing": "-0.02em", "white-space": "nowrap" }}
+            style={{ "font-size": `${typeSize("body")}px`, "line-height": 1, "letter-spacing": "-0.02em", "white-space": "nowrap" }}
           >
             Alphashri
           </Text>

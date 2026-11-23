@@ -253,7 +253,7 @@ export function ExpirySelect(props: ExpirySelectProps): JSX.Element {
         <Box
           data-testid={props.errorTestId}
           role="alert"
-          className="flex items-center gap-2 border border-fin-border px-2 py-1 text-[11px] text-fin-text"
+          className="flex items-center gap-2 border border-fin-border px-2 py-1 text-ui-micro text-fin-text"
         >
           <Text size="xs" c="dimmed">
             Expiries unavailable: {message()}

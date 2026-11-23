@@ -3,8 +3,10 @@ import "@testing-library/jest-dom/vitest";
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
+  const { typeSize } = await import("@/ui/typography");
   return {
     ...mockSolidUi(),
+    typeSize,
     // The shared stub drops `loading`/`disabled`; the real ActionIcon forwards
     // both (spinner + disabled). Keep that contract observable here.
     ActionIcon: (props: any) => (

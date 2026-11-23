@@ -1,5 +1,5 @@
 import { createMemo, For } from "solid-js";
-import { Box, Button, Checkbox, Menu, MenuDropdown, MenuTarget, Text } from "@/ui";
+import { Box, Button, Checkbox, Menu, MenuDropdown, MenuTarget, Text, typeSize } from "@/ui";
 import { IconChevronDown } from "@/ui/icons";
 import type { TFSpec } from "@/types/chartPatterns";
 import { DEFAULT_TIMEFRAME } from "@/state/chartPatterns";
@@ -62,7 +62,7 @@ export function TimeframeSelect(props: TimeframeSelectProps) {
             "max-width": "210px",
             "justify-content": "space-between",
             "text-transform": "none",
-            "font-size": "11px",
+            "font-size": `${typeSize("micro")}px`,
             "font-weight": 600,
           }}
         >

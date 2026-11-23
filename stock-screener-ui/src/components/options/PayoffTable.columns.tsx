@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui";
 import type { JSX } from "solid-js";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 import * as palette from "@/ui/palette";
@@ -32,11 +33,11 @@ export function payoffColumns(args: PayoffColumnsArgs): TableColumnDef<PayoffRow
           >
             <span
               className="uppercase"
-              style={{ "font-size": "9px", color: palette.TEXT_MUTED, "letter-spacing": "0.06em" }}
+              style={{ "font-size": `${typeSize("micro")}px`, color: palette.TEXT_MUTED, "letter-spacing": "0.06em" }}
             >
               {head.month}
             </span>
-            <span className="font-mono tabular-nums" style={{ "font-size": "11px", color: palette.TEXT }}>
+            <span className="font-mono tabular-nums" style={{ "font-size": `${typeSize("micro")}px`, color: palette.TEXT }}>
               {head.date}
             </span>
           </div>

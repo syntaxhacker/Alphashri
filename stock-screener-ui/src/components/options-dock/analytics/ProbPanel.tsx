@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For } from "solid-js";
-import { Box, Text } from "@/ui";
+import { Box, Text, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { OptionsAnalytics } from "@/api/optionsAnalytics";
 import type { DockLeg } from "@/state/optionsDock";
@@ -65,7 +65,7 @@ function ScenarioRow(props: { scenarios: ProfitScenario[] }) {
               size="xs"
               className="font-mono tabular-nums"
               style={{
-                "font-size": "10px",
+                "font-size": `${typeSize("micro")}px`,
                 color:
                   scenario.pnl >= 0
                     ? "var(--color-fin-positive)"
@@ -76,7 +76,7 @@ function ScenarioRow(props: { scenarios: ProfitScenario[] }) {
               {scenario.label} {signedRupees(scenario.pnl)}
             </Text>
             {index() < props.scenarios.length - 1 ? (
-              <Text size="xs" c="dimmed" style={{ "font-size": "10px" }}>
+              <Text size="xs" c="dimmed" style={{ "font-size": `${typeSize("micro")}px` }}>
                 ·
               </Text>
             ) : null}
@@ -108,7 +108,7 @@ function ProbMetric(props: {
         size="xs"
         c="dimmed"
         className="truncate uppercase"
-        style={{ "font-size": "9px", "letter-spacing": "0.06em", "line-height": "1.1" }}
+        style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.06em", "line-height": "1.1" }}
       >
         {props.label}
         {props.hint ? " ⓘ" : ""}
@@ -118,7 +118,7 @@ function ProbMetric(props: {
         fw={700}
         className="truncate font-mono tabular-nums"
         style={{
-          "font-size": "10px",
+          "font-size": `${typeSize("micro")}px`,
           "line-height": "1.2",
           ...(props.tone ? { color: TONE_VAR[props.tone] } : {}),
         }}

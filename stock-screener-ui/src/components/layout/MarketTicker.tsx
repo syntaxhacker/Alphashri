@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, type JSX } from "solid-js";
 import { usePolling } from "@/hooks/usePolling";
-import { Box, Text, Skeleton } from "@/ui";
+import { Box, Text, Skeleton, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { subscribeToHolidays, isMarketOpenNow, getHolidayState } from "../../state/holidays";
@@ -123,7 +123,7 @@ function TickerItem(props: TickerItemProps) {
         size="sm"
         fw={600}
         c="dimmed"
-        style={{ "font-size": "11px", "line-height": "1.1", "white-space": "nowrap" }}
+        style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.1", "white-space": "nowrap" }}
       >
         {label()}
       </Text>
@@ -132,7 +132,7 @@ function TickerItem(props: TickerItemProps) {
         fw={700}
         data-testid={`ticker-price-${testId()}`}
         style={{
-          "font-size": "11px",
+          "font-size": `${typeSize("micro")}px`,
           "line-height": "1.1",
           "font-family": palette.MONO,
           "font-variant-numeric": "tabular-nums",
@@ -155,7 +155,7 @@ function TickerItem(props: TickerItemProps) {
         className="flex items-center justify-end gap-[2px] min-w-0 overflow-hidden whitespace-nowrap font-mono"
         style={{ color: tone(), "font-variant-numeric": "tabular-nums" }}
       >
-        <Box component="span" aria-hidden className="text-[11px] leading-none">
+        <Box component="span" aria-hidden className="text-ui-micro leading-none">
           {isPositive() ? "▲" : "▼"}
         </Box>
         <Text
@@ -163,7 +163,7 @@ function TickerItem(props: TickerItemProps) {
           span
           fw={700}
           style={{
-            "font-size": "11px",
+            "font-size": `${typeSize("micro")}px`,
             "line-height": "1.1",
             color: tone(),
             "font-family": palette.MONO,
@@ -237,7 +237,7 @@ function TickerErrorState() {
       px="sm"
       style={{ display: "flex", "align-items": "center", height: TICKER_HEIGHT }}
     >
-      <Text size="sm" c="dimmed" style={{ "font-size": "11px", "line-height": "1.2" }}>
+      <Text size="sm" c="dimmed" style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2" }}>
         Market data unavailable
       </Text>
     </Box>
@@ -256,12 +256,12 @@ function TickerStatus(props: { label: string; detail?: string | null }) {
         className="size-6 rounded-full flex-shrink-0"
         style={{ "background-color": palette.TEXT_MUTED }}
       />
-      <Text size="sm" fw={600} c="dimmed" style={{ "font-size": "11px", "line-height": "1.2" }}>{props.label}</Text>
+      <Text size="sm" fw={600} c="dimmed" style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2" }}>{props.label}</Text>
       <Show when={props.detail}>
         <Text
           size="sm"
           c="dimmed"
-          style={{ "font-size": "11px", "line-height": "1.2" }}
+          style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2" }}
           className="opacity-75 min-w-0 overflow-hidden truncate"
         >
           · {props.detail}
@@ -335,14 +335,14 @@ export function MarketStatus(props: { compact?: boolean }) {
         }}
       />
       <Show when={!compact()}>
-        <Text size="sm" fw={600} c="dimmed" style={{ "font-size": "11px", "line-height": "1.2", "white-space": "nowrap" }}>
+        <Text size="sm" fw={600} c="dimmed" style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2", "white-space": "nowrap" }}>
           {label()}
         </Text>
         <Show when={detail()}>
           <Text
             size="sm"
             c="dimmed"
-            style={{ "font-size": "11px", "line-height": "1.2" }}
+            style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2" }}
             className="opacity-75 min-w-0 overflow-hidden truncate"
           >
             · {detail()}

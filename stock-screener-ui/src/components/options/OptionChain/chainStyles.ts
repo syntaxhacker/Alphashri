@@ -1,10 +1,11 @@
 import { fontWeights } from "../../../config/theme";
+import { typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 
 export type ThemeType = any;
 
-function resolveFontSize(_theme: any, key: "sm" | "md"): string {
-  return key === "sm" ? "12px" : "14px";
+function resolveFontSize(_theme: any, key: "sm" | "md"): number {
+  return key === "sm" ? typeSize("micro") : typeSize("label");
 }
 
 export const getStyles = (_theme: ThemeType, _isDark: boolean) => ({
@@ -46,7 +47,7 @@ export const getStyles = (_theme: ThemeType, _isDark: boolean) => ({
   subHeaderCell: {
     padding: "5px 2px",
     textAlign: "center" as const,
-    fontSize: "12px",
+    fontSize: typeSize("micro"),
     color: palette.TEXT_MUTED,
     fontWeight: fontWeights.semibold,
     textTransform: "uppercase" as const,

@@ -242,7 +242,7 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
       </ToolbarRow>
 
       <Show when={status() === "loading"}>
-        <Box data-testid="options-chain-loading" className="px-2 py-1 text-[10px] text-fin-text-muted">
+        <Box data-testid="options-chain-loading" className="px-2 py-1 text-ui-micro text-fin-text-muted">
           Loading chain…
         </Box>
       </Show>
@@ -250,7 +250,7 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
       <Show when={status() === "empty"}>
         <Box
           data-testid="options-chain-empty"
-          className="flex flex-col gap-1 px-2 py-1 text-[11px] text-fin-text-muted"
+          className="flex flex-col gap-1 px-2 py-1 text-ui-micro text-fin-text-muted"
         >
           <Text size="xs" c="dimmed">
             No strikes listed for {symbol() || "—"} {expiry() || "— choose an expiry in this window"}

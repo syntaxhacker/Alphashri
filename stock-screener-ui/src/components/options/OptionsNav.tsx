@@ -44,7 +44,7 @@ export function OptionsNav(props: OptionsNavProps) {
       <button
         type="button"
         onClick={() => dock.open("NIFTY", "options")}
-        className="ml-auto shrink-0 border-0 bg-transparent pl-2 font-mono text-[9px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+        className="ml-auto shrink-0 border-0 bg-transparent pl-2 font-mono text-ui-micro text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
         data-testid="options-analytics-link"
       >
         Analytics ↗

@@ -44,11 +44,11 @@ function DetailLine(props: { label: string; children: JSX.Element }) {
       <Text
         component="span"
         c="dimmed"
-        className="w-[64px] shrink-0 font-mono text-[9px] uppercase tracking-[0.08em]"
+        className="w-[64px] shrink-0 font-mono text-ui-micro uppercase tracking-[0.08em]"
       >
         {props.label}
       </Text>
-      <div className="min-w-0 flex-1 text-[11px] leading-snug text-fin-text">{props.children}</div>
+      <div className="min-w-0 flex-1 text-ui-micro leading-snug text-fin-text">{props.children}</div>
     </div>
   );
 }
@@ -69,7 +69,7 @@ function CatalystDetail(props: { row: CatalystRowLike; breadth: CatalystBreadth 
       data-testid={`catalyst-detail-${props.row.symbol}`}
       className="flex flex-col gap-1 px-3 py-2 text-left"
     >
-      <Text component="span" c="dimmed" className="text-[10px]">
+      <Text component="span" c="dimmed" className="text-ui-micro">
         {meta()}
       </Text>
 
@@ -223,7 +223,7 @@ export function CatalystRadarPanel(props: CatalystRadarPanelProps) {
         <Text
           component="span"
           fw={700}
-          className="font-mono text-[10px] uppercase tracking-[0.08em]"
+          className="font-mono text-ui-micro uppercase tracking-[0.08em]"
           data-testid="catalyst-title"
         >
           CATALYST RADAR
@@ -244,7 +244,7 @@ export function CatalystRadarPanel(props: CatalystRadarPanelProps) {
 
         <Show when={sectorSummary()}>
           {(summary) => (
-            <Text component="span" c="dimmed" className="text-[10px]" data-testid="catalyst-sector">
+            <Text component="span" c="dimmed" className="text-ui-micro" data-testid="catalyst-sector">
               {summary()}
             </Text>
           )}
@@ -289,7 +289,7 @@ export function CatalystRadarPanel(props: CatalystRadarPanelProps) {
           role="status"
           className="shrink-0 border-b border-fin-border bg-fin-surface-alt px-2 py-1"
         >
-          <Text component="span" c="warning" className="text-[10px]">
+          <Text component="span" c="warning" className="text-ui-micro">
             {`DEAD SOURCE — ${warnings().join(" · ")}. Some rows may be missing.`}
           </Text>
         </Box>
@@ -301,7 +301,7 @@ export function CatalystRadarPanel(props: CatalystRadarPanelProps) {
           role="status"
           className="shrink-0 border-b border-fin-border bg-fin-surface-alt px-2 py-1"
         >
-          <Text component="span" c="warning" className="text-[10px]">
+          <Text component="span" c="warning" className="text-ui-micro">
             {`STALE — no update since ${asOfLabel()} IST. Showing the last good read.`}
           </Text>
         </Box>
@@ -313,7 +313,7 @@ export function CatalystRadarPanel(props: CatalystRadarPanelProps) {
           role="alert"
           className="flex shrink-0 items-center justify-between gap-2 border-b border-fin-border bg-fin-surface-alt px-2 py-1"
         >
-          <Text component="span" c="error" className="min-w-0 truncate text-[10px]">
+          <Text component="span" c="error" className="min-w-0 truncate text-ui-micro">
             {store.error()}
           </Text>
           <Button

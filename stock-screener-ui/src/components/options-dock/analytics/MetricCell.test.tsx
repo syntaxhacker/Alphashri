@@ -30,10 +30,10 @@ describe("MetricCell", () => {
     const value = screen.getByTestId("atm-iv-value");
 
     expect(label.className).toContain("uppercase");
-    expect(label.style.fontSize).toBe("9px");
+    expect(label.style.fontSize).toBe("12px");
     expect(value.className).toContain("font-mono");
     expect(value.className).toContain("tabular-nums");
-    expect(value.style.fontSize).toBe("10px");
+    expect(value.style.fontSize).toBe("12px");
   });
 
   test("tone resolves to a semantic CSS variable, not a hardcoded hex", () => {

@@ -1,6 +1,6 @@
 import { createEffect, onCleanup, onMount } from "solid-js";
 import type * as ECharts from "echarts";
-import { Box, Stack, Text } from "@/ui";
+import { Box, Stack, Text, typeSize } from "@/ui";
 import { loadEcharts } from "@/utils/loadEcharts";
 import type { SectorCorrelationResponse } from "../../types/sector";
 import {
@@ -123,7 +123,7 @@ export function SectorBetaChart(props: {
       xAxis: {
         type: "category" as const,
         data: names,
-        axisLabel: { rotate: 45, fontSize: 10, color: colors.axisLabel },
+        axisLabel: { rotate: 45, fontSize: typeSize("micro"), color: colors.axisLabel },
         axisLine: { lineStyle: { color: colors.axisLine } },
       },
       yAxis: {
@@ -143,7 +143,7 @@ export function SectorBetaChart(props: {
           label: {
             show: true,
             position: "top" as const,
-            fontSize: 10,
+            fontSize: typeSize("micro"),
             color: (p: any) => (p.value >= 1 || p.value <= 0 ? CREAM : BROWN_DARK),
             formatter: (p: any) => p.value.toFixed(2),
           },
@@ -194,7 +194,7 @@ export function RotationTimeline(props: {
       xAxis: {
         type: "category" as const,
         data: names,
-        axisLabel: { rotate: 45, fontSize: 10, color: colors.axisLabel },
+        axisLabel: { rotate: 45, fontSize: typeSize("micro"), color: colors.axisLabel },
         axisLine: { lineStyle: { color: colors.axisLine } },
       },
       yAxis: {
@@ -212,7 +212,7 @@ export function RotationTimeline(props: {
           label: {
             show: true,
             position: "top" as const,
-            fontSize: 10,
+            fontSize: typeSize("micro"),
             color: CREAM,
             formatter: (p: any) => (p.value > 0 ? `+${p.value}` : p.value.toString()),
           },

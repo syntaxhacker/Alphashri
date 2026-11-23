@@ -123,7 +123,7 @@ export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
                   variant={p === period() ? "filled" : "subtle"}
                   onClick={() => setPeriod(p)}
                   data-testid={`group-performance-period-${p}`}
-                  className="!px-0 !min-w-0 text-[9px]"
+                  className="!px-0 !min-w-0 text-ui-micro"
                 >
                   {p}
                 </Button>
@@ -211,7 +211,7 @@ export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
                           {g.name}
                         </Text>
                         <span
-                          className="flex-shrink-0 font-mono text-[9px] tabular-nums text-fin-text-muted w-[22px] text-right"
+                          className="flex-shrink-0 font-mono text-ui-micro tabular-nums text-fin-text-muted w-[22px] text-right"
                           title={`${g.stock_count} stocks`}
                         >
                           {g.stock_count}
@@ -233,7 +233,7 @@ export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
                           c={Number.isFinite(g.change) ? getPnLTextColor(g.change) : "dimmed"}
                           span
                           ta="right"
-                          className="w-[52px] flex-shrink-0 font-mono text-[10px] tabular-nums"
+                          className="w-[52px] flex-shrink-0 font-mono text-ui-micro tabular-nums"
                           data-testid={`group-performance-value-${sanitizeTestId(g.name)}`}
                         >
                           {formatPercentage(g.change)}

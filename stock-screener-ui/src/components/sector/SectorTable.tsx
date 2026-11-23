@@ -48,7 +48,7 @@ function TopMoversCell(props: { text: string }) {
             const symbol = part[1];
             const raw = part[2];
             return (
-              <Text span className="text-[10px] font-mono tabular-nums">
+              <Text span className="text-ui-micro font-mono tabular-nums">
                 <Box component="span" className="text-fin-text-muted">
                   {symbol}
                 </Box>
@@ -72,7 +72,7 @@ export function SectorTable(props: SectorTableProps) {
       accessorKey: "sector",
       meta: { align: "left" },
       size: 170,
-      cell: ({ row }) => <Box className="flex items-center justify-start text-[11px] font-semibold">{row.original.sector}</Box>,
+      cell: ({ row }) => <Box className="flex items-center justify-start text-ui-micro font-semibold">{row.original.sector}</Box>,
     },
     {
       id: "avg_change",
@@ -84,7 +84,7 @@ export function SectorTable(props: SectorTableProps) {
         const val = row.original.avg_change;
         return (
           <Box
-            className="flex items-center justify-end font-semibold tabular-nums font-mono text-[10.5px]"
+            className="flex items-center justify-end font-semibold tabular-nums font-mono text-ui-micro"
             style={{ color: getPnLTextColor(val) === "success" ? POSITIVE : NEGATIVE }}
           >
             {val >= 0 ? "+" : ""}
@@ -114,7 +114,7 @@ export function SectorTable(props: SectorTableProps) {
             ? NEGATIVE
             : TEXT_MUTED;
         return (
-          <Box className="flex items-center justify-end font-semibold tabular-nums font-mono text-[10.5px]" style={{ color: adColor }}>
+          <Box className="flex items-center justify-end font-semibold tabular-nums font-mono text-ui-micro" style={{ color: adColor }}>
             {row.original.advances} : {row.original.declines}
           </Box>
         );

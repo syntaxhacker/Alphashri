@@ -82,7 +82,7 @@ function AlertsAndMovers(props: {
         className="flex min-h-0 flex-none flex-col"
         title={
           <Box className="flex items-center justify-between gap-2">
-            <Text fw={600} className="text-[11px]">Real-time Alerts</Text>
+            <Text fw={600} className="text-ui-micro">Real-time Alerts</Text>
             <IconBellRinging size={14} color="var(--color-fin-warning)" />
           </Box>
         }
@@ -98,7 +98,7 @@ function AlertsAndMovers(props: {
         className="flex min-h-0 flex-none flex-col"
         title={
           <Box className="flex items-center justify-between gap-2">
-            <Text fw={600} className="text-[11px]">Interval Movers</Text>
+            <Text fw={600} className="text-ui-micro">Interval Movers</Text>
             <IconTrendingUp size={14} color="var(--color-fin-primary)" />
           </Box>
         }
@@ -114,7 +114,7 @@ function AlertsAndMovers(props: {
         className="flex min-h-0 flex-1 flex-col"
         title={
           <Box className="flex items-center justify-between gap-2">
-            <Text fw={600} className="text-[11px]">Top Gainers</Text>
+            <Text fw={600} className="text-ui-micro">Top Gainers</Text>
             <IconTrendingUp size={14} color="var(--color-fin-positive)" />
           </Box>
         }
@@ -136,12 +136,12 @@ function AlertsAndMovers(props: {
                       href={`/chart/${encodeURIComponent(stock.symbol)}`}
                       className="min-w-0 text-fin-text no-underline hover:text-fin-primary"
                     >
-                      <Text truncate className="text-[10.5px] font-semibold">
+                      <Text truncate className="text-ui-micro font-semibold">
                         {stock.symbol}
                       </Text>
                     </Box>
                     <Box className="flex-1" />
-                    <Text c={stock.change >= 0 ? "success" : "error"} className="text-[10.5px] tabular-nums font-mono">
+                    <Text c={stock.change >= 0 ? "success" : "error"} className="text-ui-micro tabular-nums font-mono">
                       {formatPercentage(stock.change)}
                     </Text>
                   </Box>
@@ -204,7 +204,7 @@ function SectorPerformancePanel(props: { sectors: SectorItem[] }) {
       className="flex flex-col overflow-hidden border border-fin-border rounded-[2px] min-w-0 min-h-0"
     >
       <Box className="flex h-6 shrink-0 items-center border-b border-fin-border px-2">
-        <Text fw={600} className="text-[11px]">Sector Performance</Text>
+        <Text fw={600} className="text-ui-micro">Sector Performance</Text>
       </Box>
       <Box
         id="sector-table-container"
@@ -255,11 +255,11 @@ function DashboardContent(props: {
             className="min-h-[300px] lg:min-h-0 flex flex-col"
             title={
               <Box className="flex items-center justify-between gap-2">
-                <Text fw={600} className="text-[11px]">Market Heatmap</Text>
+                <Text fw={600} className="text-ui-micro">Market Heatmap</Text>
                 <Show when={data().last_updated}>
                   <Box className="flex items-center gap-1">
                     <IconClock size={12} color="var(--color-fin-text-muted)" />
-                    <Text c="dimmed" className="text-[9.5px] font-mono tabular-nums">
+                    <Text c="dimmed" className="text-ui-micro font-mono tabular-nums">
                       {new Date(data().last_updated!).toLocaleTimeString()}
                     </Text>
                   </Box>
@@ -495,10 +495,10 @@ function SectorPageHeader(props: {
       data-testid="sector-header"
       style={{ padding: "0 12px", "min-height": "36px", height: "36px", "border-bottom": "1px solid var(--color-fin-border)", "flex-shrink": "0" }}
     >
-      <Text fw={700} className="text-[12px] whitespace-nowrap">
+      <Text fw={700} className="text-ui-micro whitespace-nowrap">
         Sector Dashboard
       </Text>
-      <Text c="dimmed" className="hidden whitespace-nowrap text-[10px] xl:inline">
+      <Text c="dimmed" className="hidden whitespace-nowrap text-ui-micro xl:inline">
         Real-time sector performance and technical strength.
       </Text>
       <Show when={!marketOpen()}>
@@ -506,7 +506,7 @@ function SectorPageHeader(props: {
           c="warning"
           fw={700}
           title="Showing the last available session snapshot"
-          className="text-[9.5px] whitespace-nowrap tracking-[0.4px]"
+          className="text-ui-micro whitespace-nowrap tracking-[0.4px]"
         >
           MARKET CLOSED
         </Text>
@@ -528,13 +528,13 @@ function SectorPageHeader(props: {
           className="gap-1"
           style={{ border: "0", background: "transparent", padding: "0", "min-height": "0" }}
         >
-          <Tabs.Tab value="dashboard" className="text-[11px]" icon={<IconChartBar size={12} />}>
+          <Tabs.Tab value="dashboard" className="text-ui-micro" icon={<IconChartBar size={12} />}>
             Live Dashboard
           </Tabs.Tab>
-          <Tabs.Tab value="correlation" className="text-[11px]" icon={<IconNetwork size={12} />}>
+          <Tabs.Tab value="correlation" className="text-ui-micro" icon={<IconNetwork size={12} />}>
             Sector Correlation
           </Tabs.Tab>
-          <Tabs.Tab value="rotation" className="text-[11px]" icon={<IconArrowsExchange size={12} />}>
+          <Tabs.Tab value="rotation" className="text-ui-micro" icon={<IconArrowsExchange size={12} />}>
             Rotation
           </Tabs.Tab>
         </Tabs.List>
@@ -610,35 +610,35 @@ function SectorContextBar(props: {
       <Show when={top() && bottom()}>
         <Box data-testid="sector-summary-strip" className="flex min-w-0 shrink items-center gap-3 overflow-hidden">
           <Box className="flex min-w-0 items-baseline gap-1">
-            <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-[9px] tracking-[0.3px] whitespace-nowrap">
+            <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-ui-micro tracking-[0.3px] whitespace-nowrap">
               Top Sector
             </Text>
-            <Text fw={700} c="success" truncate className="text-[11px]">
+            <Text fw={700} c="success" truncate className="text-ui-micro">
               {top()!.sector}
             </Text>
-            <Text c="dimmed" className="text-[9.5px] font-mono tabular-nums whitespace-nowrap">
+            <Text c="dimmed" className="text-ui-micro font-mono tabular-nums whitespace-nowrap">
               Avg Change: {formatPercentage(top()!.avg_change)}
             </Text>
           </Box>
           <Box className="hidden items-baseline gap-[6px] lg:flex">
-            <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-[9px] tracking-[0.3px] whitespace-nowrap">
+            <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-ui-micro tracking-[0.3px] whitespace-nowrap">
               Market Breadth
             </Text>
-            <Text fw={700} c="success" className="text-[11px] font-mono tabular-nums">
+            <Text fw={700} c="success" className="text-ui-micro font-mono tabular-nums">
               {advances()} UP
             </Text>
-            <Text fw={700} c="error" className="text-[11px] font-mono tabular-nums">
+            <Text fw={700} c="error" className="text-ui-micro font-mono tabular-nums">
               {declines()} DOWN
             </Text>
           </Box>
           <Box className="hidden min-w-0 items-baseline gap-1 xl:flex">
-            <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-[9px] tracking-[0.3px] whitespace-nowrap">
+            <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-ui-micro tracking-[0.3px] whitespace-nowrap">
               Weakest Sector
             </Text>
-            <Text fw={700} c="error" truncate className="text-[11px]">
+            <Text fw={700} c="error" truncate className="text-ui-micro">
               {bottom()!.sector}
             </Text>
-            <Text c="dimmed" className="text-[9.5px] font-mono tabular-nums whitespace-nowrap">
+            <Text c="dimmed" className="text-ui-micro font-mono tabular-nums whitespace-nowrap">
               Avg Change: {formatPercentage(bottom()!.avg_change)}
             </Text>
           </Box>

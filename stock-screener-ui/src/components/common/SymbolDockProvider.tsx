@@ -386,7 +386,7 @@ function DockContent(props: {
                 maw={220}
                 title="Patterns were detected on this session; the chart also shows newer display-only bars"
                 data-testid="dock-detection-asof"
-                className="pointer-events-auto text-[10px] leading-none"
+                className="pointer-events-auto text-ui-micro leading-none"
               >
                 {note()}
               </Text>

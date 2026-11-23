@@ -1,6 +1,6 @@
 import { createEffect, createMemo, onCleanup } from "solid-js";
 import type * as ECharts from "echarts";
-import { Box, useColorScheme } from "@/ui";
+import { Box, useColorScheme, typeSize } from "@/ui";
 import { loadEcharts } from "@/utils/loadEcharts";
 import type { SectorItem } from "../../types/sector";
 import type { HeatmapStock } from "../../api/heatmap";
@@ -39,7 +39,7 @@ const SECTOR_STOCK_TREEMAP_STYLE: StockTreemapStyle = {
   borderDark: BROWN_DARK,
   borderLight: CREAM,
   label: {
-    fontSize: 10,
+    fontSize: typeSize("micro"),
     fontWeight: 600,
     lineHeight: 13,
     textShadowColor: "rgba(0, 0, 0, 0.45)",
@@ -85,7 +85,7 @@ function buildSectorTreemapOption(sectors: SectorItem[], isDark: boolean) {
         const d = params.data;
         if (!d) return "";
         const lines = [
-          `<div style="font-weight:bold;font-size:14px;color:${tooltipText}">${d.name}</div>`,
+          `<div style="font-weight:bold;font-size:${typeSize("label")}px;color:${tooltipText}">${d.name}</div>`,
           `<div style="margin-top:6px">`,
           `  <div style="color:${tooltipText}">Avg Change: <b>${formatPercentage(Number(d.avg_change))}</b></div>`,
           `  <div style="color:${tooltipText}">Stocks: <b>${d.stock_count}</b></div>`,
@@ -98,7 +98,7 @@ function buildSectorTreemapOption(sectors: SectorItem[], isDark: boolean) {
           lines.push(`  <div style="color:${tooltipText}">Avg ADX: <b>${Number(d.avg_adx).toFixed(1)}</b></div>`);
         }
         if (d.top_movers) {
-          lines.push(`  <div style="color:${tooltipText};margin-top:4px;font-size:11px;opacity:0.8">Top: ${d.top_movers}</div>`);
+          lines.push(`  <div style="color:${tooltipText};margin-top:4px;font-size:${typeSize("micro")}px;opacity:0.8">Top: ${d.top_movers}</div>`);
         }
         lines.push(`</div>`);
         return lines.join("\n");
@@ -122,7 +122,7 @@ function buildSectorTreemapOption(sectors: SectorItem[], isDark: boolean) {
           formatter: (params: { name?: string; data?: { avg_change?: number } }) =>
             `${params.name}\n${params.data?.avg_change != null ? formatPercentage(params.data.avg_change, 2, false) : ""}`,
           color: CREAM,
-          fontSize: 10,
+          fontSize: typeSize("micro"),
           fontWeight: 600,
           lineHeight: 13,
           textShadowColor: "rgba(0, 0, 0, 0.45)",

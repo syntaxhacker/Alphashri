@@ -1,5 +1,5 @@
 import { createSignal, createEffect, Show } from "solid-js";
-import { Text, Loader, Center, SegmentedControl, Box, Flex, Paper, Group } from "@/ui";
+import { Text, Loader, Center, SegmentedControl, Box, Flex, Paper, Group, typeSize } from "@/ui";
 import { useStoreSnapshot } from "./storeSnapshot";
 import { getPaperTradingState, subscribe } from "../../state/paperTrading";
 import { fetchAnalytics } from "../../api/paperTrading";
@@ -22,10 +22,10 @@ function chartOption({
   series: any[];
 }) {
   return {
-    grid: { left: 44, right: 8, top: 8, bottom: 18 },
+    grid: { left: 44, right: 8, top: 8, bottom: 22 },
     tooltip: { trigger: "axis" as const, valueFormatter: tooltipFormatter },
-    xAxis: { type: "category" as const, data: xData, axisLabel: { fontSize: 9 }, splitLine },
-    yAxis: { type: "value" as const, axisLabel: { fontSize: 9, formatter: yFormatter }, splitLine },
+    xAxis: { type: "category" as const, data: xData, axisLabel: { fontSize: typeSize("micro") }, splitLine },
+    yAxis: { type: "value" as const, axisLabel: { fontSize: typeSize("micro"), formatter: yFormatter }, splitLine },
     series,
   };
 }

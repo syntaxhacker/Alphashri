@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
-import { Badge, Box, Flex, Text } from "@/ui";
+import { Badge, Box, Flex, Text, typeSize } from "@/ui";
 import { useValueFlash } from "@/utils/valueFlash";
 import * as palette from "@/ui/palette";
 import { EChart } from "../common/EChart";
@@ -388,7 +388,7 @@ function LegendSwatch(props: {
         size="xs"
         c="dimmed"
         className="uppercase"
-        style={{ "font-size": "9px", "letter-spacing": "0.06em" }}
+        style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.06em" }}
       >
         {props.label}
       </Text>

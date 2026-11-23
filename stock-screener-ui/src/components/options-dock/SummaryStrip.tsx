@@ -1,5 +1,5 @@
 import { For, Show, createMemo } from "solid-js";
-import { Box, Text, Tooltip, useMediaQuery } from "@/ui";
+import { Box, Text, Tooltip, useMediaQuery, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { formatNumber } from "@/utils/ui-helpers";
 import { expectedMove, maxPain, pcr } from "@/utils/optionsMath";
@@ -16,7 +16,7 @@ function Stat(props: { label: string; value: string; title?: string; testId: str
           size="xs"
           c="dimmed"
           className="uppercase"
-          style={{ "font-size": "9px", "letter-spacing": "0.06em", "line-height": "1.1" }}
+          style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.06em", "line-height": "1.1" }}
         >
           {props.label}
         </Text>
@@ -24,7 +24,7 @@ function Stat(props: { label: string; value: string; title?: string; testId: str
           size="xs"
           fw={700}
           className="font-mono tabular-nums"
-          style={{ "font-size": "11px", "line-height": "1.2" }}
+          style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2" }}
         >
           {props.value}
         </Text>
@@ -49,7 +49,7 @@ function LevelChip(props: {
       component="span"
       className="inline-block shrink-0 whitespace-nowrap rounded px-1 py-0.5 font-mono tabular-nums"
       style={{
-        "font-size": "9px",
+        "font-size": `${typeSize("micro")}px`,
         "line-height": "1.2",
         "background-color": palette.alpha(props.color, 0.10),
         color: palette.TEXT,
@@ -220,7 +220,7 @@ export function SummaryStrip(props: {
         className="self-center uppercase"
         data-testid="options-thin-chain"
         title="A single strike holding most of the OI, or a very thin book"
-        style={{ "font-size": "9px", display: isThin() ? undefined : "none" }}
+        style={{ "font-size": `${typeSize("micro")}px`, display: isThin() ? undefined : "none" }}
       >
         thin chain
       </Text>

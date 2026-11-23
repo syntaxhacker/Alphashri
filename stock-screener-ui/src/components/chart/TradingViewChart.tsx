@@ -16,6 +16,7 @@ import {
   type Time,
   type LineWidth,
 } from "lightweight-charts";
+import { typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import type { ReplayCandle, ReplayTrade } from "@/types/replay";
@@ -942,7 +943,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
         ctx.strokeRect(0.5, top + 0.5, Math.max(0, rect.width - 1), Math.max(0, bottom - top - 1));
       }
       if (area.label) {
-        ctx.font = "700 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+        ctx.font = `700 ${typeSize("micro")}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
         ctx.textBaseline = "middle";
         ctx.textAlign = "left";
         ctx.fillStyle = area.borderColor || palette.TV_SERIES_TEXT;
@@ -975,7 +976,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
           ? (timeScale as any).height()
           : 0;
       const bottomEdge = rect.height - Math.max(0, timeAxisH) - 4;
-      ctx.font = "600 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+      ctx.font = `600 ${typeSize("micro")}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
       ctx.textBaseline = "middle";
       ctx.textAlign = "left";
       const rowH = 14;
@@ -1002,7 +1003,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
     if (!entryLabels()) return;
 
     const visible = filterVisibleTrades(trades(), props.highlightedTradeId ?? null, props.showAllTrades);
-    ctx.font = "700 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    ctx.font = `700 ${typeSize("micro")}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
 

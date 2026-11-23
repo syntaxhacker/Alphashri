@@ -7,7 +7,8 @@ import type { PatternHitDTO } from "@/types/chartPatterns";
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
-  return mockSolidUi();
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
 });
 import {
   matrixRenderStats,

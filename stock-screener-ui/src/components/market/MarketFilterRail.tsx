@@ -25,7 +25,7 @@ import {
 } from "./marketFilters";
 
 /** One size for every band label in the rail — header included. */
-const SECTION_LABEL = "text-[10px] uppercase tracking-[0.06em]";
+const SECTION_LABEL = "text-ui-micro uppercase tracking-[0.06em]";
 
 export interface MarketFilterRailProps {
   filters: MarketFilterState;
@@ -355,7 +355,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
         >
           <Box className="flex items-center gap-1 min-w-0">
             <IconCurrencyDollar size={12} />
-            <Text fw={600} c={valueActiveCount() > 0 ? undefined : "dimmed"} className="text-[11px] whitespace-nowrap">
+            <Text fw={600} c={valueActiveCount() > 0 ? undefined : "dimmed"} className="text-ui-micro whitespace-nowrap">
               Value filters
             </Text>
             <Show when={valueActiveCount() > 0}>
@@ -438,7 +438,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
           onClick={() => setMoversOpen((open) => !open)}
           className="flex items-center justify-between w-full min-w-0 cursor-pointer"
         >
-          <Text fw={600} c="dimmed" className="text-[11px] whitespace-nowrap">
+          <Text fw={600} c="dimmed" className="text-ui-micro whitespace-nowrap">
             Mover presets
           </Text>
           <Show when={moversOpen()} fallback={<IconChevronDown size={12} />}>

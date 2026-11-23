@@ -169,7 +169,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
           />
 
           <Box data-testid="replay-date-from" className="flex items-center flex-none" style={{ gap: "8px" }}>
-            <span className="text-[11px] font-mono uppercase tracking-[0.06em] text-fin-text-muted">From</span>
+            <span className="text-ui-micro font-mono uppercase tracking-[0.06em] text-fin-text-muted">From</span>
             <TradingDatePicker
               w={112}
               maxDate={maxDate}
@@ -179,7 +179,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
             {props.config.date && <span style={{ display: "none" }}>{formatDisplayDate(props.config.date)}</span>}
           </Box>
           <Box data-testid="replay-date-to" className="flex items-center flex-none" style={{ gap: "8px" }}>
-            <span className="text-[11px] font-mono uppercase tracking-[0.06em] text-fin-text-muted">To</span>
+            <span className="text-ui-micro font-mono uppercase tracking-[0.06em] text-fin-text-muted">To</span>
             <TradingDatePicker
               w={112}
               maxDate={maxDate}

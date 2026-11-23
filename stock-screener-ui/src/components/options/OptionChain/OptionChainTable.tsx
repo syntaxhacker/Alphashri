@@ -10,6 +10,7 @@ import {
   SegmentedControl,
   useColorScheme,
   useTheme,
+  typeSize,
 } from "@/ui";
 import * as palette from "@/ui/palette";
 import { createEffect, createMemo, createSignal, For, Index, Show, type JSX } from "solid-js";
@@ -388,7 +389,7 @@ function OptionColumn(props: {
                               size="sm"
                               variant="light"
                               color={badge().color}
-                              style={{ "font-size": "10px", height: "14px", "padding-left": "4px", "padding-right": "4px" }}
+                              style={{ "font-size": `${typeSize("micro")}px`, height: "14px", "padding-left": "4px", "padding-right": "4px" }}
                             >
                               {badge().label}
                             </Badge>

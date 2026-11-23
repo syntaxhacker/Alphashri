@@ -1,5 +1,5 @@
 import { createMemo, createSignal, type JSX } from "solid-js";
-import { Box, Text, Tooltip } from "@/ui";
+import { Box, Text, Tooltip, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import {
@@ -74,10 +74,10 @@ function tone(value: number | null | undefined): string {
 function KpiCell(props: { label: string; children: JSX.Element }) {
   return (
     <Box className="flex min-w-0 flex-col gap-1 rounded-fin border border-fin-border-subtle bg-fin-surface px-2 py-2">
-      <Text span className="uppercase tracking-[0.06em] text-fin-text-muted" style={{ "font-size": "9px" }}>
+      <Text span className="uppercase tracking-[0.06em] text-fin-text-muted" style={{ "font-size": `${typeSize("micro")}px` }}>
         {props.label}
       </Text>
-      <Text span className="block w-full text-right font-mono tabular-nums" style={{ "font-size": "12px" }}>
+      <Text span className="block w-full text-right font-mono tabular-nums" style={{ "font-size": `${typeSize("micro")}px` }}>
         {props.children}
       </Text>
     </Box>
@@ -127,10 +127,10 @@ export function PayoffWorkbench(props: PayoffWorkbenchProps) {
     >
       <Box className="flex shrink-0 items-baseline justify-between gap-2">
         <Box className="flex items-baseline gap-1.5">
-          <Text size="xs" c="dimmed" className="uppercase" style={{ "font-size": "9px" }}>
+          <Text size="xs" c="dimmed" className="uppercase" style={{ "font-size": `${typeSize("micro")}px` }}>
             NET DEBIT
           </Text>
-          <Text size="xs" fw={700} className="font-mono tabular-nums" style={{ "font-size": "12px" }} data-testid="replay-matrix-kpi-debit">
+          <Text size="xs" fw={700} className="font-mono tabular-nums" style={{ "font-size": `${typeSize("micro")}px` }} data-testid="replay-matrix-kpi-debit">
             {debit()}
           </Text>
         </Box>
@@ -140,10 +140,10 @@ export function PayoffWorkbench(props: PayoffWorkbenchProps) {
           className="shrink-0"
         >
           <Box className="flex items-baseline gap-1.5">
-            <Text size="xs" c="dimmed" className="uppercase" style={{ "font-size": "9px" }}>
+            <Text size="xs" c="dimmed" className="uppercase" style={{ "font-size": `${typeSize("micro")}px` }}>
               CHANCE OF PROFIT
             </Text>
-            <Text size="xs" fw={700} className="font-mono tabular-nums" style={{ "font-size": "12px" }} data-testid="replay-matrix-kpi-pop">
+            <Text size="xs" fw={700} className="font-mono tabular-nums" style={{ "font-size": `${typeSize("micro")}px` }} data-testid="replay-matrix-kpi-pop">
               {pop()}
             </Text>
           </Box>

@@ -93,7 +93,7 @@ export function UniverseBar(props: UniverseBarProps) {
         <Text
           size="xs"
           c="dimmed"
-          className="shrink-0 text-[10px] font-semibold uppercase leading-none tracking-[0.08em] whitespace-nowrap"
+          className="shrink-0 text-ui-micro font-semibold uppercase leading-none tracking-[0.08em] whitespace-nowrap"
         >
           Scope
         </Text>
@@ -114,7 +114,7 @@ export function UniverseBar(props: UniverseBarProps) {
                   title={u.count > 0 ? `${u.label} · ${formatNumberIN(u.count)} symbols` : u.label}
                   data-testid={`patterns-universe-${u.id}`}
                   className={cn(
-                    "inline-flex cursor-pointer appearance-none items-baseline gap-1 whitespace-nowrap rounded-fin border-0 px-1 py-[3px] font-[inherit] text-[10px] leading-[1.25] transition-colors",
+                    "inline-flex cursor-pointer appearance-none items-baseline gap-1 whitespace-nowrap rounded-fin border-0 px-1 py-[3px] font-[inherit] text-ui-micro leading-[1.25] transition-colors",
                     "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary",
                     active()
                       ? "bg-fin-primary/12 font-semibold text-fin-primary shadow-[inset_0_0_0_1px_var(--color-fin-primary)]"
@@ -125,7 +125,7 @@ export function UniverseBar(props: UniverseBarProps) {
                   <Show when={u.count > 0}>
                     <span
                       className={cn(
-                        "text-[9px] font-medium tabular-nums",
+                        "text-ui-micro font-medium tabular-nums",
                         active() ? "text-fin-primary opacity-90" : "text-fin-text-muted",
                       )}
                     >
@@ -145,7 +145,7 @@ export function UniverseBar(props: UniverseBarProps) {
             aria-pressed={customActive()}
             data-testid="patterns-universe-custom"
             className={cn(
-              "inline-flex cursor-pointer appearance-none items-center gap-1 whitespace-nowrap rounded-fin border-0 px-1 py-[3px] font-[inherit] text-[10px] leading-[1.25] transition-colors",
+              "inline-flex cursor-pointer appearance-none items-center gap-1 whitespace-nowrap rounded-fin border-0 px-1 py-[3px] font-[inherit] text-ui-micro leading-[1.25] transition-colors",
               "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary",
               customActive()
                 ? "bg-fin-primary/12 font-semibold text-fin-primary shadow-[inset_0_0_0_1px_var(--color-fin-primary)]"
@@ -157,7 +157,7 @@ export function UniverseBar(props: UniverseBarProps) {
             <Show when={customSymbolCount() > 0}>
               <span
                 className={cn(
-                  "text-[9px] font-medium tabular-nums",
+                  "text-ui-micro font-medium tabular-nums",
                   customActive() ? "text-fin-primary" : "text-fin-text-muted",
                 )}
               >

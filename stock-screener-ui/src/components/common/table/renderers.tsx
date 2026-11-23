@@ -1,5 +1,5 @@
 import { For, Show, type Accessor, type JSX } from "solid-js";
-import { Box } from "@/ui";
+import { Box, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { getColumnWidth, getColumnMeta } from "./columns";
 import type {
@@ -42,7 +42,7 @@ export function renderHeader<T>(col: TableColumnDef<T>, ctx: TableRenderContext<
   const headerStyle = (): CSSProperties => ({
     padding: width === 0 ? "0" : "var(--tbl-cell-pad, 2px 8px)",
     height: "var(--tbl-row-h, 23px)",
-    "font-size": "10px",
+    "font-size": `${typeSize("micro")}px`,
     "font-family": palette.MONO,
     "line-height": "1.2",
     "font-weight": 700,

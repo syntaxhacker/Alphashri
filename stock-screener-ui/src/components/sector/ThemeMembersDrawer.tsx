@@ -89,12 +89,12 @@ export function ThemeMembersDrawer(props: ThemeMembersDrawerProps) {
         chart: (symbol: string) => `theme-member-chart-${symbol}`,
       }}
       footerLeft={
-        <Text c="dimmed" truncate className="text-[9.5px]">
+        <Text c="dimmed" truncate className="text-ui-micro">
           {members().length === count() ? `${count()} listed` : `${members().length} of ${count()}`}
         </Text>
       }
       footerRight={
-        <Text c="dimmed" className="text-[9.5px]">
+        <Text c="dimmed" className="text-ui-micro">
           TV symbol · chart
         </Text>
       }

@@ -1,5 +1,5 @@
 import { createSignal, Show } from "solid-js";
-import { Box, Text } from "@/ui";
+import { Box, Text, typeSize } from "@/ui";
 import type { DockLeg } from "@/state/optionsDock";
 import { DockSection } from "./DockSection";
 import { PayoffChartCore, formatPop, type PayoffSnapshot } from "./PayoffChartCore";
@@ -35,14 +35,14 @@ export function PayoffPanel(props: {
 
   const renderPop = () => (
     <Box className="flex items-baseline gap-1.5">
-      <Text size="xs" c="dimmed" className="uppercase" style={{ "font-size": "9px" }}>
+      <Text size="xs" c="dimmed" className="uppercase" style={{ "font-size": `${typeSize("micro")}px` }}>
         POP
       </Text>
       <Text
         size="xs"
         fw={700}
         className="font-mono tabular-nums"
-        style={{ "font-size": "10px" }}
+        style={{ "font-size": `${typeSize("micro")}px` }}
         data-testid="options-pop"
       >
         {snapshot() ? formatPop(snapshot()!.pop) : "—"}

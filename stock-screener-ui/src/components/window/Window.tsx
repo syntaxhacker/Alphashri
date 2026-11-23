@@ -202,7 +202,7 @@ export function Window(props: WindowProps) {
       onPointerDown={(event) => event.stopPropagation()}
       onClick={onClick}
     >
-      <span aria-hidden="true" class="text-[11px]">{glyph}</span>
+      <span aria-hidden="true" class="text-ui-micro">{glyph}</span>
     </button>
   );
 
@@ -275,7 +275,7 @@ export function Window(props: WindowProps) {
         <Show when={props.settingsSlot}>
           <span data-testid={`window-settings-${props.state.id}`}>{props.settingsSlot}</span>
         </Show>
-        <span class="min-w-0 flex-1 truncate text-[11px] font-bold uppercase tracking-wide text-fin-text">
+        <span class="min-w-0 flex-1 truncate text-ui-micro font-bold uppercase tracking-wide text-fin-text">
           {props.state.title}
         </span>
         {titleButtons}

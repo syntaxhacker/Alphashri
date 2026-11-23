@@ -12,9 +12,10 @@ import {
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
+  const { typeSize } = await import("@/ui/typography");
   // The real Chip so the controlled state is observable via `aria-checked`.
   const { Chip } = await import("@/ui/inputs/Chip");
-  return mockSolidUi({ Chip });
+  return { ...mockSolidUi({ Chip }), typeSize };
 });
 
 const FILTERS: PatternFilters = { ...DEFAULT_PATTERN_FILTERS };

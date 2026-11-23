@@ -106,13 +106,13 @@ export function ScanStats(props: ScanStatsProps) {
                   : ""
               }`}
             >
-              <Text c="dimmed" fw={700} className="text-[9px] tracking-wide uppercase">
+              <Text c="dimmed" fw={700} className="text-ui-micro tracking-wide uppercase">
                 {cell.label}
               </Text>
               <Text
                 fw={700}
                 c={cell.tone ?? "default"}
-                className="font-mono tabular-nums text-[11px] text-right"
+                className="font-mono tabular-nums text-ui-micro text-right"
               >
                 <Show when={cell.key === "bull_bear" && props.onSelect} fallback={cell.value}>
                   <>

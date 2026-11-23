@@ -1,5 +1,5 @@
 import { For, createEffect, createMemo, createSignal } from "solid-js";
-import { ScrollArea, useDensity, Box, Paper } from "@/ui";
+import { ScrollArea, useDensity, Box, Paper, typeSize } from "@/ui";
 import { InlineLoader } from "../common/states";
 import * as palette from "@/ui/palette";
 import type { JSX } from "solid-js";
@@ -182,7 +182,7 @@ export function TanStackTable<T>(props: Props<T>) {
   const isComfortable = createMemo(() => density() === "comfortable");
   const rowEstimated = () => (props.dense ? 18 : isComfortable() ? densityTokens.tableRowHeight : ROW_ESTIMATED);
   const cellPad = () => (props.dense ? "1px 6px" : isComfortable() ? densityTokens.tableCellPad : "2px 8px");
-  const cellFontSize = () => (props.dense ? 10 : 11);
+  const cellFontSize = () => `${typeSize("micro")}px`;
   const headerHeight = () => (props.dense ? 20 : isComfortable() ? densityTokens.tableRowHeight : ROW_ESTIMATED);
 
   const [internalSorting, setInternalSorting] = createSignal<SortEntry[]>(
@@ -361,7 +361,7 @@ export function TanStackTable<T>(props: Props<T>) {
     const { align } = getColumnMeta(col);
     const s: CSSProperties = {
       padding: width === 0 ? "0" : cellPad(),
-      "font-size": `${cellFontSize()}px`,
+      "font-size": cellFontSize(),
       "line-height": 1.2,
       "font-variant-numeric": "tabular-nums",
       "white-space": "nowrap",
@@ -397,7 +397,7 @@ export function TanStackTable<T>(props: Props<T>) {
     const headerStyle: CSSProperties = {
       padding: width === 0 ? "0" : cellPad(),
       height: `${headerHeight()}px`,
-      "font-size": `${cellFontSize()}px`,
+      "font-size": cellFontSize(),
       "line-height": 1.2,
       "font-weight": 600,
       "font-variant-numeric": "tabular-nums",

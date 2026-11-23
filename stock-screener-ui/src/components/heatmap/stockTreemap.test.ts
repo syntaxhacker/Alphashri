@@ -24,7 +24,7 @@ import { getMetricValue, getHeatmapMetricColor } from "./heatmapUtils";
 const STYLE: StockTreemapStyle = {
   borderDark: "#000",
   borderLight: "#fff",
-  label: { fontSize: 10, fontWeight: 600, lineHeight: 13 },
+  label: { fontSize: 12, fontWeight: 600, lineHeight: 13 },
   changePositive: "#0a0",
   changeNegative: "#a00",
 };
@@ -119,7 +119,7 @@ describe("buildStockTreemapOption", () => {
 
   it("applies the caller's label style and border colours", () => {
     const light = buildStockTreemapOption([stock], "roe", METRICS, false, STYLE) as unknown as Option;
-    expect(light.series[0].label.fontSize).toBe(10);
+    expect(light.series[0].label.fontSize).toBe(12);
     // no colorSaturation band when the surface does not ask for one
     expect(light.series[0].levels[1]).toEqual({
       itemStyle: { borderColorSaturation: 0.6, gapWidth: 0, borderWidth: 1 },
@@ -366,15 +366,15 @@ describe("shared builder regression guard — NSE and sector callers are byte-id
   // by a stable marker). Neither caller sets the flag, so their output must
   // stay exactly this — including the incoming ZZZ, AAA tile order.
   const NSE_BEFORE =
-    '{"tooltip":{"trigger":"item","backgroundColor":"#1F242D","borderColor":"#2C313B","textStyle":{"color":"#E8E8E8"},"formatter":"[fn]"},"series":[{"type":"treemap","sort":false,"top":0,"left":0,"right":0,"bottom":0,"roam":false,"nodeClick":false,"squareRatio":1,"label":{"show":true,"formatter":"[fn]","font-size":"10px","font-weight":"bold","line-height":14,"textBorderColor":"#000000","textBorderWidth":0.5},"breadcrumb":{"show":false},"itemStyle":{"borderColor":"#13161C","borderWidth":1,"gapWidth":0},"levels":[{"itemStyle":{"borderColor":"#13161C","borderWidth":0,"gapWidth":0}},{"colorSaturation":[0.35,0.5],"itemStyle":{"borderColorSaturation":0.6,"gapWidth":0,"borderWidth":1}}],"data":[{"name":"ZZZ","value":1,"path":"ZZZ","nameFull":"Reliance Industries","sector":"Energy","price":2850,"change":-2.5,"mcap":15000000000000,"pe":22.5,"metricLabel":"Day Change %","metricValue":"-2.50%","metricNumeric":-2.5,"label":{"color":"#F0F6FC"},"itemStyle":{"color":"rgb(168,41,50)"}},{"name":"AAA","value":1,"path":"AAA","nameFull":"Reliance Industries","sector":"Energy","price":2850,"change":1.25,"mcap":15000000000000,"pe":22.5,"metricLabel":"Day Change %","metricValue":"+1.25%","metricNumeric":1.25,"label":{"color":"#F0F6FC"},"itemStyle":{"color":"rgb(24,155,95)"}}]}]}';
+    '{"tooltip":{"trigger":"item","backgroundColor":"#1F242D","borderColor":"#2C313B","textStyle":{"color":"#E8E8E8"},"formatter":"[fn]"},"series":[{"type":"treemap","sort":false,"top":0,"left":0,"right":0,"bottom":0,"roam":false,"nodeClick":false,"squareRatio":1,"label":{"show":true,"formatter":"[fn]","font-size":"12px","font-weight":"bold","line-height":14,"textBorderColor":"#000000","textBorderWidth":0.5},"breadcrumb":{"show":false},"itemStyle":{"borderColor":"#13161C","borderWidth":1,"gapWidth":0},"levels":[{"itemStyle":{"borderColor":"#13161C","borderWidth":0,"gapWidth":0}},{"colorSaturation":[0.35,0.5],"itemStyle":{"borderColorSaturation":0.6,"gapWidth":0,"borderWidth":1}}],"data":[{"name":"ZZZ","value":1,"path":"ZZZ","nameFull":"Reliance Industries","sector":"Energy","price":2850,"change":-2.5,"mcap":15000000000000,"pe":22.5,"metricLabel":"Day Change %","metricValue":"-2.50%","metricNumeric":-2.5,"label":{"color":"#F0F6FC"},"itemStyle":{"color":"rgb(168,41,50)"}},{"name":"AAA","value":1,"path":"AAA","nameFull":"Reliance Industries","sector":"Energy","price":2850,"change":1.25,"mcap":15000000000000,"pe":22.5,"metricLabel":"Day Change %","metricValue":"+1.25%","metricNumeric":1.25,"label":{"color":"#F0F6FC"},"itemStyle":{"color":"rgb(24,155,95)"}}]}]}';
   const SECTOR_BEFORE =
-    '{"tooltip":{"trigger":"item","backgroundColor":"#FFFFFF","borderColor":"#D0D7DE","textStyle":{"color":"#0D1117"},"formatter":"[fn]"},"series":[{"type":"treemap","sort":false,"top":0,"left":0,"right":0,"bottom":0,"roam":false,"nodeClick":false,"squareRatio":1,"label":{"show":true,"formatter":"[fn]","fontSize":10,"fontWeight":600,"lineHeight":13,"textShadowColor":"rgba(0, 0, 0, 0.45)","textShadowBlur":2},"breadcrumb":{"show":false},"itemStyle":{"borderColor":"#F0F6FC","borderWidth":1,"gapWidth":0},"levels":[{"itemStyle":{"borderColor":"#F0F6FC","borderWidth":0,"gapWidth":0}},{"itemStyle":{"borderColorSaturation":0.6,"gapWidth":0,"borderWidth":1}}],"data":[{"name":"ZZZ","value":1,"path":"ZZZ","nameFull":"Reliance Industries","sector":"Energy","price":2850,"change":-2.5,"mcap":15000000000000,"pe":22.5,"metricLabel":"Day Change %","metricValue":"-2.50%","metricNumeric":-2.5,"label":{"color":"#F0F6FC"},"itemStyle":{"color":"rgb(168,41,50)"}},{"name":"AAA","value":1,"path":"AAA","nameFull":"Reliance Industries","sector":"Energy","price":2850,"change":1.25,"mcap":15000000000000,"pe":22.5,"metricLabel":"Day Change %","metricValue":"+1.25%","metricNumeric":1.25,"label":{"color":"#F0F6FC"},"itemStyle":{"color":"rgb(24,155,95)"}}]}]}';
+    '{"tooltip":{"trigger":"item","backgroundColor":"#FFFFFF","borderColor":"#D0D7DE","textStyle":{"color":"#0D1117"},"formatter":"[fn]"},"series":[{"type":"treemap","sort":false,"top":0,"left":0,"right":0,"bottom":0,"roam":false,"nodeClick":false,"squareRatio":1,"label":{"show":true,"formatter":"[fn]","fontSize":12,"fontWeight":600,"lineHeight":13,"textShadowColor":"rgba(0, 0, 0, 0.45)","textShadowBlur":2},"breadcrumb":{"show":false},"itemStyle":{"borderColor":"#F0F6FC","borderWidth":1,"gapWidth":0},"levels":[{"itemStyle":{"borderColor":"#F0F6FC","borderWidth":0,"gapWidth":0}},{"itemStyle":{"borderColorSaturation":0.6,"gapWidth":0,"borderWidth":1}}],"data":[{"name":"ZZZ","value":1,"path":"ZZZ","nameFull":"Reliance Industries","sector":"Energy","price":2850,"change":-2.5,"mcap":15000000000000,"pe":22.5,"metricLabel":"Day Change %","metricValue":"-2.50%","metricNumeric":-2.5,"label":{"color":"#F0F6FC"},"itemStyle":{"color":"rgb(168,41,50)"}},{"name":"AAA","value":1,"path":"AAA","nameFull":"Reliance Industries","sector":"Energy","price":2850,"change":1.25,"mcap":15000000000000,"pe":22.5,"metricLabel":"Day Change %","metricValue":"+1.25%","metricNumeric":1.25,"label":{"color":"#F0F6FC"},"itemStyle":{"color":"rgb(24,155,95)"}}]}]}';
 
   // The exact style objects used by HeatmapTreemap.tsx and SectorHeatmapView.tsx.
   const nseStyle: StockTreemapStyle = {
     borderDark: SURFACE,
     borderLight: CREAM,
-    label: { "font-size": "10px", "font-weight": "bold", "line-height": 14, textBorderColor: BG, textBorderWidth: 0.5 } as never,
+    label: { "font-size": "12px", "font-weight": "bold", "line-height": 14, textBorderColor: BG, textBorderWidth: 0.5 } as never,
     colorSaturation: [0.35, 0.5],
     changePositive: palette.POSITIVE_COLOR,
     changeNegative: palette.NEGATIVE_COLOR,
@@ -383,7 +383,7 @@ describe("shared builder regression guard — NSE and sector callers are byte-id
     borderDark: BROWN_DARK,
     borderLight: CREAM,
     label: {
-      fontSize: 10,
+      fontSize: 12,
       fontWeight: 600,
       lineHeight: 13,
       textShadowColor: "rgba(0, 0, 0, 0.45)",
