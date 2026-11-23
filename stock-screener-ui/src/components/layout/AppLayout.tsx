@@ -32,8 +32,13 @@ export function AppLayout(props: AppLayoutProps) {
   // nav width on the root so the bottom sheet aligns with the main column.
   createEffect(() => {
     document.documentElement.style.setProperty("--app-nav-width", `${navWidth()}px`);
+    // The mobile bar already reserves the navigation gutter in flow. Publishing
+    // 0px lets standalone CompactPage headers skip their fallback inset so the
+    // title still lines up with the panel below it.
+    document.documentElement.style.setProperty("--app-mobile-nav-gutter", "0px");
     onCleanup(() => {
       document.documentElement.style.removeProperty("--app-nav-width");
+      document.documentElement.style.removeProperty("--app-mobile-nav-gutter");
     });
   });
 
@@ -58,29 +63,6 @@ export function AppLayout(props: AppLayoutProps) {
       id="app-shell"
       data-testid="app-shell"
     >
-      {/* No top app bar: on narrow viewports the rail is a temporary drawer, so
-          a floating trigger replaces the header hamburger without a bar. */}
-      <ActionIcon
-        aria-label="Toggle navigation"
-        onClick={toggleMobile}
-        data-testid="app-mobile-nav-toggle"
-        className="rounded-fin border border-fin-border shadow-sm"
-        style={{
-          display: isDesktop() ? "none" : "inline-flex",
-          position: "fixed",
-          top: "8px",
-          left: "8px",
-          "z-index": 1299,
-          width: "36px",
-          height: "36px",
-          "background-color": palette.SURFACE,
-          border: `1px solid ${palette.BORDER}`,
-          "box-shadow": "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-        }}
-      >
-        <IconMenu2 size={18} />
-      </ActionIcon>
-
       <NotificationsPanel opened={notifOpen()} onClose={handleNotifClose} />
 
       <Show when={!isDesktop()}>
@@ -145,6 +127,47 @@ export function AppLayout(props: AppLayoutProps) {
         id="app-main"
         data-testid="app-main"
       >
+        {/* Below 900px the rail is a temporary drawer. Its toggle lives in a
+            real 44px-tall bar pinned to the top of this scroll column instead
+            of floating over the page, so every header starts underneath it and
+            no title is clipped by the control (390px used to read "ptions
+            replay"). The bar is sticky, so it keeps the gutter while scrolling. */}
+        <Show when={!isDesktop()}>
+          <div
+            data-testid="app-mobile-nav-bar"
+            className="sticky top-0 z-[1299] flex h-11 shrink-0 items-center bg-fin-bg px-1"
+            style={{
+              position: "sticky",
+              top: "0px",
+              "z-index": 1299,
+              display: "flex",
+              "align-items": "center",
+              "flex-shrink": 0,
+              height: "44px",
+              "box-sizing": "border-box",
+              "padding-left": "4px",
+              "padding-right": "4px",
+              "background-color": palette.BG,
+            }}
+          >
+            <ActionIcon
+              aria-label="Toggle navigation"
+              onClick={toggleMobile}
+              data-testid="app-mobile-nav-toggle"
+              className="rounded-fin border border-fin-border"
+              style={{
+                display: "inline-flex",
+                width: "36px",
+                height: "36px",
+                "background-color": palette.SURFACE,
+                border: `1px solid ${palette.BORDER}`,
+              }}
+            >
+              <IconMenu2 size={18} />
+            </ActionIcon>
+          </div>
+        </Show>
+
         <Box
           className="flex-1 min-h-0 flex flex-col w-full"
           style={{

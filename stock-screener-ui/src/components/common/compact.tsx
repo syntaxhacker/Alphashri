@@ -58,7 +58,12 @@ export function CompactPage(props: CompactPageProps) {
     >
       <Show when={hasHeader()}>
         <Box
-          className="flex items-center justify-between w-full gap-2"
+          data-compact-page-header=""
+          // Below 900px the app nav toggle owns the top-left 44px. AppLayout's
+          // real nav bar sets --app-mobile-nav-gutter:0px (it reserves the space
+          // in flow, so the title lines up with the panel below). Standalone
+          // headers outside that shell fall back to the 44px inset.
+          className="flex items-center justify-between w-full gap-2 max-[899px]:pl-[var(--app-mobile-nav-gutter,44px)]"
           style={{ display: "flex", "align-items": "center", "justify-content": "space-between", width: "100%", gap: "8px" }}
         >
           <Stack spacing="sm" className="flex flex-start">
