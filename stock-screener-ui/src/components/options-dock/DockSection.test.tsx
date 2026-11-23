@@ -32,7 +32,8 @@ describe("DockSection type scale and spacing", () => {
     expect(header.innerHTML).not.toContain("10px");
 
     const title = header.querySelector("p") as HTMLElement;
-    expect(title.style.fontSize).toBe("0.875rem");
+    expect(title.className).toContain("text-ui-label");
+    expect(title.style.fontSize).toBe("");
     expect(title.className).toContain("tracking-[0.06em]");
   });
 

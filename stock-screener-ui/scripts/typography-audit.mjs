@@ -9,9 +9,9 @@
  *   node scripts/typography-audit.mjs --check   # fail on below-floor sizes
  *   node scripts/typography-audit.mjs --strict  # fail on any private size
  *
- * px declarations are scanned repo-wide. rem literals, private alias ladders
- * and computed declarations are scanned in `src/ui` — the design-system layer
- * that owns the aliases. A computed size is on-scale only when it comes from
+ * px and rem literals, private alias ladders and named-map indexing are scanned
+ * repo-wide. Computed declarations are scanned in `src/ui` — the layer that
+ * owns aliases. A computed size is on-scale only when it comes from
  * TYPE_SCALE / typeSize() / typeStyle() / snapTypeSize(); anything else is a
  * private size even when its runtime number happens to be in the ladder.
  */
@@ -98,7 +98,6 @@ for (const path of walk(SRC)) {
       for (const match of lineText.matchAll(pattern)) record(rel, index + 1, Number(match[1]), `${match[0]} (px)`);
     }
     for (const match of lineText.matchAll(MAP_INDEX)) record(rel, index + 1, NaN, match[0]);
-    if (!inDesignSystem) return;
 
     for (const pattern of REM) {
       pattern.lastIndex = 0;
@@ -106,6 +105,8 @@ for (const path of walk(SRC)) {
         record(rel, index + 1, Number(match[1]) * REM_ROOT_PX, `${match[0]} (rem)`);
       }
     }
+    if (!inDesignSystem) return;
+
     for (const pattern of COMPUTED) {
       pattern.lastIndex = 0;
       for (const match of lineText.matchAll(pattern)) {
