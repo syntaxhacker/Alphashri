@@ -56,6 +56,28 @@ Still open — keep the A+ verdict honest:
 - Tooltip requires a focusable child unless the opt-in tab stop is used.
 - Screenshots are current only after the latest visual recapture; check commit dates before quoting them.
 
+## Latest independent rating — 2026-11-23 (pre-fix wave)
+
+Three read-only raters scored the P5 tree. **Not A+**: no P0, multiple P1s.
+
+| Dimension | Target | Rater 1 | Rater 2 | Rater 3 |
+|---|---:|---:|---:|---:|
+| Tokens / theme | 9 | 7.5 | — | — |
+| Typography | 9 | 6.5 | — | 7 |
+| API consistency | 9 | 5.5 | — | — |
+| Forms | 8 | 8.0 | — | — |
+| Performance | 8 | 8.0 | — | — |
+| Accessibility | 9 | — | 8.0 | — |
+| Overlays | 9 | — | 8.5 | — |
+| Data display | 9 | — | 8.0 | 7 |
+| Test strategy | 9 | — | 8.0 | — |
+| Component completeness | 9 | — | 8.0 | — |
+| Documentation | 9 | — | — | 7 |
+| Visual confidence | 9 | — | — | 7 |
+| Evidence quality | 6 | — | — | 6 |
+
+The P1 set driving the current wave: primitive rem size aliases, event-vs-value input callbacks, void `onClick` overrides, swallowed `InputProps`, vertical Tabs keyboard, Menu/Popover disclosure ARIA, missing primitive tests, and an advertised-but-unimplemented Tabs/overlay prop surface. This section is superseded only by a new independent rating, never by implementer self-scoring.
+
 ## P5 evidence (2026-11-23)
 
 | Check | Result |
