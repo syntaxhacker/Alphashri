@@ -23,6 +23,7 @@ from options_paper import structures
 from options_paper.costs import COSTS_VERSION, option_entry_cost, option_round_trip_cost
 from options_paper.multi_day_replay import ReplayResult, build_replay
 from options_paper.replay_data import (
+    MAX_ROWS,
     CompositeChainProvider,
     FileChainProvider,
     SnapshotChainProvider,
@@ -58,6 +59,14 @@ def _finite(value, default: float = 0.0) -> float:
     except (TypeError, ValueError, OverflowError):
         return default
     return out if math.isfinite(out) else default
+
+
+def _require_spot(spot, context: str) -> float:
+    """A non-positive spot would silently resolve ATM to the lowest strike."""
+    value = _finite(spot)
+    if not value > 0:
+        raise OrderError(f"spot: no usable spot for {context}")
+    return value
 
 
 def _r2(value: float) -> float:
@@ -170,6 +179,22 @@ def _leg_key(leg) -> str:
     return f"{float(leg.strike):g}-{str(opt).upper()}"
 
 
+def _spec_identity(spec) -> tuple:
+    """Canonical ``(action, opt, strike)`` key for duplicate detection.
+
+    Numeric refs compare by value so ``82.5`` and ``82.50`` are the same leg;
+    symbolic refs (ATM, ATM+2) compare by their normalised text.
+    """
+    ref = str(spec.strike).strip().upper().replace(" ", "")
+    try:
+        numeric = float(ref)
+    except (TypeError, ValueError):
+        numeric = None
+    if numeric is not None and math.isfinite(numeric):
+        return (spec.action, spec.opt, round(numeric, 6))
+    return (spec.action, spec.opt, ref)
+
+
 def _shape_replay(result: ReplayResult, position_id: int | None = None) -> dict:
     """JSON payload matching ``normalizeOptionReplayResult`` in the client."""
     payload = result.as_dict()
@@ -234,6 +259,15 @@ def parse_order(order: OptionPaperOrderRequest):
             specs.append(structures.parse_leg_spec(raw))
         except ValueError as exc:
             raise OrderError(str(exc)) from None
+
+    seen: set[tuple] = set()
+    for spec in specs:
+        identity = _spec_identity(spec)
+        if identity in seen:
+            raise OrderError(
+                f"legs: duplicate {spec.action} {spec.opt} {spec.strike}"
+            )
+        seen.add(identity)
     return specs, underlying, expiry_date, expiry
 
 
@@ -254,8 +288,12 @@ def _replay_pricing(
             f"{_as_ist(entry_ts).isoformat()}"
         )
 
+    spot = _require_spot(
+        quote.spot,
+        f"{underlying} {expiry} at {_as_ist(entry_ts).isoformat()}",
+    )
     try:
-        resolved = structures.resolve_legs(specs, quote.spot, quote.ladder, lot_size)
+        resolved = structures.resolve_legs(specs, spot, quote.ladder, lot_size)
     except ValueError as exc:
         raise OrderError(f"legs: {exc}") from None
 
@@ -277,7 +315,7 @@ def _replay_pricing(
         underlying=underlying,
         expiry=expiry,
     )
-    return quote.spot, resolved, replay
+    return spot, resolved, replay
 
 
 async def _live_pricing(
@@ -288,6 +326,7 @@ async def _live_pricing(
 
     chain, spot = await _fetch_chain_rows(underlying, expiry)
     chain = list(chain or [])
+    spot = _require_spot(spot, f"live chain for {underlying} {expiry}")
     ladder = [row.get("strike") for row in chain if row.get("strike") is not None]
     lot_size = _lot_size(db, underlying)
     try:
@@ -567,9 +606,12 @@ async def add_leg(db, position, payload: AddLegRequest) -> dict:
                 f"entryTs: no chain snapshot for {underlying} {expiry} at "
                 f"{entry_ts.isoformat()}"
             )
+        spot = _require_spot(
+            quote.spot, f"{underlying} {expiry} at {entry_ts.isoformat()}"
+        )
         try:
             resolved = structures.resolve_legs(
-                [spec], quote.spot, quote.ladder, _lot_size(db, underlying)
+                [spec], spot, quote.ladder, _lot_size(db, underlying)
             )
         except ValueError as exc:
             raise OrderError(f"strike: {exc}") from None
@@ -1005,7 +1047,8 @@ def replay_sessions(db) -> list[dict]:
         rows = (
             db.query(OptionChainSnapshot)
             .filter(OptionChainSnapshot.underlying == underlying)
-            .limit(_MAX_SNAPSHOT_ROWS)
+            .order_by(OptionChainSnapshot.ts.desc())
+            .limit(MAX_ROWS)
             .all()
         )
         by_date: dict[str, set[str]] = {}
@@ -1045,12 +1088,22 @@ def resolve_expiry(db, underlying: str, day: str) -> str:
         underlying = safe_underlying(underlying)
     except ValueError:
         raise OrderError(f"underlying: invalid symbol {underlying!r}") from None
-    rows = (
+    query = (
         db.query(OptionChainSnapshot.session_date, OptionChainSnapshot.ts, OptionChainSnapshot.expiry)
         .filter(OptionChainSnapshot.underlying == underlying)
-        .limit(_MAX_SNAPSHOT_ROWS)
-        .all()
     )
+    try:
+        day_date = date.fromisoformat(str(day)[:10])
+    except (TypeError, ValueError):
+        day_date = None
+    if day_date is not None:
+        start = datetime.combine(day_date, datetime.min.time(), tzinfo=IST)
+        query = query.filter(
+            (OptionChainSnapshot.session_date == str(day).strip())
+            | ((OptionChainSnapshot.ts >= start)
+               & (OptionChainSnapshot.ts < start + timedelta(days=1)))
+        )
+    rows = query.order_by(OptionChainSnapshot.ts.desc()).limit(MAX_ROWS).all()
     expiries = {
         str(expiry)
         for session, ts, expiry in rows
@@ -1087,6 +1140,7 @@ def chain_at(db, underlying: str, expiry: str, day: str, time: str) -> dict:
         raise OrderError(
             f"chain-at: no chain data for {underlying} {expiry} at {ts.isoformat()}"
         )
+    spot = _require_spot(quote.spot, f"{underlying} {expiry} at {ts.isoformat()}")
     oi_by_leg: dict[tuple[float, str], tuple[float, float]] = {}
     if quote is not None:
         at = _wall(quote.t)
@@ -1120,7 +1174,7 @@ def chain_at(db, underlying: str, expiry: str, day: str, time: str) -> dict:
 
     return {
         "t": quote.t.isoformat() if quote is not None else ts.isoformat(),
-        "spot": _r2(quote.spot) if quote is not None else 0.0,
+        "spot": _r2(spot),
         "expiry": expiry,
         "source": quote.source if quote is not None else "",
         "gaps": int(quote.gaps) if quote is not None else 0,
