@@ -14,6 +14,8 @@ const ROW: MarketRow = {
   exchange: "NSE",
   close: 2890.4,
   change: 1.25,
+  change1m: 0.08,
+  change5m: -0.12,
   relativeVolume: 1.4,
   marketCapCr: 1955000,
   capTier: "large",
@@ -82,6 +84,20 @@ describe("buildMarketColumns", () => {
 
     expect(without).toEqual(full.filter((id) => id !== "sector"));
     expect(without).toEqual(expect.arrayContaining(["symbol", "name", "close", "change", "market_cap_cr"]));
+  });
+
+  test("renders 1m and 5m intraday change columns with their own labels", () => {
+    const columns = buildMarketColumns();
+    const oneMinute = columns.find((column) => column.id === "change_1m");
+    const fiveMinute = columns.find((column) => column.id === "change_5m");
+    if (!oneMinute?.cell || !fiveMinute?.cell) throw new Error("intraday change columns missing");
+
+    expect(oneMinute.header).toBe("1m %");
+    expect(fiveMinute.header).toBe("5m %");
+    render(() => oneMinute.cell!(cellArgs(ROW, oneMinute)));
+    expect(screen.getByTestId("market-change-1m-RELIANCE")).toHaveTextContent("+0.08%");
+    render(() => fiveMinute.cell!(cellArgs(ROW, fiveMinute)));
+    expect(screen.getByTestId("market-change-5m-RELIANCE")).toHaveTextContent("-0.12%");
   });
 
   test("symbol cell still opens the in-app chart", () => {
@@ -217,6 +233,8 @@ describe("numeric accessors — nulls stay null", () => {
       ...ROW,
       close: null,
       change: null,
+      change1m: null,
+      change5m: null,
       perfW: null,
       perf1m: null,
       pos52w: null,
@@ -229,6 +247,8 @@ describe("numeric accessors — nulls stay null", () => {
     for (const id of [
       "close",
       "day_change",
+      "change_1m",
+      "change_5m",
       "perf_w",
       "perf_1m",
       "pos_52w",
@@ -245,6 +265,8 @@ describe("numeric accessors — nulls stay null", () => {
     const columns = byId();
     expect(columns.get("close")?.accessorFn?.(ROW)).toBe(2890.4);
     expect(columns.get("day_change")?.accessorFn?.(ROW)).toBe(1.25);
+    expect(columns.get("change_1m")?.accessorFn?.(ROW)).toBe(0.08);
+    expect(columns.get("change_5m")?.accessorFn?.(ROW)).toBe(-0.12);
     expect(columns.get("perf_w")?.accessorFn?.(ROW)).toBe(2.1);
     expect(columns.get("rsi")?.accessorFn?.(ROW)).toBe(61.2);
     expect(columns.get("adx")?.accessorFn?.(ROW)).toBe(24.8);
@@ -263,6 +285,8 @@ describe("non-finite metric cells", () => {
   const CELLS = [
     { id: "close", field: "close", dash: "close" },
     { id: "day_change", field: "change", dash: "change" },
+    { id: "change_1m", field: "change1m", dash: "change-1m" },
+    { id: "change_5m", field: "change5m", dash: "change-5m" },
     { id: "perf_w", field: "perfW", dash: "perf-w" },
     { id: "perf_1m", field: "perf1m", dash: "perf-1m" },
     { id: "rsi", field: "rsi", dash: "rsi" },

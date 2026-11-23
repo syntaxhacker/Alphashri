@@ -14,6 +14,7 @@ import {
   type MarketUniverseDescriptor,
 } from "../../config/marketUniverses";
 import type { PatternSummaryItem } from "./usePatternSummary";
+import { MARKET_INTRADAY_CHANGES, type MarketIntradayChange } from "../../config/marketIntraday";
 import { DashCell, FlashValue } from "../common/tableCells";
 
 const DASH = "–";
@@ -173,6 +174,32 @@ function PatternBadge(props: { symbol: string; item: PatternSummaryItem | undefi
 }
 
 
+/** One intraday-change column, generated from the shared field registry. */
+function intradayChangeColumn(spec: MarketIntradayChange): ColumnDef<MarketRow> {
+  return {
+    id: spec.id,
+    header: spec.header,
+    size: 54,
+    accessorFn: (row) => row[spec.field],
+    meta: { align: "right" },
+    cell: ({ row }) => {
+      const value = row.original[spec.field];
+      return !finite(value) ? (
+        <DashCell testId={`market-dash-${row.original.symbol}-${spec.dash}`} />
+      ) : (
+        <Text
+          size="xs"
+          fw={600}
+          c={pctColor(value)}
+          data-testid={`market-${spec.dash}-${row.original.symbol}`}
+        >
+          {fmtPct(value)}
+        </Text>
+      );
+    },
+  };
+}
+
 export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnDef<MarketRow>[] {
   const headerDescriptor = marketUniverseDescriptor(handlers.universe);
   const columns: ColumnDef<MarketRow>[] = [
@@ -317,6 +344,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
         );
       },
     },
+    ...MARKET_INTRADAY_CHANGES.map(intradayChangeColumn),
     {
       // Historical sort id. `size: 0` keeps it out of the rendered header while
       // TanStack can still resolve a saved sorter that names it.
