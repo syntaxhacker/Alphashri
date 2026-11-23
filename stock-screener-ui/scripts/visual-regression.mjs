@@ -50,7 +50,7 @@ if (!existsSync(STATIC_INDEX)) {
   die(
     [
       `Static Storybook build not found: ${relative(ROOT, STATIC_INDEX)}`,
-      "Build it first with:  npm run build-storybook",
+      "Build it first with:  bun run build-storybook",
       "This gate runs only when a static build exists.",
     ].join("\n"),
   );
@@ -70,7 +70,7 @@ if (missingStories.length > 0) {
     [
       `${relative(ROOT, STATIC_INDEX)} is stale: ${missingStories.length} target story/stories are absent:`,
       ...missingStories.map((id) => `  - ${id}`),
-      "Rebuild Storybook (npm run build-storybook) before running the gate.",
+      "Rebuild Storybook (bun run build-storybook) before running the gate.",
     ].join("\n"),
   );
 }
