@@ -9,6 +9,7 @@ import {
   OI_CHAIN_DESK_WIDTH,
   OI_CHAIN_METRICS,
   OI_CHAIN_PANEL_BUDGET,
+  OI_DESK_STRIKE_W,
 } from "./reportCells";
 import { chainRow } from "./reportCells.fixtures";
 import { REPORT_FONT, REPORT_PAD, REPORT_ROW } from "./reportTokens";
@@ -336,5 +337,113 @@ describe("desk chain row text stays visible", () => {
       expect((text as HTMLElement).style.getPropertyValue("color")).not.toBe("transparent");
       expect((text as HTMLElement).style.getPropertyValue("font-size")).not.toBe("0px");
     }
+  });
+});
+
+describe("desk chain wall rail — geometry and text-run separation", () => {
+  const WALL_STRIKES = [22200, 22300, 22500];
+  const RAIL_GAP = REPORT_PAD.xs * 2;
+  const STRIKE_CONTENT_W = OI_DESK_STRIKE_W - REPORT_PAD.md * 2;
+
+  function mountWalled() {
+    const columns = getNiftyOiColumns(22300, {
+      showLegChange: false,
+      spot: 22350,
+      walls: { calls: [{ strike: 22500 }], puts: [{ strike: 22200 }] },
+    });
+    return render(() => (
+      <NiftyOiChain
+        strikes={WALL_STRIKES.map(chainRow)}
+        columns={columns}
+        getRowStyle={() => undefined}
+        getRowTestId={(row) => `nifty-strike-row-${row.strike}`}
+        panelTestId="nifty-oi-panel"
+        tableTestId="nifty-oi-table"
+        wrapTestId="nifty-oi-wrap"
+      />
+    ));
+  }
+
+  test("badge text never shares a run or a cell with SIG/ΔOI text", () => {
+    const { container } = mountWalled();
+    const wrap = screen.getByTestId("nifty-oi-wrap");
+    expect(wrap).toHaveAttribute("data-chain-row-height", String(OI_CHAIN_METRICS.rowHeight));
+    expect(OI_CHAIN_METRICS.rowHeight).toBe(REPORT_ROW.walls);
+
+    for (const [strike, code] of [
+      [22200, "PW"],
+      [22500, "CW"],
+    ] as const) {
+      const row = container.querySelector(
+        `[data-testid="nifty-strike-row-${strike}"]`,
+      ) as HTMLElement;
+      expect(row).toBeTruthy();
+      const [ceOi, ceSig, strikeCell, peSig, peOi] = Array.from(row.querySelectorAll("td"));
+      const rail = strikeCell.querySelector('[data-chain-wall-rail="1"]') as HTMLElement;
+      const value = strikeCell.querySelector('[data-chain-strike-value="1"]') as HTMLElement;
+      expect(rail).toBeTruthy();
+      expect(value.textContent).toBe(strike.toLocaleString("en-IN"));
+      // Sibling grid tracks: the badge and the number are distinct text runs.
+      expect(rail.parentElement).toBe(value.parentElement);
+      expect(rail.parentElement?.getAttribute("data-chain-strike-cell")).toBe("1");
+      expect(rail.textContent).toContain(code);
+      expect(rail.querySelector(`[data-testid="nifty-wall-${code.toLowerCase()}"]`)).toBeTruthy();
+
+      // Neither signal nor ΔOI cell carries badge text, nor contains the rail.
+      for (const cell of [ceOi, ceSig, peSig, peOi]) {
+        expect(cell.textContent).not.toMatch(/CW|PW/);
+        expect(cell.contains(rail)).toBe(false);
+      }
+      for (const el of Array.from(row.querySelectorAll("td:not(:nth-child(3)) *"))) {
+        expect(el.textContent).not.toMatch(/CW|PW/);
+      }
+      expect(ceSig.querySelector('[data-testid="nifty-oi-signal-ce"]')?.textContent).toBe("LB");
+      expect(peSig.querySelector('[data-testid="nifty-oi-signal-pe"]')?.textContent).toBe("SB");
+    }
+
+    const badges = Array.from(container.querySelectorAll('[data-chain-wall-badge="1"]'));
+    expect(badges).toHaveLength(2);
+    for (const badge of badges) {
+      expect(badge.parentElement?.getAttribute("data-chain-wall-rail")).toBe("1");
+      const cell = badge.closest("td") as HTMLElement;
+      const cells = Array.from(cell?.parentElement?.querySelectorAll("td") ?? []);
+      // Wall badges only ever live in the middle (STRIKE) cell.
+      expect(cells.indexOf(cell)).toBe(2);
+    }
+  });
+
+  test("the rail is its own grid track inside the 96px STRIKE box, with ATM emphasis intact", () => {
+    const { container } = mountWalled();
+    expect(STRIKE_CONTENT_W).toBe(96);
+    // A 3-glyph arrow badge + dot at the 12px floor plus the gutter still
+    // leaves >=60px for the 13px strike number — no overprint at 112px.
+    expect(STRIKE_CONTENT_W - RAIL_GAP - 30).toBeGreaterThanOrEqual(60);
+
+    for (const strike of WALL_STRIKES) {
+      const row = container.querySelector(
+        `[data-testid="nifty-strike-row-${strike}"]`,
+      ) as HTMLElement;
+      const grid = row.querySelector('[data-chain-strike-cell="1"]') as HTMLElement;
+      const value = row.querySelector('[data-chain-strike-value="1"]') as HTMLElement;
+      expect(grid.style.display).toBe("grid");
+      expect(value.style.justifySelf).toBe("end");
+      expect(value.style.minWidth).toBe("0px");
+      expect(value.style.whiteSpace).toBe("nowrap");
+      const hasWall = strike !== 22300;
+      expect(grid.style.gridTemplateColumns).toBe(
+        hasWall ? "auto minmax(0, 1fr)" : "minmax(0, 1fr)",
+      );
+      expect(grid.style.columnGap).toBe(hasWall ? `${RAIL_GAP}px` : "0px");
+      expect(!!row.querySelector('[data-chain-wall-rail="1"]')).toBe(hasWall);
+    }
+
+    const atm = screen.getByTestId("nifty-strike-atm-badge");
+    expect(atm).toHaveTextContent("22,300");
+    expect(atm.style.fontWeight).toBe("800");
+    expect(atm.style.fontSize).toBe(`${OI_CHAIN_METRICS.valueSize}px`);
+
+    const desk = getNiftyOiColumns(null, { showLegChange: false });
+    expect(desk.reduce((sum, c) => sum + (c.size ?? 0), 0)).toBe(OI_CHAIN_DESK_WIDTH);
+    expect(OI_CHAIN_DESK_WIDTH).toBe(384);
   });
 });

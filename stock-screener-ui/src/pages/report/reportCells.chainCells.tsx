@@ -110,12 +110,15 @@ export function wallTag(
   return (
     <span
       data-testid={testId}
+      data-chain-wall-badge="1"
       title={title}
       style={{
         display: "inline-flex",
         "align-items": "center",
         gap: "2px",
         "flex-shrink": 0,
+        "line-height": 1,
+        "white-space": "nowrap",
       }}
     >
       <span

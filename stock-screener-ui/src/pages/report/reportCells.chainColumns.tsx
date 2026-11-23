@@ -6,7 +6,7 @@ import type { TableColumnDef } from "@/components/common/TanStackTable";
 import { formatLegChange, rowFlags } from "./optionChainMetrics";
 import type { ChainWalls } from "./optionChainMetrics";
 import type { NiftyStrike } from "@/types/niftyReport";
-import { REPORT_FONT_WEIGHT } from "./reportTokens";
+import { REPORT_FONT_WEIGHT, REPORT_PAD } from "./reportTokens";
 import {
   chainHeader,
   legChangeCell,
@@ -120,19 +120,41 @@ export function getNiftyOiColumns(
           : (walls.puts ?? []).some((w) => w.strike === strike);
         const focused = isAtm || isCW || isPW;
         const spot = opts?.spot ?? 0;
+        const hasWall = isCW || isPW;
+        // The wall badge used to share one flex run with the number; at 96px of
+        // content `•PW` overprinted `22,200`. Two explicit grid tracks with a
+        // gutter make overlap impossible without widening the 384px desk fit.
         return (
           <span
+            data-chain-strike-cell="1"
             style={{
-              display: "flex",
+              display: "grid",
+              "grid-template-columns": hasWall ? "auto minmax(0, 1fr)" : "minmax(0, 1fr)",
+              "column-gap": hasWall ? `${REPORT_PAD.xs * 2}px` : "0px",
               "align-items": "center",
-              "justify-content": "flex-end",
-              gap: "3px",
+              width: "100%",
               overflow: "hidden",
               "font-variant-numeric": "tabular-nums",
             }}
           >
-            <Show when={isCW}>{wallTag(strike, spot, true, palette.TERM_CE)}</Show>
-            <Show when={isPW}>{wallTag(strike, spot, false, palette.TERM_PE)}</Show>
+            <Show when={hasWall}>
+              <span
+                data-testid="nifty-chain-wall-rail"
+                data-chain-wall-rail="1"
+                title="Max-OI wall on this strike"
+                style={{
+                  display: "inline-flex",
+                  "align-items": "center",
+                  gap: "2px",
+                  "line-height": 1,
+                  "white-space": "nowrap",
+                  "flex-shrink": 0,
+                }}
+              >
+                <Show when={isCW}>{wallTag(strike, spot, true, palette.TERM_CE)}</Show>
+                <Show when={isPW}>{wallTag(strike, spot, false, palette.TERM_PE)}</Show>
+              </span>
+            </Show>
             <Text
               size="xs"
               span
@@ -141,8 +163,14 @@ export function getNiftyOiColumns(
               data-testid={isAtm ? "nifty-strike-atm-badge" : undefined}
               title={isAtm ? "ATM strike" : undefined}
               data-chain-focus-text={focused ? "1" : undefined}
+              data-chain-strike-value="1"
               style={{
                 "font-size": `${OI_CHAIN_METRICS.valueSize}px`,
+                "justify-self": "end",
+                "min-width": "0px",
+                "white-space": "nowrap",
+                overflow: "hidden",
+                "text-align": "right",
                 ...(focused ? { color: palette.TERM_FLIP } : {}),
               }}
             >
