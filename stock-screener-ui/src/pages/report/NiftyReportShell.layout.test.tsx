@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createSignal } from "solid-js";
 import { TYPE_CLASS, UIProvider } from "@/ui";
+import { REPORT_FONT } from "./reportTokens";
 
 // The shell is a section-order contract here: every heavy section is stubbed
 // so the test only sees the order the desk reader meets them in.
@@ -187,5 +188,52 @@ describe("NiftyReportShell shared-scale contract", () => {
     expect(source).toContain("REPORT_RADIUS.xs");
     expect(source).not.toContain('"border-radius": "8px"');
     expect(source).not.toContain('"border-radius": "12px"');
+  });
+});
+
+describe("NiftyReportShell spacing rhythm", () => {
+  test("toolbar, replay band and flow row use deliberate 8/12 spacings", async () => {
+    setReport({
+      spot: 25_980,
+      futures: { series: [], regime: "neutral" },
+      itm_pe_flow: { series: [], top: [] },
+    });
+    const liveMode = mockStore.selection.mode;
+    mockStore.selection.mode = () => "eod";
+    try {
+      mount();
+
+      const toolbarWrap = screen
+        .getByTestId("toolbar-stub")
+        .closest("[data-report-section]") as HTMLElement;
+      expect(toolbarWrap.className).toContain("pb-2"); // 8px below the toolbar hairline
+
+      const banner = screen.getByTestId("nifty-replay-mode-banner");
+      expect(banner.className).toContain("px-3");
+      expect(banner.className).toContain("py-2");
+      expect(banner.className).toContain("gap-x-3");
+
+      const flow = screen.getByTestId("nifty-flow-above-chart");
+      expect(flow.className).toContain("gap-2"); // 8px between the two flow panels
+    } finally {
+      mockStore.selection.mode = liveMode;
+    }
+  });
+
+  test("the replay band is a 16px title over a 12px note, not equal-weight micro text", async () => {
+    setReport({ spot: 25_980 });
+    const liveMode = mockStore.selection.mode;
+    mockStore.selection.mode = () => "eod";
+    try {
+      mount();
+      const banner = screen.getByTestId("nifty-replay-mode-banner");
+      const [title, note] = Array.from(banner.children) as HTMLElement[];
+      expect(title.style.fontSize).toBe(`${REPORT_FONT.value}px`);
+      expect(title.style.fontWeight).toBe("800");
+      expect(note.style.fontSize).toBe(`${REPORT_FONT.micro}px`);
+      expect(note.style.color).not.toBe(title.style.color);
+    } finally {
+      mockStore.selection.mode = liveMode;
+    }
   });
 });

@@ -65,21 +65,21 @@ const ANALYTICS_CELL_CLASS = "min-w-0 min-h-0 flex flex-col [&>*]:flex-1 [&>*]:m
 const ANALYTICS_FILL_CELL_CLASS = `${ANALYTICS_CELL_CLASS} [contain:none] min-[1200px]:[contain:size]`;
 
 const SIDE_TAB_STYLE: JSX.CSSProperties = {
-  height: "18px",
+  height: "28px",
   "min-width": "0",
-  "padding-left": "4.8px",
-  "padding-right": "4.8px",
+  "padding-left": "8px",
+  "padding-right": "8px",
   "padding-top": "0",
   "padding-bottom": "0",
   "font-size": `${REPORT_FONT.micro}px`,
   "font-weight": 800,
-  "letter-spacing": "0.4px",
+  "letter-spacing": "0.06em",
 };
 
 const HEAT_METRIC_STYLE: JSX.CSSProperties = {
-  "min-width": "26px",
-  "padding-left": "3px",
-  "padding-right": "3px",
+  "min-width": "32px",
+  "padding-left": "8px",
+  "padding-right": "8px",
   "padding-top": "0",
   "padding-bottom": "0",
   "font-size": `${REPORT_FONT.micro}px`,
@@ -103,18 +103,20 @@ const HEAT_METRICS: HeatMetric[] = ["oi", "volume", "premium"];
 const HEATMAP_EXPAND_CLASS =
   "absolute top-0 right-0 w-[22px] h-[18px] min-w-[22px] px-0 py-0 leading-[18px] text-ui-micro z-[3]";
 
-// A 57px treemap is noise. On a phone the side row becomes just the tab strip
+// A 57px treemap is noise. On a phone the side row becomes just the disclosure
 // plus this summary, and the heatmap moves to the existing full-view drawer.
+// `auto` sizes that row to its content: 28px collapsed, ~64px open, so the
+// collapsed state returns its dead band to the chart instead of reserving it.
 // Static literals so Tailwind emits both variants.
 const MOBILE_GRID_DEFAULT = "max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,96px)]";
-const MOBILE_GRID_HEATMAP = "max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,56px)]";
+const MOBILE_GRID_HEATMAP = "max-[600px]:grid-rows-[minmax(0,1fr)_auto]";
 
 const MOBILE_HEAT_METRIC_STYLE: JSX.CSSProperties = {
-  height: "22px",
-  "min-height": "22px",
-  "min-width": "30px",
-  "padding-left": "4px",
-  "padding-right": "4px",
+  height: "24px",
+  "min-height": "24px",
+  "min-width": "32px",
+  "padding-left": "8px",
+  "padding-right": "8px",
   "padding-top": "0",
   "padding-bottom": "0",
   "font-size": `${REPORT_FONT.micro}px`,
@@ -122,10 +124,10 @@ const MOBILE_HEAT_METRIC_STYLE: JSX.CSSProperties = {
 };
 
 const MOBILE_HEAT_OPEN_STYLE: JSX.CSSProperties = {
-  height: "22px",
-  "min-height": "22px",
-  "padding-left": "6px",
-  "padding-right": "6px",
+  height: "24px",
+  "min-height": "24px",
+  "padding-left": "8px",
+  "padding-right": "8px",
   "font-size": `${REPORT_FONT.micro}px`,
   "line-height": "1.2",
 };
@@ -148,7 +150,7 @@ function MobileHeatmapSummary(props: {
     >
       <Box
         data-testid="nifty-heatmap-metric-toggle"
-        className="flex flex-wrap items-center gap-1 px-2 pb-1"
+        className="flex flex-wrap items-center gap-2 px-2 pb-2"
       >
         <For each={HEAT_METRICS}>
           {(metric) => (
@@ -406,7 +408,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
           <Show when={isDesk()}>
             <Box
               data-testid="nifty-side-tabs"
-              className="flex items-center gap-0.5 h-5 min-h-5 px-0.5"
+              className="flex items-center gap-2 h-8 min-h-8 px-1"
               style={{
                 "background-color": palette.TERM_HEADER,
                 "border-bottom": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`,
@@ -472,7 +474,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
               >
                 <Box
                   data-testid="nifty-heatmap-metric-toggle"
-                  className="flex gap-0.5 items-center h-[30px] min-h-[30px] shrink-0 px-0.5 mb-[1px]"
+                  className="flex gap-2 items-center h-[30px] min-h-[30px] shrink-0 px-1 mb-1"
                 >
                   <For each={HEAT_METRICS}>
                     {(metric) => (
@@ -489,7 +491,9 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
                       </Button>
                     )}
                   </For>
-                  <Text className="ml-auto mr-5 text-ui-micro text-fin-text-muted">OI change</Text>
+                  <Text className="ml-auto mr-6 text-ui-body font-semibold text-fin-text-muted">
+                    OI change
+                  </Text>
                 </Box>
                 <Box data-testid="nifty-heatmap-wrap" className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
                   <Suspense fallback={<PanelSkeleton h={220} />}>
@@ -529,7 +533,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
         <Box
           data-testid="desk-insight-rail"
           data-left-edge={String(REPORT_GUTTER.inline)}
-          className="flex flex-col gap-1 shrink-0 w-full min-w-0 overflow-hidden"
+          className="flex flex-col gap-2 shrink-0 w-full min-w-0 overflow-hidden"
           style={{
             height: `${store.selection.mode() !== "eod"
               ? DESK_RAIL_HEIGHT_PX
@@ -571,7 +575,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
             <>
               <Box
                 data-testid="nifty-analytics-row"
-                className="grid grid-cols-1 min-[1200px]:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-stretch gap-0 w-full max-w-full min-w-0 shrink-0"
+                className="grid grid-cols-1 min-[1200px]:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-stretch gap-2 w-full max-w-full min-w-0 shrink-0"
               >
                 <Box className={ANALYTICS_FILL_CELL_CLASS}>
                   <Suspense fallback={<PanelSkeleton h={160} />}>
@@ -600,7 +604,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
 
               <Box
                 data-testid="nifty-iv-skew-row"
-                className="grid grid-cols-1 min-[1200px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-0 items-stretch w-full max-w-full min-w-0 shrink-0"
+                className="grid grid-cols-1 min-[1200px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-2 items-stretch w-full max-w-full min-w-0 shrink-0"
               >
                 <Box className="min-w-0 min-h-0 relative">
                   <Suspense fallback={<PanelSkeleton h={160} />}>

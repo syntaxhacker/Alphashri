@@ -1,4 +1,5 @@
 import { ErrorBoundary, Show, Suspense, createMemo, lazy } from "solid-js";
+import type { JSX } from "solid-js";
 import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
@@ -12,6 +13,7 @@ import { ReportToolbar } from "./ReportToolbar";
 import {
   REPORT_FONT,
   REPORT_GUTTER,
+  REPORT_PAD,
   REPORT_RADIUS,
   REPORT_SECTION_ALIGN,
   REPORT_SECTION_ATTR,
@@ -75,6 +77,26 @@ const REPORT_NARROW_KPI_CLASS = [
 ].join(" ");
 
 /**
+ * The replay banner is the one shell-owned band with a title. Promote that
+ * title to the 16px value step and leave the explanation at the 12px floor so
+ * the band reads as heading + note, not two equal-weight micro labels.
+ */
+const REPLAY_TITLE_STYLE: JSX.CSSProperties = {
+  color: palette.PRIMARY,
+  "font-size": `${REPORT_FONT.value}px`,
+  "font-weight": 800,
+  "letter-spacing": "0.06em",
+  "line-height": 1.2,
+  "white-space": "nowrap",
+};
+
+const REPLAY_NOTE_STYLE: JSX.CSSProperties = {
+  color: palette.TEXT_MUTED,
+  "font-size": `${REPORT_FONT.micro}px`,
+  "line-height": 1.35,
+};
+
+/**
  * Futures basis and ITM premium flow sit above the chart because both explain
  * the same question the chart answers: *why* did spot move. A block the payload
  * does not carry is not painted at all — a placeholder row above the chart is
@@ -92,7 +114,7 @@ function ReportFlowRow(props: {
     <Show when={hasFutures() || hasItm()}>
       <Box
         data-testid="nifty-flow-above-chart"
-        className="grid grid-cols-1 gap-1 w-full max-w-full min-w-0 shrink-0"
+        className="grid grid-cols-1 gap-2 w-full max-w-full min-w-0 shrink-0"
         classList={{ "min-[1200px]:grid-cols-2": hasFutures() && hasItm() }}
       >
         <Show when={hasFutures()}>
@@ -114,9 +136,9 @@ function SectionError(props: { name: string; error: unknown }) {
         "border-left": `2px solid ${palette.NEGATIVE}`,
         "border-radius": `${REPORT_RADIUS.xs}px`,
         "background-color": palette.TINT_NEGATIVE,
-        padding: "4px 6px",
+        padding: `${REPORT_PAD.md}px ${REPORT_PAD.lg}px`,
         "font-family": palette.MONO,
-        "font-size": `${REPORT_FONT.micro}px`,
+        "font-size": `${REPORT_FONT.body}px`,
         "line-height": "1.4",
         "letter-spacing": "0.02em",
         color: palette.TEXT,
@@ -196,9 +218,11 @@ function ReportBody() {
         overflow: "hidden",
       }}
     >
+      {/* 8px under the toolbar hairline + the content's 7px top inset = the
+          one deliberate 16px break before the stat strip. */}
       <Box
         {...{ [REPORT_SECTION_ATTR]: true }}
-        className="w-full shrink-0"
+        className="w-full shrink-0 pb-2"
         data-left-edge={String(REPORT_GUTTER.inline)}
         style={{ "padding-left": `${REPORT_GUTTER.inline}px` }}
       >
@@ -211,21 +235,16 @@ function ReportBody() {
       <Show when={store.selection.mode() === "eod"}>
         <Box
           data-testid="nifty-replay-mode-banner"
-          className="flex flex-wrap items-center gap-x-2 w-full min-w-0 shrink-0 min-h-6 px-2 py-[2px] text-ui-micro"
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 w-full min-w-0 shrink-0 px-3 py-2 text-ui-micro"
           style={{
             "background-color": palette.SURFACE_ALT,
             "border-left": `2px solid ${palette.PRIMARY}`,
           }}
         >
-          <Text
-            size="xs"
-            span
-            fw={800}
-            style={{ color: palette.PRIMARY, "letter-spacing": "0.08em", "white-space": "nowrap" }}
-          >
+          <Text span fw={800} style={REPLAY_TITLE_STYLE}>
             REPLAY{replayTime() ? ` ${replayTime()}` : ""}
           </Text>
-          <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>
+          <Text span style={REPLAY_NOTE_STYLE}>
             Playhead values below · live-only bands
           </Text>
           <ReplayUnavailable noun="Movers" />
@@ -234,7 +253,7 @@ function ReportBody() {
       </Show>
 
       <Show when={store.data.error()}>
-        <Box style={{ padding: "4px" }}>
+        <Box style={{ padding: `${REPORT_PAD.md}px` }}>
           <ErrorAlert message={store.data.error() ?? ""} onRetry={() => void store.data.refresh()} withRetry />
         </Box>
       </Show>
