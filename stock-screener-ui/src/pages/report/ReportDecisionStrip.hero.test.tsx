@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { UIProvider } from "@/ui";
+import * as palette from "@/ui/palette";
 
 const h = vi.hoisted(() => ({
   state: {
@@ -222,7 +223,7 @@ describe("decision state helpers — no invented evidence", () => {
     expect(snapshotTimeLabel(null)).toBeNull();
   });
 
-  test("closed and evidence-less states name the condition, not a no-trade verdict", () => {
+  test("closed state prints one condition and one reason, never a no-trade verdict", () => {
     const state = resolveDecisionState({
       marketClosed: true,
       eod: false,
@@ -231,9 +232,27 @@ describe("decision state helpers — no invented evidence", () => {
       headline: "NEUTRAL · no trade",
       confidenceComputed: false,
     });
-    expect(state.stateLabel).toBe("MARKET CLOSED · showing 10:00 snapshot");
-    expect(state.claim).toBe("awaiting data");
-    expect(state.chip).toBe("awaiting data");
+    expect(state.stateLabel).toBe("MARKET CLOSED");
+    expect(state.reason).toBe("showing 10:00 snapshot");
+    expect(state.claim).toBe("");
+  });
+
+  test("a live report without a backed call yields one token and one reason", () => {
+    const state = resolveDecisionState({
+      marketClosed: false,
+      eod: false,
+      snapshotTime: "10:05",
+      evidenceSources: ["gamma", "regime"],
+      headline: "NEUTRAL · no trade — wait for a trigger",
+      confidenceComputed: false,
+    });
+    expect(state).toEqual({
+      kind: "live",
+      stateLabel: "AWAITING TRIGGER",
+      claim: "",
+      chip: "awaiting",
+      reason: "showing 10:05 snapshot",
+    });
   });
 });
 
@@ -256,17 +275,19 @@ describe("decision hero at 390", () => {
     expect(within(disclosure).getByTestId("nifty-stat-group-walls")).toBeInTheDocument();
   });
 
-  test("missing evidence shows the closed snapshot state, not NEUTRAL · no trade", () => {
+  test("missing evidence shows one closed snapshot token and one reason", () => {
     setNarrow(true);
     mount();
-    expect(screen.getByTestId("nifty-decision-state")).toHaveTextContent(
-      "MARKET CLOSED · showing 10:00 snapshot",
+    const state = screen.getByTestId("nifty-decision-state");
+    expect(state).toHaveTextContent("MARKET CLOSED");
+    expect(state).not.toHaveTextContent("showing 10:00 snapshot");
+    expect(screen.getByTestId("nifty-decision-chip")).toHaveTextContent(
+      "showing 10:00 snapshot",
     );
     const headline = screen.getByTestId("nifty-plan-headline");
     expect(headline).toHaveAttribute("data-decision-kind", "closed");
-    expect(headline).toHaveTextContent("awaiting data");
+    expect(headline.textContent).toBe("");
     expect(headline).not.toHaveTextContent("NEUTRAL · no trade");
-    expect(screen.getByTestId("nifty-decision-chip")).toHaveTextContent("awaiting data");
     const strip = screen.getByTestId("nifty-stat-strip");
     expect(strip.textContent).not.toContain("NEUTRAL · no trade");
   });
@@ -324,5 +345,64 @@ describe("reduced band count", () => {
     mount();
     expect(document.querySelectorAll("[data-report-band]")).toHaveLength(2);
     expect(screen.getAllByTestId("nifty-plan-headline")).toHaveLength(1);
+  });
+});
+
+describe("decision hero — one status token, neutral tone, no duplicate copy", () => {
+  function mountLiveWithoutCall() {
+    setNarrow(false);
+    h.state.report.market = { is_open: true, as_of: "2026-11-19T10:05:00+05:30" };
+    h.state.report.regime = { verdict: "range" };
+    h.state.report.gex = { regime: "short", strikes: [], netTotal: 0 };
+    h.state.plan = {
+      headline: "NEUTRAL · no trade — wait for a trigger",
+      action: "wait",
+      confidence: 0,
+      tone: "neutral",
+    };
+    return mount();
+  }
+
+  test("prints one AWAITING TRIGGER badge and one snapshot reason", () => {
+    mountLiveWithoutCall();
+    const hero = screen.getByTestId("nifty-decision-hero");
+    const state = within(hero).getByTestId("nifty-decision-state");
+    expect(state.textContent).toBe("AWAITING TRIGGER");
+    expect(within(hero).getByTestId("nifty-decision-chip").textContent).toBe(
+      "showing 10:05 snapshot",
+    );
+    expect(hero.textContent!.match(/AWAITING TRIGGER/g) ?? []).toHaveLength(1);
+    expect(hero.textContent!.match(/awaiting trigger/gi) ?? []).toHaveLength(1);
+    expect(screen.getByTestId("nifty-plan-headline").textContent).toBe("");
+    expect(screen.getByTestId("nifty-plan-confidence").textContent).toBe("");
+  });
+
+  test("never prints NO DIRECTIONAL CALL, not computed or a second reason", () => {
+    mountLiveWithoutCall();
+    const hero = screen.getByTestId("nifty-decision-hero");
+    const text = hero.textContent ?? "";
+    expect(text).not.toMatch(/no directional call/i);
+    expect(text).not.toContain("not computed");
+    expect(text).not.toContain("NEUTRAL · no trade");
+    expect(within(hero).getAllByTestId("nifty-decision-state")).toHaveLength(1);
+    expect(within(hero).getAllByTestId("nifty-decision-chip")).toHaveLength(1);
+  });
+
+  test("the awaiting status is amber/neutral, never positive green", () => {
+    mountLiveWithoutCall();
+    const state = screen.getByTestId("nifty-decision-state");
+    expect([palette.WARNING, palette.TEXT_MUTED]).toContain(state.style.color);
+    expect(state.style.color).not.toBe(palette.POSITIVE);
+    expect(screen.getByTestId("nifty-plan-headline").style.color).toBe(palette.TEXT_MUTED);
+  });
+
+  test("SPOT and CHANGE stay one compact stat", () => {
+    mountLiveWithoutCall();
+    const hero = screen.getByTestId("nifty-decision-hero");
+    const spot = within(hero).getByTestId("nifty-hero-spot");
+    const change = within(hero).getByTestId("nifty-hero-change");
+    expect(spot.parentElement).toBe(change.parentElement);
+    expect(within(hero).getAllByTestId("nifty-hero-spot")).toHaveLength(1);
+    expect(within(hero).getAllByTestId("nifty-hero-change")).toHaveLength(1);
   });
 });

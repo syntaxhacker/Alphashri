@@ -271,9 +271,11 @@ export function createDecisionView(store: NiftyReportStore, narrow: Accessor<boo
     }),
   );
 
+  // Only a real, evidence-backed directional call may borrow the plan's tone.
+  // Every awaiting/closed state stays neutral so a no-call read is never green.
   const claimTone = () => {
     const state = decision();
-    if (state.kind === "live" && state.chip === "decision") return planTone();
+    if (state.kind === "live" && state.chip === "decision" && state.claim) return planTone();
     return palette.TEXT_MUTED;
   };
 

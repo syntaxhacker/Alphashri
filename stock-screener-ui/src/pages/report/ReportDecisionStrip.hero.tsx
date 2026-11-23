@@ -4,10 +4,12 @@ import { Box, Button } from "@/ui";
 import * as palette from "@/ui/palette";
 import { NiftySpotValue } from "./reportCells";
 import { NiftyVerdictStrip } from "./NiftyVerdictStrip";
-import { REPORT_FONT, REPORT_FONT_WEIGHT } from "./reportTokens";
+import { REPORT_FONT } from "./reportTokens";
 import type { DecisionView } from "./ReportDecisionStrip.derive";
 import {
   DECISION_HERO_HEIGHT,
+  DECISION_REASON_STYLE,
+  DECISION_STATUS_STYLE,
   GROUP_LABEL_STYLE,
   HERO_CLAIM_STYLE,
   HERO_VALUE_STYLE,
@@ -15,22 +17,22 @@ import {
   PLAN_BAR_STYLE,
   PLAN_CONFIDENCE_STYLE,
   PLAN_ONELINER_STYLE,
-  STATE_CHIP_STYLE,
   TAPE_BADGE_STYLE,
   VERDICT_EVIDENCE_GAP,
   VERDICT_NARROW_OVERRIDES,
   verdictWrapLayout,
 } from "./ReportDecisionStrip.format";
 
-/** One hero claim, once. The headline node keeps its contract but now carries
- *  the overall state instead of an unbacked "NEUTRAL · no trade" conclusion. */
+/** The claim slot holds a real directional call and nothing else. When the
+ *  read has no call it stays empty — the single status token and its reason are
+ *  rendered once by the hero, so repeating "awaiting trigger" here is a bug. */
 export function HeroClaim(props: { view: DecisionView }): JSX.Element {
   const view = props.view;
   return (
     <Box
       data-testid="nifty-plan-oneliner"
       className="flex flex-row flex-wrap items-center gap-x-2 min-w-0"
-      style={PLAN_ONELINER_STYLE}
+      style={view.decision().claim ? PLAN_ONELINER_STYLE : {}}
     >
       <Box
         data-testid="nifty-plan-headline"
@@ -163,18 +165,22 @@ export function DecisionHero(props: { view: DecisionView }): JSX.Element {
               : view.decision().stateLabel
           }
           style={{
-            "font-size": `${REPORT_FONT.micro}px`,
-            "font-weight": REPORT_FONT_WEIGHT.bold,
-            "letter-spacing": "0.04em",
-            "white-space": "nowrap",
-            color: view.decision().kind === "live" ? palette.TEXT_MUTED : palette.WARNING,
+            ...DECISION_STATUS_STYLE,
+            // Amber while no call is backed, neutral once a real call exists.
+            // A status token is never bullish/bearish green.
+            "background-color": palette.alpha(
+              view.decision().chip === "decision" ? palette.TERM_BORDER : palette.WARNING,
+              0.18,
+            ),
+            color:
+              view.decision().chip === "decision" ? palette.TEXT_MUTED : palette.WARNING,
           }}
         >
           {view.decision().stateLabel}
         </span>
-        <Show when={view.decision().chip !== "decision"}>
-          <span data-testid="nifty-decision-chip" style={STATE_CHIP_STYLE}>
-            {view.decision().chip}
+        <Show when={view.decision().reason}>
+          <span data-testid="nifty-decision-chip" style={DECISION_REASON_STYLE}>
+            {view.decision().reason}
           </span>
         </Show>
         <Show when={!narrow()}>

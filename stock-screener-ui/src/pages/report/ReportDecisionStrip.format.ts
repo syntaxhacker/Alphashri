@@ -63,14 +63,15 @@ export const VERDICT_EVIDENCE_GAP = 8;
 export const FLOW_CELLS_MAX_WIDTH = 700;
 
 /** A neutral plan emits `confidence: 0` as a sentinel for "no directional call",
- *  not as a measured 0% (a non-neutral plan is always >= 20). Rendering it as a
- *  meter makes a no-trade read look like a confidently worthless one. */
+ *  not as a measured 0% (a non-neutral plan is always >= 20). With no measured
+ *  confidence there is nothing to print: the hero already carries one status
+ *  token, so a confidence read here would be a fourth copy of the same fact. */
 export function planConfidenceLabel(confidence: number | null | undefined) {
   const computed =
     typeof confidence === "number" && Number.isFinite(confidence) && confidence > 0;
   return {
     computed,
-    text: computed ? `confidence ${confidence}%` : "not computed · no directional call",
+    text: computed ? `confidence ${confidence}%` : "",
   };
 }
 
@@ -126,14 +127,20 @@ export interface DecisionStateInput {
 
 export interface DecisionState {
   kind: "closed" | "awaiting" | "live";
+  /** The one status token the hero prints as a badge. */
   stateLabel: string;
+  /** The real directional call; empty until evidence actually backs one. */
   claim: string;
+  /** "decision" only when the call is real — other values never print as badges. */
   chip: string;
+  /** The single concise reason/timestamp printed beside the status token. */
+  reason: string;
 }
 
-/** One explicit overall state replaces the old repeated no-trade verdict.
- *  A closed or evidence-less report names its condition and the time of the
- *  snapshot; a directional call is only a claim once evidence backs it. */
+/** One status token, one reason. The old shape printed the same condition four
+ *  times (state label, chip, claim, confidence); a no-call read is now a single
+ *  AWAITING TRIGGER badge plus one snapshot/evidence reason, and the real
+ *  directional call is only put in the claim slot once evidence supports it. */
 export function resolveDecisionState(input: DecisionStateInput): DecisionState {
   const closed = input.marketClosed || input.eod;
   const hasEvidence = input.evidenceSources.length > 0;
@@ -144,24 +151,27 @@ export function resolveDecisionState(input: DecisionStateInput): DecisionState {
   if (closed) {
     return {
       kind: "closed",
-      stateLabel: `MARKET CLOSED · ${snapshot}`,
-      claim: directional ? input.headline! : "awaiting data",
-      chip: hasEvidence ? "snapshot read" : "awaiting data",
+      stateLabel: "MARKET CLOSED",
+      claim: directional ? input.headline! : "",
+      chip: directional ? "decision" : "closed",
+      reason: snapshot,
     };
   }
   if (!hasEvidence) {
     return {
       kind: "awaiting",
-      stateLabel: "AWAITING DATA · no live evidence",
-      claim: "awaiting data",
-      chip: "awaiting data",
+      stateLabel: "AWAITING DATA",
+      claim: "",
+      chip: "awaiting",
+      reason: "no live evidence",
     };
   }
   return {
     kind: "live",
-    stateLabel: directional ? "LIVE READ" : "NO DIRECTIONAL CALL",
-    claim: directional ? input.headline! : "awaiting trigger",
-    chip: directional ? "decision" : "awaiting trigger",
+    stateLabel: directional ? "LIVE READ" : "AWAITING TRIGGER",
+    claim: directional ? input.headline! : "",
+    chip: directional ? "decision" : "awaiting",
+    reason: directional ? "" : snapshot,
   };
 }
 
@@ -219,6 +229,29 @@ export const STATE_CHIP_STYLE: JSX.CSSProperties = {
   "border-radius": "3px",
   "background-color": palette.alpha(palette.TERM_BORDER, 0.18),
   color: palette.TEXT_MUTED,
+};
+
+/** The hero's single status token. Amber while the call is unbacked, neutral
+ *  once a real directional call exists — never a bullish/bearish green. */
+export const DECISION_STATUS_STYLE: JSX.CSSProperties = {
+  "font-size": `${REPORT_FONT.micro}px`,
+  "font-weight": REPORT_FONT_WEIGHT.bold,
+  "letter-spacing": "0.04em",
+  "text-transform": "uppercase",
+  "white-space": "nowrap",
+  "padding-left": "4px",
+  "padding-right": "4px",
+  "padding-top": "1px",
+  "padding-bottom": "1px",
+  "border-radius": "3px",
+};
+
+/** The one concise reason/timestamp. Plain muted text, not a second badge. */
+export const DECISION_REASON_STYLE: JSX.CSSProperties = {
+  "font-size": `${REPORT_FONT.micro}px`,
+  "font-weight": REPORT_FONT_WEIGHT.normal,
+  color: palette.TEXT_MUTED,
+  "white-space": "nowrap",
 };
 
 export const TAPE_BADGE_STYLE: JSX.CSSProperties = {

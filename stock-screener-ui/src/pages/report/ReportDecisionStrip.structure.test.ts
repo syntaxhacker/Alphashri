@@ -178,11 +178,11 @@ describe("ReportDecisionStrip decomposition", () => {
       expect(hero, `hero lost ${marker}`).toContain(marker);
     }
     for (const marker of [
-      "MARKET CLOSED · ${snapshot}",
-      "AWAITING DATA · no live evidence",
+      'stateLabel: "MARKET CLOSED"',
+      'stateLabel: "AWAITING DATA"',
+      'stateLabel: directional ? "LIVE READ" : "AWAITING TRIGGER"',
       "showing last snapshot",
-      "chip: hasEvidence ? \"snapshot read\" : \"awaiting data\"",
-      "not computed · no directional call",
+      'reason: directional ? "" : snapshot',
     ]) {
       expect(format, `closed-state logic lost ${marker}`).toContain(marker);
     }
@@ -219,7 +219,7 @@ describe("decision strip pure contracts through the facade", () => {
   });
 
   test("confirmation and wrap/hint helpers preserve their contracts", () => {
-    expect(planConfidenceLabel(0).text).toBe("not computed · no directional call");
+    expect(planConfidenceLabel(0).text).toBe("");
     expect(planConfidenceLabel(40).text).toBe("confidence 40%");
     expect(snapshotTimeLabel("2026-11-19T10:00:00+05:30")).toBe("10:00");
     expect(snapshotTimeLabel("2026-11-19 25:99")).toBeNull();
@@ -247,9 +247,10 @@ describe("decision strip pure contracts through the facade", () => {
     });
     expect(closed).toEqual({
       kind: "closed",
-      stateLabel: "MARKET CLOSED · showing 10:00 snapshot",
-      claim: "awaiting data",
-      chip: "awaiting data",
+      stateLabel: "MARKET CLOSED",
+      claim: "",
+      chip: "closed",
+      reason: "showing 10:00 snapshot",
     });
     const live = resolveDecisionState({
       marketClosed: false,
@@ -260,7 +261,9 @@ describe("decision strip pure contracts through the facade", () => {
       confidenceComputed: true,
     });
     expect(live.kind).toBe("live");
+    expect(live.stateLabel).toBe("LIVE READ");
     expect(live.claim).toBe("BULLISH · buy");
     expect(live.chip).toBe("decision");
+    expect(live.reason).toBe("");
   });
 });

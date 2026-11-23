@@ -177,9 +177,10 @@ describe("Index Report decision strip — conclusion before evidence", () => {
     const headline = screen.getByTestId("nifty-plan-headline");
     const confidence = screen.getByTestId("nifty-plan-confidence");
     expect(confidence.parentElement).toBe(headline.parentElement);
-    // A neutral plan emits confidence 0 as a sentinel for "no directional call".
+    // A neutral plan emits confidence 0 as a sentinel: no confidence copy at all,
+    // so the hero keeps one status token and one reason instead of four echoes.
     expect(confidence.textContent).toBe(planConfidenceLabel(0).text);
-    expect(confidence.textContent).toContain("no directional call");
+    expect(confidence.textContent).toBe("");
     expect(Number.parseFloat(confidence.style.fontSize)).toBeGreaterThanOrEqual(
       REPORT_FONT.micro,
     );
