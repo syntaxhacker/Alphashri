@@ -309,7 +309,7 @@ export function DeskDock(props: {
       <Show when={!activeTab()}>
         <div
           data-testid="desk-dock-idle"
-          class="flex-1 min-h-0 flex items-center justify-center px-2"
+          class="flex-1 min-h-0 items-center justify-center px-2 max-[600px]:hidden"
         >
           <span class="text-ui-micro" style={{ color: palette.TEXT_MUTED }}>
             Select a desk panel below · ALT+1..{props.tabs.length} to toggle · ESC to close

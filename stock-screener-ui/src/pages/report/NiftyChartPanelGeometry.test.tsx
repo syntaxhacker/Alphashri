@@ -402,7 +402,7 @@ describe("NiftyChartPanel — 390px axis label/tag bounds", () => {
     expect(volumeOptions.lastValueVisible).toBe(false);
   });
 
-  test("desktop keeps its 88px axis, 24px lane and the volume tag", () => {
+  test("desktop keeps its 88px axis and 24px lane without the colliding volume tag", () => {
     mount();
     const { chart, volumeOptions, calls } = fakeChartWithVolume();
     tv.onChartReady!(chart, null);
@@ -411,6 +411,6 @@ describe("NiftyChartPanel — 390px axis label/tag bounds", () => {
     expect(axis?.options).toMatchObject({ minimumWidth: CHART_PLOT_MARGIN.axisMinWidth });
     const time = calls.filter((c) => c.scale === "time").at(-1);
     expect(time?.options).toMatchObject({ rightOffsetPixels: CHART_PLOT_MARGIN.dataCutoffLane });
-    expect(volumeOptions.lastValueVisible).toBe(true);
+    expect(volumeOptions.lastValueVisible).toBe(false);
   });
 });

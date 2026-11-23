@@ -621,7 +621,11 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
       </Show>
 
       <Show when={isDesk()}>
-        <Box data-testid="desk-dock-overflow-wrap" className={DOCK_OVERFLOW_WRAP_CLASS}>
+        <Box
+          data-testid="desk-dock-overflow-wrap"
+          data-left-edge={String(REPORT_GUTTER.inline)}
+          className={DOCK_OVERFLOW_WRAP_CLASS}
+        >
           <DeskDock
             tabs={deskTabs()}
             active={store.ui.deskDockTab()}

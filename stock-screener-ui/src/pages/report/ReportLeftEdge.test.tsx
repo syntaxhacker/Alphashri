@@ -149,6 +149,12 @@ describe("Index Report single left edge", () => {
       const el = screen.getByTestId(id);
       expect(el, id).toBeInTheDocument();
       if (id === "nifty-toolbar") continue;
+      if (id === "desk-dock-region") {
+        const wrapper = el.parentElement;
+        expect(wrapper, id).toHaveAttribute("data-testid", "desk-dock-overflow-wrap");
+        expect(wrapper?.parentElement, id).toBe(content);
+        continue;
+      }
       expect(el.parentElement, id).toBe(content);
       expect(el.style.marginLeft, id).toBe("");
     }

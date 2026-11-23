@@ -111,8 +111,10 @@ export function ChartBody(props: ChartBodyProps) {
     }
     const volume = volumeSeriesOf(chart);
     if (!volume) return;
-    if (volume.options().lastValueVisible !== !isPhone) {
-      volume.applyOptions({ lastValueVisible: !isPhone });
+    if (volume.options().lastValueVisible !== false) {
+      // The volume value is in the tooltip; its axis tag collides with the
+      // price label at both widths, so suppress it rather than overlay it.
+      volume.applyOptions({ lastValueVisible: false });
     }
   };
   const chartReady = (chart: IChartApi) => {
