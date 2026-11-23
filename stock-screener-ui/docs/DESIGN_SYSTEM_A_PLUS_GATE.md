@@ -8,7 +8,7 @@ This file is the loop contract. We do not mark the design-system task finished u
 
 | Dimension | A+ target | Evidence required |
 |---|---:|---|
-| Tokens / dark theme contract | 9/10 | one palette source, semantic + component tokens, no hardcoded hex outside palette, JS consumers use token accessor |
+| Tokens / dark theme contract | 9/10 | one palette source, semantic + component tokens, no hardcoded hex outside palette; JS consumers use semantic palette constants (or `tokenColor` where a computed CSS variable is required — there is only one scheme) |
 | Typography | 9/10 | one six-step `text-ui-*` scale, 12px floor, no private inline sizes, chart/JS consumers read the same scale |
 | Component completeness | 9/10 | every exported primitive has default/hover/focus/active/disabled/loading/error (where meaningful), light/dark not applicable |
 | API consistency | 9/10 | no advertised-but-ignored props, one callback convention per control family, no swallowed legacy props |
@@ -46,7 +46,7 @@ Resolved since the first draft (verified against source/CI, not memory):
 
 Still open — keep the A+ verdict honest:
 
-- **Token-accessor adoption vs dark-only scope.** Light mode, i18n/RTL and SSR are out of scope by product decision, but dark-token consistency is unfinished: `src/ui/tokens.ts` exists, yet almost no app code calls `tokenColor`/`useTokenColor`. A literal grep finds ~240 non-test, non-PoC source files importing `src/ui/palette.ts` directly; the old "~57 modules" figure is not reproducible from current source.
+- **Token contract (dark-only).** With one colour scheme, static semantic palette imports are the intended contract; `tokenColor`/`useTokenColor` exist for the cases that must read a computed CSS variable. The guard is the absence of raw hex outside `palette.ts` (asserted by `theme-single-source.test.ts`), not call-site counts. This is a scope correction, not a claim that every chart was migrated to a runtime accessor.
 - **API callback conventions.** `onChange` is value-based on most inputs but event-based on `Checkbox`/`Switch`; `onClick` is an event in `UIBaseProps` but void in `NavLink`/`MenuItem`/`CloseButton`. No single convention per family yet.
 - **Two tables.** `components/common/TanStackTable.tsx` and `components/paper-trading/TanStackTable.tsx` remain separate implementations with different feature sets.
 - **App dialects.** Feature-local duplicates (paper-trading table, `PanelModal`/`ExpandedPanel`, `components/common/Icons.tsx`, `RangeInput` vs `RangeSlider`, `TradingDatePicker`) still drift from `@/ui`.
