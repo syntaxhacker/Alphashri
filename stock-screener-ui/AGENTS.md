@@ -15,6 +15,7 @@
 - **[`docs/TESTING_INDEX.md`](./docs/TESTING_INDEX.md)** — one index for test rules, speed, performance, agri data, fixtures and test-debt docs.
 - **[`docs/TEST_DEBT.md`](./docs/TEST_DEBT.md)** — current backend test-debt clusters, fixed items and how to get a fresh list.
 - **[`docs/PERFORMANCE.md`](./docs/PERFORMANCE.md)** — performance budgets, check cadence, measurement methodology.
+- **[`docs/DESIGN_SYSTEM_A_PLUS_GATE.md`](./docs/DESIGN_SYSTEM_A_PLUS_GATE.md)** — the live A+ scorecard and continuous-loop contract; read it before any design-system/UI-quality wave.
 
 ## Tooling — edit files natively
 - Use the native `read` / `edit` / `write` tools for every file read or write. Do **not** shell out to `sed -i`, `python - <<EOF`, `cat >`, `perl -pi`, or `awk` to modify files.
@@ -647,6 +648,45 @@ bun run test:fast          # or: npx vitest run --dir src --changed
 - Free-tier quota is finite — if a free model returns `Free usage limit reached`, report it and retry later or escalate that one agent, stating why.
 - Escalate a single agent to a stronger model **only** for correctness-critical work (adversarial verification, final holdout) and state why.
 - Long-running loop protocol (waves, ledger, gates, **fill-honesty audit**) lives in the **`non-stop`** skill.
+
+### Continuous improvement loop (MANDATORY for graded goals)
+
+Use this for any task with a measurable gate — the A+ design system, coverage, performance,
+accessibility, a migration, or “keep improving until X”. Do not run a one-shot edit and call it
+finished because time is up or CI is green on one lane. The loop runs until the gate is met.
+
+1. **Write the gate before touching code.** A durable scorecard names every dimension, its target,
+   the evidence that proves it, and the current measured value. For the design system that is
+   [`docs/DESIGN_SYSTEM_A_PLUS_GATE.md`](./docs/DESIGN_SYSTEM_A_PLUS_GATE.md); for another domain,
+   create the equivalent tracked doc. Ephemeral task breakdowns may stay in an untracked `plan.md`,
+   but findings, measurements and decisions belong in the tracked doc so a context loss does not
+   erase the work.
+2. **Keep a live lane list.** At the start of every turn, read the ledger and state the list:
+   `DONE / RUNNING / BLOCKED` per lane, with the exact files or metric owned. Never re-dispatch a
+   lane that is already running, and never let two lanes own the same file set.
+3. **Dispatch in waves of 3–5 background agents.** One agent, one file set, one measurable outcome,
+   `model: "opencode-go/hy4-flash-free"`. Give each a self-contained brief with the token/API contract,
+   the target mapping, verification commands and a required before/after count. The main agent keeps
+   working on non-overlapping integration, gates, docs or evidence while they run.
+4. **Integrate small, verify by lane.** Review each report, run its targeted tests/typecheck/lint,
+   then commit that lane on its own. Do not accumulate a 2,000-line unverified branch. A lane report
+   without exact test counts is rejected.
+5. **Report progress every time — not just at the end.** Every status update to the user includes:
+   the gate and the **last independently certified score**; the **current measured value** (not an
+   opinion); the lane list; the concrete next gate; and any blocker. Use the honest form
+   “8.0 certified / 9.0 required” rather than a self-awarded A+.
+6. **Run the integrated gates only with lanes quiet.** Then: typecheck, lint, affected tests, the
+   browser/a11y/visual evidence, and a fresh screenshot read-back at 1600 and 390 for UI work. A
+   passing unit test is not visual evidence.
+7. **Use independent raters, not the implementers.** Three read-only raters score the gate from
+   source, tests, catalog and screenshots. Self-scoring does not count. Compare the median per
+   dimension, not just the overall vibe.
+8. **If any dimension is below target, or any P0/P1 remains, launch the next wave.** Fix the actual
+   gap, re-run the gates, re-rate. Never lower a target, add an allowlist, delete a failing test,
+   hide text/overflow, or mark “accepted debt” to clear the gate.
+9. **Definition of done is evidence, not effort.** Done means: every in-scope dimension at or above
+   target, zero P0/P1, integrated gates green, evidence recaptured at the final HEAD, and independent
+   raters agree. Until then the task stays open, even past a requested deadline.
 
 ### Subagent contract (enforced by the main agent)
 - **One agent, one file set.** Every prompt lists the exact files the agent owns; it must not edit anything else. Parallel agents share one worktree, so overlapping scopes corrupt each other. Test-only agents may create test files but must not edit sources.
