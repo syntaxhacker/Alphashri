@@ -100,7 +100,7 @@ export function groupCellGap(): number {
  * Group weights below are tuned to the sum of these minimums.
  */
 export const REPORT_STRIP_CELL_MIN = {
-  spot: 92,
+  spot: 108,
   symbol: 78,
   change: 96,
   regime: 182,
