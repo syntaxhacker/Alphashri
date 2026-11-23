@@ -6,6 +6,11 @@
  * same real routes and shared mocks used by `design-evidence.spec.ts` (plus the
  * Screener evidence mock) — app pages, not Storybook substitutes.
  *
+ * The 1600×1000 pass covers all five routes; the 390×844 pass covers report,
+ * sector, home and screener. Options has its own feature spec and stays
+ * desktop-only here. Both passes reuse the same mocks, navigation and honesty
+ * guards, and only serious/critical violations block either one.
+ *
  * `@axe-core/playwright` is not installed here, so this file injects the
  * already-installed `axe-core` browser bundle from node_modules, the same
  * approach as `scripts/storybook-a11y.mjs`. No new dependency is added.
@@ -39,6 +44,10 @@ const A11Y = process.env.APP_A11Y === "1";
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
 const DOCUMENTED_INCOMPLETE = new Set(["color-contrast"]);
 const TABLE_ROWS = '[data-testid="screener-table"] tbody tr';
+const VIEWPORTS = [
+  { width: 1600, height: 1000, mobile: false },
+  { width: 390, height: 844, mobile: true },
+] as const;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const AXE_PATH = path.resolve(HERE, "../../node_modules/axe-core/axe.min.js");
@@ -148,6 +157,7 @@ type AuditRoute = {
   name: string;
   path: string;
   ready?: string;
+  supportsMobile?: boolean;
   setup?: (page: Page) => Promise<void>;
   navigate?: (page: Page) => Promise<void>;
   verify?: (page: Page) => Promise<void>;
@@ -161,12 +171,14 @@ const ROUTES: readonly AuditRoute[] = [
     name: "report",
     path: "/report/index",
     ready: '[data-testid="nifty-report-panel"]',
+    supportsMobile: true,
     setup: (page) => setupNiftyReportMocks(page),
   },
   {
     name: "sector",
     path: "/sector",
     ready: '[data-testid="sector-analysis-view"]',
+    supportsMobile: true,
     setup: (page) => setupSectorMocks(page),
   },
   {
@@ -179,6 +191,7 @@ const ROUTES: readonly AuditRoute[] = [
     name: "home",
     path: "/home",
     ready: '[data-testid="window-manager-canvas"]',
+    supportsMobile: true,
     // The desk's seeded panels poll every 5s, so networkidle is not a stable
     // readiness signal; the desk root plus the panel assertions below are.
     waitForNetworkIdle: false,
@@ -214,6 +227,7 @@ const ROUTES: readonly AuditRoute[] = [
     name: "screener",
     path: SCREENER_EVIDENCE_PATH,
     ready: TABLE_ROWS,
+    supportsMobile: true,
     // `setupScreenerEvidenceMocks` is exported by screener-evidence.spec.ts's
     // fixture module, so the Screener route can be audited honestly too.
     setup: async (page) => {
@@ -232,37 +246,43 @@ const ROUTES: readonly AuditRoute[] = [
   },
 ];
 
-for (const route of ROUTES) {
-  test(`axe audit: ${route.name} (${route.path})`, async ({ page }) => {
-    test.skip(!A11Y, "set APP_A11Y=1 to run real-browser axe audits");
+for (const viewport of VIEWPORTS) {
+  for (const route of ROUTES) {
+    if (viewport.mobile && !route.supportsMobile) continue;
 
-    await page.setViewportSize({ width: 1600, height: 1000 });
-    await setupApiMocks(page);
-    await loginAsTestUser(page);
-    await route.setup?.(page);
+    test(`axe audit: ${route.name} (${route.path}) @${viewport.width}x${viewport.height}`, async ({ page }) => {
+      test.skip(!A11Y, "set APP_A11Y=1 to run real-browser axe audits");
 
-    if (route.navigate) await route.navigate(page);
-    else await page.goto(route.path);
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await setupApiMocks(page);
+      await loginAsTestUser(page);
+      await route.setup?.(page);
 
-    if (route.ready) await page.waitForSelector(route.ready, { timeout: 20000 });
-    if (route.waitForNetworkIdle !== false) await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(400);
-    await route.verify?.(page);
+      if (route.navigate) await route.navigate(page);
+      else await page.goto(route.path);
 
-    const summary = await auditPage(page);
-    await test.info().attach("axe-summary", {
-      body: JSON.stringify(summary, null, 2),
-      contentType: "application/json",
+      if (route.ready) await page.waitForSelector(route.ready, { timeout: 20000 });
+      if (route.waitForNetworkIdle !== false) await page.waitForLoadState("networkidle");
+      await page.waitForTimeout(400);
+      await route.verify?.(page);
+
+      const summary = await auditPage(page);
+      await test.info().attach(`axe-summary-${viewport.width}`, {
+        body: JSON.stringify(summary, null, 2),
+        contentType: "application/json",
+      });
+
+      for (const rule of summary.incomplete) {
+        const note = DOCUMENTED_INCOMPLETE.has(rule.id) ? "documented/allowed" : "needs review";
+        console.log(
+          `[app-a11y] ${route.name}@${viewport.width}: incomplete ${rule.id} (${note}, ${rule.nodes} nodes)`,
+        );
+      }
+
+      const blocking = summary.violations.filter(
+        (violation) => violation.impact === "serious" || violation.impact === "critical",
+      );
+      expect(blocking, describeSummary(route, summary)).toEqual([]);
     });
-
-    for (const rule of summary.incomplete) {
-      const note = DOCUMENTED_INCOMPLETE.has(rule.id) ? "documented/allowed" : "needs review";
-      console.log(`[app-a11y] ${route.name}: incomplete ${rule.id} (${note}, ${rule.nodes} nodes)`);
-    }
-
-    const blocking = summary.violations.filter(
-      (violation) => violation.impact === "serious" || violation.impact === "critical",
-    );
-    expect(blocking, describeSummary(route, summary)).toEqual([]);
-  });
+  }
 }
