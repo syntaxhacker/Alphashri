@@ -1,10 +1,11 @@
 /**
- * Legacy Mantine-compat props that must never reach the DOM.
+ * Legacy Mantine-isms that must never reach the DOM when an input forwards
+ * unknown props to a native element.
  *
- * Call sites written against the old Mantine API still pass props like
- * `allowDeselect`, `maxDropdownHeight`, `comboboxProps` or `withinPortal`.
- * They are part of the public `@/ui` prop types (accepted-but-ignored) and
- * are stripped here so React doesn't emit unknown-attribute warnings.
+ * This is a defensive strip for TextInput/NumberInput/PasswordInput, not a
+ * compatibility surface: `allowDeselect`, `maxDropdownHeight`, `comboboxProps`
+ * and `withinPortal` are no longer part of the Select/MultiSelect public prop
+ * types. Keeping the keys here stops force-cast callers from leaking attributes.
  */
 const LEGACY_INPUT_PROP_KEYS = new Set([
   "allowDeselect",

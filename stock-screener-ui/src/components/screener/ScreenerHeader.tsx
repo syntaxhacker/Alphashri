@@ -68,7 +68,6 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
             w={96}
             disabled={disableControls()}
             data-testid="provider-select"
-            comboboxProps={{ withinPortal: true }}
           />
           <Select
             value={props.mode}
@@ -81,7 +80,6 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
             w={96}
             disabled={disableControls()}
             data-testid="mode-select"
-            comboboxProps={{ withinPortal: true }}
           />
       </ToolbarRow>
     </Box>

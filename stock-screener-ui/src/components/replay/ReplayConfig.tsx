@@ -162,7 +162,6 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
             data={botOptions()}
             value={props.config.bot_uuid || null}
             onChange={(v) => props.setConfig({ bot_uuid: v ?? "" })}
-            allowDeselect
             clearable
             searchable
             placeholder="Default bot"
@@ -208,7 +207,6 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
               hidePickedOptions
               placeholder="Symbols"
               nothingFoundMessage="No symbols found"
-              maxDropdownHeight={200}
               data-testid="replay-symbols-select"
             />
             <Show when={props.config.symbols.length > 0}>

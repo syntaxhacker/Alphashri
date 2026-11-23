@@ -331,7 +331,6 @@ export function ScreenerPage(props: ScreenerPageProps) {
                   size="xs"
                   w={148}
                   data-testid="screener-select"
-                  comboboxProps={{ withinPortal: true }}
                   aria-label="Screener"
                 />
               }>

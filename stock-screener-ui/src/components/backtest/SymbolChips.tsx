@@ -65,7 +65,6 @@ export function SymbolChips(props: {
             size="sm"
             style={{ width: "100%" }}
             nothingFoundMessage="No symbols found"
-            maxDropdownHeight={200}
             data-testid="symbol-multiselect"
           />
         </Box>

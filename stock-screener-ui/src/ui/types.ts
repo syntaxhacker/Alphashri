@@ -446,15 +446,7 @@ export interface UISelectProps extends UIInputWrapperProps {
   rightSection?: JSX.Element;
   nothingFoundMessage?: string;
   placeholder?: string;
-  /**
-   * Legacy Mantine-compat props. Accepted so existing call sites keep
-   * typechecking, but intentionally swallowed — never forwarded to the DOM.
-   * @see stripLegacyInputProps
-   */
-  allowDeselect?: boolean;
-  maxDropdownHeight?: number | string;
-  comboboxProps?: unknown;
-  withinPortal?: boolean;
+  /** Legacy Mantine prop, stripped before forwarding; still accepted on write. */
   InputProps?: unknown;
 }
 
@@ -483,15 +475,7 @@ export interface UIMultiSelectProps extends UIInputWrapperProps {
   hidePickedOptions?: boolean;
   /** Hide the inline selected tags (the caller renders its own chip row). */
   hideTags?: boolean;
-  /**
-   * Legacy Mantine-compat props. Accepted so existing call sites keep
-   * typechecking, but intentionally swallowed — never forwarded to the DOM.
-   * @see stripLegacyInputProps
-   */
-  allowDeselect?: boolean;
-  maxDropdownHeight?: number | string;
-  comboboxProps?: unknown;
-  withinPortal?: boolean;
+  /** Legacy Mantine prop, stripped before forwarding; still accepted on write. */
   InputProps?: unknown;
 }
 
