@@ -148,7 +148,7 @@ export const Landing: Story = {
       <FamilyPage width="1100px" padding="0">
         <FamilyHero
           name="Foundations"
-          count={79}
+          count={80}
           countNote="use these tokens"
           caption="token composite"
           purpose="Colour, spacing, radius, elevation and density — shared by every component page, with no dedicated Foundations primitives."

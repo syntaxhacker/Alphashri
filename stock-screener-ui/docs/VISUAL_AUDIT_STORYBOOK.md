@@ -214,6 +214,6 @@ The fixed items below are now visible in the committed `docs/screenshots/showcas
 
 - **Fixed:** card style forwarding, one `FamilyLanding` template, centred measures, responsive Navigation shell, FloatingWindow fitting its 390 host, filter-chip separation, Overview coverage-index stacking, footer paths, stale `381/92/79` counts and the false “no axe gate” claim in `STORYBOOK.md`.
 - **Fixed:** every story font-size declaration now uses `text-ui-*` / `typeStyle`; the old 9px copy is retired.
-- **Open:** `Text/Title/Anchor/List` still expose a private rem `sizeMap` with an 18px step; a dedicated lane is folding those aliases onto `TYPE_CLASS`. Until it lands, the Typography page’s “What Typography owns” row is documenting an API that is not yet the shared scale.
+- **Fixed:** `Text/Title/Anchor/List` size aliases now resolve through `SIZE_ROLE` → `TYPE_CLASS` with no private rem map or 18px step (Text/Anchor/List cap at `heading` 20px, Title maps `xl` to `display` 24px). The Typography page’s “What Typography owns” panel now shows the six roles read from `TYPE_SCALE` / `TYPE_CLASS` / `typeSize`, not the old `Text size` / `Title size` alias matrix.
 - **Open:** the app routes still lack fresh route-level 1600/390 captures; Storybook evidence does not prove the live app.
 - **Evidence:** showcase captures are now full-page, so the Data display result-states panel and Overview coverage index are in-frame. `alerts` captures the full variants-and-radius story, and `table` captures the App primitives family page instead of the one-row debug playground.

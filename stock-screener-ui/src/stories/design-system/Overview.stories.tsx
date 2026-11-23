@@ -291,9 +291,8 @@ export const Overview: Story = {
               <div>
                 <Divider label={g.title} labelPosition="left" />
                 <div className="flex flex-col gap-1 py-1.5 sm:flex-row sm:items-baseline sm:gap-4">
-                  <Text size="xs" c="default" className="font-mono sm:w-[220px] sm:shrink-0">{g.title}</Text>
-                  <Text size="xs" c="dimmed">{g.description}</Text>
-                  <div className="sm:ml-auto">
+                  <Text size="xs" c="dimmed" style={{ "flex": "1 1 220px", "min-width": "0" }}>{g.description}</Text>
+                  <div className="sm:ml-auto whitespace-nowrap">
                     <StoryLink id={g.id} label="open ↗" />
                   </div>
                 </div>

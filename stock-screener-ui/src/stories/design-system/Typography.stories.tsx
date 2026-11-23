@@ -79,7 +79,7 @@ const Specimen = () => (
         <Stack gap="sm">
           <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">Hierarchy</Text>
           <Title order={3} size="md">Section title</Title>
-          <Text size="sm">Body copy at 14px with measured leading.</Text>
+          <Text className={TYPE_CLASS.body}>Body copy at 13px with measured leading.</Text>
           <Text size="xs" c="dimmed">Secondary label at 12px.</Text>
           <List size="sm" withPadding>
             <ListItem>Numbers use tabular mono figures.</ListItem>
@@ -92,19 +92,23 @@ const Specimen = () => (
 );
 
 const PROPS = [
-  {
-    name: "Text size",
-    value: `xs ${typeSize("micro")} · sm ${typeSize("label")} · md ${typeSize("title")} · lg ${typeSize("heading")} · xl ${typeSize("heading")}`,
-  },
-  {
-    name: "Title size",
-    value: `xs ${typeSize("micro")} · sm ${typeSize("label")} · md ${typeSize("title")} · lg ${typeSize("heading")} · xl ${typeSize("display")}`,
-  },
   { name: "c", value: "primary · default · dimmed · success · error · warning · info" },
   { name: "fw", value: "normal · 500 · semibold · 700" },
   { name: "tt", value: "uppercase · lowercase · capitalize · none" },
   { name: "utility", value: "font-mono for price, P&L, OI and IV" },
 ];
+
+/** Copy for each role. The role list itself is derived from the scale, not hand-kept. */
+const ROLE_COPY: Record<TypeRole, { use: string; sample: string }> = {
+  micro: { use: "Labels · badges, chart axes and dense table metadata.", sample: "NIFTY 50 · 24,318.40" },
+  body: { use: "Body · dense copy and table cells; the default reading size.", sample: "Spot holds above the put wall into expiry." },
+  label: { use: "Controls · form labels and input text.", sample: "Strike price" },
+  title: { use: "Card title · panel and card headings.", sample: "Option chain" },
+  heading: { use: "Section · page-section headings.", sample: "Market breadth" },
+  display: { use: "Page title · page titles and hero values.", sample: "Index report" },
+};
+
+const TYPE_ROLES = (Object.keys(TYPE_SCALE) as TypeRole[]).map((role) => ({ role, ...ROLE_COPY[role] }));
 
 const COMPONENTS: FamilyComponentRef[] = [
   { id: "design-system-components-typography-text--docs", name: "Text", note: "Sizes, tones, weights and truncation." },
@@ -128,11 +132,36 @@ export const Landing: Story = {
 
         <SpecimenPanel
           title="What Typography owns"
-          note="Only the props exposed by the typography primitives; values come from their implementations, not a parallel scale."
+          note="Props below come from the primitives; the six-role scale is read from TYPE_SCALE / TYPE_CLASS / typeSize, not a parallel alias matrix."
         >
-          <Flex gap="sm" wrap="wrap">
-            {PROPS.map((prop) => <FamilyChip name={prop.name} value={prop.value} />)}
-          </Flex>
+          <Stack gap="md">
+            <Flex gap="sm" wrap="wrap">
+              {PROPS.map((prop) => <FamilyChip name={prop.name} value={prop.value} />)}
+            </Flex>
+            <Divider label="The type scale" labelPosition="left" />
+            <Stack gap="xs">
+              {TYPE_ROLES.map(({ role, use }) => (
+                <Flex
+                  key={role}
+                  gap="sm"
+                  align="baseline"
+                  wrap="wrap"
+                  style={{ padding: "6px 0", "border-bottom": `1px solid ${palette.BORDER}` }}
+                >
+                  <Text size="xs" c="primary" fw={700} className="font-mono" style={{ width: "72px", "flex-shrink": 0 }}>{role}</Text>
+                  <Text size="xs" c="default" className="font-mono">{TYPE_CLASS[role]}</Text>
+                  <Text size="xs" c="dimmed" className="font-mono">{`${typeSize(role)}px / ${TYPE_SCALE[role].lineHeight}px`}</Text>
+                  <Text size="xs" c="dimmed" style={{ "flex": "1 1 160px", "min-width": "0" }}>{use}</Text>
+                </Flex>
+              ))}
+            </Stack>
+            <Text size="xs" c="default" style={{ "max-width": "780px" }}>
+              The five <code>xs…xl</code> size props are aliases onto these roles, not six distinct steps:{" "}
+              <code>size="sm"</code> on Text, Anchor and List maps to <em>label</em> (14px) and their <code>xl</code>{" "}
+              caps at <em>heading</em> (20px), while Title's <code>xl</code> maps to <em>display</em> (24px). Body copy at
+              13px has no size alias — use <code>text-ui-body</code> or <code>typeStyle("body")</code> for it.
+            </Text>
+          </Stack>
         </SpecimenPanel>
 
         <ComponentIndex
@@ -144,19 +173,10 @@ export const Landing: Story = {
     )),
 };
 
-/** Product guidance: the role, the copy it is meant for, and a live sample. */
-const TYPE_ROLES: Array<{ role: TypeRole; use: string; sample: string }> = [
-  { role: "micro", use: "Labels · badges, chart axes and dense table metadata.", sample: "NIFTY 50 · 24,318.40" },
-  { role: "body", use: "Body · dense copy and table cells; the default reading size.", sample: "Spot holds above the put wall into expiry." },
-  { role: "label", use: "Controls · form labels and input text.", sample: "Strike price" },
-  { role: "title", use: "Card title · panel and card headings.", sample: "Option chain" },
-  { role: "heading", use: "Section · page-section headings.", sample: "Market breadth" },
-  { role: "display", use: "Page title · page titles and hero values.", sample: "Index report" },
-];
-
 /**
  * The product type scale. Each row renders the real `text-ui-*` utility so the
- * px size and leading a reader sees are exactly what the product ships.
+ * px size and leading a reader sees are exactly what the product ships; the
+ * role list and its copy are driven by TYPE_SCALE / TYPE_CLASS / typeSize.
  */
 export const TypeScale: Story = {
   render: () =>
