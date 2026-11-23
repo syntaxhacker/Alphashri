@@ -93,6 +93,11 @@ export function Tooltip(props: TooltipProps) {
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => setOpen(false), leaveMs);
   };
+  const hideNow = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    setOpen(false);
+  };
 
   const placement: TooltipPosition = known.position ?? "top";
 
@@ -185,13 +190,10 @@ export function Tooltip(props: TooltipProps) {
 
   /**
    * `focusable` is opt-in so buttons/links keep their single, native tab stop.
-   * The wrapper needs an explicit role for `aria-label` to be a legal
-   * accessible name (a bare <span> forbids author naming), and a ring of its
-   * own because it has no native focus styling. It is not an action: focus
-   * alone reveals the description, and no Enter/Space activation is added —
-   * any key behaviour remains with callbacks forwarded through `rest`.
+   * The wrapper is a focus target, not an action: it gets a tab stop and a ring
+   * of its own, but deliberately no button role (there is no Enter/Space
+   * activation). Focus alone reveals the description via aria-describedby.
    */
-  const wrapperRole = () => (known.focusable ? "button" : undefined);
   const wrapperTabIndex = () => (known.focusable ? 0 : undefined);
   const focusRingClass = () =>
     known.focusable
@@ -223,6 +225,13 @@ export function Tooltip(props: TooltipProps) {
     const next = e.relatedTarget as Node | null;
     if (next && wrapEl?.contains(next)) return;
     hide();
+  };
+
+  // Escape is the documented dismissal key even though focus alone opens the
+  // tooltip; dismiss immediately rather than waiting out a caller's closeDelay.
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape") hideNow();
+    (rest as { onKeyDown?: (e: KeyboardEvent) => void }).onKeyDown?.(e);
   };
 
   const activePlacement = (): TooltipPosition => pos()?.placement ?? placement;
@@ -269,8 +278,8 @@ export function Tooltip(props: TooltipProps) {
       onFocusOut={handleBlur}
       {...(rest as Record<string, unknown>)}
       aria-describedby={describedBy()}
-      role={wrapperRole()}
       tabIndex={wrapperTabIndex()}
+      onKeyDown={handleKeyDown}
     >
       {known.children}
       {open() && known.label && (

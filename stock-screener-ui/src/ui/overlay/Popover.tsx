@@ -1,5 +1,6 @@
 import { Show, createContext, createEffect, createMemo, createSignal, createUniqueId, onCleanup, splitProps, useContext } from "solid-js";
 import { cn } from "../cn";
+import { containBackground } from "./backgroundContainment";
 import type {
   UIPopoverProps,
   UIPopoverTargetProps,
@@ -365,6 +366,10 @@ export function PopoverDropdown(props: UIPopoverDropdownProps & { p?: number | s
       return getFocusable(anchor)[0] ?? previouslyFocused;
     };
 
+    // Contain the page behind the dialog exactly as Modal does. Release before
+    // handing focus back: the trigger may have been inert while the trap ran.
+    const releaseBackground = containBackground(container);
+
     (getFocusable(container)[0] ?? container).focus();
 
     const onKey = (e: KeyboardEvent) => {
@@ -394,6 +399,7 @@ export function PopoverDropdown(props: UIPopoverDropdownProps & { p?: number | s
     document.addEventListener("keydown", onKey, true);
     onCleanup(() => {
       document.removeEventListener("keydown", onKey, true);
+      releaseBackground();
       restoreTarget()?.focus?.();
     });
   });

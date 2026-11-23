@@ -1,6 +1,7 @@
 import { createEffect, For, onCleanup, splitProps } from "solid-js";
 import type { JSX } from "solid-js";
 import { cn } from "../cn";
+import { containBackground } from "./backgroundContainment";
 
 export interface FloatingWindowGeometry {
   x: number;
@@ -127,6 +128,12 @@ export function FloatingWindow(props: FloatingWindowProps) {
   const isModalish = () =>
     known.modal === true || known["aria-modal"] === true || known["aria-modal"] === "true";
 
+  // The DOM attribute is honoured at keydown time too: a host that flips
+  // aria-modal after mount (a Storybook walkthrough, an external wrapper)
+  // must get the same Tab containment as a prop-driven modal window.
+  const isModalInDom = (el: HTMLElement) =>
+    isModalish() || el.getAttribute("aria-modal") === "true";
+
   const requestClose = () => {
     if (!known.onClose || (known.canClose && !known.canClose())) return;
     known.onClose();
@@ -135,6 +142,7 @@ export function FloatingWindow(props: FloatingWindowProps) {
   // Enter once per shown state. The opener is captured before focus moves so a
   // close (unmount) or minimize can put the user back where they were.
   let returnFocusTo: HTMLElement | null = null;
+  let releaseBackground: (() => void) | null = null;
   let entered = false;
   let entryFrame = 0;
 
@@ -151,6 +159,9 @@ export function FloatingWindow(props: FloatingWindowProps) {
     if (entryFrame) cancelAnimationFrame(entryFrame);
     entryFrame = 0;
     entered = false;
+    // The opener may have been inert while the modal was shown.
+    releaseBackground?.();
+    releaseBackground = null;
     returnFocusTo?.focus?.();
   });
 
@@ -173,11 +184,12 @@ export function FloatingWindow(props: FloatingWindowProps) {
   });
 
   createEffect(() => {
-    if (known.minimized || !isModalish()) return;
+    if (known.minimized) return;
     const el = rootEl;
     if (!el) return;
     const onTab = (e: KeyboardEvent) => {
       if (e.key !== "Tab" || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (!isModalInDom(el)) return;
       const focusables = getFocusable(el);
       if (focusables.length === 0) {
         e.preventDefault();
@@ -202,9 +214,22 @@ export function FloatingWindow(props: FloatingWindowProps) {
     onCleanup(() => el.removeEventListener("keydown", onTab, true));
   });
 
+  createEffect(() => {
+    if (known.minimized || !isModalish()) return;
+    const el = rootEl;
+    if (!el) return;
+    releaseBackground = containBackground(el);
+    onCleanup(() => {
+      releaseBackground?.();
+      releaseBackground = null;
+    });
+  });
+
   onCleanup(() => {
     if (raf) cancelAnimationFrame(raf);
     if (entryFrame) cancelAnimationFrame(entryFrame);
+    releaseBackground?.();
+    releaseBackground = null;
     if (entered) returnFocusTo?.focus?.();
   });
 

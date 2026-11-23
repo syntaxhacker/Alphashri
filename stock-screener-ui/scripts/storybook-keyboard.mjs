@@ -3,8 +3,9 @@
  * Real-browser keyboard walkthrough gate for the static Storybook build.
  *
  * Drives the preview iframe with Playwright's keyboard and asserts the keyboard
- * contracts of four design-system widgets (Modal, Tree, Menu, Tabs), including
- * a vertical Tabs walkthrough. Story ids are resolved from index.json by title
+ * contracts of seven design-system widgets (Modal, Tree, Menu, Tabs, Popover,
+ * Tooltip and FloatingWindow), including a vertical Tabs walkthrough. Story ids
+ * are resolved from index.json by title
  * + name, never guessed. The script owns
  * and cleans up its own static HTTP server, so it is safe to run as
  * `node scripts/storybook-keyboard.mjs` without any external setup.
@@ -64,6 +65,24 @@ const REQUIRED_STORIES = [
     label: 'Vertical Tabs — ArrowDown changes aria-selected',
     title: 'Design System/Components/Data display/Tabs',
     name: 'Orientations',
+  },
+  {
+    key: 'popover',
+    label: 'Popover — trigger opens, Escape closes, focus returns',
+    title: 'Design System/Components/Overlay/Popover',
+    name: 'Focus And Dismissal',
+  },
+  {
+    key: 'tooltip',
+    label: 'Tooltip — focus shows the description, Escape hides it',
+    title: 'Design System/Components/Overlay/Tooltip',
+    name: 'Playground',
+  },
+  {
+    key: 'floatingWindowModal',
+    label: 'FloatingWindow — Tab stays inside a modal window',
+    title: 'Design System/Components/Overlay/FloatingWindow',
+    name: 'Geometry And Resize',
   },
 ];
 
@@ -578,6 +597,105 @@ async function checkTabsVertical(page, storyId) {
   return `aria-selected followed vertical arrows: ${before} -> ${afterDown} -> ${afterUp}`;
 }
 
+async function checkPopover(page, storyId) {
+  const frame = await openStoryFrame(page, storyId);
+  const trigger = frame.getByRole('button', { name: 'Open dropdown' });
+  assert((await trigger.count()) === 1, 'expected one "Open dropdown" popover trigger');
+  const controls = await trigger.getAttribute('aria-controls');
+  assert(controls, 'the trigger should advertise aria-controls for its dropdown');
+  const dropdown = frame.locator(`[id="${controls}"]`);
+  assert((await dropdown.count()) === 1, 'the story starts with an open dropdown');
+
+  // The story starts open; close it first so the walkthrough opens it itself.
+  await page.keyboard.press('Escape');
+  await frame.waitForFunction(() => document.querySelectorAll('[aria-expanded="true"]').length === 0, null, {
+    timeout: 5000,
+  });
+  assert((await dropdown.count()) === 0, 'Escape should unmount the initially open dropdown');
+
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  await dropdown.waitFor({ state: 'visible', timeout: 5000 });
+  assert((await trigger.getAttribute('aria-expanded')) === 'true', 'Enter should open the popover');
+  assert(
+    await dropdown.evaluate((node) => node.contains(document.activeElement)),
+    'trapFocus should move focus into the dropdown when the trigger opens it',
+  );
+
+  await page.keyboard.press('Escape');
+  await frame.waitForFunction((id) => !document.getElementById(id), controls, { timeout: 5000 });
+  const after = await activeInfo(frame);
+  assert(
+    after.label === 'Open dropdown' && after.tag === 'BUTTON',
+    `Escape closed the dropdown but focus did not return to the trigger: got label="${after.label}" tag=${after.tag}`,
+  );
+  return 'Enter opened the dropdown with focus inside; Escape unmounted it and focus returned to the trigger';
+}
+
+async function checkTooltip(page, storyId) {
+  const frame = await openStoryFrame(page, storyId);
+  const trigger = frame.getByRole('button', { name: 'Hover target' });
+  assert((await trigger.count()) === 1, 'expected one "Hover target" tooltip trigger');
+  const wrapper = trigger.locator('xpath=..');
+  assert((await wrapper.getAttribute('role')) === null, 'a tooltip wrapper must not claim a button role');
+
+  await trigger.focus();
+  await frame.waitForFunction(() => {
+    const button = Array.from(document.querySelectorAll('button')).find(
+      (el) => (el.textContent ?? '').trim() === 'Hover target',
+    );
+    return Boolean(button?.parentElement?.getAttribute('aria-describedby'));
+  }, null, { timeout: 5000 });
+
+  const describedBy = await wrapper.getAttribute('aria-describedby');
+  const tip = frame.locator(`[id="${describedBy}"]`);
+  assert((await tip.count()) === 1, 'the focused trigger should reference a live tooltip element');
+  assert((await tip.getAttribute('role')) === 'tooltip', 'the referenced description should have role="tooltip"');
+  assert((await tip.textContent()).includes('Hover the target'), 'the tooltip should carry the label');
+
+  await page.keyboard.press('Escape');
+  await frame.waitForFunction((id) => !document.getElementById(id), describedBy, { timeout: 5000 });
+  assert(
+    (await wrapper.getAttribute('aria-describedby')) === null,
+    'Escape should clear aria-describedby along with the tooltip',
+  );
+  return 'focus showed the described tooltip; Escape hid it and cleared the description';
+}
+
+async function checkFloatingWindowModal(page, storyId) {
+  const frame = await openStoryFrame(page, storyId);
+  const dialog = frame.locator('[role="dialog"]').first();
+  assert((await dialog.count()) === 1, 'expected one FloatingWindow dialog');
+
+  // These stories do not expose `modal` as a render arg; aria-modal is the
+  // same signal the component reads at keydown time, so set it on the live
+  // dialog rather than guessing a story id or editing the build.
+  await dialog.evaluate((el) => el.setAttribute('aria-modal', 'true'));
+  const labels = await dialog.evaluate((el) =>
+    Array.from(el.querySelectorAll('button')).map((b) => b.getAttribute('aria-label') || (b.textContent ?? '').trim()),
+  );
+  assert(labels.length >= 2, `expected at least two window controls, found [${labels.join(', ')}]`);
+
+  await frame.getByRole('button', { name: `Close OPTIONS REPLAY` }).focus();
+  const seen = [];
+  for (let i = 0; i <= labels.length; i++) {
+    await page.keyboard.press('Tab');
+    assert(
+      await dialog.evaluate((el) => el.contains(document.activeElement)),
+      `Tab ${i + 1} moved focus outside the modal window`,
+    );
+    seen.push((await activeInfo(frame)).label);
+  }
+  assert(seen[0] === labels[0], `Tab from the last control should wrap to "${labels[0]}", got "${seen[0]}"`);
+
+  await page.keyboard.press('Shift+Tab');
+  assert(
+    await dialog.evaluate((el) => el.contains(document.activeElement)),
+    'Shift+Tab moved focus outside the modal window',
+  );
+  return `Tab cycled inside the modal window: ${seen.slice(0, labels.length).join(' -> ')}; Shift+Tab stayed inside`;
+}
+
 const WALKTHROUGHS = {
   modalOpen: checkModalTabCycle,
   modalClose: checkModalEscape,
@@ -585,6 +703,9 @@ const WALKTHROUGHS = {
   menu: checkMenu,
   tabs: checkTabs,
   tabsVertical: checkTabsVertical,
+  popover: checkPopover,
+  tooltip: checkTooltip,
+  floatingWindowModal: checkFloatingWindowModal,
 };
 
 // ---------------------------------------------------------------------------

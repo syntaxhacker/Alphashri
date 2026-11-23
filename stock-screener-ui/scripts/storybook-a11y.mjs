@@ -2,9 +2,10 @@
 /**
  * Real-browser accessibility gate for the static Storybook build.
  *
- * Runs axe-core (WCAG 2.1 A/AA) inside Storybook's preview iframe for a small
- * set of representative stories, and fails the process on serious/critical
- * violations. It starts and stops its own static HTTP server, so it is safe to
+ * Runs axe-core (WCAG 2.1 A/AA) inside Storybook's preview iframe for all 13
+ * family landings, the overlay playables and representative component states,
+ * and fails the process on serious/critical violations. It starts and stops
+ * its own static HTTP server, so it is safe to
  * run as `node scripts/storybook-a11y.mjs` in CI without any external setup.
  *
  * NOTE: This script only owns its own file. It never modifies the build, the
@@ -32,11 +33,47 @@ const A11Y_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 const FAILING_IMPACTS = new Set(['serious', 'critical']);
 
 /**
- * Representatives are identified by Storybook title + story name. The actual
- * story id is resolved from index.json at runtime (never guessed here).
+ * Stories are identified by Storybook title + story name. The actual story id
+ * is resolved from index.json at runtime (never guessed here). The 13 family
+ * landings give every family a browser-audited entry point; the playables add
+ * the overlay primitives that only exist in a live interaction state.
  */
-const REPRESENTATIVES = [
+const LANDINGS = [
   { label: 'Overview', title: 'Design System/Overview', name: 'Overview' },
+  { label: 'App primitives/Family landing', title: 'Design System/App primitives', name: 'Family Landing' },
+  { label: 'Data display/Family landing', title: 'Design System/Data display', name: 'Family Landing' },
+  { label: 'Feedback/Family landing', title: 'Design System/Feedback', name: 'Family Landing' },
+  { label: 'Foundations/Landing', title: 'Design System/Foundations', name: 'Landing' },
+  { label: 'Inputs/Landing', title: 'Design System/Inputs', name: 'Landing' },
+  { label: 'Layout/Landing', title: 'Design System/Layout', name: 'Landing' },
+  { label: 'Misc/Family landing', title: 'Design System/Misc', name: 'Family Landing' },
+  { label: 'Navigation/Family landing', title: 'Design System/Navigation', name: 'Family Landing' },
+  { label: 'Overlay/Family landing', title: 'Design System/Overlay', name: 'Family Landing' },
+  { label: 'Portal/Family landing', title: 'Design System/Portal', name: 'Family Landing' },
+  { label: 'Shared primitives/Family landing', title: 'Design System/Shared primitives', name: 'Family Landing' },
+  { label: 'Typography/Landing', title: 'Design System/Typography', name: 'Landing' },
+];
+
+const OVERLAY_PLAYABLES = [
+  {
+    label: 'Overlay/Popover (playable)',
+    title: 'Design System/Components/Overlay/Popover',
+    name: 'Playground',
+  },
+  {
+    label: 'Overlay/Tooltip (playable)',
+    title: 'Design System/Components/Overlay/Tooltip',
+    name: 'Playground',
+  },
+  {
+    label: 'Overlay/FloatingWindow (playable)',
+    title: 'Design System/Components/Overlay/FloatingWindow',
+    name: 'Geometry And Resize',
+  },
+];
+
+// Kept from the original six to retain representative coverage inside families.
+const COMPONENT_REPRESENTATIVES = [
   {
     label: 'App/TanStackTable',
     title: 'Design System/Components/App/TanStackTable',
@@ -63,6 +100,8 @@ const REPRESENTATIVES = [
     name: 'Playground',
   },
 ];
+
+const REPRESENTATIVES = [...LANDINGS, ...OVERLAY_PLAYABLES, ...COMPONENT_REPRESENTATIVES];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const norm = (value) => String(value ?? '').trim().toLowerCase();

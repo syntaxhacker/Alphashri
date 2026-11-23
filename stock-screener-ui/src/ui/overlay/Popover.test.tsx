@@ -10,13 +10,14 @@ afterEach(cleanup);
 type HarnessProps = {
   trapFocus?: boolean;
   onClose?: () => void;
+  outsideAriaHidden?: string;
 };
 
 function Harness(props: HarnessProps) {
   const [opened, setOpened] = createSignal(false);
   return (
     <>
-      <button data-testid="outside">outside</button>
+      <button data-testid="outside" aria-hidden={props.outsideAriaHidden}>outside</button>
       <Popover
         opened={opened()}
         trapFocus={props.trapFocus}
@@ -114,6 +115,55 @@ describe("Popover trapFocus", () => {
     outside.focus();
     fireEvent.keyDown(outside, { key: "Tab" });
     expect(document.activeElement).toBe(outside);
+  });
+
+  test("contains the background while trapped and restores it on close", async () => {
+    render(() => <Harness trapFocus />);
+    const outside = screen.getByTestId("outside");
+    expect(outside).not.toHaveAttribute("inert");
+    expect(outside).not.toHaveAttribute("aria-hidden");
+
+    await openPopover();
+    expect(outside).toHaveAttribute("inert");
+    expect(outside).toHaveAttribute("aria-hidden", "true");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("dropdown")).toBeNull();
+    expect(outside).not.toHaveAttribute("inert");
+    expect(outside).not.toHaveAttribute("aria-hidden");
+  });
+
+  test("restores a caller's aria-hidden value rather than clearing it", async () => {
+    render(() => <Harness trapFocus outsideAriaHidden="false" />);
+    const outside = screen.getByTestId("outside");
+
+    await openPopover();
+    expect(outside).toHaveAttribute("aria-hidden", "true");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(outside).toHaveAttribute("aria-hidden", "false");
+  });
+
+  test("outside click still dismisses, releases containment and returns focus", async () => {
+    render(() => <Harness trapFocus />);
+    const opener = await openPopover();
+    const outside = screen.getByTestId("outside");
+    expect(outside).toHaveAttribute("inert");
+
+    fireEvent.mouseDown(outside);
+
+    expect(screen.queryByTestId("dropdown")).toBeNull();
+    expect(outside).not.toHaveAttribute("inert");
+    expect(document.activeElement).toBe(opener);
+  });
+
+  test("trapFocus={false} leaves the background untouched", async () => {
+    render(() => <Harness trapFocus={false} />);
+    const outside = screen.getByTestId("outside");
+
+    await openPopover();
+    expect(outside).not.toHaveAttribute("inert");
+    expect(outside).not.toHaveAttribute("aria-hidden");
   });
 
   test("keeps popup semantics: no unnamed dialog role in either mode", async () => {

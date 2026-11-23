@@ -185,6 +185,141 @@ describe("FloatingWindow keyboard containment", () => {
     expect(document.activeElement).toBe(opener);
   });
 
+  test("modal window contains the background and restores it when closed", async () => {
+    function Harness() {
+      const [open, setOpen] = createSignal(false);
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>opener</button>
+          <button data-testid="outside">outside</button>
+          <Show when={open()}>
+            <FloatingWindow
+              title="Config"
+              geometry={{ x: 10, y: 20, width: 400, height: 300 }}
+              z-index={1000}
+              modal
+              onClose={() => setOpen(false)}
+              testid="fw"
+            >
+              <button>inside</button>
+            </FloatingWindow>
+          </Show>
+        </>
+      );
+    }
+    render(() => <Harness />);
+    const opener = screen.getByRole("button", { name: "opener" });
+    const outside = screen.getByTestId("outside");
+    expect(outside).not.toHaveAttribute("inert");
+
+    opener.focus();
+    fireEvent.click(opener);
+    await nextFrame();
+
+    expect(screen.getByTestId("fw")).toHaveAttribute("aria-modal", "true");
+    expect(outside).toHaveAttribute("inert");
+    expect(outside).toHaveAttribute("aria-hidden", "true");
+
+    fireEvent.keyDown(screen.getByTestId("fw"), { key: "Escape" });
+    expect(screen.queryByTestId("fw")).toBeNull();
+    expect(outside).not.toHaveAttribute("inert");
+    expect(outside).not.toHaveAttribute("aria-hidden");
+    expect(document.activeElement).toBe(opener);
+  });
+
+  test("minimizing a modal window releases the background before focus returns", async () => {
+    function Harness() {
+      const [visible, setVisible] = createSignal(false);
+      const [minimized, setMinimized] = createSignal(false);
+      return (
+        <>
+          <button data-testid="opener" onClick={() => setVisible(true)}>opener</button>
+          <button data-testid="outside">outside</button>
+          <Show when={visible()}>
+            <FloatingWindow
+              title="Config"
+              geometry={{ x: 10, y: 20, width: 400, height: 300 }}
+              z-index={1000}
+              modal
+              minimized={minimized()}
+              onMinimize={() => setMinimized(true)}
+              testid="fw"
+            >
+              <button>inside</button>
+            </FloatingWindow>
+          </Show>
+        </>
+      );
+    }
+    render(() => <Harness />);
+    const opener = screen.getByTestId("opener");
+    const outside = screen.getByTestId("outside");
+    opener.focus();
+    fireEvent.click(opener);
+    await nextFrame();
+    expect(outside).toHaveAttribute("inert");
+
+    fireEvent.click(screen.getByLabelText("Minimize Config"));
+
+    expect(outside).not.toHaveAttribute("inert");
+    expect(outside).not.toHaveAttribute("aria-hidden");
+    expect(document.activeElement).toBe(opener);
+  });
+
+  test("unmounting a modal window releases its background containment", async () => {
+    function Harness() {
+      const [visible, setVisible] = createSignal(true);
+      return (
+        <>
+          <button data-testid="outside">outside</button>
+          <button data-testid="unmount" onClick={() => setVisible(false)}>unmount</button>
+          <Show when={visible()}>
+            <FloatingWindow
+              title="Config"
+              geometry={{ x: 10, y: 20, width: 400, height: 300 }}
+              z-index={1000}
+              modal
+              testid="fw"
+            >
+              <button>inside</button>
+            </FloatingWindow>
+          </Show>
+        </>
+      );
+    }
+    render(() => <Harness />);
+    const outside = screen.getByTestId("outside");
+    await nextFrame();
+    expect(outside).toHaveAttribute("inert");
+
+    fireEvent.click(screen.getByTestId("unmount"));
+
+    expect(screen.queryByTestId("fw")).toBeNull();
+    expect(outside).not.toHaveAttribute("inert");
+    expect(outside).not.toHaveAttribute("aria-hidden");
+  });
+
+  test("a plain window does not contain the background", async () => {
+    function Harness() {
+      return (
+        <>
+          <button data-testid="outside">outside</button>
+          <FloatingWindow
+            title="Config"
+            geometry={{ x: 10, y: 20, width: 400, height: 300 }}
+            z-index={1000}
+            testid="fw"
+          >
+            <button>inside</button>
+          </FloatingWindow>
+        </>
+      );
+    }
+    render(() => <Harness />);
+    await nextFrame();
+    expect(screen.getByTestId("outside")).not.toHaveAttribute("inert");
+  });
+
   test("minimizing a window restores focus to the opener", async () => {
     function Harness() {
       const [visible, setVisible] = createSignal(false);
