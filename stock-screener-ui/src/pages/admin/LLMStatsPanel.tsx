@@ -11,7 +11,7 @@ import { getStatusColor } from "../../utils/ui-helpers";
 
 import { API_BASE } from "@/api/config";
 
-const MONO = "font-mono tabular-nums text-[11px]";
+const MONO = "font-mono tabular-nums text-ui-micro";
 
 function ModelBadges(props: { models: ModelUsage[] }) {
   return (

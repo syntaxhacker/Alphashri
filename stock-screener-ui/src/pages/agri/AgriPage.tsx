@@ -9,6 +9,7 @@ import {
   ToolbarRow,
   useColorScheme,
   useMediaQuery,
+  typeStyle,
 } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactPanel, CompactStat } from "@/components/common/compact";
@@ -58,9 +59,9 @@ type SelectOption = { value: string; label: string; group?: string };
 type Mover = { key: string; label: string; change: number };
 type WarningKind = "gap" | "coverage" | "data";
 
-const MICRO_LABEL = "text-[10px] font-bold uppercase tracking-[0.08em] text-fin-text-muted whitespace-nowrap";
-const SECTION_LABEL = "text-[10px] font-bold uppercase tracking-[0.08em] text-fin-primary";
-const SECTION_HINT = "text-[10px] text-fin-text-muted";
+const MICRO_LABEL = "text-ui-micro font-bold uppercase tracking-[0.08em] text-fin-text-muted whitespace-nowrap";
+const SECTION_LABEL = "text-ui-micro font-bold uppercase tracking-[0.08em] text-fin-primary";
+const SECTION_HINT = "text-ui-micro text-fin-text-muted";
 const STAT_CARD = "h-full p-2 [&>div]:!h-auto";
 const SEGMENT_TRACK = "inline-flex items-center gap-0.5 rounded-[6px] border border-fin-border bg-fin-surface p-[2px]";
 const CONTROL_CELL = "flex flex-nowrap items-center min-w-0";
@@ -608,9 +609,9 @@ export function AgriPage() {
     >
       <ToolbarRow gap={8} data-testid="agri-toolbar" className="shrink-0">
         <Box className="flex flex-wrap items-center gap-2 min-w-0" data-testid="agri-scan-group">
-          <Text size="10px" fw={700} className={MICRO_LABEL}>Scan</Text>
+          <Text fw={700} className={MICRO_LABEL}>Scan</Text>
           <Box className={CONTROL_CELL}>
-            <Text size="10px" c="dimmed" className={`${MICRO_LABEL} hidden sm:inline`}>Commodity group</Text>
+            <Text c="dimmed" className={`${MICRO_LABEL} hidden sm:inline`}>Commodity group</Text>
             <Box className="w-[104px] max-sm:w-[96px]">
               <Select
                 data={groupOptions()}
@@ -625,7 +626,7 @@ export function AgriPage() {
             </Box>
           </Box>
           <Box className={CONTROL_CELL}>
-            <Text size="10px" c="dimmed" className={`${MICRO_LABEL} hidden sm:inline`}>Commodity</Text>
+            <Text c="dimmed" className={`${MICRO_LABEL} hidden sm:inline`}>Commodity</Text>
             <Box className="w-[120px] max-sm:w-[104px]">
               <Select
                 data={commodityOptions()}
@@ -643,7 +644,7 @@ export function AgriPage() {
         <Box className="hidden h-5 w-px shrink-0 bg-fin-border md:block" aria-hidden="true" />
 
         <Box className="flex flex-nowrap items-center gap-2 min-w-0" data-testid="agri-range-group">
-          <Text size="10px" c="dimmed" className={MICRO_LABEL}>Range</Text>
+          <Text c="dimmed" className={MICRO_LABEL}>Range</Text>
           <Box className={SEGMENT_TRACK} data-testid="agri-range-strip">
             <For each={AGRI_RANGE_PRESETS}>
               {(preset) => (
@@ -668,7 +669,7 @@ export function AgriPage() {
         <Box className="hidden h-5 w-px shrink-0 bg-fin-border lg:block" aria-hidden="true" />
 
         <Box className="flex flex-nowrap items-center gap-1 min-w-0" data-testid="agri-geo-group" title="Geography">
-          <Text size="10px" c="dimmed" className={MICRO_LABEL}>Geo</Text>
+          <Text c="dimmed" className={MICRO_LABEL}>Geo</Text>
           <Box className="w-[108px] max-sm:w-[96px]">
             <Select
               data={stateOptions()}
@@ -722,15 +723,15 @@ export function AgriPage() {
               style={{ "background-color": freshness().colour }}
               data-testid="agri-freshness-dot"
             />
-            <Text size="xs" c="dimmed" style={{ "font-size": "10px" }}>Data as of</Text>
-            <Text size="xs" fw={700} style={{ "font-size": "11px", color: freshness().colour }}>
+            <Text size="xs" c="dimmed" style={typeStyle("micro")}>Data as of</Text>
+            <Text size="xs" fw={700} style={{ ...typeStyle("micro"), color: freshness().colour }}>
               {asOf() ? formatAgriSessionDate(asOf()) : "no data"}
             </Text>
-            <Text size="xs" c="dimmed" style={{ "font-size": "10px" }}>·</Text>
-            <Text size="xs" fw={700} style={{ "font-size": "11px", color: freshness().colour }}>
+            <Text size="xs" c="dimmed" style={typeStyle("micro")}>·</Text>
+            <Text size="xs" fw={700} style={{ ...typeStyle("micro"), color: freshness().colour }}>
               {freshness().stale}
             </Text>
-            <Text size="xs" c="dimmed" style={{ "font-size": "10px" }}>
+            <Text size="xs" c="dimmed" style={typeStyle("micro")}>
               · {kpis()?.market_count ?? 0} mandis
             </Text>
           </Box>
@@ -768,7 +769,7 @@ export function AgriPage() {
                 size="xs"
                 c="dimmed"
                 className="block break-words"
-                style={{ "font-size": "10px" }}
+                style={typeStyle("micro")}
                 data-testid={
                   warning.kind === "gap"
                     ? "agri-gap-warning"
@@ -783,7 +784,7 @@ export function AgriPage() {
             )}
           </For>
           <Show when={gapWarnings().length === 0 && coverageWarnings().length === 0}>
-            <Text size="xs" c="dimmed" className="block break-words" style={{ "font-size": "10px" }}>
+            <Text size="xs" c="dimmed" className="block break-words" style={typeStyle("micro")}>
               {series().length} sessions · {kpis()?.market_count ?? 0} mandis reporting
             </Text>
           </Show>
@@ -791,10 +792,10 @@ export function AgriPage() {
       </Show>
 
       <ToolbarRow gap={8} className="shrink-0 px-1" data-testid="agri-kpi-head">
-        <Text size="10px" fw={700} className={SECTION_LABEL}>
+        <Text fw={700} className={SECTION_LABEL}>
           Market snapshot
         </Text>
-        <Text size="10px" c="dimmed" className={SECTION_HINT}>
+        <Text c="dimmed" className={SECTION_HINT}>
           Prices ₹/quintal · arrivals qtl · change vs. prior period
         </Text>
       </ToolbarRow>
@@ -870,10 +871,10 @@ export function AgriPage() {
       <Show when={movers()}>
         {(data) => (
           <ToolbarRow gap={4} wrap={false} className="shrink-0 overflow-x-auto px-1" data-testid="agri-movers">
-            <Text size="10px" fw={700} className={MICRO_LABEL}>Top movers · 1M</Text>
+            <Text fw={700} className={MICRO_LABEL}>Top movers · 1M</Text>
             <For each={data().gainers}>
               {(mover) => (
-                <Text size="xs" c="success" className="whitespace-nowrap" style={{ "font-size": "11px" }}>
+                <Text size="xs" c="success" className="whitespace-nowrap" style={typeStyle("micro")}>
                   ▲ {mover.label} {formatChangePct(mover.change)}
                 </Text>
               )}
@@ -881,7 +882,7 @@ export function AgriPage() {
             <Box className="mx-1 h-3 w-px shrink-0 bg-fin-border" aria-hidden="true" />
             <For each={data().losers}>
               {(mover) => (
-                <Text size="xs" c="error" className="whitespace-nowrap" style={{ "font-size": "11px" }}>
+                <Text size="xs" c="error" className="whitespace-nowrap" style={typeStyle("micro")}>
                   ▼ {mover.label} {formatChangePct(mover.change)}
                 </Text>
               )}
@@ -924,10 +925,10 @@ export function AgriPage() {
           className={`flex min-h-0 flex-1 flex-col gap-2 ${isMobile() ? "overflow-y-auto" : "overflow-hidden"}`}
         >
           <ToolbarRow gap={8} className="shrink-0 px-1" data-testid="agri-eda-head">
-            <Text size="10px" fw={700} className={SECTION_LABEL}>
+            <Text fw={700} className={SECTION_LABEL}>
               EDA summary
             </Text>
-            <Text size="10px" c="dimmed" className={SECTION_HINT}>
+            <Text c="dimmed" className={SECTION_HINT}>
               derived from the active window · unavailable inputs read —
             </Text>
             <Box className="ml-auto flex items-center gap-1" data-testid="agri-view-toggle">
@@ -1045,7 +1046,7 @@ export function AgriPage() {
             description={`${agriRange(range())?.label ?? range()} · ${series().length} sessions · ₹/quintal${asOf() ? ` · from ${formatAgriSessionDate(agriRangeStart(asOf(), agriRange(range())?.days ?? null))}` : ""}`}
           >
             <ToolbarRow gap={8} className="shrink-0 px-1 pb-1" data-testid="agri-mode-row">
-              <Text size="10px" c="dimmed" className={MICRO_LABEL}>View</Text>
+              <Text c="dimmed" className={MICRO_LABEL}>View</Text>
               <Show
                 when={isMobile()}
                 fallback={
@@ -1086,7 +1087,7 @@ export function AgriPage() {
 
             <Show when={mode() === "compare"}>
               <ToolbarRow gap={4} data-testid="agri-compare-strip" className="shrink-0 px-1 pb-1">
-                <Text size="10px" c="dimmed" className={MICRO_LABEL}>
+                <Text c="dimmed" className={MICRO_LABEL}>
                   Compare · max {AGRI_MAX_COMPARE}
                 </Text>
                 <Badge
@@ -1220,13 +1221,13 @@ export function AgriPage() {
                 <Text
                   size="xs"
                   c="dimmed"
-                  className="shrink-0 px-2 pb-1 break-words text-[10px]"
+                  className="shrink-0 px-2 pb-1 break-words text-ui-micro"
                   data-testid="agri-table-scope"
                 >
                   Sorted by modal price (high → low) · {quoteScope()}
                 </Text>
                 <Show when={isMobile()}>
-                  <Text size="xs" c="dimmed" className="shrink-0 px-2 pb-1 text-[10px]" data-testid="agri-table-scroll-hint">
+                  <Text size="xs" c="dimmed" className="shrink-0 px-2 pb-1 text-ui-micro" data-testid="agri-table-scroll-hint">
                     Swipe left / right to see all columns →
                   </Text>
                 </Show>

@@ -11,7 +11,7 @@ import type { Week52RangeAdminStatus } from "../../types/admin";
 
 import { API_BASE } from "@/api/config";
 
-const MONO = "font-mono tabular-nums text-[11px]";
+const MONO = "font-mono tabular-nums text-ui-micro";
 
 function formatDateTime(isoString: string): string {
   try {

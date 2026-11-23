@@ -88,8 +88,9 @@ const TIER_RULES: Record<AgriCoverageTier, { title: string; description: string 
 };
 
 /** Shared label / value / trailing grid: every metric row lines up across cards. */
-const METRIC_ROW = "grid grid-cols-[38px_minmax(0,1fr)_40px] items-center gap-x-1";
-const MICRO_LABEL = "text-[9px] uppercase tracking-[0.06em]";
+// 12px micro labels and mono readouts need wider tracks than the old 9/10px step.
+const METRIC_ROW = "grid grid-cols-[44px_minmax(0,1fr)_52px] items-center gap-x-1";
+const MICRO_LABEL = "text-ui-micro uppercase tracking-[0.06em]";
 
 function finiteNumber(value: number | null | undefined): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -216,7 +217,7 @@ function GroupMoverLine(props: {
       <Text
         size="xs"
         c={moverTone(change())}
-        className="justify-self-end font-mono tabular-nums text-[10px]"
+        className="justify-self-end font-mono tabular-nums text-ui-micro"
       >
         {formatChangePct(change())}
       </Text>
@@ -335,7 +336,7 @@ function GroupCard(props: {
           </Text>
           <Text
             fw={700}
-            className="font-mono tabular-nums leading-none text-[20px]"
+            className="font-mono tabular-nums leading-none text-ui-heading"
             data-testid={`agri-group-index-${key()}`}
           >
             {indexText()}
@@ -344,7 +345,7 @@ function GroupCard(props: {
             <Text
               size="xs"
               c={changeTone()}
-              className="justify-self-end font-mono tabular-nums text-[10px]"
+              className="justify-self-end font-mono tabular-nums text-ui-micro"
               data-testid={`agri-group-change-${key()}`}
               title="Change since the 100 base at the window start"
             >
@@ -372,7 +373,7 @@ function GroupCard(props: {
           <Text
             size="xs"
             c={breadthTone()}
-            className="col-start-3 justify-self-end font-mono tabular-nums text-[10px]"
+            className="col-start-3 justify-self-end font-mono tabular-nums text-ui-micro"
             title={breadthTitle()}
             data-testid={`agri-group-breadth-${key()}`}
           >
@@ -413,7 +414,7 @@ function GroupCard(props: {
           size="xs"
           c="dimmed"
           truncate
-          className="min-w-0 text-[9px]"
+          className="min-w-0 text-ui-micro"
           data-testid={`agri-group-coverage-${key()}`}
         >
           {coverageText()}
@@ -421,7 +422,7 @@ function GroupCard(props: {
         <Text
           size="xs"
           c="dimmed"
-          className="shrink-0 whitespace-nowrap text-[9px]"
+          className="shrink-0 whitespace-nowrap text-ui-micro"
           data-testid={`agri-group-asof-${key()}`}
         >
           {asOfText()}

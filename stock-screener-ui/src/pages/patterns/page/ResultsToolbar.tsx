@@ -13,6 +13,7 @@ import {
   Text,
   ToolbarRow,
   Tooltip,
+  typeStyle,
 } from "@/ui";
 import { IconAdjustmentsHorizontal, IconDotsVertical } from "@/components/common/Icons";
 import { SymbolFilter } from "@/components/patterns/SymbolFilter";
@@ -145,7 +146,7 @@ export function ResultsToolbar(props: ResultsToolbarProps) {
           <Text
             size="xs"
             c="dimmed"
-            style={{ "font-size": "10px", "white-space": "nowrap" }}
+            style={{ ...typeStyle("micro"), "white-space": "nowrap" }}
             data-testid="patterns-multi-tf-hint"
           >
             {`List/Grid: ${props.timeframe()}`}
@@ -162,7 +163,7 @@ export function ResultsToolbar(props: ResultsToolbarProps) {
             onChange={(v) => {
               if (v === "all" || v === "big" || v === "others") props.changeIndexGroup(v);
             }}
-            leftSection={<Text size="xs" c="dimmed" style={{ "font-size": "10px" }}>IDX</Text>}
+            leftSection={<Text size="xs" c="dimmed" style={typeStyle("micro")}>IDX</Text>}
             w={106}
             size="xs"
             data-testid="patterns-index-group"

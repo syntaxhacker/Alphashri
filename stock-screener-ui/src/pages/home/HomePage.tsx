@@ -294,7 +294,7 @@ export function HomePage(props: HomePageProps) {
             type="button"
             data-testid="home-view-monitor"
             aria-pressed={!isDesk()}
-            class={`rounded-sm border px-2 text-[11px] ${
+            class={`rounded-sm border px-2 text-ui-micro ${
               !isDesk()
                 ? "border-fin-primary bg-fin-surface-alt text-fin-text"
                 : "border-fin-border text-fin-text-muted hover:bg-fin-surface-alt"
@@ -307,7 +307,7 @@ export function HomePage(props: HomePageProps) {
             type="button"
             data-testid="home-view-desk"
             aria-pressed={isDesk()}
-            class={`rounded-sm border px-2 text-[11px] ${
+            class={`rounded-sm border px-2 text-ui-micro ${
               isDesk()
                 ? "border-fin-primary bg-fin-surface-alt text-fin-text"
                 : "border-fin-border text-fin-text-muted hover:bg-fin-surface-alt"
@@ -343,7 +343,7 @@ export function HomePage(props: HomePageProps) {
                 type="button"
                 data-testid={`home-layout-tab-${slug(layout.name ?? "")}`}
                 aria-selected={config().active === layout.name}
-                class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt aria-selected:border-fin-primary"
+                class="rounded-sm border border-fin-border px-2 text-ui-micro text-fin-text hover:bg-fin-surface-alt aria-selected:border-fin-primary"
                 onClick={() => switchTab(layout.name ?? "Main")}
               >
                 {layout.name}
@@ -366,7 +366,7 @@ export function HomePage(props: HomePageProps) {
                 data-testid="home-preset-menu-trigger"
                 aria-label="Layout presets"
                 aria-expanded={presetOpen()}
-                class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+                class="rounded-sm border border-fin-border px-2 text-ui-micro text-fin-text hover:bg-fin-surface-alt"
               >
                 Presets
               </button>
@@ -387,7 +387,7 @@ export function HomePage(props: HomePageProps) {
           <button
             type="button"
             data-testid="home-new-screen"
-            class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+            class="rounded-sm border border-fin-border px-2 text-ui-micro text-fin-text hover:bg-fin-surface-alt"
             onClick={newScreen}
           >
             + New screen

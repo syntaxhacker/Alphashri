@@ -2,6 +2,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import * as palette from "@/ui/palette";
+import { typeSize } from "@/ui/typography";
 import * as edaOptions from "./agriEdaOptions";
 import {
   buildDistributionOption,
@@ -124,7 +125,7 @@ describe("shared option contracts", () => {
     expect(light.title.textStyle.color).toBe(palette.CHART_LIGHT_TEXT);
   });
 
-  it("never sets a font below 10px", () => {
+  it("never sets a font below the 12px token floor", () => {
     const options = [
       buildDistributionOption({ boxes }),
       buildSupplyDemandOption({ scatter }),
@@ -133,7 +134,7 @@ describe("shared option contracts", () => {
       buildSeasonalityOption({ seasonality: boxes }),
     ];
     for (const option of options) {
-      expect(fontSizes(option).every((size) => size >= 10)).toBe(true);
+      expect(fontSizes(option).every((size) => size >= typeSize("micro"))).toBe(true);
     }
   });
 
@@ -360,7 +361,7 @@ describe("buildHeatmapOption", () => {
     }>)[0];
     expect(visualMap.inRange.color).toEqual([...palette.VIRIDIS_STOPS]);
     expect(visualMap.text).toEqual(["Row high", "Row low"]);
-    expect(visualMap.textStyle.fontSize).toBeGreaterThanOrEqual(10);
+    expect(visualMap.textStyle.fontSize).toBe(typeSize("micro"));
     // A horizontal bar reads length first, then thickness.
     expect(visualMap.itemWidth).toBeGreaterThan(visualMap.itemHeight);
   });
@@ -591,8 +592,8 @@ describe("layout and legibility invariants", () => {
       const grid = (option.grid as Array<{ top: number }>)[0];
       expect(title.top, mode).toBeLessThan(legend.top);
       expect(legend.top + 14, mode).toBeLessThanOrEqual(grid.top);
-      expect(title.textStyle.fontSize, mode).toBeGreaterThanOrEqual(10);
-      expect(legend.textStyle.fontSize, mode).toBeGreaterThanOrEqual(10);
+      expect(title.textStyle.fontSize, mode).toBe(typeSize("label"));
+      expect(legend.textStyle.fontSize, mode).toBe(typeSize("micro"));
     }
   });
 

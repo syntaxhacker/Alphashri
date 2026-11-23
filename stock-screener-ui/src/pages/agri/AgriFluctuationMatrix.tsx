@@ -341,7 +341,7 @@ export function AgriFluctuationMatrix(props: AgriFluctuationMatrixProps) {
       <Text
         size="xs"
         c="dimmed"
-        className="shrink-0 px-1 pb-1 text-[9px] sm:hidden"
+        className="shrink-0 px-1 pb-1 text-ui-micro sm:hidden"
         data-testid={`${testId()}-scroll-hint`}
       >
         Swipe horizontally for 3M and 6M →
