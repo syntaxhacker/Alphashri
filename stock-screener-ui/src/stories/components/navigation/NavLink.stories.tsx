@@ -89,7 +89,7 @@ export const States: Story = {
             note="Default, active, disabled, icon+description and the anchor variant. Disabled links stay aria-disabled and non-interactive; the non-href links are native buttons."
           >
             <Stack gap="sm">
-              <Box data-testid="navlink-kb-readout">
+              <Box data-testid="navlink-kb-readout" data-activations={activations()}>
                 <Readout>{activations()} workspace link activation{activations() === 1 ? "" : "s"} recorded</Readout>
               </Box>
               <Box

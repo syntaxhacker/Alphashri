@@ -707,6 +707,21 @@ async function checkFloatingWindowModal(page, storyId) {
   return `Tab cycled inside the modal window: ${seen.slice(0, labels.length).join(' -> ')}; Shift+Tab stayed inside`;
 }
 
+// The States readout is user-facing copy ("0 workspace link activations
+// recorded", singular at 1), so copy audits own its wording. Read the integer
+// adjacent to "activation" in either word order rather than pinning the old
+// "activations: N" layout. One shared pattern keeps the in-page poll in sync
+// with the node-side read; the data-activations hook is a stable fallback if
+// the copy is reworded again.
+const ACTIVATION_COUNT_PATTERN = String.raw`(\d+)\s+[^.;]*?\bactivations?\b|\bactivations?\b[^.;]*?(\d+)`;
+
+function parseActivationCount(text) {
+  const match = String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .match(new RegExp(ACTIVATION_COUNT_PATTERN, 'i'));
+  return match ? Number(match[1] ?? match[2]) : null;
+}
+
 async function checkNavLinkKeyboard(page, storyId) {
   const frame = await openStoryFrame(page, storyId);
 
@@ -730,18 +745,25 @@ async function checkNavLinkKeyboard(page, storyId) {
 
   const count = async () => {
     const text = ((await readout.textContent()) ?? '').replace(/\s+/g, ' ').trim();
-    const match = text.match(/activations:\s*(\d+)/);
-    assert(match, `could not read the activation count from "${text}"`);
-    return Number(match[1]);
+    const fromCopy = parseActivationCount(text);
+    if (fromCopy !== null) return fromCopy;
+    const hook = await readout.getAttribute('data-activations');
+    assert(hook !== null, `could not read the activation count from "${text}"`);
+    return Number(hook);
   };
   const waitForCount = (expected) =>
     frame.waitForFunction(
-      (n) => {
+      ({ pattern, n }) => {
         const el = document.querySelector('[data-testid="navlink-kb-readout"]');
-        const match = (el?.textContent ?? '').replace(/\s+/g, ' ').match(/activations:\s*(\d+)/);
-        return Boolean(match && Number(match[1]) === n);
+        const match = (el?.textContent ?? '').replace(/\s+/g, ' ').match(new RegExp(pattern, 'i'));
+        let value = match ? Number(match[1] ?? match[2]) : null;
+        if (value === null) {
+          const hook = el?.getAttribute('data-activations');
+          value = hook == null ? null : Number(hook);
+        }
+        return value === n;
       },
-      expected,
+      { pattern: ACTIVATION_COUNT_PATTERN, n: expected },
       { timeout: 5000 },
     );
   const pressAndExpect = async (key, expected) => {
