@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { sxTheme } from "@/ui/sxTheme";
+import { TYPE_SCALE } from "@/ui/typography";
 import {
   BG,
   BG_COLOR,
@@ -82,9 +83,20 @@ describe("uiTheme (JS theme tokens)", () => {
     expect(typed.fontWeights.normal).toBeTypeOf("number");
   });
 
-  it("matches the chart fallbacks so no renderer changes visually", () => {
+  it("maps chart aliases onto the shared type scale", () => {
     expect(theme.fontFamily).toBe('"IBM Plex Sans", "Roboto", system-ui, sans-serif');
-    expect(theme.fontSizes).toEqual({ sm: "12px", md: "14px", lg: "16px", xl: "20px" });
+    expect(theme.fontSizes).toEqual({
+      micro: `${TYPE_SCALE.micro.size}px`,
+      body: `${TYPE_SCALE.body.size}px`,
+      label: `${TYPE_SCALE.label.size}px`,
+      title: `${TYPE_SCALE.title.size}px`,
+      heading: `${TYPE_SCALE.heading.size}px`,
+      display: `${TYPE_SCALE.display.size}px`,
+      sm: `${TYPE_SCALE.micro.size}px`,
+      md: `${TYPE_SCALE.label.size}px`,
+      lg: `${TYPE_SCALE.title.size}px`,
+      xl: `${TYPE_SCALE.heading.size}px`,
+    });
   });
 
   it("aliases the semantic colours from the single palette source", () => {
