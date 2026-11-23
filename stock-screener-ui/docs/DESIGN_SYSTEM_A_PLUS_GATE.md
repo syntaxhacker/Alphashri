@@ -48,9 +48,7 @@ Still open — keep the A+ verdict honest:
 
 - **Token contract (dark-only).** With one colour scheme, static semantic palette imports are the intended contract; `tokenColor`/`useTokenColor` exist for the cases that must read a computed CSS variable. The guard is the absence of raw hex outside `palette.ts` (asserted by `theme-single-source.test.ts`), not call-site counts. This is a scope correction, not a claim that every chart was migrated to a runtime accessor.
 - **API callback conventions.** `onChange` is value-based on most inputs but event-based on `Checkbox`/`Switch`; `onClick` is an event in `UIBaseProps` but void in `NavLink`/`MenuItem`/`CloseButton`. No single convention per family yet.
-- **Two tables.** `components/common/TanStackTable.tsx` and `components/paper-trading/TanStackTable.tsx` remain separate implementations with different feature sets.
-- **App dialects.** Feature-local duplicates (paper-trading table, `PanelModal`/`ExpandedPanel`, `components/common/Icons.tsx`, `RangeInput` vs `RangeSlider`, `TradingDatePicker`) still drift from `@/ui`.
-- **Visual regression baseline.** Browser axe covers representative stories for serious/critical violations, including rendered contrast; it does not assert pixels. No 1600/390 snapshot baseline for the catalog, and keyboard focus order/trap plus screen-reader output still need a manual or Playwright walkthrough.
+- **Visual regression baseline.** Browser axe now covers 21 stories including rendered contrast, and the keyboard walkthrough covers 9 interactions. It still does not assert pixels: there is no automated 1600/390 image diff, only checked-in full-page evidence.
 - **Coverage is scoped, not universal.** 84/100 audited modules have a story and 88/100 a co-located test; "story: yes" means one exported name is imported, not that every state is reviewed.
 - DatePicker is intentionally single-date; no range/time/locale.
 - Tooltip requires a focusable child unless the opt-in tab stop is used.
@@ -88,5 +86,5 @@ The P1 set driving the current wave: primitive rem size aliases, event-vs-value 
 | Production build | clean (198 chunks) |
 | Storybook build + catalog | clean |
 | Browser axe (21 stories) | 0 serious/critical violations |
-| Browser keyboard walkthrough | 9/9 |
-| Screenshots | `docs/screenshots/showcase/` recaptured at 1600 and 390, read back |
+| Screenshots | `docs/screenshots/showcase/` recaptured full-page at 1600/390 with focus-ring proof; Index Report app route captured at `docs/screenshots/app/report-{1600,390}.png` |
+| Browser keyboard | 9/9 (Modal, Tree, Menu, horizontal/vertical Tabs, Popover, Tooltip, modal FloatingWindow, modal dismissal) |
