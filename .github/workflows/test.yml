@@ -381,6 +381,10 @@ jobs:
         run: cd stock-screener-ui && npx playwright test --grep @smoke
         env:
           CI: true
+      - name: Verify app routes with axe
+        run: cd stock-screener-ui && APP_A11Y=1 npx playwright test tests/e2e/app-a11y.spec.ts --workers=2
+        env:
+          CI: true
       - name: Dump server logs on failure
         if: failure()
         run: |
