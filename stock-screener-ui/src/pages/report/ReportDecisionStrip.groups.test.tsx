@@ -297,7 +297,7 @@ describe("Index Report decision strip — grouped geometry", () => {
 
 describe("decision strip — readout width and no-inline-ellipsis contract", () => {
   const source = readFileSync(
-    resolve(process.cwd(), "src/pages/report/ReportDecisionStrip.tsx"),
+    resolve(process.cwd(), "src/pages/report/ReportDecisionStrip.groups.tsx"),
     "utf8",
   );
 

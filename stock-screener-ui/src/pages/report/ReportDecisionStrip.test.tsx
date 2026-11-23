@@ -167,7 +167,7 @@ describe("decision strip — labels and help", () => {
     // The squeeze cell only renders when fuel is present; the copy helper is
     // exercised through its source contract instead of a fabricated report.
     const source = readFileSync(
-      resolve(process.cwd(), "src/pages/report/ReportDecisionStrip.tsx"),
+      resolve(process.cwd(), "src/pages/report/ReportDecisionStrip.groups.tsx"),
       "utf8",
     );
     expect(source).toContain('label="Squeeze fuel"');
