@@ -70,6 +70,17 @@ describe("computeReplayCoverage", () => {
     expect(c.firstMin).toBe(600);
   });
 
+  test("stepMissing stays aligned to served frames when a frame is out of session", () => {
+    // The replay bar indexes stepMissing by snapshot index, so an out-of-session
+    // frame at the head must not shift the gap onto the wrong frame.
+    const c = computeReplayCoverage([
+      { t: iso(120) }, // 02:00 — a pre-market manual snapshot
+      { t: iso(600) }, // 10:00
+      { t: iso(603) }, // 10:03 — minutes 10:01 and 10:02 missing
+    ]);
+    expect(c.stepMissing).toEqual([0, 2]);
+  });
+
   test("an empty day is one gap covering the session", () => {
     const c = computeReplayCoverage([]);
     expect(c.recorded).toBe(0);

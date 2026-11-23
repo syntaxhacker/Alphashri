@@ -98,8 +98,18 @@ export function computeReplayCoverage(
     null,
   );
 
-  // Jump size after each frame, in served order (what playback will skip).
-  const stepMissing = raw.slice(0, -1).map((m, i) => Math.max(0, raw[i + 1] - m - 1));
+  // Jump size after each frame, indexed by the ORIGINAL frame position: the
+  // replay bar looks up `stepMissing[i]` for snapshot `i`. Deriving it from the
+  // session-filtered `raw` shifted every gap onto the preceding frame whenever
+  // an out-of-session snapshot was present, so the "+Nm" badge lied about
+  // which minute playback was about to skip.
+  const served = frames ?? [];
+  const stepMissing = served.slice(0, -1).map((frame, i) => {
+    const current = inSession(minuteOfDay(frame.t) ?? -1);
+    const next = inSession(minuteOfDay(served[i + 1].t) ?? -1);
+    if (current === null || next === null) return 0;
+    return Math.max(0, next - current - 1);
+  });
 
   return {
     sessionMinutes: SESSION_MINUTES,

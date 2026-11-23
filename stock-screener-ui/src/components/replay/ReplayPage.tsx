@@ -32,14 +32,13 @@ function ReplayPageContent(
       {/* One chrome band: page identity and every replay control on the same line. The
           controls used to sit in three bordered rows (identity, config, stats). */}
       <div
-        className="flex items-start flex-none border-b border-fin-border"
+        className="flex items-start flex-none border-b border-fin-border-subtle"
         style={{
           display: "flex",
           "align-items": "flex-start",
           gap: "8px",
           "min-height": "32px",
           padding: "1px 8px",
-          "border-bottom": `1px solid ${palette.BORDER}`,
           overflow: "hidden",
         }}
       >
@@ -108,7 +107,7 @@ function ReplayPageContent(
       </Box>
       <Show when={state().summary}>
         {(summary) => (
-          <Box flex="0 0 auto" px="sm" py="xs" style={{ "border-top": `1px solid ${palette.BORDER}`, overflow: "auto", "max-height": "180px" }}>
+          <Box flex="0 0 auto" px="sm" py="xs" className="border-t border-fin-border-subtle" style={{ overflow: "auto", "max-height": "180px" }}>
             <ReplaySummaryPanel summary={summary()} />
           </Box>
         )}

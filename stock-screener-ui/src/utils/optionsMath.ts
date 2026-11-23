@@ -539,3 +539,17 @@ function istDateString(now: Date): string {
   const pick = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return `${pick("year")}-${pick("month")}-${pick("day")}`;
 }
+
+/**
+ * Years from an ISO timestamp to an ISO expiry on a 365-day calendar year — the
+ * same basis the feed's IV is quoted on. An unparseable or already-past expiry
+ * clamps to the 15-minute model floor so σ√T never collapses to zero (which
+ * would turn every probability into 0 or 1).
+ */
+export function dteYearsBetween(asOf: string, expiry: string): number {
+  const from = Date.parse(asOf);
+  const to = Date.parse(expiry);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return MIN_DTE_YEARS;
+  const years = (to - from) / (365 * 24 * 60 * 60 * 1000);
+  return Math.max(years, MIN_DTE_YEARS);
+}

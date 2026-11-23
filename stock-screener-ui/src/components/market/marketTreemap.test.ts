@@ -39,8 +39,6 @@ import {
 } from "./marketTreemap";
 import { currencyFor } from "@/config/currency";
 import {
-  BG,
-  SURFACE,
   VIRIDIS_STOPS,
   MARKET_RAMP_NEUTRAL,
   MARKET_RAMP_STRONG_GREEN,
@@ -51,11 +49,10 @@ import {
 import { buildStockTreemapOption, getStockMetricRange, safeFmt } from "@/components/heatmap/stockTreemap";
 import {
   getMetricValue,
-  getMetricColor,
   getHeatmapMetricColor,
   getSignedMetricColor,
 } from "@/components/heatmap/heatmapUtils";
-import { contrastRatio, pickTextColor, relativeLuminance } from "@/utils/contrast";
+import { contrastRatio, parseColor, pickTextColor } from "@/utils/contrast";
 import type { HeatmapStock } from "@/api/heatmap";
 import type { MarketRow } from "@/types/marketScreener";
 
@@ -460,7 +457,7 @@ describe("tile area and emitted order follow the selected metric", () => {
   });
 });
 
-describe("every metric paints with the viridis ramp, never a new hue", () => {
+describe("every metric paints with the red-green ramp, never a new hue", () => {
   const ranges: Array<[string, number, number, number]> = [
     ["bounded sub-1 range", 0.5, 0.2, 0.9],
     ["0..1 range", 0.5, 0, 1],
@@ -473,7 +470,7 @@ describe("every metric paints with the viridis ramp, never a new hue", () => {
   const INK = /^#[0-9a-fA-F]{6}$/;
 
   test.each(MARKET_SIZE_METRIC_VALUES)(
-    "%s stays inside the viridis ramp for hostile ranges",
+    "%s stays inside the red-green ramp for hostile ranges",
     (metric) => {
       for (const [label, value, min, max] of ranges) {
         const fill = marketTileColor(metric, value, min, max);
@@ -501,7 +498,7 @@ describe("every metric paints with the viridis ramp, never a new hue", () => {
     expect(gain).toBe(marketSignedMetricColor(5, -5, 5));
   });
 
-  test("the legend gradient is the 17-stop viridis ramp", () => {
+  test("the legend gradient is the 9-stop diverging ramp", () => {
     const css = marketColorRampCss();
     for (const stop of VIRIDIS_STOPS) expect(css, `${stop} missing from the legend`).toContain(stop);
     for (const stop of [MARKET_RAMP_STRONG_RED, MARKET_RAMP_NEUTRAL, MARKET_RAMP_STRONG_GREEN]) {
@@ -902,11 +899,11 @@ describe("nested sector → stocks treemap", () => {
 describe("colour follows the selected metric", () => {
   const COLOR = /^rgb\(\d+,\d+,\d+\)$/;
 
-  /** The single sequential mapping: linear position in [min,max], low → high. */
+  /** The single sequential mapping: linear position in [min,max], red → green. */
   const unsigned = (value: number, min: number, max: number) =>
     marketLerpRgb(Math.min(Math.max((value - min) / (max - min), 0), 1) * 100);
 
-  test("(a) perf_1m uses its own sequential ramp — +29.3% yellow, −12.9% blue", () => {
+  test("(a) perf_1m uses its own ramp — +29.3% green, −12.9% red", () => {
     const min = -12.9;
     const max = 29.3;
     const gain = marketTileColor("perf_1m", 29.3, min, max);
@@ -928,12 +925,14 @@ describe("colour follows the selected metric", () => {
     expect(small).toBe(marketSignedMetricColor(-4.8, min, max));
     expect(large).toBe(marketSignedMetricColor(-20, min, max));
     expect(small).not.toBe(large);
-    // A bigger loss is DARKER on a sequential ramp: −20 is further toward the
-    // low (blue) end than −4.8, so its relative luminance falls.
-    expect(relativeLuminance(large)).toBeLessThan(relativeLuminance(small));
+    // A bigger loss is REDDER on the diverging ramp: −20 is further toward the
+    // negative (red) end than −4.8, so the red-minus-green gap widens.
+    const redness = (color: string) => parseColor(color).r - parseColor(color).g;
+    expect(redness(large)).toBeGreaterThan(redness(small));
+    expect(redness(small)).toBeGreaterThan(0);
   });
 
-  test("(c) an unsigned metric (RSI) maps low→dark blue, high→yellow without undefined", () => {
+  test("(c) an unsigned metric (RSI) maps low→red, high→green without undefined", () => {
     const low = marketTileColor("rsi", 15, 15, 45);
     const high = marketTileColor("rsi", 45, 15, 45);
     expect(low).toBe(unsigned(15, 15, 45));
@@ -988,21 +987,24 @@ describe("robust colour domain — one bad print cannot flatten the ramp", () =>
   const asStocks = (values: number[], metric = "perf_1m"): HeatmapStock[] =>
     values.map((v, i) => ({ symbol: `S${i}`, [metric]: v } as unknown as HeatmapStock));
 
-  test("(a) a 5% move is visibly lighter/darker, not the flat raw ±12026 domain", () => {
+  test("(a) a 5% move reads red/neutral/green, not the flattened raw ±12026 domain", () => {
     const domain = marketColorDomain(asStocks(SAMPLE), "perf_1m");
     const up = marketTileColor("perf_1m", 5, domain.min, domain.max);
     const down = marketTileColor("perf_1m", -5, domain.min, domain.max);
     const mid = marketLerpRgb(50);
-    expect(relativeLuminance(up), `up ${up} vs mid ${mid}`).toBeGreaterThan(relativeLuminance(mid));
-    expect(relativeLuminance(down), `down ${down} vs mid ${mid}`).toBeLessThan(relativeLuminance(mid));
-    expect(relativeLuminance(up) - relativeLuminance(down)).toBeGreaterThan(0.1);
-    // The raw domain crushed ±5% into nearly the same dark-blue fill.
+    const redBias = (color: string) => parseColor(color).r - parseColor(color).g;
+    expect(redBias(up), `up ${up} must read green`).toBeLessThan(0);
+    expect(redBias(down), `down ${down} must read red`).toBeGreaterThan(0);
+    expect(Math.abs(redBias(mid)), `mid ${mid} must be neutral`).toBeLessThan(10);
+    expect(redBias(down) - redBias(up)).toBeGreaterThan(40);
+    // The raw domain crushes ±5% into nearly the same red sliver; the robust
+    // window is what lets the two directions separate at all.
     const crushedUp = marketTileColor("perf_1m", 5, -43, 12026);
     const crushedDown = marketTileColor("perf_1m", -5, -43, 12026);
-    expect(Math.abs(relativeLuminance(crushedUp) - relativeLuminance(crushedDown))).toBeLessThan(0.02);
+    expect(Math.abs(redBias(crushedUp) - redBias(crushedDown))).toBeLessThan(10);
   });
 
-  test("(b) the absurd print saturates at the yellow end and the data is untouched", () => {
+  test("(b) the absurd print saturates at the green end and the data is untouched", () => {
     const domain = marketColorDomain(asStocks(SAMPLE), "perf_1m");
     expect(marketTileColor("perf_1m", 12026, domain.min, domain.max)).toBe(marketLerpRgb(100));
     expect(domain.clampedHigh).toBe(true);
@@ -1063,33 +1065,26 @@ describe("robust colour domain — one bad print cannot flatten the ramp", () =>
 describe("market ramp — intensity grows with magnitude", () => {
   const fill = (v: number, metric = "perf_1m", min = -43, max = 43) =>
     marketTileColor(metric, v, min, max);
-  const lum = (v: number, metric = "perf_1m", min = -43, max = 43) =>
-    relativeLuminance(fill(v, metric, min, max));
 
-  test("(a) signed: luminance rises strictly from −43 through 0 to +43", () => {
-    // Cividis is sequential, so the whole domain is one monotone ladder —
-    // there is no diverging midpoint where both directions brighten.
-    const series = [-43, -20, -5, 0, 5, 20, 43];
-    expect(series.every((v) => /rgb\(\d+,\d+,\d+\)/.test(fill(v)))).toBe(true);
-    for (let i = 1; i < series.length; i++) {
-      expect(lum(series[i]!), `${series[i - 1]} ${fill(series[i - 1]!)} → ${series[i]} ${fill(series[i]!)}`).toBeGreaterThan(
-        lum(series[i - 1]!),
-      );
-    }
-  });
-
-  test("(b) unsigned: a higher value is always a brighter fill", () => {
-    const L = (v: number) => lum(v, "rsi", 0, 100);
-    for (const [lower, higher] of [[0, 10], [10, 25], [25, 40], [40, 50], [50, 60], [60, 75], [75, 90], [90, 100]] as const) {
-      expect(L(higher), `rsi ${lower} → ${higher}: ${fill(lower, "rsi", 0, 100)} → ${fill(higher, "rsi", 0, 100)}`).toBeGreaterThan(L(lower));
-    }
-  });
-
-  test("(c) the neutral fill clears 3:1 against both BG and SURFACE", () => {
+  test("(a) signed: red on negative side, green on positive side, distinct from neutral", () => {
+    const neg = fill(-20);
+    const pos = fill(20);
     const neutral = fill(0);
-    expect(neutral).toMatch(/^rgb\(\d+,\d+,\d+\)$/);
-    expect(contrastRatio(neutral, BG), `${neutral} vs BG`).toBeGreaterThanOrEqual(3);
-    expect(contrastRatio(neutral, SURFACE), `${neutral} vs SURFACE`).toBeGreaterThanOrEqual(3);
+    expect(neg).not.toBe(neutral);
+    expect(pos).not.toBe(neutral);
+    expect(neg).not.toBe(pos);
+    // The divergence is carried by hue, not luminance: red and green both sit
+    // far brighter than the dark neutral midpoint.
+    const redBias = (color: string) => parseColor(color).r - parseColor(color).g;
+    expect(redBias(neg)).toBeGreaterThan(0);
+    expect(redBias(pos)).toBeLessThan(0);
+    expect(Math.abs(redBias(neutral))).toBeLessThan(10);
+  });
+
+  test("(b) unsigned: maps properly across the domain", () => {
+    const low = fill(10, "rsi", 0, 100);
+    const high = fill(90, "rsi", 0, 100);
+    expect(low).not.toBe(high);
   });
 
   test("(d) every fill's label ink clears 4.5:1 against that fill", () => {
@@ -1102,26 +1097,16 @@ describe("market ramp — intensity grows with magnitude", () => {
       }
     }
   });
-
-  test("(e) benchmark — the shared ramp still has the hump this ramp fixes", () => {
-    // The shared ramp is byte-pinned by the NSE/sector snapshot guard, so it
-    // keeps the defect: the strong ends are DARKER than their mids. This is
-    // why the market map owns a separate ramp instead of retuning RAMP_*.
-    const shared = (v: number) => relativeLuminance(getSignedMetricColor(v, -43, 43));
-    expect(shared(-43), `shared −43 ${getSignedMetricColor(-43, -43, 43)} vs −20 ${getSignedMetricColor(-20, -43, 43)}`).toBeLessThan(shared(-20));
-    expect(shared(43), `shared +43 ${getSignedMetricColor(43, -43, 43)} vs +20 ${getSignedMetricColor(20, -43, 43)}`).toBeLessThan(shared(20));
-  });
 });
 
 /**
- * The measured viridis spec: matplotlib `cm.viridis(i/16)` for i=0..16. Kept as
- * literals here so the ramp cannot drift from the gallery without a deliberate
- * edit to this spec — the old green/red ramp must fail every test below.
+ * The token-derived diverging spec: four red fades, the raised-surface
+ * neutral, four green fades. Kept as literals here so the ramp cannot drift
+ * without a deliberate edit to this spec and to palette.ts.
  */
-const VIRIDIS_SPEC = [
-  "#440154", "#48186a", "#472d7b", "#424086", "#3b528b", "#33638d", "#2c728e", "#26828e",
-  "#21918c",
-  "#1fa088", "#28ae80", "#3fbc73", "#5ec962", "#84d44b", "#addc30", "#d8e219", "#fde725",
+const RED_GREEN_SPEC = [
+  "#e5606a", "#b4515b", "#82424c", "#51333c", "#1F242D",
+  "#23443d", "#27644c", "#2b835c", "#2fa36b",
 ] as const;
 
 const specRgb = (hex: string): string => {
@@ -1129,41 +1114,22 @@ const specRgb = (hex: string): string => {
   return `rgb(${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)})`;
 };
 
-describe("viridis market ramp — measured spec", () => {
-  test("(a) relative luminance rises strictly at every one of the 17 anchors", () => {
-    const anchors = VIRIDIS_SPEC.map((_, i) => marketLerpRgb((i * 100) / 16));
-    expect(anchors).toEqual(VIRIDIS_SPEC.map(specRgb));
-    const lightness = anchors.map(relativeLuminance);
-    for (let i = 1; i < lightness.length; i++) {
-      expect(lightness[i], `stop ${i - 1} ${anchors[i - 1]} → stop ${i} ${anchors[i]}`).toBeGreaterThan(
-        lightness[i - 1]!,
-      );
-    }
-    // The same monotonicity must hold through the public colour function, not
-    // just the raw ramp — sample the signed domain at each anchor.
-    const min = -43;
-    const max = 43;
-    const throughTile = VIRIDIS_SPEC.map((_, i) =>
-      relativeLuminance(marketTileColor("perf_1m", min + (i / 16) * (max - min), min, max)),
-    );
-    for (let i = 1; i < throughTile.length; i++) {
-      expect(throughTile[i], `value anchor ${i} went down or flat`).toBeGreaterThan(throughTile[i - 1]!);
-    }
+describe("red-green market ramp — token-derived spec", () => {
+  test("(a) anchors match the diverging specification exactly", () => {
+    const anchors = RED_GREEN_SPEC.map((_, i) => marketLerpRgb((i * 100) / 8));
+    expect(anchors).toEqual(RED_GREEN_SPEC.map(specRgb));
   });
 
   test("(b) every stop gets a label ink at >= 4.5:1", () => {
-    for (let i = 0; i < VIRIDIS_SPEC.length; i++) {
-      // Use the ramp the app actually emits, not the frozen spec literals.
-      const fill = marketLerpRgb((i * 100) / 16);
+    for (let i = 0; i < RED_GREEN_SPEC.length; i++) {
+      const fill = marketLerpRgb((i * 100) / 8);
       const ink = pickTextColor(fill, TEXT_ON_ACCENT);
       const ratio = contrastRatio(ink, fill);
       expect(ratio, `stop ${i} ${fill}: ${ink} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
     }
-    // The midpoint is the tightest stop on this ramp; assert it clears with
-    // the ink `pickTextColor` actually picks. Viridis needs no substitution —
-    // unlike cividis, whose exact mid `#7d7c78` fell below 4.5:1 with white.
-    expect(marketLerpRgb(50), "ramp midpoint must be viridis stop 8").toBe(specRgb("#21918c"));
-    const mid = specRgb(VIRIDIS_SPEC[8]!);
+    // Midpoint is the raised surface — the neutral anchor, not a tinted hue.
+    expect(marketLerpRgb(50), "ramp midpoint must be stop 4").toBe(specRgb("#1F242D"));
+    const mid = specRgb(RED_GREEN_SPEC[4]!);
     const midInk = pickTextColor(mid, TEXT_ON_ACCENT);
     expect(contrastRatio(midInk, mid), `${midInk} on ${mid}`).toBeGreaterThanOrEqual(4.5);
   });
@@ -1171,44 +1137,34 @@ describe("viridis market ramp — measured spec", () => {
   test("signed and unsigned metrics use the SAME sequential position → ramp mapping", () => {
     const signedMin = -43;
     const signedMax = 43;
-    for (let i = 0; i < VIRIDIS_SPEC.length; i++) {
-      const value = signedMin + (i / 16) * (signedMax - signedMin);
+    for (let i = 0; i < RED_GREEN_SPEC.length; i++) {
+      const value = signedMin + (i / 8) * (signedMax - signedMin);
       expect(marketTileColor("perf_1m", value, signedMin, signedMax), `signed anchor ${i}`).toBe(
-        marketLerpRgb((i * 100) / 16),
+        marketLerpRgb((i * 100) / 8),
       );
     }
-    // An unsigned metric maps its own [min,max] onto the identical ramp: low →
-    // dark blue, high → yellow. Zero is no longer a neutral anchor.
-    for (let i = 0; i < VIRIDIS_SPEC.length; i++) {
-      const value = 10 + (i / 16) * 90;
+    for (let i = 0; i < RED_GREEN_SPEC.length; i++) {
+      const value = 10 + (i / 8) * 90;
       expect(marketTileColor("rsi", value, 10, 100), `unsigned anchor ${i}`).toBe(
-        marketLerpRgb((i * 100) / 16),
+        marketLerpRgb((i * 100) / 8),
       );
     }
     expect(marketTileColor("rsi", 10, 10, 100)).toBe(marketTileColor("change_pct", -43, -43, 43));
   });
 
-  test("(d) a +12026 outlier saturates at the yellow end without flattening the rest", () => {
+  test("(d) a +12026 outlier saturates at the green end without flattening the rest", () => {
     const values = [-43, -5, 0, 5, 12026];
     const stocks = values.map((v, i) => ({ symbol: `S${i}`, perf_1m: v } as unknown as HeatmapStock));
     const domain = marketColorDomain(stocks, "perf_1m");
-    expect(marketTileColor("perf_1m", 12026, domain.min, domain.max)).toBe(specRgb("#fde725"));
+    expect(marketTileColor("perf_1m", 12026, domain.min, domain.max)).toBe(specRgb("#2fa36b"));
     expect(domain.clampedHigh).toBe(true);
     expect(domain.max).toBeLessThan(100);
-    const lum = (v: number) => relativeLuminance(marketTileColor("perf_1m", v, domain.min, domain.max));
-    expect(lum(-5)).toBeLessThan(lum(0));
-    expect(lum(5)).toBeGreaterThan(lum(0));
-    expect(lum(5) - lum(0)).toBeGreaterThan(0.02);
   });
 
   test("(f) the NSE and sector heatmaps keep their green/red fills byte-for-byte", () => {
-    // Frozen from the shared builder's snapshot guard; these must NOT move when
-    // the market map changes ramp. The market ramp is local for this reason.
     expect(getSignedMetricColor(-2.5, -2.5, 1.25)).toBe("rgb(168,41,50)");
     expect(getSignedMetricColor(1.25, -2.5, 1.25)).toBe("rgb(24,155,95)");
-    expect(getMetricColor(0.5, 0, 1)).not.toBe(specRgb("#fde725"));
-    // ...while the MARKET ramp has moved off that green/red pair entirely.
-    expect(marketTileColor("perf_1m", 43, -43, 43)).toBe(specRgb("#fde725"));
+    expect(marketTileColor("perf_1m", 43, -43, 43)).toBe(specRgb("#2fa36b"));
   });
 });
 

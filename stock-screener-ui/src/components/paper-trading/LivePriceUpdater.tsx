@@ -21,28 +21,41 @@ export function LivePriceUpdater() {
     if (!isMarketOpenNow()) return;
 
     const controller = new AbortController();
-    const prices: Record<string, LivePriceEvent> = {};
     const token = getAccessToken();
     const headers: Record<string, string> = { Accept: "text/event-stream" };
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
+    const sameNumber = (a: number, b: number) => a === b || (Number.isNaN(a) && Number.isNaN(b));
+
     const applyPrice = (symbol: string, price: LivePriceEvent) => {
       if (!Number.isFinite(price?.ltp) || price.ltp <= 0) return;
-      const prev = prices[symbol];
-      if (prev && prev.ltp === price.ltp) return;
-      prices[symbol] = price;
 
       const state = getPaperTradingState();
       // Strategy-aware: if the price event carries strategy_id, only update matching strategies.
       const priceStrategyId = price.strategy_id;
+      let changed = false;
       const updated = state.positions.map((pos: PaperPosition) => {
         if (pos.symbol !== symbol) return pos;
         if (priceStrategyId != null && pos.strategy_id !== priceStrategyId) return pos;
         const side = pos.side === "BUY" ? 1 : -1;
         const pnl = side * (price.ltp - pos.entry_price) * pos.quantity;
         const pnlPct = side * ((price.ltp - pos.entry_price) / pos.entry_price) * 100;
+        if (
+          sameNumber(pos.current_price, price.ltp) &&
+          sameNumber(pos.pnl, pnl) &&
+          sameNumber(pos.pnl_pct, pnlPct)
+        ) {
+          return pos;
+        }
+        changed = true;
         return { ...pos, current_price: price.ltp, pnl, pnl_pct: pnlPct };
       });
+      // Dedupe against the positions actually in state, never a symbol-keyed
+      // cache: two strategies can hold the same symbol, and a position added by
+      // the REST poll still needs the current price when the ltp is unchanged.
+      // An unheld-symbol tick must not re-emit the snapshot — every notify
+      // rebuilds table rows and the chart even when no value moved.
+      if (!changed) return;
       setPositions(updated);
     };
 

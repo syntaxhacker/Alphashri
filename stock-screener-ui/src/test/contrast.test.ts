@@ -175,27 +175,41 @@ describe("contrast — hostile input never throws", () => {
 });
 
 /**
- * The market map's mid-tones are the hardest fills: the ramp crosses the
- * luminance band where neither off-white nor near-black ink is comfortable.
- * These are the measured matplotlib viridis stops — no substitution is needed
- * because every stop clears 4.5:1 with at least one of the two inks.
+ * The market map's mid-tones are the hardest fills: the diverging ramp crosses
+ * the luminance band where neither off-white nor near-black ink is comfortable.
+ * Every token-derived stop must still clear 4.5:1 with one of the two inks.
  */
-const VIRIDIS_STOPS: readonly string[] =
+const HEATMAP_STOPS: readonly string[] =
   (palette as unknown as { VIRIDIS_STOPS?: readonly string[] }).VIRIDIS_STOPS ?? [];
 
-describe("contrast — viridis market ramp is fully labelable", () => {
-  it("picks a label ink clearing 4.5:1 for all 17 stops", () => {
-    expect(VIRIDIS_STOPS, "palette must export the 17 viridis stops").toHaveLength(17);
-    for (const [i, fill] of VIRIDIS_STOPS.entries()) {
+describe("contrast — red-green market ramp is fully labelable", () => {
+  it("picks a label ink clearing 4.5:1 for all 9 stops", () => {
+    expect(HEATMAP_STOPS, "palette must export the 9 stops").toHaveLength(9);
+    for (const [i, fill] of HEATMAP_STOPS.entries()) {
       const ink = pickTextColor(fill, "#FFFFFF");
       const ratio = contrastRatio(ink, fill);
       expect(ratio, `stop ${i} ${fill}: ${ink} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(AA_TEXT);
     }
   });
 
-  it("matches matplotlib cm.viridis exactly, so the ramp cannot drift", () => {
-    expect(VIRIDIS_STOPS[0]).toBe("#440154");
-    expect(VIRIDIS_STOPS[8]).toBe("#21918c");
-    expect(VIRIDIS_STOPS[16]).toBe("#fde725");
+  it("is diverging: red end, raised-surface neutral midpoint, green end", () => {
+    const red = parseColor(HEATMAP_STOPS[0]!);
+    const neutral = parseColor(HEATMAP_STOPS[4]!);
+    const green = parseColor(HEATMAP_STOPS[8]!);
+    expect(red.r).toBeGreaterThan(red.g);
+    expect(green.g).toBeGreaterThan(green.r);
+    expect(Math.abs(neutral.r - neutral.g)).toBeLessThan(10);
+    expect(neutral.r).toBeLessThan(red.r);
+    expect(neutral.g).toBeLessThan(green.g);
+  });
+
+  it("matches the token-derived heatmap spec exactly, so the ramp cannot drift", () => {
+    // Four red fades, the raised-surface neutral, four green fades — each
+    // derived from the same anchors the rest of the palette uses.
+    expect(HEATMAP_STOPS[0]).toBe(compositeOver(NEGATIVE, SURFACE_ALT, 1));
+    expect(HEATMAP_STOPS[3]).toBe(compositeOver(NEGATIVE, SURFACE_ALT, 0.25));
+    expect(HEATMAP_STOPS[4]).toBe(SURFACE_ALT);
+    expect(HEATMAP_STOPS[5]).toBe(compositeOver(POSITIVE, SURFACE_ALT, 0.25));
+    expect(HEATMAP_STOPS[8]).toBe(compositeOver(POSITIVE, SURFACE_ALT, 1));
   });
 });

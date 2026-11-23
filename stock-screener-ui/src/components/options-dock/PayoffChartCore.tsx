@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, onMount, Show, untrack } from "solid-js";
 import { Box, Text, useColorScheme } from "@/ui";
 import * as palette from "@/ui/palette";
 import { loadEcharts } from "@/utils/loadEcharts";
@@ -23,6 +23,8 @@ import type { DockLeg } from "@/state/optionsDock";
  * × N legs — but an ATM-IV tick or an expiry switch must refresh POP/E[P&L]/±1σ.
  */
 const SPOT_MOVE_EPSILON = 0.0005;
+/** Half-width of the sampled spot window, in percent (10 = ±10 % of spot). */
+const DEFAULT_WIDTH_PCT = 10;
 /** Horizontal pixel budget for the y axis labels. */
 const GRID_LEFT = 46;
 /** Axis ticks and strike-line labels: 9px was unreadable in the narrow dock. */
@@ -70,10 +72,18 @@ export function buildPayoff(
   spot: number,
   iv: number,
   dteYears: number,
+  opts: { widthPct?: number } = {},
 ): PayoffSnapshot | null {
   if (legs.length === 0 || !(spot > 0)) return null;
   const pure = toPure(legs);
-  const curve = payoffCurve(pure, spot);
+  // The public `widthPct` is a percentage (10 = ±10 %); payoffCurve wants a
+  // fraction. Omitting it keeps the model's own default, so every existing host
+  // samples exactly the same window as before.
+  const curve = payoffCurve(
+    pure,
+    spot,
+    opts.widthPct != null ? { widthPct: opts.widthPct / 100 } : undefined,
+  );
   const probability = probabilityOfProfit(pure, spot, iv, dteYears);
   return {
     points: curve.points,
@@ -355,6 +365,8 @@ export function PayoffChartCore(props: {
   dteYears?: number;
   /** Fixed canvas height (the row detail uses 180); otherwise fill the flex parent. */
   height?: number;
+  /** Half-width of the sampled spot window, in percent (default 10 = ±10 %). */
+  widthPct?: number;
   footer?: boolean;
   "data-testid"?: string;
   /** Lets a host surface the computed POP in its own header without a second recompute. */
@@ -393,9 +405,11 @@ export function PayoffChartCore(props: {
     const spot = props.spot;
     const iv = ivDecimal();
     const dte = dteYears();
+    const widthPct = props.widthPct ?? DEFAULT_WIDTH_PCT;
     // IV and DTE are not subject to the spot epsilon: an ATM-IV tick or an
     // expiry switch must refresh POP/E[P&L]/±1σ even when spot has not moved.
-    const signature = `${legSignature(legs)}|${iv}|${dte}`;
+    // The range is part of the signature so a slider change re-samples the curve.
+    const signature = `${legSignature(legs)}|${iv}|${dte}|${widthPct}`;
     const moved = Math.abs(spot - lastSpot) / Math.max(spot, 1);
     if (!force && signature === lastSignature && moved < SPOT_MOVE_EPSILON) return;
     lastSignature = signature;
@@ -407,7 +421,7 @@ export function PayoffChartCore(props: {
       props.onSnapshot?.(null);
       return;
     }
-    const next = buildPayoff(legs, spot, iv, dte);
+    const next = buildPayoff(legs, spot, iv, dte, { widthPct });
     setSnapshot(next);
     setDensity(next ? probabilityOfProfit(toPure(legs), spot, iv, dte).density : []);
     props.onSnapshot?.(next);
@@ -420,6 +434,7 @@ export function PayoffChartCore(props: {
     void props.spot;
     void props.iv;
     void props.dteYears;
+    void props.widthPct;
     recompute(false);
   });
 
@@ -459,15 +474,22 @@ export function PayoffChartCore(props: {
     const shadeProfitLoss = props.shadeProfitLoss;
     const breakevens = props.breakevens;
     const sigmaBand = props.sigmaBand;
+    // The theme ink is a real dependency so a scheme flip repaints the labels.
+    const ink = chartMuted();
     if (!chart || !current) return;
-    chart.setOption(
-      buildOption(current, props.spot, ivDecimal(), density(), chartMuted(), guides, {
-        shadeProfitLoss,
-        breakevens,
-        sigmaBand,
-      }),
-      { notMerge: false, lazyUpdate: true },
-    );
+    // Spot/IV are read untracked: a sub-epsilon tick leaves `snapshot` alone, so
+    // the canvas must not repaint just because a raw frame field moved. A real
+    // move (or an IV/DTE change) always publishes a new snapshot first.
+    untrack(() => {
+      chart.setOption(
+        buildOption(current, props.spot, ivDecimal(), density(), ink, guides, {
+          shadeProfitLoss,
+          breakevens,
+          sigmaBand,
+        }),
+        { notMerge: false, lazyUpdate: true },
+      );
+    });
   });
 
   onCleanup(() => {

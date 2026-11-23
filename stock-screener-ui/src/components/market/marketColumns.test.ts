@@ -506,3 +506,52 @@ describe("F&O affordances follow the row's exchange", () => {
     expect(screen.getByTestId("symbol-options-TATA")).toBeInTheDocument();
   });
 });
+
+describe("live value flash on polled market cells", () => {
+  const flashRow = (patch: Partial<MarketRow>): MarketRow => ({
+    ...ROW,
+    symbol: "FLASHTEST",
+    ...patch,
+  });
+
+  function renderLiveCell(id: "close" | "day_change", row: MarketRow): HTMLElement {
+    const column = buildMarketColumns().find((candidate) => candidate.id === id);
+    if (!column?.cell) throw new Error(`${id} column has no cell renderer`);
+    render(() => column.cell!(cellArgs(row, column)));
+    return screen.getByTestId(
+      id === "close" ? "market-close-FLASHTEST" : "market-change-FLASHTEST",
+    );
+  }
+
+  test("LTP flashes up when a poll tick raises the price", () => {
+    renderLiveCell("close", flashRow({ close: 100 }));
+    cleanup();
+
+    const flashed = renderLiveCell("close", flashRow({ close: 101 }));
+    expect(flashed).toHaveTextContent("₹101.00");
+    expect(flashed).toHaveClass("value-flash-up");
+    expect(flashed).toHaveAttribute("data-flash-key", "1");
+    expect(flashed).toHaveAttribute("data-flash-direction", "up");
+  });
+
+  test("DAY % flashes down when a poll tick lowers the change", () => {
+    renderLiveCell("day_change", flashRow({ change: 1.5 }));
+    cleanup();
+
+    const flashed = renderLiveCell("day_change", flashRow({ change: -0.5 }));
+    expect(flashed).toHaveTextContent("-0.50%");
+    expect(flashed).toHaveClass("value-flash-down");
+    expect(flashed).toHaveAttribute("data-flash-key", "1");
+    expect(flashed).toHaveAttribute("data-flash-direction", "down");
+  });
+
+  test("an unchanged poll tick does not flash", () => {
+    renderLiveCell("close", flashRow({ close: 200 }));
+    cleanup();
+
+    const steady = renderLiveCell("close", flashRow({ close: 200 }));
+    expect(steady.className).not.toContain("value-flash-");
+    expect(steady).toHaveAttribute("data-flash-key", "0");
+    expect(steady).toHaveAttribute("data-flash-direction", "flat");
+  });
+});

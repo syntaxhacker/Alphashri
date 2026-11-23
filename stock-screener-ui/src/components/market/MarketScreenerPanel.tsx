@@ -13,6 +13,7 @@ import {
   untrack,
   type JSX,
 } from "solid-js";
+import { Dynamic } from "solid-js/web";
 import { useNavigate } from "@solidjs/router";
 import {
   Box,
@@ -1192,14 +1193,21 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                         data-testid="market-map-metric"
                       />
                     </ToolbarRow>
-                    {VIS_RENDERERS[visMode()]({
-                      rows: filteredRows(),
-                      onSymbolClick: selectAndOpen,
-                      currency: currency(),
-                      sizeBy: sizeBy(),
-                      onSizeByChange: setSizeBy,
-                      showSizeControl: false,
-                    })}
+                    {/* Render the registry entry as a real component, not an inline
+                        function call. `filteredRows()` is a tracked dependency of
+                        this JSX slot; calling the renderer directly re-invoked it on
+                        every poll, recreating the viz's signals — fullscreen
+                        `expanded` reset to false and the modal closed itself.
+                        `Dynamic` re-instantiates only when visMode changes. */}
+                    <Dynamic
+                      component={VIS_RENDERERS[visMode()]}
+                      rows={filteredRows()}
+                      onSymbolClick={selectAndOpen}
+                      currency={currency()}
+                      sizeBy={sizeBy()}
+                      onSizeByChange={setSizeBy}
+                      showSizeControl={false}
+                    />
                   </Show>
                 </Show>
               }

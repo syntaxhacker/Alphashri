@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
@@ -1493,5 +1494,255 @@ describe("OptionsDockPanel — per-contract chart", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("OptionsDockPanel — type scale and spacing guard", () => {
+  const FILES = [
+    "OptionsDockPanel.tsx",
+    "DockSection.tsx",
+    "LegBuilder.tsx",
+    "chain.columns.tsx",
+    "OptionChainTable.tsx",
+  ];
+  const sourceOf = (file: string) => readFileSync(new URL(file, import.meta.url), "utf8");
+
+  test("no 9px/10px type overrides remain in the dock shell, chain or legs", () => {
+    for (const file of FILES) {
+      const src = sourceOf(file);
+      expect(src, `${file} still has text-[9px]`).not.toContain("text-[9px]");
+      expect(src, `${file} still has text-[10px]`).not.toContain("text-[10px]");
+      expect(src, `${file} still has a 9px font-size`).not.toMatch(/"font-size":\s*"9px"/);
+      expect(src, `${file} still has a 10px font-size`).not.toMatch(/"font-size":\s*"10px"/);
+    }
+  });
+
+  test("no banned 2px/6px gaps or off-scale paddings and rails remain", () => {
+    const banned = [
+      "gap-0.5", "gap-1", "gap-1.5", "py-1.5", "py-[1px]", "ml-0.5",
+      "border-l-[3px]", "h-[26px]", 'border-radius": "4px"',
+    ];
+    for (const file of FILES) {
+      const src = sourceOf(file);
+      for (const token of banned) {
+        expect(src, `${file} still has ${token}`).not.toContain(token);
+      }
+    }
+  });
+
+  test("inner section separators use the semantic subtle border token", () => {
+    expect(sourceOf("DockSection.tsx")).toContain("border-fin-border-subtle");
+  });
+});
+
+describe("OptionsDockPanel — 11px controls and 8px gaps", () => {
+  test("header uses 8px control gaps, 12px padding and an 11px expiry control", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-expiry-select")).toBeInTheDocument());
+
+    const header = screen.getByTestId("options-dock-header");
+    expect(header.className).toContain("gap-2");
+    expect(header.className).toContain("px-3");
+    expect(header.className).not.toContain("gap-1");
+
+    const select = screen.getByTestId("options-expiry-select");
+    expect(select.className).toContain("text-[11px]");
+    expect(select.className).toContain("rounded-fin");
+  });
+
+  test("positions chip and narrow side toggle render at 11px with 8px gaps", async () => {
+    narrowViewport();
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-side-ce")).toBeInTheDocument());
+
+    const chip = screen.getByTestId("options-positions-chip");
+    expect(chip.className).toContain("text-[11px]");
+    expect(chip.className).toContain("gap-2");
+    expect(chip.className).toContain("rounded-fin");
+
+    const toggle = screen.getByTestId("options-chain-side-ce");
+    expect(toggle.className).toContain("text-[11px]");
+    expect(toggle.parentElement?.className).toContain("rounded-fin");
+    expect(toggle.parentElement?.className).not.toContain("border-radius");
+  });
+
+  test("empty and cold-error states use the shared EmptyState with a reserved slot", async () => {
+    fetchUnderlying.mockResolvedValue(listing({ fno: false, expiries: [], defaultExpiry: null }));
+    open("RELIANCE");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-dock-empty")).toBeInTheDocument());
+
+    const empty = screen.getByTestId("options-dock-empty");
+    expect(empty).toHaveAttribute("data-empty-kind", "no-data");
+    expect(empty.className).toContain("flex-1");
+    expect(empty.className).toContain("min-h-[160px]");
+    expect(empty).toHaveTextContent("No listed options for RELIANCE");
+  });
+});
+
+describe("OptionsDockPanel — local state survives a 10s chain poll", () => {
+  const simulatePoll = async () => {
+    fetchChain.mockImplementationOnce(async (symbol: string, expiry: string) => {
+      const frame = chain(expiry);
+      frame.spot = 24100;
+      frame.rows[0].ce.oi = 6_000_000;
+      return frame;
+    });
+    await refresh();
+  };
+
+  test("the strategy popover stays open across a poll", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-strategy")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByTestId("options-strategy"));
+    expect(screen.getByTestId("options-strategy-menu")).toBeInTheDocument();
+
+    await simulatePoll();
+    expect(screen.getByTestId("options-strategy-menu")).toBeInTheDocument();
+    expect(screen.getByTestId("options-strategy")).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("the analytics help popover stays open across a poll", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("analytics-help")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByTestId("analytics-help"));
+    expect(screen.getByTestId("analytics-help-popover")).toBeInTheDocument();
+
+    await simulatePoll();
+    expect(screen.getByTestId("analytics-help-popover")).toBeInTheDocument();
+  });
+
+  test("the selected analytics tab survives a poll", async () => {
+    open("NIFTY");
+    await flush();
+    addLeg({ side: "buy", type: "CE", strike: 24100, premium: 67.7 });
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("analytics-tab-smile")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByTestId("analytics-tab-smile"));
+    expect(screen.getByTestId("analytics-tab-smile")).toHaveAttribute("aria-selected", "true");
+
+    await simulatePoll();
+    expect(screen.getByTestId("analytics-tab-smile")).toHaveAttribute("aria-selected", "true");
+  });
+
+  test("the maximized flag survives a poll", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-maximize")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByTestId("options-maximize"));
+    expect(screen.getByTestId("options-dock").className).toContain("fixed inset-0");
+
+    await simulatePoll();
+    expect(screen.getByTestId("options-dock").className).toContain("fixed inset-0");
+  });
+
+  test("the narrow chain side survives a poll", async () => {
+    narrowViewport();
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-side-pe")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByTestId("options-chain-side-pe"));
+    expect(screen.getByTestId("options-chain-side-pe")).toHaveAttribute("aria-pressed", "true");
+
+    await simulatePoll();
+    expect(screen.getByTestId("options-chain-side-pe")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("the chosen chain sort survives a poll", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-chain-table")).toBeInTheDocument());
+
+    const oiHeader = () =>
+      screen.getAllByRole("columnheader").find((h) => h.id === "paper-tanstack-header-ce_oi")!;
+    fireEvent.click(oiHeader());
+    const rowOrder = () =>
+      Array.from(document.querySelectorAll('[data-testid^="options-chain-row-"]')).map((el) =>
+        el.getAttribute("data-testid"),
+      );
+    expect(rowOrder()[0]).toBe("options-chain-row-24100");
+
+    await simulatePoll();
+    expect(rowOrder()[0]).toBe("options-chain-row-24100");
+    expect(screen.getByTestId("options-chain-reset-sort")).toBeInTheDocument();
+  });
+
+  test("a poll does not remount the payoff chart or dispose its ECharts instance", async () => {
+    open("NIFTY");
+    await flush();
+    addLeg({ side: "buy", type: "CE", strike: 24100, premium: 67.7 });
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-payoff")).toBeInTheDocument());
+    await waitFor(() => expect(chartStub.setOption).toHaveBeenCalled());
+
+    const payoff = screen.getByTestId("options-payoff");
+    const chart = screen.getByTestId("options-payoff-chart");
+    chartStub.dispose.mockClear();
+    chartStub.setOption.mockClear();
+
+    await simulatePoll();
+
+    expect(screen.getByTestId("options-payoff")).toBe(payoff);
+    expect(screen.getByTestId("options-payoff-chart")).toBe(chart);
+    expect(chartStub.dispose).not.toHaveBeenCalled();
+  });
+
+  test("a poll does not remount the smile chart instance", async () => {
+    open("NIFTY");
+    await flush();
+    addLeg({ side: "buy", type: "CE", strike: 24100, premium: 67.7 });
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("analytics-tab-smile")).toBeInTheDocument());
+    await fireEvent.click(screen.getByTestId("analytics-tab-smile"));
+    await waitFor(() => expect(screen.getByTestId("smile-chart")).toBeInTheDocument());
+    await waitFor(() => expect(chartStub.setOption).toHaveBeenCalled());
+
+    const chart = screen.getByTestId("smile-chart");
+    chartStub.dispose.mockClear();
+
+    await simulatePoll();
+
+    expect(screen.getByTestId("smile-chart")).toBe(chart);
+    expect(chartStub.dispose).not.toHaveBeenCalled();
+  });
+
+  test("the help popover survives adding a leg", async () => {
+    open("NIFTY");
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("options-payoff-placeholder")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByTestId("analytics-help"));
+    expect(screen.getByTestId("analytics-help-popover")).toBeInTheDocument();
+
+    await fireEvent.click(screen.getByTestId("options-ce-24100"));
+    await waitFor(() => expect(screen.getByTestId("options-payoff")).toBeInTheDocument());
+
+    expect(screen.getByTestId("analytics-help-popover")).toBeInTheDocument();
+  });
+
+  test("the help popover survives an analytics tab swap", async () => {
+    open("NIFTY");
+    await flush();
+    addLeg({ side: "buy", type: "CE", strike: 24100, premium: 67.7 });
+    renderPanel();
+    await waitFor(() => expect(screen.getByTestId("analytics-help")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByTestId("analytics-help"));
+    expect(screen.getByTestId("analytics-help-popover")).toBeInTheDocument();
+
+    // The payoff strip is replaced by the lazy panel's strip on a chart tab.
+    await fireEvent.click(screen.getByTestId("analytics-tab-smile"));
+    await waitFor(() => expect(screen.getByTestId("analytics-smile")).toBeInTheDocument());
+
+    expect(screen.getByTestId("analytics-help-popover")).toBeInTheDocument();
   });
 });

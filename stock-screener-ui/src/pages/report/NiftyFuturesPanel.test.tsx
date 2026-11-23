@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { render, screen } from "@solidjs/testing-library";
-import type { JSX } from "solid-js";
+import { createSignal, type JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import type { NiftyFutures, NiftyFuturesRegime } from "@/types/niftyReport";
 import { NiftyFuturesPanel, regimeLabel, regimeTone } from "./NiftyFuturesPanel";
@@ -106,5 +106,31 @@ describe("NiftyFuturesPanel", () => {
     const panel = screen.getByTestId("nifty-futures-panel");
     expect(panel).toHaveAttribute("data-compact");
     expect(panel.querySelectorAll("[data-compact]")).toHaveLength(0);
+  });
+
+  test("an identical futures frame on a poll does not rebuild the chart option", () => {
+    const [frame, setFrame] = createSignal(futures());
+    r(() => <NiftyFuturesPanel futures={frame()} />);
+    expect(setChartOption).toHaveBeenCalledTimes(1);
+
+    // The live poll delivers a fresh object with the same plotted series.
+    setFrame(futures());
+    expect(setChartOption).toHaveBeenCalledTimes(1);
+  });
+
+  test("a genuinely new bar still rebuilds the chart option", () => {
+    const [frame, setFrame] = createSignal(futures());
+    r(() => <NiftyFuturesPanel futures={frame()} />);
+    expect(setChartOption).toHaveBeenCalledTimes(1);
+
+    setFrame(
+      futures({
+        series: [
+          ...futures().series,
+          { t: "2026-11-17T09:45:00+05:30", close: 26_000, oi: 11_500_000, volume: 800 },
+        ],
+      }),
+    );
+    expect(setChartOption).toHaveBeenCalledTimes(2);
   });
 });

@@ -5,11 +5,10 @@ import { Box, Text } from "@/ui";
 /**
  * One labelled band of the options dock.
  *
- * The dock is a single narrow column, so hierarchy has to come from the header
- * band and the type weight — not from more hairlines. Each section is separated
- * by exactly one `border-t`, its header is a tinted 22px strip at 10px, and
- * every label inside a body stays at 9px so the header is the only title weight
- * in the column.
+ * The dock is a single narrow column, so hierarchy comes from a 40px header and
+ * the 14/12/11 type scale — not from more hairlines. Sections are separated by
+ * one `border-fin-border-subtle` rule inside the same surface; bodies use the
+ * 12px panel padding and 12px inner gap so no two text runs touch.
  */
 export function DockSection(props: {
   title: string;
@@ -40,14 +39,14 @@ export function DockSection(props: {
       data-testid={props.testId}
       className={`flex min-w-0 flex-col ${
         props.fill ? "min-h-0 flex-1" : "shrink-0"
-      }${separated() ? " border-t border-fin-border" : ""}${
+      }${separated() ? " border-t border-fin-border-subtle" : ""}${
         props.className ? ` ${props.className}` : ""
       }`}
     >
       <Box
         data-testid={props.headerTestId}
-        className={`flex h-[22px] shrink-0 items-center justify-between gap-2 bg-fin-surface-alt/40${
-          props.header ? "" : " px-2"
+        className={`flex h-10 shrink-0 items-center justify-between gap-3 bg-fin-surface-alt/40${
+          props.header ? "" : " px-4"
         }`}
       >
         <Show
@@ -55,10 +54,9 @@ export function DockSection(props: {
           fallback={
             <>
               <Text
-                size="xs"
-                fw={700}
-                className="truncate font-mono uppercase tracking-[0.06em] text-fin-text-muted"
-                style={{ "font-size": "10px", "line-height": "1.1" }}
+                size="sm"
+                fw={600}
+                className="truncate font-mono uppercase tracking-[0.06em] text-fin-text"
               >
                 {props.title}
               </Text>
@@ -73,8 +71,8 @@ export function DockSection(props: {
       </Box>
 
       <Box
-        className={`flex min-w-0 flex-col gap-1${
-          padded() ? " px-2 py-1.5" : " min-h-0 flex-1"
+        className={`flex min-w-0 flex-col gap-3${
+          padded() ? " px-3 py-3" : " min-h-0 flex-1"
         }${props.bodyClass ? ` ${props.bodyClass}` : ""}`}
       >
         {props.children}

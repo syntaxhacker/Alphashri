@@ -270,8 +270,11 @@ test.describe("Options dock", () => {
     await expect(page.locator('[data-testid="analytics-tab-payoff"]')).toHaveText("PAYOFF");
     await expect(page.locator('[data-testid="analytics-tab-smile"]')).toHaveText("IV BY STRIKE");
 
+    await expect(page.locator('[data-testid="dock-section-paper-order"]')).toContainText("PAPER ORDER");
+
     const sections = page.locator("[data-dock-section]");
-    await expect(sections).toHaveCount(4);
+    // Clicking a chain price adds a leg, which reveals the PAPER ORDER band.
+    await expect(sections).toHaveCount(5);
     const borders = await page.evaluate(() =>
       Array.from(document.querySelectorAll("[data-dock-section]")).map((el) => ({
         id: el.getAttribute("data-testid"),
@@ -279,9 +282,9 @@ test.describe("Options dock", () => {
         rounded: parseFloat(getComputedStyle(el).borderTopLeftRadius),
       })),
     );
-    // Chain opens the column under the summary strip's own rule; the three below
+    // Chain opens the column under the summary strip's own rule; the four below
     // it each add exactly one separator. No section is a rounded nested card.
-    expect(borders.map((b) => b.borderTop)).toEqual([0, 1, 1, 1]);
+    expect(borders.map((b) => b.borderTop)).toEqual([0, 1, 1, 1, 1]);
     for (const b of borders) expect(b.rounded).toBe(0);
   });
 

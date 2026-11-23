@@ -63,13 +63,13 @@ export function SimRuns(props: SimRunsProps) {
       xAxis: {
         type: "category",
         data: points.map((point) => fmtTime(point.t)),
-        axisLabel: { color: palette.CHART_MUTED, "font-size": "9px", hideOverlap: true },
+        axisLabel: { color: palette.CHART_MUTED, "font-size": "11px", hideOverlap: true },
         axisLine: { lineStyle: { color: palette.AXIS_LINE } },
       },
       yAxis: {
         type: "value",
         scale: true,
-        axisLabel: { color: palette.CHART_MUTED, "font-size": "9px" },
+        axisLabel: { color: palette.CHART_MUTED, "font-size": "11px" },
         axisLine: { lineStyle: { color: palette.AXIS_LINE } },
         splitLine: { lineStyle: { color: palette.AXIS_SPLIT } },
       },
@@ -228,7 +228,7 @@ export function SimRuns(props: SimRunsProps) {
   const stats = () => view()?.stats ?? strategy()?.stats;
 
   return (
-    <div data-testid="sim-runs" className="flex flex-col gap-1 min-w-0">
+    <div data-testid="sim-runs" className="flex flex-col gap-2 min-w-0">
       <CompactStatGrid cols={5} spacing={4}>
         <CompactStat dense label="Trades" value={Number.isFinite(stats()?.trades) ? String(stats()?.trades) : "—"} />
         <CompactStat
@@ -260,7 +260,7 @@ export function SimRuns(props: SimRunsProps) {
       </CompactStatGrid>
 
       <div
-        className="border border-fin-border rounded-fin min-w-0 overflow-hidden"
+        className="border border-fin-border-subtle rounded-fin min-w-0 overflow-hidden"
       >
         <Show
           when={equity().length === 0}

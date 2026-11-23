@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   aggregateGreeks,
+  dteYearsBetween,
   expectedMove,
   maxPain,
   payoffAt,
@@ -623,3 +624,36 @@ function standardNormal(x: number): number {
   const erf = sign * (1 - poly * Math.exp(-ax * ax));
   return 0.5 * (1 + erf);
 }
+
+describe("dteYearsBetween", () => {
+  const MIN = 15 / (365 * 24 * 60);
+
+  test("uses a 365-day calendar basis, not 252 trading days", () => {
+    // 2026 is not a leap year: 01 Jan → 01 Jan is exactly 365 days.
+    expect(dteYearsBetween("2026-01-01T00:00:00Z", "2027-01-01T00:00:00Z")).toBeCloseTo(1, 9);
+    expect(dteYearsBetween("2026-01-01T00:00:00Z", "2026-07-02T00:00:00Z")).toBeCloseTo(182 / 365, 9);
+  });
+
+  test("honours the timestamp's timezone offset (IST)", () => {
+    // 09:15 IST = 03:45 UTC. The same wall-clock expiry is 15 minutes closer
+    // than a naive date-only subtraction would suggest.
+    const years = dteYearsBetween("2026-11-17T09:15:00+05:30", "2026-11-17T09:30:00+05:30");
+    expect(years).toBeCloseTo(15 / (365 * 24 * 60), 9);
+  });
+
+  test("floors same-day, past and invalid expiries at the 15-minute model floor", () => {
+    expect(dteYearsBetween("2026-11-17T10:00:00Z", "2026-11-17T09:00:00Z")).toBe(MIN);
+    expect(dteYearsBetween("2026-11-17T10:00:00Z", "2026-11-16T10:00:00Z")).toBe(MIN);
+    expect(dteYearsBetween("not a date", "2026-11-23")).toBe(MIN);
+    expect(dteYearsBetween("2026-11-17", "also invalid")).toBe(MIN);
+  });
+
+  test("never returns a negative or zero horizon", () => {
+    for (const expiry of ["2020-01-01", "2026-11-17T00:00:00Z", "bogus"]) {
+      const years = dteYearsBetween("2026-11-17T09:15:00+05:30", expiry);
+      expect(Number.isFinite(years)).toBe(true);
+      expect(years).toBeGreaterThan(0);
+      expect(years).toBeGreaterThanOrEqual(MIN);
+    }
+  });
+});

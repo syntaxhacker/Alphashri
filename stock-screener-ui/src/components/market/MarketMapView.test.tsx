@@ -24,7 +24,7 @@ import {
 } from "./marketTreemap";
 import { buildStockTreemapOption, getStockMetricRange } from "@/components/heatmap/stockTreemap";
 import { SCALE_BLUE } from "@/ui/palette";
-import { relativeLuminance } from "@/utils/contrast";
+import { parseColor } from "@/utils/contrast";
 import type { MarketRow } from "../../types/marketScreener";
 
 // ECharts cannot be inspected in happy-dom. Capture the option the primitive
@@ -576,19 +576,20 @@ describe("robust colour domain in the flat map", () => {
   ];
   const colorOf = (name: string) => tiles().find((d) => d.name === name)!.itemStyle.color as string;
 
-  test("(a) ±5% tiles read darker/lighter than flat, not the flattened raw ±12026 domain", async () => {
+  test("(a) ±5% tiles read red/neutral/green, not the flattened raw ±12026 domain", async () => {
     await renderMap(() => <MarketMapView rows={outlierRows()} />);
     const flat = colorOf("FLAT");
     const up = colorOf("UP5");
     const down = colorOf("DOWN5");
-    const lum = (c: string) => relativeLuminance(c);
-    expect(lum(up), `up ${up}, flat ${flat}`).toBeGreaterThan(lum(flat));
-    expect(lum(down), `down ${down}, flat ${flat}`).toBeLessThan(lum(flat));
-    expect(lum(up) - lum(down)).toBeGreaterThan(0.1);
+    const redBias = (c: string) => parseColor(c).r - parseColor(c).g;
+    expect(redBias(down), `down ${down} must read red`).toBeGreaterThan(0);
+    expect(redBias(up), `up ${up} must read green`).toBeLessThan(0);
+    expect(Math.abs(redBias(flat)), `flat ${flat} must be neutral`).toBeLessThan(10);
+    expect(redBias(down) - redBias(up)).toBeGreaterThan(40);
     expect(flat).toBe(marketLerpRgb(50));
   });
 
-  test("(b) the +12026% tile saturates at the yellow end but keeps its true value and area", async () => {
+  test("(b) the +12026% tile saturates at the green end but keeps its true value and area", async () => {
     await renderMap(() => <MarketMapView rows={outlierRows()} />);
     const bad = tiles().find((d) => d.name === "MELSTAR")!;
     expect(bad.itemStyle.color).toBe(marketLerpRgb(100));
@@ -606,21 +607,24 @@ describe("robust colour domain in the flat map", () => {
   });
 });
 
-/** Cividis is sequential: without a stated direction a negative value looks "cool" for the wrong reason. */
-describe("MarketMapView — viridis legend states direction", () => {
-  test("(e) the legend reads low → high and never claims green/red", async () => {
+/** The diverging scale needs a stated direction: red is low, green is high. */
+describe("MarketMapView — red-green legend states direction", () => {
+  test("(e) the legend reads low → high and paints red → neutral → green", async () => {
     const rows = [row("A", 100, 55), row("B", 200, 70)];
     await renderMap(() => <MarketMapView rows={rows} />);
-    const legend = screen.getByTestId("market-map-legend");
     expect(screen.getByTestId("market-map-color-direction")).toHaveTextContent("low → high");
-    expect(legend).not.toHaveTextContent(/green|red/i);
     const bar = screen.getByTestId("market-map-color-range").querySelector("div[style*='linear-gradient']") as HTMLElement;
-    expect(bar.getAttribute("style")).toContain("#440154");
-    expect(bar.getAttribute("style")).toContain("#fde725");
+    const style = bar.getAttribute("style")!;
+    // Endpoint order is the semantic: negative red on the left, positive green
+    // on the right, with the raised-surface neutral in the middle.
+    expect(style).toContain("#e5606a");
+    expect(style).toContain("#1F242D");
+    expect(style).toContain("#2fa36b");
+    expect(style.indexOf("#e5606a")).toBeLessThan(style.indexOf("#2fa36b"));
   });
 });
 
-/** Audit: viridis has no zero anchor, so the legend must say what hue encodes. */
+/** Audit: a linear position scale has no zero anchor, so the legend must say what hue encodes. */
 describe("MarketMapView — legend honesty audit", () => {
   const flatRows = () => [
     { ...row("LOSS", 100, 55), change: -5 },
@@ -652,7 +656,6 @@ describe("MarketMapView — legend honesty audit", () => {
     expect(direction).toHaveTextContent("low → high");
     expect(direction).toHaveTextContent(/position in range/i);
     expect(direction).toHaveTextContent(/not gain\/loss/i);
-    expect(screen.getByTestId("market-map-legend")).not.toHaveTextContent(/green|red/i);
   });
 });
 

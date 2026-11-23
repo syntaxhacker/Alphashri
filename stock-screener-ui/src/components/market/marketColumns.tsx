@@ -14,7 +14,7 @@ import {
   type MarketUniverseDescriptor,
 } from "../../config/marketUniverses";
 import type { PatternSummaryItem } from "./usePatternSummary";
-import { DashCell } from "../common/tableCells";
+import { DashCell, FlashValue } from "../common/tableCells";
 
 const DASH = "–";
 
@@ -279,10 +279,17 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
         return !finite(r.close) ? (
           <DashCell testId={`market-dash-${r.symbol}-close`} />
         ) : (
-          <Text size="xs" fw={600} data-testid={`market-close-${r.symbol}`}>
-            {rowDescriptor(r).currencySymbol}
-            {formatPrice(r.close, rowDescriptor(r))}
-          </Text>
+          <FlashValue
+            value={r.close}
+            flashKey={`market-ltp-${r.symbol}`}
+            testId={`market-close-${r.symbol}`}
+            align="right"
+          >
+            <Text size="xs" fw={600}>
+              {rowDescriptor(r).currencySymbol}
+              {formatPrice(r.close, rowDescriptor(r))}
+            </Text>
+          </FlashValue>
         );
       },
     },
@@ -297,9 +304,16 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
         return !finite(r.change) ? (
           <DashCell testId={`market-dash-${r.symbol}-change`} />
         ) : (
-          <Text size="xs" fw={600} c={pctColor(r.change)} data-testid={`market-change-${r.symbol}`}>
-            {fmtPct(r.change)}
-          </Text>
+          <FlashValue
+            value={r.change}
+            flashKey={`market-change-${r.symbol}`}
+            testId={`market-change-${r.symbol}`}
+            align="right"
+          >
+            <Text size="xs" fw={600} c={pctColor(r.change)}>
+              {fmtPct(r.change)}
+            </Text>
+          </FlashValue>
         );
       },
     },

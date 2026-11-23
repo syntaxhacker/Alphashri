@@ -35,7 +35,8 @@ export default function TradeReplayCard(props: TradeReplayCardProps) {
   return (
     <Card
       bg={palette.NT_BG}
-      style={{ border: `1px solid ${palette.NT_GRID}`, "margin-bottom": "16px", overflow: "hidden" }}
+      className="border border-fin-border-default rounded-fin"
+      style={{ "margin-bottom": "16px", overflow: "hidden" }}
       data-testid="trade-replay-card"
       id={`trade-replay-card-${props.index}`}
     >
@@ -45,29 +46,30 @@ export default function TradeReplayCard(props: TradeReplayCardProps) {
       >
         <Stack
           flex="0 0 280px"
-          style={{ padding: "12px", "background-color": palette.SURFACE, "border-right": `1px solid ${palette.BORDER}`, gap: "8px" }}
+          className="border-r border-fin-border-subtle"
+          style={{ padding: "12px", "background-color": palette.SURFACE, gap: "8px" }}
           gap="xs"
         >
           <Stack direction="row" align="center" justify="space-between" gap="xs">
             <Stack direction="row" align="center" gap="xs">
-              <Chip size="xs" color={props.trade.side === "LONG" ? "success" : "error"} style={{ height: "18px", "font-size": "10px", "font-weight": 700 }}>{props.trade.side}</Chip>
+              <Chip size="xs" color={props.trade.side === "LONG" ? "success" : "error"} style={{ height: "18px", "font-size": "11px", "font-weight": 700 }}>{props.trade.side}</Chip>
               <Show when={props.trade.stack}>
-                <Chip size="xs" style={{ height: "18px", "font-size": "9px", "background-color": palette.REPLAY_CHIP_BG, color: stackColor(props.trade.stack), border: `1px solid ${stackColor(props.trade.stack)}` }}>{stackLabel(props.trade.stack)}</Chip>
+                <Chip size="xs" style={{ height: "18px", "font-size": "11px", "background-color": palette.REPLAY_CHIP_BG, color: stackColor(props.trade.stack), border: `1px solid ${stackColor(props.trade.stack)}` }}>{stackLabel(props.trade.stack)}</Chip>
               </Show>
-              <Text size="xs" fw={600} style={{ color: palette.TEXT, "font-size": "10px" }}>
+              <Text size="xs" fw={600} style={{ color: palette.TEXT }}>
                 #{props.index + 1} {kindLabel(props.trade.kind)}
               </Text>
             </Stack>
-            <Chip size="xs" color={resultColor(props.trade.result)} style={{ height: "18px", "font-size": "9px" }}>{props.trade.result}</Chip>
+            <Chip size="xs" color={resultColor(props.trade.result)} style={{ height: "18px", "font-size": "11px" }}>{props.trade.result}</Chip>
           </Stack>
           <Stack gap="xs">
-            <Text size="xs" fw={600} style={{ color: palette.TEXT, "font-size": "10px" }}>
+            <Text size="xs" fw={600} style={{ color: palette.TEXT, "font-size": "11px" }}>
               {props.timeLabel(props.trade.time)} → {props.timeLabel(props.trade.exit_time)}
             </Text>
-            <Text size="xs" style={{ color: palette.TEXT_MUTED, "font-size": "9px" }}>
+            <Text size="xs" style={{ color: palette.TEXT_MUTED, "font-size": "11px" }}>
               Entry {props.trade.entry.toFixed(2)} · SL {props.trade.sl.toFixed(2)}{props.trade.tp != null ? ` · TP ${props.trade.tp.toFixed(2)}` : " · trail"}
             </Text>
-            <Text size="xs" fw={600} style={{ color: props.trade.pnl > 0 ? palette.POSITIVE : palette.NEGATIVE, "font-size": "9px" }}>
+            <Text size="xs" fw={600} style={{ color: props.trade.pnl > 0 ? palette.POSITIVE : palette.NEGATIVE, "font-size": "11px" }}>
               RR {props.trade.rr >= 0 ? "+" : ""}{props.trade.rr.toFixed(2)}R · {props.trade.pnl > 0 ? "+" : ""}{props.trade.pnl.toFixed(2)} pts ({Math.max(1, Math.round((props.trade.exit_time - props.trade.time) / 60))}m)
             </Text>
           </Stack>
@@ -77,10 +79,9 @@ export default function TradeReplayCard(props: TradeReplayCardProps) {
                 padding: "8px",
                 "background-color": palette.SURFACE_ALT,
                 "border-radius": "4px",
-                border: `1px solid ${palette.BORDER}`,
               }}
             >
-              <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", "font-size": "9px", "line-height": 1.6 }}>
+              <Text size="xs" style={{ color: palette.TEXT_MUTED, display: "block", "line-height": 1.6 }}>
                 {props.explainer!(props.trade)}
               </Text>
             </Box>

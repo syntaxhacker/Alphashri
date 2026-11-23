@@ -1,4 +1,4 @@
-import { Show, createEffect, createMemo } from "solid-js";
+import { Show, createEffect, createMemo, untrack } from "solid-js";
 import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
@@ -68,6 +68,18 @@ function RegimeChip(props: { regime: NiftyFuturesRegime }) {
   );
 }
 
+/** Content key for the plotted minute series (`as_of` is excluded: the chart
+ *  never paints it, so a newer stamp over unchanged bars is a no-op). */
+export function futuresSeriesSignature(futures: NiftyFutures | null): string {
+  if (!futures) return "null";
+  const rows = futures.series ?? [];
+  const keys: string[] = [];
+  for (const point of rows) {
+    keys.push(`${point.t}|${point.close}|${point.oi}|${point.volume}`);
+  }
+  return keys.join(";");
+}
+
 /**
  * Front-month futures price vs OI. The cash index cannot distinguish a move
  * on new positions from one on unwinding; the two lines on one time axis can.
@@ -80,11 +92,18 @@ export function NiftyFuturesPanel(props: {
   const height = () => props.height ?? 190;
   const chart = createECharts();
 
-  const points = createMemo(() =>
-    (futures()?.series ?? [])
-      .filter((point) => Number.isFinite(point.close) && point.close > 0)
-      .slice(-240),
-  );
+  // A live frame rebuilds `futures` with a new identity even when the plotted
+  // series is unchanged. Key the derived array on its contents so the ECharts
+  // option effect only runs when a bar actually moved.
+  const seriesSig = createMemo(() => futuresSeriesSignature(futures()));
+  const points = createMemo(() => {
+    seriesSig();
+    return untrack(() =>
+      (futures()?.series ?? [])
+        .filter((point) => Number.isFinite(point.close) && point.close > 0)
+        .slice(-240),
+    );
+  });
 
   const last = () => points()[points().length - 1] ?? null;
 

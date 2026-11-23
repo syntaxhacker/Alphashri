@@ -964,6 +964,7 @@ OPENAPI_TAGS = [
     {"name": "options-recorder", "description": "Options tick recorder control."},
     {"name": "options-history", "description": "Historical options data."},
     {"name": "options-screener", "description": "F&O momentum OTM options screener."},
+    {"name": "Options Paper", "description": "Multi-leg options paper orders, positions and replay."},
     {"name": "report-sim", "description": "Strategy simulator over recorded option tape (replay + live as-of)."},
     {"name": "market-ticker", "description": "Live index and commodity ticker data."},
     {"name": "symbols", "description": "Symbol search and instrument lookup."},
@@ -1515,6 +1516,8 @@ _include_api("api.value_scan.router", "router", "value scan", msg="✅ Value sca
 _include_api("api.market_screen.router", "router", "market screen", msg="✅ Market Screen API loaded at /api/market")
 
 _include_api("api.options", "router", "options", msg="✅ Options API loaded at /api/options")
+
+_include_api("api.options_paper", "router", "options paper", msg="✅ Options Paper API loaded at /api/options-paper")
 
 _include_api("api.options_underlying", "router", "options underlying", msg="✅ Options underlying API loaded at /api/options/underlying")
 

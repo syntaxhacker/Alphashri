@@ -111,10 +111,23 @@ export function AnalyticsTabStrip(props: {
    * button only exists when both a symbol and this handler are present.
    */
   onOpenPillars?: () => void;
+  /**
+   * Controlled help-popover state. The dock swaps the strip instance when the
+   * payoff band appears, so it owns this flag to keep the popover from closing
+   * behind a leg add or a poll-driven band swap. Uncontrolled hosts keep the
+   * local signal below.
+   */
+  helpOpen?: boolean;
+  onHelpOpenChange?: (open: boolean) => void;
 }) {
   const isControlled = () => props.value !== undefined;
   const [internal, setInternal] = createSignal<AnalyticsTab>("payoff");
-  const [helpOpen, setHelpOpen] = createSignal(false);
+  const [internalHelpOpen, setInternalHelpOpen] = createSignal(false);
+  const helpOpen = () => props.helpOpen ?? internalHelpOpen();
+  const setHelpOpen = (open: boolean) => {
+    if (props.helpOpen !== undefined) props.onHelpOpenChange?.(open);
+    else setInternalHelpOpen(open);
+  };
   const active = () => (isControlled() ? props.value! : internal());
   let refs: (HTMLButtonElement | null)[] = [];
   let helpButton: HTMLButtonElement | null = null;
@@ -236,7 +249,7 @@ export function AnalyticsTabStrip(props: {
           aria-haspopup="dialog"
           aria-expanded={helpOpen()}
           data-testid="analytics-help"
-          onClick={() => setHelpOpen((open) => !open)}
+          onClick={() => setHelpOpen(!helpOpen())}
           className="ml-1 inline-flex h-[22px] shrink-0 items-center border-0 bg-transparent p-0 font-mono text-[9px] font-semibold uppercase tracking-[0.06em] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
         >
           <span className="hidden sm:inline">How to read</span>

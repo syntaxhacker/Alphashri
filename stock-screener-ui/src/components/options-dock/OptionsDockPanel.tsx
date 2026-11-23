@@ -8,8 +8,11 @@ import {
   lazy,
   onCleanup,
   onMount,
+  useContext,
+  type JSX,
 } from "solid-js";
-import { ActionIcon, Box, Button, Text, Tooltip, useMediaQuery } from "@/ui";
+import { RouterContext } from "@solidjs/router";
+import { ActionIcon, Box, Button, Modal, Text, Tooltip, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
   IconArrowsMaximize,
@@ -20,6 +23,7 @@ import {
   IconX,
 } from "@/components/common/Icons";
 import type { SortEntry } from "@/components/common/TanStackTable";
+import { EmptyState } from "@/components/common/states";
 import { formatPercentage } from "@/utils/ui-helpers";
 import { DERIVATIVES_CLOSE_MIN, istClock } from "@/utils/marketClock";
 import { isMarketOpenNow } from "@/state/holidays";
@@ -54,6 +58,14 @@ import {
   refreshAnalytics,
   optionsAnalyticsState,
 } from "@/state/optionsAnalytics";
+import { PaperOrderBand } from "@/components/options-paper/PaperOrderBand";
+import { OptionPositionsPanel } from "@/components/options-paper/OptionPositionsPanel";
+import { useStoreSnapshot } from "@/hooks/useStoreSubscription";
+import {
+  getOptionsPaperState,
+  subscribe as subscribeOptionsPaper,
+} from "@/state/optionsPaper";
+import { formatSignedPnl } from "@/utils/ui-helpers";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
@@ -171,6 +183,22 @@ function spotMoveColor(value: number | null): string | undefined {
   return undefined;
 }
 
+/**
+ * The paper-order slot calls `useNavigate()` while rendering. A dock mounted
+ * outside a Router (unit tests, embedded previews) has no router context, so that
+ * call throws and takes the whole panel down. With a real Router ancestor this
+ * is a pass-through; only context-less hosts get an in-memory navigator.
+ */
+const NO_ROUTER = { navigatorFactory: () => () => undefined };
+
+function WithRouterFallback(props: { children: JSX.Element }) {
+  return useContext(RouterContext) ? (
+    (props.children as JSX.Element)
+  ) : (
+    <RouterContext.Provider value={NO_ROUTER as never}>{props.children}</RouterContext.Provider>
+  );
+}
+
 /** One-sided chain picker for the <640px sheet. Native buttons keep keyboard parity. */
 function ChainSideToggle(props: {
   value: "CE" | "PE";
@@ -181,8 +209,7 @@ function ChainSideToggle(props: {
     <Box
       role="group"
       aria-label="Option chain side"
-      className="inline-flex shrink-0 items-stretch overflow-hidden border border-fin-border"
-      style={{ height: "20px", "border-radius": "4px" }}
+      className="inline-flex h-6 shrink-0 items-stretch overflow-hidden rounded-fin border border-fin-border-default"
     >
       <For each={items}>
         {(item) => (
@@ -191,7 +218,7 @@ function ChainSideToggle(props: {
             aria-pressed={props.value === item.side}
             data-testid={`options-chain-side-${item.side.toLowerCase()}`}
             onClick={() => props.onChange(item.side)}
-            className={`inline-flex h-[18px] min-w-[28px] cursor-pointer items-center justify-center border-0 px-1.5 font-mono text-[9px] font-bold leading-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary ${
+            className={`inline-flex h-full min-w-8 cursor-pointer items-center justify-center border-0 px-2 font-mono text-[11px] font-bold leading-[14px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary ${
               props.value === item.side
                 ? "bg-fin-surface-alt text-fin-text"
                 : "bg-transparent text-fin-text-muted"
@@ -217,10 +244,16 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
   const [chainCenterNonce, setChainCenterNonce] = createSignal(0);
   const [analyticsTab, setAnalyticsTab] = createSignal<AnalyticsTab>("payoff");
   const [analyticsHeadline, setAnalyticsHeadline] = createSignal("");
+  // The help popover belongs to the dock, not to a strip instance: adding a leg
+  // swaps the placeholder strip for the band's strip, and a poll that empties a
+  // preset's legs swaps it back. Without this the popover silently closes.
+  const [analyticsHelpOpen, setAnalyticsHelpOpen] = createSignal(false);
   // The pillars replace the chain in place; they never navigate to the
   // standalone dashboard route, so the dock (and its legs) stay put.
   const [pillarsOpen, setPillarsOpen] = createSignal(false);
   const [contractChart, setContractChart] = createSignal<ContractChartTarget | null>(null);
+  const [positionsOpen, setPositionsOpen] = createSignal(false);
+  const paperState = useStoreSnapshot(subscribeOptionsPaper, getOptionsPaperState);
   let restoreMaximize = false;
   /** Set for exactly one maximize transition, so entering pillars does not
    * capture the strip button as the generic restore target (it is detached). */
@@ -475,6 +508,13 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
 
   const legs = () => optionsDockState.legs;
 
+  const openPaperPositions = createMemo(() =>
+    paperState().positions.filter((position) => position.status === "open"),
+  );
+  const paperPnl = createMemo(() =>
+    openPaperPositions().reduce((total, position) => total + position.totalPnl, 0),
+  );
+
   const stripContext = (): AnalyticsStripContext => ({
     symbol: symbol(),
     expiry: selectedExpiry(),
@@ -502,6 +542,8 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
       selectedExpiry={optionsDockState.expiry}
       onSelectExpiry={setExpiry}
       onOpenPillars={openPillars}
+      helpOpen={analyticsHelpOpen()}
+      onHelpOpenChange={setAnalyticsHelpOpen}
     />
   );
 
@@ -530,14 +572,12 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
             <Suspense
               fallback={
                 <Box className="flex min-h-0 flex-1 items-center justify-center">
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                    className="font-mono uppercase"
-                    style={{ "font-size": "9px" }}
+                  <Box
+                    component="span"
+                    className="font-mono text-[11px] leading-[14px] uppercase text-fin-text-muted"
                   >
                     Loading analytics
-                  </Text>
+                  </Box>
                 </Box>
               }
             >
@@ -560,6 +600,8 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                 expiryOptions={optionsDockState.expiries}
                 onSelectExpiry={setExpiry}
                 onOpenPillars={openPillars}
+                helpOpen={analyticsHelpOpen()}
+                onHelpOpenChange={setAnalyticsHelpOpen}
               />
             </Suspense>
           }
@@ -602,7 +644,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
       {/* Header                                                           */}
       {/* ---------------------------------------------------------------- */}
       <Box
-        className="flex shrink-0 flex-col gap-1 border-b border-fin-border px-2 py-1"
+        className="flex shrink-0 flex-col gap-2 border-b border-fin-border-default px-3 py-2"
         data-testid="options-dock-header"
       >
         <Box className="flex items-center gap-2">
@@ -636,8 +678,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
               data-testid="options-expiry-select"
               value={optionsDockState.expiry ?? ""}
               onChange={(event) => setExpiry(event.currentTarget.value)}
-              className="min-w-0 cursor-pointer border border-fin-border bg-fin-surface px-1 py-0 font-mono text-[10px] text-fin-text"
-              style={{ height: "22px", "border-radius": "4px" }}
+              className="h-8 min-w-0 cursor-pointer rounded-fin border border-fin-border-default bg-fin-surface px-2 font-mono text-[11px] leading-[14px] text-fin-text"
             >
               <For each={optionsDockState.expiries}>
                 {(entry) => <option value={entry.date}>{expiryLabel(entry, now())}</option>}
@@ -669,31 +710,39 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
             </Show>
           </Box>
 
-          <Box className="flex items-center gap-0.5">
+          <Box className="flex items-center gap-2">
             <Show when={optionsDockState.paused}>
               <Tooltip label={`Rate limited — refreshing in ${retrySeconds()} s`}>
-                <Text
-                  size="xs"
-                  c="warning"
-                  className="font-mono uppercase"
-                  style={{ "font-size": "9px" }}
+                <Box
+                  component="span"
+                  className="font-mono text-[11px] leading-[14px] uppercase text-fin-warning"
                   data-testid="options-refresh-paused"
                 >
                   Refreshing paused
-                </Text>
+                </Box>
               </Tooltip>
             </Show>
             <Show when={marketClosed() && !optionsDockState.paused}>
-              <Text
-                size="xs"
-                c="dimmed"
-                className="font-mono uppercase"
-                style={{ "font-size": "9px" }}
+              <Box
+                component="span"
+                className="font-mono text-[11px] leading-[14px] uppercase text-fin-text-muted"
                 data-testid="options-market-closed"
               >
                 {asOfLabel() ? `closed · as of ${asOfLabel()}` : "market closed"}
-              </Text>
+              </Box>
             </Show>
+            <Tooltip label="Option paper positions">
+              <Box
+                component="button"
+                type="button"
+                aria-label="Open option paper positions"
+                data-testid="options-positions-chip"
+                onClick={() => setPositionsOpen(true)}
+                className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-fin border border-fin-border-default bg-transparent px-2 font-mono text-[11px] leading-[14px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+              >
+                POSITIONS {openPaperPositions().length} · {formatSignedPnl(paperPnl())}
+              </Box>
+            </Tooltip>
             <Tooltip label="Refresh">
               <Box
                 component="button"
@@ -701,7 +750,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                 aria-label="Refresh option chain"
                 data-testid="options-refresh"
                 onClick={() => void refresh()}
-                className="inline-flex h-[22px] w-[22px] items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted hover:text-fin-primary"
+                className="inline-flex h-8 w-8 items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted hover:text-fin-primary"
               >
                 <IconRefresh size={12} />
               </Box>
@@ -724,7 +773,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                 // un-maximizing here would shrink the chart. Back is the exit.
                 disabled={pillarsOpen() || contractChart() !== null}
                 onClick={() => setMaximized((v) => !v)}
-                className="inline-flex h-[22px] w-[22px] items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted hover:text-fin-primary disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-8 w-8 items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted hover:text-fin-primary disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {maximized() ? <IconArrowsMinimize size={12} /> : <IconArrowsMaximize size={12} />}
               </Box>
@@ -742,7 +791,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                   abortAnalytics();
                   props.onClose?.();
                 }}
-                className="inline-flex h-[22px] w-[22px] items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted hover:text-fin-negative"
+                className="inline-flex h-8 w-8 items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted hover:text-fin-negative"
               >
                 <IconX size={12} />
               </Box>
@@ -762,43 +811,41 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
           optionsDockState.error
         }
       >
-        <Box
-          className="flex flex-1 flex-col items-center justify-center gap-1 px-4 text-center"
+        <EmptyState
           data-testid="options-dock-error"
-        >
-          <Text size="sm" fw={600} c="error">
-            {optionsDockState.error!.kind === "auth"
+          kind="failed"
+          className="min-h-[160px] flex-1"
+          title={
+            optionsDockState.error!.kind === "auth"
               ? "Reconnect Upstox in Settings"
-              : optionsDockState.error!.message}
-          </Text>
-          <Show when={optionsDockState.error!.kind === "auth"}>
-            <Text size="xs" c="dimmed">
-              The options chain needs a live Upstox session.
-            </Text>
-          </Show>
-          <Button
-            size="xs"
-            variant="default"
-            onClick={() => void refresh()}
-            data-testid="options-dock-retry"
-          >
-            Retry
-          </Button>
-        </Box>
+              : optionsDockState.error!.message
+          }
+          description={
+            optionsDockState.error!.kind === "auth"
+              ? "The options chain needs a live Upstox session."
+              : "Retry the chain, or reconnect your broker in Settings."
+          }
+          action={
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => void refresh()}
+              data-testid="options-dock-retry"
+            >
+              Retry
+            </Button>
+          }
+        />
       </Show>
 
       <Show when={!pillarsOpen() && !contractChart() && optionsDockState.status === "empty"}>
-        <Box
-          className="flex flex-1 flex-col items-center justify-center gap-1 px-4 text-center"
+        <EmptyState
           data-testid="options-dock-empty"
-        >
-          <Text size="sm" fw={600}>
-            No listed options for {symbol()}
-          </Text>
-          <Text size="xs" c="dimmed">
-            The chart, TradingView and copy actions still work for this symbol.
-          </Text>
-        </Box>
+          kind="no-data"
+          className="min-h-[160px] flex-1"
+          title={`No listed options for ${symbol()}`}
+          description="The chart, TradingView and copy actions still work for this symbol."
+        />
       </Show>
 
       <Show
@@ -822,7 +869,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
               }
             >
               <Box
-                className="flex flex-1 flex-col items-center justify-center gap-1"
+                className="flex min-h-[160px] flex-1 flex-col items-center justify-center gap-3 p-6"
                 data-testid="options-dock-loading"
               >
                 <Text size="xs" c="dimmed">
@@ -872,8 +919,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                         aria-label="Reset to strike order"
                         data-testid="options-chain-reset-sort"
                         onClick={() => setChainSorting([...DEFAULT_CHAIN_SORTING])}
-                        className="inline-flex h-[20px] shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap border border-fin-border bg-transparent px-1 font-mono text-[9px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
-                        style={{ "border-radius": "4px" }}
+                        className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-fin border border-fin-border-default bg-transparent px-2 font-mono text-[11px] leading-[14px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
                       >
                         <IconRotate size={12} />
                         <span className="hidden sm:inline">Strike</span>
@@ -883,9 +929,13 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                   <Show when={isNarrow()}>
                     <ChainSideToggle value={chainSide()} onChange={setChainSide} />
                   </Show>
-                  <Text size="xs" c="dimmed" className="font-mono tabular-nums" style={{ "font-size": "9px" }}>
-                    {chain()!.rows.length} strikes
-                  </Text>
+                  <Box
+                    component="span"
+                    className="inline-flex items-baseline gap-2 font-mono tabular-nums text-[11px] leading-[14px] text-fin-text-muted"
+                  >
+                    <span>{chain()!.rows.length}</span>
+                    <span>strikes</span>
+                  </Box>
                 </Box>
               }
             >
@@ -902,24 +952,23 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
               <Show when={optionsDockState.error && optionsDockState.status !== "error"}>
                 <Box
                   data-testid="options-dock-error"
-                  className="flex h-[26px] shrink-0 items-center gap-2 overflow-hidden border-l-[3px] bg-fin-surface-alt px-2"
+                  className="flex min-h-8 shrink-0 items-center gap-2 overflow-hidden border-l-2 bg-fin-surface-alt px-3 py-2"
                   style={{ "border-left-color": bannerColor(optionsDockState.error!) }}
                 >
-                  <Text
-                    size="xs"
-                    fw={600}
-                    className="min-w-0 flex-1 truncate font-mono"
-                    style={{ "font-size": "10px", color: bannerColor(optionsDockState.error!) }}
+                  <Box
+                    component="span"
+                    className="min-w-0 flex-1 truncate font-mono text-[11px] leading-[14px] font-bold"
+                    style={{ color: bannerColor(optionsDockState.error!) }}
                   >
                     {bannerMessage(optionsDockState.error!, retrySeconds())}
-                  </Text>
+                  </Box>
                   <Box
                     component="button"
                     type="button"
                     aria-label="Retry option chain refresh"
                     data-testid="options-dock-retry"
                     onClick={() => void refresh()}
-                    className="inline-flex h-[20px] shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 font-mono text-[10px] font-semibold hover:underline"
+                    className="inline-flex min-h-6 shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 font-mono text-[11px] leading-[14px] font-bold hover:underline"
                     style={{ color: bannerColor(optionsDockState.error!) }}
                   >
                     Retry
@@ -945,6 +994,19 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
               netPremium={netPremium()}
               currentExpiry={optionsDockState.expiry}
             />
+            <Show when={legs().length > 0}>
+              <WithRouterFallback>
+                <PaperOrderBand
+                  symbol={symbol()}
+                  expiry={optionsDockState.expiry ?? ""}
+                  legs={legs()}
+                  chainLadder={{
+                    spot: spot(),
+                    strikes: chain()?.rows.map((row) => row.strike) ?? [],
+                  }}
+                />
+              </WithRouterFallback>
+            </Show>
             <Show
               when={bandVisible()}
               fallback={
@@ -952,10 +1014,12 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                 // PAYOFF itself stays a placeholder until there is something to price.
                 <DockSection title="PAYOFF" testId="options-payoff-placeholder">
                   {renderStrip()}
-                  <Text size="xs" c="dimmed">
-                    {formatDte(selectedExpiry()?.dteDays ?? 0)} · add a leg to see the
-                    payoff
-                  </Text>
+                  <Box className="flex flex-wrap items-baseline gap-2 text-[11px] leading-4 text-fin-text-muted">
+                    <span className="font-mono tabular-nums">
+                      {formatDte(selectedExpiry()?.dteDays ?? 0)}
+                    </span>
+                    <span>add a leg to see the payoff</span>
+                  </Box>
                 </DockSection>
               }
             >
@@ -971,7 +1035,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
         <Suspense
           fallback={
             <Box
-              className="flex flex-1 flex-col items-center justify-center gap-1"
+              className="flex flex-1 flex-col items-center justify-center gap-2"
               data-testid="dock-pillars-chunk-loading"
             >
               <Text size="xs" c="dimmed">
@@ -996,7 +1060,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
           <Suspense
             fallback={
               <Box
-                className="flex flex-1 flex-col items-center justify-center gap-1"
+                className="flex flex-1 flex-col items-center justify-center gap-2"
                 data-testid="options-contract-chart-loading"
               >
                 <Text size="xs" c="dimmed">
@@ -1011,6 +1075,16 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
           </Suspense>
         )}
       </Show>
+
+      <Modal
+        opened={positionsOpen()}
+        onClose={() => setPositionsOpen(false)}
+        title="Option paper positions"
+        size="lg"
+        data-testid="option-positions-modal"
+      >
+        <OptionPositionsPanel />
+      </Modal>
     </Box>
   );
 }

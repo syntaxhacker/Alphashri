@@ -19,26 +19,59 @@ export type {
   TableColumnMeta,
 } from "./table/types";
 
-const ROW_ESTIMATED = 23;
+export interface TableMetrics {
+  /** Row height, applied as the cell minimum via `--tbl-row-h`. */
+  rowHeight: number;
+  /** Cell padding shorthand, applied via `--tbl-cell-pad`. */
+  cellPadding: string;
+  /** Body font size in px, applied via `--tbl-fs`. */
+  fontSize: number;
+  /**
+   * Header font size in px. The shared header renderer pins its own size, so
+   * the table re-applies this to mounted `<th>` nodes after a column change.
+   */
+  headerFontSize: number;
+}
+
+/**
+ * `default` is the new comfortable rhythm. `dense` is the explicit opt-in for
+ * screener / market tables — those numbers are a contract, do not drift them.
+ */
+export const TABLE_METRICS: Record<"default" | "comfortable" | "dense", TableMetrics> = {
+  default: { rowHeight: 32, cellPadding: "8px 12px", fontSize: 12, headerFontSize: 11 },
+  comfortable: { rowHeight: 36, cellPadding: "10px 14px", fontSize: 12, headerFontSize: 11 },
+  dense: { rowHeight: 18, cellPadding: "1px 6px", fontSize: 10, headerFontSize: 10 },
+};
 
 export function TanStackTable<T>(props: TableProps<T>) {
   const densityApi = useDensity();
+  const cols = useColumnPrefs(props);
   const isDense = () => props.dense ?? false;
   const isComfortable = () => densityApi.density() === "comfortable";
+  const metrics = (): TableMetrics =>
+    isDense()
+      ? TABLE_METRICS.dense
+      : isComfortable()
+        ? TABLE_METRICS.comfortable
+        : TABLE_METRICS.default;
 
   let tableEl: HTMLTableElement | undefined;
   createEffect(() => {
     const el = tableEl;
     if (!el) return;
-    const comfortable = isComfortable();
-    const tokens = densityApi.tokens;
-    const rowH = isDense() ? 18 : comfortable ? tokens.tableRowHeight : ROW_ESTIMATED;
-    el.style.setProperty("--tbl-row-h", `${rowH}px`);
-    el.style.setProperty("--tbl-cell-pad", isDense() ? "1px 6px" : comfortable ? tokens.tableCellPad : "3px 8px");
-    el.style.setProperty("--tbl-fs", `${isDense() ? 10 : 11}px`);
+    const m = metrics();
+    el.style.setProperty("--tbl-row-h", `${m.rowHeight}px`);
+    el.style.setProperty("--tbl-cell-pad", m.cellPadding);
+    el.style.setProperty("--tbl-fs", `${m.fontSize}px`);
+    // Re-derive on column changes so a newly mounted <th> (the renderer pins
+    // 10px inline) picks up the same size as the cells it labels.
+    const visibleIds = new Set(cols.visibleColumns().map((c) => String(c.id)));
+    for (const th of el.querySelectorAll<HTMLElement>("thead th")) {
+      if (visibleIds.has(th.id.replace("paper-tanstack-header-", ""))) {
+        th.style.fontSize = `${m.headerFontSize}px`;
+      }
+    }
   });
-
-  const cols = useColumnPrefs(props);
   const sort = useSorting(props);
   const view = useColumnViews(props, {
     visibleColumns: cols.visibleColumns,

@@ -53,6 +53,10 @@ INDEX_LOTS: dict[str, int] = {
 # A handful of liquid F&O underlyings the sandbox may trade.
 # Names here are the *display* names; ``symbol`` is the tradable alias.
 STOCK_LOTS: dict[str, int] = {
+    # IRFC's 23-Nov-26 F&O series: lot 5,425 units (the broker master synced in
+    # May 2026 has no NSE_FO row for IRFC, so this is sourced from the recorded
+    # contract in scripts/market/irfc_90ce_research.py, not guessed).
+    "IRFC": 5425,
     "RELIANCE": 500,
     "HDFCBANK": 550,
     "ICICIBANK": 700,
@@ -164,7 +168,7 @@ def get_lot(symbol: str, policy: str | None = None) -> int:
 
 def _lookup_master_lot(symbol: str) -> int | None:
     """Best-effort lot lookup from the live instruments table (read-only)."""
-    hint = MASTER_NAME_HINTS.get(symbol.upper(), symbol.upper())
+    hint = MASTER_NAME_HINTS.get(symbol.upper(), symbol.upper()).replace(" ", "")
     try:
         import sqlite3
         import config
@@ -176,7 +180,7 @@ def _lookup_master_lot(symbol: str) -> int | None:
         try:
             row = con.execute(
                 "select lot_size from instruments where segment like 'NSE_FO%' "
-                "and upper(name) like ? order by lot_size limit 1",
+                "and replace(upper(name), ' ', '') like ? order by lot_size limit 1",
                 (f"%{hint}%",),
             ).fetchone()
             return int(row[0]) if row else None

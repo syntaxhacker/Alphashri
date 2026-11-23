@@ -28,7 +28,21 @@ function fmtIv(value: number | null): string {
   return value.toFixed(1);
 }
 
-const CELL = "block w-full font-mono tabular-nums text-[10px] leading-none";
+const CELL = "block w-full font-mono tabular-nums text-[11px] leading-[14px]";
+const STRIKE_CELL =
+  "relative flex w-full items-center justify-center gap-2 text-center font-mono tabular-nums text-[11px] leading-[14px]";
+
+/** A missing numeric cell carries a state label, not just a punctuation mark. */
+function NumericCell(props: { value: string; className?: string }) {
+  return (
+    <span
+      className={`${CELL}${props.className ? ` ${props.className}` : ""}`}
+      aria-label={props.value === DASH ? "unpriced" : undefined}
+    >
+      {props.value}
+    </span>
+  );
+}
 
 /** Opens the per-contract chart. Native `<button>` gives Enter/Space parity. */
 function ChartButton(props: {
@@ -49,7 +63,7 @@ function ChartButton(props: {
         event.stopPropagation();
         props.onChart(props.strike, props.optionType, props.leg);
       }}
-      className="inline-flex h-[14px] w-[14px] shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+      className="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
     >
       <IconChartLine size={12} />
     </Box>
@@ -68,7 +82,7 @@ function PriceCell(props: {
   const label = () =>
     `${props.optionType === "CE" ? "Call" : "Put"} ${props.strike} · buy · shift-click to sell`;
   return (
-    <Box className="flex w-full min-w-0 items-center justify-end gap-1">
+    <Box className="flex w-full min-w-0 items-center justify-end gap-2">
       <Box
         component="button"
         type="button"
@@ -79,7 +93,7 @@ function PriceCell(props: {
           event.stopPropagation();
           props.onPick?.(props.strike, props.optionType, props.leg, event.shiftKey ? "sell" : "buy");
         }}
-        className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 font-mono tabular-nums text-[10px] leading-none text-fin-text hover:text-fin-primary"
+        className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 font-mono tabular-nums text-[11px] leading-[14px] text-fin-text hover:text-fin-primary"
         style={{ "text-align": props.align ?? "right" }}
       >
         {props.leg.ltp == null ? DASH : props.leg.ltp.toFixed(1)}
@@ -146,7 +160,10 @@ function OiCell(props: { value: number | null | undefined; max: number; side: "c
           "background-color": fill(),
         }}
       />
-      <span className={`${CELL} relative`}>
+      <span
+        className={`${CELL} relative`}
+        aria-label={present() ? undefined : "unpriced"}
+      >
         {present() ? formatNumber(props.value as number) : DASH}
       </span>
     </Box>
@@ -248,7 +265,7 @@ export function buildStrikeBadges(levels: OptionChainLevels | null | undefined):
   return badges;
 }
 
-/** Wide: a 9px chip beside the strike number; fuel is a rail-only marker. */
+/** Wide: an 11px chip beside the strike number; fuel is a rail-only marker. */
 function WideBadge(props: { badge: StrikeBadge; strike: number }) {
   return (
     <Box
@@ -257,10 +274,10 @@ function WideBadge(props: { badge: StrikeBadge; strike: number }) {
       data-code={props.badge.code}
       title={props.badge.title}
       aria-label={props.badge.title}
-      className="ml-0.5 inline-flex shrink-0 items-center font-mono tabular-nums"
-      style={{ color: props.badge.color, "font-size": "9px", "line-height": "1" }}
+      className="ml-2 inline-flex shrink-0 items-center font-mono tabular-nums text-[11px] leading-[14px]"
+      style={{ color: props.badge.color }}
     >
-      <Show when={props.badge.label} fallback={<span className="inline-block h-[10px] w-[2px]" style={{ "background-color": props.badge.color }} aria-hidden="true" />}>
+      <Show when={props.badge.label} fallback={<span className="inline-block h-[14px] w-[2px]" style={{ "background-color": props.badge.color }} aria-hidden="true" />}>
         {props.badge.label}
       </Show>
     </Box>
@@ -283,8 +300,8 @@ function NarrowBadge(props: { badge: StrikeBadge; strike: number }) {
       <span className="h-full shrink-0" style={{ width: "2px", "background-color": props.badge.color }} aria-hidden="true" />
       <Show when={props.badge.letter}>
         <span
-          className="absolute left-[4px] top-0 font-mono tabular-nums"
-          style={{ color: props.badge.color, "font-size": "9px", "line-height": "1" }}
+          className="absolute left-2 top-0 font-mono tabular-nums text-[11px] leading-[14px]"
+          style={{ color: props.badge.color }}
           aria-hidden="true"
         >
           {props.badge.letter}
@@ -336,7 +353,7 @@ export function chainColumns(handlers: ChainColumnHandlers): TableColumnDef<Chai
       size: 38,
       meta: { align: "right" },
       accessorFn: (row) => row.ce.iv,
-      cell: ({ row }) => <span className={CELL}>{fmtIv(row.original.ce.iv)}</span>,
+      cell: ({ row }) => <NumericCell value={fmtIv(row.original.ce.iv)} />,
     },
     {
       id: "ce_delta",
@@ -344,7 +361,7 @@ export function chainColumns(handlers: ChainColumnHandlers): TableColumnDef<Chai
       size: 34,
       meta: { align: "right" },
       accessorFn: (row) => row.ce.delta,
-      cell: ({ row }) => <span className={CELL}>{fmtGreek(row.original.ce.delta, 2)}</span>,
+      cell: ({ row }) => <NumericCell value={fmtGreek(row.original.ce.delta, 2)} />,
     },
     {
       id: "ce_ltp",
@@ -373,20 +390,20 @@ export function chainColumns(handlers: ChainColumnHandlers): TableColumnDef<Chai
         const badge = () => handlers.badgeFor?.(row.original.strike);
         return (
           <span
-            className={`${CELL} relative text-center ${isAtm ? "text-fin-primary" : "text-fin-text-muted"}`}
+            className={`${STRIKE_CELL} ${isAtm ? "text-fin-primary" : "text-fin-text-muted"}`}
             data-testid={`options-strike-cell-${row.original.strike}`}
           >
             <Show when={isAtm}>
               <span role="img" aria-label={`At the money strike ${row.original.strike}`} data-testid={`options-atm-marker-${row.original.strike}`}>
                 ◀
-              </span>{" "}
+              </span>
             </Show>
             <Show when={badge()}>
               {(value) => (
                 <StrikeBadgeView badge={value()} strike={row.original.strike} narrow={handlers.narrow ?? false} />
               )}
             </Show>
-            {row.original.strike.toLocaleString("en-IN")}
+            <span>{row.original.strike.toLocaleString("en-IN")}</span>
           </span>
         );
       },
@@ -413,7 +430,7 @@ export function chainColumns(handlers: ChainColumnHandlers): TableColumnDef<Chai
       size: 34,
       meta: { align: "right" },
       accessorFn: (row) => row.pe.delta,
-      cell: ({ row }) => <span className={CELL}>{fmtGreek(row.original.pe.delta, 2)}</span>,
+      cell: ({ row }) => <NumericCell value={fmtGreek(row.original.pe.delta, 2)} />,
     },
     {
       id: "pe_iv",
@@ -421,7 +438,7 @@ export function chainColumns(handlers: ChainColumnHandlers): TableColumnDef<Chai
       size: 38,
       meta: { align: "right" },
       accessorFn: (row) => row.pe.iv,
-      cell: ({ row }) => <span className={CELL}>{fmtIv(row.original.pe.iv)}</span>,
+      cell: ({ row }) => <NumericCell value={fmtIv(row.original.pe.iv)} />,
     },
     {
       id: "pe_oi",

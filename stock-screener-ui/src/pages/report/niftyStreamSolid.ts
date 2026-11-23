@@ -288,7 +288,8 @@ export function useNiftyBurstStream(
     try {
       const parsed = normalizeBurst((raw ?? {}) as Record<string, unknown>);
       if (parsed && parsed.id) cbRef.current(parsed);
-    } catch {
+    } catch (error) {
+      console.warn("[niftyStream] dropped a malformed burst frame", error);
     }
   }
 }

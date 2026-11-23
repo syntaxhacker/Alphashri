@@ -10,7 +10,9 @@ const chartStub = {
   resize: vi.fn(),
   dispose: vi.fn(),
 };
-const echartsInit = vi.fn(() => chartStub);
+// The chart core calls init(el, theme, opts); type the seam with those args so
+// `.mock.calls[0][0]` is the container element, not an empty tuple.
+const echartsInit = vi.fn((_el: HTMLElement, _theme?: unknown, _opts?: unknown) => chartStub);
 vi.mock("@/utils/loadEcharts", () => ({
   loadEcharts: vi.fn(async () => ({ init: echartsInit })),
 }));

@@ -18,6 +18,19 @@ const TOKENS: Array<[string, string]> = [
   ["--color-fin-info", palette.INFO],
 ];
 
+/** Semantic borders derive from the anchors above and are mirrored in @theme. */
+const BORDER_TOKENS: Array<[string, string]> = [
+  ["--color-fin-border-subtle", palette.BORDER_SUBTLE],
+  ["--color-fin-border-default", palette.BORDER_DEFAULT],
+  ["--color-fin-border-strong", palette.BORDER_STRONG],
+  ["--color-fin-border-focus", palette.BORDER_FOCUS],
+  ["--color-fin-border-positive", palette.BORDER_POSITIVE],
+  ["--color-fin-border-negative", palette.BORDER_NEGATIVE],
+  ["--color-fin-border-warning", palette.BORDER_WARNING],
+  ["--color-fin-border-info", palette.BORDER_INFO],
+  ["--color-fin-border-disabled", palette.BORDER_DISABLED],
+];
+
 const THEME_CSS = readFileSync(fileURLToPath(new URL("../tailwind.css", import.meta.url)), "utf8");
 
 const themeValue = (token: string): string | undefined => {
@@ -35,6 +48,27 @@ describe("theme single source", () => {
     expect(mismatched, mismatched.join("\n")).toEqual([]);
   });
 
+  it("tailwind @theme mirrors every semantic border token", () => {
+    const mismatched: string[] = [];
+    for (const [token, expected] of BORDER_TOKENS) {
+      const actual = themeValue(token);
+      if (actual !== expected.toLowerCase()) mismatched.push(`${token}: theme=${actual} palette=${expected}`);
+    }
+    expect(mismatched, mismatched.join("\n")).toEqual([]);
+  });
+
+  it("every semantic border token derives from an existing anchor, never a raw hex", () => {
+    expect(palette.BORDER_SUBTLE).toBe(palette.alpha(palette.BORDER, 0.6));
+    expect(palette.BORDER_DEFAULT).toBe(palette.BORDER);
+    expect(palette.BORDER_STRONG).toBe(palette.alpha(palette.TEXT_MUTED, 0.6));
+    expect(palette.BORDER_FOCUS).toBe(palette.alpha(palette.PRIMARY, 0.9));
+    expect(palette.BORDER_POSITIVE).toBe(palette.alpha(palette.POSITIVE, 0.7));
+    expect(palette.BORDER_NEGATIVE).toBe(palette.alpha(palette.NEGATIVE, 0.7));
+    expect(palette.BORDER_WARNING).toBe(palette.alpha(palette.WARNING, 0.7));
+    expect(palette.BORDER_INFO).toBe(palette.alpha(palette.INFO, 0.7));
+    expect(palette.BORDER_DISABLED).toBe(palette.alpha(palette.TEXT_MUTED, 0.25));
+  });
+
   it("overrides every palette anchor in light theme, not just a color-scheme flag", () => {
     // The toolbar toggle used to set `data-color-scheme` and nothing else: no
     // token moved, so the app stayed black in both themes. A partial block is
@@ -48,6 +82,18 @@ describe("theme single source", () => {
     expect(missing, `not overridden in light: ${missing.join(", ")}`).toEqual([]);
 
     const unchanged = TOKENS.filter(([token, dark]) => light(token) === dark.toLowerCase()).map(([token]) => token);
+    expect(unchanged, `identical to the dark value: ${unchanged.join(", ")}`).toEqual([]);
+  });
+
+  it("overrides every semantic border token in light theme", () => {
+    const block = /:root\[data-color-scheme="light"\]\s*\{([\s\S]*?)\}/.exec(THEME_CSS)?.[1];
+    expect(block, "no light theme block").toBeTruthy();
+    const light = (token: string) =>
+      new RegExp(`${token}\\s*:\\s*([^;]+);`).exec(block!)?.[1].trim().toLowerCase();
+    const missing = BORDER_TOKENS.map(([token]) => token).filter((token) => !light(token));
+    expect(missing, `not overridden in light: ${missing.join(", ")}`).toEqual([]);
+    const unchanged = BORDER_TOKENS.filter(([token, dark]) => light(token) === dark.toLowerCase())
+      .map(([token]) => token);
     expect(unchanged, `identical to the dark value: ${unchanged.join(", ")}`).toEqual([]);
   });
 

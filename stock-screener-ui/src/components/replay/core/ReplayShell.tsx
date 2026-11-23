@@ -41,6 +41,20 @@ function coerceParam(spec: ReplayParamSpec, raw: string): unknown {
   return raw;
 }
 
+/**
+ * A refetch with byte-identical data is not a new session. Keeping the old
+ * object identity avoids re-creating the chart and rewinding playback when a
+ * control fires an unchanged value (or a poll returns the same frame).
+ */
+function samePayload(previous: unknown, next: unknown): boolean {
+  if (previous == null) return false;
+  try {
+    return JSON.stringify(previous) === JSON.stringify(next);
+  } catch {
+    return false;
+  }
+}
+
 /** Generic param control driven only by its spec — no strategy vocabulary. */
 function ParamControl(props: { spec: ReplayParamSpec; value: unknown; onChange: (v: unknown) => void }) {
   const spec = props.spec;
@@ -66,7 +80,7 @@ function ParamControl(props: { spec: ReplayParamSpec; value: unknown; onChange: 
   }
   if (spec.type === "bool") {
     return (
-      <Box style={{ display: "flex", "align-items": "center", gap: "4px", color: palette.TEXT_MUTED, "font-size": "12px" }}>
+      <Box style={{ display: "flex", "align-items": "center", gap: "8px", color: palette.TEXT_MUTED, "font-size": "12px" }}>
         <Checkbox
           size="sm"
           label={spec.label}
@@ -167,8 +181,6 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
     if (manual() && runNonce() === 0) return;
     const ac = new AbortController();
     setLoading(true);
-    setPlaying(false);
-    jump(0);
     const query = new URLSearchParams({ date: date() });
     for (const spec of plugin().params) query.set(spec.name, String(params()[spec.name] ?? spec.default));
     const request: Promise<any> = plugin().load
@@ -181,9 +193,21 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
     request
       .then(j => {
         if (ac.signal.aborted) return;
+        const nextBundle = plugin().normalize(j);
+        const nextTimeline = plugin().mode === "timeline" && plugin().timeline
+          ? plugin().timeline!(j)
+          : null;
+        const unchanged = samePayload(bundle(), nextBundle)
+          && (!nextTimeline || samePayload(timeline(), nextTimeline));
+        if (!unchanged) {
+          setPlaying(false);
+          jump(0);
+        }
         setRaw(j);
-        setBundle(plugin().normalize(j));
-        if (plugin().mode === "timeline" && plugin().timeline) setTimeline(plugin().timeline!(j));
+        setBundle(nextBundle);
+        if (nextTimeline) {
+          setTimeline(previous => samePayload(previous, nextTimeline) ? previous : nextTimeline);
+        }
       })
       .catch((e) => {
         if (ac.signal.aborted || (e && e.name === "AbortError")) return;
@@ -327,7 +351,7 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
           {runButton()}
           {paramControls()}
         </ReplayControls>
-        <Card bg={palette.NT_BG} style={{ border: `1px solid ${palette.NT_GRID}`, overflow: "hidden", "margin-bottom": "16px" }}>
+        <Card bg={palette.NT_BG} className="border border-fin-border-subtle" style={{ overflow: "hidden", "margin-bottom": "16px" }}>
           <ReplayChartHost
             ref={(h) => (hostRef = h)}
             bars={candles()}
@@ -341,8 +365,8 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
             playing={playing()}
           />
         </Card>
-        <Card bg={palette.NT_BG} style={{ border: `1px solid ${palette.NT_GRID}`, overflow: "hidden" }}>
-          <Box p="sm" style={{ "background-color": palette.REPLAY_BG, "border-bottom": `1px solid ${palette.NT_GRID}`, display: "flex", "justify-content": "space-between", "align-items": "center" }}>
+        <Card bg={palette.NT_BG} className="border border-fin-border-subtle" style={{ overflow: "hidden" }}>
+          <Box p="sm" className="border-b border-fin-border-subtle" style={{ "background-color": palette.REPLAY_BG, display: "flex", "justify-content": "space-between", "align-items": "center" }}>
             <Text size="xs" fw={700} style={{ color: palette.PRIMARY }}>
               Trades — {closed().length} closed · net {net() > 0 ? "+" : ""}{net().toFixed(1)} pts
             </Text>

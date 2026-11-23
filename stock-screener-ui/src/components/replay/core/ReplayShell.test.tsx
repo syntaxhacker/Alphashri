@@ -2,8 +2,10 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@solidjs/testing-library";
+import { createChart } from "lightweight-charts";
 import ReplayShell from "./ReplayShell";
 import { getStrategy } from "../strategies";
+import type { ReplayStrategyPlugin } from "./plugin";
 
 vi.mock("lightweight-charts", () => ({
   ColorType: { Solid: "solid" },
@@ -104,6 +106,44 @@ describe("ReplayShell manual run mode", () => {
  * field now uses the shared portalled autocomplete — pin that here so a
  * re-duplicated local copy cannot silently regress.
  */
+describe("ReplayShell chart stability", () => {
+  test("an identical refetch keeps the chart instance and the playhead", async () => {
+    const plugin: ReplayStrategyPlugin = {
+      id: "test-timeline-stability",
+      label: "Stability test",
+      mode: "timeline",
+      endpoint: "/api/test/replay",
+      dates: ["2026-09-09"],
+      params: [{ name: "mode", label: "Mode", type: "select", default: "A", options: ["A", "B"] }],
+      normalize: () => ({ bars: [], trades: [] }),
+      timeline: () => ({
+        candles: [{ time: 1000, open: 1, high: 2, low: 0.5, close: 1.5 }],
+        subs: [],
+        vwap: [],
+        levels: { or_high: 0, or_low: 0, or_end: 0 },
+      }),
+    };
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) } as unknown as Response);
+    vi.mocked(createChart).mockClear();
+
+    render(() => <ReplayShell plugin={plugin} />);
+    await waitFor(() => expect(createChart).toHaveBeenCalledTimes(1));
+
+    const play = screen.getByRole("button", { name: /Play/ });
+    await waitFor(() => expect(play).toBeEnabled());
+    fireEvent.click(play);
+    expect(screen.getByRole("button", { name: /Pause/ })).toBeInTheDocument();
+
+    const select = document.querySelector('[data-testid="replay-param-mode"] select') as HTMLSelectElement;
+    fireEvent.input(select, { target: { value: "A" } });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText("loading ticks…")).toBeNull());
+
+    expect(createChart).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /Pause/ })).toBeInTheDocument();
+  });
+});
+
 describe("ReplayShell symbol field — portalled list", () => {
   const listbox = () => document.querySelector<HTMLElement>('[data-part="symbol-autocomplete-list"]');
 

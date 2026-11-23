@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import type { ChainLeg, ChainRow } from "@/api/optionsDock";
 import { OptionChainTable } from "./OptionChainTable";
@@ -131,5 +131,35 @@ describe("chain columns — per-contract chart action", () => {
     const ltp = headers.filter((header) => header.textContent?.trim() === "LTP");
     expect(ltp).toHaveLength(2);
     for (const header of ltp) expect(header.style.width).toBe("64px");
+  });
+});
+
+describe("chain columns — type scale and touch targets", () => {
+  it("renders chain numerics at 11px/14px with an unpriced label on a missing IV", () => {
+    renderTable();
+    const cells = within(screen.getByTestId("options-chain-row-24000")).getAllByRole("cell");
+    const iv = cells[1].querySelector("span") as HTMLElement;
+    expect(iv).toHaveTextContent("—");
+    expect(iv.className).toContain("text-[11px]");
+    expect(iv.className).toContain("leading-[14px]");
+    expect(iv.className).not.toContain("text-[10px]");
+    expect(iv).toHaveAttribute("aria-label", "unpriced");
+  });
+
+  it("gives the chart button a 20px target while keeping the 12px icon", () => {
+    renderTable({ onChart: vi.fn() });
+    const ce = screen.getByTestId("options-ce-24000-chart");
+    expect(ce.className).toContain("h-5");
+    expect(ce.className).toContain("w-5");
+    expect(ce.className).not.toContain("h-[14px]");
+    expect(ce.querySelector("svg")?.getAttribute("width")).toBe("12");
+  });
+
+  it("gaps the LTP price from its chart button by 8px", () => {
+    renderTable({ onChart: vi.fn() });
+    const price = screen.getByTestId("options-ce-24000");
+    expect(price.parentElement?.className).toContain("gap-2");
+    expect(price.className).toContain("text-[11px]");
+    expect(price.className).not.toContain("text-[10px]");
   });
 });

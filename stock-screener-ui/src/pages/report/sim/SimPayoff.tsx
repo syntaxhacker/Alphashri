@@ -317,7 +317,7 @@ export function SimPayoff(props: SimPayoffProps) {
       <Show when={!entered()}>
         <div
           data-testid="sim-payoff-not-entered"
-          class="absolute inset-0 z-[2] flex flex-col items-center justify-center gap-1.5 px-4 text-center"
+          class="absolute inset-0 z-[2] flex flex-col items-center justify-center gap-2 px-4 text-center"
           style={{ "background-color": palette.TERM_BG }}
         >
           <Badge color="warning" variant="outline" size="xs">

@@ -23,6 +23,7 @@ const StrategyRunnerPage = lazy(() => import("./pages/strategy-runner").then(m =
 const BotsPage = lazy(() => import("./pages/bots").then(m => ({ default: m.BotsPage })));
 const OptionsContainer = lazy(() => import("./pages/options/OptionsContainer").then(m => ({ default: m.OptionsContainer })));
 const OptionsAnalyticsPage = lazy(() => import("./pages/options/OptionsAnalyticsPage"));
+const OptionsReplayPage = lazy(() => import("./pages/options-replay/OptionsReplayPage").then(m => ({ default: m.OptionsReplayPage })));
 const NiftyReportPage = lazy(() => import("./pages/report/NiftyReportShell").then(m => ({ default: m.NiftyReportShell })));
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage").then(m => ({ default: m.SettingsPage })));
 const ChartView = lazy(() => import("./pages/chart/ChartView"));
@@ -136,6 +137,8 @@ function AppContent() {
           <Route path="/strategies" component={StrategiesContainer} />
           <Route path="/bots" component={BotsPage} />
           <Route path="/options/analytics/:symbol" component={OptionsAnalyticsPage} />
+          <Route path="/options/replay/:positionId" component={OptionsReplayPage} />
+          <Route path="/options/replay" component={OptionsReplayPage} />
           <Route path="/options" component={OptionsContainer} />
           <Route path="/report/nifty" component={() => <Navigate href="/report/index" />} />
           <Route path="/report/index" component={NiftyReportPage} />

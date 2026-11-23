@@ -17,6 +17,9 @@ from typing import Optional, Sequence
 
 #: An offset beyond this many ladder steps is a typo, not a strike request.
 MAX_STRIKE_OFFSET = 12
+#: Bounds qty = lots x lot_size so a UI ticket cannot overflow the DB Integer
+#: column or turn the charge arithmetic into nonsense.
+MAX_LOTS = 200
 
 _ACTIONS = ("BUY", "SELL")
 _OPTS = ("CE", "PE")
@@ -104,12 +107,16 @@ def parse_leg_spec(raw: dict) -> LegSpec:
     lots = raw.get("lots", 1)
     if isinstance(lots, bool):
         raise ValueError(f"leg lots must be a positive integer, got {lots!r}")
+    if isinstance(lots, (int, float)) and not float(lots).is_integer():
+        raise ValueError(f"leg lots must be a positive integer, got {lots!r}")
     try:
         lots_i = int(lots)
     except (TypeError, ValueError):
         raise ValueError(f"leg lots must be a positive integer, got {lots!r}") from None
     if lots_i < 1:
         raise ValueError(f"leg lots must be >= 1, got {lots!r}")
+    if lots_i > MAX_LOTS:
+        raise ValueError(f"leg lots must be <= {MAX_LOTS}, got {lots!r}")
 
     return LegSpec(action=action, opt=opt, strike=str(strike).strip(), lots=lots_i)
 
@@ -263,6 +270,31 @@ def default_spot_range(legs: Sequence[ResolvedLeg], pct: float = 0.08,
         lo = max(mid * 0.01, 0.01)
         hi = max(hi, mid * 1.5)
     return [round(x, 4) for x in _linspace(lo, hi, max(int(n), 2))]
+
+
+def adaptive_spot_range(legs: Sequence[ResolvedLeg], pct: float = 0.08,
+                        n: int = 161, max_expand: int = 4) -> list[float]:
+    """Widen the payoff band until breakevens sit comfortably inside it.
+
+    ``default_spot_range`` is strike-based. A 1:2 ratio spread can break even
+    well beyond its strikes, so a strike-only band would silently omit that
+    root from both the chart and ``breakevens()``. Expansion is bounded and
+    keeps the same point count, so the payload size cannot grow.
+    """
+    best = default_spot_range(legs, pct=pct, n=n)
+    if len(best) < 2:
+        return best
+    best_roots = breakevens(legs, best[0], best[-1])
+    candidate = best
+    for _ in range(max(0, max_expand)):
+        lo, hi = candidate[0], candidate[-1]
+        mid = (lo + hi) / 2.0
+        half = (hi - lo) / 2.0 * 1.7
+        candidate = [round(x, 4) for x in _linspace(mid - half, mid + half, n)]
+        roots = breakevens(legs, candidate[0], candidate[-1])
+        if len(roots) > len(best_roots):
+            best, best_roots = candidate, roots
+    return best
 
 
 def _bisect_root(legs: Sequence[ResolvedLeg], a: float, b: float,
