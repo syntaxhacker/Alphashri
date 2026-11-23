@@ -14,14 +14,14 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "NavLink renders an `<a role=link>` when `href` is set, otherwise a `<div role=link>`. `active` applies the primary fill and aria-current=page; `disabled` applies aria-disabled and pointer-events:none. `icon` (or `leftSection`) and `description` surround the `label`. With `children`, the link toggles an inline collapse: uncontrolled via `defaultOpened`, controlled via `opened`. Keyboard honesty: the div variant has no tabIndex or key handler, and children are toggled by click only — there is no built-in Enter/Space activation.",
+          "NavLink renders an `<a role=link>` when `href` is set, otherwise a native `<button type=button role=link>`. `active` applies the primary fill and aria-current=page; `disabled` applies aria-disabled and pointer-events:none and guards the click handler. `icon` (or `leftSection`) and `description` surround the `label`. With `children`, the link toggles an inline collapse: uncontrolled via `defaultOpened`, controlled via `opened`. Keyboard: the button variant is focusable and Enter/Space fire onClick; the disabled variant stays inert; the href variant keeps native anchor activation.",
       },
     },
   },
   argTypes: {
     label: { control: "text", description: "Primary link text." },
     description: { control: "text", description: "Secondary muted line under the label." },
-    href: { control: "text", description: "When set, renders an anchor instead of a div." },
+    href: { control: "text", description: "When set, renders an anchor instead of a button." },
     active: { control: "boolean", description: "Primary fill + aria-current=page." },
     disabled: { control: "boolean", description: "aria-disabled + pointer-events:none." },
     icon: { control: false, description: "Leading icon element (JSX)." },
@@ -79,25 +79,34 @@ export const OpenGroup: Story = {
 
 export const States: Story = {
   render: () =>
-    solidStory(() => (
-      <Page>
-        <Specimen
-          title="States"
-          note="Default, active, disabled, icon+description and the anchor variant. Disabled links stay aria-disabled and non-interactive."
-        >
-          <Box
-            onClickCapture={(e: MouseEvent) => e.preventDefault()}
-            style={groupStyle}
+    solidStory(() => {
+      const [activations, setActivations] = createSignal(0);
+      const activate = () => setActivations((n) => n + 1);
+      return (
+        <Page>
+          <Specimen
+            title="States"
+            note="Default, active, disabled, icon+description and the anchor variant. Disabled links stay aria-disabled and non-interactive; the non-href links are native buttons."
           >
-            <NavLink label="Default" description="Hover for the surface tint" />
-            <NavLink label="Active page" description="Primary fill + aria-current" active icon={<NavIcon>A</NavIcon>} />
-            <NavLink label="Disabled" description="pointer-events: none" disabled icon={<NavIcon>D</NavIcon>} />
-            <NavLink label="Icon + description" description="Chain, paper, replay" icon={<NavIcon>O</NavIcon>} />
-            <NavLink label="Anchor variant" href="#navlink-anchor" description="Renders an <a> element" rightSection={<Text size="xs" c="dimmed">↗</Text>} />
-          </Box>
-        </Specimen>
-      </Page>
-    )),
+            <Stack gap="sm">
+              <Box data-testid="navlink-kb-readout">
+                <Readout>activations: {activations()}</Readout>
+              </Box>
+              <Box
+                onClickCapture={(e: MouseEvent) => e.preventDefault()}
+                style={groupStyle}
+              >
+                <NavLink label="Default" description="Hover for the surface tint" data-testid="navlink-kb-default" onClick={activate} />
+                <NavLink label="Active page" description="Primary fill + aria-current" active icon={<NavIcon>A</NavIcon>} />
+                <NavLink label="Disabled" description="pointer-events: none" disabled icon={<NavIcon>D</NavIcon>} data-testid="navlink-kb-disabled" onClick={activate} />
+                <NavLink label="Icon + description" description="Chain, paper, replay" icon={<NavIcon>O</NavIcon>} />
+                <NavLink label="Anchor variant" href="#navlink-anchor" description="Renders an <a> element" rightSection={<Text size="xs" c="dimmed">↗</Text>} data-testid="navlink-kb-anchor" />
+              </Box>
+            </Stack>
+          </Specimen>
+        </Page>
+      );
+    }),
 };
 
 export const CollapsibleChildren: Story = {

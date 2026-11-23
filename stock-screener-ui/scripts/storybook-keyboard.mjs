@@ -3,8 +3,9 @@
  * Real-browser keyboard walkthrough gate for the static Storybook build.
  *
  * Drives the preview iframe with Playwright's keyboard and asserts the keyboard
- * contracts of seven design-system widgets (Modal, Tree, Menu, Tabs, Popover,
- * Tooltip and FloatingWindow), including a vertical Tabs walkthrough. Story ids
+ * contracts of the design-system primitives and widgets (Modal, Tree, Menu,
+ * Tabs, Popover, Tooltip, FloatingWindow and NavLink), including a vertical
+ * Tabs walkthrough and NavLink's native-button activation. Story ids
  * are resolved from index.json by title
  * + name, never guessed. The script owns
  * and cleans up its own static HTTP server, so it is safe to run as
@@ -83,6 +84,12 @@ const REQUIRED_STORIES = [
     label: 'FloatingWindow — Tab stays inside a modal window',
     title: 'Design System/Components/Overlay/FloatingWindow',
     name: 'Geometry And Resize',
+  },
+  {
+    key: 'navLinkKeyboard',
+    label: 'NavLink — button[role=link] activates on Enter/Space, disabled inert, href stays anchor',
+    title: 'Design System/Components/Navigation/NavLink',
+    name: 'States',
   },
 ];
 
@@ -700,6 +707,118 @@ async function checkFloatingWindowModal(page, storyId) {
   return `Tab cycled inside the modal window: ${seen.slice(0, labels.length).join(' -> ')}; Shift+Tab stayed inside`;
 }
 
+async function checkNavLinkKeyboard(page, storyId) {
+  const frame = await openStoryFrame(page, storyId);
+
+  // The States story exposes all three variants with stable test ids plus a
+  // live readout of how many times a non-disabled link's onClick has fired.
+  const target = frame.locator('[data-testid="navlink-kb-default"]');
+  const disabled = frame.locator('[data-testid="navlink-kb-disabled"]');
+  const anchor = frame.locator('[data-testid="navlink-kb-anchor"]');
+  const readout = frame.locator('[data-testid="navlink-kb-readout"]');
+  assert((await target.count()) === 1, 'expected one non-href NavLink ("Default") in the States story');
+  assert((await disabled.count()) === 1, 'expected one disabled non-href NavLink ("Disabled") in the States story');
+  assert((await anchor.count()) === 1, 'expected one href NavLink ("Anchor variant") in the States story');
+  assert((await readout.count()) === 1, 'expected the activation readout in the States story');
+
+  const targetTag = await target.evaluate((el) => el.tagName);
+  assert(targetTag === 'BUTTON', `non-href NavLink must be a native BUTTON, got ${targetTag}`);
+  assert(
+    (await target.getAttribute('role')) === 'link',
+    'non-href NavLink must advertise role="link"',
+  );
+
+  const count = async () => {
+    const text = ((await readout.textContent()) ?? '').replace(/\s+/g, ' ').trim();
+    const match = text.match(/activations:\s*(\d+)/);
+    assert(match, `could not read the activation count from "${text}"`);
+    return Number(match[1]);
+  };
+  const waitForCount = (expected) =>
+    frame.waitForFunction(
+      (n) => {
+        const el = document.querySelector('[data-testid="navlink-kb-readout"]');
+        const match = (el?.textContent ?? '').replace(/\s+/g, ' ').match(/activations:\s*(\d+)/);
+        return Boolean(match && Number(match[1]) === n);
+      },
+      expected,
+      { timeout: 5000 },
+    );
+  const pressAndExpect = async (key, expected) => {
+    await page.keyboard.press(key);
+    try {
+      await waitForCount(expected);
+    } catch {
+      throw new Error(`${key} did not move the activation readout to ${expected} (still ${await count()})`);
+    }
+    return count();
+  };
+
+  // Focus the primitive itself, then activate it with each keyboard key.
+  await target.focus();
+  const focused = await activeInfo(frame);
+  assert(
+    focused.tag === 'BUTTON' && focused.role === 'link',
+    `focus should land on BUTTON[role=link], got tag=${focused.tag} role=${focused.role} label="${focused.label}"`,
+  );
+  const initial = await count();
+  assert(initial === 0, `activation count should start at 0, got ${initial}`);
+
+  const afterEnter = await pressAndExpect('Enter', initial + 1);
+  assert(
+    afterEnter === initial + 1,
+    `Enter should fire onClick exactly once (${initial} -> ${initial + 1}), got ${afterEnter}`,
+  );
+  const afterSpace = await pressAndExpect('Space', afterEnter + 1);
+  assert(
+    afterSpace === afterEnter + 1,
+    `Space should fire onClick exactly once (${afterEnter} -> ${afterEnter + 1}), got ${afterSpace}`,
+  );
+
+  // The disabled variant is still a focusable BUTTON[role=link], but its guard
+  // must swallow both activation keys.
+  const disabledTag = await disabled.evaluate((el) => el.tagName);
+  assert(disabledTag === 'BUTTON', `disabled non-href NavLink should be a BUTTON, got ${disabledTag}`);
+  assert(
+    (await disabled.getAttribute('role')) === 'link',
+    'disabled non-href NavLink must keep role="link"',
+  );
+  assert(
+    (await disabled.getAttribute('aria-disabled')) === 'true',
+    'disabled NavLink must advertise aria-disabled="true"',
+  );
+  await disabled.focus();
+  const disabledFocus = await activeInfo(frame);
+  assert(
+    disabledFocus.tag === 'BUTTON' && disabledFocus.label.includes('Disabled'),
+    `could not focus the disabled NavLink: tag=${disabledFocus.tag} label="${disabledFocus.label}"`,
+  );
+  const beforeDisabled = await count();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Space');
+  await sleep(150);
+  const afterDisabled = await count();
+  assert(
+    afterDisabled === beforeDisabled,
+    `Enter/Space on the disabled NavLink must not fire onClick (stayed ${beforeDisabled}, got ${afterDisabled})`,
+  );
+
+  // The href variant keeps its native anchor semantics.
+  const anchorTag = await anchor.evaluate((el) => el.tagName);
+  assert(anchorTag === 'A', `href NavLink must remain an ANCHOR, got ${anchorTag}`);
+  assert(
+    (await anchor.getAttribute('role')) === 'link',
+    'href NavLink must keep role="link"',
+  );
+  const href = await anchor.getAttribute('href');
+  assert(
+    href && href.endsWith('#navlink-anchor'),
+    `href NavLink must keep its href, got ${href}`,
+  );
+
+  return `BUTTON[role=link] focused; Enter -> ${afterEnter}, Space -> ${afterSpace}; disabled inert at ${afterDisabled}; href stays <${anchorTag.toLowerCase()} href="${href}">`;
+}
+
 const WALKTHROUGHS = {
   modalOpen: checkModalTabCycle,
   modalClose: checkModalEscape,
@@ -710,6 +829,7 @@ const WALKTHROUGHS = {
   popover: checkPopover,
   tooltip: checkTooltip,
   floatingWindowModal: checkFloatingWindowModal,
+  navLinkKeyboard: checkNavLinkKeyboard,
 };
 
 // ---------------------------------------------------------------------------
