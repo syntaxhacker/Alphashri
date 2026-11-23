@@ -28,11 +28,14 @@ export function WallsEmpty(props: WallsCardProps) {
   const emptyCopy = (): { kind: "no-data" | "market-closed" | "failed"; title: string; description: string; hint: string } => {
     switch (emptyReason()) {
       case "market-closed":
+        // A closed snapshot is not "not recorded yet": the session was recorded
+        // and this band was not captured. The next open is a different session,
+        // so naming it here would describe a frame the page is not showing.
         return {
           kind: "market-closed",
-          title: "Walls not recorded yet",
+          title: "No walls snapshot for this session",
           description: emptyText(),
-          hint: "Opens 09:15 IST",
+          hint: "",
         };
       case "failed":
         return {

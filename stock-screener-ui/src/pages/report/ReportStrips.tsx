@@ -24,14 +24,42 @@ import { OI_ALERT_TOAST_MAX } from "./useNiftyOiAlerts";
 
 const EMPTY_WALL_HISTORY: WallSnapshot[] = [];
 
+/** The report's as-of is an IST wall-clock stamp. Keep only its HH:MM: a closed
+ *  snapshot is named by the time it was taken, not by the next session's open. */
+export function wallsSnapshotTime(asOf?: string | null): string | null {
+  if (typeof asOf !== "string") return null;
+  const match = /T(\d{2}):(\d{2})/.exec(asOf);
+  return match ? `${match[1]}:${match[2]}` : null;
+}
+
+/** One truthful reason for the missing walls band. A closed/stale frame names
+ *  its own as-of time; a live frame still waiting on the recorder says so.
+ *  Neither promises an open time — the page may be showing a closed snapshot. */
+export function wallsUnavailableCopy(args: {
+  closed?: boolean;
+  asOf?: string | null;
+}): { kind: "no-data" | "market-closed"; text: string } {
+  if (args.closed) {
+    const time = wallsSnapshotTime(args.asOf);
+    return {
+      kind: "market-closed",
+      text: time ? `No walls snapshot for ${time}` : "No walls snapshot for this session",
+    };
+  }
+  return { kind: "no-data", text: "Waiting for the walls recorder" };
+}
+
 /** The unavailable-band treatment: one 24px reason line with Retry, the same
  *  chrome the replay surface gives its live-only bands. An empty band must not
  *  reserve a full card's height below the chart. */
-function WallsUnavailableStrip(props: { onRetry?: () => void }) {
+function WallsUnavailableStrip(props: {
+  copy: { kind: "no-data" | "market-closed"; text: string };
+  onRetry?: () => void;
+}) {
   return (
     <Box
       data-testid="nifty-walls-card"
-      data-empty-kind="no-data"
+      data-empty-kind={props.copy.kind}
       className="flex items-center gap-2 h-6 min-h-6 w-full min-w-0 shrink-0 px-2 bg-fin-surface font-mono text-ui-micro"
     >
       <span
@@ -41,7 +69,7 @@ function WallsUnavailableStrip(props: { onRetry?: () => void }) {
         WALLS
       </span>
       <span data-report-text="value" className="text-ui-micro text-fin-text-muted">
-        waiting for walls data…
+        {props.copy.text}
       </span>
       <Show when={props.onRetry}>
         <Button
@@ -100,6 +128,16 @@ export function ReportStrips() {
     if (!frames) return null;
     return frames[store.replay.index()]?.t ?? null;
   });
+
+  // The report's market block is the authority on whether this frame is a live
+  // read or a recorded snapshot. A recorded frame with no walls band says when
+  // it was recorded; a live frame says the recorder has not written it yet.
+  const wallsBand = createMemo(() =>
+    wallsUnavailableCopy({
+      closed: report()?.market?.is_open === false,
+      asOf: report()?.market?.as_of ?? null,
+    }),
+  );
 
   const wallHistory = createMemo(() =>
     mode() === "live" ? store.walls.history() : EMPTY_WALL_HISTORY,
@@ -168,7 +206,7 @@ export function ReportStrips() {
         when={realWalls()}
         fallback={
           mode() === "live" ? (
-            <WallsUnavailableStrip onRetry={() => store.data.refresh?.()} />
+            <WallsUnavailableStrip copy={wallsBand()} onRetry={() => store.data.refresh?.()} />
           ) : null
         }
       >

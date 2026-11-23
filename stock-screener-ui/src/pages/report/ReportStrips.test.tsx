@@ -6,7 +6,7 @@ import { cleanup, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { createSignal } from "solid-js";
 
-import type { BreadthPayload } from "@/api/reportNifty";
+import type { BreadthPayload, NiftyReport } from "@/api/reportNifty";
 
 // The strips are one band each, so this suite only asserts the container's own
 // contract: which bands mount, the breadth fallback, and that no strip adds a
@@ -34,14 +34,21 @@ const breadth = (over: Partial<BreadthPayload> = {}): BreadthPayload => ({
 
 const mode = createSignal<"live" | "eod">("live");
 const wallsData = createSignal<unknown>(null);
+const reportData = createSignal<NiftyReport | null>(null);
 
 // A real snapshot needs levels, not just metadata — one side is enough.
 const wallsWithLevels = { state: "positioning", calls: [{ strike: 22_500, oi: 1_200 }], puts: [] };
 
+const closedSnapshot = (asOf: string | null) =>
+  ({
+    date: "2026-11-23",
+    market: { is_open: false, as_of: asOf, session_date: "2026-11-23" },
+  }) as NiftyReport;
+
 vi.mock("./ReportContext", () => ({
   useNiftyReport: () => ({
     data: {
-      report: () => null,
+      report: reportData[0],
       tapeRows: () => [],
       breadth: () => breadth(),
       scorePoints: () => [],
@@ -73,12 +80,13 @@ vi.mock("./ReportContext", () => ({
   }),
 }));
 
-const { ReportStrips } = await import("./ReportStrips");
+const { ReportStrips, wallsSnapshotTime, wallsUnavailableCopy } = await import("./ReportStrips");
 
 afterEach(() => {
   cleanup();
   mode[1]("live");
   wallsData[1](null);
+  reportData[1](null);
 });
 describe("ReportStrips", () => {
   test("mounts every band inside one deliberate 8px column", () => {
@@ -101,7 +109,7 @@ describe("ReportStrips", () => {
     render(() => <ReportStrips />);
     const band = screen.getByTestId("nifty-walls-card");
     expect(band).toHaveAttribute("data-empty-kind", "no-data");
-    expect(band).toHaveTextContent(/waiting for walls data/i);
+    expect(band).toHaveTextContent(/waiting for the walls recorder/i);
     // One 24px line, not the full-height empty card with its reserved skeleton.
     expect(band.className).toContain("h-6");
     expect(band.className).not.toContain("h-14");
@@ -115,7 +123,7 @@ describe("ReportStrips", () => {
     render(() => <ReportStrips />);
     const band = screen.getByTestId("nifty-walls-card");
     expect(band).toHaveAttribute("data-empty-kind", "no-data");
-    expect(band).toHaveTextContent(/waiting for walls data/i);
+    expect(band).toHaveTextContent(/waiting for the walls recorder/i);
     expect(band.className).toContain("h-6");
     expect(screen.getByTestId("nifty-walls-retry")).toBeInTheDocument();
     expect(screen.queryByTestId("walls-stub")).toBeNull();
@@ -125,7 +133,7 @@ describe("ReportStrips", () => {
     mode[1]("live");
     wallsData[1]({ state: "positioning", calls: [], puts: [], spot: 22_350 });
     render(() => <ReportStrips />);
-    expect(screen.getByTestId("nifty-walls-card")).toHaveTextContent(/waiting for walls data/i);
+    expect(screen.getByTestId("nifty-walls-card")).toHaveTextContent(/waiting for the walls recorder/i);
     expect(screen.queryByTestId("walls-stub")).toBeNull();
   });
 
@@ -133,8 +141,51 @@ describe("ReportStrips", () => {
     mode[1]("live");
     wallsData[1]({ state: "positioning", calls: [{ strike: 22_500, oi: 0 }], puts: [] });
     render(() => <ReportStrips />);
-    expect(screen.getByTestId("nifty-walls-card")).toHaveTextContent(/waiting for walls data/i);
+    expect(screen.getByTestId("nifty-walls-card")).toHaveTextContent(/waiting for the walls recorder/i);
     expect(screen.queryByTestId("walls-stub")).toBeNull();
+  });
+
+  test("a closed snapshot names its own as-of time, never the next open", () => {
+    mode[1]("live");
+    wallsData[1](null);
+    reportData[1](closedSnapshot("2026-11-23T10:00:00+05:30"));
+    render(() => <ReportStrips />);
+
+    const band = screen.getByTestId("nifty-walls-card");
+    expect(band).toHaveAttribute("data-empty-kind", "market-closed");
+    expect(band).toHaveTextContent("No walls snapshot for 10:00");
+    expect(band).not.toHaveTextContent("09:15");
+    expect(band).not.toHaveTextContent("Opens");
+    expect(band.className).toContain("h-6");
+    expect(screen.getByTestId("nifty-walls-retry")).toBeInTheDocument();
+    expect(screen.queryByTestId("walls-stub")).toBeNull();
+  });
+
+  test("a closed snapshot without a clock stays truthful and generic", () => {
+    mode[1]("live");
+    wallsData[1](null);
+    reportData[1](closedSnapshot(null));
+    render(() => <ReportStrips />);
+
+    const band = screen.getByTestId("nifty-walls-card");
+    expect(band).toHaveAttribute("data-empty-kind", "market-closed");
+    expect(band).toHaveTextContent("No walls snapshot for this session");
+    expect(band).not.toHaveTextContent("09:15");
+    expect(screen.getByTestId("nifty-walls-retry")).toBeInTheDocument();
+  });
+
+  test("a live open frame still waits on the recorder, not a closed snapshot", () => {
+    mode[1]("live");
+    wallsData[1](null);
+    reportData[1]({
+      market: { is_open: true, as_of: "2026-11-23T10:00:00+05:30", session_date: "2026-11-23" },
+    } as NiftyReport);
+    render(() => <ReportStrips />);
+
+    const band = screen.getByTestId("nifty-walls-card");
+    expect(band).toHaveAttribute("data-empty-kind", "no-data");
+    expect(band).toHaveTextContent("Waiting for the walls recorder");
+    expect(band).not.toHaveTextContent("No walls snapshot for 10:00");
   });
 
   test("live with real walls mounts the full card and no compact reason", () => {
@@ -176,5 +227,29 @@ describe("ReportStrips", () => {
     expect(source).toContain('gap: "8px"');
     expect(source).toContain("`${REPORT_FONT.value}px`");
     expect(source).not.toContain("gap-1 ");
+  });
+});
+
+describe("wallsUnavailableCopy", () => {
+  test("reads only the clock from an IST as-of stamp", () => {
+    expect(wallsSnapshotTime("2026-11-23T10:00:00+05:30")).toBe("10:00");
+    expect(wallsSnapshotTime("2026-11-23T09:15:00+05:30")).toBe("09:15");
+    expect(wallsSnapshotTime(null)).toBeNull();
+    expect(wallsSnapshotTime("10:00")).toBeNull();
+  });
+
+  test("distinguishes a closed snapshot from a waiting recorder", () => {
+    expect(wallsUnavailableCopy({ closed: true, asOf: "2026-11-23T10:00:00+05:30" })).toEqual({
+      kind: "market-closed",
+      text: "No walls snapshot for 10:00",
+    });
+    expect(wallsUnavailableCopy({ closed: true })).toEqual({
+      kind: "market-closed",
+      text: "No walls snapshot for this session",
+    });
+    expect(wallsUnavailableCopy({})).toEqual({
+      kind: "no-data",
+      text: "Waiting for the walls recorder",
+    });
   });
 });
