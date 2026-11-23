@@ -17,7 +17,7 @@ export function ReplayUnavailable(props: {
     <span
       data-testid={props.testId ?? `replay-unavailable-${props.noun.toLowerCase().replace(/\s+/g, "-")}`}
       data-replay-unavailable="true"
-      class={`inline-flex items-center min-w-0 whitespace-nowrap pl-2 text-[12px] font-semibold tracking-[0.06em] text-fin-text-muted ${props.className ?? ""}`}
+      class={`inline-flex items-center min-w-0 whitespace-nowrap pl-2 text-ui-micro font-semibold tracking-[0.06em] text-fin-text-muted ${props.className ?? ""}`}
       style={{ "border-left": `1px solid ${palette.alpha(palette.BORDER, 0.6)}` }}
     >
       <span class="uppercase">{props.noun}</span> · {REPLAY_UNAVAILABLE_TEXT}
@@ -42,10 +42,10 @@ export function BreadthStrip(props: { data: BreadthPayload | null }) {
         <div
           data-testid="nifty-breadth-strip"
           data-up={data().up}
-          class="flex items-stretch min-w-0 shrink-0 overflow-hidden whitespace-nowrap bg-fin-surface font-mono text-[12px] text-fin-text-muted h-6 min-h-6 w-full"
+          class="flex items-stretch min-w-0 shrink-0 overflow-hidden whitespace-nowrap bg-fin-surface font-mono text-ui-micro text-fin-text-muted h-6 min-h-6 w-full"
         >
           <span
-            class="inline-flex items-center shrink-0 px-2 font-extrabold tracking-[0.06em] text-[12px] border-l-0"
+            class="inline-flex items-center shrink-0 px-2 font-extrabold tracking-[0.06em] text-ui-micro border-l-0"
             style={{ color: palette.TEXT_MUTED }}
           >
             BREADTH
@@ -68,7 +68,7 @@ export function BreadthStrip(props: { data: BreadthPayload | null }) {
                 <span
                   data-testid={`nifty-breadth-${r.label.toLowerCase()}`}
                   title={`${r.label}: ${r.last ? formatNumberIN(r.last) ?? "—" : "—"} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`}
-                  class="inline-flex items-center gap-1 shrink-0 px-2 text-[12px]"
+                  class="inline-flex items-center gap-1 shrink-0 px-2 text-ui-micro"
                   style={{
                     color: palette.TEXT_MUTED,
                     "border-left": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`,

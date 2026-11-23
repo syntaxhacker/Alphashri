@@ -152,7 +152,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
   const stripChrome = (children: JSX.Element) => (
     <div
       data-testid="movers-strip"
-      class="flex items-center h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-[12px]"
+      class="flex items-center h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-ui-micro"
     >
       {children}
     </div>
@@ -164,7 +164,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
   const dataView = () => (
     <div
       data-testid="movers-strip"
-      class="flex items-center justify-between gap-2 h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-[12px] whitespace-nowrap overflow-hidden shrink-0"
+      class="flex items-center justify-between gap-2 h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-ui-micro whitespace-nowrap overflow-hidden shrink-0"
     >
       <span class="inline-flex items-center gap-1 min-w-0 flex-auto">
         <Text
@@ -172,7 +172,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
           size="xs"
           fw={700}
           c="dimmed"
-          className="shrink-0 tracking-[0.1em] text-[12px]"
+          className="shrink-0 tracking-[0.1em] text-ui-micro"
           style={{ color: palette.TEXT_MUTED }}
         >
           MOVERS · {index()} {index() === "NIFTY" ? "50" : "30"}
@@ -197,7 +197,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         <Show when={isStale()}>
           <Tooltip label={`Data is stale (${data()?.as_of})`} position="bottom-start">
             <span
-              class="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-[12px] font-bold tracking-[0.05em] whitespace-nowrap"
+              class="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-ui-micro font-bold tracking-[0.05em] whitespace-nowrap"
               style={{
                 "background-color": palette.alpha(palette.WARNING, 0.12),
                 color: palette.WARNING,
@@ -210,7 +210,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         <button
           type="button"
           data-testid="movers-expand"
-          class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-text-muted text-fin-text-muted bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 shrink-0 h-[20px] px-1 py-0 text-[12px] font-bold tracking-[0.08em] uppercase"
+          class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-text-muted text-fin-text-muted bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 shrink-0 h-[20px] px-1 py-0 text-ui-micro font-bold tracking-[0.08em] uppercase"
           onClick={() => props.onExpand()}
           aria-label="Expand index movers"
           title="Expand index movers"
@@ -240,7 +240,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
                   </Text>
                   <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-text-muted text-fin-text-muted bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 px-2 py-0 text-[12px] font-bold ml-auto min-w-0"
+                    class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-text-muted text-fin-text-muted bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 px-2 py-0 text-ui-micro font-bold ml-auto min-w-0"
                     onClick={() => void poll()}
                   >
                     Retry

@@ -684,7 +684,7 @@ const OI_CHAIN_WRAP_STYLE: JSX.CSSProperties = { height: "100%" };
 
 const OI_CHAIN_TABLE_STYLE: JSX.CSSProperties = { "min-width": 0 };
 
-const OI_CHAIN_EXPAND_CLASS = "min-w-[22px] px-1 leading-none text-[12px]";
+const OI_CHAIN_EXPAND_CLASS = "min-w-[22px] px-1 leading-none text-ui-micro";
 
 export function NiftySpotValue(props: { live: boolean; fallback: number }) {
   const tick = useNiftySpotTick();

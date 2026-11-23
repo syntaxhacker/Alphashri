@@ -331,7 +331,7 @@ export function buildDepthOption(report: NiftyReport): Record<string, unknown> {
       trigger: "item",
       "background-color": palette.TOOLTIP_BG,
       "border-color": palette.TOOLTIP_BORDER,
-      textStyle: { color: palette.TOOLTIP_TEXT, "font-size": "12px" },
+      textStyle: { color: palette.TOOLTIP_TEXT, "font-size": `${REPORT_FONT.micro}px` },
       formatter: (p: unknown) => {
         const param = p as {
           seriesName?: string;

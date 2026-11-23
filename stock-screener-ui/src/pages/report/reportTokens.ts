@@ -3,27 +3,29 @@
  * All hardcoded fontSize, row height, padding, and radius values in the report
  * surface should reference these tokens instead of raw numbers.
  */
+import { TYPE_SCALE } from "@/ui";
 import type { JSX } from "solid-js";
 
-// Font sizes (px) — one four-step ladder for the whole report surface:
-// display > value > body > micro. Every legacy name below is an alias of one
-// of those four steps, so an unmigrated caller cannot reintroduce a fifth size
-// (or make the old 11px private step the page default again).
+// Font sizes (px) — derived from the shared six-step scale, never a private
+// dialect. The report uses four steps: micro 12 / body 13 / value 16 (the
+// shared title step) / display 24. Every legacy name below is an alias of one
+// of those steps, so an unmigrated caller cannot reintroduce a fifth size (or
+// make the old 17px private "value" step the page default again).
 export const REPORT_FONT = {
-  display: 24, // DS Title xl — the one display step; no private 23px dialect
-  value: 17,
-  body: 13,
-  micro: 12, // axis ticks, hints, timestamps — the shared 12px floor
+  display: TYPE_SCALE.display.size, // 24 — DS Title xl; no private 23px verdict
+  value: TYPE_SCALE.title.size, // 16 — alias of the shared title step
+  body: TYPE_SCALE.body.size, // 13 — dense table cells
+  micro: TYPE_SCALE.micro.size, // 12 — axis ticks, hints, timestamps; shared floor
 
   // Legacy aliases → nearest canonical step. Kept so callers that have not
   // migrated to the named steps still compile without widening the scale.
-  xs: 13,
-  xsPlus: 13,
-  sm: 13,
-  md: 13,
-  lg: 17,
-  xl: 17,
-  verdict: 24, // alias of display, never a separate 23px verdict size
+  xs: TYPE_SCALE.body.size,
+  xsPlus: TYPE_SCALE.body.size,
+  sm: TYPE_SCALE.body.size,
+  md: TYPE_SCALE.body.size,
+  lg: TYPE_SCALE.title.size,
+  xl: TYPE_SCALE.title.size,
+  verdict: TYPE_SCALE.display.size, // alias of display, never a separate 23px size
 
   px: (
     step:

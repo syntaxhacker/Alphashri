@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test } from "vitest";
-import { UIProvider } from "@/ui";
+import { TYPE_SCALE, UIProvider } from "@/ui";
 import {
   BG,
   BORDER,
@@ -90,19 +90,21 @@ describe("Index Report typography floor — owned files", () => {
     expect(Object.values(REPORT_RADIUS).filter((v) => typeof v === "number")).toEqual([2, 4, 6, 10]);
   });
 
-  test("(e) the type scale stays closed — one 12/13/17/24 ladder", () => {
-    const tokens = Object.entries(REPORT_FONT)
-      .filter(([, value]) => typeof value === "number")
-      .map(([, value]) => value as number);
-    const sizes = new Set([...tokens, ...literalSizes().map(({ px }) => px)]);
+  test("(e) the ladder is the shared 12/13/16/20/24 scale, not a private dialect", () => {
+    const tokens = Object.values(REPORT_FONT).filter(
+      (value): value is number => typeof value === "number",
+    );
+    const shared = Object.values(TYPE_SCALE).map((step) => step.size);
 
-    // The canonical ladder is REPORT_FONT's micro 12 / body 13 / value 17 /
-    // display 24. 12 is the shared floor now, not a sixth dense-table step, so
-    // an owned file cannot emit a size outside the ladder.
-    const ladder = [...new Set(tokens)].sort((a, b) => a - b);
+    for (const px of tokens) expect(shared, `${px}px`).toContain(px);
+    expect([...new Set(tokens)].sort((a, b) => a - b)).toEqual([12, 13, 16, 24]);
+    expect(REPORT_FONT.micro).toBe(TYPE_SCALE.micro.size);
+    expect(REPORT_FONT.body).toBe(TYPE_SCALE.body.size);
+    expect(REPORT_FONT.value).toBe(TYPE_SCALE.title.size);
+    expect(REPORT_FONT.display).toBe(TYPE_SCALE.display.size);
 
-    expect([...sizes].sort((a, b) => a - b)).toEqual(ladder);
-    expect(sizes.size).toBeLessThanOrEqual(ladder.length);
+    const literals = literalSizes();
+    expect(literals.map(({ file, line, px }) => `${file}:${line} = ${px}px`)).toEqual([]);
   });
 });
 

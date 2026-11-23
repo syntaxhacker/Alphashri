@@ -211,7 +211,7 @@ function ReportBody() {
       <Show when={store.selection.mode() === "eod"}>
         <Box
           data-testid="nifty-replay-mode-banner"
-          className="flex flex-wrap items-center gap-x-2 w-full min-w-0 shrink-0 min-h-6 px-2 py-[2px] text-[12px]"
+          className="flex flex-wrap items-center gap-x-2 w-full min-w-0 shrink-0 min-h-6 px-2 py-[2px] text-ui-micro"
           style={{
             "background-color": palette.SURFACE_ALT,
             "border-left": `2px solid ${palette.PRIMARY}`,

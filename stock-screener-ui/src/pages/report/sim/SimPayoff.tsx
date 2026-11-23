@@ -9,6 +9,7 @@ import { fmtInr, fmtSignedInr, fmtTime, toneFor } from "./simFormat";
 import { payoffSummary, toPayoffLegs } from "./simPayoff";
 import { legLabel } from "./simSpec";
 import type { StrategyView } from "./simView";
+import { REPORT_FONT } from "../reportTokens";
 
 interface SimPayoffProps {
   strategy: SimStrategyResult | null;
@@ -117,7 +118,7 @@ export function SimPayoff(props: SimPayoffProps) {
         label: {
           formatter: axisSpot(value),
           position: "insideEndTop",
-          "font-size": "12px",
+          "font-size": `${REPORT_FONT.micro}px`,
           color: palette.CHART_AVG_ENTRY,
         },
       }));
@@ -136,7 +137,7 @@ export function SimPayoff(props: SimPayoffProps) {
           formatter: `expiry ${fmtSignedInr(expiryAtSpot)}`,
           position: "right",
           distance: 6,
-          "font-size": "12px",
+          "font-size": `${REPORT_FONT.micro}px`,
           color: palette.TEXT,
           "background-color": palette.TERM_BG,
           padding: [2, 4],
@@ -158,7 +159,7 @@ export function SimPayoff(props: SimPayoffProps) {
       "background-color": "transparent",
       tooltip: {
         trigger: "axis",
-        textStyle: { "font-size": "12px" },
+        textStyle: { "font-size": `${REPORT_FONT.micro}px` },
         axisPointer: { type: "line", lineStyle: { color: palette.CHART_MUTED } },
         formatter: (params: unknown) => {
           const rows = Array.isArray(params) ? params : [params];
@@ -178,7 +179,7 @@ export function SimPayoff(props: SimPayoffProps) {
         splitNumber: 5,
         axisLabel: {
           color: palette.CHART_MUTED,
-          "font-size": "12px",
+          "font-size": `${REPORT_FONT.micro}px`,
           formatter: axisSpot,
           hideOverlap: true,
         },
@@ -191,7 +192,7 @@ export function SimPayoff(props: SimPayoffProps) {
         splitNumber: 4,
         axisLabel: {
           color: palette.CHART_MUTED,
-          "font-size": "12px",
+          "font-size": `${REPORT_FONT.micro}px`,
           formatter: axisInr,
           hideOverlap: true,
         },
@@ -235,7 +236,7 @@ export function SimPayoff(props: SimPayoffProps) {
                 label: {
                   formatter: "SPOT",
                   position: "insideEndBottom",
-                  "font-size": "12px",
+                  "font-size": `${REPORT_FONT.micro}px`,
                   color: palette.TERM_SPOT,
                 },
               },
@@ -248,7 +249,7 @@ export function SimPayoff(props: SimPayoffProps) {
                     fmtSignedInr(mark()) +
                     (markTime() ? " @ " + fmtTime(markTime()!) : ""),
                   position: "insideStartTop",
-                  "font-size": "12px",
+                  "font-size": `${REPORT_FONT.micro}px`,
                   color: toneColor(mark()),
                 },
               },
@@ -274,7 +275,7 @@ export function SimPayoff(props: SimPayoffProps) {
                 fmtSignedInr(mark()) +
                 (markTime() ? " @ " + fmtTime(markTime()!) : ""),
               position: "bottom",
-              "font-size": "12px",
+              "font-size": `${REPORT_FONT.micro}px`,
               "background-color": palette.TERM_BG,
               padding: [2, 4],
             },

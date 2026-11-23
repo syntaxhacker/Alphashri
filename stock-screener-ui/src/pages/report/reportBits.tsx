@@ -19,7 +19,7 @@ export function LocalCompactPanel(props: {
       style={props.style}
     >
       <div class="flex items-center justify-between gap-2 px-2 py-1 border-b border-fin-border bg-fin-surface shrink-0">
-        <span class="text-[12px] font-bold uppercase tracking-[0.08em] text-fin-primary">
+        <span class="text-ui-micro font-bold uppercase tracking-[0.08em] text-fin-primary">
           {"· "}
           {props.title}
         </span>
@@ -54,17 +54,17 @@ export function LocalCompactStat(props: {
       data-testid={props.testId}
       class="flex flex-col items-center justify-center text-center gap-0.5 bg-fin-surface border border-fin-border rounded-[4px] px-1 py-1.5 min-w-0"
     >
-      <span class="text-[12px] uppercase tracking-[0.06em] leading-[1.1] text-fin-text-muted">
+      <span class="text-ui-micro uppercase tracking-[0.06em] leading-[1.1] text-fin-text-muted">
         {props.label}
       </span>
       <span
-        class="text-[12px] font-bold leading-none tabular-nums"
+        class="text-ui-micro font-bold leading-none tabular-nums"
         style={{ color: props.tone ?? "var(--color-fin-text)" }}
       >
         {props.value}
       </span>
       <Show when={props.hint}>
-        <span class="text-[12px] leading-[1.1] text-fin-text-muted">{props.hint}</span>
+        <span class="text-ui-micro leading-[1.1] text-fin-text-muted">{props.hint}</span>
       </Show>
     </div>
   );
@@ -73,8 +73,8 @@ export function LocalCompactStat(props: {
 export function LocalEmptyState(props: { testId?: string; title: string; description: string }) {
   return (
     <div data-testid={props.testId} class="flex flex-col items-center justify-center gap-1 py-4 px-2 text-center">
-      <span class="text-[12px] font-semibold leading-tight text-fin-text">{props.title}</span>
-      <span class="text-[12px] leading-snug text-fin-text-muted">{props.description}</span>
+      <span class="text-ui-micro font-semibold leading-tight text-fin-text">{props.title}</span>
+      <span class="text-ui-micro leading-snug text-fin-text-muted">{props.description}</span>
     </div>
   );
 }
@@ -110,13 +110,13 @@ export function LiveTapeDisclosure(props: {
         aria-expanded={open()}
         aria-controls="nifty-live-tape-content"
         onClick={() => props.onToggle()}
-        className="h-7 min-h-7 w-full justify-start px-2 rounded-[2px] text-[12px] font-extrabold uppercase tracking-[0.08em] text-fin-text-muted"
+        className="h-7 min-h-7 w-full justify-start px-2 rounded-[2px] text-ui-micro font-extrabold uppercase tracking-[0.08em] text-fin-text-muted"
       >
-        <span data-testid="nifty-live-tape-chevron" aria-hidden="true" class="mr-2 text-[12px]">
+        <span data-testid="nifty-live-tape-chevron" aria-hidden="true" class="mr-2 text-ui-micro">
           {open() ? "▾" : "▸"}
         </span>
         <span>{props.label ?? "LIVE TAPE"}</span>
-        <span class="ml-auto font-normal normal-case tracking-normal text-[12px] text-fin-text-muted">
+        <span class="ml-auto font-normal normal-case tracking-normal text-ui-micro text-fin-text-muted">
           {open() ? (props.openHint ?? "hide bands") : (props.closedHint ?? "breadth · 10s · erosion")}
         </span>
       </Button>

@@ -186,7 +186,7 @@ export function NiftyItmPeFlowPanel(props: {
           <span
             data-testid="nifty-itm-pe-share"
             title="ITM put volume ÷ all put volume — where hedges and stop-outs printed"
-            class="inline-flex items-center rounded-[3px] px-[5px] py-[1px] text-[12px] font-extrabold tracking-[0.06em] whitespace-nowrap tabular-nums"
+            class="inline-flex items-center rounded-[3px] px-[5px] py-[1px] text-ui-micro font-extrabold tracking-[0.06em] whitespace-nowrap tabular-nums"
             style={{
               color: palette.TERM_PE,
               "background-color": palette.alpha(palette.TERM_PE, 0.14),

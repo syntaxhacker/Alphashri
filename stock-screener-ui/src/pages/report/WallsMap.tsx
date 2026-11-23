@@ -71,7 +71,7 @@ function Legend(props: {
       ) : (
         <span class="w-2 h-2 rounded-[1px]" style={{ "background-color": props.color }} />
       )}
-      <div class="text-[12px] leading-1 text-fin-text-muted">{props.label}</div>
+      <div class="text-ui-micro leading-1 text-fin-text-muted">{props.label}</div>
     </div>
   );
 }
@@ -272,7 +272,7 @@ export function WallsMapChart(props: {
       data-testid={testId}
       aria-pressed={pressed()}
       onClick={onClick}
-      class="inline-flex items-center justify-center min-w-0 rounded-sm text-[12px] font-bold leading-[1.4] whitespace-nowrap"
+      class="inline-flex items-center justify-center min-w-0 rounded-sm text-ui-micro font-bold leading-[1.4] whitespace-nowrap"
       style={{
         padding: "1px 4px",
         color: pressed() ? palette.TEXT_COLOR : palette.TEXT_MUTED,
@@ -297,18 +297,18 @@ export function WallsMapChart(props: {
         class="flex items-center justify-between flex-wrap mb-[3px] row-gap-[2px]"
       >
         <div class="flex items-baseline gap-1.5 min-w-0 flex-wrap row-gap-[1px]">
-          <div class="text-[12px] font-bold tracking-[0.5em] text-fin-text">WALL MAP</div>
-          <div data-testid="walls-map-horizon-label" class="text-[12px] text-fin-text-muted">
+          <div class="text-ui-micro font-bold tracking-[0.5em] text-fin-text">WALL MAP</div>
+          <div data-testid="walls-map-horizon-label" class="text-ui-micro text-fin-text-muted">
             Δ vs {horizon() === "session" ? "open" : timeLabel(times()[0])} · {times().length}m · {strikes().length} strikes
           </div>
           <div
             data-testid="walls-map-active-time"
-            class="text-[12px] font-bold"
+            class="text-ui-micro font-bold"
             style={{ color: isLive() ? palette.POSITIVE : palette.WARNING }}
           >
             {isLive() ? "LIVE" : pinnedTime() ? "PINNED" : "PREVIEW"} · {timeLabel(activeTime())}
           </div>
-          <div class="text-[12px] text-fin-text-muted">
+          <div class="text-ui-micro text-fin-text-muted">
             spot {fmtNum(activeSpot())} · MP {fmtNum(activeMaxPain())} · FLIP {activeFlip() != null ? fmtNum(activeFlip()!) : "—"}
           </div>
         </div>
@@ -317,7 +317,7 @@ export function WallsMapChart(props: {
             {(regime) => (
               <span
                 data-testid="walls-map-regime"
-                class="px-1 py-[1px] border rounded-sm text-[12px] font-bold leading-[1.4]"
+                class="px-1 py-[1px] border rounded-sm text-ui-micro font-bold leading-[1.4]"
                 style={{
                   "border-color": regime() === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
                   color: regime() === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
@@ -339,7 +339,7 @@ export function WallsMapChart(props: {
               type="button"
               data-testid="walls-map-live"
               onClick={clearInspect}
-              class="inline-flex items-center justify-center min-w-0 rounded-sm text-[12px] font-bold leading-[1.4] whitespace-nowrap"
+              class="inline-flex items-center justify-center min-w-0 rounded-sm text-ui-micro font-bold leading-[1.4] whitespace-nowrap"
               style={{
                 padding: "1px 5px",
                 color: palette.PRIMARY,
@@ -354,15 +354,15 @@ export function WallsMapChart(props: {
       </div>
 
       <div class="flex items-center flex-wrap mb-[3px] gap-1 row-gap-[2px]">
-        <div class="text-[12px] font-bold tracking-[0.5em] text-fin-text-muted">COLOR</div>
+        <div class="text-ui-micro font-bold tracking-[0.5em] text-fin-text-muted">COLOR</div>
         <For each={["window", "session"] as const}>{(mode) =>
           toggleButton(`walls-map-horizon-${mode}`, () => horizon() === mode, mode === "window" ? "60m" : "SESSION", () => setHorizon(mode))
         }</For>
-        <div class="text-[12px] font-bold tracking-[0.5em] text-fin-text-muted ml-[8px]">MEASURE</div>
+        <div class="text-ui-micro font-bold tracking-[0.5em] text-fin-text-muted ml-[8px]">MEASURE</div>
         <For each={["pct", "oi"] as const}>{(mode) =>
           toggleButton(`walls-map-measure-${mode}`, () => measure() === mode, mode === "pct" ? "%" : "OI", () => setMeasure(mode))
         }</For>
-        <div class="text-[12px] text-fin-text-muted ml-[8px]">bars: muted = open · bright = new</div>
+        <div class="text-ui-micro text-fin-text-muted ml-[8px]">bars: muted = open · bright = new</div>
       </div>
 
       <svg

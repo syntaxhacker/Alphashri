@@ -57,7 +57,7 @@ function RegimeChip(props: { regime: NiftyFuturesRegime }) {
     <span
       data-testid="nifty-futures-regime"
       title={`Futures regime — ${REGIME_NOTE[props.regime] ?? REGIME_NOTE.neutral}`}
-      class="inline-flex items-center rounded-[3px] px-[5px] py-[1px] text-[12px] font-extrabold tracking-[0.06em] whitespace-nowrap"
+      class="inline-flex items-center rounded-[3px] px-[5px] py-[1px] text-ui-micro font-extrabold tracking-[0.06em] whitespace-nowrap"
       style={{
         color: tone(),
         "background-color": palette.alpha(tone(), 0.14),
@@ -264,7 +264,7 @@ export function NiftyFuturesPanel(props: {
 
           <Box
             data-testid="nifty-futures-key"
-            class="flex items-center gap-2 px-[2px] text-[12px] tracking-[0.04em]"
+            class="flex items-center gap-2 px-[2px] text-ui-micro tracking-[0.04em]"
           >
             <span class="inline-flex items-center gap-[4px]" style={{ color: palette.TEXT_MUTED }}>
               <span

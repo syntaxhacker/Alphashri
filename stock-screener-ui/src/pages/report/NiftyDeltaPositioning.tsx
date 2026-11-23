@@ -247,7 +247,7 @@ export function NiftyDeltaPositioning(props: NiftyDeltaPositioningProps) {
       class="flex flex-col border border-fin-border rounded-[4px] overflow-hidden"
     >
       <div class="flex items-center justify-between px-2 py-1 border-b border-fin-border bg-fin-surface">
-        <span class="text-[12px] font-bold uppercase tracking-[0.07em] text-fin-text-secondary">
+        <span class="text-ui-micro font-bold uppercase tracking-[0.07em] text-fin-text-secondary">
           Delta positioning
         </span>
       </div>

@@ -196,7 +196,7 @@ export function ReportStrips() {
                   <Box
                     data-testid="nifty-oi-critical-badge"
                     title={`${store.alerts.criticalCount()} critical burst${store.alerts.criticalCount() === 1 ? "" : "s"} — filtered first`}
-                    className="inline-flex items-center text-[12px] font-bold tracking-[0.08em] text-fin-negative rounded-[3px] px-1 py-[1px] whitespace-nowrap nifty-critical-pulse"
+                    className="inline-flex items-center text-ui-micro font-bold tracking-[0.08em] text-fin-negative rounded-[3px] px-1 py-[1px] whitespace-nowrap nifty-critical-pulse"
                     style={{ "background-color": palette.TINT_NEGATIVE }}
                   >
                     CRITICAL {store.alerts.criticalCount()}
@@ -212,7 +212,7 @@ export function ReportStrips() {
                   size="sm"
                   variant="subtle"
                   onClick={() => store.alerts.toggleSound()}
-                  className="min-w-[24px] px-1 text-[13px] leading-none"
+                  className="min-w-[24px] px-1 text-ui-body leading-none"
                   {...{
                     "aria-pressed": !store.alerts.soundMuted(),
                     "aria-label": store.alerts.soundMuted()

@@ -136,7 +136,11 @@ function InlineStats(props: { side: DeskSide; noTrade: boolean }) {
             size="xs"
             fw={800}
             span
-            style={{ "font-size": "12px", "line-height": 1.3, "font-variant-numeric": "tabular-nums" }}
+            style={{
+              "font-size": `${REPORT_FONT.micro}px`,
+              "line-height": 1.3,
+              "font-variant-numeric": "tabular-nums",
+            }}
           >
             {stat.value}
           </Text>
@@ -321,10 +325,10 @@ export function NiftyDeskPlan(props: NiftyDeskPlanProps) {
     >
       <div class="flex items-center justify-between gap-2 px-2 py-1 border-b border-fin-border">
         <div class="flex flex-col min-w-0">
-          <span class="text-[12px] font-bold uppercase tracking-[0.07em] text-fin-text-secondary">
+          <span class="text-ui-micro font-bold uppercase tracking-[0.07em] text-fin-text-secondary">
             Desk plan
           </span>
-          <span class="text-[12px] text-fin-text-muted">Both sides · ordered by weight</span>
+          <span class="text-ui-micro text-fin-text-muted">Both sides · ordered by weight</span>
         </div>
         <button
           type="button"

@@ -26,9 +26,9 @@ export function SetupRadarStrip(props: { read: SetupRead; preMove?: PreMoveScore
     <div
       data-testid="nifty-setup-radar"
       data-state={props.read.state}
-      class="flex items-center gap-1.5 min-w-0 shrink-0 overflow-hidden whitespace-nowrap border border-fin-border rounded-sm bg-fin-surface font-mono text-[12px] text-fin-text-muted h-[24px] min-h-[24px] w-full px-2"
+      class="flex items-center gap-1.5 min-w-0 shrink-0 overflow-hidden whitespace-nowrap border border-fin-border rounded-sm bg-fin-surface font-mono text-ui-micro text-fin-text-muted h-[24px] min-h-[24px] w-full px-2"
     >
-      <span class="font-extrabold shrink-0 tracking-[0.08em] text-[12px]" style={{ color: palette.TEXT_MUTED }}>
+      <span class="font-extrabold shrink-0 tracking-[0.08em] text-ui-micro" style={{ color: palette.TEXT_MUTED }}>
         SETUP
       </span>
       <For each={props.read.gates}>{(g) => {
@@ -40,7 +40,7 @@ export function SetupRadarStrip(props: { read: SetupRead; preMove?: PreMoveScore
             data-testid={`nifty-setup-${g.key.toLowerCase()}`}
             data-pass={pass ? "true" : "false"}
             title={`${g.key}: ${g.detail}`}
-            class="font-bold shrink-0 tracking-[0.04em] text-[12px] inline-block rounded-[3px]"
+            class="font-bold shrink-0 tracking-[0.04em] text-ui-micro inline-block rounded-[3px]"
             style={{
               padding: "1px 4px",
               border: `1px solid ${tone}`,
@@ -59,7 +59,7 @@ export function SetupRadarStrip(props: { read: SetupRead; preMove?: PreMoveScore
           title={props.preMove!.components
             .map((c) => `${c.points > 0 ? "+" : ""}${c.points} ${c.label} — ${c.detail}`)
             .join("\n")}
-          class="font-black shrink-0 tracking-[0.04em] text-[12px] inline-block rounded-[3px]"
+          class="font-black shrink-0 tracking-[0.04em] text-ui-micro inline-block rounded-[3px]"
           style={{
             padding: "1px 4px",
             border: `1px solid ${props.preMove!.state === "armed" ? palette.POSITIVE : palette.WARNING}`,
@@ -73,7 +73,7 @@ export function SetupRadarStrip(props: { read: SetupRead; preMove?: PreMoveScore
       </Show>
       <span
         data-testid="nifty-setup-score"
-        class="font-black shrink-0 text-[12px]"
+        class="font-black shrink-0 text-ui-micro"
         style={{ "margin-left": props.preMove && props.preMove.state !== "quiet" ? "6px" : "auto", color: STATE_COLOR[props.read.state] }}
       >
         {props.read.score}/{props.read.gates.length} · {STATE_LABEL[props.read.state]}

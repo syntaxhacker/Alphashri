@@ -142,7 +142,7 @@ export function NiftyPressureLane(props: NiftyPressureLaneProps) {
         class="flex items-center justify-center"
         style={{ height: `${height()}px` }}
       >
-        <span class="text-[12px] text-fin-text-muted">no volume tape</span>
+        <span class="text-ui-micro text-fin-text-muted">no volume tape</span>
       </div>
     );
   }
@@ -193,7 +193,7 @@ export function NiftyPressureLane(props: NiftyPressureLaneProps) {
     <div data-testid="nifty-pressure-lane" class="w-full min-w-0 relative">
       <span
         aria-hidden="true"
-        class="absolute left-0 top-0 text-[12px] tracking-[0.06em] pointer-events-none"
+        class="absolute left-0 top-0 text-ui-micro tracking-[0.06em] pointer-events-none"
         style={{ color: palette.TEXT_MUTED }}
       >
         VOL
@@ -244,7 +244,7 @@ export function NiftyPressureLane(props: NiftyPressureLaneProps) {
       <span
         data-testid="nifty-pressure-last"
         title={`${last().t}: ${last().ratio.toFixed(1)}× the 20-min median (CE ${formatNumberIN(Math.round(last().ce))} ${last().ceFlow ?? "?"}, PE ${formatNumberIN(Math.round(last().pe))} ${last().peFlow ?? "?"})`}
-        class="absolute right-0 top-2 text-[12px] font-black font-mono whitespace-nowrap"
+        class="absolute right-0 top-2 text-ui-micro font-black font-mono whitespace-nowrap"
         style={{ color: lastColor() }}
       >
         {last().ratio > 0 ? `${last().ratio.toFixed(1)}×` : "—"}
@@ -252,7 +252,7 @@ export function NiftyPressureLane(props: NiftyPressureLaneProps) {
       <Show when={hoverPoint() && showAxis()}>
         <div
           data-testid="nifty-pressure-readout"
-          class="absolute top-0 px-1 py-[1px] rounded-[3px] text-[12px] font-mono whitespace-nowrap pointer-events-none z-2"
+          class="absolute top-0 px-1 py-[1px] rounded-[3px] text-ui-micro font-mono whitespace-nowrap pointer-events-none z-2"
           style={{
             left: `${hoverPct()}%`,
             transform: readoutShift(),
@@ -280,7 +280,7 @@ export function NiftyPressureLane(props: NiftyPressureLaneProps) {
                 pct > 92 ? "translateX(-100%)" : pct < 2 ? "none" : "translateX(-50%)";
               return (
                 <span
-                  class="absolute text-[12px] leading-[12px] font-mono whitespace-nowrap"
+                  class="absolute text-ui-micro leading-[12px] font-mono whitespace-nowrap"
                   style={{
                     left: `${pct}%`,
                     transform: shift,
@@ -294,7 +294,7 @@ export function NiftyPressureLane(props: NiftyPressureLaneProps) {
           </div>
           <div
             data-testid="nifty-pressure-legend"
-            class="flex items-center gap-[10px] flex-wrap mt-[3px] text-[12px] font-mono text-fin-text-muted"
+            class="flex items-center gap-[10px] flex-wrap mt-[3px] text-ui-micro font-mono text-fin-text-muted"
           >
             <span class="inline-flex items-center gap-1">
               <span class="w-2 h-2 rounded-[1px]" style={{ "background-color": palette.TERM_CE }} />

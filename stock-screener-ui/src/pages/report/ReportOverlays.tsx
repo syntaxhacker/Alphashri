@@ -251,7 +251,7 @@ export function ReportOverlays() {
         <Box data-testid="nifty-pressure-expanded-body" className="flex flex-col gap-2 min-h-0">
           <Box
             data-testid="nifty-pressure-expanded-stats"
-            className="flex gap-2 flex-wrap text-[12px] text-fin-text-muted"
+            className="flex gap-2 flex-wrap text-ui-micro text-fin-text-muted"
           >
             <span>median {formatNumberIN(Math.round(pressureRange().median))}</span>
             <span>peak {pressureRange().maxRatio.toFixed(1)}×</span>
@@ -275,7 +275,7 @@ export function ReportOverlays() {
         <Box data-testid="nifty-flowchart-expanded-body" className="flex flex-col gap-2 min-w-0">
           <Box
             data-testid="nifty-flowchart-expanded-stats"
-            className="flex gap-2 flex-wrap text-[12px] text-fin-text-muted"
+            className="flex gap-2 flex-wrap text-ui-micro text-fin-text-muted"
           >
             <span>
               flow{" "}

@@ -5,8 +5,7 @@ import { cleanup, render, screen } from "@solidjs/testing-library";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createSignal } from "solid-js";
-import { UIProvider } from "@/ui";
-import { REPORT_FONT } from "./reportTokens";
+import { TYPE_CLASS, UIProvider } from "@/ui";
 
 // The shell is a section-order contract here: every heavy section is stubbed
 // so the test only sees the order the desk reader meets them in.
@@ -146,7 +145,7 @@ describe("NiftyReportShell KPI strip at 390", () => {
     // Groups stack, so 1600-tuned per-cell minimums no longer overflow 390.
     expect(cls).toContain("max-[600px]:[&_[data-testid='nifty-decision-stats']]:flex-col");
     expect(cls).toContain("max-[600px]:[&_[data-testid='nifty-decision-stats']>*]:min-w-full!");
-    // Two cells per row, each wide enough for a full 17px mono figure.
+    // Two cells per row, each wide enough for a full 16px mono figure.
     expect(cls).toContain("basis-[calc(50%_-_2px)]!");
     expect(cls).toContain(":last-child>*]:min-w-0!");
     // No mid-number ellipsis: a clipped price is a wrong price.
@@ -173,7 +172,7 @@ describe("NiftyReportShell shared-scale contract", () => {
     try {
       mount();
       const banner = await screen.findByTestId("nifty-replay-mode-banner");
-      expect(banner.className).toContain(`text-[${REPORT_FONT.micro}px]`);
+      expect(banner.className).toContain(TYPE_CLASS.micro);
       expect(banner.className).not.toContain("text-[11px]");
     } finally {
       mockStore.selection.mode = liveMode;

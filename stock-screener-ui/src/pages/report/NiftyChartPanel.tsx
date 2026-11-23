@@ -744,7 +744,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
           onClick={props.onExpand}
           style={{ padding: "1px", color: palette.TEXT_MUTED }}
         >
-          <Text span size="xs" fw={700} style={{ "font-size": "13px", "line-height": 1 }}>
+          <Text span size="xs" fw={700} style={{ "font-size": `${REPORT_FONT.body}px`, "line-height": 1 }}>
             ⤢
           </Text>
         </ActionIcon>
