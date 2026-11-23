@@ -449,8 +449,15 @@ export function MenuDropdown(props: UIMenuDropdownProps) {
   createEffect(() => {
     if (!open() || !dropdownEl()) return;
     // Arrow keys move a single tab stop; the first item owns it on open.
-    const items = getMenuItems();
-    if (items.length) focusItem(items[0]);
+    // The dropdown is `visibility:hidden` until the placement effect measures
+    // it, and focusing a hidden element is a no-op in a real browser — that
+    // left focus on the trigger. Defer to a microtask so placement and the
+    // visibility style write have landed before focus is applied.
+    queueMicrotask(() => {
+      if (!open()) return;
+      const items = getMenuItems();
+      if (items.length) focusItem(items[0]);
+    });
   });
 
   const handleKeyDown = (e: KeyboardEvent) => {

@@ -69,14 +69,17 @@ describe("Tabs", () => {
     expect(beta).toHaveAttribute("aria-selected", "true");
   });
 
-  test("arrow, Home and End keys move focus between enabled tabs only", () => {
+  test("arrow, Home and End keys activate the newly focused enabled tab", () => {
+    const onChange = vi.fn();
     render(() => (
-      <Tabs defaultValue="a">
+      <Tabs defaultValue="a" onChange={onChange}>
         <Tabs.List>
           <Tabs.Tab value="a">Alpha</Tabs.Tab>
           <Tabs.Tab value="locked" disabled>Locked</Tabs.Tab>
           <Tabs.Tab value="b">Beta</Tabs.Tab>
         </Tabs.List>
+        <Tabs.Panel value="a" data-testid="panel-a">Panel A</Tabs.Panel>
+        <Tabs.Panel value="b" data-testid="panel-b">Panel B</Tabs.Panel>
       </Tabs>
     ));
 
@@ -86,12 +89,72 @@ describe("Tabs", () => {
 
     fireEvent.keyDown(alpha, { key: "ArrowRight" });
     expect(document.activeElement).toBe(beta);
+    expect(beta).toHaveAttribute("aria-selected", "true");
+    expect(alpha).toHaveAttribute("aria-selected", "false");
+    expect(screen.queryByTestId("panel-a")).toBeNull();
+    expect(screen.getByTestId("panel-b")).toBeInTheDocument();
+
     fireEvent.keyDown(beta, { key: "ArrowRight" });
     expect(document.activeElement).toBe(alpha);
+    expect(alpha).toHaveAttribute("aria-selected", "true");
+
     fireEvent.keyDown(alpha, { key: "End" });
     expect(document.activeElement).toBe(beta);
+    expect(beta).toHaveAttribute("aria-selected", "true");
+
     fireEvent.keyDown(beta, { key: "Home" });
     expect(document.activeElement).toBe(alpha);
+    expect(alpha).toHaveAttribute("aria-selected", "true");
+
+    expect(locked).toHaveAttribute("aria-selected", "false");
+    expect(onChange.mock.calls.map(([value]) => value)).toEqual(["b", "a", "b", "a"]);
+  });
+
+  test("keyboard activation reports the value but keeps a controlled tab unchanged until value updates", () => {
+    const [value, setValue] = createSignal<string | null>("a");
+    const onChange = vi.fn();
+    render(() => (
+      <Tabs value={value()} onChange={onChange}>
+        <Tabs.List>
+          <Tabs.Tab value="a">Alpha</Tabs.Tab>
+          <Tabs.Tab value="b">Beta</Tabs.Tab>
+        </Tabs.List>
+      </Tabs>
+    ));
+
+    const [alpha, beta] = screen.getAllByRole("tab");
+    alpha.focus();
+
+    fireEvent.keyDown(alpha, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(beta);
+    expect(onChange).toHaveBeenCalledWith("b");
+    expect(alpha).toHaveAttribute("aria-selected", "true");
+    expect(beta).toHaveAttribute("aria-selected", "false");
+
+    setValue("b");
+    expect(beta).toHaveAttribute("aria-selected", "true");
+    expect(alpha).toHaveAttribute("aria-selected", "false");
+  });
+
+  test("vertical orientation keeps the same arrow activation behaviour", () => {
+    const onChange = vi.fn();
+    render(() => (
+      <Tabs defaultValue="a" orientation="vertical" onChange={onChange}>
+        <Tabs.List orientation="vertical" data-testid="list">
+          <Tabs.Tab value="a">Alpha</Tabs.Tab>
+          <Tabs.Tab value="b">Beta</Tabs.Tab>
+        </Tabs.List>
+      </Tabs>
+    ));
+
+    expect(screen.getByTestId("list")).toHaveAttribute("aria-orientation", "vertical");
+    const [alpha, beta] = screen.getAllByRole("tab");
+    alpha.focus();
+
+    fireEvent.keyDown(alpha, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(beta);
+    expect(beta).toHaveAttribute("aria-selected", "true");
+    expect(onChange).toHaveBeenCalledWith("b");
   });
 
   test("a disabled tab cannot be selected by click", () => {

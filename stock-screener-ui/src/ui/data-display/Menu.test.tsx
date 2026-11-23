@@ -359,15 +359,18 @@ function KeyMenu(props: { loop?: boolean; onPick?: (label: string) => void }) {
   );
 }
 
-const openKeyMenu = (props: { loop?: boolean; onPick?: (label: string) => void } = {}) => {
+const openKeyMenu = async (props: { loop?: boolean; onPick?: (label: string) => void } = {}) => {
   render(() => <KeyMenu loop={props.loop} onPick={props.onPick} />);
   fireEvent.click(screen.getByTestId("trigger"));
+  // Focus is applied on a microtask, after the placement pass makes the
+  // dropdown visible — the same ordering the real browser needs.
+  await Promise.resolve();
   return screen.getAllByRole("menuitem");
 };
 
 describe("Menu — keyboard navigation", () => {
-  test("opens with a single tab stop on the first enabled item", () => {
-    const items = openKeyMenu();
+  test("opens with a single tab stop on the first enabled item", async () => {
+    const items = await openKeyMenu();
 
     expect(screen.getByRole("menu")).toBe(screen.getByTestId("dropdown"));
     expect(items).toHaveLength(3);
@@ -376,8 +379,8 @@ describe("Menu — keyboard navigation", () => {
     expect(items[2]).toHaveAttribute("tabindex", "-1");
   });
 
-  test("ArrowDown skips disabled items; ArrowUp wraps by default", () => {
-    const items = openKeyMenu();
+  test("ArrowDown skips disabled items; ArrowUp wraps by default", async () => {
+    const items = await openKeyMenu();
 
     fireEvent.keyDown(items[0], { key: "ArrowDown" });
     expect(document.activeElement).toBe(items[2]);
@@ -389,8 +392,8 @@ describe("Menu — keyboard navigation", () => {
     expect(document.activeElement).toBe(items[2]);
   });
 
-  test("loop={false} clamps at both ends", () => {
-    const items = openKeyMenu({ loop: false });
+  test("loop={false} clamps at both ends", async () => {
+    const items = await openKeyMenu({ loop: false });
 
     fireEvent.keyDown(items[0], { key: "ArrowUp" });
     expect(document.activeElement).toBe(items[0]);
@@ -400,8 +403,8 @@ describe("Menu — keyboard navigation", () => {
     expect(document.activeElement).toBe(items[2]);
   });
 
-  test("Home and End jump to the first and last enabled items", () => {
-    const items = openKeyMenu();
+  test("Home and End jump to the first and last enabled items", async () => {
+    const items = await openKeyMenu();
 
     fireEvent.keyDown(items[0], { key: "End" });
     expect(document.activeElement).toBe(items[2]);
@@ -410,9 +413,9 @@ describe("Menu — keyboard navigation", () => {
     expect(document.activeElement).toBe(items[0]);
   });
 
-  test("Enter and Space each activate once and dismiss the menu", () => {
+  test("Enter and Space each activate once and dismiss the menu", async () => {
     const onPick = vi.fn();
-    const items = openKeyMenu({ onPick });
+    const items = await openKeyMenu({ onPick });
 
     fireEvent.keyDown(items[0], { key: "Enter" });
     expect(onPick).toHaveBeenCalledTimes(1);
@@ -441,6 +444,82 @@ describe("Menu — keyboard navigation", () => {
 
     fireEvent.mouseEnter(screen.getByTestId("hover-target"));
     expect(screen.getByTestId("hover-dropdown")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("hover-dropdown")).toBeNull();
+  });
+});
+
+describe("Menu — focus follows placement", () => {
+  test("keyboard open moves focus to the first enabled item only after the dropdown is placed", async () => {
+    render(() => <KeyMenu />);
+    const trigger = screen.getByTestId("trigger");
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dropdown = screen.getByTestId("dropdown");
+
+    // The dropdown is still `visibility:hidden` on the placement pass; a
+    // synchronous focus here would be a no-op in a real browser.
+    expect(document.activeElement).toBe(trigger);
+
+    await Promise.resolve();
+    expect(dropdown.style.visibility).toBe("visible");
+    expect(document.activeElement).toBe(screen.getByTestId("item-one"));
+    expect(screen.getByTestId("item-one")).toHaveAttribute("tabindex", "0");
+  });
+
+  test("skips a disabled first item and owns the tab stop on the next enabled one", async () => {
+    render(() => (
+      <Menu>
+        <Menu.Target>
+          <button type="button" data-testid="trigger">Open</button>
+        </Menu.Target>
+        <Menu.Dropdown data-testid="dropdown">
+          <Menu.Item data-testid="disabled-first" disabled>Unavailable</Menu.Item>
+          <Menu.Item data-testid="enabled-second">Second</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ));
+
+    fireEvent.click(screen.getByTestId("trigger"));
+    await Promise.resolve();
+
+    expect(document.activeElement).toBe(screen.getByTestId("enabled-second"));
+    expect(screen.getByTestId("enabled-second")).toHaveAttribute("tabindex", "0");
+  });
+
+  test("Escape and outside click still dismiss after a keyboard open", async () => {
+    render(() => <KeyMenu />);
+    const trigger = screen.getByTestId("trigger");
+    trigger.focus();
+    fireEvent.click(trigger);
+    await Promise.resolve();
+    expect(document.activeElement).toBe(screen.getByTestId("item-one"));
+
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByTestId("dropdown")).toBeNull();
+
+    fireEvent.click(trigger);
+    await Promise.resolve();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("dropdown")).toBeNull();
+  });
+
+  test("hover-open focuses the first enabled item without losing hover dismissal", async () => {
+    render(() => (
+      <Menu trigger="click-hover">
+        <Menu.Target data-testid="hover-target">
+          <button type="button">Hover</button>
+        </Menu.Target>
+        <Menu.Dropdown data-testid="hover-dropdown">
+          <Menu.Item data-testid="hover-item">Only</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ));
+
+    fireEvent.mouseEnter(screen.getByTestId("hover-target"));
+    await Promise.resolve();
+    expect(document.activeElement).toBe(screen.getByTestId("hover-item"));
 
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByTestId("hover-dropdown")).toBeNull();

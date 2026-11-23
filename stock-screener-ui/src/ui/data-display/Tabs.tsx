@@ -64,6 +64,7 @@ export function Tabs(props: UITabsProps) {
 
 export function TabsList(props: UITabsProps) {
   const [known, rest] = splitProps(props, ["orientation", "children", "className", "style", "id", "data-testid"]);
+  const { onChange } = useTabsContext();
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
@@ -79,6 +80,11 @@ export function TabsList(props: UITabsProps) {
     else if (e.key === "Home") next = tabs[0];
     else next = tabs[tabs.length - 1];
     next.focus();
+    // Automatic activation (WAI-ARIA tabs pattern): moving focus must also
+    // select the tab. `data-value` keeps the value reachable from the DOM node
+    // without a separate element→value registry.
+    const value = next.getAttribute("data-value");
+    if (value !== null) onChange(value);
   };
 
   const cls = cn(
@@ -149,6 +155,7 @@ export function Tab(props: UITabProps) {
       role="tab"
       aria-selected={active()}
       data-testid={known["data-testid"]}
+      data-value={known.value}
       disabled={known.disabled}
       tabIndex={active() ? 0 : -1}
       className={cls()}
