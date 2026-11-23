@@ -92,7 +92,7 @@ results.
 
 | Gate | Definition (source of truth) | Evidence status |
 | --- | --- | --- |
-| Axe, **29 stories** | `scripts/storybook-a11y.mjs`: 13 family landings + 3 overlay playables + 5 component representatives + 8 pinned visible states (BrokerAuthNotice, MembersDrawer ×2 ChartPreviews states, Foundations theme bridge, 3 data-display result states). WCAG 2.0/2.1 A/AA; fails on serious/critical. | **Configured, not re-certified here.** No committed run log for the 29-story set. `DESIGN_SYSTEM_A_PLUS_GATE.md` agrees with the script at **29** stories; only the missing run log, not a doc mismatch, keeps 29 from being called green here. |
+| Axe, **30 stories** | `scripts/storybook-a11y.mjs`: 13 family landings + 3 overlay playables + 5 component representatives + 9 pinned visible states (BrokerAuthNotice, MembersDrawer, ×2 ChartPreviews states, Foundations theme bridge, 3 data-display result states, NavLink states). WCAG 2.0/2.1 A/AA; fails on serious/critical. | **Configured, not re-certified here.** No committed run log for the 30-story set. `DESIGN_SYSTEM_A_PLUS_GATE.md` agrees with the script at **30** stories; only the missing run log, not a doc mismatch, keeps 30 from being called green here. |
 | Keyboard, **10 walkthroughs** | `scripts/storybook-keyboard.mjs`: Modal open (Tab cycle/Shift+Tab wrap), Modal dismissal (Escape/focus return), Tree (arrows/expand/select), Menu (arrows/Home/End/Escape), horizontal Tabs, vertical Tabs, Popover, Tooltip, modal FloatingWindow, NavLink (button[role=link] Enter/Space activation, disabled inert, href stays an anchor). | **Configured.** `DESIGN_SYSTEM_A_PLUS_GATE.md:90` documents 10/10; no committed run artifact accompanies this index, so treat 10/10 as a documented claim, not fresh evidence. |
 | Visual baseline, **12 images** | `tests/visual/__screenshots__/README.md` and `docs/VISUAL_REGRESSION.md`: 6 stories × 2 viewports — `typography-landing`, `overview`, `inputs-landing`, `data-display-landing`, `overlay-landing`, `foundations-landing` at `desktop-1600` / `mobile-390`; `bun run visual:test` must find all 12 (no writes). | **Harness + CI step configured (`ff939b9a`), baselines pending.** Directory contains only `README.md`; 0 of 12 PNGs exist. `bun run build-storybook` + `bun run visual:update` must produce and commit them before the gate can pass; do not call it green. |
 
@@ -105,8 +105,8 @@ results.
 - Static Storybook images do not verify `/home`, `/options`, bare `/screener`,
   `/patterns`, focus order, live WCAG ratios or reduced motion.
 - Script definitions are gate *configuration*; a pass result needs a run/artifact.
-  The 29-story axe number comes from the script, and `DESIGN_SYSTEM_A_PLUS_GATE.md`
-  agrees at 29 — still configuration, not a committed run result.
+  The 30-story axe number comes from the script, and `DESIGN_SYSTEM_A_PLUS_GATE.md`
+  agrees at 30 — still configuration, not a committed run result.
 - The pixel-diff harness and CI step exist (`ff939b9a`), but no baseline PNGs
   have been generated or committed yet (0 of 12), so "visual regression gate
   passes" is not a supportable claim today.
@@ -119,7 +119,7 @@ results.
 2. `home-{1600,390}.png` and `options-{1600,390}.png` — capture both routes.
 3. Bare `/screener` and `/patterns` route captures at 1600/390 (no files at all).
 4. All 12 visual-baseline PNGs in `tests/visual/__screenshots__/`.
-5. A committed run result for the 29-story axe gate; a committed run result for
+5. A committed run result for the 30-story axe gate; a committed run result for
    10 keyboard walkthroughs.
 6. Live-app focus/keyboard, actual contrast ratios and reduced-motion evidence —
    currently source-only or Storybook-only.
