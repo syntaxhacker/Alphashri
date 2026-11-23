@@ -85,67 +85,69 @@ const Specimen = (props: { title: string; note: string; children: JSX.Element })
 );
 
 /**
- * Absolute positioning keeps the real shell parts inside the preview frame;
- * in an app they are fixed to the viewport by default.
+ * Real shell parts laid out in flow, not at fixed offsets: the navbar keeps its
+ * 220px rail on wide hosts and wraps above main when the host is too narrow for
+ * two columns. Nothing is clipped by an overflow-hidden frame at 390px.
  */
 const ShellComposition = () => (
-  <Box style={{ height: "380px", position: "relative", overflow: "hidden", border: `1px solid ${palette.BORDER}`, background: palette.BG }}>
+  <Box style={{ "min-height": "380px", border: `1px solid ${palette.BORDER}`, background: palette.BG }}>
     <AppShellHeader
       style={{
-        position: "absolute", height: "48px", background: palette.SURFACE_ALT,
+        position: "relative", height: "48px", background: palette.SURFACE_ALT,
         "border-bottom": `1px solid ${palette.BORDER}`, display: "flex", "align-items": "center",
-        padding: "0 12px",
+        "flex-wrap": "wrap", padding: "0 12px",
       }}
     >
       <Text size="sm" fw={700}>ALPHASHRI</Text>
       <Text size="xs" c="dimmed" style={{ "margin-left": "12px" }}>Header · 48px</Text>
     </AppShellHeader>
-    <AppShellNavbar
-      p={2}
-      style={{
-        position: "absolute", top: "48px", height: "calc(100% - 48px)", width: "220px",
-        background: palette.SURFACE, "border-right": `1px solid ${palette.BORDER}`,
-      }}
-    >
-      <Stack gap="xs">
-        <Text size="xs" c="dimmed" tt="uppercase" fw={500}>Workspace</Text>
-        <NavLink label="Market" description="Screener and breadth" active />
-        <NavLink label="Options" description="Chain, paper, replay" />
-        <NavLink label="Reports" description="Index and profitability" />
-      </Stack>
-    </AppShellNavbar>
-    <AppShellMain
-      style={{
-        position: "absolute", top: "48px", left: "220px", width: "calc(100% - 220px)",
-        height: "calc(100% - 48px)", overflow: "auto",
-      }}
-    >
-      <AppShellSection grow>
-        <Stack gap="sm">
-          <Text size="lg" fw={700}>Main content</Text>
-          <Text size="sm" c="dimmed">Each exported shell part renders its own semantic element; pages supply only the content.</Text>
-          <Group gap="sm" wrap="wrap">
-            <Badge variant="light" color="primary">Screener</Badge>
-            <Badge variant="outline" color="info">Paper</Badge>
-            <Badge variant="outline">Reports</Badge>
-          </Group>
-          <Divider />
-          <Flex gap="sm" align="flex-start" wrap="wrap">
-            {[
-              { k: "Universe", v: "NIFTY 500" },
-              { k: "Rows", v: "214" },
-              { k: "Actionable", v: "18" },
-              { k: "As of", v: "10:02 IST" },
-            ].map((item) => (
-              <Box key={item.k} style={{ "min-width": "110px", padding: "8px", background: palette.SURFACE_ALT, border: `1px solid ${palette.BORDER}` }}>
-                <Text size="xs" c="dimmed">{item.k}</Text>
-                <Text size="sm" fw={600} className="font-mono">{item.v}</Text>
-              </Box>
-            ))}
-          </Flex>
+    <Flex wrap="wrap" align="stretch">
+      <AppShellNavbar
+        p={2}
+        style={{
+          position: "static", flex: "0 0 220px", width: "220px",
+          background: palette.SURFACE, "border-right": `1px solid ${palette.BORDER}`,
+        }}
+      >
+        <Stack gap="xs">
+          <Text size="xs" c="dimmed" tt="uppercase" fw={500}>Workspace</Text>
+          <NavLink label="Market" description="Screener and breadth" active />
+          <NavLink label="Options" description="Chain, paper, replay" />
+          <NavLink label="Reports" description="Index and profitability" />
         </Stack>
-      </AppShellSection>
-    </AppShellMain>
+      </AppShellNavbar>
+      <AppShellMain
+        style={{ position: "static", flex: "1 1 300px", "min-width": "0", padding: "16px" }}
+      >
+        <AppShellSection grow>
+          <Stack gap="sm">
+            <Text size="lg" fw={700}>Main content</Text>
+            <Text size="sm" c="dimmed" className="break-words">
+              Each exported shell part renders its own semantic element; pages supply only the content.
+            </Text>
+            <Group gap="sm" wrap="wrap">
+              <Badge variant="light" color="primary">Screener</Badge>
+              <Badge variant="outline" color="info">Paper</Badge>
+              <Badge variant="outline">Reports</Badge>
+            </Group>
+            <Divider />
+            <Flex gap="sm" align="flex-start" wrap="wrap">
+              {[
+                { k: "Universe", v: "NIFTY 500" },
+                { k: "Rows", v: "214" },
+                { k: "Actionable", v: "18" },
+                { k: "As of", v: "10:02 IST" },
+              ].map((item) => (
+                <Box key={item.k} style={{ "min-width": "110px", padding: "8px", background: palette.SURFACE_ALT, border: `1px solid ${palette.BORDER}` }}>
+                  <Text size="xs" c="dimmed">{item.k}</Text>
+                  <Text size="sm" fw={600} className="font-mono">{item.v}</Text>
+                </Box>
+              ))}
+            </Flex>
+          </Stack>
+        </AppShellSection>
+      </AppShellMain>
+    </Flex>
   </Box>
 );
 
@@ -179,7 +181,7 @@ const CollapsedChrome = () => {
 export const FamilyLanding: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1120px", padding: "4px 0 24px" }}>
+      <Stack gap="lg" style={{ "max-width": "1120px", margin: "0 auto", padding: "4px 0 24px" }}>
         <FamilyHero
           name="Navigation"
           count={components.length}
