@@ -102,6 +102,21 @@ describe("SectorPage", () => {
     expect(screen.getByText("IT")).toBeInTheDocument();
   });
 
+  it("keeps the top sector name whole at 390 — no mid-word ellipsis, full name in the title", async () => {
+    mockFetchSectorPerformance.mockResolvedValue({
+      ...mockResponse,
+      sectors: [{ ...mockSectors[0], sector: "Technology" }, ...mockSectors.slice(1)],
+    });
+    render(() => <SectorPage />);
+    const name = (await screen.findByTestId("sector-top-summary-name")) as HTMLElement;
+    expect(name).toHaveTextContent("Technology");
+    // Native tooltip carries the full value even if a narrow parent clips it.
+    expect(name).toHaveAttribute("title", "Technology");
+    // CSS ellipsis would cut a single word into "Techno…"; the name must wrap instead.
+    expect(name.style.textOverflow).not.toBe("ellipsis");
+    expect(name.style.whiteSpace).not.toBe("nowrap");
+  });
+
   it("renders Top Sector card with avg change value", async () => {
     mockFetchSectorPerformance.mockResolvedValue(mockResponse);
     render(() => <SectorPage />);
@@ -224,6 +239,14 @@ describe("SectorPage", () => {
       expect(screen.getByText("Sector Correlation").closest('[role="tab"]')).toHaveAttribute("aria-selected", "true");
     });
     expect(window.location.search).toContain("tab=correlation");
+
+    // A second hop reaches the last tab, which is the one clipped at 390.
+    const correlationTab = screen.getByText("Sector Correlation").closest('[role="tab"]')!;
+    fireEvent.keyDown(correlationTab, { key: "ArrowRight" });
+    await waitFor(() => {
+      expect(screen.getByText("Rotation").closest('[role="tab"]')).toHaveAttribute("aria-selected", "true");
+    });
+    expect(window.location.search).toContain("tab=rotation");
   });
 
   it("makes the focusable region the sole horizontal scroller with a sideways cue", async () => {

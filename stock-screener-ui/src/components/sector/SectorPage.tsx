@@ -660,10 +660,19 @@ function SectorContextBar(props: {
             <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-ui-micro tracking-[0.3px] whitespace-nowrap">
               Top Sector
             </Text>
-            <Text fw={700} c="success" truncate className="text-ui-micro">
+            {/* A single-word sector must not be ellipsised mid-word at 390.
+                Dropping the inline change on narrow screens leaves room for the
+                full name; the number stays in the Sector Performance table. */}
+            <Text
+              fw={700}
+              c="success"
+              className="text-ui-micro min-w-0 break-words"
+              title={top()!.sector}
+              data-testid="sector-top-summary-name"
+            >
               {top()!.sector}
             </Text>
-            <Text c="dimmed" className="text-ui-micro font-mono tabular-nums whitespace-nowrap">
+            <Text c="dimmed" className="text-ui-micro font-mono tabular-nums whitespace-nowrap hidden sm:inline">
               Avg Change: {formatPercentage(top()!.avg_change)}
             </Text>
           </Box>
@@ -682,7 +691,7 @@ function SectorContextBar(props: {
             <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-ui-micro tracking-[0.3px] whitespace-nowrap">
               Weakest Sector
             </Text>
-            <Text fw={700} c="error" truncate className="text-ui-micro">
+            <Text fw={700} c="error" truncate className="text-ui-micro" title={bottom()!.sector}>
               {bottom()!.sector}
             </Text>
             <Text c="dimmed" className="text-ui-micro font-mono tabular-nums whitespace-nowrap">
