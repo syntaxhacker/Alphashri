@@ -36,6 +36,35 @@ function setup(overrides: Partial<TipProps> = {}) {
   };
 }
 
+/** A non-focusable trigger: the case the opt-in tab stop exists for. */
+function setupPlain(overrides: Partial<TipProps> = {}) {
+  const onFocus = vi.fn();
+  const onBlur = vi.fn();
+  const onClick = vi.fn();
+
+  render(() => (
+    <Tooltip
+      label="Helpful hint"
+      data-testid="plain"
+      focusable
+      onFocus={onFocus}
+      onBlur={onBlur}
+      onClick={onClick}
+      {...overrides}
+    >
+      <span>Plain trigger</span>
+    </Tooltip>
+  ));
+
+  return {
+    wrapper: () => screen.getByTestId("plain-wrapper") as HTMLElement,
+    tooltip: () => screen.queryByRole("tooltip") as HTMLElement | null,
+    onFocus,
+    onBlur,
+    onClick,
+  };
+}
+
 describe("Tooltip a11y contracts", () => {
   test("opens on keyboard focus of the trigger", async () => {
     const { trigger, tooltip, onFocus } = setup();
@@ -148,5 +177,69 @@ describe("Tooltip a11y contracts", () => {
       "aria-describedby",
       `external-note ${screen.getByRole("tooltip").id}`,
     );
+  });
+});
+
+describe("Tooltip opt-in tab stop", () => {
+  test("does not add a tab stop or wrapper role by default", () => {
+    const { wrapper, trigger } = setup();
+
+    expect(wrapper()).not.toHaveAttribute("tabindex");
+    expect(wrapper()).not.toHaveAttribute("role");
+    // Only the real button is in the tab order — no duplicate stop around it.
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Trigger" })).toBe(trigger());
+  });
+
+  test("opts the wrapper into the tab sequence for non-focusable content", () => {
+    const { wrapper } = setupPlain();
+
+    expect(wrapper()).toHaveAttribute("tabindex", "0");
+    expect(wrapper()).toHaveAttribute("role", "button");
+  });
+
+  test("names the focusable wrapper and gives it a visible focus ring", () => {
+    const { wrapper } = setupPlain();
+
+    expect(wrapper()).toHaveAttribute("aria-label", "Helpful hint");
+    expect(screen.getByRole("button", { name: "Helpful hint" })).toBe(wrapper());
+    expect(wrapper().className).toContain("focus:ring-fin-primary");
+    expect(wrapper().className).toContain("focus-visible:ring-2");
+    // A plain wrapper must not borrow the focus styling without the tab stop.
+    expect(setup().wrapper().className).not.toContain("focus:ring-fin-primary");
+  });
+
+  test("opens on focus of the wrapper and closes on its blur", async () => {
+    const { wrapper, tooltip, onFocus, onBlur } = setupPlain();
+    expect(tooltip()).toBeNull();
+
+    wrapper().focus();
+
+    await waitFor(() => expect(tooltip()).toBeInTheDocument());
+    expect(tooltip()).toHaveTextContent("Helpful hint");
+    expect(onFocus).toHaveBeenCalledTimes(1);
+    expect(wrapper()).toHaveAttribute("aria-describedby", screen.getByRole("tooltip").id);
+
+    wrapper().blur();
+
+    await waitFor(() => expect(tooltip()).toBeNull());
+    expect(onBlur).toHaveBeenCalledTimes(1);
+    expect(wrapper()).not.toHaveAttribute("aria-describedby");
+  });
+
+  test("Enter/Space do not synthesise activation; existing callbacks still work", async () => {
+    const { wrapper, tooltip, onClick } = setupPlain();
+    wrapper().focus();
+    await waitFor(() => expect(tooltip()).toBeInTheDocument());
+
+    fireEvent.keyDown(wrapper(), { key: "Enter" });
+    fireEvent.keyDown(wrapper(), { key: " " });
+
+    expect(onClick).not.toHaveBeenCalled();
+    expect(tooltip()).toBeInTheDocument();
+
+    // The caller's own callback is untouched — a real click still fires it.
+    fireEvent.click(wrapper());
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 });
