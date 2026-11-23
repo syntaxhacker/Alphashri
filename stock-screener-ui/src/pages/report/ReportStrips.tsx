@@ -1,5 +1,6 @@
 import { Show, createEffect, createMemo, createSignal } from "solid-js";
 
+import type { WallsPayload } from "@/api/reportNifty";
 import { Box, Button } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactPanel } from "@/components/common/compact";
@@ -71,6 +72,14 @@ export function ReportStrips() {
   });
   const symbol = () => store.selection.symbol();
   const wallsPayload = () => store.walls.data();
+
+  // A live recorder can hand back a truthy, row-less envelope before the chain
+  // has produced levels. That is no more a walls snapshot than null: only real
+  // call/put rows justify the full card and its reserved height.
+  const realWalls = createMemo((): WallsPayload | null => {
+    const walls = wallsPayload();
+    return walls && (walls.calls?.length ?? 0) + (walls.puts?.length ?? 0) > 0 ? walls : null;
+  });
 
   const spotMove1m = createMemo(() => {
     const rows = store.data.tapeRows();
@@ -149,11 +158,11 @@ export function ReportStrips() {
         />
       </LiveTapeDisclosure>
 
-      {/* Only a real snapshot mounts the full card. With no walls, a live strip
-          collapses to the one-line reason + Retry; replay already names that one
-          reason in its mode banner, so it needs no second line here. */}
+      {/* Only a snapshot with call/put levels mounts the full card. An empty or
+          partial live envelope collapses to the one-line reason + Retry; replay
+          already names that one reason in its mode banner, so no second line. */}
       <Show
-        when={wallsPayload()}
+        when={realWalls()}
         fallback={
           mode() === "live" ? (
             <WallsUnavailableStrip onRetry={() => store.data.refresh?.()} />

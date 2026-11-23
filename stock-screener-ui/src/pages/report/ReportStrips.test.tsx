@@ -35,6 +35,9 @@ const breadth = (over: Partial<BreadthPayload> = {}): BreadthPayload => ({
 const mode = createSignal<"live" | "eod">("live");
 const wallsData = createSignal<unknown>(null);
 
+// A real snapshot needs levels, not just metadata — one side is enough.
+const wallsWithLevels = { state: "positioning", calls: [{ strike: 22_500 }], puts: [] };
+
 vi.mock("./ReportContext", () => ({
   useNiftyReport: () => ({
     data: {
@@ -80,7 +83,7 @@ afterEach(() => {
 describe("ReportStrips", () => {
   test("mounts every band inside one deliberate 8px column", () => {
     mode[1]("live");
-    wallsData[1]({ state: "positioning" });
+    wallsData[1](wallsWithLevels);
     render(() => <ReportStrips />);
     const root = screen.getByTestId("nifty-report-strips");
     expect(root.className).toContain("flex-col");
@@ -106,9 +109,29 @@ describe("ReportStrips", () => {
     expect(screen.queryByTestId("walls-stub")).toBeNull();
   });
 
+  test("a truthy empty live payload still collapses to the compact reason", () => {
+    mode[1]("live");
+    wallsData[1]({});
+    render(() => <ReportStrips />);
+    const band = screen.getByTestId("nifty-walls-card");
+    expect(band).toHaveAttribute("data-empty-kind", "no-data");
+    expect(band).toHaveTextContent(/waiting for walls data/i);
+    expect(band.className).toContain("h-6");
+    expect(screen.getByTestId("nifty-walls-retry")).toBeInTheDocument();
+    expect(screen.queryByTestId("walls-stub")).toBeNull();
+  });
+
+  test("a metadata-only live payload with empty call and put rows stays compact", () => {
+    mode[1]("live");
+    wallsData[1]({ state: "positioning", calls: [], puts: [], spot: 22_350 });
+    render(() => <ReportStrips />);
+    expect(screen.getByTestId("nifty-walls-card")).toHaveTextContent(/waiting for walls data/i);
+    expect(screen.queryByTestId("walls-stub")).toBeNull();
+  });
+
   test("live with real walls mounts the full card and no compact reason", () => {
     mode[1]("live");
-    wallsData[1]({ state: "positioning" });
+    wallsData[1](wallsWithLevels);
     render(() => <ReportStrips />);
     expect(screen.getByTestId("walls-stub")).toBeInTheDocument();
     expect(screen.queryByTestId("nifty-walls-card")).toBeNull();
@@ -133,7 +156,7 @@ describe("ReportStrips", () => {
   });
 
   test("a replay that reconstructed walls still mounts the real WALLS band", () => {
-    wallsData[1]({ state: "positioning" });
+    wallsData[1](wallsWithLevels);
     mode[1]("eod");
     render(() => <ReportStrips />);
     expect(screen.getByTestId("walls-stub")).toBeInTheDocument();

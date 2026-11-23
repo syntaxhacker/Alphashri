@@ -12,6 +12,20 @@ export const OI_CHAIN_METRICS = {
   valueSize: REPORT_FONT.body, // 13 — numbers and badges they describe
 } as const;
 
+/**
+ * Definite pixel cap — never a percentage. The report's chain parent is a
+ * non-definite flex item, so `max-height: 100%` resolved to a collapsed wrap
+ * (header + bars, no STRIKE/values) in the real 1600 capture.
+ *
+ * 360px leaves the ~177px five-row desk chain (28px header row + 5×26px rows
+ * + the compact panel header) untouched, and bounds a ~782px full chain to
+ * ~12 visible rows with vertical scroll. The table's own scroll area carries
+ * the overflow, so no row is clipped by the main row's `overflow: hidden`.
+ */
+export const OI_CHAIN_MAX_HEIGHT = 360;
+/** Header row height the cap is derived around (see OI_CHAIN_MAX_HEIGHT). */
+export const OI_CHAIN_HEADER_HEIGHT = 28;
+
 // Full chain (390px): roomy columns behind the wrapper's horizontal scroll.
 export const OI_CE_CHG_W = 116;
 export const OI_CE_OI_W = 96;

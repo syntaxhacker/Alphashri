@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
-import { afterEach, describe, expect, test } from "vitest";
+import { createSignal } from "solid-js";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { NiftyStrike } from "@/types/niftyReport";
 import * as palette from "@/ui/palette";
 import { setLiveTick } from "./niftyStreamSolid";
@@ -8,6 +9,8 @@ import {
   getNiftyOiColumns,
   NiftyOiChain,
   OI_CHAIN_DESK_WIDTH,
+  OI_CHAIN_HEADER_HEIGHT,
+  OI_CHAIN_MAX_HEIGHT,
   OI_CHAIN_METRICS,
   OI_CHAIN_PANEL_BUDGET,
 } from "./reportCells";
@@ -406,5 +409,195 @@ describe("option-chain row emphasis and panel sizing", () => {
     expect(panel.style.getPropertyValue("flex")).toBe("0 0 auto");
     expect(panel.style.getPropertyValue("contain")).toBe("layout paint");
     expect(screen.getByTestId("nifty-oi-wrap").style.getPropertyValue("height")).toBe("auto");
+  });
+});
+
+describe("full-density chain — bounded scroll and ATM auto-centre", () => {
+  const VIEW_H = OI_CHAIN_MAX_HEIGHT;
+  const CONTENT_H = OI_CHAIN_HEADER_HEIGHT + 29 * OI_CHAIN_METRICS.rowHeight;
+  const rows = Array.from({ length: 29 }, (_, i) => chainRow(25000 + i * 100));
+
+  const rect = (top: number, height: number): DOMRect =>
+    ({
+      top,
+      left: 0,
+      height,
+      width: 384,
+      bottom: top + height,
+      right: 384,
+      x: 0,
+      y: top,
+      toJSON: () => ({}),
+    }) as DOMRect;
+
+  // Geometry only exists on the table's scroll area; every other element is
+  // zero-sized, so the centring walk picks the same node a real browser does.
+  const rowTopFor = (tr: HTMLElement | null): number => {
+    const strike = Number((tr?.getAttribute("data-testid") ?? "").replace("nifty-strike-row-", ""));
+    if (strike === 26400) return 500;
+    if (strike === 25000) return 60;
+    return 0;
+  };
+  const realRect = HTMLElement.prototype.getBoundingClientRect;
+  const hadScroll = Object.prototype.hasOwnProperty.call(HTMLElement.prototype, "scrollHeight");
+  const realScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollHeight");
+  const hadClient = Object.prototype.hasOwnProperty.call(HTMLElement.prototype, "clientHeight");
+  const realClient = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
+
+  beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.classList?.contains("paper-tanstack-scroll") ? CONTENT_H : 0;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.classList?.contains("paper-tanstack-scroll") ? VIEW_H : 0;
+      },
+    });
+    HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      if (this.classList?.contains("paper-tanstack-scroll")) return rect(0, VIEW_H);
+      const tr = this.closest("tr");
+      if (!tr) return rect(0, 0);
+      // Real viewport rects move as the scroller moves; mirror that so the
+      // absolute re-centre target stays stable across a selection change.
+      const scroller = tr.closest(".paper-tanstack-scroll") as HTMLElement | null;
+      return rect(rowTopFor(tr) - (scroller?.scrollTop ?? 0), OI_CHAIN_METRICS.rowHeight);
+    };
+  });
+
+  afterEach(() => {
+    HTMLElement.prototype.getBoundingClientRect = realRect;
+    if (hadScroll && realScroll) {
+      Object.defineProperty(HTMLElement.prototype, "scrollHeight", realScroll);
+    } else {
+      delete (HTMLElement.prototype as unknown as Record<string, unknown>).scrollHeight;
+    }
+    if (hadClient && realClient) {
+      Object.defineProperty(HTMLElement.prototype, "clientHeight", realClient);
+    } else {
+      delete (HTMLElement.prototype as unknown as Record<string, unknown>).clientHeight;
+    }
+  });
+
+  function mount(atm: () => number) {
+    return render(() => (
+      <NiftyOiChain
+        strikes={rows}
+        columns={getNiftyOiColumns(atm(), { showLegChange: false })}
+        getRowStyle={() => undefined}
+        getRowTestId={(row) => `nifty-strike-row-${row.strike}`}
+        panelTestId="nifty-oi-panel"
+        tableTestId="nifty-oi-table"
+        wrapTestId="nifty-oi-wrap"
+      />
+    ));
+  }
+
+  const settle = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+
+  test("definite height contract keeps all five desk rows and caps full density at 360px", async () => {
+    const fiveRowContent = OI_CHAIN_HEADER_HEIGHT + 5 * OI_CHAIN_METRICS.rowHeight;
+    const fullContent = OI_CHAIN_HEADER_HEIGHT + 29 * OI_CHAIN_METRICS.rowHeight;
+    expect(fiveRowContent).toBe(158);
+    expect(fullContent).toBe(782);
+    expect(fiveRowContent).toBeLessThan(OI_CHAIN_MAX_HEIGHT);
+    expect(fullContent).toBeGreaterThan(OI_CHAIN_MAX_HEIGHT);
+    expect(typeof OI_CHAIN_MAX_HEIGHT).toBe("number");
+
+    render(() => (
+      <NiftyOiChain
+        strikes={[25700, 25800, 25900, 26000, 26100].map(chainRow)}
+        columns={getNiftyOiColumns(25700, { showLegChange: false })}
+        getRowStyle={() => undefined}
+        getRowTestId={(row) => `desk-row-${row.strike}`}
+        panelTestId="desk-panel"
+        tableTestId="desk-table"
+        wrapTestId="desk-wrap"
+      />
+    ));
+    await settle();
+    const table = screen.getByTestId("desk-table");
+    expect(table.querySelectorAll("tbody tr")).toHaveLength(5);
+    for (const strike of ["25,700", "25,800", "25,900", "26,000", "26,100"]) {
+      expect(table, `desk chain must show ${strike}`).toHaveTextContent(strike);
+    }
+    const wrap = screen.getByTestId("desk-wrap") as HTMLElement;
+    expect(wrap.className).toContain(`[&_td]:[height:${OI_CHAIN_METRICS.rowHeight}px]!`);
+    expect(wrap.style.maxHeight).toBe("360px");
+    expect(screen.getByTestId("desk-panel").style.maxHeight).toBe("360px");
+    const desk = getNiftyOiColumns(null, { showLegChange: false });
+    expect(desk.reduce((sum, c) => sum + (c.size ?? 0), 0)).toBe(OI_CHAIN_DESK_WIDTH);
+    expect(OI_CHAIN_DESK_WIDTH).toBe(384);
+  });
+
+  test("29 rows stay bounded and scrollable with the desk fit, sticky strike and testids intact", async () => {
+    mount(() => 26400);
+    await settle();
+    const wrap = screen.getByTestId("nifty-oi-wrap") as HTMLElement;
+    const panel = screen.getByTestId("nifty-oi-panel") as HTMLElement;
+
+    expect(OI_CHAIN_MAX_HEIGHT).toBe(360);
+    expect(panel.style.maxHeight).toBe(`${OI_CHAIN_MAX_HEIGHT}px`);
+    expect(wrap.style.maxHeight).toBe(`${OI_CHAIN_MAX_HEIGHT}px`);
+    expect(panel.style.maxHeight).not.toContain("%");
+    expect(wrap.style.maxHeight).not.toContain("%");
+    expect(wrap.style.height).toBe("auto");
+    expect(wrap.style.overflowX).toBe("auto");
+    expect(wrap.style.overflowY).toBe("auto");
+    expect(wrap.className).toContain("overflow-x-auto");
+    expect(wrap.className).toContain("overflow-y-auto");
+    expect(wrap.className).toContain("[&_.paper-tanstack-scroll]:overflow-y-auto");
+    expect(wrap).toHaveAttribute("data-chain-scroll", "1");
+    expect(wrap).toHaveAttribute("data-chain-v-scroll", "1");
+    expect(wrap).toHaveAttribute("data-chain-variant", "compact");
+    expect(wrap).toHaveAttribute("role", "region");
+    expect(wrap).toHaveAttribute("aria-label", "Option chain");
+    expect(wrap).toHaveAttribute("tabindex", "0");
+
+    const scroller = wrap.querySelector(".paper-tanstack-scroll") as HTMLElement;
+    expect(scroller).toBeTruthy();
+    expect(scroller.style.overflow).toBe("auto");
+
+    const table = screen.getByTestId("nifty-oi-table");
+    expect(table.querySelectorAll("tbody tr")).toHaveLength(29);
+    const strikeHeader = Array.from(table.querySelectorAll("thead th")).find(
+      (th) => th.textContent === "STRIKE",
+    ) as HTMLElement;
+    expect(strikeHeader).toBeTruthy();
+    expect(strikeHeader.style.position).toBe("sticky");
+
+    const desk = getNiftyOiColumns(null, { showLegChange: false });
+    expect(desk.reduce((sum, c) => sum + (c.size ?? 0), 0)).toBe(OI_CHAIN_DESK_WIDTH);
+    expect(OI_CHAIN_DESK_WIDTH).toBe(384);
+  });
+
+  test("mount opens with the ATM row centred in the bounded scroll area", async () => {
+    mount(() => 26400);
+    await settle();
+    const wrap = screen.getByTestId("nifty-oi-wrap") as HTMLElement;
+    const scroller = wrap.querySelector(".paper-tanstack-scroll") as HTMLElement;
+    // rowTop 500 − (360 − 26)/2 = 333, inside the 782 − 360 = 422 scroll range.
+    expect(scroller.scrollTop).toBe(333);
+    expect(wrap).toHaveAttribute("data-chain-atm-centered", "1");
+  });
+
+  test("selecting a new ATM re-centres absolutely instead of accumulating scroll drift", async () => {
+    const [atm, setAtm] = createSignal(26400);
+    mount(atm);
+    await settle();
+    const wrap = screen.getByTestId("nifty-oi-wrap") as HTMLElement;
+    const scroller = wrap.querySelector(".paper-tanstack-scroll") as HTMLElement;
+    expect(scroller.scrollTop).toBe(333);
+
+    setAtm(25000);
+    await settle();
+    // First row: target 60 − 167 = −107 → clamped to 0, not 333 + (−107).
+    expect(scroller.scrollTop).toBe(0);
+    expect(wrap).toHaveAttribute("data-chain-atm-centered", "1");
   });
 });
