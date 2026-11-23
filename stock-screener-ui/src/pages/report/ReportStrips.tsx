@@ -5,7 +5,7 @@ import * as palette from "@/ui/palette";
 import { CompactPanel } from "@/components/common/compact";
 import { MarketAlertLog, MarketAlertStack } from "@/components/notifications/MarketAlertCard";
 
-import { BreadthStrip, ReplayUnavailable } from "./BreadthStrip";
+import { BreadthStrip, REPLAY_UNAVAILABLE_TEXT } from "./BreadthStrip";
 import { LevelsInPlayContent } from "./LevelsInPlay";
 import { Nifty10sStrip } from "./Nifty10sStrip";
 import { NiftyDeskPlan } from "./NiftyDeskPlan";
@@ -81,16 +81,11 @@ export function ReportStrips() {
       <LiveTapeDisclosure
         open={tapeOpen()}
         onToggle={() => setTapeOpen((v) => !v)}
-        closedHint={mode() === "eod" ? "breadth · movers · hidden in replay" : undefined}
+        // Replay already names the reason once in its mode banner. The header
+        // carries that one reason; no band repeats it inside the collapsed body.
+        closedHint={mode() === "eod" ? `live-only · ${REPLAY_UNAVAILABLE_TEXT}` : undefined}
       >
-        <Show
-          when={mode() === "live"}
-          fallback={
-            <div className="flex items-center h-6 min-h-6 px-2">
-              <ReplayUnavailable noun="Breadth" testId="nifty-breadth-live-only" />
-            </div>
-          }
-        >
+        <Show when={mode() === "live"}>
           <BreadthStrip data={store.data.breadth()} />
         </Show>
 
@@ -120,19 +115,24 @@ export function ReportStrips() {
         />
       </LiveTapeDisclosure>
 
-      <NiftyWallsCard
-        compact={store.ui.isDesk()}
-        walls={wallsPayload()}
-        onExpand={() => store.walls.openDrawer()}
-        onOpenDesk={() => store.ui.setDeskOpen(true)}
-        emptyText="Waiting for walls data."
-        unavailableInReplay={mode() === "eod"}
-        levels={
-          symbol() === "NIFTY" ? (
-            <LevelsInPlayContent report={report()} sensex={store.data.sensex()} />
-          ) : undefined
-        }
-      />
+      {/* A replay with no reconstructed walls has no band to show: the mode
+          banner names the one reason and the collapsed header keeps the affordance.
+          Real walls (live or replayed) still mount the full card. */}
+      <Show when={mode() === "live" || Boolean(wallsPayload())}>
+        <NiftyWallsCard
+          compact={store.ui.isDesk()}
+          walls={wallsPayload()}
+          onExpand={() => store.walls.openDrawer()}
+          onOpenDesk={() => store.ui.setDeskOpen(true)}
+          emptyText="Waiting for walls data."
+          unavailableInReplay={mode() === "eod"}
+          levels={
+            symbol() === "NIFTY" ? (
+              <LevelsInPlayContent report={report()} sensex={store.data.sensex()} />
+            ) : undefined
+          }
+        />
+      </Show>
 
       <NiftyWallsExpanded
         open={store.walls.open()}

@@ -33,6 +33,7 @@ const breadth = (over: Partial<BreadthPayload> = {}): BreadthPayload => ({
 });
 
 const mode = createSignal<"live" | "eod">("live");
+const wallsData = createSignal<unknown>(null);
 
 vi.mock("./ReportContext", () => ({
   useNiftyReport: () => ({
@@ -48,7 +49,7 @@ vi.mock("./ReportContext", () => ({
       sensex: () => null,
     },
     selection: { mode: mode[0], symbol: () => "NIFTY" },
-    walls: { data: () => null, history: () => [], open: () => false, openDrawer: () => {}, closeDrawer: () => {} },
+    walls: { data: wallsData[0], history: () => [], open: () => false, openDrawer: () => {}, closeDrawer: () => {} },
     replay: { replay: () => null, index: () => 0, breakAt: () => {} },
     alerts: {
       toasts: () => [],
@@ -70,7 +71,11 @@ vi.mock("./ReportContext", () => ({
 
 const { ReportStrips } = await import("./ReportStrips");
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  mode[1]("live");
+  wallsData[1](null);
+});
 describe("ReportStrips", () => {
   test("mounts every band inside one deliberate 8px column", () => {
     mode[1]("live");
@@ -85,21 +90,26 @@ describe("ReportStrips", () => {
     expect(screen.getByTestId("walls-stub")).toBeInTheDocument();
   });
 
-  test("renders the breadth band in live mode and its replay-unavailable line in eod", async () => {
+  test("replay keeps one compact header with one reason and no dead bands", async () => {
     mode[1]("live");
     render(() => <ReportStrips />);
     expect(screen.getByTestId("nifty-breadth-strip")).toBeInTheDocument();
 
     mode[1]("eod");
-    const liveOnly = await screen.findByTestId("nifty-breadth-live-only");
-    // One phrase is shared by every band replay cannot reconstruct.
-    expect(liveOnly).toHaveTextContent(/Breadth · Not captured in replay/i);
-    expect(liveOnly).toHaveAttribute("data-replay-unavailable", "true");
-    // The wrapper keeps the band's 24px height, so switching modes never shifts
-    // the strips below it.
-    expect(liveOnly.parentElement?.className).toContain("h-6");
-    expect(liveOnly.parentElement?.className).toContain("min-h-6");
+    const toggle = await screen.findByTestId("nifty-live-tape-toggle");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    // The single, shared reason lives in the one header — no per-band repeat.
+    expect(toggle).toHaveTextContent(/Not captured in replay/i);
+    expect(screen.queryByTestId("nifty-breadth-live-only")).toBeNull();
+    expect(screen.queryByTestId("walls-stub")).toBeNull();
     expect(screen.queryByTestId("nifty-breadth-strip")).not.toBeInTheDocument();
+  });
+
+  test("a replay that reconstructed walls still mounts the real WALLS band", () => {
+    wallsData[1]({ state: "positioning" });
+    mode[1]("eod");
+    render(() => <ReportStrips />);
+    expect(screen.getByTestId("walls-stub")).toBeInTheDocument();
   });
 
   test("uses the 8/12px section rhythm and a 16px section title", () => {

@@ -1,4 +1,3 @@
-import { Text } from "@/ui";
 import { FLOW_BEAR, FLOW_BULL, FLOW_STRUCT } from "@/ui/palette";
 import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
 import {
@@ -82,7 +81,7 @@ function FlowLegend() {
     <div
       data-testid="nifty-flowstrip-legend"
       aria-label="Flow strip legend"
-      class="flex flex-wrap items-center gap-x-3 gap-y-1 text-ui-micro leading-[1.2] font-mono text-fin-text-muted px-2 py-1 border-b border-fin-border bg-white/[0.03]"
+      class="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui-micro leading-[1.2] font-mono text-fin-text-muted px-2 py-1 border-b border-fin-border bg-white/[0.03]"
     >
       <span class="text-ui-micro font-bold tracking-[0.08em]">
         FLOW
@@ -166,11 +165,16 @@ export function NiftyFlowStrip(props: NiftyFlowStripProps) {
     </span>
   );
 
+  // A live-only band with nothing to draw is not a full-height panel: one
+  // micro line carries the single reason and keeps the modal drawer honest.
   const emptyView = () => (
-    <div data-testid="nifty-flowstrip-empty" class="py-2 text-center">
-      <Text size="xs" c="dimmed" data-testid="nifty-flowstrip-empty-text">
-        no flow events
-      </Text>
+    <div
+      data-testid="nifty-flowstrip-empty"
+      data-state="unavailable"
+      class="flex items-center h-5 min-h-5 px-2 text-ui-micro text-fin-text-muted"
+      title="The flow strip is built from live option-chain prints; none were recorded for this tape."
+    >
+      <span data-testid="nifty-flowstrip-empty-text">no flow prints · live only</span>
     </div>
   );
 
@@ -202,7 +206,7 @@ export function NiftyFlowStrip(props: NiftyFlowStripProps) {
         ref={(el) => (labelsRef = el)}
         data-testid="nifty-flowstrip-labels"
         title={summary().fullText}
-        class="flex items-center gap-x-[6px] min-w-0 max-w-full overflow-x-auto whitespace-nowrap font-mono text-ui-body leading-[1.2] text-fin-text-muted tabular-nums px-2 py-1"
+        class="flex items-center gap-x-1 min-w-0 max-w-full overflow-x-auto whitespace-nowrap font-mono text-ui-body leading-[1.2] text-fin-text-muted tabular-nums px-2 py-1"
       >
         <Show when={summary().showMarker && summary().hidden > 0}>
           <span

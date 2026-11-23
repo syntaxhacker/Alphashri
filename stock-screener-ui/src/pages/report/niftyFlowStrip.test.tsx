@@ -498,9 +498,13 @@ describe("NiftyFlowStrip render", () => {
     expect(cue.className).toContain("min-[720px]:hidden");
   });
 
-  test("empty tape renders the muted state", () => {
+  test("an empty tape is a compact one-line reason, not a full empty band", () => {
     r(() => <NiftyFlowStrip {...{ rows: [base({ t: hm(0) }), base({ t: hm(1) })] }} />);
-    expect(screen.getByTestId("nifty-flowstrip-empty")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-flowstrip-empty-text")).toHaveTextContent("no flow events");
+    const empty = screen.getByTestId("nifty-flowstrip-empty");
+    expect(empty).toHaveAttribute("data-state", "unavailable");
+    expect(empty.className).toContain("h-5");
+    expect(empty.className).toContain("text-ui-micro");
+    expect(screen.getByTestId("nifty-flowstrip-empty-text")).toHaveTextContent("no flow prints · live only");
+    expect(screen.queryByTestId("nifty-flowstrip")).toBeNull();
   });
 });
