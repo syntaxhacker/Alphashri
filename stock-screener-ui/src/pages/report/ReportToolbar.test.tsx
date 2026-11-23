@@ -4,9 +4,11 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import {
+  deriveToolbarFeedState,
   expiryControlTitle,
   expiryOptionLabel,
   ReportToolbar,
+  snapshotClockLabel,
   STRIP_FADE_STYLE,
   TOOLBAR_ACTIONS_CLASS,
   TOOLBAR_CHROME_HEIGHT,
@@ -17,6 +19,7 @@ import {
   TOOLBAR_SECONDARY_CLASS,
   TOOLBAR_SECONDARY_HEIGHT,
   TOOLBAR_STRIP_CLASS,
+  toolbarStatusLabel,
 } from "./ReportToolbar";
 
 const harness = vi.hoisted(() => ({ store: {} as Record<string, unknown> }));
@@ -30,6 +33,13 @@ vi.mock("./niftyStreamSolid", () => ({ useNiftySpotTick: () => () => null }));
 
 function secondsAgo(seconds: number): string {
   return new Date(Date.now() - seconds * 1_000).toISOString();
+}
+
+/** 10:00:00 IST, the clock the captures show on the snapshot. */
+const TEN_IST = Date.parse("2026-11-16T04:30:00.000Z");
+
+function secondaryStatusText(): string {
+  return screen.getByTestId("toolbar-group-status").textContent ?? "";
 }
 
 describe("ReportToolbar freshness indicators", () => {
@@ -69,9 +79,9 @@ describe("ReportToolbar freshness indicators", () => {
         snapshotting: () => false,
         freshness: {
           marketClosed: () => false,
-          isStale: () => true,
+          isStale: () => false,
           staleMins: () => 1,
-          updatedAtMs: () => Date.now(),
+          updatedAtMs: () => TEN_IST,
         },
         paperPositions: () => [],
         effectiveBursts: () => [],
@@ -82,21 +92,113 @@ describe("ReportToolbar freshness indicators", () => {
     };
   });
 
-  test("a fresh DATA badge and a WS outage are shown as distinct signals", () => {
+  test("pure helpers map the three feed states to exact labels", () => {
+    expect(deriveToolbarFeedState({ marketClosed: false, isStale: false, tapeStale: false })).toBe("live");
+    expect(deriveToolbarFeedState({ marketClosed: false, isStale: true, tapeStale: false })).toBe("stale");
+    expect(deriveToolbarFeedState({ marketClosed: false, isStale: false, tapeStale: true })).toBe("stale");
+    // Closed wins: a past session is a snapshot, never a broken live feed.
+    expect(deriveToolbarFeedState({ marketClosed: true, isStale: true, tapeStale: true })).toBe("closed");
+
+    expect(snapshotClockLabel(TEN_IST)).toBe("10:00");
+    expect(snapshotClockLabel(null)).toBe("—");
+    expect(
+      toolbarStatusLabel({ state: "live", updatedAtMs: TEN_IST, staleMins: 1, liveClockMs: TEN_IST }),
+    ).toBe("Updated 10:00:00 · live (WS)");
+    expect(
+      toolbarStatusLabel({ state: "stale", updatedAtMs: TEN_IST, staleMins: 46, liveClockMs: TEN_IST }),
+    ).toBe("STALE 46m");
+    expect(
+      toolbarStatusLabel({ state: "closed", updatedAtMs: TEN_IST, staleMins: 46, liveClockMs: TEN_IST }),
+    ).toBe("SNAPSHOT 10:00");
+  });
+
+  test("market open and fresh keeps the real live readout and no stale token", () => {
     render(() => (
       <UIProvider>
         <ReportToolbar />
       </UIProvider>
     ));
 
+    expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent("Updated 10:00:00 · live (WS)");
     const dataBadge = screen.getByTestId("nifty-data-freshness");
     expect(dataBadge).toHaveAttribute("data-state", "fresh");
     expect(dataBadge.textContent).toMatch(/^DATA \d+s$/);
+    expect(screen.queryByTestId("nifty-stale-badge")).toBeNull();
+    expect(secondaryStatusText()).not.toContain("STALE");
+    expect(secondaryStatusText()).not.toContain("SNAPSHOT");
+  });
 
-    const wsBadge = screen.getByTestId("nifty-stale-badge");
-    expect(wsBadge.textContent).toBe("WS DOWN 1m");
-    expect(wsBadge.textContent).not.toContain("STALE");
-    expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent("reconnecting");
+  test("a stale WebSocket feed says STALE 46m and never live (WS)", () => {
+    const freshness = (harness.store.data as any).freshness;
+    freshness.isStale = () => true;
+    freshness.staleMins = () => 46;
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent("STALE 46m");
+    expect(secondaryStatusText()).not.toContain("live (WS)");
+    const dataBadge = screen.getByTestId("nifty-data-freshness");
+    expect(dataBadge).toHaveAttribute("data-state", "stale");
+    expect(dataBadge.textContent).toBe("STALE");
+    expect(screen.getByTestId("nifty-stale-badge")).toHaveTextContent("WS DOWN 46m");
+    expect(secondaryStatusText()).not.toContain("SNAPSHOT");
+  });
+
+  test("a stale tape with a connected WebSocket is also STALE, never live (WS)", () => {
+    (harness.store.data as any).tape = () => ({
+      date: "2026-11-16",
+      rows: [{ t: secondsAgo(46 * 60 + 30) }],
+    });
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent("STALE 46m");
+    expect(secondaryStatusText()).not.toContain("live (WS)");
+    expect(screen.getByTestId("nifty-data-freshness")).toHaveAttribute("data-state", "stale");
+    // The WS is connected here, so no WS-down badge may contradict the tape read.
+    expect(screen.queryByTestId("nifty-stale-badge")).toBeNull();
+  });
+
+  test("a closed market says SNAPSHOT 10:00 with no live or stale token", () => {
+    const freshness = (harness.store.data as any).freshness;
+    freshness.marketClosed = () => true;
+    freshness.staleMins = () => 46;
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent("SNAPSHOT 10:00");
+    const dataBadge = screen.getByTestId("nifty-data-freshness");
+    expect(dataBadge).toHaveAttribute("data-state", "closed");
+    expect(dataBadge.textContent).toBe("CLOSED");
+    expect(secondaryStatusText()).not.toContain("live (WS)");
+    expect(secondaryStatusText()).not.toContain("STALE");
+    expect(screen.queryByTestId("nifty-stale-badge")).toBeNull();
+  });
+
+  test("closed wins when the store also reports a stale feed", () => {
+    const freshness = (harness.store.data as any).freshness;
+    freshness.marketClosed = () => true;
+    freshness.isStale = () => true;
+    freshness.staleMins = () => 46;
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent("SNAPSHOT 10:00");
+    expect(secondaryStatusText()).not.toContain("live (WS)");
+    expect(secondaryStatusText()).not.toContain("STALE");
+    expect(screen.queryByTestId("nifty-stale-badge")).toBeNull();
   });
 
   test("every view toggle keeps its testid, options and an 11px floor", () => {

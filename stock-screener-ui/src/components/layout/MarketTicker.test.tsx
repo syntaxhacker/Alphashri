@@ -541,6 +541,28 @@ describe("MarketStatus", () => {
     expect(screen.getByText("Market closed")).toBeInTheDocument();
   });
 
+  it("shares the closed/live state vocabulary with the report toolbar", () => {
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
+    render(() => (<UIProvider>
+        <MarketStatus />
+      </UIProvider>),
+    );
+    const status = screen.getByTestId("app-market-status");
+    expect(status).toHaveAttribute("data-state", "closed");
+    expect(status).toHaveTextContent("Market closed");
+    expect(status).not.toHaveTextContent("Market live");
+  });
+
+  it("marks an open session with the live state", () => {
+    render(() => (<UIProvider>
+        <MarketStatus />
+      </UIProvider>),
+    );
+    const status = screen.getByTestId("app-market-status");
+    expect(status).toHaveAttribute("data-state", "live");
+    expect(status).toHaveTextContent("Market live");
+  });
+
   it("gives the closed-session detail a full-width row that wraps at word boundaries with a full title", () => {
     setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
     render(() => (<UIProvider>

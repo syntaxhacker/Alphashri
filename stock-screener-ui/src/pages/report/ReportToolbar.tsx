@@ -1,4 +1,4 @@
-import { Show, Suspense, lazy } from "solid-js";
+import { Show, Suspense, createEffect, createMemo, createSignal, lazy, onCleanup } from "solid-js";
 import type { JSX } from "solid-js";
 import { alpha, Box, Button, SegmentedControl, Select, Text, TextInput } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -8,8 +8,10 @@ import { NiftyDataFreshness } from "./NiftyDataFreshness";
 import { NiftyDeskGuide } from "./NiftyDeskGuide";
 import { NiftyPositionsDrawer } from "./NiftyPositionsDrawer";
 import { NiftyReplayBar } from "./NiftyReplayBar";
-import { NiftyUpdatedLabel } from "./NiftyUpdatedLabel";
+import { dataFreshness } from "./niftyDataFreshness";
 import { wsBadgeLabel } from "./niftyFreshness";
+import { formatReportClock } from "./reportFormat";
+import { useNiftySpotTick } from "./niftyStreamSolid";
 import { REPORT_FONT } from "./reportTokens";
 import { useNiftyReport } from "./ReportContext";
 
@@ -135,6 +137,74 @@ const STALE_BADGE_STYLE: JSX.CSSProperties = {
   "white-space": "nowrap",
 };
 
+/** One status drives every freshness readout in the toolbar. Closed wins over
+ *  stale: a past session is a snapshot, not a broken live feed. */
+export type ToolbarFeedState = "live" | "stale" | "closed";
+
+export function deriveToolbarFeedState(input: {
+  marketClosed: boolean;
+  isStale: boolean;
+  tapeStale: boolean;
+}): ToolbarFeedState {
+  if (input.marketClosed) return "closed";
+  return input.isStale || input.tapeStale ? "stale" : "live";
+}
+
+/** The `10:00` in `SNAPSHOT 10:00` — IST HH:MM from the last update clock. */
+export function snapshotClockLabel(updatedAtMs: number | null): string {
+  const clock = formatReportClock(updatedAtMs ?? Number.NaN);
+  return clock === "—" ? "—" : clock.slice(0, 5);
+}
+
+export function toolbarStatusLabel(input: {
+  state: ToolbarFeedState;
+  updatedAtMs: number | null;
+  staleMins: number;
+  liveClockMs: number;
+}): string {
+  if (input.state === "closed") return `SNAPSHOT ${snapshotClockLabel(input.updatedAtMs)}`;
+  if (input.state === "stale") return `STALE ${Math.max(1, input.staleMins)}m`;
+  return `Updated ${formatReportClock(input.liveClockMs)} · live (WS)`;
+}
+
+/** The single toolbar status line. `nifty-updated-at` keeps its testid, but its
+ *  text comes from one derived state so a snapshot can never also claim a live
+ *  WebSocket. The live clock still follows the spot tick. */
+function ToolbarStatus(props: {
+  state: ToolbarFeedState;
+  updatedAtMs: number | null;
+  staleMins: number;
+}) {
+  const tick = useNiftySpotTick();
+  const liveClockMs = () => {
+    const current = tick();
+    const tickMs = current?.ts ? Date.parse(current.ts) : Number.NaN;
+    return Number.isFinite(tickMs) ? tickMs : (props.updatedAtMs ?? Date.now());
+  };
+  return (
+    <Text
+      data-testid="nifty-updated-at"
+      size="xs"
+      c={props.state === "live" ? "dimmed" : "warning"}
+      span
+      title={
+        props.state === "closed"
+          ? "Market closed — showing the last recorded snapshot"
+          : props.state === "stale"
+            ? "Feed not current — showing the last recorded data"
+            : "WebSocket feed connected"
+      }
+    >
+      {toolbarStatusLabel({
+        state: props.state,
+        updatedAtMs: props.updatedAtMs,
+        staleMins: props.staleMins,
+        liveClockMs: liveClockMs(),
+      })}
+    </Text>
+  );
+}
+
 export interface ReportToolbarProps {
   onOpenSymbol?: (s: string) => void;
   /** Leading control merged into the 48px row (e.g. the app nav toggle). */
@@ -171,6 +241,37 @@ export function ReportToolbar(props: ReportToolbarProps) {
   const replay = () => store.replay.replay();
 
   const sessionDate = () => report()?.market?.session_date ?? tape()?.date ?? report()?.date;
+
+  // The tape is the data-age authority: a freshly fetched report must not let
+  // the toolbar claim a live feed after the feed has stopped. This mirrors the
+  // DATA badge's clock but feeds the *single* state that owns every label.
+  const [nowMs, setNowMs] = createSignal(Date.now());
+  createEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1_000);
+    onCleanup(() => clearInterval(id));
+  });
+  const dataAge = createMemo(() =>
+    dataFreshness({
+      nowMs: nowMs(),
+      marketOpen: !marketClosed(),
+      sessionDate: sessionDate(),
+      report: report(),
+      tape: tape(),
+      bursts: store.data.effectiveBursts(),
+    }),
+  );
+  const feedState = createMemo(() =>
+    deriveToolbarFeedState({
+      marketClosed: marketClosed(),
+      isStale: isStale(),
+      tapeStale: dataAge().stale,
+    }),
+  );
+  const shownStaleMins = createMemo(() => {
+    if (isStale()) return staleMins();
+    const ageMs = dataAge().tapeAgeMs;
+    return ageMs === null ? staleMins() : Math.max(1, Math.floor(ageMs / 60_000));
+  });
 
   const selectedExpiryLabel = () =>
     store.selection.expiryData().find((option) => option.value === expiry())?.label ?? expiry();
@@ -407,27 +508,50 @@ export function ReportToolbar(props: ReportToolbarProps) {
             aria-label="Actions and data freshness"
           >
             <Show when={mode() === "live" && updatedAtMs() !== null}>
-              <NiftyUpdatedLabel
-                marketClosed={marketClosed()}
-                sessionDate={sessionDate()}
+              <ToolbarStatus
+                state={feedState()}
                 updatedAtMs={updatedAtMs()}
-                isStale={isStale()}
+                staleMins={shownStaleMins()}
               />
             </Show>
             <Show when={mode() === "live"}>
-              <NiftyDataFreshness
-                report={report()}
-                tape={tape()}
-                bursts={store.data.effectiveBursts()}
-                marketOpen={!marketClosed()}
-                sessionDate={sessionDate()}
-              />
+              <Show
+                when={feedState() === "live"}
+                fallback={
+                  <span
+                    data-testid="nifty-data-freshness"
+                    data-state={feedState() === "closed" ? "closed" : "stale"}
+                    title={
+                      feedState() === "closed"
+                        ? "Market closed — showing the last recorded snapshot"
+                        : "Feed not current — showing the last recorded data"
+                    }
+                    class="inline-flex items-center shrink-0 whitespace-nowrap border rounded-full px-2 py-[2px] text-ui-micro"
+                    style={{
+                      "border-color": feedState() === "stale" ? palette.WARNING : palette.TERM_BORDER,
+                      color: feedState() === "stale" ? palette.WARNING : palette.TEXT_MUTED,
+                    }}
+                  >
+                    <Text size="xs" fw={feedState() === "stale" ? 700 : 600} c={feedState() === "stale" ? "warning" : "dimmed"} span>
+                      {feedState() === "closed" ? "CLOSED" : "STALE"}
+                    </Text>
+                  </span>
+                }
+              >
+                <NiftyDataFreshness
+                  report={report()}
+                  tape={tape()}
+                  bursts={store.data.effectiveBursts()}
+                  marketOpen={!marketClosed()}
+                  sessionDate={sessionDate()}
+                />
+              </Show>
             </Show>
-            <Show when={isStale()}>
+            <Show when={feedState() === "stale" && isStale()}>
               <span
                 data-testid="nifty-stale-badge"
                 style={STALE_BADGE_STYLE}
-                title="WebSocket feed disconnected — data age is reported separately by the DATA badge"
+                title="WebSocket feed disconnected — snapshot age is reported by the status line"
               >
                 <Text size="xs" fw={700} c="warning" span>
                   {wsBadgeLabel(staleMins())}

@@ -315,6 +315,7 @@ export function MarketStatus(props: { compact?: boolean }) {
   return (
     <Box
       data-testid="app-market-status"
+      data-state={closed() ? "closed" : "live"}
       title={title()}
       className="flex flex-col min-w-0 w-full"
       style={{
