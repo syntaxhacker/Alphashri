@@ -9,7 +9,12 @@
  * layout.
  */
 import { describe, expect, test } from "vitest";
-import { REPORT_STRIP_CELL_MIN, REPORT_STRIP_GROUP_WEIGHT } from "./reportTokens";
+import {
+  REPORT_FONT,
+  REPORT_PAD,
+  REPORT_STRIP_CELL_MIN,
+  REPORT_STRIP_GROUP_WEIGHT,
+} from "./reportTokens";
 
 describe("reportTokens — decision strip geometry", () => {
   test("each group weight is exactly the sum of its own cell minimums", () => {
@@ -57,6 +62,29 @@ describe("reportTokens — decision strip geometry", () => {
       const allotted = (stripPx * REPORT_STRIP_GROUP_WEIGHT[g]) / totalWeight;
       expect(allotted, `${g} is under-allotted`).toBeGreaterThanOrEqual(needs[g]);
     }
+  });
+
+  test("the max-pain floor covers the 6-glyph value, sparkline and cell insets", () => {
+    // `22,406` at the 16px mono value step (~9.6px/glyph) plus the 44px tape
+    // sparkline, 8px px-1 inset and 1px hairline = 110.6px. 110px sliced the
+    // last glyph at the divider; 120px keeps the whole readout in its cell.
+    const monoAdvance = REPORT_FONT.value * 0.6;
+    const needed = 6 * monoAdvance + 44 + REPORT_PAD.sm * 2 + 1;
+    expect(needed).toBeGreaterThan(110);
+    expect(REPORT_STRIP_CELL_MIN.maxPain).toBe(120);
+    expect(REPORT_STRIP_CELL_MIN.maxPain).toBeGreaterThan(needed);
+    expect(REPORT_STRIP_GROUP_WEIGHT.walls).toBe(390);
+  });
+
+  test("FLOW reserves all three desk chips, not just the widest one", () => {
+    // One 178px chip fit the 196px group while the other two spilled past the
+    // strip edge. Summing the chips lets flex-wrap move the group as a unit.
+    expect(REPORT_STRIP_GROUP_WEIGHT.flow).toBe(
+      REPORT_STRIP_CELL_MIN.chipSetup +
+        REPORT_STRIP_CELL_MIN.chipIntel +
+        REPORT_STRIP_CELL_MIN.chipGamma,
+    );
+    expect(REPORT_STRIP_GROUP_WEIGHT.flow).toBe(552);
   });
 
   test("the widest total still fits the measured strip", () => {

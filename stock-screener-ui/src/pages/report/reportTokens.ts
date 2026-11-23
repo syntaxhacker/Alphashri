@@ -108,7 +108,11 @@ export const REPORT_STRIP_CELL_MIN = {
   callWall: 103,
   putWall: 96,
   pin: 71,
-  maxPain: 110,
+  // Six mono glyphs of `22,406` at the 16px value step (~58px) plus the 44px
+  // tape sparkline, 8px cell inset and 1px hairline = 111px. The old 110px
+  // floor sliced the last glyph into the next cell's divider; at 390 the shell
+  // overrides this floor, so the full value stays readable there too.
+  maxPain: 120,
   squeezeFuel: 114,
   pcrOi: 110,
   pcrVol: 148,
@@ -139,9 +143,15 @@ export const REPORT_STRIP_GROUP_WEIGHT = {
     REPORT_STRIP_CELL_MIN.pin +
     REPORT_STRIP_CELL_MIN.maxPain,
   volatility: REPORT_STRIP_CELL_MIN.pcrOi + REPORT_STRIP_CELL_MIN.pcrVol,
-  // FLOW's cells are conditional (`Show`), so its requirement is the widest one
-  // that renders, not the sum: it must not reserve space for absent chips.
-  flow: REPORT_STRIP_CELL_MIN.chipGamma,
+  // All three chips render together inside the desk-only group, so the floor
+  // is their sum, not the widest one. At the old 196px the group fit while its
+  // 552px of chips spilled past the strip edge ("Institutional flows" read as
+  // "Ins"). With the real floor `flex-wrap` moves the whole group to its own
+  // row instead of clipping a chip mid-word.
+  flow:
+    REPORT_STRIP_CELL_MIN.chipSetup +
+    REPORT_STRIP_CELL_MIN.chipIntel +
+    REPORT_STRIP_CELL_MIN.chipGamma,
 } as const;
 
 /**

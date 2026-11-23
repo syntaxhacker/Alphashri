@@ -1,5 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { UIProvider } from "@/ui";
@@ -85,7 +87,13 @@ vi.mock("./reportBits", () => ({
 }));
 
 import { ReportDecisionStrip, statStripGaps } from "./ReportDecisionStrip";
-import { REPORT_STRIP_METRICS, REPORT_FONT, groupCellGap } from "./reportTokens";
+import {
+  REPORT_STRIP_METRICS,
+  REPORT_STRIP_CELL_MIN,
+  REPORT_STRIP_GROUP_WEIGHT,
+  REPORT_FONT,
+  groupCellGap,
+} from "./reportTokens";
 
 function mount() {
   return render(() => (
@@ -283,6 +291,51 @@ describe("Index Report decision strip — grouped geometry", () => {
       "nifty-plan-reasons-button",
     ]) {
       expect(screen.getByTestId(id), id).toBeInTheDocument();
+    }
+  });
+});
+
+describe("decision strip — readout width and no-inline-ellipsis contract", () => {
+  const source = readFileSync(
+    resolve(process.cwd(), "src/pages/report/ReportDecisionStrip.tsx"),
+    "utf8",
+  );
+
+  test("the max-pain cell and FLOW group render the derived floors as min-widths", () => {
+    mount();
+    expect(screen.getByTestId("nifty-stat-max-pain").style.minWidth).toBe(
+      `${REPORT_STRIP_CELL_MIN.maxPain}px`,
+    );
+    expect(screen.getByTestId("nifty-stat-group-walls").style.minWidth).toBe(
+      `${REPORT_STRIP_GROUP_WEIGHT.walls}px`,
+    );
+    expect(screen.getByTestId("nifty-stat-group-flow").style.minWidth).toBe(
+      `${REPORT_STRIP_GROUP_WEIGHT.flow}px`,
+    );
+  });
+
+  test("the max-pain readout is neither ellipsized nor shrunk inline", () => {
+    const start = source.indexOf('testId="nifty-stat-max-pain"');
+    const cell = source.slice(start, source.indexOf('testId="nifty-stat-pcr-oi"', start));
+    expect(cell).toContain("valueSize={REPORT_FONT.value}");
+    expect(cell).not.toMatch(/text-overflow|textOverflow|overflow:\s*["']hidden/);
+    expect(cell).not.toMatch(/font-size/);
+  });
+
+  test("the FLOW label and its chip keep the full text in title and aria", () => {
+    mount();
+    const label = screen.getByTestId("nifty-stat-group-flow-label");
+    expect(label.getAttribute("title")).toBe("FLOW & ACTION");
+    expect(label.style.textOverflow || "").not.toBe("ellipsis");
+    for (const [id, text] of [
+      ["nifty-chip-setup", "Setup checks"],
+      ["nifty-chip-intel", "Institutional flows"],
+      ["nifty-chip-gamma", "Dealer gamma"],
+    ] as const) {
+      const chip = screen.getByTestId(id);
+      expect(chip).toHaveTextContent(text);
+      expect(chip.getAttribute("title")).toContain(text);
+      expect(chip.getAttribute("aria-label")).toContain(text);
     }
   });
 });

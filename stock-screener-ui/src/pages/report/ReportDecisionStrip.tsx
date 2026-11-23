@@ -210,7 +210,7 @@ function StatGroup(props: {
           : {}),
       }}
     >
-      <span data-testid={`${props.testId}-label`} style={GROUP_LABEL_STYLE}>
+      <span data-testid={`${props.testId}-label`} title={props.label} style={GROUP_LABEL_STYLE}>
         {props.label}
       </span>
       <Box
@@ -838,6 +838,9 @@ export function ReportDecisionStrip() {
               />
             </StatGroup>
 
+            {/* The FLOW floor is the sum of all three chips, so the strip's
+                flex-wrap moves the whole group to its own row instead of
+                letting a chip run under the strip's clipped right edge. */}
             <Show when={isDesk()}>
               <StatGroup
                 testId="nifty-stat-group-flow"
