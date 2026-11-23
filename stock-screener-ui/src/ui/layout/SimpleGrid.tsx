@@ -5,10 +5,8 @@ import { sp } from "./spacing";
 
 export function SimpleGrid(props: UISimpleGridProps & Record<string, unknown>) {
   const [known, rest] = splitProps(props, [
-    "children", "className", "style", "id", "data-testid", "cols", "spacing", "verticalSpacing", "type",
+    "children", "className", "style", "id", "data-testid", "cols", "spacing", "verticalSpacing",
   ] as const);
-  void known.type;
-
   const n = typeof known.cols === "number" ? known.cols : 1;
 
   return (

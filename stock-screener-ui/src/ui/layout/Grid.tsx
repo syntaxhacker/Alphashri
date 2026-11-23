@@ -15,7 +15,7 @@ export interface GridProps extends UIGridProps {
 }
 
 const GRID_KNOWN = [
-  "children", "className", "style", "id", "data-testid", "gutter", "columns", "grow",
+  "children", "className", "style", "id", "data-testid", "gutter", "columns",
   "cols", "gap", "rows", "flow",
 ] as const;
 
@@ -26,7 +26,7 @@ export function GridCol(props: UIGridColProps & Record<string, unknown>) {
 
   const span = known.span;
   const size = span != null && span !== "auto" && span !== "content" ? (span as number) : undefined;
-  const pct = size != null ? `${(size / 12) * 100}%` : undefined;
+  const offset = known.offset != null ? Math.max(0, Math.floor(Number(known.offset))) : undefined;
 
   return (
     <div
@@ -34,8 +34,15 @@ export function GridCol(props: UIGridColProps & Record<string, unknown>) {
       className={cn(known.className)}
       style={{
         ...(known.style as Record<string, unknown> | undefined),
-        ...(size != null ? { "flex-basis": pct, "max-width": pct } : {}),
-        ...(known.offset != null ? { "margin-left": `${(Number(known.offset) / 12) * 100}%` } : {}),
+        ...(size != null
+          ? {
+              "grid-column": offset != null
+                ? `${offset + 1} / span ${size}`
+                : `span ${size} / span ${size}`,
+            }
+          : offset != null
+            ? { "grid-column-start": offset + 1 }
+            : {}),
         ...(known.order != null ? { order: known.order } : {}),
       }}
       data-testid={known["data-testid"]}
