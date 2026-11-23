@@ -6,9 +6,9 @@ Scope: `src/ui/**` and `src/components/common/**` component modules (100 files).
 
 ## Story catalog
 
-- Story files scanned: **92** (92 centralized under `src/stories/design-system/`, 0 co-located).
-- Story entries parsed from `export const …`: **381**.
-- Distinct exported component names imported by those stories: **148**.
+- Story files scanned: **93** (93 centralized under `src/stories/` — design-system + components, 0 co-located).
+- Story entries parsed from `export const …`: **384**.
+- Distinct exported component names imported by those stories: **149**.
 - A module is marked "yes" in the Story column only when a story imports one of its **actual exported names**, resolved through `@/ui` re-exports and relative co-located imports. Filename string matches are no longer used.
 
 **Scope of the claim:** this is a primitive-level design-system catalog (tokens, layout/input/feedback primitives and a handful of shared widgets). It is **not** a claim that all 100 audited modules are tested or visually reviewed. "Story: yes" means a story imports and renders that export, nothing more.
@@ -26,8 +26,8 @@ Scope: `src/ui/**` and `src/components/common/**` component modules (100 files).
 
 ## Status
 
-- Audited modules exercised by a story: **83/100**
-- Modules with a co-located test: **82/100**
+- Audited modules exercised by a story: **84/100**
+- Modules with a co-located test: **88/100**
 - Violations: **0**
 
 No rule violations.
@@ -86,7 +86,7 @@ No rule violations.
 | `ui/feedback/Progress.tsx` | yes | `Progress` | yes | 0 | 0 |
 | `ui/feedback/RingProgress.tsx` | yes | `RingProgress` | yes | 0 | 0 |
 | `ui/feedback/Skeleton.tsx` | yes | `Skeleton` | yes | 0 | 0 |
-| `ui/form/FormField.tsx` | — | — | yes | 0 | 0 |
+| `ui/form/FormField.tsx` | yes | `FormField` | yes | 0 | 0 |
 | `ui/icons.tsx` | yes | `IconActivity`, `IconAlertCircle`, `IconAlertTriangle`, `IconBolt`, `IconBookmarkPlus`, `IconPencil`, `IconPlayerPlay`, `IconRefresh`, `IconTrash` | — | 0 | 0 |
 | `ui/inputs/ActionIcon.tsx` | yes | `ActionIcon` | yes | 0 | 0 |
 | `ui/inputs/Button.tsx` | yes | `Button` | yes | 0 | 0 |
@@ -102,9 +102,9 @@ No rule violations.
 | `ui/inputs/Switch.tsx` | yes | `Switch` | yes | 0 | 0 |
 | `ui/inputs/Textarea.tsx` | yes | `Textarea` | yes | 0 | 0 |
 | `ui/inputs/TextInput.tsx` | yes | `TextInput` | yes | 0 | 0 |
-| `ui/inputs/UnstyledButton.tsx` | yes | `UnstyledButton` | — | 0 | 0 |
+| `ui/inputs/UnstyledButton.tsx` | yes | `UnstyledButton` | yes | 0 | 0 |
 | `ui/layout/Box.tsx` | yes | `Box` | yes | 0 | 0 |
-| `ui/layout/Card.tsx` | yes | `Card` | — | 0 | 0 |
+| `ui/layout/Card.tsx` | yes | `Card` | yes | 0 | 0 |
 | `ui/layout/Center.tsx` | yes | `Center` | — | 0 | 0 |
 | `ui/layout/Col.tsx` | yes | `Col` | yes | 0 | 0 |
 | `ui/layout/Collapse.tsx` | yes | `Collapse` | yes | 0 | 0 |
@@ -120,15 +120,15 @@ No rule violations.
 | `ui/layout/Stack.tsx` | yes | `Stack` | yes | 0 | 0 |
 | `ui/layout/ToolbarRow.tsx` | yes | `ToolbarRow` | yes | 0 | 0 |
 | `ui/misc/Avatar.tsx` | yes | `Avatar` | yes | 0 | 0 |
-| `ui/misc/CloseButton.tsx` | yes | `CloseButton` | — | 0 | 0 |
-| `ui/misc/ThemeIcon.tsx` | yes | `ThemeIcon` | — | 0 | 0 |
-| `ui/navigation/AppShell.tsx` | yes | `AppShell`, `AppShellHeader`, `AppShellMain`, `AppShellNavbar`, `AppShellSection` | — | 0 | 0 |
+| `ui/misc/CloseButton.tsx` | yes | `CloseButton` | yes | 0 | 0 |
+| `ui/misc/ThemeIcon.tsx` | yes | `ThemeIcon` | yes | 0 | 0 |
+| `ui/navigation/AppShell.tsx` | yes | `AppShell`, `AppShellHeader`, `AppShellMain`, `AppShellNavbar`, `AppShellSection` | yes | 0 | 0 |
 | `ui/navigation/NavLink.tsx` | yes | `NavLink` | yes | 0 | 0 |
 | `ui/notifications.tsx` | yes | `Notifications`, `showError`, `showNotification`, `showSuccess` | — | 0 | 0 |
 | `ui/overlay/FloatingWindow.tsx` | — | — | yes | 0 | 0 |
 | `ui/overlay/Modal.tsx` | yes | `Modal` | yes | 0 | 0 |
 | `ui/overlay/Overlay.tsx` | yes | `Overlay` | yes | 0 | 0 |
-| `ui/overlay/Popover.tsx` | yes | `Popover`, `PopoverDropdown`, `PopoverTarget` | — | 0 | 0 |
+| `ui/overlay/Popover.tsx` | yes | `Popover`, `PopoverDropdown`, `PopoverTarget` | yes | 0 | 0 |
 | `ui/overlay/Tooltip.tsx` | yes | `Tooltip` | yes | 0 | 0 |
 | `ui/theme.tsx` | — | — | yes | 0 | 0 |
 | `ui/typography/Anchor.tsx` | yes | `Anchor` | yes | 0 | 0 |

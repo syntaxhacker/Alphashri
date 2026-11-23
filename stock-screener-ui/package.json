@@ -13,6 +13,7 @@
     "test:unit": "vitest run --dir src",
     "test:fast": "vitest run --dir src --changed",
     "test:coverage": "vitest run --dir src --coverage",
+    "test:coverage:ui": "vitest run src/ui --coverage --coverage.include='src/ui/**' --coverage.exclude='src/**/*.test.{ts,tsx}' --coverage.thresholds.lines=85 --coverage.thresholds.functions=70 --coverage.thresholds.branches=65 --coverage.thresholds.statements=75",
     "test:coverage:report": "vitest run --dir src --coverage --coverage.thresholds.lines=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0 --coverage.thresholds.statements=0",
     "test:e2e": "playwright test tests/e2e",
     "test:ui": "playwright test --ui",

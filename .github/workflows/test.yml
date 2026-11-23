@@ -210,6 +210,14 @@ jobs:
         run: cd stock-screener-ui && bun run build-storybook
       - name: Verify Storybook catalog
         run: cd stock-screener-ui && bun x vitest run src/test/storybook-catalog.test.ts
+      - name: Verify design-system a11y smoke
+        run: cd stock-screener-ui && bun x vitest run src/test/a11y-smoke.test.ts
+      - name: Verify design-system coverage
+        run: cd stock-screener-ui && bun run test:coverage:ui
+      - name: Install Playwright Chromium
+        run: cd stock-screener-ui && bun x playwright install --with-deps chromium
+      - name: Verify Storybook in a real browser (axe)
+        run: cd stock-screener-ui && node scripts/storybook-a11y.mjs
   frontend-unit:
     name: Frontend Unit Tests
     runs-on: ubuntu-24.04
