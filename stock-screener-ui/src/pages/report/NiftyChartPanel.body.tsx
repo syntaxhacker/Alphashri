@@ -25,13 +25,9 @@ type ChartProps = ComponentProps<typeof TradingViewChart>;
 
 /**
  * The 88px desktop price axis fits "22,350.00" but clips a full "22,300.00"
- * at 390 (it read "00", under the volume tag). Lightweight-charts draws axis
- * tags from the axis' left edge rightwards, so a tag only renders whole when
- * the lane is wider than its text plus the engine's tick/padding; the price
- * tag and the "109K" volume tag also have to stack without either being cut
- * at the pane's bottom edge. On a phone we reserve a dedicated 144px lane
- * (the 9-glyph session tag + volume tag + engine padding) and a 12px outer
- * gutter, so the axis never touches the card edge. Desktop is untouched.
+ * at 390 (it read "00", under the volume tag). Tags draw left-to-right, so a
+ * phone gets a 144px lane plus a 12px gutter; the price and "109K" tags also
+ * stack without a bottom cut. Desktop is untouched.
  */
 export const MOBILE_AXIS_MIN_WIDTH = 144;
 export const MOBILE_EDGE_GUTTER = 12;
