@@ -59,24 +59,31 @@ export function expiryControlTitle(fullLabel: string): string {
 }
 
 /**
- * Two deliberate bands below 1200, one dense band at/above it.
+ * Two fixed bands below 1200, one dense band at/above it.
  *
- * The old toolbar had four ad-hoc flex rows at 390 and clipped "Depth" plus the
- * whole DESK toggle at the panel edge. The primary band is now a single row:
- * its selector strip scrolls behind a visible chevron/fade cue, so every tab is
- * reachable and no label is ever squeezed through a native-select gutter. The
- * secondary band is the labelled DATA/freshness readouts. At 1600 both bands
- * are inline (`w-auto`), so there is still exactly one row and no control is
- * rendered twice.
+ * The old toolbar had four ad-hoc flex rows at 390 (~104px of chrome once the
+ * app nav bar is counted) and clipped "Depth" plus the whole DESK toggle at the
+ * panel edge. The two bands now own their height outright: 48px of controls +
+ * 20px of DATA/freshness = 68px, with no outer vertical padding or row gap to
+ * add a third band. The primary row still scrolls its selector strip behind a
+ * visible chevron/fade cue, so every tab is reachable and no label is squeezed
+ * through a native-select gutter. At 1600 both bands are inline and
+ * content-sized (`h-auto`), so there is still exactly one compact row and no
+ * control is rendered twice.
  */
+export const TOOLBAR_PRIMARY_HEIGHT = 48;
+export const TOOLBAR_SECONDARY_HEIGHT = 20;
+export const TOOLBAR_CHROME_HEIGHT =
+  TOOLBAR_PRIMARY_HEIGHT + TOOLBAR_SECONDARY_HEIGHT;
+
 export const TOOLBAR_CLASS =
-  "flex flex-wrap items-center gap-x-2 gap-y-1 px-2 py-1 min-h-[30px] w-full max-w-full min-w-0 shrink-0 [&_[data-testid='nifty-updated-at']]:leading-[20px] min-[1200px]:flex-nowrap min-[1200px]:overflow-x-auto";
+  "flex flex-wrap items-center gap-x-2 gap-y-0 px-2 py-0 w-full max-w-full min-w-0 shrink-0 [&_[data-testid='nifty-updated-at']]:leading-[20px] min-[1200px]:flex-nowrap min-[1200px]:overflow-x-auto";
 
 export const TOOLBAR_PRIMARY_CLASS =
-  "flex flex-nowrap items-center gap-2 w-full min-w-0 min-[1200px]:w-auto min-[1200px]:flex-1";
+  "flex flex-nowrap items-center gap-2 h-[48px] w-full min-w-0 min-[1200px]:h-auto min-[1200px]:w-auto min-[1200px]:flex-1";
 
 export const TOOLBAR_SECONDARY_CLASS =
-  "flex flex-nowrap items-center gap-2 w-full min-w-0 min-[1200px]:w-auto min-[1200px]:ml-auto";
+  "flex flex-nowrap items-center gap-2 h-[20px] w-full min-w-0 min-[1200px]:h-auto min-[1200px]:w-auto min-[1200px]:ml-auto";
 
 // The strip is the only scroll owner. Children are flex-none so a squeezed
 // control can never shrink its own text (the SegmentedControl track uses
@@ -91,8 +98,10 @@ export const TOOLBAR_GROUP_CLASS = "flex items-center gap-2 flex-none";
 /** Fade width at the phone breakpoint — wide enough to cover a partial glyph. */
 export const TOOLBAR_FADE_CLASS = "w-10";
 
+// Refresh/Snapshot and the freshness readouts stay on their own single lines at
+// every width — a wrapped action was the fourth row at 390.
 export const TOOLBAR_ACTIONS_CLASS =
-  "flex flex-wrap items-center gap-2 flex-none max-w-full min-w-0 min-[1200px]:flex-nowrap";
+  "flex flex-nowrap items-center gap-2 flex-none max-w-full min-w-0";
 
 // Hairline is decorative (WCAG's non-text exemption); the 18px height keeps
 // the divider inside the toolbar without stretching it.
@@ -126,7 +135,13 @@ const STALE_BADGE_STYLE: JSX.CSSProperties = {
   "white-space": "nowrap",
 };
 
-export function ReportToolbar(_props: { onOpenSymbol?: (s: string) => void }) {
+export interface ReportToolbarProps {
+  onOpenSymbol?: (s: string) => void;
+  /** Leading control merged into the 48px row (e.g. the app nav toggle). */
+  leading?: JSX.Element;
+}
+
+export function ReportToolbar(props: ReportToolbarProps) {
   const store = useNiftyReport();
 
   let strip: HTMLDivElement | undefined;
@@ -182,6 +197,11 @@ export function ReportToolbar(_props: { onOpenSymbol?: (s: string) => void }) {
           role="group"
           aria-label="Report controls"
         >
+          <Show when={props.leading}>
+            <Box data-testid="toolbar-leading" className="flex flex-none items-center">
+              {props.leading}
+            </Box>
+          </Show>
           <Box className="relative flex min-w-0 flex-1 items-center">
             <Box
               data-testid="toolbar-strip"
@@ -368,8 +388,8 @@ export function ReportToolbar(_props: { onOpenSymbol?: (s: string) => void }) {
           </Box>
         </Box>
 
-        {/* Secondary band — the labelled data/freshness readouts. It is a
-            compact second row only below 1200; one dense row at 1600. */}
+        {/* Secondary band — a 20px DATA/freshness line, not a full row. It is
+            a second line only below 1200; one dense row at 1600. */}
         <Box
           data-testid="toolbar-secondary-row"
           className={TOOLBAR_SECONDARY_CLASS}

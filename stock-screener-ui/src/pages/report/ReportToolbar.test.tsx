@@ -9,10 +9,13 @@ import {
   ReportToolbar,
   STRIP_FADE_STYLE,
   TOOLBAR_ACTIONS_CLASS,
+  TOOLBAR_CHROME_HEIGHT,
   TOOLBAR_CLASS,
   TOOLBAR_FADE_CLASS,
   TOOLBAR_PRIMARY_CLASS,
+  TOOLBAR_PRIMARY_HEIGHT,
   TOOLBAR_SECONDARY_CLASS,
+  TOOLBAR_SECONDARY_HEIGHT,
   TOOLBAR_STRIP_CLASS,
 } from "./ReportToolbar";
 
@@ -357,6 +360,73 @@ describe("ReportToolbar freshness indicators", () => {
     expect(select.getAttribute("aria-label")).toBe(expiryControlTitle("Nearest expiry"));
     expect(expiryOptionLabel({ value: "nearest", label: "Nearest expiry" })).toBe("Nearest");
     expect(expiryOptionLabel({ value: "2026-11-26", label: "2026-11-26" })).toBe("2026-11-26");
+  });
+
+  test("390 chrome is exactly two fixed bands: 48px controls + 20px status", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const toolbar = screen.getByTestId("nifty-toolbar");
+    const primary = screen.getByTestId("toolbar-primary-row");
+    const secondary = screen.getByTestId("toolbar-secondary-row");
+
+    // No ad-hoc third/fourth band can appear between the two owned rows.
+    expect([...toolbar.children]).toEqual([primary, secondary]);
+    expect(primary.className).toContain("h-[48px]");
+    expect(secondary.className).toContain("h-[20px]");
+    expect(TOOLBAR_PRIMARY_HEIGHT).toBe(48);
+    expect(TOOLBAR_SECONDARY_HEIGHT).toBe(20);
+    expect(TOOLBAR_CHROME_HEIGHT).toBe(68);
+    expect(TOOLBAR_CHROME_HEIGHT).toBeGreaterThanOrEqual(64);
+    expect(TOOLBAR_CHROME_HEIGHT).toBeLessThanOrEqual(72);
+
+    // The outer box adds no vertical padding or row gap on top of those bands.
+    expect(toolbar.className).toBe(TOOLBAR_CLASS);
+    expect(TOOLBAR_CLASS).toContain("py-0");
+    expect(TOOLBAR_CLASS).toContain("gap-y-0");
+    expect(TOOLBAR_CLASS).toContain("px-2");
+
+    // Both action clusters stay nowrap, so Refresh/Snapshot and the freshness
+    // badges cannot start another row at 390.
+    expect(TOOLBAR_ACTIONS_CLASS).toContain("flex-nowrap");
+    expect(TOOLBAR_ACTIONS_CLASS).not.toContain("flex-wrap");
+    expect(screen.getByTestId("toolbar-group-actions").parentElement).toBe(primary);
+    expect(screen.getByTestId("toolbar-group-status").parentElement).toBe(secondary);
+  });
+
+  test("1600 collapses both bands into one compact auto-height row", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    expect(TOOLBAR_CLASS).toContain("min-[1200px]:flex-nowrap");
+    expect(TOOLBAR_PRIMARY_CLASS).toContain("min-[1200px]:h-auto");
+    expect(TOOLBAR_SECONDARY_CLASS).toContain("min-[1200px]:h-auto");
+    expect(TOOLBAR_PRIMARY_CLASS).toContain("min-[1200px]:w-auto");
+    expect(TOOLBAR_PRIMARY_CLASS).toContain("min-[1200px]:flex-1");
+    expect(TOOLBAR_SECONDARY_CLASS).toContain("min-[1200px]:w-auto");
+    expect(TOOLBAR_SECONDARY_CLASS).toContain("min-[1200px]:ml-auto");
+    expect(TOOLBAR_STRIP_CLASS).toContain("min-[1200px]:overflow-visible");
+    expect(screen.getByTestId("toolbar-scroll-cue").className).toContain("min-[1200px]:hidden");
+  });
+
+  test("an optional leading control shares the 48px primary row", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar
+          leading={<button type="button" aria-label="Toggle navigation">nav</button>}
+        />
+      </UIProvider>
+    ));
+
+    const leading = screen.getByTestId("toolbar-leading");
+    expect(leading.parentElement).toBe(screen.getByTestId("toolbar-primary-row"));
+    expect(screen.getByRole("button", { name: "Toggle navigation" })).toBeInTheDocument();
   });
 
   test("the expiry field keeps its 104px budget without a mid-word readout", () => {
