@@ -197,7 +197,7 @@ export function KitPoc() {
           Switch vs Checkbox — one flips a setting, one selects a row
         </Text>
         <ToolbarRow gap={16}>
-          <Switch label="Switch on" checked={switched()} onChange={(e) => setSwitched((e.currentTarget as HTMLInputElement).checked)} />
+          <Switch label="Switch on" checked={switched()} onChange={(checked) => setSwitched(checked)} />
           <Switch label="Switch off" checked={false} onChange={() => {}} />
           <Switch label="Disabled" checked disabled onChange={() => {}} />
           <Checkbox label="Checkbox" checked={checked()} onChange={() => setChecked((v) => !v)} />
@@ -205,9 +205,9 @@ export function KitPoc() {
             label="Indeterminate"
             indeterminate={triIndeterminate()}
             checked={triChecked()}
-            onChange={(e) => {
+            onChange={(checked) => {
               setTriIndeterminate(false);
-              setTriChecked((e.currentTarget as HTMLInputElement).checked);
+              setTriChecked(checked);
             }}
           />
           <Checkbox label="Disabled" disabled onChange={() => {}} />

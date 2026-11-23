@@ -70,7 +70,7 @@ const Specimen = () => {
               <Switch
                 label="Live quotes"
                 checked={live()}
-                onChange={(event) => setLive(event.currentTarget.checked)}
+                onChange={setLive}
               />
               <Text size="xs" c="dimmed">{live() ? "quotes on" : "quotes paused"}</Text>
             </Flex>
@@ -176,7 +176,7 @@ const FocusSpecimen = () => {
     <Flex gap="sm" align="flex-end" wrap="wrap">
       <TextInput size="sm" w={200} label="Symbol" defaultValue="NIFTY" autoFocus />
       <Select size="sm" w={180} label="Universe" defaultValue="nifty500" data={UNIVERSE_OPTIONS} />
-      <Switch label="Live quotes" checked={live()} onChange={(event) => setLive(event.currentTarget.checked)} />
+      <Switch label="Live quotes" checked={live()} onChange={setLive} />
       <Button size="sm">Run screen</Button>
     </Flex>
   );

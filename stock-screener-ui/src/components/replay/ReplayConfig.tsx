@@ -229,7 +229,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
             label="Refresh cache"
             className="flex-none whitespace-nowrap"
             checked={props.config.refresh_cache}
-            onChange={(e) => props.setConfig({ refresh_cache: (e.currentTarget as HTMLInputElement).checked })}
+            onChange={(checked) => props.setConfig({ refresh_cache: checked })}
             data-testid="replay-refresh-cache-switch"
           />
 

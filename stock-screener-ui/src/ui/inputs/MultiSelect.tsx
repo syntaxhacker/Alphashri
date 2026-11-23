@@ -158,7 +158,6 @@ export function MultiSelect(props: UIMultiSelectProps) {
     "w",
     "h",
     "data-testid",
-    "InputProps",
     "aria-label",
   ]);
 

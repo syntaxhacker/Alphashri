@@ -2,6 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { TYPE_SCALE, typeSize } from "../typography";
 import { Checkbox } from "./Checkbox";
 import { Switch } from "./Switch";
 
@@ -17,6 +18,17 @@ describe("Checkbox — square selection box", () => {
     expect(style).toContain("width: 16px");
     expect(style).toContain("height: 16px");
     expect(style).toContain("border-radius: 4px");
+    expect(style).toContain("font-size: 12px");
+  });
+
+  it("sizes the check mark from the shared ladder, never below the 12px floor", () => {
+    const scale = Object.values(TYPE_SCALE).map((s) => s.size);
+    for (const size of ["xs", "sm", "md", "lg", "xl"] as const) {
+      render(() => <Checkbox size={size} data-testid={`cb-${size}`} />);
+      const px = Number.parseFloat(boxOf(`cb-${size}`).style.fontSize);
+      expect(scale, `size ${size}`).toContain(px);
+      expect(px, `size ${size}`).toBeGreaterThanOrEqual(typeSize("micro"));
+    }
   });
 
   it("has no knob — a checked box paints a checkmark, not a travelling dot", () => {
@@ -55,13 +67,29 @@ describe("Checkbox — square selection box", () => {
     expect(square).not.toContain("9999px");
   });
 
-  it("toggles uncontrolled state and emits onChange", () => {
+  it("toggles uncontrolled state and emits onChange with the checked boolean", () => {
     const onChange = vi.fn();
     render(() => <Checkbox label="Row" data-testid="cb" onChange={onChange} />);
     const input = screen.getByTestId("cb") as HTMLInputElement;
     fireEvent.click(input);
     expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(true);
     expect(boxOf("cb").textContent).toBe("✔");
+
+    fireEvent.click(input);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onChange).toHaveBeenLastCalledWith(false);
+    expect(boxOf("cb").textContent).toBe("");
+  });
+
+  it("emits the checked boolean for a controlled checkbox without owning state", () => {
+    const onChange = vi.fn();
+    render(() => <Checkbox label="Row" data-testid="cb" checked={false} onChange={onChange} />);
+    fireEvent.click(screen.getByTestId("cb"));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0]).toBe(true);
+    expect(typeof onChange.mock.calls[0][0]).toBe("boolean");
+    expect(boxOf("cb").textContent).toBe("");
   });
 
   it("fades to 45% and blocks the cursor when disabled", () => {

@@ -37,7 +37,7 @@ export function ReplayScanControl(props: ReplayScanControlProps) {
           label="Replay scan"
           size="sm"
           checked={enabled()}
-          onChange={(e) => setEnabled((e.currentTarget as HTMLInputElement).checked)}
+          onChange={(checked) => setEnabled(checked)}
           disabled={disabled()}
           data-testid={`${testIdPrefix()}-toggle`}
         />

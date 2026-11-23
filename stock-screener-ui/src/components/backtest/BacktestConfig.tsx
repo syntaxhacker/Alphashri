@@ -188,7 +188,7 @@ export function BacktestConfig(props: BacktestConfigProps) {
             data-testid="include-costs-checkbox"
             label="Include Costs"
             checked={props.includeCosts}
-            onChange={(e) => props.onIncludeCostsChange(e.currentTarget.checked)}
+            onChange={(checked) => props.onIncludeCostsChange(checked)}
             size="sm"
           />
         </Box>

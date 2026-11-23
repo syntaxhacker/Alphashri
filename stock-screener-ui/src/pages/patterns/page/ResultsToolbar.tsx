@@ -114,7 +114,7 @@ export function ResultsToolbar(props: ResultsToolbarProps) {
                 label="TLS/TLR"
                 size="sm"
                 checked={props.computeTrendlines()}
-                onChange={(e) => props.setComputeTrendlines((e.currentTarget as HTMLInputElement).checked)}
+                onChange={(checked) => props.setComputeTrendlines(checked)}
                 data-testid="patterns-compute-trendlines"
               />
             </Box>

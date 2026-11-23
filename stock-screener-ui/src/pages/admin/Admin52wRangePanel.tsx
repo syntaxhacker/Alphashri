@@ -189,7 +189,7 @@ export function Admin52wRangePanel() {
             <Checkbox
               label="Full refresh (~2466 EQ symbols, no skip-existing)"
               checked={fullRefresh()}
-              onChange={(e) => setFullRefresh(e.currentTarget.checked)}
+              onChange={(checked) => setFullRefresh(checked)}
               data-testid="admin-52w-full-refresh"
               size="xs"
             />

@@ -277,7 +277,7 @@ export function AdminPatternTimeframesPanel() {
               size="xs"
               checked={tf.enabled}
               disabled={savingId() === tf.id}
-              onChange={(event) => void handleToggle(tf, event.currentTarget.checked)}
+              onChange={(checked) => void handleToggle(tf, checked)}
               data-testid={`admin-tf-toggle-${tf.id}`}
             />
           </Box>

@@ -69,7 +69,7 @@ export const Playground: Story = {
       const [checked, setChecked] = createSignal(args.checked);
       return (
         <SpecimenCanvas>
-          <Specimen title="Playground · Checkbox props" note="The signal follows the native checkbox event." width={640}>
+          <Specimen title="Playground · Checkbox props" note="The signal follows the checked value." width={640}>
             <Stack gap="sm" style={{ "max-width": "360px" }}>
               <Checkbox
                 label={args.label}
@@ -80,7 +80,7 @@ export const Playground: Story = {
                 disabled={args.disabled}
                 error={args.error}
                 checked={checked()}
-                onChange={(event) => setChecked(event.currentTarget.checked)}
+                onChange={setChecked}
               />
               <Text size="xs" c="dimmed" aria-live="polite">{`Checked: ${checked() ? "yes" : "no"}`}</Text>
             </Stack>

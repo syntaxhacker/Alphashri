@@ -68,8 +68,8 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
               size="xs"
               checked={allVisibleSelected()}
               indeterminate={selectedSymbolSet().size > 0 && !allVisibleSelected()}
-              onChange={(e: any) => { e?.stopPropagation?.(); handleSelectAll(); }}
-              onClick={(e: any) => e.stopPropagation()}
+              onChange={() => handleSelectAll()}
+              onClick={(e) => e.stopPropagation()}
               data-testid="select-all-checkbox"
             />
           </Box>
@@ -81,8 +81,8 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
             <Checkbox
               size="xs"
               checked={selectedSymbolSet().has(row.original.symbol)}
-              onChange={(e: any) => { e?.stopPropagation?.(); toggleSymbolSelection(row.original.symbol); }}
-              onClick={(e: any) => e.stopPropagation()}
+              onChange={() => toggleSymbolSelection(row.original.symbol)}
+              onClick={(e) => e.stopPropagation()}
               data-testid={`sel-checkbox-${row.original.symbol}`}
             />
           </Box>

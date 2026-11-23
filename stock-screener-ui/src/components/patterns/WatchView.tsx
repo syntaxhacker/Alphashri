@@ -809,14 +809,14 @@ export function WatchView(props: WatchViewProps) {
           label="Hide inval."
           size="sm"
           checked={hideInvalidated()}
-          onChange={(e) => setHideInvalidated((e.currentTarget as HTMLInputElement).checked)}
+          onChange={(checked) => setHideInvalidated(checked)}
           data-testid="watch-hide-invalidated"
         />
         <Switch
           label="Hide ETFs"
           size="sm"
           checked={hideEtfs()}
-          onChange={(e) => setHideEtfs((e.currentTarget as HTMLInputElement).checked)}
+          onChange={(checked) => setHideEtfs(checked)}
           data-testid="watch-hide-etfs"
         />
         <Text size="xs" c="dimmed" data-testid="watch-count">

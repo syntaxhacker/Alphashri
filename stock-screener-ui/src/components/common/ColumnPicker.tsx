@@ -206,10 +206,9 @@ export function ColumnPicker(props: ColumnPickerProps) {
                       checked={item().visible}
                       disabled={item().locked}
                       data-testid={`table-column-picker-toggle-${item().id}`}
-                      onChange={(event) => {
+                      onChange={(checked) => {
                         if (item().locked) return;
-                        const target = event.currentTarget as HTMLInputElement;
-                        props.onToggle(item().id, target.checked);
+                        props.onToggle(item().id, checked);
                       }}
                     />
                     <Show when={item().locked}>

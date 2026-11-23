@@ -446,8 +446,6 @@ export interface UISelectProps extends UIInputWrapperProps {
   rightSection?: JSX.Element;
   nothingFoundMessage?: string;
   placeholder?: string;
-  /** Legacy Mantine prop, stripped before forwarding; still accepted on write. */
-  InputProps?: unknown;
 }
 
 export interface UIMultiSelectProps extends UIInputWrapperProps {
@@ -475,8 +473,6 @@ export interface UIMultiSelectProps extends UIInputWrapperProps {
   hidePickedOptions?: boolean;
   /** Hide the inline selected tags (the caller renders its own chip row). */
   hideTags?: boolean;
-  /** Legacy Mantine prop, stripped before forwarding; still accepted on write. */
-  InputProps?: unknown;
 }
 
 export interface UITextareaProps extends UIInputWrapperProps {
@@ -500,7 +496,8 @@ export interface UISwitchProps extends UIBaseProps {
   name?: string;
   checked?: boolean;
   defaultChecked?: boolean;
-  onChange?: (e: Event & { currentTarget: HTMLInputElement; target: Element }) => void;
+  /** Fired with the new checked state — the value-first convention shared by TextInput/Select/Chip. */
+  onChange?: (checked: boolean) => void;
   disabled?: boolean;
   size?: UISize;
   color?: UIColor;
@@ -516,7 +513,8 @@ export interface UICheckboxProps extends UIBaseProps {
   name?: string;
   checked?: boolean;
   defaultChecked?: boolean;
-  onChange?: (e: Event & { currentTarget: HTMLInputElement; target: Element }) => void;
+  /** Fired with the new checked state — the value-first convention shared by TextInput/Select/Chip. */
+  onChange?: (checked: boolean) => void;
   disabled?: boolean;
   size?: UISize;
   color?: UIColor;
@@ -623,7 +621,6 @@ export interface UINavLinkProps extends UIBaseProps {
   variant?: "light" | "filled" | "subtle";
   defaultOpened?: boolean;
   opened?: boolean;
-  onClick?: () => void;
   children?: JSX.Element;
   autoContrast?: boolean;
 }
@@ -762,7 +759,6 @@ export interface UIMenuItemProps extends UIBaseProps {
   rightSection?: JSX.Element;
   color?: UIColor;
   disabled?: boolean;
-  onClick?: () => void;
 }
 
 export interface UIAvatarProps extends UIBaseProps {
@@ -786,7 +782,6 @@ export interface UICloseButtonProps extends UIBaseProps {
   size?: UISize | number | string;
   variant?: "filled" | "light" | "outline" | "subtle" | "transparent";
   disabled?: boolean;
-  onClick?: () => void;
 }
 
 /** Copy shown by the date control. Override every string to localise the primitive. */

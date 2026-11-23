@@ -86,7 +86,7 @@ export function ValueFilters(props: ValueFiltersProps) {
         <Switch
           label="Above 200-DMA"
           checked={filters().above_200dma ?? false}
-          onChange={(e) => props.onChange({ above_200dma: (e.currentTarget as HTMLInputElement).checked })}
+          onChange={(checked) => props.onChange({ above_200dma: checked })}
           size="sm"
           data-testid="value-filter-above-200dma"
         />
@@ -261,28 +261,28 @@ export function ValueFilters(props: ValueFiltersProps) {
               <Switch
                 label="Low leverage only"
                 checked={filters().require_low_de ?? false}
-                onChange={(e) => props.onChange({ require_low_de: (e.currentTarget as HTMLInputElement).checked })}
+                onChange={(checked) => props.onChange({ require_low_de: checked })}
                 size="sm"
                 data-testid="value-more-require-low-de"
               />
               <Switch
                 label="Positive FCF"
                 checked={filters().exclude_negative_fcf ?? false}
-                onChange={(e) => props.onChange({ exclude_negative_fcf: (e.currentTarget as HTMLInputElement).checked })}
+                onChange={(checked) => props.onChange({ exclude_negative_fcf: checked })}
                 size="sm"
                 data-testid="value-more-exclude-negative-fcf"
               />
               <Switch
                 label="Positive EPS"
                 checked={filters().exclude_negative_eps ?? false}
-                onChange={(e) => props.onChange({ exclude_negative_eps: (e.currentTarget as HTMLInputElement).checked })}
+                onChange={(checked) => props.onChange({ exclude_negative_eps: checked })}
                 size="sm"
                 data-testid="value-more-exclude-negative-eps"
               />
               <Switch
                 label="Exclude loss-making"
                 checked={filters().exclude_loss_making ?? false}
-                onChange={(e) => props.onChange({ exclude_loss_making: (e.currentTarget as HTMLInputElement).checked })}
+                onChange={(checked) => props.onChange({ exclude_loss_making: checked })}
                 size="sm"
                 data-testid="value-more-exclude-loss-making"
               />

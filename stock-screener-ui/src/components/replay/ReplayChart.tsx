@@ -177,7 +177,7 @@ export function ReplayChart(props: ReplayChartProps) {
             size="xs"
             label="All trades"
             checked={props.chartOptions.show_all_trades}
-            onChange={(e) => props.setChartOptions({ show_all_trades: e.currentTarget.checked })}
+            onChange={(checked) => props.setChartOptions({ show_all_trades: checked })}
             data-testid="replay-show-all-trades"
           />
           <Switch
@@ -191,28 +191,28 @@ export function ReplayChart(props: ReplayChartProps) {
             size="xs"
             label="ORB"
             checked={props.chartOptions.show_orb_zones}
-            onChange={(e) => props.setChartOptions({ show_orb_zones: e.currentTarget.checked })}
+            onChange={(checked) => props.setChartOptions({ show_orb_zones: checked })}
             data-testid="replay-show-orb"
           />
           <Switch
             size="xs"
             label="Pivot"
             checked={props.chartOptions.show_pivot_levels}
-            onChange={(e) => props.setChartOptions({ show_pivot_levels: e.currentTarget.checked })}
+            onChange={(checked) => props.setChartOptions({ show_pivot_levels: checked })}
             data-testid="replay-show-pivot"
           />
           <Switch
             size="xs"
             label="52W"
             checked={props.chartOptions.show_52w_high}
-            onChange={(e) => props.setChartOptions({ show_52w_high: e.currentTarget.checked })}
+            onChange={(checked) => props.setChartOptions({ show_52w_high: checked })}
             data-testid="replay-show-52w"
           />
           <Switch
             size="xs"
             label="EMA"
             checked={props.chartOptions.show_ema}
-            onChange={(e) => props.setChartOptions({ show_ema: e.currentTarget.checked })}
+            onChange={(checked) => props.setChartOptions({ show_ema: checked })}
             data-testid="replay-show-ema"
           />
         </Group>

@@ -258,7 +258,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
               size="xs"
               label={tierLabel(tier)}
               checked={filters().capTiers.has(tier.value)}
-              onChange={(e) => toggleTier(tier, (e.currentTarget as HTMLInputElement).checked)}
+              onChange={(checked) => toggleTier(tier, checked)}
               data-testid={`market-cap-${tier.value}`}
             />
           )}</For>
@@ -275,8 +275,8 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
                   size="xs"
                   label={tierLabel(tier)}
                   checked={filters().capTiers.has(tier.value)}
-                  onChange={(e) =>
-                    toggleTier(tier, (e.currentTarget as HTMLInputElement).checked)
+                  onChange={(checked) =>
+                    toggleTier(tier, checked)
                   }
                   data-testid={`market-cap-${tier.value}`}
                 />
@@ -518,21 +518,21 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
             size="xs"
             label="Above SMA 20"
             checked={filters().aboveSma20}
-            onChange={(e) => props.onChange({ aboveSma20: (e.currentTarget as HTMLInputElement).checked })}
+            onChange={(checked) => props.onChange({ aboveSma20: checked })}
             data-testid="market-filter-above-sma20"
           />
           <Switch
             size="xs"
             label="Above SMA 50"
             checked={filters().aboveSma50}
-            onChange={(e) => props.onChange({ aboveSma50: (e.currentTarget as HTMLInputElement).checked })}
+            onChange={(checked) => props.onChange({ aboveSma50: checked })}
             data-testid="market-filter-above-sma50"
           />
           <Switch
             size="xs"
             label="Above SMA 200"
             checked={filters().aboveSma200}
-            onChange={(e) => props.onChange({ aboveSma200: (e.currentTarget as HTMLInputElement).checked })}
+            onChange={(checked) => props.onChange({ aboveSma200: checked })}
             data-testid="market-filter-above-sma200"
           />
         </ToggleGroup>
@@ -546,7 +546,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
               size="xs"
               label="F&O only"
               checked={filters().fnoOnly}
-              onChange={(e) => props.onChange({ fnoOnly: (e.currentTarget as HTMLInputElement).checked })}
+              onChange={(checked) => props.onChange({ fnoOnly: checked })}
               data-testid="market-filter-fno"
             />
           </ToggleGroup>

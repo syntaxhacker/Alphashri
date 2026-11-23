@@ -92,10 +92,10 @@ export function Switch(props: SwitchProps) {
   const isOn = createMemo(() => (isControlled() ? known.checked === true : internal()));
   const isError = createMemo(() => Boolean(known.error));
 
-  const handleChange = (e: Event & { currentTarget: HTMLInputElement; target: Element }) => {
+  const handleChange = (e: Event & { currentTarget: HTMLInputElement }) => {
     const next = e.currentTarget.checked;
     if (!isControlled()) setInternal(next);
-    known.onChange?.(e);
+    known.onChange?.(next);
   };
 
   const trackStyle = createMemo<Record<string, string>>(() => {

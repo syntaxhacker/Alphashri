@@ -572,11 +572,7 @@ export function ScreenerConfigView(props: Props) {
                     <Checkbox
                       label={ind}
                       checked={form().indicators.includes(ind)}
-                      // @/ui Checkbox forwards the raw DOM change event, not a checked boolean
-                      onChange={(e: Event) => {
-                        const target = e?.currentTarget as HTMLInputElement | null;
-                        handleIndicatorToggle(ind, target?.checked ?? Boolean(e));
-                      }}
+                      onChange={(checked) => handleIndicatorToggle(ind, checked)}
                       size="xs"
                     />
                   )}

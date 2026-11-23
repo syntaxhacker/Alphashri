@@ -247,7 +247,7 @@ export function BotConfigModal(props: BotConfigModalProps) {
                 <Checkbox
                   label=""
                   checked={isActive()}
-                  onChange={(e) => setIsActive((e.currentTarget as HTMLInputElement).checked)}
+                  onChange={(checked) => setIsActive(checked)}
                   data-testid="bot-active-checkbox"
                 />
               </Box>
@@ -304,7 +304,7 @@ export function BotConfigModal(props: BotConfigModalProps) {
                   label=""
                   description="Places real orders via Upstox API. Use with caution!"
                   checked={liveTrading()}
-                  onChange={(e) => setLiveTrading((e.currentTarget as HTMLInputElement).checked)}
+                  onChange={(checked) => setLiveTrading(checked)}
                   color="error"
                   data-testid="bot-live-trading-switch"
                 />

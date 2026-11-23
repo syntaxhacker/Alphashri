@@ -29,10 +29,10 @@ export function NavLink(props: UINavLinkProps) {
   const open = createMemo(() => (isControlled ? Boolean(known.opened) : internalOpen()));
   const disabledState = Boolean(known.disabled);
 
-  const handleClick = () => {
+  const handleClick = (e: MouseEvent) => {
     if (disabledState) return;
     if (hasChildren && !isControlled) setInternalOpen((v: boolean) => !v);
-    known.onClick?.();
+    known.onClick?.(e);
   };
 
   const isLink = Boolean(known.href);

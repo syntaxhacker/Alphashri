@@ -622,7 +622,7 @@ function StubMultiSelect(props: DivProps & {
   );
 }
 
-function StubSwitch(props: DivProps & { checked?: boolean; onChange?: (e: any) => void; label?: JSX.Element; disabled?: boolean }) {
+function StubSwitch(props: DivProps & { checked?: boolean; onChange?: (checked: boolean) => void; label?: JSX.Element; disabled?: boolean }) {
   const [local, rest] = splitProps(props, ["checked", "onChange", "label", "disabled", "data-testid", "size"] as const);
   return (
     <label class="inline-flex cursor-pointer items-center gap-2">
@@ -633,7 +633,7 @@ function StubSwitch(props: DivProps & { checked?: boolean; onChange?: (e: any) =
         checked={Boolean(local.checked)}
         disabled={Boolean(local.disabled)}
         data-testid={local["data-testid"]}
-        onChange={local.onChange}
+        onChange={(e) => local.onChange?.((e.currentTarget as HTMLInputElement).checked)}
         {...(rest as Record<string, unknown>)}
       />
       <Show when={local.label}>
@@ -643,7 +643,7 @@ function StubSwitch(props: DivProps & { checked?: boolean; onChange?: (e: any) =
   );
 }
 
-function StubCheckbox(props: DivProps & { checked?: boolean; onChange?: (e: any) => void; onClick?: (e: any) => void; disabled?: boolean; label?: JSX.Element }) {
+function StubCheckbox(props: DivProps & { checked?: boolean; onChange?: (checked: boolean) => void; onClick?: (e: any) => void; disabled?: boolean; label?: JSX.Element }) {
   const [local, rest] = splitProps(props, ["checked", "onChange", "onClick", "disabled", "label", "data-testid", "size"] as const);
   return (
     <label class="inline-flex cursor-pointer items-center gap-1">
@@ -653,7 +653,7 @@ function StubCheckbox(props: DivProps & { checked?: boolean; onChange?: (e: any)
         checked={Boolean(local.checked)}
         disabled={Boolean(local.disabled)}
         data-testid={local["data-testid"]}
-        onChange={local.onChange}
+        onChange={(e) => local.onChange?.((e.currentTarget as HTMLInputElement).checked)}
         onClick={local.onClick}
         {...(rest as Record<string, unknown>)}
       />

@@ -85,7 +85,7 @@ function ParamControl(props: { spec: ReplayParamSpec; value: unknown; onChange: 
           size="sm"
           label={spec.label}
           checked={Boolean(props.value)}
-          onChange={(e) => props.onChange(e.currentTarget.checked)}
+          onChange={(checked) => props.onChange(checked)}
         />
       </Box>
     );

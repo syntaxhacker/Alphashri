@@ -299,7 +299,7 @@ export function WatchlistScan2(props: WatchlistScan2Props) {
             size="xs"
             label={`Skipped (${counts().skipped})`}
             checked={showSkipped()}
-            onChange={(e) => setShowSkipped((e.currentTarget as HTMLInputElement).checked)}
+            onChange={(checked) => setShowSkipped(checked)}
           />
           <Show when={strategyOptions().length > 0}>
             <MultiSelect

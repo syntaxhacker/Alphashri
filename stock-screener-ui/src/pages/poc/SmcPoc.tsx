@@ -92,15 +92,15 @@ export default function SmcPoc() {
         </Show>
         <Box className="flex-1" />
         <span className="flex items-center gap-2" style={{ ...typeStyle("micro"), color: palette.TEXT_COLOR }}>
-          <Switch size="sm" checked={source() === "nq"} onChange={(e) => setSource(e.currentTarget.checked ? "nq" : "mock")} color="primary" />
+          <Switch size="sm" checked={source() === "nq"} onChange={(checked) => setSource(checked ? "nq" : "mock")} color="primary" />
           Real NQ
         </span>
         <span className="flex items-center gap-2" style={{ ...typeStyle("micro"), color: palette.PIVOT_CUSTOM }}>
-          <Switch size="sm" checked={showRect()} onChange={(e) => setShowRect(e.currentTarget.checked)} color="info" />
+          <Switch size="sm" checked={showRect()} onChange={(checked) => setShowRect(checked)} color="info" />
           Rect
         </span>
         <span className="flex items-center gap-2" style={{ ...typeStyle("micro"), color: palette.NT_TREND }}>
-          <Switch size="sm" checked={showTrend()} onChange={(e) => setShowTrend(e.currentTarget.checked)} color="primary" />
+          <Switch size="sm" checked={showTrend()} onChange={(checked) => setShowTrend(checked)} color="primary" />
           Trend
         </span>
       </Stack>

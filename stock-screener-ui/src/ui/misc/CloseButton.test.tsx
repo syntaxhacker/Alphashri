@@ -63,13 +63,14 @@ describe("CloseButton", () => {
     expect(glyph).toHaveAttribute("aria-hidden", "true");
   });
 
-  test("calls onClick with no arguments, and disabled blocks the click", () => {
-    const onClick = vi.fn<() => void>();
+  test("calls onClick with the mouse event, and disabled blocks the click", () => {
+    const onClick = vi.fn();
     render(() => <CloseButton data-testid="close" onClick={onClick} />);
 
     fireEvent.click(screen.getByTestId("close"));
     expect(onClick).toHaveBeenCalledTimes(1);
-    expect(onClick.mock.calls[0]).toEqual([]);
+    expect(onClick.mock.calls[0]).toHaveLength(1);
+    expect(onClick.mock.calls[0][0]).toBeInstanceOf(MouseEvent);
 
     cleanup();
 

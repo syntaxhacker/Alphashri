@@ -26,7 +26,7 @@ export function ParamInput(props: {
       <Checkbox
         data-testid={testId()}
         checked={props.value ?? props.param.default}
-        onChange={(e) => props.onChange(e.currentTarget.checked)}
+        onChange={(checked) => props.onChange(checked)}
         size="sm"
       />
     );

@@ -212,7 +212,6 @@ export function Select(props: UISelectProps) {
     "w",
     "h",
     "data-testid",
-    "InputProps",
     "aria-label",
   ]);
 
