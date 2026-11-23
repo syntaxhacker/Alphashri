@@ -3,8 +3,9 @@
  * Real-browser keyboard walkthrough gate for the static Storybook build.
  *
  * Drives the preview iframe with Playwright's keyboard and asserts the keyboard
- * contracts of four design-system widgets (Modal, Tree, Menu, Tabs). Story ids
- * are resolved from index.json by title + name, never guessed. The script owns
+ * contracts of four design-system widgets (Modal, Tree, Menu, Tabs), including
+ * a vertical Tabs walkthrough. Story ids are resolved from index.json by title
+ * + name, never guessed. The script owns
  * and cleans up its own static HTTP server, so it is safe to run as
  * `node scripts/storybook-keyboard.mjs` without any external setup.
  *
@@ -57,6 +58,12 @@ const REQUIRED_STORIES = [
     label: 'Tabs — ArrowRight/Left move selected tab',
     title: 'Design System/Components/Data display/Tabs',
     name: 'Playground',
+  },
+  {
+    key: 'tabsVertical',
+    label: 'Vertical Tabs — ArrowDown changes aria-selected',
+    title: 'Design System/Components/Data display/Tabs',
+    name: 'Orientations',
   },
 ];
 
@@ -126,7 +133,6 @@ function resolveStories() {
 }
 
 const STORIES = resolveStories();
-const STORY_BY_KEY = Object.fromEntries(STORIES.map((story) => [story.key, story]));
 
 // ---------------------------------------------------------------------------
 // Static server lifecycle
@@ -528,12 +534,57 @@ async function checkTabs(page, storyId) {
   return `selection followed arrows: ${before.selected} -> ${afterRight.selected} -> ${afterRight2.selected} -> ${afterLeft.selected}`;
 }
 
+async function checkTabsVertical(page, storyId) {
+  const frame = await openStoryFrame(page, storyId);
+  const list = frame.locator('[role="tablist"][aria-label="Vertical sections"]');
+  assert(
+    (await list.count()) === 1,
+    'expected exactly one vertical tablist ("Vertical sections") in the Orientations story',
+  );
+  assert(
+    (await list.getAttribute('aria-orientation')) === 'vertical',
+    'the vertical tablist should advertise aria-orientation="vertical"',
+  );
+
+  const tabs = list.locator('[role="tab"]');
+  assert((await tabs.count()) === 3, `expected three vertical tabs, found ${await tabs.count()}`);
+
+  const selected = () =>
+    list.evaluate((node) => {
+      const active = Array.from(node.querySelectorAll('[role="tab"]')).find(
+        (tab) => tab.getAttribute('aria-selected') === 'true',
+      );
+      return active?.textContent?.trim() ?? null;
+    });
+
+  const before = await selected();
+  assert(before === 'Scan', `expected Scan selected initially, got ${before}`);
+  await tabs.first().focus();
+
+  await page.keyboard.press('ArrowDown');
+  const afterDown = await selected();
+  assert(
+    afterDown === 'Filter',
+    `ArrowDown should change aria-selected from Scan to Filter, got ${afterDown}`,
+  );
+
+  await page.keyboard.press('ArrowUp');
+  const afterUp = await selected();
+  assert(
+    afterUp === 'Scan',
+    `ArrowUp should change aria-selected back to Scan, got ${afterUp}`,
+  );
+
+  return `aria-selected followed vertical arrows: ${before} -> ${afterDown} -> ${afterUp}`;
+}
+
 const WALKTHROUGHS = {
   modalOpen: checkModalTabCycle,
   modalClose: checkModalEscape,
   tree: checkTree,
   menu: checkMenu,
   tabs: checkTabs,
+  tabsVertical: checkTabsVertical,
 };
 
 // ---------------------------------------------------------------------------

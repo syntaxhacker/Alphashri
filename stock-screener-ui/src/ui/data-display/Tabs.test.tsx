@@ -136,25 +136,122 @@ describe("Tabs", () => {
     expect(alpha).toHaveAttribute("aria-selected", "false");
   });
 
-  test("vertical orientation keeps the same arrow activation behaviour", () => {
+  test("vertical orientation uses Up/Down arrows and ignores Left/Right", () => {
     const onChange = vi.fn();
     render(() => (
       <Tabs defaultValue="a" orientation="vertical" onChange={onChange}>
         <Tabs.List orientation="vertical" data-testid="list">
           <Tabs.Tab value="a">Alpha</Tabs.Tab>
+          <Tabs.Tab value="locked" disabled>Locked</Tabs.Tab>
           <Tabs.Tab value="b">Beta</Tabs.Tab>
         </Tabs.List>
       </Tabs>
     ));
 
     expect(screen.getByTestId("list")).toHaveAttribute("aria-orientation", "vertical");
-    const [alpha, beta] = screen.getAllByRole("tab");
+    const [alpha, locked, beta] = screen.getAllByRole("tab");
     alpha.focus();
 
     fireEvent.keyDown(alpha, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(alpha);
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(alpha, { key: "ArrowDown" });
     expect(document.activeElement).toBe(beta);
     expect(beta).toHaveAttribute("aria-selected", "true");
+    expect(alpha).toHaveAttribute("aria-selected", "false");
     expect(onChange).toHaveBeenCalledWith("b");
+
+    fireEvent.keyDown(beta, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(alpha);
+    expect(alpha).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(alpha, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(beta);
+    expect(beta).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(beta, { key: "Home" });
+    expect(document.activeElement).toBe(alpha);
+    fireEvent.keyDown(alpha, { key: "End" });
+    expect(document.activeElement).toBe(beta);
+
+    expect(locked).toHaveAttribute("aria-selected", "false");
+    expect(onChange.mock.calls.map(([value]) => value)).toEqual(["b", "a", "b", "a", "b"]);
+  });
+
+  test("vertical ArrowDown/ArrowUp activate the matching panel", () => {
+    render(() => (
+      <Tabs defaultValue="a" orientation="vertical">
+        <Tabs.List orientation="vertical">
+          <Tabs.Tab value="a">Alpha</Tabs.Tab>
+          <Tabs.Tab value="b">Beta</Tabs.Tab>
+        </Tabs.List>
+        <Tabs.Panel value="a" data-testid="vertical-panel-a">Panel A</Tabs.Panel>
+        <Tabs.Panel value="b" data-testid="vertical-panel-b">Panel B</Tabs.Panel>
+      </Tabs>
+    ));
+
+    const [alpha, beta] = screen.getAllByRole("tab");
+    alpha.focus();
+    fireEvent.keyDown(alpha, { key: "ArrowDown" });
+    expect(beta).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("vertical-panel-b")).not.toHaveProperty("hidden", true);
+
+    fireEvent.keyDown(beta, { key: "ArrowUp" });
+    expect(alpha).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("vertical-panel-a")).not.toHaveProperty("hidden", true);
+  });
+
+  test("tabs and panels share stable ids via aria-controls and aria-labelledby", () => {
+    render(() => (
+      <Tabs defaultValue="a">
+        <Tabs.List>
+          <Tabs.Tab value="a" data-testid="tab-a">Alpha</Tabs.Tab>
+          <Tabs.Tab value="b" data-testid="tab-b">Beta</Tabs.Tab>
+        </Tabs.List>
+        <Tabs.Panel value="a" data-testid="panel-a">Panel A</Tabs.Panel>
+        <Tabs.Panel value="b" keepMounted data-testid="panel-b">Panel B</Tabs.Panel>
+      </Tabs>
+    ));
+
+    const tabA = screen.getByTestId("tab-a");
+    const tabB = screen.getByTestId("tab-b");
+    const panelA = screen.getByTestId("panel-a");
+    const panelB = screen.getByTestId("panel-b");
+    const ids = [tabA.id, tabB.id, panelA.id, panelB.id];
+
+    expect(ids.every(Boolean)).toBe(true);
+    expect(new Set(ids).size).toBe(4);
+    expect(tabA).toHaveAttribute("aria-controls", panelA.id);
+    expect(tabB).toHaveAttribute("aria-controls", panelB.id);
+    expect(panelA).toHaveAttribute("aria-labelledby", tabA.id);
+    expect(panelB).toHaveAttribute("aria-labelledby", tabB.id);
+    expect(panelB).toHaveProperty("hidden", true);
+  });
+
+  test("unimplemented Tabs props are not emitted as DOM attributes", () => {
+    render(() => (
+      <Tabs
+        defaultValue="a"
+        variant="pills"
+        color="primary"
+        activateOnFocus={false}
+        loop={false}
+        data-testid="tabs"
+      >
+        <Tabs.List data-testid="list" aria-label="Sections">
+          <Tabs.Tab value="a">Alpha</Tabs.Tab>
+        </Tabs.List>
+      </Tabs>
+    ));
+
+    const wrapper = screen.getByTestId("tabs");
+    expect(wrapper).not.toHaveAttribute("variant");
+    expect(wrapper).not.toHaveAttribute("color");
+    expect(wrapper).not.toHaveAttribute("activateonfocus");
+    expect(wrapper).not.toHaveAttribute("loop");
+    expect(wrapper).toHaveAttribute("data-testid", "tabs");
+    expect(screen.getByTestId("list")).toHaveAttribute("aria-label", "Sections");
   });
 
   test("a disabled tab cannot be selected by click", () => {
