@@ -12,7 +12,7 @@ run instead of only being visible in a diff review.
 | `scripts/visual-regression.mjs` | Single entry point, invoked by `bun run visual:test` / `bun run visual:update`. Validates the static build and baselines, then launches Playwright. Supports `UPDATE_SNAPSHOTS=1`. |
 | `tests/visual/visual-regression.spec.ts` | The six Storybook stories, captured full-page at both breakpoints and compared with `toHaveScreenshot`. |
 | `tests/visual/playwright.visual.config.ts` | Standalone Playwright config (does **not** use the app's `playwright.config.ts`). Starts its own static server, defines the two viewport projects, pins the diff budget. |
-| `tests/visual/__screenshots__/` | Committed baseline PNGs (12 files). Currently contains only a README — see "One-time baseline creation". |
+| `tests/visual/__screenshots__/` | Committed baseline PNGs (12 files: 6 stories × 2 breakpoints). These **must be committed** to the repo for the gate to pass in CI — see "One-time baseline creation / intentional update". |
 
 The default `playwright.config.ts` targets `tests/e2e` and the Vite dev server
 on `localhost:5173`. This gate deliberately has its own config so it can only
@@ -63,15 +63,19 @@ Two package scripts are the entry points (run from `stock-screener-ui/`):
 | `bun run visual:test` | `node scripts/visual-regression.mjs` | Verify all 12 baselines (no writes). |
 | `bun run visual:update` | `UPDATE_SNAPSHOTS=1 node scripts/visual-regression.mjs` | Create/regenerate the 12 baselines. |
 
-This gate is deliberately **not wired into CI** — the baselines do not exist
-yet. Add a CI step only after the first `bun run visual:update` baselines are
-reviewed and committed.
+This gate **runs in CI** on every PR. In the `frontend-lint-typecheck` job,
+`Build Storybook` produces the static build, `Install Playwright Chromium`
+provides the browser, and the `Verify Storybook visual baseline` step runs
+`bun run visual:test` alongside the axe and keyboard gates. A normal run never
+writes baselines (`updateSnapshots: "none"`), so the 12 PNGs **must be
+committed** to the repo — otherwise CI fails with a missing-baseline error.
 
 ## Prerequisite
 
 **Only runs when a static Storybook build exists.** `storybook-static/` is
-gitignored, so build it locally first with `bun run build-storybook`. The harness
-has no dev-server fallback and fails with the rebuild command if the build is
+gitignored, so build it locally first with `bun run build-storybook`. In CI the
+job's `Build Storybook` step produces it before this gate runs. The harness has
+no dev-server fallback and fails with the rebuild command if the build is
 missing or stale.
 
 Requires the already-installed `python3`, `@playwright/test`, and Playwright
@@ -81,7 +85,7 @@ Chromium browser binaries (`npx playwright install chromium` if absent).
 
 The **first `bun run visual:update` creates all 12 baselines** (six stories ×
 two breakpoints). These are committed artefacts: review the diff and commit them
-before `bun run visual:test` can pass for anyone else. From
+before `bun run visual:test` can pass for anyone else (including CI). From
 `stock-screener-ui/`:
 
 ```sh
