@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { typeSize } from "@/ui/typography";
 import {
   CHART_BG,
   CHART_TEXT,
@@ -142,7 +143,7 @@ describe("buildChartOption", () => {
       expect(result.title).toEqual({
         text: "My Chart",
         left: "center",
-        textStyle: { color: CHART_TEXT, fontSize: 14 },
+        textStyle: { color: CHART_TEXT, fontSize: typeSize("label") },
       });
     });
 
@@ -161,7 +162,7 @@ describe("buildChartOption", () => {
         backgroundColor: CHART_LIGHT_OVERLAY,
         borderColor: CHART_BORDER,
         borderWidth: 1,
-        textStyle: { color: CHART_TEXT, fontSize: "12px" },
+        textStyle: { color: CHART_TEXT, fontSize: typeSize("micro") },
         formatter: "tooltip HTML",
       });
     });

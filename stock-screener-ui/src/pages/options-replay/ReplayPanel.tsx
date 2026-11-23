@@ -2,7 +2,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, 
 import { useNavigate } from "@solidjs/router";
 import {
   ActionIcon, Alert, Badge, Box, Button, Paper, Select, Slider, Tab, Tabs, TabsList, TabsPanel, Text,
-  ToolbarRow, useMediaQuery,
+  ToolbarRow, useMediaQuery, TYPE_CLASS, typeStyle,
 } from "@/ui";
 import { showNotification } from "@/ui/notifications";
 import { CompactStat, CompactStatGrid } from "@/components/common/compact";
@@ -204,7 +204,7 @@ const NO_DIVIDE = "[&>*]:border-l-0!";
 function ErrorDetail(props: { detail: string | null }) {
   return (
     <Show when={props.detail}>
-      <details className="mt-1 text-[11px]">
+      <details className={`mt-1 ${TYPE_CLASS.micro}`}>
         <summary className="cursor-pointer">Technical detail</summary>
         <Text span size="xs" c="dimmed" className="block break-words">
           {props.detail}
@@ -255,7 +255,7 @@ function StatValue(props: { text: string; tooltip?: string }) {
     <Text
       span
       className="block w-full text-right font-mono tabular-nums"
-      style={{ "font-size": "12px" }}
+      style={typeStyle("micro")}
       title={props.tooltip ?? props.text}
     >
       {props.text}
@@ -287,7 +287,7 @@ function WorkstationPanel(props: {
           className="uppercase truncate"
           title={props.title}
           style={{
-            "font-size": "14px",
+            ...typeStyle("label"),
             "font-family": palette.MONO,
             "letter-spacing": "0.08em",
             "line-height": "1.2",

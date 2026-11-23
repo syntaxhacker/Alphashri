@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui/typography";
 import * as palette from "@/ui/palette";
 import type { OptionReplayResult, ReplayFrame } from "@/types/optionsPaper";
 
@@ -6,7 +7,7 @@ import type { OptionReplayResult, ReplayFrame } from "@/types/optionsPaper";
  * ignored, which is why the replay axes previously rendered at the browser
  * default. These live here as the single source for both replay charts.
  */
-export const CHART_LABEL_FONT_SIZE = 11;
+export const CHART_LABEL_FONT_SIZE = typeSize("micro");
 export const PROFIT_AREA_TINT = palette.alpha(palette.POSITIVE, 0.2);
 export const LOSS_AREA_TINT = palette.alpha(palette.NEGATIVE, 0.2);
 

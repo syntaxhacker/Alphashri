@@ -21,6 +21,7 @@ import type {
 import { OptionsReplayPage } from "./OptionsReplayPage";
 import { projectedMonthlyExpiries, ReplayPanel } from "./ReplayPanel";
 import * as palette from "@/ui/palette";
+import { typeSize } from "@/ui/typography";
 import {
   LOSS_AREA_TINT,
   payoffChartOption,
@@ -541,13 +542,13 @@ describe("ReplayPanel", () => {
     expect(screen.getByTestId("replay-actions").style.gap).toBe("16px");
   });
 
-  test("section headers use 14px type with a 12px vertical rhythm", async () => {
+  test("section headers use label type with a compact vertical rhythm", async () => {
     setPendingOrder(request);
     render(() => <ReplayPanel />);
 
     const playback = await screen.findByTitle("PLAYBACK");
     for (const heading of [playback, screen.getByTitle("LEGS AT PLAYHEAD")]) {
-      expect((heading as HTMLElement).style.fontSize).toBe("14px");
+      expect((heading as HTMLElement).style.fontSize).toBe(`${typeSize("label")}px`);
       const bar = heading.parentElement!;
       expect(bar.className).toContain("py-3");
       expect(bar.className).not.toContain("h-6");
@@ -1044,7 +1045,7 @@ describe("ReplayPanel", () => {
 
   test("chart options use readable labels, tinted areas and surfaced mark labels", () => {
     const path = pathChartOption(replay, replay.frames[1].t) as unknown as ChartOption;
-    expect(path.xAxis.axisLabel.fontSize).toBeGreaterThanOrEqual(10);
+    expect(path.xAxis.axisLabel.fontSize).toBe(typeSize("micro"));
     expect(path.tooltip.backgroundColor).toBe(palette.TOOLTIP_BG);
     expect(path.tooltip.textStyle.color).toBe(palette.TOOLTIP_TEXT);
     expect(path.tooltip.formatter([

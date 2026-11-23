@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui/typography";
 import type { UnifiedOverlay } from "./types";
 import { buildOverlayLineSeries } from "./overlayLine";
 
@@ -73,14 +74,14 @@ export function buildOverlays(
                   show: true,
                   position: "end",
                   formatter: `${overlay.levels[0]?.value}`,
-                  fontSize: 10,
+                  fontSize: typeSize("micro"),
                   color: overlay.color,
                   fontFamily: "monospace",
                 },
                 endLabel: {
                   show: true,
                   formatter: overlay.label,
-                  fontSize: 9,
+                  fontSize: typeSize("micro"),
                   color: overlay.color,
                   fontFamily: "monospace",
                 },
