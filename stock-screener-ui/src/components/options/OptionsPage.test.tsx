@@ -72,6 +72,15 @@ describe("OptionsPage", () => {
     }
   });
 
+  it("keeps the narrow-only overflow cue inside the fixed nav bar", () => {
+    render(() => <OptionsPage {...defaultProps} />);
+    const bar = document.querySelector("#options-nav-bar")!;
+    const cue = screen.getByTestId("options-nav-overflow-cue");
+    expect(bar).toContainElement(cue);
+    expect(cue).toHaveTextContent("→");
+    expect(cue).toHaveClass("lg:hidden", "pointer-events-none");
+  });
+
   it("shows positions panel when activeTab is positions", () => {
     render(() => <OptionsPage {...defaultProps} activeTab="positions" />);
     expect(screen.getByTestId("options-positions-panel")).toBeInTheDocument();

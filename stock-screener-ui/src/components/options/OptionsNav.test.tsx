@@ -49,6 +49,23 @@ describe("OptionsNav", () => {
     }
   });
 
+  it("shows a narrow-only overflow cue that does not block the last tab", () => {
+    render(() => <OptionsNav activeTab="chain" onTabChange={vi.fn()} />);
+    const cue = screen.getByTestId("options-nav-overflow-cue");
+
+    expect(cue).toHaveTextContent("→");
+    expect(cue).toHaveClass("bg-gradient-to-l", "from-fin-surface", "lg:hidden");
+    // The cue is decorative: it must never steal clicks from the last tab.
+    expect(cue).toHaveAttribute("aria-hidden", "true");
+    expect(cue).toHaveClass("pointer-events-none");
+
+    // The strip keeps scrolling on one line, with scroll padding so the last
+    // tab can clear the overlay cue.
+    const list = screen.getByTestId("options-nav-list");
+    expect(list).toHaveClass("flex-nowrap", "overflow-x-auto", "pr-8");
+    expect(screen.getByTestId("nav-tab-positioning")).toHaveClass("whitespace-nowrap");
+  });
+
   it("has clickable tabs", async () => {
     const onTabChange = vi.fn();
     render(() => <OptionsNav activeTab="chain" onTabChange={onTabChange} />);
