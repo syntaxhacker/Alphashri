@@ -4,9 +4,12 @@ import { describe, expect, it } from "vitest";
 
 // Vitest runs from the UI package root (see package.json scripts). The second
 // candidate keeps the guard usable if invoked from the monorepo root.
-const ROOT = existsSync(join(process.cwd(), "storybook-static"))
-  ? process.cwd()
-  : join(process.cwd(), "stock-screener-ui");
+const CWD = process.cwd();
+const ROOT = existsSync(join(CWD, "storybook-static"))
+  ? CWD
+  : existsSync(join(CWD, "stock-screener-ui", "storybook-static"))
+    ? join(CWD, "stock-screener-ui")
+    : CWD;
 const MANIFEST = join(ROOT, "storybook-static", "index.json");
 const OVERVIEW = join(ROOT, "src", "stories", "design-system", "Overview.stories.tsx");
 
@@ -23,9 +26,12 @@ if (!ready) {
   );
 }
 
-const catalog = ready ? describe : describe.skip;
-
-catalog("Storybook catalog guard (storybook-static/index.json)", () => {
+if (!ready) {
+  describe.skip("Storybook catalog guard (requires build-storybook)", () => {
+    it.skip("waits for storybook-static/index.json", () => {});
+  });
+} else {
+describe("Storybook catalog guard (storybook-static/index.json)", () => {
   const manifest = JSON.parse(readFileSync(MANIFEST, "utf8")) as Manifest;
   const entries = Object.entries(manifest.entries ?? {});
   const stories = entries.filter(([, entry]) => entry.type === "story");
@@ -81,3 +87,4 @@ catalog("Storybook catalog guard (storybook-static/index.json)", () => {
     ).toEqual([]);
   });
 });
+}

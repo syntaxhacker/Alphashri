@@ -41,9 +41,9 @@ _PATH_MARKERS = (
     # These are first-class API/unit suites for the paper/replay feature, but
     # predate the marker convention. They must run in the develop PR tier when
     # api/** or options_paper/** changes, not only on the nightly sweep.
-    ("tests/test_options_paper", pytest.mark.unit),
+    ("tests/test_options_paper_replay_engine.py", pytest.mark.unit),
+    ("tests/test_options_paper_staggered_replay.py", pytest.mark.unit),
     ("tests/api/test_options_paper", pytest.mark.unit),
-    ("tests/test_replay_phase2.py", pytest.mark.unit),
 )
 
 
