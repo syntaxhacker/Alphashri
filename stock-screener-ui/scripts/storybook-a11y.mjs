@@ -138,6 +138,10 @@ const NEW_VISIBLE_STATES = [
     label: 'Data display/Result states (feed error)',
     id: 'design-system-data-display--result-states-feed-error',
   },
+  {
+    label: 'Navigation/NavLink (states)',
+    id: 'design-system-components-navigation-navlink--states',
+  },
 ];
 
 const norm = (value) => String(value ?? '').trim().toLowerCase();
