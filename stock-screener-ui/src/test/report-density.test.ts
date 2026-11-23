@@ -93,8 +93,8 @@ export function deskChainArithmetic(
   return { sum, fits: sum <= budget };
 }
 
-/** The phone axis lane may widen for longer tags, never shrink below 132px. */
-export function mobileGutterAtLeast(px: number, floor = 132): boolean {
+/** The phone axis lane must fit a full price tag; 92px is the measured floor. */
+export function mobileGutterAtLeast(px: number, floor = 92): boolean {
   return Number.isFinite(px) && px >= floor;
 }
 
@@ -172,7 +172,7 @@ describe("report composition — decision and unavailable bands", () => {
 });
 
 describe("report composition — chart boundary and gutters", () => {
-  it("pins the 88px desktop / >=132px mobile axis, 24px cutoff lane and last-data marker", () => {
+  it("pins the 88px desktop / >=92px mobile axis, 24px cutoff lane and last-data marker", () => {
     expectMarkers(CHART_CONSTANTS, [
       "dataCutoffLane: 24",
       "axisMinWidth: 88",
@@ -189,9 +189,8 @@ describe("report composition — chart boundary and gutters", () => {
       "data-mobile-axis-gutter={MOBILE_AXIS_MIN_WIDTH}",
       "--chart-cutoff-right",
     ]);
-    // 132px is the floor the phone tag needs. The current source reserves 144
-    // after measuring the 9-glyph session tag plus volume tag and engine
-    // padding; widening is fine, shrinking below the floor is not.
+    // 92px fits a full 8-glyph tag once the volume tag is hidden; widening is
+    // fine, shrinking below this measured floor is not.
     const mobileAxis = Number(
       source(CHART_BODY).match(/MOBILE_AXIS_MIN_WIDTH\s*=\s*(\d+)/)?.[1],
     );

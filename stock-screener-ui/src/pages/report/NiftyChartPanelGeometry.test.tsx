@@ -11,12 +11,16 @@ import {
 import {
   MOBILE_AXIS_MIN_WIDTH,
   MOBILE_CUTOFF_LABEL_GAP,
+  MOBILE_CUTOFF_LANE,
   MOBILE_CUTOFF_RIGHT,
   MOBILE_EDGE_GUTTER,
 } from "./NiftyChartPanel.body";
 import { REPORT_FONT, REPORT_PAD } from "./reportTokens";
 
-const env = vi.hoisted(() => ({ mobile: false }));
+const env = vi.hoisted(() => ({
+  mobile: false,
+  mediaListeners: [] as Array<(event: { matches: boolean }) => void>,
+}));
 const tv = vi.hoisted(() => ({
   onChartReady: null as null | ((chart: unknown, series: unknown) => void),
 }));
@@ -63,8 +67,12 @@ beforeAll(() => {
       onchange: null,
       addListener: () => {},
       removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
+      addEventListener: (_type: string, fn: (event: { matches: boolean }) => void) => {
+        env.mediaListeners.push(fn);
+      },
+      removeEventListener: (_type: string, fn: (event: { matches: boolean }) => void) => {
+        env.mediaListeners = env.mediaListeners.filter((f) => f !== fn);
+      },
       dispatchEvent: () => false,
     }),
   });
@@ -73,6 +81,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   env.mobile = false;
+  env.mediaListeners = [];
   tv.onChartReady = null;
   window.localStorage.clear();
 });
@@ -170,14 +179,26 @@ describe("NiftyChartPanel — plot domain and annotation margins", () => {
     expect(boundary).toHaveStyle({ right: `${CHART_CUTOFF_RIGHT}px` });
   });
 
-  test("the phone reserves a real right-axis gutter so a full price tag renders", () => {
-    // "22300.00" is eight glyphs plus axis padding; the 88px desktop minimum
-    // clipped it to "00" at 390. The phone axis must be measurably wider.
-    expect(MOBILE_AXIS_MIN_WIDTH).toBeGreaterThanOrEqual(CHART_PLOT_MARGIN.axisMinWidth + 32);
-    expect(MOBILE_EDGE_GUTTER).toBeGreaterThan(CHART_PLOT_MARGIN.edgeGutter);
+  test("the phone reserves 116px total, so a 390px card gives the plot ~70%", () => {
+    // Exact budget: 92px axis (fits the whole 85px "22,364.00" tag) + 8px
+    // gutter + 16px cutoff lane. The old 144+12+24 reservation left ~54%.
+    expect(MOBILE_AXIS_MIN_WIDTH).toBe(92);
+    expect(MOBILE_EDGE_GUTTER).toBe(8);
+    expect(MOBILE_CUTOFF_LANE).toBe(16);
+    expect(MOBILE_CUTOFF_RIGHT).toBe(116);
     expect(MOBILE_CUTOFF_RIGHT).toBe(
-      MOBILE_EDGE_GUTTER + MOBILE_AXIS_MIN_WIDTH + CHART_PLOT_MARGIN.dataCutoffLane,
+      MOBILE_EDGE_GUTTER + MOBILE_AXIS_MIN_WIDTH + MOBILE_CUTOFF_LANE,
     );
+    expect(MOBILE_CUTOFF_RIGHT).toBeGreaterThanOrEqual(112);
+    expect(MOBILE_CUTOFF_RIGHT).toBeLessThanOrEqual(120);
+    expect(390 - MOBILE_CUTOFF_RIGHT).toBe(274);
+    expect((390 - MOBILE_CUTOFF_RIGHT) / 390).toBeGreaterThanOrEqual(0.7);
+    // Desktop is untouched; only the phone gutter/lane shrink.
+    expect(CHART_PLOT_MARGIN.axisMinWidth).toBe(88);
+    expect(CHART_PLOT_MARGIN.edgeGutter).toBe(REPORT_PAD.md);
+    expect(CHART_PLOT_MARGIN.edgeGutter).toBe(8);
+    expect(CHART_PLOT_MARGIN.dataCutoffLane).toBe(24);
+    expect(CHART_CUTOFF_RIGHT).toBe(120);
 
     env.mobile = true;
     mount();
@@ -185,7 +206,7 @@ describe("NiftyChartPanel — plot domain and annotation margins", () => {
     expect(wrap).toHaveStyle({ "padding-right": `${MOBILE_EDGE_GUTTER}px` });
     expect(wrap.style.getPropertyValue("--chart-cutoff-right")).toBe(`${MOBILE_CUTOFF_RIGHT}px`);
     expect(wrap).toHaveAttribute("data-mobile-axis-gutter", String(MOBILE_AXIS_MIN_WIDTH));
-    // The cutoff rule moves with the wider axis so it still marks the last bar.
+    expect(wrap).toHaveAttribute("data-mobile-cutoff-lane", String(MOBILE_CUTOFF_LANE));
     expect(screen.getByTestId("nifty-chart-last-data-boundary")).toHaveStyle({
       right: `${MOBILE_CUTOFF_RIGHT}px`,
     });
@@ -196,6 +217,37 @@ describe("NiftyChartPanel — plot domain and annotation margins", () => {
     expect(rightAxis?.options).toMatchObject({
       minimumWidth: MOBILE_AXIS_MIN_WIDTH,
       entireTextOnly: true,
+    });
+    // The engine's blank lane is the same 16px the CSS cutoff boundary uses.
+    const time = calls.filter((c) => c.scale === "time").at(-1);
+    expect(time?.options).toMatchObject({ rightOffsetPixels: MOBILE_CUTOFF_LANE });
+  });
+
+  test("switching back to desktop restores the 24px engine offset and 88px axis", async () => {
+    mount();
+    const { chart, calls } = fakeChart();
+    tv.onChartReady!(chart, null);
+    calls.length = 0;
+
+    env.mobile = true;
+    for (const fn of env.mediaListeners) fn({ matches: true });
+    await Promise.resolve();
+    expect(calls.filter((c) => c.scale === "time").at(-1)?.options).toMatchObject({
+      rightOffsetPixels: MOBILE_CUTOFF_LANE,
+    });
+    expect(calls.filter((c) => c.scale === "price" && c.id === "right").at(-1)?.options).toMatchObject({
+      minimumWidth: MOBILE_AXIS_MIN_WIDTH,
+    });
+
+    calls.length = 0;
+    env.mobile = false;
+    for (const fn of env.mediaListeners) fn({ matches: false });
+    await Promise.resolve();
+    expect(calls.filter((c) => c.scale === "time").at(-1)?.options).toMatchObject({
+      rightOffsetPixels: CHART_PLOT_MARGIN.dataCutoffLane,
+    });
+    expect(calls.filter((c) => c.scale === "price" && c.id === "right").at(-1)?.options).toMatchObject({
+      minimumWidth: CHART_PLOT_MARGIN.axisMinWidth,
     });
   });
 });
@@ -299,14 +351,18 @@ describe("NiftyChartPanel — 390px axis label/tag bounds", () => {
     };
   }
 
-  test("the dedicated lane fits the full price tag and the volume tag", () => {
-    // The comma-bearing session tag is the widest label on the axis.
-    expect(tagWidth("22,300.00")).toBeLessThanOrEqual(MOBILE_AXIS_MIN_WIDTH);
-    expect(tagWidth("22300.00")).toBeLessThanOrEqual(MOBILE_AXIS_MIN_WIDTH);
-    expect(tagWidth("109K")).toBeLessThanOrEqual(MOBILE_AXIS_MIN_WIDTH);
-    // Both tags start at the axis' left edge, so each has its own full box
-    // inside the lane; neither can be cut at the card edge.
-    expect(tagWidth("22,300.00") + MOBILE_EDGE_GUTTER).toBeLessThan(MOBILE_CUTOFF_RIGHT);
+  test("the 92px lane fits the whole price label with headroom", () => {
+    // Full-label fit is the reason the lane cannot go back to the 88px
+    // desktop minimum on a phone: "22,364.00" is the widest axis tag.
+    expect(tagWidth("22,364.00")).toBe(85);
+    expect(tagWidth("22364.00")).toBe(78);
+    expect(tagWidth("22,364.00")).toBeLessThanOrEqual(MOBILE_AXIS_MIN_WIDTH);
+    expect(tagWidth("22364.00")).toBeLessThanOrEqual(MOBILE_AXIS_MIN_WIDTH);
+    expect(MOBILE_AXIS_MIN_WIDTH - tagWidth("22,364.00")).toBe(7);
+    expect(MOBILE_AXIS_MIN_WIDTH - tagWidth("22364.00")).toBe(14);
+    // The tag + gutter still clears the cutoff boundary, and only the phone
+    // lane is wider than the desktop axis.
+    expect(tagWidth("22,364.00") + MOBILE_EDGE_GUTTER).toBeLessThan(MOBILE_CUTOFF_RIGHT);
     expect(MOBILE_AXIS_MIN_WIDTH).toBeGreaterThan(CHART_PLOT_MARGIN.axisMinWidth);
   });
 
@@ -317,11 +373,14 @@ describe("NiftyChartPanel — 390px axis label/tag bounds", () => {
     // axis tag. It also stays inside the cutoff lane (does not cross the edge).
     expect(labelRightFromWrapRight).toBeGreaterThan(axisLeftFromWrapRight);
     expect(labelRightFromWrapRight - axisLeftFromWrapRight).toBe(
-      CHART_PLOT_MARGIN.dataCutoffLane - MOBILE_CUTOFF_LABEL_GAP,
+      MOBILE_CUTOFF_LANE - MOBILE_CUTOFF_LABEL_GAP,
     );
+    expect(labelRightFromWrapRight - axisLeftFromWrapRight).toBeGreaterThanOrEqual(10);
     expect(MOBILE_CUTOFF_RIGHT - labelRightFromWrapRight).toBe(MOBILE_CUTOFF_LABEL_GAP);
-    // The cutoff lane is the separator between the label and the axis tags.
-    expect(CHART_PLOT_MARGIN.dataCutoffLane).toBeGreaterThan(MOBILE_CUTOFF_LABEL_GAP + 4);
+    // The (shorter) cutoff lane is still the separator between the label and
+    // the axis tags — it must stay wider than the gap plus a real margin.
+    expect(MOBILE_CUTOFF_LANE).toBeGreaterThan(MOBILE_CUTOFF_LABEL_GAP + 4);
+    expect(CHART_PLOT_MARGIN.dataCutoffLane).toBe(24);
   });
 
   test("the engine keeps label alignment on and suppresses only the volume axis tag on a phone", () => {
@@ -336,18 +395,22 @@ describe("NiftyChartPanel — 390px axis label/tag bounds", () => {
       alignLabels: true,
       entireTextOnly: true,
     });
+    const time = calls.filter((c) => c.scale === "time").at(-1);
+    expect(time?.options).toMatchObject({ rightOffsetPixels: MOBILE_CUTOFF_LANE });
     // Volume bars still render; only the last-value tag that crowded the
     // price tag at the pane bottom is removed.
     expect(volumeOptions.lastValueVisible).toBe(false);
   });
 
-  test("desktop keeps its 88px axis and the volume tag", () => {
+  test("desktop keeps its 88px axis, 24px lane and the volume tag", () => {
     mount();
     const { chart, volumeOptions, calls } = fakeChartWithVolume();
     tv.onChartReady!(chart, null);
 
     const axis = calls.filter((c) => c.scale === "price" && c.id === "right").at(-1);
     expect(axis?.options).toMatchObject({ minimumWidth: CHART_PLOT_MARGIN.axisMinWidth });
+    const time = calls.filter((c) => c.scale === "time").at(-1);
+    expect(time?.options).toMatchObject({ rightOffsetPixels: CHART_PLOT_MARGIN.dataCutoffLane });
     expect(volumeOptions.lastValueVisible).toBe(true);
   });
 });

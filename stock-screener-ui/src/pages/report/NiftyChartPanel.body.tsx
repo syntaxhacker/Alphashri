@@ -23,19 +23,16 @@ import { computePatternStripTitle, type ScanBadge } from "./NiftyChartPanel.anno
 
 type ChartProps = ComponentProps<typeof TradingViewChart>;
 
-/**
- * The 88px desktop price axis fits "22,350.00" but clips a full "22,300.00"
- * at 390 (it read "00", under the volume tag). Tags draw left-to-right, so a
- * phone gets a 144px lane plus a 12px gutter; the price and "109K" tags also
- * stack without a bottom cut. Desktop is untouched.
- */
-export const MOBILE_AXIS_MIN_WIDTH = 144;
-export const MOBILE_EDGE_GUTTER = 12;
-/** The cutoff label is right-aligned inside the cutoff lane. This gap keeps
- *  its box clear of the axis lane so it can never sit on an axis tag. */
+/** With the volume tag hidden, one full "22,364.00" tag (85px by the 12px-mono
+ *  model) fits a 92px lane. 92 axis + 8 gutter + 16 cutoff = 116px, leaving
+ *  274px (~70%) of a 390px card for candles. Desktop 88+8+24 is untouched. */
+export const MOBILE_AXIS_MIN_WIDTH = 92;
+export const MOBILE_EDGE_GUTTER = 8;
+export const MOBILE_CUTOFF_LANE = 16;
+/** Keeps the cutoff pill clear of the line and the axis tags beyond it. */
 export const MOBILE_CUTOFF_LABEL_GAP = 6;
 export const MOBILE_CUTOFF_RIGHT =
-  MOBILE_EDGE_GUTTER + MOBILE_AXIS_MIN_WIDTH + CHART_PLOT_MARGIN.dataCutoffLane;
+  MOBILE_EDGE_GUTTER + MOBILE_AXIS_MIN_WIDTH + MOBILE_CUTOFF_LANE;
 
 function phoneViewport(): boolean {
   return (
@@ -88,11 +85,9 @@ export function ChartBody(props: ChartBodyProps) {
   let mobileAxisApplied = false;
   const [chartVersion, setChartVersion] = createSignal(0);
 
-  /** The volume histogram is the only overlay series on this chart. Its
-   *  "109K" last-value tag shares the right axis with the price tag and, at
-   *  390px, stacks against it at the pane bottom. The bars still render — only
-   *  the redundant axis tag is suppressed. The candle series' own last-value
-   *  tag is suppressed on the same phone axis via `hideLastValueTag`; the live
+  /** The volume histogram is the only overlay series. Its "109K" tag stacked
+   *  against the price tag at 390px; the bars still render, only the redundant
+   *  tag is suppressed (as is the candle tag via `hideLastValueTag`). The live
    *  spot stays visible in the decision strip's HTML `NiftySpotValue` chip. */
   const volumeSeriesOf = (chart: IChartApi) => {
     for (const pane of chart.panes?.() ?? []) {
@@ -107,18 +102,18 @@ export function ChartBody(props: ChartBodyProps) {
     if (!chart) return;
     const isPhone = phone();
     if (isPhone) {
+      // The blank lane must match the CSS boundary or the rule floats over live bars.
+      chart.timeScale().applyOptions({ rightOffsetPixels: MOBILE_CUTOFF_LANE });
       chart.priceScale("right").applyOptions({
         minimumWidth: MOBILE_AXIS_MIN_WIDTH,
-        // Keep the engine's overlap resolver on so a stacked tag is shifted
-        // inside the pane instead of drawing its tail ("00") past the bottom.
+        // Keep the overlap resolver on so a tag is shifted, not clipped to "00".
         alignLabels: true,
         entireTextOnly: true,
       });
       mobileAxisApplied = true;
     } else if (mobileAxisApplied) {
-      chart.priceScale("right").applyOptions({
-        minimumWidth: CHART_PLOT_MARGIN.axisMinWidth,
-      });
+      chart.timeScale().applyOptions({ rightOffsetPixels: CHART_PLOT_MARGIN.dataCutoffLane });
+      chart.priceScale("right").applyOptions({ minimumWidth: CHART_PLOT_MARGIN.axisMinWidth });
       mobileAxisApplied = false;
     }
     const volume = volumeSeriesOf(chart);
@@ -195,6 +190,7 @@ export function ChartBody(props: ChartBodyProps) {
           data-cutoff-lane={CHART_PLOT_MARGIN.dataCutoffLane}
           data-axis-gutter={CHART_PLOT_MARGIN.edgeGutter}
           data-mobile-axis-gutter={MOBILE_AXIS_MIN_WIDTH}
+          data-mobile-cutoff-lane={MOBILE_CUTOFF_LANE}
           data-hide-last-value-tag={phone() ? "1" : "0"}
           class="w-full max-w-full min-w-0 shrink-0 overflow-hidden flex-1 min-h-0"
           style={{
