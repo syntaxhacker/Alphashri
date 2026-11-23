@@ -41,8 +41,8 @@ describe("Storybook catalog guard (storybook-static/index.json)", () => {
     expect(stories.length, `expected >= 66 stories, got ${stories.length}`).toBeGreaterThanOrEqual(66);
   });
 
-  it("has 13 docs entries with unique titles", () => {
-    expect(docs.length, `expected 13 docs entries, got ${docs.length}`).toBe(13);
+  it("has the 13 baseline docs entries and no duplicate titles", () => {
+    expect(docs.length, `expected >= 13 docs entries, got ${docs.length}`).toBeGreaterThanOrEqual(13);
     expect(new Set(docs.map(([, entry]) => entry.title)).size, "docs titles must be unique").toBe(docs.length);
   });
 

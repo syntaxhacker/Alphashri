@@ -78,152 +78,75 @@ const TokenChip = (props: { name: string; value: string; fill: string }) => (
 const groups: Array<{ title: string; id: string; description: string; stories: Array<{ id: string; label: string }> }> = [
   {
     title: "Foundations",
-    id: "design-system-foundations--color-tokens",
+    id: "design-system-foundations--landing",
     description: "Colour anchors, semantic tones, surfaces and borders, then type, spacing, radius, shadow, motion and density.",
-    stories: [
-      { id: "design-system-foundations--color-tokens", label: "Color tokens" },
-      { id: "design-system-foundations--type-scale", label: "Type scale" },
-      { id: "design-system-foundations--spacing-scale", label: "Spacing" },
-      { id: "design-system-foundations--radius-elevation-motion", label: "Radius / motion" },
-    ],
+    stories: [{ id: "design-system-foundations--landing", label: "Open Foundations" }],
   },
   {
     title: "Typography",
-    id: "design-system-typography--text-tones",
+    id: "design-system-typography--landing",
     description: "Text tones, weights and modifiers; Title orders and sizes; Anchor, Code and List variants.",
-    stories: [
-      { id: "design-system-typography--text-tones", label: "Text tones" },
-      { id: "design-system-typography--text-weights-and-sizes", label: "Weights / sizes" },
-      { id: "design-system-typography--text-layout-props", label: "Modifiers" },
-      { id: "design-system-typography--truncation-and-clamp", label: "Truncation" },
-      { id: "design-system-typography--element-composition", label: "Elements" },
-      { id: "design-system-typography--title-variants", label: "Title" },
-      { id: "design-system-typography--anchor-variants", label: "Anchor" },
-      { id: "design-system-typography--code-variants", label: "Code" },
-      { id: "design-system-typography--list-variants", label: "List" },
-    ],
+    stories: [{ id: "design-system-typography--landing", label: "Open Typography" }],
   },
   {
     title: "Layout",
-    id: "design-system-layout--surfaces",
+    id: "design-system-layout--landing",
     description: "Box, Paper, Card, Flex, Stack, Group, grids, control rows, ScrollArea, Collapse and a 390px review.",
-    stories: [
-      { id: "design-system-layout--surfaces", label: "Surfaces" },
-      { id: "design-system-layout--box-and-flex", label: "Box / Flex" },
-      { id: "design-system-layout--grid-matrix", label: "Grid matrix" },
-      { id: "design-system-layout--row-matrix", label: "Row matrix" },
-      { id: "design-system-layout--simple-grid", label: "Simple grid" },
-      { id: "design-system-layout--control-rows", label: "Control rows" },
-      { id: "design-system-layout--responsive-390", label: "Responsive 390" },
-      { id: "design-system-layout--scroll-and-collapse", label: "Scroll / Collapse" },
-    ],
+    stories: [{ id: "design-system-layout--landing", label: "Open Layout" }],
   },
   {
     title: "Inputs",
-    id: "design-system-inputs--buttons",
+    id: "design-system-inputs--landing",
     description: "Buttons, text and number fields, selects, toggles and the copy action.",
-    stories: [
-      { id: "design-system-inputs--buttons", label: "Buttons" },
-      { id: "design-system-inputs--text-fields", label: "Text fields" },
-      { id: "design-system-inputs--selects", label: "Selects" },
-      { id: "design-system-inputs--toggles", label: "Toggles" },
-      { id: "design-system-inputs--copy-action", label: "Copy" },
-    ],
+    stories: [{ id: "design-system-inputs--landing", label: "Open Inputs" }],
   },
   {
     title: "Data display",
-    id: "design-system-data-display--tabs-example",
+    id: "design-system-data-display--family-landing",
     description: "Tabs, Accordion, Timeline, Tree, Menu and the density stack.",
-    stories: [
-      { id: "design-system-data-display--tabs-example", label: "Tabs" },
-      { id: "design-system-data-display--accordion-example", label: "Accordion" },
-      { id: "design-system-data-display--timeline-example", label: "Timeline" },
-      { id: "design-system-data-display--tree-example", label: "Tree" },
-      { id: "design-system-data-display--menu-example", label: "Menu" },
-      { id: "design-system-data-display--list-example", label: "List" },
-      { id: "design-system-data-display--density-stack", label: "Density" },
-    ],
+    stories: [{ id: "design-system-data-display--family-landing", label: "Open Data display" }],
   },
   {
     title: "Feedback",
-    id: "design-system-feedback--badges",
+    id: "design-system-feedback--family-landing",
     description: "Badges, Alerts, notifications, Progress, Loaders, Skeletons and Indicators.",
-    stories: [
-      { id: "design-system-feedback--badges", label: "Badges" },
-      { id: "design-system-feedback--alerts", label: "Alerts" },
-      { id: "design-system-feedback--notifications-example", label: "Notifications" },
-      { id: "design-system-feedback--progress-and-loaders", label: "Progress" },
-      { id: "design-system-feedback--skeletons-and-indicators", label: "Skeletons" },
-    ],
+    stories: [{ id: "design-system-feedback--family-landing", label: "Open Feedback" }],
   },
   {
     title: "Overlay",
-    id: "design-system-overlay--modal-example",
+    id: "design-system-overlay--family-landing",
     description: "Modal, Tooltip, Popover, Overlay and FloatingWindow.",
-    stories: [
-      { id: "design-system-overlay--modal-example", label: "Modal" },
-      { id: "design-system-overlay--tooltip-example", label: "Tooltip" },
-      { id: "design-system-overlay--popover-example", label: "Popover" },
-      { id: "design-system-overlay--overlay-example", label: "Overlay" },
-      { id: "design-system-overlay--floating-window-example", label: "Floating window" },
-    ],
+    stories: [{ id: "design-system-overlay--family-landing", label: "Open Overlay" }],
   },
   {
     title: "Navigation",
-    id: "design-system-navigation--nav-links",
+    id: "design-system-navigation--family-landing",
     description: "NavLink plus app shell composition, collapsed chrome and responsive navbar widths.",
-    stories: [
-      { id: "design-system-navigation--nav-links", label: "Nav links" },
-      { id: "design-system-navigation--app-shell-composition", label: "App shell" },
-      { id: "design-system-navigation--collapsed-header-and-navbar", label: "Collapsed chrome" },
-      { id: "design-system-navigation--navbar-width-presets", label: "Navbar width presets" },
-    ],
+    stories: [{ id: "design-system-navigation--family-landing", label: "Open Navigation" }],
   },
   {
     title: "Shared primitives",
-    id: "design-system-shared-primitives--section-headers",
+    id: "design-system-shared-primitives--family-landing",
     description: "Section headers, filter status, range control, sparklines, values and trade stats.",
-    stories: [
-      { id: "design-system-shared-primitives--section-headers", label: "Headers" },
-      { id: "design-system-shared-primitives--filter-status", label: "Filter status" },
-      { id: "design-system-shared-primitives--range-control", label: "Range" },
-      { id: "design-system-shared-primitives--sparklines", label: "Sparklines" },
-      { id: "design-system-shared-primitives--values-and-states", label: "Values" },
-      { id: "design-system-shared-primitives--trade-stats", label: "Trade stats" },
-    ],
+    stories: [{ id: "design-system-shared-primitives--family-landing", label: "Open Shared primitives" }],
   },
   {
     title: "App primitives",
-    id: "design-system-app-primitives--key-value-rows",
+    id: "design-system-app-primitives--family-landing",
     description: "KeyValue rows, market badges and shared empty / error / loading states.",
-    stories: [
-      { id: "design-system-app-primitives--key-value-rows", label: "KeyValue" },
-      { id: "design-system-app-primitives--market-badges", label: "Badges" },
-      { id: "design-system-app-primitives--states", label: "States" },
-      { id: "design-system-app-primitives--compact-panels", label: "Compact" },
-      { id: "design-system-app-primitives--table-normal", label: "Table" },
-      { id: "design-system-app-primitives--table-dense", label: "Dense table" },
-    ],
+    stories: [{ id: "design-system-app-primitives--family-landing", label: "Open App primitives" }],
   },
   {
     title: "Portal",
-    id: "design-system-portal--default-target",
+    id: "design-system-portal--family-landing",
     description: "Portal rendering into the document body or an explicit host element.",
-    stories: [
-      { id: "design-system-portal--default-target", label: "Default target" },
-      { id: "design-system-portal--explicit-targets", label: "Explicit targets" },
-      { id: "design-system-portal--toggle-target", label: "Toggle target" },
-    ],
+    stories: [{ id: "design-system-portal--family-landing", label: "Open Portal" }],
   },
   {
     title: "Misc",
-    id: "design-system-misc--avatars",
+    id: "design-system-misc--family-landing",
     description: "Avatar, ThemeIcon and CloseButton.",
-    stories: [
-      { id: "design-system-misc--avatars", label: "Avatars" },
-      { id: "design-system-misc--theme-icons", label: "Theme icons" },
-      { id: "design-system-misc--close-buttons", label: "Close buttons" },
-    ],
+    stories: [{ id: "design-system-misc--family-landing", label: "Open Misc" }],
   },
 ];
 
@@ -341,7 +264,7 @@ export const Overview: Story = {
                 </Flex>
               </div>
             </Flex>
-            <StoryLink id="design-system-foundations--color-tokens" label="See all foundations tokens →" />
+            <StoryLink id="design-system-foundations--landing" label="See all foundations tokens →" />
           </Stack>
         </Paper>
 
