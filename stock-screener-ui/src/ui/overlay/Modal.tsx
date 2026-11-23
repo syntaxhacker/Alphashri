@@ -146,7 +146,7 @@ function topDialog(): HTMLElement | undefined {
 export function Modal(props: ModalProps) {
   // splitProps reads are reactive only while they stay inside a tracked scope
   // (JSX or an effect). Destructuring them here would pin the first snapshot.
-  const [known, rest] = splitProps(props, [
+  const [known, rest] = splitProps(props as typeof props & Record<string, unknown>, [
     "children",
     "opened",
     "onClose",
@@ -158,6 +158,7 @@ export function Modal(props: ModalProps) {
     "closeOnEscape",
     "overlayProps",
     "padding",
+    // Runtime swallow for older callers; no longer public API.
     "transitionProps",
     "className",
     "style",

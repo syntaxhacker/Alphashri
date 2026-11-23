@@ -187,8 +187,7 @@ export const CenteredAndFullScreen: Story = {
           <Modal
             opened={opened()}
             onClose={() => setOpened(false)}
-            title="Centred / fullscreen"
-            centered
+            title="Fullscreen dialog"
             fullScreen={fullScreen()}
             padding="md"
             overlayProps={{ color: alpha(palette.BG, 0.78) }}

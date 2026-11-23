@@ -5,7 +5,6 @@ import * as palette from "../palette";
 import type { UITooltipProps } from "../types";
 
 type TooltipProps = UITooltipProps & {
-  transitionProps?: { duration?: number };
   onFocus?: (e: FocusEvent) => void;
   onBlur?: (e: FocusEvent) => void;
   "aria-describedby"?: string;
@@ -50,7 +49,7 @@ const GAP = 6;
 const PAD = 8;
 
 export function Tooltip(props: TooltipProps) {
-  const [known, rest] = splitProps(props, [
+  const [known, rest] = splitProps(props as typeof props & Record<string, unknown>, [
     "label",
     "withArrow",
     "position",
@@ -71,6 +70,7 @@ export function Tooltip(props: TooltipProps) {
     "onBlur",
     "aria-describedby",
     "withinPortal",
+    // Runtime swallow for older callers; no longer public API.
     "transitionProps",
   ]);
 

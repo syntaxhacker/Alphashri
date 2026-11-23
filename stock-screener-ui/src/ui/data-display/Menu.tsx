@@ -170,7 +170,7 @@ function verticalAlign(anchor: MenuRect, height: number, align: Align, viewport:
 }
 
 export function Menu(props: UIMenuProps) {
-  const [known, rest] = splitProps(props, [
+  const [known, rest] = splitProps(props as typeof props & Record<string, unknown>, [
     "trigger",
     "opened",
     "onChange",
@@ -182,6 +182,7 @@ export function Menu(props: UIMenuProps) {
     "closeOnClickOutside",
     "loop",
     "children",
+    // Retained as a runtime swallow for older callers; no longer public API.
     "renderTarget",
     "className",
     "style",

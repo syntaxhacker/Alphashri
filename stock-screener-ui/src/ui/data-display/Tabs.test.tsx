@@ -230,13 +230,16 @@ describe("Tabs", () => {
   });
 
   test("unimplemented Tabs props are not emitted as DOM attributes", () => {
+    const legacyProps = {
+      variant: "pills",
+      color: "primary",
+      activateOnFocus: false,
+      loop: false,
+    } as Record<string, unknown>;
     render(() => (
       <Tabs
         defaultValue="a"
-        variant="pills"
-        color="primary"
-        activateOnFocus={false}
-        loop={false}
+        {...legacyProps}
         data-testid="tabs"
       >
         <Tabs.List data-testid="list" aria-label="Sections">

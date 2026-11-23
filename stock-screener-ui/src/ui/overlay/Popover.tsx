@@ -94,7 +94,7 @@ function getFocusable(root: HTMLElement | undefined): HTMLElement[] {
 }
 
 export function Popover(props: PopoverProps) {
-  const [known, rest] = splitProps(props, [
+  const [known, rest] = splitProps(props as typeof props & Record<string, unknown>, [
     "children",
     "opened",
     "onClose",
@@ -106,6 +106,7 @@ export function Popover(props: PopoverProps) {
     "offset",
     "trapFocus",
     "closeOnClickOutside",
+    // Runtime swallows for older callers; no longer public API.
     "middlewares",
     "keepMounted",
     "className",

@@ -15,8 +15,7 @@ export function OptionChainGuide(props: OptionChainGuideProps) {
       onClose={props.onClose}
       title="How to Read the Option Chain"
       size="lg"
-      centered
-      style={{ "border-radius": "8px" }}
+      style={{ "border-radius": "6px" }}
       className="option-chain-guide-modal"
       data-testid="options-chain-guide-modal"
     >

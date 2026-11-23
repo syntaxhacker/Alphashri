@@ -552,13 +552,11 @@ export interface UIModalProps extends UIBaseProps {
   title?: JSX.Element;
   size?: UISize | number | string;
   fullScreen?: boolean;
-  centered?: boolean;
   withCloseButton?: boolean;
   closeOnClickOutside?: boolean;
   closeOnEscape?: boolean;
   overlayProps?: UIOverlayProps;
   padding?: UISize | number | string;
-  transitionProps?: { duration?: number; timingFunction?: string };
 }
 
 export interface UITooltipProps extends UIBaseProps {
@@ -600,8 +598,6 @@ export interface UIPopoverProps extends Omit<UIBaseProps, "children"> {
   offset?: number;
   trapFocus?: boolean;
   closeOnClickOutside?: boolean;
-  middlewares?: any;
-  keepMounted?: boolean;
   /** Render function receiving { ref, toggle, close, open, opened } or direct children */
   children?: JSX.Element | ((payload: { ref: any; toggle: () => void; close: () => void; opened: boolean }) => JSX.Element);
 }
@@ -663,11 +659,7 @@ export interface UITabsProps extends UIBaseProps {
   value?: string | null;
   defaultValue?: string | null;
   onChange?: (value: string | null) => void;
-  variant?: "default" | "outline" | "pills" | "underline";
-  color?: UIColor;
   orientation?: "horizontal" | "vertical";
-  activateOnFocus?: boolean;
-  loop?: boolean;
 }
 
 export interface UITabProps extends UIBaseProps {
@@ -748,8 +740,6 @@ export interface UIMenuProps extends UIBaseProps {
   closeOnClickOutside?: boolean;
   loop?: boolean;
   children?: JSX.Element;
-  /** Render function for custom trigger */
-  renderTarget?: (props: any) => JSX.Element;
 }
 
 export interface UIMenuTargetProps extends UIBaseProps {}
