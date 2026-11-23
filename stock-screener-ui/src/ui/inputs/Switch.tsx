@@ -1,4 +1,4 @@
-import { createMemo, createSignal, splitProps } from "solid-js";
+import { createMemo, createSignal, createUniqueId, splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UISwitchProps } from "../types";
 
@@ -79,6 +79,12 @@ export function Switch(props: SwitchProps) {
     "onMouseEnter",
     "onMouseLeave",
   ]);
+
+  const uid = createUniqueId();
+  const messageId = `${uid}-message`;
+  const message = () =>
+    typeof known.error === "string" && known.error.trim() ? known.error : known.description;
+  const describedBy = () => (message() ? messageId : undefined);
 
   const isControlled = createMemo(() => known.checked !== undefined);
   const [internal, setInternal] = createSignal(known.defaultChecked ?? false);
@@ -168,7 +174,9 @@ export function Switch(props: SwitchProps) {
         checked={isOn()}
         disabled={known.disabled}
         name={known.name}
-        id={known.id}
+        id={known.id ?? `${uid}-control`}
+        aria-invalid={isError() ? "true" : undefined}
+        aria-describedby={describedBy()}
         data-testid={known["data-testid"]}
         // The native input is an invisible hit area; the global
         // `:is(input, …):focus` outline would draw a second, amber frame over
@@ -207,8 +215,17 @@ export function Switch(props: SwitchProps) {
             {known.label}
           </span>
         ) : null}
-        {known.description ? (
-          <span className="text-[10px] text-fin-text-muted leading-none">{known.description}</span>
+        {message() ? (
+          <span
+            id={messageId}
+            className={
+              known.error
+                ? "text-[10px] text-fin-negative leading-none"
+                : "text-[10px] text-fin-text-muted leading-none"
+            }
+          >
+            {message()}
+          </span>
         ) : null}
       </span>
     </label>
