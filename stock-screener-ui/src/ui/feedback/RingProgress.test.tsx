@@ -26,6 +26,22 @@ describe("RingProgress", () => {
     }
   });
 
+  test("names itself 'Progress' by default and uses a supplied string label as the accessible name", () => {
+    render(() => (
+      <>
+        <RingProgress value={42} data-testid="default-name" />
+        <RingProgress value={42} label="Download progress" data-testid="string-name" />
+        <RingProgress value={42} label={<span>12 of 24</span>} data-testid="element-name" />
+      </>
+    ));
+
+    expect(screen.getByTestId("default-name")).toHaveAccessibleName("Progress");
+    expect(screen.getByTestId("string-name")).toHaveAccessibleName("Download progress");
+    expect(screen.getByTestId("string-name")).toHaveAttribute("role", "progressbar");
+    // Only a string can name a progressbar; a decorative node falls back.
+    expect(screen.getByTestId("element-name")).toHaveAccessibleName("Progress");
+  });
+
   test("draws the arc as a share of the circumference with a 12 o'clock start", () => {
     render(() => <RingProgress value={25} size={100} thickness={8} data-testid="ring" />);
 
