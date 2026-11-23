@@ -4,6 +4,7 @@ import solid from "vite-plugin-solid";
 
 const config: StorybookConfig = {
   stories: ["../src/**/*.stories.tsx"],
+  addons: ["@storybook/addon-docs", "@storybook/addon-a11y"],
   framework: { name: "@storybook/html-vite", options: {} },
   core: { disableTelemetry: true },
   viteFinal: async (viteConfig) => {

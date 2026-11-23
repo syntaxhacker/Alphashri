@@ -6,7 +6,7 @@ import { disposeSolidStories } from "../src/stories/solidStory";
 import * as palette from "../src/ui/palette";
 
 const preview: Preview = {
-  afterEach: () => disposeSolidStories(),
+  beforeEach: () => disposeSolidStories(),
   parameters: {
     backgrounds: {
       default: "canvas",

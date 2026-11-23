@@ -7,29 +7,38 @@ bun run storybook        # http://localhost:6006
 bun run build-storybook  # static output in storybook-static/
 ```
 
-The catalog is grouped as **Design System / …** and **Terminal / …**. It is built
-with Solid’s `solidStory()` helper (`src/stories/solidStory.ts`) because
-Storybook’s `html-vite` renderer expects a DOM node; each story mounts a Solid
-root into its own host and uses the real Tailwind tokens.
+The catalog is grouped under **Design System / …** only (66 stories, 13 docs).
+It is built with Solid’s `solidStory()` helper (`src/stories/solidStory.ts`)
+because Storybook’s `html-vite` renderer expects a DOM node. Each story mounts a
+Solid root into its own host, uses the real Tailwind/CSS-variable tokens, and is
+disposed by the preview `afterEach` hook.
+
+Docs and accessibility panels are enabled via `@storybook/addon-docs` and
+`@storybook/addon-a11y`.
 
 ## Coverage
 
+### Overview
+- Purpose, principles, token summary, story-group map and component index.
+
 ### Foundations
-- Color tokens (surface, text, semantic tones)
-- Type scale (28px display → 9px micro), weights and numeric faces
-- 4px spacing scale
-- Radius and motion conventions
+- Raw anchors, semantic tones, `SURFACES` and border tokens
+- Real `Text`/`Title` type scale and mono/tabular numerals
+- Real spacing ramp `xs=4 / sm=8 / md=16 / lg=24 / xl=32`
+- Real Paper/Card radius scales, shadows and reduced-motion density
 
 ### Typography
-- `Text` sizes, tones, weights, truncation, monospace numerals
-- `Title` orders 1–6
-- `Anchor`, inline/block `Code`, `List`/`ListItem`
+- All Text tones, weights, alignment, uppercase, line height, truncation,
+  line clamping, `component`/`span` and numeric treatment
+- Title order/size/component overrides
+- Anchor, inline/block Code, ordered/unordered List/ListItem
 
 ### Layout
 - `Box`, `Flex`, `Stack`, `Group`, `ToolbarRow`, `Center`
 - `Paper`, `Card`, `Divider`, `ScrollArea`, `Collapse`
-- `SimpleGrid`, `Grid`/`GridCol`, `Row`/`Col`
-- `AppShell` in Navigation
+- `SimpleGrid`, `Grid`/`GridCol`, `Row`/`Col` with real span/offset/order,
+  wrapping, responsive columns and 390px behavior
+- Real mixed-height control rows; surfaces and radius comparison
 
 ### Inputs
 - `Button` variants/sizes/states, `ActionIcon`, `UnstyledButton`
@@ -40,33 +49,45 @@ root into its own host and uses the real Tailwind tokens.
 
 ### Feedback
 - `Badge` variants/tones/sizes
-- `Alert`, `Notifications` (success toast)
+- `Alert`, `Notifications` success/error/warning/info/default via
+  `showSuccess`, `showError`, `showNotification`
 - `Loader`, `Progress`, `RingProgress`, `LoadingOverlay`
 - `Skeleton`, `Indicator`
 
 ### Data display
-- `Tabs` compound component
+- Named `TabsList`/`Tab`/`TabsPanel` and dotted `Tabs`
 - `Accordion` compound component
-- `Timeline`, `Tree`, `Menu` compound component
+- `Timeline`, `Tree`, named `MenuTarget`/`MenuDropdown`/`MenuItem`, `ListItem`
 
 ### Overlay
-- `Modal`, `Tooltip`, `Popover` (`PopoverTarget`/`PopoverDropdown`), `Overlay`
-- `FloatingWindow`
+- Signal-driven `Modal`, `Tooltip`, controlled `Popover`
+  (`PopoverTarget`/`PopoverDropdown`), `Overlay`
+- `FloatingWindow` with minimize/close/reopen and geometry readout
 
 ### Navigation
 - `NavLink` (active, disabled, nested)
-- `AppShell` geometry
+- Real `AppShellHeader`/`Navbar`/`Main`/`Section`, collapsed states and
+  responsive navbar widths
+
+### Portal
+- Default body target, `#id` selector target, explicit element target and
+  mount/unmount behavior
 
 ### Misc
 - `Avatar`, `ThemeIcon`, `CloseButton`
 
 ### App primitives
 - `KeyValue`
-- `SideBadge`, `ExitReasonBadge`, `StatusBadge`
+- `SideBadge`, `ExitReasonBadge`, `StatusBadge`, `TradingModeBadge`
 - `PnlText`
 - `EmptyState`, `ErrorAlert`, `InlineLoader`
 - `CompactPanel`, `CompactStat`, `CompactStatGrid`
-- `TanStackTable` dense and default states
+- `TanStackTable` normal and dense states
+
+### Shared primitives
+- `SectionHeader`, filter-status chips, `RangeInput`, `Sparkline`,
+  `AnimatedValue`, table empty/loading states, `TradeStatsGrid`,
+  `BrokerAuthNotice`
 
 ## Conventions
 
@@ -75,19 +96,22 @@ root into its own host and uses the real Tailwind tokens.
    story-local constants.
 3. Show state variants in one story when possible (sizes, tones, disabled,
    loading), so a reviewer can inspect the matrix at a glance.
-4. Use fixed widths for narrow components, but keep pages responsive at 390px
-   and 1600px in the Storybook viewport toolbar.
+4. Use fixed widths only where the component is intrinsically narrow. Use the
+   `Responsive390` layout story or a 390px host for narrow-screen review.
 5. Add a `Design System/…` story when a new primitive enters `src/ui/index.ts`.
    Feature composites (Options Dock, Replay, Market, Patterns, Reports) keep
    their screenshot/Playwright evidence and can get their own stories in a
    later feature-story pass.
+6. Stories must use real components. Never recreate a primitive with a
+   hand-positioned `Box` when the real component exists.
 
 ## Current limits
 
-- The catalog covers the reusable `@/ui` surface and shared app primitives. It
-  does **not** yet story-ify every feature composite (options dock, replay,
-  patterns rail, sector pages, etc.); those are intentionally next.
+- The catalog covers the reusable `@/ui` surface, shared app primitives and the
+  design-token pages. It does **not** yet story-ify every feature composite
+  (options dock, replay, patterns rail, sector pages, etc.); those are
+  intentionally next.
 - Storybook uses real browser layout, but a static build cannot assert visual
   regressions by itself. Add visual tests when the story surface stabilizes.
-- The existing Terminal stories remain under their original titles for stable
-  links; the new `Design System/*` entries are the canonical design reference.
+- The old `Terminal/*` stories were consolidated into
+  `Design System/App primitives`; there are no duplicate Terminal groups.

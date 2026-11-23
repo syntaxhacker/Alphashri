@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
+import { createSignal } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
-import { Accordion, Box, Button, Menu, Stack, Tabs, Text, Timeline, Tree } from "@/ui";
+import {
+  Accordion, Box, Button, List, ListItem, Menu, MenuDropdown, MenuItem, MenuTarget,
+  Stack, Tab, Tabs, TabsList, TabsPanel, Text, Timeline, Tree,
+} from "@/ui";
 
 const meta: Meta = { title: "Design System/Data display", tags: ["autodocs"] };
 export default meta;
@@ -8,26 +12,31 @@ type Story = StoryObj;
 
 export const TabsExample: Story = {
   render: () =>
-    solidStory(() => (
-      <Box style={{ width: "620px" }}>
-        <Tabs defaultValue="overview">
-          <Tabs.List>
-            <Tabs.Tab value="overview">OVERVIEW</Tabs.Tab>
-            <Tabs.Tab value="flow">FLOW</Tabs.Tab>
-            <Tabs.Tab value="levels">LEVELS</Tabs.Tab>
-          </Tabs.List>
-          <Tabs.Panel value="overview" style={{ padding: "12px" }}>
-            <Text size="sm">Overview panel — market breadth, spot, and the current regime.</Text>
-          </Tabs.Panel>
-          <Tabs.Panel value="flow" style={{ padding: "12px" }}>
-            <Text size="sm">Flow panel — delivery, volume, and participant activity.</Text>
-          </Tabs.Panel>
-          <Tabs.Panel value="levels" style={{ padding: "12px" }}>
-            <Text size="sm">Levels panel — support, resistance, and wall levels.</Text>
-          </Tabs.Panel>
-        </Tabs>
-      </Box>
-    )),
+    solidStory(() => {
+      const [value, setValue] = createSignal("overview");
+      return (
+        <Stack gap="sm" style={{ width: "620px" }}>
+          <Text size="xs" c="dimmed">Selected tab: {value()}</Text>
+          <Tabs value={value()} onChange={(next) => setValue(next ?? "overview")}>
+            <TabsList>
+              <Tab value="overview">OVERVIEW</Tab>
+              <Tab value="flow">FLOW</Tab>
+              <Tab value="levels">LEVELS</Tab>
+              <Tab value="locked" disabled>LOCKED</Tab>
+            </TabsList>
+            <TabsPanel value="overview" style={{ padding: "12px" }}>
+              <Text size="sm">Overview panel — market breadth, spot, and the current regime.</Text>
+            </TabsPanel>
+            <TabsPanel value="flow" style={{ padding: "12px" }}>
+              <Text size="sm">Flow panel — delivery, volume, and participant activity.</Text>
+            </TabsPanel>
+            <TabsPanel value="levels" style={{ padding: "12px" }}>
+              <Text size="sm">Levels panel — support, resistance, and wall levels.</Text>
+            </TabsPanel>
+          </Tabs>
+        </Stack>
+      );
+    }),
 };
 
 export const AccordionExample: Story = {
@@ -67,7 +76,7 @@ export const TimelineExample: Story = {
             Universe scanned; 214 symbols had a valid frame.
           </Timeline.Item>
           <Timeline.Item title="10:01 · Filter">
-        Filters narrowed the list to 18 actionable rows.
+            Filters narrowed the list to 18 actionable rows.
           </Timeline.Item>
           <Timeline.Item title="10:02 · Paper order">
             Structure previewed and sent to the paper book.
@@ -107,19 +116,47 @@ export const TreeExample: Story = {
 
 export const MenuExample: Story = {
   render: () =>
+    solidStory(() => {
+      const [opened, setOpened] = createSignal(false);
+      const [action, setAction] = createSignal("none");
+      return (
+        <Stack gap="sm">
+          <Text size="xs" c="dimmed">Open: {String(opened())} · last action: {action()}</Text>
+          <Box style={{ width: "320px" }}>
+            <Menu opened={opened()} onChange={setOpened}>
+              <MenuTarget>
+                <Button variant="outline">Actions</Button>
+              </MenuTarget>
+              <MenuDropdown>
+                <MenuItem onClick={() => setAction("Replay structure")}>Replay structure</MenuItem>
+                <MenuItem onClick={() => setAction("Add leg")}>Add leg</MenuItem>
+                <MenuItem disabled>Export (unavailable)</MenuItem>
+                <Menu.Divider />
+                <MenuItem color="error" onClick={() => setAction("Close position")}>Close position</MenuItem>
+              </MenuDropdown>
+            </Menu>
+          </Box>
+        </Stack>
+      );
+    }),
+};
+
+export const ListExample: Story = {
+  render: () =>
     solidStory(() => (
-      <Box style={{ width: "320px" }}>
-        <Menu>
-          <Menu.Target>
-            <Button variant="outline">Actions</Button>
-          </Menu.Target>
-          <Menu.Dropdown>
-            <Menu.Item>Replay structure</Menu.Item>
-            <Menu.Item>Add leg</Menu.Item>
-            <Menu.Divider />
-            <Menu.Item color="error">Close position</Menu.Item>
-          </Menu.Dropdown>
-        </Menu>
+      <Box style={{ width: "420px" }}>
+        <Text size="sm" fw={600}>Pre-flight checklist</Text>
+        <List size="sm" withPadding>
+          <ListItem>Frame is fresh and session-pinned.</ListItem>
+          <ListItem icon={<span aria-hidden="true">→</span>}>Universe scanned with no stale rows.</ListItem>
+          <ListItem>Margin and risk limits verified.</ListItem>
+        </List>
+        <Text size="sm" fw={600} style={{ "margin-top": "12px" }}>Commit steps</Text>
+        <List type="ordered" size="sm" withPadding>
+          <ListItem>Build the structure.</ListItem>
+          <ListItem>Preview the debit.</ListItem>
+          <ListItem>Commit to the paper book.</ListItem>
+        </List>
       </Box>
     )),
 };
@@ -131,7 +168,7 @@ export const DensityStack: Story = {
         <Text size="xs" c="dimmed">Tree and accordion inherit the terminal’s compact density; text uses the 9–13px scale.</Text>
         <Box p="sm" style={{ border: "1px solid var(--color-fin-border)" }}>
           <Text size="sm" fw={600}>Nested data surfaces</Text>
-          <Text size="xs" c="dimmed">Use Box/Paper around Tree, Timeline, and Menu for consistent padding.</Text>
+          <Text size="xs" c="dimmed">Use Box/Paper around Tree, Timeline, List, and Menu for consistent padding.</Text>
         </Box>
       </Stack>
     )),
