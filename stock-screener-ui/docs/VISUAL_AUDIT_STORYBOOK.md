@@ -1,5 +1,28 @@
 # Visual Audit — Design System Storybook evidence
 
+## Current status (2026-11-23)
+
+> **This section is authoritative.** It supersedes the verdicts, defect rankings and checklists in the historical audit below. That audit is kept for traceability, but it describes the P3-era snapshots; where it conflicts with this section, this section wins. "Fixed" means confirmed in source and/or visible in the committed `docs/screenshots/showcase/` images — not a fresh live render.
+
+**Fixed since the historical audit** (recaptured with `scripts/storybook-showcase.mjs`):
+
+- `Card` forwards `style` again, so family-index cards render their requested borders/backgrounds and the "Open each card" copy is true.
+- One `FamilyLanding` template replaces the two competing family-page templates; measures are centred; footer paths and stale `381/92/79` counts are corrected, and the false "no axe gate" claim in `STORYBOOK.md` is fixed.
+- 390 fixes: Navigation shell stacks instead of clipping, FloatingWindow fits its host, filter chips separate from `Clear all`, and the Overview coverage index stacks with links on one line.
+- Typography is one six-step `text-ui-*` contract with a 12px floor; `Text/Title/Anchor/List` sizes resolve through `SIZE_ROLE` → `TYPE_CLASS` (no private rem map or 18px step) and the old 9px copy is retired.
+- Evidence hygiene: `alerts` captures the real `variants-and-radius` story; `table` captures the App primitives family page.
+
+**Still open / unverified:**
+
+- **Storybook does not prove the live app.** Home, bare `/screener`, `/options` and `/patterns` app routes have no route-level 1600/390 captures with honest shared mocks and remain **unverified**. The only committed app capture is the Index Report route (`docs/screenshots/app/report-{1600,390}.png`, **viewport** 1600×1000 / 390×844).
+- Focus-ring, keyboard and live-browser behaviour of the stories is not asserted by static PNGs.
+
+---
+
+> **Historical evidence (superseded).** Everything from **Blunt verdict** to the end of this file is the original P3-era audit, retained for traceability only. Its defect rankings and "unknowns" were accurate for the captured images but are superseded by the status above.
+
+---
+
 **Branch:** `improve/ds-p3-tokens-forms-tests` (worktree `/tmp/opencode/ds-p3/stock-screener-ui`)
 **Date:** 2026-11-23
 **Method:** read-only. Read all 35 PNGs in `docs/screenshots/showcase/` (the 13 family pages at 1600/390 where both exist, plus component-level shots), the 13 family stories in `src/stories/design-system/`, representative stories in `src/stories/components/**`, `src/stories/solidStory.ts`, `src/tailwind.css`, `src/ui/palette.ts`, `.storybook/preview.ts`, and the two design-system docs. No builds, servers, code edits, or browser interaction. Pixel measurements below were taken directly from the PNG bytes with `sharp`; contrast ratios were computed from the hex tokens with the WCAG formula.
@@ -208,7 +231,7 @@ The 12px floor is enforced by the `design-scale` guard (`src/test/design-scale.t
 
 ---
 
-## Current status (2026-11-23 P5 — supersedes §7–8)
+## Historical status snapshot (2026-11-23 P5 — superseded by the "Current status" section at the top)
 
 The fixed items below are now visible in the committed `docs/screenshots/showcase/` images (all read back; captured with `scripts/storybook-showcase.mjs`):
 

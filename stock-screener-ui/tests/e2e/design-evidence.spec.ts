@@ -5,6 +5,9 @@
  * leave the tree untouched. These are real app routes with the shared API mocks,
  * not Storybook substitutes: the review gate needs both.
  *
+ * Captures are viewport-only (fullPage: false) at 1600x1000 / 390x844 so this
+ * script reproduces the checked-in docs/screenshots/app/report-{1600,390}.png.
+ *
  * Only the Index Report route has honest shared mocks. The home, bare
  * `/screener`, `/options` and `/patterns` routes remain unverified: their shared
  * mocks are incomplete and render errors or broken layouts, so they are
@@ -36,7 +39,7 @@ for (const [width, height] of [
       await page.waitForTimeout(400);
       await page.screenshot({
         path: `docs/screenshots/app/${route.name}-${width}.png`,
-        fullPage: true,
+        fullPage: false,
       });
     });
   }

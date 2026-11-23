@@ -1,5 +1,28 @@
 # App visual audit — design-system adoption on real surfaces
 
+## Current status (2026-11-23)
+
+> **This section is authoritative.** It supersedes the consistency verdicts and the 10-item inconsistency table in the historical audit below. That audit is kept for traceability but describes earlier snapshots; where it conflicts with this section, this section wins. "Fixed" means confirmed in source or in a committed capture — not a fresh live render.
+
+**Fixed since the historical audit:**
+
+- The report no longer owns a private 9/10/11/23px scale: `REPORT_FONT` derives from the shared `TYPE_SCALE` (12/13/16/24), radii are 2/4/6/10, and `ReportLegibility` / `ReportTypographyContrast` enforce the 12px floor.
+- Typography primitives (`Text/Title/Anchor/List`) resolve named sizes through `SIZE_ROLE` → `TYPE_CLASS` on the shared scale; there is no private rem table or 18px step.
+- Replay error copy now separates a human message from collapsed technical detail; dense tabs/table regions scroll intentionally at 390.
+- A fresh **Index Report** route capture exists at `docs/screenshots/app/report-{1600,390}.png` — real route, honest shared mocks, **viewport** captures at 1600×1000 and 390×844 (not full-page). The 1600 capture exposed a spot-value ellipsis; the KPI minimum was widened so `22,363.35` stays complete.
+
+**Still open / unverified:**
+
+- The mobile-nav gutter fix is unverified — no fresh capture proves it.
+- **Home, bare `/screener`, `/options` and `/patterns` app routes are unverified.** They have no fresh 1600/390 route captures with honest mocks; Storybook images are not a substitute and those findings remain open until a route capture exists.
+- Agri heatmap colour, focus/keyboard order, actual WCAG ratios and reduced-motion still lack fresh live evidence.
+
+---
+
+> **Historical evidence (superseded).** Everything from **Reference baseline** to the end of this file is the original read-only audit, retained for traceability only. Its findings were accurate for the captured images but are superseded by the status above.
+
+---
+
 **Branch:** `improve/ds-p3-tokens-forms-tests` · **Date:** 2026-11-23 · **Mode:** read-only
 **Method:** committed screenshots + source reads only. No builds, servers, git writes, or code edits. This is the only file written.
 **Evidence rule:** a claim is either tied to a checked-in screenshot, a file/line, or it is marked **unknown**. Screenshots are snapshots, not live renders (see *Unknowns*).
@@ -141,7 +164,7 @@ Counting imports overstates adoption: `src/pages/report` imports `@/ui` in 124 f
 
 ---
 
-## Current status (2026-11-23 P5 — supersedes the scale findings)
+## Historical status snapshot (2026-11-23 P5 — superseded by the "Current status" section at the top)
 
 - The report no longer has a private 9/10/11/23px scale. `src/pages/report/reportTokens.ts` derives `REPORT_FONT` from the shared `TYPE_SCALE` (report uses 12/13/16/24) and report radii are 2/4/6/10; `ReportLegibility`/`ReportTypographyContrast` enforce the 12px floor and the closed ladder.
 - Typography primitives (`Text/Title/Anchor/List`) are no longer a blind spot: their named sizes resolve through `SIZE_ROLE` → `TYPE_CLASS` on the shared 12/13/14/16/20/24 scale, with no private rem table or 18px step. The “one scale” claim now holds for direct primitive use; the five `xs…xl` props are aliases onto roles, so body 13px is reached with `text-ui-body` / `typeStyle("body")`, not a size alias.
