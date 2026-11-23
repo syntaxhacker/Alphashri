@@ -124,6 +124,34 @@ body[data-color-scheme="dark"] { color-scheme: dark; }
 }
 .nifty-critical-pulse { animation: nifty-critical-pulse 1.2s ease-in-out infinite; }
 
+/* Feedback primitives. Only transform/opacity are animated: the spinner rotates
+   a partial arc over a static track, bars/dots cross-fade, and the skeleton
+   shimmer translates a translucent band. Inline `animation` values on the
+   elements are cancelled here under reduced motion (hence !important). */
+@keyframes fin-loader-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes fin-loader-fade {
+  0% { opacity: 1; }
+  50% { opacity: 0.25; }
+  100% { opacity: 1; }
+}
+@keyframes fin-skeleton-shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-fin-motion="loader"] {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  [data-fin-motion="skeleton"] {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+}
+
 /* Inline symbol/options dock: `flex-1` on the wrappers only constrains them if
    their ancestors are flex containers with a definite height. The outlet and
    the unclassed Portal wrapper are the missing links — make both flex columns

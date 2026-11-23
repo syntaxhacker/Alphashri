@@ -2,6 +2,8 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi } from "vitest";
 import { fireEvent, render, screen } from "@solidjs/testing-library";
+import * as palette from "../palette";
+import { pickTextColor } from "@/utils/contrast";
 import { Badge } from "./Badge";
 import { Chip } from "../inputs/Chip";
 import { SegmentedControl } from "../inputs/SegmentedControl";
@@ -76,6 +78,13 @@ describe("Badge — status label", () => {
     fireEvent.click(screen.getByTestId("b4"));
     expect(onClick).toHaveBeenCalledTimes(1);
   });
+
+  test("a raw fill colour gets a contrast-picked ink", () => {
+    render(() => <Badge variant="filled" color={palette.PRIMARY} data-testid="b-raw">raw</Badge>);
+    const el = screen.getByTestId("b-raw");
+    expect(el.style.backgroundColor).toBe(palette.PRIMARY);
+    expect(el.style.color).toBe(pickTextColor(palette.PRIMARY, palette.TEXT, palette.BG));
+  });
 });
 
 describe("Badge — shape language", () => {
@@ -88,6 +97,11 @@ describe("Badge — shape language", () => {
     expect(el.className).toContain("tracking-[0.04em]");
     expect(el.style.fontWeight).toBe("600");
     expect(el.className).toContain("uppercase");
+  });
+
+  test("md and larger badges use the readable 10px type step", () => {
+    render(() => <Badge size="md" data-testid="s-md">md</Badge>);
+    expect(screen.getByTestId("s-md").style.fontSize).toBe("10px");
   });
 
   test("light and filled carry no visible border", () => {
