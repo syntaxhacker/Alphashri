@@ -218,6 +218,8 @@ jobs:
         run: cd stock-screener-ui && bun x playwright install --with-deps chromium
       - name: Verify Storybook in a real browser (axe)
         run: cd stock-screener-ui && node scripts/storybook-a11y.mjs
+      - name: Verify Storybook keyboard walkthrough
+        run: cd stock-screener-ui && node scripts/storybook-keyboard.mjs
   frontend-unit:
     name: Frontend Unit Tests
     runs-on: ubuntu-24.04
