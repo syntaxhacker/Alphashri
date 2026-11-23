@@ -38,6 +38,8 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "audit:components": "node scripts/component_audit.mjs",
+    "audit:evidence": "node scripts/evidence-audit.mjs",
+    "audit:evidence:pending": "node scripts/evidence-audit.mjs --allow-missing",
     "audit:typography": "node scripts/typography-audit.mjs",
     "audit:typography:check": "node scripts/typography-audit.mjs --check",
     "visual:test": "node scripts/visual-regression.mjs",
