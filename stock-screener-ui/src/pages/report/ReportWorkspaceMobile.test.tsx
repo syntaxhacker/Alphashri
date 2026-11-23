@@ -146,6 +146,18 @@ describe("ReportWorkspace — mobile heatmap disclosure (390px)", () => {
     expect(metric.style.fontSize).toBe("12px");
   });
 
+  test("the phone chart keeps its order marker and the compact chain track only when the chain is shown", () => {
+    env.mobile = true;
+    // This suite's store is pinned to the heatmap side tab; the chain track
+    // token therefore stays out of the class string while heatmap is active.
+    mount();
+    const grid = screen.getByTestId("nifty-main-row");
+    expect(grid).toHaveAttribute("data-report-order", "chart");
+    expect(grid.className).toContain("max-[600px]:order-2");
+    expect(grid.className).toContain("max-[600px]:grid-rows-[minmax(0,1fr)_auto]");
+    expect(grid.className).not.toContain("minmax(0,80px)]!");
+  });
+
   test("desktop keeps the inline heatmap and its original grid row", async () => {
     env.mobile = false;
     mount();

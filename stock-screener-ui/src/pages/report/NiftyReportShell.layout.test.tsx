@@ -191,6 +191,78 @@ describe("NiftyReportShell shared-scale contract", () => {
   });
 });
 
+describe("NiftyReportShell 390 composition", () => {
+  test("the toolbar hand-off is the only shell-owned chrome and cannot clip the control strip", async () => {
+    setReport({ spot: 25_980 });
+    mount();
+    await screen.findByTestId("workspace-stub");
+
+    const chrome = screen.getByTestId("toolbar-stub").closest("[data-report-section]") as HTMLElement;
+    expect(chrome).toHaveAttribute("id", "nifty-report-chrome");
+    expect(chrome).toHaveAttribute("data-compact-chrome", "true");
+    expect(chrome.className).toContain("pb-2");
+    expect(chrome.className).toContain("max-[600px]:pb-1!");
+    // The toolbar owns its own primary row / overflow cue; the shell must not
+    // put an overflow-hidden ancestor in front of its horizontal scroller.
+    expect(chrome.className).toContain("max-[600px]:overflow-visible!");
+
+    const panel = screen.getByTestId("nifty-report-panel");
+    expect(panel.className).toContain("max-[600px]:[&_[data-testid='nifty-report-content']]:pt-1!");
+    expect(panel.className).toContain("max-[600px]:[&_[data-testid='nifty-report-content']]:gap-1!");
+  });
+
+  test("the shell leaves the decision strip's primary call and disclosures alone", async () => {
+    setReport({ spot: 25_980 });
+    mount();
+    await screen.findByTestId("workspace-stub");
+
+    const cls = screen.getByTestId("nifty-report-panel").className;
+    // The decision strip renders the default-visible hero verdict; the shell
+    // must not force its secondary "MORE STATS" disclosure open, hide its
+    // toggle, or duplicate the call in another band.
+    expect(cls).not.toContain("nifty-verdict-disclosure']_[data-testid='nifty-live-tape-content']]:flex!");
+    expect(cls).not.toContain("nifty-verdict-disclosure']_[data-testid='nifty-live-tape-toggle']]:hidden!");
+    expect(cls).not.toContain("nifty-flow-windows-disclosure']_[data-testid='nifty-live-tape-content']]:flex!");
+  });
+
+  test("the dashboard ladder is 16px titles, 13px values, 12px labels with 4/8 gutters", async () => {
+    setReport({ spot: 25_980 });
+    mount();
+    await screen.findByTestId("workspace-stub");
+
+    const cls = screen.getByTestId("nifty-report-panel").className;
+    expect(cls).toContain("nifty-decision-stats']_[data-testid$='-label']]:text-ui-title!");
+    expect(cls).toContain("nifty-decision-stats']_[data-testid$='-value']]:text-ui-body!");
+    expect(cls).toContain("]>*>*:first-child]:text-ui-micro!");
+    expect(cls).toContain("nifty-decision-stats']]:gap-2!");
+    expect(cls).toContain("nifty-decision-stats']_[data-testid$='-cells']]:gap-1!");
+  });
+
+  test("DOM order keeps decision → flow → chart; visual order promotes the chart at 390", async () => {
+    setReport({
+      spot: 25_980,
+      futures: { series: [], regime: "neutral" },
+      itm_pe_flow: { series: [], top: [] },
+    });
+    mount();
+    await screen.findByTestId("workspace-stub");
+
+    expect(sectionOrder()).toEqual([
+      "decision-stub",
+      "nifty-flow-above-chart",
+      "workspace-stub",
+      "strips-stub",
+      "analytics-stub",
+    ]);
+
+    const contentCls = screen.getByTestId("nifty-report-content").className;
+    expect(contentCls).toContain("nifty-stat-strip']]:order-1");
+    expect(contentCls).toContain("nifty-main-row']]:order-2");
+    expect(contentCls).toContain("nifty-report-strips']]:order-4");
+    expect(screen.getByTestId("nifty-flow-above-chart").className).toContain("max-[600px]:order-3");
+  });
+});
+
 describe("NiftyReportShell spacing rhythm", () => {
   test("toolbar, replay band and flow row use deliberate 8/12 spacings", async () => {
     setReport({

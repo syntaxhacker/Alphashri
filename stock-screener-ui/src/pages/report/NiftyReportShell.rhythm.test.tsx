@@ -59,6 +59,53 @@ describe("Index Report shell/workspace readability rhythm", () => {
     expect(WORKSPACE).toContain('"min-height": "24px"');
   });
 
+  test("the phone promotes the chart without hiding the decision or moving lazy boundaries", () => {
+    // The decision strip owns a default-visible hero call; the shell keeps its
+    // secondary disclosures deliberate instead of forcing them open/closed.
+    expect(SHELL).not.toContain("nifty-verdict-disclosure']_[data-testid='nifty-live-tape-content']]:flex!");
+    expect(SHELL).not.toContain("nifty-verdict-disclosure']_[data-testid='nifty-live-tape-toggle']]:hidden!");
+    for (const rule of [
+      "max-[600px]:[&_[data-testid='nifty-stat-strip']]:order-1",
+      "max-[600px]:[&_[data-testid='nifty-main-row']]:order-2",
+      "max-[600px]:order-3",
+      "data-report-order=\"chart\"",
+    ]) {
+      expect(SHELL + WORKSPACE, `chart-first order: ${rule}`).toContain(rule);
+    }
+    for (const id of ["nifty-stat-strip", "nifty-main-row"]) {
+      expect(SHELL, `data contract: ${id}`).toContain(id);
+    }
+  });
+
+  test("compact chrome is shell-owned and never hides a toolbar overflow affordance", () => {
+    expect(SHELL).toContain('data-compact-chrome="true"');
+    expect(SHELL).toContain("max-[600px]:pb-1!");
+    expect(SHELL).toContain("max-[600px]:overflow-visible!");
+    expect(SHELL).toContain("max-[600px]:[&_[data-testid='nifty-replay-mode-banner']]:py-1!");
+    // The shell reduced its own hand-off spacing; it does not reach into the
+    // toolbar's control groups (that band owns its own single row / cue).
+    expect(SHELL).not.toContain("[data-testid='nifty-view-toggle']]:hidden!");
+    expect(SHELL).not.toContain("[data-testid='toolbar-group-status']]:hidden!");
+  });
+
+  test("the 390 stat strip reads as a dashboard on the shared type ladder", () => {
+    for (const rule of [
+      "[data-testid$='-label']]:text-ui-title!",
+      "[data-testid$='-value']]:text-ui-body!",
+      "]>*>*:first-child]:text-ui-micro!",
+      "[data-testid$='-label']]:w-[88px]!",
+      "[data-testid$='-cells']>*]:flex-row!",
+      "[data-testid$='-cells']>*]:border-l-0!",
+      "[data-testid$='-cells']>*]:py-0.5!",
+    ]) {
+      expect(SHELL, `dashboard rhythm: ${rule}`).toContain(rule);
+    }
+    // The workspace gives the reclaimed phone band back to the chart, but keeps
+    // the original 96px track token intact for the desktop contract.
+    expect(WORKSPACE).toContain("max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,80px)]!");
+    expect(WORKSPACE).toContain("max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,96px)]");
+  });
+
   test("all lazy boundaries and dock testids survive the rhythm pass", () => {
     const lazyChunks = [
       "ReportDecisionStrip",

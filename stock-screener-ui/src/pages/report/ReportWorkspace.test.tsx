@@ -102,4 +102,17 @@ describe("ReportWorkspace grid", () => {
     expect(await screen.findByTestId("chart-stub")).toBeInTheDocument();
     expect(screen.queryByTestId("nifty-chart-placeholder")).not.toBeInTheDocument();
   });
+
+  test("the chart row carries the phone order marker and the compact chain track", () => {
+    setReport({ spot: 25_000, strikes: [], positioning: {}, gex: null });
+    mount();
+
+    const grid = screen.getByTestId("nifty-main-row");
+    expect(grid).toHaveAttribute("data-report-order", "chart");
+    expect(grid.className).toContain("max-[600px]:order-2");
+    expect(grid.className).toContain("max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,80px)]!");
+    // Grid children and their testids are unchanged by the reorder.
+    expect(Array.from(grid.children)[1]).toBe(screen.getByTestId("nifty-side-col"));
+    expect(screen.getByTestId("oi-chain-stub")).toBeInTheDocument();
+  });
 });

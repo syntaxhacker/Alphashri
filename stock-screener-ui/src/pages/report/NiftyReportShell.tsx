@@ -77,6 +77,68 @@ const REPORT_NARROW_KPI_CLASS = [
 ].join(" ");
 
 /**
+ * The phone report is a dashboard, not a vertical list of cards. The stat
+ * strip's groups become titled rows and their cells read label/value on one
+ * line, so the secondary stats read as a dense grid when their disclosure is
+ * opened. The primary call is owned by the decision strip's hero band; the
+ * shell never re-opens or hides that component's disclosures. All overrides
+ * are max-width gated; 1600 keeps the tuned strip.
+ */
+const REPORT_NARROW_DASHBOARD_CLASS = [
+  // 16px group titles beside a two-per-row cell grid (4px gutters, 8px groups).
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']]:gap-2!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid^='nifty-stat-group-']]:flex-row!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid^='nifty-stat-group-']]:items-start!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid^='nifty-stat-group-']]:gap-1!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-label']]:w-[88px]!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-label']]:shrink-0!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-label']]:text-ui-title!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-label']]:leading-5!",
+  // 13px values, 12px labels; one line per cell, no second border per cell.
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-cells']]:flex-1!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-cells']]:gap-1!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-cells']>*]:flex-row!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-cells']>*]:items-center!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-cells']>*]:justify-between!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-cells']>*]:gap-2!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-cells']>*]:min-w-0!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-cells']>*]:border-l-0!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-cells']>*]:px-1!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-cells']>*]:py-0.5!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-cells']>*>*:first-child]:text-ui-micro!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-value']]:text-ui-body!",
+  "max-[600px]:[&_[data-testid='nifty-decision-stats']_[data-testid$='-value']]:shrink-0!",
+  // The decision strip owns the default-visible hero call. Its "MORE STATS"
+  // disclosure stays deliberately collapsed; the shell does not reach into it.
+].join(" ");
+
+/**
+ * Reading order on a phone. The chart is the primary surface, so the futures /
+ * ITM detail band follows it rather than preceding it; the research bands
+ * follow the chart too. DOM order is unchanged — every lazy boundary and
+ * section marker stays where the data contracts expect it.
+ */
+const REPORT_MOBILE_CHART_FIRST_CLASS = [
+  "max-[600px]:[&_[data-testid='nifty-stat-strip']]:order-1",
+  "max-[600px]:[&_[data-testid='nifty-main-row']]:order-2",
+  "max-[600px]:[&_[data-testid='nifty-report-strips']]:order-4",
+  "max-[600px]:[&_[data-testid='nifty-analytics-row']]:order-5",
+  "max-[600px]:[&_[data-testid='nifty-iv-skew-row']]:order-6",
+].join(" ");
+
+/**
+ * Shell-owned chrome is spent only on the hand-off between the compact toolbar
+ * (whose own primary row / overflow cue it must never clip) and the data. The
+ * replay band loses its extra inset on a phone; its full text stays mounted.
+ */
+const REPORT_MOBILE_CHROME_CLASS = [
+  "max-[600px]:[&_[data-testid='nifty-report-content']]:gap-1!",
+  "max-[600px]:[&_[data-testid='nifty-report-content']]:pt-1!",
+  "max-[600px]:[&_[data-testid='nifty-replay-mode-banner']]:gap-x-2!",
+  "max-[600px]:[&_[data-testid='nifty-replay-mode-banner']]:py-1!",
+].join(" ");
+
+/**
  * The replay banner is the one shell-owned band with a title. Promote that
  * title to the 16px value step and leave the explanation at the 12px floor so
  * the band reads as heading + note, not two equal-weight micro labels.
@@ -114,7 +176,7 @@ function ReportFlowRow(props: {
     <Show when={hasFutures() || hasItm()}>
       <Box
         data-testid="nifty-flow-above-chart"
-        className="grid grid-cols-1 gap-2 w-full max-w-full min-w-0 shrink-0"
+        className="grid grid-cols-1 gap-2 w-full max-w-full min-w-0 shrink-0 max-[600px]:order-3"
         classList={{ "min-[1200px]:grid-cols-2": hasFutures() && hasItm() }}
       >
         <Show when={hasFutures()}>
@@ -208,7 +270,7 @@ function ReportBody() {
   return (
     <Box
       data-testid="nifty-report-panel"
-      class={`flex flex-col h-full min-h-0 w-full overflow-hidden ${REPORT_SECTION_ALIGN.panel} ${REPORT_NARROW_KPI_CLASS}`}
+      class={`flex flex-col h-full min-h-0 w-full overflow-hidden ${REPORT_SECTION_ALIGN.panel} ${REPORT_NARROW_KPI_CLASS} ${REPORT_NARROW_DASHBOARD_CLASS} ${REPORT_MOBILE_CHROME_CLASS}`}
       style={{
         display: "flex",
         "flex-direction": "column",
@@ -218,11 +280,14 @@ function ReportBody() {
         overflow: "hidden",
       }}
     >
-      {/* 8px under the toolbar hairline + the content's 7px top inset = the
-          one deliberate 16px break before the stat strip. */}
+      {/* Desktop: 8px under the toolbar hairline + the content's 7px inset.
+          At 390 both insets drop to 4px so the strip starts one 8px break
+          below the compact toolbar instead of a 16px one. */}
       <Box
         {...{ [REPORT_SECTION_ATTR]: true }}
-        className="w-full shrink-0 pb-2"
+        id="nifty-report-chrome"
+        data-compact-chrome="true"
+        className="w-full shrink-0 pb-2 max-[600px]:pb-1! max-[600px]:overflow-visible!"
         data-left-edge={String(REPORT_GUTTER.inline)}
         style={{ "padding-left": `${REPORT_GUTTER.inline}px` }}
       >
@@ -280,7 +345,7 @@ function ReportBody() {
         <Box
           data-testid="nifty-report-content"
           data-left-edge={String(REPORT_GUTTER.inline)}
-          class={`flex-1 min-h-0 flex flex-col gap-2 ${REPORT_SECTION_ALIGN.content} ${isDesk() ? `overflow-hidden ${DESK_CONTENT_GRID_CLASS}` : "overflow-auto"}`}
+          class={`flex-1 min-h-0 flex flex-col gap-2 ${REPORT_SECTION_ALIGN.content} ${REPORT_MOBILE_CHART_FIRST_CLASS} ${isDesk() ? `overflow-hidden ${DESK_CONTENT_GRID_CLASS}` : "overflow-auto"}`}
           style={{
             flex: 1,
             "min-height": "0px",

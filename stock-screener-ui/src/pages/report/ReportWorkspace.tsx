@@ -110,6 +110,11 @@ const HEATMAP_EXPAND_CLASS =
 // Static literals so Tailwind emits both variants.
 const MOBILE_GRID_DEFAULT = "max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,96px)]";
 const MOBILE_GRID_HEATMAP = "max-[600px]:grid-rows-[minmax(0,1fr)_auto]";
+// The chain rail only needs a few strike rows on a phone. Its old 96px reserve
+// was dead band above the fold; 80px keeps the ATM row and the scroll cue while
+// handing the reclaimed height to the chart. Heatmap keeps its content-sized
+// row — the treemap is replaced by the disclosure, not squeezed into 80px.
+const MOBILE_GRID_CHAIN = "max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,80px)]!";
 
 const MOBILE_HEAT_METRIC_STYLE: JSX.CSSProperties = {
   height: "24px",
@@ -363,11 +368,12 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
       <Box
         data-testid="nifty-main-row"
         data-left-edge={String(REPORT_GUTTER.inline)}
+        data-report-order="chart"
         data-chart-primary={isDesk() && chartSize() === "fill" ? "true" : undefined}
         data-chart-row-share={isDesk() ? DESK_CHART_ROW_SHARE : undefined}
         data-chart-chain={CHART_FILL_CHAIN}
         data-chart-floor={isDesk() ? String(DESK_CHART_FLOOR_PX) : undefined}
-        className={`grid grid-cols-1 ${isDesk() ? "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,624px)]"} grid-rows-[minmax(0,1fr)_minmax(0,120px)] ${mobileHeatmap() ? MOBILE_GRID_HEATMAP : MOBILE_GRID_DEFAULT} min-[1200px]:grid-rows-[minmax(0,1fr)] gap-0 items-stretch w-full max-w-full min-w-0 flex-1 min-h-[300px] overflow-hidden${isDesk() ? ` ${DESK_CHART_ROW_MAX_CLASS}` : ""}`}
+        className={`grid grid-cols-1 ${isDesk() ? "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,624px)]"} grid-rows-[minmax(0,1fr)_minmax(0,120px)] ${mobileHeatmap() ? MOBILE_GRID_HEATMAP : `${MOBILE_GRID_DEFAULT} ${MOBILE_GRID_CHAIN}`} min-[1200px]:grid-rows-[minmax(0,1fr)] gap-0 items-stretch w-full max-w-full min-w-0 flex-1 min-h-[300px] overflow-hidden max-[600px]:order-2${isDesk() ? ` ${DESK_CHART_ROW_MAX_CLASS}` : ""}`}
         style={{
           "max-height":
             isDesk() && chartSize() !== "fill" ? `${chartRowHeight()}px` : undefined,
