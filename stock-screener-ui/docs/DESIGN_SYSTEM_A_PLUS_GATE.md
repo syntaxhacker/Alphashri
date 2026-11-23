@@ -41,7 +41,7 @@ Resolved since the first draft (verified against source/CI, not memory):
 - `Tree` and `Menu` keyboard contracts are closed: Arrow/Home/End roving focus, `loop={false}` clamping, Escape dismissal, with regression tests in `Tree.test.tsx` / `Menu.test.tsx`. They are no longer "being closed in the current wave".
 - `Select`/`MultiSelect` no longer accept `allowDeselect`, `maxDropdownHeight`, `comboboxProps` or `withinPortal` (`@ts-expect-error` tests assert they are absent). `legacyProps.ts` is now only a defensive strip for Text/Number/Password inputs; `InputProps` is still accepted on write and stripped in `UISelectProps`, so the swallowed-prop debt is reduced, not zero.
 - Automated a11y is no longer happy-dom-only: `src/test/a11y-smoke.test.tsx` runs in vitest and `node scripts/storybook-a11y.mjs` runs axe-core in real Chromium over representative stories (serious/critical fail the job). Scoped UI coverage (`bun run test:coverage:ui`), the Storybook catalog guard (after a CI Storybook build) and `design-scale.test.ts` (no `ui/` exemption) also run in CI. Local catalog-guard runs still skip without a built manifest.
-- A real-browser keyboard walkthrough (`scripts/storybook-keyboard.mjs`) now runs after the axe gate: Modal trap/Escape/focus return, Tree arrows/expand/select, Menu roving focus/Escape and automatic Tabs activation. 5/5 pass.
+- Real-browser gates now cover **21 axe stories** (all 13 family landings + 3 overlay playables + 5 component representatives) and **9 keyboard walkthroughs**: Modal, Tree, Menu, horizontal/vertical Tabs, Popover, Tooltip and modal FloatingWindow, plus the original modal dismissal case.
 - Typography has one tier: `src/ui/typography.ts` + `--text-ui-*` in `tailwind.css`, with a 12px hard floor, a 12/13/14/16/20/24 ladder and `uiTheme.fontSizes` aliases. The migration is complete: `node scripts/typography-audit.mjs` reports **0 private size declarations** across non-test/non-story source; `design-scale.test.ts` rejects any new one, and `audit:typography:check` is a CI step. The report now derives `REPORT_FONT` from the same scale (12/13/16/24), and every family/component showcase was recaptured at 1600 and 390.
 
 Still open — keep the A+ verdict honest:
@@ -87,6 +87,6 @@ The P1 set driving the current wave: primitive rem size aliases, event-vs-value 
 | Frontend suite | 11,968 passed, 1 fixed theme assertion; the only remaining worker error is a pre-existing `PatternsPage.test.tsx` fork OOM (reproduced on the pre-typography commit) |
 | Production build | clean (198 chunks) |
 | Storybook build + catalog | clean |
-| Browser axe (6 representative stories) | 0 serious/critical violations |
-| Browser keyboard walkthrough | 5/5 |
+| Browser axe (21 stories) | 0 serious/critical violations |
+| Browser keyboard walkthrough | 9/9 |
 | Screenshots | `docs/screenshots/showcase/` recaptured at 1600 and 390, read back |
