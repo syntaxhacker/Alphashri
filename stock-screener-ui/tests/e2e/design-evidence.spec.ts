@@ -5,23 +5,88 @@
  * leave the tree untouched. These are real app routes with the shared API mocks,
  * not Storybook substitutes: the review gate needs both.
  *
- * Captures are viewport-only (fullPage: false) at 1600x1000 / 390x844 so this
- * script reproduces the checked-in docs/screenshots/app/report-{1600,390}.png.
- *
- * Only the Index Report route has honest shared mocks. The home, bare
- * `/screener`, `/options` and `/patterns` routes remain unverified: their shared
- * mocks are incomplete and render errors or broken layouts, so they are
- * deliberately absent until honest mocks exist.
+ * Index Report, Sector, Options and Home are verified: their shared mocks
+ * render honestly. The bare `/screener` and `/patterns` routes remain
+ * unverified unless another agent adds them — their shared mocks are incomplete
+ * and render errors or broken layouts, so they are absent until honest mocks
+ * exist.
  */
-import { test } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import {
   loginAsTestUser,
   setupApiMocks,
+  setupHomeDeskMocks,
   setupNiftyReportMocks,
+  setupOptionsMocks,
+  setupSectorMocks,
 } from "../mocks/apiResponses";
+import { collectConsoleErrors } from "./helpers/flowsB";
+import { setupNewsMocks } from "./helpers/newsHelpers";
 
 const EVIDENCE = process.env.SCREENSHOT_EVIDENCE === "1";
-const ROUTES = [{ name: "report", path: "/report/index" }] as const;
+
+type EvidenceRoute = {
+  name: string;
+  path: string;
+  ready?: string;
+  setup?: (page: Page) => Promise<void>;
+  navigate?: (page: Page) => Promise<void>;
+  verify?: (page: Page) => Promise<void>;
+  waitForNetworkIdle?: boolean;
+};
+
+const homeConsoleErrors = new WeakMap<Page, string[]>();
+
+const ROUTES: readonly EvidenceRoute[] = [
+  {
+    name: "report",
+    path: "/report/index",
+    setup: (page) => setupNiftyReportMocks(page),
+  },
+  {
+    name: "sector",
+    path: "/sector",
+    ready: '[data-testid="sector-analysis-view"]',
+    setup: (page) => setupSectorMocks(page),
+  },
+  {
+    name: "options",
+    path: "/options",
+    ready: '[data-testid="options-chain-panel"]',
+    setup: (page) => setupOptionsMocks(page),
+  },
+  {
+    name: "home",
+    path: "/home",
+    ready: '[data-testid="window-manager-canvas"]',
+    // The desk's seeded panels poll every 5s, so networkidle is not a stable
+    // readiness signal; the desk root plus the panel assertions below are.
+    waitForNetworkIdle: false,
+    setup: async (page) => {
+      homeConsoleErrors.set(page, collectConsoleErrors(page));
+      // Same order as home-desk.spec.ts: Playwright gives later routes priority.
+      await setupNewsMocks(page);
+      await setupHomeDeskMocks(page);
+    },
+    navigate: async (page) => {
+      await page.goto("/");
+      await page.getByTestId("nav-home").click();
+      await expect(page).toHaveURL(/\/home$/);
+      await expect(page.getByTestId("home-page")).toBeVisible();
+      await page.getByTestId("home-view-desk").click();
+    },
+    verify: async (page) => {
+      await expect(page.getByTestId("market-heatmap-panel")).toHaveCount(1);
+      await expect(page.getByTestId("market-heatmap-loading")).toHaveCount(0);
+      await expect(page.getByTestId("market-heatmap-error")).toHaveCount(0);
+      await expect(page.getByTestId("options-chain-window")).toHaveCount(1);
+      await expect(page.getByTestId("options-chain-loading")).toHaveCount(0);
+      await expect(page.getByTestId("options-chain-empty")).toHaveCount(0);
+      await expect(page.getByTestId("options-chain-error")).toHaveCount(0);
+      expect(homeConsoleErrors.get(page)).toEqual([]);
+    },
+  },
+];
 
 for (const [width, height] of [
   [1600, 1000],
@@ -33,13 +98,16 @@ for (const [width, height] of [
       await page.setViewportSize({ width, height });
       await setupApiMocks(page);
       await loginAsTestUser(page);
-      if (route.name === "report") await setupNiftyReportMocks(page);
-      await page.goto(route.path);
-      await page.waitForLoadState("networkidle");
+      await route.setup?.(page);
+      if (route.navigate) await route.navigate(page);
+      else await page.goto(route.path);
+      if (route.ready) await page.waitForSelector(route.ready, { timeout: 20000 });
+      if (route.waitForNetworkIdle !== false) await page.waitForLoadState("networkidle");
       await page.waitForTimeout(400);
+      await route.verify?.(page);
       await page.screenshot({
         path: `docs/screenshots/app/${route.name}-${width}.png`,
-        fullPage: false,
+        fullPage: true,
       });
     });
   }

@@ -1,6 +1,7 @@
 // Mock API responses for E2E tests
 
 import { apiRoute } from "./routeHelper";
+import { setupHomeNetworkMocks, setupHomePatternMocks } from "./homeDeskFixtures";
 
 export const mockScreenersList = {
   screeners: [
@@ -2501,6 +2502,20 @@ export async function setupHomeConfigMocks(
     puts: () => clone(puts),
     requests: () => [...requests],
   };
+}
+
+/**
+ * Full /home desk mock stack. Callers register `setupApiMocks`,
+ * `loginAsTestUser` and the news mocks first — those order-sensitive handlers
+ * must stay ahead of the desk's config/network/pattern routes.
+ */
+export async function setupHomeDeskMocks(
+  page: import("@playwright/test").Page,
+): Promise<HomeConfigMockHandle> {
+  const config = await setupHomeConfigMocks(page);
+  await setupHomeNetworkMocks(page);
+  await setupHomePatternMocks(page);
+  return config;
 }
 
 /**
