@@ -4,6 +4,11 @@
  * Screenshots are written only when SCREENSHOT_EVIDENCE=1 so normal CI runs
  * leave the tree untouched. These are real app routes with the shared API mocks,
  * not Storybook substitutes: the review gate needs both.
+ *
+ * Only the Index Report route has honest shared mocks. The home, bare
+ * `/screener`, `/options` and `/patterns` routes remain unverified: their shared
+ * mocks are incomplete and render errors or broken layouts, so they are
+ * deliberately absent until honest mocks exist.
  */
 import { test } from "@playwright/test";
 import {
