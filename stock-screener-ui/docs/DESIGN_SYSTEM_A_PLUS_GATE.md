@@ -49,7 +49,7 @@ Still open — keep the A+ verdict honest:
 - **Token contract (dark-only).** With one colour scheme, static semantic palette imports are the intended contract; `tokenColor`/`useTokenColor` exist for the cases that must read a computed CSS variable. The guard is the absence of raw hex outside `palette.ts` (asserted by `theme-single-source.test.ts`), not call-site counts. This is a scope correction, not a claim that every chart was migrated to a runtime accessor.
 - **API callback conventions.** `onChange` is value-based on most inputs but event-based on `Checkbox`/`Switch`; `onClick` is an event in `UIBaseProps` but void in `NavLink`/`MenuItem`/`CloseButton`. No single convention per family yet.
 - **Visual regression baseline.** Browser axe now covers 21 stories including rendered contrast, and the keyboard walkthrough covers 9 interactions. It still does not assert pixels: there is no automated 1600/390 image diff, only checked-in full-page evidence.
-- **Coverage is scoped, not universal.** 84/100 audited modules have a story and 88/100 a co-located test; "story: yes" means one exported name is imported, not that every state is reviewed.
+- **Coverage is scoped, not universal.** 84/100 audited modules have a story and 93/100 a co-located test; "story: yes" means one exported name is imported, not that every state is reviewed.
 - DatePicker is intentionally single-date; no range/time/locale.
 - Tooltip requires a focusable child unless the opt-in tab stop is used.
 - Screenshots are current only after the latest visual recapture; check commit dates before quoting them.
