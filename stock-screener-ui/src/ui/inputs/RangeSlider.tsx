@@ -274,11 +274,11 @@ export function RangeSlider(props: RangeSliderProps) {
     <div class="flex flex-col gap-1 min-w-0 w-full" data-testid={props.testId}>
       <Show when={props.label && !props.hideHeader}>
         <div class="flex items-center justify-between gap-1 min-w-0">
-          <span class="text-[10px] font-semibold uppercase tracking-[0.4px] text-fin-text-muted truncate">
+          <span class="text-ui-micro font-semibold uppercase tracking-[0.4px] text-fin-text-muted truncate">
             {props.label}
           </span>
           <span
-            class="shrink-0 font-mono text-[10px] tabular-nums text-fin-text"
+            class="shrink-0 font-mono text-ui-micro tabular-nums text-fin-text"
             data-testid={props.testId ? `${props.testId}-readout` : undefined}
           >
             {fmt(shownLo())} – {fmt(shownHi())}
@@ -319,7 +319,7 @@ export function RangeSlider(props: RangeSliderProps) {
           <For each={props.marks}>
             {(mark) => (
               <span
-                class="absolute -translate-x-1/2 text-[9px] tabular-nums text-fin-text-muted"
+                class="absolute -translate-x-1/2 text-ui-micro tabular-nums text-fin-text-muted"
                 style={{ left: `${pct(mark.value, domain()[0], domain()[1])}%` }}
               >
                 {mark.label}

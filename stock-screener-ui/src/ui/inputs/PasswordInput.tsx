@@ -1,22 +1,23 @@
 import { createMemo, createSignal, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
+import { typeSize, type TypeRole } from "../typography";
 import { stripLegacyInputProps } from "./legacyProps";
 import { createFieldA11y } from "./fieldError";
 import type { UIPasswordInputProps } from "../types";
 
-type FieldBox = { h: number; fs: number; padY: number; padX: number };
+type FieldBox = { h: number; fontRole: TypeRole; padY: number; padX: number };
 
 /**
  * Shared with TextInput/NumberInput: one look for the whole text family.
  * `md` is the default step so a password field matches a Select in the same row.
  */
 const FIELD_BOX: Record<string, FieldBox> = {
-  xs: { h: 24, fs: 11, padY: 4, padX: 8 },
-  sm: { h: 30, fs: 13, padY: 7, padX: 10 },
-  md: { h: 34, fs: 13, padY: 9, padX: 10 },
-  lg: { h: 38, fs: 14, padY: 11, padX: 12 },
-  xl: { h: 42, fs: 15, padY: 13, padX: 12 },
+  xs: { h: 24, fontRole: "micro", padY: 4, padX: 8 },
+  sm: { h: 30, fontRole: "body", padY: 7, padX: 10 },
+  md: { h: 34, fontRole: "body", padY: 9, padX: 10 },
+  lg: { h: 38, fontRole: "label", padY: 11, padX: 12 },
+  xl: { h: 42, fontRole: "title", padY: 13, padX: 12 },
 };
 
 function boxOf(size?: UIPasswordInputProps["size"]): FieldBox {
@@ -120,7 +121,7 @@ export function PasswordInput(props: UIPasswordInputProps) {
       "box-shadow": focused() ? `0 0 0 1px ${border}` : "none",
       "background-color": known.disabled ? "var(--color-fin-surface-alt)" : "var(--color-fin-surface)",
       color: "var(--color-fin-text)",
-      "font-size": `${box.fs}px`,
+      "font-size": `${typeSize(box.fontRole)}px`,
       "font-family": palette.MONO,
       "letter-spacing": visible() ? "normal" : "0.12em",
       "line-height": "1",

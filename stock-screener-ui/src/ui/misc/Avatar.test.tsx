@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, test } from "vitest";
 import { render, screen } from "@solidjs/testing-library";
+import { typeSize } from "../typography";
 import { Avatar } from "./Avatar";
 
 const text = (id: string) => screen.getByTestId(id).textContent;
@@ -49,7 +50,7 @@ describe("Avatar", () => {
     ));
 
     for (const [id, width, font] of [
-      ["xs", "24px", "9.6px"],
+      ["xs", "24px", `${typeSize("micro")}px`],
       ["lg", "48px", "19.2px"],
       ["num", "56px", "22.4px"],
       ["str", "32px", "12.8px"],

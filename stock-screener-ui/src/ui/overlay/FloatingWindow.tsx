@@ -306,7 +306,7 @@ export function FloatingWindow(props: FloatingWindowProps) {
         className="flex-none h-7 px-2 flex items-center gap-1.5 cursor-move select-none bg-fin-surface-alt border-b border-fin-border touch-none"
       >
         {known.icon}
-        <span className="text-[11px] font-bold tracking-[0.4px] text-fin-text uppercase truncate flex-1">
+        <span className="text-ui-micro font-bold tracking-[0.4px] text-fin-text uppercase truncate flex-1">
           {known.title}
         </span>
         <button

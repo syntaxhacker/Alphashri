@@ -2,6 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi } from "vitest";
 import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { typeSize } from "../typography";
 import { Chip } from "./Chip";
 
 describe("Chip — interactive filter", () => {
@@ -15,7 +16,7 @@ describe("Chip — interactive filter", () => {
     const chip = screen.getByTestId("c2");
     expect(chip.style.height).toBe("20px");
     expect(chip.style.borderRadius).toBe("4px");
-    expect(chip.style.fontSize).toBe("11px");
+    expect(chip.style.fontSize).toBe(`${typeSize("micro")}px`);
     expect(chip.style.cursor).toBe("pointer");
   });
 
@@ -73,6 +74,6 @@ describe("Chip — interactive filter", () => {
   test("size xs keeps the 20px floor so it never reads as a badge", () => {
     render(() => <Chip size="xs" data-testid="c9">Small</Chip>);
     expect(screen.getByTestId("c9").style.height).toBe("20px");
-    expect(screen.getByTestId("c9").style.fontSize).toBe("10px");
+    expect(screen.getByTestId("c9").style.fontSize).toBe(`${typeSize("micro")}px`);
   });
 });

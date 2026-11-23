@@ -211,7 +211,7 @@ export function Switch(props: SwitchProps) {
       {control}
       <span className="flex flex-col gap-0.5">
         {known.label ? (
-          <span className="text-[10px] font-mono uppercase tracking-[0.06em] text-fin-text-muted leading-none">
+          <span className="text-ui-micro font-mono uppercase tracking-[0.06em] text-fin-text-muted leading-none">
             {known.label}
           </span>
         ) : null}
@@ -220,8 +220,8 @@ export function Switch(props: SwitchProps) {
             id={messageId}
             className={
               known.error
-                ? "text-[10px] text-fin-negative leading-none"
-                : "text-[10px] text-fin-text-muted leading-none"
+                ? "text-ui-micro text-fin-negative leading-none"
+                : "text-ui-micro text-fin-text-muted leading-none"
             }
           >
             {message()}

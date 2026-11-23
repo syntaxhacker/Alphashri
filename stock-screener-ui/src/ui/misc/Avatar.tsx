@@ -1,18 +1,19 @@
 import { splitProps } from "solid-js";
 import { cn } from "../cn";
+import { typeSize } from "../typography";
 import type { UIAvatarProps } from "../types";
 
 function mapSize(size: UIAvatarProps["size"]): { w: string; h: string; "font-size": string } {
-  if (size == null) return { w: "40px", h: "40px", "font-size": "16px" };
-  if (typeof size === "number") return { w: `${size}px`, h: `${size}px`, "font-size": `${size * 0.4}px` };
+  if (size == null) return { w: "40px", h: "40px", "font-size": `${typeSize("title")}px` };
+  if (typeof size === "number") return { w: `${size}px`, h: `${size}px`, "font-size": `${Math.max(typeSize("micro"), size * 0.4)}px` };
   if (typeof size === "string" && !isNaN(Number(size))) {
     const n = Number(size);
-    return { w: `${n}px`, h: `${n}px`, "font-size": `${n * 0.4}px` };
+    return { w: `${n}px`, h: `${n}px`, "font-size": `${Math.max(typeSize("micro"), n * 0.4)}px` };
   }
   const map: Record<string, number> = { xs: 24, sm: 32, md: 40, lg: 48, xl: 56 };
   const px = map[size as string];
-  if (px) return { w: `${px}px`, h: `${px}px`, "font-size": `${px * 0.4}px` };
-  return { w: "40px", h: "40px", "font-size": "16px" };
+  if (px) return { w: `${px}px`, h: `${px}px`, "font-size": `${Math.max(typeSize("micro"), px * 0.4)}px` };
+  return { w: "40px", h: "40px", "font-size": `${typeSize("title")}px` };
 }
 
 function initials(text: string): string {

@@ -1,6 +1,7 @@
 import { splitProps, Show } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
+import { typeSize } from "../typography";
 import type { UIIndicatorProps } from "../types";
 
 const COLOR_MAIN: Record<string, string> = {
@@ -84,7 +85,7 @@ export function Indicator(props: UIIndicatorProps) {
                 "background-color": col,
                 transform,
                 ...(known.label != null
-                  ? { color: palette.BG, "font-size": `${Math.max(6, dotSize * 0.5)}px`, "font-weight": 600 }
+                  ? { color: palette.BG, "font-size": `${Math.max(typeSize("micro"), dotSize * 0.5)}px`, "font-weight": 600 }
                   : {}),
               }}
             >

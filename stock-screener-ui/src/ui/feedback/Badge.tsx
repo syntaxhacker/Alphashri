@@ -2,6 +2,7 @@ import { Show, splitProps } from "solid-js";
 import { badgeTone, componentTokenVar, isCustomColor } from "../componentTokens";
 import { cn } from "../cn";
 import * as palette from "../palette";
+import { typeSize, type TypeRole } from "../typography";
 import { pickTextColor } from "@/utils/contrast";
 import type { UIBadgeProps } from "../types";
 
@@ -26,14 +27,14 @@ function resolveColor(color: UIBadgeProps["color"]): string {
   return toneMain(color);
 }
 
-type BadgeBox = { h: number; font: number; px: number };
+type BadgeBox = { h: number; fontRole: TypeRole; px: number };
 
 const BADGE_BOX: Record<string, BadgeBox> = {
-  xs: { h: 14, font: 9, px: 4 },
-  sm: { h: 16, font: 9, px: 5 },
-  md: { h: 18, font: 10, px: 6 },
-  lg: { h: 20, font: 10, px: 7 },
-  xl: { h: 22, font: 10, px: 8 },
+  xs: { h: 14, fontRole: "micro", px: 4 },
+  sm: { h: 16, fontRole: "micro", px: 5 },
+  md: { h: 18, fontRole: "micro", px: 6 },
+  lg: { h: 20, fontRole: "micro", px: 7 },
+  xl: { h: 22, fontRole: "micro", px: 8 },
 };
 
 function badgeBox(size: UIBadgeProps["size"]): BadgeBox {
@@ -91,7 +92,7 @@ export function Badge(props: UIBadgeProps) {
         "border-width": "0px",
         "border-style": "none",
         "background-color": "transparent",
-        "font-size": `${box.font}px`,
+        "font-size": `${typeSize(box.fontRole)}px`,
         "font-weight": "600",
         "line-height": "1",
         "padding-left": "0px",
@@ -108,7 +109,7 @@ export function Badge(props: UIBadgeProps) {
         ? { "border-width": "1px", "border-style": "solid", "border-color": main }
         : { border: "none" }),
       "background-color": isFilled ? fill : isOutline ? "transparent" : wash(),
-      "font-size": `${box.font}px`,
+      "font-size": `${typeSize(box.fontRole)}px`,
       "font-weight": "600",
       "line-height": "1",
       "padding-left": `${box.px}px`,

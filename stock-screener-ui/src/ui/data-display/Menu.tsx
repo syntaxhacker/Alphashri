@@ -550,7 +550,7 @@ export function MenuDropdown(props: UIMenuDropdownProps) {
         role="menu"
         className={cn(
           "ui-menu-dropdown",
-          "fixed z-[100] min-w-[160px] bg-fin-surface border border-fin-border rounded-fin text-fin-text text-[14px] py-[4px] outline-none",
+          "fixed z-[100] min-w-[160px] bg-fin-surface border border-fin-border rounded-fin text-fin-text text-ui-label py-[4px] outline-none",
           withArrow() ? "with-arrow" : "",
           known.className,
         )}
@@ -619,7 +619,7 @@ export function MenuItem(props: UIMenuItemProps) {
   const cls = createMemo(() =>
     cn(
       "ui-menu-item",
-      "flex w-full items-center gap-2 rounded-[4px] px-3 py-[6px] text-left text-[14px] border-none bg-transparent outline-none text-fin-text",
+      "flex w-full items-center gap-2 rounded-[4px] px-3 py-[6px] text-left text-ui-label border-none bg-transparent outline-none text-fin-text",
       known.disabled
         ? "text-fin-text-muted opacity-60 cursor-default"
         : "cursor-pointer hover:bg-fin-surface-alt",
@@ -670,7 +670,7 @@ function MenuLabel(props: any) {
   const [local, rest] = splitProps(props, ["children", "className", "style"]);
   return (
     <div
-      className={cn("ui-menu-label", "px-3 py-[4px] text-[11px] font-semibold uppercase text-fin-text-muted", local.className)}
+      className={cn("ui-menu-label", "px-3 py-[4px] text-ui-micro font-semibold uppercase text-fin-text-muted", local.className)}
       style={local.style}
       {...rest}
     >

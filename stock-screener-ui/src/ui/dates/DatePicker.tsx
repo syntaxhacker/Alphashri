@@ -142,7 +142,7 @@ export function DatePicker(props: UIDatePickerProps) {
         </Show>
       </div>
       <Show when={rejected()}>
-        <span id={messageId} role="alert" className="text-[10px] leading-none text-fin-negative">
+        <span id={messageId} role="alert" className="text-ui-micro leading-none text-fin-negative">
           {invalidLabel()}
         </span>
       </Show>

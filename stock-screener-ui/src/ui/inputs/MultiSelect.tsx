@@ -1,6 +1,7 @@
 import { createMemo, createSignal, createEffect, For, onCleanup, Show, splitProps } from "solid-js";
 import { Portal } from "solid-js/web";
 import { cn } from "../cn";
+import { typeSize } from "../typography";
 import { Checkbox } from "./Checkbox";
 import { createFieldA11y } from "./fieldError";
 import * as palette from "../palette";
@@ -23,7 +24,7 @@ function fieldMinHeight(size?: UIMultiSelectProps["size"]): string {
 }
 
 function fieldPadding(size?: UIMultiSelectProps["size"]): string {
-  if (size === "xs") return "pl-1.5 pr-11 text-[11px]";
+  if (size === "xs") return "pl-1.5 pr-11 text-ui-micro";
   if (size === "sm") return "pl-2 pr-11 text-xs";
   return "pl-2 pr-11 text-sm";
 }
@@ -42,7 +43,7 @@ const TAG_BOX = {
   "border-radius": "4px",
   "background-color": palette.alpha(palette.PRIMARY, 0.14),
   "color": "var(--color-fin-text)",
-  "font-size": "11px",
+  "font-size": `${typeSize("micro")}px`,
 } as const;
 
 /** Two tag rows (18px each + 4px gap) is the growth ceiling before folding to `+N`. */
@@ -460,7 +461,7 @@ export function MultiSelect(props: UIMultiSelectProps) {
                         toggle(v);
                       }}
                       className="shrink-0 text-fin-text-muted hover:text-fin-text"
-                      style={{ "font-size": "11px", "line-height": "1" }}
+                      style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1" }}
                     >
                       &times;
                     </button>

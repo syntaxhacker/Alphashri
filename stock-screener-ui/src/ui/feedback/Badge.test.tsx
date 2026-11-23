@@ -13,6 +13,7 @@ import {
 } from "../componentTokens";
 import * as palette from "../palette";
 import { pickTextColor } from "@/utils/contrast";
+import { typeSize } from "../typography";
 import { Badge } from "./Badge";
 import { Chip } from "../inputs/Chip";
 import { SegmentedControl } from "../inputs/SegmentedControl";
@@ -97,20 +98,23 @@ describe("Badge — status label", () => {
 });
 
 describe("Badge — shape language", () => {
-  test("is a 16px rounded rectangle with uppercase 9px tracked text", () => {
+  test("is a 16px rounded rectangle with uppercase micro-token tracked text", () => {
     render(() => <Badge data-testid="s1">live</Badge>);
     const el = screen.getByTestId("s1");
     expect(el.style.height).toBe("16px");
     expect(el.style.borderRadius).toBe("4px");
-    expect(el.style.fontSize).toBe("9px");
+    expect(el.style.fontSize).toBe(`${typeSize("micro")}px`);
     expect(el.className).toContain("tracking-[0.04em]");
     expect(el.style.fontWeight).toBe("600");
     expect(el.className).toContain("uppercase");
   });
 
-  test("md and larger badges use the readable 10px type step", () => {
+  test("every size paints its label from the shared micro token, not a private px size", () => {
     render(() => <Badge size="md" data-testid="s-md">md</Badge>);
-    expect(screen.getByTestId("s-md").style.fontSize).toBe("10px");
+    expect(screen.getByTestId("s-md").style.fontSize).toBe(`${typeSize("micro")}px`);
+    const src = readFileSync(resolve(process.cwd(), "src/ui/feedback/Badge.tsx"), "utf8");
+    expect(src).toContain("typeSize(");
+    expect(src).not.toMatch(/"font-size":\s*"?\d+(?:\.\d+)?px/);
   });
 
   test("light and filled carry no visible border", () => {
@@ -231,15 +235,14 @@ describe("Badge — component token tier", () => {
   });
 
   test("every size keeps its own box metrics while the colour stays tokenised", () => {
-    const boxes: Record<string, [string, string]> = {
-      xs: ["14px", "9px"], sm: ["16px", "9px"], md: ["18px", "10px"],
-      lg: ["20px", "10px"], xl: ["22px", "10px"],
+    const boxes: Record<string, string> = {
+      xs: "14px", sm: "16px", md: "18px", lg: "20px", xl: "22px",
     };
-    for (const [size, [height, font]] of Object.entries(boxes)) {
+    for (const [size, height] of Object.entries(boxes)) {
       render(() => <Badge size={size as "sm"} variant="filled" color="error" data-testid={`sz-${size}`}>s</Badge>);
       const el = screen.getByTestId(`sz-${size}`);
       expect(el.style.height, size).toBe(height);
-      expect(el.style.fontSize, size).toBe(font);
+      expect(el.style.fontSize, size).toBe(`${typeSize("micro")}px`);
       expect(el.style.backgroundColor, size).toBe("var(--ui-badge-negative-main)");
     }
   });

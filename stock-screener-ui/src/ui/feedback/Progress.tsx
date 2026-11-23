@@ -96,7 +96,7 @@ export function Progress(props: UIProgressProps) {
               }}
             >
               {(known.label || section.label) && (
-                <span className="text-[10px] font-semibold text-fin-text pointer-events-none select-none">
+                <span className="text-ui-micro font-semibold text-fin-text pointer-events-none select-none">
                   {section.label ?? known.label}
                 </span>
               )}

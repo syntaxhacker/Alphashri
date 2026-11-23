@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
 import { cleanup, render } from "@solidjs/testing-library";
 import { sxTheme } from "../sxTheme";
+import { typeSize } from "../typography";
 import { alpha } from "../palette";
 import type { UIThemeIconProps } from "../types";
 import { ThemeIcon } from "./ThemeIcon";
@@ -31,7 +32,8 @@ describe("ThemeIcon", () => {
       const icon = renderIcon({ size });
       expect(icon.style.width, `size ${String(size)} width`).toBe(px);
       expect(icon.style.height, `size ${String(size)} height`).toBe(px);
-      expect(icon.style.fontSize, `size ${String(size)} glyph`).toBe(`${Number(px.replace("px", "")) / 2}px`);
+      const glyph = size == null ? `${typeSize("heading")}px` : `${Number(px.replace("px", "")) / 2}px`;
+      expect(icon.style.fontSize, `size ${String(size)} glyph`).toBe(glyph);
     }
   });
 

@@ -137,7 +137,7 @@ export function Tab(props: UITabProps) {
   const cls = createMemo(() =>
     cn(
       "ui-tab",
-      "inline-flex items-center justify-center gap-1.5 px-3 min-h-[30px] text-[11px] font-medium tracking-[0.02em] leading-none transition-colors outline-none focus-visible:ring-1 focus-visible:ring-fin-primary",
+      "inline-flex items-center justify-center gap-1.5 px-3 min-h-[30px] text-ui-micro font-medium tracking-[0.02em] leading-none transition-colors outline-none focus-visible:ring-1 focus-visible:ring-fin-primary",
       // Full-height underline instead of a border-bottom on the button: it reads as
       // one continuous rule with the strip, not a floating chip.
       "border-b-2 -mb-px",

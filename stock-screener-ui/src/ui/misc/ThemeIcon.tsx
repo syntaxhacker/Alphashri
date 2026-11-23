@@ -2,6 +2,7 @@ import { splitProps } from "solid-js";
 import { cn } from "../cn";
 import { sxTheme } from "../sxTheme";
 import { alpha } from "../palette";
+import { typeSize } from "../typography";
 import { pickTextColor } from "@/utils/contrast";
 import type { UIThemeIconProps } from "../types";
 
@@ -56,7 +57,7 @@ export function ThemeIcon(props: UIThemeIconProps) {
   const px = toPx(known.size);
   const borderRadius = _radiusValue(known.radius);
 
-  const baseSize = px != null ? { width: px, height: px, "font-size": `${Number(px.replace("px", "")) * 0.5}px` } : { width: "36px", height: "36px", "font-size": "18px" };
+  const baseSize = px != null ? { width: px, height: px, "font-size": `${Number(px.replace("px", "")) * 0.5}px` } : { width: "36px", height: "36px", "font-size": `${typeSize("heading")}px` };
   const tint = (fill: string) =>
     fill.startsWith("#") ? alpha(fill, 0.12) : `color-mix(in srgb, ${fill} 12%, transparent)`;
 

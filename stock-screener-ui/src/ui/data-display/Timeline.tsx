@@ -113,7 +113,7 @@ export function TimelineItem(props: UITimelineItemProps) {
   const bulletCls = createMemo(() =>
     cn(
       "ui-timeline-bullet",
-      "flex shrink-0 items-center justify-center rounded-full font-mono text-[10px]",
+      "flex shrink-0 items-center justify-center rounded-full font-mono text-ui-micro",
       known.bullet ? `bg-fin-surface border-2 border-${tone()} text-${tone()}` : `bg-${tone()} text-white`,
       `w-[${size()}] h-[${size()}]`,
     ),
@@ -150,9 +150,9 @@ export function TimelineItem(props: UITimelineItemProps) {
       </div>
       <div className="flex-1 flex flex-col">
         <Show when={known.title}>
-          <h3 className="ui-timeline-title font-semibold text-[14px] mb-[2px]">{known.title}</h3>
+          <h3 className="ui-timeline-title font-semibold text-ui-label mb-[2px]">{known.title}</h3>
         </Show>
-        <div className="ui-timeline-body text-[13px] text-fin-text-muted">{known.children}</div>
+        <div className="ui-timeline-body text-ui-body text-fin-text-muted">{known.children}</div>
       </div>
     </li>
   );
