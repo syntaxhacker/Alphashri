@@ -55,6 +55,14 @@ export const TOOLBAR_CLASS =
 
 export const TOOLBAR_GROUP_CLASS = "flex items-center gap-2 flex-none";
 
+// This group holds the widest controls (updated clock, DATA badge, Snapshot,
+// guide). Its max-content width exceeds 390px, so as a single flex-none row the
+// last button was clipped at the viewport edge with no way to reach it. Give it
+// its own wrap point and clamp it to the parent's width; desktop keeps the
+// single-row contract via min-[1200px].
+export const TOOLBAR_ACTIONS_CLASS =
+  "flex flex-wrap items-center gap-2 flex-none max-w-full min-w-0 min-[1200px]:flex-nowrap";
+
 // Hairline is decorative (WCAG's non-text exemption); the 18px height keeps
 // the divider inside the 38px toolbar without stretching it.
 export const TOOLBAR_DIVIDER_CLASS = "w-px h-[18px] flex-none bg-fin-border";
@@ -253,7 +261,7 @@ export function ReportToolbar(_props: { onOpenSymbol?: (s: string) => void }) {
         />
         <Box
           data-testid="toolbar-group-status"
-          className={TOOLBAR_GROUP_CLASS}
+          className={TOOLBAR_ACTIONS_CLASS}
           role="group"
           aria-label="Actions and data freshness"
         >

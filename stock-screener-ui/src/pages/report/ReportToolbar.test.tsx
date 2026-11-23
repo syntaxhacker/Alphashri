@@ -108,6 +108,41 @@ describe("ReportToolbar freshness indicators", () => {
     }
   });
 
+  test("the narrow actions group wraps instead of clipping the far-right action", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const toolbar = screen.getByTestId("nifty-toolbar");
+    expect(toolbar.className).toMatch(/(^|\s)flex-wrap(\s|$)/);
+    expect(toolbar.className).not.toMatch(/(^|\s)overflow-hidden(\s|$)/);
+
+    // This group held Refresh + clock + DATA + Snapshot + guide in one
+    // flex-none row, so Snapshot was cut off at 390 with no affordance. It must
+    // wrap internally, be clamped to the toolbar width, and return to one row
+    // on desktop.
+    const actions = screen.getByTestId("toolbar-group-status");
+    expect(actions.parentElement).toBe(toolbar);
+    expect(actions).toHaveAttribute("aria-label", "Actions and data freshness");
+    expect(actions.className).toMatch(/(^|\s)flex-wrap(\s|$)/);
+    expect(actions.className).toContain("max-w-full");
+    expect(actions.className).toContain("min-w-0");
+    expect(actions.className).toContain("min-[1200px]:flex-nowrap");
+
+    // The clipped action must keep its full accessible label — no truncation.
+    const refresh = screen.getByTestId("nifty-refresh-button");
+    const snapshot = screen.getByTestId("nifty-snapshot-button");
+    for (const [button, label] of [[refresh, "Refresh"], [snapshot, "Snapshot"]] as const) {
+      expect(actions.contains(button)).toBe(true);
+      expect(button.textContent).toBe(label);
+      expect(button.className).toMatch(/(^|\s)whitespace-nowrap(\s|$)/);
+      expect(button.className).not.toMatch(/(^|\s)(truncate|text-ellipsis)(\s|$)/);
+    }
+    expect(screen.getByTestId("nifty-data-freshness").textContent).toMatch(/^DATA /);
+  });
+
   test("exactly one control chooses the underlying, and it drives the symbol", () => {
     (harness.store.selection as { hasRecordedHistory: () => boolean }).hasRecordedHistory = () => true;
     const handleSymbolChange = vi.fn();
