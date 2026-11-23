@@ -147,6 +147,11 @@ function fontSizeOf(el: Element | null): number {
   return Number.parseFloat(getComputedStyle(el!).fontSize);
 }
 
+/** Size + pattern controls moved behind the desktop disclosure. */
+function openSecondaryControls() {
+  fireEvent.click(screen.getByTestId("nifty-chart-controls-more-desktop"));
+}
+
 beforeEach(() => {
   window.localStorage.clear();
   (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
@@ -173,6 +178,7 @@ describe("Chart + ticker type floor — owned files", () => {
 
   test("(a) rendered chart controls and ticker values are all at or above the 12px floor", async () => {
     mountChart();
+    openSecondaryControls();
     for (const id of ["nifty-chart-source", "nifty-tf-toggle", "nifty-chart-size"]) {
       const host = screen.getByTestId(id);
       for (const button of within(host).getAllByRole("button")) {
@@ -204,6 +210,7 @@ describe("Chart + ticker type floor — owned files", () => {
 
   test("(b) source, timeframe and size controls still respond", () => {
     const { onTimeframeChange, onSizeChange } = mountChart();
+    openSecondaryControls();
 
     const source = screen.getByTestId("nifty-chart-source");
     const patterns = within(source).getByRole("button", { name: "PATTERNS" });

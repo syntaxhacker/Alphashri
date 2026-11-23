@@ -242,6 +242,8 @@ describe("NiftyChartPanel", () => {
     const wrap = screen.getByTestId("nifty-chart-wrap");
     expect(wrap).toHaveAttribute("data-fill", "1");
     expect(wrap).not.toHaveStyle({ height: "180px" });
+    // Size is a secondary action behind the desktop disclosure.
+    await user.click(screen.getByTestId("nifty-chart-controls-more-desktop"));
     await user.click(screen.getByRole("button", { name: "XL" }));
     expect(screen.getByTestId("nifty-chart-wrap")).toHaveStyle({ height: "760px" });
     expect(screen.getByTestId("nifty-chart-wrap")).not.toHaveAttribute("data-fill");
@@ -265,6 +267,7 @@ describe("NiftyChartPanel", () => {
     const wrap = screen.getByTestId("nifty-chart-wrap");
     // DESK reads at a glance: the auto chart stops at 300px (floor 260).
     expect(wrap).toHaveStyle({ maxHeight: "300px", minHeight: "260px" });
+    await user.click(screen.getByTestId("nifty-chart-controls-more-desktop"));
     await user.click(screen.getByRole("button", { name: "XL" }));
     // A manual preset drops the cap so S/M/L/XL keep their exact height.
     const xl = screen.getByTestId("nifty-chart-wrap");

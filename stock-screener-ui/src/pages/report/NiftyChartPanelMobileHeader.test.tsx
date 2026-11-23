@@ -163,7 +163,7 @@ describe("NiftyChartPanel — header hierarchy and spacing", () => {
     env.mobile = true;
     mount();
 
-    expect(CHART_HEADER_METRICS.titleSize).toBe(REPORT_FONT.body);
+    expect(CHART_HEADER_METRICS.titleSize).toBe(REPORT_FONT.value);
     expect(CHART_HEADER_METRICS.metaSize).toBe(REPORT_FONT.micro);
     expect(CHART_HEADER_METRICS.gap).toBeGreaterThanOrEqual(8);
 

@@ -1,5 +1,6 @@
-import { formatNumberIN } from "@/utils/ui-helpers";
-import { createEffect, createMemo, createSignal, For, Show, untrack } from "solid-js";
+import { formatNumberIN, formatTimeOnly } from "@/utils/ui-helpers";
+import { createEffect, createMemo, createSignal, For, Show, untrack, type JSX } from "solid-js";
+import type { IChartApi } from "lightweight-charts";
 import { ActionIcon, Button, SegmentedControl, Text, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TradingViewChart } from "@/components/chart/TradingViewChart";
@@ -20,8 +21,9 @@ import {
   REPORT_LETTER_SPACING,
   REPORT_LINE_HEIGHT,
   REPORT_PAD,
+  REPORT_RADIUS,
   REPORT_CONTROL_LABEL_CLASS,
-  REPORT_CONTROL_LABEL_STYLE,
+  REPORT_FONT_BODY_VAR,
 } from "./reportTokens";
 import { wallEventOverlay, type WallBurstLike } from "./niftyWallEventOverlay";
 import { fillCandleGaps } from "./niftyCandles";
@@ -119,15 +121,51 @@ const CHART_SOURCE_OPTIONS: { value: string; label: string }[] = [
 ];
 
 /**
- * Header rhythm. The title is the primary 13px step; feed/event badges are 12px
- * metadata, so the eye lands on the symbol before the status. Wide screens keep
- * one compact 8px row; phones stack with the same 8px gutter instead of 4px slop.
+ * Header rhythm: a 16px section title, 12px feed/event metadata and 8px gutters
+ * (the report's shared 16/12/8 steps). The eye lands on the symbol before the
+ * status. Wide screens keep one row; phones stack the title over two deliberate
+ * control rows with the same 8px gutter instead of 4px slop.
  */
 export const CHART_HEADER_METRICS = {
-  titleSize: REPORT_FONT.body,
+  titleSize: REPORT_FONT.value,
   metaSize: REPORT_FONT.micro,
   gap: REPORT_PAD.md,
 } as const;
+
+/** Control captions sit one step below the title, on the 12px label floor. */
+const CHART_CONTROL_LABEL_STYLE = {
+  [REPORT_FONT_BODY_VAR]: `${REPORT_FONT.micro}px`,
+} as JSX.CSSProperties;
+
+/**
+ * Plot geometry. The time domain ends at the last populated bar plus a narrow,
+ * explicitly labelled cutoff lane — no unmarked grid beyond the real session.
+ * The engine paints price/volume tags in the right price axis, so that axis has
+ * a fixed minimum width and the card keeps an outer gutter; neither tag can
+ * clip at the edge.
+ */
+export const CHART_PLOT_MARGIN = {
+  /** Blank pixels after the last candle — the labelled data-cutoff lane. */
+  dataCutoffLane: 24,
+  /** Minimum right price-axis width — value tag plus volume tag, fully shown. */
+  axisMinWidth: 88,
+  /** Outer gutter between the price axis and the card boundary. */
+  edgeGutter: REPORT_PAD.md,
+} as const;
+
+/** Distance from the card's right edge to the last candle / cutoff boundary. */
+export const CHART_CUTOFF_RIGHT =
+  CHART_PLOT_MARGIN.edgeGutter +
+  CHART_PLOT_MARGIN.axisMinWidth +
+  CHART_PLOT_MARGIN.dataCutoffLane;
+
+function applyChartPlotMargin(chart: IChartApi): void {
+  chart.timeScale().applyOptions({ rightOffsetPixels: CHART_PLOT_MARGIN.dataCutoffLane });
+  chart.priceScale("right").applyOptions({
+    minimumWidth: CHART_PLOT_MARGIN.axisMinWidth,
+    entireTextOnly: true,
+  });
+}
 
 /** Mirrors the explicit underlyings in `/ws/fyers/ticks` (including its
  *  aliases). Other symbols — notably RELIANCE — are rejected by that endpoint,
@@ -547,6 +585,25 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
     if (chartCandles().length > 0) setCandlesEverShown(true);
   });
 
+  /** Last populated bar (or the replay playhead) drives both the header
+   *  as-of chip and the in-plot cutoff boundary, so they can never disagree
+   *  about where the data actually ends. */
+  const lastDataTime = createMemo(() => {
+    const bars = chartCandles();
+    return bars.length ? bars[bars.length - 1].time : effectiveAsOf() ?? "";
+  });
+  const lastDataLabel = createMemo(() => {
+    const time = lastDataTime();
+    return time ? formatTimeOnly(time) : "—";
+  });
+  const lastDataState = createMemo(() => {
+    if (asOf()) return "replay";
+    return report().market?.is_open === false ? "market closed" : "live";
+  });
+  const lastDataBoundary = createMemo(() =>
+    lastDataTime() ? `LAST DATA ${lastDataLabel()} · ${lastDataState()}` : "",
+  );
+
   /** OFFLINE with no recorded frames (or a frame with no candles) gets an
    *  explicit empty state instead of a blank chart. */
   const offlineEmpty = () => isOffline() && (!asOf() || chartCandles().length === 0);
@@ -716,54 +773,91 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
       data={CHART_SOURCE_OPTIONS}
       size="md"
       className={REPORT_CONTROL_LABEL_CLASS}
-      style={REPORT_CONTROL_LABEL_STYLE}
+      style={CHART_CONTROL_LABEL_STYLE}
     />
+  );
+  const timeframeToggle = () => (
+    <SegmentedControl
+      data-testid="nifty-tf-toggle"
+      value={chartTf()}
+      onChange={handleTfChange}
+      data={CHART_TF_OPTIONS}
+      size="md"
+      className={REPORT_CONTROL_LABEL_CLASS}
+      style={CHART_CONTROL_LABEL_STYLE}
+    />
+  );
+  const sizeToggle = () => (
+    <SegmentedControl
+      data-testid="nifty-chart-size"
+      value={chartSize()}
+      onChange={handleSizeChange}
+      data={CHART_SIZE_OPTIONS}
+      size="md"
+      className={REPORT_CONTROL_LABEL_CLASS}
+      style={CHART_CONTROL_LABEL_STYLE}
+    />
+  );
+  const patternButton = () => (
+    <Button
+      data-testid="nifty-patterns-scan"
+      size="xs"
+      variant="subtle"
+      onClick={() => scanPatterns(chartTf())}
+      disabled={patternScan().status === "loading"}
+      title={`Run the chart-pattern detector on ${symbol()} ${chartTf()}`}
+      style={{ "min-width": "0px", "padding-left": "6px", "padding-right": "6px", "padding-top": "0px", "padding-bottom": "0px", "height": "20px", "font-size": `${REPORT_FONT.micro}px`, "font-weight": 800, "letter-spacing": "0.06em" }}
+    >
+      {patternScan().status === "loading" ? "…" : "PATTERNS"}
+    </Button>
+  );
+  const expandButton = () => (
+    <Show when={props.onExpand}>
+      <ActionIcon
+        data-testid="nifty-chart-expand"
+        aria-label="Expand chart fullscreen"
+        title="Fullscreen (F)"
+        size={20}
+        onClick={props.onExpand}
+        style={{ padding: "1px", color: palette.TEXT_MUTED }}
+      >
+        <Text span size="xs" fw={700} style={{ "font-size": `${REPORT_FONT.body}px`, "line-height": 1 }}>
+          ⤢
+        </Text>
+      </ActionIcon>
+    </Show>
+  );
+  /** Data-cutoff readout, not a control: the time the populated session ends. */
+  const asOfChip = () => (
+    <Text
+      data-testid="nifty-chart-asof"
+      data-header-role="asof"
+      span
+      c="dimmed"
+      title={lastDataBoundary() || "No chart data"}
+      class="whitespace-nowrap shrink-0"
+      style={{
+        "font-size": `${CHART_HEADER_METRICS.metaSize}px`,
+        "font-weight": REPORT_FONT_WEIGHT.semibold,
+        "letter-spacing": REPORT_LETTER_SPACING.normal,
+      }}
+    >
+      AS OF {lastDataLabel()}
+    </Text>
+  );
+  /** Size + pattern actions are secondary: desktop keeps them behind a
+   *  disclosure, mobile behind the existing MORE row. */
+  const primaryControls = () => (
+    <>
+      {timeframeToggle()}
+      {asOfChip()}
+      {expandButton()}
+    </>
   );
   const secondaryControls = () => (
     <>
-      <SegmentedControl
-        data-testid="nifty-tf-toggle"
-        value={chartTf()}
-        onChange={handleTfChange}
-        data={CHART_TF_OPTIONS}
-        size="md"
-        className={REPORT_CONTROL_LABEL_CLASS}
-        style={REPORT_CONTROL_LABEL_STYLE}
-      />
-      <Button
-        data-testid="nifty-patterns-scan"
-        size="xs"
-        variant="subtle"
-        onClick={() => scanPatterns(chartTf())}
-        disabled={patternScan().status === "loading"}
-        title={`Run the chart-pattern detector on ${symbol()} ${chartTf()}`}
-        style={{ "min-width": "0px", "padding-left": "6px", "padding-right": "6px", "padding-top": "0px", "padding-bottom": "0px", "height": "20px", "font-size": `${REPORT_FONT.micro}px`, "font-weight": 800, "letter-spacing": "0.06em" }}
-      >
-        {patternScan().status === "loading" ? "…" : "PATTERNS"}
-      </Button>
-      <SegmentedControl
-        data-testid="nifty-chart-size"
-        value={chartSize()}
-        onChange={handleSizeChange}
-        data={CHART_SIZE_OPTIONS}
-        size="md"
-        className={REPORT_CONTROL_LABEL_CLASS}
-        style={REPORT_CONTROL_LABEL_STYLE}
-      />
-      <Show when={props.onExpand}>
-        <ActionIcon
-          data-testid="nifty-chart-expand"
-          aria-label="Expand chart fullscreen"
-          title="Fullscreen (F)"
-          size={20}
-          onClick={props.onExpand}
-          style={{ padding: "1px", color: palette.TEXT_MUTED }}
-        >
-          <Text span size="xs" fw={700} style={{ "font-size": `${REPORT_FONT.body}px`, "line-height": 1 }}>
-            ⤢
-          </Text>
-        </ActionIcon>
-      </Show>
+      {sizeToggle()}
+      {patternButton()}
     </>
   );
 
@@ -773,7 +867,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
         <span
           data-testid="nifty-chart-title"
           data-header-role="title"
-          class="inline-flex items-center gap-[6px] whitespace-nowrap shrink-0 max-[640px]:whitespace-normal max-[640px]:shrink"
+          class="inline-flex items-center gap-2 whitespace-nowrap shrink-0 max-[640px]:whitespace-normal max-[640px]:shrink"
           style={{
             "font-size": `${CHART_HEADER_METRICS.titleSize}px`,
             "font-weight": REPORT_FONT_WEIGHT.extrabold,
@@ -829,16 +923,39 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
           <Show
             when={isMobile()}
             fallback={
-              // Desktop keeps one compact row; the hairline separates the
-              // source decision from the secondary timeframe/size controls.
-              <div
-                data-testid="nifty-chart-controls-desktop"
-                class="flex flex-1 min-w-0 items-center justify-end overflow-x-auto"
-                style={{ gap: `${CHART_HEADER_METRICS.gap}px` }}
-              >
-                {sourceToggle()}
-                <span aria-hidden="true" class="shrink-0 h-[16px] w-px bg-fin-border" />
-                {secondaryControls()}
+              // Primary row: source · timeframe · as-of · expand. Size and
+              // pattern actions sit behind a disclosure so the header reads as
+              // one decision, not a wall of equal-weight controls.
+              <div class="flex flex-col items-end min-w-0" style={{ gap: `${CHART_HEADER_METRICS.gap}px` }}>
+                <div
+                  data-testid="nifty-chart-controls-desktop"
+                  class="flex flex-1 min-w-0 items-center justify-end overflow-x-auto"
+                  style={{ gap: `${CHART_HEADER_METRICS.gap}px` }}
+                >
+                  <div class="min-w-0 overflow-x-auto">{sourceToggle()}</div>
+                  <span aria-hidden="true" class="shrink-0 h-[16px] w-px bg-fin-border" />
+                  {primaryControls()}
+                  <Button
+                    data-testid="nifty-chart-controls-more-desktop"
+                    size="xs"
+                    variant="subtle"
+                    aria-expanded={controlsOpen()}
+                    aria-controls="nifty-chart-controls-extra-desktop"
+                    className="shrink-0"
+                    onClick={() => setControlsOpen((v) => !v)}
+                    style={{ height: "22px", "min-height": "22px", padding: "0 6px", "font-size": `${REPORT_FONT.micro}px`, "font-weight": 800 }}
+                  >
+                    {controlsOpen() ? "LESS ▴" : "MORE ▾"}
+                  </Button>
+                </div>
+                <div
+                  id="nifty-chart-controls-extra-desktop"
+                  data-testid="nifty-chart-controls-extra-desktop"
+                  class="flex flex-wrap items-center justify-end min-w-0"
+                  style={{ gap: `${CHART_HEADER_METRICS.gap}px`, display: controlsOpen() ? "flex" : "none" }}
+                >
+                  {secondaryControls()}
+                </div>
               </div>
             }
           >
@@ -848,9 +965,10 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
               style={{ gap: `${CHART_HEADER_METRICS.gap}px` }}
             >
               <div className="flex items-center justify-end min-w-0" style={{ gap: `${CHART_HEADER_METRICS.gap}px` }}>
-                <div className="shrink-0">{sourceToggle()}</div>
+                <div className="min-w-0 flex-1 overflow-x-auto">{sourceToggle()}</div>
                 <Button
                   data-testid="nifty-chart-controls-more"
+                  className="shrink-0"
                   size="xs"
                   variant="subtle"
                   aria-expanded={controlsOpen()}
@@ -868,6 +986,7 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
                   className="flex flex-wrap items-center justify-end min-w-0"
                   style={{ gap: `${CHART_HEADER_METRICS.gap}px`, "padding-top": `${CHART_HEADER_METRICS.gap}px` }}
                 >
+                  {primaryControls()}
                   {secondaryControls()}
                 </div>
               </Show>
@@ -928,9 +1047,14 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
             data-flip-marker={flipMarker().length > 0 ? "1" : "0"}
             data-pattern-source={patternSourceState()}
             data-pattern-overlays={patternOverlayCount()}
+            data-cutoff-right={CHART_CUTOFF_RIGHT}
+            data-cutoff-lane={CHART_PLOT_MARGIN.dataCutoffLane}
+            data-axis-gutter={CHART_PLOT_MARGIN.edgeGutter}
             class="w-full max-w-full min-w-0 shrink-0 overflow-hidden flex-1 min-h-0"
             style={{
               position: "relative",
+              "padding-right": `${CHART_PLOT_MARGIN.edgeGutter}px`,
+              ["--chart-cutoff-right"]: `${CHART_CUTOFF_RIGHT}px`,
               ...(chartHeight() == null ? undefined : { height: `${chartHeight()}px` }),
               display: chartCandles().length > 0 ? "flex" : "none",
               flex: chartHeight() == null ? "1" : undefined,
@@ -947,7 +1071,47 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
               touchMarkers={touchMarkers()}
               {...(chartHeight() != null ? { height: chartHeight()! } : {})}
               fitMarkLines
+              onChartReady={applyChartPlotMargin}
             />
+            <Show when={lastDataBoundary()}>
+              {(boundary) => (
+                <div
+                  data-testid="nifty-chart-last-data-boundary"
+                  class="pointer-events-none absolute"
+                  title={boundary()}
+                  style={{
+                    top: "0px",
+                    bottom: "0px",
+                    left: "0px",
+                    right: "var(--chart-cutoff-right)",
+                    "border-right": `1px dashed ${palette.BORDER}`,
+                  }}
+                >
+                  <span
+                    class="absolute whitespace-nowrap"
+                    style={{
+                      top: "4px",
+                      right: "4px",
+                      "max-width": "100%",
+                      padding: "1px 4px",
+                      "font-family": palette.MONO,
+                      "font-size": `${REPORT_FONT.micro}px`,
+                      "font-weight": 700,
+                      "line-height": REPORT_LINE_HEIGHT.snug,
+                      "text-align": "right",
+                      overflow: "hidden",
+                      "text-overflow": "ellipsis",
+                      "white-space": "nowrap",
+                      color: palette.TEXT_MUTED,
+                      background: palette.alpha(palette.SURFACE, 0.86),
+                      "border-radius": `${REPORT_RADIUS.sm}px`,
+                    }}
+                  >
+                    {boundary()}
+                  </span>
+                </div>
+              )}
+            </Show>
             <Show when={chartSource() === "patterns" && scanBadge()}>
               {(badge) => (
                 <div
