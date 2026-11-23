@@ -81,7 +81,8 @@ export function NavLink(props: UINavLinkProps) {
         </a>
       </Show>
       <Show when={!isLink}>
-        <div
+        <button
+          type="button"
           role="link"
           aria-current={activeState ? "page" : undefined}
           aria-disabled={disabledState || undefined}
@@ -92,7 +93,7 @@ export function NavLink(props: UINavLinkProps) {
           data-testid={known["data-testid"]}
         >
           {renderKids()}
-        </div>
+        </button>
       </Show>
       <Show when={hasChildren && open()}>
         <div className="mt-1" data-testid={known["data-testid"] ? `${known["data-testid"]}-collapse` : undefined}>
