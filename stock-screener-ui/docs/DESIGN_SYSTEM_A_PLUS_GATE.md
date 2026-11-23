@@ -9,6 +9,7 @@ This file is the loop contract. We do not mark the design-system task finished u
 | Dimension | A+ target | Evidence required |
 |---|---:|---|
 | Tokens / dark theme contract | 9/10 | one palette source, semantic + component tokens, no hardcoded hex outside palette, JS consumers use token accessor |
+| Typography | 9/10 | one six-step `text-ui-*` scale, 12px floor, no private inline sizes, chart/JS consumers read the same scale |
 | Component completeness | 9/10 | every exported primitive has default/hover/focus/active/disabled/loading/error (where meaningful), light/dark not applicable |
 | API consistency | 9/10 | no advertised-but-ignored props, one callback convention per control family, no swallowed legacy props |
 | Accessibility | 9/10 | zero serious/critical axe violations, keyboard + focus management, form errors associated, modal/popover containment |
@@ -40,9 +41,12 @@ Resolved since the first draft (verified against source/CI, not memory):
 - `Tree` and `Menu` keyboard contracts are closed: Arrow/Home/End roving focus, `loop={false}` clamping, Escape dismissal, with regression tests in `Tree.test.tsx` / `Menu.test.tsx`. They are no longer "being closed in the current wave".
 - `Select`/`MultiSelect` no longer accept `allowDeselect`, `maxDropdownHeight`, `comboboxProps` or `withinPortal` (`@ts-expect-error` tests assert they are absent). `legacyProps.ts` is now only a defensive strip for Text/Number/Password inputs; `InputProps` is still accepted on write and stripped in `UISelectProps`, so the swallowed-prop debt is reduced, not zero.
 - Automated a11y is no longer happy-dom-only: `src/test/a11y-smoke.test.tsx` runs in vitest and `node scripts/storybook-a11y.mjs` runs axe-core in real Chromium over representative stories (serious/critical fail the job). Scoped UI coverage (`bun run test:coverage:ui`), the Storybook catalog guard (after a CI Storybook build) and `design-scale.test.ts` (no `ui/` exemption) also run in CI. Local catalog-guard runs still skip without a built manifest.
+- A real-browser keyboard walkthrough (`scripts/storybook-keyboard.mjs`) now runs after the axe gate: Modal trap/Escape/focus return, Tree arrows/expand/select, Menu roving focus/Escape and automatic Tabs activation. 5/5 pass.
+- Typography has one tier: `src/ui/typography.ts` + `--text-ui-*` in `tailwind.css`, with a 12px hard floor, a 12/13/14/16/20/24 ladder and `uiTheme.fontSizes` aliases. `scripts/typography-audit.mjs` measures private declarations; the migration from 9/10/11px labels is in progress across `src/ui`, `src/components`, pages, report and stories.
 
 Still open — keep the A+ verdict honest:
 
+- **Typography adoption.** The tier exists, but the app still carries private `text-[Npx]` / inline `fontSize` declarations and a handful of sub-12px sector/report labels. The 2026-11-23 wave is migrating them by directory; the gate is not met until `node scripts/typography-audit.mjs --check` is clean and the report floor tests pass.
 - **Token-accessor adoption vs dark-only scope.** Light mode, i18n/RTL and SSR are out of scope by product decision, but dark-token consistency is unfinished: `src/ui/tokens.ts` exists, yet almost no app code calls `tokenColor`/`useTokenColor`. A literal grep finds ~240 non-test, non-PoC source files importing `src/ui/palette.ts` directly; the old "~57 modules" figure is not reproducible from current source.
 - **API callback conventions.** `onChange` is value-based on most inputs but event-based on `Checkbox`/`Switch`; `onClick` is an event in `UIBaseProps` but void in `NavLink`/`MenuItem`/`CloseButton`. No single convention per family yet.
 - **Two tables.** `components/common/TanStackTable.tsx` and `components/paper-trading/TanStackTable.tsx` remain separate implementations with different feature sets.
