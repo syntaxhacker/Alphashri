@@ -281,11 +281,9 @@ function ChartHeader(props: { state: ReturnType<typeof getPaperTradingState> }) 
       />
 
       <DatePicker
-        size="xs"
         clearable
         maxDate={new Date()}
         placeholder="From"
-        valueFormat="MMM D"
         value={range()[0]}
         onChange={(d) => handleRangeChange([d, range()[1]])}
         data-testid="chart-date-range-from"
@@ -293,10 +291,8 @@ function ChartHeader(props: { state: ReturnType<typeof getPaperTradingState> }) 
       />
 
       <DatePicker
-        size="xs"
         clearable
         maxDate={new Date()}
-        valueFormat="MMM D"
         placeholder="To"
         value={range()[1]}
         onChange={(d) => handleRangeChange([range()[0], d])}

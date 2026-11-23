@@ -1,4 +1,4 @@
-import { Show, createEffect, createMemo, createSignal, on, splitProps } from "solid-js";
+import { Show, createEffect, createMemo, createSignal, createUniqueId, on, splitProps } from "solid-js";
 import { cn } from "../cn";
 import type { UIDatePickerProps } from "../types";
 
@@ -25,6 +25,17 @@ function fromISO(value: string): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+/** Backward-compatible English defaults; every string is overridable via `labels`. */
+const DEFAULT_LABELS = {
+  clear: "Clear date",
+  invalid: "Selected date is not available",
+  input: "Date",
+} as const;
+
+/**
+ * Single-date-only native date input. There is no range, time picker, custom
+ * calendar grid or locale model — only one `Date | null` value round-trips.
+ */
 export function DatePicker(props: UIDatePickerProps) {
   const [known, _rest] = splitProps(props, [
     "value",
@@ -40,7 +51,18 @@ export function DatePicker(props: UIDatePickerProps) {
     "style",
     "data-testid",
     "id",
+    "labels",
   ]);
+
+  // One stable id per instance: the visible label and the error message both
+  // point at it, even when the caller supplies neither `id` nor `data-testid`.
+  const generatedId = createUniqueId();
+  const inputId = known.id ?? known["data-testid"] ?? generatedId;
+  const messageId = `${inputId}-error`;
+
+  const clearLabel = () => known.labels?.clear ?? DEFAULT_LABELS.clear;
+  const invalidLabel = () => known.labels?.invalid ?? DEFAULT_LABELS.invalid;
+  const inputLabel = () => known.labels?.input ?? DEFAULT_LABELS.input;
 
   const [internalValue, setInternalValue] = createSignal<Date | null>(known.defaultValue ?? null);
   const [rejected, setRejected] = createSignal(false);
@@ -70,8 +92,6 @@ export function DatePicker(props: UIDatePickerProps) {
     known.onChange?.(null);
   };
 
-  const inputId = known.id ?? known["data-testid"];
-
   // A rejected pick leaves the message up; a new value from the parent supersedes it.
   createEffect(
     on(
@@ -96,11 +116,13 @@ export function DatePicker(props: UIDatePickerProps) {
           onInput={handleChange}
           min={known.minDate ? toISO(known.minDate) : undefined}
           max={known.maxDate ? toISO(known.maxDate) : undefined}
+          aria-label={known.placeholder ? undefined : inputLabel()}
           aria-invalid={rejected() || undefined}
+          aria-describedby={rejected() ? messageId : undefined}
           disabled={known.disabled}
           className={cn(
             "w-full bg-fin-surface border border-fin-border text-fin-text rounded-fin px-2 py-1.5 text-sm",
-            "focus:outline-none focus:ring-1 focus:ring-fin-primary",
+            "outline-none focus:ring-1 focus:ring-fin-primary focus-visible:ring-2",
             rejected() && "border-fin-negative",
             known.disabled && "opacity-50 cursor-not-allowed",
           )}
@@ -112,7 +134,7 @@ export function DatePicker(props: UIDatePickerProps) {
               e.stopPropagation();
               handleClear();
             }}
-            aria-label="Clear date"
+            aria-label={clearLabel()}
             className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-fin-text-muted hover:text-fin-text rounded"
           >
             <span aria-hidden="true">×</span>
@@ -120,8 +142,8 @@ export function DatePicker(props: UIDatePickerProps) {
         </Show>
       </div>
       <Show when={rejected()}>
-        <span role="alert" className="text-[10px] leading-none text-fin-negative">
-          Selected date is not available
+        <span id={messageId} role="alert" className="text-[10px] leading-none text-fin-negative">
+          {invalidLabel()}
         </span>
       </Show>
     </div>

@@ -29,7 +29,7 @@ function isNonTradingDay(date: Date): boolean {
  * every call site (and `maxDate` arrives as a string, which `DatePicker` would
  * otherwise receive typed as a `Date`).
  */
-export interface TradingDatePickerProps extends Omit<UIDatePickerProps, "onChange" | "value" | "defaultValue" | "minDate" | "maxDate" | "excludeDate" | "getDayProps"> {
+export interface TradingDatePickerProps extends Omit<UIDatePickerProps, "onChange" | "value" | "defaultValue" | "minDate" | "maxDate" | "excludeDate"> {
   value?: string;
   defaultValue?: string;
   onChange?: (value: string) => void;
@@ -57,14 +57,12 @@ export function TradingDatePicker(props: TradingDatePickerProps) {
 
   return (
     <DatePicker
-      size="sm"
       value={parseDay(local.value)}
       defaultValue={parseDay(local.defaultValue)}
       onChange={(date) => local.onChange?.(formatDay(date))}
       minDate={parseDay(local.minDate) ?? undefined}
       maxDate={parseDay(local.maxDate) ?? undefined}
       excludeDate={exclude}
-      valueFormat="DD MMM YYYY"
       clearable
       style={{
         ...(local.w != null ? { width: typeof local.w === "number" ? `${local.w}px` : local.w } : {}),
