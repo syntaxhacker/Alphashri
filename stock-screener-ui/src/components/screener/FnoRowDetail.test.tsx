@@ -113,4 +113,38 @@ describe("FnoRowDetail", () => {
     await waitFor(() => expect(captured.props.legs[0].strike).toBe(3000));
     expect(captured.props.dteYears).toBeUndefined();
   });
+
+  it("renders the professional header with symbol, strike badge and greeks", async () => {
+    render(() => (
+      <UIProvider>
+        <FnoRowDetail row={rowA} expiry="2026-12-20" />
+      </UIProvider>
+    ));
+
+    await waitFor(() => expect(screen.getByTestId("fno-row-detail")).toBeInTheDocument());
+    expect(screen.getByTestId("fno-detail-header")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-detail-greeks")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-detail-metrics")).toBeInTheDocument();
+
+    // Key metrics are present in the right panel
+    expect(screen.getByTestId("fno-detail-premium")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-detail-cost")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-detail-breakeven")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-detail-max-loss")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-detail-pop")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-detail-d1")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-detail-d5")).toBeInTheDocument();
+    expect(screen.getByTestId("fno-detail-move2")).toBeInTheDocument();
+  });
+
+  it("displays IV and OI in the detail panel", async () => {
+    render(() => (
+      <UIProvider>
+        <FnoRowDetail row={rowA} />
+      </UIProvider>
+    ));
+
+    await waitFor(() => expect(screen.getByTestId("fno-detail-iv")).toBeInTheDocument());
+    expect(screen.getByTestId("fno-detail-oi")).toBeInTheDocument();
+  });
 });

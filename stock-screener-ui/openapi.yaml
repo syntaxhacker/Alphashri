@@ -1,5 +1,51 @@
 components:
   schemas:
+    AddLegRequest:
+      additionalProperties: true
+      description: One extra leg appended to an open position after entry.
+      properties:
+        action:
+          title: Action
+          type: string
+        entry_ts:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Entry Ts
+        expiry:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expiry
+        instrument_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Instrument Key
+        lots:
+          default: 1
+          title: Lots
+          type: integer
+        opt:
+          title: Opt
+          type: string
+        strike:
+          anyOf:
+          - type: string
+          - type: number
+          title: Strike
+        underlying:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Underlying
+      required:
+      - action
+      - opt
+      - strike
+      title: AddLegRequest
+      type: object
     AnalysisRequest:
       properties:
         analysts:
@@ -681,6 +727,38 @@ components:
           title: Strike
       title: ChainIvRow
       type: object
+    ChainSnapshotOut:
+      additionalProperties: true
+      properties:
+        expiry:
+          default: ''
+          title: Expiry
+          type: string
+        gaps:
+          default: 0
+          title: Gaps
+          type: integer
+        legs:
+          items:
+            items:
+              type: number
+            type: array
+          title: Legs
+          type: array
+        source:
+          default: ''
+          title: Source
+          type: string
+        spot:
+          default: 0.0
+          title: Spot
+          type: number
+        t:
+          default: ''
+          title: T
+          type: string
+      title: ChainSnapshotOut
+      type: object
     ChatRequest:
       properties:
         conversation_id:
@@ -756,6 +834,18 @@ components:
       - symbol
       - exit_price
       title: ClosePositionRequest
+      type: object
+    CloseRequest:
+      additionalProperties: true
+      properties:
+        premiums:
+          anyOf:
+          - additionalProperties:
+              type: number
+            type: object
+          - type: 'null'
+          title: Premiums
+      title: CloseRequest
       type: object
     CommoditiesResponse:
       properties:
@@ -1437,6 +1527,363 @@ components:
           type: boolean
       title: NiftySnapshotRequest
       type: object
+    OptionLegInput:
+      additionalProperties: true
+      properties:
+        action:
+          title: Action
+          type: string
+        expiry:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expiry
+        instrument_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Instrument Key
+        lots:
+          default: 1
+          title: Lots
+          type: integer
+        opt:
+          title: Opt
+          type: string
+        strike:
+          anyOf:
+          - type: string
+          - type: number
+          title: Strike
+      required:
+      - action
+      - opt
+      - strike
+      title: OptionLegInput
+      type: object
+    OptionPaperLegOut:
+      additionalProperties: true
+      properties:
+        action:
+          default: BUY
+          title: Action
+          type: string
+        entryPremium:
+          default: 0.0
+          title: Entrypremium
+          type: number
+        entryTs:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entryts
+        exitPremium:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Exitpremium
+        id:
+          default: 0
+          title: Id
+          type: integer
+        instrumentKey:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Instrumentkey
+        lots:
+          default: 0
+          title: Lots
+          type: integer
+        markPremium:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: 0.0
+          title: Markpremium
+        markTs:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Markts
+        optType:
+          default: CE
+          title: Opttype
+          type: string
+        positionId:
+          default: 0
+          title: Positionid
+          type: integer
+        qty:
+          default: 0
+          title: Qty
+          type: integer
+        strike:
+          default: 0.0
+          title: Strike
+          type: number
+      title: OptionPaperLegOut
+      type: object
+    OptionPaperOrderRequest:
+      additionalProperties: true
+      properties:
+        dry_run:
+          default: false
+          title: Dry Run
+          type: boolean
+        entry_ts:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Entry Ts
+        expiry:
+          title: Expiry
+          type: string
+        legs:
+          items:
+            $ref: '#/components/schemas/OptionLegInput'
+          title: Legs
+          type: array
+        name:
+          default: ''
+          title: Name
+          type: string
+        notes:
+          default: ''
+          title: Notes
+          type: string
+        slippage_ticks:
+          default: 0.0
+          title: Slippage Ticks
+          type: number
+        source:
+          enum:
+          - live
+          - replay
+          title: Source
+          type: string
+        underlying:
+          title: Underlying
+          type: string
+      required:
+      - underlying
+      - expiry
+      - source
+      title: OptionPaperOrderRequest
+      type: object
+    OptionPaperOrderResultOut:
+      additionalProperties: true
+      properties:
+        dryRun:
+          default: false
+          title: Dryrun
+          type: boolean
+        position:
+          anyOf:
+          - $ref: '#/components/schemas/OptionPaperPositionOut'
+          - type: 'null'
+        replay:
+          anyOf:
+          - $ref: '#/components/schemas/OptionReplayResultOut'
+          - type: 'null'
+      title: OptionPaperOrderResultOut
+      type: object
+    OptionPaperPositionListOut:
+      additionalProperties: true
+      properties:
+        positions:
+          items:
+            $ref: '#/components/schemas/OptionPaperPositionOut'
+          title: Positions
+          type: array
+      title: OptionPaperPositionListOut
+      type: object
+    OptionPaperPositionOut:
+      additionalProperties: true
+      properties:
+        breakevens:
+          items:
+            type: number
+          title: Breakevens
+          type: array
+        closeReason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Closereason
+        closedAt:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Closedat
+        costsEst:
+          default: 0.0
+          title: Costsest
+          type: number
+        createdAt:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Createdat
+        dte:
+          default: 0
+          title: Dte
+          type: integer
+        entrySpot:
+          default: 0.0
+          title: Entryspot
+          type: number
+        entryTs:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entryts
+        expiry:
+          default: ''
+          title: Expiry
+          type: string
+        id:
+          default: 0
+          title: Id
+          type: integer
+        legs:
+          items:
+            $ref: '#/components/schemas/OptionPaperLegOut'
+          title: Legs
+          type: array
+        lots:
+          default: 0
+          title: Lots
+          type: integer
+        markSpot:
+          default: 0.0
+          title: Markspot
+          type: number
+        markTs:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Markts
+        maxLoss:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Maxloss
+        maxProfit:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Maxprofit
+        name:
+          default: ''
+          title: Name
+          type: string
+        netDebit:
+          default: 0.0
+          title: Netdebit
+          type: number
+        notes:
+          default: ''
+          title: Notes
+          type: string
+        realizedPnl:
+          default: 0.0
+          title: Realizedpnl
+          type: number
+        source:
+          default: live
+          title: Source
+          type: string
+        status:
+          default: open
+          title: Status
+          type: string
+        totalPnl:
+          default: 0.0
+          title: Totalpnl
+          type: number
+        underlying:
+          default: ''
+          title: Underlying
+          type: string
+        unrealizedPnl:
+          default: 0.0
+          title: Unrealizedpnl
+          type: number
+        updatedAt:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updatedat
+        userId:
+          default: 0
+          title: Userid
+          type: integer
+        uuid:
+          default: ''
+          title: Uuid
+          type: string
+      title: OptionPaperPositionOut
+      type: object
+    OptionReplayResultOut:
+      additionalProperties: true
+      properties:
+        breakevens:
+          items:
+            type: number
+          title: Breakevens
+          type: array
+        coverage:
+          additionalProperties: true
+          title: Coverage
+          type: object
+        expiry:
+          default: ''
+          title: Expiry
+          type: string
+        frames:
+          items:
+            additionalProperties: true
+            type: object
+          title: Frames
+          type: array
+        maxLoss:
+          default: 0.0
+          title: Maxloss
+          type: number
+        maxProfit:
+          default: 0.0
+          title: Maxprofit
+          type: number
+        payoff:
+          additionalProperties: true
+          title: Payoff
+          type: object
+        positionId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Positionid
+        skipped:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Skipped
+        source:
+          default: ''
+          title: Source
+          type: string
+        summary:
+          additionalProperties: true
+          title: Summary
+          type: object
+        underlying:
+          default: ''
+          title: Underlying
+          type: string
+      title: OptionReplayResultOut
+      type: object
     OptionsAnalyticsResponse:
       properties:
         asOf:
@@ -1949,6 +2396,45 @@ components:
       required:
       - date
       title: ReplayRequest
+      type: object
+    ReplaySessionListOut:
+      additionalProperties: true
+      properties:
+        sessions:
+          items:
+            $ref: '#/components/schemas/ReplaySessionOut'
+          title: Sessions
+          type: array
+      title: ReplaySessionListOut
+      type: object
+    ReplaySessionOut:
+      additionalProperties: true
+      properties:
+        date:
+          default: ''
+          title: Date
+          type: string
+        expiry:
+          default: ''
+          title: Expiry
+          type: string
+        frames:
+          default: 0
+          title: Frames
+          type: integer
+        source:
+          default: snapshot
+          enum:
+          - snapshot
+          - chain10s
+          - upstox
+          title: Source
+          type: string
+        underlying:
+          default: ''
+          title: Underlying
+          type: string
+      title: ReplaySessionOut
       type: object
     ResetRequest:
       properties:
@@ -8428,6 +8914,250 @@ paths:
       summary: Record Surge
       tags:
       - Notifications
+  /api/options-paper/chain-at:
+    get:
+      operationId: chain_at_api_options_paper_chain_at_get
+      parameters:
+      - in: query
+        name: underlying
+        required: true
+        schema:
+          title: Underlying
+          type: string
+      - in: query
+        name: date
+        required: true
+        schema:
+          title: Date
+          type: string
+      - in: query
+        name: time
+        required: true
+        schema:
+          title: Time
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChainSnapshotOut'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Get a historical option chain quote
+      tags:
+      - Options Paper
+  /api/options-paper/orders:
+    post:
+      description: Place a live or backdated paper structure; ``dryRun`` previews without writing.
+      operationId: place_order_api_options_paper_orders_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OptionPaperOrderRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptionPaperOrderResultOut'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Place a multi-leg options paper order
+      tags:
+      - Options Paper
+  /api/options-paper/positions:
+    get:
+      operationId: list_positions_api_options_paper_positions_get
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          default: open
+          enum:
+          - open
+          - closed
+          - expired
+          - all
+          title: Status
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptionPaperPositionListOut'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: List options paper positions
+      tags:
+      - Options Paper
+  /api/options-paper/positions/{position_id}:
+    get:
+      operationId: get_position_api_options_paper_positions__position_id__get
+      parameters:
+      - in: path
+        name: position_id
+        required: true
+        schema:
+          title: Position Id
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptionPaperPositionOut'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Get one options paper position
+      tags:
+      - Options Paper
+  /api/options-paper/positions/{position_id}/close:
+    post:
+      operationId: close_position_api_options_paper_positions__position_id__close_post
+      parameters:
+      - in: path
+        name: position_id
+        required: true
+        schema:
+          title: Position Id
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/CloseRequest'
+              - type: 'null'
+              title: Payload
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptionPaperPositionOut'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Close an options paper position
+      tags:
+      - Options Paper
+  /api/options-paper/positions/{position_id}/legs:
+    post:
+      description: Price one extra leg at its own entry time; no Trade is booked yet.
+      operationId: add_leg_api_options_paper_positions__position_id__legs_post
+      parameters:
+      - in: path
+        name: position_id
+        required: true
+        schema:
+          title: Position Id
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddLegRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptionPaperPositionOut'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Add a staggered leg to an options paper position
+      tags:
+      - Options Paper
+  /api/options-paper/replay/sessions:
+    get:
+      operationId: replay_sessions_api_options_paper_replay_sessions_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplaySessionListOut'
+          description: Successful Response
+      security:
+      - bearerAuth: []
+      summary: List replayable option chain sessions
+      tags:
+      - Options Paper
+  /api/options-paper/replay/{position_id}:
+    get:
+      operationId: replay_position_api_options_paper_replay__position_id__get
+      parameters:
+      - in: path
+        name: position_id
+        required: true
+        schema:
+          title: Position Id
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptionReplayResultOut'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Recompute replay frames for a position
+      tags:
+      - Options Paper
   /api/options/analytics/{underlying}:
     get:
       description: 'Nearest ``expiries`` expiries of one underlying, from cache only.
@@ -13494,6 +14224,8 @@ tags:
   name: options-history
 - description: F&O momentum OTM options screener.
   name: options-screener
+- description: Multi-leg options paper orders, positions and replay.
+  name: Options Paper
 - description: Strategy simulator over recorded option tape (replay + live as-of).
   name: report-sim
 - description: Live index and commodity ticker data.

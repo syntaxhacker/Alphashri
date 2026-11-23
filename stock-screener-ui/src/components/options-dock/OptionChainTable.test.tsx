@@ -365,7 +365,7 @@ describe("strike badges — priority (pure map)", () => {
 });
 
 describe("strike badges — rendering", () => {
-  it("renders one tone-coded 9px chip per labelled strike in the wide layout", () => {
+  it("renders one tone-coded 11px chip per labelled strike in the wide layout", () => {
     renderWithLevels();
 
     const pain = screen.getByTestId("options-strike-badge-24000");
@@ -381,6 +381,9 @@ describe("strike badges — rendering", () => {
     // The strike cell still carries its number and the chip sits beside it.
     expect(screen.getByTestId("options-strike-cell-24000").textContent).toContain("24,000");
     expect(screen.getAllByTestId(/^options-strike-badge-/)).toHaveLength(3);
+    expect(pain.className).toContain("text-[11px]");
+    expect(pain.className).toContain("ml-2");
+    expect(pain.getAttribute("style") ?? "").not.toMatch(/font-size/);
   });
 
   it("renders no badge when levels are absent", () => {
@@ -401,6 +404,12 @@ describe("strike badges — rendering", () => {
     const rail = badge.querySelector('[aria-hidden="true"]') as HTMLElement;
     expect(rail.style.width).toBe("2px");
     expect([palette.LEVEL_MAX_PAIN.toLowerCase(), hexToRgb(palette.LEVEL_MAX_PAIN)]).toContain(normColor(rail.style.backgroundColor));
+
+    const letter = badge.children[1] as HTMLElement;
+    expect(letter.textContent).toBe("M");
+    expect(letter.className).toContain("text-[11px]");
+    expect(letter.className).toContain("left-2");
+    expect(letter.getAttribute("style") ?? "").not.toMatch(/font-size/);
   });
 });
 

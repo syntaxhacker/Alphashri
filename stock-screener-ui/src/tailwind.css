@@ -14,6 +14,16 @@
   --color-fin-negative: #e5606a;
   --color-fin-warning: #c9912f;
   --color-fin-info: #4a8fd8;
+  /* Semantic borders — mirror the alpha()-derived tokens in palette.ts. */
+  --color-fin-border-subtle: rgba(44, 49, 59, 0.6);
+  --color-fin-border-default: #2c313b;
+  --color-fin-border-strong: rgba(155, 155, 155, 0.6);
+  --color-fin-border-focus: rgba(217, 144, 42, 0.9);
+  --color-fin-border-positive: rgba(47, 163, 107, 0.7);
+  --color-fin-border-negative: rgba(229, 96, 106, 0.7);
+  --color-fin-border-warning: rgba(201, 145, 47, 0.7);
+  --color-fin-border-info: rgba(74, 143, 216, 0.7);
+  --color-fin-border-disabled: rgba(155, 155, 155, 0.25);
   /* Radius scale: controls = md, inner elements (tags, checkboxes) = sm,
      modals/drawers = lg. Nothing else stays at 2px except hairline separators.
      --radius-fin is the control alias, kept because every primitive uses it. */
@@ -46,6 +56,16 @@
     --color-fin-negative: #b3261e;
     --color-fin-warning: #7a560d;
     --color-fin-info: #1f5fa8;
+    /* Semantic borders retuned to the light anchors (no dark ink bleed). */
+    --color-fin-border-subtle: rgba(211, 216, 223, 0.6);
+    --color-fin-border-default: #d3d8df;
+    --color-fin-border-strong: rgba(91, 100, 114, 0.6);
+    --color-fin-border-focus: rgba(154, 93, 5, 0.9);
+    --color-fin-border-positive: rgba(18, 114, 74, 0.7);
+    --color-fin-border-negative: rgba(179, 38, 30, 0.7);
+    --color-fin-border-warning: rgba(122, 86, 13, 0.7);
+    --color-fin-border-info: rgba(31, 95, 168, 0.7);
+    --color-fin-border-disabled: rgba(91, 100, 114, 0.25);
   }
 
   html,
@@ -79,5 +99,40 @@
   :is(input, select, textarea):focus {
     outline: 2px solid var(--color-fin-primary);
     outline-offset: 1px;
+  }
+}
+
+/* Brief background flash for numeric cells whose value just changed.
+   Tints derive from the semantic tokens so light/dark themes both work. */
+@keyframes valueFlashUp {
+  from {
+    background-color: color-mix(in srgb, var(--color-fin-positive) 26%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@keyframes valueFlashDown {
+  from {
+    background-color: color-mix(in srgb, var(--color-fin-negative) 26%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.value-flash-up {
+  animation: valueFlashUp 600ms ease-out;
+}
+
+.value-flash-down {
+  animation: valueFlashDown 600ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .value-flash-up,
+  .value-flash-down {
+    animation: none;
   }
 }

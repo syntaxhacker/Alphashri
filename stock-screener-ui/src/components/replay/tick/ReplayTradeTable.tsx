@@ -18,12 +18,12 @@ const fmtPts = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(1)}`;
 function StatRow(props: { label: string; value: string; color?: string }) {
   return (
     <Box
+      className="border-b border-fin-border-subtle"
       style={{
         display: "flex",
         "align-items": "center",
         gap: "3px",
         padding: "1px 0",
-        "border-bottom": `1px solid ${palette.BORDER}`,
       }}
     >
       <Text size="xs" style={{ "line-height": 1.1, "min-width": "72px", "flex-shrink": 0, "font-size": "11px", color: palette.TEXT_MUTED }}>
@@ -45,7 +45,7 @@ function ReplayTradeStats(props: { trade: ReplayTrade; clock: number }) {
       style={{
         display: "grid",
         "grid-template-columns": "1fr",
-        gap: "6px",
+        gap: "8px",
         width: "100%",
         "justify-content": "center",
         "max-width": "540px",
@@ -55,15 +55,19 @@ function ReplayTradeStats(props: { trade: ReplayTrade; clock: number }) {
       }}
     >
       <Box
+        className="border border-fin-border-subtle rounded-fin"
         style={{
-          padding: "2px",
-          border: `1px solid ${palette.BORDER}`,
-          "border-radius": "4px",
+          padding: "8px",
           "background-color": palette.SURFACE,
           "min-width": 0,
         }}
       >
-        <Text size="xs" fw={700} style={{ color: palette.TEXT_MUTED, "font-size": "10px", "letter-spacing": "0.6px", display: "block", "margin-bottom": "2px", "border-bottom": `1px solid ${palette.BORDER}` }}>
+        <Text
+          size="xs"
+          fw={700}
+          className="border-b border-fin-border-subtle"
+          style={{ color: palette.TEXT_MUTED, "font-size": "11px", "letter-spacing": "0.6px", display: "block", "margin-bottom": "8px" }}
+        >
           ENTRY
         </Text>
         <StatRow label="Time" value={fmtT(props.trade.time)} />
@@ -73,15 +77,19 @@ function ReplayTradeStats(props: { trade: ReplayTrade; clock: number }) {
         <StatRow label="Risk" value={`${risk.toFixed(1)} pts`} color={palette.TEXT_MUTED} />
       </Box>
       <Box
+        className="border border-fin-border-subtle rounded-fin"
         style={{
-          padding: "2px",
-          border: `1px solid ${palette.BORDER}`,
-          "border-radius": "4px",
+          padding: "8px",
           "background-color": palette.SURFACE,
           "min-width": 0,
         }}
       >
-        <Text size="xs" fw={700} style={{ color: palette.TEXT_MUTED, "font-size": "10px", "letter-spacing": "0.6px", display: "block", "margin-bottom": "2px", "border-bottom": `1px solid ${palette.BORDER}` }}>
+        <Text
+          size="xs"
+          fw={700}
+          className="border-b border-fin-border-subtle"
+          style={{ color: palette.TEXT_MUTED, "font-size": "11px", "letter-spacing": "0.6px", display: "block", "margin-bottom": "8px" }}
+        >
           EXIT
         </Text>
         <StatRow label="Time" value={closed() ? fmtT(props.trade.exit_time) : "…"} />
@@ -93,7 +101,7 @@ function ReplayTradeStats(props: { trade: ReplayTrade; clock: number }) {
           <Text size="xs" style={{ "line-height": 1.1, "min-width": "72px", "flex-shrink": 0, "font-size": "11px", color: palette.TEXT_MUTED }}>
             Reason
           </Text>
-          {closed() ? <ExitReasonBadge reason={props.trade.result} /> : <Chip size="xs" color="warning" style={{ height: "18px", "font-size": "9px" }}>OPEN</Chip>}
+          {closed() ? <ExitReasonBadge reason={props.trade.result} /> : <Chip size="xs" color="warning" style={{ height: "18px", "font-size": "11px" }}>OPEN</Chip>}
         </Box>
       </Box>
     </Box>
@@ -262,7 +270,7 @@ export function ReplayTradeTable(props: {
         return (
           <Show
             when={t.exit_time <= props.clock}
-            fallback={<Chip size="xs" color="warning" style={{ height: "18px", "font-size": "9px" }}>OPEN</Chip>}
+            fallback={<Chip size="xs" color="warning" style={{ height: "18px", "font-size": "11px" }}>OPEN</Chip>}
           >
             <ExitReasonBadge reason={t.result} />
           </Show>

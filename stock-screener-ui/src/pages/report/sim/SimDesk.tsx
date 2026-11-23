@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Show, onCleanup, untrack } from "solid-js";
 import {
   ActionIcon,
   Alert,
@@ -128,12 +128,21 @@ export function SimDesk(props: SimDeskProps) {
   );
   const resultSpot = () => result()?.spot;
   const spot = () => finite(report()?.spot) ? report()!.spot : resultSpot() ?? 0;
-  const marketClosed = () => !isDerivativesOpenIst() || report()?.market?.is_open === false;
-  const effectiveMode = (): "live" | "eod" => (marketClosed() ? "eod" : props.mode);
-  const runDate = () =>
+  // Memoised to primitives: a poll replaces `report()` with a new object every
+  // 15s, and reading its fields inside the run effect restarted (and aborted)
+  // every in-flight sim. Memo equality on a boolean/string keeps the effect
+  // still while the underlying data keeps flowing.
+  const marketClosed = createMemo(
+    () => !isDerivativesOpenIst() || report()?.market?.is_open === false,
+  );
+  const effectiveMode = createMemo<"live" | "eod">(() =>
+    marketClosed() ? "eod" : props.mode,
+  );
+  const runDate = createMemo(() =>
     effectiveMode() === "eod"
       ? props.date || report()?.date || report()?.market?.session_date || undefined
-      : undefined;
+      : undefined,
+  );
 
   createEffect(() => {
     let alive = true;
@@ -141,7 +150,8 @@ export function SimDesk(props: SimDeskProps) {
       .then((rows) => {
         if (alive && rows.length > 0) setTemplates(rows);
       })
-      .catch(() => {
+      .catch((error) => {
+        console.warn("[SimDesk] failed to load templates; using built-in list", error);
       });
     onCleanup(() => {
       alive = false;
@@ -188,7 +198,9 @@ export function SimDesk(props: SimDeskProps) {
     runDate();
     effectiveMode();
     if (!open()) return;
-    void run();
+    // `run` reads signals of its own; strategy edits already have their own
+    // debounced effect, so those reads must not become dependencies here.
+    untrack(() => void run());
   });
 
   createEffect(() => {
@@ -358,7 +370,7 @@ export function SimDesk(props: SimDeskProps) {
           >
             <div
               data-testid="sim-rail"
-              class="w-full min-[900px]:w-[220px] shrink-0 flex flex-col gap-1.5 min-w-0"
+              class="w-full min-[900px]:w-[220px] shrink-0 flex flex-col gap-2 min-w-0"
             >
               <ToolbarRow justify="space-between">
                 <Text span size="xs" fw={700} className="uppercase">
@@ -390,7 +402,7 @@ export function SimDesk(props: SimDeskProps) {
               <Divider />
               <For each={strategies()}>
                 {(item) => (
-                  <div class="flex flex-row flex-nowrap gap-1 min-w-0">
+                  <div class="flex flex-row flex-nowrap gap-2 min-w-0">
                     <Button
                       data-testid={`sim-strategy-${item.id}`}
                       size="xs"

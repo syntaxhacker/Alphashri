@@ -1732,8 +1732,9 @@ describe("TanStackTable — dark surfaces and vertical rhythm", () => {
   it("keeps a token-driven row height and a single consistent cell pad", () => {
     render(() => <TanStackTable<TestItem> data={data} columns={columns} dataTestId="rhythm" />);
     const table = screen.getByTestId("rhythm");
-    expect(table.style.getPropertyValue("--tbl-row-h")).toBe("23px");
-    expect(table.style.getPropertyValue("--tbl-cell-pad")).toBe("3px 8px");
+    expect(table.style.getPropertyValue("--tbl-row-h")).toBe("32px");
+    expect(table.style.getPropertyValue("--tbl-cell-pad")).toBe("8px 12px");
+    expect(table.style.getPropertyValue("--tbl-fs")).toBe("12px");
     for (const cell of Array.from(table.querySelectorAll<HTMLElement>("tbody td"))) {
       expect(cell.style.verticalAlign).toBe("middle");
     }
@@ -1764,5 +1765,62 @@ describe("TanStackTable — dark surfaces and vertical rhythm", () => {
     expect(detail.style.backgroundColor).toBe("var(--color-fin-surface-alt)");
     expect(detail.getAttribute("style")).toContain("var(--color-fin-border)");
     expect(detail.getAttribute("style")).not.toContain("border-top");
+  });
+});
+
+describe("TanStackTable — typography and spacing metrics", () => {
+  const tableOf = (id: string) => screen.getByTestId(id);
+
+  it("defaults to comfortable body metrics: 12px text, 8/12 padding, 32px rows", () => {
+    render(() => <TanStackTable<TestItem> data={data} columns={columns} dataTestId="metrics-default" />);
+    const table = tableOf("metrics-default");
+    expect(table.style.getPropertyValue("--tbl-row-h")).toBe("32px");
+    expect(table.style.getPropertyValue("--tbl-cell-pad")).toBe("8px 12px");
+    expect(table.style.getPropertyValue("--tbl-fs")).toBe("12px");
+    // The renderer applies the var-based metrics to each cell; numeric columns
+    // additionally carry mono + tabular so digits line up across rows.
+    const valueCell = Array.from(table.querySelectorAll<HTMLElement>("tbody td")).find(
+      (td) => td.textContent === "100",
+    )!;
+    expect(valueCell.className).toContain("font-mono");
+    expect(valueCell.className).toContain("tabular-nums");
+    expect(valueCell.style.textAlign).toBe("right");
+  });
+
+  it("defaults to an 11px tracked uppercase header", () => {
+    render(() => <TanStackTable<TestItem> data={data} columns={columns} dataTestId="metrics-header" />);
+    const th = tableOf("metrics-header").querySelector<HTMLElement>("th")!;
+    expect(th.style.fontSize).toBe("11px");
+    expect(th.style.textTransform).toBe("uppercase");
+    expect(th.style.letterSpacing).toBe("0.07em");
+  });
+
+  it("dense opts back into the tight 18px / 1px 6px / 10px rhythm", () => {
+    render(() => <TanStackTable<TestItem> data={data} columns={columns} dense dataTestId="metrics-dense" />);
+    const table = tableOf("metrics-dense");
+    expect(table.style.getPropertyValue("--tbl-row-h")).toBe("18px");
+    expect(table.style.getPropertyValue("--tbl-cell-pad")).toBe("1px 6px");
+    expect(table.style.getPropertyValue("--tbl-fs")).toBe("10px");
+    expect(table.querySelector<HTMLElement>("th")!.style.fontSize).toBe("10px");
+  });
+
+  it("re-applies the header size when visible columns change after mount", () => {
+    const [prefs, setPrefs] = createSignal<ColumnPrefs>({ order: [], hidden: [] });
+    render(() => (
+      <TanStackTable<TestItem>
+        data={data}
+        columns={columns}
+        enableColumnControls
+        columnPrefs={prefs()}
+        dataTestId="metrics-cols"
+      />
+    ));
+    for (const th of Array.from(tableOf("metrics-cols").querySelectorAll<HTMLElement>("thead th"))) {
+      expect(th.style.fontSize).toBe("11px");
+    }
+    setPrefs({ order: [], hidden: ["value"] });
+    for (const th of Array.from(tableOf("metrics-cols").querySelectorAll<HTMLElement>("thead th"))) {
+      expect(th.style.fontSize).toBe("11px");
+    }
   });
 });

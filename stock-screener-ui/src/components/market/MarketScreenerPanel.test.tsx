@@ -680,6 +680,28 @@ describe("MarketScreenerPanel — Movers view", () => {
     expect(screen.queryByTestId("market-sector-map-view")).not.toBeInTheDocument();
   });
 
+  test("fullscreen sector treemap survives a data refresh (rows change does not remount the viz)", async () => {
+    const [liveRows, setLiveRows] = createSignal<MarketRow[]>([row("AAA"), row("BBB")]);
+    mockUseMarketSnapshot.mockReturnValue({ ...hookResult(), rows: liveRows });
+    r(() => <MarketScreenerPanel />);
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
+    expect(await screen.findByTestId("market-vis-selector")).toBeInTheDocument();
+
+    const selector = screen.getByTestId("market-vis-selector");
+    fireEvent.click(within(selector).getByText("Sector treemap"));
+    expect(await screen.findByTestId("market-sector-map-view")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("market-sector-map-expand"));
+    expect(await screen.findByTestId("market-sector-fullscreen-modal")).toBeInTheDocument();
+
+    // A local polling refresh swaps in a new rows array. The inline renderer
+    // call used to re-invoke MarketSectorTreemap as a plain function, creating
+    // a fresh `expanded = false` signal and closing the modal on its own.
+    setLiveRows([row("CCC"), row("DDD")]);
+    await Promise.resolve();
+    expect(screen.getByTestId("market-sector-fullscreen-modal")).toBeInTheDocument();
+  });
+
   test("switching to Movers clears the search; Table comes back empty", async () => {
     r(() => <MarketScreenerPanel />);
     const search = screen.getByTestId("market-search") as HTMLInputElement;

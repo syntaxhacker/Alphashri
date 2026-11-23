@@ -338,7 +338,7 @@ describe("options.analytics failure behaviour", () => {
     );
     const expiryInput = screen.getByTestId("options-analytics-expiry-input");
     fireEvent.input(within(expiryInput).getByRole("combobox"), {
-      target: { value: nearExpiry() },
+      target: { value: farExpiry() },
     });
 
     await screen.findByTestId("options-analytics-chain-error");
@@ -363,7 +363,7 @@ describe("options.analytics failure behaviour", () => {
       ).toBeEnabled(),
     );
     fireEvent.input(within(screen.getByTestId("options-analytics-expiry-input")).getByRole("combobox"), {
-      target: { value: nearExpiry() },
+      target: { value: farExpiry() },
     });
     rejectFirst(new DOMException("Aborted", "AbortError"));
 

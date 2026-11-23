@@ -1,6 +1,7 @@
 import { For, Show } from "solid-js";
-import { Box, Text, Tooltip } from "@/ui";
+import { Box, Tooltip } from "@/ui";
 import { IconMinus, IconPlus, IconTrash } from "@/components/common/Icons";
+import { EmptyState } from "@/components/common/states";
 import { formatNumber } from "@/utils/ui-helpers";
 import { MAX_LEGS, setLegLots, removeLeg, toggleLegSide, type DockLeg } from "@/state/optionsDock";
 import { DockSection } from "./DockSection";
@@ -8,7 +9,8 @@ import { DockSection } from "./DockSection";
 /**
  * Legs strip: one chip per leg (`S 24200 CE ×1 @36.6 ✕`), a buy/sell toggle and
  * a lots stepper. Nothing here issues a request — the payoff is recomputed from
- * the in-memory frame.
+ * the in-memory frame. Every fragment is at least 11px and gapped by 8px so the
+ * chip reads as a list of facts rather than one 10px run.
  */
 export function LegBuilder(props: {
   legs: DockLeg[];
@@ -29,44 +31,49 @@ export function LegBuilder(props: {
       headerTestId="dock-section-legs"
       meta={
         <Box className="flex items-baseline gap-2">
-          <Text
-            size="xs"
-            c="dimmed"
-            className="font-mono tabular-nums"
-            style={{ "font-size": "10px" }}
+          <Box
+            component="span"
+            className="font-mono tabular-nums text-[11px] leading-[14px] text-fin-text-muted"
             data-testid="options-leg-count"
           >
             {props.legs.length}/{MAX_LEGS}
-          </Text>
-          <Text size="xs" c="dimmed" className="uppercase" style={{ "font-size": "9px" }}>
+          </Box>
+          <Box
+            component="span"
+            className="text-[11px] leading-[14px] uppercase text-fin-text-muted"
+          >
             {props.netPremium >= 0 ? "net credit" : "net debit"}
-          </Text>
-          <Text
-            size="xs"
-            fw={700}
-            c={props.netPremium >= 0 ? "success" : "error"}
-            className="font-mono tabular-nums"
-            style={{ "font-size": "10px" }}
+          </Box>
+          <Box
+            component="span"
+            className={`font-mono tabular-nums text-[11px] leading-[14px] font-bold ${
+              props.netPremium >= 0 ? "text-fin-positive" : "text-fin-negative"
+            }`}
             data-testid="options-net-premium"
           >
             ₹{formatNumber(Math.abs(props.netPremium))}
-          </Text>
+          </Box>
         </Box>
       }
     >
       <Show
         when={props.legs.length > 0}
         fallback={
-          <Text size="xs" c="dimmed" data-testid="options-legs-empty">
-            Click a chain price to add a leg · shift-click to sell
-          </Text>
+          <EmptyState
+            data-testid="options-legs-empty"
+            kind="no-data"
+            layout="row"
+            className="text-[11px]"
+            title="No legs yet"
+            description="Click a chain price to add a leg · shift-click to sell"
+          />
         }
       >
-        <Box className="flex flex-wrap gap-1" data-testid="options-leg-chips">
+        <Box className="flex flex-wrap gap-2" data-testid="options-leg-chips">
           <For each={props.legs}>
             {(leg) => (
               <Box
-                className="inline-flex items-center gap-1 rounded-[4px] border border-fin-border bg-fin-surface-alt px-1 py-[1px]"
+                className="inline-flex items-center gap-2 rounded-md border border-fin-border-subtle bg-fin-surface-alt px-2 py-1"
                 data-testid={`options-leg-${leg.type}-${leg.strike}`}
               >
                 <Tooltip label={leg.side === "sell" ? "Switch to buy" : "Switch to sell"}>
@@ -76,7 +83,7 @@ export function LegBuilder(props: {
                     aria-label={`${leg.type} ${leg.strike} ${leg.side} — toggle side`}
                     data-testid={`options-leg-side-${leg.type}-${leg.strike}`}
                     onClick={() => toggleLegSide(leg.key)}
-                    className="border-0 bg-transparent p-0 font-mono text-[10px] font-bold uppercase"
+                    className="border-0 bg-transparent p-0 font-mono text-[11px] leading-[14px] font-bold uppercase"
                     style={{
                       color:
                         leg.side === "sell" ? "var(--color-fin-negative)" : "var(--color-fin-positive)",
@@ -85,19 +92,20 @@ export function LegBuilder(props: {
                     {leg.side === "sell" ? "S" : "B"}
                   </Box>
                 </Tooltip>
-                <Text size="xs" fw={700} className="font-mono tabular-nums" style={{ "font-size": "10px" }}>
+                <Box
+                  component="span"
+                  className="font-mono tabular-nums text-[11px] leading-[14px] font-bold text-fin-text"
+                >
                   {leg.strike}
-                </Text>
-                <Text
-                  size="xs"
-                  c="dimmed"
-                  className="font-mono uppercase"
-                  style={{ "font-size": "10px" }}
+                </Box>
+                <Box
+                  component="span"
+                  className="font-mono text-[11px] leading-[14px] uppercase text-fin-text-muted"
                 >
                   {leg.type}
-                </Text>
+                </Box>
 
-                <Box className="inline-flex items-center">
+                <Box className="inline-flex items-center gap-2">
                   <Box
                     component="button"
                     type="button"
@@ -108,14 +116,13 @@ export function LegBuilder(props: {
                   >
                     <IconMinus size={12} />
                   </Box>
-                  <Text
-                    size="xs"
-                    className="font-mono tabular-nums"
-                    style={{ "font-size": "10px", "min-width": "14px", "text-align": "center" }}
+                  <Box
+                    component="span"
+                    className="min-w-[14px] text-center font-mono tabular-nums text-[11px] leading-[14px]"
                     data-testid={`options-leg-lots-${leg.type}-${leg.strike}`}
                   >
                     ×{leg.lots}
-                  </Text>
+                  </Box>
                   <Box
                     component="button"
                     type="button"
@@ -128,9 +135,12 @@ export function LegBuilder(props: {
                   </Box>
                 </Box>
 
-                <Text size="xs" c="dimmed" className="font-mono tabular-nums" style={{ "font-size": "10px" }}>
+                <Box
+                  component="span"
+                  className="font-mono tabular-nums text-[11px] leading-[14px] text-fin-text-muted"
+                >
                   @{leg.premium.toFixed(1)}
-                </Text>
+                </Box>
                 <Box
                   component="button"
                   type="button"
@@ -151,9 +161,13 @@ export function LegBuilder(props: {
       </Show>
 
       <Show when={staleCount() > 0}>
-        <Text size="xs" c="warning" data-testid="options-legs-expiry-mismatch">
+        <Box
+          component="span"
+          className="border-l-2 border-fin-border-warning pl-2 text-[11px] leading-4 text-fin-warning"
+          data-testid="options-legs-expiry-mismatch"
+        >
           {staleCount()} leg{staleCount() === 1 ? "" : "s"} on a different expiry
-        </Text>
+        </Box>
       </Show>
     </DockSection>
   );

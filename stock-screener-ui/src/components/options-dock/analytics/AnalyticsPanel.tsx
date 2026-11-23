@@ -68,6 +68,9 @@ export function AnalyticsPanel(props: {
   onSelectExpiry?: (date: string) => void;
   /** Opens the in-dock pillars view; forwarded to the strip. */
   onOpenPillars?: () => void;
+  /** Host-owned help popover state, so a strip swap cannot silently close it. */
+  helpOpen?: boolean;
+  onHelpOpenChange?: (open: boolean) => void;
 }) {
   createEffect(() => {
     const symbol = props.symbol;
@@ -102,6 +105,8 @@ export function AnalyticsPanel(props: {
         onSelectExpiry={props.onSelectExpiry}
         symbol={props.symbol}
         onOpenPillars={props.onOpenPillars}
+        helpOpen={props.helpOpen}
+        onHelpOpenChange={props.onHelpOpenChange}
       />
       <Show when={optionsAnalyticsState.status === "error"}>
         <UiBox

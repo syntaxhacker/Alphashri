@@ -1,5 +1,5 @@
 import type { JSX } from "solid-js";
-import { BadgeCell, NumCell, SymbolCell, TextCell } from "@/components/common/tableCells";
+import { BadgeCell, FlashValue, NumCell, SymbolCell, TextCell } from "@/components/common/tableCells";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 
 /**
@@ -65,6 +65,10 @@ export interface NumColumnOpts<T> extends BaseOpts<T> {
   fw?: number;
   tone?: "default" | "dimmed" | "success" | "error" | "warning" | "primary";
   cellTestId?: (row: T) => string;
+  /** Brief background tint when this value changes on a poll tick. */
+  flash?: boolean;
+  /** Stable identity for rows whose DOM node is rebuilt on every tick. */
+  flashKey?: (row: T) => string;
 }
 
 /** Any numeric column: mono, tabular, right-aligned. */
@@ -76,11 +80,13 @@ export function numColumn<T>(opts: NumColumnOpts<T>): TableColumnDef<T> {
     size: opts.size ?? 80,
     meta: { align: "right" },
     cell: ({ row }) => {
-      const raw = (row.original as Record<string, unknown>)[opts.id];
-      const value = typeof raw === "number" ? raw : raw == null ? null : Number(raw);
-      return (
+      const value = () => {
+        const raw = (row.original as Record<string, unknown>)[opts.id];
+        return typeof raw === "number" ? raw : raw == null ? null : Number(raw);
+      };
+      const cell = (
         <NumCell
-          value={value}
+          value={value()}
           signed={opts.signed}
           format={opts.format}
           dash={opts.dash}
@@ -89,6 +95,13 @@ export function numColumn<T>(opts: NumColumnOpts<T>): TableColumnDef<T> {
           title={opts.title}
           testId={opts.cellTestId?.(row.original)}
         />
+      );
+      return opts.flash ? (
+        <FlashValue value={value()} flashKey={opts.flashKey?.(row.original)} align="right">
+          {cell}
+        </FlashValue>
+      ) : (
+        cell
       );
     },
   } as TableColumnDef<T>;

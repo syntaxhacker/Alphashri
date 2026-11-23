@@ -9,7 +9,7 @@ import {
   type JSX,
 } from "solid-js";
 import { Box, useMediaQuery } from "@/ui";
-import { TanStackTable, type SortEntry } from "@/components/common/TanStackTable";
+import { TABLE_METRICS, TanStackTable, type SortEntry } from "@/components/common/TanStackTable";
 import type { ChainLeg, ChainRow, OptionChainLevels } from "@/api/optionsDock";
 import { optionsDockState } from "../../state/optionsDock";
 import { buildStrikeBadges, chainColumns } from "./chain.columns";
@@ -27,9 +27,6 @@ export const CHAIN_NARROW_QUERY = "(max-width: 639px)";
 
 /** 5 columns × their declared sizes (54+38+34+64+72) — fits a 390px sheet. */
 const NARROW_MIN_TABLE_WIDTH = 262;
-
-/** TanStackTable's `dense` rows are `--tbl-row-h: 18px` (the sticky header excluded). */
-const CHAIN_ROW_HEIGHT = 18;
 
 /** Hard cap for a programmatic scroll whose browser never emits scrollend. */
 export const CHAIN_SCROLL_SETTLE_MS = 450;
@@ -201,48 +198,72 @@ export function OptionChainTable(props: {
     return props.rows.findIndex((row) => row.strike === atm);
   };
 
-  const scrollToIndex = (el: HTMLElement, index: number) => {
-    const top = centerScrollTop(index, CHAIN_ROW_HEIGHT, el.clientHeight);
+  /**
+   * Live geometry of the ATM row inside the scroller. The rendered dense row is
+   * taller than its declared minimum (23px in the 390px sheet vs the 18px
+   * `--tbl-row-h`), so the centre must come from the row's own box — an index ×
+   * constant parks the row above the band once CSS settles. A zero height means
+   * the DOM has not laid out yet.
+   */
+  const atmGeometry = () => {
+    const el = scrollEl();
+    if (!el || el.clientHeight <= 0) return null;
+    const atm = atmStrike();
+    if (atm == null) return null;
+    const cell = el.querySelector<HTMLElement>(`[data-testid="options-strike-cell-${atm}"]`);
+    if (!cell) return null;
+    const row = (cell.closest("tr") as HTMLElement | null) ?? cell;
+    const rect = row.getBoundingClientRect();
+    if (!(rect.height > 0)) return null;
+    return {
+      el,
+      contentTop: rect.top - el.getBoundingClientRect().top + el.scrollTop,
+      height: rect.height,
+    };
+  };
+
+  /** The one centre path: measured geometry, with the declared dense metric only before first layout. */
+  const centerAtm = (explicit: boolean) => {
+    // Follow state is restored even when a headless/test DOM reports no height.
+    if (explicit) setFollowing(true);
+    const el = scrollEl();
+    if (!el || el.clientHeight <= 0) return;
+    const index = atmIndex();
+    if (index < 0) return;
+    const geometry = atmGeometry();
+    const top = geometry
+      ? Math.max(0, geometry.contentTop - (el.clientHeight - geometry.height) / 2)
+      : centerScrollTop(index, TABLE_METRICS.dense.rowHeight, el.clientHeight);
     programmaticScroll = true;
     programmaticTarget = top;
     pendingManual = false;
     lastScrollTop = el.scrollTop;
-    // A mocked or instant scroll emits no scrollend, so keep the hard cap.
+    // scrollIntoView is avoided: it also scrolls the page/dock. Smooth stays
+    // under the shared scroll-end guard; the resize hook re-measures after it.
     armSettleTimer(CHAIN_SCROLL_SETTLE_MS);
-    // scrollIntoView is deliberately avoided: it also scrolls the page/dock.
-    if (typeof el.scrollTo === "function") el.scrollTo({ top, behavior: "smooth" });
-    else el.scrollTop = top;
-  };
-
-  const recenter = () => {
-    const el = scrollEl();
-    if (!el) return;
-    const index = atmIndex();
-    if (index < 0) return;
-    setFollowing(true);
-    scrollToIndex(el, index);
+    el.scrollTo({ top, behavior: "smooth" });
   };
 
   const followRecenter = () => {
-    if (!untrack(following)) return;
-    if (programmaticScroll) return;
-    const el = scrollEl();
-    if (!el) return;
-    const index = atmIndex();
-    if (index < 0) return;
-    const rowTop = index * CHAIN_ROW_HEIGHT;
-    // Only move when the ATM row has actually left the visible band — a small
-    // tick inside the window must not yank the user's scroll position.
-    if (rowTop >= el.scrollTop && rowTop + CHAIN_ROW_HEIGHT <= el.scrollTop + el.clientHeight) {
+    if (!untrack(following) || programmaticScroll) return;
+    const geometry = atmGeometry();
+    if (!geometry) return;
+    const { el, contentTop, height } = geometry;
+    // Only move when the ATM row has actually left the band — a small tick
+    // inside the window must not yank the user's scroll position.
+    if (
+      contentTop >= el.scrollTop &&
+      contentTop + height <= el.scrollTop + el.clientHeight
+    ) {
       return;
     }
-    scrollToIndex(el, index);
+    centerAtm(false);
   };
 
   createEffect(() => {
     centerKey();
     if (untrack(() => props.rows.length === 0)) return;
-    untrack(recenter);
+    untrack(() => centerAtm(true));
   });
 
   createEffect(() => {
@@ -279,7 +300,40 @@ export function OptionChainTable(props: {
     if (!el) return;
     el.addEventListener("scroll", onScroll, { passive: true });
     if (SCROLLEND_SUPPORTED) el.addEventListener("scrollend", onScrollEnd);
+
+    // Fonts, badge rails and the sheet's flex chain settle after the first
+    // centre and change the row height while the 62dvh band stays the same
+    // size. Watch the table as well as the scroller, and fold every change into
+    // one rAF-batched recompute. Scrolling changes neither box, so this cannot
+    // feed itself.
+    const table = el.querySelector("table");
+    let lastTableHeight = table?.getBoundingClientRect().height ?? 0;
+    let lastBandHeight = el.clientHeight;
+    let raf = 0;
+    const scheduleRecompute = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        if (untrack(following)) untrack(() => centerAtm(false));
+      });
+    };
+
+    const observer = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(() => {
+          const tableHeight = table?.getBoundingClientRect().height ?? 0;
+          const bandHeight = el.clientHeight;
+          if (tableHeight === lastTableHeight && bandHeight === lastBandHeight) return;
+          lastTableHeight = tableHeight;
+          lastBandHeight = bandHeight;
+          scheduleRecompute();
+        })
+      : null;
+    observer?.observe(el);
+    if (table) observer?.observe(table);
+
     onCleanup(() => {
+      observer?.disconnect();
+      if (raf) cancelAnimationFrame(raf);
       el.removeEventListener("scroll", onScroll);
       if (SCROLLEND_SUPPORTED) el.removeEventListener("scrollend", onScrollEnd);
       clearSettleTimer();

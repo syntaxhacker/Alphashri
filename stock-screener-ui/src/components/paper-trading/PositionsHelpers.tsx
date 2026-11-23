@@ -13,6 +13,7 @@ import {
 import type { PaperPosition, PaperScanItem } from "../../types/paperTrading";
 import { TanStackTable, type TableColumnDef, type SortEntry } from "./TanStackTable";
 import { useTablePrefs } from "../common/useTablePrefs";
+import { FlashValue } from "../common/tableCells";
 import {
   formatSignedPnl,
   formatPercentage,
@@ -78,98 +79,46 @@ export function calcStrategySummary(positions: PaperPosition[]): StrategySummary
   return { totalPnl, marginUsed, count: positions.length };
 }
 
-// Rows are destroyed and re-created on every store tick (TanStackTable keys
-// `<For>` items by identity and every tick produces fresh position objects),
-// so previous *values* live at module scope to keep tick flashes working
-// across remounts.
-const _prevPrice = new Map<string, number>();
-const _prevPnl = new Map<string, number>();
-
-const FLASH_MS = 600;
-
 function PriceCell(props: { price: number; quantity: number; entry: number; flashKey: string }) {
   const safePrice = Number.isFinite(props.price) ? props.price : 0;
   const safeEntry = Number.isFinite(props.entry) ? props.entry : 0;
   const safeQty = Number.isFinite(props.quantity) ? props.quantity : 0;
-  const prev = _prevPrice.get(props.flashKey);
-  onMount(() => {
-    _prevPrice.set(props.flashKey, safePrice);
-  });
   return (
     <Text className="paper-price-cell whitespace-nowrap font-mono tabular-nums" size="sm">
       {safeQty}×₹{safeEntry.toFixed(2)}
       <Text className="paper-price-arrow" span c="dimmed" size="xs" mx={0.5}>→</Text>
-      <PriceDisplay price={safePrice} prevPrice={prev !== undefined && Number.isFinite(prev) ? prev : 0} />
+      <PriceDisplay price={safePrice} flashKey={props.flashKey} />
     </Text>
   );
 }
 
-function PriceDisplay(props: { price: number; prevPrice: number }) {
+function PriceDisplay(props: { price: number; flashKey: string }) {
   const safePrice = Number.isFinite(props.price) ? props.price : 0;
-  const safePrev = Number.isFinite(props.prevPrice) ? props.prevPrice : 0;
-  const [flash, setFlash] = createSignal<string | null>(null);
-  let timer: ReturnType<typeof setTimeout> | null = null;
-
-  onMount(() => {
-    if (safePrice !== safePrev && safePrev > 0) {
-      setFlash(safePrice > safePrev ? "up" : "down");
-      timer = setTimeout(() => setFlash(null), FLASH_MS);
-    }
-  });
-
-  onCleanup(() => {
-    if (timer) clearTimeout(timer);
-  });
-
   return (
-    <span
-      classList={{
-        priceFlashUp: flash() === "up",
-        priceFlashDown: flash() === "down",
-      }}
-      style={{ display: "inline-block", padding: "0 2px" }}
-      onAnimationEnd={() => setFlash(null)}
+    <FlashValue
+      value={safePrice}
+      flashKey={props.flashKey}
+      className="inline-block px-0.5"
     >
       ₹{safePrice.toFixed(2)}
-    </span>
+    </FlashValue>
   );
 }
 
 function PnLDisplay(props: { pnl: number; pnlPct: number; flashKey: string }) {
-  const [flash, setFlash] = createSignal<string | null>(null);
-  let timer: ReturnType<typeof setTimeout> | null = null;
-
   const pnl = props.pnl;
-  const prev = _prevPnl.get(props.flashKey);
-  onMount(() => {
-    if (prev !== undefined && pnl !== prev) {
-      setFlash(pnl > prev ? "up" : "down");
-      timer = setTimeout(() => setFlash(null), FLASH_MS);
-    }
-    _prevPnl.set(props.flashKey, pnl);
-  });
-
-  onCleanup(() => {
-    if (timer) clearTimeout(timer);
-  });
-
   const pnlClass = getPnLTextColor(pnl);
 
   return (
-    <span style={{ display: "inline" }} onAnimationEnd={() => setFlash(null)}>
-      <Text
-        c={pnlClass}
-        fw={600}
-        className={`paper-pnl-display font-mono tabular-nums${flash() === "up" ? " price-flash-up" : flash() === "down" ? " price-flash-down" : ""}`}
-        style={{ display: "inline" }}
-      >
+    <FlashValue value={pnl} flashKey={props.flashKey} className="paper-pnl-display">
+      <Text c={pnlClass} fw={600} className="font-mono tabular-nums" style={{ display: "inline" }}>
         {formatSignedPnl(pnl)}
         <Text className="paper-pnl-pct font-mono tabular-nums" span c={pnlClass} size="sm">
           {" "}
           ({formatPercentage(props.pnlPct)})
         </Text>
       </Text>
-    </span>
+    </FlashValue>
   );
 }
 

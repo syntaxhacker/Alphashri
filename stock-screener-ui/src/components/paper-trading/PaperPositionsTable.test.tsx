@@ -375,7 +375,7 @@ describe("PaperPositionsTable", () => {
       const beforeRel = screen.getByTestId("position-row-1-TICKTEST");
       const beforeInfy = screen.getByTestId("position-row-1-INFY");
       const infyText = beforeInfy.textContent;
-      expect(beforeRel.querySelector(".priceFlashUp")).toBeNull();
+      expect(beforeRel.querySelector(".value-flash-up")).toBeNull();
 
       setState({
         positions: [{ ...pos1, current_price: 2510 }, { ...pos2 }],
@@ -385,12 +385,15 @@ describe("PaperPositionsTable", () => {
 
       expect(screen.getByTestId("position-row-1-INFY")).toBe(beforeInfy);
       expect(beforeInfy.textContent).toBe(infyText);
-      expect(beforeInfy.querySelector(".priceFlashUp")).toBeNull();
+      expect(beforeInfy.querySelector(".value-flash-up")).toBeNull();
 
       const afterRel = screen.getByTestId("position-row-1-TICKTEST");
       expect(afterRel).not.toBe(beforeRel);
       expect(afterRel.textContent).toContain("₹2510.00");
-      expect(afterRel.querySelector(".priceFlashUp")).not.toBeNull();
+      const priceFlash = afterRel.querySelector(".value-flash-up");
+      expect(priceFlash).not.toBeNull();
+      expect(priceFlash).toHaveAttribute("data-flash-key", "1");
+      expect(priceFlash).toHaveAttribute("data-flash-direction", "up");
     });
   });
 

@@ -126,6 +126,22 @@ describe("ReplayConfig", () => {
     expect(screen.queryByText(/Trading holiday/)).not.toBeInTheDocument();
   });
 
+  it("renders date range labels at the 11px type-scale floor", () => {
+    render(() => <UIProvider>
+        <ReplayConfigBar
+          config={defaultConfig}
+          isRunning={false}
+          setConfig={vi.fn()}
+          startReplay={vi.fn()}
+          stopReplay={vi.fn()}
+          reset={vi.fn()}
+        />
+      </UIProvider>,
+    );
+    expect(screen.getByText("From")).toHaveClass("text-[11px]");
+    expect(screen.getByText("To")).toHaveClass("text-[11px]");
+  });
+
   it("does NOT render Strategy Select (removed — bot has strategies)", () => {
     render(() => <UIProvider>
         <ReplayConfigBar

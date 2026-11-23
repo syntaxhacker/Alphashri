@@ -1,7 +1,8 @@
 import { describe, expect, test, vi } from "vitest";
+import { createSignal } from "solid-js";
 import { render, screen, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import { NumCell, TextCell, BadgeCell, SymbolCell, DashCell } from "./tableCells";
+import { NumCell, TextCell, BadgeCell, SymbolCell, DashCell, FlashValue } from "./tableCells";
 
 function cls(el: Element) {
   return el.className?.toString() ?? "";
@@ -57,6 +58,11 @@ describe("NumCell", () => {
   test("uses the caller's formatter", () => {
     render(() => <NumCell value={0.1234} format={(v) => `${(v * 100).toFixed(1)}%`} testId="f" />);
     expect(screen.getByTestId("f")).toHaveTextContent("12.3%");
+  });
+
+  test("uses the 12px body size so numeric columns match comfortable rows", () => {
+    render(() => <NumCell value={1} testId="size" />);
+    expect(screen.getByTestId("size")).toHaveStyle("font-size: 12px");
   });
 });
 
@@ -115,8 +121,100 @@ describe("SymbolCell", () => {
 });
 
 describe("BadgeCell", () => {
-  test("centres a single xs badge", () => {
+  test("centres a single badge at a legible 11px, not the kit's 9px", () => {
     render(() => <BadgeCell label="GAP" testId="b" />);
-    expect(screen.getByTestId("b")).toHaveTextContent("GAP");
+    const badge = screen.getByTestId("b");
+    expect(badge).toHaveTextContent("GAP");
+    expect(badge.style.fontSize).toBe("11px");
+    expect(badge.style.height).toBe("18px");
+  });
+
+  test("forwards an explicit kit size while keeping the readable glyph", () => {
+    render(() => <BadgeCell label="GAP" size="lg" testId="b" />);
+    const badge = screen.getByTestId("b");
+    expect(badge.style.paddingLeft).toBe("7px");
+    expect(badge.style.fontSize).toBe("11px");
+  });
+});
+
+describe("FlashValue", () => {
+  test("renders the first value without flashing and keeps its testid", () => {
+    const [value] = createSignal(100);
+    render(() => <FlashValue value={value()} testId="fv" />);
+    const el = screen.getByTestId("fv");
+    expect(el).toHaveTextContent("100");
+    expect(el).toHaveAttribute("data-flash-key", "0");
+    expect(el).toHaveAttribute("data-flash-direction", "flat");
+    expect(el.className).not.toContain("value-flash-up");
+    expect(el.className).not.toContain("value-flash-down");
+  });
+
+  test("flashes up then down on two consecutive changes, bumping the key", () => {
+    const [value, setValue] = createSignal(100);
+    render(() => <FlashValue value={value()} testId="fv" />);
+
+    setValue(110);
+    let el = screen.getByTestId("fv");
+    expect(el).toHaveClass("value-flash-up");
+    expect(el).toHaveAttribute("data-flash-key", "1");
+    expect(el).toHaveAttribute("data-flash-direction", "up");
+    expect(el).toHaveTextContent("110");
+
+    setValue(90);
+    el = screen.getByTestId("fv");
+    expect(el).toHaveClass("value-flash-down");
+    expect(el).toHaveAttribute("data-flash-key", "2");
+    expect(el).toHaveAttribute("data-flash-direction", "down");
+    expect(el).toHaveTextContent("90");
+  });
+
+  test("an unchanged value does not start a new flash", () => {
+    const [value, setValue] = createSignal(100);
+    const [tick, setTick] = createSignal(0);
+    const observed = () => {
+      tick();
+      return value();
+    };
+    render(() => <FlashValue value={observed()} testId="fv" />);
+
+    setValue(110);
+    expect(screen.getByTestId("fv")).toHaveAttribute("data-flash-key", "1");
+
+    setTick(1);
+    const el = screen.getByTestId("fv");
+    expect(el.className).not.toContain("value-flash-up");
+    expect(el.className).not.toContain("value-flash-down");
+    expect(el).toHaveAttribute("data-flash-key", "1");
+    expect(el).toHaveAttribute("data-flash-direction", "flat");
+  });
+
+  test("recreating the cell on a tick still compares against the previous value", () => {
+    const [value, setValue] = createSignal(100);
+    render(() => <FlashValue value={value()} flashKey="px-1" testId="fv" />);
+    expect(screen.getByTestId("fv")).toHaveAttribute("data-flash-key", "0");
+
+    // Simulate the positions table, which discards the row DOM node on a tick.
+    setValue(101);
+    const first = screen.getByTestId("fv");
+    expect(first).toHaveClass("value-flash-up");
+    expect(first).toHaveAttribute("data-flash-key", "1");
+
+    setValue(99);
+    const second = screen.getByTestId("fv");
+    expect(second).toHaveClass("value-flash-down");
+    expect(second).toHaveAttribute("data-flash-key", "2");
+  });
+
+  test("preserves formatted children and alignment", () => {
+    const [value] = createSignal(1234.5);
+    render(() => (
+      <FlashValue value={value()} align="right" testId="fv">
+        ₹{value()!.toFixed(2)}
+      </FlashValue>
+    ));
+    const el = screen.getByTestId("fv");
+    expect(el).toHaveTextContent("₹1234.50");
+    expect(el.className).toContain("text-right");
+    expect(el.className).toContain("font-mono");
   });
 });

@@ -53,7 +53,7 @@ function Ctx(props: { label: string; value: JSX.Element; hint?: JSX.Element }) {
         span
         size="xs"
         style={{
-          "font-size": "9px",
+          "font-size": "11px",
           "letter-spacing": "0.06em",
           "text-transform": "uppercase",
           color: palette.TEXT_MUTED,
@@ -61,7 +61,7 @@ function Ctx(props: { label: string; value: JSX.Element; hint?: JSX.Element }) {
       >
         {props.label}
       </Text>
-      <div class="flex items-center gap-1 min-w-0">
+      <div class="flex items-center gap-2 min-w-0">
         <Text span size="xs" fw={700} className="font-mono">
           {props.value}
         </Text>
@@ -76,7 +76,7 @@ export function SimContextStrip(props: SimContextStripProps) {
     <ToolbarRow
       data-testid="sim-context"
       gap={16}
-      className="border border-fin-border rounded-[1px] p-2 bg-fin-surface-alt"
+      className="border border-fin-border-subtle rounded-fin p-2 bg-fin-surface-alt"
     >
       <Ctx label="Mode / date" value={`${props.mode.toUpperCase()} · ${props.date || "—"}`} />
       <Ctx label="Expiry / DTE" value={`${props.expiry} · ${props.dte}`} />
@@ -164,7 +164,7 @@ export function SimBuilder(props: SimBuilderProps) {
 
       <div
         data-testid="sim-legs"
-        class="border border-fin-border rounded-[1px] p-2 min-w-0"
+        class="border border-fin-border-subtle rounded-fin p-2 min-w-0"
       >
         <ToolbarRow justify="space-between">
           <Text span size="xs" fw={700} className="uppercase">
@@ -229,7 +229,7 @@ export function SimBuilder(props: SimBuilderProps) {
                     size="xs"
                     data-testid={`sim-leg-${index()}-resolved`}
                     style={{
-                      "font-size": "9px",
+                      "font-size": "11px",
                       color: preview() === null ? palette.NEGATIVE : palette.TEXT_MUTED,
                     }}
                   >
@@ -267,7 +267,7 @@ export function SimBuilder(props: SimBuilderProps) {
 
       <div
         data-testid="sim-exec"
-        class="border border-fin-border rounded-[1px] p-2"
+        class="border border-fin-border-subtle rounded-fin p-2"
       >
         <Text span size="xs" fw={700} className="uppercase">
           Execution

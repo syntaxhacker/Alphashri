@@ -1,8 +1,9 @@
 import type { JSX } from "solid-js";
-import { Show } from "solid-js";
+import { createEffect, createSignal, Show } from "solid-js";
 import { Badge, Box, Text, type UIVariant } from "@/ui";
 import { cn } from "@/ui/cn";
 import { getPnLTextColor } from "@/utils/ui-helpers";
+import { useValueFlash } from "@/utils/valueFlash";
 
 /**
  * Numbers must be mono + tabular everywhere or columns do not line up across surfaces.
@@ -62,6 +63,76 @@ export function NumCell(props: {
     >
       {text()}
     </Text>
+  );
+}
+
+/**
+ * Some tables (notably live positions) rebuild their row DOM on every poll tick.
+ * Their previous value has to outlive the component, so it is seeded by key.
+ */
+const lastFlashedValue = new Map<string, number>();
+
+/**
+ * Numeric cell that briefly tints its background when a polled value changes.
+ * The keyed node restarts the CSS animation even when two consecutive ticks move
+ * in the same direction — the class alone would stay applied for the whole 600ms.
+ */
+export function FlashValue(props: {
+  value: number | null | undefined;
+  /** Stable identity for a cell whose DOM node is recreated on every tick. */
+  flashKey?: string;
+  children?: JSX.Element;
+  testId?: string;
+  className?: string;
+  align?: "right" | "left";
+  title?: string;
+}): JSX.Element {
+  const seeded = () => {
+    const key = props.flashKey;
+    if (key == null) return props.value;
+    const previous = lastFlashedValue.get(key);
+    if (previous == null || !Number.isFinite(previous)) return props.value;
+    return previous;
+  };
+
+  const [observed, setObserved] = createSignal<number | null | undefined>(seeded());
+  const [epoch, setEpoch] = createSignal(0);
+  const flash = useValueFlash(() => {
+    epoch();
+    return observed();
+  });
+
+  createEffect(() => {
+    const current = props.value;
+    setObserved(current);
+    setEpoch((n) => n + 1);
+    if (props.flashKey != null && current != null && Number.isFinite(current)) {
+      lastFlashedValue.set(props.flashKey, current);
+    }
+  });
+
+  return (
+    <Show when={flash.key() + 1} keyed>
+      {(sequence) => (
+        <Box
+          component="span"
+          data-testid={props.testId}
+          title={props.title}
+          data-flash-key={sequence - 1}
+          data-flash-direction={flash.direction()}
+          className={cn(
+            "font-mono tabular-nums whitespace-nowrap",
+            props.align === "left" ? "text-left" : "text-right",
+            props.className,
+            flash.className(),
+          )}
+          style={{ "font-variant-numeric": "tabular-nums" }}
+        >
+          {props.children ??
+            (props.value == null || !Number.isFinite(props.value) ? "—" : String(props.value))}
+        </Box>
+      )}
+    </Show>
   );
 }
 
@@ -146,22 +217,28 @@ export function SymbolCell(props: {
   );
 }
 
-/** Badge column (type, status, flag): centred, xs only. */
+/**
+ * Badge column (type, status, flag): centred. The kit's small sizes are 9px —
+ * legible in a dense row but cramped next to 12px body text, so the default
+ * scales the glyph to match the table's type size. `size` stays overridable.
+ */
 export function BadgeCell(props: {
   label: string;
   color?: string;
   variant?: UIVariant;
   testId?: string;
   title?: string;
+  size?: "xs" | "sm" | "md" | "lg" | "xl";
 }): JSX.Element {
   return (
     <div class="flex items-center justify-center">
       <Badge
-        size="xs"
+        size={props.size ?? "sm"}
         color={props.color}
         variant={props.variant ?? "light"}
         data-testid={props.testId}
         title={props.title}
+        style={{ "font-size": "11px", height: "18px" }}
       >
         {props.label}
       </Badge>

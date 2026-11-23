@@ -302,6 +302,7 @@ export function PatternListView(props: PatternListViewProps) {
         data={props.hits}
         columns={columns}
         dataTestId="patterns-list"
+        dense
         fillContainer
         stickyHeader={false}
         // Sort keys match the server ordering (confidence desc / bars_ago asc /

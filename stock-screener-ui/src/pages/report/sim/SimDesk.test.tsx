@@ -6,7 +6,7 @@ import type { SimRunResult, SimStrategyResult, SimTrade } from "@/types/reportSi
 import type { NiftyOptionSide, NiftyReport } from "@/types/niftyReport";
 import { fetchSimStrategies, runSim } from "@/api/reportSim";
 import { isDerivativesOpenIst } from "@/utils/marketClock";
-import { For } from "solid-js";
+import { createSignal, For } from "solid-js";
 import { SimDesk } from "./SimDesk";
 
 vi.mock("@/utils/marketClock", () => ({
@@ -262,5 +262,19 @@ describe("SimDesk", () => {
 
     const alert = await screen.findByTestId("sim-error");
     expect(alert).toHaveTextContent("tape unavailable");
+  });
+
+  test("a live report poll does not restart the sim run", async () => {
+    const [liveReport, setLiveReport] = createSignal(report());
+    render(() => <SimDesk {...deskProps()} report={liveReport()} />);
+    fireEvent.click(screen.getByTestId("sim-open"));
+    await screen.findByTestId("panel-modal");
+    await waitFor(() => expect(mockRunSim).toHaveBeenCalledTimes(1));
+
+    // The poll delivers a fresh object with the same session and market state.
+    setLiveReport({ ...report(), spot: 25_000 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockRunSim).toHaveBeenCalledTimes(1);
   });
 });

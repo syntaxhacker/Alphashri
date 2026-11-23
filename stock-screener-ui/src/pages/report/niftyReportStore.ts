@@ -899,7 +899,13 @@ function buildNiftyReportStore(options: NiftyReportStoreOptions): {
         if (loaded) cacheReplayFrame(minute, loaded.report);
         return loaded;
       })
-      .catch(() => null);
+      .catch((error) => {
+        // A failed frame is indistinguishable from "no frame" to the caller,
+        // which leaves the previous frame on screen under a new playhead.
+        // Keep the fail-soft behaviour, but never swallow the failure silently.
+        console.warn("[report] replay frame failed to load", inflightKey, error);
+        return null;
+      });
     replayFrameInflight.set(inflightKey, request);
     void request.finally(() => {
       if (replayFrameInflight.get(inflightKey) === request) replayFrameInflight.delete(inflightKey);

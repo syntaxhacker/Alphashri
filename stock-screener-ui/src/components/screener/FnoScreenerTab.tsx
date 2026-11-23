@@ -15,10 +15,10 @@ import {
   Tab,
   ToolbarRow,
 } from "@/ui";
-import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
+import { CompactPanel } from "../common/compact";
 import { RangeInput } from "../common/RangeInput";
 import { TanStackTable } from "../common/TanStackTable";
-import { PayoffChartCore } from "@/components/options-dock/PayoffChartCore";
+import { PayoffChartCore, type PayoffSnapshot } from "@/components/options-dock/PayoffChartCore";
 import type { DockLeg } from "@/state/optionsDock";
 import { buildFnoColumns } from "./fnoColumns";
 import {
@@ -29,7 +29,8 @@ import {
   type FnoScreenerResponse,
   type FnoScreenerRow,
 } from "../../api/fnoScreener";
-import { formatPercentage } from "@/utils/ui-helpers";
+import { formatPercentage, formatNumber } from "@/utils/ui-helpers";
+import * as palette from "@/ui/palette";
 
 const DEFAULT_LIMIT = 50;
 
@@ -365,17 +366,76 @@ export function expiryYearsFrom(expiry: string | undefined): number | undefined 
   return Math.max(1, Math.ceil((target - today) / 86_400_000)) / 365;
 }
 
+/** One metric cell for the FNO detail panel: label over value with optional colour. */
+function DetailMetric(props: {
+  label: string;
+  value: string;
+  tone?: string;
+  testId?: string;
+}) {
+  return (
+    <Box className="flex min-w-0 flex-col gap-px" data-testid={props.testId}>
+      <Text
+        size="xs"
+        c="dimmed"
+        className="truncate uppercase"
+        style={{ "font-size": "9px", "letter-spacing": "0.06em", "line-height": "1.1" }}
+      >
+        {props.label}
+      </Text>
+      <Text
+        size="xs"
+        fw={700}
+        className="truncate font-mono tabular-nums"
+        style={{ "font-size": "11px", "line-height": "1.2", color: props.tone }}
+      >
+        {props.value}
+      </Text>
+    </Box>
+  );
+}
+
+/** Greeks micro-row: Δ Γ Θ ν in a compact horizontal strip. */
+function GreekStrip(props: { row: FnoScreenerRow }) {
+  const fmtGreek = (v: number, digits = 2): string =>
+    Number.isFinite(v) ? v.toFixed(digits) : "—";
+  return (
+    <Box className="flex items-center gap-3" data-testid="fno-detail-greeks">
+      <For each={[
+        { label: "Δ", value: fmtGreek(props.row.delta), testId: "fno-detail-delta" },
+        { label: "Γ", value: fmtGreek(props.row.gamma, 4), testId: "fno-detail-gamma" },
+        { label: "Θ", value: fmtGreek(props.row.theta), tone: palette.NEGATIVE, testId: "fno-detail-theta" },
+        { label: "ν", value: fmtGreek(props.row.vega), testId: "fno-detail-vega" },
+      ]}>
+        {(g) => (
+          <Box className="flex items-baseline gap-1" data-testid={g.testId}>
+            <Text
+              size="xs"
+              c="dimmed"
+              style={{ "font-size": "10px", "font-style": "italic" }}
+            >
+              {g.label}
+            </Text>
+            <Text
+              size="xs"
+              fw={600}
+              className="font-mono tabular-nums"
+              style={{ "font-size": "10px", color: g.tone }}
+            >
+              {g.value}
+            </Text>
+          </Box>
+        )}
+      </For>
+    </Box>
+  );
+}
+
 export function FnoRowDetail(props: { row: FnoScreenerRow; expiry?: string }) {
   const row = () => props.row;
   const maxLoss = () => row().cost_lot;
-  // `legs` must rebuild when `props.row` changes (data refetch / view-mode
-  // switch re-supplies the same expanded row with a new object). Reading
-  // `row()` at body level would pin the first row forever.
-  // The screener row already says which side it is quoting (`call` is the
-  // option type, not a boolean): a PE row booked as a CE paints the payoff
-  // mirrored, so the leg type must come from the row and the key must carry it.
-  // The API sends a label (`"4200 PE"`) while fixtures send the bare token, so
-  // read the trailing type word rather than comparing the whole string.
+  const [snapshot, setSnapshot] = createSignal<PayoffSnapshot | null>(null);
+
   const legType = (): "CE" | "PE" => {
     const raw = String(row().call ?? "").trim().toUpperCase();
     return raw === "PE" || raw.split(/\s+/).at(-1) === "PE" ? "PE" : "CE";
@@ -392,39 +452,150 @@ export function FnoRowDetail(props: { row: FnoScreenerRow; expiry?: string }) {
       lotSize: 1,
     },
   ];
-  // The screener quotes IV in vol points (22.5 = 22.5 %); the core takes a
-  // decimal fraction. With no expiry the core falls back to 7/365 for the model
-  // and hides ±1σ rather than printing a fabricated expected move.
   const ivDecimal = () => {
     const iv = row().iv;
     return Number.isFinite(iv) && iv > 0 ? iv / 100 : Number.NaN;
   };
+
+  const pnlTone = (v: number | null | undefined) =>
+    v == null || !Number.isFinite(v) ? undefined : v > 0 ? palette.POSITIVE : v < 0 ? palette.NEGATIVE : undefined;
+
   return (
     <Box
-      className="flex w-full flex-col gap-1 p-2"
+      className="flex w-full flex-col border-t border-b border-fin-border bg-fin-bg"
+      style={{ "border-color": palette.BORDER }}
       data-testid="fno-row-detail"
     >
-      <Text size="xs" c="dimmed" fw={700} className="text-[10px] uppercase tracking-[0.4px]">
-        {row().symbol} · {row().setup}
-      </Text>
-      <CompactStatGrid cols={4} spacing={0.5}>
-        <CompactStat label="Premium" value={money2(row().premium)} data-testid="fno-detail-premium" />
-        <CompactStat label="Cost / lot" value={rupees0(row().cost_lot)} data-testid="fno-detail-cost" />
-        <CompactStat label="Breakeven" value={money2(row().breakeven)} data-testid="fno-detail-breakeven" />
-        <CompactStat label="Max loss" value={rupees0(maxLoss())} tone="error" data-testid="fno-detail-max-loss" />
-        <CompactStat label="POP" value={formatPercentage(row().pop)} data-testid="fno-detail-pop" />
-        <CompactStat label="1D%" value={formatPercentage(row().d1)} data-testid="fno-detail-d1" />
-        <CompactStat label="5D%" value={formatPercentage(row().d5)} data-testid="fno-detail-d5" />
-        <CompactStat label="+2% est." value={formatPercentage(row().move_2pct_est)} data-testid="fno-detail-move2" />
-      </CompactStatGrid>
-      <PayoffChartCore
-        legs={legs()}
-        spot={row().spot}
-        iv={ivDecimal()}
-        dteYears={expiryYearsFrom(props.expiry)}
-        height={180}
-        data-testid={`fno-payoff-${row().symbol}`}
-      />
+      {/* ── Header strip ─────────────────────────────────────────── */}
+      <Box
+        className="flex items-center gap-3 px-3 py-1.5"
+        style={{ "background-color": palette.SURFACE_ALT, "border-bottom": `1px solid ${palette.BORDER}` }}
+        data-testid="fno-detail-header"
+      >
+        <Text
+          size="xs"
+          fw={700}
+          className="font-mono tabular-nums uppercase"
+          style={{ "font-size": "11px", "letter-spacing": "0.08em", color: palette.PRIMARY }}
+        >
+          {row().symbol}
+        </Text>
+        <Badge size="xs" variant="filled" color={legType() === "CE" ? "info" : "warning"}>
+          {row().strike} {legType()}
+        </Badge>
+        <Badge size="xs" variant="light" color="secondary">
+          {row().setup}
+        </Badge>
+        <Show when={props.expiry}>
+          <Text
+            size="xs"
+            c="dimmed"
+            className="font-mono tabular-nums"
+            style={{ "font-size": "10px" }}
+          >
+            EXP {props.expiry}
+          </Text>
+        </Show>
+        <Box className="ml-auto flex items-center gap-4">
+          <Show when={snapshot()}>
+            <Text
+              size="xs"
+              fw={700}
+              className="font-mono tabular-nums"
+              style={{
+                "font-size": "10px",
+                color: pnlTone(snapshot()?.expectedPnl),
+              }}
+              data-testid="fno-detail-epnl-header"
+            >
+              E[P&L] {snapshot()?.expectedPnl != null && Number.isFinite(snapshot()!.expectedPnl)
+                ? (snapshot()!.expectedPnl > 0 ? "+" : "") + formatNumber(Math.round(snapshot()!.expectedPnl))
+                : "—"}
+            </Text>
+          </Show>
+          <GreekStrip row={row()} />
+        </Box>
+      </Box>
+
+      {/* ── Body: chart + metrics side-by-side ───────────────────── */}
+      <Box className="flex min-h-0 gap-0">
+        {/* Left: Payoff chart — takes the majority of width */}
+        <Box className="flex min-w-0 flex-1 flex-col" style={{ "min-height": "200px" }}>
+          <PayoffChartCore
+            legs={legs()}
+            spot={row().spot}
+            iv={ivDecimal()}
+            dteYears={expiryYearsFrom(props.expiry)}
+            height={200}
+            onSnapshot={setSnapshot}
+            data-testid={`fno-payoff-${row().symbol}`}
+          />
+        </Box>
+
+        {/* Right: Risk / position metrics in a compact vertical stack */}
+        <Box
+          className="flex shrink-0 flex-col justify-between border-l border-fin-border py-2 px-3"
+          style={{ width: "200px", "background-color": palette.SURFACE }}
+          data-testid="fno-detail-metrics"
+        >
+          {/* Primary metrics */}
+          <Box className="flex flex-col gap-2">
+            <DetailMetric label="Spot" value={money2(row().spot)} testId="fno-detail-spot" />
+            <DetailMetric label="Strike" value={money2(row().strike)} testId="fno-detail-strike" />
+            <DetailMetric label="Premium" value={money2(row().premium)} testId="fno-detail-premium" />
+            <Box
+              className="border-t border-fin-border pt-2"
+              style={{ "border-color": palette.alpha(palette.BORDER, 0.5) }}
+            >
+              <DetailMetric label="Cost / lot" value={rupees0(row().cost_lot)} testId="fno-detail-cost" />
+            </Box>
+            <DetailMetric label="Breakeven" value={money2(row().breakeven)} testId="fno-detail-breakeven" />
+            <DetailMetric
+              label="Max loss"
+              value={rupees0(maxLoss())}
+              tone={palette.NEGATIVE}
+              testId="fno-detail-max-loss"
+            />
+          </Box>
+
+          {/* Separator */}
+          <Box
+            className="my-1.5 border-t border-fin-border"
+            style={{ "border-color": palette.alpha(palette.BORDER, 0.5) }}
+          />
+
+          {/* Probability & momentum */}
+          <Box className="flex flex-col gap-2">
+            <DetailMetric
+              label="POP"
+              value={formatPercentage(row().pop)}
+              tone={row().pop >= 50 ? palette.POSITIVE : palette.NEGATIVE}
+              testId="fno-detail-pop"
+            />
+            <Box className="flex gap-4">
+              <DetailMetric label="1D%" value={formatPercentage(row().d1)} testId="fno-detail-d1" />
+              <DetailMetric label="5D%" value={formatPercentage(row().d5)} testId="fno-detail-d5" />
+            </Box>
+            <DetailMetric
+              label="+2% est."
+              value={formatPercentage(row().move_2pct_est)}
+              testId="fno-detail-move2"
+            />
+            <Box className="flex gap-4">
+              <DetailMetric
+                label="IV"
+                value={formatPercentage(row().iv)}
+                testId="fno-detail-iv"
+              />
+              <DetailMetric
+                label="OI"
+                value={Number.isFinite(row().oi) ? formatNumber(row().oi) : "—"}
+                testId="fno-detail-oi"
+              />
+            </Box>
+          </Box>
+        </Box>
+      </Box>
     </Box>
   );
 }

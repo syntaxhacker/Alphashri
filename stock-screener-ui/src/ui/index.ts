@@ -11,6 +11,11 @@ export { Divider } from "./layout/Divider";
 export { Collapse } from "./layout/Collapse";
 export { SimpleGrid } from "./layout/SimpleGrid";
 export { Grid, GridCol } from "./layout/Grid";
+export { Row } from "./layout/Row";
+export { Col } from "./layout/Col";
+export type { GridProps } from "./layout/Grid";
+export type { RowProps, RowAlign, RowJustify } from "./layout/Row";
+export type { ColProps, ColAlign } from "./layout/Col";
 export { Portal } from "./layout/Portal";
 
 export { Text } from "./typography/Text";

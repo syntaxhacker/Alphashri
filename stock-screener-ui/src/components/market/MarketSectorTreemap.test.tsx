@@ -258,8 +258,8 @@ describe("robust colour domain in the nested map", () => {
 });
 
 /** Both canvases call the same helper, so a signed and an unsigned value must paint identically. */
-describe("MarketSectorTreemap — identical viridis colours in both treemaps", () => {
-  test("(c) the same value + metric paints the same viridis fill in flat and sector maps", async () => {
+describe("MarketSectorTreemap — identical red-green colours in both treemaps", () => {
+  test("(c) the same value + metric paints the same diverging fill in flat and sector maps", async () => {
     const rows = [
       { ...row("GAIN", "Energy", -4.8), perf1m: 29.3, rsi: 82 },
       { ...row("LOSS", "IT", 2.1), perf1m: -12.9, rsi: 18 },
@@ -280,9 +280,9 @@ describe("MarketSectorTreemap — identical viridis colours in both treemaps", (
     );
     expect(flatSigned.GAIN).toBe(sectorSigned.GAIN);
     expect(flatSigned.LOSS).toBe(sectorSigned.LOSS);
-    // GAIN is the domain maximum, so viridis paints it yellow — never the old
-    // strong-green fill the shared heatmap ramp used for a +29.3% move.
-    expect(flatSigned.GAIN).toBe("rgb(253,231,37)");
+    // GAIN is the domain maximum, so the diverging ramp paints it full green —
+    // the token-derived POSITIVE_COLOR end, distinct from the shared NSE ramp.
+    expect(flatSigned.GAIN).toBe("rgb(47,163,107)");
 
     // Now an unsigned metric — the identical mapping must hold there too.
     captured.option = null;
@@ -296,13 +296,15 @@ describe("MarketSectorTreemap — identical viridis colours in both treemaps", (
     expect(flatUnsigned.LOSS).toBe(marketTileColor("rsi", 18, rsiRange.min, rsiRange.max));
   });
 
-  test("(e) both legends read low → high and drop green/red wording", async () => {
+  test("(e) both legends read low → high and paint red → neutral → green", async () => {
     await renderTreemap([row("A", "Energy", 3), row("B", "IT", 5)]);
     expect(screen.getByTestId("market-sector-map-color-direction")).toHaveTextContent("low → high");
-    expect(screen.getByTestId("market-sector-map-legend")).not.toHaveTextContent(/green|red/i);
     const bar = screen.getByTestId("market-sector-map-color-range").querySelector("div[style*='linear-gradient']") as HTMLElement;
-    expect(bar.getAttribute("style")).toContain("#440154");
-    expect(bar.getAttribute("style")).toContain("#fde725");
+    const style = bar.getAttribute("style")!;
+    expect(style).toContain("#e5606a");
+    expect(style).toContain("#1F242D");
+    expect(style).toContain("#2fa36b");
+    expect(style.indexOf("#e5606a")).toBeLessThan(style.indexOf("#2fa36b"));
   });
 });
 
@@ -343,7 +345,6 @@ describe("MarketSectorTreemap — legend honesty audit", () => {
     expect(direction).toHaveTextContent("low → high");
     expect(direction).toHaveTextContent(/position in range/i);
     expect(direction).toHaveTextContent(/not gain\/loss/i);
-    expect(screen.getByTestId("market-sector-map-legend")).not.toHaveTextContent(/green|red/i);
   });
 
   test("(b) both treemaps hide the legend when there are no rows", async () => {

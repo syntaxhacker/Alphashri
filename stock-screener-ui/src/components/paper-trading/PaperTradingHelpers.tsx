@@ -44,6 +44,11 @@ const normDate = (v: unknown): string => {
   return String(v);
 };
 export function usePaperViewActions(getActiveBotId: () => string | null) {
+  // The Today default is a first-visit convenience, not a reset button. Once
+  // the user has chosen a period (including "All" = both dates null),
+  // re-entering history must not silently narrow the range again.
+  let historyDefaultApplied = false;
+
   const handleViewChange = async (view: string | null) => {
     if (!view) return;
 
@@ -84,7 +89,8 @@ export function usePaperViewActions(getActiveBotId: () => string | null) {
       const currentState = getPaperTradingState();
       let fromStr = currentState.filterFromDate;
       let toStr = currentState.filterToDate;
-      if (!fromStr && !toStr) {
+      if (!fromStr && !toStr && !historyDefaultApplied) {
+        historyDefaultApplied = true;
         fromStr = dayjs().format("YYYY-MM-DD");
         toStr = fromStr;
         setFilterFromDate(fromStr);

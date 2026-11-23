@@ -277,6 +277,26 @@ describe("PayoffChartCore recompute gate", () => {
     expect(snapshots.at(-1)!.pop).toBe(buildPayoff(condor(), 24036.5, 0.25, 10 / 365)!.pop);
   });
 
+  test("a sub-epsilon spot tick does not repaint the canvas", async () => {
+    const [spot, setSpot] = createSignal(24031.5);
+    render(() => (
+      <UIProvider>
+        <PayoffChartCore legs={condor()} spot={spot()} iv={0.138} dteYears={2 / 365} />
+      </UIProvider>
+    ));
+    await waitFor(() => expect(chartStub.setOption).toHaveBeenCalledTimes(1));
+
+    // A real move recomputes the snapshot; from then on the paint effect has a
+    // live `props.spot` dependency and must still respect the gate.
+    setSpot(24200); // +0.7 % — outside the gate.
+    await waitFor(() => expect(chartStub.setOption).toHaveBeenCalledTimes(2));
+
+    chartStub.setOption.mockClear();
+    setSpot(24205); // +₹5 on 24 200 = 0.02 % — inside the gate.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(chartStub.setOption).not.toHaveBeenCalled();
+  });
+
   test("a fixed canvas height is applied to the chart container", async () => {
     render(() => (
       <UIProvider>
@@ -346,5 +366,50 @@ describe("PayoffChartCore optional probability visuals", () => {
     expect(
       data.find((item) => item.label?.formatter === "BE ₹24,000")!.label.fontSize,
     ).toBeGreaterThanOrEqual(10);
+  });
+});
+
+describe("PayoffChartCore sampled window width", () => {
+  test("widthPct forwards through buildPayoff and changes the sampled x range", () => {
+    const spot = 24031.5;
+    const base = buildPayoff(condor(), spot, 0.138, 2 / 365)!;
+    const wide = buildPayoff(condor(), spot, 0.138, 2 / 365, { widthPct: 20 })!;
+
+    // Default (10 %) keeps the model's own ±10 % window unchanged.
+    expect(base.points[0].spot).toBeCloseTo(spot * 0.9, 3);
+    expect(base.points.at(-1)!.spot).toBeCloseTo(spot * 1.1, 3);
+    // 20 % widens both ends; the curve is still 241 samples.
+    expect(wide.points).toHaveLength(base.points.length);
+    expect(wide.points[0].spot).toBeCloseTo(spot * 0.8, 3);
+    expect(wide.points.at(-1)!.spot).toBeCloseTo(spot * 1.2, 3);
+    expect(wide.points[0].spot).toBeLessThan(base.points[0].spot);
+    expect(wide.points.at(-1)!.spot).toBeGreaterThan(base.points.at(-1)!.spot);
+  });
+
+  test("the widthPct prop widens the rendered x-axis categories", async () => {
+    render(() => (
+      <UIProvider>
+        <PayoffChartCore legs={condor()} spot={24031.5} iv={0.138} dteYears={2 / 365} widthPct={20} />
+      </UIProvider>
+    ));
+    await waitFor(() => expect(chartStub.setOption).toHaveBeenCalled());
+
+    const categories = ((lastOption().xAxis as { data?: string[] } | undefined)?.data ?? []) as string[];
+    expect(categories).toHaveLength(241);
+    expect(Number(categories[0])).toBeCloseTo(24031.5 * 0.8, 0);
+    expect(Number(categories.at(-1))).toBeCloseTo(24031.5 * 1.2, 0);
+  });
+
+  test("omitting widthPct stays on the default ±10 % window", async () => {
+    render(() => (
+      <UIProvider>
+        <PayoffChartCore legs={condor()} spot={24031.5} iv={0.138} dteYears={2 / 365} />
+      </UIProvider>
+    ));
+    await waitFor(() => expect(chartStub.setOption).toHaveBeenCalled());
+
+    const categories = ((lastOption().xAxis as { data?: string[] } | undefined)?.data ?? []) as string[];
+    expect(Number(categories[0])).toBeCloseTo(24031.5 * 0.9, 0);
+    expect(Number(categories.at(-1))).toBeCloseTo(24031.5 * 1.1, 0);
   });
 });

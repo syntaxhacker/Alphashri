@@ -1,3 +1,5 @@
+import { compositeOver } from "@/utils/contrast";
+
 // ============================================================
 // SINGLE SOURCE OF TRUTH FOR ALL COLORS IN THE APP
 // ------------------------------------------------------------
@@ -58,6 +60,21 @@ export function alpha(hex: string, a: number): string {
   const b = parseInt(full.slice(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
+
+// ----- Semantic border colors ------------------------------------------------
+// Decorative separators and state-carrying outlines share one vocabulary. Every
+// value derives from an existing anchor through alpha() (or is the canonical
+// hairline itself), so retuning an anchor re-themes every border with it and no
+// raw hex ever appears outside this file. Mirrored into @theme in tailwind.css.
+export const BORDER_SUBTLE = alpha(BORDER_COLOR, 0.6);   // faint dividers
+export const BORDER_DEFAULT = BORDER_COLOR;              // canonical hairline
+export const BORDER_STRONG = alpha(TEXT_MUTED_COLOR, 0.6); // emphasized edge
+export const BORDER_FOCUS = alpha(PRIMARY, 0.9);          // keyboard focus ring
+export const BORDER_POSITIVE = alpha(POSITIVE_COLOR, 0.7);
+export const BORDER_NEGATIVE = alpha(NEGATIVE_COLOR, 0.7);
+export const BORDER_WARNING = alpha(WARNING, 0.7);
+export const BORDER_INFO = alpha(INFO, 0.7);
+export const BORDER_DISABLED = alpha(TEXT_MUTED_COLOR, 0.25);
 
 /** Tabular/mono numeral stack for price, P&L, OI and IV columns. */
 export const MONO = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
@@ -217,20 +234,27 @@ export const MARKET_RAMP_NEUTRAL = "#606A76";
 export const MARKET_RAMP_RED = "#E86E78";
 export const MARKET_RAMP_STRONG_RED = "#FF939B";
 
-// Market heatmap ramp: viridis, matplotlib's perceptually uniform sequential
-// map, sampled at cm.viridis(i/16) for i=0..16. One ramp for BOTH signed and
-// unsigned metrics — luminance rises at every step, so magnitude always reads
-// as intensity and no hue has to be decoded. The legend states low → high
-// because a sequential ramp has no zero anchor.
-//
-// Unlike cividis, viridis needs no substituted stop: every one of the 17 stops
-// clears 4.5:1 against at least one of the two label inks on its own (the
-// tightest is stop 7 `#21918c`-adjacent `#26828e` at 4.67:1 with near-black).
-export const VIRIDIS_STOPS = [
-  "#440154", "#48186a", "#472d7b", "#424086", "#3b528b", "#33638d", "#2c728e", "#26828e",
-  "#21918c",
-  "#1fa088", "#28ae80", "#3fbc73", "#5ec962", "#84d44b", "#addc30", "#d8e219", "#fde725",
+// Market heatmap: a token-derived diverging red → neutral → green ramp.
+// Red means negative, the raised surface means neutral/flat, green means
+// positive. Each side fades toward the midpoint by alpha, so magnitude reads as
+// intensity. Every stop derives from NEGATIVE_COLOR / POSITIVE_COLOR /
+// SURFACE_ALT — retune an anchor and the whole scale follows, with no stray
+// hue of its own. The alpha fade is flattened to a hex over the neutral by
+// compositeOver(): the treemap's rgb interpolator cannot parse rgba() strings.
+const heatStop = (color: string, a: number) => compositeOver(color, SURFACE_ALT, a);
+export const RED_GREEN_HEATMAP_STOPS = [
+  heatStop(NEGATIVE_COLOR, 1.0),
+  heatStop(NEGATIVE_COLOR, 0.75),
+  heatStop(NEGATIVE_COLOR, 0.5),
+  heatStop(NEGATIVE_COLOR, 0.25),
+  SURFACE_ALT,
+  heatStop(POSITIVE_COLOR, 0.25),
+  heatStop(POSITIVE_COLOR, 0.5),
+  heatStop(POSITIVE_COLOR, 0.75),
+  heatStop(POSITIVE_COLOR, 1.0),
 ] as const;
+
+export const VIRIDIS_STOPS = RED_GREEN_HEATMAP_STOPS;
 
 // Sector rotation (RRG quadrants + rotation status) — muted, never neon.
 export const ROTATION_LEADING = "#4C9A8F";

@@ -267,6 +267,33 @@ describe("usePaperViewActions", () => {
     expect(refreshHistoryData).toHaveBeenCalledWith(null, expect.any(String), expect.any(String));
   });
 
+  it("does not re-apply the default Today filter after the user chose All", async () => {
+    mockStateStore.filterFromDate = null;
+    mockStateStore.filterToDate = null;
+    mockStateStore.currentView = "live";
+    const { result } = renderHook(() => usePaperViewActions(() => null));
+    const { setFilterFromDate, setFilterToDate } = await import("../../state/paperTrading");
+    const { refreshHistoryData } = await import("../../api/paperTrading");
+
+    await result.handleViewChange("history");
+    expect(setFilterFromDate).toHaveBeenCalled();
+
+    // The quick filter "All" clears both dates. Re-entering history must keep
+    // the user's choice instead of silently narrowing back to Today.
+    mockStateStore.filterFromDate = null;
+    mockStateStore.filterToDate = null;
+    mockStateStore.currentView = "live";
+    vi.mocked(setFilterFromDate).mockClear();
+    vi.mocked(setFilterToDate).mockClear();
+    vi.mocked(refreshHistoryData).mockClear();
+
+    await result.handleViewChange("history");
+
+    expect(setFilterFromDate).not.toHaveBeenCalled();
+    expect(setFilterToDate).not.toHaveBeenCalled();
+    expect(refreshHistoryData).toHaveBeenLastCalledWith(null, null, null);
+  });
+
   it("handleViewChange('history') uses existing dates when present", async () => {
     mockStateStore.filterFromDate = "2026-04-01";
     mockStateStore.filterToDate = "2026-04-27";

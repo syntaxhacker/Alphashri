@@ -155,7 +155,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
         className="flex flex-col flex-1 min-w-0"
         style={{ gap: "2px", "justify-content": "center" }}
       >
-        <div className="flex items-center min-w-0" style={{ gap: "8px", "row-gap": "4px", "flex-wrap": "wrap" }}>
+        <div className="flex items-center min-w-0" style={{ gap: "8px", "row-gap": "8px", "flex-wrap": "wrap" }}>
           <Select
             size="sm"
             w={124}
@@ -169,8 +169,8 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
             data-testid="replay-bot-select"
           />
 
-          <Box data-testid="replay-date-from" className="flex items-center flex-none" style={{ gap: "4px" }}>
-            <span className="text-[10px] font-mono uppercase tracking-[0.06em] text-fin-text-muted">From</span>
+          <Box data-testid="replay-date-from" className="flex items-center flex-none" style={{ gap: "8px" }}>
+            <span className="text-[11px] font-mono uppercase tracking-[0.06em] text-fin-text-muted">From</span>
             <TradingDatePicker
               w={112}
               maxDate={maxDate}
@@ -179,8 +179,8 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
             />
             {props.config.date && <span style={{ display: "none" }}>{formatDisplayDate(props.config.date)}</span>}
           </Box>
-          <Box data-testid="replay-date-to" className="flex items-center flex-none" style={{ gap: "4px" }}>
-            <span className="text-[10px] font-mono uppercase tracking-[0.06em] text-fin-text-muted">To</span>
+          <Box data-testid="replay-date-to" className="flex items-center flex-none" style={{ gap: "8px" }}>
+            <span className="text-[11px] font-mono uppercase tracking-[0.06em] text-fin-text-muted">To</span>
             <TradingDatePicker
               w={112}
               maxDate={maxDate}
@@ -190,7 +190,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
             {props.config.end_date && <span style={{ display: "none" }}>{formatDisplayDate(props.config.end_date)}</span>}
           </Box>
 
-          <div className="flex items-center flex-none" style={{ gap: "4px" }}>
+          <div className="flex items-center flex-none" style={{ gap: "8px" }}>
             <ScreenerSymbolPicker
               symbols={props.config.symbols}
               onAddSymbols={(newSymbols) => props.setConfig({ symbols: [...props.config.symbols, ...newSymbols] })}
@@ -231,7 +231,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
             label="Refresh cache"
             className="flex-none whitespace-nowrap"
             checked={props.config.refresh_cache}
-            onChange={(e) => props.setConfig({ refresh_cache: e.currentTarget.checked })}
+            onChange={(e) => props.setConfig({ refresh_cache: (e.currentTarget as HTMLInputElement).checked })}
             data-testid="replay-refresh-cache-switch"
           />
 
@@ -332,7 +332,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
           <div
             data-testid="symbol-chips"
             className="flex items-center overflow-hidden min-w-0"
-            style={{ gap: "4px", "flex-wrap": "nowrap", "max-height": "18px" }}
+            style={{ gap: "8px", "flex-wrap": "nowrap", "max-height": "18px" }}
           >
             <For each={props.config.symbols}>{(symbol) => (
               <Badge

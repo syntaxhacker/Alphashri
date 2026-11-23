@@ -17,7 +17,11 @@ const frameHandlers: Array<(frame: SseFrame) => void> = [];
 vi.mock("../../state/paperTrading", () => ({
   getPaperTradingState: vi.fn(() => currentState),
   subscribe: vi.fn(() => vi.fn()),
-  setPositions: vi.fn(),
+  // Mirror the real setter so consecutive ticks observe the previous tick's
+  // prices instead of replaying against the original snapshot.
+  setPositions: vi.fn((positions: any) => {
+    currentState = { ...currentState, positions };
+  }),
 }));
 
 vi.mock("../../api/holidays_api", () => ({
@@ -242,18 +246,17 @@ describe("LivePriceUpdater", () => {
     expect(reliance.pnl_pct).toBeCloseTo(3.125, 1);
   });
 
-  test("does not crash when no positions in state", async () => {
+  test("does not crash or re-emit when there are no positions", async () => {
     setState({ positions: [] });
     const { setPositions } = await import("../../state/paperTrading");
     render(() => <LivePriceUpdater />);
     await waitForStreamAttached();
     notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: 1650 } });
-    await vi.waitFor(() => {
-      expect(setPositions).toHaveBeenCalledWith([]);
-    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(setPositions).not.toHaveBeenCalled();
   });
 
-  test("ignores live price for symbol not in positions list", async () => {
+  test("ignores live price for symbol not in positions list without re-emitting", async () => {
     setState({
       positions: [
         {
@@ -274,13 +277,8 @@ describe("LivePriceUpdater", () => {
     render(() => <LivePriceUpdater />);
     await waitForStreamAttached();
     notifyLivePrices({ TCS: { symbol: "TCS", ltp: 3400 } });
-    await vi.waitFor(() => {
-      expect(setPositions).toHaveBeenCalled();
-    });
-    const updated = (vi.mocked(setPositions) as any).mock.calls[0][0];
-    expect(updated).toHaveLength(1);
-    expect(updated[0].symbol).toBe("RELIANCE");
-    expect(updated[0].current_price).toBe(1600);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(setPositions).not.toHaveBeenCalled();
   });
 
   test("skips live price update with null ltp", async () => {
@@ -452,6 +450,139 @@ describe("LivePriceUpdater", () => {
     const pos = updated.find((p: any) => p.symbol === "RELIANCE");
     expect(pos.pnl).toBe(100000 * (10001 - 1));
     expect(pos.current_price).toBe(10001);
+  });
+
+  test("applies same-ltp ticks for two strategies holding the same symbol", async () => {
+    const makePos = (strategyId: number, quantity: number) => ({
+      symbol: "INFY",
+      side: "BUY",
+      quantity,
+      entry_price: 100,
+      current_price: 100,
+      pnl: 0,
+      pnl_pct: 0,
+      strategy_id: strategyId,
+      order_id: `order-${strategyId}`,
+      stop_loss: 90,
+      take_profit: 120,
+    });
+    setState({ positions: [makePos(1, 1), makePos(2, 3)] });
+    const { setPositions } = await import("../../state/paperTrading");
+
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
+
+    notifyLivePrices({ s1: { symbol: "INFY", ltp: 110, strategy_id: 1 } });
+    notifyLivePrices({ s2: { symbol: "INFY", ltp: 110, strategy_id: 2 } });
+
+    await vi.waitFor(() => {
+      expect(setPositions).toHaveBeenCalledTimes(2);
+    });
+    const final = (vi.mocked(setPositions) as any).mock.calls[1][0];
+    const first = final.find((p: any) => p.strategy_id === 1);
+    const second = final.find((p: any) => p.strategy_id === 2);
+    expect(first.current_price).toBe(110);
+    expect(first.pnl).toBe(10);
+    expect(second.current_price).toBe(110);
+    expect(second.pnl).toBe(30);
+  });
+
+  test("applies an unchanged-price tick to a position added after the previous tick", async () => {
+    const existing = {
+      symbol: "RELIANCE",
+      side: "BUY",
+      quantity: 1,
+      entry_price: 100,
+      current_price: 100,
+      pnl: 0,
+      pnl_pct: 0,
+      strategy_id: 1,
+      stop_loss: 90,
+      take_profit: 120,
+    };
+    setState({ positions: [existing] });
+    const { setPositions } = await import("../../state/paperTrading");
+
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
+
+    notifyLivePrices({ t1: { symbol: "RELIANCE", ltp: 101 } });
+    await vi.waitFor(() => expect(setPositions).toHaveBeenCalledTimes(1));
+
+    // The 20s REST poll brings in a second strategy's position whose current
+    // price is still the entry price; the next tick has the same ltp as before.
+    const afterFirst = (vi.mocked(setPositions) as any).mock.calls[0][0];
+    setState({
+      positions: [
+        afterFirst[0],
+        { ...afterFirst[0], strategy_id: 9, entry_price: 90, current_price: 90, quantity: 3, order_id: "late" },
+      ],
+    });
+    notifyLivePrices({ t2: { symbol: "RELIANCE", ltp: 101 } });
+
+    await vi.waitFor(() => expect(setPositions).toHaveBeenCalledTimes(2));
+    const final = (vi.mocked(setPositions) as any).mock.calls[1][0];
+    const late = final.find((p: any) => p.order_id === "late");
+    expect(late.current_price).toBe(101);
+    expect(late.pnl).toBe(33);
+  });
+
+  test("does not notify subscribers for a tick that matches no position", async () => {
+    setState({
+      positions: [
+        {
+          symbol: "RELIANCE",
+          side: "BUY",
+          quantity: 1,
+          entry_price: 100,
+          current_price: 100,
+          pnl: 0,
+          pnl_pct: 0,
+          stop_loss: 90,
+          take_profit: 120,
+        },
+      ],
+    });
+    const { setPositions } = await import("../../state/paperTrading");
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
+
+    for (let i = 0; i < 20; i++) {
+      notifyLivePrices({ nope: { symbol: "UNHELD", ltp: 100 + i } });
+    }
+    expect(setPositions).not.toHaveBeenCalled();
+  });
+
+  test("recalculates SELL P&L with the correct side and quantity over repeated ticks", async () => {
+    setState({
+      positions: [
+        {
+          symbol: "TCS",
+          side: "SELL",
+          quantity: 4,
+          entry_price: 2000,
+          current_price: 2000,
+          pnl: 0,
+          pnl_pct: 0,
+          stop_loss: 2100,
+          take_profit: 1800,
+        },
+      ],
+    });
+    const { setPositions } = await import("../../state/paperTrading");
+    render(() => <LivePriceUpdater />);
+    await waitForStreamAttached();
+
+    for (const ltp of [2010, 1990, 1980]) {
+      notifyLivePrices({ tcs: { symbol: "TCS", ltp } });
+    }
+
+    const calls = (vi.mocked(setPositions) as any).mock.calls;
+    expect(calls).toHaveLength(3);
+    expect(calls[0][0][0].pnl).toBe(-40);
+    expect(calls[1][0][0].pnl).toBe(40);
+    expect(calls[2][0][0].pnl).toBe(80);
+    expect(calls[2][0][0].pnl_pct).toBeCloseTo(1, 5);
   });
 
   test("drives 120 rapid ticks and lands on the final value with no stale intermediate", async () => {
