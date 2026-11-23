@@ -69,7 +69,6 @@ export function Tooltip(props: TooltipProps) {
     "onFocus",
     "onBlur",
     "aria-describedby",
-    "withinPortal",
     // Runtime swallow for older callers; no longer public API.
     "transitionProps",
   ]);

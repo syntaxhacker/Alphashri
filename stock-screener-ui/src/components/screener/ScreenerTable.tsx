@@ -214,7 +214,7 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
           if (col.key === "score" || col.type === "badge") {
             const scoreValue = typeof value === "number" ? value : 0;
             return (
-              <Tooltip label={props.scoreFormula ? `${props.scoreFormula} = ${scoreValue}` : `Score: ${scoreValue}`} multiline withinPortal>
+              <Tooltip label={props.scoreFormula ? `${props.scoreFormula} = ${scoreValue}` : `Score: ${scoreValue}`} multiline>
                 <Badge color={getScoreColor(scoreValue)} variant="filled" data-testid={`score-badge-${stock.symbol}`}>
                   {scoreValue}
                 </Badge>

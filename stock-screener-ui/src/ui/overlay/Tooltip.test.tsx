@@ -65,6 +65,14 @@ function setupPlain(overrides: Partial<TipProps> = {}) {
   };
 }
 
+describe("Tooltip public props", () => {
+  test("withinPortal is not part of the public surface", () => {
+    const props: TipProps = { label: "Helpful hint" };
+    // @ts-expect-error withinPortal was removed; the tooltip is always portalled
+    expect(props.withinPortal).toBeUndefined();
+  });
+});
+
 describe("Tooltip a11y contracts", () => {
   test("opens on keyboard focus of the trigger", async () => {
     const { trigger, tooltip, onFocus } = setup();

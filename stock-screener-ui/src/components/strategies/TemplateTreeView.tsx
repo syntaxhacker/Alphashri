@@ -143,7 +143,7 @@ export function TemplateTreeView(props: TemplateTreeViewProps) {
             when={isTemplate}
             fallback={
               <>
-                <Tooltip label="Edit strategy" withinPortal>
+                <Tooltip label="Edit strategy">
                   <ActionIcon
                     size="sm"
                     variant="subtle"
@@ -154,7 +154,7 @@ export function TemplateTreeView(props: TemplateTreeViewProps) {
                     <IconEdit size={14} />
                   </ActionIcon>
                 </Tooltip>
-                <Tooltip label="Delete strategy" withinPortal>
+                <Tooltip label="Delete strategy">
                   <ActionIcon
                     size="sm"
                     variant="subtle"
@@ -169,7 +169,7 @@ export function TemplateTreeView(props: TemplateTreeViewProps) {
             }
           >
             <>
-              <Tooltip label="Edit template params" withinPortal>
+              <Tooltip label="Edit template params">
                 <ActionIcon
                   size="sm"
                   variant="subtle"
@@ -180,7 +180,7 @@ export function TemplateTreeView(props: TemplateTreeViewProps) {
                   <IconEdit size={14} />
                 </ActionIcon>
               </Tooltip>
-              <Tooltip label="Push params to all variations" withinPortal>
+              <Tooltip label="Push params to all variations">
                 <ActionIcon
                   size="sm"
                   variant="subtle"
@@ -199,7 +199,7 @@ export function TemplateTreeView(props: TemplateTreeViewProps) {
                   <IconRefresh size={14} />
                 </ActionIcon>
               </Tooltip>
-              <Tooltip label="Create new variation" withinPortal>
+              <Tooltip label="Create new variation">
                 <ActionIcon
                   size="sm"
                   variant="subtle"

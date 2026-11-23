@@ -575,11 +575,6 @@ export interface UITooltipProps extends UIBaseProps {
    * is not an action — no Enter/Space activation is synthesised.
    */
   focusable?: boolean;
-  /**
-   * Legacy Mantine-compat prop. Accepted so existing call sites keep
-   * typechecking, but intentionally swallowed — the component handles portal rendering internally and must never receive this as a DOM attribute.
-   */
-  withinPortal?: boolean;
 }
 
 // Popover accepts a render-prop child, so it cannot inherit the plain
