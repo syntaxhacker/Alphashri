@@ -6,8 +6,8 @@ import { UIProvider } from "@/ui";
 import type { JSX } from "solid-js";
 import { PanelModal } from "./PanelModal";
 
-function r(jsx: JSX.Element) {
-  return render(() => <UIProvider>{jsx}</UIProvider>);
+function r(make: () => JSX.Element) {
+  return render(() => <UIProvider>{make()}</UIProvider>);
 }
 
 afterEach(() => {
@@ -17,11 +17,11 @@ afterEach(() => {
 
 describe("PanelModal", () => {
   test("renders title, children, and actions when open", () => {
-    r(
+    r(() => (
       <PanelModal open title="Desk plan" onClose={() => {}} actions={<button>Apply</button>}>
         <div data-testid="modal-child">body content</div>
-      </PanelModal>,
-    );
+      </PanelModal>
+    ));
     expect(screen.getByTestId("panel-modal")).toBeInTheDocument();
     expect(screen.getByTestId("panel-modal-title")).toHaveTextContent("Desk plan");
     expect(screen.getByTestId("panel-modal-body")).toBeInTheDocument();
@@ -30,34 +30,33 @@ describe("PanelModal", () => {
   });
 
   test("hides the actions bar when no actions are given", () => {
-    r(
+    r(() => (
       <PanelModal open title="Plain" onClose={() => {}}>
         <div>body</div>
-      </PanelModal>,
-    );
+      </PanelModal>
+    ));
     expect(screen.queryByTestId("panel-modal-actions")).not.toBeInTheDocument();
   });
 
   test("close X calls onClose", async () => {
-        const onClose = vi.fn();
-    r(
+    const onClose = vi.fn();
+    r(() => (
       <PanelModal open title="Closable" onClose={onClose}>
         <div>body</div>
-      </PanelModal>,
-    );
+      </PanelModal>
+    ));
     await fireEvent.click(screen.getByTestId("panel-modal-close"));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   test("Esc calls onClose", () => {
     const onClose = vi.fn();
-    r(
+    r(() => (
       <PanelModal open title="Escapable" onClose={onClose}>
         <div>body</div>
-      </PanelModal>,
-    );
+      </PanelModal>
+    ));
     fireEvent.keyDown(screen.getByTestId("panel-modal-title"), { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
   });
-
 });

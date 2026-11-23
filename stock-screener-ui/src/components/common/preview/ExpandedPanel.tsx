@@ -1,6 +1,6 @@
-import { Show, createEffect, onCleanup, onMount } from "solid-js";
+import { createEffect, onCleanup, Show } from "solid-js";
 import {
-  Paper,
+  Modal,
   Group,
   Text,
   Select,
@@ -9,9 +9,7 @@ import {
   ActionIcon,
   Box,
   Button,
-  alpha,
 } from "@/ui";
-import * as palette from "@/ui/palette";
 import type { ChartPreviewData } from "../../../api/chartPreview";
 import { IconArrowsMaximize } from "../Icons";
 import { buildChartOption } from "../../chart/chartRenderer";
@@ -35,35 +33,9 @@ interface ExpandedPanelProps {
   onRetry: () => void;
 }
 
+/** Expanded chart dialog: @/ui Modal owns the overlay, focus and dismissal. */
 export function ExpandedPanel(props: ExpandedPanelProps) {
   let containerRef: HTMLDivElement | undefined;
-  let panelRef: HTMLElement | undefined;
-
-  onMount(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    const frame = window.requestAnimationFrame(() => panelRef?.focus());
-    // Capture phase with a popup check, mirroring Modal: an open timeframe
-    // select owns Escape first, or one keypress would close both.
-    const onDocKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      const active = document.activeElement as HTMLElement | null;
-      if (active?.getAttribute("role") === "combobox" && active.getAttribute("aria-expanded") === "true") return;
-      if (active?.closest('[role="listbox"],[role="menu"]')) return;
-      if (panelRef?.querySelector('[role="combobox"][aria-expanded="true"]')) return;
-      props.onClose();
-    };
-    document.addEventListener("keydown", onDocKey, true);
-    // aria-modal promises the page behind is inert; without this the user can
-    // scroll the underlying list while the dialog is open.
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    onCleanup(() => {
-      window.cancelAnimationFrame(frame);
-      document.removeEventListener("keydown", onDocKey, true);
-      document.body.style.overflow = previousOverflow;
-      previous?.focus?.();
-    });
-  });
 
   createEffect(() => {
     const data = props.data;
@@ -116,34 +88,17 @@ export function ExpandedPanel(props: ExpandedPanelProps) {
   });
 
   return (
-    <>
-      <div
-        data-testid="preview-chart-backdrop"
-        className="fixed inset-0"
-        style={{ "z-index": 9999, "background-color": alpha(palette.BG, 0.55) }}
-        onClick={props.onClose}
-      />
-      <Paper
-        ref={(el: HTMLElement) => (panelRef = el)}
-        shadow="xl"
-        p={0}
-        pos="fixed"
-        top="50%"
-        left="50%"
-        w={650}
-        h={480}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`${props.symbol} preview chart`}
-        tabIndex={-1}
-        style={{
-          "z-index": 10000,
-          transform: "translate(-50%, -50%)",
-          display: "flex",
-          "flex-direction": "column",
-        }}
-        data-testid="preview-chart-expanded"
-      >
+    <Modal
+      opened
+      onClose={props.onClose}
+      data-testid="preview-chart-expanded"
+      {...({ "aria-label": `${props.symbol} preview chart` } as Record<string, unknown>)}
+      size={650}
+      padding={0}
+      withCloseButton={false}
+      style={{ width: "650px", height: "480px", "max-height": "480px", overflow: "hidden" }}
+    >
+      <div class="flex h-full min-h-0 flex-col">
         <Group gap="md" px="md" py="xs" className="flex-shrink-0">
           <Text size="lg" fw={600} c="primary">
             {props.symbol}
@@ -252,7 +207,7 @@ export function ExpandedPanel(props: ExpandedPanelProps) {
             Open Full Chart
           </Text>
         </Group>
-      </Paper>
-    </>
+      </div>
+    </Modal>
   );
 }
