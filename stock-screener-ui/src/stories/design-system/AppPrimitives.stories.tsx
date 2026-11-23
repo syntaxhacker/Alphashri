@@ -65,7 +65,7 @@ const FamilyHero = (props: { name: string; purpose: string; count: number; speci
         <Text size="sm" c="default" style={{ "max-width": "780px" }}>{props.purpose}</Text>
       </Stack>
       <Divider />
-      <Text size="xs" c="dimmed" tt="uppercase" fw={500} className="font-mono">At a glance · NIFTY chain header</Text>
+      <Text size="xs" c="dimmed" tt="uppercase" fw={500} className="font-mono">Overview · NIFTY chain header</Text>
       {props.specimen}
     </Stack>
   </Paper>
@@ -73,6 +73,7 @@ const FamilyHero = (props: { name: string; purpose: string; count: number; speci
 
 const ComponentIndex = (props: { items: ComponentRef[] }) => (
   <Stack gap="sm">
+    <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">Index</Text>
     <Flex gap="sm" align="baseline" wrap="wrap">
       <Title order={2} size="lg">Components in this family</Title>
       <Text size="xs" c="dimmed">Open each card to reach its dedicated page.</Text>
@@ -238,7 +239,7 @@ const TableSpecimen = () => {
 export const FamilyLanding: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1120px", padding: "4px 0 24px" }}>
+      <Stack gap="lg" style={{ "max-width": "1120px", margin: "0 auto", padding: "4px 0 24px" }}>
         <FamilyHero
           name="App primitives"
           count={components.length}

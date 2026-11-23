@@ -152,7 +152,7 @@ const COMPONENTS = [
 export const Landing: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1100px" }}>
+      <Stack gap="lg" style={{ "max-width": "1100px", margin: "0 auto" }}>
         <Card p="lg" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
           <Stack gap="md">
             <Flex gap="sm" align="center" wrap="wrap">
@@ -172,7 +172,7 @@ export const Landing: Story = {
         </Card>
 
         <Section
-          eyebrow="Tokens & props"
+          eyebrow="Tokens"
           title="What Typography owns"
           note="Only the props exposed by the typography primitives; values come from their implementations, not a parallel scale."
         >
@@ -205,7 +205,7 @@ export const Landing: Story = {
 export const ScaleAndTones: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="md" style={{ "max-width": "820px" }}>
+      <Stack gap="md" style={{ "max-width": "820px", margin: "0 auto" }}>
         <Section
           eyebrow="Real demo"
           title="Scale and tones"

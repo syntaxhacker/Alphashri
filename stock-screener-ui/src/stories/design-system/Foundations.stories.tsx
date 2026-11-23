@@ -201,7 +201,7 @@ const COMPONENTS = [
 export const Landing: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1100px" }}>
+      <Stack gap="lg" style={{ "max-width": "1100px", margin: "0 auto" }}>
         <Card p="lg" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
           <Stack gap="md">
             <Flex gap="sm" align="center" wrap="wrap">
@@ -221,7 +221,7 @@ export const Landing: Story = {
         </Card>
 
         <Section
-          eyebrow="Tokens & props"
+          eyebrow="Tokens"
           title="What Foundations owns"
           note="Values below are read from the source modules at render time. No colour literal is authored in this file."
         >
@@ -265,7 +265,7 @@ const CONTRAST_PAIRS = [
 export const Contrast: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="md" style={{ "max-width": "820px" }}>
+      <Stack gap="md" style={{ "max-width": "820px", margin: "0 auto" }}>
         <Section
           eyebrow="Real demo"
           title="Contrast pairs"

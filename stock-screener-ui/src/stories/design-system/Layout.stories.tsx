@@ -167,7 +167,7 @@ const COMPONENTS = [
 export const Landing: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="lg" style={{ "max-width": "1100px" }}>
+      <Stack gap="lg" style={{ "max-width": "1100px", margin: "0 auto" }}>
         <Card p="lg" radius="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
           <Stack gap="md">
             <Flex gap="sm" align="center" wrap="wrap">
@@ -187,7 +187,7 @@ export const Landing: Story = {
         </Card>
 
         <Section
-          eyebrow="Tokens & props"
+          eyebrow="Tokens"
           title="What Layout owns"
           note="Named spacing values plus the radius and surface scales mirrored in Paper and Card. Per-prop behaviour is documented on each component page."
         >
@@ -244,7 +244,7 @@ const Ruler = () => (
 export const GridContract: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="md" style={{ "max-width": "900px" }}>
+      <Stack gap="md" style={{ "max-width": "900px", margin: "0 auto" }}>
         <Section
           eyebrow="Real demo"
           title="The 12-track contract"
