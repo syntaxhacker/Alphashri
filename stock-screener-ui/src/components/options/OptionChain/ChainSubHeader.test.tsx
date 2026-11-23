@@ -22,7 +22,7 @@ const mockStyles = {
 };
 
 describe("ChainSubHeader", () => {
-  it("renders column labels", () => {
+  it("renders all eleven column labels in the full grid", () => {
     render(() => <ChainSubHeader styles={mockStyles as any} />);
     const subheader = screen.getByTestId("options-chain-table-subheader");
     expect(subheader.textContent).toContain("OI");
@@ -30,5 +30,18 @@ describe("ChainSubHeader", () => {
     expect(subheader.textContent).toContain("VOL");
     expect(subheader.textContent).toContain("IV");
     expect(subheader.textContent).toContain("LTP");
+    expect(subheader.children).toHaveLength(11);
+  });
+
+  it("renders only the core OI/LTP columns when compact", () => {
+    render(() => <ChainSubHeader styles={mockStyles as any} compact />);
+    const subheader = screen.getByTestId("options-chain-table-subheader");
+    expect(Array.from(subheader.children).map((cell) => cell.textContent)).toEqual([
+      "OI",
+      "LTP",
+      "",
+      "LTP",
+      "OI",
+    ]);
   });
 });
