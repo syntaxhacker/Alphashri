@@ -14,6 +14,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import {
   loginAsTestUser,
+  mockNiftyReport,
   setupApiMocks,
   setupHomeDeskMocks,
   setupNiftyTapeMocks,
@@ -35,8 +36,11 @@ function evidenceTape() {
     const chain = Object.fromEntries(
       EVIDENCE_STRIKES.map((strike, k) => {
         const distance = Math.abs(strike - spot) / 50;
-        const ceOi = 1_500 + i * 18 + k * 90;
-        const peOi = 2_000 + i * 12 + (4 - k) * 110 + distance * 40;
+        // Alternating OI builds/unwinds make the heatmap cells read as a
+        // two-sided tape rather than one flat blue wash.
+        const wave = Math.round(Math.sin((i + k) / 2.2) * 420);
+        const ceOi = 1_600 + i * 16 + k * 90 + wave;
+        const peOi = 2_100 + i * 10 + (4 - k) * 110 + distance * 40 - wave;
         return [
           String(strike),
           [Math.max(8, 180 - Math.abs(strike - spot) * 0.5), Math.max(8, 170 - Math.abs(strike - spot) * 0.45), ceOi, peOi, 400 + i * 3, 500 + i * 2],
@@ -54,6 +58,33 @@ function evidenceTape() {
     };
   });
   return { date: "2026-10-12", interval_sec: 60, rows };
+}
+
+function evidenceReport() {
+  return {
+    ...mockNiftyReport,
+    strikes: mockNiftyReport.strikes.map((strike, i) => {
+      const ceChange = [220, -160, 310, -240, 140][i] ?? 0;
+      const peChange = [-90, 180, -220, 260, -130][i] ?? 0;
+      return {
+        ...strike,
+        ce: {
+          ...strike.ce,
+          oi: 1_800 + i * 120 + ceChange,
+          prev_oi: 1_800 + i * 120,
+          oi_change: ceChange,
+          sentiment: ceChange >= 0 ? "Bullish" : "Bearish",
+        },
+        pe: {
+          ...strike.pe,
+          oi: 2_200 + (4 - i) * 110 + peChange,
+          prev_oi: 2_200 + (4 - i) * 110,
+          oi_change: peChange,
+          sentiment: peChange >= 0 ? "Bullish" : "Bearish",
+        },
+      };
+    }),
+  };
 }
 
 type EvidenceRoute = {
@@ -82,6 +113,13 @@ const ROUTES: readonly EvidenceRoute[] = [
           status: 200,
           contentType: "application/json",
           body: JSON.stringify(evidenceTape()),
+        }),
+      );
+      await page.route(apiRoute("reports/nifty/live"), (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(evidenceReport()),
         }),
       );
     },

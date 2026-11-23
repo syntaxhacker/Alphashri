@@ -80,7 +80,7 @@ vi.mock("./ReportContext", () => ({
   }),
 }));
 
-const { ReportStrips, wallsSnapshotTime, wallsUnavailableCopy } = await import("./ReportStrips");
+const { ReportStrips, wallsUnavailableCopy } = await import("./ReportStrips");
 
 afterEach(() => {
   cleanup();
@@ -161,6 +161,21 @@ describe("ReportStrips", () => {
     expect(screen.queryByTestId("walls-stub")).toBeNull();
   });
 
+  test("a closed frame uses the snapshot clock when the market block has none", () => {
+    mode[1]("live");
+    wallsData[1](null);
+    reportData[1]({
+      market: { is_open: false, as_of: null, session_date: "2026-11-23" },
+      snapshotAt: "2026-11-23T10:00:00+05:30",
+    } as NiftyReport);
+    render(() => <ReportStrips />);
+
+    const band = screen.getByTestId("nifty-walls-card");
+    expect(band).toHaveAttribute("data-empty-kind", "market-closed");
+    expect(band).toHaveTextContent("No walls snapshot for 10:00");
+    expect(band).not.toHaveTextContent("09:15");
+  });
+
   test("a closed snapshot without a clock stays truthful and generic", () => {
     mode[1]("live");
     wallsData[1](null);
@@ -231,13 +246,6 @@ describe("ReportStrips", () => {
 });
 
 describe("wallsUnavailableCopy", () => {
-  test("reads only the clock from an IST as-of stamp", () => {
-    expect(wallsSnapshotTime("2026-11-23T10:00:00+05:30")).toBe("10:00");
-    expect(wallsSnapshotTime("2026-11-23T09:15:00+05:30")).toBe("09:15");
-    expect(wallsSnapshotTime(null)).toBeNull();
-    expect(wallsSnapshotTime("10:00")).toBeNull();
-  });
-
   test("distinguishes a closed snapshot from a waiting recorder", () => {
     expect(wallsUnavailableCopy({ closed: true, asOf: "2026-11-23T10:00:00+05:30" })).toEqual({
       kind: "market-closed",

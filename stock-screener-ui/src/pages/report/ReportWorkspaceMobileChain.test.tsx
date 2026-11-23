@@ -131,6 +131,7 @@ describe("ReportWorkspace — 390 chain rail and dock footer", () => {
     mount();
 
     const wrap = screen.getByTestId("desk-dock-overflow-wrap");
+    expect(wrap.className).toContain("max-[600px]:order-3");
     expect(wrap.className).toContain("max-[600px]:[&_[data-testid='desk-dock']]:flex-nowrap!");
     expect(wrap.className).toContain("max-[600px]:[&_[data-testid='desk-dock']]:overflow-x-auto!");
 

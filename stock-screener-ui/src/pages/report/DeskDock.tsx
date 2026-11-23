@@ -17,6 +17,8 @@ export const DESK_DOCK_BAR_HEIGHT = 40;
 
 interface DockHelp {
   label: string;
+  /** Whole word used in the 390px tab bar. */
+  short: string;
   shows: string;
   ariaLabel: string;
   title: string;
@@ -25,6 +27,7 @@ interface DockHelp {
 export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
   flow: {
     label: "Delta",
+    short: "Delta",
     shows: "positioning",
     ariaLabel: "Delta positioning tab — open the delta profile",
     title:
@@ -32,6 +35,7 @@ export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
   },
   setup: {
     label: "Dealer gamma",
+    short: "Gamma",
     shows: "regime",
     ariaLabel: "Dealer gamma regime tab — open the dealer gamma profile",
     title:
@@ -39,6 +43,7 @@ export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
   },
   market: {
     label: "IV skew",
+    short: "IV",
     shows: "strikes",
     ariaLabel: "Implied volatility skew tab — open the IV skew chart",
     title:
@@ -46,6 +51,7 @@ export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
   },
   strips: {
     label: "Desk",
+    short: "Desk",
     shows: "panels",
     ariaLabel: "Desk panels tab — open walls and breadth",
     title:
@@ -53,6 +59,7 @@ export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
   },
   analytics: {
     label: "Data",
+    short: "Data",
     shows: "panels",
     ariaLabel: "Data panels tab — open tape and flow",
     title:
@@ -60,6 +67,7 @@ export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
   },
   alerts: {
     label: "Alerts",
+    short: "Alerts",
     shows: "log",
     ariaLabel: "Alerts log tab — open the alert log",
     title: "Alerts log — option open-interest bursts and risk alerts. Opens the alert log.",
@@ -155,11 +163,14 @@ export function DeskDock(props: {
           <span class="font-semibold" style={{ color: subInk() }} aria-hidden="true">
             {index + 1}
           </span>{" "}
-          <span>{help.label}</span>{" "}
-          <span style={{ color: subInk() }}>{help.shows}</span>
+          <span class="max-[600px]:hidden">{help.label}</span>
+          <span class="hidden max-[600px]:inline">{help.short}</span>{" "}
+          <span class="max-[600px]:hidden" style={{ color: subInk() }}>
+            {help.shows}
+          </span>
         </span>
         <Show when={tab.summary != null}>
-          <span class="font-normal" style={{ color: subInk() }}>
+          <span class="font-normal max-[600px]:hidden" style={{ color: subInk() }}>
             {": "}
             {tab.summary}
           </span>
@@ -258,7 +269,11 @@ export function DeskDock(props: {
                       onClick={() => props.onActiveChange(tab.key)}
                     >
                       <span>{dockHelp(tab.key).label}</span>{" "}
+                      {/* On a phone the bar is 390px wide; the long "shows"
+                          qualifier is what clipped the labels. The aria-label
+                          and title already carry it. */}
                       <span
+                        class="max-[600px]:hidden"
                         style={{
                           color:
                             active() === tab.key
