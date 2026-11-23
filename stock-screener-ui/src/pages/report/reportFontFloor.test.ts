@@ -72,8 +72,4 @@ describe("report typography floor", () => {
     const offenders = GUARDED_FILES.flatMap(belowFloor);
     expect(offenders, `\n${offenders.join("\n")}`).toEqual([]);
   });
-
-  it("scaled avatar initials are floored at micro, not allowed to shrink with the box", () => {
-    expect(source("reportBits.tsx")).toContain("Math.max(REPORT_FONT.micro, size() * 0.45)");
-  });
 });

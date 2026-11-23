@@ -18,8 +18,6 @@ const ALLOWED = new Set([
   "ui/theme.tsx",
   // palette is THE source
   "ui/palette.ts",
-  // playground is user-facing dev tooling
-  "ui/ThemePlayground.tsx",
 ]);
 
 // hex + rgb()/rgba() literals (not var() / palette constants)

@@ -1,16 +1,15 @@
 import { For, Show } from "solid-js";
 import { Box } from "@/ui";
-import { useAppDispatch, useAppSelector } from "../../state/store/hooks";
+import { useAppSelector } from "../../state/store/hooks";
 import { removeNotification } from "../../state/store/notificationsSlice";
 import { NotificationItem } from "./Notification";
 
 export function NotificationContainer() {
-  const dispatch = useAppDispatch();
   // An accessor: the store is read live, so a notification added later renders.
   const notifications = useAppSelector((state) => state.notifications.items);
 
   const handleDismiss = (id: string) => {
-    dispatch(removeNotification(id));
+    removeNotification(id);
   };
 
   return (

@@ -1,10 +1,8 @@
 /**
  * Test-only `@/ui` implementation for the Solid port.
  *
- * The real `@/ui` is mid-conversion and currently does not parse (a botched
- * kebab-case sweep left `"key"::` double-colons in ~40 modules). Rather than
- * depend on its state, tests in this scope render a lightweight stand-in with
- * the same export surface and props contract:
+ * Tests render a lightweight stand-in with the same export surface and props
+ * contract as the real `@/ui`:
  *
  * - Real, dependency-free modules are re-exported unchanged (`cn`, `alpha`,
  *   `palette`, density hooks, color-scheme / media-query / disclosure hooks,
