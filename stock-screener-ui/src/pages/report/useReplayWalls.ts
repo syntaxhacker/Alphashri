@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import { batch, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { fetchOptionsWalls } from "@/api/reportNifty";
 import type { WallsPayload } from "@/api/reportNifty";
 
@@ -139,8 +139,10 @@ export function useReplayWalls(opts: ReplayWallsOptions): ReplayWallsResult {
     lastStart = 0;
     appliedAt = undefined;
     clearTimer();
-    setWalls(null);
-    setSyncing(false);
+    batch(() => {
+      setWalls(null);
+      setSyncing(false);
+    });
   });
 
   onCleanup(() => {
@@ -152,12 +154,12 @@ export function useReplayWalls(opts: ReplayWallsOptions): ReplayWallsResult {
 
   createEffect(() => {
     // Track every field the fetch depends on.
-    enabled();
+    const isEnabled = enabled();
+    const mapOpen = includeMap();
     at();
-    includeMap();
     liveTick();
     contextKey();
-    if (!enabled()) {
+    if (!isEnabled) {
       // Disabling invalidates in-flight responses (e.g. context reset).
       epoch += 1;
       inFlight = 0;
@@ -169,7 +171,7 @@ export function useReplayWalls(opts: ReplayWallsOptions): ReplayWallsResult {
     if (inFlight > 0) {
       const elapsedInFlight = Date.now() - lastStart;
       // Inside the window: the settle path chases the newest cutoff.
-      if (!includeMap() && elapsedInFlight < throttleMs) return;
+      if (!mapOpen && elapsedInFlight < throttleMs) return;
       // Window elapsed: start the newest cutoff now; the older response still
       // paints if it is newer than what is displayed (progressive).
       clearTimer();
@@ -178,7 +180,7 @@ export function useReplayWalls(opts: ReplayWallsOptions): ReplayWallsResult {
     }
 
     const elapsed = Date.now() - lastStart;
-    if (!includeMap() && elapsed < throttleMs) {
+    if (!mapOpen && elapsed < throttleMs) {
       // One trailing timer only — a second one would fan out the same request.
       if (timer !== null) return;
       timer = setTimeout(() => {
