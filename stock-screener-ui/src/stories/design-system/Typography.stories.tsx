@@ -92,8 +92,14 @@ const Specimen = () => (
 );
 
 const PROPS = [
-  { name: "Text size", value: "xs 12 · sm 14 · md 16 · lg 18 · xl 20" },
-  { name: "Title size", value: "xs 12 · sm 14 · md 16 · lg 18 · xl 24" },
+  {
+    name: "Text size",
+    value: `xs ${typeSize("micro")} · sm ${typeSize("label")} · md ${typeSize("title")} · lg ${typeSize("heading")} · xl ${typeSize("heading")}`,
+  },
+  {
+    name: "Title size",
+    value: `xs ${typeSize("micro")} · sm ${typeSize("label")} · md ${typeSize("title")} · lg ${typeSize("heading")} · xl ${typeSize("display")}`,
+  },
   { name: "c", value: "primary · default · dimmed · success · error · warning · info" },
   { name: "fw", value: "normal · 500 · semibold · 700" },
   { name: "tt", value: "uppercase · lowercase · capitalize · none" },
