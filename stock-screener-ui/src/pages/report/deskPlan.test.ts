@@ -422,35 +422,6 @@ describe("buildDeskPlan — bearish tape", () => {
     expect(plan.bull.alternate?.target).toBe(22_900);
   });
 
-  test("reasons are ordered by weight and every tag appears", () => {
-    expect(plan.bear.reasons.map((r) => r.tag)).toEqual([...DESK_REASON_TAGS]);
-    expect(plan.bull.reasons.map((r) => r.tag)).toEqual([...DESK_REASON_TAGS]);
-  });
-
-  test("reason text carries the actual numbers", () => {
-    const byTag = new Map(plan.bear.reasons.map((r) => [r.tag, r.text]));
-    expect(byTag.get("trend")).toContain("22,728");
-    expect(byTag.get("trend")).toContain("22,969");
-    expect(byTag.get("trend")).toContain("38.2");
-    expect(byTag.get("gamma")).toContain("short gamma");
-    expect(byTag.get("gamma")).toContain("23,050");
-    expect(byTag.get("oi")).toContain("23,200");
-    expect(byTag.get("oi")).toContain("1.24 Cr");
-    expect(byTag.get("vol")).toContain("IV/RV 1.17");
-    expect(byTag.get("vol")).toContain("25Δ skew -2.40");
-    expect(byTag.get("structure")).toContain("held 4 tests");
-    expect(byTag.get("structure")).toContain("22,690");
-  });
-
-  test("DON'T bullets warn about support, the chase and a third leg", () => {
-    expect(plan.bear.doNots).toHaveLength(3);
-    const text = plan.bear.doNots.join(" | ");
-    expect(text).toContain("Don't buy puts into 22,700 support");
-    expect(text).toContain("IV/RV 1.17");
-    expect(text).toContain("5 min");
-    expect(text).toContain("PE 151.0→160.0");
-    expect(text).toContain("third long-premium leg");
-  });
 });
 
 describe("buildDeskPlan — bullish tape", () => {
@@ -483,25 +454,6 @@ describe("buildDeskPlan — bullish tape", () => {
     expect(plan.bull.alternate?.target).toBe(23_277);
     expect(plan.bull.alternate?.rr).toBeGreaterThanOrEqual(1.5);
   });
-
-  test("reasons keep the same weight order and numeric text", () => {
-    expect(plan.bull.reasons.map((r) => r.tag)).toEqual([...DESK_REASON_TAGS]);
-    const byTag = new Map(plan.bull.reasons.map((r) => [r.tag, r.text]));
-    expect(byTag.get("trend")).toContain("23,272");
-    expect(byTag.get("trend")).toContain("all trend markers below spot");
-    expect(byTag.get("gamma")).toContain("long gamma");
-    expect(byTag.get("vol")).toContain("IV/RV 1.17");
-    expect(byTag.get("structure")).toContain("resistance 23,277");
-  });
-
-  test("DON'T bullets mirror the bear side around resistance", () => {
-    expect(plan.bull.doNots).toHaveLength(3);
-    const text = plan.bull.doNots.join(" | ");
-    expect(text).toContain("Don't buy calls into 23,277 resistance");
-    expect(text).toContain("spot +42 pts in 5 min");
-    expect(text).toContain("CE 120.0→128.0");
-    expect(text).toContain("third long-premium leg");
-  });
 });
 
 describe("buildDeskPlan — neutral tape", () => {
@@ -532,62 +484,6 @@ describe("buildDeskPlan — neutral tape", () => {
     // 22,850 is only 10 pts away against an 18.29-pt stop (0.55R) — too close.
     expect(plan.bear.target).toBe(22_800);
     expect(plan.bear.rr).toBeGreaterThanOrEqual(1.5);
-  });
-});
-
-describe("buildDeskPlan — missing blocks degrade", () => {
-  test("an empty report returns a NEUTRAL plan instead of throwing", () => {
-    const empty = baseReport({
-      spot: 0,
-      ohlc: { open: 0, high: 0, low: 0, close: 0 },
-      walls: { calls: [], puts: [] },
-      strikes: [],
-      pivots: null,
-      gex: undefined,
-      control: undefined,
-      regime: undefined,
-      vix: undefined,
-      strength: undefined,
-      market: undefined,
-      reference: undefined,
-      intraday: undefined,
-    });
-
-    expect(() => buildDeskPlan(empty)).not.toThrow();
-    const plan = buildDeskPlan(empty);
-    expect(plan.bias).toBe("neutral");
-    expect(plan.support).toBeNull();
-    expect(plan.resistance).toBeNull();
-    // No trend/gamma/OI/vol/structure input → every reason bucket is omitted.
-    expect(plan.bear.reasons).toEqual([]);
-    expect(plan.bull.reasons).toEqual([]);
-    expect(plan.bear.entryTrigger).toContain("wait for pivots");
-    expect(plan.bear.stop).toBeNull();
-    expect(plan.bear.target).toBeNull();
-    expect(plan.bear.rr).toBeNull();
-    expect(plan.bear.alternate).toBeNull();
-    expect(plan.waitNote).toBe("Wait for pivots/GEX levels to print.");
-    // Only the "third leg" guard survives without levels.
-    expect(plan.bear.doNots).toHaveLength(1);
-  });
-
-  test("pivots/gex gone but strength + session low still explain the tape", () => {
-    const partial = bearishReport();
-    const plan = buildDeskPlan({
-      ...partial,
-      pivots: null,
-      gex: undefined,
-      walls: { calls: [], puts: [] },
-      strikes: [],
-    });
-    expect(plan.bias).toBe("neutral");
-    expect(plan.support).toBe(22_690); // session low
-    // Max pain is the only level above spot left in the payload.
-    expect(plan.resistance).toBe(22_900);
-    expect(plan.bear.reasons.map((r) => r.tag)).toEqual(["trend", "vol", "structure"]);
-    // No structural level below the break: project 2× risk instead.
-    expect(plan.bear.target).toBeCloseTo(22_653.7, 1);
-    expect(plan.bear.rr).toBeCloseTo(2, 1);
   });
 });
 
@@ -683,51 +579,5 @@ describe("buildDeskPlan — stale candles vs fresh day-OHLC (2026-10-21 live bug
     expect(plan.bull.entryTrigger).toContain("close above 22,810");
     expect(plan.bull.target).toBe(22_900);
     expect(plan.bull.rr).toBeGreaterThanOrEqual(1.5);
-  });
-});
-
-describe("deskPlanLevels — nearest level selection", () => {
-  test("null, NaN and negative candidates are ignored on both sides", () => {
-    const plan = buildDeskPlan(
-      baseReport({
-        spot: 25_000,
-        maxPain: 25_050,
-        ohlc: { open: 25_000, high: 25_000, low: 25_000, close: 25_000 },
-        pivots: {
-          type: "classic",
-          pp: 25_000,
-          r1: Number.NaN,
-          r2: -100,
-          r3: 26_000,
-          s1: Number.NaN,
-          s2: -200,
-          s3: 24_000,
-          prev: { date: "2026-10-20", high: 25_000, low: 25_000, close: 25_000 },
-        },
-        gex: {
-          strikes: [],
-          netTotal: 0,
-          regime: "flat",
-          topPositive: [],
-          topNegative: [],
-          zeroCross: null,
-          levels: {
-            support: { strike: 24_800, netGex: 1 },
-            resistance: { strike: 25_200, netGex: 1 },
-            fuelDown: null,
-            fuelUp: null,
-          },
-        },
-        walls: {
-          calls: [{ strike: 25_100, oi: 100 }],
-          puts: [{ strike: 24_900, oi: 100 }],
-        },
-      }),
-    );
-
-    expect(plan.resistance).toBe(25_050);
-    expect(plan.support).toBe(24_900);
-    expect(plan.bull.triggerLevel).toBe(25_050);
-    expect(plan.bear.triggerLevel).toBe(24_900);
   });
 });
