@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 import { UIProvider } from "@/ui";
 import { CHART_HEADER_METRICS, MOBILE_CHART_TARGET } from "./NiftyChartPanel";
+import { computeFeedView } from "./NiftyChartPanel.annotations";
 import { REPORT_FONT } from "./reportTokens";
 
 const env = vi.hoisted(() => ({ mobile: false }));
@@ -158,6 +159,24 @@ describe("NiftyChartPanel — mobile header controls (390px)", () => {
   });
 });
 
+describe("NiftyChartPanel — feed label in the header", () => {
+  test("every feed state is a whole single word, not a clipped two-word badge", () => {
+    const states = [
+      computeFeedView(true, true, false, false, false),
+      computeFeedView(true, false, true, false, false),
+      computeFeedView(true, false, false, true, false),
+      computeFeedView(true, false, false, false, true),
+      computeFeedView(true, false, false, false, false),
+    ];
+    expect(states.map((s) => s?.label)).toEqual(["LIVE", "RECON", "CLOSED", "OFFLINE", "LINK…"]);
+    for (const state of states) {
+      expect(state?.title).toContain("Fyers tick feed");
+      expect(state?.label).not.toContain("FYERS ");
+    }
+    expect(computeFeedView(false, false, false, false, false)).toBeNull();
+  });
+});
+
 describe("NiftyChartPanel — header hierarchy and spacing", () => {
   test("the title is the primary step and the feed badge is secondary metadata", () => {
     env.mobile = true;
@@ -183,7 +202,7 @@ describe("NiftyChartPanel — header hierarchy and spacing", () => {
     // "connecting" state itself prints.
     const feed = screen.getByTestId("nifty-fyers-feed");
     expect(feed).toHaveStyle({ "font-size": `${CHART_HEADER_METRICS.metaSize}px` });
-    expect(feed).toHaveTextContent("FYERS LINK…");
+    expect(feed).toHaveTextContent("LINK…");
     expect(feed.style.textOverflow).not.toBe("ellipsis");
   });
 

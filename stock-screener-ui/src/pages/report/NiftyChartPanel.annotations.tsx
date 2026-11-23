@@ -144,19 +144,22 @@ export function computeFeedView(
   if (!enabled) return null;
   const title =
     "Fyers tick feed for this chart's last candle. The page header's 'live (WS)' is the separate Upstox report stream.";
+  // Whole, single-word labels: a two-word badge concatenated into the chart
+  // title read "NIFTY CHART YERS RECON" at 390 when its first glyph was cut.
+  // The tooltip above still names the Fyers feed in full.
   if (live) {
-    return { state: "live", label: "FYERS LIVE", color: palette.POSITIVE, title };
+    return { state: "live", label: "LIVE", color: palette.POSITIVE, title };
   }
   if (reconnecting) {
-    return { state: "reconnecting", label: "FYERS RECON", color: palette.WARNING, title: `${title} REST poll is the fallback.` };
+    return { state: "reconnecting", label: "RECON", color: palette.WARNING, title: `${title} REST poll is the fallback.` };
   }
   if (marketClosed) {
-    return { state: "market-closed", label: "FYERS CLOSED", color: palette.TEXT_MUTED, title: `${title} REST poll is the fallback.` };
+    return { state: "market-closed", label: "CLOSED", color: palette.TEXT_MUTED, title: `${title} REST poll is the fallback.` };
   }
   if (disconnected) {
-    return { state: "disconnected", label: "FYERS OFFLINE", color: palette.NEGATIVE, title: `${title} REST poll is the fallback.` };
+    return { state: "disconnected", label: "OFFLINE", color: palette.NEGATIVE, title: `${title} REST poll is the fallback.` };
   }
-  return { state: "connecting", label: "FYERS LINK…", color: palette.TEXT_MUTED, title: `${title} REST poll is the fallback.` };
+  return { state: "connecting", label: "LINK…", color: palette.TEXT_MUTED, title: `${title} REST poll is the fallback.` };
 }
 
 export type LastDataState = "replay" | "market closed" | "live";

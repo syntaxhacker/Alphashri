@@ -80,11 +80,16 @@ export const TOOLBAR_SECONDARY_CLASS =
 
 // The strip is the only scroll owner. Children are flex-none so a squeezed
 // control can never shrink its own text (the SegmentedControl track uses
-// overflow-hidden, which is what produced the "Depth" clip).
+// overflow-hidden, which is what produced the "Depth" clip). Mandatory snap on
+// each toggle means a scroll always lands on a whole tab — "RELIANCE" is never
+// left half-shown at the strip edge at 390.
 export const TOOLBAR_STRIP_CLASS =
-  "flex flex-nowrap items-center gap-2 min-w-0 w-full overflow-x-auto overflow-y-hidden min-[1200px]:w-auto min-[1200px]:overflow-visible";
+  "flex flex-nowrap items-center gap-2 min-w-0 w-full overflow-x-auto overflow-y-hidden snap-x snap-mandatory min-[1200px]:w-auto min-[1200px]:overflow-visible min-[1200px]:snap-none";
 
 export const TOOLBAR_GROUP_CLASS = "flex items-center gap-2 flex-none";
+
+/** Fade width at the phone breakpoint — wide enough to cover a partial glyph. */
+export const TOOLBAR_FADE_CLASS = "w-10";
 
 export const TOOLBAR_ACTIONS_CLASS =
   "flex flex-wrap items-center gap-2 flex-none max-w-full min-w-0 min-[1200px]:flex-nowrap";
@@ -96,15 +101,17 @@ export const TOOLBAR_DIVIDER_CLASS = "w-px h-[18px] flex-none bg-fin-border";
 // 14 / 13 / 12: toggles carry the primary label step, selects and actions the
 // body step, group captions and status the micro step. The `!` beats the
 // SegmentedControl's inline 12px, just as the old shared label class did.
-const TOGGLE_LABEL_CLASS = "[&>button]:[font-size:var(--text-ui-label)]! shrink-0";
+const TOGGLE_LABEL_CLASS = "[&>button]:[font-size:var(--text-ui-label)]! shrink-0 snap-start";
 const BODY_LABEL_CLASS = "text-ui-body!";
 
 const STRIP_STYLE: JSX.CSSProperties = {
   "scrollbar-width": "none",
 };
 
-const STRIP_FADE_STYLE: JSX.CSSProperties = {
-  background: `linear-gradient(90deg, ${alpha(palette.SURFACE, 0)} 0%, ${alpha(palette.SURFACE, 0.94)} 100%)`,
+// The last third is fully opaque: a tab that would be cut mid-word ("RELIA")
+// is masked instead, so only whole labels are ever visible.
+export const STRIP_FADE_STYLE: JSX.CSSProperties = {
+  background: `linear-gradient(90deg, ${alpha(palette.SURFACE, 0)} 0%, ${alpha(palette.SURFACE, 1)} 62%, ${palette.SURFACE} 100%)`,
 };
 
 const STALE_BADGE_STYLE: JSX.CSSProperties = {
@@ -317,7 +324,7 @@ export function ReportToolbar(_props: { onOpenSymbol?: (s: string) => void }) {
             <Box
               data-testid="toolbar-strip-fade"
               aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 right-0 w-6 min-[1200px]:hidden"
+              className={`pointer-events-none absolute inset-y-0 right-0 ${TOOLBAR_FADE_CLASS} min-[1200px]:hidden`}
               style={STRIP_FADE_STYLE}
             />
           </Box>

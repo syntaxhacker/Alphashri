@@ -7,8 +7,10 @@ import {
   expiryControlTitle,
   expiryOptionLabel,
   ReportToolbar,
+  STRIP_FADE_STYLE,
   TOOLBAR_ACTIONS_CLASS,
   TOOLBAR_CLASS,
+  TOOLBAR_FADE_CLASS,
   TOOLBAR_PRIMARY_CLASS,
   TOOLBAR_SECONDARY_CLASS,
   TOOLBAR_STRIP_CLASS,
@@ -195,6 +197,45 @@ describe("ReportToolbar freshness indicators", () => {
       (b) => b.textContent === "Depth",
     );
     expect(depth?.textContent).toBe("Depth");
+  });
+
+  test("the symbol tabs keep whole labels and the fade masks any partial tab", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    // Whole words in the DOM: no mid-word slice ("RELIA") and no ellipsis on
+    // the control or its buttons — the clip was a layout problem, not data.
+    const index = screen.getByTestId("nifty-index-toggle");
+    expect([...index.querySelectorAll("button")].map((b) => b.textContent)).toEqual([
+      "NIFTY",
+      "SENSEX",
+      "RELIANCE",
+    ]);
+    for (const toggle of [index, screen.getByTestId("nifty-view-toggle"), screen.getByTestId("nifty-desk-toggle")]) {
+      expect(toggle.className).toContain("snap-start");
+      expect(toggle.className).not.toMatch(/(^|\s)(truncate|text-ellipsis)(\s|$)/);
+      for (const button of toggle.querySelectorAll("button")) {
+        expect(button.className).toContain("whitespace-nowrap");
+      }
+    }
+
+    // Mandatory x-snap means a scroll lands on a whole toggle; the cue hides
+    // at 1600 where the strip stops being a scroll owner.
+    expect(TOOLBAR_STRIP_CLASS).toContain("snap-x");
+    expect(TOOLBAR_STRIP_CLASS).toContain("snap-mandatory");
+    expect(TOOLBAR_STRIP_CLASS).toContain("min-[1200px]:snap-none");
+
+    // The fade is at least 32px wide and opaque at the edge, so the last
+    // partially-visible glyph is masked instead of reading "RELIA▸".
+    expect(TOOLBAR_FADE_CLASS).toBe("w-10");
+    expect(screen.getByTestId("toolbar-strip-fade").className).toContain(TOOLBAR_FADE_CLASS);
+    const gradient = String(STRIP_FADE_STYLE.background);
+    expect(gradient).toContain("linear-gradient");
+    expect(gradient).toContain("62%");
+    expect(gradient).toMatch(/100%\)$/);
   });
 
   test("the scroll cue actually moves the strip to its far edge and back", () => {

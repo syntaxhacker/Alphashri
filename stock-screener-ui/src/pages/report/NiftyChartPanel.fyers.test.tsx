@@ -225,7 +225,11 @@ describe("NiftyChartPanel — Fyers tick stream wiring", () => {
       seen.push(`${feed().getAttribute("data-state")}:${feed().textContent}`);
     }
     expect(new Set(seen).size).toBe(4);
-    expect(feed()).toHaveTextContent(/Fyers/i);
+    // The visible badge is a short whole word; the full Fyers attribution
+    // lives in the tooltip so the four states stay distinct without garbling
+    // the chart title at 390.
+    expect(feed().getAttribute("title")).toMatch(/Fyers/i);
+    expect(feed().textContent).toMatch(/^(LIVE|RECON|CLOSED|OFFLINE)$/);
     // The header's Upstox label is untouched and explicitly named.
     expect(screen.getByTestId("nifty-chart-panel")).toHaveAttribute("data-testid", "nifty-chart-panel");
   });
