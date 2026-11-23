@@ -88,6 +88,46 @@ describe("FilterStatusRow", () => {
     expect(clearAll).toHaveBeenCalledTimes(1);
   });
 
+  test("keeps the chip lane and clear-all as separate, non-overlapping boxes at narrow widths", () => {
+    const clearAll = vi.fn();
+    render(() => (
+      <FilterStatusRow
+        testId={TEST_ID}
+        hasFilters={true}
+        onClearAll={clearAll}
+        clearAllTestId="test-clear-all"
+      >
+        <button type="button" data-testid="test-chip">NIFTY 500</button>
+      </FilterStatusRow>
+    ));
+    const row = screen.getByTestId(TEST_ID);
+    const clear = screen.getByTestId("test-clear-all");
+    const lane = row.parentElement!;
+    const layout = clear.parentElement!;
+
+    // The band is a flex row with a gap: chips and the button occupy separate
+    // flow boxes, so a shrunken lane can never paint over the button.
+    expect(layout).toHaveClass("flex");
+    expect(layout).toHaveClass("items-center");
+    expect(layout).toHaveClass("gap-1");
+    expect(lane.parentElement).toBe(layout);
+    expect(clear.parentElement).toBe(layout);
+    expect(clear).toHaveClass("shrink-0");
+    expect(clear).not.toHaveClass("absolute");
+
+    // The lane is the shrinkable scroll owner; the button is outside it.
+    expect(lane).toHaveClass("min-w-0");
+    expect(lane).toHaveClass("flex-1");
+    expect(row).toHaveClass("min-w-0");
+    expect(row).toHaveClass("overflow-x-auto");
+    expect(row).toHaveClass("whitespace-nowrap");
+    expect(lane).not.toContainElement(clear);
+    expect(row).not.toContainElement(clear);
+
+    fireEvent.click(clear);
+    expect(clearAll).toHaveBeenCalledTimes(1);
+  });
+
   test("keeps the same row node and height across an empty → chip → empty transition", () => {
     const [hasFilters, setHasFilters] = createSignal(false);
     render(() => (
