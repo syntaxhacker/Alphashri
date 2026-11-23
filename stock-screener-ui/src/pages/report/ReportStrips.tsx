@@ -23,6 +23,40 @@ import { OI_ALERT_TOAST_MAX } from "./useNiftyOiAlerts";
 
 const EMPTY_WALL_HISTORY: WallSnapshot[] = [];
 
+/** The unavailable-band treatment: one 24px reason line with Retry, the same
+ *  chrome the replay surface gives its live-only bands. An empty band must not
+ *  reserve a full card's height below the chart. */
+function WallsUnavailableStrip(props: { onRetry?: () => void }) {
+  return (
+    <Box
+      data-testid="nifty-walls-card"
+      data-empty-kind="no-data"
+      className="flex items-center gap-2 h-6 min-h-6 w-full min-w-0 shrink-0 px-2 bg-fin-surface font-mono text-ui-micro"
+    >
+      <span
+        data-report-text="label"
+        className="text-ui-micro font-extrabold uppercase tracking-[0.08em] text-fin-text-muted"
+      >
+        WALLS
+      </span>
+      <span data-report-text="value" className="text-ui-micro text-fin-text-muted">
+        waiting for walls data…
+      </span>
+      <Show when={props.onRetry}>
+        <Button
+          data-testid="nifty-walls-retry"
+          size="xs"
+          variant="subtle"
+          onClick={() => props.onRetry?.()}
+          className="ml-auto min-w-0"
+        >
+          Retry
+        </Button>
+      </Show>
+    </Box>
+  );
+}
+
 export function ReportStrips() {
   const store = useNiftyReport();
 
@@ -115,23 +149,32 @@ export function ReportStrips() {
         />
       </LiveTapeDisclosure>
 
-      {/* A replay with no reconstructed walls has no band to show: the mode
-          banner names the one reason and the collapsed header keeps the affordance.
-          Real walls (live or replayed) still mount the full card. */}
-      <Show when={mode() === "live" || Boolean(wallsPayload())}>
-        <NiftyWallsCard
-          compact={store.ui.isDesk()}
-          walls={wallsPayload()}
-          onExpand={() => store.walls.openDrawer()}
-          onOpenDesk={() => store.ui.setDeskOpen(true)}
-          emptyText="Waiting for walls data."
-          unavailableInReplay={mode() === "eod"}
-          levels={
-            symbol() === "NIFTY" ? (
-              <LevelsInPlayContent report={report()} sensex={store.data.sensex()} />
-            ) : undefined
-          }
-        />
+      {/* Only a real snapshot mounts the full card. With no walls, a live strip
+          collapses to the one-line reason + Retry; replay already names that one
+          reason in its mode banner, so it needs no second line here. */}
+      <Show
+        when={wallsPayload()}
+        fallback={
+          mode() === "live" ? (
+            <WallsUnavailableStrip onRetry={() => store.data.refresh?.()} />
+          ) : null
+        }
+      >
+        {(walls) => (
+          <NiftyWallsCard
+            compact={store.ui.isDesk()}
+            walls={walls()}
+            onExpand={() => store.walls.openDrawer()}
+            onOpenDesk={() => store.ui.setDeskOpen(true)}
+            emptyText="Waiting for walls data."
+            unavailableInReplay={mode() === "eod"}
+            levels={
+              symbol() === "NIFTY" ? (
+                <LevelsInPlayContent report={report()} sensex={store.data.sensex()} />
+              ) : undefined
+            }
+          />
+        )}
       </Show>
 
       <NiftyWallsExpanded

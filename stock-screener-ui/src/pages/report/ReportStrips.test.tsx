@@ -47,6 +47,7 @@ vi.mock("./ReportContext", () => ({
       preMoveHistory: () => [],
       metrics: () => null,
       sensex: () => null,
+      refresh: () => {},
     },
     selection: { mode: mode[0], symbol: () => "NIFTY" },
     walls: { data: wallsData[0], history: () => [], open: () => false, openDrawer: () => {}, closeDrawer: () => {} },
@@ -79,6 +80,7 @@ afterEach(() => {
 describe("ReportStrips", () => {
   test("mounts every band inside one deliberate 8px column", () => {
     mode[1]("live");
+    wallsData[1]({ state: "positioning" });
     render(() => <ReportStrips />);
     const root = screen.getByTestId("nifty-report-strips");
     expect(root.className).toContain("flex-col");
@@ -88,6 +90,29 @@ describe("ReportStrips", () => {
     expect(root.className).not.toContain("gap-4");
     expect(screen.getByTestId("nifty-10s-stub")).toBeInTheDocument();
     expect(screen.getByTestId("walls-stub")).toBeInTheDocument();
+  });
+
+  test("live with no walls collapses to a one-line reason with Retry, not an empty card", () => {
+    mode[1]("live");
+    wallsData[1](null);
+    render(() => <ReportStrips />);
+    const band = screen.getByTestId("nifty-walls-card");
+    expect(band).toHaveAttribute("data-empty-kind", "no-data");
+    expect(band).toHaveTextContent(/waiting for walls data/i);
+    // One 24px line, not the full-height empty card with its reserved skeleton.
+    expect(band.className).toContain("h-6");
+    expect(band.className).not.toContain("h-14");
+    expect(screen.getByTestId("nifty-walls-retry")).toBeInTheDocument();
+    expect(screen.queryByTestId("walls-stub")).toBeNull();
+  });
+
+  test("live with real walls mounts the full card and no compact reason", () => {
+    mode[1]("live");
+    wallsData[1]({ state: "positioning" });
+    render(() => <ReportStrips />);
+    expect(screen.getByTestId("walls-stub")).toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-walls-card")).toBeNull();
+    expect(screen.queryByTestId("nifty-walls-retry")).toBeNull();
   });
 
   test("replay keeps one compact header with one reason and no dead bands", async () => {
@@ -103,6 +128,8 @@ describe("ReportStrips", () => {
     expect(screen.queryByTestId("nifty-breadth-live-only")).toBeNull();
     expect(screen.queryByTestId("walls-stub")).toBeNull();
     expect(screen.queryByTestId("nifty-breadth-strip")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-walls-card")).toBeNull();
+    expect(screen.queryByTestId("nifty-walls-retry")).toBeNull();
   });
 
   test("a replay that reconstructed walls still mounts the real WALLS band", () => {
