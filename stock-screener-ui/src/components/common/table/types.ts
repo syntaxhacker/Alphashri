@@ -8,6 +8,19 @@ export interface SortEntry {
   desc: boolean;
 }
 
+export interface TableMetrics {
+  /** Row height, applied as the cell minimum via `--tbl-row-h`. */
+  rowHeight: number;
+  /** Cell padding shorthand, applied via `--tbl-cell-pad`. */
+  cellPadding: string;
+  /** Body font size in px, applied via `--tbl-fs`. */
+  fontSize: number;
+  /** Header font size in px, re-applied to mounted `<th>` nodes after a column change. */
+  headerFontSize: number;
+}
+
+export type TableMetricsPreset = "default" | "comfortable" | "dense" | "paper";
+
 /**
  * Column-level metadata understood by TanStackTable.
  * Usage: `meta: { align: "right" }` on a ColumnDef.
@@ -88,6 +101,20 @@ export interface TableProps<T> {
   getRowClassName?: (row: T) => string | undefined;
   getRowStyle?: (row: T) => CSSProperties | undefined;
   getRowTestId?: (row: T, index: number) => string | undefined;
+  /** Stable row identity. Takes precedence over `getRowTestId` for slot keys. */
+  getRowKey?: (row: T, index: number) => string | number;
+  /** Key for a group's expanded state. Defaults to `grouping[0]:value`. */
+  getGroupKey?: (value: unknown) => string;
+  /** Default expansion for groups without an explicit `initialState.expanded` entry. */
+  defaultGroupExpanded?: boolean;
+  /**
+   * Rebuild the row wrapper when a tick replaces a row's values. The default
+   * slot keeps the `<tr>` and updates its cells in place; the legacy paper
+   * tables remount only changed rows.
+   */
+  remountChangedRows?: boolean;
+  /** Vertical rhythm preset. Overrides the density API; `dense` still wins. */
+  metricsPreset?: TableMetricsPreset;
   /** Extra DOM attributes for each row (e.g. data-* used for external lookup). */
   getRowAttributes?: (row: T, index: number) => Record<string, string | number | undefined>;
   /**

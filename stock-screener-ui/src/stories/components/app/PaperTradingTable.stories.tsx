@@ -92,11 +92,12 @@ const meta: Meta<PaperTableArgs> = {
       description: {
         component:
           "The paper-trading / replay table in src/components/paper-trading/TanStackTable.tsx. " +
-          "It is a **distinct component** from the shared common table: 23px baseline rows, " +
-          "value-keyed DOM reuse for live ticks, `getRowKey`, grouped and expandable rows, and " +
-          "`enableSorting` on by default. It deliberately has no column picker, no column prefs " +
-          "and no virtualization (`rowWindowSize` is accepted for API compatibility only). " +
-          "This page uses the real `Props<T>` surface with a frozen paper-book fixture.",
+          "It is now a thin compatibility wrapper over the shared common table: rendering, sorting, " +
+          "selection, grouping, expanded rows and virtualization all come from that one implementation. " +
+          "The wrapper restores this family's defaults — 23px baseline rows (`metricsPreset: paper`), " +
+          "value-keyed row remounts for live ticks, raw group-expansion keys and groups expanded by " +
+          "default. `enableSorting` is on by default; the column picker stays opt-in. " +
+          "This page uses the real `TableProps<T>` surface with a frozen paper-book fixture.",
       },
     },
   },
@@ -112,7 +113,7 @@ const meta: Meta<PaperTableArgs> = {
     loading: { control: "boolean", description: "Inline loader when data is empty." },
     emptyMessage: { control: "text", description: "Copy for the empty body." },
     getRowKey: { control: false, description: "Stable identity used to keep row DOM across live price ticks." },
-    rowWindowSize: { control: false, description: "Accepted for API compatibility; this build renders all rows." },
+    rowWindowSize: { control: false, description: "Caps the mounted window, like the common table." },
   },
 };
 export default meta;
