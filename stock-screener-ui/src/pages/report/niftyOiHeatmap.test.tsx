@@ -9,6 +9,7 @@ import * as heatmapModule from "./niftyOiHeatmap";
 import { buildOiHeatmap, heatmapReadText, readHeatmap, type HeatmapTapeRow } from "./niftyOiHeatmap";
 import { HEATMAP_FLIP, HEATMAP_SPOT, NiftyOiHeatmap } from "./NiftyOiHeatmap";
 import { clockLabel, clockMinutes } from "./tapeRange";
+import { REPORT_FONT } from "./reportTokens";
 import { chainAt, isoAt, r } from "./reportTestFixtures";
 
 afterEach(() => {
@@ -419,6 +420,26 @@ describe("NiftyOiHeatmap render", () => {
     expect(order.indexOf(read)).toBe(1);
     expect(order.indexOf(svg)).toBe(2);
     expect(read.textContent).not.toBe("");
+  });
+
+  test("the header separates 12px labels from 13px read values with deliberate padding", () => {
+    r(() => <NiftyOiHeatmap {...{ rows: twoBuckets, bucketMin: 5, widthPts: 500 }} />);
+    const legend = screen.getByTestId("nifty-heatmap-legend");
+    const read = screen.getByTestId("nifty-heatmap-read");
+    expect(legend.className).toContain("px-3");
+    expect(legend.className).toContain("py-1");
+    expect(read.className).toContain("px-3");
+    expect(screen.getByTestId("nifty-heatmap-legend-title").style.fontSize).toBe(
+      `${REPORT_FONT.micro}px`,
+    );
+    expect(screen.getByTestId("nifty-heatmap-read-label").className).toContain("text-ui-micro");
+
+    const spot = screen.getByTestId("nifty-heatmap-read-spot");
+    expect(spot.style.fontSize).toBe(`${REPORT_FONT.body}px`);
+    expect(spot.querySelector("span")?.className).toContain("text-ui-micro");
+    const ce = screen.getByTestId("nifty-heatmap-read-ce");
+    expect(ce.querySelector(".text-ui-micro")?.textContent).toBe("CE");
+    expect(ce.querySelector(".text-ui-body")?.textContent).toMatch(/[\d,]+/);
   });
 
   test("legend swatches are solid colour marks, not glyphs", () => {

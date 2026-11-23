@@ -479,6 +479,25 @@ describe("NiftyFlowStrip render", () => {
     }
   });
 
+  test("the legend uses 12px codes and the run labels are 13px values", () => {
+    const rows = [base({ t: hm(0) }), base({ t: hm(1), put_doi: 2_500_000 })];
+    r(() => <NiftyFlowStrip {...{ rows }} />);
+    const legend = screen.getByTestId("nifty-flowstrip-legend");
+    expect(legend.className).toContain("text-ui-micro");
+    expect(screen.getByTestId("nifty-flowstrip-legend-bull")).toHaveTextContent("BULL");
+    const labels = screen.getByTestId("nifty-flowstrip-labels");
+    expect(labels.className).toContain("text-ui-body");
+    expect(screen.getByTestId("nifty-flow-label").className).toContain("shrink-0");
+  });
+
+  test("the run labels scroll at 390 with a narrow-only cue", () => {
+    const rows = [base({ t: hm(0) }), base({ t: hm(1), put_doi: 2_500_000 })];
+    r(() => <NiftyFlowStrip {...{ rows }} />);
+    expect(screen.getByTestId("nifty-flowstrip-labels").className).toContain("overflow-x-auto");
+    const cue = screen.getByTestId("nifty-flowstrip-scroll-cue");
+    expect(cue.className).toContain("min-[720px]:hidden");
+  });
+
   test("empty tape renders the muted state", () => {
     r(() => <NiftyFlowStrip {...{ rows: [base({ t: hm(0) }), base({ t: hm(1) })] }} />);
     expect(screen.getByTestId("nifty-flowstrip-empty")).toBeInTheDocument();

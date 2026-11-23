@@ -30,6 +30,13 @@ import {
   REPORT_LETTER_SPACING,
 } from "./reportTokens";
 
+/** Expanded tables are roomier than the rail card: 12px labels, 13px values,
+ *  28px rows and 4px/8px cell padding, with a fixed minimum table width so a
+ *  narrow viewport scrolls instead of squeezing a number out of its cell. */
+const TABLE_CELL_PAD = `${REPORT_PAD.sm}px ${REPORT_PAD.md}px`;
+const EXPANDED_ROW_H = REPORT_ROW.comfortable;
+const TABLE_MIN_W = "min-w-[720px]";
+
 function StatBar(props: { walls: WallsPayload }) {
   const cells = createMemo(() => [
     { label: "SPOT", value: fmtNum(props.walls.spot, 2) },
@@ -45,8 +52,10 @@ function StatBar(props: { walls: WallsPayload }) {
     { label: "GEX FLIP", value: props.walls.gex_degraded ? "n/a" : fmtNum(props.walls.flip) },
   ]);
   return (
+    <div class="w-full min-w-0">
+    <div data-testid="walls-stat-scroll" class="w-full min-w-0 overflow-x-auto">
     <div
-      class="grid grid-cols-[repeat(7,minmax(0,1fr))] border border-solid bg-surface-alt"
+      class={`grid grid-cols-[repeat(7,minmax(0,1fr))] min-w-[840px] border border-solid bg-surface-alt`}
       style={{
         display: "grid",
         "grid-template-columns": "repeat(7, minmax(0,1fr))",
@@ -84,7 +93,7 @@ function StatBar(props: { walls: WallsPayload }) {
             size="sm"
             span
             fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
-            className="font-mono tabular-nums whitespace-nowrap overflow-hidden truncate"
+            className="font-mono tabular-nums whitespace-nowrap"
             style={{
               "font-size": `${REPORT_FONT.md}px`,
               "line-height": REPORT_LINE_HEIGHT.snug,
@@ -92,14 +101,20 @@ function StatBar(props: { walls: WallsPayload }) {
               color: cell.color ?? palette.TEXT_COLOR,
               "font-variant-numeric": "tabular-nums",
               "white-space": "nowrap",
-              overflow: "hidden",
-              "text-overflow": "ellipsis",
             }}
           >
             {cell.value}
           </Text>
         </div>
       )}</For>
+    </div>
+    </div>
+    <div
+      data-testid="walls-stat-scroll-cue"
+      class="text-ui-micro text-fin-text-muted mt-1 min-[840px]:hidden"
+    >
+      scroll → for all seven stats
+    </div>
     </div>
   );
 }
@@ -202,7 +217,7 @@ function WallsLadder(props: { walls: WallsPayload }) {
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": `${REPORT_FONT.xs}px`,
+            "font-size": `${REPORT_FONT.micro}px`,
             "font-weight": REPORT_FONT_WEIGHT.extrabold,
             "letter-spacing": REPORT_LETTER_SPACING.wide,
             color: palette.TEXT_COLOR,
@@ -282,7 +297,7 @@ function WallsTable(props: { title: string; side: "CALL" | "PUT"; rows: WallsRow
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": `${REPORT_FONT.xs}px`,
+            "font-size": `${REPORT_FONT.micro}px`,
             "font-weight": REPORT_FONT_WEIGHT.extrabold,
             color,
             "letter-spacing": REPORT_LETTER_SPACING.wide,
@@ -292,6 +307,11 @@ function WallsTable(props: { title: string; side: "CALL" | "PUT"; rows: WallsRow
         </Text>
         <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>top {props.rows.length} by OI</Text>
       </div>
+      <div
+        data-testid={`walls-table-${props.side.toLowerCase()}-scroll`}
+        class="w-full min-w-0 overflow-x-auto"
+      >
+      <div class={TABLE_MIN_W}>
       <Box
         component="table"
         style={{
@@ -312,14 +332,14 @@ function WallsTable(props: { title: string; side: "CALL" | "PUT"; rows: WallsRow
           <col style={{ width: "10%" }} />
         </colgroup>
         <thead>
-          <tr style={{ color: palette.TEXT_MUTED, height: `${REPORT_ROW.walls}px` }}>
-            <th align="left" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>Strike</th>
-            <th align="right" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>OI</th>
-            <th align="right" title="New OI since session open" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>NEW</th>
-            <th align="right" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>5m</th>
-            <th align="right" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>30m Δ</th>
-            <th align="left" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>erosion</th>
-            <th align="right" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>dist</th>
+          <tr style={{ color: palette.TEXT_MUTED, height: `${EXPANDED_ROW_H}px`, "font-size": `${REPORT_FONT.micro}px` }}>
+            <th align="left" style={{ "font-weight": 500, padding: TABLE_CELL_PAD }}>Strike</th>
+            <th align="right" style={{ "font-weight": 500, padding: TABLE_CELL_PAD }}>OI</th>
+            <th align="right" title="New OI since session open" style={{ "font-weight": 500, padding: TABLE_CELL_PAD }}>NEW</th>
+            <th align="right" style={{ "font-weight": 500, padding: TABLE_CELL_PAD }}>5m</th>
+            <th align="right" style={{ "font-weight": 500, padding: TABLE_CELL_PAD }}>30m Δ</th>
+            <th align="left" style={{ "font-weight": 500, padding: TABLE_CELL_PAD }}>erosion</th>
+            <th align="right" style={{ "font-weight": 500, padding: TABLE_CELL_PAD }}>dist</th>
           </tr>
         </thead>
         <tbody>
@@ -332,13 +352,13 @@ function WallsTable(props: { title: string; side: "CALL" | "PUT"; rows: WallsRow
                   background: row.tracked ? palette.SURFACE_ALT : "transparent",
                   "font-weight": row.tracked ? 700 : 400,
                   "border-top": `1px solid ${palette.BORDER}`,
-                  height: `${REPORT_ROW.walls}px`,
+                  height: `${EXPANDED_ROW_H}px`,
                   transition: "background-color 180ms ease",
                 }}
               >
                 <td
                   style={{
-                    padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px`,
+                    padding: TABLE_CELL_PAD,
                     color: row.tracked ? color : palette.TEXT_COLOR,
                     overflow: "hidden",
                     "text-overflow": "ellipsis",
@@ -354,7 +374,7 @@ function WallsTable(props: { title: string; side: "CALL" | "PUT"; rows: WallsRow
                 <td
                   align="right"
                   title={`Old ${fmtOI(row.oi_open ?? 0)} → new ${fmtOI(row.oi)}`}
-                  style={{ padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px`, position: "relative" }}
+                  style={{ padding: TABLE_CELL_PAD, position: "relative" }}
                 >
                   <span
                     aria-hidden
@@ -385,7 +405,7 @@ function WallsTable(props: { title: string; side: "CALL" | "PUT"; rows: WallsRow
                   align="right"
                   title={`Old ${fmtOI(row.oi_open ?? 0)} → new ${fmtOI(row.oi)} · ${fmtPct(row.new_oi_pct)} of old book`}
                   style={{
-                    padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px`,
+                    padding: TABLE_CELL_PAD,
                     color: erosionColor(row.new_oi),
                     "background-color": newOiTint(row.new_oi, props.rows),
                     transition: "background-color 220ms ease",
@@ -393,15 +413,23 @@ function WallsTable(props: { title: string; side: "CALL" | "PUT"; rows: WallsRow
                 >
                   {fmtSignedOI(row.new_oi)}
                 </td>
-                <td align="right" style={{ padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px`, color: erosionColor(row.erosion_5m) }}>{fmtPct(row.erosion_5m)}</td>
-                <td align="right" style={{ padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px`, color: erosionColor(row.erosion_30m) }}>{fmtPct(row.erosion_30m)}</td>
-                <td style={{ padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}><ErosionBar value={row.erosion_30m} /></td>
-                <td align="right" style={{ padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px`, color: palette.TEXT_MUTED }}>{dist(row.distance_pct)}</td>
+                <td align="right" style={{ padding: TABLE_CELL_PAD, color: erosionColor(row.erosion_5m) }}>{fmtPct(row.erosion_5m)}</td>
+                <td align="right" style={{ padding: TABLE_CELL_PAD, color: erosionColor(row.erosion_30m) }}>{fmtPct(row.erosion_30m)}</td>
+                <td style={{ padding: TABLE_CELL_PAD }}><ErosionBar value={row.erosion_30m} /></td>
+                <td align="right" style={{ padding: TABLE_CELL_PAD, color: palette.TEXT_MUTED }}>{dist(row.distance_pct)}</td>
               </tr>
             );
           }}</For>
         </tbody>
       </Box>
+      </div>
+      </div>
+      <div
+        data-testid={`walls-table-${props.side.toLowerCase()}-scroll-cue`}
+        class="text-ui-micro text-fin-text-muted mt-1 min-[720px]:hidden"
+      >
+        scroll → for all seven columns
+      </div>
     </div>
   );
 }
@@ -420,7 +448,7 @@ function HistoryChart(props: { walls: WallsPayload }) {
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": `${REPORT_FONT.xs}px`,
+            "font-size": `${REPORT_FONT.micro}px`,
             "font-weight": REPORT_FONT_WEIGHT.extrabold,
             color: palette.TEXT_COLOR,
             "letter-spacing": REPORT_LETTER_SPACING.wide,
@@ -432,7 +460,7 @@ function HistoryChart(props: { walls: WallsPayload }) {
           {first()?.t?.slice(11, 16)} → {last()?.t?.slice(11, 16)}
         </Text>
       </div>
-      <div style={{ display: "grid", "grid-template-columns": "1fr 1fr", "gap": "1.5px" }}>
+      <div style={{ display: "grid", "grid-template-columns": "1fr 1fr", "gap": `${REPORT_PAD.md}px` }}>
         <div class="min-w-0">
           <div class="items-center justify-between" style={{ "align-items": "center", "justify-content": "space-between" }}>
             <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>call OI · 30m Δ</Text>
@@ -510,7 +538,7 @@ function SequenceTable(props: { events: WallsEvent[] }) {
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": `${REPORT_FONT.xs}px`,
+            "font-size": `${REPORT_FONT.micro}px`,
             "font-weight": REPORT_FONT_WEIGHT.extrabold,
             "letter-spacing": REPORT_LETTER_SPACING.wide,
             color: palette.TEXT_COLOR,
@@ -520,6 +548,8 @@ function SequenceTable(props: { events: WallsEvent[] }) {
         </Text>
         <Text size="xs" span style={{ color: palette.TEXT_MUTED }}>touch → break · last 10</Text>
       </div>
+      <div data-testid="walls-events-scroll" class="w-full min-w-0 overflow-x-auto">
+      <div class={TABLE_MIN_W}>
       <Box
         component="table"
         style={{
@@ -540,14 +570,14 @@ function SequenceTable(props: { events: WallsEvent[] }) {
           <col style={{ width: "17%" }} />
         </colgroup>
         <thead>
-          <tr style={{ color: palette.TEXT_MUTED, height: `${REPORT_ROW.walls}px` }}>
-            <th align="left" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>Time</th>
-            <th align="left" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>Event</th>
-            <th align="right" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>Wall</th>
-            <th align="right" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>Call Δ30m</th>
-            <th align="right" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>Put Δ30m</th>
-            <th align="right" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>Spot</th>
-            <th align="right" style={{ "font-weight": 500, padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>Max pain</th>
+          <tr style={{ color: palette.TEXT_MUTED, height: `${EXPANDED_ROW_H}px`, "font-size": `${REPORT_FONT.micro}px` }}>
+            <th align="left" style={{ "font-weight": 500, padding: TABLE_CELL_PAD }}>Time</th>
+            <th align="left" style={{ "font-weight": 500, padding: TABLE_CELL_PAD }}>Event</th>
+            <th align="right" style={{ "font-weight": 500, padding: TABLE_CELL_PAD }}>Wall</th>
+            <th align="right" style={{ "font-weight": 500, padding: TABLE_CELL_PAD }}>Call Δ30m</th>
+            <th align="right" style={{ "font-weight": 500, padding: TABLE_CELL_PAD }}>Put Δ30m</th>
+            <th align="right" style={{ "font-weight": 500, padding: TABLE_CELL_PAD }}>Spot</th>
+            <th align="right" style={{ "font-weight": 500, padding: TABLE_CELL_PAD }}>Max pain</th>
           </tr>
         </thead>
         <tbody>
@@ -559,39 +589,44 @@ function SequenceTable(props: { events: WallsEvent[] }) {
                 style={{
                   background: isBreak ? palette.SURFACE_ALT : "transparent",
                   "border-top": `1px solid ${palette.BORDER}`,
-                  height: `${REPORT_ROW.walls}px`,
+                  height: `${EXPANDED_ROW_H}px`,
                 }}
               >
-                <td style={{ padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px`, color: palette.TEXT_MUTED }}>{event.at.slice(11, 19)}</td>
+                <td style={{ padding: TABLE_CELL_PAD, color: palette.TEXT_MUTED }}>{event.at.slice(11, 19)}</td>
                 <td
                   style={{
-                    padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px`,
+                    padding: TABLE_CELL_PAD,
                     "font-weight": isBreak ? REPORT_FONT_WEIGHT.extrabold : REPORT_FONT_WEIGHT.medium,
                     color: isBreak ? palette.NEGATIVE : palette.WARNING,
                   }}
                 >
                   {isBreak ? (isFirst ? "FIRST BREAK" : "RE-BREAK") : "TOUCH"}
                 </td>
-                <td align="right" style={{ padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>{fmtNum(event.wall)}</td>
-                <td align="right" style={{ padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px`, color: erosionColor(event.erosion_30m) }}>
+                <td align="right" style={{ padding: TABLE_CELL_PAD }}>{fmtNum(event.wall)}</td>
+                <td align="right" style={{ padding: TABLE_CELL_PAD, color: erosionColor(event.erosion_30m) }}>
                   {fmtPct(event.erosion_30m)}
                 </td>
                 <td
                   align="right"
                   style={{
-                    padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px`,
+                    padding: TABLE_CELL_PAD,
                     color: (event.put_build_30m ?? 0) > 0 ? palette.POSITIVE : palette.TEXT_MUTED,
                   }}
                 >
                   {fmtPct(event.put_build_30m)}
                 </td>
-                <td align="right" style={{ padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px` }}>{fmtNum(event.spot, 1)}</td>
-                <td align="right" style={{ padding: `${REPORT_PAD.xs}px ${REPORT_PAD.sm}px`, color: palette.TEXT_MUTED }}>{fmtNum(event.max_pain)}</td>
+                <td align="right" style={{ padding: TABLE_CELL_PAD }}>{fmtNum(event.spot, 1)}</td>
+                <td align="right" style={{ padding: TABLE_CELL_PAD, color: palette.TEXT_MUTED }}>{fmtNum(event.max_pain)}</td>
               </tr>
             );
           }}</For>
         </tbody>
       </Box>
+      </div>
+      </div>
+      <div class="text-ui-micro text-fin-text-muted mt-1 min-[720px]:hidden">
+        scroll → for all seven columns
+      </div>
       {hidden() > 0 && (
         <Text
           size="xs"
@@ -741,7 +776,7 @@ export function NiftyWallsExpanded(props: {
           <>
             <WallsLadder walls={walls()!} />
 
-            <div class="grid grid-cols-1 md:grid-cols-2" style={{ gap: "1px" }}>
+            <div class="grid grid-cols-1 md:grid-cols-2" style={{ gap: `${REPORT_PAD.md}px` }}>
               <WallsTable title="CALL WALLS" side="CALL" rows={walls()!.calls} spot={walls()!.spot} />
               <WallsTable title="PUT WALLS" side="PUT" rows={walls()!.puts} spot={walls()!.spot} />
             </div>
@@ -756,14 +791,14 @@ export function NiftyWallsExpanded(props: {
 
         <Divider style={{ "border-color": palette.BORDER }} />
 
-        <div class="grid grid-cols-1 md:grid-cols-[1.4fr_1fr]" style={{ gap: "1px" }}>
+        <div class="grid grid-cols-1 md:grid-cols-[1.4fr_1fr]" style={{ gap: `${REPORT_PAD.md}px` }}>
           <div>
             <Text
               size="xs"
               span
               fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
               style={{
-                "font-size": `${REPORT_FONT.xs}px`,
+                "font-size": `${REPORT_FONT.micro}px`,
                 "font-weight": REPORT_FONT_WEIGHT.extrabold,
                 "letter-spacing": REPORT_LETTER_SPACING.wide,
                 color: palette.TEXT_COLOR,
@@ -814,7 +849,7 @@ export function NiftyWallsExpanded(props: {
               span
               fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
               style={{
-                "font-size": `${REPORT_FONT.xs}px`,
+                "font-size": `${REPORT_FONT.micro}px`,
                 "font-weight": REPORT_FONT_WEIGHT.extrabold,
                 "letter-spacing": REPORT_LETTER_SPACING.wide,
                 color: palette.TEXT_COLOR,

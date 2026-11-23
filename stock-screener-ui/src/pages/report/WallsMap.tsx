@@ -6,6 +6,11 @@ import { fmtNum, fmtOI, fmtPct, fmtSignedOI } from "./niftyWallsFormat";
 import { wallCode, wallSide } from "./niftyChartMath";
 import { REPORT_FONT } from "./reportTokens";
 
+/** Dense-map typography: 12px section/label text, 13px read-out values. */
+const MAP_LABEL = "text-ui-micro text-fin-text-muted";
+const MAP_VALUE = "text-ui-body font-mono tabular-nums text-fin-text";
+const MAP_VALUE_MUTED = "text-ui-body font-mono tabular-nums text-fin-text-muted";
+
 const ROW_H = 15;
 const HEADER_H = 14;
 const AXIS_H = 18;
@@ -71,7 +76,7 @@ function Legend(props: {
       ) : (
         <span class="w-2 h-2 rounded-[1px]" style={{ "background-color": props.color }} />
       )}
-      <div class="text-ui-micro leading-1 text-fin-text-muted">{props.label}</div>
+      <div class={`${MAP_LABEL} leading-1`}>{props.label}</div>
     </div>
   );
 }
@@ -274,7 +279,7 @@ export function WallsMapChart(props: {
       onClick={onClick}
       class="inline-flex items-center justify-center min-w-0 rounded-sm text-ui-micro font-bold leading-[1.4] whitespace-nowrap"
       style={{
-        padding: "1px 4px",
+        padding: "3px 6px",
         color: pressed() ? palette.TEXT_COLOR : palette.TEXT_MUTED,
         "background-color": pressed() ? palette.SURFACE_ALT : "transparent",
         border: `1px solid ${pressed() ? palette.BORDER : "transparent"}`,
@@ -294,21 +299,21 @@ export function WallsMapChart(props: {
       class="min-w-0 outline-none focus-visible:outline-1 focus-visible:outline-fin-primary"
     >
       <div
-        class="flex items-center justify-between flex-wrap mb-[3px] row-gap-[2px]"
+        class="flex items-center justify-between flex-wrap mb-2 row-gap-1"
       >
-        <div class="flex items-baseline gap-1.5 min-w-0 flex-wrap row-gap-[1px]">
+        <div class="flex items-baseline gap-2 min-w-0 flex-wrap row-gap-1">
           <div class="text-ui-micro font-bold tracking-[0.5em] text-fin-text">WALL MAP</div>
-          <div data-testid="walls-map-horizon-label" class="text-ui-micro text-fin-text-muted">
+          <div data-testid="walls-map-horizon-label" class={MAP_VALUE_MUTED}>
             Δ vs {horizon() === "session" ? "open" : timeLabel(times()[0])} · {times().length}m · {strikes().length} strikes
           </div>
           <div
             data-testid="walls-map-active-time"
-            class="text-ui-micro font-bold"
+            class={`${MAP_VALUE} font-bold`}
             style={{ color: isLive() ? palette.POSITIVE : palette.WARNING }}
           >
             {isLive() ? "LIVE" : pinnedTime() ? "PINNED" : "PREVIEW"} · {timeLabel(activeTime())}
           </div>
-          <div class="text-ui-micro text-fin-text-muted">
+          <div class={MAP_VALUE_MUTED}>
             spot {fmtNum(activeSpot())} · MP {fmtNum(activeMaxPain())} · FLIP {activeFlip() != null ? fmtNum(activeFlip()!) : "—"}
           </div>
         </div>
@@ -317,7 +322,7 @@ export function WallsMapChart(props: {
             {(regime) => (
               <span
                 data-testid="walls-map-regime"
-                class="px-1 py-[1px] border rounded-sm text-ui-micro font-bold leading-[1.4]"
+                class="px-1.5 py-0.5 border rounded-sm text-ui-micro font-bold leading-[1.4]"
                 style={{
                   "border-color": regime() === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
                   color: regime() === "SHORT" ? palette.NEGATIVE : palette.POSITIVE,
@@ -341,7 +346,7 @@ export function WallsMapChart(props: {
               onClick={clearInspect}
               class="inline-flex items-center justify-center min-w-0 rounded-sm text-ui-micro font-bold leading-[1.4] whitespace-nowrap"
               style={{
-                padding: "1px 5px",
+                padding: "3px 6px",
                 color: palette.PRIMARY,
                 border: `1px solid ${palette.PRIMARY}`,
                 "border-radius": "4px",
@@ -353,18 +358,23 @@ export function WallsMapChart(props: {
         </div>
       </div>
 
-      <div class="flex items-center flex-wrap mb-[3px] gap-1 row-gap-[2px]">
-        <div class="text-ui-micro font-bold tracking-[0.5em] text-fin-text-muted">COLOR</div>
+      <div class="flex items-center flex-wrap mb-2 gap-2 row-gap-1">
+        <div class={`${MAP_LABEL} font-bold tracking-[0.12em]`}>COLOR</div>
         <For each={["window", "session"] as const}>{(mode) =>
           toggleButton(`walls-map-horizon-${mode}`, () => horizon() === mode, mode === "window" ? "60m" : "SESSION", () => setHorizon(mode))
         }</For>
-        <div class="text-ui-micro font-bold tracking-[0.5em] text-fin-text-muted ml-[8px]">MEASURE</div>
+        <div class={`${MAP_LABEL} font-bold tracking-[0.12em] ml-2`}>MEASURE</div>
         <For each={["pct", "oi"] as const}>{(mode) =>
           toggleButton(`walls-map-measure-${mode}`, () => measure() === mode, mode === "pct" ? "%" : "OI", () => setMeasure(mode))
         }</For>
-        <div class="text-ui-micro text-fin-text-muted ml-[8px]">bars: muted = open · bright = new</div>
+        <div class={`${MAP_LABEL} ml-2`}>bars: muted = open · bright = new</div>
       </div>
 
+      {/* The viewBox is fixed so 12px SVG text stays 12px at the desk. At 390
+          the map scrolls instead of scaling the labels below the floor. */}
+      <div class="w-full min-w-0">
+      <div data-testid="walls-map-scroll" class="w-full min-w-0 overflow-x-auto">
+      <div class="min-w-[900px]">
       <svg
         ref={(el) => (svgRef = el)}
         viewBox={`0 0 ${TOTAL_W} ${height()}`}
@@ -595,6 +605,15 @@ export function WallsMapChart(props: {
           <AxisLabels times={times()} cellW={cellW()} xOffset={PUT_PLOT_X} rowsH={rowsH()} />
         </g>
       </svg>
+      </div>
+      </div>
+      <div
+        data-testid="walls-map-scroll-cue"
+        class={`${MAP_LABEL} mt-1 min-[900px]:hidden`}
+      >
+        scroll → for the full strike × time map
+      </div>
+      </div>
     </div>
   );
 }

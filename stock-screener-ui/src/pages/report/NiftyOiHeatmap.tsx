@@ -663,7 +663,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
         <div
           data-testid="nifty-heatmap-legend"
           aria-label="Heatmap legend"
-          class="flex items-center gap-2 min-w-0 shrink-0 px-2 py-1 border-b border-fin-border text-ui-micro leading-[16px] font-mono text-fin-text-muted"
+          class="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 shrink-0 px-3 py-1 border-b border-fin-border text-ui-micro leading-[16px] font-mono text-fin-text-muted"
           style={{ "background-color": alpha(TERM_HEADER, 0.55) }}
         >
           <span
@@ -671,7 +671,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
             class="tracking-[0.08em] text-fin-text whitespace-nowrap shrink-0"
             title="OI change heatmap"
             style={{
-              "font-size": `${REPORT_FONT.body}px`,
+              "font-size": `${REPORT_FONT.micro}px`,
               "font-weight": 600,
               "line-height": 1.2,
             }}
@@ -739,7 +739,7 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
         <div
           data-testid="nifty-heatmap-read"
           title={readText() || readFallback()}
-          class="px-2 py-1 shrink-0 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-ui-micro leading-[1.3] font-mono text-fin-text whitespace-normal break-words"
+          class="px-3 py-1 shrink-0 min-w-0 flex flex-wrap items-center gap-x-3 gap-y-1 text-ui-micro leading-[1.3] font-mono text-fin-text whitespace-normal break-words"
         >
           <span
             data-testid="nifty-heatmap-read-label"
@@ -764,26 +764,26 @@ export function NiftyOiHeatmap(props: NiftyOiHeatmapProps) {
                   "line-height": 1.2,
                 }}
               >
-                SPOT {s().spot} <span class="text-fin-text-muted">{s().relation}</span> MP {s().maxPain}
+                <span class="text-ui-micro text-fin-text-muted">SPOT</span> {s().spot} <span class="text-ui-micro text-fin-text-muted">{s().relation}</span> <span class="text-ui-micro text-fin-text-muted">MP</span> {s().maxPain}
               </span>
             )}
           </Show>
           <Show when={read().ceStrike !== null}>
             <span
               data-testid="nifty-heatmap-read-ce"
-              class="shrink-0 text-ui-micro text-fin-text-muted whitespace-nowrap"
+              class="shrink-0 whitespace-nowrap"
               title="Strongest call-side ΔOI build on this tape"
             >
-              CE {formatNumberIN(read().ceStrike as number)}
+              <span class="text-ui-micro text-fin-text-muted">CE</span> <span class="text-ui-body">{formatNumberIN(read().ceStrike as number)}</span>
             </span>
           </Show>
           <Show when={read().peStrike !== null}>
             <span
               data-testid="nifty-heatmap-read-pe"
-              class="shrink-0 text-ui-micro text-fin-text-muted whitespace-nowrap"
+              class="shrink-0 whitespace-nowrap"
               title="Strongest put-side ΔOI build on this tape"
             >
-              PE {formatNumberIN(read().peStrike as number)}
+              <span class="text-ui-micro text-fin-text-muted">PE</span> <span class="text-ui-body">{formatNumberIN(read().peStrike as number)}</span>
             </span>
           </Show>
           <span class="sr-only">{readText() || readFallback()}</span>

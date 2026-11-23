@@ -51,6 +51,12 @@ const WALLS_ROWS = 3;
 
 const WALLS_HEADINGS = ["OI", "NEW", "5m", "30m", "DIST"] as const;
 
+/** Fixed numeric columns sized for 13px tabular values; the strike column
+ *  absorbs the slack. The inner grid never narrows below this, so 390px
+ *  scrolls the table instead of clipping a number. */
+const WALLS_GRID_COLS = "grid-cols-[minmax(0,210px)_64px_64px_52px_52px_56px]";
+const WALLS_MIN_W = "min-w-[520px]";
+
 const WALLS_RESERVED_H = 96;
 
 function Stat(props: { label: string; value: string; color?: string }) {
@@ -61,7 +67,7 @@ function Stat(props: { label: string; value: string; color?: string }) {
         span
         fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
         style={{
-          "font-size": `${REPORT_FONT.body}px`,
+          "font-size": `${REPORT_FONT.micro}px`,
           "line-height": REPORT_LINE_HEIGHT.tight,
           color: palette.TEXT_MUTED,
           "letter-spacing": REPORT_LETTER_SPACING.wide,
@@ -146,7 +152,7 @@ function WallsLevelsLegend(props: {
               class="inline-block shrink-0 rounded-full w-[6px] h-[6px]"
               style={{ "background-color": item.color }}
             />
-            <span class="tabular-nums">{item.code} {props.skeleton ? "—" : fmtNum(item.value)}</span>
+            <span class="text-ui-micro">{item.code}</span> <span class="text-ui-body font-mono tabular-nums">{props.skeleton ? "—" : fmtNum(item.value)}</span>
           </span>
         </>
       )}</For>
@@ -189,13 +195,13 @@ function WallPlaceholderRow(props: { side: "CALL" | "PUT" }) {
       data-testid={`nifty-walls-${props.side.toLowerCase()}-placeholder`}
       data-placeholder="true"
       data-wall-row="true"
-      class="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] items-center pl-[8px]"
+      class={`grid ${WALLS_GRID_COLS} gap-[4px] items-center pl-[8px] ${WALLS_MIN_W}`}
       style={{
-        "column-gap": `${REPORT_PAD.xs}px`,
-        "padding-top": `${REPORT_PAD.xs}px`,
-        "padding-bottom": `${REPORT_PAD.xs}px`,
+        "column-gap": `${REPORT_PAD.sm}px`,
+        "padding-top": `${REPORT_PAD.sm}px`,
+        "padding-bottom": `${REPORT_PAD.sm}px`,
         "padding-left": `${REPORT_PAD.sm}px`,
-        "min-height": `${REPORT_ROW.walls}px`,
+        "min-height": `${REPORT_ROW.comfortable}px`,
         "border-left": "2px solid transparent",
       }}
     >
@@ -259,13 +265,15 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
   ]);
   return (
     <div data-testid={`nifty-walls-${sideKey}`} class="min-w-0">
+      <div data-testid={`nifty-walls-${sideKey}-scroll`} class="w-full min-w-0 overflow-x-auto">
+      <div class="w-max min-w-full">
       <div
-        class="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] pb-[4px] mb-[4px]"
+        class={`grid ${WALLS_GRID_COLS} gap-[4px] ${WALLS_MIN_W}`}
         style={{
-          "column-gap": `${REPORT_PAD.xs}px`,
+          "column-gap": `${REPORT_PAD.sm}px`,
           "border-bottom": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`,
-          "padding-bottom": `${REPORT_PAD.xs}px`,
-          "margin-bottom": `${REPORT_PAD.xs}px`,
+          "padding-bottom": `${REPORT_PAD.sm}px`,
+          "margin-bottom": `${REPORT_PAD.sm}px`,
         }}
       >
         <Text
@@ -273,7 +281,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
           span
           fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
           style={{
-            "font-size": `${REPORT_FONT.xs}px`,
+            "font-size": `${REPORT_FONT.micro}px`,
             color,
             "letter-spacing": REPORT_LETTER_SPACING.wider,
           }}
@@ -286,7 +294,7 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
             span
             title={heading === "NEW" ? "New OI since session open (old book → new book)" : undefined}
             style={{
-              "font-size": `${REPORT_FONT.xs}px`,
+              "font-size": `${REPORT_FONT.micro}px`,
               color: palette.TEXT_MUTED,
               "text-align": "right",
               "letter-spacing": REPORT_LETTER_SPACING.normal,
@@ -320,14 +328,14 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
         return (
           <div
             data-wall-row="true"
-            class="grid grid-cols-[minmax(0,210px)_48px_48px_40px_40px_44px] gap-[4px] items-center pl-[8px]"
+            class={`grid ${WALLS_GRID_COLS} gap-[4px] items-center pl-[8px] ${WALLS_MIN_W}`}
             style={{
-              "column-gap": `${REPORT_PAD.xs}px`,
+              "column-gap": `${REPORT_PAD.sm}px`,
               "align-items": "center",
-              "padding-top": `${REPORT_PAD.xs}px`,
-              "padding-bottom": `${REPORT_PAD.xs}px`,
+              "padding-top": `${REPORT_PAD.sm}px`,
+              "padding-bottom": `${REPORT_PAD.sm}px`,
               "padding-left": `${REPORT_PAD.sm}px`,
-              "min-height": `${REPORT_ROW.walls}px`,
+              "min-height": `${REPORT_ROW.comfortable}px`,
               "border-left": border,
               "background-color": (nearest || tracked) ? palette.SURFACE_ALT : "transparent",
               transition: "background-color 180ms ease",
@@ -505,6 +513,14 @@ function WallTable(props: { side: "CALL" | "PUT"; rows: WallsRow[]; spot: number
           </div>
         );
       }}</For>
+      </div>
+      </div>
+      <div
+        data-testid={`nifty-walls-${sideKey}-scroll-cue`}
+        class="text-ui-micro text-fin-text-muted mt-1 min-[520px]:hidden"
+      >
+        scroll → for 5m · 30m · DIST
+      </div>
     </div>
   );
 }
@@ -659,7 +675,7 @@ function SkeletonBar(props: { height: number; width?: number | string }) {
 function SkeletonStat() {
   return (
     <div class="min-w-0 py-[2px]">
-      <SkeletonBar height={11} width="42%" />
+      <SkeletonBar height={12} width="42%" />
       <SkeletonBar height={15} width="68%" />
     </div>
   );
@@ -1055,7 +1071,7 @@ export function NiftyWallsCardInner(props: {
           data-testid="nifty-walls-compact-summary"
           class="flex flex-col justify-center gap-[2px] w-full min-w-0 shrink-0 h-14 min-h-14 px-2 font-mono"
         >
-          <div class="flex items-center gap-3 min-w-0 whitespace-nowrap overflow-hidden">
+          <div class="flex items-center gap-2 min-w-0 whitespace-nowrap overflow-x-auto [&>*]:shrink-0">
             <Text
               size="xs"
               span
@@ -1079,22 +1095,22 @@ export function NiftyWallsCardInner(props: {
               span
               style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}
             >
-              CW {fmtNum(walls()!.call_wall?.strike)} · PW {fmtNum(walls()!.put_wall?.strike)}
+              <span class="text-ui-micro">CW</span> {fmtNum(walls()!.call_wall?.strike)} · <span class="text-ui-micro">PW</span> {fmtNum(walls()!.put_wall?.strike)}
             </Text>
           </div>
-          <div class="flex items-center gap-3 min-w-0 whitespace-nowrap overflow-hidden">
+          <div class="flex items-center gap-2 min-w-0 whitespace-nowrap overflow-x-auto [&>*]:shrink-0">
             <Text size="xs" span style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}>
-              SPOT {fmtNum(walls()!.spot, 2)}
+              <span class="text-ui-micro">SPOT</span> {fmtNum(walls()!.spot, 2)}
             </Text>
             <Text size="xs" span style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}>
-              MP {fmtNum(walls()!.max_pain)}
+              <span class="text-ui-micro">MP</span> {fmtNum(walls()!.max_pain)}
             </Text>
             <Text
               size="xs"
               span
               style={{ "font-size": `${REPORT_FONT.xs}px`, color: pinColor() }}
             >
-              PIN {walls()!.pin_distance_pts > 0 ? "+" : ""}
+              <span class="text-ui-micro">PIN</span> {walls()!.pin_distance_pts > 0 ? "+" : ""}
               {fmtNum(walls()!.pin_distance_pts, 0)} ({walls()!.pin_distance_pct.toFixed(2)}%)
             </Text>
             <Text
@@ -1105,7 +1121,7 @@ export function NiftyWallsCardInner(props: {
                 color: walls()!.gex_degraded ? palette.TEXT_MUTED : palette.TEXT_COLOR,
               }}
             >
-              GEX {walls()!.gex_degraded ? "n/a" : fmtNum(walls()!.net_gex, 1)}
+              <span class="text-ui-micro">GEX</span> {walls()!.gex_degraded ? "n/a" : fmtNum(walls()!.net_gex, 1)}
             </Text>
             <Show when={showAlert() && alert()}>
               <Text
@@ -1116,6 +1132,12 @@ export function NiftyWallsCardInner(props: {
                 WALL BREAK {fmtNum(alert()!.wall)} · {fmtNum(alert()!.spot, 1)}
               </Text>
             </Show>
+          </div>
+          <div
+            data-testid="nifty-walls-compact-scroll-cue"
+            class="text-ui-micro text-fin-text-muted min-[420px]:hidden"
+          >
+            scroll → for all levels
           </div>
         </div>
       </Show>

@@ -81,6 +81,27 @@ describe("WallsMapChart", () => {
     expect(screen.getByTestId("walls-map-horizon-label")).toHaveTextContent("open");
   });
 
+  test("header keeps 12px labels and 13px read-outs with deliberate control padding", () => {
+    renderMap();
+    expect(screen.getByText("WALL MAP").className).toContain("text-ui-micro");
+    const horizon = screen.getByTestId("walls-map-horizon-label");
+    expect(horizon.className).toContain("text-ui-body");
+    const active = screen.getByTestId("walls-map-active-time");
+    expect(active.className).toContain("text-ui-body");
+    expect(active.className).toContain("tabular-nums");
+    expect(screen.getByTestId("walls-map-measure-oi").style.padding).toBe("3px 6px");
+  });
+
+  test("the map scrolls at narrow widths instead of scaling SVG text below the floor", () => {
+    renderMap();
+    const scroll = screen.getByTestId("walls-map-scroll");
+    expect(scroll.className).toContain("overflow-x-auto");
+    expect(scroll.querySelector("svg")).not.toBeNull();
+    expect(scroll.firstElementChild?.className).toContain("min-w-[900px]");
+    const cue = screen.getByTestId("walls-map-scroll-cue");
+    expect(cue.className).toContain("min-[900px]:hidden");
+  });
+
   test("empty map renders nothing", () => {
     const empty = { ...mapFixture(), strikes: [], times: [] };
     const { container } = render(() => (

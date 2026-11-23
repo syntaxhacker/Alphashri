@@ -11,6 +11,7 @@ import { NiftyWallsCard } from "./NiftyWallsCard";
 import { NiftyWallsExpanded } from "./NiftyWallsExpanded";
 import { LevelsInPlayContent } from "./LevelsInPlay";
 import { firstBreakEvent, lastBreakEvent, wallsMaxOi } from "./niftyWallsFormat";
+import { REPORT_FONT, REPORT_PAD, REPORT_ROW } from "./reportTokens";
 
 const walls: WallsPayload = {
   symbol: "SENSEX",
@@ -394,6 +395,30 @@ describe("NiftyWallsCard", () => {
 
 
 
+  it("uses 12px table headings, 13px values and padded 28px rows", () => {
+    render(() => <NiftyWallsCard walls={walls} onExpand={onExpand} />);
+    const callTable = screen.getByTestId("nifty-walls-call");
+    const heading = within(callTable).getByText("NEW");
+    expect(heading.style.fontSize).toBe(`${REPORT_FONT.micro}px`);
+    const value = within(callTable).getByText("+1.20M");
+    expect(value.style.fontSize).toBe(`${REPORT_FONT.sm}px`);
+
+    const row = callTable.querySelector("[data-wall-row='true']") as HTMLElement;
+    expect(row.style.minHeight).toBe(`${REPORT_ROW.comfortable}px`);
+    expect(row.style.paddingTop).toBe(`${REPORT_PAD.sm}px`);
+    expect(row.style.paddingBottom).toBe(`${REPORT_PAD.sm}px`);
+  });
+
+  it("keeps every wall-table value in a scrollable grid at 390", () => {
+    render(() => <NiftyWallsCard walls={walls} onExpand={onExpand} />);
+    const scroll = screen.getByTestId("nifty-walls-call-scroll");
+    expect(scroll.className).toContain("overflow-x-auto");
+    expect(scroll.querySelector("[data-wall-row='true']")?.className).toContain("min-w-[520px]");
+    const cue = screen.getByTestId("nifty-walls-call-scroll-cue");
+    expect(cue.className).toContain("min-[520px]:hidden");
+    expect(screen.getByTestId("nifty-walls-put-scroll")).toBeInTheDocument();
+  });
+
   it("lays the populated band out in five columns, not one", () => {
     // Measured in the browser at 1366px: the xs single-column variant stacked
     // CALL/PUT/READ/history and grew the card to 475px, which pushed the chart
@@ -546,6 +571,35 @@ describe("NiftyWallsExpanded", () => {
     expect(callTable!.querySelectorAll("colgroup > col")).toHaveLength(7);
     expect(callTable!.querySelectorAll("thead th")).toHaveLength(7);
     expect(within(callTable as HTMLElement).getByText("dist")).toBeInTheDocument();
+  });
+
+  it("gives expanded tables 12px headers, 13px values and 28px padded rows", () => {
+    render(() => <NiftyWallsExpanded open walls={walls} onClose={() => {}} />);
+    const table = screen.getByTestId("walls-table-call").querySelector("table") as HTMLElement;
+    const headerRow = table.querySelector("thead tr") as HTMLElement;
+    expect(headerRow.style.fontSize).toBe(`${REPORT_FONT.micro}px`);
+    expect(headerRow.style.height).toBe(`${REPORT_ROW.comfortable}px`);
+    const cell = table.querySelector("tbody td") as HTMLElement;
+    expect(cell.style.padding).toBe(`${REPORT_PAD.sm}px ${REPORT_PAD.md}px`);
+    expect(table.style.fontSize).toBe(`${REPORT_FONT.sm}px`);
+  });
+
+  it("scrolls the expanded stat strip, tables and sequence instead of clipping numbers", () => {
+    render(() => <NiftyWallsExpanded open walls={walls} onClose={() => {}} />);
+    for (const id of [
+      "walls-stat-scroll",
+      "walls-table-call-scroll",
+      "walls-table-put-scroll",
+      "walls-events-scroll",
+    ]) {
+      const el = screen.getByTestId(id);
+      expect(el.className).toContain("overflow-x-auto");
+      expect(el.firstElementChild?.className).toMatch(/min-w-\[/);
+    }
+    expect(screen.getByTestId("walls-stat-scroll-cue").className).toContain("min-[840px]:hidden");
+    expect(screen.getByTestId("walls-table-call-scroll-cue").className).toContain(
+      "min-[720px]:hidden",
+    );
   });
 
   it("shows the last break when the live alert has faded", () => {
