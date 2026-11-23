@@ -6,6 +6,8 @@ import {
   formatVolume,
   buildHolidayMap,
   insertHolidayGaps,
+  buildHighlightMarkers,
+  buildHighlightLevelSeries,
   CANDLESTICK_ITEM_STYLE,
 } from "../chartUtils";
 import {
@@ -31,6 +33,9 @@ import {
   CHART_LIGHT_SPLIT,
   CHART_LIGHT_BORDER,
   CHART_LIGHT_MUTED,
+  CHART_AVG_ENTRY,
+  CHART_TRADE_EXIT,
+  MARKER_TP,
 } from "../../config/colors";
 
 describe("getChartThemeColors", () => {
@@ -382,5 +387,62 @@ describe("CANDLESTICK_ITEM_STYLE", () => {
   it("has bullish borderColor", () => {
     expect(CANDLESTICK_ITEM_STYLE.borderColor).toBe(BULLISH);
     expect(CANDLESTICK_ITEM_STYLE.borderColor0).toBe(BEARISH);
+  });
+});
+
+describe("buildHighlightMarkers", () => {
+  const entryMarker = { price: 100, symbol: "triangle" };
+  const exitMarker = { price: 110, trade: { exit_reason: "TP" } };
+
+  it("creates highlighted entry marker", () => {
+    const result = buildHighlightMarkers(entryMarker, exitMarker, 5, 10, 0, { md: 12 });
+    expect(result.highlightEntryMarker).toMatchObject({
+      value: [5, 100],
+      symbol: "triangle",
+      symbolSize: 32,
+      itemStyle: { color: CHART_AVG_ENTRY, borderColor: CHART_TRADE_EXIT, borderWidth: 4 },
+      label: { show: true, position: "top", formatter: "▼ Entry #1" },
+    });
+  });
+
+  it("colors exit marker based on reason", () => {
+    const result = buildHighlightMarkers(entryMarker, exitMarker, 0, 0, 0, { md: 12 });
+    expect(result.highlightExitMarker?.itemStyle.color).toBe(MARKER_TP); // TP = green
+  });
+
+  it("returns null exit marker when exitMarker is undefined", () => {
+    const result = buildHighlightMarkers(entryMarker, undefined, 0, 0, 0, { md: 12 });
+    expect(result.highlightExitMarker).toBeNull();
+  });
+});
+
+describe("buildHighlightLevelSeries", () => {
+  const candles = [{ date: "2025-01-15" }, { date: "2025-01-16" }, { date: "2025-01-17" }];
+
+  const selectedTrade = { or_high: 120, or_low: 90, r1: 115, "52w_high": 150 };
+
+  it("creates selected OR lines when same day", () => {
+    const result = buildHighlightLevelSeries(candles, "2025-01-15", 0, 1, selectedTrade, true, {
+      sm: 10,
+    });
+    expect(result).toHaveLength(2);
+    expect(result[0].id).toBe("selected-or-high");
+    expect(result[1].id).toBe("selected-or-low");
+  });
+
+  it("creates 52W high line when different day and available", () => {
+    const result = buildHighlightLevelSeries(candles, "2025-01-15", 0, 2, selectedTrade, false, {
+      sm: 10,
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("selected-52w-high");
+    expect(result[0].markLine.lineStyle.color).toBe(CHART_AVG_ENTRY);
+  });
+
+  it("does not include 52W line if r1/52w_high is missing", () => {
+    const trade = { or_high: 120 };
+    const result = buildHighlightLevelSeries(candles, "2025-01-15", 0, 1, trade, false, { sm: 10 });
+    expect(result[0].id).toBe("selected-or-high");
+    expect(result).toHaveLength(2);
   });
 });

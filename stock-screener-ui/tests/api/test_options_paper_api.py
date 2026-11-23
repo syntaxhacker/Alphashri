@@ -211,6 +211,58 @@ def test_invalid_leg_returns_400_naming_field(auth_client, monkeypatch, leg, exp
     assert expected in response.json()["detail"].lower()
 
 
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_duplicate_initial_legs_are_400(auth_client, monkeypatch, db, dry_run):
+    monkeypatch.setattr("api.options._fetch_chain_rows", _live_chain())
+    legs = [
+        {"action": "BUY", "opt": "CE", "strike": 82.5, "lots": 1},
+        {"action": "BUY", "opt": "CE", "strike": 82.5, "lots": 1},
+    ]
+    response = auth_client.post(
+        "/api/options-paper/orders", json=_order(legs=legs, dryRun=dry_run)
+    )
+    assert response.status_code == 400, response.text
+    assert "duplicate" in response.json()["detail"].lower()
+    assert db.query(OptionPaperPosition).count() == 0
+    assert db.query(OptionPaperLeg).count() == 0
+
+
+def test_live_chain_zero_spot_is_400(auth_client, monkeypatch, db):
+    base = _live_chain()
+
+    async def _zero_spot(underlying, expiry):
+        chain, _ = await base(underlying, expiry)
+        return chain, 0.0
+
+    monkeypatch.setattr("api.options._fetch_chain_rows", _zero_spot)
+    response = auth_client.post("/api/options-paper/orders", json=_order())
+    assert response.status_code == 400, response.text
+    assert "spot" in response.json()["detail"].lower()
+    assert db.query(OptionPaperPosition).count() == 0
+    assert db.query(OptionPaperLeg).count() == 0
+
+
+def test_replay_with_all_spots_missing_is_400(auth_client, db):
+    for offset in range(4):
+        ts = datetime.fromisoformat(f"{SESSION}T09:{47 + offset}:00")
+        for strike in STRIKES:
+            for side, ltp in (("CE", 2.5 if strike == 82.5 else 0.9),
+                              ("PE", 0.7 if strike == 82.5 else 1.4)):
+                db.add(OptionChainSnapshot(
+                    ts=ts, underlying=UNDERLYING, expiry=EXPIRY, strike=strike,
+                    side=side, ltp=ltp, iv=18.0, oi=1200, volume=80,
+                    spot=None, session_date=SESSION, quotes_live=False,
+                    iv_source="upstox",
+                ))
+    db.commit()
+
+    response = auth_client.post("/api/options-paper/orders", json=_replay_order())
+    assert response.status_code == 400, response.text
+    assert "spot" in response.json()["detail"].lower()
+    assert db.query(OptionPaperPosition).count() == 0
+    assert db.query(OptionPaperLeg).count() == 0
+
+
 def test_unpriced_leg_returns_400(auth_client, monkeypatch):
     monkeypatch.setattr("api.options._fetch_chain_rows", _live_chain(ce_85=0))
     response = auth_client.post("/api/options-paper/orders", json=_order())

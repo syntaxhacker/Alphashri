@@ -2,8 +2,8 @@ import type { Meta, StoryObj } from "@storybook/html-vite";
 import { createSignal } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
 import {
-  Accordion, Box, Button, List, ListItem, Menu, MenuDropdown, MenuItem, MenuTarget,
-  Stack, Tab, Tabs, TabsList, TabsPanel, Text, Timeline, Tree,
+  Accordion, Box, Button, DENSITY_TOKENS, Group, List, ListItem, Menu, MenuDropdown, MenuItem, MenuTarget,
+  Stack, Tab, Tabs, TabsList, TabsPanel, Text, Timeline, Tree, type Density,
 } from "@/ui";
 
 const meta: Meta = { title: "Design System/Data display", tags: ["autodocs"] };
@@ -161,15 +161,67 @@ export const ListExample: Story = {
     )),
 };
 
+/**
+ * Tree/Accordion/Timeline do not read the density store themselves. Both
+ * columns mount the same real components; the host padding and row rhythm come
+ * from DENSITY_TOKENS, the same object the shared table reads.
+ */
+const DensitySurface = (props: { density: Density }) => {
+  const t = DENSITY_TOKENS[props.density];
+  const rowPad = () => ({
+    padding: t.tableCellPad,
+    "min-height": `${t.tableRowHeight}px`,
+    "border-bottom": "1px solid var(--color-fin-border)",
+  });
+  return (
+    <Box style={{ width: "300px", "flex-shrink": 0, border: "1px solid var(--color-fin-border)", background: "var(--color-fin-surface)" }}>
+      <Box style={{ padding: t.tableCellPad, "border-bottom": "1px solid var(--color-fin-border)" }}>
+        <Text size="xs" fw={700} c="dimmed" className="font-mono">
+          {`${props.density} · row ${t.tableRowHeight}px · py ${t.tableRowPy} · pad ${t.tableCellPad}`}
+        </Text>
+      </Box>
+      <Box style={rowPad()}>
+        <Accordion defaultValue="nifty">
+          <Accordion.Item value="nifty">
+            <Accordion.Control style={{ padding: t.tableCellPad, "min-height": `${t.tableRowHeight}px` }}>
+              F&O universe
+            </Accordion.Control>
+            <Accordion.Panel>
+              <Text size="xs" c="dimmed" style={{ padding: t.tableCellPad }}>
+                NIFTY and BANKNIFTY chain roots.
+              </Text>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
+      </Box>
+      <Box style={rowPad()}>
+        <Tree data={treeData} levelOffset={16} style={{ padding: t.tableCellPad, "row-gap": t.tableRowPy }} />
+      </Box>
+      <Box style={rowPad()}>
+        <Timeline active={1} bulletSize={12} lineWidth={1}>
+          <Timeline.Item title="Scan" style={{ padding: t.tableCellPad, "min-height": `${t.tableRowHeight}px` }}>
+            214 symbols with a valid frame.
+          </Timeline.Item>
+          <Timeline.Item title="Filter" style={{ padding: t.tableCellPad, "min-height": `${t.tableRowHeight}px` }}>
+            18 actionable rows.
+          </Timeline.Item>
+        </Timeline>
+      </Box>
+    </Box>
+  );
+};
+
 export const DensityStack: Story = {
   render: () =>
     solidStory(() => (
-      <Stack gap="sm" style={{ width: "560px" }}>
-        <Text size="xs" c="dimmed">Tree and accordion inherit the terminal’s compact density; text uses the 9–13px scale.</Text>
-        <Box p="sm" style={{ border: "1px solid var(--color-fin-border)" }}>
-          <Text size="sm" fw={600}>Nested data surfaces</Text>
-          <Text size="xs" c="dimmed">Use Box/Paper around Tree, Timeline, List, and Menu for consistent padding.</Text>
-        </Box>
+      <Stack gap="sm" style={{ width: "640px" }}>
+        <Text size="xs" c="dimmed">
+          Same three real components at both densities. The wrappers read DENSITY_TOKENS directly — row 20/28px and cell pad 3px 8px / 6px 12px — because density.tsx has no provider these data-display primitives subscribe to.
+        </Text>
+        <Group gap="md" align="flex-start" wrap="wrap">
+          <DensitySurface density="compact" />
+          <DensitySurface density="comfortable" />
+        </Group>
       </Stack>
     )),
 };

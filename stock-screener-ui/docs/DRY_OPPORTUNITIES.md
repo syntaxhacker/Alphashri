@@ -13,7 +13,7 @@
      - `src/components/screener/columns/near52wBreakout.ts:20-29`
      - *Opportunity:* Extract to shared `src/components/screener/columns/gapCol.ts` or base.
   2. **Heatmap utils internal dup**:
-     - `src/pages/heatmap/heatmapUtils.ts` (two similar blocks ~85-105)
+     - `src/components/heatmap/heatmapUtils.ts` (two similar blocks ~85-105)
      - *Opportunity:* Refactor duplicated color/scale logic into helper fn.
   3. **Backtest chart options overlap — RESOLVED by removal**:
      - `src/components/backtest/buildBacktestChartOption.ts` (dead file, 0 importers) duplicated `src/utils/chart/buildOverlays.ts` (multiple 14-line blocks for series/options); **REMOVED 2026-11**.
@@ -23,7 +23,7 @@
   5. **Internal in trading_agents.ts**:
      - Dupe SSE/function call patterns (lines 115-124 vs 210-219, 158-178 vs 293-313)
   6. **Replay vs Live prices streaming**:
-     - `src/api/replay.ts` <-> `src/hooks/useLivePrices.ts` (SSE connection logic)
+     - `src/api/replay.ts` <-> `src/components/paper-trading/LivePriceUpdater.tsx` (SSE connection logic)
   7. **Paper trading internal**:
      - Duplicates in `src/api/paperTrading.ts`
 

@@ -6,7 +6,11 @@ import { disposeSolidStories } from "../src/stories/solidStory";
 import * as palette from "../src/ui/palette";
 
 const preview: Preview = {
-  beforeEach: () => disposeSolidStories(),
+  beforeEach: (context) => {
+    // Docs renders every story in a group together; disposing here would blank
+    // all but the last one. Story-mode navigation still gets a clean teardown.
+    if (context.viewMode === "story") disposeSolidStories();
+  },
   parameters: {
     backgrounds: {
       default: "canvas",

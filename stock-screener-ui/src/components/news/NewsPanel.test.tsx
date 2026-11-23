@@ -30,6 +30,7 @@ vi.mock("./NewsLocalStorage", () => ({
   saveLastSeenId: vi.fn(),
   AUTO_REFRESH_INTERVALS: [
     { label: "Off", value: "0" },
+    { label: "5s", value: "5000" },
     { label: "1m", value: "60000" },
     { label: "5m", value: "300000" },
     { label: "10m", value: "600000" },
@@ -51,7 +52,7 @@ import NewsPanel2 from "./NewsPanel";
 import { useNewsWebSocket } from "../../state/newsWebSocket";
 import { fetchNews, fetchArticle, fetchNewsSources } from "../../api/news";
 import { useNewsSourceGroups } from "./useNewsSourceGroups";
-import { saveAutoRefresh } from "./NewsLocalStorage";
+import { getStoredAutoRefresh, saveAutoRefresh } from "./NewsLocalStorage";
 
 const mockNewsItems = [
   {
@@ -302,5 +303,28 @@ describe("NewsPanel2", () => {
     await waitFor(() => {
       expect(saveAutoRefresh).toHaveBeenCalledWith("30000");
     });
+  });
+
+  it("re-arms polling when the interval changes from 60s to 5s", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(getStoredAutoRefresh).mockReturnValueOnce("60000");
+      renderComponent();
+      fireEvent.click(screen.getByTestId("news-toggle-btn"));
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetchNews).toHaveBeenCalledTimes(1);
+
+      const select = screen.getByTestId("news-auto-refresh-select").querySelector("select")!;
+      fireEvent.input(select, { target: { value: "5000" } });
+
+      await vi.advanceTimersByTimeAsync(4999);
+      expect(fetchNews).toHaveBeenCalledTimes(1); // old 60s clock was cleared
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fetchNews).toHaveBeenCalledTimes(2); // new 5s clock fired
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

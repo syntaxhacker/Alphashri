@@ -1,5 +1,4 @@
-import { Show, createEffect, createMemo, createSignal, onMount, type JSX } from "solid-js";
-import { usePolling } from "@/hooks/usePolling";
+import { Show, createEffect, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { Box, Button, Divider, Indicator, Overlay, ScrollArea, Stack } from "@/ui";
 import { IconNews } from "../common/Icons";
@@ -106,10 +105,18 @@ function useAutoRefresh(
   const [isRefreshing, setIsRefreshing] = createSignal(false);
 
   const ms = () => parseInt(autoRefreshMs(), 10);
-  usePolling(() => {
-    setIsRefreshing(true);
-    loadNews().finally(() => setIsRefreshing(false));
-  }, ms(), { skipIfRunning: false });
+
+  // The interval is read reactively so changing the selector tears down the
+  // old clock and re-arms at the new cadence within the same mount.
+  createEffect(() => {
+    const interval = ms();
+    if (!Number.isFinite(interval) || interval <= 0) return;
+    const timer = setInterval(() => {
+      setIsRefreshing(true);
+      void loadNews().finally(() => setIsRefreshing(false));
+    }, interval);
+    onCleanup(() => clearInterval(timer));
+  });
 
   createEffect(() => {
     saveAutoRefresh(autoRefreshMs());

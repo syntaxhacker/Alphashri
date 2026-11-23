@@ -72,7 +72,18 @@ SolidJS 1.9 + Vite 8 + Tailwind CSS 4 + TypeScript. Backend: FastAPI (Python).
 - `bun run build` — production build
 - `bun run lint` — oxlint (0 warnings/errors required before commit)
 - `bun run test` — vitest --run (use `npx vitest run <file>` for targeted tests, NOT `bun test` which lacks vi.mock support)
+- `bun run storybook` — Storybook dev server on port 6006 (local primitive/component visual review)
+- `bun run build-storybook` — static Storybook build; regenerates `storybook-static/index.json` consumed by `src/test/storybook-catalog.test.ts`
+- `bun run audit:components` — regenerate `docs/COMPONENT_AUDIT.md` (component/style + story-import audit)
 - `source .venv/bin/activate && python -m pytest tests/` — backend tests
+
+## Storybook / design-system catalog
+
+Storybook is live and checked in via its config (`.storybook/main.ts`, `.storybook/preview.ts`) and stories in `src/stories/design-system/*.stories.tsx` (plus any co-located `*.stories.tsx`). Run `bun run storybook` for interactive review and `bun run build-storybook` before relying on the static catalog guard (`npx vitest run src/test/storybook-catalog.test.ts` skips itself when `storybook-static/` is absent).
+
+- Read [`docs/COMPONENT_AUDIT.md`](./docs/COMPONENT_AUDIT.md) for the generated, honest story/coverage counts (`bun run audit:components` regenerates it). The catalog is **primitive-level** — tokens, layout/input/feedback primitives and a few shared widgets — not a claim that every audited module is covered or visually reviewed.
+- Full setup, groups and link policy: [`STORYBOOK.md`](./STORYBOOK.md).
+- Storybook is a review aid, not a substitute for the real app: the PR screenshot rule above still requires **1600 and 390** captures (plus every changed mode/selector/empty/loading/error state) committed under `docs/screenshots/<feature>/`, each PNG read back before claiming done. The catalog guard only checks catalog integrity (entry counts, unique ids/titles, no duplicate `(title,name)`, Overview `?path=/story/...` links resolve).
 
 ## Python Environment
 - **Version**: pinned via `.python-version` (3.12.13) — pyenv reads this automatically
@@ -535,7 +546,7 @@ GitHub Actions may be used for scheduled batch compute, but it cannot write to a
 ### CI E2E architecture (learnings — 2026-09)
 - **20 shards max.** GitHub Free allows **20 concurrent jobs**; the repo is public so `ubuntu-latest` = 4 vCPU/16 GB. More shards than 20 just queue. `--shard=N/20`, `workers: 4`.
 - **No `waitForTimeout`.** Use web-first assertions (`expect(...).toBeVisible()`), `expect.poll(...)`, `page.waitForResponse/Function`. Fixed sleeps are the #1 source of slowness and flakes.
-- **No pixel screenshot tests.** `toHaveScreenshot` was removed (env-sensitive, redundant with DOM assertions). There is no Storybook — visual review is `bun run dev` by eye; wire a visual-diff tool only if automated diffing is actually needed.
+- **No pixel screenshot tests.** `toHaveScreenshot` was removed (env-sensitive, redundant with DOM assertions). Storybook **does** exist (see "Storybook / design-system catalog" above) — use it for primitive-level visual review; wire a visual-diff tool only if automated diffing is actually needed. PR screenshots still come from the real app at **1600 and 390** (rule 5 of the PR cycle), not from Storybook alone.
 - **No `globalSetup`.** `playwright.setup.ts` was deleted — it launched a browser to write a `storageState` file nothing read. Auth is seeded per-page via `loginAsTestUser` (`addInitScript`).
 - **Backend in CI**: set `CI_MODE=1` so `api_server_fastapi` skips news/Redis/background tasks and creates the SQLite schema from models (`SKIP_ALEMBIC=1` leaves it empty otherwise).
 - **Readiness probe**: `/health` also supports `HEAD`; wait with `wait-on http-get://127.0.0.1:8765/api/health` (plain `http://` uses HEAD).

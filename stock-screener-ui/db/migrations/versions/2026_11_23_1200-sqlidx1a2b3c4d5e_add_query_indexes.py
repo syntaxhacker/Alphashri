@@ -14,7 +14,7 @@ Idempotent because CI builds the schema from the models and a dev database may
 already have any of these indexes.
 
 Revision ID: sqlidx1a2b3c4d5e
-Revises: os1a2b3c4d5e
+Revises: os3a2b3c4d5e
 Create Date: 2026-11-23 12:00:00.000000
 """
 from alembic import op

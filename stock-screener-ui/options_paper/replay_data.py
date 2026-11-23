@@ -155,14 +155,24 @@ class SnapshotChainProvider:
             from db.database import SessionLocal as factory  # lazy: no import at load
         return factory()
 
-    def _rows(self):
+    def _rows(self, underlying=None, expiry=None, lo=None, hi=None):
         session = self._session()
         try:
-            # SQL-side narrowing is an optimisation; python below is the source
-            # of truth so a lightweight fake session can be injected in tests.
-            return list(session.query(_snapshot_model())
-                        .order_by(_snapshot_model().ts.asc())
-                        .limit(MAX_ROWS).all())
+            # Narrow in SQL *before* LIMIT: an oldest-first global cap silently
+            # hides the requested window in an append-only snapshots table.
+            # Python below stays the source of truth so a lightweight fake
+            # session can still be injected in tests.
+            model = _snapshot_model()
+            query = session.query(model)
+            if underlying is not None:
+                query = query.filter(model.underlying == underlying)
+            if expiry is not None:
+                query = query.filter(model.expiry == expiry)
+            if lo is not None:
+                query = query.filter(model.ts >= lo)
+            if hi is not None:
+                query = query.filter(model.ts <= hi)
+            return list(query.order_by(model.ts.desc()).limit(MAX_ROWS).all())
         finally:
             close = getattr(session, "close", None)
             if close:
@@ -172,7 +182,9 @@ class SnapshotChainProvider:
                  ts: datetime) -> Optional[ChainQuote]:
         target = _ist(ts)
         underlying = safe_underlying(underlying)
-        rows = [r for r in self._rows()
+        rows = [r for r in self._rows(
+                    underlying=underlying, expiry=expiry,
+                    lo=target - _SNAPSHOT_LOOKBACK, hi=target)
                 if str(getattr(r, "underlying", "")).upper() == str(underlying).upper()
                 and str(getattr(r, "expiry", "")) == str(expiry)
                 and _snapshot_ts(r) <= target
@@ -197,7 +209,7 @@ class SnapshotChainProvider:
         lo, hi = _clamp_window(from_ts, to_ts)
         underlying = safe_underlying(underlying)
         observations = []
-        for r in self._rows():
+        for r in self._rows(underlying=underlying, expiry=expiry, lo=lo, hi=hi):
             if str(getattr(r, "underlying", "")).upper() != str(underlying).upper():
                 continue
             if str(getattr(r, "expiry", "")) != str(expiry):
@@ -360,7 +372,11 @@ def available_sessions(underlying: str, root=None,
     session = (session_factory() if session_factory is not None
                else SnapshotChainProvider()._session())
     try:
-        rows = list(session.query(_snapshot_model()).limit(MAX_ROWS).all())
+        model = _snapshot_model()
+        rows = list(session.query(model)
+                    .filter(model.underlying == underlying)
+                    .order_by(model.ts.desc())
+                    .limit(MAX_ROWS).all())
     finally:
         close = getattr(session, "close", None)
         if close:

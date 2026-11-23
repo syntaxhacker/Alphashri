@@ -123,15 +123,17 @@ export const CollapsedHeaderAndNavbar: Story = {
     }),
 };
 
-export const ResponsiveNavbarWidth: Story = {
+export const NavbarWidthPresets: Story = {
   render: () =>
     solidStory(() => {
       const presets = [
         { label: "Compact · 180px", width: 180 },
         { label: "Default · 220px", width: 220 },
-        { label: "Breakpoint map", width: { base: 220, lg: 280 } },
+        { label: "Max declared width · 280px", width: { base: 220, lg: 280 } },
       ];
       const [width, setWidth] = createSignal<number | Record<string, number>>(presets[1].width);
+      // Mirrors AppShell.resolveNavbarWidth: an object resolves to its last
+      // declared numeric value, with no viewport/breakpoint selection.
       const resolved = () =>
         typeof width() === "number" ? String(width()) : String(Object.values(width() as Record<string, number>).at(-1));
       return (
@@ -152,7 +154,7 @@ export const ResponsiveNavbarWidth: Story = {
             <AppShell header={{ height: 48 }} navbar={{ width: width() }} padding="md">
               <Text size="sm" fw={700}>Content follows the navbar edge</Text>
               <Text size="xs" c="dimmed">
-                The breakpoint map is resolved to its largest declared width by the local AppShell.
+                AppShell is not responsive here: a width map resolves to its last declared value (280px) at every viewport. Pass a single number for a fixed width.
               </Text>
             </AppShell>
           </Box>

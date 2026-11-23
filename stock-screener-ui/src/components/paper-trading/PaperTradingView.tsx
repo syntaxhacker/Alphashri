@@ -138,6 +138,9 @@ function usePaperTradingViewModel() {
         refreshBotLiveData(botId);
         initBotAutoRefresh(botId);
       } else {
+        // A fresh load with no bot still needs the recurring refresh, otherwise
+        // positions/portfolio are fetched exactly once until a bot is selected.
+        initLiveAutoRefresh();
         refreshLiveData();
       }
     });

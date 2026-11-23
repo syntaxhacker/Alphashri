@@ -612,7 +612,10 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     await fireEvent.change(screen.getByTestId("patterns-fullscreen-timeframe"), { target: { value: "1h" } });
 
     await waitFor(() =>
-      expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1h", { detectPatterns: true }),
+      expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1h", {
+        detectPatterns: true,
+        computeTrendlines: true,
+      }),
     );
     await waitFor(() =>
       expect(screen.getByTestId("patterns-fullscreen-active-hit")).toHaveTextContent("Rising Wedge"),
@@ -658,7 +661,10 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     await fireEvent.change(screen.getByTestId("patterns-fullscreen-timeframe"), { target: { value: "1h" } });
 
     await waitFor(() =>
-      expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1h", { detectPatterns: true }),
+      expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1h", {
+        detectPatterns: true,
+        computeTrendlines: true,
+      }),
     );
     await waitFor(() =>
       expect(screen.getByTestId("patterns-fullscreen-modal")).not.toHaveTextContent("Falling Wedge"),

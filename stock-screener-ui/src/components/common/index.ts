@@ -1,6 +1,5 @@
 export { SideBadge, ExitReasonBadge, StatusBadge } from "./BadgeComponents";
 export { PnlText } from "./PnlText";
-export { ClickableSymbol } from "./ClickableSymbol";
 export { SymbolLink, type SymbolLinkProps } from "./SymbolLink";
 export { CorrelationHeatmap } from "./CorrelationHeatmap";
 export { TanStackTable } from "./TanStackTable";

@@ -23,6 +23,7 @@ from options_paper import structures
 from options_paper.costs import option_entry_cost
 from options_paper.multi_day_replay import ReplayResult, build_replay
 from options_paper.replay_data import (
+    MAX_ROWS,
     ChainQuote,
     CompositeChainProvider,
     FileChainProvider,
@@ -364,6 +365,63 @@ def test_snapshot_provider_chain_and_series_with_fake_session():
     assert len(series) == 2
     assert series[0][1] == 8.0 and series[0][2] is True
     assert series[1][1] == 8.0 and series[1][2] is False
+
+
+def test_snapshot_readers_use_newest_window_not_oldest_rows(db, tmp_path):
+    """A global oldest-first cap hides the requested window in a large table."""
+    from db.models.option_snapshot import OptionChainSnapshot
+
+    class _Borrowed:
+        def __init__(self, real):
+            self._real = real
+
+        def query(self, *args, **kwargs):
+            return self._real.query(*args, **kwargs)
+
+        def close(self):
+            pass
+
+    old_base = datetime(2026, 11, 1, 9, 15)      # naive IST wall clock in SQLite
+    target = datetime(2026, 11, 20, 9, 47)
+    rows = []
+    for i in range(MAX_ROWS + 8):
+        ts = old_base - timedelta(minutes=i)
+        rows.append(OptionChainSnapshot(
+            ts=ts, underlying="IRFC", expiry=EXPIRY, strike=99.0, side="CE",
+            ltp=1.0, spot=99.0, session_date=ts.date().isoformat(),
+        ))
+    for i in range(8):
+        ts = target + timedelta(minutes=i)
+        for strike, ltp in ((100.0, 8.0), (110.0, 3.0)):
+            rows.append(OptionChainSnapshot(
+                ts=ts, underlying="IRFC", expiry=EXPIRY, strike=strike, side="CE",
+                ltp=ltp, spot=100.0 + i, session_date=ts.date().isoformat(),
+            ))
+    db.add_all(rows)
+    db.commit()
+
+    provider = SnapshotChainProvider(session_factory=lambda: _Borrowed(db))
+    at = (target + timedelta(seconds=30)).replace(tzinfo=IST)
+    quote = provider.chain_at("IRFC", EXPIRY, at)
+    assert quote is not None
+    assert timedelta(0) <= quote.t - target.replace(tzinfo=IST) <= timedelta(minutes=1)
+    assert quote.spot == 100.0
+    assert quote.premiums[(100.0, "CE")] == 8.0
+
+    series = provider.premium_series(
+        "IRFC", EXPIRY, 100.0, "CE", target.replace(tzinfo=IST),
+        (target + timedelta(minutes=7)).replace(tzinfo=IST),
+    )
+    assert len(series) == 8
+    assert [point[1] for point in series] == [8.0] * 8
+    assert all(point[2] for point in series)
+
+    from api.options_paper import service
+
+    assert "2026-11-20" in available_sessions(
+        "IRFC", root=tmp_path, session_factory=lambda: _Borrowed(db))
+    assert service.resolve_expiry(db, "IRFC", "2026-11-20") == EXPIRY
+    assert any(s["date"] == "2026-11-20" for s in service.replay_sessions(db))
 
 
 def test_file_provider_reads_recorded_jsonl(tmp_path):

@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@solidjs/testing-library";
-import { LivePriceUpdater } from "./LivePriceUpdater";
+import { LivePriceUpdater, SSE_RECONNECT_BASE_MS } from "./LivePriceUpdater";
 import { fetchHolidays } from "../../api/holidays_api";
 import { loadHolidays, resetHolidays } from "../../state/holidays";
 
@@ -672,5 +672,41 @@ describe("LivePriceUpdater — market session guard", () => {
     await waitForStreamAttached();
     expect(mockFetch).toHaveBeenCalled();
     delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+  });
+});
+
+describe("LivePriceUpdater — stream reconnect", () => {
+  beforeEach(() => {
+    resetState();
+    frameHandlers.length = 0;
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", mockFetch);
+    setClock("2026-11-16T05:30:00Z");
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+    vi.mocked(fetchHolidays).mockResolvedValue([]);
+    resetHolidays();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  test("reopens the stream with backoff after it ends and stops on unmount", async () => {
+    const { unmount } = render(() => <LivePriceUpdater />);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(SSE_RECONNECT_BASE_MS);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(SSE_RECONNECT_BASE_MS * 2);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+
+    unmount();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 });

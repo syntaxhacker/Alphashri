@@ -528,4 +528,45 @@ describe("checkAuth", () => {
     expect(result).toBe(false);
     expect(authState.isAuthenticated).toBe(false);
   });
+
+  it("does not refresh when /me fails with 500, even with a valid refresh token", async () => {
+    setTokens("at", "rt");
+    const refresh = vi.fn(async () => createMockFetchResponse(tokenResponse));
+    const me = vi.fn(async () => createMockFetchResponse({}, false, 500));
+    vi.stubGlobal("fetch", vi.fn((url: string) =>
+      String(url).includes("/api/auth/refresh") ? refresh() : me(),
+    ));
+
+    const result = await checkAuth();
+
+    expect(result).toBe(false);
+    expect(authState.isAuthenticated).toBe(false);
+    expect(getAccessToken()).toBeNull();
+    expect(me).toHaveBeenCalledTimes(1);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("stops after a bounded retry when refresh succeeds but /me keeps returning 401", async () => {
+    setTokens("at", "rt");
+    let rotation = 0;
+    const refresh = vi.fn(async () => {
+      rotation += 1;
+      return createMockFetchResponse({
+        access_token: `at-${rotation}`,
+        refresh_token: `rt-${rotation}`,
+      });
+    });
+    const me = vi.fn(async () => createMockFetchResponse({}, false, 401));
+    vi.stubGlobal("fetch", vi.fn((url: string) =>
+      String(url).includes("/api/auth/refresh") ? refresh() : me(),
+    ));
+
+    const result = await checkAuth();
+
+    expect(result).toBe(false);
+    expect(authState.isAuthenticated).toBe(false);
+    expect(getAccessToken()).toBeNull();
+    expect(me.mock.calls.length).toBeLessThanOrEqual(4);
+    expect(refresh.mock.calls.length).toBeLessThanOrEqual(4);
+  });
 });

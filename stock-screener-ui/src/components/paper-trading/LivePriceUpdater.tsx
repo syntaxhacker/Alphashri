@@ -16,6 +16,10 @@ export interface LivePriceEvent {
   strategy_id?: number | null;
 }
 
+/** Capped exponential backoff for reopening the live-price SSE stream. */
+export const SSE_RECONNECT_BASE_MS = 1_000;
+export const SSE_RECONNECT_MAX_MS = 30_000;
+
 export function LivePriceUpdater() {
   createEffect(() => {
     if (!isMarketOpenNow()) return;
@@ -59,33 +63,62 @@ export function LivePriceUpdater() {
       setPositions(updated);
     };
 
-    void (async () => {
-      try {
-        const response = await fetch(`${API_BASE}/api/paper/live/stream`, {
-          headers,
-          signal: controller.signal,
-        });
-        if (!response.ok) {
-          console.warn("[LivePrices] SSE connection failed:", response.status);
+    const signal = controller.signal;
+    // Abortable delay so a pending reconnect never outlives the component.
+    const waitBeforeReconnect = (ms: number) =>
+      new Promise<void>((resolve) => {
+        if (signal.aborted) {
+          resolve();
           return;
         }
-        await readSseStream(
-          response,
-          (frame) => {
-            if (frame.event !== "price" || !frame.data) return;
-            try {
-              const data = JSON.parse(frame.data) as LivePriceEvent & { type: string };
-              if (data.symbol && data.ltp != null) applyPrice(data.symbol, data);
-            } catch {
-              // skip malformed frame
-            }
-          },
-          { signal: controller.signal },
-        );
-      } catch (err: unknown) {
-        if ((err as { name?: string })?.name !== "AbortError") {
-          console.warn("[LivePrices] Connection error:", err);
+        let timer: ReturnType<typeof setTimeout>;
+        const onAbort = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+        timer = setTimeout(() => {
+          signal.removeEventListener("abort", onAbort);
+          resolve();
+        }, ms);
+        signal.addEventListener("abort", onAbort, { once: true });
+      });
+
+    void (async () => {
+      let backoff = SSE_RECONNECT_BASE_MS;
+      while (!signal.aborted) {
+        try {
+          const response = await fetch(`${API_BASE}/api/paper/live/stream`, {
+            headers,
+            signal,
+          });
+          if (signal.aborted) break;
+          if (!response.ok) {
+            console.warn("[LivePrices] SSE connection failed:", response.status);
+          } else {
+            await readSseStream(
+              response,
+              (frame) => {
+                if (frame.event !== "price" || !frame.data) return;
+                try {
+                  const data = JSON.parse(frame.data) as LivePriceEvent & { type: string };
+                  if (data.symbol && data.ltp != null) applyPrice(data.symbol, data);
+                } catch {
+                  // skip malformed frame
+                }
+              },
+              { signal },
+            );
+            if (signal.aborted) break;
+            console.warn("[LivePrices] SSE stream ended; reconnecting");
+          }
+        } catch (err: unknown) {
+          if (signal.aborted) break;
+          if ((err as { name?: string })?.name !== "AbortError") {
+            console.warn("[LivePrices] Connection error:", err);
+          }
         }
+        await waitBeforeReconnect(backoff);
+        backoff = Math.min(backoff * 2, SSE_RECONNECT_MAX_MS);
       }
     })();
 
