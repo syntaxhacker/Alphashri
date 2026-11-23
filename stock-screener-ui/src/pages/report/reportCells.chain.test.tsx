@@ -57,6 +57,52 @@ describe("NiftyOiChain", () => {
   });
 });
 
+describe("option-chain keyboard scroller", () => {
+  function mount() {
+    return render(() => (
+      <NiftyOiChain
+        strikes={[chainRow(25700)]}
+        columns={getNiftyOiColumns(null)}
+        getRowStyle={() => undefined}
+        getRowTestId={() => "nifty-oi-row"}
+        panelTestId="nifty-oi-panel"
+        tableTestId="nifty-oi-table"
+        wrapTestId="nifty-oi-wrap"
+      />
+    ));
+  }
+
+  test("the horizontal scroller is a focusable named region that keeps its scroll cue and testids", () => {
+    mount();
+    const wrap = screen.getByTestId("nifty-oi-wrap");
+    expect(wrap).toHaveAttribute("role", "region");
+    expect(wrap).toHaveAttribute("aria-label", "Option chain");
+    expect(wrap).toHaveAttribute("tabindex", "0");
+    expect((wrap as HTMLElement).tabIndex).toBe(0);
+    wrap.focus();
+    expect(document.activeElement).toBe(wrap);
+
+    expect(wrap).toHaveAttribute("data-chain-scroll", "1");
+    expect(wrap.className).toContain("overflow-x-auto");
+    expect((wrap as HTMLElement).style.getPropertyValue("overflow-x")).toBe("auto");
+    expect(screen.getByTestId("nifty-oi-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-oi-table")).toBeInTheDocument();
+  });
+
+  test("arrow keys scroll the focused region by 80px and other keys are left alone", () => {
+    mount();
+    const wrap = screen.getByTestId("nifty-oi-wrap") as HTMLElement;
+    wrap.scrollLeft = 10;
+
+    expect(fireEvent.keyDown(wrap, { key: "ArrowRight" })).toBe(false);
+    expect(wrap.scrollLeft).toBe(90);
+    expect(fireEvent.keyDown(wrap, { key: "ArrowLeft" })).toBe(false);
+    expect(wrap.scrollLeft).toBe(10);
+    expect(fireEvent.keyDown(wrap, { key: "Enter" })).toBe(true);
+    expect(wrap.scrollLeft).toBe(10);
+  });
+});
+
 describe("option-chain header and signal badge collisions", () => {
   function chainWithSentiments(ce: string, pe: string): NiftyStrike {
     const row = chainRow(25700);

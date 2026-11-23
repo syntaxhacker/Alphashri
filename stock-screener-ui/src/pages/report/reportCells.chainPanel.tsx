@@ -57,6 +57,16 @@ const OI_CHAIN_TABLE_STYLE: JSX.CSSProperties = { "min-width": 0 };
 
 const OI_CHAIN_EXPAND_CLASS = "min-w-[22px] px-1 leading-none text-ui-micro";
 
+const OI_CHAIN_SCROLL_STEP = 80;
+
+/** Arrow keys must scroll the same node that carries focus and `role=region`. */
+function onChainRegionKeyDown(event: KeyboardEvent) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  const region = event.currentTarget as HTMLElement;
+  region.scrollLeft += event.key === "ArrowRight" ? OI_CHAIN_SCROLL_STEP : -OI_CHAIN_SCROLL_STEP;
+  event.preventDefault();
+}
+
 export interface NiftyOiChainProps {
   strikes: NiftyStrike[];
   columns: TableColumnDef<NiftyStrike>[];
@@ -114,6 +124,10 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
         data-chain-value-size={OI_CHAIN_METRICS.valueSize}
         data-chain-variant={props.columns.length <= 5 ? "compact" : "full"}
         data-chain-scroll="1"
+        role="region"
+        aria-label="Option chain"
+        tabIndex={0}
+        onKeyDown={onChainRegionKeyDown}
         className={OI_CHAIN_WRAP_CLASS}
         style={OI_CHAIN_WRAP_STYLE}
       >
