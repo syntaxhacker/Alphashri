@@ -118,7 +118,7 @@ const meta: Meta<TableArgs> = {
   argTypes: {
     dense: {
       control: "boolean",
-      description: "Ultra-dense rows (18px / 10px type) regardless of the global density store.",
+      description: "Ultra-dense rows for large quote tables, independent of the global density setting.",
     },
     loading: {
       control: "boolean",
@@ -396,7 +396,7 @@ export const SelectedRow: Story = {
             title="Index quotes · selected row"
             detail={`${FIXTURE_LABEL} · selection via getRowStyle + getRowAttributes`}
             metaNode={
-              <Text size="xs" c="secondary" aria-live="polite">{`selected: ${selected()}`}</Text>
+              <Text size="xs" c="secondary" aria-live="polite">{`${selected()} is the active index quote`}</Text>
             }
             testId="story-table-selected-frame"
           >

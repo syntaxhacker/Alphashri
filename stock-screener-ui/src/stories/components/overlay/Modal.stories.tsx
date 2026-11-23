@@ -138,7 +138,7 @@ export const Sizes: Story = {
                   <Button size="xs" variant="outline" onClick={() => setActive(s)}>{s}</Button>
                 ))}
               </Group>
-              <Readout>opened size: {active() ?? "none"}</Readout>
+              <Readout>{active() ? `${active()} dialog preview` : "No size chosen yet"}</Readout>
               <DialogShell title={`Size · ${active() ?? "md"}`}>
                 <DialogContent />
               </DialogShell>
@@ -175,12 +175,12 @@ export const CenteredAndFullScreen: Story = {
               <Group gap="sm" wrap="wrap">
                 <Button size="xs" onClick={() => setOpened(true)}>Open dialog</Button>
                 <Button size="xs" variant="outline" onClick={() => setFullScreen((v) => !v)}>
-                  fullScreen: {String(fullScreen())}
+                  {fullScreen() ? "Switch to windowed" : "Switch to full screen"}
                 </Button>
               </Group>
               <DialogShell title="Centred / fullscreen">
                 <DialogContent />
-                <Text size="xs" c="dimmed">resolved fullScreen: {String(fullScreen())}</Text>
+                <Text size="xs" c="dimmed">{fullScreen() ? "Dialog fills the viewport" : "Dialog is centred"}</Text>
               </DialogShell>
             </Stack>
           </Specimen>
@@ -264,7 +264,7 @@ export const EscapeOwnedByPopup: Story = {
               <Stack gap="sm">
                 <Button size="xs" onClick={() => setOpened(true)}>Open dialog with a nested popup</Button>
                 <DialogShell title="Nested popup">
-                  <Text size="sm">combobox: {popupOpen() ? "expanded" : "collapsed"}</Text>
+                  <Text size="sm">Symbol picker {popupOpen() ? "expanded" : "collapsed"}</Text>
                   <Text size="xs" c="dimmed">Escape is captured before the dialog sees it while the popup is expanded.</Text>
                 </DialogShell>
               </Stack>

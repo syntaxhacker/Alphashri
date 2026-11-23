@@ -90,7 +90,7 @@ export const Playground: Story = {
         <Page>
           <Specimen title="Playground" code={`trigger="${String(args.trigger)}" · position="${String(args.position)}"`}>
             <Stack gap="sm">
-              <Readout>open: {String(opened())} · last action: {last()}</Readout>
+              <Readout>{opened() ? "Position actions open" : "Position actions closed"} · {last() === "none" ? "no command chosen yet" : `${last()} chosen`}</Readout>
               <Menu
                 trigger={args.trigger}
                 opened={opened()}
@@ -141,7 +141,7 @@ export const ItemsAndIcons: Story = {
                   <MenuItem leftSection={<IconTrash size={14} aria-hidden="true" />} color="error" onClick={() => setLast("Delete")}>Delete strategy</MenuItem>
                 </MenuDropdown>
               </Menu>
-              <Readout>last: {last()}</Readout>
+              <Readout>{last() === "none" ? "No strategy action yet" : `${last()} applied to the strategy`}</Readout>
             </Group>
           </Specimen>
         </Page>
@@ -179,7 +179,7 @@ export const DisabledAndDanger: Story = {
                   <MenuItem color="info" onClick={() => setLast("Inspect")}>Inspect fills</MenuItem>
                 </MenuDropdown>
               </Menu>
-              <Readout>last: {last()}</Readout>
+              <Readout>{last() === "none" ? "No order action yet" : `${last()} queued for the paper book`}</Readout>
             </Stack>
           </Specimen>
         </Page>
@@ -238,7 +238,7 @@ export const Composition: Story = {
                 </Menu>
               </ToolbarRow>
               <SampleRow label="Symbols" value="NIFTY · BANKNIFTY · FINNIFTY" />
-              <Readout>last action: {last()}</Readout>
+              <Readout>{last() === "none" ? "No bulk action yet" : `${last()} chosen for the selected positions`}</Readout>
             </Stack>
           </Specimen>
         </Page>

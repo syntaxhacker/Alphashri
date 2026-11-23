@@ -41,7 +41,7 @@ export const Playground: Story = {
   render: (args) =>
     solidStory(() => (
       <SpecimenCanvas>
-        <Specimen title="Playground · CopyButton" note={`Clipboard payload: ${args.value}`} width={640}>
+        <Specimen title="Playground · CopyButton" note="Instrument key from the frozen quote fixture." width={640}>
           <Stack gap="sm" style={{ "max-width": "360px" }}>
             <CopyButton value={args.value} timeout={args.timeout}>
               {({ copied, copy }) => (
@@ -107,7 +107,7 @@ export const EmptyPayload: Story = {
   render: () =>
     solidStory(() => (
       <SpecimenCanvas>
-        <Specimen title="Empty payload" note="An empty value still calls copy and reports success on write." width={640}>
+        <Specimen title="Blank value" note="An empty value still calls copy and reports success on write." width={640}>
           <Stack gap="sm" style={{ "max-width": "280px" }}>
             <CopyButton value="" timeout={1000}>
               {({ copied, copy }) => (

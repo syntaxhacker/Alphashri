@@ -46,7 +46,7 @@ export const Playground: Story = {
             code={`size="${String(args.size)}" · variant="${String(args.variant)}" · disabled=${String(args.disabled)}`}
           >
             <Stack gap="sm" align="flex-start">
-              <Readout>clicks: {clicks()} · each click is reported by onClick</Readout>
+              <Readout>{clicks()} panel dismissal{clicks() === 1 ? "" : "s"} recorded</Readout>
               <CloseButton
                 size={args.size}
                 variant={args.variant}
@@ -109,7 +109,7 @@ export const Disabled: Story = {
             <Stack gap="sm" align="flex-start">
               <Group gap="sm" align="center">
                 <CloseButton disabled aria-label="Close disabled panel" onClick={() => setClicks((n) => n + 1)} />
-                <Readout>clicks: {clicks()}</Readout>
+                <Readout>{clicks()} dismissal{clicks() === 1 ? "" : "s"} recorded</Readout>
               </Group>
               <Text size="xs" c="dimmed">Clicking the locked control above does not increment the counter.</Text>
             </Stack>

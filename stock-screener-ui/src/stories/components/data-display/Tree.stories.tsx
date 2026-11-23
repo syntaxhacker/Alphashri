@@ -31,6 +31,9 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
+const branchLabel = (value: string) =>
+  demoData.flatMap((node) => [node, ...(node.children ?? [])]).find((child) => child.value === value)?.label ?? value;
+
 const demoData: UITreeNode[] = [
   {
     value: "fno",
@@ -58,7 +61,7 @@ export const Playground: Story = {
         <Page>
           <Specimen title="Playground" code={`levelOffset={${String(args.levelOffset ?? 16)}}`} note="F&O starts expanded; children are real nodes.">
             <Stack gap="sm">
-              <Readout>expanded: {JSON.stringify(expanded())}</Readout>
+              <Readout>Branches open: {expanded().length ? expanded().map(branchLabel).join(" · ") : "none"}</Readout>
               <Tree
                 data={args.data ?? demoData}
                 expanded={expanded()}
@@ -83,7 +86,7 @@ export const ExpandedAndCollapsed: Story = {
           <SpecimenGrid>
             <Specimen title="Controlled expanded" note="One branch starts open; the readout reflects the controlled list.">
               <Stack gap="sm">
-                <Readout>expanded: {JSON.stringify(expanded())}</Readout>
+                <Readout>Branches open: {expanded().length ? expanded().map(branchLabel).join(" · ") : "none"}</Readout>
                 <Tree data={demoData} expanded={expanded()} onExpandedChange={setExpanded} levelOffset={20} />
                 <Group gap="xs">
                   <button type="button" aria-label="Expand all branches" onClick={() => setExpanded(all)}>Expand all</button>
@@ -115,7 +118,7 @@ export const Selection: Story = {
             note="Selection is caller state: onNodeClick sets it and renderNode styles the label with the primary token."
           >
             <Stack gap="sm">
-              <Readout>selected: {selected() ?? "none"}</Readout>
+              <Readout>Instrument in focus: {selected() ? branchLabel(selected()!) : "none"}</Readout>
               <Tree
                 data={demoData}
                 expanded={expanded()}
@@ -174,7 +177,7 @@ export const DisabledNodes: Story = {
             note="No disabled prop exists. The handlers ignore flagged nodes and renderNode labels them with full-contrast muted copy."
           >
             <Stack gap="sm">
-              <Readout>last action: {last()}</Readout>
+              <Readout>{last() === "none" ? "No instrument opened yet" : `Opened ${branchLabel(last())}`}</Readout>
               <Tree
                 data={disabledData}
                 expanded={expanded()}

@@ -37,6 +37,14 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
+const sectionLabel = (value: string) =>
+  ({ filters: "Filters", risk: "Risk controls", execution: "Execution" })[value] ?? value;
+
+const openSections = (value: string | string[] | null) => {
+  const opened = value === null ? [] : Array.isArray(value) ? value : [value];
+  return opened.length ? opened.map(sectionLabel).join(" · ") : "none";
+};
+
 const Sections = () => (
   <>
     <AccordionItem value="filters">
@@ -83,7 +91,7 @@ export const Playground: Story = {
             note="Controlled value below; click a control to change the open branch."
           >
             <Stack gap="sm">
-              <Readout>open: {JSON.stringify(value())}</Readout>
+              <Readout>Open section: {openSections(value())}</Readout>
               <Accordion
                 multiple={args.multiple}
                 variant={args.variant}
@@ -109,17 +117,17 @@ export const SingleAndMultiple: Story = {
       return (
         <Page>
           <SpecimenGrid>
-            <Specimen title="single" note="One string value; opening another closes the first.">
+            <Specimen title="One section at a time" note="One string value; opening another closes the first.">
               <Stack gap="sm">
-                <Readout>open: {String(single())}</Readout>
+                <Readout>Open section: {openSections(single())}</Readout>
                 <Accordion value={single() as string | string[]} onChange={setSingle} variant="separated">
                   <Sections />
                 </Accordion>
               </Stack>
             </Specimen>
-            <Specimen title="multiple" note="A string[] value; sections toggle independently.">
+            <Specimen title="Independent sections" note="A string[] value; sections toggle independently.">
               <Stack gap="sm">
-                <Readout>open: {JSON.stringify(multiple())}</Readout>
+                <Readout>Open sections: {openSections(multiple())}</Readout>
                 <Accordion multiple value={multiple() as string | string[]} onChange={setMultiple} variant="separated">
                   <Sections />
                 </Accordion>

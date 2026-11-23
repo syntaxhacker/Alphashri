@@ -157,7 +157,7 @@ export const Dense: Story = {
       <DemoStack width={PAPER_TABLE_WIDTH}>
         <DemoPanel
           title="Paper book · ultra-dense"
-          detail={`${FIXTURE_LABEL} · dense: 18px row height, 10px type, 20px header`}
+          detail={`${FIXTURE_LABEL} · compact rows for scanning a full paper book`}
           meta={rowMeta(POSITIONS.length, "dense")}
           testId="story-paper-table-dense-frame"
         >
@@ -295,7 +295,7 @@ export const SelectedRow: Story = {
             title="Paper book · selected row"
             detail={`${FIXTURE_LABEL} · selection via getRowStyle + getRowAttributes`}
             metaNode={
-              <Text size="xs" c="secondary" aria-live="polite">{`selected: ${selected()}`}</Text>
+              <Text size="xs" c="secondary" aria-live="polite">{`${selected()} is the active paper position`}</Text>
             }
             testId="story-paper-table-selected-frame"
           >

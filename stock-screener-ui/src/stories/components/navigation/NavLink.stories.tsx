@@ -90,7 +90,7 @@ export const States: Story = {
           >
             <Stack gap="sm">
               <Box data-testid="navlink-kb-readout">
-                <Readout>activations: {activations()}</Readout>
+                <Readout>{activations()} workspace link activation{activations() === 1 ? "" : "s"} recorded</Readout>
               </Box>
               <Box
                 onClickCapture={(e: MouseEvent) => e.preventDefault()}
@@ -131,9 +131,9 @@ export const CollapsibleChildren: Story = {
             <Specimen title="Controlled" code="opened · onClick" note="The parent signal owns `opened`, so clicking only reports onClick.">
               <Stack gap="sm">
                 <Button size="xs" variant="outline" onClick={() => setControlled((v) => !v)}>
-                  opened: {String(controlled())}
+                  {controlled() ? "Collapse workspace" : "Expand workspace"}
                 </Button>
-                <Readout>onClick count: {clicks()}</Readout>
+                <Readout>{clicks()} click{clicks() === 1 ? "" : "s"} on the workspace link</Readout>
                 <Box style={groupStyle}>
                   <NavLink
                     label="Workspace · controlled"

@@ -27,7 +27,7 @@ export const Tones: Story = {
     solidStory(() => (
       <Notifications>
         <Catalog title="Notifications — tones" note="Click a labelled button to enqueue a toast. Messages and tones are frozen copy; nothing reads the clock or the network.">
-          <Section title="showNotification" note="Maps success / error / warning / info / default to the toast variant; toasts stack bottom-right.">
+          <Section title="Tone options" note="Maps success / error / warning / info / default to the toast variant; toasts stack bottom-right.">
             <Stack gap="sm">
               <Button variant="outline" color="success" onClick={() => showNotification({
                 title: "Order accepted",
@@ -35,7 +35,7 @@ export const Tones: Story = {
                 color: "success",
               })}
               >
-                showNotification · success
+                Order accepted
               </Button>
               <Button variant="outline" color="error" onClick={() => showNotification({
                 title: "Rejected",
@@ -43,7 +43,7 @@ export const Tones: Story = {
                 color: "error",
               })}
               >
-                showNotification · error
+                Margin rejected
               </Button>
               <Button variant="outline" color="warning" onClick={() => showNotification({
                 title: "Partial fill",
@@ -51,7 +51,7 @@ export const Tones: Story = {
                 color: "warning",
               })}
               >
-                showNotification · warning
+                Partial fill
               </Button>
               <Button variant="outline" color="info" onClick={() => showNotification({
                 title: "Feed resumed",
@@ -59,14 +59,14 @@ export const Tones: Story = {
                 color: "info",
               })}
               >
-                showNotification · info
+                Feed resumed
               </Button>
               <Button variant="outline" onClick={() => showNotification({
                 title: "Notice",
                 message: "A neutral notification with no colour.",
               })}
               >
-                showNotification · default
+                Neutral notice
               </Button>
             </Stack>
           </Section>
@@ -83,10 +83,10 @@ export const HelpersAndAutoClose: Story = {
           <Section title="Fixed-tone helpers" note="showSuccess and showError are shortcuts; the message falls back to the title when it is empty.">
             <Stack gap="sm">
               <Button color="success" onClick={() => showSuccess("Order accepted", "The paper order was written to the book.")}>
-                showSuccess
+                Order accepted · fixed tone
               </Button>
-              <Button color="error" onClick={() => showError("Feed unavailable", "The options chain returned 503.")}>
-                showError
+              <Button color="error" onClick={() => showError("Feed unavailable", "The option chain is temporarily unavailable.")}>
+                Feed unavailable · fixed tone
               </Button>
             </Stack>
           </Section>
@@ -99,7 +99,7 @@ export const HelpersAndAutoClose: Story = {
                 autoClose: false,
               })}
               >
-                autoClose = false
+                Stays until dismissed
               </Button>
               <Button variant="outline" onClick={() => showNotification({
                 title: "Short-lived",
@@ -107,7 +107,7 @@ export const HelpersAndAutoClose: Story = {
                 autoClose: 1500,
               })}
               >
-                autoClose = 1500
+                Closes after 1.5 s
               </Button>
             </Stack>
             <Text size="xs" c="dimmed" style={{ "padding-top": "16px" }}>Each button has a visible label; the toaster is rendered by the host.</Text>

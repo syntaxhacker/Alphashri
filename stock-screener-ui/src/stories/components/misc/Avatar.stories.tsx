@@ -54,7 +54,7 @@ export const Playground: Story = {
           code={`size="${String(args.size)}" · color="${String(args.color)}" · radius="${String(args.radius)}"`}
         >
           <Stack gap="sm" align="flex-start">
-            <Readout>alt: {String(args.alt ?? "Avatar")} · src: {args.src ? "local data URI" : "none"}</Readout>
+            <Readout>{args.src ? "Photo from the local fixture" : "Initials fallback"} · {String(args.alt ?? "Avatar")}</Readout>
             <Avatar
               size={args.size}
               color={args.color}

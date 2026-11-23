@@ -144,7 +144,7 @@ export const RowLayout: Story = {
             <Stack gap="xs">
               <EmptyState kind="market-closed" layout="row" hint="Resumes 09:15 IST" data-testid="story-row-closed" />
               <EmptyState kind="no-data" layout="row" hint="Recorder off" data-testid="story-row-nodata" />
-              <EmptyState kind="failed" layout="row" hint="Feed 503" data-testid="story-row-failed" />
+              <EmptyState kind="failed" layout="row" hint="Feed unavailable" data-testid="story-row-failed" />
             </Stack>
           </StateStrip>
         </DemoPanel>
@@ -168,7 +168,7 @@ export const ErrorAndRetry: Story = {
             title="States · error and retry"
             detail={FIXTURE_LABEL}
             metaNode={
-              <Text size="xs" c="secondary" aria-live="polite">{`attempts: ${attempts()}`}</Text>
+              <Text size="xs" c="secondary" aria-live="polite">{`${attempts()} manual retr${attempts() === 1 ? "y" : "ies"} so far`}</Text>
             }
             testId="story-error-retry-frame"
           >
@@ -183,7 +183,7 @@ export const ErrorAndRetry: Story = {
               >
                 <ErrorAlert
                   title="Feed unavailable"
-                  message="The frozen fixture returned 503 for the tape endpoint."
+                  message="The frozen tape fixture could not be loaded."
                   withRetry
                   onRetry={retry}
                   onClose={() => setFailed(false)}

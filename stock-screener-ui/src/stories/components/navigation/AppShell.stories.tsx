@@ -147,10 +147,10 @@ export const WidthsAndPadding: Story = {
               <Group gap="xs" wrap="wrap">
                 {(["sm", "md", "lg"] as const).map((p) => (
                   <Button size="xs" variant={padding() === p ? "filled" : "outline"} onClick={() => { setPadding(p); }}>
-                    padding {p}
+                    Padding · {p}
                   </Button>
                 ))}
-                <Text size="xs" c="dimmed">resolved navbar width: {resolved()}px</Text>
+                <Text size="xs" c="dimmed">Navbar width: {resolved()} px</Text>
               </Group>
               <Box style={PREVIEW}>
                 <AppShell header={{ height: 48 }} navbar={{ width: width() }} padding={padding()}>

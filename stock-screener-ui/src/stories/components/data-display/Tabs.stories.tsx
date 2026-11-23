@@ -40,7 +40,7 @@ export const Playground: Story = {
         <Page>
           <Specimen title="Playground" code={`orientation="${String(args.orientation)}"`}>
             <Stack gap="sm">
-              <Readout>selected: {value() ?? "none"}</Readout>
+              <Readout>Viewing {value() ?? "no section"}</Readout>
               <Tabs
                 value={value()}
                 onChange={(next) => setValue(next)}
@@ -157,7 +157,7 @@ export const DisabledTab: Story = {
             note="Locked is a native disabled button, so Overview stays selected when it is clicked."
           >
             <Stack gap="sm">
-              <Readout>selected: {value() ?? "none"} · locked tab is disabled</Readout>
+              <Readout>Viewing {value() ?? "no section"} · the locked section stays unavailable</Readout>
               <Tabs value={value()} onChange={setValue} {...({ "aria-label": "Tabs with a disabled item" } as Record<string, unknown>)}>
                 <TabsList {...({ "aria-label": "Sections including locked" } as Record<string, unknown>)}>
                   <Tab value="overview">Overview</Tab>

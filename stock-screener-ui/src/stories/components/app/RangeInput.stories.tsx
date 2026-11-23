@@ -107,7 +107,11 @@ export const Unbounded: Story = {
           <DemoPanel
             title="Range input · unbounded"
             detail={`${FIXTURE_LABEL} · P/E band with both ends open`}
-            meta="min: null · max: null"
+            metaNode={
+              <Text size="xs" c="secondary" aria-live="polite">
+                {`P/E band: ${min() === null ? "no floor" : `${min()}x`} · ${max() === null ? "no ceiling" : `${max()}x`}`}
+              </Text>
+            }
             testId="story-range-unbounded-frame"
           >
             <FilterStrip>

@@ -5,6 +5,9 @@ import { Box, Button, Flex, Group, Popover, PopoverDropdown, PopoverTarget, Stac
 import type { UIPopoverProps } from "@/ui";
 import { Page, Readout, SampleRow, Specimen, SpecimenGrid, Stage } from "./fixtures";
 
+const dismissalCopy = (reason: string) =>
+  ({ "onChange(false)": "an outside click", onClose: "the close action", "explicit button": "the close button" })[reason] ?? reason;
+
 const positions = [
   "top", "top-start", "top-end",
   "bottom", "bottom-start", "bottom-end",
@@ -89,7 +92,7 @@ export const Positions: Story = {
                     <PopoverDropdown p="sm">
                       <Stack gap="xs">
                         <Text size="sm" fw={600}>Anchored dropdown</Text>
-                        <Text size="xs" c="dimmed">position: {position()} · Escape and outside click close.</Text>
+                        <Text size="xs" c="dimmed">Anchored dropdown · Escape and outside click close.</Text>
                       </Stack>
                     </PopoverDropdown>
                   </Popover>
@@ -120,16 +123,16 @@ export const WidthAndShadow: Story = {
             <Stack gap="sm">
               <Group gap="xs" wrap="wrap">
                 <Button size="xs" variant={width() === 280 ? "filled" : "outline"} onClick={() => setWidth(280)}>
-                  width 280 (number → px)
+                  Fixed width · 280 px
                 </Button>
                 <Button size="xs" variant={width() === "min(420px, 80vw)" ? "filled" : "outline"} onClick={() => setWidth("min(420px, 80vw)")}>
-                  width CSS string
+                  Responsive width
                 </Button>
                 <Button size="xs" variant="outline" onClick={() => setOpened((v) => !v)}>
-                  opened: {String(opened())}
+                  {opened() ? "Hide dropdown" : "Show dropdown"}
                 </Button>
               </Group>
-              <Readout>resolved width: {String(width())}</Readout>
+              <Readout>Dropdown width: {typeof width() === "number" ? `${width()} px` : "responsive, capped at 420 px"}</Readout>
               <Stage height={200}>
                 <Popover opened={opened()} onChange={setOpened} position="bottom-start" width={width()} shadow="lg" offset={8}>
                   <PopoverTarget>
@@ -167,7 +170,7 @@ export const FocusAndDismissal: Story = {
             note="Escape and an outside click both dismiss. trapFocus keeps Tab inside the dropdown and contains the page behind it."
           >
             <Stack gap="sm">
-              <Readout>opened: {String(opened())} · last closed by: {lastClosedBy()}</Readout>
+              <Readout>{`Dropdown ${opened() ? "open" : "closed"}${lastClosedBy() === "—" ? "" : ` · dismissed by ${dismissalCopy(lastClosedBy())}`}`}</Readout>
               <Stage height={200}>
                 <Popover
                   opened={opened()}
