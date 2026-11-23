@@ -60,6 +60,13 @@ const DESK_RAIL_HEIGHT_PX = 136;
 const DESK_RAIL_REPLAY_HEIGHT_PX = 84;
 const DESK_RAIL_REPLAY_WALLS_HEIGHT_PX = 112;
 
+// On a wide desk the chain hugs its five rows (`align-self: flex-start` on the
+// panel itself), so a growing chain slot would strand the same dead band under
+// it. Pin that slot to its content and let the heatmap own the flex remainder.
+const CHAIN_SLOT_BASE = "min-h-0 min-w-0 flex [&>*]:flex-1 [&>*]:min-w-0 [&>*]:min-h-0";
+const CHAIN_SLOT_FILL = `flex-auto ${CHAIN_SLOT_BASE}`;
+const CHAIN_SLOT_HUG = `shrink-0 ${CHAIN_SLOT_BASE}`;
+
 const ANALYTICS_CELL_CLASS = "min-w-0 min-h-0 flex flex-col [&>*]:flex-1 [&>*]:min-h-0";
 
 const ANALYTICS_FILL_CELL_CLASS = `${ANALYTICS_CELL_CLASS} [contain:none] min-[1200px]:[contain:size]`;
@@ -228,6 +235,12 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
   const chartSize = () => store.ui.chartSize();
   const heatMetric = () => store.ui.heatMetric();
   const mobileHeatmap = () => isDesk() && isMobile() && sideTab() === "heatmap";
+  // Wide desk: the side column is tall enough for two panels. The chain hugs its
+  // rows and the heatmap fills the rest, so the column never ends in dead black.
+  // The HEATMAP tab still hides the chain, keeping the two tabs distinct.
+  const deskSplit = () => isDesk() && !isMobile();
+  const showChain = () => !isDesk() || sideTab() === "chain";
+  const showSideHeatmap = () => isDesk() && (sideTab() === "heatmap" || !isMobile());
 
   const chartRowHeight = createMemo(() => {
     const size = chartSize();
@@ -412,7 +425,11 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
           )}
         </Show>
 
-        <Box data-testid="nifty-side-col" className="flex flex-col min-w-0 min-h-0">
+        <Box
+          data-testid="nifty-side-col"
+          data-side-secondary={deskSplit() ? "heatmap" : undefined}
+          className="flex flex-col min-w-0 min-h-0"
+        >
           <Show when={isDesk()}>
             <Box
               data-testid="nifty-side-tabs"
@@ -445,8 +462,8 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
             </Box>
           </Show>
 
-          <Show when={!isDesk() || sideTab() === "chain"}>
-            <Box className="flex-auto min-h-0 min-w-0 flex [&>*]:flex-1 [&>*]:min-w-0 [&>*]:min-h-0">
+          <Show when={showChain()}>
+            <Box data-side-slot="chain" className={deskSplit() ? CHAIN_SLOT_HUG : CHAIN_SLOT_FILL}>
               <NiftyOiChain
                 strikes={store.data.visibleStrikes()}
                 columns={oiColumns()}
@@ -463,9 +480,10 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
             </Box>
           </Show>
 
-          <Show when={isDesk() && sideTab() === "heatmap"}>
+          <Show when={showSideHeatmap()}>
             <Box
               data-testid="nifty-chart-side-heatmap"
+              data-side-slot="heatmap"
               className="relative flex-auto min-h-0 min-w-0 flex flex-col"
             >
               <Show
