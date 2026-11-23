@@ -105,11 +105,20 @@ describe("NiftyFlowWindows", () => {
     expect(screen.queryByTestId("flow-last-flip")).not.toBeInTheDocument();
   });
 
-  test("the legend chip is keyboard focusable and carries the full rule", () => {
+  test("the ? help chip is not a false button: no role=button and no focus stop", () => {
     r(() => <NiftyFlowWindows report={report()} />);
     const chip = screen.getByTestId("flow-legend");
-    expect(chip).toHaveAttribute("tabindex", "0");
-    expect(chip.getAttribute("aria-label")).toContain("CALL BID");
-    expect(chip.getAttribute("aria-label")).toContain("BOTH BUILD");
+    expect(chip.tagName.toLowerCase()).toBe("span");
+    expect(chip).not.toHaveAttribute("role");
+    expect(chip).not.toHaveAttribute("tabindex");
+  });
+
+  test("the ? help chip still exposes the full rule via aria-label and title", () => {
+    r(() => <NiftyFlowWindows report={report()} />);
+    const chip = screen.getByTestId("flow-legend");
+    expect(chip).toHaveAttribute("aria-label", expect.stringContaining("CALL BID"));
+    expect(chip).toHaveAttribute("aria-label", expect.stringContaining("BOTH BUILD"));
+    expect(chip).toHaveAttribute("title", expect.stringContaining("CALL BID"));
+    expect(chip).toHaveAttribute("title", expect.stringContaining("BOTH BUILD"));
   });
 });
