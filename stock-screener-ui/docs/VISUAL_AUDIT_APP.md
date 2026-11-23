@@ -10,10 +10,10 @@
 - Typography primitives (`Text/Title/Anchor/List`) resolve named sizes through `SIZE_ROLE` → `TYPE_CLASS` on the shared scale; there is no private rem table or 18px step.
 - Replay error copy now separates a human message from collapsed technical detail; dense tabs/table regions scroll intentionally at 390.
 - A fresh **Index Report** route capture exists at `docs/screenshots/app/report-{1600,390}.png` — real route, honest shared mocks, **viewport** captures at 1600×1000 and 390×844 (not full-page). The 1600 capture exposed a spot-value ellipsis; the KPI minimum was widened so `22,363.35` stays complete.
+- **The mobile-nav overlap is fixed.** `src/components/layout/AppLayout.tsx` now puts the toggle inside a sticky, in-flow 44px bar (`data-testid="app-mobile-nav-bar"`, `h-11` / `height: 44px`) at the top of the main column — no `position:fixed` 8px toggle over the first header — and publishes `--app-mobile-nav-gutter: 0px` so standalone `CompactPage` headers skip their fallback inset. The new structural tests in `src/components/layout/AppLayout.test.tsx` ("AppLayout mobile nav gutter") assert the bar is the first child of `app-main`, is sticky at `top-0` with `h-11`/`shrink-0`, contains the toggle (which is not fixed), and that page headers live in the following content column. The committed 390 captures `docs/screenshots/app/report-390.png` and `docs/screenshots/app/sector-390.png` show the nav bar above the page titles with no toggle-over-title overlap.
 
 **Still open / unverified:**
 
-- The mobile-nav gutter fix is unverified — no fresh capture proves it.
 - **Home, bare `/screener`, `/options` and `/patterns` app routes are unverified.** They have no fresh 1600/390 route captures with honest mocks; Storybook images are not a substitute and those findings remain open until a route capture exists.
 - Agri heatmap colour, focus/keyboard order, actual WCAG ratios and reduced-motion still lack fresh live evidence.
 
@@ -170,4 +170,4 @@ Counting imports overstates adoption: `src/pages/report` imports `@/ui` in 124 f
 - Typography primitives (`Text/Title/Anchor/List`) are no longer a blind spot: their named sizes resolve through `SIZE_ROLE` → `TYPE_CLASS` on the shared 12/13/14/16/20/24 scale, with no private rem table or 18px step. The “one scale” claim now holds for direct primitive use; the five `xs…xl` props are aliases onto roles, so body 13px is reached with `text-ui-body` / `typeStyle("body")`, not a size alias.
 - Replay error copy now separates a human message from collapsed technical detail; dense tabs/table regions scroll intentionally at 390.
 - Fresh **Index Report** app captures now exist at `docs/screenshots/app/report-{1600,390}.png` (real route, mocked API, **viewport** captures at 1600×1000 and 390×844 — not full-page). The 1600 capture exposed a real spot-value ellipsis; the KPI minimum was widened so `22,363.35` stays complete.
-- Still unverified in this doc: the mobile-nav gutter fix and fresh 1600/390 captures of home/screener/options/patterns. Storybook images are **not** a substitute; those route findings remain open until a route capture exists.
+- Still unverified at the time of this snapshot: fresh 1600/390 captures of home/screener/options/patterns. Storybook images are **not** a substitute; those route findings remain open until a route capture exists. The mobile-nav gutter item once listed here is now **fixed** — see "Current status" above.
