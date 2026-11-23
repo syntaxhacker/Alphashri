@@ -42,6 +42,7 @@ from api.market_screen.config import (  # noqa: E402
     US_EXCLUDE_NAME_PATTERN,
     US_EXCLUDE_SYMBOL_PATTERN,
 )
+from api.market_screen.fields import EXTRA_FIELDS  # noqa: E402
 from api.market_screen.snapshot import (  # noqa: E402
     ALLOWED_UNIVERSES,
     FETCH_LIMIT_LADDER,
@@ -119,6 +120,7 @@ EXPECTED_RELIANCE_ROW = {
     "rsi": 61.2, "adx": 24.1,
     "sma20": 2880.0, "sma50": 2800.0, "sma200": 2600.0,
     "perf_w": 2.1, "perf_1m": 4.6,
+    **{key: None for key in EXTRA_FIELDS},
     "high_52w": 3000.0, "low_52w": 1800.0, "pos_52w": 95.5,
     "volume": 12345678.0, "avg_volume": 10500000.5,
     "gap": 0.82, "atr": 42.5, "high": 2975.0, "low": 2910.0,
@@ -247,18 +249,49 @@ def test_snapshot_default_universe(client, mock_tv):
     assert kw.get("tickers", []) == []
 
 
+def test_extra_technical_fields_are_shaped_and_requested():
+    raw = dict(
+        RELIANCE_ROW,
+        EMA20=2870.5,
+        EMA50=2810.25,
+        VWAP=2940.1,
+        **{"BB.upper": 3010.0, "BB.lower": 2870.0},
+        **{"MACD.macd": 12.5, "MACD.signal": 9.8, "MACD.hist": 2.7},
+        **{"Stoch.K": 78.4, "Stoch.D": 71.2},
+        CCI20=112.4,
+        **{"ADX+DI": 31.2, "ADX-DI": 18.4},
+        **{"Perf.3M": 8.4, "Perf.6M": 15.1, "Perf.YTD": 12.0, "Perf.Y": 24.6},
+        **{"Recommend.All": 0.42},
+    )
+    row = snapshot_mod._shape_rows([raw], universe="all_equity")[0]
+    assert row["ema20"] == 2870.5
+    assert row["vwap"] == 2940.1
+    assert row["bb_upper"] == 3010.0
+    assert row["macd_hist"] == 2.7
+    assert row["stoch_k"] == 78.4
+    assert row["adx_plus"] == 31.2
+    assert row["perf_3m"] == 8.4
+    assert row["recommend_all"] == 0.42
+    requested = set(COLUMNS)
+    for tv_name in ("EMA20", "EMA50", "VWAP", "BB.upper", "BB.lower",
+                    "MACD.macd", "Stoch.K", "CCI20", "Perf.3M",
+                    "Recommend.All"):
+        assert tv_name in requested, tv_name
+
+
 def test_dropped_fields_absent_from_response(client, mock_tv):
     """Unused TV fields stay out; the mover fields (incl. volume/atr) ride along."""
     mock_tv.return_value = _frame([RELIANCE_ROW])
     body = client.get("/api/market/snapshot").json()
     assert len(body["rows"]) == 1
     row = body["rows"][0]
-    for field in ("industry", "market_cap", "perf_3m"):
+    for field in ("industry", "market_cap"):
         assert field not in row, field
     assert "market_cap_cr" in row
     for field in ("volume", "avg_volume", "gap", "atr", "high", "low",
                   "value_traded", "to_52w_high_pct", "from_52w_low_pct",
-                  "range_vs_atr"):
+                  "range_vs_atr", "ema20", "macd", "perf_3m",
+                  "recommend_all", "avg_volume_30d"):
         assert field in row, field
     assert len(row) == len(EXPECTED_RELIANCE_ROW)
 
