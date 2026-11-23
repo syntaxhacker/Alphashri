@@ -16,13 +16,45 @@ import {
   loginAsTestUser,
   setupApiMocks,
   setupHomeDeskMocks,
-  setupNiftyReportMocks,
+  setupNiftyTapeMocks,
   setupSectorMocks,
 } from "../mocks/apiResponses";
 import { collectConsoleErrors } from "./helpers/flowsB";
 import { setupNewsMocks } from "./helpers/newsHelpers";
+import { apiRoute } from "../mocks/routeHelper";
 
 const EVIDENCE = process.env.SCREENSHOT_EVIDENCE === "1";
+
+const EVIDENCE_STRIKES = [22_100, 22_200, 22_300, 22_400, 22_500];
+
+function evidenceTape() {
+  const rows = Array.from({ length: 46 }, (_, i) => {
+    const minute = 15 + i;
+    const t = `${String(9 + Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
+    const spot = 22_300 + i * 1.4;
+    const chain = Object.fromEntries(
+      EVIDENCE_STRIKES.map((strike, k) => {
+        const distance = Math.abs(strike - spot) / 50;
+        const ceOi = 1_500 + i * 18 + k * 90;
+        const peOi = 2_000 + i * 12 + (4 - k) * 110 + distance * 40;
+        return [
+          String(strike),
+          [Math.max(8, 180 - Math.abs(strike - spot) * 0.5), Math.max(8, 170 - Math.abs(strike - spot) * 0.45), ceOi, peOi, 400 + i * 3, 500 + i * 2],
+        ];
+      }),
+    );
+    return {
+      t,
+      spot,
+      atm_strike: 22_400,
+      max_pain: 22_400,
+      flip: 22_350,
+      walls: { call: 22_500, put: 22_200 },
+      chain,
+    };
+  });
+  return { date: "2026-10-12", interval_sec: 60, rows };
+}
 
 type EvidenceRoute = {
   name: string;
@@ -40,7 +72,19 @@ const ROUTES: readonly EvidenceRoute[] = [
   {
     name: "report",
     path: "/report/index",
-    setup: (page) => setupNiftyReportMocks(page),
+    setup: async (page) => {
+      await setupNiftyTapeMocks(page);
+      // The shared tape fixture has no per-strike chain, so the heatmap would
+      // honestly render an empty panel. Give the evidence route a full minute
+      // chain so the captured A++ composition shows the surface working.
+      await page.route(apiRoute("reports/nifty/tape"), (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(evidenceTape()),
+        }),
+      );
+    },
   },
   {
     name: "sector",

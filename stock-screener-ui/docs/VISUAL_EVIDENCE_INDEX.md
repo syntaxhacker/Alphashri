@@ -4,17 +4,25 @@ Scope: committed screenshots and browser-gate configuration for the design-syste
 wave. This index separates **evidence** (a file that exists at `HEAD`, plus what
 its pixels can actually show) from **claims** (what a doc asserts or a script
 would check). No new captures, builds or gate runs were performed for this
-document.
+document; file presence, PNG headers and dimensions were re-checked read-only.
 
-Status of the worktree at `HEAD` = `fd219bdd` (2026-11-23):
+Status at `HEAD` = `bd86cd48` (2026-11-23):
 
 - `docs/screenshots/showcase/` — 52 PNGs committed (26 names × 2 viewports).
-- `docs/screenshots/app/` — only `report-{1600,390}.png` committed (both also have
-  an uncommitted re-capture). `sector-{1600,390}.png` and `home-1600.png` exist in
-  the worktree but are **untracked**; `home-390.png` does not exist. The `/options`
+  Widths are 1600 / 390 and every height is ≥ viewport; several specimens are
+  viewport-sized (e.g. `keyvalue-390.png` = 390×844, `buttons-1600.png` =
+  1600×1000) while the family landings are full-page (e.g. `overview-1600.png` =
+  1600×2502, `overview-390.png` = 390×5099).
+- `docs/screenshots/app/` — **all 10 PNGs committed**: report, sector, home,
+  screener and patterns at 1600×1000 and 390×844 (all five routes added in
+  `92282149`). The two `report-*.png` files also carry an uncommitted re-capture
+  in the worktree, so re-verify that pair at the final commit. The `/options`
   route is explicitly out of scope (§1), not a pending capture.
 - `tests/visual/__screenshots__/` — README plus **12 baseline PNGs committed**
   (6 stories × 2 viewports); `bun run visual:test` passes **12/12**.
+- The **62-image manifest** (10 app + 52 showcase) is the evidence gate. All 62
+  files are present at `HEAD` with the expected dimensions and ≥8 KiB; that is a
+  file-state check, not a fresh `bun run audit:evidence` run performed here.
 
 ## 1. App-route captures (`docs/screenshots/app/`)
 
@@ -23,31 +31,35 @@ Capture paths: `tests/e2e/design-evidence.spec.ts` (`report` → `/report/index`
 `SCREENSHOT_EVIDENCE=1` writes the PNGs; shared API mocks plus per-route mocks,
 login, readiness selector and `verify()` assertions), plus the separate
 `screener-evidence.spec.ts` and `patterns-evidence.spec.ts` for the bare
-`/screener` and `/patterns` routes. Measured dimensions of the existing PNGs are
-exactly 1600×1000 and 390×844 (viewport-sized; older docs call them "viewport"
-captures although the specs set `fullPage: true`). The `/options` route is
+`/screener` and `/patterns` routes. Measured dimensions of all 10 committed PNGs
+are exactly 1600×1000 and 390×844 (viewport-sized, even though the specs request
+`fullPage: true`). The `/options` route is
 explicitly **out of scope** for the design-system evidence wave: it has its own
 feature spec, so it is neither a pending capture nor an unverified gap.
 
+All paths below are under `docs/screenshots/app/`.
+
 | Route | 1600 | 390 | Status | What it proves |
 | --- | --- | --- | --- | --- |
-| Report | `docs/screenshots/app/report-1600.png` | `docs/screenshots/app/report-390.png` | **Committed at HEAD** (both also have an uncommitted re-capture in the worktree) | Real `/report/index` render with mocked Index Report APIs at both sizes; layout/chrome/legibility of that route only. The 1600 capture previously exposed a spot-value ellipsis; the KPI minimum was widened afterwards. |
-| Sector | `docs/screenshots/app/sector-1600.png` | `docs/screenshots/app/sector-390.png` | **Pending capture** — files exist in the worktree but are untracked at `HEAD` | Intended as real `/sector` render with `setupSectorMocks` and the `sector-analysis-view` readiness selector. Not committed evidence until added; `VISUAL_AUDIT_APP.md` already calls them committed, which is ahead of git. |
-| Home | `docs/screenshots/app/home-1600.png` | `docs/screenshots/app/home-390.png` | **Pending capture** (`home-1600.png` untracked in the worktree, `home-390.png` absent) | Spec route and desk assertions exist, but no committed image. Route remains unverified. |
-| Screener | `docs/screenshots/app/screener-1600.png` | `docs/screenshots/app/screener-390.png` | **Pending capture** (no files) | `screener-evidence.spec.ts` drives `/screener/screener` with screener-specific mocks and a 390 scroll-cue guard; no committed image yet. |
-| Patterns | `docs/screenshots/app/patterns-1600.png` | `docs/screenshots/app/patterns-390.png` | **Pending capture** (no files) | `patterns-evidence.spec.ts` drives `/patterns` with pattern fixtures and result/scroll-cue guards; no committed image yet. |
+| Report | `report-1600.png` | `report-390.png` | **Committed at HEAD**; worktree re-capture still to be committed | Real `/report/index` render with mocked Index Report APIs at both sizes; layout/chrome/legibility of the Index Report composition. Re-verify this pair at the commit that lands the re-capture. |
+| Sector | `sector-1600.png` | `sector-390.png` | **Committed at HEAD** (`92282149`) | Real `/sector` render with `setupSectorMocks` and the `sector-analysis-view` readiness selector. |
+| Home | `home-1600.png` | `home-390.png` | **Committed at HEAD** (`92282149`) | Real `/home` render at both sizes. |
+| Screener | `screener-1600.png` | `screener-390.png` | **Committed at HEAD** (`92282149`) | `screener-evidence.spec.ts` drives `/screener/screener` with screener-specific mocks and a 390 scroll-cue guard. |
+| Patterns | `patterns-1600.png` | `patterns-390.png` | **Committed at HEAD** (`92282149`) | `patterns-evidence.spec.ts` drives `/patterns` with pattern fixtures and result/scroll-cue guards. |
 
-All five routes above are **gated by the evidence manifest** (`APP_ROUTES` in
-`scripts/evidence-audit.mjs`), so their missing PNGs appear as pending evidence
-in `audit:evidence:pending` and fail the gating `audit:evidence`. Options is
-absent from that manifest by decision, not omission. Storybook PNGs are not a
-substitute for any of these routes.
+All five routes above are in the evidence manifest (`APP_ROUTES` in
+`scripts/evidence-audit.mjs`), and their PNGs are now present at `HEAD`, so no
+app-route capture is pending. Options is absent from that manifest by decision,
+not omission. Storybook PNGs are not a substitute for any of these routes.
 
 ## 2. Storybook showcase (`docs/screenshots/showcase/`)
 
-52 committed PNGs, all pairs at 1600 and 390, captured full-page by
-`scripts/storybook-showcase.mjs` (e.g. `overview-1600.png` = 1600×2502,
-`overview-390.png` = 390×7355). They prove the **static Storybook build** renders
+52 committed PNGs, all pairs at width 1600 and 390, captured by
+`scripts/storybook-showcase.mjs`. Not every image is full-page: the audit requires
+width 1600 / 390 and height ≥ viewport, so several smaller specimens are
+viewport-sized (e.g. `keyvalue-390.png` = 390×844, `buttons-1600.png` =
+1600×1000) while the landings are tall (e.g. `overview-1600.png` = 1600×2502,
+`overview-390.png` = 390×5099). They prove the **static Storybook build** renders
 these stories; they do not prove live-route behaviour, keyboard order or axe
 results.
 
@@ -103,18 +115,20 @@ results.
 | --- | --- | --- |
 | Axe, **30 stories** | `scripts/storybook-a11y.mjs`: 13 family landings + 3 overlay playables + 5 component representatives + 9 pinned visible states (BrokerAuthNotice, MembersDrawer, ×2 ChartPreviews states, Foundations theme bridge, 3 data-display result states, NavLink states). WCAG 2.0/2.1 A/AA; fails on serious/critical. | **Configured, not re-certified here.** No committed run log for the 30-story set. `DESIGN_SYSTEM_A_PLUS_GATE.md` agrees with the script at **30** stories; only the missing run log, not a doc mismatch, keeps 30 from being called green here. |
 | Axe, **app routes** | `tests/e2e/app-a11y.spec.ts` **runs in CI** in the `e2e-smoke` job (step `Verify app routes with axe`, `APP_A11Y=1`, 2 workers), after the smoke tests and reusing the same API + dev server. Real-browser axe audits of `/report/index`, `/sector`, `/options`, `/home` (desk) and bare `/screener` with shared mocks; WCAG 2.0/2.1 A/AA tags; fails on serious/critical only (`color-contrast` incompletes documented/allowed). | **Wired into CI.** Configuration change only — no committed run artifact accompanies this index, so treat the pass as a CI gate claim, not fresh evidence here. |
-| Keyboard, **10 walkthroughs** | `scripts/storybook-keyboard.mjs`: Modal open (Tab cycle/Shift+Tab wrap), Modal dismissal (Escape/focus return), Tree (arrows/expand/select), Menu (arrows/Home/End/Escape), horizontal Tabs, vertical Tabs, Popover, Tooltip, modal FloatingWindow, NavLink (button[role=link] Enter/Space activation, disabled inert, href stays an anchor). | **Configured.** `DESIGN_SYSTEM_A_PLUS_GATE.md:90` documents 10/10; no committed run artifact accompanies this index, so treat 10/10 as a documented claim, not fresh evidence. |
+| Keyboard, **10 walkthroughs** | `scripts/storybook-keyboard.mjs`: Modal open (Tab cycle/Shift+Tab wrap), Modal dismissal (Escape/focus return), Tree (arrows/expand/select), Menu (arrows/Home/End/Escape), horizontal Tabs, vertical Tabs, Popover, Tooltip, modal FloatingWindow, NavLink (button[role=link] Enter/Space activation, disabled inert, href stays an anchor). | **Configured.** `DESIGN_SYSTEM_A_PLUS_GATE.md` documents 10/10; no committed run artifact accompanies this index, so treat 10/10 as a documented claim, not fresh evidence. |
 | Visual baseline, **12 images** | `tests/visual/__screenshots__/README.md` and `docs/VISUAL_REGRESSION.md`: 6 stories × 2 viewports — `typography-landing`, `overview`, `inputs-landing`, `data-display-landing`, `overlay-landing`, `foundations-landing` at `desktop-1600` / `mobile-390`; `bun run visual:test` must find all 12 (no writes). | **12/12 passing.** Harness + CI step landed in `ff939b9a`; all 12 baseline PNGs (6 stories × 2 viewports) are generated and committed in `tests/visual/__screenshots__/`, and `bun run visual:test` passes **12/12** with no writes. This gate is green. |
-| Screenshot evidence, **62 PNGs** | `scripts/evidence-audit.mjs` via `bun run audit:evidence`: gating structural check of 10 app-route PNGs (`1600×1000` / `390×844`) and 52 showcase PNGs (width 1600 / 390, height ≥ viewport); each must exist, be a valid PNG and be ≥8 KiB. The 10 app-route PNGs cover report, sector, home, **screener and patterns**; the options route is explicitly out of scope and not in the manifest. **Runs in CI** in the `frontend-lint-typecheck` job (step `Verify screenshot evidence`, immediately after `Verify Storybook visual baseline`). | **Wired into CI (gating, exits 1 on missing/invalid/too-small/wrong-dimension).** Current `HEAD` has known pending app-route captures (§5), including screener/patterns — intentional until the final capture commit adds them; do not call it green before that commit lands. |
+| Screenshot evidence, **62 PNGs** | `scripts/evidence-audit.mjs` via `bun run audit:evidence`: gating structural check of 10 app-route PNGs (`1600×1000` / `390×844`) and 52 showcase PNGs (width 1600 / 390, height ≥ viewport); each must exist, be a valid PNG and be ≥8 KiB. The 10 app-route PNGs cover report, sector, home, **screener and patterns**; the options route is explicitly out of scope and not in the manifest. **Runs in CI** in the `frontend-lint-typecheck` job (step `Verify screenshot evidence`, immediately after `Verify Storybook visual baseline`). | **The 62-image structural audit is the gate.** Wired into CI (exits 1 on missing/invalid/too-small/wrong-dimension). All 62 manifest files are present at `HEAD` with the expected dimensions and ≥8 KiB (verified read-only here); no fresh `bun run audit:evidence` run was performed for this index, so read this as file-state readiness, not a re-certification. |
 
 ## 4. Evidence vs claims — the line
 
 - A committed PNG proves only that the captured surface rendered at the measured
   size with the mocked data used for that capture. It does not prove current
-  `HEAD` behaviour if source changed afterwards (the report PNGs themselves have
-  uncommitted re-captures).
-- Static Storybook images do not verify `/home`, bare `/screener`, `/patterns`,
-  focus order, live WCAG ratios or reduced motion. `/options` is out of scope for
+  `HEAD` behaviour if source changed afterwards — the two report PNGs still have
+  an uncommitted re-capture in the worktree.
+- Static Storybook images do not verify live-route behaviour; the app-route PNGs
+  in §1 do cover `/report/index`, `/sector`, `/home`, bare `/screener` and
+  `/patterns` at both sizes. Focus order, live WCAG ratios and reduced motion are
+  still source/gate claims, not pixel evidence. `/options` is out of scope for
   this evidence wave (it has its own feature spec), not an unverified gap.
 - Script definitions are gate *configuration*; a pass result needs a run/artifact.
   The 30-story axe number comes from the script, and `DESIGN_SYSTEM_A_PLUS_GATE.md`
@@ -122,22 +136,25 @@ results.
 - The pixel-diff harness, CI step and all 12 committed baseline PNGs exist
   (`tests/visual/__screenshots__/`), and `bun run visual:test` passes **12/12** —
   "visual regression gate passes" is now a supportable claim.
-- Screenshot captions in `VISUAL_AUDIT_APP.md` describe `sector-390.png` as
-  committed; git does not. Trust the file state in §1.
+- The final 1600/390 screenshot read-back for the Index Report composition and
+  the independent rating are **not** claimed here (see
+  `DESIGN_SYSTEM_A_PLUS_GATE.md`); the presence of a PNG is not a visual verdict.
 
-## 5. Missing evidence (pending capture)
+## 5. Open evidence items (no longer capture gaps)
 
-1. `sector-{1600,390}.png` — commit the existing worktree files (or re-capture).
-2. `home-1600.png` (worktree, untracked) and `home-390.png` (absent) — commit or
-   capture both viewports.
-3. Bare `/screener` and `/patterns` route captures at 1600/390 (no files at all).
-4. A committed run result for the 30-story axe gate; a committed run result for
-   10 keyboard walkthroughs.
-5. Live-app focus/keyboard, actual contrast ratios and reduced-motion evidence —
+All five in-scope app routes and all 26 showcase names have committed PNGs at both
+viewports (§1–§2); there are no pending captures. The `/options` route is
+**out of scope**, not pending: it has its own feature spec and is deliberately
+absent from the evidence manifest (§6).
+
+Still not evidenced by a committed artifact:
+
+1. A committed run result for the 30-story axe gate.
+2. A committed run result for the 10 keyboard walkthroughs.
+3. Live-app focus/keyboard, actual contrast ratios and reduced-motion evidence —
    currently source-only or Storybook-only.
-
-The `/options` route is **out of scope**, not pending: it has its own feature
-spec and is deliberately absent from the evidence manifest (§6).
+4. Final 1600/390 screenshot read-back and a fresh independent rating for the
+   Index Report composition wave — PENDING (see `DESIGN_SYSTEM_A_PLUS_GATE.md`).
 
 ## 6. Evidence guard
 
@@ -160,15 +177,16 @@ wired into CI in the `frontend-lint-typecheck` job (step `Verify screenshot
 evidence`, right after `Verify Storybook visual baseline`), so a PR with
 missing/invalid/wrong-dimension committed screenshots fails.
 
-While captures are still in progress (see §5), use the non-gating variant:
+There is no pending-capture state to excuse now. The non-gating variant exists
+for capture-in-progress debugging only:
 
 ```
 bun run audit:evidence:pending
 ```
 
-This is the `node scripts/evidence-audit.mjs --allow-missing` flag: it prints
-the same list of problems, labelled as pending evidence, and exits 0 so the
-capture-in-progress state does not fail the gate.
+This is the `node scripts/evidence-audit.mjs --allow-missing` flag: it prints the
+same list of problems, labelled as pending evidence, and exits 0. It must not be
+used to sign off the final state.
 
 ## 7. Capture commands
 
@@ -211,7 +229,6 @@ bun run audit:evidence
 It exits 0 only when all 10 app-route PNGs (report, sector, home, screener,
 patterns; options is out of scope) and 52 showcase PNGs exist, are valid PNG
 files, are ≥8 KiB and have the expected dimensions; a missing/invalid PNG fails
-the command. While
-captures are still incomplete, `audit:evidence:pending`
-may report the gaps non-fatally, but the final capture commit must satisfy the
-gating `audit:evidence`.
+the command. All 62 are present at `HEAD`, so the gating `audit:evidence` is the
+gate to run on the final capture commit — `audit:evidence:pending` is not a
+substitute.

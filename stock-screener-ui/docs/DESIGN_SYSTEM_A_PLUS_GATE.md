@@ -32,7 +32,7 @@ A+ is the **median of three independent raters**, each scoring the table above f
 5. Repeat until the median is ≥ 9 on every in-scope dimension and no P0/P1 remains.
 6. Only then mark the task finished.
 
-## Current known gaps (as of 2026-11-23, after P5)
+## Current known gaps (as of 2026-11-23, after P5; see composition wave below)
 
 Resolved since the first draft (verified against source/CI, not memory):
 
@@ -48,7 +48,7 @@ Still open — keep the A+ verdict honest:
 
 - **Token contract (dark-only).** With one colour scheme, static semantic palette imports are the intended contract; `tokenColor`/`useTokenColor` exist for the cases that must read a computed CSS variable. The guard is the absence of raw hex outside `palette.ts` (asserted by `theme-single-source.test.ts`), not call-site counts. This is a scope correction, not a claim that every chart was migrated to a runtime accessor.
 - **API callback conventions (resolved).** `onChange` is value-based across the input family, including `Checkbox`/`Switch`/`Chip` (`boolean`); `onClick` is the `UIBaseProps` `MouseEvent` handler on every control, including `NavLink`, `Menu.Item` and `CloseButton`. No void overrides remain — reopen this only with a new independent rating.
-- **Visual regression baseline.** Browser axe now covers **30 stories** including rendered contrast, and the keyboard walkthrough covers **10 interactions**; `docs/COMPONENT_AUDIT.md` reports **100 audited modules, 96 story files / 403 story entries, 88/100 modules with a story, 100/100 with a co-located test and 0 violations** (modules with no standalone story are composition-only helpers documented in `docs/COMPONENT_AUDIT_EXCEPTIONS.md`). The automated 1600/390 image-diff harness (`scripts/visual-regression.mjs`, `bun run visual:test`, plus the `Verify Storybook visual baseline` CI step added in `ff939b9a`) is in place, and its 12 baseline PNGs (6 stories × 2 viewports) are generated and committed under `tests/visual/__screenshots__/`; `bun run visual:test` passes **12/12**, so the pixel gate is green. The Storybook showcase is captured full-page (`scripts/storybook-showcase.mjs`), but the app-route evidence is **viewport-only** (`fullPage: false`) at 1600×1000 / 390×844 by `tests/e2e/design-evidence.spec.ts`, which reproduces the checked-in `docs/screenshots/app/report-{1600,390}.png` when run with `SCREENSHOT_EVIDENCE=1`.
+- **Visual regression baseline.** Browser axe now covers **30 stories** including rendered contrast, and the keyboard walkthrough covers **10 interactions**; `docs/COMPONENT_AUDIT.md` reports **100 audited modules, 96 story files / 403 story entries, 88/100 modules with a story, 100/100 with a co-located test and 0 violations** (modules with no standalone story are composition-only helpers documented in `docs/COMPONENT_AUDIT_EXCEPTIONS.md`). The automated 1600/390 image-diff harness (`scripts/visual-regression.mjs`, `bun run visual:test`, plus the `Verify Storybook visual baseline` CI step added in `ff939b9a`) is in place, and its 12 baseline PNGs (6 stories × 2 viewports) are generated and committed under `tests/visual/__screenshots__/`; `bun run visual:test` passes **12/12**, so the pixel gate is green. The Storybook showcase is captured by `scripts/storybook-showcase.mjs` (width 1600 / 390, height ≥ viewport — some full-page, some viewport-sized), and app-route captures are 1600×1000 / 390×844 by `tests/e2e/design-evidence.spec.ts`, which reproduces the checked-in `docs/screenshots/app/report-{1600,390}.png` when run with `SCREENSHOT_EVIDENCE=1`.
 - **Coverage is scoped, not universal.** `docs/COMPONENT_AUDIT.md` reports **100 audited modules, 96 story files / 403 story entries, 88/100 with a story, 100/100 with a co-located test, 0 violations**; the 12 modules without a standalone story are context providers, error boundaries, chart adapters and similar composition-only helpers listed in `docs/COMPONENT_AUDIT_EXCEPTIONS.md`. "story: yes" means one exported name is imported, not that every state is reviewed.
 - DatePicker is intentionally single-date; no range/time/locale.
 - Tooltip requires a focusable child unless the opt-in tab stop is used.
@@ -57,6 +57,9 @@ Still open — keep the A+ verdict honest:
 ## Latest independent rating — 2026-11-23 (pre-fix wave)
 
 Three read-only raters scored the P5 tree. **Not A+**: no P0, multiple P1s.
+This remains the last independent certification. No rater has scored the Index
+Report composition wave below, so nothing here is an A+ verdict on the current
+tree.
 
 | Dimension | Target | Rater 1 | Rater 2 | Rater 3 |
 |---|---:|---:|---:|---:|
@@ -76,7 +79,48 @@ Three read-only raters scored the P5 tree. **Not A+**: no P0, multiple P1s.
 
 The P1 set driving the current wave: primitive rem size aliases (now fixed — `Text/Title/Anchor/List` resolve through `TYPE_CLASS` on the shared scale), event-vs-value input callbacks (now fixed — value-based `onChange`, event-based `onClick`), void `onClick` overrides (now fixed — `NavLink`/`Menu.Item`/`CloseButton` inherit `UIBaseProps.onClick`), swallowed legacy props (now fixed — `InputProps`, Select compat props and Tooltip `withinPortal` are gone from every public type), vertical Tabs keyboard, Menu/Popover disclosure ARIA, missing primitive tests, and an advertised-but-unimplemented Tabs/overlay prop surface. This section is superseded only by a new independent rating, never by implementer self-scoring.
 
+## Index Report composition wave — 2026-11-23 (post-rating, unscored)
+
+Source changes landed on `/report/index` **after** the rating above. This section
+records the work, not a score: **no A+ and no A++ verdict is claimed here.** The
+contract is `docs/INDEX_REPORT_DENSITY.md`; its §3 heading "Final A++ composition"
+names a target shape, not an achieved grade.
+
+| Area | What landed | Source / guard |
+| --- | --- | --- |
+| One decision hero | `ReportDecisionStrip.hero.tsx` / `.derive.ts` / `.format.ts`: a single `data-report-band="decision-hero"` band with spot/change, one neutral status (`MARKET CLOSED` / `AWAITING DATA` / `AWAITING TRIGGER` / `LIVE READ`), one reason and one claim. No-call states are neutral, never a green verdict. | `.hero.test.tsx`, `.hierarchy.test.tsx`; `87b2c0a1` |
+| Chart-first at both widths | `NiftyReportShell.tsx` `REPORT_MOBILE_ORDER_CLASS`: stat strip (hero + More stats) order 1, chart order 2, then dock/flow/movers/rail/analytics; desk keeps its paint order via negative orders. Chart gains a labelled last-data cutoff lane and a mobile axis gutter. | `NiftyReportShell.layout.test.tsx`, `ReportWorkspaceMobile.test.tsx`, `ReportChartMobileBudget.test.tsx`, `NiftyChartPanelGeometry.test.tsx`; `474f7434`, `e30103d6`, `ab2bdde5` |
+| Chain | `reportCells.chainMetrics.ts` / `.chainPanel.tsx`: definite 384px desk width under the 420px panel budget, 360px **px** height cap (never `max-height: 100%`), ATM centring/emphasis; the full chain scrolls inside its own region at 390. | `reportCells.chain.test.tsx`, `reportCells.chain.panel.test.tsx`; `b0ff34d1`, `9b52b77c`, `fac47217` (scroll-region a11y) |
+| Compact walls / window strips | Compact walls surfaces; the walls card mounts only on real OI; `NiftyFlowWindows` collapses empty windows; movers/flow/heatmap unavailable bands collapse to one reason line instead of reserving empty rows. | `ReportStrips.tsx` + `ReportStrips.test.tsx` (`e715fd3e`), `NiftyFlowWindows.test.tsx` (`51fa3412`), `bcc5535e`, `fbc606dc` |
+| Two-row toolbar | `ReportToolbar.tsx`: below 1200 exactly `TOOLBAR_PRIMARY_HEIGHT = 48` + `TOOLBAR_SECONDARY_HEIGHT = 20` = 68px, no third row from padding/gap; selector strip scrolls behind a fade with a native-select cue; ≥1200 both bands inline. | `ReportToolbar.test.tsx`; `cf4b55ee`, `699cb297` |
+| Decomposition | 11 report facades now re-export satellites that own constants, pure helpers and rendering, each with a `*.structure.test.ts`: `niftyReportStore`, `NiftyWallsCard`, `NiftyWallsExpanded`, `NiftyPressureDesk`, `NiftyOiHeatmap`, `niftyOiBursts`, `NiftyChartPanel`, `ReportDecisionStrip`, `reportCells`, `NiftyDepthMap`, `NiftyGexProfile`. | `*.structure.test.ts`; `e4cfca16`, `ec679d1d`, `3d9c9197`, `185cde52`, `851d5848`, `699cb297` |
+| a11y fixes | Unique disclosure content ids, accessible option-chain scroll region, chart-draw and mobile-disclosure accessibility, mobile chart-first focus order, 390 app-route axe audits added to `app-a11y.spec.ts`, `report-keyboard.spec.ts` walkthrough and `NiftyChartPanel.a11y.test.tsx`. | `f806a852`, `fac47217`, `2995d67e`, `e30103d6`, `0ee91f5b`; config/tests only — no committed run artifact |
+
+Verification status: **source- and test-derived, not a measurement claim.** The
+density contract explicitly labels its verification that way and states that the
+final 1600/390 read-back and the independent rating are **not claimed**. All 62
+screenshot files now exist at `HEAD` (`VISUAL_EVIDENCE_INDEX.md`), but the two
+`report-*.png` files still have an uncommitted re-capture, and no final read-back
+log or new rater report is evidenced in the sources consulted (density contract,
+evidence index, working ledger).
+
+**PENDING — do not mark finished:**
+
+- Final 1600 and 390 screenshot **read-back** at the final HEAD: open each PNG and
+  check hero/chart/chain/toolbar legibility, no blank canvas or `undefined`/`NaN`.
+- A fresh **independent rating** (three read-only raters, median per dimension).
+  The last recorded rating (P5, above) is pre-wave; implementer self-scoring does
+  not count.
+- Re-run of the integrated gates on a quiet tree (typecheck, lint, affected tests,
+  axe/keyboard gates, gating `bun run audit:evidence`).
+
+No P0/P1 closure claim and no A+ / A++ claim is made for this wave until those
+items are evidenced.
+
 ## P5 evidence (2026-11-23)
+
+This table is the **P5 baseline**, recorded before the composition wave above;
+it is not evidence for the current report tree.
 
 | Check | Result |
 |---|---|
@@ -86,5 +130,11 @@ The P1 set driving the current wave: primitive rem size aliases (now fixed — `
 | Production build | clean (198 chunks) |
 | Storybook build + catalog | clean |
 | Browser axe (30 stories) | 0 serious/critical violations |
-| Screenshots | `docs/screenshots/showcase/` recaptured full-page at 1600/390 with focus-ring proof (`scripts/storybook-showcase.mjs`); Index Report app route captured **viewport-only** (`fullPage: false`, 1600×1000 / 390×844) by `tests/e2e/design-evidence.spec.ts` into `docs/screenshots/app/report-{1600,390}.png` — reproduce with `SCREENSHOT_EVIDENCE=1 npx playwright test tests/e2e/design-evidence.spec.ts`; the 1600/390 pixel-diff harness and CI step landed in `ff939b9a`; its 12 baseline PNGs are committed in `tests/visual/__screenshots__/` and `bun run visual:test` passes **12/12** |
+| Screenshots | `docs/screenshots/showcase/` recaptured at 1600/390 with focus-ring proof (`scripts/storybook-showcase.mjs`); Index Report app route captured at 1600×1000 / 390×844 by `tests/e2e/design-evidence.spec.ts` into `docs/screenshots/app/report-{1600,390}.png` — reproduce with `SCREENSHOT_EVIDENCE=1 npx playwright test tests/e2e/design-evidence.spec.ts`; the 1600/390 pixel-diff harness and CI step landed in `ff939b9a`; its 12 baseline PNGs are committed in `tests/visual/__screenshots__/` and `bun run visual:test` passes **12/12** |
 | Browser keyboard | 10/10 (Modal, Tree, Menu, horizontal/vertical Tabs, Popover, Tooltip, modal FloatingWindow, NavLink, modal dismissal) |
+
+Current capture state: all five in-scope app routes (report, sector, home,
+screener, patterns) and all 26 showcase names have committed PNGs at 1600 and 390;
+the 62-image structural audit is the gate. See `VISUAL_EVIDENCE_INDEX.md` for the
+file-by-file state. That is evidence of presence, not of a final visual read-back
+or an independent rating — both remain PENDING as recorded above.
