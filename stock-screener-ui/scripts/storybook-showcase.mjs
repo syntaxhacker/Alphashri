@@ -36,6 +36,9 @@ const SHOTS = {
   skeleton: "design-system-components-feedback-skeleton--playground",
   table: "design-system-app-primitives--family-landing",
   notifications: "design-system-components-feedback-notifications--tones",
+  "result-empty": "design-system-data-display--result-states-empty",
+  "result-scanning": "design-system-data-display--result-states-scanning",
+  "result-feed-error": "design-system-data-display--result-states-feed-error",
 };
 
 const server = spawn("python3", ["-m", "http.server", String(PORT), "-d", "storybook-static"], {
@@ -80,15 +83,21 @@ try {
       await page.close();
     }
 
-    const focusPage = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
-    await focusPage.goto(`${BASE}/iframe.html?id=design-system-foundations--landing&viewMode=story`, {
-      waitUntil: "networkidle",
-    });
-    await focusPage.getByRole("button", { name: "Tab to focus" }).focus();
-    await focusPage.waitForTimeout(150);
-    await focusPage.screenshot({ path: join(OUT, "focus-ring-1600.png"), fullPage: false });
-    console.log("focus-ring-1600.png");
-    await focusPage.close();
+    for (const [width, height] of [
+      [1600, 1000],
+      [390, 844],
+    ]) {
+      const focusPage = await browser.newPage({ viewport: { width, height } });
+      await focusPage.goto(
+        `${BASE}/iframe.html?id=design-system-foundations--landing&viewMode=story`,
+        { waitUntil: "networkidle" },
+      );
+      await focusPage.getByRole("button", { name: "Tab to focus" }).focus();
+      await focusPage.waitForTimeout(150);
+      await focusPage.screenshot({ path: join(OUT, `focus-ring-${width}.png`), fullPage: false });
+      console.log(`focus-ring-${width}.png`);
+      await focusPage.close();
+    }
   } finally {
     await browser.close();
   }
