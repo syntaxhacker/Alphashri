@@ -121,10 +121,12 @@ describe("icon scale", () => {
 });
 
 describe("type scale", () => {
-  /** Body 13, table 11, micro 9. Nothing smaller is legible at 1x. */
-  const TYPE_SCALE = new Set(["9", "10", "11", "12", "13", "14", "15", "16", "18", "20", "24", "28", "32"]);
+  // One tier in src/ui/typography.ts. A private px declaration is drift even
+  // when its number happens to be in the ladder; use text-ui-* or typeStyle().
+  const PRIVATE_SIZE =
+    /text-\[(\d+(?:\.\d+)?)px\]|"font-size"\s*:\s*"(\d+(?:\.\d+)?)px"|fontSize\s*:\s*(\d+(?:\.\d+)?)\b|font-size="(\d+(?:\.\d+)?)"/g;
 
-  it("no text is below the legibility floor", () => {
+  it("no component paints a private font size", () => {
     const offenders: Offender[] = [];
     for (const path of walk(SRC)) {
       if (/\.test\.|\.stories\./.test(path)) continue;
@@ -132,14 +134,17 @@ describe("type scale", () => {
       readFileSync(path, "utf8")
         .split("\n")
         .forEach((text, i) => {
-          for (const m of text.matchAll(/text-\[(\d+)px\]|[bf]ont-?[sS]ize["']?\s*:\s*["'](\d+)px["']/g)) {
-            const px = m[1] ?? m[2];
-            if (!TYPE_SCALE.has(px)) offenders.push({ file: rel, line: i + 1, detail: `${px}px` });
+          for (const m of text.matchAll(PRIVATE_SIZE)) {
+            const px = m[1] ?? m[2] ?? m[3] ?? m[4];
+            offenders.push({ file: rel, line: i + 1, detail: `${px}px` });
           }
         });
     }
     const report = offenders.map((o) => `${o.file}:${o.line} — ${o.detail}`).join("\n");
-    expect(offenders, `\n${report}\n\nAllowed: ${[...TYPE_SCALE].join(", ")}`).toEqual([]);
+    expect(
+      offenders,
+      `\n${report}\n\nUse text-ui-* / typeSize() / typeStyle() from @/ui.`,
+    ).toEqual([]);
   });
 });
 

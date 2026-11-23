@@ -206,6 +206,8 @@ jobs:
         run: cd stock-screener-ui && bun run typecheck
       - name: Typecheck tests ratchet
         run: cd stock-screener-ui && bun run typecheck:ratchet
+      - name: Audit typography floor
+        run: cd stock-screener-ui && bun run audit:typography:check
       - name: Build Storybook
         run: cd stock-screener-ui && bun run build-storybook
       - name: Verify Storybook catalog
