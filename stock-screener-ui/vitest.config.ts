@@ -38,6 +38,9 @@ export default defineConfig({
     // test files. Measurements in docs/TESTING_SPEED.md.
     pool: "forks",
     execArgv: ["--max-old-space-size=8192"],
+    // Four 8 GB forks exceed the 16 GB CI runner and one fork is killed after
+    // its last file completes. Cap heap-bearing workers at two.
+    maxWorkers: 2,
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "html"],

@@ -6,6 +6,7 @@ import {
   TYPE_CLASS, TYPE_SCALE, typeSize, type TypeRole,
 } from "@/ui";
 import * as palette from "@/ui/palette";
+import "./typography-fonts.css";
 import { ComponentIndex, docsHref, FamilyChip, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
 
 const meta: Meta = {
@@ -119,22 +120,31 @@ const COMPONENTS: FamilyComponentRef[] = [
   { id: "design-system-components-typography-list--docs", name: "List", note: "Ordered, unordered and icon-aligned items." },
 ];
 
-// This story is the densest text specimen in the visual gate, so it is the one
-// that exposes font-stack drift: the Storybook iframe loads no webfont and
-// `var(--font-sans)` falls back to the host's system font (DejaVu on some
-// runners, Liberation/Noto on others). A one-px-per-row line-box change adds up
-// to the 5–10px height delta that failed the committed baseline in CI with no
-// source change. Pin the two variables here so line boxes are stable everywhere.
-// Liberation ships with Ubuntu and is what the committed baseline was made with.
-const BASELINE_FONT_STYLE = {
-  "--font-sans": '"Liberation Sans", sans-serif',
-  "--font-mono": '"Liberation Mono", monospace',
+// Every typography specimen renders inside this wrapper. Naming a system font
+// in a stack is not enough — the name may be absent on the other runner. The
+// faces are bundled in ./typography-fonts.css, so local (DejaVu) and CI
+// (Liberation/Noto) rasterise identical glyph outlines and line boxes.
+//
+// `--font-mono` drives the `font-mono` utility; `--default-mono-font-family`
+// drives Tailwind's `code`/`kbd`/`samp`/`pre` preflight. The bare `font-family`
+// is essential too: plain inherited text resolves `body`'s "IBM Plex Sans",
+// Roboto, system-ui stack once, at <body>, so a custom property changed on a
+// descendant would never reach it.
+const SPECIMEN_FONTS = {
+  "--font-sans": '"Alphashri Specimen Sans", sans-serif',
+  "--font-mono": '"Alphashri Specimen Mono", monospace',
+  "--default-mono-font-family": '"Alphashri Specimen Mono", monospace',
+  "font-family": "var(--font-sans)",
 } as JSX.CSSProperties;
+
+const BundledFonts = (props: { children: JSX.Element }) => (
+  <div style={SPECIMEN_FONTS}>{props.children}</div>
+);
 
 export const Landing: Story = {
   render: () =>
     solidStory(() => (
-      <div style={BASELINE_FONT_STYLE}>
+      <BundledFonts>
       <FamilyPage width="1100px" padding="0">
         <FamilyHero
           name="Typography"
@@ -184,7 +194,7 @@ export const Landing: Story = {
         />
         <FamilyFooter source="src/ui/typography" pages="src/stories/components/typography" />
       </FamilyPage>
-      </div>
+      </BundledFonts>
     )),
 };
 
@@ -196,6 +206,7 @@ export const Landing: Story = {
 export const TypeScale: Story = {
   render: () =>
     solidStory(() => (
+      <BundledFonts>
       <FamilyPage width="820px" padding="0">
         <SpecimenPanel
           title="Typography scale"
@@ -224,12 +235,14 @@ export const TypeScale: Story = {
           </Text>
         </SpecimenPanel>
       </FamilyPage>
+      </BundledFonts>
     )),
 };
 
 export const ScaleAndTones: Story = {
   render: () =>
     solidStory(() => (
+      <BundledFonts>
       <FamilyPage width="820px" padding="0">
         <SpecimenPanel
           title="Scale and tones"
@@ -263,5 +276,6 @@ export const ScaleAndTones: Story = {
           </Flex>
         </SpecimenPanel>
       </FamilyPage>
+      </BundledFonts>
     )),
 };

@@ -1,0 +1,79 @@
+/*
+ * Bundled specimen fonts for the typography story's visual baselines.
+ *
+ * The typography landing page is the densest text specimen in the visual gate.
+ * Before this file, its sans text came from `body`'s "IBM Plex Sans", Roboto,
+ * system-ui stack and its mono text from the host's `monospace` fallback, so
+ * line boxes changed with whatever fonts the runner happened to have installed
+ * (DejaVu locally, Liberation/Noto in CI). A system-font name pinned in a
+ * `font-family` list cannot fix that: the name may simply not exist on the
+ * other host.
+ *
+ * These WOFF2 files are checked in next to this stylesheet, so every runner
+ * rasterises the exact same glyph outlines and metrics. See ./fonts/ for the
+ * SIL Open Font License notice. Scope: imported only by Typography.stories.tsx.
+ */
+
+@font-face {
+  font-family: "Alphashri Specimen Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("./fonts/liberation-sans-regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Alphashri Specimen Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url("./fonts/liberation-sans-bold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Alphashri Specimen Sans";
+  font-style: italic;
+  font-weight: 400;
+  font-display: block;
+  src: url("./fonts/liberation-sans-italic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Alphashri Specimen Sans";
+  font-style: italic;
+  font-weight: 700;
+  font-display: block;
+  src: url("./fonts/liberation-sans-bold-italic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Alphashri Specimen Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("./fonts/liberation-mono-regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Alphashri Specimen Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url("./fonts/liberation-mono-bold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Alphashri Specimen Mono";
+  font-style: italic;
+  font-weight: 400;
+  font-display: block;
+  src: url("./fonts/liberation-mono-italic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Alphashri Specimen Mono";
+  font-style: italic;
+  font-weight: 700;
+  font-display: block;
+  src: url("./fonts/liberation-mono-bold-italic.woff2") format("woff2");
+}
