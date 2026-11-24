@@ -983,7 +983,6 @@ OPENAPI_TAGS = [
     {"name": "brokers", "description": "Broker connections and OAuth."},
     {"name": "replay", "description": "Historical replay engine."},
     {"name": "user-configs", "description": "Per-user saved screen state (one default per scope)."},
-    {"name": "experiments", "description": "Research experiment tracking."},
     {"name": "poc", "description": "POC / NQ strategy tooling."},
     {"name": "Order Flow", "description": "Order flow, depth and tape (incl. /ws WebSocket bridge)."},
     {"name": "Notifications", "description": "User notifications."},
@@ -1540,8 +1539,6 @@ _include_api("api.agri.router", "router", "agri", msg="✅ Agri API loaded at /a
 # ======
 
 _include_api("api.backtest_routes", "router", "backtest", msg="✅ Backtest API loaded at /api/backtest")
-
-_include_api("api.experiment_routes", "router", "experiments", msg="✅ Experiments API loaded at /api/experiments")
 
 _include_api("api.chart", "router", "chart", msg="✅ Chart API loaded at /api/chart")
 

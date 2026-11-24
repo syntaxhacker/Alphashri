@@ -13,7 +13,6 @@ import {
   IconPlayerPlay,
   IconChartCandle,
   IconAdjustments,
-  IconFlask,
   IconLeaf,
   IconTrendingUp,
 } from "../common/Icons";
@@ -34,7 +33,6 @@ const navItems = [
   { label: "Screener", icon: IconChartLine, link: "/screener" },
   { label: "News", icon: IconNews, link: "/news" },
   { label: "Backtest", icon: IconChartLine, link: "/backtest" },
-  { label: "Experiments", icon: IconFlask, link: "/experiments" },
   { label: "Paper Trading", icon: IconChartDots, link: "/paper" },
   { label: "Replay", icon: IconPlayerPlay, link: "/replay" },
   { label: "Strategy Runner", icon: IconAdjustments, link: "/strategy-runner" },
