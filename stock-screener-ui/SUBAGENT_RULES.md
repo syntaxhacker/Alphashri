@@ -16,8 +16,26 @@ Sibling docs: `AGENTS.md` (repo rules), `LAYOUT_CONTRACT.md` (layout acceptance)
 - Subagents never ask the user anything and never spawn subagents.
 - Ambiguity in the brief = **stop and report**, never guess scope.
 - Main must not implement normal code tasks; it scopes, dispatches, reviews, integrates,
-  verifies. Main may edit only when a subagent is blocked/quota-exhausted, or for a small
-  integration fix — and must say so.
+  verifies. **No implementation at all** — not even a one-line or one-character fix.
+
+### Enforcement
+
+- The main agent **never** edits source, tests, styles/theme, configs, the generated
+  `openapi.yaml`, or deliverable docs — unless the task **is** a docs task assigned to it.
+- **No quick-fixes.** Any defect found in review — failing assertion, lint warning, misaligned
+  column, stale spec, wrong comment — goes **back to the subagent that owns those files**, with
+  the exact failure output. The main agent does not "just fix it" to unblock itself. If the
+  owner is gone, dispatch a new subagent scoped to those files.
+- **Exception protocol (all three required, in order):** a subagent is blocked/quota-exhausted
+  **or** an emergency recovery is required → (a) ask the user and get explicit approval in the
+  same turn, (b) state `MAIN-AGENT EXCEPTION: <reason>` in that turn, (c) list every file
+  touched. Missing any one of the three = no edit. A "small integration fix" is not an exception.
+- **Verification ≠ implementation.** Running build/lint/typecheck/targeted tests/OpenAPI
+  export/screenshots and reading output is allowed; changing the code under test to make a
+  check pass is forbidden.
+- **Attribution.** Every edited file must map to a named subagent session in the main agent's
+  report.
+- **Violation handling:** stop, report `main-agent-edit-blocked`, hand the file back to its owner.
 
 ---
 
@@ -360,7 +378,8 @@ Canonical source for model routing **and** concurrency — `AGENTS.md` and
 - Hard ceiling is the 8 above; do not dispatch a ninth lane. Queued lanes wait for a
   free slot rather than sharing files.
 - Free tiers return `Free usage limit reached` mid-task and can leave the tree half-edited.
-  When that happens: the main agent finishes the task itself and says so.
+  When that happens: dispatch a replacement subagent scoped to the affected files; the main
+  agent edits only under the §1 `MAIN-AGENT EXCEPTION` protocol (user approval first).
 - Verify every agent claim. Reports have asserted success while the page was blank, the
   build broken, or a test failing.
 - **Read this section before the first dispatch, not after.** It is the only place the

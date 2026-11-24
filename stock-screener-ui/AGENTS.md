@@ -6,6 +6,44 @@
 - **NEVER push directly to `develop` or `main`** — both are protected shared branches. All work goes through a short-lived feature branch (`feat/…`, `fix/…`, `chore/…`, `docs/…`) pushed to origin, then a PR targeting `develop` (or `develop` → `main` to release). No direct `git push origin develop` / `git push origin main`, ever.
 - **NEVER delete report artifacts** — anything under `reports/**` (figures, PNGs, HTML, CSV, JSON, scripts, notes) is kept, even after regeneration. Overwrite in place instead of `rm`-ing first. The user deletes their own reports.
 
+## 🚫 Main Agent — Orchestration Only (ZERO IMPLEMENTATION)
+
+The main agent exists to scope, dispatch, review and integrate. It does not write the code, the tests, the styles, the configs, the generated spec, or the docs that ship with a task.
+
+**The main agent NEVER edits:**
+- source code (`src/**`, `api/**`, `trading/**`, `backtest/**`, `db/**`, `scripts/**`, `chart_patterns/**`, `upstox_trader/**`, **any** `.ts`/`.tsx`/`.py`/`.sql`/`.css`)
+- tests (`*.test.ts(x)`, `*.spec.ts`, `tests/**`, fixtures)
+- styles / theme / palette (`src/tailwind.css`, `src/ui/palette.ts`, `style.css`)
+- configs (vite, tsconfig, oxlint/knip, CI workflows, `package.json`, lockfiles, env files)
+- generated specs — **`openapi.yaml` is generated, never hand-edited** (see the OpenAPI section)
+- deliverable docs (`AGENTS.md`, `SUBAGENT_RULES.md`, `UI_RULES.md`, `PRODUCTION.md`, `docs/**`, feature docs) — unless the task **is** a docs task assigned to the main agent
+
+**The main agent MAY only:**
+1. read / search / inspect the tree and diff — no writes
+2. scope work and write subagent briefs (template: `SUBAGENT_RULES.md` §10)
+3. dispatch subagents and track their file ownership
+4. review diffs against the brief and the repo rules
+5. run verification commands — `bun run build`, `bun run lint`, `bun run typecheck`, targeted `npx vitest run <file>`, targeted `.venv/bin/python -m pytest <file> -q`, OpenAPI export + drift check, screenshots
+6. integrate by **sending fixes back to the owning subagent**, never by editing the file itself
+7. act as the **sole git actor** (branch, commit, push feature branch, PR) — subagents stay read-only on git
+
+**Defects go back to the owner.** Every file has an owning subagent session. A defect found in review — a failing assertion, a lint warning, a misaligned column, a stale `openapi.yaml`, a wrong comment — is sent back to the subagent that owns those files with the exact failure output. The main agent must **not** "quick-fix" it, even a one-character fix, even to unblock itself. If the owner is gone, dispatch a new subagent scoped to those files.
+
+**The only exception** is when the owning subagent is blocked or quota-exhausted, or an emergency recovery is required. Then the main agent must, in this order:
+1. **ask the user first** and wait for an explicit approval in the same turn
+2. state `MAIN-AGENT EXCEPTION: <reason>` in that turn
+3. list **every** file it touched
+
+Without both the user's approval **and** the `MAIN-AGENT EXCEPTION:` label, no edit happens. A "small integration fix" is not an exception unless it clears that bar.
+
+**Verification is not implementation.** Running commands and reading their output is allowed and expected. Changing the code under test to make a command pass is implementation — it is forbidden, and it also invalidates the verification.
+
+**Attribution is mandatory.** Every edited file in the main agent's final report must be attributable to a **named subagent session** (files changed by that session, one line each). A file with no owner is a violation, not bookkeeping.
+
+**Violation handling:** if the main agent catches itself about to edit an owned file, it must stop, report `main-agent-edit-blocked`, and hand the file back to its owner. It must not finish the edit and disclose it afterwards.
+
+Everything below in this file describes the work; it does not grant the main agent a licence to perform it.
+
 ## Start here
 
 - **[`docs/AGENT_QUICKSTART.md`](./docs/AGENT_QUICKSTART.md)** — commands, folder map, unit/E2E/backend recipes, fixtures. Read this before exploring the tree.
@@ -673,7 +711,7 @@ finished because time is up or CI is green on one lane. The loop runs until the 
 3. **Dispatch in waves of 3–5 background agents.** One agent, one file set, one measurable outcome,
    `model: "opencode-go/hy4-flash-free"`. Give each a self-contained brief with the token/API contract,
    the target mapping, verification commands and a required before/after count. The main agent keeps
-   working on non-overlapping integration, gates, docs or evidence while they run.
+   working on non-overlapping review, gates or evidence while they run.
 4. **Integrate small, verify by lane.** Review each report, run its targeted tests/typecheck/lint,
    then commit that lane on its own. Do not accumulate a 2,000-line unverified branch. A lane report
    without exact test counts is rejected.
@@ -700,7 +738,7 @@ finished because time is up or CI is green on one lane. The loop runs until the 
 - **No builds, no servers.** Agents run only their targeted tests (`npx vitest run <file>`, `.venv/bin/python -m pytest <file> -q`). `bun run build`, `./start.sh`, dev servers and browser/devtools sessions belong to the main agent.
 - **Protected paths.** Never edit `db/alphashri.db`, `.github/workflows/test.yml`, or unrelated files already dirty in the worktree.
 - **Return contract.** Report changes, files touched, the exact test command with pass/fail counts, and anything not done. A report without test counts is rejected.
-- **Review gate.** The main agent reviews the diff, fills integration gaps, then runs the full affected suite + `oxlint` + `bun run build` + the UI guards before committing. Agents never commit.
+- **Review gate.** The main agent reviews the diff, sends integration gaps back to the owning subagent (never fills them itself), then runs the full affected suite + `oxlint` + `bun run build` + the UI guards before committing. Agents never commit.
 - **Free model pool:** owned by `SUBAGENT_RULES.md §9` — use the pool listed there, one model per independent scope.
 
 ### CPU budget — check before heavy tests (MANDATORY)
