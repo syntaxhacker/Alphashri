@@ -1,9 +1,10 @@
 import { Box, Tabs } from "@/ui";
-import type { PatternSummary } from "@/types/chartPatterns";
+import type { JobDTO, PatternSummary } from "@/types/chartPatterns";
 import { ScanStats } from "@/components/patterns/ScanStats";
 
 export interface PageHeaderProps {
   displaySummary: () => PatternSummary | null;
+  job: JobDTO | null;
   onSelectStat: (kind: "confirmed" | "bullish" | "bearish") => void;
 }
 
@@ -26,6 +27,7 @@ export function PageHeader(props: PageHeaderProps) {
       <Box className="ml-auto flex min-w-0 items-center overflow-x-auto">
         <ScanStats
           summary={props.displaySummary()}
+          job={props.job}
           onSelect={props.onSelectStat}
         />
       </Box>

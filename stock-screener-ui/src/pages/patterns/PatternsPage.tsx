@@ -27,6 +27,7 @@ function PatternsWorkspace(props: PatternsPageProps) {
       header={
         <PageHeader
           displaySummary={vm.displaySummary}
+          job={vm.job()}
           onSelectStat={(kind) =>
             vm.toggleFilterValue(
               kind === "confirmed" ? "status" : "direction",
