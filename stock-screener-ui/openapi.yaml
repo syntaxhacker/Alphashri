@@ -2823,6 +2823,61 @@ components:
           title: Name
       title: ScreenerUpdate
       type: object
+    SectionRow:
+      description: One scanner row with the requested fields and per-section booleans.
+      properties:
+        fields:
+          additionalProperties: true
+          title: Fields
+          type: object
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        signals:
+          additionalProperties: true
+          title: Signals
+          type: object
+        symbol:
+          title: Symbol
+          type: string
+      required:
+      - symbol
+      title: SectionRow
+      type: object
+    SectionScanResponse:
+      description: Scanned rows plus feed freshness metadata for the UI.
+      properties:
+        delayed_rows:
+          default: 0
+          title: Delayed Rows
+          type: integer
+        generated_at:
+          title: Generated At
+          type: string
+        market:
+          title: Market
+          type: string
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        row_count:
+          default: 0
+          title: Row Count
+          type: integer
+        rows:
+          items:
+            $ref: '#/components/schemas/SectionRow'
+          title: Rows
+          type: array
+      required:
+      - market
+      - generated_at
+      title: SectionScanResponse
+      type: object
     SectorBreadth:
       properties:
         advancing:
@@ -12608,6 +12663,59 @@ paths:
       summary: Update a saved screener
       tags:
       - screeners
+  /api/sections/scan:
+    get:
+      description: Evaluate user-defined signal sections against one TradingView scanner frame per market. Definitions are supplied as a JSON array in the `sections` query parameter; unknown or malformed definitions are dropped and reported in `note`. Delayed rows are excluded unless `allow_delayed` is set, and `delayed_rows` plus `note` always disclose them. Configured conditions are evaluated in Python after the fetch, never pushed to the scanner.
+      operationId: scan_sections_route_api_sections_scan_get
+      parameters:
+      - description: Market id. `india` or `america`.
+        in: query
+        name: market
+        required: false
+        schema:
+          default: india
+          description: Market id. `india` or `america`.
+          enum:
+          - india
+          - america
+          title: Market
+          type: string
+      - description: JSON array of SectionDefinition objects (id, concept, conditions, render).
+        in: query
+        name: sections
+        required: false
+        schema:
+          default: '[]'
+          description: JSON array of SectionDefinition objects (id, concept, conditions, render).
+          title: Sections
+          type: string
+      - description: Include delayed scanner rows, with a visible note and badge count.
+        in: query
+        name: allow_delayed
+        required: false
+        schema:
+          default: false
+          description: Include delayed scanner rows, with a visible note and badge count.
+          title: Allow Delayed
+          type: boolean
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectionScanResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Scan signal sections for a market
+      tags:
+      - sections
   /api/sector:
     get:
       description: 'Fetch latest stock data and aggregate by sector.
@@ -13973,6 +14081,8 @@ tags:
   name: rotation
 - description: Cross-asset correlation matrices.
   name: correlation
+- description: User-defined signal sections scanned from one market frame.
+  name: sections
 - description: Market heatmap data.
   name: heatmap
 - description: Exchange holiday calendar.

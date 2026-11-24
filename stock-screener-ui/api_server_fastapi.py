@@ -977,6 +977,7 @@ OPENAPI_TAGS = [
     {"name": "sector", "description": "Sector rotation and sector-level analytics."},
     {"name": "rotation", "description": "Market rotation analytics."},
     {"name": "correlation", "description": "Cross-asset correlation matrices."},
+    {"name": "sections", "description": "User-defined signal sections scanned from one market frame."},
     {"name": "heatmap", "description": "Market heatmap data."},
     {"name": "holidays", "description": "Exchange holiday calendar."},
     {"name": "agri", "description": "Agri commodity endpoints."},
@@ -1609,6 +1610,9 @@ _include_api("api.event_radar.router", "router", "event radar", msg="✅ Event r
 
 # --- Home Monitor ---
 _include_api("api.catalyst_radar.router", "router", "catalyst radar", msg="✅ Catalyst radar API loaded at /api/catalysts")
+
+# --- Signal sections ---
+_include_api("api.sections.router", "router", "sections", msg="✅ Sections API loaded at /api/sections")
 
 if __name__ == '__main__':
     port = config.PORT
