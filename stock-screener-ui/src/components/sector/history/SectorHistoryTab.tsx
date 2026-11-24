@@ -1,5 +1,13 @@
-import { Show, createEffect, createMemo, createSignal } from "solid-js";
-import { ActionIcon, Alert, Box, Button, Loader, Select, Text, ToolbarRow } from "@/ui";
+import {
+  Show,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+  type JSX,
+} from "solid-js";
+import { ActionIcon, Box, Button, Loader, Select, Text, ToolbarRow } from "@/ui";
 import { IconClock, IconRefresh } from "../../screener/icons";
 import { CompactPanel } from "../../common/compact";
 import type {
@@ -26,14 +34,30 @@ const YEAR_OPTIONS = [
   { label: "10Y", value: "10" },
 ];
 
-const RANK_CHART_CLASS =
-  "min-w-0 overflow-x-auto overflow-y-hidden p-1 [&>svg]:h-auto [&>svg]:w-full [&>svg]:min-w-[900px]";
-const SEASONALITY_CHART_CLASS =
-  "mx-auto w-full min-w-0 max-w-[760px] overflow-hidden p-1 [&>svg]:h-auto [&>svg]:w-full";
-const PERSISTENCE_CHART_CLASS =
-  "mx-auto w-full min-w-0 max-w-[560px] overflow-hidden p-1 [&>svg]:h-auto [&>svg]:w-full";
-const ROTATION_CHART_CLASS =
-  "mx-auto w-full min-w-0 max-w-[1100px] overflow-x-auto overflow-y-hidden p-1 [&>svg]:h-auto [&>svg]:w-full [&>svg]:min-w-[640px]";
+const RANK_CHART_CLASS = "min-w-0 [&>svg]:h-auto [&>svg]:w-full [&>svg]:min-w-[900px]";
+const SEASONALITY_BODY_CLASS = "mx-auto w-full min-w-0 max-w-[760px]";
+const PERSISTENCE_BODY_CLASS = "mx-auto w-full min-w-0 max-w-[560px]";
+
+/** The visual owners render their own scrollports; our wrapper is the single scroller so the
+ *  region focus, keyboard arrow scrolling and the edge hint all target the same element. */
+const INNER_SCROLL_RESET = `
+  [data-history-scroller] [data-testid="history-seasonality-scroll"],
+  [data-history-scroller] [data-testid="history-persistence-scroll"] {
+    overflow: visible !important;
+  }
+`;
+
+const ERROR_FALLBACK = "Sector history is temporarily unavailable. Try again.";
+const FETCH_FAILURE =
+  /sector_history_unavailable|failed to fetch|network|load failed|fetch failed/i;
+
+function errorCopy(raw: string | null): { primary: string; code: string } {
+  const value = (raw ?? "").trim();
+  if (!value) return { primary: ERROR_FALLBACK, code: "" };
+  return FETCH_FAILURE.test(value)
+    ? { primary: ERROR_FALLBACK, code: value }
+    : { primary: value, code: "" };
+}
 
 function HistoryHeader(props: {
   market: SectorHistoryMarket;
@@ -120,56 +144,182 @@ function HistoryHeader(props: {
   );
 }
 
-function LoadingState() {
+function StatePanel(props: {
+  testId: string;
+  title: string;
+  description: string;
+  action?: JSX.Element;
+  children?: JSX.Element;
+}) {
   return (
-    <Box
-      data-testid="sector-history-loading"
-      className="flex flex-1 min-h-0 items-center justify-center gap-2 p-2"
-    >
-      <Loader size="sm" />
-      <Text size="xs" c="dimmed">
-        Loading sector history…
-      </Text>
+    <Box className="flex flex-1 min-h-0 items-start justify-center overflow-y-auto p-2">
+      <CompactPanel
+        testId={props.testId}
+        title={props.title}
+        description={props.description}
+        action={props.action}
+        className="w-full max-w-[520px]"
+      >
+        {props.children}
+      </CompactPanel>
     </Box>
   );
 }
 
-function EmptyState() {
+function LoadingState() {
   return (
-    <Box
-      data-testid="sector-history-empty"
-      className="flex flex-1 min-h-0 items-center justify-center p-2"
-    >
-      <Text size="xs" c="dimmed">
-        No sector history available for this market.
-      </Text>
-    </Box>
+    <StatePanel
+      testId="sector-history-loading"
+      title="Loading sector history"
+      description="Fetching monthly sector ranks, seasonality and risk metrics."
+      action={<Loader size="xs" />}
+    />
+  );
+}
+
+function EmptyState(props: { market: SectorHistoryMarket; years: number; onRefresh: () => void }) {
+  const marketLabel = () => (props.market === "india" ? "India" : "US");
+  return (
+    <StatePanel
+      testId="sector-history-empty"
+      title="No sector history"
+      description={`No history is available for ${marketLabel()} over ${props.years}Y.`}
+      action={
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={props.onRefresh}
+          data-testid="sector-history-empty-refresh"
+        >
+          Refresh
+        </Button>
+      }
+    />
   );
 }
 
 function ErrorState(props: { error: string; onRetry: () => void }) {
+  const copy = createMemo(() => errorCopy(props.error));
   return (
-    <Box
-      data-testid="sector-history-error"
-      className="flex flex-1 min-h-0 items-center justify-center p-2"
+    <StatePanel
+      testId="sector-history-error"
+      title="Sector history unavailable"
+      description={copy().primary}
+      action={
+        <Button
+          variant="outline"
+          color="error"
+          size="xs"
+          onClick={props.onRetry}
+          data-testid="sector-history-retry"
+        >
+          Retry
+        </Button>
+      }
     >
-      <Box className="flex w-full max-w-[520px] flex-col gap-2">
-        <Alert color="error" title="Sector history unavailable">
-          <Text size="xs">{props.error}</Text>
-        </Alert>
-        <Box>
-          <Button
-            variant="outline"
-            color="error"
-            size="xs"
-            onClick={props.onRetry}
-            data-testid="sector-history-retry"
-          >
-            Retry
-          </Button>
+      <Show when={copy().code}>
+        <Text
+          data-testid="sector-history-error-code"
+          c="dimmed"
+          className="text-ui-micro font-mono break-all"
+        >
+          {copy().code}
+        </Text>
+      </Show>
+    </StatePanel>
+  );
+}
+
+function HistoryPanel(props: {
+  testId: string;
+  title: string;
+  description: string;
+  children: JSX.Element;
+}) {
+  return (
+    <CompactPanel flush padded={false} testId={props.testId} className="min-w-0">
+      <Box className="border-b border-fin-border px-2 pb-1 pt-2">
+        <Text
+          fw={700}
+          tt="uppercase"
+          className="text-ui-micro font-mono tracking-[0.08em] text-fin-primary"
+        >
+          {props.title}
+        </Text>
+        <Box className="mt-1">
+          <Text c="dimmed" data-testid="status" className="text-ui-micro">
+            {props.description}
+          </Text>
         </Box>
       </Box>
-    </Box>
+      <Box className="min-w-0 p-2">{props.children}</Box>
+    </CompactPanel>
+  );
+}
+
+function ChartScroller(props: {
+  testId: string;
+  label: string;
+  bodyClass?: string;
+  children: JSX.Element;
+}) {
+  let scrollEl: HTMLDivElement | undefined;
+  const [overflowing, setOverflowing] = createSignal(false);
+  const [atEnd, setAtEnd] = createSignal(false);
+
+  const measure = () => {
+    const node = scrollEl;
+    if (!node) return;
+    const max = node.scrollWidth - node.clientWidth;
+    setOverflowing(max > 2);
+    setAtEnd(max <= 2 || node.scrollLeft >= max - 2);
+  };
+
+  const handleScroll = () => {
+    const node = scrollEl;
+    if (!node) return;
+    const max = node.scrollWidth - node.clientWidth;
+    setAtEnd(max <= 2 || node.scrollLeft >= max - 2);
+  };
+
+  onMount(() => {
+    measure();
+    const node = scrollEl;
+    if (!node) return;
+    const resize = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    resize?.observe(node);
+    const mutation = typeof MutationObserver !== "undefined" ? new MutationObserver(measure) : null;
+    mutation?.observe(node, { childList: true, subtree: true });
+    onCleanup(() => {
+      resize?.disconnect();
+      mutation?.disconnect();
+    });
+  });
+
+  return (
+    <div class={`min-w-0 ${props.bodyClass ?? ""}`}>
+      <div
+        aria-hidden="true"
+        data-testid={`${props.testId}-hint`}
+        class={`mb-1 items-center justify-end ${overflowing() && !atEnd() ? "flex" : "hidden"}`}
+      >
+        <span class="text-ui-micro text-fin-text-muted">Scroll →</span>
+      </div>
+      <div
+        ref={(node) => {
+          scrollEl = node;
+        }}
+        data-history-scroller=""
+        data-testid={props.testId}
+        role="region"
+        tabIndex={0}
+        aria-label={props.label}
+        onScroll={handleScroll}
+        class="min-w-0 max-w-full overflow-x-auto overflow-y-hidden focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
+      >
+        {props.children}
+      </div>
+    </div>
   );
 }
 
@@ -184,65 +334,75 @@ function SuccessContent(props: {
 }) {
   return (
     <Box className="flex flex-1 min-h-0 flex-col gap-2 overflow-x-hidden overflow-y-auto p-2">
-      <CompactPanel
-        flush
-        padded={false}
+      <style data-testid="sector-history-scroll-style">{INNER_SCROLL_RESET}</style>
+      <HistoryPanel
         testId="sector-history-rank-panel"
         title="Sector Rank History"
         description={`${props.universe.length} sectors · monthly rank`}
       >
-        <Box className={RANK_CHART_CLASS}>
-          <SectorRankHeatmap months={props.months} series={props.series} />
-        </Box>
-      </CompactPanel>
+        <ChartScroller
+          testId="sector-history-rank-scroll"
+          label="Sector rank history by month. Scroll sideways for older months."
+        >
+          <Box className={RANK_CHART_CLASS}>
+            <SectorRankHeatmap months={props.months} series={props.series} />
+          </Box>
+        </ChartScroller>
+      </HistoryPanel>
 
       <Box className="grid min-w-0 grid-cols-1 gap-2 lg:grid-cols-2">
-        <CompactPanel
-          flush
-          padded={false}
+        <HistoryPanel
           testId="sector-history-seasonality-panel"
           title="Seasonality"
           description="avg return by calendar month"
         >
-          <Box className={SEASONALITY_CHART_CLASS}>
+          <ChartScroller
+            testId="sector-history-seasonality-scroll"
+            label="Seasonality heatmap by calendar month. Scroll sideways for all months."
+            bodyClass={SEASONALITY_BODY_CLASS}
+          >
             <SeasonalityHeatmap cells={props.seasonality} names={props.universe} />
-          </Box>
-        </CompactPanel>
+          </ChartScroller>
+        </HistoryPanel>
 
-        <CompactPanel
-          flush
-          padded={false}
+        <HistoryPanel
           testId="sector-history-persistence-panel"
           title="Persistence"
           description="top-3 rank stickiness"
         >
-          <Box className={PERSISTENCE_CHART_CLASS}>
-            <PersistenceMatrix names={props.universe} matrix={props.transitionMatrix} />
-          </Box>
-        </CompactPanel>
+          <ChartScroller
+            testId="sector-history-persistence-scroll"
+            label="Rank persistence matrix. Scroll sideways for all next-month ranks."
+            bodyClass={PERSISTENCE_BODY_CLASS}
+          >
+            <PersistenceMatrix
+              names={props.universe}
+              matrix={props.transitionMatrix}
+              transitionCount={
+                props.months.length >= 2 && props.universe.length >= 1
+                  ? (props.months.length - 1) * props.universe.length
+                  : undefined
+              }
+            />
+          </ChartScroller>
+        </HistoryPanel>
       </Box>
 
-      <CompactPanel
-        flush
-        padded={false}
+      <HistoryPanel
         testId="sector-history-rotation-panel"
         title="Rotation Timeline"
         description="rank trajectory over time"
       >
-        <Box className={ROTATION_CHART_CLASS}>
-          <RotationTimeline months={props.months} series={props.series} />
-        </Box>
-      </CompactPanel>
+        <RotationTimeline months={props.months} series={props.series} />
+      </HistoryPanel>
 
-      <CompactPanel
-        flush
-        padded={false}
+      <HistoryPanel
         testId="sector-history-risk-panel"
         title="Risk"
         description="drawdown · Sharpe · volatility"
       >
         <RiskTable risk={props.risk} series={props.series} />
-      </CompactPanel>
+      </HistoryPanel>
 
       <Show when={props.disclaimer}>
         <Text
@@ -332,7 +492,10 @@ export function SectorHistoryTab(props: { market: SectorHistoryMarket }) {
           <Show
             when={loading() && !hasData()}
             fallback={
-              <Show when={hasData()} fallback={<EmptyState />}>
+              <Show
+                when={hasData()}
+                fallback={<EmptyState market={market()} years={years()} onRefresh={refresh} />}
+              >
                 <SuccessContent
                   months={months()}
                   series={series()}

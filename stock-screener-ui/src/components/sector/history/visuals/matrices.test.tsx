@@ -1,0 +1,529 @@
+// @vitest-environment happy-dom
+import "@testing-library/jest-dom/vitest";
+import { afterEach, describe, expect, test } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
+import { NEGATIVE, POSITIVE, SURFACE } from "@/ui/palette";
+import { compositeOver, contrastRatio } from "@/utils/contrast";
+import type {
+  SectorHistorySeasonality,
+  SectorHistorySeries,
+} from "../../../../types/sectorHistory";
+import { MiniSparkline } from "./MiniSparkline";
+import { PersistenceMatrix } from "./PersistenceMatrix";
+import { SeasonalityHeatmap } from "./SeasonalityHeatmap";
+import { SectorRankHeatmap } from "./SectorRankHeatmap";
+
+const MONTHS = [
+  "2025-01",
+  "2025-02",
+  "2025-03",
+  "2025-04",
+  "2025-05",
+  "2025-06",
+  "2025-07",
+  "2025-08",
+  "2025-09",
+  "2025-10",
+  "2025-11",
+  "2025-12",
+];
+
+const IT_RANKS: (number | null)[] = [1, 2, 3, null, 2, 1, 4, 3, 2, null, 1, 2];
+const PSU_RANKS: (number | null)[] = [2, 1, 2, 3, 1, 2, 3, 1, 3, 2, 2, 1];
+const FMCG_RANKS: (number | null)[] = [3, 3, 1, 2, 3, 4, 1, 2, 4, 3, 3, 3];
+
+const SERIES: SectorHistorySeries[] = [
+  {
+    name: "NIFTY 50",
+    is_benchmark: true,
+    monthly_returns: MONTHS.map(() => 0.5),
+    ranks: MONTHS.map(() => null),
+  },
+  {
+    name: "NIFTY IT",
+    is_benchmark: false,
+    monthly_returns: MONTHS.map(() => 1),
+    ranks: IT_RANKS,
+  },
+  {
+    name: "PSU BANK",
+    is_benchmark: false,
+    monthly_returns: MONTHS.map(() => 1),
+    ranks: PSU_RANKS,
+  },
+  {
+    name: "FMCG",
+    is_benchmark: false,
+    monthly_returns: MONTHS.map(() => 1),
+    ranks: FMCG_RANKS,
+  },
+];
+
+const TOP3_COUNT = [IT_RANKS, PSU_RANKS, FMCG_RANKS]
+  .flat()
+  .filter((rank): rank is number => rank !== null && rank <= 3).length;
+
+const SEASONALITY: SectorHistorySeasonality[] = [
+  { name: "NIFTY IT", month: 1, avg_return: 2.1, hit_rate: 0.6, n: 5 },
+  { name: "NIFTY IT", month: 2, avg_return: -1.4, hit_rate: 0.4, n: 5 },
+  { name: "PSU BANK", month: 1, avg_return: 0.8, hit_rate: 0.8, n: 3 },
+  { name: "PSU BANK", month: 2, avg_return: 0, hit_rate: 0.5, n: 3 },
+];
+
+const PERSISTENCE_NAMES = ["NIFTY IT", "PSU BANK", "FMCG"];
+const PERSISTENCE_MATRIX: (number | null)[][] = [
+  [0.5, 0.2, 0.05],
+  [0.15, 0.45, 0.1],
+  [0.05, 0.1, 0.4],
+];
+
+function expectAccessibleLabels(svg: Element) {
+  const labelledBy = svg.getAttribute("aria-labelledby");
+  expect(labelledBy).toBeTruthy();
+  const ids = (labelledBy ?? "").split(" ").filter(Boolean);
+  expect(ids).toHaveLength(2);
+  for (const id of ids) expect(svg.querySelector(`#${id}`)).not.toBeNull();
+}
+
+function expectRovingCells(svg: Element, selector: string, count: number) {
+  const cells = Array.from(svg.querySelectorAll(selector));
+  expect(cells).toHaveLength(count);
+  expect(cells.filter((cell) => cell.getAttribute("tabindex") === "0")).toHaveLength(1);
+  for (const cell of cells) {
+    expect(cell).toHaveAttribute("role", "img");
+    expect(cell.getAttribute("aria-label")).toBeTruthy();
+    expect(["0", "-1"]).toContain(cell.getAttribute("tabindex"));
+  }
+}
+
+function expectContrast(cell: Element) {
+  const opacity = Number(cell.getAttribute("fill-opacity"));
+  const bg = compositeOver(String(cell.getAttribute("fill")), SURFACE, opacity);
+  const ink = String(cell.getAttribute("data-ink"));
+  const ratio = contrastRatio(ink, bg);
+  expect(
+    ratio,
+    `${ink} on ${bg} (opacity ${opacity}) = ${ratio.toFixed(2)}:1`,
+  ).toBeGreaterThanOrEqual(4.5);
+}
+
+afterEach(() => {
+  cleanup();
+});
+
+describe("SectorRankHeatmap axis, width and top-3 emphasis", () => {
+  test("labels the axis by year and quarter and keeps the legend compact", () => {
+    render(() => <SectorRankHeatmap months={MONTHS} series={SERIES} />);
+    const svg = screen.getByTestId("history-rank-heatmap");
+    expect(screen.getByText("2025")).toBeInTheDocument();
+    for (const month of ["Jan", "Apr", "Jul", "Oct"]) {
+      expect(screen.getByText(month)).toBeInTheDocument();
+    }
+    expect(screen.queryByText("Feb")).not.toBeInTheDocument();
+    expect(screen.getByTestId("history-rank-heatmap-legend")).toHaveTextContent("1 best → 3 worst");
+    expect(screen.getByText("top 3 = amber outline")).toBeInTheDocument();
+    expect(screen.getByTestId("history-rank-current-legend")).toHaveTextContent(
+      "dashed = current month",
+    );
+    const legend = screen.getByTestId("history-rank-legend");
+    expect(legend.style.position).toBe("sticky");
+    expect(legend.style.maxWidth).toBe("calc(100vw - 48px)");
+    expect(svg.querySelector('[data-testid="history-rank-heatmap-legend"]')).toBeNull();
+    expect(svg.querySelector("title")?.textContent).toMatch(/amber outlines mark the top 3/i);
+    expect(svg.querySelector("desc")?.textContent).toMatch(/labelled at each quarter/i);
+    expectAccessibleLabels(svg);
+  });
+
+  test("outlines every rank 1-3 cell and leaves rank 4 plain", () => {
+    render(() => <SectorRankHeatmap months={MONTHS} series={SERIES} />);
+    const svg = screen.getByTestId("history-rank-heatmap");
+    expect(svg.querySelectorAll('[data-top3="true"]')).toHaveLength(TOP3_COUNT);
+    expect(svg.querySelectorAll("[data-top3-outline]")).toHaveLength(TOP3_COUNT);
+    expect(svg.querySelector('[data-cell="rank-0-0"]')).toHaveAttribute("data-top3", "true");
+    expect(svg.querySelector('[data-cell="rank-2-5"]')).toHaveAttribute("data-top3", "false");
+    expect(svg.querySelector('[data-cell="rank-2-5"]')).toHaveAttribute("fill", NEGATIVE);
+    expect(svg.querySelector('[data-cell="rank-0-0"]')).toHaveAttribute("fill", POSITIVE);
+  });
+
+  test("fits 60 months inside a 1600px panel without truncating sector names", () => {
+    const months = Array.from({ length: 60 }, (_, index) => {
+      const year = 2021 + Math.floor(index / 12);
+      return `${year}-${String((index % 12) + 1).padStart(2, "0")}`;
+    });
+    const series: SectorHistorySeries[] = [
+      {
+        name: "NIFTY CONSUMPTION",
+        is_benchmark: false,
+        monthly_returns: [],
+        ranks: months.map((_, index) => ((index + 2) % 10) + 1),
+      },
+      {
+        name: "NIFTY FIN_SERVICE",
+        is_benchmark: false,
+        monthly_returns: [],
+        ranks: months.map((_, index) => ((index + 1) % 10) + 1),
+      },
+    ];
+    render(() => <SectorRankHeatmap months={months} series={series} />);
+    const svg = screen.getByTestId("history-rank-heatmap");
+    // 60 cells at 20px plus the full-name rail stays under the 1404px panel body.
+    expect(svg).toHaveAttribute("viewBox", "0 0 1340 78");
+    expect(svg.style.minWidth).toBe("1340px");
+    expect(svg.style.maxWidth).toBe("1340px");
+    expect(1340).toBeLessThanOrEqual(1404);
+    expect(screen.getAllByText("NIFTY CONSUMPTION").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("NIFTY FIN_SERVICE").length).toBeGreaterThan(0);
+    expect(svg.textContent).not.toContain("…");
+    expect(screen.getAllByText("Jan")).toHaveLength(5);
+    expect(screen.getAllByText("2021")).toHaveLength(1);
+  });
+
+  test("decodes the right edge with the latest-month #1-#3 key", () => {
+    const months = Array.from({ length: 36 }, (_, index) => {
+      const year = 2023 + Math.floor(index / 12);
+      return `${year}-${String((index % 12) + 1).padStart(2, "0")}`;
+    });
+    const ranks = (pick: (index: number) => number) => months.map((_, index) => pick(index));
+    render(() => (
+      <SectorRankHeatmap
+        months={months}
+        series={[
+          { name: "NIFTY IT", is_benchmark: false, monthly_returns: [], ranks: ranks(() => 2) },
+          { name: "PSU BANK", is_benchmark: false, monthly_returns: [], ranks: ranks(() => 1) },
+          {
+            name: "NIFTY CONSUMPTION",
+            is_benchmark: false,
+            monthly_returns: [],
+            ranks: ranks(() => 3),
+          },
+        ]}
+      />
+    ));
+    const key = screen.getByTestId("history-rank-latest-key");
+    expect(key.tagName).toBe("DIV");
+    expect(screen.getByTestId("history-rank-heatmap").contains(key)).toBe(false);
+    expect(key).toHaveTextContent(
+      "Current Dec 2025: #1 PSU BANK · #2 NIFTY IT · #3 NIFTY CONSUMPTION",
+    );
+    expect(
+      screen.getByTestId("history-rank-heatmap").querySelector("[data-latest-column]"),
+    ).not.toBeNull();
+    expect(screen.getByTestId("history-rank-heatmap")).toHaveAttribute("viewBox", "0 0 860 100");
+    expect(screen.getByTestId("history-rank-heatmap").style.maxWidth).toBe("860px");
+    expect(screen.getByTestId("history-rank-row-rail")).toHaveTextContent("NIFTY CONSUMPTION");
+    expect(screen.getByTestId("history-rank-row-rail").style.position).toBe("sticky");
+    expect(screen.getByTestId("history-rank-row-rail").style.left).toBe("0px");
+  });
+
+  test("keeps 3Y cells at their natural 20px width instead of stretching", () => {
+    const months = Array.from({ length: 36 }, (_, index) => {
+      const year = 2023 + Math.floor(index / 12);
+      return `${year}-${String((index % 12) + 1).padStart(2, "0")}`;
+    });
+    const series = Array.from({ length: 10 }, (_, index) => ({
+      name: `SECTOR ${index + 1}`,
+      is_benchmark: false,
+      monthly_returns: [],
+      ranks: months.map((_, month) => ((index + month) % 10) + 1),
+    }));
+    render(() => <SectorRankHeatmap months={months} series={series} />);
+    const svg = screen.getByTestId("history-rank-heatmap");
+    expect(svg).toHaveAttribute("viewBox", "0 0 860 254");
+    expect(svg.style.maxWidth).toBe("860px");
+    expect(svg.style.minWidth).toBe("860px");
+    // 10 rows: 34 header + 10 * 22 = 254 viewBox units, 1:1 at 860px.
+    expect(10 * 22 + 34).toBe(254);
+    const layout = screen.getByTestId("history-rank-layout");
+    expect(layout).toHaveClass("flex", "flex-wrap");
+    const chart = screen.getByTestId("history-rank-chart");
+    expect(chart.style.width).toBe("860px");
+    expect(chart.style.flex).toBe("0 0 auto");
+    const aside = screen.getByTestId("history-rank-aside");
+    expect(aside.style.flex).toBe("1 1 200px");
+    expect(aside.style.minWidth).toBe("200px");
+    expect(within(aside).getByTestId("history-rank-latest-key")).toBeInTheDocument();
+    expect(within(aside).getByTestId("history-rank-heatmap-legend")).toHaveTextContent(
+      "1 best → 10 worst",
+    );
+  });
+
+  test("makes every rank cell keyboard-focusable with a month, sector and rank label", () => {
+    render(() => <SectorRankHeatmap months={MONTHS} series={SERIES} />);
+    const svg = screen.getByTestId("history-rank-heatmap");
+    expectRovingCells(svg, "[data-cell]", MONTHS.length * 3);
+    expect(svg.querySelector('[data-cell="rank-0-0"]')?.getAttribute("aria-label")).toBe(
+      "2025-01 · NIFTY IT · rank 1",
+    );
+  });
+
+  test("uses one rank tab stop and moves it with arrow keys", () => {
+    render(() => <SectorRankHeatmap months={MONTHS} series={SERIES} />);
+    const svg = screen.getByTestId("history-rank-heatmap");
+    const first = svg.querySelector('[data-cell="rank-0-0"]') as Element;
+    const right = svg.querySelector('[data-cell="rank-0-1"]') as Element;
+    const current = svg.querySelector('[data-cell="rank-1-1"]') as Element;
+    expect(first).toHaveAttribute("tabindex", "0");
+
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+    expect(right).toHaveAttribute("tabindex", "0");
+    expect(first).toHaveAttribute("tabindex", "-1");
+    expect(document.activeElement).toBe(right);
+
+    fireEvent.keyDown(right, { key: "ArrowDown" });
+    expect(current).toHaveAttribute("tabindex", "0");
+    expect(right).toHaveAttribute("tabindex", "-1");
+    expect(document.activeElement).toBe(current);
+
+    fireEvent.keyDown(current, { key: "Enter" });
+    expect(current).toHaveAttribute("tabindex", "0");
+    expect(document.activeElement).toBe(current);
+  });
+});
+
+describe("SeasonalityHeatmap legend and hit-rate cue", () => {
+  test("encodes hit rate as a bottom bar without replacing the return text", () => {
+    render(() => <SeasonalityHeatmap cells={SEASONALITY} names={["NIFTY IT", "PSU BANK"]} />);
+    const svg = screen.getByTestId("history-seasonality");
+    const high = svg.querySelector('[data-hit-bar="seasonality-0-0"]');
+    const low = svg.querySelector('[data-hit-bar="seasonality-0-1"]');
+    expect(high).toHaveAttribute("data-hit-pct", "60");
+    expect(low).toHaveAttribute("data-hit-pct", "40");
+    expect(Number(high?.getAttribute("width"))).toBeCloseTo(22.2, 5);
+    expect(Number(low?.getAttribute("width"))).toBeCloseTo(14.8, 5);
+    expect(screen.getByText("+2.1%")).toBeInTheDocument();
+    expect(screen.getByText("-1.4%")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Jan · NIFTY IT · avg +2.1% · hit rate 60% · n=5"),
+    ).toBeInTheDocument();
+  });
+
+  test("names the return scale, hit-rate bar and honest sample size", () => {
+    render(() => <SeasonalityHeatmap cells={SEASONALITY} names={["NIFTY IT", "PSU BANK"]} />);
+    expect(screen.getByText("avg monthly return")).toBeInTheDocument();
+    expect(screen.getByText("bar = up-month hit rate")).toBeInTheDocument();
+    const note = screen.getByTestId("history-seasonality-note");
+    expect(note).toHaveTextContent("n=3–5 per month");
+    expect(note).toHaveTextContent("history, not a forecast");
+    expect(screen.queryByText(/forecast return/i)).not.toBeInTheDocument();
+  });
+
+  test("keeps the hit-rate legend above the matrix, outside the horizontal scrollport", () => {
+    render(() => <SeasonalityHeatmap cells={SEASONALITY} names={["NIFTY IT", "PSU BANK"]} />);
+    const legend = screen.getByTestId("history-seasonality-legend");
+    const scroll = screen.getByTestId("history-seasonality-scroll");
+    const svg = screen.getByTestId("history-seasonality");
+    expect(legend).toHaveTextContent("bar = up-month hit rate");
+    expect(legend).toHaveTextContent("hit rate and n in each cell label");
+    expect(legend).toHaveTextContent("avg monthly return");
+    expect(legend).toHaveTextContent("negativeflatpositive");
+    const note = screen.getByTestId("history-seasonality-note");
+    expect(note).toHaveTextContent("n=3–5 per month");
+    expect(note).toHaveTextContent("history, not a forecast");
+    expect(scroll.contains(legend)).toBe(false);
+    expect(scroll.contains(note)).toBe(false);
+    expect(svg.textContent).not.toContain("avg monthly return");
+    expect(svg.textContent).not.toContain("n=3–5 per month · history, not a forecast");
+    expect(svg.querySelector('[data-testid="history-seasonality-note"]')).toBeNull();
+    expect(legend.compareDocumentPosition(scroll) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  test("scrolls horizontally instead of shrinking cell text below legibility", () => {
+    render(() => <SeasonalityHeatmap cells={SEASONALITY} names={["NIFTY IT", "PSU BANK"]} />);
+    const scroll = screen.getByTestId("history-seasonality-scroll");
+    const svg = screen.getByTestId("history-seasonality");
+    expect(scroll.style.overflowX).toBe("auto");
+    expect(svg).toHaveAttribute("viewBox", "0 0 682 78");
+    expect(svg.style.minWidth).toBe("682px");
+    expect(svg.style.maxWidth).toBe("682px");
+    expectAccessibleLabels(svg);
+    expectRovingCells(svg, "[data-cell]", 24);
+    expect(svg.querySelector('[data-cell="seasonality-0-0"]')?.getAttribute("aria-label")).toBe(
+      "Jan · NIFTY IT · avg +2.1% · hit rate 60% · n=5",
+    );
+  });
+
+  test("keeps full sector names in the label rail", () => {
+    const cells: SectorHistorySeasonality[] = [
+      { name: "NIFTY CONSUMPTION", month: 1, avg_return: 1.2, hit_rate: 0.6, n: 5 },
+      { name: "NIFTY FIN_SERVICE", month: 2, avg_return: -0.8, hit_rate: 0.4, n: 5 },
+    ];
+    render(() => (
+      <SeasonalityHeatmap cells={cells} names={["NIFTY CONSUMPTION", "NIFTY FIN_SERVICE"]} />
+    ));
+    const svg = screen.getByTestId("history-seasonality");
+    expect(within(svg).getAllByText("NIFTY CONSUMPTION").length).toBeGreaterThan(0);
+    expect(within(svg).getAllByText("NIFTY FIN_SERVICE").length).toBeGreaterThan(0);
+    expect(svg.textContent).not.toContain("…");
+    expect(screen.getByTestId("history-seasonality-row-rail")).toHaveTextContent(
+      "NIFTY CONSUMPTION",
+    );
+    expect(screen.getByTestId("history-seasonality-row-rail").style.position).toBe("sticky");
+  });
+
+  test("keeps the strongest seasonal washes at AA contrast", () => {
+    const cells: SectorHistorySeasonality[] = [
+      { name: "NIFTY IT", month: 1, avg_return: 10, hit_rate: 0.8, n: 5 },
+      { name: "PSU BANK", month: 1, avg_return: -10, hit_rate: 0.2, n: 5 },
+    ];
+    render(() => <SeasonalityHeatmap cells={cells} names={["NIFTY IT", "PSU BANK"]} />);
+    const svg = screen.getByTestId("history-seasonality");
+    const positive = svg.querySelector('[data-cell="seasonality-0-0"]') as Element;
+    const negative = svg.querySelector('[data-cell="seasonality-1-0"]') as Element;
+    expectContrast(positive);
+    expectContrast(negative);
+    expect(Number(positive.getAttribute("fill-opacity"))).toBeLessThanOrEqual(0.64);
+    expect(Number(negative.getAttribute("fill-opacity"))).toBeLessThanOrEqual(0.64);
+  });
+
+  test("uses one seasonality tab stop and moves it with arrow keys", () => {
+    render(() => <SeasonalityHeatmap cells={SEASONALITY} names={["NIFTY IT", "PSU BANK"]} />);
+    const svg = screen.getByTestId("history-seasonality");
+    const first = svg.querySelector('[data-cell="seasonality-0-0"]') as Element;
+    const down = svg.querySelector('[data-cell="seasonality-1-0"]') as Element;
+    expect(first).toHaveAttribute("tabindex", "0");
+    fireEvent.keyDown(first, { key: "ArrowDown" });
+    expect(down).toHaveAttribute("tabindex", "0");
+    expect(first).toHaveAttribute("tabindex", "-1");
+    expect(document.activeElement).toBe(down);
+    fireEvent.keyDown(down, { key: " " });
+    expect(down).toHaveAttribute("tabindex", "0");
+    expect(document.activeElement).toBe(down);
+  });
+});
+
+describe("PersistenceMatrix axes, contrast and top-3 context", () => {
+  test("names both axes and outlines the top-3 transition region", () => {
+    const matrix: (number | null)[][] = [
+      [0.5, 0.2, 0.05, 0.05],
+      [0.15, 0.45, 0.1, 0.05],
+      [0.05, 0.1, 0.4, 0.1],
+      [0.1, 0.1, 0.1, 0.2],
+    ];
+    render(() => <PersistenceMatrix names={PERSISTENCE_NAMES} matrix={matrix} />);
+    const svg = screen.getByTestId("history-persistence");
+    expect(screen.getByText("rows: this month rank ↓")).toBeInTheDocument();
+    expect(screen.getByText("columns: next month rank →")).toBeInTheDocument();
+    expect(svg.querySelector('[data-top3-zone="true"]')).not.toBeNull();
+    expect(svg.querySelector('[data-cell="persistence-0-0"]')).toHaveAttribute("data-top3", "true");
+    expect(svg.querySelector('[data-cell="persistence-2-2"]')).toHaveAttribute("data-top3", "true");
+    expect(screen.getByTestId("history-persistence-stickiness")).toHaveTextContent(
+      "top-3 stickiness 91%",
+    );
+    expect(screen.getByText("dashed box = rows #1–#3 → cols #1–#3")).toBeInTheDocument();
+  });
+
+  test("keeps exact transition values in tooltips and labels the large cells", () => {
+    render(() => <PersistenceMatrix names={PERSISTENCE_NAMES} matrix={PERSISTENCE_MATRIX} />);
+    expect(screen.getByLabelText("#1 → #1 · 50%")).toBeInTheDocument();
+    expect(screen.getByLabelText("#2 → #3 · 10%")).toBeInTheDocument();
+    expect(screen.getAllByText("10%")).toHaveLength(2);
+    expect(screen.queryByText("5%")).not.toBeInTheDocument();
+    expect(screen.getByText("cell value = share of transitions")).toBeInTheDocument();
+    expect(screen.getByText("diagonal = stayed · labels ≥10%")).toBeInTheDocument();
+  });
+
+  test("keeps ink at AA contrast across the whole amber wash", () => {
+    render(() => <PersistenceMatrix names={PERSISTENCE_NAMES} matrix={PERSISTENCE_MATRIX} />);
+    const svg = screen.getByTestId("history-persistence");
+    const cells = Array.from(svg.querySelectorAll("[data-cell][data-ink]"));
+    expect(cells.length).toBe(9);
+    for (const cell of cells) {
+      const opacity = Number(cell.getAttribute("fill-opacity"));
+      const bg = compositeOver(String(cell.getAttribute("fill")), SURFACE, opacity);
+      const ink = String(cell.getAttribute("data-ink"));
+      const ratio = contrastRatio(ink, bg);
+      expect(
+        ratio,
+        `${ink} on ${bg} (opacity ${opacity}) = ${ratio.toFixed(2)}:1`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(svg.querySelectorAll("[data-rail]")).toHaveLength(9);
+  });
+
+  test("renders an optional monthly transition denominator and hides it when absent", () => {
+    const { unmount } = render(() => (
+      <PersistenceMatrix
+        names={PERSISTENCE_NAMES}
+        matrix={PERSISTENCE_MATRIX}
+        transitionCount={590}
+      />
+    ));
+    const svg = screen.getByTestId("history-persistence");
+    expect(screen.getByTestId("history-persistence-count")).toHaveTextContent(
+      "n=590 monthly transitions",
+    );
+    expect(svg).toHaveAttribute("viewBox", "0 0 222 202");
+    unmount();
+
+    render(() => <PersistenceMatrix names={PERSISTENCE_NAMES} matrix={PERSISTENCE_MATRIX} />);
+    expect(screen.queryByTestId("history-persistence-count")).not.toBeInTheDocument();
+    expect(screen.getByTestId("history-persistence")).toHaveAttribute("viewBox", "0 0 222 188");
+  });
+
+  test("makes every transition cell keyboard-focusable", () => {
+    render(() => <PersistenceMatrix names={PERSISTENCE_NAMES} matrix={PERSISTENCE_MATRIX} />);
+    const svg = screen.getByTestId("history-persistence");
+    expectRovingCells(svg, "[data-cell]", 9);
+    expect(svg.querySelector('[data-cell="persistence-0-0"]')?.getAttribute("aria-label")).toBe(
+      "#1 → #1 · 50%",
+    );
+  });
+
+  test("uses one persistence tab stop and moves it with arrow keys", () => {
+    render(() => <PersistenceMatrix names={PERSISTENCE_NAMES} matrix={PERSISTENCE_MATRIX} />);
+    const svg = screen.getByTestId("history-persistence");
+    const first = svg.querySelector('[data-cell="persistence-0-0"]') as Element;
+    const next = svg.querySelector('[data-cell="persistence-1-0"]') as Element;
+    expect(first).toHaveAttribute("tabindex", "0");
+    fireEvent.keyDown(first, { key: "ArrowDown" });
+    expect(next).toHaveAttribute("tabindex", "0");
+    expect(first).toHaveAttribute("tabindex", "-1");
+    expect(document.activeElement).toBe(next);
+    fireEvent.keyDown(next, { key: "ArrowRight" });
+    expect(svg.querySelector('[data-cell="persistence-1-1"]')).toHaveAttribute("tabindex", "0");
+    expect(document.activeElement).toBe(svg.querySelector('[data-cell="persistence-1-1"]'));
+  });
+
+  test("keeps row identity in a sticky rail when scrolled to the last ranks", () => {
+    const matrix = Array.from({ length: 10 }, (_, row) =>
+      Array.from({ length: 10 }, (_, col) => (row === col ? 10 : null)),
+    );
+    render(() => <PersistenceMatrix names={[]} matrix={matrix} />);
+    const rail = screen.getByTestId("history-persistence-row-rail");
+    expect(rail.style.position).toBe("sticky");
+    expect(rail.style.left).toBe("0px");
+    expect(rail.textContent).toBe(
+      Array.from({ length: 10 }, (_, index) => `#${index + 1}`).join(""),
+    );
+    expect(rail.querySelectorAll("div")).toHaveLength(10);
+    expect(screen.getByTestId("history-persistence").style.maxWidth).toBe("558px");
+  });
+
+  test("keeps a 10-rank matrix legible in a horizontal scroll wrapper", () => {
+    const matrix = Array.from({ length: 10 }, (_, row) =>
+      Array.from({ length: 10 }, (_, col) => (row === col ? 10 : null)),
+    );
+    render(() => <PersistenceMatrix names={[]} matrix={matrix} />);
+    const scroll = screen.getByTestId("history-persistence-scroll");
+    const svg = screen.getByTestId("history-persistence");
+    expect(scroll.style.overflowX).toBe("auto");
+    expect(svg).toHaveAttribute("viewBox", "0 0 558 356");
+    expect(svg.style.minWidth).toBe("558px");
+    expectAccessibleLabels(svg);
+  });
+});
+
+describe("MiniSparkline baseline and sign colours", () => {
+  test("draws a zero baseline with palette-coded segments", () => {
+    render(() => <MiniSparkline values={[-4, 3, -2, 5]} />);
+    const svg = screen.getByTestId("history-sparkline");
+    const baseline = svg.querySelector("[data-baseline]");
+    expect(baseline).not.toBeNull();
+    const y = Number(baseline?.getAttribute("y1"));
+    expect(y).toBeGreaterThan(2);
+    expect(y).toBeLessThan(22);
+    expect(svg.querySelector('[data-sign="positive"]')).toHaveAttribute("stroke", POSITIVE);
+    expect(svg.querySelector('[data-sign="negative"]')).toHaveAttribute("stroke", NEGATIVE);
+    expectAccessibleLabels(svg);
+  });
+});

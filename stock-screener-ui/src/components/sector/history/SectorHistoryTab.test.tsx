@@ -26,7 +26,9 @@ vi.mock("./visuals/SeasonalityHeatmap", () => ({
 }));
 
 vi.mock("./visuals/PersistenceMatrix", () => ({
-  PersistenceMatrix: () => <div data-testid="persistence-matrix" />,
+  PersistenceMatrix: (props: { transitionCount?: number }) => (
+    <div data-testid="persistence-matrix" data-transition-count={String(props.transitionCount)} />
+  ),
 }));
 
 vi.mock("./visuals/RotationTimeline", () => ({
@@ -132,7 +134,11 @@ describe("SectorHistoryTab", () => {
     renderTab();
 
     expect(screen.getByText("Sector History")).toBeInTheDocument();
-    expect(screen.getByTestId("sector-history-loading")).toBeInTheDocument();
+    const loading = screen.getByTestId("sector-history-loading");
+    expect(loading).toHaveTextContent("Loading sector history");
+    expect(loading).toHaveTextContent(
+      "Fetching monthly sector ranks, seasonality and risk metrics.",
+    );
     expect(screen.queryByTestId("sector-history-empty")).not.toBeInTheDocument();
   });
 
@@ -143,6 +149,7 @@ describe("SectorHistoryTab", () => {
     expect(await screen.findByTestId("sector-rank-heatmap")).toBeInTheDocument();
     expect(screen.getByTestId("seasonality-heatmap")).toBeInTheDocument();
     expect(screen.getByTestId("persistence-matrix")).toBeInTheDocument();
+    expect(screen.getByTestId("persistence-matrix")).toHaveAttribute("data-transition-count", "4");
     expect(screen.getByTestId("rotation-timeline")).toBeInTheDocument();
     expect(screen.getByTestId("sector-history-risk-table")).toBeInTheDocument();
     expect(screen.getByTestId("sector-history-asof")).toHaveTextContent("As of 2026-03-31");
@@ -159,16 +166,105 @@ describe("SectorHistoryTab", () => {
     expect(within(table).getByText("0.0%")).toBeInTheDocument();
     expect(within(table).queryByText("+0.0%")).not.toBeInTheDocument();
     expect(within(table).getAllByText("—").length).toBeGreaterThanOrEqual(3);
+    expect(within(table).getByText("Cumulative return")).toBeInTheDocument();
+    expect(screen.getByTestId("sector-history-risk-spark-Technology")).toHaveAttribute(
+      "title",
+      "Cumulative return +4.3%",
+    );
+    expect(screen.getByTestId("sector-history-risk-spark-Technology")).toHaveTextContent("+4.3%");
   });
 
-  test("shows an error state and retries the request", async () => {
+  test("renders one header and description for every panel", async () => {
+    mockFetchSectorHistory.mockResolvedValue(response());
+    renderTab();
+    await screen.findByTestId("sector-rank-heatmap");
+
+    const panels = [
+      ["sector-history-rank-panel", "Sector Rank History", "2 sectors · monthly rank"],
+      ["sector-history-seasonality-panel", "Seasonality", "avg return by calendar month"],
+      ["sector-history-persistence-panel", "Persistence", "top-3 rank stickiness"],
+      ["sector-history-rotation-panel", "Rotation Timeline", "rank trajectory over time"],
+      ["sector-history-risk-panel", "Risk", "drawdown · Sharpe · volatility"],
+    ];
+
+    for (const [testId, title, description] of panels) {
+      const panel = screen.getByTestId(testId);
+      expect(within(panel).getByText(title)).toBeInTheDocument();
+      expect(within(panel).getByText(description)).toBeInTheDocument();
+      expect(within(panel).getByTestId("status")).toHaveClass("text-ui-micro");
+    }
+  });
+
+  test("exposes labelled keyboard scroll regions with a hint for every chart", async () => {
+    mockFetchSectorHistory.mockResolvedValue(response());
+    renderTab();
+    await screen.findByTestId("sector-rank-heatmap");
+
+    const regions: Array<[string, RegExp]> = [
+      ["sector-history-rank-scroll", /Sector rank history/],
+      ["sector-history-seasonality-scroll", /Seasonality heatmap/],
+      ["sector-history-persistence-scroll", /Rank persistence matrix/],
+    ];
+
+    for (const [testId, label] of regions) {
+      const region = screen.getByTestId(testId);
+      expect(region).toHaveAttribute("role", "region");
+      expect(region).toHaveAttribute("tabindex", "0");
+      expect(region.getAttribute("aria-label")).toMatch(label);
+      const hint = screen.getByTestId(`${testId}-hint`);
+      expect(hint).toHaveTextContent("Scroll →");
+      expect(hint).not.toHaveClass("sm:hidden");
+      expect(region).not.toContainElement(hint);
+    }
+  });
+
+  test("pins the risk sector column and exposes the table scrollport as a region", async () => {
+    mockFetchSectorHistory.mockResolvedValue(response());
+    renderTab();
+    await screen.findByTestId("sector-history-risk-table");
+
+    const panel = screen.getByTestId("sector-history-risk-panel");
+    const scroller = panel.querySelector<HTMLElement>(".paper-tanstack-scroll")!;
+    expect(scroller).not.toBeNull();
+    await waitFor(() => {
+      expect(scroller).toHaveAttribute("role", "region");
+    });
+    expect(scroller).toHaveAttribute("tabindex", "0");
+    expect(scroller).toHaveAttribute(
+      "aria-label",
+      "Sector history risk metrics, scroll sideways for all columns",
+    );
+    const hint = within(panel).getByTestId("sector-history-risk-scroll-hint");
+    expect(hint).toHaveTextContent("Scroll →");
+    expect(hint).not.toHaveClass("sm:hidden");
+    expect(scroller).not.toContainElement(hint);
+    const sticky = within(panel).getByTestId("sector-history-risk-sticky-style");
+    expect(sticky.textContent).toContain("td:first-child");
+    expect(sticky.textContent).toContain("position: sticky");
+    expect(sticky.textContent).toContain("height: 20px");
+    expect(sticky.textContent).toContain("padding-top: 1px");
+    const table = screen.getByTestId("sector-history-risk-table");
+    expect(table.style.getPropertyValue("--tbl-row-h")).toBe("18px");
+    expect(table.style.getPropertyValue("--tbl-cell-pad")).toBe("1px 6px");
+    const spark = screen.getByTestId("sector-history-risk-spark-Technology");
+    expect(spark).toHaveClass("flex");
+    expect(spark).not.toHaveClass("inline-flex");
+  });
+
+  test("maps a raw unavailable code to human copy and retries", async () => {
     mockFetchSectorHistory
-      .mockRejectedValueOnce(new Error("history down"))
+      .mockRejectedValueOnce(new Error("sector_history_unavailable"))
       .mockResolvedValue(response());
 
     renderTab();
 
-    expect(await screen.findByTestId("sector-history-error")).toHaveTextContent("history down");
+    const error = await screen.findByTestId("sector-history-error");
+    expect(error).toHaveTextContent("Sector history is temporarily unavailable. Try again.");
+    expect(within(error).getByTestId("sector-history-error-code")).toHaveTextContent(
+      "sector_history_unavailable",
+    );
+    expect(within(error).getByTestId("sector-history-retry")).toBeInTheDocument();
+
     fireEvent.click(screen.getByTestId("sector-history-retry"));
 
     expect(await screen.findByTestId("sector-rank-heatmap")).toBeInTheDocument();
@@ -220,7 +316,36 @@ describe("SectorHistoryTab", () => {
     );
     renderTab();
 
-    expect(await screen.findByTestId("sector-history-empty")).toBeInTheDocument();
+    const empty = await screen.findByTestId("sector-history-empty");
+    expect(empty).toHaveTextContent("No sector history");
+    expect(empty).toHaveTextContent("No history is available for India over 5Y.");
+    expect(within(empty).getByTestId("sector-history-empty-refresh")).toBeInTheDocument();
+  });
+
+  test("maps a generic fetch failure to the same human copy", async () => {
+    mockFetchSectorHistory.mockRejectedValueOnce(new Error("Failed to fetch sector history"));
+    renderTab();
+
+    const error = await screen.findByTestId("sector-history-error");
+    expect(error).toHaveTextContent("Sector history is temporarily unavailable. Try again.");
+  });
+
+  test("empty state refresh reissues the request", async () => {
+    mockFetchSectorHistory
+      .mockResolvedValueOnce(
+        response({ months: [], universe: [], series: [], risk: [], seasonality: [] }),
+      )
+      .mockResolvedValue(response());
+
+    renderTab();
+
+    const empty = await screen.findByTestId("sector-history-empty");
+    fireEvent.click(within(empty).getByTestId("sector-history-empty-refresh"));
+
+    expect(await screen.findByTestId("sector-rank-heatmap")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockFetchSectorHistory).toHaveBeenCalledTimes(2);
+    });
   });
 
   test("shows the empty state for a malformed empty payload without crashing", async () => {
