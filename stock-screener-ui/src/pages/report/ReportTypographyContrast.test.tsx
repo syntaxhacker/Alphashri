@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test } from "vitest";
-import { UIProvider } from "@/ui";
+import { TYPE_SCALE, UIProvider } from "@/ui";
 import {
   BG,
   BORDER,
@@ -14,14 +14,14 @@ import {
   TEXT_MUTED,
 } from "@/ui/palette";
 import { contrastRatio, parseColor, pickTextColor } from "@/utils/contrast";
-import { REPORT_FONT } from "./reportTokens";
+import { REPORT_FONT, REPORT_RADIUS } from "./reportTokens";
 import { DeskDock } from "./DeskDock";
 import type { DeskDockTab } from "./DeskDock";
 import { NiftyCoilGauge } from "./NiftyCoilGauge";
 import type { NiftyRegimeBlock } from "@/types/niftyReport";
 
 const HERE = join(process.cwd(), "src/pages/report");
-const FLOOR = 11;
+const FLOOR = REPORT_FONT.micro;
 const AA_TEXT = 4.5;
 const AA_GRAPHIC = 3;
 
@@ -73,7 +73,7 @@ const FIN_TOKEN: Record<string, string> = {
 afterEach(cleanup);
 
 describe("Index Report typography floor — owned files", () => {
-  test("(a) no font-size below 11px in any owned file", () => {
+  test(`(a) no font-size below ${FLOOR}px in any owned file`, () => {
     const offenders = literalSizes().filter(({ px }) => px < FLOOR);
     expect(
       offenders.map(({ file, line, px }) => `${file}:${line} = ${px}px`),
@@ -81,21 +81,30 @@ describe("Index Report typography floor — owned files", () => {
     ).toEqual([]);
   });
 
-  test("(e) the type scale stays closed — canonical ladder plus the dense-table step", () => {
-    const tokens = Object.entries(REPORT_FONT)
-      .filter(([, value]) => typeof value === "number")
-      .map(([, value]) => value as number);
-    const sizes = new Set([...tokens, ...literalSizes().map(({ px }) => px)]);
+  test("display is the DS Title xl 24px, with no private 23px verdict", () => {
+    expect(REPORT_FONT.display).toBe(24);
+    expect(REPORT_FONT.verdict).toBe(REPORT_FONT.display);
+  });
 
-    // The canonical ladder is REPORT_FONT's micro 11 / body 13 / value 17 /
-    // display 23. 12px survives only as the dense-table step (OI chain
-    // expander, pressure-desk readouts), so the owned files may emit one size
-    // beyond the ladder — never a sixth, and never anything new.
-    const DENSE_TABLE_STEP = 12;
-    const ladder = [...new Set([...tokens, DENSE_TABLE_STEP])].sort((a, b) => a - b);
+  test("radii come only from the terminal 2/4/6/10 vocabulary", () => {
+    expect(Object.values(REPORT_RADIUS).filter((v) => typeof v === "number")).toEqual([2, 4, 6, 10]);
+  });
 
-    expect([...sizes].sort((a, b) => a - b)).toEqual(ladder);
-    expect(sizes.size).toBeLessThanOrEqual(ladder.length);
+  test("(e) the ladder is the shared 12/13/16/20/24 scale, not a private dialect", () => {
+    const tokens = Object.values(REPORT_FONT).filter(
+      (value): value is number => typeof value === "number",
+    );
+    const shared = Object.values(TYPE_SCALE).map((step) => step.size);
+
+    for (const px of tokens) expect(shared, `${px}px`).toContain(px);
+    expect([...new Set(tokens)].sort((a, b) => a - b)).toEqual([12, 13, 16, 24]);
+    expect(REPORT_FONT.micro).toBe(TYPE_SCALE.micro.size);
+    expect(REPORT_FONT.body).toBe(TYPE_SCALE.body.size);
+    expect(REPORT_FONT.value).toBe(TYPE_SCALE.title.size);
+    expect(REPORT_FONT.display).toBe(TYPE_SCALE.display.size);
+
+    const literals = literalSizes();
+    expect(literals.map(({ file, line, px }) => `${file}:${line} = ${px}px`)).toEqual([]);
   });
 });
 

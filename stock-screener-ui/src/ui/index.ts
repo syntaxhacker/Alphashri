@@ -73,6 +73,14 @@ export { CloseButton } from "./misc/CloseButton";
 export { DatePicker } from "./dates/DatePicker";
 
 export { UIProvider, uiTheme } from "./theme";
+export {
+  TYPE_CLASS,
+  TYPE_SCALE,
+  typeSize,
+  typeStyle,
+  typeToken,
+  type TypeRole,
+} from "./typography";
 export { cn } from "./cn";
 export { alpha } from "./alpha";
 

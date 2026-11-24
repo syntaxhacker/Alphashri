@@ -102,6 +102,21 @@ describe("SectorPage", () => {
     expect(screen.getByText("IT")).toBeInTheDocument();
   });
 
+  it("keeps the top sector name whole at 390 — no mid-word ellipsis, full name in the title", async () => {
+    mockFetchSectorPerformance.mockResolvedValue({
+      ...mockResponse,
+      sectors: [{ ...mockSectors[0], sector: "Technology" }, ...mockSectors.slice(1)],
+    });
+    render(() => <SectorPage />);
+    const name = (await screen.findByTestId("sector-top-summary-name")) as HTMLElement;
+    expect(name).toHaveTextContent("Technology");
+    // Native tooltip carries the full value even if a narrow parent clips it.
+    expect(name).toHaveAttribute("title", "Technology");
+    // CSS ellipsis would cut a single word into "Techno…"; the name must wrap instead.
+    expect(name.style.textOverflow).not.toBe("ellipsis");
+    expect(name.style.whiteSpace).not.toBe("nowrap");
+  });
+
   it("renders Top Sector card with avg change value", async () => {
     mockFetchSectorPerformance.mockResolvedValue(mockResponse);
     render(() => <SectorPage />);
@@ -197,6 +212,74 @@ describe("SectorPage", () => {
     expect(screen.getByText("Live Dashboard")).toBeInTheDocument();
     expect(screen.getByText("Sector Correlation")).toBeInTheDocument();
     expect(screen.getByText("Rotation")).toBeInTheDocument();
+  });
+
+  it("keeps the tab strip scrollable with one-line labels and an overflow cue", () => {
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    render(() => <SectorPage />);
+    const strip = screen.getByTestId("sector-tabs-list");
+    expect(strip).toHaveClass("overflow-x-auto");
+    expect(strip).toHaveClass("flex-nowrap");
+    for (const label of ["Live Dashboard", "Sector Correlation", "Rotation"]) {
+      const tab = screen.getByText(label).closest('[role="tab"]');
+      expect(tab).toHaveClass("whitespace-nowrap");
+    }
+    const cue = screen.getByTestId("sector-tabs-overflow-cue");
+    expect(cue).toHaveTextContent("→");
+    expect(cue).toHaveClass("lg:hidden");
+  });
+
+  it("reaches and selects off-screen tabs with arrow keys inside the scroll strip", async () => {
+    window.history.replaceState({}, "", "/sector");
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    render(() => <SectorPage />);
+    const dashboardTab = screen.getByText("Live Dashboard").closest('[role="tab"]')!;
+    fireEvent.keyDown(dashboardTab, { key: "ArrowRight" });
+    await waitFor(() => {
+      expect(screen.getByText("Sector Correlation").closest('[role="tab"]')).toHaveAttribute("aria-selected", "true");
+    });
+    expect(window.location.search).toContain("tab=correlation");
+
+    // A second hop reaches the last tab, which is the one clipped at 390.
+    const correlationTab = screen.getByText("Sector Correlation").closest('[role="tab"]')!;
+    fireEvent.keyDown(correlationTab, { key: "ArrowRight" });
+    await waitFor(() => {
+      expect(screen.getByText("Rotation").closest('[role="tab"]')).toHaveAttribute("aria-selected", "true");
+    });
+    expect(window.location.search).toContain("tab=rotation");
+  });
+
+  it("makes the focusable region the sole horizontal scroller with a sideways cue", async () => {
+    mockFetchSectorPerformance.mockResolvedValue(mockResponse);
+    render(() => <SectorPage />);
+    await waitFor(() => expect(screen.getByText("Sector Performance")).toBeInTheDocument());
+    const region = screen.getByTestId("sector-table-container");
+    expect(region).toHaveAttribute("role", "region");
+    expect(region).toHaveAttribute("aria-label", "Sector performance table, scroll sideways for all columns");
+    expect(region).toHaveAttribute("tabindex", "0");
+    expect(region).toHaveAttribute("data-scroll", "horizontal");
+    expect(region).toHaveClass("overflow-auto");
+    // The shared table's own scrollport is switched off, so there is no
+    // nested overflow:auto competing with the focused region.
+    const scrollStyle = screen.getByTestId("sector-table-scroll-style").textContent ?? "";
+    expect(scrollStyle).toContain('[data-testid="sector-table-container"] .paper-tanstack-container');
+    expect(scrollStyle).toContain('[data-testid="sector-table-container"] .paper-tanstack-scroll');
+    expect(scrollStyle).toContain("overflow: visible");
+    const cue = screen.getByTestId("sector-table-scroll-cue");
+    expect(cue).toHaveTextContent("Scroll sideways");
+    expect(cue).toHaveClass("lg:hidden");
+  });
+
+  it("scrolls the focused table region itself with arrow keys", async () => {
+    mockFetchSectorPerformance.mockResolvedValue(mockResponse);
+    render(() => <SectorPage />);
+    await waitFor(() => expect(screen.getByText("Sector Performance")).toBeInTheDocument());
+    const region = screen.getByTestId("sector-table-container") as HTMLElement;
+    region.scrollLeft = 10;
+    fireEvent.keyDown(region, { key: "ArrowRight" });
+    expect(region.scrollLeft).toBe(90);
+    fireEvent.keyDown(region, { key: "ArrowLeft" });
+    expect(region.scrollLeft).toBe(10);
   });
 
   it("does not render the legacy Historical Cycles tab", () => {

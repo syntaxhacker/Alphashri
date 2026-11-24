@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui/typography";
 import type { ChartInput, MarkLineData } from "./types";
 import { buildGrid } from "./buildGrid";
 import { buildSeries } from "./buildSeries";
@@ -201,7 +202,7 @@ export function buildChartOption(input: ChartInput): ChartOption {
       candleSeries.markLine = {
         symbol: ["none", "none"],
         data: liveMarkLines,
-        label: { color: "inherit", fontSize: 11, formatter: "{b}" },
+        label: { color: "inherit", fontSize: typeSize("micro"), formatter: "{b}" },
       };
     } else {
       candleSeries.markLine.data.push(...liveMarkLines);
@@ -243,7 +244,7 @@ export function buildChartOption(input: ChartInput): ChartOption {
       ? {
           text: input.title,
           left: "center",
-          textStyle: { color: colors.textColor, fontSize: 14 },
+          textStyle: { color: colors.textColor, fontSize: typeSize("label") },
         }
       : undefined,
     tooltip: {
@@ -252,7 +253,7 @@ export function buildChartOption(input: ChartInput): ChartOption {
       backgroundColor: tooltipBg,
       borderColor: colors.borderColor,
       borderWidth: 1,
-      textStyle: { color: colors.textColor, fontSize: theme.fontSizes?.sm ?? 12 },
+      textStyle: { color: colors.textColor, fontSize: typeSize("micro") },
       formatter: tooltip,
     },
     legend,

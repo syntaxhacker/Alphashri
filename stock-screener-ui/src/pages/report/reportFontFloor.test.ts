@@ -1,18 +1,22 @@
-// @vitest-environment node
+// @vitest-environment happy-dom
 /**
  * Typography-floor guard for the Index Report surface.
  *
+ * Runs in happy-dom because REPORT_FONT now derives from `TYPE_SCALE` via the
+ * `@/ui` barrel, which registers Solid DOM events when imported.
+ *
  * The audit found 91 sub-10px declarations on /report/index. The redesign
- * target is a 13/12/11 scale (docs/INDEX_REPORT_REDESIGN.md), and the report
- * token scale owns the floor. A literal that slips under it is a legibility
- * bug, not a style choice — including text drawn inside an SVG chart.
+ * target is now the shared 12/13/16/24 scale (docs/INDEX_REPORT_REDESIGN.md),
+ * with the report tokens derived from `TYPE_SCALE`. A literal that slips under
+ * the floor — or off the shared scale — is a legibility bug, not a style
+ * choice, including text drawn inside an SVG chart.
  */
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { REPORT_FONT } from "./reportTokens";
 
-const HERE = fileURLToPath(new URL(".", import.meta.url));
+const HERE = join(process.cwd(), "src/pages/report");
 
 const GUARDED_FILES = [
   "reportTokens.ts",
@@ -33,13 +37,13 @@ const GUARDED_FILES = [
   "BreadthStrip.tsx",
 ] as const;
 
-const FLOOR = 11;
+const FLOOR = REPORT_FONT.micro;
 
 const FONT_SIZE =
   /text-\[(\d+(?:\.\d+)?)px\]|"font-size":\s*"(\d+(?:\.\d+)?)px"|fontSize:\s*(\d+(?:\.\d+)?)\b|font-size="(\d+(?:\.\d+)?)"/g;
 
 function source(file: string): string {
-  return readFileSync(`${HERE}${file}`, "utf8");
+  return readFileSync(join(HERE, file), "utf8");
 }
 
 function belowFloor(file: string): string[] {
@@ -59,7 +63,7 @@ function belowFloor(file: string): string[] {
 }
 
 describe("report typography floor", () => {
-  it("REPORT_FONT.micro is the 11px floor and the scale is monotone", () => {
+  it("REPORT_FONT.micro is the 12px floor and the scale is monotone", () => {
     expect(REPORT_FONT.micro).toBe(FLOOR);
     const steps = ["micro", "xs", "xsPlus", "sm", "md", "lg", "xl"] as const;
     const values = steps.map((step) => REPORT_FONT[step]);
@@ -68,7 +72,7 @@ describe("report typography floor", () => {
     }
   });
 
-  it("no font size below 11px in the owned report files", () => {
+  it("no font size below the 12px floor in the owned report files", () => {
     const offenders = GUARDED_FILES.flatMap(belowFloor);
     expect(offenders, `\n${offenders.join("\n")}`).toEqual([]);
   });

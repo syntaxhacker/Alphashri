@@ -96,8 +96,8 @@ export const ActionVariations: Story = {
         <DemoStack>
           <DemoPanel
             title="Symbol link · action variations"
-            detail={`${FIXTURE_LABEL} · last action: ${last()}`}
-            metaNode={<Text size="xs" c="secondary" aria-live="polite">{`last action: ${last()}`}</Text>}
+            detail={`${FIXTURE_LABEL} · local symbol actions`}
+            metaNode={<Text size="xs" c="secondary" aria-live="polite">{last() === "none" ? "No symbol action yet" : `${last()} · handled locally`}</Text>}
             testId="story-symbol-actions-frame"
           >
             <Specimen label="Local handlers" detail="Actions stay local; the app-wide dock is inert in Storybook.">

@@ -61,7 +61,7 @@ function OptionsPositioningWindow(props: { context: Accessor<DockPanelContext> }
       <Show when={!expiry()}>
         <Box
           data-testid="options-positioning-empty"
-          className="px-2 py-1 text-[10px] text-fin-text-muted"
+          className="px-2 py-1 text-ui-micro text-fin-text-muted"
         >
           Choose an expiry in this window to load {underlying()} positioning.
         </Box>

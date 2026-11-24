@@ -11,6 +11,7 @@
  * missing IV quote still leaves a real intrinsic P&L that belongs on the ramp.
  */
 
+import { typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { compositeOver, pickTextColor } from "@/utils/contrast";
 import { aggregateGreeks, type OptionLeg } from "@/utils/optionsMath";
@@ -91,7 +92,7 @@ export interface PayoffOptionInput {
 }
 
 /** Axis ticks, cell labels, legend and disclosure text all share this floor. */
-export const PAYOFF_LABEL_FONT_SIZE = 10;
+export const PAYOFF_LABEL_FONT_SIZE = typeSize("micro");
 /** Note printed on a genuinely unpriceable (hatched) cell — its P&L is not real. */
 export const NO_IV_NOTE = "No valid IV quote — intrinsic only";
 /** Priced cell tooltip note: the P&L is real but no IV model produced it. */

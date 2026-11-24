@@ -1,6 +1,6 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import type { JSX } from "solid-js";
-import { Box, Button, Chip, Divider, MultiSelect, Select, Switch, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
+import { Box, Button, Chip, Divider, MultiSelect, Select, Switch, Text, TextInput, ToolbarRow, Tooltip, typeSize } from "@/ui";
 import { CompactPanel } from "@/components/common/compact";
 import { IconX, IconRestore } from "@/ui/icons";
 import type {
@@ -57,7 +57,7 @@ function Section(props: {
   return (
     <Box className="flex min-w-0 flex-col gap-1">
       <Box className="flex items-center gap-1">
-        <Text c="dimmed" className="text-[10px] font-semibold uppercase tracking-[0.06em]">
+        <Text c="dimmed" className="text-ui-micro font-semibold uppercase tracking-[0.06em]">
           {props.title}
         </Text>
         {props.info}
@@ -273,7 +273,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
             label="Hide 0"
             size="xs"
             checked={hideZero()}
-            onChange={(e) => setHideZero((e.currentTarget as HTMLInputElement).checked)}
+            onChange={(checked) => setHideZero(checked)}
             data-testid="patterns-filter-hide-zero"
           />
         </ToolbarRow>
@@ -282,7 +282,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
             label="Match in order (sequence)"
             size="xs"
             checked={Boolean(props.filters.sequence)}
-            onChange={(e) => props.setFilter("sequence", (e.currentTarget as HTMLInputElement).checked)}
+            onChange={(checked) => props.setFilter("sequence", checked)}
             data-testid="patterns-filter-sequence"
           />
         </Show>
@@ -372,7 +372,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
               className="flex flex-col gap-0.5"
               data-testid={`patterns-filter-family-group-${family.id}`}
             >
-              <Text size="xs" c="dimmed" fw={600} style={{ "font-size": "10px" }}>
+              <Text size="xs" c="dimmed" fw={600} style={{ "font-size": `${typeSize("micro")}px` }}>
                 {family.label}
               </Text>
               <Box
@@ -769,7 +769,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
         label="Volume confirmed"
         size="xs"
         checked={Boolean(props.filters.volume_confirmed)}
-        onChange={(e) => props.setFilter("volume_confirmed", (e.currentTarget as HTMLInputElement).checked ? true : null)}
+        onChange={(checked) => props.setFilter("volume_confirmed", checked ? true : null)}
         data-testid="patterns-volume-confirmed"
       />
       <Show when={!panel()}>

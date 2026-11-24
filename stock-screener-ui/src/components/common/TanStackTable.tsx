@@ -1,12 +1,12 @@
 import { For, Show, createEffect } from "solid-js";
-import { Button, Paper, ScrollArea, ToolbarRow, useDensity } from "@/ui";
+import { Button, Paper, ScrollArea, ToolbarRow, useDensity, typeSize } from "@/ui";
 import { InlineLoader } from "./states";
 import { ColumnPicker } from "./ColumnPicker";
 import { resolveColumnPrefs, useColumnPrefs } from "./table/columnPrefs";
 import { getValue, useColumnViews } from "./table/columns";
 import { renderGroupRow, renderHeader, renderRow, type TableRenderContext } from "./table/renderers";
 import { useSorting } from "./table/sorting";
-import type { CSSProperties, TableProps } from "./table/types";
+import type { CSSProperties, TableMetrics, TableMetricsPreset, TableProps } from "./table/types";
 import { useRowWindow } from "./table/windowing";
 
 export { resolveColumnPrefs };
@@ -17,30 +17,21 @@ export type {
   SortEntry,
   TableColumnDef,
   TableColumnMeta,
+  TableMetrics,
+  TableMetricsPreset,
+  TableProps,
 } from "./table/types";
-
-export interface TableMetrics {
-  /** Row height, applied as the cell minimum via `--tbl-row-h`. */
-  rowHeight: number;
-  /** Cell padding shorthand, applied via `--tbl-cell-pad`. */
-  cellPadding: string;
-  /** Body font size in px, applied via `--tbl-fs`. */
-  fontSize: number;
-  /**
-   * Header font size in px. The shared header renderer pins its own size, so
-   * the table re-applies this to mounted `<th>` nodes after a column change.
-   */
-  headerFontSize: number;
-}
 
 /**
  * `default` is the new comfortable rhythm. `dense` is the explicit opt-in for
  * screener / market tables — those numbers are a contract, do not drift them.
+ * `paper` preserves the trading tables' 23px rhythm through the wrapper.
  */
-export const TABLE_METRICS: Record<"default" | "comfortable" | "dense", TableMetrics> = {
-  default: { rowHeight: 32, cellPadding: "8px 12px", fontSize: 12, headerFontSize: 11 },
-  comfortable: { rowHeight: 36, cellPadding: "10px 14px", fontSize: 12, headerFontSize: 11 },
-  dense: { rowHeight: 18, cellPadding: "1px 6px", fontSize: 10, headerFontSize: 10 },
+export const TABLE_METRICS: Record<TableMetricsPreset, TableMetrics> = {
+  default: { rowHeight: 32, cellPadding: "8px 12px", fontSize: typeSize("micro"), headerFontSize: typeSize("micro") },
+  comfortable: { rowHeight: 36, cellPadding: "10px 14px", fontSize: typeSize("micro"), headerFontSize: typeSize("micro") },
+  dense: { rowHeight: 18, cellPadding: "1px 6px", fontSize: typeSize("micro"), headerFontSize: typeSize("micro") },
+  paper: { rowHeight: 23, cellPadding: "2px 8px", fontSize: typeSize("micro"), headerFontSize: typeSize("micro") },
 };
 
 export function TanStackTable<T>(props: TableProps<T>) {
@@ -51,9 +42,11 @@ export function TanStackTable<T>(props: TableProps<T>) {
   const metrics = (): TableMetrics =>
     isDense()
       ? TABLE_METRICS.dense
-      : isComfortable()
-        ? TABLE_METRICS.comfortable
-        : TABLE_METRICS.default;
+      : props.metricsPreset
+        ? TABLE_METRICS[props.metricsPreset]
+        : isComfortable()
+          ? TABLE_METRICS.comfortable
+          : TABLE_METRICS.default;
 
   let tableEl: HTMLTableElement | undefined;
   createEffect(() => {
@@ -64,7 +57,7 @@ export function TanStackTable<T>(props: TableProps<T>) {
     el.style.setProperty("--tbl-cell-pad", m.cellPadding);
     el.style.setProperty("--tbl-fs", `${m.fontSize}px`);
     // Re-derive on column changes so a newly mounted <th> (the renderer pins
-    // 10px inline) picks up the same size as the cells it labels.
+    // its own inline size) picks up the same size as the cells it labels.
     const visibleIds = new Set(cols.visibleColumns().map((c) => String(c.id)));
     for (const th of el.querySelectorAll<HTMLElement>("thead th")) {
       if (visibleIds.has(th.id.replace("paper-tanstack-header-", ""))) {
@@ -176,7 +169,7 @@ export function TanStackTable<T>(props: TableProps<T>) {
       </ScrollArea>
       <Show when={win.hiddenCount() > 0}>
         <div
-          class="flex items-center justify-between gap-2 px-2 h-[22px] shrink-0 border-t border-fin-border text-[10px] text-fin-text-muted font-mono tabular-nums"
+          class="flex items-center justify-between gap-2 px-2 h-[22px] shrink-0 border-t border-fin-border text-ui-micro text-fin-text-muted font-mono tabular-nums"
           data-testid="table-window-footer"
         >
           <span>

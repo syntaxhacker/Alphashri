@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui/typography";
 import { CANDLESTICK_ITEM_STYLE } from "../chartUtils";
 import { VOLUME_BULLISH, VOLUME_BEARISH } from "../../config/colors";
 import type { ChartColors, MarkLineData, MarkAreaItem } from "./types";
@@ -53,7 +54,7 @@ export function buildSeries(
     candleSeries.markLine = {
       symbol: ["none", "none"],
       data: markLines,
-      label: { color: "inherit", fontSize: 11, formatter: "{b}" },
+      label: { color: "inherit", fontSize: typeSize("micro"), formatter: "{b}" },
     };
   }
 

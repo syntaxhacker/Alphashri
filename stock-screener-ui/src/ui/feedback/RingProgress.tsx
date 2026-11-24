@@ -1,8 +1,20 @@
 import { For, Show, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
+import { TYPE_SCALE, typeSize } from "../typography";
 import type { JSX } from "solid-js";
 import type { UIBaseProps, UIColor } from "../types";
+
+const SCALE_STEPS = Object.values(TYPE_SCALE).map((s) => s.size);
+
+/** Decorative centre label: proportional to the ring, snapped to the shared ladder. */
+function snapTypeSize(px: number): number {
+  const nearest = SCALE_STEPS.reduce(
+    (best, step) => (Math.abs(step - px) <= Math.abs(best - px) ? step : best),
+    SCALE_STEPS[0],
+  );
+  return Math.max(typeSize("micro"), nearest);
+}
 
 const COLOR_MAIN: Record<string, string> = {
   primary: palette.PRIMARY,
@@ -74,6 +86,7 @@ export function RingProgress(props: UIRingProgressProps) {
       data-testid={known["data-testid"]}
       id={known.id}
       role="progressbar"
+      aria-label={typeof known.label === "string" ? known.label : "Progress"}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={progressValue}
@@ -100,7 +113,7 @@ export function RingProgress(props: UIRingProgressProps) {
       <Show when={known.label != null}>
         <div
           className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"
-          style={{ "font-size": `${Math.max(10, size * 0.25)}px`, "font-weight": 600, color: palette.TEXT }}
+          style={{ "font-size": `${snapTypeSize(size * 0.25)}px`, "font-weight": 600, color: palette.TEXT }}
         >
           {known.label}
         </div>

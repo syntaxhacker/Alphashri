@@ -1,4 +1,4 @@
-import { Select, Text, Tooltip } from "@/ui";
+import { Select, Text, Tooltip, typeSize } from "@/ui";
 import { LOOKBACK_OPTIONS } from "@/config/patterns";
 
 /** Re-exported so existing imports from this module keep working. */
@@ -34,7 +34,7 @@ export function LookbackSelect(props: LookbackSelectProps) {
             size="xs"
             c="dimmed"
             className="font-mono uppercase"
-            style={{ "font-size": "10px", "letter-spacing": "0.06em" }}
+            style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.06em" }}
           >
             Bars
           </Text>

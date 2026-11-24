@@ -1,8 +1,42 @@
 # Visual Audit — Design System Storybook evidence
 
+## Current status (2026-11-23)
+
+> **This section is authoritative.** It supersedes the verdicts, defect rankings and checklists in the historical audit below. That audit is kept for traceability, but it describes the P3-era snapshots; where it conflicts with this section, this section wins. "Fixed" means confirmed in source and/or visible in the committed `docs/screenshots/showcase/` images — not a fresh live render.
+
+**Fixed since the historical audit** (recaptured with `scripts/storybook-showcase.mjs`):
+
+- `Card` forwards `style` again, so family-index cards render their requested borders/backgrounds and the "Open each card" copy is true.
+- One `FamilyLanding` template replaces the two competing family-page templates; measures are centred; footer paths and stale `381/92/79` counts are corrected, and the false "no axe gate" claim in `STORYBOOK.md` is fixed.
+- 390 fixes: Navigation shell stacks instead of clipping, FloatingWindow fits its host, filter chips separate from `Clear all`, and the Overview coverage index stacks with links on one line.
+- Typography is one six-step `text-ui-*` contract with a 12px floor; `Text/Title/Anchor/List` sizes resolve through `SIZE_ROLE` → `TYPE_CLASS` (no private rem map or 18px step) and the old 9px copy is retired.
+- Evidence hygiene: `alerts` captures the real `variants-and-radius` story; `table` captures the App primitives family page.
+- Catalog coverage is current in `docs/COMPONENT_AUDIT.md`: **100 audited modules, 96 story files / 403 story entries, 88/100 modules with a story, 100/100 with a co-located test, 0 violations**. The modules with no standalone story are context providers, error boundaries, chart adapters and other composition-only helpers, listed in `docs/COMPONENT_AUDIT_EXCEPTIONS.md`.
+- The built index (`storybook-static/index.json`) publishes **388 stories / 93 docs** (source: 96 files / 403 exported entries), and `docs/screenshots/showcase/` now holds **52 PNGs (26 names × 2 viewports)** — the historical audit below read 35.
+- Browser gates cover **30 axe stories** and **10 keyboard walkthroughs** (focus order, roving focus, Modal/Popover/FloatingWindow containment). The pixel-diff harness (`scripts/visual-regression.mjs`, `bun run visual:test`, CI step) exists, but its **12 baseline PNGs are still pending generation** — configured, not green.
+
+**Copy audit — `src/stories/**` only (2026-11-23):** the developer/debug readouts called out in historical defect #15 were swept from rendered story copy. Removed from visible text: `last action: …` (SymbolLink, Menu, Tree), raw `open:` / `selected:` / `expanded:` / `clicks:` / `opened:` prop readouts (Accordion, Tabs, Tree, Menu, Avatar, CloseButton, NavLink, Modal, Popover), `resolved width` / `resolved fullScreen` / `resolved navbar width`, `x/y/width×height` window geometry (the older `geometry: 420 by 240` was already gone), `min: null · max: null`, `attempts: 0` and `last event: x=… y=…`. Raw handler names as status (`onChange(false)`, `onClose`) now read as "dismissed by an outside click / close action / close button". Raw HTTP codes are gone from UI copy (`Feed 503`, "returned 503", "options chain returned 503" → "The frozen tape fixture could not be loaded" / "The option chain is temporarily unavailable"). The `useValueFlash` code chip was replaced with a real `pickTextColor(fill)` snippet, the `NSE_EQ|INE002A01018` placeholder with `RELIANCE`, and stale `11px/15px`, `18px / 10px type` and `dense: … 10px type` claims with qualitative copy. Raw prop names used as headings/buttons (`showNotification · success`, standalone `showSuccess` / `showError`, `autoClose = false`, `single` / `multiple`, `padding sm`, `opened: true`) became domain labels tied to the notice or state they produce.
+
+All replacements keep the interactive specimen intact — the signals, handlers, callback counts and numeric fixture values still drive the readout, only the wording changed. Fixtures stay honestly labelled: the app stories keep `FIXTURE_LABEL`, no live data was invented, and the 503 copy now describes a frozen fixture that could not load rather than a live failure.
+
+**Intentional API-doc labels left** (not debug copy): `code={…}` / `code="…"` prop snippets, `argTypes` descriptions, catalog labels such as `variant`, `radius`, `size`, `position`, `order={n} → hN`, the FloatingWindow `geometry` argType, the `showSuccess` / `showError` names inside the Notifications helper-section note, and specimen args like `value: 1240.5, signed: true`. The Checkbox/Switch descriptions that state "`onChange` receives the new value as a boolean, not an event" are deliberate API corrections for these local components, not "onChange exposes event" debug copy. Category labels that genuinely teach a prop (`radius`, `size`) remain where the spec is the point of the story.
+
+**Verification:** `npx tsc -p tsconfig.json --noEmit --pretty false` → 0 errors; `npx tsc -p tsconfig.typecheck.json --noEmit --pretty false` → 0 errors; `npx oxlint src/stories --deny-warnings` → 0 warnings / 0 errors across 108 files. **P1-looking debug copy left: none found** in `src/stories/**`.
+
+**Still open / unverified:**
+
+- **Storybook does not prove the live app.** Home, bare `/screener`, `/options` and `/patterns` app routes have no route-level 1600/390 captures with honest shared mocks and remain **unverified**. The only committed app capture is the Index Report route (`docs/screenshots/app/report-{1600,390}.png`, **viewport** 1600×1000 / 390×844).
+- Static PNGs do not assert focus-ring, keyboard or live-browser behaviour; the 10 keyboard walkthroughs and the pending pixel harness are separate gates, not captures in this audit.
+
+---
+
+> **Historical evidence (superseded).** Everything from **Blunt verdict** to the end of this file is the original P3-era audit, retained for traceability only. Its defect rankings and "unknowns" were accurate for the captured images but are superseded by the status above.
+
+---
+
 **Branch:** `improve/ds-p3-tokens-forms-tests` (worktree `/tmp/opencode/ds-p3/stock-screener-ui`)
 **Date:** 2026-11-23
-**Method:** read-only. Read all 35 PNGs in `docs/screenshots/showcase/` (the 13 family pages at 1600/390 where both exist, plus component-level shots), the 13 family stories in `src/stories/design-system/`, representative stories in `src/stories/components/**`, `src/stories/solidStory.ts`, `src/tailwind.css`, `src/ui/palette.ts`, `.storybook/preview.ts`, and the two design-system docs. No builds, servers, code edits, or browser interaction. Pixel measurements below were taken directly from the PNG bytes with `sharp`; contrast ratios were computed from the hex tokens with the WCAG formula.
+**Method:** read-only. Read the 35 showcase PNGs that existed at capture time (the set now has **52 — 26 names × 2 viewports**; the 13 family pages at 1600/390 where both exist, plus component-level shots), the 13 family stories in `src/stories/design-system/`, representative stories in `src/stories/components/**`, `src/stories/solidStory.ts`, `src/tailwind.css`, `src/ui/palette.ts`, `.storybook/preview.ts`, and the two design-system docs. No builds, servers, code edits, or browser interaction. Pixel measurements below were taken directly from the PNG bytes with `sharp`; contrast ratios were computed from the hex tokens with the WCAG formula.
 
 ## Blunt verdict
 
@@ -177,10 +211,43 @@ The token layer is genuinely good (#E8E8E8 on #13161C is 6.52:1, PRIMARY 6.88:1,
 
 7. **Make the Overview coverage index stack at 390.** In `src/stories/design-system/Overview.stories.tsx:290-299`, replace the fixed `width:"260px"` label and the single `Flex` row with a two-line layout below 640px (title + link on line 1, description on line 2) and add `white-space:"nowrap"` to the `open ↗` `StoryLink` at `:296`. Re-capture `overview-390.png`; the link must stay on one line.
 
-8. **Repair the evidence and the copy that lies.** Delete or recapture `docs/screenshots/showcase/alerts-1600.png` using the real id from `src/stories/components/feedback/Alert.stories.tsx:96` (`…--variants-and-radius`). Recapture all 35 showcase PNGs after the six post-`696fb937` commits. Add a deliberately focused capture of the `Tab to focus` button at `src/stories/design-system/Foundations.stories.tsx:167` so the `tailwind.css:98-102` ring has visual proof. Fix the eight wrong source paths at `DataDisplay.stories.tsx:211`, `Feedback.stories.tsx:182`, `Misc.stories.tsx:142`, `Navigation.stories.tsx:205`, `Overlay.stories.tsx:222`, `AppPrimitives.stories.tsx:258`, `SharedPrimitives.stories.tsx:204`, `Portal.stories.tsx:187` to the real lowercase directory names. Reconcile `Overview.stories.tsx:211` ("4/6/10", "9px floor") with `Typography.stories.tsx` (`Text xs 12`) and `tailwind.css:30-33`.
+8. **Repair the evidence and the copy that lies.** Delete or recapture `docs/screenshots/showcase/alerts-1600.png` using the real id from `src/stories/components/feedback/Alert.stories.tsx:96` (`…--variants-and-radius`). Recapture all showcase PNGs (52 today, 26 × 2; 35 at the time of the audit) after the six post-`696fb937` commits. Add a deliberately focused capture of the `Tab to focus` button at `src/stories/design-system/Foundations.stories.tsx:167` so the `tailwind.css:98-102` ring has visual proof. Fix the eight wrong source paths at `DataDisplay.stories.tsx:211`, `Feedback.stories.tsx:182`, `Misc.stories.tsx:142`, `Navigation.stories.tsx:205`, `Overlay.stories.tsx:222`, `AppPrimitives.stories.tsx:258`, `SharedPrimitives.stories.tsx:204`, `Portal.stories.tsx:187` to the real lowercase directory names. Reconcile `Overview.stories.tsx:211` ("4/6/10", "9px floor") with `Typography.stories.tsx` (`Text xs 12`) and `tailwind.css:30-33`.
 
 ---
 
 ## Closing note
 
 Nothing in this audit contradicts the benchmark's tier conclusion (`docs/DESIGN_SYSTEM_BENCHMARK_2026-11-23.md`: Tier 3, avg 4.8/10). The tokens and guards are the strongest part; the **visual presentation of the Storybook catalog is the weakest part of an otherwise competent system**, and it is the part a designer or user sees first. Fix #1 (the swallowed `Card` style) and #3 (centring) alone would remove the two most damaging first impressions; #2 (one template) is what would make the catalog read as a system rather than eight copies of a page.
+
+---
+
+## Typography tier (2026-11-23 update)
+
+Supersedes the "9px floor" wording in fix #8 above. Type is now one six-step contract owned by `src/ui/typography.ts` and emitted as `text-ui-*` utilities from `@theme` in `src/tailwind.css`. Product copy picks a role, never a private `text-[Npx]` or inline `font-size`. The live specimen is Storybook story `design-system-typography--type-scale` (Design System / Typography → TypeScale).
+
+| Token | Size / leading | Where used |
+|---|---|---|
+| `--text-ui-micro` · `text-ui-micro` | 12px / 16px | Dense labels, badges, chart axes, table metadata — the hard floor |
+| `--text-ui-body` · `text-ui-body` | 13px / 18px | Body copy and table cells |
+| `--text-ui-label` · `text-ui-label` | 14px / 20px | Form labels and control text |
+| `--text-ui-title` · `text-ui-title` | 16px / 24px | Card and panel titles |
+| `--text-ui-heading` · `text-ui-heading` | 20px / 28px | Page-section headings |
+| `--text-ui-display` · `text-ui-display` | 24px / 32px | Page titles and hero values |
+
+The 12px floor is enforced by the `design-scale` guard (`src/test/design-scale.test.ts`); the old 9px allowance is retired.
+
+**This pass (`src/stories/**` only):** all 15 inline `font-size` declarations (9/10/11/12/13px) were replaced with `text-ui-*` or `typeStyle()` — before 15, after 0 (the only remaining `font-size` match is prose in a `note` prop). Grid/Layout ruler cells grew 14→20px and 18→20px so 12px digits are not clipped at 390, and the stale "9px floor" copy in Overview and Badge stories was corrected. Nothing was hidden.
+
+**Remaining exceptions (outside this scope, not edited here):** the `Tab` primitive still carries a default `text-[11px]` class in `src/ui/data-display/Tabs.tsx` (the Sizes story overrides it with `typeStyle()`); `Textarea` `size="xs"` is described in its story as an 11px step; dense table stories still describe 10px row type. Those live in `src/ui` / feature components and belong to the component pass. Intentional `truncate`/`lineClamp` demos in Text/Anchor/SimpleGrid stories are kept — they teach an API and carry the full string in `title`.
+
+---
+
+## Historical status snapshot (2026-11-23 P5 — superseded by the "Current status" section at the top)
+
+The fixed items below are now visible in the committed `docs/screenshots/showcase/` images (all read back; captured with `scripts/storybook-showcase.mjs`):
+
+- **Fixed:** card style forwarding, one `FamilyLanding` template, centred measures, responsive Navigation shell, FloatingWindow fitting its 390 host, filter-chip separation, Overview coverage-index stacking, footer paths, stale `381/92/79` counts and the false “no axe gate” claim in `STORYBOOK.md`.
+- **Fixed:** every story font-size declaration now uses `text-ui-*` / `typeStyle`; the old 9px copy is retired.
+- **Fixed:** `Text/Title/Anchor/List` size aliases now resolve through `SIZE_ROLE` → `TYPE_CLASS` with no private rem map or 18px step (Text/Anchor/List cap at `heading` 20px, Title maps `xl` to `display` 24px). The Typography page’s “What Typography owns” panel now shows the six roles read from `TYPE_SCALE` / `TYPE_CLASS` / `typeSize`, not the old `Text size` / `Title size` alias matrix.
+- **Open:** the app routes still lack fresh route-level 1600/390 captures; Storybook evidence does not prove the live app.
+- **Evidence:** showcase captures are now full-page, so the Data display result-states panel and Overview coverage index are in-frame. `alerts` captures the full variants-and-radius story, and `table` captures the App primitives family page instead of the one-row debug playground.

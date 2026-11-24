@@ -132,12 +132,31 @@ describe("ReportWorkspace — mobile heatmap disclosure (390px)", () => {
     expect(env.setHeatExpand).toHaveBeenCalledWith(true);
   });
 
-  test("mobile gives the reclaimed side-row height back to the chart", () => {
+  test("mobile sizes the disclosure row to its content so the collapsed state gives height back to the chart", () => {
     env.mobile = true;
     mount();
-    expect(screen.getByTestId("nifty-main-row").className).toContain(
-      "max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,56px)]",
-    );
+
+    const grid = screen.getByTestId("nifty-main-row");
+    expect(grid.className).toContain("max-[600px]:grid-rows-[minmax(0,1fr)_auto]");
+    expect(grid.className).not.toContain("minmax(0,56px)");
+
+    const metric = screen.getByTestId("nifty-heatmap-metric-oi");
+    expect(metric.style.height).toBe("24px");
+    expect(metric.style.paddingLeft).toBe("8px");
+    expect(metric.style.fontSize).toBe("12px");
+  });
+
+  test("the phone chart keeps its order marker and the compact chain track only when the chain is shown", () => {
+    env.mobile = true;
+    // This suite's store is pinned to the heatmap side tab; the chain track
+    // token therefore stays out of the class string while heatmap is active.
+    mount();
+    const grid = screen.getByTestId("nifty-main-row");
+    expect(grid).toHaveAttribute("data-report-order", "chart");
+    // Order is declared once, on the shell's content wrapper, for every band.
+    expect(grid.className).not.toContain("max-[600px]:order-");
+    expect(grid.className).toContain("max-[600px]:grid-rows-[minmax(0,1fr)_auto]");
+    expect(grid.className).not.toContain("minmax(0,156px)]!");
   });
 
   test("desktop keeps the inline heatmap and its original grid row", async () => {

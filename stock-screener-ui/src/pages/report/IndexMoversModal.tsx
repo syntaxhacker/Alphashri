@@ -175,13 +175,17 @@ export function IndexMoversModal(props: IndexMoversModalProps) {
   return (
     <LocalPanelModal
       open={open()}
-      title={`MOVERS · ${index()} ${index() === "NIFTY" ? "50" : "30"}`}
+      title={
+        <span class="font-mono text-ui-title font-extrabold tracking-[0.08em] text-fin-text">
+          MOVERS · {index()} {index() === "NIFTY" ? "50" : "30"}
+        </span>
+      }
       onClose={props.onClose}
       maxWidth={720}
       autoHeight
       maxHeight="75vh"
       actions={
-        <div class="flex items-center gap-1">
+        <div class="flex items-center gap-2">
           <SegmentedControl
             value={tab()}
             onChange={(v) => setTab(v as TabValue)}
@@ -192,7 +196,7 @@ export function IndexMoversModal(props: IndexMoversModalProps) {
           <Show when={isStale()}>
             <Tooltip label="Data is stale — quotes may be delayed">
               <span
-                class="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-[11px] font-bold tracking-[0.05em] whitespace-nowrap"
+                class="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-ui-micro font-bold tracking-[0.05em] whitespace-nowrap"
                 style={{
                   border: `1px solid ${palette.WARNING}`,
                   color: palette.WARNING,
@@ -220,7 +224,7 @@ export function IndexMoversModal(props: IndexMoversModalProps) {
         <div
           class="flex items-center justify-center min-h-[120px] gap-2 flex-wrap"
         >
-          <Text span size="xs" c="error" fw={700}>
+          <Text span size="xs" c="error" fw={700} data-report-text="value" class="text-ui-body">
             unavailable
           </Text>
           <Button size="sm" variant="subtle" onClick={() => window.location.reload()}>
@@ -246,20 +250,28 @@ export function IndexMoversModal(props: IndexMoversModalProps) {
       {/* Footer meta */}
       <Show when={data()}>
         <div
-          class="flex items-center justify-between mt-2 pt-1 border-t border-fin-border font-mono text-[11px] text-fin-text-muted"
+          data-testid="movers-modal-footer"
+          data-report-spacing="8"
+          class="flex items-center justify-between gap-2 flex-wrap mt-2 pt-2 border-t border-fin-border font-mono text-ui-micro text-fin-text-muted"
         >
-          <Text span size="xs" c="dimmed">
-            Source: {data()!.source}
-          </Text>
-          <Text span size="xs" c="dimmed">
-            As of: {new Date(data()!.as_of).toLocaleTimeString("en-IN", {
-              hour12: false,
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-              timeZone: "Asia/Kolkata",
-            })}
-          </Text>
+          <span data-testid="movers-modal-source" class="inline-flex items-baseline gap-2 min-w-0">
+            <span data-report-text="label" class="text-ui-micro">Source:</span>
+            <span data-report-text="value" class="text-ui-body text-fin-text whitespace-nowrap">
+              {data()!.source}
+            </span>
+          </span>
+          <span data-testid="movers-modal-asof" class="inline-flex items-baseline gap-2 min-w-0">
+            <span data-report-text="label" class="text-ui-micro">As of:</span>
+            <span data-report-text="value" class="text-ui-body text-fin-text tabular-nums whitespace-nowrap">
+              {new Date(data()!.as_of).toLocaleTimeString("en-IN", {
+                hour12: false,
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                timeZone: "Asia/Kolkata",
+              })}
+            </span>
+          </span>
         </div>
       </Show>
     </LocalPanelModal>

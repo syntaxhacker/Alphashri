@@ -1,6 +1,6 @@
 import { Index, Show, createEffect, createSignal, onCleanup } from "solid-js";
 import { Portal } from "solid-js/web";
-import { Button, Checkbox, Tooltip } from "@/ui";
+import { Button, Checkbox, Tooltip, typeSize } from "@/ui";
 
 /**
  * One row of the picker. `locked` columns are the table's identity columns
@@ -143,12 +143,12 @@ export function ColumnPicker(props: ColumnPickerProps) {
             }}
           >
             <div class="flex items-center justify-between gap-2 px-2 shrink-0 border-b border-fin-border" style={{ height: ROW_H }}>
-              <span class="text-[10px] font-mono uppercase tracking-wide text-fin-text-muted">Columns</span>
+              <span class="text-ui-micro font-mono uppercase tracking-wide text-fin-text-muted">Columns</span>
               <button
                 type="button"
                 onClick={() => props.onReset()}
                 data-testid="table-column-picker-reset"
-                class="text-[11px] underline decoration-dotted underline-offset-2 text-fin-text-muted hover:text-fin-text"
+                class="text-ui-micro underline decoration-dotted underline-offset-2 text-fin-text-muted hover:text-fin-text"
               >
                 Reset to default
               </button>
@@ -182,7 +182,7 @@ export function ColumnPicker(props: ColumnPickerProps) {
                       title="Drag to reorder, or use ↑ / ↓"
                       data-testid={`table-column-picker-handle-${item().id}`}
                       class="shrink-0 cursor-grab select-none text-fin-text-muted hover:text-fin-text"
-                      style={{ "font-size": "11px", "line-height": "1" }}
+                      style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1" }}
                       onDragStart={(event) => {
                         setDragFrom(row());
                         event.dataTransfer?.setData?.("text/plain", item().id);
@@ -206,15 +206,14 @@ export function ColumnPicker(props: ColumnPickerProps) {
                       checked={item().visible}
                       disabled={item().locked}
                       data-testid={`table-column-picker-toggle-${item().id}`}
-                      onChange={(event) => {
+                      onChange={(checked) => {
                         if (item().locked) return;
-                        const target = event.currentTarget as HTMLInputElement;
-                        props.onToggle(item().id, target.checked);
+                        props.onToggle(item().id, checked);
                       }}
                     />
                     <Show when={item().locked}>
                       <Tooltip label="Always visible — this column identifies the row" position="left">
-                        <span aria-hidden="true" class="text-[10px] text-fin-text-muted">locked</span>
+                        <span aria-hidden="true" class="text-ui-micro text-fin-text-muted">locked</span>
                       </Tooltip>
                     </Show>
                   </li>

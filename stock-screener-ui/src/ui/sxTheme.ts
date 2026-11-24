@@ -1,4 +1,5 @@
 import * as palette from "./palette";
+import { typeSize } from "./typography";
 
 const BREAKPOINTS = { xs: 0, sm: 600, md: 900, lg: 1200, xl: 1536 } as const;
 
@@ -39,7 +40,7 @@ export const sxTheme = {
   },
   typography: {
     fontFamily: palette.MONO,
-    fontSize: 12,
+    fontSize: typeSize("micro"),
     fontWeightRegular: 400,
     fontWeightMedium: 500,
     fontWeightBold: 700,

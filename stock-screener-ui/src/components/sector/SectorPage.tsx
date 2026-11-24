@@ -82,7 +82,7 @@ function AlertsAndMovers(props: {
         className="flex min-h-0 flex-none flex-col"
         title={
           <Box className="flex items-center justify-between gap-2">
-            <Text fw={600} className="text-[11px]">Real-time Alerts</Text>
+            <Text fw={600} className="text-ui-micro">Real-time Alerts</Text>
             <IconBellRinging size={14} color="var(--color-fin-warning)" />
           </Box>
         }
@@ -98,7 +98,7 @@ function AlertsAndMovers(props: {
         className="flex min-h-0 flex-none flex-col"
         title={
           <Box className="flex items-center justify-between gap-2">
-            <Text fw={600} className="text-[11px]">Interval Movers</Text>
+            <Text fw={600} className="text-ui-micro">Interval Movers</Text>
             <IconTrendingUp size={14} color="var(--color-fin-primary)" />
           </Box>
         }
@@ -114,7 +114,7 @@ function AlertsAndMovers(props: {
         className="flex min-h-0 flex-1 flex-col"
         title={
           <Box className="flex items-center justify-between gap-2">
-            <Text fw={600} className="text-[11px]">Top Gainers</Text>
+            <Text fw={600} className="text-ui-micro">Top Gainers</Text>
             <IconTrendingUp size={14} color="var(--color-fin-positive)" />
           </Box>
         }
@@ -136,12 +136,12 @@ function AlertsAndMovers(props: {
                       href={`/chart/${encodeURIComponent(stock.symbol)}`}
                       className="min-w-0 text-fin-text no-underline hover:text-fin-primary"
                     >
-                      <Text truncate className="text-[10.5px] font-semibold">
+                      <Text truncate className="text-ui-micro font-semibold">
                         {stock.symbol}
                       </Text>
                     </Box>
                     <Box className="flex-1" />
-                    <Text c={stock.change >= 0 ? "success" : "error"} className="text-[10.5px] tabular-nums font-mono">
+                    <Text c={stock.change >= 0 ? "success" : "error"} className="text-ui-micro tabular-nums font-mono">
                       {formatPercentage(stock.change)}
                     </Text>
                   </Box>
@@ -198,18 +198,51 @@ function EmptyPanel() {
   );
 }
 
+const SECTOR_TABLE_SCROLL_STEP = 80;
+
+/** Arrow keys must move the same element that carries focus and `role=region`. */
+function onSectorTableRegionKeyDown(event: KeyboardEvent) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  const region = event.currentTarget as HTMLElement;
+  region.scrollLeft += event.key === "ArrowRight" ? SECTOR_TABLE_SCROLL_STEP : -SECTOR_TABLE_SCROLL_STEP;
+  event.preventDefault();
+}
+
 function SectorPerformancePanel(props: { sectors: SectorItem[] }) {
   return (
     <Box
       className="flex flex-col overflow-hidden border border-fin-border rounded-[2px] min-w-0 min-h-0"
     >
-      <Box className="flex h-6 shrink-0 items-center border-b border-fin-border px-2">
-        <Text fw={600} className="text-[11px]">Sector Performance</Text>
+      <Box className="flex h-6 shrink-0 items-center justify-between gap-2 border-b border-fin-border px-2">
+        <Text fw={600} className="text-ui-micro">Sector Performance</Text>
+        <Text
+          data-testid="sector-table-scroll-cue"
+          title="Scroll sideways to see every column"
+          c="dimmed"
+          className="text-ui-micro lg:hidden"
+        >
+          Scroll sideways →
+        </Text>
       </Box>
+      {/* The shared table owns a scrollport of its own. Switching it off here
+          leaves this region as the single horizontal scroller, so keyboard
+          focus and the scrolled element are the same node. Sticky columns (in
+          SectorTable's own style) still pin against this region. */}
+      <style data-testid="sector-table-scroll-style">{`
+        [data-testid="sector-table-container"] .paper-tanstack-container,
+        [data-testid="sector-table-container"] .paper-tanstack-scroll {
+          overflow: visible !important;
+        }
+      `}</style>
       <Box
         id="sector-table-container"
         data-testid="sector-table-container"
-        className="min-h-0 flex-1 overflow-auto"
+        data-scroll="horizontal"
+        role="region"
+        aria-label="Sector performance table, scroll sideways for all columns"
+        tabIndex={0}
+        onKeyDown={onSectorTableRegionKeyDown}
+        className="min-h-0 min-w-0 flex-1 overflow-auto focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
       >
         <SectorTable sectors={props.sectors} />
       </Box>
@@ -255,11 +288,11 @@ function DashboardContent(props: {
             className="min-h-[300px] lg:min-h-0 flex flex-col"
             title={
               <Box className="flex items-center justify-between gap-2">
-                <Text fw={600} className="text-[11px]">Market Heatmap</Text>
+                <Text fw={600} className="text-ui-micro">Market Heatmap</Text>
                 <Show when={data().last_updated}>
                   <Box className="flex items-center gap-1">
                     <IconClock size={12} color="var(--color-fin-text-muted)" />
-                    <Text c="dimmed" className="text-[9.5px] font-mono tabular-nums">
+                    <Text c="dimmed" className="text-ui-micro font-mono tabular-nums">
                       {new Date(data().last_updated!).toLocaleTimeString()}
                     </Text>
                   </Box>
@@ -495,10 +528,10 @@ function SectorPageHeader(props: {
       data-testid="sector-header"
       style={{ padding: "0 12px", "min-height": "36px", height: "36px", "border-bottom": "1px solid var(--color-fin-border)", "flex-shrink": "0" }}
     >
-      <Text fw={700} className="text-[12px] whitespace-nowrap">
+      <Text fw={700} className="text-ui-micro whitespace-nowrap">
         Sector Dashboard
       </Text>
-      <Text c="dimmed" className="hidden whitespace-nowrap text-[10px] xl:inline">
+      <Text c="dimmed" className="hidden whitespace-nowrap text-ui-micro xl:inline">
         Real-time sector performance and technical strength.
       </Text>
       <Show when={!marketOpen()}>
@@ -506,7 +539,7 @@ function SectorPageHeader(props: {
           c="warning"
           fw={700}
           title="Showing the last available session snapshot"
-          className="text-[9.5px] whitespace-nowrap tracking-[0.4px]"
+          className="text-ui-micro whitespace-nowrap tracking-[0.4px]"
         >
           MARKET CLOSED
         </Text>
@@ -522,24 +555,38 @@ function SectorPageHeader(props: {
         ]}
         onChange={(v) => props.setMarket(v as "india" | "america")}
       />
-      <Tabs value={props.activeTab} onChange={props.setActiveTab} className="min-h-0 shrink-0">
-        {/* The band already draws the section rule; a second bordered pill inside it is the nested-box anti-pattern. */}
-        <Tabs.List
-          className="gap-1"
-          style={{ border: "0", background: "transparent", padding: "0", "min-height": "0" }}
+      <Box
+        data-testid="sector-tabs-region"
+        className="relative flex min-w-0 flex-1 items-center lg:flex-initial"
+      >
+        <Tabs value={props.activeTab} onChange={props.setActiveTab} className="min-h-0 min-w-0 flex-1">
+          {/* The band already draws the section rule; a second bordered pill inside it is the nested-box anti-pattern.
+              The strip itself is the scroll container so arrow-key focus stays inside the tablist. */}
+          <Tabs.List
+            data-testid="sector-tabs-list"
+            className="sector-tabs-strip flex-nowrap gap-1 overflow-x-auto whitespace-nowrap"
+            style={{ border: "0", background: "transparent", padding: "0", "min-height": "0" }}
+          >
+            <Tabs.Tab value="dashboard" className="shrink-0 whitespace-nowrap text-ui-micro" icon={<IconChartBar size={12} />}>
+              Live Dashboard
+            </Tabs.Tab>
+            <Tabs.Tab value="correlation" className="shrink-0 whitespace-nowrap text-ui-micro" icon={<IconNetwork size={12} />}>
+              Sector Correlation
+            </Tabs.Tab>
+            <Tabs.Tab value="rotation" className="shrink-0 whitespace-nowrap text-ui-micro" icon={<IconArrowsExchange size={12} />}>
+              Rotation
+            </Tabs.Tab>
+          </Tabs.List>
+        </Tabs>
+        <Box
+          data-testid="sector-tabs-overflow-cue"
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-0 flex items-center bg-gradient-to-l from-fin-surface via-fin-surface to-transparent pl-4 pr-1 text-fin-primary lg:hidden"
         >
-          <Tabs.Tab value="dashboard" className="text-[11px]" icon={<IconChartBar size={12} />}>
-            Live Dashboard
-          </Tabs.Tab>
-          <Tabs.Tab value="correlation" className="text-[11px]" icon={<IconNetwork size={12} />}>
-            Sector Correlation
-          </Tabs.Tab>
-          <Tabs.Tab value="rotation" className="text-[11px]" icon={<IconArrowsExchange size={12} />}>
-            Rotation
-          </Tabs.Tab>
-        </Tabs.List>
-      </Tabs>
-      <Box className="flex-1" />
+          <Text fw={700} className="text-ui-micro">→</Text>
+        </Box>
+      </Box>
+      <Box className="hidden flex-1 lg:block" />
       <Show when={props.showRefresh}>
         {/* @/ui Button reads `disabled`/`loading` once at construction, so the
             button is rebuilt whenever the loading flag flips. */}
@@ -610,35 +657,44 @@ function SectorContextBar(props: {
       <Show when={top() && bottom()}>
         <Box data-testid="sector-summary-strip" className="flex min-w-0 shrink items-center gap-3 overflow-hidden">
           <Box className="flex min-w-0 items-baseline gap-1">
-            <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-[9px] tracking-[0.3px] whitespace-nowrap">
+            <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-ui-micro tracking-[0.3px] whitespace-nowrap">
               Top Sector
             </Text>
-            <Text fw={700} c="success" truncate className="text-[11px]">
+            {/* A single-word sector must not be ellipsised mid-word at 390.
+                Dropping the inline change on narrow screens leaves room for the
+                full name; the number stays in the Sector Performance table. */}
+            <Text
+              fw={700}
+              c="success"
+              className="text-ui-micro min-w-0 break-words"
+              title={top()!.sector}
+              data-testid="sector-top-summary-name"
+            >
               {top()!.sector}
             </Text>
-            <Text c="dimmed" className="text-[9.5px] font-mono tabular-nums whitespace-nowrap">
+            <Text c="dimmed" className="text-ui-micro font-mono tabular-nums whitespace-nowrap hidden sm:inline">
               Avg Change: {formatPercentage(top()!.avg_change)}
             </Text>
           </Box>
           <Box className="hidden items-baseline gap-[6px] lg:flex">
-            <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-[9px] tracking-[0.3px] whitespace-nowrap">
+            <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-ui-micro tracking-[0.3px] whitespace-nowrap">
               Market Breadth
             </Text>
-            <Text fw={700} c="success" className="text-[11px] font-mono tabular-nums">
+            <Text fw={700} c="success" className="text-ui-micro font-mono tabular-nums">
               {advances()} UP
             </Text>
-            <Text fw={700} c="error" className="text-[11px] font-mono tabular-nums">
+            <Text fw={700} c="error" className="text-ui-micro font-mono tabular-nums">
               {declines()} DOWN
             </Text>
           </Box>
           <Box className="hidden min-w-0 items-baseline gap-1 xl:flex">
-            <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-[9px] tracking-[0.3px] whitespace-nowrap">
+            <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-ui-micro tracking-[0.3px] whitespace-nowrap">
               Weakest Sector
             </Text>
-            <Text fw={700} c="error" truncate className="text-[11px]">
+            <Text fw={700} c="error" truncate className="text-ui-micro" title={bottom()!.sector}>
               {bottom()!.sector}
             </Text>
-            <Text c="dimmed" className="text-[9.5px] font-mono tabular-nums whitespace-nowrap">
+            <Text c="dimmed" className="text-ui-micro font-mono tabular-nums whitespace-nowrap">
               Avg Change: {formatPercentage(bottom()!.avg_change)}
             </Text>
           </Box>

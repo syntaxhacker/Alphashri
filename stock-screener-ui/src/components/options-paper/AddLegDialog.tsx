@@ -11,6 +11,7 @@ import {
   Text,
   TextInput,
   ToolbarRow,
+  typeSize,
 } from "@/ui";
 import { showSuccess } from "@/ui/notifications";
 import { addOptionPaperLeg } from "@/api/optionsPaper";
@@ -165,7 +166,7 @@ export function AddLegDialog(props: AddLegDialogProps) {
               <Box data-testid="add-leg-existing" className="flex min-h-[20px] flex-wrap gap-1">
                 <Show
                   when={legsOf(position()).length > 0}
-                  fallback={<Text c="dimmed" className="text-[11px]">No legs yet.</Text>}
+                  fallback={<Text c="dimmed" className="text-ui-micro">No legs yet.</Text>}
                 >
                   <For each={legsOf(position())}>
                     {(leg) => (
@@ -173,7 +174,7 @@ export function AddLegDialog(props: AddLegDialogProps) {
                         size="sm"
                         color={leg.action === "BUY" ? "primary" : "info"}
                         variant="light"
-                        style={{ "font-size": "11px", height: "18px" }}
+                        style={{ "font-size": `${typeSize("micro")}px`, height: "18px" }}
                       >
                         {legChip(leg)}
                       </Badge>
@@ -266,7 +267,7 @@ export function AddLegDialog(props: AddLegDialogProps) {
             <Show when={loading()}>
               <Text
                 c="dimmed"
-                className={`text-[11px] ${transitionClass("state")} ${reducedMotionClass()} animate-pulse motion-reduce:animate-none`}
+                className={`text-ui-micro ${transitionClass("state")} ${reducedMotionClass()} animate-pulse motion-reduce:animate-none`}
                 data-testid="add-leg-loading"
               >
                 Adding leg…
@@ -276,7 +277,7 @@ export function AddLegDialog(props: AddLegDialogProps) {
             <Show when={error()}>
               {(message) => (
                 <Alert color="error" variant="light" data-testid="add-leg-error">
-                  <Text className="text-[11px]">{message()}</Text>
+                  <Text className="text-ui-micro">{message()}</Text>
                 </Alert>
               )}
             </Show>

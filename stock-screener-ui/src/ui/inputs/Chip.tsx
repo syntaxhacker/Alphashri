@@ -1,5 +1,6 @@
 import { createMemo, createSignal, Show, splitProps } from "solid-js";
 import { cn } from "../cn";
+import { typeSize, type TypeRole } from "../typography";
 import type { UIChipProps, UIColor } from "../types";
 
 /**
@@ -9,17 +10,17 @@ import type { UIChipProps, UIColor } from "../types";
  * keeps the three "small pill" primitives read apart at a glance: a Chip is
  * taller than a Badge (20 vs 16) and shorter than a SegmentedControl item (24).
  */
-type ChipBox = { h: number; font: number; px: number };
+type ChipBox = { h: number; fontRole: TypeRole; px: number };
 
 // Every size keeps the 20px floor: a filter chip that shrinks below a Badge
 // (16px) stops being distinguishable from a status label. Dense tables that
 // genuinely need 16px pin it explicitly at the call site via `className`/`style`.
 const CHIP_BOX: Record<string, ChipBox> = {
-  xs: { h: 20, font: 10, px: 6 },
-  sm: { h: 20, font: 10, px: 6 },
-  md: { h: 20, font: 11, px: 8 },
-  lg: { h: 22, font: 11, px: 8 },
-  xl: { h: 24, font: 12, px: 10 },
+  xs: { h: 20, fontRole: "micro", px: 6 },
+  sm: { h: 20, fontRole: "micro", px: 6 },
+  md: { h: 20, fontRole: "micro", px: 8 },
+  lg: { h: 22, fontRole: "micro", px: 8 },
+  xl: { h: 24, fontRole: "micro", px: 10 },
 };
 
 function chipBox(size?: UIChipProps["size"]): ChipBox {
@@ -84,7 +85,7 @@ export function Chip(props: UIChipProps) {
       "border-radius": "4px",
       "border-width": "1px",
       "border-style": "solid",
-      "font-size": `${box.font}px`,
+      "font-size": `${typeSize(box.fontRole)}px`,
       "font-weight": "600",
       "line-height": "1",
       "letter-spacing": "0.01em",

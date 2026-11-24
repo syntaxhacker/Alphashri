@@ -216,11 +216,10 @@ describe("TextInput — native attributes reach the input", () => {
       maxDropdownHeight: 200,
       comboboxProps: { withinPortal: true },
       withinPortal: true,
-      InputProps: { disableUnderline: true },
     };
     const { container } = render(() => <TextInput data-testid="ti" {...legacy} />);
     const html = container.innerHTML.toLowerCase();
-    for (const attr of ["allowdeselect", "maxdropdownheight", "inputprops", "comboboxprops", "withinportal"]) {
+    for (const attr of ["allowdeselect", "maxdropdownheight", "comboboxprops", "withinportal"]) {
       expect(html, `leaked DOM attribute: ${attr}`).not.toContain(attr);
     }
   });

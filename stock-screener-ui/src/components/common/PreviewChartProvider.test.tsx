@@ -276,7 +276,8 @@ describe("PreviewChartProvider", () => {
       expect(document.querySelector('[data-testid="preview-chart-expanded"]')).toBeInTheDocument();
     });
 
-    const backdrop = document.querySelector('[data-testid="preview-chart-backdrop"]') as HTMLElement;
+    // @/ui Modal owns the overlay; its dialog root is the backdrop target.
+    const backdrop = document.querySelector('[data-testid="preview-chart-expanded"]') as HTMLElement;
     expect(backdrop).not.toBeNull();
     await fireEvent.click(backdrop);
 

@@ -4,12 +4,19 @@ import { cn } from "../cn";
 import type { UIPaperProps } from "../types";
 import { sp, toSz } from "./spacing";
 
-/** Documented radius scale, not the 8pt spacing ramp: xs 2 · sm 4 · md 6 · lg 10 · xl 14. */
-const rad = (v: unknown): string | undefined => {
+/**
+ * The one container radius scale, shared by Paper and Card: xs 2 · sm 4 · md 6 · lg 10 · xl 14.
+ * This is the terminal vocabulary, not the 8pt spacing ramp and not the 4 / 6 / 10
+ * control aliases used by form controls. Numeric and raw CSS values pass through.
+ */
+export const CONTAINER_RADIUS: Record<string, string> = {
+  xs: "2px", sm: "4px", md: "6px", lg: "10px", xl: "14px",
+};
+
+export const containerRadius = (v: unknown): string | undefined => {
   if (v == null) return undefined;
   if (typeof v === "number") return `${v}px`;
-  const m: Record<string, string> = { xs: "2px", sm: "4px", md: "6px", lg: "10px", xl: "14px" };
-  return (m[v as string] ?? v) as string;
+  return (CONTAINER_RADIUS[v as string] ?? v) as string;
 };
 
 /**
@@ -39,7 +46,7 @@ export function Paper(props: UIPaperProps & Record<string, unknown>) {
   const shadowClass = known.shadow == null ? undefined : SHADOW_CLASS[String(known.shadow)];
 
   const styleObj: Record<string, string | number | undefined> = {};
-  if (known.radius != null) styleObj["border-radius"] = rad(known.radius);
+  if (known.radius != null) styleObj["border-radius"] = containerRadius(known.radius);
   if (known.p != null) styleObj.padding = sp(known.p);
   if (known.px != null) { styleObj["padding-left"] = sp(known.px); styleObj["padding-right"] = sp(known.px); }
   if (known.py != null) { styleObj["padding-top"] = sp(known.py); styleObj["padding-bottom"] = sp(known.py); }

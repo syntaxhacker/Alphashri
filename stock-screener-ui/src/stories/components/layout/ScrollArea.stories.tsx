@@ -127,26 +127,26 @@ export const LegacyTypeValues: Story = {
 export const EdgeStates: Story = {
   render: () =>
     solidStory(() => {
-      const [last, setLast] = createSignal("no scroll yet");
+      const [last, setLast] = createSignal("top-left");
       return (
         <Page>
           <Section title="Edge states" caption="Content shorter than the viewport, empty content, and a live scroll callback.">
             <Stack gap="md">
               <Demo label="Two rows in a 168px viewport: no scrollbar is needed, onScrollPositionChange stays at 0/0.">
-                <ScrollArea h={168} onScrollPositionChange={(p) => setLast(`x=${p.x} y=${p.y}`)} style={{ border: `1px solid ${C.border}`, padding: "8px" }}>
+                <ScrollArea h={168} onScrollPositionChange={(p) => setLast(`${p.x} px across, ${p.y} px down`)} style={{ border: `1px solid ${C.border}`, padding: "8px" }}>
                   <Stack gap="xs">
                     <Tile label="only row 1" h={40} />
                     <Tile label="only row 2" h={40} />
                   </Stack>
                 </ScrollArea>
-                <Note>{`last event: ${last()}`}</Note>
+                <Note>{`Scroll position: ${last()}`}</Note>
               </Demo>
               <Demo label="No children: the declared height is still reserved.">
                 <ScrollArea h={64} style={{ border: `1px dashed ${C.border}` }} />
               </Demo>
               <Demo label="Raw CSS height/width strings also work (h='50vh' resolves as-is).">
                 <ScrollArea h="96px" w="100%" style={{ border: `1px solid ${C.info}` }}>
-                  <Box p="sm" style={{ width: "140%", "font-family": MONO, "font-size": "11px" }}>Wide content · scroll horizontally</Box>
+                  <Box p="sm" className="text-ui-micro" style={{ width: "140%", "font-family": MONO }}>Wide content · scroll horizontally</Box>
                 </ScrollArea>
               </Demo>
             </Stack>

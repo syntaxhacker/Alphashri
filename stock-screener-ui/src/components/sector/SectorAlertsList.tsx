@@ -27,15 +27,15 @@ export function SectorAlertsList(props: { alerts: SectorAlert[] }) {
               <Box
                 className="grid grid-cols-[62px_minmax(0,1fr)_auto] items-center gap-1 min-h-[20px] px-1 border-b border-fin-border"
               >
-                <Text c="dimmed" className="text-[9px] tabular-nums font-mono">
+                <Text c="dimmed" className="text-ui-micro tabular-nums font-mono">
                   {alert.timestamp}
                 </Text>
-                <Text truncate className="text-[10.5px]">
+                <Text truncate className="text-ui-micro">
                   {alert.sector}
                 </Text>
                 <Box className="inline-flex items-center gap-1">
                   <Box className="size-[5px] rounded-full shrink-0" style={{ "background-color": color }} />
-                  <Text className="text-[9.5px] font-bold whitespace-nowrap font-mono tabular-nums" style={{ color }}>
+                  <Text className="text-ui-micro font-bold whitespace-nowrap font-mono tabular-nums" style={{ color }}>
                     {alert.direction} ({formatPercentage(alert.delta, 2, false)})
                   </Text>
                 </Box>

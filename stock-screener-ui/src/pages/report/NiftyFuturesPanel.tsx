@@ -5,6 +5,7 @@ import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/
 import type { NiftyFutures, NiftyFuturesRegime } from "@/types/niftyReport";
 import { createECharts } from "./echartsSolid";
 import { formatReportCompact, formatReportFixed } from "./reportFormat";
+import { REPORT_FONT } from "./reportTokens";
 
 const REGIME_LABEL: Record<NiftyFuturesRegime, string> = {
   long_buildup: "LONG BUILDUP",
@@ -56,7 +57,7 @@ function RegimeChip(props: { regime: NiftyFuturesRegime }) {
     <span
       data-testid="nifty-futures-regime"
       title={`Futures regime — ${REGIME_NOTE[props.regime] ?? REGIME_NOTE.neutral}`}
-      class="inline-flex items-center rounded-[3px] px-[5px] py-[1px] text-[11px] font-extrabold tracking-[0.06em] whitespace-nowrap"
+      class="inline-flex items-center rounded-[3px] px-[5px] py-[1px] text-ui-micro font-extrabold tracking-[0.06em] whitespace-nowrap"
       style={{
         color: tone(),
         "background-color": palette.alpha(tone(), 0.14),
@@ -120,7 +121,7 @@ export function NiftyFuturesPanel(props: {
         trigger: "axis",
         "background-color": palette.TOOLTIP_BG,
         borderColor: palette.TOOLTIP_BORDER,
-        textStyle: { color: palette.TOOLTIP_TEXT, "font-size": "11px" },
+        textStyle: { color: palette.TOOLTIP_TEXT, "font-size": `${REPORT_FONT.micro}px` },
         axisPointer: { type: "line", lineStyle: { color: palette.CHART_MUTED } },
         formatter: (params: unknown) => {
           const list = Array.isArray(params) ? params : [params];
@@ -143,7 +144,7 @@ export function NiftyFuturesPanel(props: {
         axisLine: { lineStyle: { color: palette.AXIS_LINE } },
         axisLabel: {
           color: palette.CHART_MUTED,
-          "font-size": "11px",
+          "font-size": `${REPORT_FONT.micro}px`,
           hideOverlap: true,
           interval: Math.max(0, Math.ceil(rows.length / 6) - 1),
         },
@@ -156,7 +157,7 @@ export function NiftyFuturesPanel(props: {
           axisTick: { show: false },
           axisLabel: {
             color: palette.TEXT_MUTED,
-            "font-size": "11px",
+            "font-size": `${REPORT_FONT.micro}px`,
             formatter: (value: number) => formatReportCompact(value, { round: true }),
           },
           splitLine: { lineStyle: { color: palette.AXIS_SPLIT } },
@@ -168,7 +169,7 @@ export function NiftyFuturesPanel(props: {
           axisTick: { show: false },
           axisLabel: {
             color: palette.TERM_CE,
-            "font-size": "11px",
+            "font-size": `${REPORT_FONT.micro}px`,
             formatter: (value: number) => formatReportCompact(value, { round: true }),
           },
           splitLine: { show: false },
@@ -263,7 +264,7 @@ export function NiftyFuturesPanel(props: {
 
           <Box
             data-testid="nifty-futures-key"
-            class="flex items-center gap-2 px-[2px] text-[11px] tracking-[0.04em]"
+            class="flex items-center gap-2 px-[2px] text-ui-micro tracking-[0.04em]"
           >
             <span class="inline-flex items-center gap-[4px]" style={{ color: palette.TEXT_MUTED }}>
               <span

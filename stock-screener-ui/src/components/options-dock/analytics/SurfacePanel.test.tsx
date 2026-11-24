@@ -313,7 +313,7 @@ describe("SurfacePanel", () => {
     await waitFor(() => expect(screen.getByTestId("surface-caption")).toHaveTextContent(
       "Strikes × expiries · blank/hatched = no valid IV quote (not zero)",
     ));
-    expect((screen.getByTestId("surface-caption") as HTMLElement).style.fontSize).toBe("10px");
+    expect((screen.getByTestId("surface-caption") as HTMLElement).style.fontSize).toBe("12px");
   });
 
   test("shows No surface grid for an empty payload", async () => {

@@ -1,6 +1,6 @@
 import type { JSX } from "solid-js";
 import { Show, splitProps } from "solid-js";
-import { Box, Card, Paper, SimpleGrid, Stack, Text, Title } from "@/ui";
+import { Box, Card, Paper, SimpleGrid, Stack, Text, Title, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { UIStackProps, UIPaperProps } from "@/ui";
 
@@ -69,7 +69,7 @@ export function CompactPage(props: CompactPageProps) {
           <Stack spacing="sm" className="flex flex-start">
             <Show when={own.title}>
               <Show when={isStringTitle()} fallback={<Box className="flex items-center flex-start">{own.title}</Box>}>
-                <Title order={2} size="h4">{own.title}</Title>
+                <Title order={2} size="lg">{own.title}</Title>
               </Show>
             </Show>
             <Show when={own.description}>
@@ -178,7 +178,7 @@ export function CompactPanel(props: CompactPanelProps) {
                       order={4}
                       className={own.titleClassName}
                       style={{
-                        "font-size": "10px",
+                        "font-size": `${typeSize("micro")}px`,
                         "font-family": palette.MONO,
                         "font-weight": 700,
                         "letter-spacing": "0.08em",
@@ -275,7 +275,7 @@ export function CompactStat(props: CompactStatProps) {
             fw={700}
             c="dimmed"
             style={{
-              "font-size": "10px",
+              "font-size": `${typeSize("micro")}px`,
               "text-transform": "uppercase",
               "letter-spacing": "0.06em",
               "line-height": "1.2",

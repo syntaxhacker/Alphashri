@@ -99,7 +99,7 @@ export function useColumnViews<T>(
       const dir = explicitAlign === "right" || explicitAlign === "center" ? explicitAlign : "left";
       const style: CSSProperties = {
         padding: width === 0 ? "0" : "var(--tbl-cell-pad, 3px 8px)",
-        "font-size": "var(--tbl-fs, 11px)",
+        "font-size": "var(--tbl-fs, var(--text-ui-micro))",
         "line-height": "1.2",
         "vertical-align": "middle",
         "font-variant-numeric": "tabular-nums",

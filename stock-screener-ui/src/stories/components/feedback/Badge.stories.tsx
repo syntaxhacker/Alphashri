@@ -113,8 +113,8 @@ export const Tones: Story = {
 export const SizesAndRadius: Story = {
   render: () =>
     solidStory(() => (
-      <Catalog title="Badge — scale" note="Five height steps and five radius steps, kept at the 9–10px mono type floor so labels stay readable.">
-        <Section title="Sizes" note="xs 14px → xl 22px tall; md and above use the 10px type step.">
+      <Catalog title="Badge — scale" note="Five height steps and five radius steps, all set at the 12px micro floor so labels stay readable.">
+        <Section title="Sizes" note="xs 14px → xl 22px tall; every size uses the 12px micro type step.">
           <SpecimenGrid min={180}>
             {sizeOptions.map((size) => (
               <Specimen label={size}>

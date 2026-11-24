@@ -73,14 +73,14 @@ export const FamilyLanding: Story = {
         <SpecimenPanel title="Notifications" note="Three entry points stack toasts in the bottom-right toaster.">
           <Notifications>
             <Stack gap="sm">
-              <Text size="xs" c="dimmed">showNotification maps the colour option to the matching toast variant.</Text>
+              <Text size="xs" c="dimmed">Toasts report background work in the corner; trigger each tone to compare them.</Text>
               <Group gap="sm" align="center" wrap="wrap">
-                <Button color="success" onClick={() => showSuccess("Order accepted", "The paper order was written to the book.")}>showSuccess</Button>
-                <Button color="error" onClick={() => showError("Feed unavailable", "The options chain returned 503.")}>showError</Button>
-                <Button variant="outline" color="error" onClick={() => showNotification({ title: "Rejected", message: "Margin check failed for the short leg.", color: "error" })}>showNotification · error</Button>
-                <Button variant="outline" color="warning" onClick={() => showNotification({ title: "Partial fill", message: "Only 1 of 2 legs was filled.", color: "warning" })}>showNotification · warning</Button>
-                <Button variant="outline" color="info" onClick={() => showNotification({ title: "Feed resumed", message: "Market data stream reconnected.", color: "info" })}>showNotification · info</Button>
-                <Button variant="outline" onClick={() => showNotification({ title: "Notice", message: "A neutral notification with no colour.", autoClose: 6000 })}>showNotification · default</Button>
+                <Button color="success" onClick={() => showSuccess("Order accepted", "The paper order was written to the book.")}>Order accepted</Button>
+                <Button color="error" onClick={() => showError("Feed unavailable", "The options chain is temporarily unavailable.")}>Feed unavailable</Button>
+                <Button variant="outline" color="error" onClick={() => showNotification({ title: "Rejected", message: "Margin check failed for the short leg.", color: "error" })}>Rejected</Button>
+                <Button variant="outline" color="warning" onClick={() => showNotification({ title: "Partial fill", message: "Only 1 of 2 legs was filled.", color: "warning" })}>Partial fill</Button>
+                <Button variant="outline" color="info" onClick={() => showNotification({ title: "Feed resumed", message: "Market data stream reconnected.", color: "info" })}>Feed resumed</Button>
+                <Button variant="outline" onClick={() => showNotification({ title: "Notice", message: "A neutral notice for information that needs no action.", autoClose: 6000 })}>Notice</Button>
               </Group>
             </Stack>
           </Notifications>
@@ -117,14 +117,14 @@ export const FamilyLanding: Story = {
               <Skeleton circle h={40} w={40} />
               <Skeleton h={64} w={200} />
             </Group>
-            <Group gap="xl" align="center" wrap="wrap">
+            <Group gap="xl" align="center" wrap="wrap" style={{ "padding-bottom": "8px" }}>
               <Indicator label="3" color="error"><Button variant="outline">Alerts</Button></Indicator>
               <Indicator label="LIVE" color="success"><Button variant="outline">Feed</Button></Indicator>
               <Indicator label="9+" color="warning"><Button variant="outline">Queue</Button></Indicator>
             </Group>
           </Stack>
         </SpecimenPanel>
-        <FamilyFooter source="src/ui" pages="src/stories/components/Feedback" />
+        <FamilyFooter source="src/ui" pages="src/stories/components/feedback" />
       </FamilyPage>
     )),
 };

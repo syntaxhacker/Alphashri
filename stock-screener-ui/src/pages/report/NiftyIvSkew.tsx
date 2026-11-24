@@ -14,6 +14,7 @@ import {
   IV_DELTA_TARGET,
   IV_MAX_PCT,
 } from "./ivConventions";
+import { REPORT_RADIUS } from "./reportTokens";
 
 // Kept as this module's public name so existing callers/tests keep working;
 // the value now has a single owner shared with the backend conventions.
@@ -408,7 +409,7 @@ export function NiftyIvSkew(props: NiftyIvSkewProps) {
         "background-color": palette.TERM_BG,
         "border": `1px solid ${palette.TERM_BORDER}`,
         "border-color": palette.TERM_BORDER,
-        "border-radius": "8px",
+        "border-radius": `${REPORT_RADIUS.md}px`,
       }}
     >
       <div class="flex flex-col gap-[4px] w-full min-w-0">

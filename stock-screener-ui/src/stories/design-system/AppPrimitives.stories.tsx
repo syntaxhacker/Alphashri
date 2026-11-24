@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
-import { createSignal, Show } from "solid-js";
+import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
 import { Badge, Button, Flex, Group, Stack, Text } from "@/ui";
 import { KeyValue } from "@/components/common/KeyValue";
@@ -67,15 +67,21 @@ const marketRows: MarketRow[] = [
   { symbol: "BANKNIFTY", ltp: 51284.5, chg: -0.18, oi: 884200 },
   { symbol: "FINNIFTY", ltp: 23410.2, chg: 0.12, oi: 402100 },
   { symbol: "MIDCPNIFTY", ltp: 12884.0, chg: -0.44, oi: 118900 },
+  { symbol: "NIFTYNEXT50", ltp: 68210.4, chg: 0.21, oi: 96500 },
+  { symbol: "SENSEX", ltp: 77420.6, chg: 0.05, oi: 210400 },
+  { symbol: "BANKEX", ltp: 58110.15, chg: -0.27, oi: 88400 },
 ];
 
+// Fixed widths keep header/cell boundaries identical in normal and dense mode
+// and give the table a deterministic min-width before it starts to scroll.
 const marketColumns: TableColumnDef<MarketRow>[] = [
-  { id: "symbol", header: "Symbol", accessorKey: "symbol", meta: { align: "left" } },
-  { id: "ltp", header: "LTP", accessorKey: "ltp", meta: { align: "right" } },
+  { id: "symbol", header: "Symbol", accessorKey: "symbol", size: 140, meta: { align: "left" } },
+  { id: "ltp", header: "LTP", accessorKey: "ltp", size: 150, meta: { align: "right" } },
   {
     id: "chg",
     header: "Chg %",
     accessorFn: (row) => row.chg,
+    size: 150,
     meta: { align: "right" },
     cell: ({ row }) => (
       <span style={{ color: row.original.chg >= 0 ? "var(--color-fin-positive)" : "var(--color-fin-negative)", "font-variant-numeric": "tabular-nums" }}>
@@ -83,8 +89,27 @@ const marketColumns: TableColumnDef<MarketRow>[] = [
       </span>
     ),
   },
-  { id: "oi", header: "OI", accessorKey: "oi", meta: { align: "right" } },
+  { id: "oi", header: "OI", accessorKey: "oi", size: 200, meta: { align: "right" } },
 ];
+
+const MARKET_TABLE_MIN_WIDTH = 640;
+const SCROLL_HINT_QUERY = "(max-width: 640px)";
+
+/** Cue only where four numeric columns cannot fit alongside the symbol. */
+const useNarrowViewport = () => {
+  const query = typeof window !== "undefined" && typeof window.matchMedia === "function"
+    ? window.matchMedia(SCROLL_HINT_QUERY)
+    : undefined;
+  const [narrow, setNarrow] = createSignal(query?.matches ?? false);
+  onMount(() => {
+    if (!query) return;
+    setNarrow(query.matches);
+    const onChange = (event: MediaQueryListEvent) => setNarrow(event.matches);
+    query.addEventListener("change", onChange);
+    onCleanup(() => query.removeEventListener("change", onChange));
+  });
+  return narrow;
+};
 
 const ChainHeaderSpecimen = () => (
   <Stack gap="sm" style={{ "max-width": "760px" }}>
@@ -146,7 +171,7 @@ const StatesSpecimen = () => {
       >
         <ErrorAlert
           title="Feed unavailable"
-          message="The options tape returned 503."
+          message="The options tape is temporarily unavailable."
           withRetry
           onRetry={() => { setAttempts((n) => n + 1); setFailed(false); }}
         />
@@ -158,6 +183,7 @@ const StatesSpecimen = () => {
 
 const TableSpecimen = () => {
   const [dense, setDense] = createSignal(false);
+  const narrow = useNarrowViewport();
   return (
     <Stack gap="sm" style={{ "max-width": "720px" }}>
       <Group gap="sm" align="center" wrap="wrap">
@@ -166,14 +192,26 @@ const TableSpecimen = () => {
           {dense() ? "Switch to normal" : "Switch to dense"}
         </Button>
       </Group>
-      <TanStackTable
-        data={marketRows}
-        columns={marketColumns}
-        dataTestId="story-table-density"
-        ariaLabel={`Index quotes, ${dense() ? "dense" : "normal"} mode`}
-        dense={dense()}
-        stickyHeader
-      />
+      <Show when={narrow()}>
+        <Flex gap="xs" align="center" wrap="wrap" data-testid="story-table-scroll-hint">
+          <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">Scroll sideways →</Text>
+          <Text size="xs" c="dimmed">LTP, Chg % and OI continue to the right — no values are hidden.</Text>
+        </Flex>
+      </Show>
+      <div
+        data-testid="story-table-scroll-region"
+        style={{ "max-width": "100%", "min-width": "0px", "overflow-x": "auto" }}
+      >
+        <TanStackTable
+          data={marketRows}
+          columns={marketColumns}
+          dataTestId="story-table-density"
+          ariaLabel={`Index quotes, ${dense() ? "dense" : "normal"} mode`}
+          dense={dense()}
+          stickyHeader
+          minTableWidth={MARKET_TABLE_MIN_WIDTH}
+        />
+      </div>
     </Stack>
   );
 };
@@ -196,10 +234,10 @@ export const FamilyLanding: Story = {
         <SpecimenPanel title="Shared states" note="Empty, error with retry and inline loading use the same vocabulary across screens.">
           <StatesSpecimen />
         </SpecimenPanel>
-        <SpecimenPanel title="Table density" note="One grid, one toggle; column alignment stays fixed in both modes.">
+        <SpecimenPanel title="Table density" note="One grid, one toggle; fixed column widths keep alignment in both modes, with a scroll cue at narrow widths.">
           <TableSpecimen />
         </SpecimenPanel>
-        <FamilyFooter source="src/components/common" pages="src/stories/components/App" />
+        <FamilyFooter source="src/components/common" pages="src/stories/components/app" />
       </FamilyPage>
     )),
 };

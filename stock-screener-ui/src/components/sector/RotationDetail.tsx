@@ -1,7 +1,7 @@
 import type { JSX } from "solid-js";
 import { Show, For } from "solid-js";
 import { NEGATIVE, POSITIVE, TEXT_MUTED } from "@/ui/palette";
-import { Box, Button, Text } from "@/ui";
+import { Box, Button, Text, typeSize } from "@/ui";
 import { IconUsers } from "../screener/icons";
 import type { RotationPeriod, RotationRow } from "../../types/rotation";
 import { formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
@@ -15,7 +15,7 @@ function SectionLabel(props: { children: JSX.Element }) {
   return (
     <Text
       c="dimmed"
-      className="text-[9.5px] font-bold uppercase tracking-[0.5px]"
+      className="text-ui-micro font-bold uppercase tracking-[0.5px]"
     >
       {props.children}
     </Text>
@@ -31,7 +31,7 @@ function Metric(props: {
     <Box className="min-w-0">
       <Text
         c="dimmed"
-        className="block text-[9px] font-bold uppercase tracking-[0.4px]"
+        className="block text-ui-micro font-bold uppercase tracking-[0.4px]"
       >
         {props.label}
       </Text>
@@ -39,7 +39,7 @@ function Metric(props: {
         c={props.tone === "muted" ? "secondary" : props.tone}
         fw={600}
         truncate
-        className="block font-mono text-[10.5px] tabular-nums"
+        className="block font-mono text-ui-micro tabular-nums"
       >
         {props.value}
       </Text>
@@ -77,14 +77,14 @@ export function RotationDetail(props: RotationDetailProps) {
               />
             )}
           </Show>
-          <Text fw={700} truncate className="min-w-0 text-[11px]">
+          <Text fw={700} truncate className="min-w-0 text-ui-micro">
             {row() ? row()!.name : "Select a group"}
           </Text>
           <Box className="flex-1" />
           <Show when={status()}>
             {(s_) => (
               <Text
-                className="whitespace-nowrap text-[9.5px] font-bold tracking-[0.4px]"
+                className="whitespace-nowrap text-ui-micro font-bold tracking-[0.4px]"
                 style={{ color: s_().color }}
               >
                 {s_().label}
@@ -92,7 +92,7 @@ export function RotationDetail(props: RotationDetailProps) {
             )}
           </Show>
         </Box>
-        <Text c="dimmed" truncate className="block text-[9px]">
+        <Text c="dimmed" truncate className="block text-ui-micro">
           {row()
             ? `${row()!.category ? `${row()!.category} · ` : ""}${row()!.kind} · ${row()!.quadrant} · ${row()!.members} members`
             : "Pick a row in the board, matrix or rotation map."}
@@ -139,9 +139,9 @@ export function RotationDetail(props: RotationDetailProps) {
                         style={{ height: `${height}px`, "background-color": value >= 0 ? POSITIVE : NEGATIVE }}
                       />
                     </Box>
-                    <Text className="text-[9px] leading-none" style={{ color: TEXT_MUTED }}>{p}</Text>
+                    <Text className="text-ui-micro leading-none" style={{ color: TEXT_MUTED }}>{p}</Text>
                     <Text
-                      className="font-mono text-[8.5px] leading-none tabular-nums"
+                      className="font-mono text-ui-micro leading-none tabular-nums"
                       style={{ color: getPnLTextColor(value) }}
                     >
                       {value.toFixed(1)}
@@ -165,7 +165,7 @@ export function RotationDetail(props: RotationDetailProps) {
                 size="xs"
                 leftSection={<IconUsers size={12} />}
                 onClick={() => props.onOpenMembers(row()!)}
-                style={{ "min-height": "20px", "padding-inline": "6px", "font-size": "10px" }}
+                style={{ "min-height": "20px", "padding-inline": "6px", "font-size": `${typeSize("micro")}px` }}
               >
                 Members
               </Button>
@@ -185,7 +185,7 @@ export function RotationDetail(props: RotationDetailProps) {
                     href={`/chart/${encodeURIComponent(mover.symbol)}`}
                     className="min-w-0 text-fin-text no-underline hover:text-fin-primary hover:underline"
                   >
-                    <Text truncate className="text-[10.5px] font-semibold">
+                    <Text truncate className="text-ui-micro font-semibold">
                       {mover.symbol}
                     </Text>
                   </Box>
@@ -193,7 +193,7 @@ export function RotationDetail(props: RotationDetailProps) {
                   <Text
                     c={getPnLTextColor(mover.change)}
                     fw={600}
-                    className="font-mono text-[10.5px] tabular-nums"
+                    className="font-mono text-ui-micro tabular-nums"
                   >
                     {formatPercentage(mover.change)}
                   </Text>
@@ -202,7 +202,7 @@ export function RotationDetail(props: RotationDetailProps) {
                 </For>
               }
             >
-              <Text c="dimmed" className="text-[10px]">
+              <Text c="dimmed" className="text-ui-micro">
                 No movers
               </Text>
             </Show>

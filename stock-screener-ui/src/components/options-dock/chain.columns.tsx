@@ -28,9 +28,9 @@ function fmtIv(value: number | null): string {
   return value.toFixed(1);
 }
 
-const CELL = "block w-full font-mono tabular-nums text-[11px] leading-[14px]";
+const CELL = "block w-full font-mono tabular-nums text-ui-micro leading-[14px]";
 const STRIKE_CELL =
-  "relative flex w-full items-center justify-center gap-2 text-center font-mono tabular-nums text-[11px] leading-[14px]";
+  "relative flex w-full items-center justify-center gap-2 text-center font-mono tabular-nums text-ui-micro leading-[14px]";
 
 /** A missing numeric cell carries a state label, not just a punctuation mark. */
 function NumericCell(props: { value: string; className?: string }) {
@@ -79,8 +79,11 @@ function PriceCell(props: {
   onChart?: (strike: number, type: "CE" | "PE", leg: ChainLeg) => void;
   align?: "right" | "left";
 }) {
+  const priceText = () => (props.leg.ltp == null ? DASH : props.leg.ltp.toFixed(1));
+  // Voice control activates this cell by the number it shows, so the visible
+  // price has to lead the accessible name; the trade affordance follows it.
   const label = () =>
-    `${props.optionType === "CE" ? "Call" : "Put"} ${props.strike} · buy · shift-click to sell`;
+    `${priceText()} — ${props.optionType === "CE" ? "Call" : "Put"} ${props.strike} · buy · shift-click to sell`;
   return (
     <Box className="flex w-full min-w-0 items-center justify-end gap-2">
       <Box
@@ -93,10 +96,10 @@ function PriceCell(props: {
           event.stopPropagation();
           props.onPick?.(props.strike, props.optionType, props.leg, event.shiftKey ? "sell" : "buy");
         }}
-        className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 font-mono tabular-nums text-[11px] leading-[14px] text-fin-text hover:text-fin-primary"
+        className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 font-mono tabular-nums text-ui-micro leading-[14px] text-fin-text hover:text-fin-primary"
         style={{ "text-align": props.align ?? "right" }}
       >
-        {props.leg.ltp == null ? DASH : props.leg.ltp.toFixed(1)}
+        {priceText()}
       </Box>
       <Show when={props.onChart}>
         {(onChart) => (
@@ -274,7 +277,7 @@ function WideBadge(props: { badge: StrikeBadge; strike: number }) {
       data-code={props.badge.code}
       title={props.badge.title}
       aria-label={props.badge.title}
-      className="ml-2 inline-flex shrink-0 items-center font-mono tabular-nums text-[11px] leading-[14px]"
+      className="ml-2 inline-flex shrink-0 items-center font-mono tabular-nums text-ui-micro leading-[14px]"
       style={{ color: props.badge.color }}
     >
       <Show when={props.badge.label} fallback={<span className="inline-block h-[14px] w-[2px]" style={{ "background-color": props.badge.color }} aria-hidden="true" />}>
@@ -300,7 +303,7 @@ function NarrowBadge(props: { badge: StrikeBadge; strike: number }) {
       <span className="h-full shrink-0" style={{ width: "2px", "background-color": props.badge.color }} aria-hidden="true" />
       <Show when={props.badge.letter}>
         <span
-          className="absolute left-2 top-0 font-mono tabular-nums text-[11px] leading-[14px]"
+          className="absolute left-2 top-0 font-mono tabular-nums text-ui-micro leading-[14px]"
           style={{ color: props.badge.color }}
           aria-hidden="true"
         >

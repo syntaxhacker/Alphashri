@@ -20,3 +20,27 @@ describe("chainStyles palette discipline", () => {
     expect(styles.zebraRow.backgroundColor).toBe(palette.alpha(palette.TEXT_ON_ACCENT, 0.04));
   });
 });
+
+describe("chain layout by viewport", () => {
+  it("keeps the wide 11-column grid with strike pinned at its centre", () => {
+    const styles = getStyles(undefined, true);
+    expect(styles.row.gridTemplateColumns).toBe("repeat(5, 1fr) 80px repeat(5, 1fr)");
+    expect(styles.strikeCell.left).toBe("calc(50% - 40px)");
+    expect(styles.container.height).toBe("calc(100vh - 300px)");
+  });
+
+  it("uses a five-column core grid and leading-edge strike pin when compact", () => {
+    const styles = getStyles(undefined, true, { compact: true });
+    expect(styles.row.gridTemplateColumns).toBe("1fr 1fr 80px 1fr 1fr");
+    expect(styles.subHeader.gridTemplateColumns).toBe("1fr 1fr 80px 1fr 1fr");
+    expect(styles.header.gridTemplateColumns).toBe("1fr 80px 1fr");
+    expect(styles.strikeCell.left).toBe("0px");
+    expect(styles.container.height).toBe("auto");
+  });
+
+  it("pins strike to the leading edge in the narrow full-chain grid", () => {
+    const styles = getStyles(undefined, true, { narrow: true });
+    expect(styles.strikeCell.left).toBe("8px");
+    expect(styles.row.gridTemplateColumns).toBe("repeat(5, 1fr) 80px repeat(5, 1fr)");
+  });
+});

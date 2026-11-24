@@ -1,4 +1,4 @@
-import { Box, Text } from "@/ui";
+import { Box, Text, typeSize } from "@/ui";
 import type { AnalyticsTone } from "./types";
 
 const TONE_VAR: Record<AnalyticsTone, string> = {
@@ -28,7 +28,7 @@ export function MetricCell(props: {
         size="xs"
         c="dimmed"
         className="truncate uppercase"
-        style={{ "font-size": "9px", "letter-spacing": "0.06em", "line-height": "1.1" }}
+        style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.06em", "line-height": "1.1" }}
       >
         {props.label}
       </Text>
@@ -37,7 +37,7 @@ export function MetricCell(props: {
         fw={700}
         className="truncate font-mono tabular-nums"
         style={{
-          "font-size": "10px",
+          "font-size": `${typeSize("micro")}px`,
           "line-height": "1.2",
           ...(props.tone ? { color: TONE_VAR[props.tone] } : {}),
         }}

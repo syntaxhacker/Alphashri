@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createSignal, Show } from "solid-js";
 import type { JSX } from "solid-js";
-import { Alert, Box, SegmentedControl, Text, ToolbarRow } from "@/ui";
+import { Alert, Box, SegmentedControl, Text, ToolbarRow, typeSize } from "@/ui";
 import { formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
 import type {
   ChartCandle,
@@ -156,7 +156,7 @@ function SectionLabel(props: { children?: JSX.Element; action?: JSX.Element }) {
         size="xs"
         fw={700}
         c="dimmed"
-        style={{ "font-size": "10px", "text-transform": "uppercase", "letter-spacing": "0.4px" }}
+        style={{ "font-size": `${typeSize("micro")}px`, "text-transform": "uppercase", "letter-spacing": "0.4px" }}
       >
         {props.children}
       </Text>
@@ -199,14 +199,14 @@ function FullscreenPanel(props: {
         <Box className="flex items-start justify-between gap-2">
           <Box className="flex min-w-0 flex-col gap-1">
             <Box className="flex items-baseline gap-2">
-              <Text fw={700} className="truncate text-[13px] leading-none">
+              <Text fw={700} className="truncate text-ui-body leading-none">
                 {props.hit.symbol}
               </Text>
-              <Text size="xs" c="dimmed" className="whitespace-nowrap text-[10px]">
+              <Text size="xs" c="dimmed" className="whitespace-nowrap text-ui-micro">
                 {props.hit.timeframe} · {props.hit.bars_ago} bar{props.hit.bars_ago === 1 ? "" : "s"} ago
               </Text>
             </Box>
-            <Text size="xs" c="dimmed" className="truncate text-[11px]">
+            <Text size="xs" c="dimmed" className="truncate text-ui-micro">
               {props.hit.pattern_name}
             </Text>
           </Box>
@@ -221,7 +221,7 @@ function FullscreenPanel(props: {
             <Text
               size="xs"
               c="dimmed"
-              className="text-[10px] uppercase tracking-[0.4px]"
+              className="text-ui-micro uppercase tracking-[0.4px]"
               data-testid="patterns-close-label"
             >
               {closeLabel()}
@@ -236,13 +236,13 @@ function FullscreenPanel(props: {
               </Show>
             </Text>
             <Box className="flex min-w-0 items-baseline gap-2">
-              <Text fw={600} className="font-mono tabular-nums text-[18px] leading-none">
+              <Text fw={600} className="font-mono tabular-nums text-ui-heading leading-none">
                 {formatChartPrice(series().close, props.market)}
               </Text>
               <Text
                 size="xs"
                 fw={600}
-                className="font-mono tabular-nums text-[11px]"
+                className="font-mono tabular-nums text-ui-micro"
                 c={getPnLTextColor(series().changePct ?? 0)}
               >
                 {series().changePct != null ? formatPercentage(series().changePct!, 2) : "—"}
@@ -250,16 +250,16 @@ function FullscreenPanel(props: {
             </Box>
             <Show when={props.livePrice != null}>
               <Box className="flex min-w-0 items-baseline gap-2" data-testid="patterns-ltp-line">
-                <Text size="xs" c="dimmed" className="text-[10px] uppercase tracking-[0.4px]">
+                <Text size="xs" c="dimmed" className="text-ui-micro uppercase tracking-[0.4px]">
                   LTP
                 </Text>
-                <Text fw={600} className="font-mono tabular-nums text-[14px] leading-none">
+                <Text fw={600} className="font-mono tabular-nums text-ui-label leading-none">
                   {formatChartPrice(props.livePrice!, props.market)}
                 </Text>
                 <Text
                   size="xs"
                   fw={600}
-                  className="font-mono tabular-nums text-[11px]"
+                  className="font-mono tabular-nums text-ui-micro"
                   c={props.liveChange != null ? getPnLTextColor(props.liveChange) : undefined}
                   data-testid="patterns-ltp-change"
                 >
@@ -270,7 +270,7 @@ function FullscreenPanel(props: {
           </Box>
           <Show when={props.hit.confidence != null}>
             <Box className="flex w-28 flex-shrink-0 flex-col items-end gap-1">
-              <Text size="xs" c="dimmed" className="text-[10px] uppercase tracking-[0.4px]">
+              <Text size="xs" c="dimmed" className="text-ui-micro uppercase tracking-[0.4px]">
                 Confidence <span className="font-mono tabular-nums text-fin-text">{props.hit.confidence}%</span>
               </Text>
               <Box
@@ -294,7 +294,7 @@ function FullscreenPanel(props: {
       <Show when={props.hit.notes}>
         <Box className="flex flex-col gap-1 border-t border-fin-border px-3 py-2">
           <SectionLabel>Notes</SectionLabel>
-          <Text size="xs" c="dimmed" className="text-[11px]" style={{ "overflow-wrap": "anywhere" }}>
+          <Text size="xs" c="dimmed" className="text-ui-micro" style={{ "overflow-wrap": "anywhere" }}>
             {props.hit.notes}
           </Text>
         </Box>
@@ -468,7 +468,7 @@ export function PatternChartBody(props: PatternChartBodyProps) {
                 size="xs"
                 c="dimmed"
                 data-testid="patterns-feed-badge"
-                className="text-[10px] uppercase tracking-[0.4px]"
+                className="text-ui-micro uppercase tracking-[0.4px]"
               >
                 {[props.feedLabel, props.delayLabel].filter(Boolean).join(" · ")}
               </Text>

@@ -1,5 +1,5 @@
 import { Show, For, createMemo, createSignal, onMount, onCleanup } from "solid-js";
-import { Box, Card, Text, Button, Stack, SimpleGrid, Badge, ToolbarRow, Tooltip } from "@/ui";
+import { Box, Card, Text, Button, Stack, SimpleGrid, Badge, ToolbarRow, Tooltip, typeSize } from "@/ui";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "../common/Icons";
 import type { BotConfig, BotStatus, BotTrade } from "../../types/bots";
 import { loadBotStatus, loadBotTrades } from "../../state/bots";
@@ -174,7 +174,7 @@ export function BotStatusPanel(props: BotStatusPanelProps) {
           <Box data-testid="strategies-status" className="shrink-0">
             <ToolbarRow gap={8} wrap={false} className="px-2" style={{ height: "24px" }}>
               <Box w={4} h={14} className="rounded-sm bg-fin-text-muted" />
-              <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ "font-size": "10px", "letter-spacing": "0.06em", "text-transform": "uppercase" }}>
+              <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.06em", "text-transform": "uppercase" }}>
                 Strategy Status
               </Text>
               <Badge size="xs" variant="light" color="secondary">

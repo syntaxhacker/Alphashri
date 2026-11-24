@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show, untrack } from "solid-js";
-import { Box, Text, useColorScheme } from "@/ui";
+import { Box, Text, useColorScheme, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { loadEcharts } from "@/utils/loadEcharts";
 import { formatNumber } from "@/utils/ui-helpers";
@@ -28,7 +28,7 @@ const DEFAULT_WIDTH_PCT = 10;
 /** Horizontal pixel budget for the y axis labels. */
 const GRID_LEFT = 46;
 /** Axis ticks and strike-line labels: 9px was unreadable in the narrow dock. */
-const LABEL_FONT_SIZE = 10;
+const LABEL_FONT_SIZE = typeSize("micro");
 /** Only used when a host has no expiry to quote; that host hides the ±1σ cell. */
 const FALLBACK_DTE_YEARS = 7 / 365;
 
@@ -252,7 +252,7 @@ function buildOption(
       trigger: "axis",
       backgroundColor: palette.TOOLTIP_BG,
       borderColor: palette.TOOLTIP_BORDER,
-      textStyle: { color: palette.OPTION_PAYOFF_TOOLTIP_TEXT, fontSize: 10 },
+      textStyle: { color: palette.OPTION_PAYOFF_TOOLTIP_TEXT, fontSize: typeSize("micro") },
     },
     xAxis: {
       type: "category",
@@ -614,7 +614,7 @@ function PayoffMetric(props: {
         size="xs"
         c="dimmed"
         className="truncate uppercase"
-        style={{ "font-size": "9px", "letter-spacing": "0.06em", "line-height": "1.1" }}
+        style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.06em", "line-height": "1.1" }}
       >
         {props.label}
       </Text>
@@ -622,7 +622,7 @@ function PayoffMetric(props: {
         size="xs"
         fw={700}
         className="truncate font-mono tabular-nums"
-        style={{ "font-size": "10px", "line-height": "1.2", color: props.tone }}
+        style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2", color: props.tone }}
         data-testid={`${props.testId}-value`}
       >
         {props.value}

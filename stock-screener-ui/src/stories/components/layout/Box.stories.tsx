@@ -192,7 +192,7 @@ export const Positioning: Story = {
             <Demo label="pos='relative' with an absolutely positioned tag pinned at top=8 right=8.">
               <Box pos="relative" p="md" h={96} bg={C.alt} style={{ border: `1px solid ${C.border}` }}>
                 <Text size="sm" fs={MONO}>position: relative</Text>
-                <Box pos="absolute" top={8} right={8} px="xs" py="xs" bg={C.primary} c={C.bg} style={{ "font-family": MONO, "font-size": "9px", "border-radius": "2px" }}>
+                <Box pos="absolute" top={8} right={8} px="xs" py="xs" bg={C.primary} c={C.bg} className="text-ui-micro" style={{ "font-family": MONO, "border-radius": "2px" }}>
                   absolute 8/8
                 </Box>
               </Box>

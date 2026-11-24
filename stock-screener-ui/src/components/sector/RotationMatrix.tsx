@@ -27,7 +27,7 @@ export function RotationMatrix(props: RotationMatrixProps) {
       size: 180,
       meta: { align: "left" },
       cell: ({ row }) => (
-        <Text truncate className="text-[10.5px] font-semibold leading-[1.15]">
+        <Text truncate className="text-ui-micro font-semibold leading-[1.15]">
           {row.original.name}
         </Text>
       ),
@@ -47,7 +47,7 @@ export function RotationMatrix(props: RotationMatrixProps) {
           >
             <Text
               c={getPnLTextColor(value)}
-              className="font-mono text-[10px] font-semibold tabular-nums leading-none"
+              className="font-mono text-ui-micro font-semibold tabular-nums leading-none"
             >
               {formatPercentage(value, 1, true)}
             </Text>

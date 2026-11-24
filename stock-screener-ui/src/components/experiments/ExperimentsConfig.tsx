@@ -61,7 +61,7 @@ function ParamValueInput(props: {
       <Checkbox
         data-testid={props.testId}
         checked={Boolean(value())}
-        onChange={(e) => props.onChange((e.currentTarget as HTMLInputElement).checked)}
+        onChange={(checked) => props.onChange(checked)}
         size="sm"
       />
     );
@@ -204,7 +204,7 @@ export function ExperimentsConfig() {
             data-testid="experiments-costs-checkbox"
             label="Include costs"
             checked={config().includeCosts}
-            onChange={(e) => setConfig({ includeCosts: e.currentTarget.checked })}
+            onChange={(checked) => setConfig({ includeCosts: checked })}
             size="sm"
           />
         </Box>

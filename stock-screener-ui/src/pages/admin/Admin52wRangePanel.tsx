@@ -11,7 +11,7 @@ import type { Week52RangeAdminStatus } from "../../types/admin";
 
 import { API_BASE } from "@/api/config";
 
-const MONO = "font-mono tabular-nums text-[11px]";
+const MONO = "font-mono tabular-nums text-ui-micro";
 
 function formatDateTime(isoString: string): string {
   try {
@@ -189,7 +189,7 @@ export function Admin52wRangePanel() {
             <Checkbox
               label="Full refresh (~2466 EQ symbols, no skip-existing)"
               checked={fullRefresh()}
-              onChange={(e) => setFullRefresh(e.currentTarget.checked)}
+              onChange={(checked) => setFullRefresh(checked)}
               data-testid="admin-52w-full-refresh"
               size="xs"
             />

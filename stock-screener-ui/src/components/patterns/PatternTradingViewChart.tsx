@@ -15,6 +15,7 @@ import {
   type TickMarkType,
   type Time,
 } from "lightweight-charts";
+import { typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import type {
@@ -317,7 +318,7 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     if (rect.width === 0 || rect.height === 0) return;
     const ts = chart.timeScale();
     if (typeof ts.timeToCoordinate !== "function") return;
-    ctx.font = "600 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    ctx.font = `600 ${typeSize("micro")}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
     const placed: { x: number; y: number; w: number; h: number }[] = [];
@@ -402,7 +403,7 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
       <Show when={partialTime() != null}>
         <span
           data-testid="patterns-tv-partial-badge"
-          className="pointer-events-none absolute right-2 top-1 z-[4] rounded-fin border px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wide"
+          className="pointer-events-none absolute right-2 top-1 z-[4] rounded-fin border px-1.5 py-0.5 font-mono text-ui-micro font-semibold uppercase tracking-wide"
           style={{
             color: palette.WARNING,
             "border-color": withAlpha(palette.WARNING, 0.5),

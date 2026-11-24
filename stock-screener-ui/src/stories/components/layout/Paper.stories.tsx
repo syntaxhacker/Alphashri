@@ -16,7 +16,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "Paper is a themed surface: bg-fin-surface by default, with an optional radius, elevation and padding. Its radius scale is the control-friendly xs 2 · sm 4 · md 6 · lg 10 · xl 14 px ramp. Named shadow steps reuse shadow-xs/sm/md/lg/xl utilities; an unrecognised shadow string is painted as raw CSS (e.g. palette.DIALOG_SHADOW). Default tag is section and can be switched through the intrinsic registry.",
+          "Paper is a themed surface: bg-fin-surface by default, with an optional radius, elevation and padding. Its radius steps are the one shared container ramp xs 2 · sm 4 · md 6 · lg 10 · xl 14 px — the same steps Card uses; 4 / 6 / 10 are the separate control aliases. Named shadow steps reuse shadow-xs/sm/md/lg/xl utilities; an unrecognised shadow string is painted as raw CSS (e.g. palette.DIALOG_SHADOW). Default tag is section and can be switched through the intrinsic registry.",
       },
     },
   },
@@ -57,7 +57,7 @@ export const RadiusScale: Story = {
   render: () =>
     solidStory(() => (
       <Page>
-        <Section title="Radius" caption="Paper's documented radius ramp is xs 2 · sm 4 · md 6 · lg 10 · xl 14 px — deliberately smaller than Card's panel-scale ramp.">
+        <Section title="Radius" caption="Paper and Card share one container radius ramp: xs 2 · sm 4 · md 6 · lg 10 · xl 14 px. Control aliases (4 / 6 / 10) live on form controls.">
           <div style={{ display: "grid", "grid-template-columns": `repeat(${RADIUS_TOKENS.length}, minmax(0,1fr))`, gap: "8px" }}>
             {RADIUS_TOKENS.map((r, i) => (
               <Box>
@@ -119,7 +119,7 @@ export const SurfacesAndPadding: Story = {
               <div style={{ display: "grid", "grid-template-columns": "repeat(5, minmax(0,1fr))", gap: "8px" }}>
                 {(["xs", "sm", "md", "lg", "xl"] as const).map((p) => (
                   <Paper p={p} radius="sm" component="div" className="border border-fin-border">
-                    <Box bg={C.alt} p="xs" style={{ "font-family": MONO, "font-size": "10px" }}>content</Box>
+                    <Box bg={C.alt} p="xs" className="text-ui-micro" style={{ "font-family": MONO }}>content</Box>
                     <Note>{`p='${p}'`}</Note>
                   </Paper>
                 ))}

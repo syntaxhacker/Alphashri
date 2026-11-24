@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, Show, onCleanup } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
 import type { JSX } from "solid-js";
 import { Loader, Text, Tooltip } from "@/ui";
 import { IconChevronRight } from "@/components/common/Icons";
@@ -15,12 +15,139 @@ interface IndexMoversStripProps {
   liveOnly?: boolean;
   loading?: boolean;
   error?: string | null;
+  /** Other live-only surfaces (e.g. WINDOWS, WALLS) named by this one status row. */
+  unavailableSurfaces?: string[];
+  /** Single recovery control for every surface named in the status row. */
+  onRetry?: () => void;
+}
+
+/** One status row for any number of empty surfaces. A fixed 30px, never-wrap
+ *  row keeps 390 and 1600 to a single header line; the named surfaces appear
+ *  once, next to the one Retry, instead of stacking an empty band per surface. */
+export function UnavailableBandsStrip(props: {
+  surfaces?: string[];
+  testId?: string;
+  surfacesTestId?: string;
+  retryTestId?: string;
+  onRetry?: () => void;
+  onToggle?: () => void;
+  open?: boolean;
+  label?: string;
+  message?: string;
+  negative?: boolean;
+  children?: JSX.Element;
+}) {
+  const surfaces = () => props.surfaces ?? [];
+  return (
+    <div
+      data-testid={props.testId ?? "report-unavailable-strip"}
+      data-surfaces={surfaces().join("|")}
+      data-empty="true"
+      class="flex items-center gap-2 h-[30px] min-h-[30px] w-full max-w-full min-w-0 shrink-0 px-2 bg-fin-surface font-mono text-ui-micro whitespace-nowrap"
+    >
+      <Show when={props.label}>
+        <Text
+          span
+          size="xs"
+          fw={700}
+          c="dimmed"
+          data-report-text="label"
+          class="text-ui-micro font-extrabold uppercase tracking-[0.08em] shrink-0"
+          style={{ color: palette.TEXT_MUTED }}
+        >
+          {props.label}
+        </Text>
+      </Show>
+      <Show when={props.message}>
+        <Text
+          span
+          size="xs"
+          data-report-text="value"
+          class={`text-ui-micro shrink-0 ${props.negative ? "text-fin-negative" : "text-fin-text-muted"}`}
+        >
+          {props.message}
+        </Text>
+      </Show>
+      {props.children}
+      <Show when={surfaces().length > 0}>
+        <span
+          data-testid={props.surfacesTestId ?? "report-unavailable-surfaces"}
+          data-report-text="value"
+          class="text-ui-micro text-fin-text-muted min-w-0"
+        >
+          {surfaces().join(" · ")}
+        </span>
+      </Show>
+      <Show when={props.onRetry || props.onToggle}>
+        <span class="flex items-center gap-2 ml-auto shrink-0">
+          <Show when={props.onToggle}>
+            <button
+              type="button"
+              aria-expanded={props.open ?? false}
+              onClick={() => props.onToggle?.()}
+              class="inline-flex items-center justify-center whitespace-nowrap rounded-fin border border-fin-text-muted bg-transparent text-fin-text-muted hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 h-[20px] px-1 text-ui-micro font-bold tracking-[0.08em] uppercase"
+            >
+              {props.open ? "hide" : "details"}
+            </button>
+          </Show>
+          <Show when={props.onRetry}>
+            <button
+              type="button"
+              data-testid={props.retryTestId ?? "report-unavailable-retry"}
+              onClick={() => props.onRetry?.()}
+              class="inline-flex items-center justify-center whitespace-nowrap rounded-fin border border-fin-text-muted bg-transparent text-fin-text-muted hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 h-[20px] px-2 text-ui-micro font-bold"
+            >
+              Retry
+            </button>
+          </Show>
+        </span>
+      </Show>
+    </div>
+  );
+}
+
+export interface BandSlot {
+  label: string;
+  available: () => boolean;
+  band: () => JSX.Element;
+}
+
+/** Renders real bands only where data exists and collapses every empty surface
+ *  into one status row. All-empty → one strip; partial → only available bands. */
+export function AvailableBands(props: {
+  bands: BandSlot[];
+  testId?: string;
+  surfacesTestId?: string;
+  retryTestId?: string;
+  onRetry?: () => void;
+  onToggle?: () => void;
+  open?: boolean;
+}) {
+  const present = createMemo(() => props.bands.filter((b) => b.available()));
+  const missing = createMemo(() => props.bands.filter((b) => !b.available()).map((b) => b.label));
+  return (
+    <>
+      <For each={present()}>{(slot) => <>{slot.band()}</>}</For>
+      <Show when={missing().length > 0}>
+        <UnavailableBandsStrip
+          testId={props.testId}
+          surfacesTestId={props.surfacesTestId}
+          retryTestId={props.retryTestId}
+          surfaces={missing()}
+          onRetry={props.onRetry}
+          onToggle={props.onToggle}
+          open={props.open}
+        />
+      </Show>
+    </>
+  );
 }
 
 const GAINER_COLOR = palette.POSITIVE;
 const LOSER_COLOR = palette.NEGATIVE;
-// 11px keeps 5+5 worst-case symbols inside a 1440px strip.
-const VALUE_FONT = REPORT_FONT.xs;
+// Values stay at the 13px body step; on a phone the strip wraps whole mover
+// groups rather than shrinking or ellipsing a symbol/percentage.
+const VALUE_FONT = REPORT_FONT.body;
 const ARROW_GAINER = "▲";
 const ARROW_LOSER = "▼";
 
@@ -32,18 +159,14 @@ function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
   const signed = () => (isGainer() ? "+" : "");
   return (
     <span
-      class="inline-flex items-center gap-1 shrink-0 whitespace-nowrap"
+      class="inline-flex items-center gap-2 shrink-0 whitespace-nowrap"
     >
       <Text
         span
         size="xs"
-        fw={700}
-        style={{
-          "font-size": `${VALUE_FONT}px`,
-          "font-variant-numeric": "tabular-nums",
-          color: color(),
-          "font-family": palette.MONO,
-        }}
+        data-report-text="label"
+        class="text-ui-micro"
+        style={{ color: color() }}
       >
         {arrow()}
       </Text>
@@ -51,6 +174,8 @@ function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
         span
         size="xs"
         fw={700}
+        data-report-text="value"
+        class="text-ui-body"
         style={{
           "font-size": `${VALUE_FONT}px`,
           "font-variant-numeric": "tabular-nums",
@@ -64,6 +189,8 @@ function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
         span
         size="xs"
         fw={700}
+        data-report-text="value"
+        class="text-ui-body tabular-nums"
         style={{
           "font-size": `${VALUE_FONT}px`,
           "font-variant-numeric": "tabular-nums",
@@ -149,30 +276,23 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
   // Stale detection: backend sets the `stale` flag
   const isStale = () => data()?.stale === true;
 
-  const stripChrome = (children: JSX.Element) => (
-    <div
-      data-testid="movers-strip"
-      class="flex items-center h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-[11px]"
-    >
-      {children}
-    </div>
-  );
-
   const gainers = () => data()?.gainers ?? [];
   const losers = () => data()?.losers ?? [];
 
   const dataView = () => (
     <div
       data-testid="movers-strip"
-      class="flex items-center justify-between gap-2 h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-[11px] whitespace-nowrap overflow-hidden shrink-0"
+      data-report-spacing="8"
+      class="flex items-center justify-between gap-2 h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-ui-micro whitespace-nowrap shrink-0 max-[700px]:h-auto max-[700px]:min-h-0 max-[700px]:flex-wrap max-[700px]:gap-y-1 max-[700px]:py-1"
     >
-      <span class="inline-flex items-center gap-1 min-w-0 flex-auto">
+      <span class="inline-flex items-center gap-2 min-w-0 flex-auto max-[700px]:flex-wrap max-[700px]:gap-y-1">
         <Text
           span
           size="xs"
           fw={700}
           c="dimmed"
-          className="shrink-0 tracking-[0.1em] text-[11px]"
+          data-report-text="label"
+          className="shrink-0 tracking-[0.08em] text-ui-micro"
           style={{ color: palette.TEXT_MUTED }}
         >
           MOVERS · {index()} {index() === "NIFTY" ? "50" : "30"}
@@ -182,9 +302,10 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         <MoverSection rows={gainers()} isGainer={true} />
 
         {/* Separator — fixed 1px: a stretched flex item would push the
-            losers past the strip's `overflow: hidden`. */}
+            losers past the strip edge. On a phone the groups wrap instead. */}
         <span
-          class="shrink-0 self-center mx-[2px] h-[10px] w-[1px] min-w-[1px]"
+          aria-hidden="true"
+          class="shrink-0 self-center mx-2 h-[10px] w-[1px] min-w-[1px]"
           style={{ "background-color": palette.alpha(palette.BORDER, 0.6) }}
         />
 
@@ -193,11 +314,11 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
       </span>
 
       {/* Right side: EXPAND button + stale badge */}
-      <span class="flex items-center gap-1 shrink-0">
+      <span class="flex items-center gap-2 shrink-0">
         <Show when={isStale()}>
           <Tooltip label={`Data is stale (${data()?.as_of})`} position="bottom-start">
             <span
-              class="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-[11px] font-bold tracking-[0.05em] whitespace-nowrap"
+              class="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-ui-micro font-bold tracking-[0.05em] whitespace-nowrap"
               style={{
                 "background-color": palette.alpha(palette.WARNING, 0.12),
                 color: palette.WARNING,
@@ -210,7 +331,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         <button
           type="button"
           data-testid="movers-expand"
-          class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-text-muted text-fin-text-muted bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 shrink-0 h-[20px] px-1 py-0 text-[11px] font-bold tracking-[0.08em] uppercase"
+          class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-text-muted text-fin-text-muted bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 shrink-0 h-[20px] px-1 py-0 text-ui-micro font-bold tracking-[0.08em] uppercase"
           onClick={() => props.onExpand()}
           aria-label="Expand index movers"
           title="Expand index movers"
@@ -230,39 +351,27 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
           when={isLoading() && !data()}
           fallback={
             <Show when={isError() && !data()} fallback={dataView()}>
-              {stripChrome(
-                <>
-                  <Text span size="xs" fw={700} c="dimmed" style={{ "letter-spacing": "0.1em" }}>
-                    MOVERS
-                  </Text>
-                  <Text span size="xs" c="error" className="ml-2">
-                    unavailable
-                  </Text>
-                  <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-text-muted text-fin-text-muted bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 px-2 py-0 text-[11px] font-bold ml-auto min-w-0"
-                    onClick={() => void poll()}
-                  >
-                    Retry
-                  </button>
-                </>,
-              )}
+              <UnavailableBandsStrip
+                testId="movers-strip"
+                retryTestId="movers-retry"
+                label="MOVERS"
+                message="unavailable"
+                negative
+                surfaces={props.unavailableSurfaces}
+                onRetry={props.onRetry ?? (() => void poll())}
+              />
             </Show>
           }
         >
-          {stripChrome(
-            <>
-              <Text span size="xs" fw={700} c="dimmed" style={{ "letter-spacing": "0.1em" }}>
-                MOVERS
-              </Text>
-              <span class="ml-2 inline-flex items-center gap-1">
-                <Loader size="xs" color={palette.PRIMARY} />
-                <Text span size="xs" c="dimmed">
-                  loading…
-                </Text>
-              </span>
-            </>,
-          )}
+          <UnavailableBandsStrip
+            testId="movers-strip"
+            retryTestId="movers-retry"
+            label="MOVERS"
+            message="loading…"
+            surfaces={props.unavailableSurfaces}
+          >
+            <Loader size="xs" color={palette.PRIMARY} />
+          </UnavailableBandsStrip>
         </Show>
       }
     >

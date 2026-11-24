@@ -169,7 +169,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
           />
 
           <Box data-testid="replay-date-from" className="flex items-center flex-none" style={{ gap: "8px" }}>
-            <span className="text-[11px] font-mono uppercase tracking-[0.06em] text-fin-text-muted">From</span>
+            <span className="text-ui-micro font-mono uppercase tracking-[0.06em] text-fin-text-muted">From</span>
             <TradingDatePicker
               w={112}
               maxDate={maxDate}
@@ -179,7 +179,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
             {props.config.date && <span style={{ display: "none" }}>{formatDisplayDate(props.config.date)}</span>}
           </Box>
           <Box data-testid="replay-date-to" className="flex items-center flex-none" style={{ gap: "8px" }}>
-            <span className="text-[11px] font-mono uppercase tracking-[0.06em] text-fin-text-muted">To</span>
+            <span className="text-ui-micro font-mono uppercase tracking-[0.06em] text-fin-text-muted">To</span>
             <TradingDatePicker
               w={112}
               maxDate={maxDate}
@@ -229,7 +229,7 @@ export function ReplayConfigBar(props: ReplayConfigProps) {
             label="Refresh cache"
             className="flex-none whitespace-nowrap"
             checked={props.config.refresh_cache}
-            onChange={(e) => props.setConfig({ refresh_cache: (e.currentTarget as HTMLInputElement).checked })}
+            onChange={(checked) => props.setConfig({ refresh_cache: checked })}
             data-testid="replay-refresh-cache-switch"
           />
 

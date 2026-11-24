@@ -1,6 +1,6 @@
 import type { JSX } from "solid-js";
 import { createEffect, createSignal, Show } from "solid-js";
-import { Badge, Box, Text, type UIVariant } from "@/ui";
+import { Badge, Box, Text, type UIVariant, typeSize } from "@/ui";
 import { cn } from "@/ui/cn";
 import { getPnLTextColor } from "@/utils/ui-helpers";
 import { useValueFlash } from "@/utils/valueFlash";
@@ -209,7 +209,7 @@ export function SymbolCell(props: {
         {props.symbol}
       </Box>
       <Show when={props.name}>
-        <Text size="xs" c="dimmed" span truncate className="text-left min-w-0 text-[10px]">
+        <Text size="xs" c="dimmed" span truncate className="text-left min-w-0 text-ui-micro">
           {props.name}
         </Text>
       </Show>
@@ -218,9 +218,8 @@ export function SymbolCell(props: {
 }
 
 /**
- * Badge column (type, status, flag): centred. The kit's small sizes are 9px —
- * legible in a dense row but cramped next to 12px body text, so the default
- * scales the glyph to match the table's type size. `size` stays overridable.
+ * Badge column (type, status, flag): centred. The default pins the glyph to the
+ * micro tier so it matches the surrounding table text; `size` stays overridable.
  */
 export function BadgeCell(props: {
   label: string;
@@ -238,7 +237,7 @@ export function BadgeCell(props: {
         variant={props.variant ?? "light"}
         data-testid={props.testId}
         title={props.title}
-        style={{ "font-size": "11px", height: "18px" }}
+        style={{ "font-size": `${typeSize("micro")}px`, height: "18px" }}
       >
         {props.label}
       </Badge>

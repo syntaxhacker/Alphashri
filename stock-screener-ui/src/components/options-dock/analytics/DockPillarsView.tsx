@@ -17,7 +17,7 @@
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import type { Component } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import { Box, Text } from "@/ui";
+import { Box, Text, typeSize } from "@/ui";
 import {
   abortDashboard,
   loadDashboard,
@@ -47,7 +47,7 @@ const PILLAR_TABS: ReadonlyArray<{ key: PillarKey; label: string }> = [
 ];
 
 const PILLAR_INK = {
-  "font-size": "9px",
+  "font-size": `${typeSize("micro")}px`,
   "letter-spacing": "0.06em",
   "line-height": "1",
 } as const;
@@ -214,7 +214,7 @@ export function DockPillarsView(props: {
           type="button"
           data-testid="dock-pillars-back"
           onClick={back}
-          className="inline-flex h-[20px] shrink-0 items-center gap-1 whitespace-nowrap border border-fin-border bg-transparent px-1.5 font-mono text-[9px] font-semibold uppercase tracking-[0.06em] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+          className="inline-flex h-[20px] shrink-0 items-center gap-1 whitespace-nowrap border border-fin-border bg-transparent px-1.5 font-mono text-ui-micro font-semibold uppercase tracking-[0.06em] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
           style={{ "border-radius": "4px" }}
         >
           <span aria-hidden="true">←</span>
@@ -258,7 +258,7 @@ export function DockPillarsView(props: {
           size="xs"
           fw={700}
           className="shrink-0 truncate font-mono tabular-nums max-sm:hidden"
-          style={{ "font-size": "9px" }}
+          style={{ "font-size": `${typeSize("micro")}px` }}
           data-testid="dock-pillars-symbol"
         >
           {String(props.symbol ?? "").toUpperCase()}
@@ -310,7 +310,7 @@ export function DockPillarsView(props: {
           data-testid="dock-pillars-refresh"
           onClick={() => void refreshDashboard()}
           disabled={refreshing()}
-          className="inline-flex h-[16px] w-[16px] shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 font-mono text-[9px] leading-none text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-[16px] w-[16px] shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 font-mono text-ui-micro leading-none text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary disabled:cursor-not-allowed disabled:opacity-50"
         >
           <span aria-hidden="true">⟳</span>
         </button>
@@ -343,7 +343,7 @@ export function DockPillarsView(props: {
                 aria-pressed={selectedExpiry() === expiry.date}
                 data-testid={`dock-pillars-expiry-${expiry.date}`}
                 onClick={() => chooseExpiry(expiry.date)}
-                className={`inline-flex h-[16px] shrink-0 items-center border px-1 font-mono text-[9px] tabular-nums leading-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary ${
+                className={`inline-flex h-[16px] shrink-0 items-center border px-1 font-mono text-ui-micro tabular-nums leading-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary ${
                   selectedExpiry() === expiry.date
                     ? "border-fin-primary bg-fin-surface-alt text-fin-text"
                     : "border-fin-border bg-transparent text-fin-text-muted hover:text-fin-text"
@@ -367,7 +367,7 @@ export function DockPillarsView(props: {
             size="xs"
             fw={600}
             className="min-w-0 flex-1 truncate font-mono"
-            style={{ "font-size": "10px", color: "var(--color-fin-negative)" }}
+            style={{ "font-size": `${typeSize("micro")}px`, color: "var(--color-fin-negative)" }}
           >
             {error()!.kind === "auth" ? "Reconnect Upstox in Settings" : error()!.message}
           </Text>
@@ -375,7 +375,7 @@ export function DockPillarsView(props: {
             <a
               href="/settings"
               data-testid="dock-pillars-reconnect"
-              className="shrink-0 font-mono text-[10px] font-semibold text-fin-primary hover:underline"
+              className="shrink-0 font-mono text-ui-micro font-semibold text-fin-primary hover:underline"
             >
               Reconnect Upstox
             </a>
@@ -385,7 +385,7 @@ export function DockPillarsView(props: {
             aria-label="Retry options pillars"
             data-testid="dock-pillars-retry"
             onClick={() => void refreshDashboard()}
-            className="inline-flex h-[20px] shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 font-mono text-[10px] font-semibold hover:underline"
+            className="inline-flex h-[20px] shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 font-mono text-ui-micro font-semibold hover:underline"
             style={{ color: "var(--color-fin-negative)" }}
           >
             Retry

@@ -1,6 +1,6 @@
 import { Show, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import type { TableColumnDef } from "../../components/common/TanStackTable";
-import { ActionIcon, Alert, Box, Button, Loader, NumberInput, Select, Switch, Text, ToolbarRow } from "@/ui";
+import { ActionIcon, Alert, Box, Button, Loader, NumberInput, Select, Switch, Text, ToolbarRow, typeStyle } from "@/ui";
 import { Icon } from "../../components/common/Icons";
 import { useAuth } from "../../components/auth/AuthProvider";
 import { TanStackTable } from "../../components/common/TanStackTable";
@@ -277,7 +277,7 @@ export function AdminPatternTimeframesPanel() {
               size="xs"
               checked={tf.enabled}
               disabled={savingId() === tf.id}
-              onChange={(event) => void handleToggle(tf, event.currentTarget.checked)}
+              onChange={(checked) => void handleToggle(tf, checked)}
               data-testid={`admin-tf-toggle-${tf.id}`}
             />
           </Box>
@@ -366,10 +366,10 @@ export function AdminPatternTimeframesPanel() {
         className="flex h-full min-h-0 flex-col p-[2px]"
       >
         <ToolbarRow gap={8} justify="space-between" wrap={false} className="shrink-0 px-1 py-[2px]">
-          <Text size="xs" c="dimmed" data-testid="admin-tf-summary" style={{ "font-size": "10px" }}>
+          <Text size="xs" c="dimmed" data-testid="admin-tf-summary" style={typeStyle("micro")}>
             {`${enabledCount()} enabled / ${totalCount()} total · ${Math.max(0, totalCount() - enabledCount())} disabled · ${resampledCount()} resampled`}
           </Text>
-          <Text size="xs" c="dimmed" data-testid="admin-tf-note" style={{ "font-size": "10px" }}>
+          <Text size="xs" c="dimmed" data-testid="admin-tf-note" style={typeStyle("micro")}>
             3m and 2h are off by default
           </Text>
         </ToolbarRow>
@@ -402,7 +402,7 @@ export function AdminPatternTimeframesPanel() {
             data-testid="admin-tf-unit"
           />
           <Show when={sourceOptions().length > 0}>
-            <Text size="xs" c="dimmed" style={{ "font-size": "10px" }}>src</Text>
+            <Text size="xs" c="dimmed" style={typeStyle("micro")}>src</Text>
             <Select
               size="sm"
               w={100}
@@ -435,9 +435,9 @@ export function AdminPatternTimeframesPanel() {
               Add
             </Button>
           </Show>
-          <Text size="xs" c="dimmed" style={{ "font-size": "10px" }}>e.g. 45m, 6h, 2D, 3W, 3M</Text>
+          <Text size="xs" c="dimmed" style={typeStyle("micro")}>e.g. 45m, 6h, 2D, 3W, 3M</Text>
           <Show when={addError()}>
-            <Text size="xs" c="error" data-testid="admin-tf-add-error" style={{ "font-size": "10px" }}>
+            <Text size="xs" c="error" data-testid="admin-tf-add-error" style={typeStyle("micro")}>
               <span data-testid="admin-tf-error">{addError()}</span>
             </Text>
           </Show>

@@ -33,6 +33,14 @@ function makeIcon(paths: string[]) {
         stroke-width={local.stroke ?? 2}
         stroke-linecap="round"
         stroke-linejoin="round"
+        aria-hidden={
+          rest["aria-hidden"] ??
+          (rest["aria-label"] ||
+          rest.role === "img" ||
+          (rest as Record<string, unknown>).title
+            ? undefined
+            : "true")
+        }
         {...rest}
       >
         <path d={merged} />

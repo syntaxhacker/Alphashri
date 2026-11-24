@@ -280,7 +280,7 @@ export function AppliedFilters(props: AppliedFiltersProps) {
       className="min-w-0"
     >
       <ToolbarRow gap={4} wrap={false} className="min-w-0">
-        <Text c="dimmed" fw={700} className="text-[9px] tracking-wide uppercase">
+        <Text c="dimmed" fw={700} className="text-ui-micro tracking-wide uppercase">
           Active
         </Text>
         <For each={groups()}>
@@ -292,7 +292,7 @@ export function AppliedFilters(props: AppliedFiltersProps) {
                 className="inline-flex min-w-0 items-center gap-[4px] pl-[2px]"
               >
                 <Show when={multi}>
-                  <Text c="dimmed" fw={600} className="text-[9px] tracking-wide uppercase">
+                  <Text c="dimmed" fw={600} className="text-ui-micro tracking-wide uppercase">
                     {`${group.group}s`}
                   </Text>
                 </Show>
@@ -335,7 +335,7 @@ export function AppliedFilters(props: AppliedFiltersProps) {
             size="xs"
             variant="subtle"
             onClick={() => setExpanded(false)}
-            className="text-[9px] tracking-wide uppercase"
+            className="text-ui-micro tracking-wide uppercase"
           >
             Collapse
           </Button>

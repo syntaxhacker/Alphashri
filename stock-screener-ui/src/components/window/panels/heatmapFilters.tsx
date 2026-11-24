@@ -102,7 +102,7 @@ export function HeatmapFiltersControl(props: HeatmapFiltersControlProps) {
     props.onChange({ sectors: [...next] });
   };
 
-  const labelClass = "text-[10px] uppercase tracking-[0.06em] text-fin-text-muted";
+  const labelClass = "text-ui-micro uppercase tracking-[0.06em] text-fin-text-muted";
 
   return (
     <>
@@ -169,7 +169,7 @@ export function HeatmapFiltersControl(props: HeatmapFiltersControlProps) {
                       size="xs"
                       label={tier.label}
                       checked={props.filters.capTiers.has(tier.value)}
-                      onChange={(event) => toggleTier(tier.value, (event.currentTarget as HTMLInputElement).checked)}
+                      onChange={(checked) => toggleTier(tier.value, checked)}
                       data-testid={`heatmap-filter-cap-${tier.value}`}
                       {...(index() === 0 ? { "data-heatmap-filter-first": true } : {})}
                     />
@@ -192,7 +192,7 @@ export function HeatmapFiltersControl(props: HeatmapFiltersControlProps) {
                           size="xs"
                           label={sector}
                           checked={props.filters.sectors.includes(sector)}
-                          onChange={(event) => toggleSector(sector, (event.currentTarget as HTMLInputElement).checked)}
+                          onChange={(checked) => toggleSector(sector, checked)}
                           data-testid={`heatmap-filter-sector-option-${sector}`}
                         />
                       )}

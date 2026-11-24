@@ -135,14 +135,14 @@ describe("chain columns — per-contract chart action", () => {
 });
 
 describe("chain columns — type scale and touch targets", () => {
-  it("renders chain numerics at 11px/14px with an unpriced label on a missing IV", () => {
+  it("renders chain numerics on the type scale with an unpriced label on a missing IV", () => {
     renderTable();
     const cells = within(screen.getByTestId("options-chain-row-24000")).getAllByRole("cell");
     const iv = cells[1].querySelector("span") as HTMLElement;
     expect(iv).toHaveTextContent("—");
-    expect(iv.className).toContain("text-[11px]");
+    expect(iv.className).toContain("text-ui-micro");
     expect(iv.className).toContain("leading-[14px]");
-    expect(iv.className).not.toContain("text-[10px]");
+    expect(iv.className).not.toMatch(/text-\[\d+px\]/);
     expect(iv).toHaveAttribute("aria-label", "unpriced");
   });
 
@@ -159,7 +159,7 @@ describe("chain columns — type scale and touch targets", () => {
     renderTable({ onChart: vi.fn() });
     const price = screen.getByTestId("options-ce-24000");
     expect(price.parentElement?.className).toContain("gap-2");
-    expect(price.className).toContain("text-[11px]");
-    expect(price.className).not.toContain("text-[10px]");
+    expect(price.className).toContain("text-ui-micro");
+    expect(price.className).not.toMatch(/text-\[\d+px\]/);
   });
 });

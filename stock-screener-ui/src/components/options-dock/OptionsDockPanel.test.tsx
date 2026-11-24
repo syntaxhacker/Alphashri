@@ -1507,13 +1507,14 @@ describe("OptionsDockPanel — type scale and spacing guard", () => {
   ];
   const sourceOf = (file: string) => readFileSync(new URL(file, import.meta.url), "utf8");
 
-  test("no 9px/10px type overrides remain in the dock shell, chain or legs", () => {
+  test("the dock shell, chain and legs use token type sizes only", () => {
     for (const file of FILES) {
       const src = sourceOf(file);
-      expect(src, `${file} still has text-[9px]`).not.toContain("text-[9px]");
-      expect(src, `${file} still has text-[10px]`).not.toContain("text-[10px]");
-      expect(src, `${file} still has a 9px font-size`).not.toMatch(/"font-size":\s*"9px"/);
-      expect(src, `${file} still has a 10px font-size`).not.toMatch(/"font-size":\s*"10px"/);
+      expect(src, `${file} still has a private pixel class`).not.toMatch(/text-\[\d+px\]/);
+      expect(src, `${file} still has a private font-size`).not.toMatch(/"font-size":\s*"\d+px"/);
+    }
+    for (const file of ["OptionsDockPanel.tsx", "LegBuilder.tsx", "chain.columns.tsx"]) {
+      expect(sourceOf(file), `${file} is missing token type classes`).toMatch(/text-ui-micro|typeSize\(/);
     }
   });
 
@@ -1547,23 +1548,23 @@ describe("OptionsDockPanel — 11px controls and 8px gaps", () => {
     expect(header.className).not.toContain("gap-1");
 
     const select = screen.getByTestId("options-expiry-select");
-    expect(select.className).toContain("text-[11px]");
+    expect(select.className).toContain("text-ui-micro");
     expect(select.className).toContain("rounded-fin");
   });
 
-  test("positions chip and narrow side toggle render at 11px with 8px gaps", async () => {
+  test("positions chip and narrow side toggle render on the type scale with 8px gaps", async () => {
     narrowViewport();
     open("NIFTY");
     renderPanel();
     await waitFor(() => expect(screen.getByTestId("options-chain-side-ce")).toBeInTheDocument());
 
     const chip = screen.getByTestId("options-positions-chip");
-    expect(chip.className).toContain("text-[11px]");
+    expect(chip.className).toContain("text-ui-micro");
     expect(chip.className).toContain("gap-2");
     expect(chip.className).toContain("rounded-fin");
 
     const toggle = screen.getByTestId("options-chain-side-ce");
-    expect(toggle.className).toContain("text-[11px]");
+    expect(toggle.className).toContain("text-ui-micro");
     expect(toggle.parentElement?.className).toContain("rounded-fin");
     expect(toggle.parentElement?.className).not.toContain("border-radius");
   });

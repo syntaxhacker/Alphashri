@@ -13,7 +13,8 @@ vi.mock("@/api/patternImages", () => ({
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
-  return mockSolidUi({ showSuccess: vi.fn(), showError: vi.fn() });
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi({ showSuccess: vi.fn(), showError: vi.fn() }), typeSize };
 });
 
 import {

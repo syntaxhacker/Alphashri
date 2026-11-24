@@ -7,7 +7,8 @@ import { WatchView, WATCH_POLL_MS, WATCH_DEFAULT_WITHIN_PCT, WATCH_DEFAULT_MIN_R
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
-  return mockSolidUi();
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
 });
 
 const mockFetchWatchSetups = vi.fn();

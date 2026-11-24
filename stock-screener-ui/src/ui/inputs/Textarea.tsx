@@ -1,5 +1,6 @@
 import { createMemo, createSignal, splitProps } from "solid-js";
 import { cn } from "../cn";
+import { typeSize } from "../typography";
 import { createFieldA11y } from "./fieldError";
 import type { UITextareaProps } from "../types";
 
@@ -14,7 +15,7 @@ function lineHeightOf(size?: UITextareaProps["size"]): number {
 }
 
 function fontOf(size?: UITextareaProps["size"]): string {
-  return size === "xs" ? "11px" : "13px";
+  return size === "xs" ? `${typeSize("micro")}px` : `${typeSize("body")}px`;
 }
 
 function resizeStyle(resize?: UITextareaProps["resize"], autosize?: boolean): string {
@@ -98,7 +99,6 @@ export function Textarea(props: UITextareaProps) {
       "font-size": fontOf(known.size),
       "line-height": `${lineHeight}px`,
       padding: "8px 10px",
-      "outline": "none",
       resize: resizeStyle(known.resize, known.autosize),
       "text-align": "left",
       "vertical-align": "top",

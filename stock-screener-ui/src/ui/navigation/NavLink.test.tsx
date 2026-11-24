@@ -4,6 +4,17 @@ import { fireEvent, render, screen } from "@solidjs/testing-library";
 import { describe, expect, test, vi } from "vitest";
 import { NavLink } from "./NavLink";
 
+/** Enter/Space activate focused native controls; other elements ignore them. */
+function pressKey(key: "Enter" | " ") {
+  const active = document.activeElement;
+  if (!active) return;
+  fireEvent.keyDown(active, { key });
+  const tag = active.tagName;
+  if ((tag === "BUTTON" && (key === "Enter" || key === " ")) || (tag === "A" && key === "Enter")) {
+    fireEvent.click(active);
+  }
+}
+
 describe("NavLink", () => {
   test("active links get aria-current and the active fill; disabled links are flagged", () => {
     render(() => (
@@ -36,7 +47,7 @@ describe("NavLink", () => {
     ));
 
     const divLink = screen.getByTestId("div-link");
-    expect(divLink.tagName).toBe("DIV");
+    expect(divLink.tagName).toBe("BUTTON");
     expect(divLink).toHaveAttribute("role", "link");
     expect(divLink).not.toHaveAttribute("tabindex");
     expect(divLink).toContainElement(screen.getByTestId("icon"));
@@ -48,6 +59,67 @@ describe("NavLink", () => {
     expect(anchor).toHaveAttribute("href", "/docs");
     fireEvent.click(anchor);
     expect(onClick).toHaveBeenCalledTimes(2);
+  });
+
+  test("the non-href variant is a focusable native button activated by Enter and Space", async () => {
+    const onClick = vi.fn();
+    const deadDivClick = vi.fn();
+    render(() => (
+      <>
+        <NavLink label="Panel" onClick={onClick} data-testid="button-key" />
+        <div role="link" onClick={deadDivClick} data-testid="dead-div" />
+      </>
+    ));
+    const button = screen.getByTestId("button-key");
+
+    expect(button.tagName).toBe("BUTTON");
+    expect(button).toHaveAttribute("type", "button");
+    expect(button).not.toHaveAttribute("tabindex");
+    button.focus();
+    expect(document.activeElement).toBe(button);
+
+    // Enter/Space activation is the browser's native button behaviour, so a
+    // real keyboard event must reach the same onClick handler without a key shim.
+    pressKey("Enter");
+    expect(onClick).toHaveBeenCalledTimes(1);
+    pressKey(" ");
+    expect(onClick).toHaveBeenCalledTimes(2);
+
+    // Control: an equivalent div[role=link] stays keyboard-dead even when focused.
+    screen.getByTestId("dead-div").focus();
+    pressKey("Enter");
+    pressKey(" ");
+    expect(deadDivClick).not.toHaveBeenCalled();
+  });
+
+  test("a disabled button announces its state and ignores keyboard activation", async () => {
+    const onClick = vi.fn();
+    render(() => <NavLink label="Locked" disabled onClick={onClick} data-testid="locked-key" />);
+    const button = screen.getByTestId("locked-key");
+
+    expect(button.tagName).toBe("BUTTON");
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button.className).toContain("pointer-events-none");
+    button.focus();
+
+    pressKey("Enter");
+    pressKey(" ");
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  test("href still renders a focusable anchor with native Enter activation", async () => {
+    const onClick = vi.fn();
+    render(() => <NavLink label="Docs" href="#docs" onClick={onClick} data-testid="anchor-key" />);
+    const anchor = screen.getByTestId("anchor-key");
+
+    expect(anchor.tagName).toBe("A");
+    expect(anchor).toHaveAttribute("href", "#docs");
+    expect(anchor).toHaveAttribute("role", "link");
+    anchor.focus();
+    expect(document.activeElement).toBe(anchor);
+
+    pressKey("Enter");
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 
   test("a disabled link never reports a click", () => {

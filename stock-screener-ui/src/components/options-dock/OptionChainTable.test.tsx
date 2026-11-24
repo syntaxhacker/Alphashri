@@ -381,7 +381,7 @@ describe("strike badges — rendering", () => {
     // The strike cell still carries its number and the chip sits beside it.
     expect(screen.getByTestId("options-strike-cell-24000").textContent).toContain("24,000");
     expect(screen.getAllByTestId(/^options-strike-badge-/)).toHaveLength(3);
-    expect(pain.className).toContain("text-[11px]");
+    expect(pain.className).toContain("text-ui-micro");
     expect(pain.className).toContain("ml-2");
     expect(pain.getAttribute("style") ?? "").not.toMatch(/font-size/);
   });
@@ -407,7 +407,7 @@ describe("strike badges — rendering", () => {
 
     const letter = badge.children[1] as HTMLElement;
     expect(letter.textContent).toBe("M");
-    expect(letter.className).toContain("text-[11px]");
+    expect(letter.className).toContain("text-ui-micro");
     expect(letter.className).toContain("left-2");
     expect(letter.getAttribute("style") ?? "").not.toMatch(/font-size/);
   });

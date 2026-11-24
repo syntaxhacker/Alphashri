@@ -97,8 +97,8 @@ const PROPS = [
   },
   { name: "Grid / Row", value: "cols 12 · gap 8" },
   { name: "Col", value: "span 12 → 6 → 4 → 3 at sm / md / lg" },
-  { name: "Paper radius", value: "xs 2 · sm 4 · md 6 · lg 10 · xl 14" },
-  { name: "Card radius", value: "xs 4 · sm 8 · md 16 · lg 24 · xl 32" },
+  { name: "Container radius", value: "xs 2 · sm 4 · md 6 · lg 10 · xl 14" },
+  { name: "Control radius", value: "sm 4 · md 6 · lg 10" },
   { name: "surfaces", value: "BG → SURFACE → SURFACE_ALT · BORDER hairline" },
 ];
 
@@ -155,15 +155,15 @@ const Ruler = () => (
     {Array.from({ length: 12 }, (_, i) => (
       <GridCol span={1}>
         <Box
+          className="text-ui-micro"
           style={{
-            height: "18px",
+            height: "20px",
             display: "grid",
             "place-items": "center",
             border: `1px solid ${palette.BORDER}`,
             background: palette.SURFACE_ALT,
             color: palette.TEXT_MUTED,
             "font-family": palette.MONO,
-            "font-size": "9px",
           }}
         >
           {i + 1}

@@ -1,4 +1,4 @@
-import { Show, type JSX } from "solid-js";
+import { Show, createUniqueId, type JSX } from "solid-js";
 import { Button } from "@/ui";
 
 export function LocalCompactPanel(props: {
@@ -18,8 +18,17 @@ export function LocalCompactPanel(props: {
       class={`flex flex-col border border-fin-border rounded-[2px] overflow-hidden font-mono${props.class ? ` ${props.class}` : ""}`}
       style={props.style}
     >
-      <div class="flex items-center justify-between gap-2 px-2 py-1 border-b border-fin-border bg-fin-surface shrink-0">
-        <span class="text-[11px] font-bold uppercase tracking-[0.08em] text-fin-primary">
+      {/*
+       * One shared header for every report panel. `flex-wrap` keeps a long
+       * title from squeezing the action at intermediate widths; the 640px
+       * rule stacks them at phone widths. There is no fixed header height —
+       * wrapping must grow the header, not strand a dead row under it.
+       */}
+      <div
+        data-compact-card-header=""
+        class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-2 border-b border-fin-border bg-fin-surface shrink-0 max-[640px]:flex-col max-[640px]:items-stretch"
+      >
+        <span class="min-w-0 break-words text-ui-label font-bold uppercase tracking-[0.08em] text-fin-primary">
           {"· "}
           {props.title}
         </span>
@@ -34,7 +43,7 @@ export function LocalCompactPanel(props: {
         */}
       <div
         data-compact-card-content=""
-        class={`flex flex-col flex-1 min-h-0 overflow-auto${props.flush ? "" : " gap-1 p-[6px]"}`}
+        class={`flex flex-col flex-1 min-h-0 overflow-auto${props.flush ? "" : " gap-2 p-2"}`}
       >
         {props.children}
       </div>
@@ -52,19 +61,19 @@ export function LocalCompactStat(props: {
   return (
     <div
       data-testid={props.testId}
-      class="flex flex-col items-center justify-center text-center gap-0.5 bg-fin-surface border border-fin-border rounded-[4px] px-1 py-1.5 min-w-0"
+      class="flex flex-col items-center justify-center text-center gap-1 bg-fin-surface border border-fin-border rounded-[4px] px-2 py-2 min-w-0"
     >
-      <span class="text-[11px] uppercase tracking-[0.06em] leading-[1.1] text-fin-text-muted">
+      <span class="text-ui-micro uppercase tracking-[0.06em] leading-tight text-fin-text-muted">
         {props.label}
       </span>
       <span
-        class="text-[11px] font-bold leading-none tabular-nums"
+        class="text-ui-body font-bold leading-tight tabular-nums"
         style={{ color: props.tone ?? "var(--color-fin-text)" }}
       >
         {props.value}
       </span>
       <Show when={props.hint}>
-        <span class="text-[11px] leading-[1.1] text-fin-text-muted">{props.hint}</span>
+        <span class="text-ui-micro leading-tight text-fin-text-muted">{props.hint}</span>
       </Show>
     </div>
   );
@@ -72,9 +81,9 @@ export function LocalCompactStat(props: {
 
 export function LocalEmptyState(props: { testId?: string; title: string; description: string }) {
   return (
-    <div data-testid={props.testId} class="flex flex-col items-center justify-center gap-1 py-4 px-2 text-center">
-      <span class="text-[11px] font-semibold leading-tight text-fin-text">{props.title}</span>
-      <span class="text-[11px] leading-snug text-fin-text-muted">{props.description}</span>
+    <div data-testid={props.testId} class="flex flex-col items-center justify-center gap-2 py-4 px-3 text-center">
+      <span class="text-ui-label font-semibold leading-tight text-fin-text">{props.title}</span>
+      <span class="text-ui-body leading-snug text-fin-text-muted">{props.description}</span>
     </div>
   );
 }
@@ -96,6 +105,10 @@ export function LiveTapeDisclosure(props: {
   closedHint?: string;
 }) {
   const open = () => props.open;
+  // Per-instance id: this primitive mounts several times on one screen, so a
+  // shared id would produce duplicate DOM ids and point every toggle at one
+  // content region. The data-testids stay stable for targeted queries.
+  const contentId = `nifty-live-tape-content-${createUniqueId()}`;
   return (
     <div
       data-testid={props.testId ?? "nifty-live-tape-disclosure"}
@@ -108,20 +121,20 @@ export function LiveTapeDisclosure(props: {
         size="xs"
         variant="default"
         aria-expanded={open()}
-        aria-controls="nifty-live-tape-content"
+        aria-controls={contentId}
         onClick={() => props.onToggle()}
-        className="h-7 min-h-7 w-full justify-start px-2 rounded-[2px] text-[11px] font-extrabold uppercase tracking-[0.08em] text-fin-text-muted"
+        className="h-7 min-h-7 w-full flex-wrap justify-start gap-x-2 gap-y-1 px-2 rounded-[2px] text-ui-label font-extrabold uppercase tracking-[0.08em] text-fin-text-muted max-[480px]:h-auto"
       >
-        <span data-testid="nifty-live-tape-chevron" aria-hidden="true" class="mr-2 text-[11px]">
+        <span data-testid="nifty-live-tape-chevron" aria-hidden="true" class="mr-1 text-ui-label">
           {open() ? "▾" : "▸"}
         </span>
-        <span>{props.label ?? "LIVE TAPE"}</span>
-        <span class="ml-auto font-normal normal-case tracking-normal text-[11px] text-fin-text-muted">
+        <span class="min-w-0 whitespace-normal">{props.label ?? "LIVE TAPE"}</span>
+        <span class="ml-auto min-w-0 whitespace-normal font-normal normal-case tracking-normal text-ui-micro text-fin-text-muted">
           {open() ? (props.openHint ?? "hide bands") : (props.closedHint ?? "breadth · 10s · erosion")}
         </span>
       </Button>
       <div
-        id="nifty-live-tape-content"
+        id={contentId}
         data-testid="nifty-live-tape-content"
         class="flex flex-col gap-1 w-full min-w-0"
         style={{ display: open() ? "flex" : "none" }}

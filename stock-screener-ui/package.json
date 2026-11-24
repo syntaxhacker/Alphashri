@@ -13,6 +13,7 @@
     "test:unit": "vitest run --dir src",
     "test:fast": "vitest run --dir src --changed",
     "test:coverage": "vitest run --dir src --coverage",
+    "test:coverage:ui": "vitest run src/ui --coverage --coverage.include='src/ui/**' --coverage.exclude='src/**/*.test.{ts,tsx}' --coverage.thresholds.lines=85 --coverage.thresholds.functions=70 --coverage.thresholds.branches=65 --coverage.thresholds.statements=75",
     "test:coverage:report": "vitest run --dir src --coverage --coverage.thresholds.lines=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0 --coverage.thresholds.statements=0",
     "test:e2e": "playwright test tests/e2e",
     "test:ui": "playwright test --ui",
@@ -36,7 +37,17 @@
     "check:bundle": "node scripts/check_bundle_interop.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "audit:components": "node scripts/component_audit.mjs"
+    "audit:components": "node scripts/component_audit.mjs",
+    "audit:evidence": "node scripts/evidence-audit.mjs",
+    "audit:evidence:pending": "node scripts/evidence-audit.mjs --allow-missing",
+    "evidence:app": "SCREENSHOT_EVIDENCE=1 playwright test tests/e2e/design-evidence.spec.ts --workers=1",
+    "evidence:screener": "SCREENSHOT_EVIDENCE=1 playwright test tests/e2e/screener-evidence.spec.ts --workers=1",
+    "evidence:patterns": "SCREENSHOT_EVIDENCE=1 playwright test tests/e2e/patterns-evidence.spec.ts --workers=1",
+    "evidence:all": "SCREENSHOT_EVIDENCE=1 playwright test tests/e2e/design-evidence.spec.ts --workers=1 && SCREENSHOT_EVIDENCE=1 playwright test tests/e2e/screener-evidence.spec.ts --workers=1 && SCREENSHOT_EVIDENCE=1 playwright test tests/e2e/patterns-evidence.spec.ts --workers=1 && echo 'Captures complete — gate with: bun run audit:evidence'",
+    "audit:typography": "node scripts/typography-audit.mjs",
+    "audit:typography:check": "node scripts/typography-audit.mjs --check",
+    "visual:test": "node scripts/visual-regression.mjs",
+    "visual:update": "UPDATE_SNAPSHOTS=1 node scripts/visual-regression.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

@@ -63,7 +63,7 @@ function LegBar(props: {
       <div
         data-testid={`nifty-participant-flow-bar-${props.leg}`}
         title={`${props.leg.toUpperCase()} writers ${formatFlowRupees(props.writers)} · buyers ${formatFlowRupees(props.buyers)} · cover ${formatFlowRupees(props.cover)}`}
-        class="flex-1 min-w-0 h-[10px] rounded-[8px] overflow-hidden flex items-stretch"
+        class="flex-1 min-w-0 h-[10px] rounded-sm overflow-hidden flex items-stretch"
         style={{ "background-color": "rgba(139, 148, 158, 0.15)" }}
       >
         <Show when={!empty() && shares().writers > 0}>
@@ -161,7 +161,7 @@ export function NiftyParticipantFlow(props: NiftyParticipantFlowProps) {
             <div class="inline-flex items-center gap-[4px]">
               <span
                 aria-hidden
-                class="block w-[8px] h-[8px] rounded-[8px]"
+                class="block w-[8px] h-[8px] rounded-full"
                 style={{ "background-color": e.color }}
               />
               <Text size="xs" span c="dimmed">

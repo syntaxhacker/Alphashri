@@ -88,7 +88,7 @@ export function buildFnoColumns(
               e.stopPropagation();
               row.toggle();
             }}
-            className="inline-flex h-[20px] min-w-[24px] cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-[11px] leading-none text-inherit"
+            className="inline-flex h-[20px] min-w-[24px] cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-ui-micro leading-none text-inherit"
           >
             {expanded ? "▼" : "▶"}
           </Box>

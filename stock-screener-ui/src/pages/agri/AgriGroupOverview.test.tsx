@@ -74,8 +74,9 @@ describe("AgriGroupOverview", () => {
     expect(screen.getByTestId("agri-group-coverage-cereals").textContent).toContain("2.4% vol");
     expect(screen.getByTestId("agri-group-asof-cereals")).toHaveTextContent("21 Nov 2026");
 
-    // Index, breadth and both movers share one label/value/trailing grid.
-    const rowGrid = "grid-cols-[38px_minmax(0,1fr)_40px]";
+    // Index, breadth and both movers share one label/value/trailing grid;
+    // the tracks widened with the 12px token floor.
+    const rowGrid = "grid-cols-[44px_minmax(0,1fr)_52px]";
     for (const id of [
       "agri-group-best-cereals",
       "agri-group-worst-cereals",

@@ -11,6 +11,7 @@ import {
   CHART_LIGHT_SPLIT,
   CHART_LIGHT_TEXT,
 } from "@/ui/palette";
+import { typeSize } from "@/ui/typography";
 import { CHART_LAYOUT } from "../agriChartTheme";
 
 export { CHART_LAYOUT };
@@ -192,7 +193,7 @@ export function asParams(params: unknown): TooltipParam[] {
 }
 
 export function tooltipShell(header: string, rows: string[]): string {
-  return "<div style=\"font-family:monospace;font-size:11px;line-height:1.5\">" +
+  return `<div style="font-family:monospace;font-size:${typeSize("micro")}px;line-height:1.5">` +
     `<div style="font-weight:600;margin-bottom:4px">${escapeHtml(header)}</div>` +
     rows.filter((row) => row !== "").join("") +
     "</div>";
@@ -262,7 +263,7 @@ export function baseOption(
       backgroundColor: t.tooltipBg,
       borderColor: t.border,
       borderWidth: 1,
-      textStyle: { color: t.text, fontSize: 11 },
+      textStyle: { color: t.text, fontSize: typeSize("micro") },
       formatter,
     },
   };

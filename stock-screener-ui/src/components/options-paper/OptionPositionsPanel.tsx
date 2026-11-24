@@ -1,5 +1,5 @@
 import { createMemo, createSignal, onMount, Show } from "solid-js";
-import { Badge, Box, Button, Text, ToolbarRow } from "@/ui";
+import { Badge, Box, Button, Text, ToolbarRow, typeSize } from "@/ui";
 import {
   TanStackTable,
   type TableColumnDef,
@@ -63,7 +63,7 @@ export function OptionPositionsPanel() {
       cell: ({ row }) => (
         <Box className="flex min-w-0 flex-col">
           <Text size="xs" fw={600} className="truncate">{row.original.underlying}</Text>
-          <Text c="dimmed" className="truncate text-[11px]">{row.original.expiry}</Text>
+          <Text c="dimmed" className="truncate text-ui-micro">{row.original.expiry}</Text>
         </Box>
       ),
     },
@@ -78,7 +78,7 @@ export function OptionPositionsPanel() {
           size="sm"
           color={row.original.source === "replay" ? "info" : "primary"}
           variant="light"
-          style={{ "font-size": "11px", height: "18px" }}
+          style={{ "font-size": `${typeSize("micro")}px`, height: "18px" }}
         >
           {row.original.source.toUpperCase()}
         </Badge>
@@ -101,7 +101,7 @@ export function OptionPositionsPanel() {
                 : "neutral"
           }
           variant="light"
-          style={{ "font-size": "11px", height: "18px" }}
+          style={{ "font-size": `${typeSize("micro")}px`, height: "18px" }}
         >
           {row.original.status.toUpperCase()}
         </Badge>
@@ -172,7 +172,7 @@ export function OptionPositionsPanel() {
         className="flex shrink-0 flex-col gap-1 border-b border-fin-border-subtle px-4 pb-3 pt-4"
       >
         <Text size="lg" fw={600} className="leading-tight">PAPER BOOK</Text>
-        <Text c="dimmed" className="text-[11px]">
+        <Text c="dimmed" className="text-ui-micro">
           Simulated option structures · no real capital at risk.
         </Text>
       </Box>
@@ -225,13 +225,13 @@ export function OptionPositionsPanel() {
           <Text component="span" size="xs" aria-hidden="true" className="text-fin-primary">
             ↔
           </Text>
-          <Text c="dimmed" className="text-[11px]">Scroll horizontally for more columns</Text>
+          <Text c="dimmed" className="text-ui-micro">Scroll horizontally for more columns</Text>
         </Box>
         {/* The shared table writes dense cell metrics inline; override at the
             wrapper so this modal keeps 8/12px padding and a 12px number floor. */}
         <Box
           data-testid="option-positions-table-wrap"
-          className="min-h-0 min-w-0 flex-1 [&_td]:px-3! [&_td]:py-2! [&_td]:text-xs! [&_th]:text-[11px]!"
+          className="min-h-0 min-w-0 flex-1 [&_td]:px-3! [&_td]:py-2! [&_td]:text-xs! [&_th]:text-ui-micro!"
         >
           <TanStackTable
             data={positions()}

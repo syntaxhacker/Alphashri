@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui/typography";
 import type { UnifiedTrade, MarkerConfig } from "./types";
 import { filterVisibleTrades } from "./normalizeCommon";
 import {
@@ -209,7 +210,7 @@ export function buildTradeMarkers(
                 position: "top",
                 color: CHART_AVG_ENTRY,
                 fontWeight: "bold",
-                fontSize: 12,
+                fontSize: typeSize("micro"),
               },
             }
           : {}),
@@ -261,7 +262,7 @@ export function buildTradeMarkers(
                   position: "bottom",
                   color: CHART_AVG_ENTRY,
                   fontWeight: "bold",
-                  fontSize: 11,
+                  fontSize: typeSize("micro"),
                 },
               }
             : {}),

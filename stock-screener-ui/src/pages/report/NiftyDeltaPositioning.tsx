@@ -247,7 +247,7 @@ export function NiftyDeltaPositioning(props: NiftyDeltaPositioningProps) {
       class="flex flex-col border border-fin-border rounded-[4px] overflow-hidden"
     >
       <div class="flex items-center justify-between px-2 py-1 border-b border-fin-border bg-fin-surface">
-        <span class="text-[11px] font-bold uppercase tracking-[0.07em] text-fin-text-secondary">
+        <span class="text-ui-micro font-bold uppercase tracking-[0.07em] text-fin-text-secondary">
           Delta positioning
         </span>
       </div>
@@ -311,7 +311,7 @@ export function NiftyDeltaPositioning(props: NiftyDeltaPositioningProps) {
               <div
                 data-testid="nifty-positioning-split-bar"
                 title={`Bullish ${bullShare()}% · Bearish ${bearShare()}%`}
-                class="flex w-[64px] h-[4px] rounded-[8px] overflow-hidden shrink-0"
+                class="flex w-[64px] h-[4px] rounded-full overflow-hidden shrink-0"
               >
                 <div class="block" style={{ "flex-grow": bullShare(), "flex-shrink": 1, "flex-basis": 0, "background-color": palette.POSITIVE }} />
                 <div class="block" style={{ "flex-grow": bearShare(), "flex-shrink": 1, "flex-basis": 0, "background-color": palette.NEGATIVE }} />

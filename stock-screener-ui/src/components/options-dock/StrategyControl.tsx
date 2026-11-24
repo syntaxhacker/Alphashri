@@ -1,5 +1,5 @@
 import { For, Show, createMemo, createSignal, onCleanup } from "solid-js";
-import { Badge, Box, Text, Tooltip } from "@/ui";
+import { Badge, Box, Text, Tooltip, typeSize } from "@/ui";
 import { DIALOG_SHADOW } from "@/ui/palette";
 import {
   STRATEGY_PRESETS,
@@ -167,7 +167,7 @@ export function StrategyControl() {
           aria-label="Option strategy"
           data-testid="options-strategy"
           onClick={toggle}
-          className="inline-flex min-w-0 cursor-pointer items-center gap-1 border border-fin-border bg-fin-surface px-1 font-mono text-[10px] text-fin-text hover:border-fin-primary"
+          className="inline-flex min-w-0 cursor-pointer items-center gap-1 border border-fin-border bg-fin-surface px-1 font-mono text-ui-micro text-fin-text hover:border-fin-primary"
           style={{ height: "22px", "border-radius": "4px" }}
         >
           <span className="truncate">{active()?.name ?? "No strategy"}</span>
@@ -182,7 +182,7 @@ export function StrategyControl() {
               size="xs"
               c="dimmed"
               className="min-w-0 flex-1 truncate"
-              style={{ "font-size": "10px" }}
+              style={{ "font-size": `${typeSize("micro")}px` }}
               data-testid="options-strategy-description"
             >
               {preset().description}
@@ -214,7 +214,7 @@ export function StrategyControl() {
             aria-selected={optionsDockState.activePreset == null}
             data-testid="options-strategy-none"
             onClick={() => choose(null)}
-            className="w-full cursor-pointer border-0 bg-transparent px-3 py-[5px] text-left text-[11px] text-fin-text hover:bg-fin-surface-alt"
+            className="w-full cursor-pointer border-0 bg-transparent px-3 py-[5px] text-left text-ui-micro text-fin-text hover:bg-fin-surface-alt"
           >
             No strategy
           </Box>
@@ -225,7 +225,7 @@ export function StrategyControl() {
                 <Box
                   component="div"
                   role="presentation"
-                  className="px-3 py-[4px] text-[9px] font-semibold tracking-[0.08em] text-fin-text-muted uppercase"
+                  className="px-3 py-[4px] text-ui-micro font-semibold tracking-[0.08em] text-fin-text-muted uppercase"
                   data-testid={`options-strategy-group-${outlook.id}`}
                 >
                   {outlook.label}
@@ -246,8 +246,8 @@ export function StrategyControl() {
                         onClick={() => choose(preset.id)}
                         className={
                           reason() != null
-                            ? "w-full cursor-default border-0 bg-transparent px-3 py-[5px] text-left text-[11px] text-fin-text-muted opacity-60"
-                            : "w-full cursor-pointer border-0 bg-transparent px-3 py-[5px] text-left text-[11px] text-fin-text hover:bg-fin-surface-alt"
+                            ? "w-full cursor-default border-0 bg-transparent px-3 py-[5px] text-left text-ui-micro text-fin-text-muted opacity-60"
+                            : "w-full cursor-pointer border-0 bg-transparent px-3 py-[5px] text-left text-ui-micro text-fin-text hover:bg-fin-surface-alt"
                         }
                       >
                         {preset.name}
@@ -265,7 +265,7 @@ export function StrategyControl() {
         <Text
           size="xs"
           c="warning"
-          style={{ "font-size": "10px" }}
+          style={{ "font-size": `${typeSize("micro")}px` }}
           data-testid="options-strategy-unavailable"
         >
           {active()!.name} needs a wider chain on this expiry — no legs built.

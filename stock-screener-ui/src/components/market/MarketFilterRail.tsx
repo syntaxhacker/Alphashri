@@ -25,7 +25,7 @@ import {
 } from "./marketFilters";
 
 /** One size for every band label in the rail — header included. */
-const SECTION_LABEL = "text-[10px] uppercase tracking-[0.06em]";
+const SECTION_LABEL = "text-ui-micro uppercase tracking-[0.06em]";
 
 export interface MarketFilterRailProps {
   filters: MarketFilterState;
@@ -258,7 +258,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
               size="xs"
               label={tierLabel(tier)}
               checked={filters().capTiers.has(tier.value)}
-              onChange={(e) => toggleTier(tier, (e.currentTarget as HTMLInputElement).checked)}
+              onChange={(checked) => toggleTier(tier, checked)}
               data-testid={`market-cap-${tier.value}`}
             />
           )}</For>
@@ -275,8 +275,8 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
                   size="xs"
                   label={tierLabel(tier)}
                   checked={filters().capTiers.has(tier.value)}
-                  onChange={(e) =>
-                    toggleTier(tier, (e.currentTarget as HTMLInputElement).checked)
+                  onChange={(checked) =>
+                    toggleTier(tier, checked)
                   }
                   data-testid={`market-cap-${tier.value}`}
                 />
@@ -355,7 +355,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
         >
           <Box className="flex items-center gap-1 min-w-0">
             <IconCurrencyDollar size={12} />
-            <Text fw={600} c={valueActiveCount() > 0 ? undefined : "dimmed"} className="text-[11px] whitespace-nowrap">
+            <Text fw={600} c={valueActiveCount() > 0 ? undefined : "dimmed"} className="text-ui-micro whitespace-nowrap">
               Value filters
             </Text>
             <Show when={valueActiveCount() > 0}>
@@ -438,7 +438,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
           onClick={() => setMoversOpen((open) => !open)}
           className="flex items-center justify-between w-full min-w-0 cursor-pointer"
         >
-          <Text fw={600} c="dimmed" className="text-[11px] whitespace-nowrap">
+          <Text fw={600} c="dimmed" className="text-ui-micro whitespace-nowrap">
             Mover presets
           </Text>
           <Show when={moversOpen()} fallback={<IconChevronDown size={12} />}>
@@ -518,21 +518,21 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
             size="xs"
             label="Above SMA 20"
             checked={filters().aboveSma20}
-            onChange={(e) => props.onChange({ aboveSma20: (e.currentTarget as HTMLInputElement).checked })}
+            onChange={(checked) => props.onChange({ aboveSma20: checked })}
             data-testid="market-filter-above-sma20"
           />
           <Switch
             size="xs"
             label="Above SMA 50"
             checked={filters().aboveSma50}
-            onChange={(e) => props.onChange({ aboveSma50: (e.currentTarget as HTMLInputElement).checked })}
+            onChange={(checked) => props.onChange({ aboveSma50: checked })}
             data-testid="market-filter-above-sma50"
           />
           <Switch
             size="xs"
             label="Above SMA 200"
             checked={filters().aboveSma200}
-            onChange={(e) => props.onChange({ aboveSma200: (e.currentTarget as HTMLInputElement).checked })}
+            onChange={(checked) => props.onChange({ aboveSma200: checked })}
             data-testid="market-filter-above-sma200"
           />
         </ToggleGroup>
@@ -546,7 +546,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
               size="xs"
               label="F&O only"
               checked={filters().fnoOnly}
-              onChange={(e) => props.onChange({ fnoOnly: (e.currentTarget as HTMLInputElement).checked })}
+              onChange={(checked) => props.onChange({ fnoOnly: checked })}
               data-testid="market-filter-fno"
             />
           </ToggleGroup>

@@ -60,26 +60,33 @@ const DESK_RAIL_HEIGHT_PX = 136;
 const DESK_RAIL_REPLAY_HEIGHT_PX = 84;
 const DESK_RAIL_REPLAY_WALLS_HEIGHT_PX = 112;
 
+// On a wide desk the chain hugs its five rows (`align-self: flex-start` on the
+// panel itself), so a growing chain slot would strand the same dead band under
+// it. Pin that slot to its content and let the heatmap own the flex remainder.
+const CHAIN_SLOT_BASE = "min-h-0 min-w-0 flex [&>*]:flex-1 [&>*]:min-w-0 [&>*]:min-h-0";
+const CHAIN_SLOT_FILL = `flex-auto ${CHAIN_SLOT_BASE}`;
+const CHAIN_SLOT_HUG = `shrink-0 ${CHAIN_SLOT_BASE}`;
+
 const ANALYTICS_CELL_CLASS = "min-w-0 min-h-0 flex flex-col [&>*]:flex-1 [&>*]:min-h-0";
 
 const ANALYTICS_FILL_CELL_CLASS = `${ANALYTICS_CELL_CLASS} [contain:none] min-[1200px]:[contain:size]`;
 
 const SIDE_TAB_STYLE: JSX.CSSProperties = {
-  height: "18px",
+  height: "28px",
   "min-width": "0",
-  "padding-left": "4.8px",
-  "padding-right": "4.8px",
+  "padding-left": "8px",
+  "padding-right": "8px",
   "padding-top": "0",
   "padding-bottom": "0",
   "font-size": `${REPORT_FONT.micro}px`,
   "font-weight": 800,
-  "letter-spacing": "0.4px",
+  "letter-spacing": "0.06em",
 };
 
 const HEAT_METRIC_STYLE: JSX.CSSProperties = {
-  "min-width": "26px",
-  "padding-left": "3px",
-  "padding-right": "3px",
+  "min-width": "32px",
+  "padding-left": "8px",
+  "padding-right": "8px",
   "padding-top": "0",
   "padding-bottom": "0",
   "font-size": `${REPORT_FONT.micro}px`,
@@ -93,37 +100,67 @@ const EXPAND_ICON_STYLE: JSX.CSSProperties = {
 
 const EXPAND_ICON_CLASS = "absolute top-0.5 right-0.5 p-[2px] rounded-none hover:text-fin-text!";
 
-const EXPAND_GLYPH_STYLE: JSX.CSSProperties = { "font-size": "12px", "line-height": 1 };
+const EXPAND_GLYPH_STYLE: JSX.CSSProperties = {
+  "font-size": `${REPORT_FONT.micro}px`,
+  "line-height": 1,
+};
 
 const HEAT_METRICS: HeatMetric[] = ["oi", "volume", "premium"];
 
 const HEATMAP_EXPAND_CLASS =
-  "absolute top-0 right-0 w-[22px] h-[18px] min-w-[22px] px-0 py-0 leading-[18px] text-[11px] z-[3]";
+  "absolute top-0 right-0 w-[22px] h-[18px] min-w-[22px] px-0 py-0 leading-[18px] text-ui-micro z-[3]";
 
-// A 57px treemap is noise. On a phone the side row becomes just the tab strip
+// A 57px treemap is noise. On a phone the side row becomes just the disclosure
 // plus this summary, and the heatmap moves to the existing full-view drawer.
+// `auto` sizes that row to its content: 28px collapsed, ~64px open, so the
+// collapsed state returns its dead band to the chart instead of reserving it.
 // Static literals so Tailwind emits both variants.
 const MOBILE_GRID_DEFAULT = "max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,96px)]";
-const MOBILE_GRID_HEATMAP = "max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,56px)]";
+const MOBILE_GRID_HEATMAP = "max-[600px]:grid-rows-[minmax(0,1fr)_auto]";
+// The chain rail needs two full strike rows on a phone, not just its header.
+// 156px = 32px tabs + ~40px panel header + 28px table header + 2×26px rows,
+// with a few pixels of the next row showing as the vertical scroll cue. The old
+// 80px reserve showed only the sticky table header — an empty strip. The chart
+// still owns the first grid track; heatmap keeps its content-sized row.
+const MOBILE_GRID_CHAIN = "max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,156px)]!";
+
+// The phone dock bar has more tabs than the viewport. Keep it horizontally
+// scrollable and fade the clipped label under a chevron instead of cutting the
+// word in half; the cue sits over the bar but never takes a pointer event.
+const DOCK_OVERFLOW_WRAP_CLASS = [
+  // The shell pins the dock region at order-3; this wrapper is now the flex
+  // child, so it must carry that slot or the dock paints above the hero.
+  "relative mt-auto w-full shrink-0 max-[600px]:order-3",
+  "max-[600px]:[&_[data-testid='desk-dock']]:flex-nowrap!",
+  "max-[600px]:[&_[data-testid='desk-dock']]:overflow-x-auto!",
+].join(" ");
+const DOCK_OVERFLOW_CUE_CLASS =
+  "pointer-events-none absolute right-0 bottom-0 z-30 hidden h-[36px] w-[28px] items-center justify-center max-[600px]:flex";
+const DOCK_OVERFLOW_CUE_STYLE: JSX.CSSProperties = {
+  background: `linear-gradient(to left, ${palette.TERM_HEADER} 45%, transparent)`,
+  color: palette.TEXT_MUTED,
+  "font-size": `${REPORT_FONT.micro}px`,
+  "font-weight": 800,
+};
 
 const MOBILE_HEAT_METRIC_STYLE: JSX.CSSProperties = {
-  height: "22px",
-  "min-height": "22px",
-  "min-width": "30px",
-  "padding-left": "4px",
-  "padding-right": "4px",
+  height: "24px",
+  "min-height": "24px",
+  "min-width": "32px",
+  "padding-left": "8px",
+  "padding-right": "8px",
   "padding-top": "0",
   "padding-bottom": "0",
-  "font-size": "11px",
+  "font-size": `${REPORT_FONT.micro}px`,
   "line-height": "1.2",
 };
 
 const MOBILE_HEAT_OPEN_STYLE: JSX.CSSProperties = {
-  height: "22px",
-  "min-height": "22px",
-  "padding-left": "6px",
-  "padding-right": "6px",
-  "font-size": "11px",
+  height: "24px",
+  "min-height": "24px",
+  "padding-left": "8px",
+  "padding-right": "8px",
+  "font-size": `${REPORT_FONT.micro}px`,
   "line-height": "1.2",
 };
 
@@ -145,7 +182,7 @@ function MobileHeatmapSummary(props: {
     >
       <Box
         data-testid="nifty-heatmap-metric-toggle"
-        className="flex flex-wrap items-center gap-1 px-2 pb-1"
+        className="flex flex-wrap items-center gap-2 px-2 pb-2"
       >
         <For each={HEAT_METRICS}>
           {(metric) => (
@@ -218,6 +255,12 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
   const chartSize = () => store.ui.chartSize();
   const heatMetric = () => store.ui.heatMetric();
   const mobileHeatmap = () => isDesk() && isMobile() && sideTab() === "heatmap";
+  // Wide desk: the side column is tall enough for two panels. The chain hugs its
+  // rows and the heatmap fills the rest, so the column never ends in dead black.
+  // The HEATMAP tab still hides the chain, keeping the two tabs distinct.
+  const deskSplit = () => isDesk() && !isMobile();
+  const showChain = () => !isDesk() || sideTab() === "chain";
+  const showSideHeatmap = () => isDesk() && (sideTab() === "heatmap" || !isMobile());
 
   const chartRowHeight = createMemo(() => {
     const size = chartSize();
@@ -239,6 +282,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
       spot: store.data.report()?.spot,
       walls: store.data.oiWalls(),
       showLegChange: !store.ui.isDesk(),
+      hideSignals: isMobile(),
     });
   });
 
@@ -256,6 +300,18 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
   const gexForDisplay = createMemo(() =>
     gexDegraded() ? undefined : store.data.report()?.gex,
   );
+
+  // The phone rail only has room for two full rows. Open on the ATM pair
+  // rather than the lowest strikes; the expand action still carries the whole
+  // ladder, and there is no invisible scroll position to hunt for.
+  const chainStrikes = createMemo(() => {
+    const all = store.data.visibleStrikes();
+    if (!isMobile() || all.length <= 2) return all;
+    const atm = store.data.atmStrike();
+    const index = atm === null ? -1 : all.findIndex((row) => Number(row.strike) === atm);
+    const start = Math.max(0, Math.min(all.length - 2, index));
+    return all.slice(start, start + 2);
+  });
 
   const getOiRowStyle = (row: NiftyStrike): JSX.CSSProperties | undefined => {
     const atm = store.data.atmStrike();
@@ -355,14 +411,17 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
 
   return (
     <>
+      {/* The shell owns the phone order for every content child; declaring it
+          here as well would tie the chart with the shell's own rule. */}
       <Box
         data-testid="nifty-main-row"
         data-left-edge={String(REPORT_GUTTER.inline)}
+        data-report-order="chart"
         data-chart-primary={isDesk() && chartSize() === "fill" ? "true" : undefined}
         data-chart-row-share={isDesk() ? DESK_CHART_ROW_SHARE : undefined}
         data-chart-chain={CHART_FILL_CHAIN}
         data-chart-floor={isDesk() ? String(DESK_CHART_FLOOR_PX) : undefined}
-        className={`grid grid-cols-1 ${isDesk() ? "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,624px)]"} grid-rows-[minmax(0,1fr)_minmax(0,120px)] ${mobileHeatmap() ? MOBILE_GRID_HEATMAP : MOBILE_GRID_DEFAULT} min-[1200px]:grid-rows-[minmax(0,1fr)] gap-0 items-stretch w-full max-w-full min-w-0 flex-1 min-h-[300px] overflow-hidden${isDesk() ? ` ${DESK_CHART_ROW_MAX_CLASS}` : ""}`}
+        className={`grid grid-cols-1 ${isDesk() ? "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,624px)]"} grid-rows-[minmax(0,1fr)_minmax(0,120px)] ${mobileHeatmap() ? MOBILE_GRID_HEATMAP : `${MOBILE_GRID_DEFAULT} ${MOBILE_GRID_CHAIN}`} min-[1200px]:grid-rows-[minmax(0,1fr)] gap-0 items-stretch w-full max-w-full min-w-0 flex-1 min-h-[300px] overflow-hidden${isDesk() ? ` ${DESK_CHART_ROW_MAX_CLASS}` : ""}`}
         style={{
           "max-height":
             isDesk() && chartSize() !== "fill" ? `${chartRowHeight()}px` : undefined,
@@ -399,11 +458,15 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
           )}
         </Show>
 
-        <Box data-testid="nifty-side-col" className="flex flex-col min-w-0 min-h-0">
+        <Box
+          data-testid="nifty-side-col"
+          data-side-secondary={deskSplit() ? "heatmap" : undefined}
+          className="flex flex-col min-w-0 min-h-0"
+        >
           <Show when={isDesk()}>
             <Box
               data-testid="nifty-side-tabs"
-              className="flex items-center gap-0.5 h-5 min-h-5 px-0.5"
+              className="flex items-center gap-2 h-8 min-h-8 px-1"
               style={{
                 "background-color": palette.TERM_HEADER,
                 "border-bottom": `1px solid ${palette.alpha(palette.BORDER, 0.6)}`,
@@ -432,10 +495,10 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
             </Box>
           </Show>
 
-          <Show when={!isDesk() || sideTab() === "chain"}>
-            <Box className="flex-auto min-h-0 min-w-0 flex [&>*]:flex-1 [&>*]:min-w-0 [&>*]:min-h-0">
+          <Show when={showChain()}>
+            <Box data-side-slot="chain" className={deskSplit() ? CHAIN_SLOT_HUG : CHAIN_SLOT_FILL}>
               <NiftyOiChain
-                strikes={store.data.visibleStrikes()}
+                strikes={chainStrikes()}
                 columns={oiColumns()}
                 getRowStyle={getOiRowStyle}
                 getRowTestId={getOiRowTestId}
@@ -450,9 +513,10 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
             </Box>
           </Show>
 
-          <Show when={isDesk() && sideTab() === "heatmap"}>
+          <Show when={showSideHeatmap()}>
             <Box
               data-testid="nifty-chart-side-heatmap"
+              data-side-slot="heatmap"
               className="relative flex-auto min-h-0 min-w-0 flex flex-col"
             >
               <Show
@@ -469,7 +533,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
               >
                 <Box
                   data-testid="nifty-heatmap-metric-toggle"
-                  className="flex gap-0.5 items-center h-[30px] min-h-[30px] shrink-0 px-0.5 mb-[1px]"
+                  className="flex gap-2 items-center h-[30px] min-h-[30px] shrink-0 px-1 mb-1"
                 >
                   <For each={HEAT_METRICS}>
                     {(metric) => (
@@ -486,7 +550,9 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
                       </Button>
                     )}
                   </For>
-                  <Text className="ml-auto mr-5 text-[11px] text-fin-text-muted">OI change</Text>
+                  <Text className="ml-auto mr-6 text-ui-body font-semibold text-fin-text-muted">
+                    OI change
+                  </Text>
                 </Box>
                 <Box data-testid="nifty-heatmap-wrap" className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
                   <Suspense fallback={<PanelSkeleton h={220} />}>
@@ -526,7 +592,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
         <Box
           data-testid="desk-insight-rail"
           data-left-edge={String(REPORT_GUTTER.inline)}
-          className="flex flex-col gap-1 shrink-0 w-full min-w-0 overflow-hidden"
+          className="flex flex-col gap-2 shrink-0 w-full min-w-0 overflow-hidden"
           style={{
             height: `${store.selection.mode() !== "eod"
               ? DESK_RAIL_HEIGHT_PX
@@ -555,11 +621,25 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
       </Show>
 
       <Show when={isDesk()}>
-        <DeskDock
-          tabs={deskTabs()}
-          active={store.ui.deskDockTab()}
-          onActiveChange={(key) => store.ui.setDeskDockTab(key)}
-        />
+        <Box
+          data-testid="desk-dock-overflow-wrap"
+          data-left-edge={String(REPORT_GUTTER.inline)}
+          className={DOCK_OVERFLOW_WRAP_CLASS}
+        >
+          <DeskDock
+            tabs={deskTabs()}
+            active={store.ui.deskDockTab()}
+            onActiveChange={(key) => store.ui.setDeskDockTab(key)}
+          />
+          <Box
+            data-testid="desk-dock-overflow-cue"
+            aria-hidden="true"
+            className={DOCK_OVERFLOW_CUE_CLASS}
+            style={DOCK_OVERFLOW_CUE_STYLE}
+          >
+            ›
+          </Box>
+        </Box>
       </Show>
 
       <Show when={!isDesk()}>
@@ -568,7 +648,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
             <>
               <Box
                 data-testid="nifty-analytics-row"
-                className="grid grid-cols-1 min-[1200px]:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-stretch gap-0 w-full max-w-full min-w-0 shrink-0"
+                className="grid grid-cols-1 min-[1200px]:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-stretch gap-2 w-full max-w-full min-w-0 shrink-0"
               >
                 <Box className={ANALYTICS_FILL_CELL_CLASS}>
                   <Suspense fallback={<PanelSkeleton h={160} />}>
@@ -597,7 +677,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
 
               <Box
                 data-testid="nifty-iv-skew-row"
-                className="grid grid-cols-1 min-[1200px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-0 items-stretch w-full max-w-full min-w-0 shrink-0"
+                className="grid grid-cols-1 min-[1200px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-2 items-stretch w-full max-w-full min-w-0 shrink-0"
               >
                 <Box className="min-w-0 min-h-0 relative">
                   <Suspense fallback={<PanelSkeleton h={160} />}>

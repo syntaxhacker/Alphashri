@@ -316,7 +316,7 @@ function UnusualFilterPill(props: {
       type="button"
       data-testid={props.testId}
       onClick={props.onClick}
-      class="rounded-full px-[8px] py-[2px] text-[11px] font-bold cursor-pointer whitespace-nowrap shrink-0 border border-solid"
+      class="rounded-full px-[8px] py-[2px] text-ui-micro font-bold cursor-pointer whitespace-nowrap shrink-0 border border-solid"
       style={{
         "border-color": props.active ? palette.UNUSUAL_PILL_ACTIVE : palette.UNUSUAL_PILL_BORDER,
         "background-color": props.active ? hexToRgba(palette.UNUSUAL_PILL_ACTIVE, 0.18) : "transparent",
@@ -441,7 +441,7 @@ export function NiftyUnusualVolume(props: {
         </div>
       </Show>
       <div
-        class="flex min-h-[120px] h-[150px] min-w-0 [&_.paper-tanstack-container]:[background:var(--desk-bg)]! [&_.paper-tanstack-scroll]:[background:var(--desk-bg)]! [&_.paper-tanstack-table]:[background:var(--desk-bg)]! [&_.paper-tanstack-cell]:[padding-top:2px]! [&_.paper-tanstack-cell]:[padding-bottom:2px]! [&_.paper-tanstack-cell]:[background:var(--desk-bg)]! [&_.paper-tanstack-cell]:[border-bottom:1px_solid_var(--desk-border)]! [&_.paper-tanstack-cell]:text-[12px]! [&_.paper-tanstack-header-cell]:[padding-top:2px]! [&_.paper-tanstack-header-cell]:[padding-bottom:2px]! [&_.paper-tanstack-header-cell]:[background:var(--desk-bg)]! [&_.paper-tanstack-header-cell]:[border-bottom:1px_solid_var(--desk-grid)]! [&_.paper-tanstack-header-cell]:[color:var(--desk-muted)]! [&_.paper-tanstack-header-cell]:text-[11px]! [&_.paper-tanstack-header-cell]:uppercase!"
+        class="flex min-h-[120px] h-[150px] min-w-0 [&_.paper-tanstack-container]:[background:var(--desk-bg)]! [&_.paper-tanstack-scroll]:[background:var(--desk-bg)]! [&_.paper-tanstack-table]:[background:var(--desk-bg)]! [&_.paper-tanstack-cell]:[padding-top:2px]! [&_.paper-tanstack-cell]:[padding-bottom:2px]! [&_.paper-tanstack-cell]:[background:var(--desk-bg)]! [&_.paper-tanstack-cell]:[border-bottom:1px_solid_var(--desk-border)]! [&_.paper-tanstack-cell]:text-ui-micro! [&_.paper-tanstack-header-cell]:[padding-top:2px]! [&_.paper-tanstack-header-cell]:[padding-bottom:2px]! [&_.paper-tanstack-header-cell]:[background:var(--desk-bg)]! [&_.paper-tanstack-header-cell]:[border-bottom:1px_solid_var(--desk-grid)]! [&_.paper-tanstack-header-cell]:[color:var(--desk-muted)]! [&_.paper-tanstack-header-cell]:text-ui-micro! [&_.paper-tanstack-header-cell]:uppercase!"
         style={{
           "background-color": UNUSUAL_TERM_BG,
           "--desk-bg": UNUSUAL_TERM_BG,

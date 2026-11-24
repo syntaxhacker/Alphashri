@@ -433,14 +433,14 @@ describe("MarketTicker", () => {
         "minmax(56px, auto) minmax(64px, 1fr) 128px",
       );
       expect(within(item).getByText(/Nifty 50|Gold/)).toHaveStyle({
-        fontSize: "11px",
+        fontSize: "12px",
       });
     }
     expect(screen.getByTestId("ticker-price-nsei")).toHaveStyle({
-      fontSize: "11px",
+      fontSize: "12px",
     });
     expect(screen.getByTestId("ticker-price-gcf")).toHaveStyle({
-      fontSize: "11px",
+      fontSize: "12px",
     });
   });
 
@@ -458,6 +458,10 @@ describe("MarketTicker", () => {
     expect(screen.getByText(/Republic Day/)).toBeInTheDocument();
     expect(screen.queryByTestId("market-ticker-loading")).not.toBeInTheDocument();
     expect(mockFetch).not.toHaveBeenCalled();
+
+    const detail = screen.getByTestId("market-ticker-status").querySelector("p:last-child") as HTMLElement;
+    expect(detail).toHaveAttribute("title", "· Republic Day");
+    expect(detail).toHaveClass("break-words", "line-clamp-2");
   });
 
   it("returns null when disabled", () => {
@@ -537,6 +541,51 @@ describe("MarketStatus", () => {
     expect(screen.getByText("Market closed")).toBeInTheDocument();
   });
 
+  it("shares the closed/live state vocabulary with the report toolbar", () => {
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
+    render(() => (<UIProvider>
+        <MarketStatus />
+      </UIProvider>),
+    );
+    const status = screen.getByTestId("app-market-status");
+    expect(status).toHaveAttribute("data-state", "closed");
+    expect(status).toHaveTextContent("Market closed");
+    expect(status).not.toHaveTextContent("Market live");
+  });
+
+  it("marks an open session with the live state", () => {
+    render(() => (<UIProvider>
+        <MarketStatus />
+      </UIProvider>),
+    );
+    const status = screen.getByTestId("app-market-status");
+    expect(status).toHaveAttribute("data-state", "live");
+    expect(status).toHaveTextContent("Market live");
+  });
+
+  it("gives the closed-session detail a full-width row that wraps at word boundaries with a full title", () => {
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
+    render(() => (<UIProvider>
+        <MarketStatus />
+      </UIProvider>),
+    );
+
+    const root = screen.getByTestId("app-market-status");
+    const headline = screen.getByTestId("app-market-status-headline");
+    const detail = screen.getByTestId("app-market-status-detail");
+    const full = "· Closed at 15:30 IST · Opens 09:15 IST";
+    expect(detail).toHaveTextContent(full);
+    expect(detail).toHaveAttribute("title", full);
+    // The detail owns a full-width row instead of being squeezed next to the
+    // nowrap label, so it wraps at whitespace and no word is cut mid-token.
+    expect(root).toHaveClass("flex", "flex-col", "min-w-0", "w-full");
+    expect(detail).toHaveClass("w-full", "min-w-0", "break-words", "line-clamp-2");
+    expect(root).toContainElement(detail);
+    expect(headline).toContainElement(screen.getByTestId("app-market-status-dot"));
+    expect(headline).toHaveTextContent("Market closed");
+    expect(headline).not.toContainElement(detail);
+  });
+
   it("hides the label but keeps the dot when compact (collapsed rail)", () => {
     setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
     render(() => (<UIProvider>
@@ -545,6 +594,7 @@ describe("MarketStatus", () => {
     );
     expect(screen.getByTestId("app-market-status-dot")).toBeInTheDocument();
     expect(screen.queryByText("Market closed")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("app-market-status-detail")).not.toBeInTheDocument();
     expect(screen.getByTestId("app-market-status").getAttribute("title")).toContain("Market closed");
   });
 

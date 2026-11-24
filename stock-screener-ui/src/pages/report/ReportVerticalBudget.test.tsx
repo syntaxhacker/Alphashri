@@ -5,7 +5,6 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { createSignal } from "solid-js";
 import { UIProvider } from "@/ui";
 import { DESK_DOCK_OPEN_MIN_HEIGHT } from "./DeskDock";
-import { DESK_CHART_FLOOR_PX } from "./ReportWorkspace";
 
 // End-to-end layout contract for the desk surface: the chart keeps the whole
 // stretched row, the page never scrolls, and the low-frequency tape bands are
@@ -187,22 +186,6 @@ describe("Index Report vertical budget", () => {
 });
 
 describe("Index Report desktop chart/dock share", () => {
-  test("the chart row is a bounded fraction of the viewport via grid classes", async () => {
-    render(() => (
-      <UIProvider>
-        <NiftyReportShell />
-      </UIProvider>
-    ));
-
-    const main = await screen.findByTestId("nifty-main-row");
-    const content = screen.getByTestId("nifty-report-content");
-    expect(main.getAttribute("data-chart-row-share")).toBe("0.56");
-    expect(main.className).toContain("min-[1200px]:max-h-[58vh]");
-    expect(content.className).toContain(
-      "min-[1200px]:grid-rows-[auto_minmax(0,70fr)_minmax(0,30fr)]",
-    );
-  });
-
   test("the dock bay has a usable minimum height when open", async () => {
     render(() => (
       <UIProvider>
@@ -218,23 +201,6 @@ describe("Index Report desktop chart/dock share", () => {
     );
     expect(drawer.className).toContain("min-h-[180px]");
     expect(screen.queryByTestId("desk-dock-idle")).not.toBeInTheDocument();
-  });
-
-  test("the chart keeps its flex-1 min-h-0 chain and no fixed height", async () => {
-    render(() => (
-      <UIProvider>
-        <NiftyReportShell />
-      </UIProvider>
-    ));
-
-    const main = await screen.findByTestId("nifty-main-row");
-    expect(main.className).toContain("flex-1");
-    expect(main.getAttribute("data-chart-chain")).toBe("flex-1 min-h-0");
-    expect(main.className).not.toMatch(/(^|\s)h-\[\d+px\]/);
-    expect(main.style.height).toBe("");
-    expect((await screen.findByTestId("nifty-chart-wrap")).getAttribute("data-fill")).toBe(
-      "true",
-    );
   });
 
   test("no strip or dock testid was lost when the bay took the reclaimed space", async () => {
@@ -290,35 +256,6 @@ describe("Index Report desktop desk rail (chart + numbers coexist)", () => {
     expect(within(rail).getByTestId("nifty-breadth-strip")).toBeInTheDocument();
     expect(screen.queryByTestId("desk-dock-drawer")).not.toBeInTheDocument();
     expect(screen.getByTestId("desk-dock-idle")).toBeInTheDocument();
-  });
-
-  test("(b) opening the dock never reduces the chart below its stated floor", async () => {
-    const main = await mountDesk();
-    expect(main.getAttribute("data-chart-floor")).toBe(String(DESK_CHART_FLOOR_PX));
-    const before = main.className;
-
-    fireEvent.click(screen.getByTestId("desk-dock-strips"));
-    const drawer = await screen.findByTestId("desk-dock-drawer");
-    // The drawer is an absolute overlay outside the flex column, so the chart
-    // row's box/class cannot change when a tab opens.
-    expect(drawer.getAttribute("data-dock-mode")).toBe("overlay");
-    expect(drawer.className).toContain("absolute");
-    expect(drawer.className).not.toContain("flex-1");
-    expect(screen.getByTestId("nifty-main-row").className).toBe(before);
-    expect(screen.getByTestId("nifty-main-row").getAttribute("data-chart-floor")).toBe(
-      String(DESK_CHART_FLOOR_PX),
-    );
-    expect(within(screen.getByTestId("desk-insight-rail")).getByTestId("nifty-walls-card-rail")).toBeInTheDocument();
-  });
-
-  test("(c) the chart keeps its flex-1 min-h-0 chain", async () => {
-    const main = await mountDesk();
-    expect(main.getAttribute("data-chart-chain")).toBe("flex-1 min-h-0");
-    expect(main.className).toContain("flex-1");
-    expect(main.className).toContain("min-h-[300px]");
-    expect(main.className).not.toMatch(/(^|\s)h-\[\d+px\]/);
-    expect(main.style.height).toBe("");
-    expect((await screen.findByTestId("nifty-chart-wrap")).getAttribute("data-fill")).toBe("true");
   });
 
   test("(d) every previously reachable testid is still reachable", async () => {

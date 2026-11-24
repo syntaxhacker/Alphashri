@@ -1,5 +1,28 @@
 # App visual audit — design-system adoption on real surfaces
 
+## Current status (2026-11-23)
+
+> **This section is authoritative.** It supersedes the consistency verdicts and the 10-item inconsistency table in the historical audit below. That audit is kept for traceability but describes earlier snapshots; where it conflicts with this section, this section wins. "Fixed" means confirmed in source or in a committed capture — not a fresh live render.
+
+**Fixed since the historical audit:**
+
+- The report no longer owns a private 9/10/11/23px scale: `REPORT_FONT` derives from the shared `TYPE_SCALE` (12/13/16/24), radii are 2/4/6/10, and `ReportLegibility` / `ReportTypographyContrast` enforce the 12px floor.
+- Typography primitives (`Text/Title/Anchor/List`) resolve named sizes through `SIZE_ROLE` → `TYPE_CLASS` on the shared scale; there is no private rem table or 18px step.
+- Replay error copy now separates a human message from collapsed technical detail; dense tabs/table regions scroll intentionally at 390.
+- A fresh **Index Report** route capture exists at `docs/screenshots/app/report-{1600,390}.png` — real route, honest shared mocks, **viewport** captures at 1600×1000 and 390×844 (not full-page). The 1600 capture exposed a spot-value ellipsis; the KPI minimum was widened so `22,363.35` stays complete.
+- **The mobile-nav overlap is fixed.** `src/components/layout/AppLayout.tsx` now puts the toggle inside a sticky, in-flow 44px bar (`data-testid="app-mobile-nav-bar"`, `h-11` / `height: 44px`) at the top of the main column — no `position:fixed` 8px toggle over the first header — and publishes `--app-mobile-nav-gutter: 0px` so standalone `CompactPage` headers skip their fallback inset. The new structural tests in `src/components/layout/AppLayout.test.tsx` ("AppLayout mobile nav gutter") assert the bar is the first child of `app-main`, is sticky at `top-0` with `h-11`/`shrink-0`, contains the toggle (which is not fixed), and that page headers live in the following content column. The committed 390 captures `docs/screenshots/app/report-390.png` and `docs/screenshots/app/sector-390.png` show the nav bar above the page titles with no toggle-over-title overlap.
+
+**Still open / unverified:**
+
+- **Home, bare `/screener`, `/options` and `/patterns` app routes are unverified.** They have no fresh 1600/390 route captures with honest mocks; Storybook images are not a substitute and those findings remain open until a route capture exists.
+- Agri heatmap colour, focus/keyboard order, actual WCAG ratios and reduced-motion still lack fresh live evidence.
+
+---
+
+> **Historical evidence (superseded).** Everything from **Reference baseline** to the end of this file is the original read-only audit, retained for traceability only. Its findings were accurate for the captured images but are superseded by the status above.
+
+---
+
 **Branch:** `improve/ds-p3-tokens-forms-tests` · **Date:** 2026-11-23 · **Mode:** read-only
 **Method:** committed screenshots + source reads only. No builds, servers, git writes, or code edits. This is the only file written.
 **Evidence rule:** a claim is either tied to a checked-in screenshot, a file/line, or it is marked **unknown**. Screenshots are snapshots, not live renders (see *Unknowns*).
@@ -138,3 +161,13 @@ Counting imports overstates adoption: `src/pages/report` imports `@/ui` in 124 f
 - Whether the mobile title overlap is still present after the uncommitted DS edits is unknown; source at `AppLayout.tsx:63-82` still places the toggle at fixed `top:8/left:8`.
 - 1600/390 screenshots exist for only a subset of the 30 routes (`docs/ROUTE_SURFACE_AUDIT.md:32-63`); backtest, paper, bots, strategies, sector and settings were not visually audited.
 - Chart palette consistency: report/agri charts still import `src/ui/palette` directly rather than `useTokenColor()`; because the product is dark-only, this is a token-discipline issue, but a liveScheme flip was not tested (and light mode is explicitly out of scope per `docs/DESIGN_SYSTEM_BENCHMARK_2026-11-23.md:8`).
+
+---
+
+## Historical status snapshot (2026-11-23 P5 — superseded by the "Current status" section at the top)
+
+- The report no longer has a private 9/10/11/23px scale. `src/pages/report/reportTokens.ts` derives `REPORT_FONT` from the shared `TYPE_SCALE` (report uses 12/13/16/24) and report radii are 2/4/6/10; `ReportLegibility`/`ReportTypographyContrast` enforce the 12px floor and the closed ladder.
+- Typography primitives (`Text/Title/Anchor/List`) are no longer a blind spot: their named sizes resolve through `SIZE_ROLE` → `TYPE_CLASS` on the shared 12/13/14/16/20/24 scale, with no private rem table or 18px step. The “one scale” claim now holds for direct primitive use; the five `xs…xl` props are aliases onto roles, so body 13px is reached with `text-ui-body` / `typeStyle("body")`, not a size alias.
+- Replay error copy now separates a human message from collapsed technical detail; dense tabs/table regions scroll intentionally at 390.
+- Fresh **Index Report** app captures now exist at `docs/screenshots/app/report-{1600,390}.png` (real route, mocked API, **viewport** captures at 1600×1000 and 390×844 — not full-page). The 1600 capture exposed a real spot-value ellipsis; the KPI minimum was widened so `22,363.35` stays complete.
+- Still unverified at the time of this snapshot: fresh 1600/390 captures of home/screener/options/patterns. Storybook images are **not** a substitute; those route findings remain open until a route capture exists. The mobile-nav gutter item once listed here is now **fixed** — see "Current status" above.

@@ -85,7 +85,7 @@ function SectorDetailPanel() {
                 <button
                   type="button"
                   data-testid="sector-detail-retry"
-                  class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+                  class="rounded-sm border border-fin-border px-2 text-ui-micro text-fin-text hover:bg-fin-surface-alt"
                   onClick={() => void loadSectorData(state().market)}
                 >
                   Retry

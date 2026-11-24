@@ -1,5 +1,5 @@
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
-import { ActionIcon, Box, Button, Skeleton, Text } from "@/ui";
+import { ActionIcon, Box, Button, Skeleton, Text, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { IconArrowLeft, IconRefresh } from "@/components/common/Icons";
 import { formatNumber, formatNumberIN } from "@/utils/ui-helpers";
@@ -26,7 +26,7 @@ export interface ContractChartSelection {
 /** The chips and the API enum must stay one list. */
 const INTERVALS: readonly ContractInterval[] = ["1m", "5m", "15m"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const AXIS_FONT = 10;
+const AXIS_FONT = typeSize("micro");
 const EMPTY_TEXT = "No trades for this contract yet";
 
 function expiryLabel(expiry: string): string {
@@ -208,7 +208,7 @@ function LoadingSkeleton() {
     >
       <Skeleton h={12} w="70%" animate />
       <Skeleton h={12} w="50%" animate />
-      <Text size="xs" c="dimmed" className="font-mono uppercase" style={{ "font-size": "9px" }}>
+      <Text size="xs" c="dimmed" className="font-mono uppercase" style={{ "font-size": `${typeSize("micro")}px` }}>
         Loading contract chart
       </Text>
     </Box>
@@ -326,18 +326,18 @@ export function ContractChartPanel(props: {
 
       <Box className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 px-2 py-1">
         <Box className="flex shrink-0 items-center gap-1">
-          <Text size="xs" c="dimmed" className="font-mono uppercase" style={{ "font-size": "9px" }}>
+          <Text size="xs" c="dimmed" className="font-mono uppercase" style={{ "font-size": `${typeSize("micro")}px` }}>
             LTP
           </Text>
-          <Text size="xs" className="font-mono" style={{ "font-size": "11px" }} data-testid="contract-chart-ltp">
+          <Text size="xs" className="font-mono" style={{ "font-size": `${typeSize("micro")}px` }} data-testid="contract-chart-ltp">
             {ltpText()}
           </Text>
         </Box>
         <Box className="flex shrink-0 items-center gap-1">
-          <Text size="xs" c="dimmed" className="font-mono uppercase" style={{ "font-size": "9px" }}>
+          <Text size="xs" c="dimmed" className="font-mono uppercase" style={{ "font-size": `${typeSize("micro")}px` }}>
             Spot
           </Text>
-          <Text size="xs" className="font-mono" style={{ "font-size": "11px" }} data-testid="contract-chart-spot">
+          <Text size="xs" className="font-mono" style={{ "font-size": `${typeSize("micro")}px` }} data-testid="contract-chart-spot">
             {props.selection.spot.toFixed(2)}
           </Text>
         </Box>
@@ -378,7 +378,7 @@ export function ContractChartPanel(props: {
           <Text
             size="xs"
             className="min-w-0 flex-1 truncate font-mono"
-            style={{ "font-size": "10px", color: "var(--color-fin-negative)" }}
+            style={{ "font-size": `${typeSize("micro")}px`, color: "var(--color-fin-negative)" }}
           >
             {error()}
           </Text>
@@ -397,7 +397,7 @@ export function ContractChartPanel(props: {
             className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-3"
             data-testid="contract-chart-error"
           >
-            <Text size="xs" c="dimmed" className="text-center font-mono" style={{ "font-size": "10px" }}>
+            <Text size="xs" c="dimmed" className="text-center font-mono" style={{ "font-size": `${typeSize("micro")}px` }}>
               {error()}
             </Text>
             <Button size="xs" variant="outline" color="negative" data-testid="contract-chart-retry" onClick={retry}>
@@ -419,7 +419,7 @@ export function ContractChartPanel(props: {
             />
             <Show when={loading()}>
               <Box className="pointer-events-none absolute right-2 top-1">
-                <Text size="xs" c="dimmed" className="font-mono uppercase" style={{ "font-size": "9px" }}>
+                <Text size="xs" c="dimmed" className="font-mono uppercase" style={{ "font-size": `${typeSize("micro")}px` }}>
                   Loading {interval()}
                 </Text>
               </Box>

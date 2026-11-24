@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { Title } from "./Title";
+import { TYPE_CLASS } from "../typography";
 import * as palette from "@/ui/palette";
 
 describe("Title", () => {
@@ -23,9 +24,25 @@ describe("Title", () => {
     expect(screen.getByTestId("t")).toHaveStyle(`color: ${palette.INFO}`);
   });
 
-  it("applies size from the type scale", () => {
-    render(() => <Title data-testid="t" order={2} size="xl">big</Title>);
-    expect(screen.getByTestId("t")).toHaveStyle("font-size: 24px");
+  it.each([
+    ["xs", TYPE_CLASS.micro],
+    ["sm", TYPE_CLASS.label],
+    ["md", TYPE_CLASS.title],
+    ["lg", TYPE_CLASS.heading],
+    ["xl", TYPE_CLASS.display],
+  ] as const)("maps size=%s to token class %s with no inline font-size", (size, tokenClass) => {
+    const testId = `t-${size}`;
+    render(() => <Title data-testid={testId} order={2} size={size}>big</Title>);
+    const el = screen.getByTestId(testId);
+    expect(el).toHaveClass(tokenClass);
+    expect(el.style.fontSize).toBe("");
+  });
+
+  it("ignores a legacy non-tier alias instead of painting a private size", () => {
+    render(() => <Title data-testid="t" order={2} size="h4">old</Title>);
+    const el = screen.getByTestId("t");
+    expect(el.style.fontSize).toBe("");
+    expect(Object.values(TYPE_CLASS).some((cls) => el.classList.contains(cls))).toBe(false);
   });
 
   it("forwards title as a native tooltip attribute", () => {

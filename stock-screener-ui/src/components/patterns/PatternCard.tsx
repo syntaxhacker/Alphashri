@@ -1,5 +1,5 @@
 import { createMemo, Show } from "solid-js";
-import { Badge, Box, Card, Text, Tooltip } from "@/ui";
+import { Badge, Box, Card, Text, Tooltip, typeSize } from "@/ui";
 import { IconArrowsMaximize } from "@/ui/icons";
 import { formatPercentage } from "@/utils/ui-helpers";
 import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
@@ -44,7 +44,7 @@ const STATUS_BADGE_COLOR: Record<string, string> = {
 function Metric(props: { label: string; value: string }) {
   return (
     <Box className="flex min-w-0 flex-1 items-center justify-between gap-2 px-1.5">
-      <Text size="xs" c="dimmed" fw={600} truncate style={{ "font-size": "10px", "line-height": 1 }}>
+      <Text size="xs" c="dimmed" fw={600} truncate style={{ "font-size": `${typeSize("micro")}px`, "line-height": 1 }}>
         {props.label}
       </Text>
       <Text
@@ -52,7 +52,7 @@ function Metric(props: { label: string; value: string }) {
         fw={600}
         truncate
         className="font-mono tabular-nums"
-        style={{ "font-size": "11px", "line-height": 1 }}
+        style={{ "font-size": `${typeSize("micro")}px`, "line-height": 1 }}
       >
         {props.value}
       </Text>
@@ -143,7 +143,7 @@ export function PatternCard(props: PatternCardProps) {
               className="max-w-full"
             />
             <Box className="flex min-w-0 items-center justify-between gap-1">
-              <Text size="xs" c="dimmed" truncate style={{ "font-size": "10px", "line-height": 1.2 }}>
+              <Text size="xs" c="dimmed" truncate style={{ "font-size": `${typeSize("micro")}px`, "line-height": 1.2 }}>
                 {hit().pattern_name}
               </Text>
               <Tooltip label={qualityInfo()?.description ?? quality()} position="left" withArrow>
@@ -152,7 +152,7 @@ export function PatternCard(props: PatternCardProps) {
                   size="xs"
                   c="dimmed"
                   className="cursor-help shrink-0"
-                  style={{ "font-size": "10px", "line-height": 1 }}
+                  style={{ "font-size": `${typeSize("micro")}px`, "line-height": 1 }}
                 >
                   {quality()}
                 </Text>
@@ -171,7 +171,7 @@ export function PatternCard(props: PatternCardProps) {
                 {display().label}
               </Badge>
             </Tooltip>
-            <Text size="xs" c="dimmed" style={{ "font-size": "10px", "line-height": 1, "white-space": "nowrap" }}>
+            <Text size="xs" c="dimmed" style={{ "font-size": `${typeSize("micro")}px`, "line-height": 1, "white-space": "nowrap" }}>
               {barsLabel()}
             </Text>
           </Box>
@@ -182,7 +182,7 @@ export function PatternCard(props: PatternCardProps) {
             size="xs"
             fw={600}
             className="font-mono tabular-nums"
-            style={{ "font-size": "11px", "line-height": 1.1 }}
+            style={{ "font-size": `${typeSize("micro")}px`, "line-height": 1.1 }}
           >
             {formatChartPrice(lastPrice())}
           </Text>
@@ -190,7 +190,7 @@ export function PatternCard(props: PatternCardProps) {
             size="xs"
             className="font-mono tabular-nums"
             style={{
-              "font-size": "11px",
+              "font-size": `${typeSize("micro")}px`,
               "line-height": 1.1,
               color: changeChartColor(changePct()),
             }}
@@ -204,7 +204,7 @@ export function PatternCard(props: PatternCardProps) {
               c={(triggerDistance() ?? 0) >= 0 ? "success" : "dimmed"}
               className="font-mono tabular-nums"
               style={{
-                "font-size": "10px",
+                "font-size": `${typeSize("micro")}px`,
                 "line-height": 1.1,
                 "white-space": "nowrap",
               }}
@@ -267,7 +267,7 @@ export function PatternCard(props: PatternCardProps) {
                 c="dimmed"
                 fw={600}
                 truncate
-                style={{ "font-size": "10px", "line-height": 1 }}
+                style={{ "font-size": `${typeSize("micro")}px`, "line-height": 1 }}
               >
                 Range
               </Text>
@@ -276,7 +276,7 @@ export function PatternCard(props: PatternCardProps) {
                 fw={600}
                 truncate
                 className="font-mono tabular-nums"
-                style={{ "font-size": "11px", "line-height": 1 }}
+                style={{ "font-size": `${typeSize("micro")}px`, "line-height": 1 }}
               >
                 {bounds()?.lo != null && bounds()?.hi != null
                   ? `${formatChartPrice(bounds()!.lo!)} – ${formatChartPrice(bounds()!.hi!)}`
@@ -292,7 +292,7 @@ export function PatternCard(props: PatternCardProps) {
                 fw={600}
                 truncate
                 className="font-mono tabular-nums"
-                style={{ "font-size": "11px", color: PATTERN_CONFIRMED }}
+                style={{ "font-size": `${typeSize("micro")}px`, color: PATTERN_CONFIRMED }}
               >
                 ↑ {bounds()?.hi != null ? formatChartPrice(bounds()!.hi!) : "—"}
               </Text>
@@ -301,7 +301,7 @@ export function PatternCard(props: PatternCardProps) {
                 fw={600}
                 truncate
                 className="font-mono tabular-nums"
-                style={{ "font-size": "11px", color: PATTERN_FAILED }}
+                style={{ "font-size": `${typeSize("micro")}px`, color: PATTERN_FAILED }}
               >
                 ↓ {bounds()?.lo != null ? formatChartPrice(bounds()!.lo!) : "—"}
               </Text>
@@ -317,7 +317,7 @@ export function PatternCard(props: PatternCardProps) {
                 c="dimmed"
                 truncate
                 data-testid={`patterns-card-base-${hit().symbol}-${hit().pattern_id}`}
-                style={{ "font-size": "10px", "line-height": 1.2 }}
+                style={{ "font-size": `${typeSize("micro")}px`, "line-height": 1.2 }}
               >
                 {hit().range_pct != null
                   ? `Base ${baseDays()}d · ${formatOneDecimal(hit().range_pct!)}%`
@@ -330,7 +330,7 @@ export function PatternCard(props: PatternCardProps) {
                 c="dimmed"
                 truncate
                 data-testid="patterns-card-52w-gap"
-                style={{ "font-size": "10px", "line-height": 1.2, "text-align": "right" }}
+                style={{ "font-size": `${typeSize("micro")}px`, "line-height": 1.2, "text-align": "right" }}
               >
                 52W: {formatOneDecimal(hit().to_52w_high!)}%
               </Text>
@@ -350,7 +350,7 @@ export function PatternCard(props: PatternCardProps) {
                   event.stopPropagation();
                   props.onShowMembers?.(hit().symbol);
                 }}
-                className="cursor-pointer border-0 bg-transparent p-0 text-[10px] font-semibold text-fin-primary hover:underline"
+                className="cursor-pointer border-0 bg-transparent p-0 text-ui-micro font-semibold text-fin-primary hover:underline"
               >
                 Members
               </button>

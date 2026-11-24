@@ -1,6 +1,7 @@
 import { createEffect, For, onCleanup, splitProps } from "solid-js";
 import type { JSX } from "solid-js";
 import { cn } from "../cn";
+import { containBackground } from "./backgroundContainment";
 
 export interface FloatingWindowGeometry {
   x: number;
@@ -23,6 +24,13 @@ export interface FloatingWindowProps {
   onGeometryChange?: (g: FloatingWindowGeometry) => void;
   children: JSX.Element;
   testid?: string;
+  /** Dismissal asks this first; absent means every close path is allowed. */
+  canClose?: () => boolean;
+  /** Opt-in Tab containment for windows that behave like modal dialogs. */
+  modal?: boolean;
+  "aria-label"?: string;
+  "aria-labelledby"?: string;
+  "aria-modal"?: boolean | "true" | "false";
 }
 
 const RESIZE_DIRS = ["n", "s", "e", "w", "ne", "nw", "se", "sw"] as const;
@@ -38,6 +46,36 @@ const HANDLE_STYLE: Record<ResizeDir, Record<string, string | number>> = {
   se: { bottom: "-4px", right: "-4px", width: "12px", height: "12px", cursor: "nwse-resize" },
   sw: { bottom: "-4px", left: "-4px", width: "12px", height: "12px", cursor: "nesw-resize" },
 };
+
+// Only tabbable descendants belong to the cycle: tabindex="-1", disabled and
+// hidden nodes are reachable programmatically, not by Tab.
+const FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "area[href]",
+  "button:not([disabled])",
+  "input:not([disabled]):not([type='hidden'])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "iframe",
+  "object",
+  "embed",
+  "audio[controls]",
+  "video[controls]",
+  "summary",
+  "[contenteditable]:not([contenteditable='false'])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
+function getFocusable(root: HTMLElement | undefined): HTMLElement[] {
+  if (!root) return [];
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((el) => {
+    if (el.getAttribute("tabindex") === "-1" || el.hasAttribute("disabled")) return false;
+    if (el.hasAttribute("hidden") || el.getAttribute("aria-hidden") === "true") return false;
+    if (el.closest("[inert]")) return false;
+    const style = window.getComputedStyle(el);
+    return style.display !== "none" && style.visibility !== "hidden";
+  });
+}
 
 export interface FloatingWindowHandle {
   focus: () => void;
@@ -58,6 +96,11 @@ export function FloatingWindow(props: FloatingWindowProps) {
     "onGeometryChange",
     "children",
     "testid",
+    "canClose",
+    "modal",
+    "aria-label",
+    "aria-labelledby",
+    "aria-modal",
   ]);
 
   let rootEl: HTMLDivElement | undefined;
@@ -82,8 +125,112 @@ export function FloatingWindow(props: FloatingWindowProps) {
     rootEl.style.setProperty("flex-direction", "column");
   });
 
+  const isModalish = () =>
+    known.modal === true || known["aria-modal"] === true || known["aria-modal"] === "true";
+
+  // The DOM attribute is honoured at keydown time too: a host that flips
+  // aria-modal after mount (a Storybook walkthrough, an external wrapper)
+  // must get the same Tab containment as a prop-driven modal window.
+  const isModalInDom = (el: HTMLElement) =>
+    isModalish() || el.getAttribute("aria-modal") === "true";
+
+  const requestClose = () => {
+    if (!known.onClose || (known.canClose && !known.canClose())) return;
+    known.onClose();
+  };
+
+  // Enter once per shown state. The opener is captured before focus moves so a
+  // close (unmount) or minimize can put the user back where they were.
+  let returnFocusTo: HTMLElement | null = null;
+  let releaseBackground: (() => void) | null = null;
+  let entered = false;
+  let entryFrame = 0;
+
+  createEffect(() => {
+    if (known.minimized || !rootEl || entered) return;
+    entered = true;
+    const active = document.activeElement as HTMLElement | null;
+    returnFocusTo = active && active !== rootEl && !rootEl.contains(active) ? active : null;
+    entryFrame = requestAnimationFrame(() => rootEl?.focus());
+  });
+
+  createEffect(() => {
+    if (!known.minimized || !entered) return;
+    if (entryFrame) cancelAnimationFrame(entryFrame);
+    entryFrame = 0;
+    entered = false;
+    // The opener may have been inert while the modal was shown.
+    releaseBackground?.();
+    releaseBackground = null;
+    returnFocusTo?.focus?.();
+  });
+
+  // Capture on the window so an inner popup's own Escape handler still sees the
+  // event first when it is a descendant, and so Tab is handled before children
+  // can consume it.
+  createEffect(() => {
+    if (known.minimized) return;
+    const el = rootEl;
+    if (!el) return;
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (active?.getAttribute("role") === "combobox" && active.getAttribute("aria-expanded") === "true") return;
+      if (active?.closest('[role="listbox"],[role="menu"]')) return;
+      requestClose();
+    };
+    el.addEventListener("keydown", onEscape, true);
+    onCleanup(() => el.removeEventListener("keydown", onEscape, true));
+  });
+
+  createEffect(() => {
+    if (known.minimized) return;
+    const el = rootEl;
+    if (!el) return;
+    const onTab = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (!isModalInDom(el)) return;
+      const focusables = getFocusable(el);
+      if (focusables.length === 0) {
+        e.preventDefault();
+        el.focus();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (active === last && !e.shiftKey) {
+        e.preventDefault();
+        first.focus();
+      } else if (active === first && e.shiftKey) {
+        e.preventDefault();
+        last.focus();
+      } else if (!active || active === el || !focusables.includes(active)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      }
+    };
+    el.addEventListener("keydown", onTab, true);
+    onCleanup(() => el.removeEventListener("keydown", onTab, true));
+  });
+
+  createEffect(() => {
+    if (known.minimized || !isModalish()) return;
+    const el = rootEl;
+    if (!el) return;
+    releaseBackground = containBackground(el);
+    onCleanup(() => {
+      releaseBackground?.();
+      releaseBackground = null;
+    });
+  });
+
   onCleanup(() => {
     if (raf) cancelAnimationFrame(raf);
+    if (entryFrame) cancelAnimationFrame(entryFrame);
+    releaseBackground?.();
+    releaseBackground = null;
+    if (entered) returnFocusTo?.focus?.();
   });
 
   const beginGesture = (mode: "move" | "resize", e: PointerEvent, dir?: ResizeDir) => {
@@ -169,7 +316,10 @@ export function FloatingWindow(props: FloatingWindowProps) {
       data-minimized={known.minimized || undefined}
       aria-hidden={known.minimized || undefined}
       role="dialog"
-      aria-label={known.title}
+      aria-labelledby={known["aria-labelledby"]}
+      aria-label={known["aria-label"] ?? known.title}
+      aria-modal={known["aria-modal"] ?? (known.modal ? true : undefined)}
+      tabIndex={-1}
       oncapture:pointerdown={() => known.onFocus?.()}
       className={cn("flex flex-col shadow-2xl")}
       {...(rest as Record<string, unknown>)}
@@ -181,11 +331,11 @@ export function FloatingWindow(props: FloatingWindowProps) {
         className="flex-none h-7 px-2 flex items-center gap-1.5 cursor-move select-none bg-fin-surface-alt border-b border-fin-border touch-none"
       >
         {known.icon}
-        <span className="text-[11px] font-bold tracking-[0.4px] text-fin-text uppercase truncate flex-1">
+        <span className="text-ui-micro font-bold tracking-[0.4px] text-fin-text uppercase truncate flex-1">
           {known.title}
         </span>
-        <div
-          role="button"
+        <button
+          type="button"
           aria-label={`Minimize ${known.title}`}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => known.onMinimize?.()}
@@ -193,17 +343,17 @@ export function FloatingWindow(props: FloatingWindowProps) {
           style={{ width: "18px", height: "18px" }}
         >
           –
-        </div>
-        <div
-          role="button"
+        </button>
+        <button
+          type="button"
           aria-label={`Close ${known.title}`}
           onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => known.onClose?.()}
+          onClick={requestClose}
           className="grid place-items-center rounded text-fin-text-muted cursor-pointer leading-none hover:bg-fin-negative hover:text-fin-text"
           style={{ width: "18px", height: "18px" }}
         >
           ✕
-        </div>
+        </button>
       </div>
 
       {/* Body */}

@@ -146,7 +146,7 @@ export function WindowManager(props: WindowManagerProps) {
           type="button"
           data-testid="window-fit-all"
           title="Fit all windows to current screen"
-          class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+          class="rounded-sm border border-fin-border px-2 text-ui-micro text-fin-text hover:bg-fin-surface-alt"
           onClick={fitAll}
         >
           Fit all windows
@@ -156,7 +156,7 @@ export function WindowManager(props: WindowManagerProps) {
           data-testid="window-lock-toggle"
           aria-pressed={locked()}
           title="Lock or unlock window positions"
-          class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+          class="rounded-sm border border-fin-border px-2 text-ui-micro text-fin-text hover:bg-fin-surface-alt"
           onClick={() => {
             const next = !locked();
             setLocked(next);

@@ -2,6 +2,7 @@ import { For, Show } from "solid-js";
 import * as palette from "@/ui/palette";
 import { FLOW_NOISE, indexAgo, readFlow, rollingRead } from "./niftyFlowRead";
 import type { FlowRead, OiPoint } from "./niftyFlowRead";
+import { REPORT_FONT } from "./reportTokens";
 
 export type { OiPoint };
 
@@ -92,7 +93,7 @@ export function Nifty10sStrip(props: Nifty10sStripProps) {
         "border-radius": "4px",
         "background-color": palette.TERM_HEADER,
         "font-family": palette.MONO,
-        "font-size": "11px",
+        "font-size": `${REPORT_FONT.micro}px`,
       }}
     >
       <span style={{ color: palette.TEXT_MUTED, "font-weight": 700, "letter-spacing": "0.08em", "flex-shrink": 0 }}>

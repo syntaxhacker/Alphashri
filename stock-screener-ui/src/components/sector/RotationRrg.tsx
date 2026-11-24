@@ -52,9 +52,9 @@ function dotRadius(row: RotationRow): number {
 function Meta(props: { label: string; value: string }) {
   return (
     <>
-      <Text className="text-[9.5px] leading-[1.35] text-fin-text-muted">{props.label}</Text>
+      <Text className="text-ui-micro leading-[1.35] text-fin-text-muted">{props.label}</Text>
       <Text
-        className="text-[9.5px] leading-[1.35] font-mono text-right tabular-nums"
+        className="text-ui-micro leading-[1.35] font-mono text-right tabular-nums"
       >
         {props.value}
       </Text>
@@ -119,7 +119,7 @@ export function RotationRrg(props: RotationRrgProps) {
         <Box className="w-[12px] shrink-0 flex items-center justify-center">
           <Box
             component="span"
-            className="writing-mode-vertical-rl rotate-180 text-[9px] tracking-[0.6px] uppercase text-fin-text-muted whitespace-nowrap"
+            className="writing-mode-vertical-rl rotate-180 text-ui-micro tracking-[0.6px] uppercase text-fin-text-muted whitespace-nowrap"
           >
             Momentum
           </Box>
@@ -155,7 +155,7 @@ export function RotationRrg(props: RotationRrgProps) {
                   >
                     <Box
                       component="span"
-                      className="absolute font-bold tracking-[0.6px] whitespace-nowrap text-[8.5px]"
+                      className="absolute font-bold tracking-[0.6px] whitespace-nowrap text-ui-micro"
                       style={{
                         top: topSide ? "5px" : "auto",
                         bottom: topSide ? "auto" : "5px",
@@ -197,7 +197,7 @@ export function RotationRrg(props: RotationRrgProps) {
                 const isHi = tick === xDomain().hi;
                 return (
                   <Box
-                    className="font-mono absolute pointer-events-none text-[9px] text-fin-text-muted tabular-nums"
+                    className="font-mono absolute pointer-events-none text-ui-micro text-fin-text-muted tabular-nums"
                     style={{
                       left: isLo ? "4px" : isHi ? "auto" : `${x(tick)}%`,
                       right: isHi ? "4px" : "auto",
@@ -216,7 +216,7 @@ export function RotationRrg(props: RotationRrgProps) {
                 const isHi = tick === yDomain().hi;
                 return (
                   <Box
-                    className="font-mono absolute pointer-events-none text-[9px] text-fin-text-muted tabular-nums"
+                    className="font-mono absolute pointer-events-none text-ui-micro text-fin-text-muted tabular-nums"
                     style={{
                       right: "4px",
                       bottom: isLo ? "2px" : isHi ? "auto" : `${y(tick)}%`,
@@ -257,10 +257,10 @@ export function RotationRrg(props: RotationRrgProps) {
                         withArrow
                         label={
                           <Box className="min-w-[148px]">
-                            <Text className="text-[11px] font-bold leading-[1.25]">
+                            <Text className="text-ui-micro font-bold leading-[1.25]">
                               {row.name}
                             </Text>
-                            <Text className="text-[9.5px] leading-[1.3] text-fin-text-muted">
+                            <Text className="text-ui-micro leading-[1.3] text-fin-text-muted">
                               {row.category || row.kind} · {row.members} members
                             </Text>
                             <Box
@@ -312,7 +312,7 @@ export function RotationRrg(props: RotationRrgProps) {
                         }}
                       >
                         <Text
-                          className="text-[9.5px] leading-[1.2] whitespace-nowrap overflow-hidden text-ellipsis"
+                          className="text-ui-micro leading-[1.2] whitespace-nowrap overflow-hidden text-ellipsis"
                           style={{ "font-weight": selected ? 700 : 500, color: selected ? TEXT : TEXT_MUTED }}
                         >
                           {shortName(row.name)}
@@ -326,7 +326,7 @@ export function RotationRrg(props: RotationRrgProps) {
             </>
           }>
             <Box className="absolute inset-0 flex items-center justify-center">
-              <Text className="text-[11px] text-fin-text-muted">No rotation groups</Text>
+              <Text className="text-ui-micro text-fin-text-muted">No rotation groups</Text>
             </Box>
           </Show>
         </Box>
@@ -335,7 +335,7 @@ export function RotationRrg(props: RotationRrgProps) {
       <Box
         className="flex items-center justify-between gap-2 px-2 pb-[6px] min-w-0"
       >
-        <Text className="text-[9px] tracking-[0.6px] uppercase text-fin-text-muted">
+        <Text className="text-ui-micro tracking-[0.6px] uppercase text-fin-text-muted">
           RS 1M percentile
         </Text>
         <Box className="flex items-center gap-2 min-w-0 overflow-hidden">
@@ -343,10 +343,10 @@ export function RotationRrg(props: RotationRrgProps) {
             {(key) => (
             <Box className="inline-flex items-center gap-[3.2px]">
               <Box className="size-[5px] rounded-full shrink-0" style={{ "background-color": QUADRANT_COLORS[key] }} />
-              <Text className="text-[8.5px] font-bold tracking-[0.3px] text-fin-text-muted">
+              <Text className="text-ui-micro font-bold tracking-[0.3px] text-fin-text-muted">
                 {QUADRANT_LABELS[key]}
               </Text>
-              <Text className="font-mono text-[9px] font-semibold text-fin-text-muted tabular-nums">
+              <Text className="font-mono text-ui-micro font-semibold text-fin-text-muted tabular-nums">
                 {counts()[key]}
               </Text>
             </Box>

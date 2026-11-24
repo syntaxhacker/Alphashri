@@ -155,7 +155,7 @@ function SectorCorrelationPanel() {
               </Text>
               <button
                 type="button"
-                class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+                class="rounded-sm border border-fin-border px-2 text-ui-micro text-fin-text hover:bg-fin-surface-alt"
                 onClick={() => void fetchCorrelationData()}
               >
                 Retry
@@ -175,7 +175,7 @@ function SectorCorrelationPanel() {
                 </Text>
                 <button
                   type="button"
-                  class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+                  class="rounded-sm border border-fin-border px-2 text-ui-micro text-fin-text hover:bg-fin-surface-alt"
                   data-testid="window-sector-correlation-empty-retry"
                   onClick={() => void fetchCorrelationData()}
                 >

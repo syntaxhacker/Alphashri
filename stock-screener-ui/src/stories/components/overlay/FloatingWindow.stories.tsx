@@ -59,7 +59,7 @@ export const GeometryAndResize: Story = {
           >
             <Stack gap="sm">
               <Group gap="sm" align="center" wrap="wrap">
-                <Readout>x {g().x} · y {g().y} · {g().width}×{g().height}</Readout>
+                <Readout>Position {g().x}, {g().y} · window {g().width} × {g().height} px</Readout>
                 <Button size="xs" variant="outline" onClick={() => setGeometry({ x: 12, y: 12, width: 320, height: 188 })}>
                   Reset geometry
                 </Button>
@@ -103,7 +103,7 @@ export const Collapse: Story = {
                 <Button size="xs" variant="outline" onClick={() => setVisible((v) => !v)}>
                   {visible() ? "Close" : "Reopen"}
                 </Button>
-                <Readout>minimized: {String(minimized())} · mounted: {String(visible())}</Readout>
+                <Readout>{!visible() ? "Panel closed" : minimized() ? "Panel collapsed to its title bar" : "Panel expanded"}</Readout>
               </Group>
               <Stage height={216}>
                 <Show when={visible()}>
@@ -140,7 +140,7 @@ export const LayeringAndFocus: Story = {
           <SpecimenGrid>
             <Specimen title="Layering" note="Pointer down on either window calls onFocus; the higher z-index wins the stack.">
               <Stack gap="sm">
-                <Readout>last focused: {focused()}</Readout>
+                <Readout>{focused() === "none" ? "No panel focused yet" : `${focused() === "front" ? "Front" : "Back"} panel has focus`}</Readout>
                 <Stage height={232}>
                   <For each={windows}>
                     {(w) => (

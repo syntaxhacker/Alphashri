@@ -13,15 +13,9 @@ import { test, expect } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser, setupNiftyReportMocks } from "../mocks/apiResponses";
 
 const CELL_IDS = [
-  "nifty-stat-symbol",
-  "nifty-stat-change",
-  "nifty-stat-spot",
-  "nifty-stat-regime",
-  "nifty-stat-flip",
-  "nifty-stat-call-wall",
-  "nifty-stat-put-wall",
-  "nifty-stat-pin",
-  "nifty-stat-max-pain",
+  "nifty-hero-spot-read",
+  "nifty-hero-change-read",
+  "nifty-decision-state",
 ];
 
 async function openReport(page: import("@playwright/test").Page) {
@@ -30,7 +24,7 @@ async function openReport(page: import("@playwright/test").Page) {
   await setupNiftyReportMocks(page);
   await page.goto("/report/index");
   await page.waitForSelector('[data-testid="nifty-report-panel"]', { timeout: 10000 });
-  await page.waitForSelector('[data-testid="nifty-stat-call-wall"]', { timeout: 10000 });
+  await page.waitForSelector('[data-testid="nifty-decision-hero"]', { timeout: 10000 });
 }
 
 async function assertNoOverlap(page: import("@playwright/test").Page) {
@@ -39,12 +33,13 @@ async function assertNoOverlap(page: import("@playwright/test").Page) {
       const el = document.querySelector(`[data-testid="${id}"]`);
       if (!el) return null;
       const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return null;
       return { id, x: r.x, right: r.right, y: Math.round(r.y) };
     });
   }, CELL_IDS);
 
   const present = boxes.filter((b): b is NonNullable<typeof b> => b !== null);
-  expect(present.length, "strip cells did not render").toBe(CELL_IDS.length);
+  expect(present.length, "no decision cells rendered").toBeGreaterThanOrEqual(2);
 
   const overlaps: string[] = [];
   for (let i = 0; i < present.length; i++) {

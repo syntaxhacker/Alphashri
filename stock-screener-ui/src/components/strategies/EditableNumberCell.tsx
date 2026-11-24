@@ -89,9 +89,7 @@ export function EditableNumberCell(props: EditableNumberCellProps) {
       max={props.max}
       suffix={props.suffix}
       hideControls
-      loading={saving()}
       w={72}
-      variant="default"
       data-testid={`editable-${props.field}-${props.strategyId}`}
     />
   );

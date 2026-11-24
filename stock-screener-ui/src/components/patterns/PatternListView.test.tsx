@@ -3,7 +3,8 @@ import "@testing-library/jest-dom/vitest";
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
-  return mockSolidUi();
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
 });
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { createSignal } from "solid-js";
@@ -83,6 +84,20 @@ describe("PatternListView", () => {
     expect(within(table).getAllByText(/Score/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTestId("patterns-list-row-AAA-falling_wedge-1")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-list-row-BBB-falling_wedge-2")).toBeInTheDocument();
+  });
+
+  test("exposes a narrow horizontal scroll region with a cue and sticky symbol column", () => {
+    render(() => <PatternListView hits={[makeHit()]} onSelect={vi.fn()} />);
+    const region = screen.getByTestId("patterns-list-scroll-region");
+    expect(region).toHaveAttribute("role", "region");
+    expect(region).toHaveAttribute("aria-label", "Pattern list, scroll sideways for more columns");
+    expect(region.className).toContain("overflow-x-auto");
+    expect(region.className).toContain("[&_td:first-of-type]:sticky");
+    expect(region).toContainElement(screen.getByTestId("patterns-list"));
+    const cue = screen.getByTestId("patterns-list-scroll-cue");
+    expect(cue).toHaveTextContent("Scroll sideways →");
+    expect(cue.className).toContain("md:hidden");
+    expect(region).not.toContainElement(cue);
   });
 
   test("opens index members from a broad-index row", async () => {

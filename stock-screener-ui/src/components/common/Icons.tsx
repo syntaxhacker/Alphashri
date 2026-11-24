@@ -1,4 +1,6 @@
-import type { JSX } from "solid-js";
+import { Show, type JSX } from "solid-js";
+import { Dynamic } from "solid-js/web";
+import * as canonical from "@/ui/icons";
 
 export interface IconProps {
   size?: number | string;
@@ -71,12 +73,66 @@ function iconChild(tag: string, attrs: Record<string, string>): JSX.Element | nu
   return null;
 }
 
+type CanonicalIcon = (props: canonical.TablerIconProps) => JSX.Element;
+
 /**
- * Inline SVG icons generated from @tabler/icons (outline set, MIT).
- * The Solid build has no React DOM, so @tabler/icons-react cannot mount —
- * these render the same tabler path data as plain SVG.
+ * Icons that already exist in @/ui/icons are delegated, never re-drawn here.
+ * Keys are the historical `name` values used by this module's callers; the
+ * remaining ICON_NODES below are the genuinely app-specific subset.
+ */
+const CANONICAL_ICONS: Record<string, CanonicalIcon> = {
+  "activity": canonical.IconActivity,
+  "alert-circle": canonical.IconAlertCircle,
+  "alert-triangle": canonical.IconAlertTriangle,
+  "arrow-down": canonical.IconArrowDown,
+  "arrows-maximize": canonical.IconArrowsMaximize,
+  "arrow-up": canonical.IconArrowUp,
+  "bell-ringing": canonical.IconBellRinging,
+  "bolt": canonical.IconBolt,
+  "chart-bar": canonical.IconChartBar,
+  "chevron-down": canonical.IconChevronDown,
+  "chevron-left": canonical.IconChevronLeft,
+  "chevron-right": canonical.IconChevronRight,
+  "player-play": canonical.IconPlayerPlay,
+  "refresh": canonical.IconRefresh,
+  "search": canonical.IconSearch,
+  "table": canonical.IconTable,
+  "target": canonical.IconTarget,
+  "trash": canonical.IconTrash,
+  "wall": canonical.IconWall,
+  "x": canonical.IconX,
+};
+
+function canonicalIcon(name: string): CanonicalIcon | undefined {
+  if (CANONICAL_ICONS[name]) return CANONICAL_ICONS[name];
+  const kebab = name.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+  return CANONICAL_ICONS[kebab];
+}
+
+/**
+ * Same name-based API as before, but a name with a canonical @/ui/icon paints
+ * the canonical component. Only app-specific names reach the local node table.
  */
 export function Icon(props: IconProps & { name: string }) {
+  return (
+    <Show when={canonicalIcon(props.name)} fallback={<LocalIcon {...props} />}>
+      {(Canonical) => (
+        <Dynamic
+          component={Canonical()}
+          size={props.size ?? 16}
+          stroke={props.stroke}
+          color={props.color ?? "currentColor"}
+          class={props.className}
+          style={props.style}
+          onClick={props.onClick}
+          data-testid={props["data-testid"] ?? `icon-${props.name}`}
+        />
+      )}
+    </Show>
+  );
+}
+
+function LocalIcon(props: IconProps & { name: string }) {
   const render = iconRender(props.name);
   return (
     <svg
@@ -100,32 +156,20 @@ export function Icon(props: IconProps & { name: string }) {
 }
 
 const ICON_NODES: Record<string, Array<[string, Record<string, string>]>> = {
-  "activity": [["path",{"d":"M3 12h4l3 8l4 -16l3 8h4"}]],
   "adjustments": [["path",{"d":"M4 10a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"}],["path",{"d":"M6 4v4"}],["path",{"d":"M6 12v8"}],["path",{"d":"M10 16a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"}],["path",{"d":"M12 4v10"}],["path",{"d":"M12 18v2"}],["path",{"d":"M16 7a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"}],["path",{"d":"M18 4v1"}],["path",{"d":"M18 9v11"}]],
-  alertCircle: [["path",{"d":"M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"}],["path",{"d":"M12 8v4"}],["path",{"d":"M12 16h.01"}]],
-  alertTriangle: [["path",{"d":"M12 9v4"}],["path",{"d":"M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0"}],["path",{"d":"M12 16h.01"}]],
   "archive": [["path",{"d":"M3 6a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2"}],["path",{"d":"M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10"}],["path",{"d":"M10 12l4 0"}]],
-  arrowDown: [["path",{"d":"M12 5l0 14"}],["path",{"d":"M18 13l-6 6"}],["path",{"d":"M6 13l6 6"}]],
   arrowLeft: [["path",{"d":"M5 12l14 0"}],["path",{"d":"M5 12l6 6"}],["path",{"d":"M5 12l6 -6"}]],
-  arrowsMaximize: [["path",{"d":"M16 4l4 0l0 4"}],["path",{"d":"M14 10l6 -6"}],["path",{"d":"M8 20l-4 0l0 -4"}],["path",{"d":"M4 20l6 -6"}],["path",{"d":"M16 20l4 0l0 -4"}],["path",{"d":"M14 14l6 6"}],["path",{"d":"M8 4l-4 0l0 4"}],["path",{"d":"M4 4l6 6"}]],
   arrowsMinimize: [["path",{"d":"M5 9l4 0l0 -4"}],["path",{"d":"M3 3l6 6"}],["path",{"d":"M5 15l4 0l0 4"}],["path",{"d":"M3 21l6 -6"}],["path",{"d":"M19 9l-4 0l0 -4"}],["path",{"d":"M15 9l6 -6"}],["path",{"d":"M19 15l-4 0l0 4"}],["path",{"d":"M15 15l6 6"}]],
-  arrowUp: [["path",{"d":"M12 5l0 14"}],["path",{"d":"M18 11l-6 -6"}],["path",{"d":"M6 11l6 -6"}]],
   arrowUpRight: [["path",{"d":"M17 7l-10 10"}],["path",{"d":"M8 7l9 0l0 9"}]],
   "bell": [["path",{"d":"M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6"}],["path",{"d":"M9 17v1a3 3 0 0 0 6 0v-1"}]],
-  bellRinging: [["path",{"d":"M10 5a2 2 0 0 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6"}],["path",{"d":"M9 17v1a3 3 0 0 0 6 0v-1"}],["path",{"d":"M21 6.727a11.05 11.05 0 0 0 -2.794 -3.727"}],["path",{"d":"M3 6.727a11.05 11.05 0 0 1 2.792 -3.727"}]],
-  "bolt": [["path",{"d":"M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11"}]],
   "book": [["path",{"d":"M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0"}],["path",{"d":"M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0"}],["path",{"d":"M3 6l0 13"}],["path",{"d":"M12 6l0 13"}],["path",{"d":"M21 6l0 13"}]],
   buildingFactory: [["path",{"d":"M4 21c1.147 -4.02 1.983 -8.027 2 -12h6c.017 3.973 .853 7.98 2 12"}],["path",{"d":"M12.5 13h4.5c.025 2.612 .894 5.296 2 8"}],["path",{"d":"M9 5a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 2 1a2.4 2.4 0 0 0 2 1a2.4 2.4 0 0 0 2 -1a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 2 1"}],["path",{"d":"M3 21l19 0"}]],
   "bulb": [["path",{"d":"M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7"}],["path",{"d":"M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3"}],["path",{"d":"M9.7 17l4.6 0"}]],
   chartArea: [["path",{"d":"M4 19l16 0"}],["path",{"d":"M4 15l4 -6l4 2l4 -5l4 4l0 5l-16 0"}]],
-  chartBar: [["path",{"d":"M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6"}],["path",{"d":"M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -10"}],["path",{"d":"M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -14"}],["path",{"d":"M4 20h14"}]],
   chartCandle: [["path",{"d":"M4 7a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -3"}],["path",{"d":"M6 4l0 2"}],["path",{"d":"M6 11l0 9"}],["path",{"d":"M10 15a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -3"}],["path",{"d":"M12 4l0 10"}],["path",{"d":"M12 19l0 1"}],["path",{"d":"M16 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -4"}],["path",{"d":"M18 4l0 1"}],["path",{"d":"M18 11l0 9"}]],
   chartDots: [["path",{"d":"M3 3v18h18"}],["path",{"d":"M7 9a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"}],["path",{"d":"M17 7a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"}],["path",{"d":"M12 15a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"}],["path",{"d":"M10.16 10.62l2.34 2.88"}],["path",{"d":"M15.088 13.328l2.837 -4.586"}]],
   chartLine: [["path",{"d":"M4 19l16 0"}],["path",{"d":"M4 15l4 -6l4 2l4 -5l4 4"}]],
   "check": [["path",{"d":"M5 12l5 5l10 -10"}]],
-  chevronDown: [["path",{"d":"M6 9l6 6l6 -6"}]],
-  chevronLeft: [["path",{"d":"M15 6l-6 6l6 6"}]],
-  chevronRight: [["path",{"d":"M9 6l6 6l-6 6"}]],
   chevronUp: [["path",{"d":"M6 15l6 -6l6 6"}]],
   clipboardList: [["path",{"d":"M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"}],["path",{"d":"M9 5a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2"}],["path",{"d":"M9 12l.01 0"}],["path",{"d":"M13 12l2 0"}],["path",{"d":"M9 16l.01 0"}],["path",{"d":"M13 16l2 0"}]],
   "copy": [["path",{"d":"M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667l0 -8.666"}],["path",{"d":"M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1"}]],
@@ -153,32 +197,24 @@ const ICON_NODES: Record<string, Array<[string, Record<string, string>]>> = {
   "moon": [["path",{"d":"M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454l0 .008"}]],
   "news": [["path",{"d":"M16 6h3a1 1 0 0 1 1 1v11a2 2 0 0 1 -4 0v-13a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1v12a3 3 0 0 0 3 3h11"}],["path",{"d":"M8 8l4 0"}],["path",{"d":"M8 12l4 0"}],["path",{"d":"M8 16l4 0"}]],
   playerPause: [["path",{"d":"M6 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -12"}],["path",{"d":"M14 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -12"}]],
-  playerPlay: [["path",{"d":"M7 4v16l13 -8l-13 -8"}]],
   plugConnected: [["path",{"d":"M7 12l5 5l-1.5 1.5a3.536 3.536 0 1 1 -5 -5l1.5 -1.5"}],["path",{"d":"M17 12l-5 -5l1.5 -1.5a3.536 3.536 0 1 1 5 5l1.5 1.5"}],["path",{"d":"M3 21l2.5 -2.5"}],["path",{"d":"M18.5 5.5l2.5 -2.5"}],["path",{"d":"M10 11l-2 2"}],["path",{"d":"M13 14l-2 2"}]],
   plugX: [["path",{"d":"M13.55 17.733a5.806 5.806 0 0 1 -7.356 -4.052a5.81 5.81 0 0 1 1.537 -5.627l2.054 -2.054l7.165 7.165"}],["path",{"d":"M4 20l3.5 -3.5"}],["path",{"d":"M15 4l-3.5 3.5"}],["path",{"d":"M20 9l-3.5 3.5"}],["path",{"d":"M16 16l4 4"}],["path",{"d":"M20 16l-4 4"}]],
   playerStop: [["path",{"d":"M5 7a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2l0 -10"}]],
   "plus": [["path",{"d":"M12 5l0 14"}],["path",{"d":"M5 12l14 0"}]],
-  "refresh": [["path",{"d":"M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"}],["path",{"d":"M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"}]],
   reportAnalytics: [["path",{"d":"M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"}],["path",{"d":"M9 5a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2"}],["path",{"d":"M9 17v-5"}],["path",{"d":"M12 17v-1"}],["path",{"d":"M15 17v-3"}]],
   "robot": [["path",{"d":"M6 6a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2l0 -4"}],["path",{"d":"M12 2v2"}],["path",{"d":"M9 12v9"}],["path",{"d":"M15 12v9"}],["path",{"d":"M5 16l4 -2"}],["path",{"d":"M15 14l4 2"}],["path",{"d":"M9 18h6"}],["path",{"d":"M10 8v.01"}],["path",{"d":"M14 8v.01"}]],
   "rocket": [["path",{"d":"M4 13a8 8 0 0 1 7 7a6 6 0 0 0 3 -5a9 9 0 0 0 6 -8a3 3 0 0 0 -3 -3a9 9 0 0 0 -8 6a6 6 0 0 0 -5 3"}],["path",{"d":"M7 14a6 6 0 0 0 -3 6a6 6 0 0 0 6 -3"}],["path",{"d":"M14 9a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}]],
   "rotate": [["path",{"d":"M19.95 11a8 8 0 1 0 -.5 4m.5 5v-5h-5"}]],
-  "search": [["path",{"d":"M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"}],["path",{"d":"M21 21l-6 -6"}]],
   "send": [["path",{"d":"M10 14l11 -11"}],["path",{"d":"M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5"}]],
   "settings": [["path",{"d":"M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065"}],["path",{"d":"M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"}]],
   "shield": [["path",{"d":"M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"}]],
   "sparkles": [["path",{"d":"M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6"}]],
   "sun": [["path",{"d":"M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"}],["path",{"d":"M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7"}]],
-  "table": [["path",{"d":"M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14"}],["path",{"d":"M3 10h18"}],["path",{"d":"M10 3v18"}]],
-  "target": [["path",{"d":"M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}],["path",{"d":"M7 12a5 5 0 1 0 10 0a5 5 0 1 0 -10 0"}],["path",{"d":"M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"}]],
   "timeline": [["path",{"d":"M4 16l6 -7l5 5l5 -6"}],["path",{"d":"M14 14a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}],["path",{"d":"M9 9a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}],["path",{"d":"M3 16a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}],["path",{"d":"M19 8a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}]],
   arrowsRightLeft: [["path",{"d":"M21 7l-18 0"}],["path",{"d":"M18 10l3 -3l-3 -3"}],["path",{"d":"M6 20l-3 -3l3 -3"}],["path",{"d":"M3 17l18 0"}]],
-  "trash": [["path",{"d":"M4 7l16 0"}],["path",{"d":"M10 11l0 6"}],["path",{"d":"M14 11l0 6"}],["path",{"d":"M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"}],["path",{"d":"M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"}]],
   trendingDown: [["path",{"d":"M3 7l6 6l4 -4l8 8"}],["path",{"d":"M21 10l0 7l-7 0"}]],
   trendingUp: [["path",{"d":"M3 17l6 -6l4 4l8 -8"}],["path",{"d":"M14 7l7 0l0 7"}]],
   "user": [["path",{"d":"M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0"}],["path",{"d":"M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"}]],
-  "wall": [["path",{"d":"M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12"}],["path",{"d":"M4 8h16"}],["path",{"d":"M20 12h-16"}],["path",{"d":"M4 16h16"}],["path",{"d":"M9 4v4"}],["path",{"d":"M14 8v4"}],["path",{"d":"M8 12v4"}],["path",{"d":"M16 12v4"}],["path",{"d":"M11 16v4"}]],
-  "x": [["path",{"d":"M18 6l-12 12"}],["path",{"d":"M6 6l12 12"}]],
 };
 
 export const IconActivity = (props: IconProps) => <Icon name="activity" {...props} />;

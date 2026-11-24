@@ -42,7 +42,7 @@ export const Playground: Story = {
           code={`color="${String(args.color)}" · bulletSize=${String(args.bulletSize)} · lineWidth=${String(args.lineWidth)}`}
         >
           <Stack gap="sm">
-            <Readout>active prop: {String(args.active)} · align: {String(args.align)}</Readout>
+            <Readout>{`Step ${Number(args.active ?? 0) + 1} of 3 · rail on the ${String(args.align)}`}</Readout>
             <Timeline
               active={args.active}
               color={args.color}
@@ -124,7 +124,7 @@ export const ActiveStep: Story = {
                   </button>
                 ))}
               </Group>
-              <Readout>active={String(active())} · emphasis is composed, not derived from the prop</Readout>
+              <Readout>{`${steps[active()].title} is the current step`}</Readout>
               <Timeline active={active()} bulletSize={22} lineWidth={2} {...({ "aria-label": "Composed active step" } as Record<string, unknown>)}>
                 {steps.map((step, index) => (
                   <Timeline.Item

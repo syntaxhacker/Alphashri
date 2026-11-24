@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { Text } from "./Text";
+import { TYPE_CLASS, TYPE_SCALE } from "../typography";
 
 describe("Text", () => {
   it("renders children as a paragraph by default", () => {
@@ -24,9 +25,35 @@ describe("Text", () => {
     expect(el.getAttribute("style") ?? "").not.toContain("color:");
   });
 
-  it("applies size from the type scale", () => {
-    render(() => <Text data-testid="t" size="xs">tiny</Text>);
-    expect(screen.getByTestId("t")).toHaveStyle("font-size: 12px");
+  it.each([
+    ["xs", TYPE_CLASS.micro],
+    ["sm", TYPE_CLASS.label],
+    ["md", TYPE_CLASS.title],
+    ["lg", TYPE_CLASS.heading],
+    ["xl", TYPE_CLASS.heading],
+  ] as const)("maps size=%s to token class %s with no inline font-size", (size, tokenClass) => {
+    const testId = `t-${size}`;
+    render(() => <Text data-testid={testId} size={size}>sized</Text>);
+    const el = screen.getByTestId(testId);
+    expect(el).toHaveClass(tokenClass);
+    expect(el.style.fontSize).toBe("");
+  });
+
+  it("has no 18px step and keeps the 12px floor", () => {
+    const sizes = Object.values(TYPE_SCALE).map((s) => s.size);
+    expect(sizes).toEqual([12, 13, 14, 16, 20, 24]);
+    expect(Math.min(...sizes)).toBe(12);
+  });
+
+  it("does not turn an unknown or custom size into an inline font-size", () => {
+    render(() => (
+      <>
+        <Text data-testid="unknown" size="h4">legacy alias</Text>
+        <Text data-testid="number" size={18}>number</Text>
+      </>
+    ));
+    expect(screen.getByTestId("unknown").style.fontSize).toBe("");
+    expect(screen.getByTestId("number").style.fontSize).toBe("");
   });
 
   it("applies font weight and text align", () => {

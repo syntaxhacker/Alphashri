@@ -1,5 +1,5 @@
 import { createMemo, Show } from "solid-js";
-import { Text, Chip, Box } from "@/ui";
+import { Text, Chip, Box, typeSize } from "@/ui";
 import type { TableColumnDef } from "../../paper-trading/TanStackTable";
 import { TanStackTable } from "../../paper-trading/TanStackTable";
 import { SideBadge, ExitReasonBadge } from "@/components/common";
@@ -26,10 +26,10 @@ function StatRow(props: { label: string; value: string; color?: string }) {
         padding: "1px 0",
       }}
     >
-      <Text size="xs" style={{ "line-height": 1.1, "min-width": "72px", "flex-shrink": 0, "font-size": "11px", color: palette.TEXT_MUTED }}>
+      <Text size="xs" style={{ "line-height": 1.1, "min-width": "72px", "flex-shrink": 0, "font-size": `${typeSize("micro")}px`, color: palette.TEXT_MUTED }}>
         {props.label}
       </Text>
-      <Text size="xs" fw={600} style={{ "line-height": 1.2, "font-size": "11px", "font-family": "monospace", color: props.color ?? palette.TEXT }}>
+      <Text size="xs" fw={600} style={{ "line-height": 1.2, "font-size": `${typeSize("micro")}px`, "font-family": "monospace", color: props.color ?? palette.TEXT }}>
         {props.value}
       </Text>
     </Box>
@@ -66,7 +66,7 @@ function ReplayTradeStats(props: { trade: ReplayTrade; clock: number }) {
           size="xs"
           fw={700}
           className="border-b border-fin-border-subtle"
-          style={{ color: palette.TEXT_MUTED, "font-size": "11px", "letter-spacing": "0.6px", display: "block", "margin-bottom": "8px" }}
+          style={{ color: palette.TEXT_MUTED, "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.6px", display: "block", "margin-bottom": "8px" }}
         >
           ENTRY
         </Text>
@@ -88,7 +88,7 @@ function ReplayTradeStats(props: { trade: ReplayTrade; clock: number }) {
           size="xs"
           fw={700}
           className="border-b border-fin-border-subtle"
-          style={{ color: palette.TEXT_MUTED, "font-size": "11px", "letter-spacing": "0.6px", display: "block", "margin-bottom": "8px" }}
+          style={{ color: palette.TEXT_MUTED, "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.6px", display: "block", "margin-bottom": "8px" }}
         >
           EXIT
         </Text>
@@ -98,10 +98,10 @@ function ReplayTradeStats(props: { trade: ReplayTrade; clock: number }) {
         <StatRow label="P&L" value={closed() ? `${fmtPts(props.trade.pnl)} pts` : "…"} color={closed() ? (props.trade.pnl >= 0 ? palette.POSITIVE : palette.NEGATIVE) : undefined} />
         <StatRow label="R" value={closed() ? `${props.trade.rr >= 0 ? "+" : ""}${props.trade.rr.toFixed(1)}R` : "…"} color={closed() ? (props.trade.rr >= 0 ? palette.POSITIVE : palette.NEGATIVE) : undefined} />
         <Box style={{ display: "flex", "align-items": "center", gap: "3px", padding: "1px 0" }}>
-          <Text size="xs" style={{ "line-height": 1.1, "min-width": "72px", "flex-shrink": 0, "font-size": "11px", color: palette.TEXT_MUTED }}>
+          <Text size="xs" style={{ "line-height": 1.1, "min-width": "72px", "flex-shrink": 0, "font-size": `${typeSize("micro")}px`, color: palette.TEXT_MUTED }}>
             Reason
           </Text>
-          {closed() ? <ExitReasonBadge reason={props.trade.result} /> : <Chip size="xs" color="warning" style={{ height: "18px", "font-size": "11px" }}>OPEN</Chip>}
+          {closed() ? <ExitReasonBadge reason={props.trade.result} /> : <Chip size="xs" color="warning" style={{ height: "18px", "font-size": `${typeSize("micro")}px` }}>OPEN</Chip>}
         </Box>
       </Box>
     </Box>
@@ -138,7 +138,7 @@ export function ReplayTradeTable(props: {
       accessorKey: "time",
       meta: { align: "left" },
       cell: ({ row }) => (
-        <Text size="xs" className="font-mono tabular-nums" style={{ "font-size": "11px" }}>
+        <Text size="xs" className="font-mono tabular-nums" style={{ "font-size": `${typeSize("micro")}px` }}>
           {fmtT(row.original.time)}
         </Text>
       ),
@@ -156,7 +156,7 @@ export function ReplayTradeTable(props: {
       accessorKey: "entry",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" className="font-mono tabular-nums" style={{ "font-size": "11px" }}>{row.original.entry.toFixed(1)}</Text>
+        <Text size="xs" className="font-mono tabular-nums" style={{ "font-size": `${typeSize("micro")}px` }}>{row.original.entry.toFixed(1)}</Text>
       ),
     },
     {
@@ -165,7 +165,7 @@ export function ReplayTradeTable(props: {
       accessorKey: "sl",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" className="font-mono tabular-nums" style={{ "font-size": "11px" }}>{row.original.sl.toFixed(1)}</Text>
+        <Text size="xs" className="font-mono tabular-nums" style={{ "font-size": `${typeSize("micro")}px` }}>{row.original.sl.toFixed(1)}</Text>
       ),
     },
     {
@@ -174,7 +174,7 @@ export function ReplayTradeTable(props: {
       accessorKey: "tp",
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text size="xs" className="font-mono tabular-nums" style={{ "font-size": "11px" }}>{row.original.tp != null ? row.original.tp.toFixed(1) : "trail"}</Text>
+        <Text size="xs" className="font-mono tabular-nums" style={{ "font-size": `${typeSize("micro")}px` }}>{row.original.tp != null ? row.original.tp.toFixed(1) : "trail"}</Text>
       ),
     },
     {
@@ -187,9 +187,9 @@ export function ReplayTradeTable(props: {
         return (
           <Show
             when={t.exit_time <= props.clock}
-            fallback={<Text size="xs" className="font-mono tabular-nums" style={{ color: palette.TEXT_MUTED, "font-size": "11px" }}>…</Text>}
+            fallback={<Text size="xs" className="font-mono tabular-nums" style={{ color: palette.TEXT_MUTED, "font-size": `${typeSize("micro")}px` }}>…</Text>}
           >
-            <Text size="xs" className="font-mono tabular-nums" style={{ "font-size": "11px" }}>{t.exit.toFixed(1)}</Text>
+            <Text size="xs" className="font-mono tabular-nums" style={{ "font-size": `${typeSize("micro")}px` }}>{t.exit.toFixed(1)}</Text>
           </Show>
         );
       },
@@ -202,7 +202,7 @@ export function ReplayTradeTable(props: {
       cell: ({ row }) => {
         const t = row.original;
         return (
-          <Text size="xs" className="font-mono tabular-nums" style={{ color: palette.TEXT_MUTED, "font-size": "11px" }}>
+          <Text size="xs" className="font-mono tabular-nums" style={{ color: palette.TEXT_MUTED, "font-size": `${typeSize("micro")}px` }}>
             <Show when={t.exit_time <= props.clock} fallback="…">
               {formatDuration((t.exit_time - t.time) / 60)}
             </Show>
@@ -220,14 +220,14 @@ export function ReplayTradeTable(props: {
         return (
           <Show
             when={t.exit_time <= props.clock}
-            fallback={<Text size="xs" style={{ color: palette.TEXT_MUTED, "font-size": "11px" }}>…</Text>}
+            fallback={<Text size="xs" style={{ color: palette.TEXT_MUTED, "font-size": `${typeSize("micro")}px` }}>…</Text>}
           >
             <Text
               size="xs"
               data-testid={`replay-pnl-${t.time}`}
               fw={600}
               className="font-mono tabular-nums"
-              style={{ "font-size": "11px", color: getPnLTextColor(t.pnl) === "success" ? palette.POSITIVE : palette.NEGATIVE }}
+              style={{ "font-size": `${typeSize("micro")}px`, color: getPnLTextColor(t.pnl) === "success" ? palette.POSITIVE : palette.NEGATIVE }}
             >
               {fmtPts(t.pnl)}
             </Text>
@@ -245,13 +245,13 @@ export function ReplayTradeTable(props: {
         return (
           <Show
             when={t.exit_time <= props.clock}
-            fallback={<Text size="xs" style={{ color: palette.TEXT_MUTED, "font-size": "11px" }}>…</Text>}
+            fallback={<Text size="xs" style={{ color: palette.TEXT_MUTED, "font-size": `${typeSize("micro")}px` }}>…</Text>}
           >
             <Text
               size="xs"
               fw={600}
               className="font-mono tabular-nums"
-              style={{ "font-size": "11px", color: t.rr >= 0 ? palette.POSITIVE : palette.NEGATIVE }}
+              style={{ "font-size": `${typeSize("micro")}px`, color: t.rr >= 0 ? palette.POSITIVE : palette.NEGATIVE }}
             >
               {t.rr >= 0 ? "+" : ""}{t.rr.toFixed(1)}R
             </Text>
@@ -270,7 +270,7 @@ export function ReplayTradeTable(props: {
         return (
           <Show
             when={t.exit_time <= props.clock}
-            fallback={<Chip size="xs" color="warning" style={{ height: "18px", "font-size": "11px" }}>OPEN</Chip>}
+            fallback={<Chip size="xs" color="warning" style={{ height: "18px", "font-size": `${typeSize("micro")}px` }}>OPEN</Chip>}
           >
             <ExitReasonBadge reason={t.result} />
           </Show>

@@ -4,7 +4,8 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@solidjs/testing-library";
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
-  return mockSolidUi();
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
 });
 import type { TFSpec } from "@/types/chartPatterns";
 import { FALLBACK_TIMEFRAMES, TimeframeSelect } from "./TimeframeSelect";

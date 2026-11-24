@@ -47,8 +47,11 @@ vi.mock("lightweight-charts", () => {
 });
 
 import {
+  LAST_VALUE_TAG_HEIGHT_PX,
   TradingViewChart,
   extendAutoscaleWithLevels,
+  lastValueTagPreference,
+  lastValueTagTickOverlap,
   levelWithinAutoscale,
   visibleBarsRange,
 } from "./TradingViewChart";
@@ -428,5 +431,97 @@ describe("fitMarkLines scale guard", () => {
     expect(calls[0]).toMatchObject({ price: 22500, axisLabelVisible: false, title: "" });
     // Near line: keeps its gutter label + in-chart title.
     expect(calls[1]).toMatchObject({ price: 22700, axisLabelVisible: true, title: "GSUP 22700" });
+  });
+});
+
+describe("last-value tag preference", () => {
+  test("compact drops the engine tag but keeps the horizontal last-price line", () => {
+    expect(lastValueTagPreference(true)).toEqual({
+      lastValueVisible: false,
+      priceLineVisible: true,
+    });
+  });
+
+  test("desktop keeps both the engine tag and the last-price line", () => {
+    expect(lastValueTagPreference(false)).toEqual({
+      lastValueVisible: true,
+      priceLineVisible: true,
+    });
+  });
+});
+
+/**
+ * 390px regression: the engine's white 22364.00 tag sat on the 22360.00 axis
+ * tick because the short pane maps a 4-point gap to less than a tag height.
+ * Compact mode removes the tag entirely, so the collision cannot render.
+ */
+describe("last-value tag / tick geometry", () => {
+  test("a 4-point gap overlaps the tag at phone scale but not at desk scale", () => {
+    // ~2px per index point on a 240px-tall phone pane (80-point window).
+    expect(LAST_VALUE_TAG_HEIGHT_PX).toBe(16);
+    expect(lastValueTagTickOverlap(22364, 22360, 2)).toBe(8);
+    // A taller desk pane separates the same prices by more than a tag height.
+    expect(lastValueTagTickOverlap(22364, 22360, 6)).toBe(0);
+  });
+
+  test("compact preference removes the tag regardless of scale", () => {
+    const overlap = lastValueTagTickOverlap(22364, 22360, 2);
+    expect(overlap).toBeGreaterThan(0);
+    expect(lastValueTagPreference(true).lastValueVisible).toBe(false);
+    expect(lastValueTagPreference(false).lastValueVisible).toBe(true);
+  });
+
+  test("non-finite or zero-scale geometry is inert", () => {
+    expect(lastValueTagTickOverlap(NaN, 22360, 2)).toBe(0);
+    expect(lastValueTagTickOverlap(22364, 22360, 0)).toBe(0);
+  });
+});
+
+describe("last-value tag option on the candle series", () => {
+  const lastValueCall = (series: any) =>
+    series.applyOptions.mock.calls.filter(
+      ([opts]: any[]) => opts && "lastValueVisible" in opts,
+    ).at(-1)?.[0];
+
+  test("hideLastValueTag suppresses the engine tag but keeps the price line", () => {
+    const start = lwMocks.series.length;
+    render(() => <TradingViewChart candles={CANDLES} hideLastValueTag />);
+    expect(lastValueCall(lwMocks.series[start])).toMatchObject({
+      lastValueVisible: false,
+      priceLineVisible: true,
+    });
+  });
+
+  test("default desktop chart keeps the engine tag", () => {
+    const start = lwMocks.series.length;
+    render(() => <TradingViewChart candles={CANDLES} />);
+    expect(lastValueCall(lwMocks.series[start])).toMatchObject({
+      lastValueVisible: true,
+      priceLineVisible: true,
+    });
+  });
+
+  test("toggling the preference updates options without re-pushing candle data", () => {
+    const [compact, setCompact] = createSignal(true);
+    const start = lwMocks.series.length;
+    render(() => <TradingViewChart candles={CANDLES} hideLastValueTag={compact()} />);
+    const candle = lwMocks.series[start];
+    expect(lastValueCall(candle)).toMatchObject({ lastValueVisible: false });
+
+    const setDataCalls = candle.setData.mock.calls.length;
+    setCompact(false);
+    expect(lastValueCall(candle)).toMatchObject({ lastValueVisible: true });
+    expect(candle.setData).toHaveBeenCalledTimes(setDataCalls);
+
+    // An unchanged preference does not re-apply the option on a poll tick.
+    const applied = candle.applyOptions.mock.calls.filter(
+      ([opts]: any[]) => opts && "lastValueVisible" in opts,
+    ).length;
+    setCompact(false);
+    expect(
+      candle.applyOptions.mock.calls.filter(
+        ([opts]: any[]) => opts && "lastValueVisible" in opts,
+      ).length,
+    ).toBe(applied);
   });
 });

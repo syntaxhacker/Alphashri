@@ -136,7 +136,7 @@ function TreeNode(props: TreeNodeProps) {
   const nodeCls = () =>
     cn(
       "ui-tree-node",
-      "flex items-center gap-2 cursor-pointer select-none rounded-[4px] py-[2px] text-[14px] text-fin-text hover:bg-fin-surface-alt outline-none",
+      "flex items-center gap-2 cursor-pointer select-none rounded-[4px] py-[2px] text-ui-label text-fin-text hover:bg-fin-surface-alt focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary",
     );
 
   return (
@@ -278,7 +278,7 @@ export function Tree(props: UITreeProps) {
     selectedValue,
   };
 
-  const cls = cn("ui-tree", "list-none p-0 m-0 text-[14px]", known.className);
+  const cls = cn("ui-tree", "list-none p-0 m-0 text-ui-label", known.className);
 
   return (
     <TreeContext.Provider value={ctx}>

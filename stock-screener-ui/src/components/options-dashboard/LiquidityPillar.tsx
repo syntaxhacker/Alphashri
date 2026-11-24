@@ -1,5 +1,5 @@
 import { createMemo } from "solid-js";
-import { Box, Text } from "@/ui";
+import { Box, Text, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { useChartInk } from "@/components/options-dock/analytics/chartInk";
 import { axis, baseOption, CHART_GRID, legend, paddedDomain, tooltip } from "./chartBase";
@@ -30,10 +30,10 @@ function Badge(props: { label: string; value: string; color: string; testId: str
       style={{ "background-color": palette.alpha(props.color, 0.12) }}
       data-testid={props.testId}
     >
-      <Text size="xs" className="uppercase" style={{ "font-size": "9px", color: palette.TEXT_MUTED }}>
+      <Text size="xs" className="uppercase" style={{ "font-size": `${typeSize("micro")}px`, color: palette.TEXT_MUTED }}>
         {props.label}
       </Text>
-      <Text size="xs" fw={700} className="font-mono tabular-nums" style={{ "font-size": "10px", color: props.color }}>
+      <Text size="xs" fw={700} className="font-mono tabular-nums" style={{ "font-size": `${typeSize("micro")}px`, color: props.color }}>
         {props.value}
       </Text>
     </Box>
@@ -114,7 +114,7 @@ export function LiquidityPillar(props: PanelProps) {
         itemWidth: 8,
         itemHeight: 60,
         text: ["Wide", "Tight"],
-        textStyle: { color, fontSize: 10 },
+        textStyle: { color, fontSize: typeSize("micro") },
         inRange: { color: [palette.RAMP_GREEN, palette.RAMP_NEUTRAL, palette.RAMP_RED] },
       },
       series: [

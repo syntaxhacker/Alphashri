@@ -60,9 +60,11 @@ describe("NumCell", () => {
     expect(screen.getByTestId("f")).toHaveTextContent("12.3%");
   });
 
-  test("uses the 12px body size so numeric columns match comfortable rows", () => {
+  test("uses the micro token so numeric columns match comfortable rows", () => {
     render(() => <NumCell value={1} testId="size" />);
-    expect(screen.getByTestId("size")).toHaveStyle("font-size: 12px");
+    const cell = screen.getByTestId("size");
+    expect(cell.className).toContain("text-ui-micro");
+    expect(cell.style.fontSize).toBe("");
   });
 });
 
@@ -125,7 +127,7 @@ describe("BadgeCell", () => {
     render(() => <BadgeCell label="GAP" testId="b" />);
     const badge = screen.getByTestId("b");
     expect(badge).toHaveTextContent("GAP");
-    expect(badge.style.fontSize).toBe("11px");
+    expect(badge.style.fontSize).toBe("12px");
     expect(badge.style.height).toBe("18px");
   });
 
@@ -133,7 +135,7 @@ describe("BadgeCell", () => {
     render(() => <BadgeCell label="GAP" size="lg" testId="b" />);
     const badge = screen.getByTestId("b");
     expect(badge.style.paddingLeft).toBe("7px");
-    expect(badge.style.fontSize).toBe("11px");
+    expect(badge.style.fontSize).toBe("12px");
   });
 });
 

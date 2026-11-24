@@ -1,9 +1,12 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it, afterEach } from "vitest";
 import { createSignal } from "solid-js";
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import { TanStackTable, type TableColumnDef } from "./TanStackTable";
+import { TanStackTable as CommonTanStackTable } from "../common/TanStackTable";
 
 afterEach(() => {
   cleanup();
@@ -476,5 +479,91 @@ describe("paper-trading TanStackTable — stable row identity across ticks", () 
     const remounted = after.filter((tr, i) => tr !== before[i]).length;
     expect(remounted).toBe(1);
     expect(after[7].textContent).toContain("₹108");
+  });
+});
+
+describe("paper-trading TanStackTable — one implementation", () => {
+  const sourceOf = (dir: string) => readFileSync(join(process.cwd(), "src/components", dir, "TanStackTable.tsx"), "utf8");
+
+  it("delegates to the common table instead of rendering a second table shell", () => {
+    const wrapper = sourceOf("paper-trading");
+    const common = sourceOf("common");
+
+    expect(wrapper).toContain('from "../common/TanStackTable"');
+    expect(wrapper.split("\n").filter((line) => line.trim() && !line.trim().startsWith("//")).length).toBeLessThan(40);
+    for (const duplicated of [
+      "<table",
+      "<ScrollArea",
+      "<Paper",
+      "compareSortValues",
+      "useSorting(",
+      "renderHeader(",
+      "renderRow(",
+    ]) {
+      expect(wrapper).not.toContain(duplicated);
+    }
+    expect(common).toContain("<table");
+    expect(common).toContain("useSorting(props)");
+
+    render(() => (
+      <TanStackTable<NullRow> data={numData} columns={numColumns} dataTestId="paper-single-table" />
+    ));
+    expect(document.querySelectorAll("table")).toHaveLength(1);
+  });
+
+  it("keeps the paper rhythm and numeric alignment through the wrapper", () => {
+    render(() => (
+      <TanStackTable<NullRow>
+        data={numData}
+        columns={numColumns}
+        dataTestId="paper-rhythm"
+        getRowTestId={(row) => row.id}
+      />
+    ));
+    const table = screen.getByTestId("paper-rhythm");
+    expect(table.style.getPropertyValue("--tbl-row-h")).toBe("23px");
+    expect(table.style.getPropertyValue("--tbl-cell-pad")).toBe("2px 8px");
+    const numericCell = screen.getByTestId("r1").querySelectorAll("td")[1];
+    expect(numericCell.style.textAlign).toBe("right");
+    expect(numericCell.className).toContain("font-mono");
+  });
+
+  it("keeps dense paper rows at 18px", () => {
+    render(() => <TanStackTable<NullRow> data={numData} columns={numColumns} dense dataTestId="paper-dense" />);
+    const table = screen.getByTestId("paper-dense");
+    expect(table.style.getPropertyValue("--tbl-row-h")).toBe("18px");
+    expect(table.style.getPropertyValue("--tbl-cell-pad")).toBe("1px 6px");
+  });
+
+  it("keeps the common export's own rhythm and numeric alignment", () => {
+    render(() => (
+      <CommonTanStackTable<NullRow>
+        data={numData}
+        columns={numColumns}
+        dataTestId="common-rhythm"
+        getRowTestId={(row) => row.id}
+      />
+    ));
+    const table = screen.getByTestId("common-rhythm");
+    expect(table.style.getPropertyValue("--tbl-row-h")).toBe("32px");
+    expect(table.style.getPropertyValue("--tbl-cell-pad")).toBe("8px 12px");
+    const numericCell = screen.getByTestId("r1").querySelectorAll("td")[1];
+    expect(numericCell.style.textAlign).toBe("right");
+    expect(numericCell.className).toContain("font-mono");
+  });
+
+  it("keeps paper groups expanded by default, as trade history expects", () => {
+    const grouped = numData.map((row) => ({ ...row, category: row.id < "r3" ? "A" : "B" }));
+    render(() => (
+      <TanStackTable<(typeof grouped)[number]>
+        data={grouped}
+        columns={[{ id: "name", header: "Name", accessorKey: "name" }]}
+        enableGrouping
+        grouping={["category"]}
+        dataTestId="paper-groups"
+        renderGroupHeader={({ value }) => <span>{String(value)}</span>}
+      />
+    ));
+    expect(document.querySelectorAll("tbody tr[data-row='stock']")).toHaveLength(numData.length);
   });
 });

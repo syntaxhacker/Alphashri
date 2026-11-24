@@ -57,6 +57,9 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
 
   const testId = () => props.testId ?? "screener-table";
   const containerTestId = () => (testId() === "screener-table" ? undefined : testId());
+  // Every column keeps a scannable width; at 390px the extra width becomes a
+  // horizontal scroll instead of clipped numbers (selection stays first/left).
+  const scrollMinWidth = createMemo(() => Math.max(720, (props.columns.length + 1) * 112));
 
   const tanStackColumns = createMemo<TableColumnDef<Stock>[]>(() => {
     const cols: TableColumnDef<Stock>[] = [
@@ -68,8 +71,9 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
               size="xs"
               checked={allVisibleSelected()}
               indeterminate={selectedSymbolSet().size > 0 && !allVisibleSelected()}
-              onChange={(e: any) => { e?.stopPropagation?.(); handleSelectAll(); }}
-              onClick={(e: any) => e.stopPropagation()}
+              onChange={() => handleSelectAll()}
+              onClick={(e) => e.stopPropagation()}
+              aria-label="Select all visible symbols"
               data-testid="select-all-checkbox"
             />
           </Box>
@@ -81,8 +85,9 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
             <Checkbox
               size="xs"
               checked={selectedSymbolSet().has(row.original.symbol)}
-              onChange={(e: any) => { e?.stopPropagation?.(); toggleSymbolSelection(row.original.symbol); }}
-              onClick={(e: any) => e.stopPropagation()}
+              onChange={() => toggleSymbolSelection(row.original.symbol)}
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Select ${row.original.symbol}`}
               data-testid={`sel-checkbox-${row.original.symbol}`}
             />
           </Box>
@@ -109,6 +114,7 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
                         variant="subtle"
                         color={copied ? "info" : "secondary"}
                         size="xs"
+                        aria-label={copied ? "Copied all symbols" : "Copy all symbols"}
                         style={{ width: "16px", height: "16px", "min-height": "16px", padding: 0 }}
                         onClick={(e: MouseEvent) => { e.stopPropagation(); copy(); }}
                         data-testid="copy-all-symbols-btn"
@@ -184,6 +190,7 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
                       variant="subtle"
                       color={copied ? "info" : "secondary"}
                       size="xs"
+                      aria-label={copied ? `Copied ${stock.symbol}` : `Copy ${stock.symbol}`}
                       style={{ width: "16px", height: "16px", "min-height": "16px", padding: 0 }}
                       onClick={(e: MouseEvent) => { e.stopPropagation(); copy(); }}
                       data-testid={`copy-symbol-btn-${stock.symbol}`}
@@ -214,7 +221,7 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
           if (col.key === "score" || col.type === "badge") {
             const scoreValue = typeof value === "number" ? value : 0;
             return (
-              <Tooltip label={props.scoreFormula ? `${props.scoreFormula} = ${scoreValue}` : `Score: ${scoreValue}`} multiline withinPortal>
+              <Tooltip label={props.scoreFormula ? `${props.scoreFormula} = ${scoreValue}` : `Score: ${scoreValue}`} multiline>
                 <Badge color={getScoreColor(scoreValue)} variant="filled" data-testid={`score-badge-${stock.symbol}`}>
                   {scoreValue}
                 </Badge>
@@ -243,9 +250,18 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
   });
 
     return (
-      <Box className="w-full overflow-hidden rounded-sm" data-testid={containerTestId()}>
+      <Box className="w-full rounded-sm" data-testid={containerTestId()}>
         <Stack spacing={0} className="w-full">
-          <Box className="w-full flex justify-center">
+          <Box className="flex w-full items-center justify-end px-3 py-1 sm:hidden" data-testid="screener-table-scroll-cue">
+            <Text size="sm" className="text-fin-text-muted">
+              Scroll sideways →
+            </Text>
+          </Box>
+          <Box
+            className="w-full overflow-x-auto overscroll-x-contain"
+            data-testid="screener-table-scroll-wrapper"
+          >
+            <Box style={{ "min-width": `${scrollMinWidth()}px` }}>
               <TanStackTable<Stock>
                 data={props.stocks}
                 columns={tanStackColumns()}
@@ -255,12 +271,14 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
                 onSortingChange={setSorting}
                 stickyHeader
                 className="w-full min-w-0"
+                minTableWidth={scrollMinWidth()}
                 getRowTestId={(row) => `stock-row-${row.symbol}`}
                 onRowClick={(row) => props.onSymbolClick(row.symbol)}
                 rowWindowSize={props.stocks.length > 120 ? 80 : undefined}
               />
             </Box>
-          </Stack>
+          </Box>
+        </Stack>
       </Box>
   );
 }

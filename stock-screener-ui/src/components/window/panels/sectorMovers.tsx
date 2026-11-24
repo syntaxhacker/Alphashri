@@ -49,7 +49,7 @@ function SectorMoversPanel() {
                 <Text size="xs" c="error">{state().error}</Text>
                 <button
                   type="button"
-                  class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+                  class="rounded-sm border border-fin-border px-2 text-ui-micro text-fin-text hover:bg-fin-surface-alt"
                   onClick={() => void loadSectorData(state().market)}
                 >
                   Retry
@@ -64,7 +64,7 @@ function SectorMoversPanel() {
                   <Text size="xs" c="dimmed">No interval movers for this market.</Text>
                   <button
                     type="button"
-                    class="rounded-sm border border-fin-border px-2 text-[11px] text-fin-text hover:bg-fin-surface-alt"
+                    class="rounded-sm border border-fin-border px-2 text-ui-micro text-fin-text hover:bg-fin-surface-alt"
                     data-testid="sector-movers-empty-retry"
                     onClick={() => void loadSectorData(state().market)}
                   >

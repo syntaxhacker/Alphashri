@@ -3,27 +3,29 @@
  * All hardcoded fontSize, row height, padding, and radius values in the report
  * surface should reference these tokens instead of raw numbers.
  */
+import { TYPE_SCALE } from "@/ui";
 import type { JSX } from "solid-js";
 
-// Font sizes (px) — one four-step ladder for the whole report surface:
-// display > value > body > micro. Every legacy name below is an alias of one
-// of those four steps, so an unmigrated caller cannot reintroduce a fifth size
-// (or make the 11px floor the page default again).
+// Font sizes (px) — derived from the shared six-step scale, never a private
+// dialect. The report uses four steps: micro 12 / body 13 / value 16 (the
+// shared title step) / display 24. Every legacy name below is an alias of one
+// of those steps, so an unmigrated caller cannot reintroduce a fifth size (or
+// make the old 17px private "value" step the page default again).
 export const REPORT_FONT = {
-  display: 23,
-  value: 17,
-  body: 13,
-  micro: 11, // axis ticks, hints, timestamps — the hard 11px floor
+  display: TYPE_SCALE.display.size, // 24 — DS Title xl; no private 23px verdict
+  value: TYPE_SCALE.title.size, // 16 — alias of the shared title step
+  body: TYPE_SCALE.body.size, // 13 — dense table cells
+  micro: TYPE_SCALE.micro.size, // 12 — axis ticks, hints, timestamps; shared floor
 
   // Legacy aliases → nearest canonical step. Kept so callers that have not
   // migrated to the named steps still compile without widening the scale.
-  xs: 13,
-  xsPlus: 13,
-  sm: 13,
-  md: 13,
-  lg: 17,
-  xl: 17,
-  verdict: 23,
+  xs: TYPE_SCALE.body.size,
+  xsPlus: TYPE_SCALE.body.size,
+  sm: TYPE_SCALE.body.size,
+  md: TYPE_SCALE.body.size,
+  lg: TYPE_SCALE.title.size,
+  xl: TYPE_SCALE.title.size,
+  verdict: TYPE_SCALE.display.size, // alias of display, never a separate 23px size
 
   px: (
     step:
@@ -98,7 +100,7 @@ export function groupCellGap(): number {
  * Group weights below are tuned to the sum of these minimums.
  */
 export const REPORT_STRIP_CELL_MIN = {
-  spot: 92,
+  spot: 108,
   symbol: 78,
   change: 96,
   regime: 182,
@@ -106,7 +108,11 @@ export const REPORT_STRIP_CELL_MIN = {
   callWall: 103,
   putWall: 96,
   pin: 71,
-  maxPain: 110,
+  // Six mono glyphs of `22,406` at the 16px value step (~58px) plus the 44px
+  // tape sparkline, 8px cell inset and 1px hairline = 111px. The old 110px
+  // floor sliced the last glyph into the next cell's divider; at 390 the shell
+  // overrides this floor, so the full value stays readable there too.
+  maxPain: 120,
   squeezeFuel: 114,
   pcrOi: 110,
   pcrVol: 148,
@@ -137,9 +143,15 @@ export const REPORT_STRIP_GROUP_WEIGHT = {
     REPORT_STRIP_CELL_MIN.pin +
     REPORT_STRIP_CELL_MIN.maxPain,
   volatility: REPORT_STRIP_CELL_MIN.pcrOi + REPORT_STRIP_CELL_MIN.pcrVol,
-  // FLOW's cells are conditional (`Show`), so its requirement is the widest one
-  // that renders, not the sum: it must not reserve space for absent chips.
-  flow: REPORT_STRIP_CELL_MIN.chipGamma,
+  // All three chips render together inside the desk-only group, so the floor
+  // is their sum, not the widest one. At the old 196px the group fit while its
+  // 552px of chips spilled past the strip edge ("Institutional flows" read as
+  // "Ins"). With the real floor `flex-wrap` moves the whole group to its own
+  // row instead of clipping a chip mid-word.
+  flow:
+    REPORT_STRIP_CELL_MIN.chipSetup +
+    REPORT_STRIP_CELL_MIN.chipIntel +
+    REPORT_STRIP_CELL_MIN.chipGamma,
 } as const;
 
 /**
@@ -192,12 +204,18 @@ export const REPORT_SECTION_ALIGN = {
   ].join(" "),
 } as const;
 
+/**
+ * Terminal radius vocabulary — 2 / 4 / 6 / 10 only. The report's old 8px cards
+ * and 12px containers read as a separate skin next to the shared controls;
+ * `xs` is the hairline/skeleton surface the shell paints at 2px.
+ */
 export const REPORT_RADIUS = {
+  xs: 2,   // error reads, skeletons, hairline surfaces
   sm: 4,   // chips, badges, inline pills
-  md: 8,   // cards, panels, modals
-  lg: 12,  // large containers
+  md: 6,   // cards, panels, modals — the control radius
+  lg: 10,  // large containers
   /** Helper */
-  px: (step: "sm" | "md" | "lg"): number => REPORT_RADIUS[step],
+  px: (step: "xs" | "sm" | "md" | "lg"): number => REPORT_RADIUS[step],
 } as const;
 
 // Line heights (unitless, relative to fontSize)

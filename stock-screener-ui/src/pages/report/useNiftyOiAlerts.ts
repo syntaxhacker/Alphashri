@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup } from "solid-js";
+import { batch, createEffect, createSignal, onCleanup, untrack } from "solid-js";
 import type { MarketAlert } from "@/components/notifications/MarketAlertCard";
 import type { NiftyStrike } from "@/types/niftyReport";
 import { burstToAlert, deriveOiSignal, dropConflictingSides, entryFreshness, isNonTradeAlertType, resolveOiDirection } from "./niftyOiBursts";
@@ -89,7 +89,7 @@ export function useNiftyOiAlerts(
    * CE. The flow reading is the reason the alert fired, so it wins; the plan
    * is re-derived from the live chain instead of trusting the contradiction.
    */
-  const toAlert = (b: OiBurst): MarketAlert => {
+  const toAlert = (b: OiBurst, chainNow: NiftyStrike[], spotNow: number): MarketAlert => {
       // Wall geometry + stale-data warnings carry no trade plan: map them
       // directly so no signal is derived from a zero-delta event.
       if (isNonTradeAlertType(b.type)) return burstToAlert(b);
@@ -98,9 +98,9 @@ export function useNiftyOiAlerts(
         b.signal != null && (flowDir == null || b.signal.leg === flowDir.leg);
       const signal: OiSignal | null = backendAgrees
         ? (b.signal as OiSignal)
-        : deriveOiSignal(b, chain(), spot(), { trend: b.trend ?? null, trend5m: b.trend5m ?? null });
+        : deriveOiSignal(b, chainNow, spotNow, { trend: b.trend ?? null, trend5m: b.trend5m ?? null });
       // A signal priced off a stale chain is void — mark it for re-pricing.
-      const freshness = signal ? entryFreshness(signal, chain()) : null;
+      const freshness = signal ? entryFreshness(signal, chainNow) : null;
       return burstToAlert(b, signal, { freshness });
   };
 
@@ -125,22 +125,33 @@ export function useNiftyOiAlerts(
     timers.clear();
     for (const t of bannerTimers.values()) clearTimeout(t);
     bannerTimers.clear();
-    setTrail([]);
-    setToasts([]);
-    setBanners([]);
+    batch(() => {
+      setTrail([]);
+      setToasts([]);
+      setBanners([]);
+    });
   });
 
   createEffect(() => {
-    bursts(); chain(); spot(); ready(); enabled(); sessionKey();
-    if (!ready()) return;
+    const all = bursts();
+    const isReady = ready();
+    const isEnabled = enabled();
+    sessionKey();
+    if (!isReady) return;
+
+    // Chain/spot move on every report frame but only matter when a burst is
+    // actually mapped. Reading them untracked keeps this derivation off the
+    // tick path; each run takes one consistent snapshot for the whole batch.
+    const chainNow = untrack(chain);
+    const spotNow = untrack(spot);
 
     if (!primed) {
-      markSeen(bursts().map((b) => b.id));
+      markSeen(all.map((b) => b.id));
       primed = true;
       if (seedTrail) {
-        const seeded = dropConflictingSides(bursts())
+        const seeded = dropConflictingSides(all)
           .slice(-OI_ALERT_TRAIL_MAX)
-          .map(toAlert)
+          .map((b) => toAlert(b, chainNow, spotNow))
           .reverse();
         setTrail(seeded);
         // A critical already on the tape must be impossible to miss — but only
@@ -151,7 +162,7 @@ export function useNiftyOiAlerts(
         // still seeds every critical; a live feed whose newest burst is >12h
         // old is not live either.
         const newestTs = seeded.reduce((m, a) => Math.max(m, a.ts), 0);
-        const liveFeed = enabled() && newestTs > 0 && Date.now() - newestTs < 12 * 3_600_000;
+        const liveFeed = isEnabled && newestTs > 0 && Date.now() - newestTs < 12 * 3_600_000;
         const bannerCutoff = liveFeed ? Date.now() - OI_CRITICAL_BANNER_TTL_MS : 0;
         for (const a of seeded
           .filter((x) => x.severity === "critical" && x.actionable !== false && x.ts >= bannerCutoff)
@@ -162,9 +173,9 @@ export function useNiftyOiAlerts(
       return;
     }
 
-    if (!enabled()) return;
+    if (!isEnabled) return;
 
-    const fresh = bursts().filter((b) => !seen.has(b.id));
+    const fresh = all.filter((b) => !seen.has(b.id));
     if (fresh.length === 0) return;
     markSeen(fresh.map((b) => b.id));
 
@@ -189,10 +200,12 @@ export function useNiftyOiAlerts(
 
     const mapped = deduped
       .slice(-OI_ALERT_TOAST_MAX)
-      .map(toAlert)
+      .map((b) => toAlert(b, chainNow, spotNow))
       .reverse();
-    setTrail((prev) => [...mapped, ...prev].slice(0, OI_ALERT_TRAIL_MAX));
-    setToasts((prev) => [...mapped, ...prev].slice(0, OI_ALERT_TOAST_MAX));
+    batch(() => {
+      setTrail((prev) => [...mapped, ...prev].slice(0, OI_ALERT_TRAIL_MAX));
+      setToasts((prev) => [...mapped, ...prev].slice(0, OI_ALERT_TOAST_MAX));
+    });
 
     for (const a of mapped) {
       scheduleToast(a);
@@ -256,8 +269,10 @@ export function useNiftyOiAlerts(
   };
 
   const clearTrail = () => {
-    setTrail([]);
-    setBanners([]);
+    batch(() => {
+      setTrail([]);
+      setBanners([]);
+    });
     for (const t of bannerTimers.values()) clearTimeout(t);
     bannerTimers.clear();
   };

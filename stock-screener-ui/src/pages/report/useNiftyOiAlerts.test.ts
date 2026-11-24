@@ -562,3 +562,36 @@ setters.setBursts([
     );
   });
 });
+
+describe("useNiftyOiAlerts reactive dependencies", () => {
+  test("spot and chain churn do not re-run the burst derivation", async () => {
+    vi.useFakeTimers();
+    const [bursts, setBursts] = createSignal<OiBurst[]>(HISTORY);
+    const [chain, setChain] = createSignal<NiftyStrike[]>(CHAIN);
+    const [spot, setSpot] = createSignal<number>(SPOT);
+    const [ready] = createSignal(true);
+    const [enabled] = createSignal(true);
+    const [sessionKey] = createSignal("live:deps");
+
+    let burstsReads = 0;
+    const countedBursts = () => {
+      burstsReads += 1;
+      return bursts();
+    };
+
+    renderHook(() =>
+      useNiftyOiAlerts(countedBursts, chain, spot, ready, enabled, sessionKey),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    const primedReads = burstsReads;
+
+    setSpot(SPOT + 5);
+    setChain([...CHAIN]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(burstsReads).toBe(primedReads);
+
+    setBursts(HISTORY_PLUS);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(burstsReads).toBeGreaterThan(primedReads);
+  });
+});

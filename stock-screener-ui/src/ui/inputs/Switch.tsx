@@ -92,10 +92,10 @@ export function Switch(props: SwitchProps) {
   const isOn = createMemo(() => (isControlled() ? known.checked === true : internal()));
   const isError = createMemo(() => Boolean(known.error));
 
-  const handleChange = (e: Event & { currentTarget: HTMLInputElement; target: Element }) => {
+  const handleChange = (e: Event & { currentTarget: HTMLInputElement }) => {
     const next = e.currentTarget.checked;
     if (!isControlled()) setInternal(next);
-    known.onChange?.(e);
+    known.onChange?.(next);
   };
 
   const trackStyle = createMemo<Record<string, string>>(() => {
@@ -211,7 +211,7 @@ export function Switch(props: SwitchProps) {
       {control}
       <span className="flex flex-col gap-0.5">
         {known.label ? (
-          <span className="text-[10px] font-mono uppercase tracking-[0.06em] text-fin-text-muted leading-none">
+          <span className="text-ui-micro font-mono uppercase tracking-[0.06em] text-fin-text-muted leading-none">
             {known.label}
           </span>
         ) : null}
@@ -220,8 +220,8 @@ export function Switch(props: SwitchProps) {
             id={messageId}
             className={
               known.error
-                ? "text-[10px] text-fin-negative leading-none"
-                : "text-[10px] text-fin-text-muted leading-none"
+                ? "text-ui-micro text-fin-negative leading-none"
+                : "text-ui-micro text-fin-text-muted leading-none"
             }
           >
             {message()}

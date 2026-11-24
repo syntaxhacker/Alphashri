@@ -5,6 +5,24 @@ import * as palette from "@/ui/palette";
 // Links must leave the preview iframe and open the Storybook manager.
 export const docsHref = (id: string) => `../?path=/docs/${id}`;
 
+const STORIES_COMPONENTS = "src/stories/components";
+
+/**
+ * Family pages name their docs directory with a display label ("Data display",
+ * "Feedback"); the directory on disk is a slug ("data-display", "feedback").
+ * Normalise only that one segment so the footer resolves to a real path on
+ * every family page, including those that still pass the old label.
+ */
+const realStoriesPath = (pages: string): string => {
+  if (!pages.startsWith(STORIES_COMPONENTS)) return pages;
+  const segments = pages.slice(STORIES_COMPONENTS.length).split("/").filter(Boolean);
+  if (segments.length === 0) return STORIES_COMPONENTS;
+  if (!/\.[cm]?[jt]sx?$/.test(segments[0])) {
+    segments[0] = segments[0].trim().toLowerCase().replace(/\s+/g, "-");
+  }
+  return `${STORIES_COMPONENTS}/${segments.join("/")}`;
+};
+
 export type FamilyComponentRef = { id: string; name: string; note: string };
 
 export const FamilyPage = (props: { children: JSX.Element; width?: string; padding?: string }) => (
@@ -121,6 +139,6 @@ export const SpecimenPanel = (props: { title: string; note: string; children: JS
 
 export const FamilyFooter = (props: { source: string; pages: string; pagesLabel?: string }) => (
   <Text size="xs" c="dimmed">
-    Source: <code>{props.source}</code> · {props.pagesLabel ?? "per-component pages"}: <code>{props.pages}</code>.
+    Source: <code>{props.source}</code> · {props.pagesLabel ?? "per-component pages"}: <code>{realStoriesPath(props.pages)}</code>.
   </Text>
 );

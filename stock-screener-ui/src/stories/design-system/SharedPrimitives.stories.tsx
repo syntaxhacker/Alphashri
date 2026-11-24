@@ -135,7 +135,9 @@ const TableStatesSpecimen = () => {
         message="No rows for this filter"
         action={<Button size="xs" onClick={() => setResets((n) => n + 1)}>Reset filters</Button>}
       />
-      <Text size="xs" c="dimmed">{`Filter resets: ${resets()}`}</Text>
+      <Text size="xs" c="dimmed">
+        {resets() === 0 ? "Reset the filters to widen the search." : "Filters cleared — widen the range to see rows."}
+      </Text>
       <TableLoadingState message="Loading paper positions" />
       <BrokerAuthNotice connectTestId="story-connect" />
     </Stack>
@@ -171,7 +173,7 @@ export const FamilyLanding: Story = {
             />
           </Box>
         </SpecimenPanel>
-        <FamilyFooter source="src/components/common" pages="src/stories/components/App" />
+        <FamilyFooter source="src/components/common" pages="src/stories/components/app" />
       </FamilyPage>
     )),
 };

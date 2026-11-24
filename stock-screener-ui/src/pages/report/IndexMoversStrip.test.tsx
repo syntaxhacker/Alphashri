@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createSignal } from "solid-js";
 import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
-import { IndexMoversStrip } from "./IndexMoversStrip";
+import { AvailableBands, IndexMoversStrip, UnavailableBandsStrip } from "./IndexMoversStrip";
 import { fetchIndexMovers, IndexMoversResponse } from "@/api/indexMovers";
 
 vi.mock("@/api/indexMovers", () => ({
@@ -147,6 +147,112 @@ describe("IndexMoversStrip", () => {
 
     await waitFor(() => expect(screen.getByTestId("movers-strip")).toBeInTheDocument(), { timeout: 10000 });
     expect(screen.getByTestId("movers-strip")).toHaveTextContent(/SENSEX 30/);
+  });
+
+  it("keeps 12px labels and 13px whole values, wrapping on a phone", async () => {
+    mockFetchIndexMovers.mockResolvedValue(createMockResponse());
+    render(() => <IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
+
+    await waitFor(() => expect(screen.getByText("HDFCBANK")).toBeInTheDocument(), { timeout: 10000 });
+    const strip = screen.getByTestId("movers-strip");
+    expect(strip.getAttribute("data-report-spacing")).toBe("8");
+    expect(strip.className).toContain("max-[700px]:flex-wrap");
+    expect(strip.className).not.toContain("overflow-hidden");
+    expect(strip.innerHTML).not.toContain("text-ellipsis");
+    expect(strip.innerHTML).not.toContain("truncate");
+
+    const label = strip.querySelector('[data-report-text="label"]') as HTMLElement;
+    expect(label.className).toContain("text-ui-micro");
+    const values = strip.querySelectorAll('[data-report-text="value"]');
+    expect(values.length).toBe(12);
+    for (const value of values) expect((value as HTMLElement).style.fontSize).toBe("13px");
+    expect(strip).toHaveTextContent("HDFCBANK");
+    expect(strip).toHaveTextContent("+1.92%");
+    expect(strip).toHaveTextContent("-2.52%");
+  });
+
+  describe("one status strip for unavailable bands", () => {
+    const slot = (label: string, available: boolean) => ({
+      label,
+      available: () => available,
+      band: () => <div data-testid={`band-${label.toLowerCase()}`} />,
+    });
+
+    it("all-empty collapses to a single 30px row naming every surface", () => {
+      render(() => (
+        <AvailableBands
+          bands={[slot("WINDOWS", false), slot("MOVERS", false), slot("WALLS", false)]}
+          onRetry={() => {}}
+        />
+      ));
+
+      const strips = screen.getAllByTestId("report-unavailable-strip");
+      expect(strips).toHaveLength(1);
+      expect(strips[0]).toHaveAttribute("data-surfaces", "WINDOWS|MOVERS|WALLS");
+      expect(strips[0]).toHaveTextContent(/WINDOWS · MOVERS · WALLS/);
+      expect(strips[0].className).toContain("h-[30px]");
+      expect(strips[0].className).toContain("min-h-[30px]");
+      expect(strips[0].className).toContain("whitespace-nowrap");
+      expect(screen.getByTestId("report-unavailable-retry")).toBeInTheDocument();
+      for (const label of ["windows", "movers", "walls"]) {
+        expect(screen.queryByTestId(`band-${label}`)).toBeNull();
+      }
+    });
+
+    it("partial available renders only the real band and names the rest once", () => {
+      render(() => (
+        <AvailableBands
+          bands={[slot("WINDOWS", true), slot("MOVERS", false), slot("WALLS", false)]}
+          onRetry={() => {}}
+        />
+      ));
+
+      expect(screen.getByTestId("band-windows")).toBeInTheDocument();
+      expect(screen.queryByTestId("band-movers")).toBeNull();
+      expect(screen.queryByTestId("band-walls")).toBeNull();
+      const strip = screen.getByTestId("report-unavailable-strip");
+      expect(strip).toHaveAttribute("data-surfaces", "MOVERS|WALLS");
+      expect(screen.getAllByTestId("report-unavailable-strip")).toHaveLength(1);
+      expect(screen.getAllByTestId("report-unavailable-retry")).toHaveLength(1);
+    });
+
+    it("an unavailable MOVERS row names the other surfaces and keeps one Retry", async () => {
+      mockFetchIndexMovers.mockRejectedValue(new Error("MOVERS_UNAVAILABLE"));
+
+      render(() => (
+        <IndexMoversStrip
+          index="NIFTY"
+          onExpand={onExpand}
+          unavailableSurfaces={["WINDOWS", "WALLS"]}
+        />
+      ));
+
+      await waitFor(() => expect(screen.getByText("unavailable")).toBeInTheDocument());
+      const strip = screen.getByTestId("movers-strip");
+      expect(screen.getAllByTestId("movers-strip")).toHaveLength(1);
+      expect(strip).toHaveAttribute("data-surfaces", "WINDOWS|WALLS");
+      expect(strip).toHaveTextContent(/WINDOWS · WALLS/);
+      expect(strip.className).toContain("h-[30px]");
+      expect(strip.className).not.toContain("flex-wrap");
+      expect(screen.getByTestId("movers-retry")).toBeInTheDocument();
+    });
+
+    it("keeps one disclosure control on the status row", () => {
+      const [open, setOpen] = createSignal(false);
+      render(() => (
+        <UnavailableBandsStrip
+          surfaces={["WINDOWS", "MOVERS", "WALLS"]}
+          open={open()}
+          onToggle={() => setOpen((v) => !v)}
+        />
+      ));
+
+      const toggle = screen.getByRole("button", { name: /details/i });
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getAllByTestId("report-unavailable-strip")).toHaveLength(1);
+    });
   });
 
   describe("polling behavior", () => {

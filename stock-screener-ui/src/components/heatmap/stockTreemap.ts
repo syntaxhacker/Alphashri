@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui";
 import type { HeatmapStock } from "../../api/heatmap";
 import {
   TOOLTIP_DARK_BG,
@@ -192,8 +193,8 @@ export function buildStockTreemapOption(
         const d = params.data;
         if (!d) return "";
         const lines = [
-          `<div style="font-weight:bold;font-size:14px;color:${tooltipText}">${d.name}</div>`,
-          `<div style="color:${tooltipText};font-size:12px;opacity:0.8">${d.nameFull}</div>`,
+          `<div style="font-weight:bold;font-size:${typeSize("label")}px;color:${tooltipText}">${d.name}</div>`,
+          `<div style="color:${tooltipText};font-size:${typeSize("micro")}px;opacity:0.8">${d.nameFull}</div>`,
           `<div style="margin-top:8px">`,
           `  <div style="color:${tooltipText}">${d.metricLabel}: <b>${d.metricValue}</b></div>`,
         ];

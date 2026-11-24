@@ -1,7 +1,7 @@
 import { Show } from "solid-js";
 import type { JSX } from "solid-js";
 // CollapsiblePanel — dense panel for the backtest right rail.
-import { Badge, Divider, Text, Box, Stack } from "@/ui";
+import { Badge, Divider, Text, Box, Stack, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { IconChevronDown, IconChevronRight } from "@/components/common/Icons";
 import type { BacktestPanelId } from "./useBacktestLayout";
@@ -54,7 +54,7 @@ export function CollapsiblePanel(props: CollapsiblePanelProps) {
             fw={700}
             c="primary"
             style={{
-              "font-size": "10px",
+              "font-size": `${typeSize("micro")}px`,
               "font-weight": 700,
               "letter-spacing": "0.6px",
               flex: 1,
@@ -69,7 +69,7 @@ export function CollapsiblePanel(props: CollapsiblePanelProps) {
           {props.badge != null && (
             <Badge
               size="xs"
-              style={{ height: "16px", "font-size": "10px", "font-weight": 700, "background-color": palette.SURFACE_ALT }}
+              style={{ height: "16px", "font-size": `${typeSize("micro")}px`, "font-weight": 700, "background-color": palette.SURFACE_ALT }}
               variant="light"
             >
               {props.badge}

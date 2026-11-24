@@ -118,7 +118,7 @@ const meta: Meta<TableArgs> = {
   argTypes: {
     dense: {
       control: "boolean",
-      description: "Ultra-dense rows (18px / 10px type) regardless of the global density store.",
+      description: "Ultra-dense rows for large quote tables, independent of the global density setting.",
     },
     loading: {
       control: "boolean",
@@ -396,7 +396,7 @@ export const SelectedRow: Story = {
             title="Index quotes · selected row"
             detail={`${FIXTURE_LABEL} · selection via getRowStyle + getRowAttributes`}
             metaNode={
-              <Text size="xs" c="secondary" aria-live="polite">{`selected: ${selected()}`}</Text>
+              <Text size="xs" c="secondary" aria-live="polite">{`${selected()} is the active index quote`}</Text>
             }
             testId="story-table-selected-frame"
           >
@@ -484,7 +484,7 @@ export const Grouped: Story = {
             grouping={["direction"]}
             getGroupRowTestId={(value) => `story-group-${String(value)}`}
             renderGroupHeader={(group) => (
-              <span style={{ "font-size": "12px", color: "var(--color-fin-primary)" }}>
+              <span className="text-ui-micro" style={{ color: "var(--color-fin-primary)" }}>
                 {String(group.value)} · {group.rows.length} rows · {group.isExpanded() ? "expanded" : "collapsed"}
               </span>
             )}

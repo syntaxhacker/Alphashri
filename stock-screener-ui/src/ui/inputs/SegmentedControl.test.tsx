@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi } from "vitest";
 import { fireEvent, render, screen } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
+import { typeSize } from "../typography";
 import { SegmentedControl } from "./SegmentedControl";
 
 describe("SegmentedControl — view switch", () => {
@@ -76,7 +77,7 @@ describe("SegmentedControl — view switch", () => {
       expect(buttons).toHaveLength(2);
       for (const button of buttons) {
         const px = parseFloat((button as HTMLButtonElement).style.fontSize);
-        expect(px, `${size} label font size`).toBeGreaterThanOrEqual(11);
+        expect(px, `${size} label font size`).toBeGreaterThanOrEqual(typeSize("micro"));
       }
     }
   });

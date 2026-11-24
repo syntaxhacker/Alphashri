@@ -51,6 +51,24 @@ describe("NiftyPressureLane", () => {
     expect(screen.queryByTestId("nifty-pressure-readout")).not.toBeInTheDocument();
   });
 
+  test("uses 12px axis labels, 13px readouts and 12px wrapping legend gaps", () => {
+    render(() => <NiftyPressureLane series={series(20_000_000)} showAxis />);
+    const lane = screen.getByTestId("nifty-pressure-lane");
+    const axis = screen.getByTestId("nifty-pressure-axis");
+    for (const tick of axis.querySelectorAll("span")) {
+      expect(tick.className).toContain("text-ui-micro");
+    }
+    expect(screen.getByTestId("nifty-pressure-last").className).toContain("text-ui-body");
+
+    const legend = screen.getByTestId("nifty-pressure-legend");
+    expect(legend.getAttribute("data-report-spacing")).toBe("12");
+    expect(legend.className).toContain("gap-3");
+    expect(legend.className).toContain("flex-wrap");
+    expect(screen.getByTestId("nifty-pressure-flow").className).toContain("text-ui-body");
+    expect(lane.innerHTML).not.toContain("text-ellipsis");
+    expect(lane.innerHTML).not.toContain("truncate");
+  });
+
   test("renders an HH:MM axis when expanded", () => {
     render(() => <NiftyPressureLane series={series(20_000_000)} showAxis />);
     const axis = screen.getByTestId("nifty-pressure-axis");

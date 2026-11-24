@@ -1,5 +1,5 @@
 import { Show } from "solid-js";
-import { Text, Stack } from "@/ui";
+import { Text, Stack, typeSize } from "@/ui";
 import type { BacktestTotals } from "../../types/backtest";
 import { formatPnl as formatPnlShared, getPnLTextColor } from "../../utils/ui-helpers";
 interface BacktestSummaryProps {
@@ -36,10 +36,10 @@ const Metric = (props: {
   testid: string;
 }) => (
   <Stack className="flex-1 min-w-[92px] px-1.5 py-0.75 gap-0.5 justify-center" style={{ flex: "1 1 0", "min-width": "92px", gap: "4px" }}>
-    <Text size="xs" fw={600} c="dimmed" style={{ "font-size": "10px", "line-height": 1.1, "letter-spacing": "0.6px", "text-align": "center" }}>
+    <Text size="xs" fw={600} c="dimmed" style={{ "font-size": `${typeSize("micro")}px`, "line-height": 1.1, "letter-spacing": "0.6px", "text-align": "center" }}>
       {props.label}
     </Text>
-    <Text size="sm" fw={700} c={props.tone ?? "text-primary"} data-testid={props.testid} style={{ "font-size": "18px", "line-height": 1.15, "font-variant-numeric": "tabular-nums" }}>
+    <Text size="sm" fw={700} c={props.tone ?? "text-primary"} data-testid={props.testid} style={{ "font-size": `${typeSize("heading")}px`, "line-height": 1.15, "font-variant-numeric": "tabular-nums" }}>
       {props.value}
     </Text>
   </Stack>

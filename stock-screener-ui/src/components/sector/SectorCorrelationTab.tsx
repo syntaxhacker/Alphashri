@@ -57,7 +57,7 @@ function CorrelationHeader(props: { currentMarket: string; currentLookback: numb
 
   return (
     <Box data-testid="sector-correlation-header" className="flex items-center gap-1 flex-wrap px-1 py-0.5 min-h-[28px] border-b border-fin-border">
-      <Text fw={700} className="text-[12px] whitespace-nowrap">
+      <Text fw={700} className="text-ui-micro whitespace-nowrap">
         Sector Correlation
       </Text>
       <Select
@@ -66,7 +66,7 @@ function CorrelationHeader(props: { currentMarket: string; currentLookback: numb
         onChange={handleMarketChange}
         data={[{ value: "india", label: "India" }, { value: "america", label: "US" }]}
         data-testid="market-segment"
-        className="h-[24px] text-[11px] min-w-[84px]"
+        className="h-[24px] text-ui-micro min-w-[84px]"
       />
       <Select
         size="xs"
@@ -74,7 +74,7 @@ function CorrelationHeader(props: { currentMarket: string; currentLookback: numb
         onChange={handleLookbackChange}
         data={LOOKBACK_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
         data-testid="lookback-segment"
-        className="h-[24px] text-[11px] min-w-[64px]"
+        className="h-[24px] text-ui-micro min-w-[64px]"
       />
       <Box className="flex-1" />
       <Show when={lastUpdated()}>
@@ -107,7 +107,7 @@ function RelativeStrengthTable(props: { sectors: SectorRow[] }) {
       cell: ({ row }) => {
         const rank = row.original.rank_current;
         return (
-          <Chip size="xs" variant="outline" color={rank <= 3 ? "success" : "default"} className="h-[16px] text-[9.5px] px-1">
+          <Chip size="xs" variant="outline" color={rank <= 3 ? "success" : "default"} className="h-[16px] text-ui-micro px-1">
             #{rank}
           </Chip>
         );
@@ -119,7 +119,7 @@ function RelativeStrengthTable(props: { sectors: SectorRow[] }) {
       accessorKey: "name",
       meta: { align: "left" },
       cell: ({ row }) => (
-        <Text className="font-semibold text-[10.5px] whitespace-nowrap">{row.original.name}</Text>
+        <Text className="font-semibold text-ui-micro whitespace-nowrap">{row.original.name}</Text>
       ),
     },
     {
@@ -131,7 +131,7 @@ function RelativeStrengthTable(props: { sectors: SectorRow[] }) {
       cell: ({ row }) => {
         const val = row.original.relative_strength_5d;
         return (
-          <Text c={val >= 0 ? "success" : "error"} className="text-[10.5px] font-numeric tabular-nums font-mono">
+          <Text c={val >= 0 ? "success" : "error"} className="text-ui-micro font-numeric tabular-nums font-mono">
             {formatPercentage(val, 2, true)}
           </Text>
         );
@@ -146,7 +146,7 @@ function RelativeStrengthTable(props: { sectors: SectorRow[] }) {
       cell: ({ row }) => {
         const val = row.original.relative_strength_1m;
         return (
-          <Text c={val >= 0 ? "success" : "error"} className="text-[10.5px] font-numeric tabular-nums font-mono">
+          <Text c={val >= 0 ? "success" : "error"} className="text-ui-micro font-numeric tabular-nums font-mono">
             {formatPercentage(val, 2, true)}
           </Text>
         );
@@ -161,7 +161,7 @@ function RelativeStrengthTable(props: { sectors: SectorRow[] }) {
       cell: ({ row }) => {
         const val = row.original.relative_strength_3m;
         return (
-          <Text c={val >= 0 ? "success" : "error"} className="text-[10.5px] font-numeric tabular-nums font-mono">
+          <Text c={val >= 0 ? "success" : "error"} className="text-ui-micro font-numeric tabular-nums font-mono">
             {formatPercentage(val, 2, true)}
           </Text>
         );
@@ -174,7 +174,7 @@ function RelativeStrengthTable(props: { sectors: SectorRow[] }) {
       size: 64,
       meta: { align: "right" },
       cell: ({ row }) => (
-        <Text className="text-[10.5px] font-numeric tabular-nums font-mono">{row.original.beta_vs_index.toFixed(2)}</Text>
+        <Text className="text-ui-micro font-numeric tabular-nums font-mono">{row.original.beta_vs_index.toFixed(2)}</Text>
       ),
     },
     {
@@ -186,7 +186,7 @@ function RelativeStrengthTable(props: { sectors: SectorRow[] }) {
       cell: ({ row }) => {
         const change = row.original.rank_change_1m;
         return (
-          <Chip size="xs" variant="outline" color={change > 0 ? "success" : change < 0 ? "error" : "default"} className="h-[16px] text-[9.5px] px-1">
+          <Chip size="xs" variant="outline" color={change > 0 ? "success" : change < 0 ? "error" : "default"} className="h-[16px] text-ui-micro px-1">
             {change > 0 ? `+${change}` : String(change)}
           </Chip>
         );
@@ -226,7 +226,7 @@ function ErrorState(props: { error: string }) {
       <Text size="xs" c="error">
         {props.error}
       </Text>
-      <Button variant="outline" color="error" size="xs" onClick={handleRefresh} className="h-[22px] text-[10px]">
+      <Button variant="outline" color="error" size="xs" onClick={handleRefresh} className="h-[22px] text-ui-micro">
         Retry
       </Button>
     </Box>
@@ -284,7 +284,7 @@ export function SectorCorrelationTab() {
                 padded={false}
                 id="sector-correlation-heatmap"
                 testId="sector-correlation-heatmap"
-                title={<Text className="text-[10px] font-bold">Cross-Sector Correlation</Text>}
+                title={<Text className="text-ui-micro font-bold">Cross-Sector Correlation</Text>}
                 className="min-w-0"
               >
                 <Box className="p-1 min-h-[280px] w-full">
@@ -296,7 +296,7 @@ export function SectorCorrelationTab() {
                 padded={false}
                 id="sector-beta-chart"
                 testId="sector-beta-chart"
-                title={<Text className="text-[10px] font-bold">Sector Beta vs Benchmark</Text>}
+                title={<Text className="text-ui-micro font-bold">Sector Beta vs Benchmark</Text>}
                 className="min-w-0"
               >
                 <Box className="p-1 h-[320px] w-full flex">
@@ -313,7 +313,7 @@ export function SectorCorrelationTab() {
               padded={false}
               id="relative-strength-table"
               testId="relative-strength-table"
-              title={<Text className="text-[10px] font-bold">Relative Strength Rankings</Text>}
+              title={<Text className="text-ui-micro font-bold">Relative Strength Rankings</Text>}
               className="min-w-0"
             >
               <Box className="w-full min-w-0">
@@ -325,7 +325,7 @@ export function SectorCorrelationTab() {
               padded={false}
               id="rotation-timeline"
               testId="rotation-timeline"
-              title={<Text className="text-[10px] font-bold">Sector Rotation (1-Month Rank Change)</Text>}
+              title={<Text className="text-ui-micro font-bold">Sector Rotation (1-Month Rank Change)</Text>}
               className="min-w-0"
             >
               <Box className="p-1 h-[400px] w-full flex">

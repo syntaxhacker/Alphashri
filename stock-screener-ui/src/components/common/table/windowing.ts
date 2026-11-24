@@ -11,6 +11,21 @@ import type {
   TableProps,
 } from "./types";
 
+// Live ticks replace row objects wholesale. Comparing flat fields lets an
+// unchanged row keep its wrapper while a changed row is remounted.
+function shallowEqualValues(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (typeof a !== "object" || typeof b !== "object") return false;
+  const aKeys = Object.keys(a as object);
+  if (aKeys.length !== Object.keys(b as object).length) return false;
+  for (const key of aKeys) {
+    if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
+    if ((a as Record<string, unknown>)[key] !== (b as Record<string, unknown>)[key]) return false;
+  }
+  return true;
+}
+
 export interface RowWindow<T> {
   bodyItems: Accessor<BodySlot<T>[]>;
   visibleItems: Accessor<BodySlot<T>[]>;
@@ -51,13 +66,14 @@ export function useRowWindow<T>(
   });
 
   const rowKey = (row: T, index: number) => {
-    const testId = props.getRowTestId?.(row, index);
-    return testId != null ? testId : String(index);
+    const key = props.getRowKey?.(row, index) ?? props.getRowTestId?.(row, index);
+    return key != null ? String(key) : String(index);
   };
 
-  // expanded map keys are `columnId:value` (same shape as TanStack's grouping state)
+  // Expanded map keys default to `columnId:value` (TanStack's grouping state);
+  // callers with persisted raw-value keys can override via getGroupKey.
   const groupKey = (value: unknown) =>
-    `${props.grouping?.[0] ?? ""}:${String(value)}`;
+    props.getGroupKey?.(value) ?? `${props.grouping?.[0] ?? ""}:${String(value)}`;
 
   // TanStack rebuilds every row object on each data change, and `<For>` keys by
   // reference — so one filter click disposed and re-created all mounted rows
@@ -79,7 +95,11 @@ export function useRowWindow<T>(
     const key = seen.has(base) ? `${base}#${index}` : base;
     seen.add(key);
     const existing = rowSlots.get(key);
-    if (existing) {
+    if (existing && props.remountChangedRows) {
+      const prev = existing.frame();
+      if (prev.index === index && shallowEqualValues(prev.row, row)) return existing;
+      // A new slot is a new `<For>` item, so only the changed row remounts.
+    } else if (existing) {
       existing.set({ row, index });
       return existing;
     }
@@ -119,7 +139,7 @@ export function useRowWindow<T>(
     const map = expandedGroups();
     const k = groupKey(value);
     if (k in map) return map[k];
-    return props.initialState?.expanded?.[k] ?? false;
+    return props.initialState?.expanded?.[k] ?? props.defaultGroupExpanded ?? false;
   };
 
   const isRowExpanded = (row: T, index: number) => {

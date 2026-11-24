@@ -33,6 +33,20 @@
   --radius-fin: 6px;
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  /* Type scale — mirrored for TS/chart consumers in src/ui/typography.ts.
+     The floor is 12px; use text-ui-* instead of text-[Npx]. */
+  --text-ui-micro: 12px;
+  --text-ui-micro--line-height: 16px;
+  --text-ui-body: 13px;
+  --text-ui-body--line-height: 18px;
+  --text-ui-label: 14px;
+  --text-ui-label--line-height: 20px;
+  --text-ui-title: 16px;
+  --text-ui-title--line-height: 24px;
+  --text-ui-heading: 20px;
+  --text-ui-heading--line-height: 28px;
+  --text-ui-display: 24px;
+  --text-ui-display--line-height: 32px;
 }
 
 /*

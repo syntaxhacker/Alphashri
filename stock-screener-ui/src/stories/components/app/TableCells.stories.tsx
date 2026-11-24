@@ -12,7 +12,7 @@ import {
 import { solidStory } from "@/stories/solidStory";
 import { DemoPanel, DemoStack, Specimen } from "./StoryFrame";
 
-const FIXTURE_LABEL = "frozen table cells · 2026-11-20 09:15 IST";
+const FIXTURE_LABEL = "NIFTY option chain · 2026-11-20 09:15 IST";
 const priceFormat = new Intl.NumberFormat("en-IN", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
@@ -62,7 +62,7 @@ export const Playground: Story = {
         <DemoPanel
           title="Table cells · playground"
           detail={FIXTURE_LABEL}
-          meta={`value ${args.value} · signed ${args.signed}`}
+          meta="Frozen execution snapshot"
           testId="story-cells-playground-frame"
         >
           <Specimen label="Numeric + identity cells" detail="Args bind to the real NumCell / TextCell props.">

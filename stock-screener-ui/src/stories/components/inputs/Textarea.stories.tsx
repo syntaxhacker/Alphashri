@@ -28,7 +28,7 @@ const meta: Meta<TextareaArgs> = {
         component:
           "src/ui/inputs/Textarea.tsx — the multi-line member of the text family. `minRows`/`maxRows` " +
           "set the height band, `autosize` hides the resize handle, and `resize` takes the native CSS " +
-          "values. `size` only switches the dense xs type step (11px/15px line) versus the default 13px/19px; " +
+          "values. `size` only switches between the dense xs type step and the default step; " +
           "it is not a five-step height scale. `error` replaces `description` in the helper slot.",
       },
     },
@@ -112,7 +112,7 @@ export const RowsAndResize: Story = {
           <SpecimenGrid cols={2}>
             <Textarea label="Two rows" placeholder="Short note" minRows={2} />
             <Textarea label="Four to six rows" placeholder="Longer note" minRows={4} maxRows={6} defaultValue="Session context:\n- Index opened above R1\n- Breadth positive\n- Volume above 20-day average" />
-            <Textarea label="Dense xs" size="xs" placeholder="Compact note" minRows={2} description="11px type, 15px line height." />
+            <Textarea label="Dense xs" size="xs" placeholder="Compact note" minRows={2} description="Dense type step for tight layouts." />
             <Textarea label="No resize handle" autosize minRows={2} maxRows={4} placeholder="autosize hides the handle" />
           </SpecimenGrid>
         </Specimen>

@@ -25,7 +25,21 @@ describe("Card", () => {
     ));
     const card = container.querySelector("article") as HTMLElement;
     expect(card.style.padding).toBe("16px");
-    expect(card.style.borderRadius).toBe("24px");
+    expect(card.style.borderRadius).toBe("10px");
     expect(card.style.backgroundColor).toBe("var(--color-fin-surface-alt)");
+  });
+
+  it("accepts numeric and raw radius values like Paper", () => {
+    const rawRadius = "var(--radius-fin)" as unknown as "xl";
+    const { container } = render(() => (
+      <>
+        <Card data-testid="numeric" radius={8} />
+        <Card data-testid="raw" radius={rawRadius} />
+      </>
+    ));
+    const numeric = container.querySelector('[data-testid="numeric"]') as HTMLElement;
+    const raw = container.querySelector('[data-testid="raw"]') as HTMLElement;
+    expect(numeric.style.borderRadius).toBe("8px");
+    expect(raw.style.borderRadius).toBe("var(--radius-fin)");
   });
 });

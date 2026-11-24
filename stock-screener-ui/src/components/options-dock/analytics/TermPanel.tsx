@@ -1,5 +1,5 @@
 import { createMemo, Show } from "solid-js";
-import { Box, Text } from "@/ui";
+import { Box, Text, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { OptionsAnalytics } from "@/api/optionsAnalytics";
 import { formatVp } from "@/utils/optionsAnalyticsMath";
@@ -65,7 +65,7 @@ export function TermPanel(props: { data: OptionsAnalytics; selectedExpiry: strin
               fw={700}
               className="uppercase"
               style={{
-                "font-size": "10px",
+                "font-size": `${typeSize("micro")}px`,
                 "letter-spacing": "0.04em",
                 color: BADGE_COLOR[badge().shape],
               }}
@@ -85,13 +85,13 @@ export function TermPanel(props: { data: OptionsAnalytics; selectedExpiry: strin
       />
       <Show when={vm().frontMissing}>
         <Box className="shrink-0 px-2 pb-0.5">
-          <Text size="xs" c="dimmed" style={{ "font-size": "10px" }} data-testid="term-front-reason">
+          <Text size="xs" c="dimmed" style={{ "font-size": `${typeSize("micro")}px` }} data-testid="term-front-reason">
             FRONT ({vm().frontLabel}) · no IV quotes
           </Text>
         </Box>
       </Show>
       <Box className="shrink-0 px-2 pb-1">
-        <Text size="xs" c="dimmed" className="truncate" style={{ "font-size": "10px" }} data-testid="term-hint">
+        <Text size="xs" c="dimmed" className="truncate" style={{ "font-size": `${typeSize("micro")}px` }} data-testid="term-hint">
           {TERM_HINT}
         </Text>
       </Box>

@@ -63,7 +63,7 @@ export const SeverityTones: Story = {
             </Specimen>
             <Specimen fill label="error">
               <Alert color="error" title="Feed unavailable" icon={<span aria-hidden="true">×</span>}>
-                The options chain returned 503. Retry on the next poll.
+                The option chain is temporarily unavailable. Retry on the next poll.
               </Alert>
             </Specimen>
             <Specimen fill label="danger (error alias)">
@@ -129,7 +129,7 @@ export const VariantsAndRadius: Story = {
           <SpecimenGrid min={220}>
             {radiusOptions.map((radius) => (
               <Specimen fill label={`radius ${radius}`}>
-                <Alert radius={radius} color="info">radius: {radius}</Alert>
+                <Alert radius={radius} color="info">Feed paused; the last snapshot is still shown.</Alert>
               </Specimen>
             ))}
           </SpecimenGrid>

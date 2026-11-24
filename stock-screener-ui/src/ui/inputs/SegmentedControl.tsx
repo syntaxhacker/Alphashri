@@ -1,5 +1,6 @@
 import { createMemo, createSignal, For, splitProps } from "solid-js";
 import { cn } from "../cn";
+import { typeSize, type TypeRole } from "../typography";
 import type { UISegmentedControlProps } from "../types";
 
 /**
@@ -10,15 +11,15 @@ import type { UISegmentedControlProps } from "../types";
  */
 type NormalizedItem = { value: string; label: string; disabled?: boolean };
 
-type SegBox = { item: number; font: number; px: number };
+type SegBox = { item: number; fontRole: TypeRole; px: number };
 
 // Labels read at 1x in dense toolbars; 9–10px was below the legibility floor.
 const SEG_BOX: Record<string, SegBox> = {
-  xs: { item: 20, font: 11, px: 6 },
-  sm: { item: 22, font: 11, px: 7 },
-  md: { item: 24, font: 11, px: 8 },
-  lg: { item: 28, font: 12, px: 10 },
-  xl: { item: 32, font: 13, px: 12 },
+  xs: { item: 20, fontRole: "micro", px: 6 },
+  sm: { item: 22, fontRole: "micro", px: 7 },
+  md: { item: 24, fontRole: "micro", px: 8 },
+  lg: { item: 28, fontRole: "micro", px: 10 },
+  xl: { item: 32, fontRole: "body", px: 12 },
 };
 
 const TRACK_PAD = 2;
@@ -75,7 +76,7 @@ export function SegmentedControl(props: UISegmentedControlProps) {
   const itemStyle = createMemo<Record<string, string>>(() => ({
     height: `${box().item}px`,
     "border-radius": `${ITEM_RADIUS}px`,
-    "font-size": `${box().font}px`,
+    "font-size": `${typeSize(box().fontRole)}px`,
     "line-height": "1",
     "font-weight": "600",
     "padding-left": `${box().px}px`,

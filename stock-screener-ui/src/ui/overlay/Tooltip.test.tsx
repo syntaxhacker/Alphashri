@@ -65,6 +65,14 @@ function setupPlain(overrides: Partial<TipProps> = {}) {
   };
 }
 
+describe("Tooltip public props", () => {
+  test("withinPortal is not part of the public surface", () => {
+    const props: TipProps = { label: "Helpful hint" };
+    // @ts-expect-error withinPortal was removed; the tooltip is always portalled
+    expect(props.withinPortal).toBeUndefined();
+  });
+});
+
 describe("Tooltip a11y contracts", () => {
   test("opens on keyboard focus of the trigger", async () => {
     const { trigger, tooltip, onFocus } = setup();
@@ -106,6 +114,18 @@ describe("Tooltip a11y contracts", () => {
 
     expect(wrapper()).not.toHaveAttribute("aria-describedby");
     expect(document.getElementById(tip.id)).toBeNull();
+  });
+
+  test("Escape hides the tooltip immediately and clears the description", async () => {
+    const { wrapper, trigger, tooltip } = setup({ closeDelay: 1000 });
+    trigger().focus();
+    await waitFor(() => expect(tooltip()).toBeInTheDocument());
+    expect(wrapper()).toHaveAttribute("aria-describedby", tooltip()!.id);
+
+    fireEvent.keyDown(trigger(), { key: "Escape" });
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(wrapper()).not.toHaveAttribute("aria-describedby");
   });
 
   test("hover still opens and closes, honouring open/close delays", async () => {
@@ -195,14 +215,21 @@ describe("Tooltip opt-in tab stop", () => {
     const { wrapper } = setupPlain();
 
     expect(wrapper()).toHaveAttribute("tabindex", "0");
-    expect(wrapper()).toHaveAttribute("role", "button");
+    expect(wrapper()).not.toHaveAttribute("role");
+  });
+
+  test("never exposes a false button role on a focusable wrapper", () => {
+    const { wrapper } = setupPlain();
+
+    expect(screen.queryByRole("button", { name: "Helpful hint" })).toBeNull();
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(wrapper()).not.toHaveAttribute("role");
   });
 
   test("names the focusable wrapper and gives it a visible focus ring", () => {
     const { wrapper } = setupPlain();
 
     expect(wrapper()).toHaveAttribute("aria-label", "Helpful hint");
-    expect(screen.getByRole("button", { name: "Helpful hint" })).toBe(wrapper());
     expect(wrapper().className).toContain("focus:ring-fin-primary");
     expect(wrapper().className).toContain("focus-visible:ring-2");
     // A plain wrapper must not borrow the focus styling without the tab stop.

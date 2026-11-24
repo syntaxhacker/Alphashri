@@ -70,7 +70,7 @@ const inputClass =
   "placeholder:text-fin-text-muted aria-[invalid=true]:border-fin-negative";
 
 function TextControl(ids: UIFormFieldIds) {
-  return <input {...ids.controlProps} className={inputClass} placeholder="NSE_EQ|INE002A01018" autocomplete="off" />;
+  return <input {...ids.controlProps} className={inputClass} placeholder="RELIANCE" autocomplete="off" />;
 }
 
 /** All props are real: the signal is the only source of truth for the typed value. */
@@ -91,7 +91,7 @@ export const Playground: Story = {
                 <input
                   {...ids.controlProps}
                   className={inputClass}
-                  placeholder="NSE_EQ|INE002A01018"
+                  placeholder="RELIANCE"
                   autocomplete="off"
                   value={value()}
                   onInput={(event) => setValue(event.currentTarget.value)}

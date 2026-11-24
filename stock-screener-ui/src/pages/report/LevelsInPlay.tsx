@@ -96,7 +96,7 @@ function LevelInline(props: { side: "CE" | "PE"; level: LevelRead | null; rowLab
     return (
       <span
         data-testid={testId}
-        class="text-[11px] leading-none whitespace-nowrap"
+        class="text-ui-micro leading-none whitespace-nowrap"
         style={{ color: palette.TEXT_MUTED, "font-size": `${REPORT_FONT.xs}px` }}
       >
         {props.side} —
@@ -117,11 +117,11 @@ function LevelInline(props: { side: "CE" | "PE"; level: LevelRead | null; rowLab
         "flex-shrink": 0,
       }}
     >
-      <span class="font-black text-[11px] leading-none" style={{ color: tone, "font-size": `${REPORT_FONT.xs}px`, "font-weight": 800 }}>
+      <span class="font-black text-ui-micro leading-none" style={{ color: tone, "font-size": `${REPORT_FONT.xs}px`, "font-weight": 800 }}>
         {props.side}
       </span>
       <span
-        class="font-mono text-[12px] font-bold leading-none"
+        class="font-mono text-ui-micro font-bold leading-none"
         style={{ color: palette.TEXT, "font-size": `${REPORT_FONT.sm}px`, "font-weight": 700 }}
       >
         {formatNumberIN(Math.round(props.level!.strike))}
@@ -150,7 +150,7 @@ function LevelInline(props: { side: "CE" | "PE"; level: LevelRead | null; rowLab
         {dist()}
       </span>
       <span
-        class="text-[11px] font-bold leading-none"
+        class="text-ui-micro font-bold leading-none"
         style={{
           "font-size": `${REPORT_FONT.xs}px`,
           "font-weight": 800,
@@ -161,7 +161,7 @@ function LevelInline(props: { side: "CE" | "PE"; level: LevelRead | null; rowLab
       >
         {props.level!.tag}
       </span>
-      <span class="font-mono text-[11px] leading-none" style={{ color: palette.TEXT_MUTED, "font-size": `${REPORT_FONT.xs}px` }}>
+      <span class="font-mono text-ui-micro leading-none" style={{ color: palette.TEXT_MUTED, "font-size": `${REPORT_FONT.xs}px` }}>
         {props.level!.oi >= 1e6 ? `${(props.level!.oi / 1e6).toFixed(1)}M` : `${Math.round(props.level!.oi / 1e3)}k`}
       </span>
     </span>
@@ -196,7 +196,7 @@ function IndexRow(props: {
       <LevelInline side="CE" level={props.read.call} rowLabel={props.label} />
       <LevelInline side="PE" level={props.read.put} rowLabel={props.label} />
       <span
-        class="font-mono text-[11px] leading-none whitespace-nowrap shrink-0"
+        class="font-mono text-ui-micro leading-none whitespace-nowrap shrink-0"
         style={{ color: palette.TEXT_MUTED, "font-size": `${REPORT_FONT.xs}px` }}
       >
         MP {props.maxPain > 0 ? formatNumberIN(Math.round(props.maxPain)) : "—"}

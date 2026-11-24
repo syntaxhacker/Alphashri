@@ -190,7 +190,7 @@ export function ScreenerSymbolPicker(props: ScreenerSymbolPickerProps) {
                 <Checkbox
                   size="xs"
                   checked={allSelected()}
-                  onChange={(e) => toggleAll(e.currentTarget.checked)}
+                  onChange={(checked) => toggleAll(checked)}
                   label={`All (${stocks().length})`}
                   data-testid="screener-select-all"
                 />
@@ -199,7 +199,7 @@ export function ScreenerSymbolPicker(props: ScreenerSymbolPickerProps) {
                     size="xs"
                     checked={touchedChecked()}
                     indeterminate={!touchedChecked() && [...selectedSet()].some((s) => stocks().find((st) => st.symbol === s)?.touched_52w)}
-                    onChange={(e) => toggleTouched(e.currentTarget.checked)}
+                    onChange={(checked) => toggleTouched(checked)}
                     label={`Touched (${touchedCount()})`}
                     data-testid="screener-select-touched"
                   />

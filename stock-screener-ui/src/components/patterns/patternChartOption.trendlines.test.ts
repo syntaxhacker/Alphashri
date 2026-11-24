@@ -300,7 +300,7 @@ describe("buildPatternChartOption compact vs large chrome", () => {
     expect(bigTls?.endLabel?.formatter).toBe("TLS · 3 touches");
     expect((base.grid as { left?: number }).left).toBe(54);
     expect((big.grid as { left?: number }).left).toBe(64);
-    expect((base.legend as { textStyle?: { fontSize?: number } }).textStyle?.fontSize).toBe(10);
+    expect((base.legend as { textStyle?: { fontSize?: number } }).textStyle?.fontSize).toBe(12);
     expect((big.legend as { textStyle?: { fontSize?: number } }).textStyle?.fontSize).toBe(12);
   });
 
@@ -382,7 +382,7 @@ describe("buildPatternChartOption breakout/target/stop markLines", () => {
   it("uses larger markLine labels when large is set", () => {
     const base = candleOf(buildPatternChartOption({ candles: CANDLES, hit: HIT }));
     const big = candleOf(buildPatternChartOption({ candles: CANDLES, hit: HIT, large: true }));
-    expect(base.markLine?.data?.[0].label?.fontSize).toBe(10);
+    expect(base.markLine?.data?.[0].label?.fontSize).toBe(12);
     expect(big.markLine?.data?.[0].label?.fontSize).toBe(12);
   });
 });

@@ -325,7 +325,7 @@ export function SimDesk(props: SimDeskProps) {
                 size="xs"
                 label="LIVE"
                 checked={live()}
-                onChange={(event) => setLive((event.currentTarget as HTMLInputElement).checked)}
+                onChange={setLive}
               />
             </Show>
             <Button

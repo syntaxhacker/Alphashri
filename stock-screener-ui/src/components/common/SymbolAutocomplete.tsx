@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, splitProps, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
-import { TextInput } from "@/ui";
+import { TextInput, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { searchSymbols, type SymbolResult } from "@/api/symbols";
 import { withAlpha } from "@/utils/color";
@@ -366,7 +366,7 @@ export default function SymbolAutocomplete(props: SymbolAutocompleteProps) {
           >
             <span style={{ "font-weight": 600 }}>{labelOf(option)}</span>
             <Show when={nameOf(option)}>
-              <span style={{ color: palette.TEXT_MUTED, "margin-left": "8px", "font-size": "12px" }}>{nameOf(option)}</span>
+              <span style={{ color: palette.TEXT_MUTED, "margin-left": "8px", "font-size": `${typeSize("micro")}px` }}>{nameOf(option)}</span>
             </Show>
           </div>
         )}</For>

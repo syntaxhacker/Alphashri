@@ -1,5 +1,5 @@
 import { Show, type JSX } from "solid-js";
-import { Alert, Box, Button, Group, Loader, Text } from "@/ui";
+import { Alert, Box, Button, Group, Loader, Text, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { IconAlertCircle, IconDatabaseOff, IconMoon } from "@/components/common/Icons";
 import { cn } from "@/ui/cn";
@@ -186,7 +186,7 @@ export function EmptyState(props: EmptyStateProps) {
           fw={600}
           className="min-w-0 shrink-0"
           style={{
-            "font-size": "12px",
+            "font-size": `${typeSize("micro")}px`,
             "line-height": "1.25",
             color: palette.TEXT,
             "white-space": "nowrap",
@@ -203,7 +203,7 @@ export function EmptyState(props: EmptyStateProps) {
             // element, no second layout branch.
             className="min-w-0"
             style={{
-              "font-size": "11px",
+              "font-size": `${typeSize("micro")}px`,
               "line-height": "1.35",
               "flex": "0 1 auto",
               "max-width": row() ? undefined : "46ch",
@@ -219,7 +219,7 @@ export function EmptyState(props: EmptyStateProps) {
             span
             className="shrink-0"
             style={{
-              "font-size": "11px",
+              "font-size": `${typeSize("micro")}px`,
               "line-height": "1.35",
               color: palette.TEXT_MUTED,
               "white-space": "nowrap",
@@ -263,19 +263,27 @@ export function ErrorAlert(props: ErrorAlertProps) {
       data-testid={testId()}
       className={cn("mb-4", props.className)}
     >
-      {props.message}
-      <Show when={props.withRetry && props.onRetry}>
-        <Button
-          variant="filled"
-          color="error"
-          size="sm"
-          onClick={props.onRetry}
-          className="mt-1"
-          data-testid={testId() ? `${testId()}-retry` : undefined}
-        >
-          Retry
-        </Button>
-      </Show>
+      {/* Narrow rails stack the message and a full-width Retry; wide alerts keep
+          one compact row with the action pushed to the trailing edge. */}
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <Text span class="min-w-0" data-testid={testId() ? `${testId()}-message` : undefined}>
+          {props.message}
+        </Text>
+        <Show when={props.withRetry && props.onRetry}>
+          <div class="flex w-full justify-end sm:w-auto" data-testid={testId() ? `${testId()}-action` : undefined}>
+            <Button
+              variant="filled"
+              color="error"
+              size="sm"
+              onClick={props.onRetry}
+              className="w-full sm:w-auto"
+              data-testid={testId() ? `${testId()}-retry` : undefined}
+            >
+              Retry
+            </Button>
+          </div>
+        </Show>
+      </div>
     </Alert>
   );
 }

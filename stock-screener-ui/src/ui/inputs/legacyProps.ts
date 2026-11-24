@@ -6,13 +6,14 @@
  * compatibility surface: `allowDeselect`, `maxDropdownHeight`, `comboboxProps`
  * and `withinPortal` are no longer part of the Select/MultiSelect public prop
  * types. Keeping the keys here stops force-cast callers from leaking attributes.
+ * `InputProps` is gone from every public input type and from this strip — callers
+ * must not pass it at all.
  */
 const LEGACY_INPUT_PROP_KEYS = new Set([
   "allowDeselect",
   "maxDropdownHeight",
   "comboboxProps",
   "withinPortal",
-  "InputProps",
   "dropdownOpened",
   "limit",
 ]);

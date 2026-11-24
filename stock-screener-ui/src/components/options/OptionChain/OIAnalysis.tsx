@@ -1,4 +1,4 @@
-import { Badge, Box, Stack, Text, useColorScheme } from "@/ui";
+import { Badge, Box, Stack, Text, useColorScheme, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { IconActivity, IconChartBar } from "@/ui/icons";
 import { createEffect, createMemo, onCleanup, onMount, For } from "solid-js";
@@ -103,12 +103,12 @@ export function OIAnalysis(props: OIAnalysisProps) {
         backgroundColor: isDark() ? CHART_DROPDOWN : palette.SURFACE,
         textStyle: {
           color: palette.TEXT,
-          fontSize: 12,
+          fontSize: typeSize("micro"),
         },
       },
       legend: {
         data: ["Call OI Chg", "Put OI Chg"],
-        textStyle: { color: palette.TEXT_MUTED, fontSize: 12 },
+        textStyle: { color: palette.TEXT_MUTED, fontSize: typeSize("micro") },
         bottom: 0,
       },
       grid: { top: 10, left: 60, right: 20, bottom: 40 },
@@ -116,7 +116,7 @@ export function OIAnalysis(props: OIAnalysisProps) {
       yAxis: {
         type: "category",
         data: data.map((d) => d.strike),
-        axisLabel: { color: palette.TEXT_MUTED, fontSize: 12, fontWeight: fontWeights.semibold },
+        axisLabel: { color: palette.TEXT_MUTED, fontSize: typeSize("micro"), fontWeight: fontWeights.semibold },
         axisLine: { show: false },
         axisTick: { show: false },
       },

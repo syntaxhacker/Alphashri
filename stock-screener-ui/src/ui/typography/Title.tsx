@@ -1,16 +1,29 @@
 import { createMemo, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
+import { TYPE_CLASS, type TypeRole } from "../typography";
 import type { JSX } from "solid-js";
 import type { UITitleProps } from "../types";
 
-const sizeMap: Record<string, string> = {
-  xs: "0.75rem",
-  sm: "0.875rem",
-  md: "1rem",
-  lg: "1.125rem",
-  xl: "1.5rem",
+/** Alias → shared tier. `xl` is the display step, never a private 1.5rem. */
+const SIZE_ROLE: Record<string, TypeRole> = {
+  xs: "micro",
+  sm: "label",
+  md: "title",
+  lg: "heading",
+  xl: "display",
 };
+
+/**
+ * Unknown aliases (e.g. legacy `h4`) resolve to no class rather than a private
+ * size; callers wanting a one-off size pass `text-ui-*` / `typeStyle()` on
+ * `className` / `style`, which remain the explicit escape hatch.
+ */
+function sizeClass(size: UITitleProps["size"]): string | undefined {
+  if (size == null) return undefined;
+  const role = SIZE_ROLE[String(size)];
+  return role ? TYPE_CLASS[role] : undefined;
+}
 
 const orderVariant: Record<number, "h1" | "h2" | "h3" | "h4" | "h5" | "h6"> = {
   1: "h1",
@@ -83,9 +96,6 @@ export function Title(props: UITitleProps) {
     if (known.fw != null) o["font-weight"] = known.fw;
     if (known.ta != null) o["text-align"] = known.ta;
     if (known.lh != null) o["line-height"] = known.lh;
-    if (known.size != null) {
-      o["font-size"] = sizeMap[known.size as string] ?? (typeof known.size === "number" ? `${known.size}px` : known.size);
-    }
     if (known.mt != null) o["margin-top"] = typeof known.mt === "number" ? `${known.mt * 8}px` : known.mt;
     if (known.mb != null) o["margin-bottom"] = typeof known.mb === "number" ? `${known.mb * 8}px` : known.mb;
     if (known.ml != null) o["margin-left"] = typeof known.ml === "number" ? `${known.ml * 8}px` : known.ml;
@@ -95,7 +105,7 @@ export function Title(props: UITitleProps) {
 
   return (
     <Root
-      className={cn(known.className, derived().cls)}
+      className={cn(known.className, derived().cls, sizeClass(known.size))}
       style={{ ...derived().style, ...(known.style as Record<string, unknown> | undefined) }}
       id={known.id}
       data-testid={known["data-testid"]}

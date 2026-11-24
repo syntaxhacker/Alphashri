@@ -3,7 +3,24 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
-import { ReportToolbar } from "./ReportToolbar";
+import {
+  deriveToolbarFeedState,
+  expiryControlTitle,
+  expiryOptionLabel,
+  ReportToolbar,
+  snapshotClockLabel,
+  STRIP_FADE_STYLE,
+  TOOLBAR_ACTIONS_CLASS,
+  TOOLBAR_CHROME_HEIGHT,
+  TOOLBAR_CLASS,
+  TOOLBAR_FADE_CLASS,
+  TOOLBAR_PRIMARY_CLASS,
+  TOOLBAR_PRIMARY_HEIGHT,
+  TOOLBAR_SECONDARY_CLASS,
+  TOOLBAR_SECONDARY_HEIGHT,
+  TOOLBAR_STRIP_CLASS,
+  toolbarStatusLabel,
+} from "./ReportToolbar";
 
 const harness = vi.hoisted(() => ({ store: {} as Record<string, unknown> }));
 
@@ -16,6 +33,13 @@ vi.mock("./niftyStreamSolid", () => ({ useNiftySpotTick: () => () => null }));
 
 function secondsAgo(seconds: number): string {
   return new Date(Date.now() - seconds * 1_000).toISOString();
+}
+
+/** 10:00:00 IST, the clock the captures show on the snapshot. */
+const TEN_IST = Date.parse("2026-11-16T04:30:00.000Z");
+
+function secondaryStatusText(): string {
+  return screen.getByTestId("toolbar-group-status").textContent ?? "";
 }
 
 describe("ReportToolbar freshness indicators", () => {
@@ -55,9 +79,9 @@ describe("ReportToolbar freshness indicators", () => {
         snapshotting: () => false,
         freshness: {
           marketClosed: () => false,
-          isStale: () => true,
+          isStale: () => false,
           staleMins: () => 1,
-          updatedAtMs: () => Date.now(),
+          updatedAtMs: () => TEN_IST,
         },
         paperPositions: () => [],
         effectiveBursts: () => [],
@@ -68,21 +92,113 @@ describe("ReportToolbar freshness indicators", () => {
     };
   });
 
-  test("a fresh DATA badge and a WS outage are shown as distinct signals", () => {
+  test("pure helpers map the three feed states to exact labels", () => {
+    expect(deriveToolbarFeedState({ marketClosed: false, isStale: false, tapeStale: false })).toBe("live");
+    expect(deriveToolbarFeedState({ marketClosed: false, isStale: true, tapeStale: false })).toBe("stale");
+    expect(deriveToolbarFeedState({ marketClosed: false, isStale: false, tapeStale: true })).toBe("stale");
+    // Closed wins: a past session is a snapshot, never a broken live feed.
+    expect(deriveToolbarFeedState({ marketClosed: true, isStale: true, tapeStale: true })).toBe("closed");
+
+    expect(snapshotClockLabel(TEN_IST)).toBe("10:00");
+    expect(snapshotClockLabel(null)).toBe("—");
+    expect(
+      toolbarStatusLabel({ state: "live", updatedAtMs: TEN_IST, staleMins: 1, liveClockMs: TEN_IST }),
+    ).toBe("Updated 10:00:00 · live (WS)");
+    expect(
+      toolbarStatusLabel({ state: "stale", updatedAtMs: TEN_IST, staleMins: 46, liveClockMs: TEN_IST }),
+    ).toBe("STALE 46m");
+    expect(
+      toolbarStatusLabel({ state: "closed", updatedAtMs: TEN_IST, staleMins: 46, liveClockMs: TEN_IST }),
+    ).toBe("SNAPSHOT 10:00");
+  });
+
+  test("market open and fresh keeps the real live readout and no stale token", () => {
     render(() => (
       <UIProvider>
         <ReportToolbar />
       </UIProvider>
     ));
 
+    expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent("Updated 10:00:00 · live (WS)");
     const dataBadge = screen.getByTestId("nifty-data-freshness");
     expect(dataBadge).toHaveAttribute("data-state", "fresh");
     expect(dataBadge.textContent).toMatch(/^DATA \d+s$/);
+    expect(screen.queryByTestId("nifty-stale-badge")).toBeNull();
+    expect(secondaryStatusText()).not.toContain("STALE");
+    expect(secondaryStatusText()).not.toContain("SNAPSHOT");
+  });
 
-    const wsBadge = screen.getByTestId("nifty-stale-badge");
-    expect(wsBadge.textContent).toBe("WS DOWN 1m");
-    expect(wsBadge.textContent).not.toContain("STALE");
-    expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent("reconnecting");
+  test("a stale WebSocket feed says STALE 46m and never live (WS)", () => {
+    const freshness = (harness.store.data as any).freshness;
+    freshness.isStale = () => true;
+    freshness.staleMins = () => 46;
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent("STALE 46m");
+    expect(secondaryStatusText()).not.toContain("live (WS)");
+    const dataBadge = screen.getByTestId("nifty-data-freshness");
+    expect(dataBadge).toHaveAttribute("data-state", "stale");
+    expect(dataBadge.textContent).toBe("STALE");
+    expect(screen.getByTestId("nifty-stale-badge")).toHaveTextContent("WS DOWN 46m");
+    expect(secondaryStatusText()).not.toContain("SNAPSHOT");
+  });
+
+  test("a stale tape with a connected WebSocket is also STALE, never live (WS)", () => {
+    (harness.store.data as any).tape = () => ({
+      date: "2026-11-16",
+      rows: [{ t: secondsAgo(46 * 60 + 30) }],
+    });
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent("STALE 46m");
+    expect(secondaryStatusText()).not.toContain("live (WS)");
+    expect(screen.getByTestId("nifty-data-freshness")).toHaveAttribute("data-state", "stale");
+    // The WS is connected here, so no WS-down badge may contradict the tape read.
+    expect(screen.queryByTestId("nifty-stale-badge")).toBeNull();
+  });
+
+  test("a closed market says SNAPSHOT 10:00 with no live or stale token", () => {
+    const freshness = (harness.store.data as any).freshness;
+    freshness.marketClosed = () => true;
+    freshness.staleMins = () => 46;
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent("SNAPSHOT 10:00");
+    const dataBadge = screen.getByTestId("nifty-data-freshness");
+    expect(dataBadge).toHaveAttribute("data-state", "closed");
+    expect(dataBadge.textContent).toBe("CLOSED");
+    expect(secondaryStatusText()).not.toContain("live (WS)");
+    expect(secondaryStatusText()).not.toContain("STALE");
+    expect(screen.queryByTestId("nifty-stale-badge")).toBeNull();
+  });
+
+  test("closed wins when the store also reports a stale feed", () => {
+    const freshness = (harness.store.data as any).freshness;
+    freshness.marketClosed = () => true;
+    freshness.isStale = () => true;
+    freshness.staleMins = () => 46;
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent("SNAPSHOT 10:00");
+    expect(secondaryStatusText()).not.toContain("live (WS)");
+    expect(secondaryStatusText()).not.toContain("STALE");
+    expect(screen.queryByTestId("nifty-stale-badge")).toBeNull();
   });
 
   test("every view toggle keeps its testid, options and an 11px floor", () => {
@@ -106,6 +222,173 @@ describe("ReportToolbar freshness indicators", () => {
         expect(parseFloat(button.style.fontSize), `${testid}: ${button.textContent}`).toBeGreaterThanOrEqual(11);
       }
     }
+  });
+
+  test("the header is two deliberate bands at 390 and one dense row at 1600", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const toolbar = screen.getByTestId("nifty-toolbar");
+    const primary = screen.getByTestId("toolbar-primary-row");
+    const secondary = screen.getByTestId("toolbar-secondary-row");
+
+    // Both bands are direct children — no fourth ad-hoc row can appear between
+    // them, and the replay bar (when present) stays outside the header.
+    expect([...toolbar.children]).toEqual([primary, secondary]);
+    expect(toolbar.className).toContain("flex-wrap");
+    expect(toolbar.className).toContain("min-[1200px]:flex-nowrap");
+
+    // At 390 each band owns its full width; from 1200 both go inline (w-auto).
+    expect(TOOLBAR_PRIMARY_CLASS).toContain("w-full");
+    expect(TOOLBAR_PRIMARY_CLASS).toContain("min-[1200px]:w-auto");
+    expect(TOOLBAR_PRIMARY_CLASS).toContain("min-[1200px]:flex-1");
+    expect(TOOLBAR_SECONDARY_CLASS).toContain("w-full");
+    expect(TOOLBAR_SECONDARY_CLASS).toContain("min-[1200px]:w-auto");
+    expect(TOOLBAR_SECONDARY_CLASS).toContain("min-[1200px]:ml-auto");
+
+    // Subject / session / state / actions are all in the primary band; the
+    // freshness readouts are in the labelled secondary band only.
+    for (const id of [
+      "toolbar-group-subject",
+      "toolbar-group-session",
+      "toolbar-group-state",
+      "toolbar-group-actions",
+    ]) {
+      expect(primary.contains(screen.getByTestId(id)), id).toBe(true);
+    }
+    for (const id of ["toolbar-data-label", "toolbar-group-status"]) {
+      expect(secondary.contains(screen.getByTestId(id)), id).toBe(true);
+      expect(primary.contains(screen.getByTestId(id)), id).toBe(false);
+    }
+    expect(screen.getByTestId("toolbar-data-label").textContent).toBe("DATA");
+  });
+
+  test("the Depth tab strip scrolls with a visible cue instead of clipping a word", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const strip = screen.getByTestId("toolbar-strip");
+    expect(strip.className).toContain(TOOLBAR_STRIP_CLASS);
+    expect(TOOLBAR_STRIP_CLASS).toMatch(/(^|\s)flex-nowrap(\s|$)/);
+    expect(TOOLBAR_STRIP_CLASS).toContain("overflow-x-auto");
+    expect(TOOLBAR_STRIP_CLASS).toContain("min-[1200px]:overflow-visible");
+    expect(strip.parentElement?.contains(screen.getByTestId("toolbar-strip-fade"))).toBe(true);
+
+    // The cue is reachable by keyboard, has an accessible name, and disappears
+    // on the desktop single-row layout.
+    const cue = screen.getByTestId("toolbar-scroll-cue");
+    expect(cue.tagName).toBe("BUTTON");
+    expect(cue).toHaveAttribute("aria-label", "Scroll report controls");
+    expect(cue.className).toContain("min-[1200px]:hidden");
+    expect(screen.getByTestId("toolbar-strip-fade").className).toContain("min-[1200px]:hidden");
+
+    // No control is allowed to shrink below its own text: the SegmentedControl
+    // track clips with overflow-hidden, so a squeezed "Depth" was the bug.
+    for (const id of ["nifty-index-toggle", "nifty-view-toggle", "nifty-desk-toggle"]) {
+      const toggle = screen.getByTestId(id);
+      expect(toggle.className, id).toContain("shrink-0");
+      expect(toggle.className, id).not.toMatch(/(^|\s)(truncate|text-ellipsis)(\s|$)/);
+      for (const button of toggle.querySelectorAll("button")) {
+        expect(button.className, `${id}: ${button.textContent}`).toContain("whitespace-nowrap");
+      }
+    }
+    const depth = [...screen.getByTestId("nifty-view-toggle").querySelectorAll("button")].find(
+      (b) => b.textContent === "Depth",
+    );
+    expect(depth?.textContent).toBe("Depth");
+  });
+
+  test("the symbol tabs keep whole labels and the fade masks any partial tab", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    // Whole words in the DOM: no mid-word slice ("RELIA") and no ellipsis on
+    // the control or its buttons — the clip was a layout problem, not data.
+    const index = screen.getByTestId("nifty-index-toggle");
+    expect([...index.querySelectorAll("button")].map((b) => b.textContent)).toEqual([
+      "NIFTY",
+      "SENSEX",
+      "RELIANCE",
+    ]);
+    for (const toggle of [index, screen.getByTestId("nifty-view-toggle"), screen.getByTestId("nifty-desk-toggle")]) {
+      expect(toggle.className).toContain("snap-start");
+      expect(toggle.className).not.toMatch(/(^|\s)(truncate|text-ellipsis)(\s|$)/);
+      for (const button of toggle.querySelectorAll("button")) {
+        expect(button.className).toContain("whitespace-nowrap");
+      }
+    }
+
+    // Mandatory x-snap means a scroll lands on a whole toggle; the cue hides
+    // at 1600 where the strip stops being a scroll owner.
+    expect(TOOLBAR_STRIP_CLASS).toContain("snap-x");
+    expect(TOOLBAR_STRIP_CLASS).toContain("snap-mandatory");
+    expect(TOOLBAR_STRIP_CLASS).toContain("min-[1200px]:snap-none");
+
+    // The fade is at least 32px wide and opaque at the edge, so the last
+    // partially-visible glyph is masked instead of reading "RELIA▸".
+    expect(TOOLBAR_FADE_CLASS).toBe("w-10");
+    expect(screen.getByTestId("toolbar-strip-fade").className).toContain(TOOLBAR_FADE_CLASS);
+    const gradient = String(STRIP_FADE_STYLE.background);
+    expect(gradient).toContain("linear-gradient");
+    expect(gradient).toContain("62%");
+    expect(gradient).toMatch(/100%\)$/);
+  });
+
+  test("the scroll cue actually moves the strip to its far edge and back", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const strip = screen.getByTestId("toolbar-strip") as HTMLDivElement;
+    const scrollTo = vi.fn();
+    strip.scrollTo = scrollTo;
+    Object.defineProperty(strip, "scrollWidth", { value: 800, configurable: true });
+    Object.defineProperty(strip, "clientWidth", { value: 340, configurable: true });
+
+    const cue = screen.getByTestId("toolbar-scroll-cue");
+    fireEvent.click(cue);
+    expect(scrollTo).toHaveBeenCalledWith({ left: 460, behavior: "smooth" });
+
+    Object.defineProperty(strip, "scrollLeft", { value: 460, configurable: true });
+    fireEvent.click(cue);
+    expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, behavior: "smooth" });
+  });
+
+  test("actions keep their full labels and never duplicate a control", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const actions = screen.getByTestId("toolbar-group-actions");
+    expect(actions.parentElement).toBe(screen.getByTestId("toolbar-primary-row"));
+    expect(actions.className).toBe(TOOLBAR_ACTIONS_CLASS);
+
+    const refresh = screen.getByTestId("nifty-refresh-button");
+    const snapshot = screen.getByTestId("nifty-snapshot-button");
+    for (const [button, label] of [[refresh, "Refresh"], [snapshot, "Snapshot"]] as const) {
+      expect(actions.contains(button)).toBe(true);
+      expect(button.textContent).toBe(label);
+      expect(button.className).toMatch(/(^|\s)whitespace-nowrap(\s|$)/);
+      expect(button.className).not.toMatch(/(^|\s)(truncate|text-ellipsis)(\s|$)/);
+    }
+
+    // One control per concept: the old symbol Select is gone and the DATA
+    // badge appears exactly once, in the secondary band.
+    expect(screen.queryByTestId("nifty-symbol-select")).toBeNull();
+    expect(screen.getAllByTestId("nifty-data-freshness")).toHaveLength(1);
   });
 
   test("exactly one control chooses the underlying, and it drives the symbol", () => {
@@ -145,6 +428,125 @@ describe("ReportToolbar freshness indicators", () => {
     ) as HTMLButtonElement;
     fireEvent.click(reliance);
     expect(handleSymbolChange).toHaveBeenCalledWith("RELIANCE");
+  });
+
+  test("the expiry options end at a word boundary and keep the full label in a title", () => {
+    (harness.store.selection as { expiryData: () => { value: string; label: string }[] }).expiryData =
+      () => [
+        { value: "nearest", label: "Nearest expiry" },
+        { value: "2026-11-26", label: "2026-11-26" },
+      ];
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const root = screen.getByTestId("nifty-expiry-select");
+    const select = root.querySelector("select")!;
+    const options = [...select.querySelectorAll("option")].map((option) => option.textContent ?? "");
+    expect(options).toEqual(["Nearest", "2026-11-26"]);
+
+    // A visible label is either the whole label or a whole-word prefix of it —
+    // never a prefix sliced through a word ("Nearest expi").
+    const fullLabels = ["Nearest expiry", "2026-11-26"];
+    for (const [visible, full] of options.map((label, i) => [label, fullLabels[i]] as const)) {
+      if (visible !== full) {
+        expect(full.startsWith(visible)).toBe(true);
+        expect(full[visible.length], `${visible} must end at a word boundary`).toBe(" ");
+      }
+    }
+
+    const wrapper = root.parentElement!;
+    expect(wrapper.getAttribute("title")).toBe(expiryControlTitle("Nearest expiry"));
+    expect(select.getAttribute("aria-label")).toBe(expiryControlTitle("Nearest expiry"));
+    expect(expiryOptionLabel({ value: "nearest", label: "Nearest expiry" })).toBe("Nearest");
+    expect(expiryOptionLabel({ value: "2026-11-26", label: "2026-11-26" })).toBe("2026-11-26");
+  });
+
+  test("390 chrome is exactly two fixed bands: 48px controls + 20px status", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const toolbar = screen.getByTestId("nifty-toolbar");
+    const primary = screen.getByTestId("toolbar-primary-row");
+    const secondary = screen.getByTestId("toolbar-secondary-row");
+
+    // No ad-hoc third/fourth band can appear between the two owned rows.
+    expect([...toolbar.children]).toEqual([primary, secondary]);
+    expect(primary.className).toContain("h-[48px]");
+    expect(secondary.className).toContain("h-[20px]");
+    expect(TOOLBAR_PRIMARY_HEIGHT).toBe(48);
+    expect(TOOLBAR_SECONDARY_HEIGHT).toBe(20);
+    expect(TOOLBAR_CHROME_HEIGHT).toBe(68);
+    expect(TOOLBAR_CHROME_HEIGHT).toBeGreaterThanOrEqual(64);
+    expect(TOOLBAR_CHROME_HEIGHT).toBeLessThanOrEqual(72);
+
+    // The outer box adds no vertical padding or row gap on top of those bands.
+    expect(toolbar.className).toBe(TOOLBAR_CLASS);
+    expect(TOOLBAR_CLASS).toContain("py-0");
+    expect(TOOLBAR_CLASS).toContain("gap-y-0");
+    expect(TOOLBAR_CLASS).toContain("px-2");
+
+    // Both action clusters stay nowrap, so Refresh/Snapshot and the freshness
+    // badges cannot start another row at 390.
+    expect(TOOLBAR_ACTIONS_CLASS).toContain("flex-nowrap");
+    expect(TOOLBAR_ACTIONS_CLASS).not.toContain("flex-wrap");
+    expect(screen.getByTestId("toolbar-group-actions").parentElement).toBe(primary);
+    expect(screen.getByTestId("toolbar-group-status").parentElement).toBe(secondary);
+  });
+
+  test("1600 collapses both bands into one compact auto-height row", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    expect(TOOLBAR_CLASS).toContain("min-[1200px]:flex-nowrap");
+    expect(TOOLBAR_PRIMARY_CLASS).toContain("min-[1200px]:h-auto");
+    expect(TOOLBAR_SECONDARY_CLASS).toContain("min-[1200px]:h-auto");
+    expect(TOOLBAR_PRIMARY_CLASS).toContain("min-[1200px]:w-auto");
+    expect(TOOLBAR_PRIMARY_CLASS).toContain("min-[1200px]:flex-1");
+    expect(TOOLBAR_SECONDARY_CLASS).toContain("min-[1200px]:w-auto");
+    expect(TOOLBAR_SECONDARY_CLASS).toContain("min-[1200px]:ml-auto");
+    expect(TOOLBAR_STRIP_CLASS).toContain("min-[1200px]:overflow-visible");
+    expect(screen.getByTestId("toolbar-scroll-cue").className).toContain("min-[1200px]:hidden");
+  });
+
+  test("an optional leading control shares the 48px primary row", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar
+          leading={<button type="button" aria-label="Toggle navigation">nav</button>}
+        />
+      </UIProvider>
+    ));
+
+    const leading = screen.getByTestId("toolbar-leading");
+    expect(leading.parentElement).toBe(screen.getByTestId("toolbar-primary-row"));
+    expect(screen.getByRole("button", { name: "Toggle navigation" })).toBeInTheDocument();
+  });
+
+  test("the expiry field keeps its 104px budget without a mid-word readout", () => {
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+    const root = screen.getByTestId("nifty-expiry-select");
+    expect(root.style.width).toBe("104px");
+    expect(root.className).toContain("min-w-[104px]");
+    expect(root.className).toContain("max-w-[104px]");
+    expect(root.parentElement!.className).toContain("flex-none");
+    // The toolbar keeps its wrap contract at 390 and its scroll fallback at 1600.
+    const toolbar = screen.getByTestId("nifty-toolbar");
+    expect(toolbar.className).toContain("flex-wrap");
+    expect(toolbar.className).toContain("min-[1200px]:overflow-x-auto");
+    expect(TOOLBAR_CLASS).toBe(toolbar.className);
   });
 });
 

@@ -73,13 +73,13 @@ export const CallerSuppliedStyles: Story = {
       <SpecimenCanvas>
         <Specimen title="Caller-supplied styles" note="The caller paints the control — theme CSS variables only, no hex literals.">
           <Group gap="lg" align="center" wrap="wrap">
-            <UnstyledButton style={{ color: "var(--color-fin-primary)", "font-size": "12px", "font-weight": "600" }}>
+            <UnstyledButton className="text-ui-micro" style={{ color: "var(--color-fin-primary)", "font-weight": "600" }}>
               Primary link action
             </UnstyledButton>
-            <UnstyledButton style={{ color: "var(--color-fin-positive)", "font-size": "12px" }}>
+            <UnstyledButton className="text-ui-micro" style={{ color: "var(--color-fin-positive)" }}>
               Positive action
             </UnstyledButton>
-            <UnstyledButton style={{ color: "var(--color-fin-text-muted)", "font-size": "12px" }}>
+            <UnstyledButton className="text-ui-micro" style={{ color: "var(--color-fin-text-muted)" }}>
               Muted (visual only — no disabled prop exists)
             </UnstyledButton>
           </Group>

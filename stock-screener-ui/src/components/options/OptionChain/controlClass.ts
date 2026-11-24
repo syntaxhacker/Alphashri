@@ -10,4 +10,4 @@ export const CHAIN_SELECT_CLASS = "[&_select]:py-[3px]";
 
 /** 10px semibold uppercase caption, used as an in-control adornment. */
 export const CHAIN_LABEL_CLASS =
-  "shrink-0 text-[10px] font-semibold uppercase leading-none tracking-[0.06em] text-fin-text-muted";
+  "shrink-0 text-ui-micro font-semibold uppercase leading-none tracking-[0.06em] text-fin-text-muted";

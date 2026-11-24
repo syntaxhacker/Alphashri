@@ -264,7 +264,7 @@ export function SettingsPage() {
               <button
                 type="button"
                 class={cn(
-                  "px-2 h-5 text-[11px] leading-none rounded-sm transition-colors duration-150 border",
+                  "px-2 h-5 text-ui-micro leading-none rounded-sm transition-colors duration-150 border",
                   density() === item.value
                     ? "bg-fin-primary text-fin-bg border-fin-primary"
                     : "bg-transparent text-fin-primary border-fin-primary",

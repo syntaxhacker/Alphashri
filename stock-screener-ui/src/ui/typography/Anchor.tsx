@@ -1,16 +1,24 @@
 import { createMemo, splitProps } from "solid-js";
 import { cn } from "../cn";
 import * as palette from "../palette";
+import { TYPE_CLASS, type TypeRole } from "../typography";
 import type { JSX } from "solid-js";
 import type { UIAnchorProps } from "../types";
 
-const sizeMap: Record<string, string> = {
-  xs: "0.75rem",
-  sm: "0.875rem",
-  md: "1rem",
-  lg: "1.125rem",
-  xl: "1.25rem",
+/** Body/link copy tops out at `heading`; see Text for the shared-alias rationale. */
+const SIZE_ROLE: Record<string, TypeRole> = {
+  xs: "micro",
+  sm: "label",
+  md: "title",
+  lg: "heading",
+  xl: "heading",
 };
+
+function sizeClass(size: UIAnchorProps["size"]): string | undefined {
+  if (size == null) return undefined;
+  const role = SIZE_ROLE[String(size)];
+  return role ? TYPE_CLASS[role] : undefined;
+}
 
 const TONE_CLASS: Record<string, string> = {
   primary: "text-fin-primary",
@@ -70,7 +78,6 @@ export function Anchor(props: UIAnchorProps) {
     if (known.fw != null) o["font-weight"] = known.fw;
     if (known.ta != null) o["text-align"] = known.ta;
     if (known.lh != null) o["line-height"] = known.lh;
-    if (known.size != null) o["font-size"] = sizeMap[known.size as string] ?? (known.size as string);
 
     let underlineClass: string | undefined;
     if (underlineProp === "always") {
@@ -107,7 +114,7 @@ export function Anchor(props: UIAnchorProps) {
   return (
     <Root
       {...(rootTag === "a" ? { href: known.href, target: known.target } : {})}
-      className={cn(known.className, derived().cls, derived().underlineClass)}
+      className={cn(known.className, derived().cls, derived().underlineClass, sizeClass(known.size))}
       style={{ ...derived().style, ...(known.style as Record<string, unknown> | undefined) }}
       id={known.id}
       data-testid={known["data-testid"]}

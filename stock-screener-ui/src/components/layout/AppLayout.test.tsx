@@ -305,6 +305,22 @@ describe("AppLayout", () => {
 
     expect(screen.queryByTestId("app-mobile-nav-bar")).not.toBeInTheDocument();
   });
+
+  it("keeps the desktop content column structurally unchanged", () => {
+    render(() => (<TestWrapper>
+        <AppLayout>
+          <div data-testid="page-header">Page title</div>
+        </AppLayout>
+      </TestWrapper>),
+    );
+
+    const main = screen.getByTestId("app-main");
+    // No 44px reservation bar: the page header is the first thing in the
+    // scroll column, and navigation is owned by the permanent rail instead.
+    expect(screen.queryByTestId("app-mobile-nav-bar")).not.toBeInTheDocument();
+    expect(main.children[0]).toContainElement(screen.getByTestId("page-header"));
+    expect(screen.getByTestId("app-navbar")).toBeInTheDocument();
+  });
 });
 
 describe("AppLayout mobile nav gutter", () => {
@@ -366,5 +382,36 @@ describe("AppLayout mobile nav gutter", () => {
     const contentColumn = children[1] as HTMLElement;
     expect(contentColumn).toContainElement(screen.getByTestId("page-header"));
     expect(contentColumn.className).toContain("flex-1");
+  });
+
+  it("structurally reserves the 44px gutter below the desktop breakpoint", () => {
+    render(() => (<TestWrapper>
+        <AppLayout>
+          <div data-testid="page-header">Page title</div>
+        </AppLayout>
+      </TestWrapper>),
+    );
+
+    const main = screen.getByTestId("app-main");
+    const bar = screen.getByTestId("app-mobile-nav-bar");
+    const contentColumn = main.children[1] as HTMLElement;
+
+    // The reservation lives in the bar's structure, not just a floating style:
+    // a sticky 44px flex item owns the top of the scroll column in flow.
+    expect(bar.className).toMatch(/\bsticky\b/);
+    expect(bar.className).toMatch(/\btop-0\b/);
+    expect(bar.className).toMatch(/\bh-11\b/);
+    expect(bar.className).toMatch(/\bshrink-0\b/);
+    expect(bar.style.height).toBe("44px");
+    expect(bar.style.position).toBe("sticky");
+    expect(bar.style.flexShrink).toBe("0");
+
+    // Pages keep the full column width and stay scrollable under the bar;
+    // nothing is clipped or hidden to make room for the toggle.
+    expect(contentColumn.className).toContain("w-full");
+    expect(contentColumn.style.width).toBe("100%");
+    expect(contentColumn.className).toContain("flex-1");
+    expect(contentColumn.style.minHeight).toBe("0px");
+    expect(main.style.overflow).toBe("auto");
   });
 });

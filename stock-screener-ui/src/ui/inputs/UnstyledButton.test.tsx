@@ -2,6 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { typeSize } from "../typography";
 import { UnstyledButton } from "./UnstyledButton";
 
 afterEach(cleanup);
@@ -22,7 +23,7 @@ describe("UnstyledButton", () => {
         id="reset-filters"
         data-testid="reset-filters"
         className="text-fin-primary underline"
-        style={{ color: "var(--color-fin-primary)", "font-size": "12px" }}
+        style={{ color: "var(--color-fin-primary)", "font-size": `${typeSize("micro")}px` }}
       >
         Reset
       </UnstyledButton>
@@ -32,7 +33,7 @@ describe("UnstyledButton", () => {
     expect(button).toHaveAttribute("id", "reset-filters");
     expect(button.className).toBe("text-fin-primary underline");
     expect(button.style.color).toBe("var(--color-fin-primary)");
-    expect(button.style.fontSize).toBe("12px");
+    expect(button.style.fontSize).toBe(`${typeSize("micro")}px`);
   });
 
   test("passes the native mouse event to onClick", () => {

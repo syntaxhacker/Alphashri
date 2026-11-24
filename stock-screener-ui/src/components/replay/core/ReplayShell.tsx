@@ -2,7 +2,7 @@
 // playback clock, and delegates rendering to the existing core/tick components. All
 // strategy vocabulary (labels, endpoints, envelopes, captions) lives in the plugin.
 import { createSignal, createMemo, createEffect, For, Show, onCleanup, type JSX } from "solid-js";
-import { Button, Text, Select, TextInput, Checkbox, Box, Card, Stack } from "@/ui";
+import { Button, Text, Select, TextInput, Checkbox, Box, Card, Stack, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TZ_IST, TZ_IST_LABEL } from "@/config/constants";
 import {
@@ -80,12 +80,12 @@ function ParamControl(props: { spec: ReplayParamSpec; value: unknown; onChange: 
   }
   if (spec.type === "bool") {
     return (
-      <Box style={{ display: "flex", "align-items": "center", gap: "8px", color: palette.TEXT_MUTED, "font-size": "12px" }}>
+      <Box style={{ display: "flex", "align-items": "center", gap: "8px", color: palette.TEXT_MUTED, "font-size": `${typeSize("micro")}px` }}>
         <Checkbox
           size="sm"
           label={spec.label}
           checked={Boolean(props.value)}
-          onChange={(e) => props.onChange(e.currentTarget.checked)}
+          onChange={(checked) => props.onChange(checked)}
         />
       </Box>
     );
@@ -273,7 +273,7 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
   return (
     <Box p="sm" w="100%" data-testid={plugin().mode === "timeline" ? "tick-replay" : "replay-strategy"}>
       <Stack direction="row" gap="sm" mb="xs" align="center" wrap="wrap">
-        <Text fw={600} style={{ "font-size": "1.125rem", color: palette.REPLAY_CHART_TEXT }}>{plugin().label}</Text>
+        <Text fw={600} style={{ "font-size": `${typeSize("heading")}px`, color: palette.REPLAY_CHART_TEXT }}>{plugin().label}</Text>
         {props.headerExtra}
       </Stack>
       <Show when={plugin().subtitle || plugin().summary}>
@@ -314,7 +314,7 @@ export default function ReplayShell(props: { plugin: ReplayStrategyPlugin; heade
             </Stack>
             {plugin().panel?.(bundle() ?? EMPTY_BUNDLE, raw())}
             {!loading() && trades().length === 0 && (
-              <Box p="sm" style={{ color: palette.TEXT_MUTED, "font-size": "12px" }}>No trades in this view.</Box>
+              <Box p="sm" style={{ color: palette.TEXT_MUTED, "font-size": `${typeSize("micro")}px` }}>No trades in this view.</Box>
             )}
             <For each={trades()}>{(tr, i) => (
               <TradeReplayCard

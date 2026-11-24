@@ -5,7 +5,8 @@ import "@testing-library/jest-dom/vitest";
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
-  return mockSolidUi();
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
 });
 
 import { ChainTableHeader } from "./ChainTableHeader";
@@ -53,5 +54,17 @@ describe("ChainTableHeader", () => {
     render(() => 
       <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />);
     expect(screen.getByText("PUTS (PE)")).toBeInTheDocument();
+  });
+
+  it("pins the strike header at the position supplied by the layout", () => {
+    render(() => (
+      <ChainTableHeader
+        theme={mockTheme as any}
+        styles={{ ...mockStyles, strikeCell: { left: "8px" } } as any}
+      />
+    ));
+    const strike = screen.getByTestId("options-chain-strike-header");
+    expect(strike.style.position).toBe("sticky");
+    expect(strike.style.left).toBe("8px");
   });
 });

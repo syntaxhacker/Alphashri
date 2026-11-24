@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui";
 import { createMemo, Show } from "solid-js";
 import type { TableColumnDef } from "../paper-trading/TanStackTable";
 import { TanStackTable } from "../paper-trading/TanStackTable";
@@ -50,7 +51,7 @@ export function ReplaySummaryPanel(props: ReplaySummaryProps) {
       accessorKey: "name",
       meta: { align: "left" },
       cell: ({ row }) => (
-        <span style={{ "font-weight": row.original.isTotal ? 700 : 500, "font-size": "11px" }}>
+        <span style={{ "font-weight": row.original.isTotal ? 700 : 500, "font-size": `${typeSize("micro")}px` }}>
           {row.original.name}
         </span>
       ),
@@ -64,7 +65,7 @@ export function ReplaySummaryPanel(props: ReplaySummaryProps) {
         <span
           style={{
             "font-weight": row.original.isTotal ? 700 : 400,
-            "font-size": "11px",
+            "font-size": `${typeSize("micro")}px`,
             "text-align": "right",
             display: "block",
           }}
@@ -82,7 +83,7 @@ export function ReplaySummaryPanel(props: ReplaySummaryProps) {
         <span
           style={{
             "font-weight": row.original.isTotal ? 700 : 400,
-            "font-size": "11px",
+            "font-size": `${typeSize("micro")}px`,
             "text-align": "right",
             display: "block",
           }}
@@ -102,7 +103,7 @@ export function ReplaySummaryPanel(props: ReplaySummaryProps) {
           <span
             style={{
               "font-weight": 500,
-              "font-size": "11px",
+              "font-size": `${typeSize("micro")}px`,
               "text-align": "right",
               display: "block",
               color: getPnLTextColor(val) === "success" ? palette.POSITIVE : palette.NEGATIVE,
@@ -131,7 +132,7 @@ export function ReplaySummaryPanel(props: ReplaySummaryProps) {
           <span
             style={{
               "font-weight": row.original.isTotal ? 700 : 400,
-              "font-size": "11px",
+              "font-size": `${typeSize("micro")}px`,
               "text-align": "right",
               display: "block",
               color,

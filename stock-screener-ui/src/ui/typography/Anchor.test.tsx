@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { Anchor } from "./Anchor";
+import { TYPE_CLASS } from "../typography";
 import * as palette from "@/ui/palette";
 
 describe("Anchor", () => {
@@ -39,6 +40,20 @@ describe("Anchor", () => {
   it("applies tone color via c", () => {
     render(() => <Anchor data-testid="a" href="#" c="primary">link</Anchor>);
     expect(screen.getByTestId("a")).toHaveStyle(`color: ${palette.PRIMARY}`);
+  });
+
+  it.each([
+    ["xs", TYPE_CLASS.micro],
+    ["sm", TYPE_CLASS.label],
+    ["md", TYPE_CLASS.title],
+    ["lg", TYPE_CLASS.heading],
+    ["xl", TYPE_CLASS.heading],
+  ] as const)("maps size=%s to token class %s with no inline font-size", (size, tokenClass) => {
+    const testId = `a-${size}`;
+    render(() => <Anchor data-testid={testId} href="#" size={size}>sized</Anchor>);
+    const el = screen.getByTestId(testId);
+    expect(el).toHaveClass(tokenClass);
+    expect(el.style.fontSize).toBe("");
   });
 
   it("forwards title as a native tooltip attribute", () => {

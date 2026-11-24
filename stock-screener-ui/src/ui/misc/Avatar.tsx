@@ -1,18 +1,34 @@
 import { splitProps } from "solid-js";
 import { cn } from "../cn";
+import { TYPE_SCALE, typeSize } from "../typography";
 import type { UIAvatarProps } from "../types";
 
-function mapSize(size: UIAvatarProps["size"]): { w: string; h: string; "font-size": string } {
-  if (size == null) return { w: "40px", h: "40px", "font-size": "16px" };
-  if (typeof size === "number") return { w: `${size}px`, h: `${size}px`, "font-size": `${size * 0.4}px` };
+const SCALE_STEPS = Object.values(TYPE_SCALE).map((s) => s.size);
+
+/**
+ * Initials are a decorative monogram, not body copy: the ratio to the avatar
+ * diameter is kept, but the result is snapped to the shared ladder and floored
+ * at micro. Even the smallest avatar (24px) therefore renders at >= 12px.
+ */
+function snapTypeSize(px: number): number {
+  const nearest = SCALE_STEPS.reduce(
+    (best, step) => (Math.abs(step - px) <= Math.abs(best - px) ? step : best),
+    SCALE_STEPS[0],
+  );
+  return Math.max(typeSize("micro"), nearest);
+}
+
+function mapSize(size: UIAvatarProps["size"]): { width: string; height: string; "font-size": string } {
+  if (size == null) return { width: "40px", height: "40px", "font-size": `${typeSize("title")}px` };
+  if (typeof size === "number") return { width: `${size}px`, height: `${size}px`, "font-size": `${snapTypeSize(size * 0.4)}px` };
   if (typeof size === "string" && !isNaN(Number(size))) {
     const n = Number(size);
-    return { w: `${n}px`, h: `${n}px`, "font-size": `${n * 0.4}px` };
+    return { width: `${n}px`, height: `${n}px`, "font-size": `${snapTypeSize(n * 0.4)}px` };
   }
   const map: Record<string, number> = { xs: 24, sm: 32, md: 40, lg: 48, xl: 56 };
   const px = map[size as string];
-  if (px) return { w: `${px}px`, h: `${px}px`, "font-size": `${px * 0.4}px` };
-  return { w: "40px", h: "40px", "font-size": "16px" };
+  if (px) return { width: `${px}px`, height: `${px}px`, "font-size": `${snapTypeSize(px * 0.4)}px` };
+  return { width: "40px", height: "40px", "font-size": `${typeSize("title")}px` };
 }
 
 function initials(text: string): string {
@@ -68,14 +84,14 @@ export function Avatar(props: UIAvatarProps) {
         radiusClass(known.radius),
         known.className,
       )}
-      style={{ width: dims.w, height: dims.h, "font-size": dims["font-size"], ...known.style }}
+      style={{ ...dims, ...known.style }}
       id={known.id}
       data-testid={known["data-testid"]}
     >
       {hasSrc ? (
         <img src={known.src ?? undefined} alt={known.alt ?? ""} className="w-full h-full object-cover" />
       ) : (
-        <span className="text-fin-text font-medium leading-none">{display}</span>
+        <span className="font-medium leading-none">{display}</span>
       )}
     </div>
   );

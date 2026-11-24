@@ -1,5 +1,5 @@
 import { createMemo } from "solid-js";
-import { Box, Text } from "@/ui";
+import { Box, Text, typeSize } from "@/ui";
 import type { OptionsAnalytics } from "@/api/optionsAnalytics";
 import { SURFACE_MAX_STRIKES } from "@/config/optionsAnalytics";
 import { formatVp, surfaceGrid } from "@/utils/optionsAnalyticsMath";
@@ -102,7 +102,7 @@ export function SurfacePanel(props: { data: OptionsAnalytics; selectedExpiry: st
         size="xs"
         c="dimmed"
         className="shrink-0 truncate px-1.5 py-0.5 font-mono"
-        style={{ "font-size": "10px" }}
+        style={{ "font-size": `${typeSize("micro")}px` }}
         data-testid="surface-caption"
       >
         Strikes × expiries · blank/hatched = no valid IV quote (not zero)

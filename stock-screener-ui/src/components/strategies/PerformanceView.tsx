@@ -1,5 +1,5 @@
 import { Switch, Match, createMemo } from "solid-js";
-import { Text, Group, Stack, Badge, Loader, Box } from "@/ui";
+import { Text, Group, Stack, Badge, Loader, Box, typeSize } from "@/ui";
 import type { TableColumnDef } from "../common/TanStackTable";
 import { IconAlertCircle } from "../common/Icons";
 import * as palette from "@/ui/palette";
@@ -115,7 +115,7 @@ export function PerformanceView(props: PerformanceViewProps) {
             style={{
               color: val >= 0 ? palette.INFO : palette.NEGATIVE,
               "font-weight": 500,
-              "font-size": "13px",
+              "font-size": `${typeSize("body")}px`,
             }}
           >
             {val >= 0 ? "+" : ""}

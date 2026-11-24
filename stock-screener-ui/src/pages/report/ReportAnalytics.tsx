@@ -71,7 +71,7 @@ const DETAIL_HEAD_SUB_STYLE: JSX.CSSProperties = {
 };
 
 const DETAIL_HEAD_ACTION_STYLE: JSX.CSSProperties = {
-  "font-size": "11px",
+  "font-size": `${REPORT_FONT.micro}px`,
   "font-weight": 700,
   color: palette.TEXT_MUTED,
   "flex-shrink": 0,

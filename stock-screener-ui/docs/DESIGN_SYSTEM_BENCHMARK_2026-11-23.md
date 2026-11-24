@@ -263,3 +263,66 @@ Cloned `https://github.com/CRED-CLUB/neopop-web` (Apache-2.0) into `/tmp/opencod
 - Cross-product / multi-team adoption and consumer satisfaction outside this repository.
 - Browser support matrix and target viewport/assistive-technology policy — not documented in `docs/`.
 - Whether the checked-in `storybook-static/index.json` matches current stories after commit `696fb937` (catalog guard skips without a fresh build; the doc claims 381 stories / 92 docs from the generated audit).
+
+---
+
+## 9. Post-P5 status — 2026-11-23 (supersedes stale claims above)
+
+Sections 1–8 are preserved as the point-in-time snapshot they are, including
+their old line numbers and branch/commit reference. This section records what
+the `improve/ds-p5-final` branch changed. **Where §9 disagrees with §1–§8, §9
+wins.** Old file:line paths above are historical and must not be quoted as
+current without re-reading the file.
+
+### 9.1 Verified current facts
+
+| Topic | Current state (source / CI) | Evidence |
+|---|---|---|
+| Catalog counts | **100** audited modules, **93** story files (93 centralized, 0 co-located), **384** story entries, **84/100** modules with a story, **88/100** with a co-located test, **0** rule violations. Built index: 384 story + 93 docs entries. | `node scripts/component_audit.mjs` regenerated `docs/COMPONENT_AUDIT.md` with no diff; `storybook-static/index.json` entry types. |
+| Family pages | `FamilyLanding.tsx` unifies the **12** family story files; `Overview.stories.tsx` is the only design-system page that does not use it. | grep of `from "./FamilyLanding"` in `src/stories/design-system/*.stories.tsx` (12 files of 13). |
+| Form / error slots | `FormField` exists with story + co-located test; it owns ids, `aria-describedby`, `aria-invalid`. `Checkbox` and `Switch` now have `error`/`description` props and set `aria-invalid`/`aria-describedby`. | `src/ui/form/FormField.tsx`, `FormField.test.tsx`, `src/stories/components/form/FormField.stories.tsx`; `src/ui/inputs/Checkbox.tsx`, `Switch.tsx`. Supersedes §3.4/§4 "no error slot". |
+| Theme contract | `uiTheme` is typed (`as const`, `export type UiTheme`); `UIProvider` applies colour-scheme props via the shared signal; `src/ui/tokens.ts` exposes `tokenColor`/`tokenVar`/`useTokenColor`. | `src/ui/theme.tsx:14,43,55`, `src/ui/tokens.ts`. Supersedes §1's "literal no-op stub `uiTheme = {} as any`" claim (§2 row 5 already described the real provider). |
+| Tree / Menu keyboard | Arrow/Home/End roving focus, `loop={false}` clamping and Escape dismissal are implemented and regression-tested. | `src/ui/data-display/Tree.tsx`, `Menu.tsx` and their `*.test.tsx`. Supersedes the stale "Tree/Menu keyboard gaps / being closed" wording in `DESIGN_SYSTEM_A_PLUS_GATE.md` (corrected there). |
+| Select legacy props | `allowDeselect`, `maxDropdownHeight`, `comboboxProps`, `withinPortal` are gone from `Select`/`MultiSelect` public props (`@ts-expect-error` tests assert absence). `legacyProps.ts` now only strips Text/Number/Password inputs; `InputProps` is still accepted on write and stripped in `UISelectProps`. | `src/ui/types.ts:438-452`, `src/ui/inputs/legacyProps.ts`, `Select.test.tsx:169-176`. Partial fix — do not claim "zero swallowed props". |
+| Overlay containment | `Modal` has a Tab focus cycle, background `inert`, Escape ownership and `aria-labelledby` from the title. | `src/ui/overlay/Modal.tsx:206-253,299`. Supersedes §3.5/§4 gap 3. |
+| Axe / coverage / catalog gates | CI builds Storybook then runs the catalog guard, happy-dom axe smoke, scoped UI coverage (`test:coverage:ui`) and a real-browser axe script. `design-scale.test.ts` no longer skips `ui/`. | `.github/workflows/test.yml:209-220`, `package.json:15-16`, `scripts/storybook-a11y.mjs`, `src/test/design-scale.test.ts:123-173`. Supersedes §1 "there is no axe gate in CI", §3.5, §4 gaps 6/11, §5 day-31 exit gate, §8 "no axe run". |
+| Scope decision | Dark-only; light mode, i18n/RTL and SSR are explicitly out of scope by product decision. They are not gaps to be scored or silently "later". | `docs/DESIGN_SYSTEM_A_PLUS_GATE.md` goal line; the Scope decision at the top of this document. |
+
+### 9.2 Verdict after P5 — still not A+, still Tier 3
+
+The historical average (≈4.8/10) is not recomputed here; no new rater pass was
+run in this documentation reconciliation. The remaining gaps keep the verdict
+honest:
+
+- **Token-accessor adoption vs dark-only scope.** The accessor exists but app
+  adoption is effectively nil outside tests: ~240 non-test, non-PoC source
+  files import `src/ui/palette.ts` directly, while `tokenColor`/`useTokenColor`
+  have no non-UI source consumers. The old "≈57 importers" figure in §1/§2/§4
+  is not reproducible from current source and must not be requoted. This is
+  dark-token consistency work, not light-mode work.
+- **API callback conventions.** `onChange` is value-based on most inputs but
+  event-based on `Checkbox`/`Switch`; `onClick` is an event in `UIBaseProps`
+  but void in `NavLink`/`MenuItem`/`CloseButton`. One convention per family is
+  still absent.
+- **Two tables.** `components/common/TanStackTable.tsx` and
+  `components/paper-trading/TanStackTable.tsx` remain distinct implementations
+  with different feature sets.
+- **App dialects.** Feature-local lookalikes (`PanelModal`, `ExpandedPanel`,
+  `components/common/Icons.tsx`, `RangeInput` vs `RangeSlider`,
+  `TradingDatePicker`) still diverge from `@/ui`.
+- **Visual regression baseline.** Browser axe checks representative stories
+  for serious/critical violations, not pixels. No 1600/390 catalog snapshot
+  baseline; keyboard order/trap and screen-reader output remain manual.
+- **Coverage is scoped.** "Story: yes" means one exported name is imported; it
+  is not a claim that all 100 audited modules or every state is reviewed.
+- **Unchanged unknowns:** cross-product adoption, browser/AT support matrix,
+  and screenshot freshness (check commit dates before quoting images).
+
+### 9.3 Not verified in this pass
+
+- No builds, servers, tests or browser runs were started; the CI wiring was
+  read from `.github/workflows/test.yml`, not executed.
+- Historical file:line references in §1–§8 were not re-checked individually;
+  the current paths in §9.1 are the ones to cite.
+- Actual WCAG conformance across every story, and the freshness of
+  `docs/screenshots/showcase/`, remain unverified.

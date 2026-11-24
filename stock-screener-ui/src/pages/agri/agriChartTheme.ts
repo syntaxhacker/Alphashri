@@ -11,6 +11,7 @@ import {
   CHART_LIGHT_SPLIT,
   CHART_LIGHT_TEXT,
 } from "@/ui/palette";
+import { typeSize } from "@/ui/typography";
 
 export type OptionFragment = Record<string, unknown>;
 
@@ -53,8 +54,9 @@ export function themeTokens(isDark: boolean): ThemeTokens {
  * legend sit on the plot's top edge.
  */
 export const CHART_LAYOUT = Object.freeze({
-  font: 10,
-  titleFont: 12,
+  font: typeSize("micro"),
+  // Titles stay one step above axis/legend copy so the chart keeps its hierarchy.
+  titleFont: typeSize("label"),
   titleTop: 4,
   titleItemGap: 8,
   legendTop: 26,
@@ -136,7 +138,7 @@ export function asParams(params: unknown): TooltipParam[] {
 }
 
 export function tooltipShell(header: string, rows: string[]): string {
-  return `<div style="font-family:monospace;font-size:11px;line-height:1.5">` +
+  return `<div style="font-family:monospace;font-size:${typeSize("micro")}px;line-height:1.5">` +
     `<div style="font-weight:600;margin-bottom:4px">${escapeHtml(header)}</div>` +
     rows.filter((row) => row !== "").join("") +
     `</div>`;
@@ -232,7 +234,7 @@ export function baseOption(
       backgroundColor: t.tooltipBg,
       borderColor: t.border,
       borderWidth: 1,
-      textStyle: { color: t.text, fontSize: 11 },
+      textStyle: { color: t.text, fontSize: typeSize("micro") },
       formatter,
     },
   };

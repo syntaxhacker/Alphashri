@@ -37,6 +37,26 @@ describe("SetupRadarStrip", () => {
     expect(screen.getByTestId("nifty-setup-fuel").getAttribute("title")).toContain("Short Buildup");
   });
 
+  test("keeps 12px labels and 13px whole gate values, wrapping at 390", () => {
+    render(() => <SetupRadarStrip read={read} />);
+    const strip = screen.getByTestId("nifty-setup-radar");
+    expect(strip.getAttribute("data-report-spacing")).toBe("8");
+    expect(strip.className).toContain("gap-2");
+    expect(strip.className).toContain("max-[600px]:flex-wrap");
+    expect(strip.className).not.toContain("overflow-hidden");
+    for (const label of strip.querySelectorAll('[data-report-text="label"]')) {
+      expect(label.className).toContain("text-ui-micro");
+    }
+    const values = strip.querySelectorAll('[data-report-text="value"]');
+    expect(values.length).toBeGreaterThanOrEqual(8);
+    for (const value of values) {
+      const el = value as HTMLElement;
+      expect(el.className.includes("text-ui-body") || el.closest(".text-ui-body") !== null).toBe(true);
+    }
+    expect(strip.innerHTML).not.toContain("text-ellipsis");
+    expect(strip.innerHTML).not.toContain("truncate");
+  });
+
   test("shows the pre-move score only when it is armed or watching", () => {
     const armed: PreMoveScore = {
       score: 5,

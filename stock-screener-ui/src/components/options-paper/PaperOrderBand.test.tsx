@@ -147,7 +147,7 @@ describe("PaperOrderBand", () => {
     expect(summary.className).toContain("border-fin-border-subtle");
     expect(screen.getByTestId("paper-order-debit").className).toContain("font-mono");
     expect(screen.getByTestId("paper-order-debit").className).toContain("tabular-nums");
-    expect(screen.getByTestId("paper-order-margin-warning").style.fontSize).toBe("11px");
+    expect(screen.getByTestId("paper-order-margin-warning").style.fontSize).toBe("12px");
 
     const actions = screen.getByTestId("paper-order-actions");
     expect(actions.style.gap).toBe("8px");

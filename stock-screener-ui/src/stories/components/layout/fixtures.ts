@@ -216,7 +216,6 @@ export const GAP_TOKENS = ["xs", "sm", "md", "lg", "xl"] as const;
 export const RADIUS_TOKENS = ["xs", "sm", "md", "lg", "xl"] as const;
 export const SHADOW_STEPS = ["xs", "sm", "md", "lg", "xl"] as const;
 export const PAPER_RADIUS_PX = ["2px", "4px", "6px", "10px", "14px"] as const;
-export const CARD_RADIUS_PX = ["4px", "8px", "16px", "24px", "32px"] as const;
 
 /** Live viewport readout — useMediaQuery is a real Solid signal-backed hook. */
 export const ResponsiveReadout = () => {

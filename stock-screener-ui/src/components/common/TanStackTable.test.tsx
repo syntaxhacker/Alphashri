@@ -1787,21 +1787,21 @@ describe("TanStackTable — typography and spacing metrics", () => {
     expect(valueCell.style.textAlign).toBe("right");
   });
 
-  it("defaults to an 11px tracked uppercase header", () => {
+  it("defaults to a token-sized tracked uppercase header", () => {
     render(() => <TanStackTable<TestItem> data={data} columns={columns} dataTestId="metrics-header" />);
     const th = tableOf("metrics-header").querySelector<HTMLElement>("th")!;
-    expect(th.style.fontSize).toBe("11px");
+    expect(th.style.fontSize).toBe("12px");
     expect(th.style.textTransform).toBe("uppercase");
     expect(th.style.letterSpacing).toBe("0.07em");
   });
 
-  it("dense opts back into the tight 18px / 1px 6px / 10px rhythm", () => {
+  it("dense keeps the tight 18px row / 1px 6px padding with token type", () => {
     render(() => <TanStackTable<TestItem> data={data} columns={columns} dense dataTestId="metrics-dense" />);
     const table = tableOf("metrics-dense");
     expect(table.style.getPropertyValue("--tbl-row-h")).toBe("18px");
     expect(table.style.getPropertyValue("--tbl-cell-pad")).toBe("1px 6px");
-    expect(table.style.getPropertyValue("--tbl-fs")).toBe("10px");
-    expect(table.querySelector<HTMLElement>("th")!.style.fontSize).toBe("10px");
+    expect(table.style.getPropertyValue("--tbl-fs")).toBe("12px");
+    expect(table.querySelector<HTMLElement>("th")!.style.fontSize).toBe("12px");
   });
 
   it("re-applies the header size when visible columns change after mount", () => {
@@ -1816,11 +1816,11 @@ describe("TanStackTable — typography and spacing metrics", () => {
       />
     ));
     for (const th of Array.from(tableOf("metrics-cols").querySelectorAll<HTMLElement>("thead th"))) {
-      expect(th.style.fontSize).toBe("11px");
+      expect(th.style.fontSize).toBe("12px");
     }
     setPrefs({ order: [], hidden: ["value"] });
     for (const th of Array.from(tableOf("metrics-cols").querySelectorAll<HTMLElement>("thead th"))) {
-      expect(th.style.fontSize).toBe("11px");
+      expect(th.style.fontSize).toBe("12px");
     }
   });
 });

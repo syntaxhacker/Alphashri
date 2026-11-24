@@ -31,7 +31,7 @@ export function IntervalMoversTable(props: { movers: InternalStockMover[] }) {
             {(label, index) => (
               <Text
                 c="dimmed"
-                className="text-[9px] font-bold tracking-[0.3px]"
+                className="text-ui-micro font-bold tracking-[0.3px]"
                 style={{ "text-align": index() === 0 ? "left" : "right" }}
               >
                 {label}
@@ -42,20 +42,20 @@ export function IntervalMoversTable(props: { movers: InternalStockMover[] }) {
         <For each={movers()}>
           {(mover) => (
             <Box className="grid grid-cols-[minmax(0,1fr)_44px_44px_52px] items-center gap-0.5 min-h-5 px-0.5 border-b border-fin-border">
-              <Text truncate className="text-[10.5px] font-semibold">
+              <Text truncate className="text-ui-micro font-semibold">
                 {mover.symbol}
               </Text>
-              <Text c="dimmed" ta="right" className="text-[10px] font-mono tabular-nums" style={NUM_CELL}>
+              <Text c="dimmed" ta="right" className="text-ui-micro font-mono tabular-nums" style={NUM_CELL}>
                 {pct(mover.prev_change)}
               </Text>
-              <Text ta="right" className="text-[10px] font-mono tabular-nums" style={NUM_CELL}>
+              <Text ta="right" className="text-ui-micro font-mono tabular-nums" style={NUM_CELL}>
                 {pct(mover.change)}
               </Text>
               <Text
                 c={getPnLTextColor(mover.delta)}
                 fw={700}
                 ta="right"
-                className="text-[10px] font-mono tabular-nums"
+                className="text-ui-micro font-mono tabular-nums"
                 style={NUM_CELL}
               >
                 {mover.delta > 0 ? "+" : ""}

@@ -16,6 +16,7 @@ import {
   type Time,
   type LineWidth,
 } from "lightweight-charts";
+import { typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import type { ReplayCandle, ReplayTrade } from "@/types/replay";
@@ -71,6 +72,15 @@ export interface TradingViewChartProps {
    *  (e.g. 52W high) keep their candles readable; the Nifty report enables it
    *  so a GEX level outside the day's range is not silently clipped off-screen. */
   fitMarkLines?: boolean;
+  /** Suppress the engine's white last-value tag on the price axis. The Index
+   *  Report already renders the live spot as an HTML chip in its decision
+   *  strip, so on a phone the 8-glyph tag only risks covering a neighbouring
+   *  round-number tick (e.g. 22364.00 over 22360.00). The horizontal last-price
+   *  line stays. Desktop leaves this off and keeps its tag. */
+  hideLastValueTag?: boolean;
+  /** Extra blank bars after the last candle. The report uses 0 so its explicit
+   *  cutoff lane, not a six-bar tail, owns the right gutter. */
+  rightOffsetBars?: number;
   /** Solid imperative-handle pattern: called with the handle on mount. */
   ref?: (handle: TradingViewChartHandle) => void;
 }
@@ -109,6 +119,48 @@ function toLineStyle(type: string): LineStyle {
 function clampWidth(w?: number): LineWidth {
   const n = Math.round(w ?? 1);
   return (n < 1 ? 1 : n > 4 ? 4 : n) as LineWidth;
+}
+
+/**
+ * Last-value tag preference for the price axis.
+ *
+ * The engine paints the last value as a filled box at the last price's y. On a
+ * short phone pane a 4-point gap (22364 vs the 22360 round tick) maps to only a
+ * few pixels, so the box sits on top of the tick's label. Compact mode drops
+ * the box entirely — the report's HTML spot chip owns the value there — while
+ * the horizontal last-price line stays as the in-plot cue. Desktop keeps both.
+ */
+export interface LastValueTagPreference {
+  /** White axis tag at the last price. */
+  lastValueVisible: boolean;
+  /** Horizontal line at the last price — kept on every viewport. */
+  priceLineVisible: boolean;
+}
+
+export function lastValueTagPreference(compact: boolean): LastValueTagPreference {
+  return {
+    lastValueVisible: !compact,
+    priceLineVisible: true,
+  };
+}
+
+/** Height of the engine's last-value tag box on the price axis (px). */
+export const LAST_VALUE_TAG_HEIGHT_PX = 16;
+
+/**
+ * Vertical overlap (px) between the last-value tag and an axis tick. Zero once
+ * the tick sits at least a tag-height away. Pure geometry used by the 390px
+ * regression tests; a compact preference never renders the tag, so the overlap
+ * cannot appear regardless of scale.
+ */
+export function lastValueTagTickOverlap(
+  last: number,
+  tick: number,
+  pxPerPoint: number,
+  tagHeightPx = LAST_VALUE_TAG_HEIGHT_PX,
+): number {
+  if (!Number.isFinite(last) || !Number.isFinite(tick) || !(pxPerPoint > 0)) return 0;
+  return Math.max(0, tagHeightPx - Math.abs(last - tick) * pxPerPoint);
 }
 
 /**
@@ -401,6 +453,8 @@ export function TradingViewChart(props: TradingViewChartProps) {
   let dataSig: string | null = null;
   /** Signature of the applied autoscale closure inputs (see `autoscaleSignature`). */
   let autoscaleSig: string | null = null;
+  /** Last compact/tag preference applied to the candle series. */
+  let lastValueSig: boolean | null = null;
   let rsiSeries: ISeriesApi<"Line"> | null = null;
   let rsiPriceLines: IPriceLine[] = [];
   /** Pending pan/zoom/resize redraw frame — cancelled on cleanup. */
@@ -424,6 +478,8 @@ export function TradingViewChart(props: TradingViewChartProps) {
     };
     // Height changes go through applyOptions (see below) — never recreate here.
     const fixedHeight = untrack(() => props.height);
+    const compact = untrack(() => props.hideLastValueTag ?? false);
+    const tagPref = lastValueTagPreference(compact);
     const el = containerRef;
     if (!el) return;
     const created = createChart(el, {
@@ -432,7 +488,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
       ...(fixedHeight != null
         ? { width: el.clientWidth, height: fixedHeight }
         : { autoSize: true }),
-      timeScale: { borderColor: c.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 5, tickMarkFormatter: tvTickMarkFormatter },
+      timeScale: { borderColor: c.grid, timeVisible: true, secondsVisible: false, rightOffset: untrack(() => props.rightOffsetBars ?? 0), barSpacing: 5, tickMarkFormatter: tvTickMarkFormatter },
       localization: { locale: "en-IN", timeFormatter: tvTimeFormatter },
       rightPriceScale: { borderColor: c.grid },
       crosshair: { mode: 1 },
@@ -446,7 +502,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
           color: nt ? palette.TV_SERIES_TEXT : palette.PRIMARY,
           lineWidth: 2 as LineWidth,
           priceLineVisible: false,
-          lastValueVisible: true,
+          lastValueVisible: tagPref.lastValueVisible,
         })
       : created.addSeries(CandlestickSeries, {
           upColor: c.bull,
@@ -458,6 +514,8 @@ export function TradingViewChart(props: TradingViewChartProps) {
           wickDownColor: c.bear,
           borderVisible: !nt,
           wickVisible: true,
+          priceLineVisible: tagPref.priceLineVisible,
+          lastValueVisible: tagPref.lastValueVisible,
         });
     candleSeries = createdCandle as unknown as ISeriesApi<"Candlestick">;
 
@@ -499,6 +557,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
       currentMarkSig = null;
       dataSig = null;
       autoscaleSig = null;
+      lastValueSig = null;
       emaSeries = [];
       emaSig = "";
       emaDataSig = [];
@@ -511,6 +570,19 @@ export function TradingViewChart(props: TradingViewChartProps) {
   createEffect(() => {
     const h = props.height;
     if (h != null) chart?.applyOptions({ height: h });
+  });
+
+  // The report flips this from its matchMedia listener without recreating the
+  // engine, so apply it reactively. A signature guard keeps a poll tick from
+  // re-applying an unchanged option to the series.
+  createEffect(() => {
+    if (!ready()) return;
+    const series = candleSeries;
+    if (!series) return;
+    const compact = props.hideLastValueTag ?? false;
+    if (lastValueSig === compact) return;
+    lastValueSig = compact;
+    series.applyOptions(lastValueTagPreference(compact));
   });
 
   // RSI pane (pane 1, below the candles) — only when rsiData is supplied.
@@ -942,7 +1014,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
         ctx.strokeRect(0.5, top + 0.5, Math.max(0, rect.width - 1), Math.max(0, bottom - top - 1));
       }
       if (area.label) {
-        ctx.font = "700 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+        ctx.font = `700 ${typeSize("micro")}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
         ctx.textBaseline = "middle";
         ctx.textAlign = "left";
         ctx.fillStyle = area.borderColor || palette.TV_SERIES_TEXT;
@@ -975,7 +1047,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
           ? (timeScale as any).height()
           : 0;
       const bottomEdge = rect.height - Math.max(0, timeAxisH) - 4;
-      ctx.font = "600 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+      ctx.font = `600 ${typeSize("micro")}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
       ctx.textBaseline = "middle";
       ctx.textAlign = "left";
       const rowH = 14;
@@ -1002,7 +1074,7 @@ export function TradingViewChart(props: TradingViewChartProps) {
     if (!entryLabels()) return;
 
     const visible = filterVisibleTrades(trades(), props.highlightedTradeId ?? null, props.showAllTrades);
-    ctx.font = "700 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    ctx.font = `700 ${typeSize("micro")}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
 

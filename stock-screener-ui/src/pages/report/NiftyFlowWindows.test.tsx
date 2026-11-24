@@ -26,6 +26,17 @@ function r(jsx: () => JSX.Element) {
 afterEach(cleanup);
 
 describe("NiftyFlowWindows session units", () => {
+  test("a dash-only report still mounts its cells; the parent names WINDOWS in the shared strip", () => {
+    r(() => (
+      <NiftyFlowWindows
+        report={report({ control: { verdict: null, flow_bias: null }, flow_window: null })}
+      />
+    ));
+    expect(screen.getByTestId("flow-session")).toHaveTextContent("—");
+    expect(screen.getByTestId("flow-15m")).toHaveTextContent("—");
+    expect(screen.getByTestId("flow-5m")).toHaveTextContent("—");
+  });
+
   test("hides the ₹cr amount for a generic underlying but keeps the verdict", () => {
     r(() => <NiftyFlowWindows report={report()} showSessionValue={false} />);
     const session = screen.getByTestId("flow-session");
@@ -94,11 +105,20 @@ describe("NiftyFlowWindows", () => {
     expect(screen.queryByTestId("flow-last-flip")).not.toBeInTheDocument();
   });
 
-  test("the legend chip is keyboard focusable and carries the full rule", () => {
+  test("the ? help chip is not a false button: no role=button and no focus stop", () => {
     r(() => <NiftyFlowWindows report={report()} />);
     const chip = screen.getByTestId("flow-legend");
-    expect(chip).toHaveAttribute("tabindex", "0");
-    expect(chip.getAttribute("aria-label")).toContain("CALL BID");
-    expect(chip.getAttribute("aria-label")).toContain("BOTH BUILD");
+    expect(chip.tagName.toLowerCase()).toBe("span");
+    expect(chip).not.toHaveAttribute("role");
+    expect(chip).not.toHaveAttribute("tabindex");
+  });
+
+  test("the ? help chip still exposes the full rule via aria-label and title", () => {
+    r(() => <NiftyFlowWindows report={report()} />);
+    const chip = screen.getByTestId("flow-legend");
+    expect(chip).toHaveAttribute("aria-label", expect.stringContaining("CALL BID"));
+    expect(chip).toHaveAttribute("aria-label", expect.stringContaining("BOTH BUILD"));
+    expect(chip).toHaveAttribute("title", expect.stringContaining("CALL BID"));
+    expect(chip).toHaveAttribute("title", expect.stringContaining("BOTH BUILD"));
   });
 });

@@ -1,5 +1,5 @@
 import { Show, For, createMemo, type JSX } from "solid-js";
-import { Alert, Badge, Button, Anchor, Box, Collapse, Divider, Skeleton, Stack, Text, Title, Tooltip, ActionIcon } from "@/ui";
+import { Alert, Badge, Button, Anchor, Box, Collapse, Divider, Skeleton, Stack, Text, Title, Tooltip, ActionIcon, typeSize } from "@/ui";
 import { IconArrowUpRight, IconBulb, IconChartLine, IconChevronDown, IconChevronUp, IconExternalLink, IconNews, IconX } from "../common/Icons";
 import * as palette from "@/ui/palette";
 import type { ArticleResponse, NewsItem, NewsSymbol } from "./news-types";
@@ -114,7 +114,7 @@ export function ArticleDetail(props: ArticleDetailProps) {
                   <Title
                     order={4}
                     data-testid="article-title"
-                    style={{ "font-size": "1.25rem", "line-height": 1.2, "font-weight": 750, "text-wrap": "balance" }}
+                    style={{ "font-size": `${typeSize("heading")}px`, "line-height": 1.2, "font-weight": 750, "text-wrap": "balance" }}
                   >
                     {selected().headline}
                   </Title>
@@ -218,7 +218,7 @@ export function ArticleDetail(props: ArticleDetailProps) {
                                       "border-radius": "50%",
                                       "background-color": palette.PRIMARY,
                                       color: palette.BG,
-                                      "font-size": "11px",
+                                      "font-size": `${typeSize("micro")}px`,
                                       "font-weight": 800,
                                       flex: "0 0 auto",
                                       "margin-top": "1px",

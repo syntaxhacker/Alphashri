@@ -269,7 +269,8 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
         `+ 0.15 x setup (${Math.round(gateScore() * 100)}) ` +
         `+ 0.30 x erosion (${erodeScore()})`
       }
-      class="w-full min-w-0 flex flex-col gap-[6px] px-2 py-[6px] shrink-0"
+      data-report-spacing="8"
+      class="w-full min-w-0 flex flex-col gap-2 p-2 shrink-0"
       style={{
         border: `1px solid ${palette.TERM_BORDER}`,
         "border-radius": "4px",
@@ -278,13 +279,17 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
       }}
     >
       {/* Row 1: title, stage, wall, proximity */}
-      <div class="flex items-center gap-[6px] min-w-0">
-        <span class="text-[11px] font-extrabold tracking-[0.08em]" style={{ color: palette.TEXT_MUTED }}>
+      <div class="flex items-center gap-2 min-w-0 flex-wrap">
+        <span
+          data-report-text="title"
+          class="text-ui-title font-extrabold tracking-[0.08em] leading-1"
+          style={{ color: palette.TEXT_MUTED }}
+        >
           SQUEEZE
         </span>
         <span
           data-testid="nifty-squeeze-stage"
-          class="px-[4px] py-[1px] rounded-[3px] text-[11px] font-extrabold tracking-[0.04em] whitespace-nowrap"
+          class="px-[4px] py-[1px] rounded-[3px] text-ui-micro font-extrabold tracking-[0.04em] whitespace-nowrap"
           style={{
             border: `1px solid ${STAGE_COLOR[stage()]}`,
             color: STAGE_COLOR[stage()],
@@ -300,19 +305,23 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
         </span>
         <span
           data-testid="nifty-squeeze-wall"
-          class="text-[11px] font-bold whitespace-nowrap"
+          data-report-text="value"
+          class="text-ui-body font-bold whitespace-nowrap"
           style={{ color: palette.TEXT }}
         >
           {wallLabel()}
-          <span class="font-medium" style={{ color: palette.TEXT_MUTED }}>
+          <span data-report-text="label" class="text-ui-micro font-medium" style={{ color: palette.TEXT_MUTED }}>
             {" "}
             · {selection().hasWall ? `${selection().distance.toFixed(0)} pts ${directionLabel()}${erosion30m() != null ? ` · ${fmtPct(erosion30m()!)}/30m` : ""}` : "—"}
           </span>
         </span>
         <Show when={selection().wall}>
           {(wall) => (
-            <span class="text-[11px] whitespace-nowrap" style={{ color: palette.TEXT_MUTED }}>
-              OI {fmtOi(wall().oi)}
+            <span class="inline-flex items-baseline gap-1 whitespace-nowrap">
+              <span data-report-text="label" class="text-ui-micro" style={{ color: palette.TEXT_MUTED }}>OI</span>
+              <span data-report-text="value" class="text-ui-body font-semibold" style={{ color: palette.TEXT }}>
+                {fmtOi(wall().oi)}
+              </span>
             </span>
           )}
         </Show>
@@ -321,13 +330,13 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
             <span
               data-testid="nifty-squeeze-wall-delta"
               title="largest call/put wall OI change — negative = the wall is being consumed (squeeze fuel)"
-              class="text-[11px] font-bold whitespace-nowrap"
+              class="text-ui-body font-bold whitespace-nowrap"
               style={{
                 color: delta() <= 0 ? palette.POSITIVE : palette.WARNING,
               }}
             >
               {delta() <= 0 ? "▼" : "▲"} {fmtOi(Math.abs(delta()))}
-              <span class="font-medium" style={{ color: palette.TEXT_MUTED }}>
+              <span data-report-text="label" class="text-ui-micro font-medium" style={{ color: palette.TEXT_MUTED }}>
                 /{wallDeltaSec()}s
               </span>
             </span>
@@ -336,30 +345,39 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
         <Show when={opposite() && oppositeDist() != null}>
           <span
             data-testid="nifty-squeeze-opposite"
-            class="text-[11px] whitespace-nowrap"
+            data-report-text="value"
+            class="text-ui-body whitespace-nowrap"
             style={{ color: palette.TEXT_MUTED }}
           >
             ↔ {formatNumberIN(opposite()!.strike)} {selection().side === "ce" ? "PE" : "CE"}{" "}
             {oppositeDist()!.toFixed(0)}p
           </span>
         </Show>
-        <div class="ml-auto flex items-baseline gap-[3px]">
+        <div class="ml-auto flex items-baseline gap-1 shrink-0 max-[600px]:ml-0">
           <span
             data-testid="nifty-squeeze-proximity"
-            class="text-[16px] font-extrabold leading-1"
+            data-report-text="value"
+            class="text-ui-title font-extrabold leading-1"
             style={{ color: STAGE_COLOR[stage()] }}
           >
             {proximity()}%
           </span>
-          <span class="text-[11px] tracking-[0.04em]" style={{ color: palette.TEXT_MUTED }}>
+          <span data-report-text="label" class="text-ui-micro tracking-[0.04em]" style={{ color: palette.TEXT_MUTED }}>
             AT LEVEL
           </span>
         </div>
       </div>
 
-      <div class="flex items-center gap-[4px] text-[11px] min-w-0" style={{ color: palette.TEXT_MUTED }}>
-        <span data-testid="squeeze-erosion">
-          DIST {distScorePct()} · FLOW {flowScorePct()} · ERODE {erodeScore()} · Γ {gammaLabel()}
+      <div class="flex items-center gap-2 text-ui-micro min-w-0 flex-wrap" style={{ color: palette.TEXT_MUTED }}>
+        <span data-testid="squeeze-erosion" class="inline-flex items-baseline gap-1 flex-wrap">
+          <span data-report-text="label">DIST</span>{" "}
+          <span data-report-text="value" class="text-ui-body font-semibold">{distScorePct()}</span>{" "}
+          <span data-report-text="label">· FLOW</span>{" "}
+          <span data-report-text="value" class="text-ui-body font-semibold">{flowScorePct()}</span>{" "}
+          <span data-report-text="label">· ERODE</span>{" "}
+          <span data-report-text="value" class="text-ui-body font-semibold">{erodeScore()}</span>{" "}
+          <span data-report-text="label">· Γ</span>{" "}
+          <span data-report-text="value" class="text-ui-body font-semibold">{gammaLabel()}</span>
         </span>
       </div>
 
@@ -387,14 +405,14 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
           }}
         />
       </div>
-      <div class="flex justify-between text-[11px] mt-[-4px]" style={{ color: palette.TEXT_MUTED }}>
+      <div class="flex justify-between text-ui-micro mt-1" style={{ color: palette.TEXT_MUTED }}>
         <span>far</span>
         <span>building</span>
         <span>at the wall</span>
       </div>
 
       {/* Row 3: component chips with values (no glyphs) */}
-      <div class="flex flex-wrap gap-[4px] items-center">
+      <div class="flex flex-wrap gap-2 items-center">
         <Show
           when={components().length === 0}
           fallback={
@@ -402,37 +420,39 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
               <span
                 data-testid={`nifty-squeeze-chip-${c.key}`}
                 title={`${c.label}: ${c.detail} (${c.points > 0 ? "+" : ""}${c.points})`}
-                class="px-[4px] py-[1px] rounded-[3px] text-[11px] font-bold whitespace-nowrap shrink-0"
+                class="px-[4px] py-[1px] rounded-[3px] text-ui-micro font-bold whitespace-nowrap shrink-0"
                 style={{
                   border: `1px solid ${c.points > 0 ? palette.POSITIVE : palette.NEGATIVE}`,
                   "background-color": c.points > 0 ? "rgba(63,185,80,0.10)" : "rgba(248,81,73,0.08)",
                   color: c.points > 0 ? palette.POSITIVE : palette.NEGATIVE,
                 }}
               >
-                {c.label}
-                <span class="font-medium" style={{ opacity: 0.7 }}>
+                <span data-report-text="label">{c.label}</span>
+                <span data-report-text="value" class="text-ui-body font-semibold" style={{ opacity: 0.85 }}>
                   {" "}{c.points > 0 ? "+" : ""}{c.points}
                 </span>
               </span>
             )}</For>
           }
         >
-          <span class="text-[11px]" style={{ color: palette.TEXT_MUTED }}>
+          <span class="text-ui-micro" style={{ color: palette.TEXT_MUTED }}>
             no flow edge yet — waiting for covering / writing
           </span>
         </Show>
         <span
-          class="px-[4px] py-[1px] rounded-[3px] border border-solid text-[11px] shrink-0 ml-auto"
+          data-report-text="label"
+          class="px-2 py-1 rounded-[3px] border border-solid text-ui-micro shrink-0 ml-auto max-[600px]:ml-0"
           style={{ "border-color": palette.TERM_BORDER, color: palette.TEXT_MUTED }}
         >
-          setup {setup().score}/{setup().gates.length} · flow {preMove().score}/{preMove().max}
+          setup <span data-report-text="value" class="text-ui-body">{setup().score}/{setup().gates.length}</span>
+          {" "}· flow <span data-report-text="value" class="text-ui-body">{preMove().score}/{preMove().max}</span>
         </span>
       </div>
 
       {/* Row 4: labelled score sparkline + how long armed */}
       <Show when={n() >= 3}>
-        <div class="flex items-center gap-[6px] min-w-0">
-          <span class="text-[11px] shrink-0" style={{ color: palette.TEXT_MUTED }}>
+        <div class="flex items-center gap-2 min-w-0 flex-wrap">
+          <span class="text-ui-micro shrink-0" style={{ color: palette.TEXT_MUTED }}>
             {t0() ? fmtTime(t0()!) : "—"}
           </span>
           <svg
@@ -477,13 +497,13 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
               />
             </Show>
           </svg>
-          <span class="text-[11px] shrink-0" style={{ color: palette.TEXT_MUTED }}>
+          <span class="text-ui-micro shrink-0" style={{ color: palette.TEXT_MUTED }}>
             {t1() ? fmtTime(t1()!) : "—"}
           </span>
           <Show when={armedSince()}>
             <span
               data-testid="nifty-squeeze-armed"
-              class="text-[11px] font-bold shrink-0"
+              class="text-ui-micro font-bold shrink-0"
               style={{ color: palette.POSITIVE }}
             >
               armed {armedMin()}m
@@ -492,14 +512,15 @@ export function NiftySqueezeRadar(props: NiftySqueezeRadarProps) {
         </div>
       </Show>
 
-      <div class="flex items-baseline gap-[6px] text-[11px] min-w-0" style={{ color: palette.TEXT_MUTED }}>
-        <span class="overflow-hidden truncate whitespace-nowrap">
+      <div class="flex items-baseline gap-2 flex-wrap text-ui-micro min-w-0" style={{ color: palette.TEXT_MUTED }}>
+        <span data-report-text="label" class="whitespace-normal break-words">
           ARM = prepare · TRIGGER = 1-min close through the wall · the score is an early warning, not an entry
         </span>
         <span
           data-testid="nifty-squeeze-calibration"
+          data-report-text="label"
           title="Causal study: 10s chain arms (Oct 26-28) and 1-min 100-level breaks (10 sessions). Historical, not live."
-          class="ml-auto shrink-0 whitespace-nowrap"
+          class="ml-auto shrink-0 whitespace-nowrap max-[600px]:ml-0"
           style={{ color: palette.TEXT_MUTED }}
         >
           hist: ARM {SQUEEZE_CALIBRATION.armLift.toFixed(1)}× (n={SQUEEZE_CALIBRATION.armN}) ·

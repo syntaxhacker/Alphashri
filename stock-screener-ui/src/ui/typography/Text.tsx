@@ -1,15 +1,28 @@
 import { createMemo, splitProps } from "solid-js";
 import { cn } from "../cn";
+import { TYPE_CLASS, type TypeRole } from "../typography";
 import type { JSX } from "solid-js";
 import type { UITextProps } from "../types";
 
-const sizeMap: Record<string, string> = {
-  xs: "0.75rem",
-  sm: "0.875rem",
-  md: "1rem",
-  lg: "1.125rem",
-  xl: "1.25rem",
+/**
+ * Alias → shared tier. Body-sized text tops out at `heading`: `display` (24px)
+ * is a page-title step and breaks body copy. Unknown/custom sizes carry no
+ * class: a caller needing a one-off size passes a `text-ui-*` className or
+ * `typeStyle()` explicitly, never an implicit private font-size here.
+ */
+const SIZE_ROLE: Record<string, TypeRole> = {
+  xs: "micro",
+  sm: "label",
+  md: "title",
+  lg: "heading",
+  xl: "heading",
 };
+
+function sizeClass(size: UITextProps["size"]): string | undefined {
+  if (size == null) return undefined;
+  const role = SIZE_ROLE[String(size)];
+  return role ? TYPE_CLASS[role] : undefined;
+}
 
 /**
  * Tones are utilities, not inline colours: an inline `color` beats both the
@@ -40,11 +53,6 @@ const TEXT_KNOWN = [
 ] as const;
 // `title` is intentionally omitted: it is a native tooltip and must flow through
 // `rest` onto the DOM element rather than being consumed here.
-
-function resolveSize(size: UITextProps["size"]): string | undefined {
-  if (!size) return undefined;
-  return sizeMap[size as string] ?? (size as string);
-}
 
 const sp = (v: number | string | undefined) =>
   v == null ? undefined : typeof v === "number" ? `${v * 8}px` : v;
@@ -81,7 +89,6 @@ export function Text(props: UITextProps) {
     if (known.ta != null) o["text-align"] = known.ta;
     if (known.tt != null) o["text-transform"] = known.tt;
     if (known.lh != null) o["line-height"] = known.lh;
-    if (known.size != null) o["font-size"] = resolveSize(known.size);
     if (known.fs != null) o.fontStyle = known.fs;
     if (known.p != null) o.padding = sp(known.p);
     if (known.px != null) { o["padding-left"] = sp(known.px); o["padding-right"] = sp(known.px); }
@@ -123,7 +130,7 @@ export function Text(props: UITextProps) {
 
   return (
     <Root
-      className={cn(known.className, known.class, derived().cls)}
+      className={cn(known.className, known.class, derived().cls, sizeClass(known.size))}
       style={{ ...derived().style, ...(known.style as Record<string, unknown> | undefined) }}
       id={known.id}
       data-testid={known["data-testid"]}

@@ -4,9 +4,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
-import { UIProvider } from "@/ui";
+import { TYPE_SCALE, UIProvider } from "@/ui";
 
-const FLOOR = 11;
+const FLOOR = TYPE_SCALE.micro.size;
 const ROOT = process.cwd();
 const OWNED_FILES = [
   "src/pages/report/NiftyChartPanel.tsx",
@@ -147,6 +147,11 @@ function fontSizeOf(el: Element | null): number {
   return Number.parseFloat(getComputedStyle(el!).fontSize);
 }
 
+/** Size + pattern controls moved behind the desktop disclosure. */
+function openSecondaryControls() {
+  fireEvent.click(screen.getByTestId("nifty-chart-controls-more-desktop"));
+}
+
 beforeEach(() => {
   window.localStorage.clear();
   (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
@@ -163,7 +168,7 @@ afterEach(() => {
 });
 
 describe("Chart + ticker type floor — owned files", () => {
-  test("(a) no font-size literal below 11px in either owned file", () => {
+  test("(a) no font-size literal below the shared 12px floor in either owned file", () => {
     const offenders = literalSizes().filter(({ px }) => px < FLOOR);
     expect(
       offenders.map(({ file, line, px }) => `${file}:${line} = ${px}px`),
@@ -171,8 +176,9 @@ describe("Chart + ticker type floor — owned files", () => {
     ).toEqual([]);
   });
 
-  test("(a) rendered chart controls and ticker values are all at or above 11px", async () => {
+  test("(a) rendered chart controls and ticker values are all at or above the 12px floor", async () => {
     mountChart();
+    openSecondaryControls();
     for (const id of ["nifty-chart-source", "nifty-tf-toggle", "nifty-chart-size"]) {
       const host = screen.getByTestId(id);
       for (const button of within(host).getAllByRole("button")) {
@@ -194,7 +200,7 @@ describe("Chart + ticker type floor — owned files", () => {
       const value = change.lastElementChild;
       expect(fontSizeOf(value), `ticker-change-${key} value`).toBeGreaterThanOrEqual(FLOOR);
       expect(change.firstElementChild?.className, `ticker-change-${key} arrow class`).toContain(
-        "text-[11px]",
+        "text-ui-micro",
       );
     }
     const item = screen.getByTestId("ticker-nsei");
@@ -204,6 +210,7 @@ describe("Chart + ticker type floor — owned files", () => {
 
   test("(b) source, timeframe and size controls still respond", () => {
     const { onTimeframeChange, onSizeChange } = mountChart();
+    openSecondaryControls();
 
     const source = screen.getByTestId("nifty-chart-source");
     const patterns = within(source).getByRole("button", { name: "PATTERNS" });

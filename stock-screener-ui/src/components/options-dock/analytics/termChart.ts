@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui";
 /**
  * Pure view-model + ECharts option for the ATM-IV-by-expiry (term) panel.
  *
@@ -11,7 +12,7 @@ import type { AnalyticsExpiry, OptionsAnalytics } from "@/api/optionsAnalytics";
 import { termPoints, termSlope, type TermPoint } from "@/utils/optionsAnalyticsMath";
 
 /** Chart text floor: the analytics band is 206px tall, sub-10px ticks vanish. */
-export const CHART_LABEL_FONT_SIZE = 10;
+export const CHART_LABEL_FONT_SIZE = typeSize("micro");
 
 const MONTHS = [
   "JAN",
@@ -177,7 +178,7 @@ export function buildTermOption(vm: TermVM, ink: string): Record<string, unknown
       trigger: "axis",
       backgroundColor: palette.TOOLTIP_BG,
       borderColor: palette.TOOLTIP_BORDER,
-      textStyle: { color: palette.OPTION_PAYOFF_TOOLTIP_TEXT, fontSize: 10 },
+      textStyle: { color: palette.OPTION_PAYOFF_TOOLTIP_TEXT, fontSize: typeSize("micro") },
       formatter: (params: unknown) => {
         const list = Array.isArray(params) ? params : [params];
         const first = list[0] as { dataIndex?: number } | undefined;

@@ -1,4 +1,4 @@
-import { Box, Tabs, Text, ToolbarRow } from "@/ui";
+import { Box, Tabs, Text, ToolbarRow, typeStyle } from "@/ui";
 import { PatternImageManager } from "../components/patterns/PatternImageManager";
 import { LLMStatsPanel } from "./admin/LLMStatsPanel";
 import { Admin52wRangePanel } from "./admin/Admin52wRangePanel";
@@ -25,7 +25,7 @@ export default function AdminPage() {
           className="shrink-0 border-b border-fin-border px-1"
           style={{ "min-height": "32px", "align-items": "flex-end" }}
         >
-          <Text size="xs" fw={700} c="dimmed" tt="uppercase" style={{ "font-size": "10px", "letter-spacing": "0.6px", "text-transform": "uppercase", "padding-bottom": "7px" }}>
+          <Text size="xs" fw={700} c="dimmed" tt="uppercase" style={{ ...typeStyle("micro"), "letter-spacing": "0.6px", "text-transform": "uppercase", "padding-bottom": "7px" }}>
             Admin
           </Text>
           <Box className="min-w-0 flex-1 overflow-x-auto">

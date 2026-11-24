@@ -1,10 +1,11 @@
 import { createMemo, createSignal, splitProps } from "solid-js";
 import { cn } from "../cn";
+import { typeSize, type TypeRole } from "../typography";
 import { stripLegacyInputProps } from "./legacyProps";
 import { createFieldA11y } from "./fieldError";
 import type { UITextInputProps } from "../types";
 
-type FieldBox = { h: number; fs: number; padY: number; padX: number };
+type FieldBox = { h: number; fontRole: TypeRole; padY: number; padX: number };
 
 /**
  * Text-family geometry. Text/password/number deliberately share one look — they
@@ -14,11 +15,11 @@ type FieldBox = { h: number; fs: number; padY: number; padX: number };
  * height when they sit in one row.
  */
 const FIELD_BOX: Record<string, FieldBox> = {
-  xs: { h: 24, fs: 11, padY: 4, padX: 8 },
-  sm: { h: 30, fs: 13, padY: 7, padX: 10 },
-  md: { h: 34, fs: 13, padY: 9, padX: 10 },
-  lg: { h: 38, fs: 14, padY: 11, padX: 12 },
-  xl: { h: 42, fs: 15, padY: 13, padX: 12 },
+  xs: { h: 24, fontRole: "micro", padY: 4, padX: 8 },
+  sm: { h: 30, fontRole: "body", padY: 7, padX: 10 },
+  md: { h: 34, fontRole: "body", padY: 9, padX: 10 },
+  lg: { h: 38, fontRole: "label", padY: 11, padX: 12 },
+  xl: { h: 42, fontRole: "title", padY: 13, padX: 12 },
 };
 
 function boxOf(size?: UITextInputProps["size"]): FieldBox {
@@ -95,10 +96,9 @@ export function TextInput(props: UITextInputProps) {
       "box-shadow": focused() ? `0 0 0 1px ${border}` : "none",
       "background-color": props.disabled ? "var(--color-fin-surface-alt)" : "var(--color-fin-surface)",
       color: "var(--color-fin-text)",
-      "font-size": `${box.fs}px`,
+      "font-size": `${typeSize(box.fontRole)}px`,
       "line-height": "1",
       padding: `${box.padY}px ${box.padX}px`,
-      "outline": "none",
       ...(props.disabled ? { opacity: "0.45", cursor: "not-allowed" } : {}),
     };
   });

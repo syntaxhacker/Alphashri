@@ -6,6 +6,7 @@ import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { AnimatedValue } from "@/components/common/AnimatedValue";
 import { NiftyCoilGauge } from "./NiftyCoilGauge";
+import { REPORT_FONT } from "./reportTokens";
 import type {
   NiftyControlBlock,
   NiftyControlVerdict,
@@ -273,7 +274,7 @@ function VerdictCell(props: VerdictCellProps) {
             c={props.accent}
             span
             style={{
-              "font-size": "11px",
+              "font-size": `${REPORT_FONT.micro}px`,
               "line-height": "1.2",
               "letter-spacing": "0.04em",
               "min-width": "0",
@@ -287,7 +288,7 @@ function VerdictCell(props: VerdictCellProps) {
             c="dimmed"
             span
             style={{
-              "font-size": "11px",
+              "font-size": `${REPORT_FONT.micro}px`,
               "line-height": "1.2",
               "min-width": "0",
               "white-space": "normal",
@@ -321,7 +322,7 @@ function VerdictCell(props: VerdictCellProps) {
           span
           truncate
           style={{
-            "font-size": "11px",
+            "font-size": `${REPORT_FONT.micro}px`,
             "line-height": "1.3",
             "letter-spacing": "0.04em",
           }}
@@ -335,7 +336,7 @@ function VerdictCell(props: VerdictCellProps) {
         c="dimmed"
         span
         style={{
-          "font-size": "11px",
+          "font-size": `${REPORT_FONT.micro}px`,
           "line-height": "1.2",
           "min-width": "0",
           "white-space": "normal",

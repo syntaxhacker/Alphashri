@@ -1,13 +1,9 @@
-import { Show, createEffect, onCleanup, type JSX } from "solid-js";
-import { Portal } from "@/ui/layout/Portal";
-import { IconX } from "./Icons";
+import { Show, type JSX } from "solid-js";
+import { Box, Modal, Text, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
-import { Box, Text } from "@/ui";
 
-// `solid-js` does not re-export JSX.CSSProperties from its package root.
 type CSSProperties = JSX.CSSProperties;
-
 
 export interface PanelModalProps {
   open: boolean;
@@ -32,86 +28,51 @@ export interface PanelModalProps {
   maxHeight?: string | number;
 }
 
-const DIALOG_SHADOW = palette.DIALOG_SHADOW;
-
 /**
- * The body is the only scroller so the title bar never leaves the viewport.
+ * Panel chrome over @/ui Modal. The overlay, focus cycle, Escape, backdrop and
+ * background inertness all belong to Modal; this component only adds the
+ * title/body/actions layout and the drawer sizing the report desk needs.
  */
 export function PanelModal(props: PanelModalProps) {
   const isDrawer = () => props.variant === "drawer";
   const compact = () => !isDrawer() && (props.autoHeight ?? false);
-  const maxHeight = () => props.maxHeight ?? "80vh";
-  const width = () =>
+  const maxHeightValue = () => props.maxHeight ?? "80vh";
+  const panelWidth = () =>
     props.maxWidth != null ? `min(${props.maxWidth}px, 92vw)` : "92vw";
 
-  createEffect(() => {
-    if (!props.open) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") props.onClose();
-    };
-    document.addEventListener("keydown", handler);
-    onCleanup(() => document.removeEventListener("keydown", handler));
+  const panelStyle = (): CSSProperties => ({
+    "background-color": palette.TERM_BG,
+    color: palette.TEXT,
+    border: `1px solid ${palette.TERM_BORDER}`,
+    "box-shadow": palette.DIALOG_SHADOW,
+    display: "flex",
+    "flex-direction": "column",
+    overflow: "hidden",
+    ...(isDrawer()
+      ? {
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: "100%",
+          "max-width": `min(${props.drawerWidth ?? 720}px, 74vw)`,
+          height: "100%",
+          "max-height": "100%",
+          "border-right": "none",
+          "border-radius": 0,
+        }
+      : {
+          width: compact() ? "100%" : panelWidth(),
+          "max-width": compact() ? panelWidth() : undefined,
+          height: compact() ? "auto" : "88vh",
+          "max-height": compact()
+            ? typeof maxHeightValue() === "number"
+              ? `${maxHeightValue()}px`
+              : (maxHeightValue() as string)
+            : "88vh",
+          "border-radius": "4px",
+        }),
   });
-
-  const handleBackdropClick = (e: MouseEvent) => {
-    if (e.target === e.currentTarget) props.onClose();
-  };
-
-  const maxHeightValue = () =>
-    typeof maxHeight() === "number" ? `${maxHeight()}px` : (maxHeight() as string);
-
-  const drawerPanelStyle: CSSProperties = {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    width: "100%",
-    "max-width": `min(${props.drawerWidth ?? 720}px, 74vw)`,
-    height: "100%",
-    "max-height": "100%",
-    "background-color": palette.TERM_BG,
-    color: palette.TEXT,
-    border: `1px solid ${palette.TERM_BORDER}`,
-    "border-right": "none",
-    "border-radius": 0,
-    "box-shadow": DIALOG_SHADOW,
-    display: "flex",
-    "flex-direction": "column",
-    overflow: "hidden",
-  };
-
-  const modalPanelStyle: CSSProperties = {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    transform: "translate(-50%, -50%)",
-    width: compact() ? "100%" : width(),
-    "max-width": compact() ? width() : undefined,
-    "max-height": compact() ? maxHeightValue() : "88vh",
-    height: compact() ? "auto" : "88vh",
-    "background-color": palette.TERM_BG,
-    color: palette.TEXT,
-    border: `1px solid ${palette.TERM_BORDER}`,
-    "border-radius": "4px",
-    "box-shadow": DIALOG_SHADOW,
-    display: "flex",
-    "flex-direction": "column",
-    overflow: "hidden",
-  };
-
-  const backdropStyle: CSSProperties = isDrawer()
-    ? { "background-color": withAlpha(palette.BG, 0.18) }
-    : { "background-color": withAlpha(palette.BG, 0.5) };
-
-  const titlebarStyle: CSSProperties = {
-    display: "flex",
-    "align-items": "center",
-    gap: "8px",
-    padding: "12px 16px",
-    "min-height": "36px",
-    "flex-shrink": 0,
-    "background-color": palette.TERM_HEADER,
-    "border-bottom": `1px solid ${palette.TERM_BORDER}`,
-  };
 
   const titleStyle: CSSProperties = {
     flex: 1,
@@ -121,12 +82,12 @@ export function PanelModal(props: PanelModalProps) {
     "white-space": "nowrap",
   };
 
-  const bodyStyle: CSSProperties = {
+  const bodyStyle = (): CSSProperties => ({
     flex: compact() ? "0 1 auto" : 1,
     "min-height": 0,
     overflow: "auto",
     padding: "8px",
-  };
+  });
 
   const actionsStyle: CSSProperties = {
     display: "flex",
@@ -139,102 +100,63 @@ export function PanelModal(props: PanelModalProps) {
     "background-color": palette.TERM_HEADER,
   };
 
-  const closeButtonStyle: CSSProperties = {
-    padding: "2px",
-    color: palette.TEXT_MUTED,
-    border: "none",
-    background: "none",
-    "border-radius": 0,
-    cursor: "pointer",
-  };
-
-  // Zero-arg render thunk: Solid's `Show` calls it lazily, which is what keeps
-  // the `<Portal>` out of `document.body` while the panel is closed (an eager
-  // element child is created outside the owning root and never disposed).
-  // `Show`'s types only accept a *parameterised* render function, so the thunk
-  // is passed as an Element.
-  const body = (() => (
-      <Portal>
-        <div
-          data-testid="panel-modal"
-          data-variant={props.variant ?? "modal"}
-          data-compact={compact() ? "true" : undefined}
-          style={{
-            position: "fixed",
-            inset: "0px",
-            "z-index": 50,
-            display: "flex",
-            "justify-content": isDrawer() ? "flex-end" : "center",
-            "align-items": isDrawer() ? "stretch" : "center",
-            padding: isDrawer() ? 0 : "16px",
-            ...backdropStyle,
-          }}
-          onClick={handleBackdropClick}
-          role="dialog"
-          aria-modal="true"
-          tabIndex={-1}
-        >
-          <div
-            data-testid="panel-modal-panel"
-            style={isDrawer() ? drawerPanelStyle : modalPanelStyle}
-            className="flex flex-col"
-            onClick={(e) => e.stopPropagation()}
+  // One stable node: Modal reads `title` several times, and re-creating this
+  // wrapper on every read would move the caller's title node out of the slot.
+  const titleNode: JSX.Element = (
+    <div
+      data-testid="panel-modal-titlebar"
+      class="flex min-h-9 items-center gap-2"
+    >
+      <div data-testid="panel-modal-title" style={titleStyle}>
+        <Show when={typeof props.title === "string"} fallback={props.title}>
+          <Text
+            span
+            size="xs"
+            fw={700}
+            style={{
+              "font-size": `${typeSize("micro")}px`,
+              "line-height": 1.2,
+              "letter-spacing": "0.08em",
+              "text-transform": "uppercase",
+              color: palette.TEXT_MUTED,
+            }}
           >
-            <Box
-              data-testid="panel-modal-titlebar"
-              style={titlebarStyle}
-            >
-              <Box
-                data-testid="panel-modal-title"
-                style={titleStyle}
-              >
-                {typeof props.title === "string" ? (
-                  <Text
-                    span
-                    size="xs"
-                    fw={700}
-                    style={{
-                      "font-size": "10px",
-                      "line-height": 1.2,
-                      "letter-spacing": "0.08em",
-                      "text-transform": "uppercase",
-                      color: palette.TEXT_MUTED,
-                    }}
-                  >
-                    {props.title as string}
-                  </Text>
-                ) : (
-                  props.title
-                )}
-              </Box>
-              <button
-                type="button"
-                data-testid="panel-modal-close"
-                aria-label="Close panel"
-                onClick={props.onClose}
-                style={closeButtonStyle}
-              >
-                <IconX size={14} />
-              </button>
-            </Box>
-            <Box
-              data-testid="panel-modal-body"
-              style={bodyStyle}
-            >
-              {props.children}
-            </Box>
-            <Show when={props.actions}>
-              <Box
-                data-testid="panel-modal-actions"
-                style={actionsStyle}
-              >
-                {props.actions}
-              </Box>
-            </Show>
-          </div>
-        </div>
-      </Portal>
-  )) as unknown as JSX.Element;
+            {props.title as string}
+          </Text>
+        </Show>
+      </div>
+    </div>
+  );
 
-  return <Show when={props.open}>{body}</Show>;
+  return (
+    <Modal
+      opened={props.open}
+      onClose={props.onClose}
+      data-testid="panel-modal"
+      {...({
+        "data-variant": props.variant ?? "modal",
+        "data-compact": compact() ? "true" : undefined,
+      } as Record<string, unknown>)}
+      title={titleNode}
+      padding={0}
+      overlayProps={{ color: withAlpha(palette.BG, isDrawer() ? 0.18 : 0.5) }}
+      style={panelStyle()}
+      className={isDrawer() ? "justify-end items-stretch" : undefined}
+    >
+      <div
+        data-testid="panel-modal-panel"
+        class="flex min-h-0 flex-col"
+        style={{ height: "100%" }}
+      >
+        <Box data-testid="panel-modal-body" style={bodyStyle()}>
+          {props.children}
+        </Box>
+        <Show when={props.actions}>
+          <Box data-testid="panel-modal-actions" style={actionsStyle}>
+            {props.actions}
+          </Box>
+        </Show>
+      </div>
+    </Modal>
+  );
 }

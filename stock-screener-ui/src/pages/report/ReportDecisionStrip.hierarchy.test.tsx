@@ -117,6 +117,7 @@ vi.mock("./reportBits", () => ({
 
 import { UIProvider } from "@/ui";
 import {
+  DECISION_HERO_HEIGHT,
   ReportDecisionStrip,
   VERDICT_BLOCK_HEIGHT,
   planConfidenceLabel,
@@ -145,10 +146,10 @@ const DECISION_VALUE_IDS = [
 ];
 
 describe("Index Report decision strip — conclusion before evidence", () => {
-  test("(a) the verdict headline precedes the evidence chips in the DOM", () => {
+  test("(a) the hero claim precedes the evidence chips in the DOM", () => {
     mount();
-    const wrap = screen.getByTestId("nifty-verdict-wrap");
-    const ids = Array.from(wrap.querySelectorAll("[data-testid]")).map((el) =>
+    const strip = screen.getByTestId("nifty-stat-strip");
+    const ids = Array.from(strip.querySelectorAll("[data-testid]")).map((el) =>
       el.getAttribute("data-testid"),
     );
     const headline = ids.indexOf("nifty-plan-headline");
@@ -156,15 +157,17 @@ describe("Index Report decision strip — conclusion before evidence", () => {
     expect(headline).toBeGreaterThanOrEqual(0);
     expect(chips).toBeGreaterThan(headline);
     expect(ids.indexOf("nifty-plan-confidence")).toBeLessThan(chips);
+    expect(ids.indexOf("nifty-decision-hero")).toBeLessThan(headline);
   });
 
-  test("(b) the headline is the largest text in the strip (≥ the value step)", () => {
+  test("(b) the hero claim uses the 16px value step, not the 24px display step", () => {
     mount();
     const headline = screen.getByTestId("nifty-plan-headline");
-    const px = Number.parseFloat(String(planHeadlineStyle(false)["font-size"]));
-    expect(px).toBeGreaterThanOrEqual(REPORT_FONT.value);
-    expect(headline.style.fontSize).toBe(`${REPORT_FONT.display}px`);
-    // One fixed-height row, single line — no extra row that could push page scroll.
+    expect(headline.style.fontSize).toBe(`${REPORT_FONT.value}px`);
+    expect(screen.getByTestId("nifty-decision-hero").style.height).toBe(
+      `${DECISION_HERO_HEIGHT.wide}px`,
+    );
+    // The legacy helper contracts still hold for the narrow-layout guard.
     expect(planHeadlineStyle(false)["white-space"]).toBe("nowrap");
     expect(verdictWrapLayout(false).height).toBe(`${VERDICT_BLOCK_HEIGHT}px`);
   });
@@ -174,9 +177,10 @@ describe("Index Report decision strip — conclusion before evidence", () => {
     const headline = screen.getByTestId("nifty-plan-headline");
     const confidence = screen.getByTestId("nifty-plan-confidence");
     expect(confidence.parentElement).toBe(headline.parentElement);
-    // A neutral plan emits confidence 0 as a sentinel for "no directional call".
+    // A neutral plan emits confidence 0 as a sentinel: no confidence copy at all,
+    // so the hero keeps one status token and one reason instead of four echoes.
     expect(confidence.textContent).toBe(planConfidenceLabel(0).text);
-    expect(confidence.textContent).toContain("no directional call");
+    expect(confidence.textContent).toBe("");
     expect(Number.parseFloat(confidence.style.fontSize)).toBeGreaterThanOrEqual(
       REPORT_FONT.micro,
     );

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { typeSize } from "@/ui/typography";
 import { buildSeries } from "./buildSeries";
 import type { MarkLineData } from "./types";
 import { CANDLESTICK_ITEM_STYLE } from "../chartUtils";
@@ -83,7 +84,7 @@ describe("buildSeries", () => {
       const result = buildSeries(mockCandles, {} as any, false, singleBlackMarkLine);
       expect(result.series[0].markLine.label).toEqual({
         color: "inherit",
-        fontSize: 11,
+        fontSize: typeSize("micro"),
         formatter: "{b}",
       });
     });

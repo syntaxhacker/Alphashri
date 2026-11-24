@@ -208,7 +208,7 @@ export const Overview: Story = {
               </List.Item>
               <List.Item icon={<Text size="xs" c="primary" span>04</Text>}>
                 <Text size="sm" span c="default" fw={500}>Dense but legible.</Text>{" "}
-                8pt spacing, 4/6/10 control radii, tabular mono numerals and a 9px type floor.
+                8pt spacing, 4/6/10 control radii, tabular mono numerals and a 12px type floor enforced by design-scale tests.
               </List.Item>
               <List.Item icon={<Text size="xs" c="primary" span>05</Text>}>
                 <Text size="sm" span c="default" fw={500}>Measure and look.</Text>{" "}
@@ -251,12 +251,12 @@ export const Overview: Story = {
                   ))}
                 </Flex>
                 <Flex gap="sm" align="center" wrap="wrap" style={{ padding: "8px 0" }}>
-                  <Text size="xs" c="dimmed" className="font-mono">Paper radius</Text>
+                  <Text size="xs" c="dimmed" className="font-mono">Container radius</Text>
                   <Text size="xs" c="default" className="font-mono">2 / 4 / 6 / 10 / 14</Text>
                 </Flex>
                 <Flex gap="sm" align="center" wrap="wrap" style={{ padding: "8px 0" }}>
-                  <Text size="xs" c="dimmed" className="font-mono">Card radius</Text>
-                  <Text size="xs" c="default" className="font-mono">4 / 8 / 16 / 24 / 32</Text>
+                  <Text size="xs" c="dimmed" className="font-mono">Control radius</Text>
+                  <Text size="xs" c="default" className="font-mono">4 / 6 / 10</Text>
                 </Flex>
                 <Flex gap="sm" align="center" wrap="wrap" style={{ padding: "8px 0" }}>
                   <Text size="xs" c="dimmed" className="font-mono">density rows</Text>
@@ -290,11 +290,12 @@ export const Overview: Story = {
             {groups.map((g) => (
               <div>
                 <Divider label={g.title} labelPosition="left" />
-                <Flex gap="md" align="baseline" style={{ padding: "6px 0" }}>
-                  <Text size="xs" c="default" className="font-mono" style={{ width: "260px" }}>{g.title}</Text>
-                  <Text size="xs" c="dimmed">{g.description}</Text>
-                  <StoryLink id={g.id} label="open ↗" />
-                </Flex>
+                <div className="flex flex-col gap-1 py-1.5 sm:flex-row sm:items-baseline sm:gap-4">
+                  <Text size="xs" c="dimmed" className="min-w-0 sm:grow sm:basis-[220px]">{g.description}</Text>
+                  <div className="sm:ml-auto whitespace-nowrap">
+                    <StoryLink id={g.id} label="open ↗" />
+                  </div>
+                </div>
               </div>
             ))}
           </Stack>

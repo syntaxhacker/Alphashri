@@ -105,6 +105,27 @@ describe("NiftyPressureDesk", () => {
     expect(screen.getByTestId("pressure-table-PUT-24000").style.background).not.toBe("");
   });
 
+  it("uses 16px section titles, 12px labels, 13px values and an 8/12px rhythm", () => {
+    render(() => <NiftyPressureDesk open walls={walls} onClose={vi.fn()} />);
+    const desk = screen.getByTestId("pressure-desk");
+    expect(desk.getAttribute("data-report-spacing")).toBe("8");
+    expect(desk.className).toContain("p-2");
+
+    const titles = desk.querySelectorAll('[data-report-text="title"]');
+    expect(titles.length).toBeGreaterThanOrEqual(4);
+    for (const title of titles) expect((title as HTMLElement).style.fontSize).toBe("16px");
+    for (const label of desk.querySelectorAll('[data-report-text="label"]')) {
+      const el = label as HTMLElement;
+      expect(el.style.fontSize === "12px" || el.className.includes("text-ui-micro")).toBe(true);
+    }
+    for (const value of desk.querySelectorAll('[data-report-text="value"]')) {
+      expect((value as HTMLElement).className).toContain("text-ui-body");
+    }
+    expect(desk.querySelector('[data-report-spacing="12"]')).not.toBeNull();
+    expect(desk.innerHTML).not.toContain("text-ellipsis");
+    expect(desk.innerHTML).not.toContain("truncate");
+  });
+
   it("closes through the panel shell", () => {
     const onClose = vi.fn();
     render(() => <NiftyPressureDesk open walls={walls} onClose={onClose} />);

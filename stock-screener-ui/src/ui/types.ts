@@ -329,14 +329,12 @@ export interface UIUnstyledButtonProps extends UIBaseProps {
 }
 
 /**
- * Props carried over from the Mantine-era API. Accepted so old call sites keep
- * compiling, stripped before render — they can never affect the DOM.
+ * The one Mantine-era input prop with a real DOM target: `errorProps` is spread
+ * onto the rendered message node. The other styling props were never used and
+ * are not advertised on any public input type.
  */
 export interface UIInputCompatProps {
   errorProps?: Record<string, unknown>;
-  styles?: Record<string, unknown>;
-  loading?: boolean;
-  variant?: string;
 }
 
 export interface UIInputWrapperProps extends UIBaseProps {
@@ -446,8 +444,6 @@ export interface UISelectProps extends UIInputWrapperProps {
   rightSection?: JSX.Element;
   nothingFoundMessage?: string;
   placeholder?: string;
-  /** Legacy Mantine prop, stripped before forwarding; still accepted on write. */
-  InputProps?: unknown;
 }
 
 export interface UIMultiSelectProps extends UIInputWrapperProps {
@@ -475,8 +471,6 @@ export interface UIMultiSelectProps extends UIInputWrapperProps {
   hidePickedOptions?: boolean;
   /** Hide the inline selected tags (the caller renders its own chip row). */
   hideTags?: boolean;
-  /** Legacy Mantine prop, stripped before forwarding; still accepted on write. */
-  InputProps?: unknown;
 }
 
 export interface UITextareaProps extends UIInputWrapperProps {
@@ -500,7 +494,8 @@ export interface UISwitchProps extends UIBaseProps {
   name?: string;
   checked?: boolean;
   defaultChecked?: boolean;
-  onChange?: (e: Event & { currentTarget: HTMLInputElement; target: Element }) => void;
+  /** Fired with the new checked state — the value-first convention shared by TextInput/Select/Chip. */
+  onChange?: (checked: boolean) => void;
   disabled?: boolean;
   size?: UISize;
   color?: UIColor;
@@ -513,10 +508,13 @@ export interface UISwitchProps extends UIBaseProps {
 
 export interface UICheckboxProps extends UIBaseProps {
   label?: JSX.Element;
+  /** Accessible name for an icon-only checkbox (no visible label). */
+  "aria-label"?: string;
   name?: string;
   checked?: boolean;
   defaultChecked?: boolean;
-  onChange?: (e: Event & { currentTarget: HTMLInputElement; target: Element }) => void;
+  /** Fired with the new checked state — the value-first convention shared by TextInput/Select/Chip. */
+  onChange?: (checked: boolean) => void;
   disabled?: boolean;
   size?: UISize;
   color?: UIColor;
@@ -554,13 +552,11 @@ export interface UIModalProps extends UIBaseProps {
   title?: JSX.Element;
   size?: UISize | number | string;
   fullScreen?: boolean;
-  centered?: boolean;
   withCloseButton?: boolean;
   closeOnClickOutside?: boolean;
   closeOnEscape?: boolean;
   overlayProps?: UIOverlayProps;
   padding?: UISize | number | string;
-  transitionProps?: { duration?: number; timingFunction?: string };
 }
 
 export interface UITooltipProps extends UIBaseProps {
@@ -581,11 +577,6 @@ export interface UITooltipProps extends UIBaseProps {
    * is not an action — no Enter/Space activation is synthesised.
    */
   focusable?: boolean;
-  /**
-   * Legacy Mantine-compat prop. Accepted so existing call sites keep
-   * typechecking, but intentionally swallowed — the component handles portal rendering internally and must never receive this as a DOM attribute.
-   */
-  withinPortal?: boolean;
 }
 
 // Popover accepts a render-prop child, so it cannot inherit the plain
@@ -602,8 +593,6 @@ export interface UIPopoverProps extends Omit<UIBaseProps, "children"> {
   offset?: number;
   trapFocus?: boolean;
   closeOnClickOutside?: boolean;
-  middlewares?: any;
-  keepMounted?: boolean;
   /** Render function receiving { ref, toggle, close, open, opened } or direct children */
   children?: JSX.Element | ((payload: { ref: any; toggle: () => void; close: () => void; opened: boolean }) => JSX.Element);
 }
@@ -623,7 +612,6 @@ export interface UINavLinkProps extends UIBaseProps {
   variant?: "light" | "filled" | "subtle";
   defaultOpened?: boolean;
   opened?: boolean;
-  onClick?: () => void;
   children?: JSX.Element;
   autoContrast?: boolean;
 }
@@ -666,11 +654,7 @@ export interface UITabsProps extends UIBaseProps {
   value?: string | null;
   defaultValue?: string | null;
   onChange?: (value: string | null) => void;
-  variant?: "default" | "outline" | "pills" | "underline";
-  color?: UIColor;
   orientation?: "horizontal" | "vertical";
-  activateOnFocus?: boolean;
-  loop?: boolean;
 }
 
 export interface UITabProps extends UIBaseProps {
@@ -751,8 +735,6 @@ export interface UIMenuProps extends UIBaseProps {
   closeOnClickOutside?: boolean;
   loop?: boolean;
   children?: JSX.Element;
-  /** Render function for custom trigger */
-  renderTarget?: (props: any) => JSX.Element;
 }
 
 export interface UIMenuTargetProps extends UIBaseProps {}
@@ -762,7 +744,6 @@ export interface UIMenuItemProps extends UIBaseProps {
   rightSection?: JSX.Element;
   color?: UIColor;
   disabled?: boolean;
-  onClick?: () => void;
 }
 
 export interface UIAvatarProps extends UIBaseProps {
@@ -786,7 +767,6 @@ export interface UICloseButtonProps extends UIBaseProps {
   size?: UISize | number | string;
   variant?: "filled" | "light" | "outline" | "subtle" | "transparent";
   disabled?: boolean;
-  onClick?: () => void;
 }
 
 /** Copy shown by the date control. Override every string to localise the primitive. */

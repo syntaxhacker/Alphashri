@@ -10,6 +10,8 @@ import {
   SegmentedControl,
   useColorScheme,
   useTheme,
+  useMediaQuery,
+  typeSize,
 } from "@/ui";
 import * as palette from "@/ui/palette";
 import { createEffect, createMemo, createSignal, For, Index, Show, type JSX } from "solid-js";
@@ -18,7 +20,7 @@ import { getMoneyness } from "../../../utils/options";
 import { clamp, formatNumber, getPnLTextColor } from "../../../utils/ui-helpers";
 import type { OptionContract } from "../../../api/upstoxOptions";
 import { hexToRgba, getCellPalette, type CellKind } from "./cellPalette";
-import { getStyles } from "./chainStyles";
+import { CHAIN_TABLE_MIN_WIDTH, CHAIN_COMPACT_QUERY, getStyles } from "./chainStyles";
 import { ChainTableHeader } from "./ChainTableHeader";
 import { ChainSubHeader } from "./ChainSubHeader";
 import { ChainFooter } from "./ChainFooter";
@@ -68,9 +70,13 @@ function OptionColumn(props: {
   theme: ReturnType<typeof useTheme>;
   isHovered: boolean;
   rowStrike: number;
+  compact?: boolean;
+  narrow?: boolean;
 }) {
   const { isDark } = useColorScheme();
-  const styles = getStyles(props.theme, isDark());
+  const styles = createMemo(() =>
+    getStyles(props.theme, isDark(), { compact: props.compact, narrow: props.narrow }),
+  );
   const type = () => props.type;
   const strike = () => props.rowStrike;
   // Side coding: CE blue, PE orange. OI is not bullish/bearish, so the legacy
@@ -259,14 +265,14 @@ function OptionColumn(props: {
   return (
     <Show when={meta()} fallback={
       <Box style={{ display: "contents" }}>
-        <For each={[1, 2, 3, 4, 5]}>
-          {() => <Box style={styles.cell as CSSProperties}>-</Box>}
+        <For each={props.compact ? [1, 2] : [1, 2, 3, 4, 5]}>
+          {() => <Box style={styles().cell as CSSProperties}>-</Box>}
         </For>
       </Box>
     }>
       {(d) => (
         <>
-          <For each={d().cellMeta}>
+          <For each={props.compact ? d().cellMeta.filter((cell) => cell.isLTP || cell.isOI) : d().cellMeta}>
             {(cell) => {
               const kindIntensity = (
                 cell.kind === "oi"
@@ -302,7 +308,7 @@ function OptionColumn(props: {
                 : cellPalette.shadow;
 
               const cellStyle: CSSProperties = {
-                ...(styles.cell as CSSProperties),
+                ...(styles().cell as CSSProperties),
                 position: "relative",
                 "font-weight": cell.fw,
                 background: cellBackground,
@@ -388,7 +394,7 @@ function OptionColumn(props: {
                               size="sm"
                               variant="light"
                               color={badge().color}
-                              style={{ "font-size": "10px", height: "14px", "padding-left": "4px", "padding-right": "4px" }}
+                              style={{ "font-size": `${typeSize("micro")}px`, height: "14px", "padding-left": "4px", "padding-right": "4px" }}
                             >
                               {badge().label}
                             </Badge>
@@ -421,7 +427,14 @@ function OptionColumn(props: {
 export function OptionChainTable(props: OptionChainTableProps) {
   const theme = useTheme();
   const { isDark } = useColorScheme();
-  const styles = getStyles(theme, isDark());
+  const isNarrow = useMediaQuery(CHAIN_COMPACT_QUERY, false);
+  // A phone opens on a five-column core view; the 11-column chain stays one
+  // tap away so no strike data is hidden without an affordance.
+  const [showFullChain, setShowFullChain] = createSignal(false);
+  const compact = () => isNarrow() && !showFullChain();
+  const styles = createMemo(() =>
+    getStyles(theme, isDark(), { narrow: isNarrow(), compact: compact() }),
+  );
 
   let viewportRef: HTMLDivElement | undefined;
   let atmRowRef: HTMLDivElement | undefined;
@@ -488,6 +501,30 @@ export function OptionChainTable(props: OptionChainTableProps) {
     }
   };
 
+  // On a phone the 11-column grid is 980px wide, so the strike's natural
+  // position (centre of that grid) is off-screen at scrollLeft 0. Entering the
+  // full chain centres the strike so the first viewport shows CE LTP / STRIKE
+  // / PE LTP instead of an unanchored wall of numbers.
+  createEffect(() => {
+    if (!isNarrow() || !showFullChain()) return;
+    queueMicrotask(() => {
+      const viewport = viewportRef;
+      const strike = viewport?.querySelector(
+        '[data-testid="options-chain-strike-header"]',
+      ) as HTMLElement | null;
+      if (!viewport || !strike) return;
+      const viewportBox = viewport.getBoundingClientRect();
+      const strikeBox = strike.getBoundingClientRect();
+      const offset = strikeBox.left - viewportBox.left;
+      const left = viewport.scrollLeft + offset - (viewport.clientWidth - strikeBox.width) / 2;
+      if (typeof viewport.scrollTo === "function") {
+        viewport.scrollTo({ left: Math.max(0, left), behavior: "auto" });
+      } else {
+        viewport.scrollLeft = Math.max(0, left);
+      }
+    });
+  });
+
   // NOTE: no auto-scroll on load. The ATM ±window keeps ATM in view, and
   // programmatic scrolling escapes to the page scroller (AppLayout shell),
   // burying the toolbar. Users re-center via the Jump-to-ATM button, which
@@ -496,12 +533,17 @@ export function OptionChainTable(props: OptionChainTableProps) {
   return (
     <Box
       id="option-chain-table"
-      style={{ ...(styles.container as CSSProperties), position: "relative" }}
+      style={{ ...(styles().container as CSSProperties), position: "relative" }}
+      data-mode={compact() ? "compact" : "full"}
       data-testid="options-chain-table"
     >
-      <ChainScrollActions scrollToATM={scrollToATM} scrollToEdge={scrollToEdge} />
+      {/* The compact view hugs its rows, so the page owns vertical scrolling
+          and these viewport-only controls would be no-ops. */}
+      <Show when={!compact()}>
+        <ChainScrollActions scrollToATM={scrollToATM} scrollToEdge={scrollToEdge} />
+      </Show>
 
-      <Box style={styles.windowBar as CSSProperties}>
+      <Box style={styles().windowBar as CSSProperties}>
         <Text size="sm" className="text-fin-text-muted" fw={600}>
           ATM window
         </Text>
@@ -517,15 +559,59 @@ export function OptionChainTable(props: OptionChainTableProps) {
         </Text>
       </Box>
 
-      <ChainTableHeader theme={theme} styles={styles} />
-      <ChainSubHeader styles={styles} />
+      <Show when={isNarrow()}>
+        <Box
+          className="flex w-full items-center justify-between gap-2 px-3 py-1"
+          data-testid="options-chain-view-switch"
+        >
+          <Text size="sm" className="text-fin-text-muted" data-testid="options-chain-core-summary">
+            Core · STRIKE / CE·PE LTP / OI
+          </Text>
+          <button
+            type="button"
+            aria-pressed={showFullChain()}
+            onClick={() => setShowFullChain((value) => !value)}
+            className="shrink-0 rounded-[6px] border border-fin-border px-2 py-1 font-mono text-ui-micro text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+            data-testid="options-chain-full-chain-toggle"
+          >
+            {showFullChain() ? "← Compact" : "Full chain →"}
+          </button>
+        </Box>
+      </Show>
 
+      <Box className="flex w-full items-center justify-end px-3 py-1 sm:hidden" data-testid="options-chain-scroll-cue">
+        <Text size="sm" className="text-fin-text-muted">
+          {isNarrow()
+            ? showFullChain()
+              ? "Scroll sideways → all 11 columns"
+              : "Scroll sideways → Full chain"
+            : "Scroll sideways →"}
+        </Text>
+      </Box>
+
+      {/* One scrollport owns both axes: header, subheader and rows scroll
+          horizontally together, while the header pair stays sticky vertically. */}
       <div
         ref={(el) => (viewportRef = el)}
-        style={{ flex: 1, "min-height": 0, overflow: "auto" }}
+        style={{ flex: compact() ? "none" : 1, "min-height": 0, overflow: "auto", "overscroll-behavior": "contain" }}
+        role="region"
+        aria-label="Option chain table"
+        tabindex={0}
+        data-mode={compact() ? "compact" : "full"}
         data-testid="options-chain-table-scrollarea"
       >
-        <Box style={{ "min-width": "800px", "padding-bottom": "152px" } as CSSProperties}>
+        <Box
+          style={
+            {
+              "min-width": compact() ? "0px" : `${CHAIN_TABLE_MIN_WIDTH}px`,
+              "padding-bottom": compact() ? "8px" : "152px",
+            } as CSSProperties
+          }
+          data-mode={compact() ? "compact" : "full"}
+          data-testid="options-chain-table-inner"
+        >
+          <ChainTableHeader theme={theme} styles={styles()} />
+          <ChainSubHeader styles={styles()} compact={compact()} />
           <Index each={visibleRows()}>
             {(row) => {
               const index = () => row().index;
@@ -557,9 +643,9 @@ export function OptionChainTable(props: OptionChainTableProps) {
                 const rowPutBg = palette.alpha(palette.OI_PUT, putAlpha);
                 const atmBg = palette.alpha(palette.WARNING, 0.12 + prox * 0.12);
                 const style: CSSProperties = {
-                  ...(styles.row as CSSProperties),
-                  ...(isZebra() ? (styles.zebraRow as CSSProperties) : {}),
-                  ...(isATM() ? (styles.atmRow as CSSProperties) : {}),
+                  ...(styles().row as CSSProperties),
+                  ...(isZebra() ? (styles().zebraRow as CSSProperties) : {}),
+                  ...(isATM() ? (styles().atmRow as CSSProperties) : {}),
                   background: `linear-gradient(90deg, ${rowCallBg} 0%, transparent 37%, ${isATM() ? atmBg : "transparent"} 50%, transparent 63%, ${rowPutBg} 100%)`,
                 };
                 if (hovered) {
@@ -594,12 +680,14 @@ export function OptionChainTable(props: OptionChainTableProps) {
                     theme={theme}
                     isHovered={isHovered()}
                     rowStrike={strike()}
+                    compact={compact()}
+                    narrow={isNarrow()}
                   />
 
                   <Box
                     style={{
-                      ...(styles.strikeCell as CSSProperties),
-                      ...(isATM() ? (styles.atmHighlight as CSSProperties) : {}),
+                      ...(styles().strikeCell as CSSProperties),
+                      ...(isATM() ? (styles().atmHighlight as CSSProperties) : {}),
                       ...(isHovered()
                         ? {
                             "box-shadow": `inset 0 0 0 1px ${palette.alpha(palette.WARNING, 0.45)}, 0 8px 22px ${palette.alpha(palette.BG, 0.08)}`,
@@ -650,6 +738,8 @@ export function OptionChainTable(props: OptionChainTableProps) {
                     theme={theme}
                     isHovered={isHovered()}
                     rowStrike={strike()}
+                    compact={compact()}
+                    narrow={isNarrow()}
                   />
                 </Box>
               );

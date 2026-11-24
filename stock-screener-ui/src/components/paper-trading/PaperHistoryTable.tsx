@@ -231,7 +231,7 @@ function TradeStats(props: { trade: PaperTrade }) {
         <For each={entryContext()}>{(item) => (
           <div class="paper-trade-stats-row flex items-center border-b border-fin-border py-[2.8px] gap-[2.8px]" id={`paper-trade-stats-row-${props.trade.trade_id}-${item.label.replace(/\s+/g, "-").toLowerCase()}`}>
             <Text className="paper-trade-stats-label min-w-[62px] shrink-0 leading-[1.1]" size="xs" c="dimmed">{item.label}</Text>
-            <Text className="paper-trade-stats-value font-mono tabular-nums leading-[1.2] text-[0.78rem]" size="xs" fw={600} c={item.color}>{item.value}</Text>
+            <Text className="paper-trade-stats-value font-mono tabular-nums leading-[1.2]" size="xs" fw={600} c={item.color}>{item.value}</Text>
           </div>
         )}</For>
       </div>
@@ -242,7 +242,7 @@ function TradeStats(props: { trade: PaperTrade }) {
         <For each={exitContext()}>{(item) => (
           <div class="paper-trade-stats-row flex items-center border-b border-fin-border py-[2.8px] gap-[2.8px]" id={`paper-trade-stats-row-${props.trade.trade_id}-${item.label.replace(/\s+/g, "-").toLowerCase()}`}>
             <Text className="paper-trade-stats-label min-w-[62px] shrink-0 leading-[1.1]" size="xs" c="dimmed">{item.label}</Text>
-            <Text className="paper-trade-stats-value font-mono tabular-nums leading-[1.2] text-[0.78rem]" size="xs" fw={600} c={item.color}>{item.value}</Text>
+            <Text className="paper-trade-stats-value font-mono tabular-nums leading-[1.2]" size="xs" fw={600} c={item.color}>{item.value}</Text>
           </div>
         )}</For>
         <div class="paper-trade-stats-exit-reason flex items-center py-[2.8px] gap-[2.8px]" id={`paper-trade-stats-exit-reason-${props.trade.trade_id}`}>

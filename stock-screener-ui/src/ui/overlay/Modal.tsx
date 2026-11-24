@@ -1,5 +1,6 @@
 import { createEffect, createUniqueId, onCleanup, Show, splitProps } from "solid-js";
 import { cn } from "../cn";
+import { containBackground } from "./backgroundContainment";
 import type { UIModalProps, UISize } from "../types";
 
 type ModalProps = UIModalProps;
@@ -49,84 +50,24 @@ function getFocusable(root: HTMLElement | undefined): HTMLElement[] {
 }
 
 /**
- * Background containment. While a dialog is open, everything outside it must
- * be unreachable by Tab and invisible to assistive tech. We mark the siblings
- * of each ancestor on the path to <body> — never an ancestor itself, since
- * that contains the dialog — with both `inert` (keyboard/pointer) and
- * `aria-hidden="true"` (AT fallback). Attributes are snapshotted per element
- * and restored verbatim, so we never clobber a caller's own values.
- *
- * The open set lives here rather than per instance: every change recomputes
- * from the full set, so an inner dialog can hide more of the page, and closing
- * it restores exactly the state the still-open outer dialog needs. It also
- * keeps Escape and the Tab cycle owned by the innermost dialog only.
+ * Dialog stack. Background containment is shared with the other overlays
+ * (`backgroundContainment.ts`); this stack only decides which dialog owns
+ * Escape and the Tab cycle when dialogs are nested.
  */
-interface AttributeSnapshot {
-  inert: string | null;
-  ariaHidden: string | null;
-}
-
 const openDialogs: HTMLElement[] = [];
-const hiddenBackground = new Map<Element, AttributeSnapshot>();
-
-function restoreHiddenBackground() {
-  for (const [el, snapshot] of hiddenBackground) {
-    if (snapshot.inert === null) el.removeAttribute("inert");
-    else el.setAttribute("inert", snapshot.inert);
-    if (snapshot.ariaHidden === null) el.removeAttribute("aria-hidden");
-    else el.setAttribute("aria-hidden", snapshot.ariaHidden);
-  }
-  hiddenBackground.clear();
-}
-
-function hideBackground(el: Element) {
-  if (!hiddenBackground.has(el)) {
-    hiddenBackground.set(el, {
-      inert: el.getAttribute("inert"),
-      ariaHidden: el.getAttribute("aria-hidden"),
-    });
-  }
-  el.setAttribute("inert", "");
-  el.setAttribute("aria-hidden", "true");
-}
-
-function syncBackground() {
-  // SSR: effects never run server-side, but keep module evaluation guarded.
-  if (typeof document === "undefined") return;
-  restoreHiddenBackground();
-  if (openDialogs.length === 0) return;
-
-  // The dialogs and their ancestor chain are the foreground. A dialog's own
-  // subtree is never walked — that is the content being shown.
-  const foreground = new Set<Element>();
-  const ancestors = new Set<Element>();
-  for (const dialog of openDialogs) {
-    if (!dialog.isConnected) continue;
-    let node: Element | null = dialog;
-    foreground.add(node);
-    while ((node = node.parentElement) !== null) {
-      foreground.add(node);
-      ancestors.add(node);
-      if (node === document.body) break;
-    }
-  }
-  for (const parent of ancestors) {
-    for (const child of Array.from(parent.children)) {
-      if (!foreground.has(child)) hideBackground(child);
-    }
-  }
-}
+const releases = new WeakMap<HTMLElement, () => void>();
 
 function registerDialog(dialog: HTMLElement) {
   if (openDialogs.includes(dialog)) return;
   openDialogs.push(dialog);
-  syncBackground();
+  releases.set(dialog, containBackground(dialog));
 }
 
 function unregisterDialog(dialog: HTMLElement) {
   const index = openDialogs.indexOf(dialog);
   if (index !== -1) openDialogs.splice(index, 1);
-  syncBackground();
+  releases.get(dialog)?.();
+  releases.delete(dialog);
 }
 
 /** Innermost open dialog: the only one that handles Escape and Tab. */
@@ -146,7 +87,7 @@ function topDialog(): HTMLElement | undefined {
 export function Modal(props: ModalProps) {
   // splitProps reads are reactive only while they stay inside a tracked scope
   // (JSX or an effect). Destructuring them here would pin the first snapshot.
-  const [known, rest] = splitProps(props, [
+  const [known, rest] = splitProps(props as typeof props & Record<string, unknown>, [
     "children",
     "opened",
     "onClose",
@@ -158,6 +99,7 @@ export function Modal(props: ModalProps) {
     "closeOnEscape",
     "overlayProps",
     "padding",
+    // Runtime swallow for older callers; no longer public API.
     "transitionProps",
     "className",
     "style",

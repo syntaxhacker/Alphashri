@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui";
 /**
  * Shared ECharts option fragments for the dashboard panels. 2D only — the heat
  * maps use ECharts' built-in `heatmap`, nothing imports `echarts-gl`. All colours
@@ -8,7 +9,7 @@
 import * as palette from "@/ui/palette";
 
 /** Tick, axis-name and legend ink. 9px was unreadable on a 1600px canvas. */
-export const CHART_LABEL_SIZE = 10;
+export const CHART_LABEL_SIZE = typeSize("micro");
 
 /**
  * Wide grid. The legend owns the top band, the wall-mark labels take two
@@ -137,7 +138,7 @@ export function tooltip(): Record<string, unknown> {
     backgroundColor: palette.TOOLTIP_BG,
     borderColor: palette.TOOLTIP_BORDER,
     borderWidth: 1,
-    textStyle: { color: palette.TOOLTIP_TEXT, fontSize: 11 },
+    textStyle: { color: palette.TOOLTIP_TEXT, fontSize: typeSize("micro") },
     axisPointer: { type: "line", lineStyle: { color: palette.CHART_CROSSHAIR } },
   };
 }

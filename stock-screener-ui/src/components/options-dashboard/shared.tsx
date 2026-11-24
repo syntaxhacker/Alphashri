@@ -5,7 +5,7 @@
  */
 
 import { createMemo, For, Show } from "solid-js";
-import { Box, Text, useMediaQuery } from "@/ui";
+import { Box, Text, useMediaQuery, typeSize } from "@/ui";
 import { EXPIRY_CHIP_FOCUS } from "@/config/focusTokens";
 import * as palette from "@/ui/palette";
 import { AnalyticsChartCore } from "@/components/options-dock/analytics/AnalyticsChartCore";
@@ -32,7 +32,7 @@ export function pillarGridClass(rows: 1 | 2): string {
 }
 
 export const PILLAR_CAPTION_CLASS =
-  "truncate font-mono text-[10px] uppercase tracking-[0.06em] text-fin-text-muted";
+  "truncate font-mono text-ui-micro uppercase tracking-[0.06em] text-fin-text-muted";
 
 /**
  * A rotated y-axis name cannot coexist with `containLabel`: the tick-label band
@@ -53,7 +53,7 @@ function withoutYAxisName(yAxis: unknown): unknown {
   return { ...(yAxis as Record<string, unknown>), name: "" };
 }
 
-const INK = { "font-size": "10px", "line-height": "1.1", "letter-spacing": "0.06em" } as const;
+const INK = { "font-size": `${typeSize("micro")}px`, "line-height": "1.1", "letter-spacing": "0.06em" } as const;
 
 export interface MetricVM {
   label: string;
@@ -92,7 +92,7 @@ export function MetricBand(props: { metrics: MetricVM[]; testId: string }) {
               fw={700}
               className="truncate font-mono tabular-nums"
               style={{
-                "font-size": "11px",
+                "font-size": `${typeSize("micro")}px`,
                 "line-height": "1.2",
                 ...(metric.tone ? { color: TONE[metric.tone] } : {}),
               }}
@@ -146,7 +146,7 @@ export function ChartFrame(props: {
           size="xs"
           c="dimmed"
           className="pointer-events-none absolute left-2 top-[3px] z-10 font-mono uppercase"
-          style={{ "font-size": "10px", "letter-spacing": "0.06em" }}
+          style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.06em" }}
           data-testid={`${props.testId}-unit`}
         >
           {unit()}
@@ -206,7 +206,7 @@ export function ExpiryChips(props: {
               aria-pressed={props.selectedExpiry === option.date}
               onKeyDown={moveFocus}
               onClick={() => props.onExpiry(option.date)}
-              className={`inline-flex h-[22px] items-center rounded-fin border border-fin-border px-1.5 font-mono text-[10px] text-fin-text-muted transition-colors hover:bg-fin-surface-alt aria-[pressed=true]:border-fin-primary aria-[pressed=true]:bg-fin-primary/15 aria-[pressed=true]:text-fin-primary ${EXPIRY_CHIP_FOCUS}`}
+              className={`inline-flex h-[22px] items-center rounded-fin border border-fin-border px-1.5 font-mono text-ui-micro text-fin-text-muted transition-colors hover:bg-fin-surface-alt aria-[pressed=true]:border-fin-primary aria-[pressed=true]:bg-fin-primary/15 aria-[pressed=true]:text-fin-primary ${EXPIRY_CHIP_FOCUS}`}
               data-testid={`${props.testId}-${option.date}`}
             >
               {option.label}
@@ -222,14 +222,14 @@ export function ExpiryChips(props: {
 export function ChartCaption(props: { text: string; testId: string; reason?: string | null }) {
   return (
     <Box className="flex h-[18px] shrink-0 items-center gap-2 px-1.5" data-testid={props.testId}>
-      <Text size="xs" c="dimmed" className="truncate font-mono" style={{ "font-size": "10px" }}>
+      <Text size="xs" c="dimmed" className="truncate font-mono" style={{ "font-size": `${typeSize("micro")}px` }}>
         {props.text}
       </Text>
       <Show when={props.reason}>
         <Text
           size="xs"
           className="shrink-0 font-mono"
-          style={{ "font-size": "10px", color: palette.WARNING }}
+          style={{ "font-size": `${typeSize("micro")}px`, color: palette.WARNING }}
           data-testid={`${props.testId}-reason`}
         >
           {props.reason}

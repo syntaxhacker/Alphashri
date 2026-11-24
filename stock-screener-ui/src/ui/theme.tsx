@@ -4,6 +4,7 @@
 import { createEffect, on, type JSX } from "solid-js";
 import { applyColorScheme, hasStoredColorScheme } from "./hooks";
 import * as palette from "./palette";
+import { TYPE_SCALE } from "./typography";
 
 /**
  * JS-side tokens for chart option builders and token readers. The colour
@@ -14,10 +15,18 @@ import * as palette from "./palette";
 export const uiTheme = {
   fontFamily: '"IBM Plex Sans", "Roboto", system-ui, sans-serif',
   fontSizes: {
-    sm: "12px",
-    md: "14px",
-    lg: "16px",
-    xl: "20px",
+    // Semantic roles first; the legacy chart names are aliases so no chart
+    // invents a fifth scale.
+    micro: `${TYPE_SCALE.micro.size}px`,
+    body: `${TYPE_SCALE.body.size}px`,
+    label: `${TYPE_SCALE.label.size}px`,
+    title: `${TYPE_SCALE.title.size}px`,
+    heading: `${TYPE_SCALE.heading.size}px`,
+    display: `${TYPE_SCALE.display.size}px`,
+    sm: `${TYPE_SCALE.micro.size}px`,
+    md: `${TYPE_SCALE.label.size}px`,
+    lg: `${TYPE_SCALE.title.size}px`,
+    xl: `${TYPE_SCALE.heading.size}px`,
   },
   fontWeights: {
     normal: 400,

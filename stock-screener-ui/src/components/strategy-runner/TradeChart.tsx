@@ -1,5 +1,5 @@
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
-import { Box, Text } from "@/ui";
+import { Box, Text, typeSize } from "@/ui";
 import { loadEcharts } from "../../utils/loadEcharts";
 import {
   CANDLESTICK_ITEM_STYLE,
@@ -63,7 +63,7 @@ export function TradeChart(props: TradeChartProps) {
       const option = {
         tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
         grid: { left: 50, right: 20, top: 40, bottom: 30 },
-        xAxis: { data: times, axisLabel: { rotate: 45, fontSize: 9 }, show: entryIdx >= 0 },
+        xAxis: { data: times, axisLabel: { rotate: 45, fontSize: typeSize("micro") }, show: entryIdx >= 0 },
         yAxis: {
           scale: true,
           min: (value: any) => Math.min(value.min * 0.995, props.entryPrice * 0.99),

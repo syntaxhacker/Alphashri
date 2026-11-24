@@ -11,7 +11,7 @@ function Return(props: { value: number; strong?: boolean }) {
   return (
     <Text
       c={getPnLTextColor(props.value)}
-      className="font-mono text-[10.5px] tabular-nums leading-none"
+      className="font-mono text-ui-micro tabular-nums leading-none"
       style={{ "font-weight": props.strong ? 700 : 600 }}
     >
       {formatPercentage(props.value, 2, true)}
@@ -23,7 +23,7 @@ function Num(props: { value: number; suffix?: string; color: string }) {
   return (
     <Text
       c={props.color}
-      className="font-mono text-[10.5px] font-semibold tabular-nums leading-none"
+      className="font-mono text-ui-micro font-semibold tabular-nums leading-none"
     >
       {props.value.toFixed(2)}
       {props.suffix}
@@ -37,7 +37,7 @@ function Status(props: { status: RotationStatus }) {
   return (
     <Box className="inline-flex items-center justify-center gap-1">
       <Box className="size-[5px] rounded-full shrink-0" style={{ "background-color": info() }} />
-      <Text className="text-[9px] font-bold tracking-[0.4px]" style={{ color: info() }}>{label()}</Text>
+      <Text className="text-ui-micro font-bold tracking-[0.4px]" style={{ color: info() }}>{label()}</Text>
     </Box>
   );
 }
@@ -61,7 +61,7 @@ export function RotationBoard(props: RotationBoardProps) {
         <Text
           truncate
           title={`${row.original.category || row.original.kind} · ${row.original.quadrant} · ${row.original.members} members`}
-          className="text-[10.5px] font-semibold leading-[1.15]"
+          className="text-ui-micro font-semibold leading-[1.15]"
         >
           {row.original.name}
         </Text>
@@ -94,7 +94,7 @@ export function RotationBoard(props: RotationBoardProps) {
         return (
           <Text
             c={delta > 0 ? "success" : delta < 0 ? "error" : "dimmed"}
-            className="font-mono text-[10.5px] font-semibold tabular-nums"
+            className="font-mono text-ui-micro font-semibold tabular-nums"
           >
             {delta > 0 ? `+${delta}` : delta}
           </Text>
@@ -112,7 +112,7 @@ export function RotationBoard(props: RotationBoardProps) {
         return (
           <Text
             c={breadth >= 55 ? "success" : breadth <= 45 ? "error" : "dimmed"}
-            className="font-mono text-[10.5px] font-semibold tabular-nums"
+            className="font-mono text-ui-micro font-semibold tabular-nums"
           >
             {breadth.toFixed(0)}%
           </Text>
@@ -130,7 +130,7 @@ export function RotationBoard(props: RotationBoardProps) {
         return (
           <Text
             c={volume >= 1.2 ? "success" : "dimmed"}
-            className="font-mono text-[10.5px] font-semibold tabular-nums"
+            className="font-mono text-ui-micro font-semibold tabular-nums"
           >
             {volume.toFixed(1)}x
           </Text>

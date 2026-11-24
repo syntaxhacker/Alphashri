@@ -1,6 +1,6 @@
 // TradeReplayCard — trade summary + TickReplayChart. The per-trade unit of every
 // future strategy page (iFVG, LRL, ORB…): header chips + stats + explainer + chart.
-import { Text, Chip, Box, Card, Stack } from "@/ui";
+import { Text, Chip, Box, Card, Stack, typeSize } from "@/ui";
 import { Show } from "solid-js";
 import * as palette from "@/ui/palette";
 import TickReplayChart from "./TickReplayChart";
@@ -52,24 +52,24 @@ export default function TradeReplayCard(props: TradeReplayCardProps) {
         >
           <Stack direction="row" align="center" justify="space-between" gap="xs">
             <Stack direction="row" align="center" gap="xs">
-              <Chip size="xs" color={props.trade.side === "LONG" ? "success" : "error"} style={{ height: "18px", "font-size": "11px", "font-weight": 700 }}>{props.trade.side}</Chip>
+              <Chip size="xs" color={props.trade.side === "LONG" ? "success" : "error"} style={{ height: "18px", "font-size": `${typeSize("micro")}px`, "font-weight": 700 }}>{props.trade.side}</Chip>
               <Show when={props.trade.stack}>
-                <Chip size="xs" style={{ height: "18px", "font-size": "11px", "background-color": palette.REPLAY_CHIP_BG, color: stackColor(props.trade.stack), border: `1px solid ${stackColor(props.trade.stack)}` }}>{stackLabel(props.trade.stack)}</Chip>
+                <Chip size="xs" style={{ height: "18px", "font-size": `${typeSize("micro")}px`, "background-color": palette.REPLAY_CHIP_BG, color: stackColor(props.trade.stack), border: `1px solid ${stackColor(props.trade.stack)}` }}>{stackLabel(props.trade.stack)}</Chip>
               </Show>
               <Text size="xs" fw={600} style={{ color: palette.TEXT }}>
                 #{props.index + 1} {kindLabel(props.trade.kind)}
               </Text>
             </Stack>
-            <Chip size="xs" color={resultColor(props.trade.result)} style={{ height: "18px", "font-size": "11px" }}>{props.trade.result}</Chip>
+            <Chip size="xs" color={resultColor(props.trade.result)} style={{ height: "18px", "font-size": `${typeSize("micro")}px` }}>{props.trade.result}</Chip>
           </Stack>
           <Stack gap="xs">
-            <Text size="xs" fw={600} style={{ color: palette.TEXT, "font-size": "11px" }}>
+            <Text size="xs" fw={600} style={{ color: palette.TEXT, "font-size": `${typeSize("micro")}px` }}>
               {props.timeLabel(props.trade.time)} → {props.timeLabel(props.trade.exit_time)}
             </Text>
-            <Text size="xs" style={{ color: palette.TEXT_MUTED, "font-size": "11px" }}>
+            <Text size="xs" style={{ color: palette.TEXT_MUTED, "font-size": `${typeSize("micro")}px` }}>
               Entry {props.trade.entry.toFixed(2)} · SL {props.trade.sl.toFixed(2)}{props.trade.tp != null ? ` · TP ${props.trade.tp.toFixed(2)}` : " · trail"}
             </Text>
-            <Text size="xs" fw={600} style={{ color: props.trade.pnl > 0 ? palette.POSITIVE : palette.NEGATIVE, "font-size": "11px" }}>
+            <Text size="xs" fw={600} style={{ color: props.trade.pnl > 0 ? palette.POSITIVE : palette.NEGATIVE, "font-size": `${typeSize("micro")}px` }}>
               RR {props.trade.rr >= 0 ? "+" : ""}{props.trade.rr.toFixed(2)}R · {props.trade.pnl > 0 ? "+" : ""}{props.trade.pnl.toFixed(2)} pts ({Math.max(1, Math.round((props.trade.exit_time - props.trade.time) / 60))}m)
             </Text>
           </Stack>

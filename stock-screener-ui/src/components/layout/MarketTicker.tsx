@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, type JSX } from "solid-js";
 import { usePolling } from "@/hooks/usePolling";
-import { Box, Text, Skeleton } from "@/ui";
+import { Box, Text, Skeleton, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { subscribeToHolidays, isMarketOpenNow, getHolidayState } from "../../state/holidays";
@@ -123,7 +123,7 @@ function TickerItem(props: TickerItemProps) {
         size="sm"
         fw={600}
         c="dimmed"
-        style={{ "font-size": "11px", "line-height": "1.1", "white-space": "nowrap" }}
+        style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.1", "white-space": "nowrap" }}
       >
         {label()}
       </Text>
@@ -132,7 +132,7 @@ function TickerItem(props: TickerItemProps) {
         fw={700}
         data-testid={`ticker-price-${testId()}`}
         style={{
-          "font-size": "11px",
+          "font-size": `${typeSize("micro")}px`,
           "line-height": "1.1",
           "font-family": palette.MONO,
           "font-variant-numeric": "tabular-nums",
@@ -155,7 +155,7 @@ function TickerItem(props: TickerItemProps) {
         className="flex items-center justify-end gap-[2px] min-w-0 overflow-hidden whitespace-nowrap font-mono"
         style={{ color: tone(), "font-variant-numeric": "tabular-nums" }}
       >
-        <Box component="span" aria-hidden className="text-[11px] leading-none">
+        <Box component="span" aria-hidden className="text-ui-micro leading-none">
           {isPositive() ? "▲" : "▼"}
         </Box>
         <Text
@@ -163,7 +163,7 @@ function TickerItem(props: TickerItemProps) {
           span
           fw={700}
           style={{
-            "font-size": "11px",
+            "font-size": `${typeSize("micro")}px`,
             "line-height": "1.1",
             color: tone(),
             "font-family": palette.MONO,
@@ -191,6 +191,9 @@ function TickerContainer(props: TickerContainerProps) {
       id="market-ticker"
       className="market-ticker"
       title={props.title}
+      role="region"
+      aria-label="Market ticker"
+      tabIndex={0}
       px="sm"
       style={{
         display: "flex",
@@ -237,7 +240,7 @@ function TickerErrorState() {
       px="sm"
       style={{ display: "flex", "align-items": "center", height: TICKER_HEIGHT }}
     >
-      <Text size="sm" c="dimmed" style={{ "font-size": "11px", "line-height": "1.2" }}>
+      <Text size="sm" c="dimmed" style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2" }}>
         Market data unavailable
       </Text>
     </Box>
@@ -248,7 +251,7 @@ function TickerStatus(props: { label: string; detail?: string | null }) {
   return (
     <Box
       data-testid="market-ticker-status"
-      className="flex items-center gap-0.75 min-w-0 overflow-hidden"
+      className="flex items-start gap-0.75 min-w-0 overflow-hidden"
       style={{ "padding-left": "4px", "padding-right": "4px" }}
     >
       <Box
@@ -256,13 +259,14 @@ function TickerStatus(props: { label: string; detail?: string | null }) {
         className="size-6 rounded-full flex-shrink-0"
         style={{ "background-color": palette.TEXT_MUTED }}
       />
-      <Text size="sm" fw={600} c="dimmed" style={{ "font-size": "11px", "line-height": "1.2" }}>{props.label}</Text>
+      <Text size="sm" fw={600} c="dimmed" style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2" }}>{props.label}</Text>
       <Show when={props.detail}>
         <Text
           size="sm"
           c="dimmed"
-          style={{ "font-size": "11px", "line-height": "1.2" }}
-          className="opacity-75 min-w-0 overflow-hidden truncate"
+          title={`· ${props.detail}`}
+          style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2" }}
+          className="opacity-75 min-w-0 break-words line-clamp-2"
         >
           · {props.detail}
         </Text>
@@ -314,40 +318,51 @@ export function MarketStatus(props: { compact?: boolean }) {
   return (
     <Box
       data-testid="app-market-status"
+      data-state={closed() ? "closed" : "live"}
       title={title()}
-      className="flex items-center min-w-0 overflow-hidden"
+      className="flex flex-col min-w-0 w-full"
       style={{
-        "justify-content": compact() ? "center" : "flex-start",
-        gap: compact() ? 0 : "6px",
+        "align-items": compact() ? "center" : "stretch",
         "padding-left": compact() ? 0 : "2px",
         "padding-right": compact() ? 0 : "2px",
       }}
     >
       <Box
-        aria-hidden
-        data-testid="app-market-status-dot"
-        style={{
-          width: "6px",
-          height: "6px",
-          "border-radius": "50%",
-          "flex-shrink": "0",
-          "background-color": closed() ? palette.TEXT_MUTED : palette.POSITIVE,
-        }}
-      />
-      <Show when={!compact()}>
-        <Text size="sm" fw={600} c="dimmed" style={{ "font-size": "11px", "line-height": "1.2", "white-space": "nowrap" }}>
-          {label()}
-        </Text>
-        <Show when={detail()}>
-          <Text
-            size="sm"
-            c="dimmed"
-            style={{ "font-size": "11px", "line-height": "1.2" }}
-            className="opacity-75 min-w-0 overflow-hidden truncate"
-          >
-            · {detail()}
+        data-testid="app-market-status-headline"
+        className="flex items-center min-w-0"
+        style={{ gap: compact() ? 0 : "6px" }}
+      >
+        <Box
+          aria-hidden
+          data-testid="app-market-status-dot"
+          style={{
+            width: "6px",
+            height: "6px",
+            "border-radius": "50%",
+            "flex-shrink": "0",
+            "background-color": closed() ? palette.TEXT_MUTED : palette.POSITIVE,
+          }}
+        />
+        <Show when={!compact()}>
+          <Text size="sm" fw={600} c="dimmed" style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2", "white-space": "nowrap" }}>
+            {label()}
           </Text>
         </Show>
+      </Box>
+      {/* The detail sits on its own full-width row: beside the nowrap label it
+          only got ~40px of the 148px rail and broke words mid-token. At full
+          width it wraps at whitespace and the title still carries the reason. */}
+      <Show when={!compact() && detail()}>
+        <Text
+          data-testid="app-market-status-detail"
+          size="sm"
+          c="dimmed"
+          title={`· ${detail()}`}
+          style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2", "margin-top": "2px" }}
+          className="w-full min-w-0 break-words line-clamp-2"
+        >
+          · {detail()}
+        </Text>
       </Show>
     </Box>
   );

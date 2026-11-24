@@ -194,7 +194,7 @@ jobs:
   frontend-lint-typecheck:
     name: Frontend Lint & TypeCheck
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -206,10 +206,26 @@ jobs:
         run: cd stock-screener-ui && bun run typecheck
       - name: Typecheck tests ratchet
         run: cd stock-screener-ui && bun run typecheck:ratchet
+      - name: Audit typography floor
+        run: cd stock-screener-ui && bun run audit:typography:check
       - name: Build Storybook
         run: cd stock-screener-ui && bun run build-storybook
       - name: Verify Storybook catalog
         run: cd stock-screener-ui && bun x vitest run src/test/storybook-catalog.test.ts
+      - name: Verify design-system a11y smoke
+        run: cd stock-screener-ui && bun x vitest run src/test/a11y-smoke.test.ts
+      - name: Verify design-system coverage
+        run: cd stock-screener-ui && bun run test:coverage:ui
+      - name: Install Playwright Chromium
+        run: cd stock-screener-ui && bun x playwright install --with-deps chromium
+      - name: Verify Storybook visual baseline
+        run: cd stock-screener-ui && bun run visual:test
+      - name: Verify screenshot evidence
+        run: cd stock-screener-ui && bun run audit:evidence
+      - name: Verify Storybook in a real browser (axe)
+        run: cd stock-screener-ui && node scripts/storybook-a11y.mjs
+      - name: Verify Storybook keyboard walkthrough
+        run: cd stock-screener-ui && node scripts/storybook-keyboard.mjs
   frontend-unit:
     name: Frontend Unit Tests
     runs-on: ubuntu-24.04
@@ -306,7 +322,7 @@ jobs:
   e2e-smoke:
     name: E2E Smoke (22 tests)
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     if: github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'main')
     steps:
       - uses: actions/checkout@v4
@@ -365,6 +381,10 @@ jobs:
           NODE_PATH: ${{ github.workspace }}/stock-screener-ui/node_modules
       - name: Run smoke E2E tests
         run: cd stock-screener-ui && npx playwright test --grep @smoke
+        env:
+          CI: true
+      - name: Verify app routes with axe
+        run: cd stock-screener-ui && APP_A11Y=1 npx playwright test tests/e2e/app-a11y.spec.ts --workers=2
         env:
           CI: true
       - name: Dump server logs on failure

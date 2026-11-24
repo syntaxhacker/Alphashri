@@ -6,7 +6,7 @@
  * The tick store is module-level, same as the React original, so parity
  * tests that drive `setLiveTick(...)` see the same frames.
  */
-import { createEffect, createSignal, onCleanup } from "solid-js";
+import { batch, createEffect, createSignal, onCleanup } from "solid-js";
 import { API_BASE } from "@/api/config";
 import { normalizeReport, normalizeSensex, normalizeTapeRow, normalizeBurst } from "@/api/reportNifty";
 import { getAccessToken } from "@/state/auth";
@@ -29,7 +29,10 @@ let liveTick: NiftySpotTick | null = null;
 const tickListeners = new Set<() => void>();
 
 function emitTick(): void {
-  for (const listener of tickListeners) listener();
+  // A frame reaches every subscriber as one commit, not one DOM pass each.
+  batch(() => {
+    for (const listener of tickListeners) listener();
+  });
 }
 
 export function setLiveTick(tick: NiftySpotTick | null): void {
@@ -195,10 +198,12 @@ export function useNiftyReportStream(args: { expiry?: string; enabled: boolean }
 
   createEffect(() => {
     if (!args.enabled) {
-      setLiveTick(null);
-      setReport(null);
-      setTape(null);
-      setSensex(null);
+      batch(() => {
+        setLiveTick(null);
+        setReport(null);
+        setTape(null);
+        setSensex(null);
+      });
       lastAuxSignature = null;
     }
   });
@@ -232,16 +237,18 @@ export function useNiftyReportStream(args: { expiry?: string; enabled: boolean }
               : null;
           setLiveTick({ spot, ts, change_pct: changePct });
         } else if (f.type === "aux") {
-          if (f.tape !== null && f.tape !== undefined) {
-            const signature = auxTapeSignature(f.tape);
-            if (signature === null || signature !== lastAuxSignature) {
-              lastAuxSignature = signature;
-              setTape(normalizeAuxTape(f.tape));
+          batch(() => {
+            if (f.tape !== null && f.tape !== undefined) {
+              const signature = auxTapeSignature(f.tape);
+              if (signature === null || signature !== lastAuxSignature) {
+                lastAuxSignature = signature;
+                setTape(normalizeAuxTape(f.tape));
+              }
             }
-          }
-          if (f.sensex !== null && f.sensex !== undefined) {
-            setSensex(normalizeSensex(f.sensex as Record<string, unknown>));
-          }
+            if (f.sensex !== null && f.sensex !== undefined) {
+              setSensex(normalizeSensex(f.sensex as Record<string, unknown>));
+            }
+          });
         }
       },
     },

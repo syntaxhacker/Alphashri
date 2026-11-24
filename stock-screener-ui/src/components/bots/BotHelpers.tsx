@@ -10,6 +10,7 @@ import {
   ToolbarRow,
   Tooltip,
   Box,
+  typeSize,
 } from "@/ui";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop, IconEye, IconEdit, IconTrash } from "../common/Icons";
 import type {
@@ -33,8 +34,8 @@ import {
   TINT_NEGATIVE,
 } from "../../config/colors";
 
-const STAT_LABEL: JSX.CSSProperties = { "font-size": "10px", "letter-spacing": "0.04em", "text-transform": "uppercase" };
-const SECTION_LABEL: JSX.CSSProperties = { "font-size": "10px", "letter-spacing": "0.06em", "text-transform": "uppercase" };
+const STAT_LABEL: JSX.CSSProperties = { "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.04em", "text-transform": "uppercase" };
+const SECTION_LABEL: JSX.CSSProperties = { "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.06em", "text-transform": "uppercase" };
 const SESSION_CLOSED_DETAIL = "Closed at 15:30 IST · Opens 09:15 IST";
 const MARKET_CLOSED_RECHECK_MS = 60_000;
 

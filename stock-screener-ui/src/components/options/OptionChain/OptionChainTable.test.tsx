@@ -7,6 +7,7 @@ import { resolve } from "node:path";
 import { createSignal } from "solid-js";
 import * as palette from "@/ui/palette";
 import { OptionChainTable, findAtmIndex } from "./OptionChainTable";
+import { CHAIN_COMPACT_QUERY } from "./chainStyles";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
 const normColor = (s: string) => s.toLowerCase().replace(/\s/g, "");
@@ -18,7 +19,8 @@ const rgbTriple = (hex: string) => normColor(hexToRgb(hex)).replace(/^rgb\(|\)$/
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
-  return mockSolidUi();
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
 });
 
 beforeEach(() => setupBrowserMocks());
@@ -53,6 +55,21 @@ function makeContract(overrides: any = {}) {
     },
     sentiment: overrides.sentiment || { type: "Neutral", color: "gray", label: "Neutral" },
   };
+}
+
+// useMediaQuery reads matchMedia at render time; setupBrowserMocks installs a
+// vi.fn() we can re-implement per test before the component mounts.
+function setNarrowViewport(narrow: boolean) {
+  (window.matchMedia as unknown as ReturnType<typeof vi.fn>).mockImplementation((query: string) => ({
+    matches: narrow && query === CHAIN_COMPACT_QUERY,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
 }
 
 describe("OptionChainTable", () => {
@@ -96,6 +113,33 @@ describe("OptionChainTable", () => {
     expect(screen.getByTestId("options-scroll-top-btn")).toBeInTheDocument();
     expect(screen.getByTestId("options-scroll-atm-btn")).toBeInTheDocument();
     expect(screen.getByTestId("options-scroll-bottom-btn")).toBeInTheDocument();
+  });
+
+  it("keeps header, subheader and rows in one min-width horizontal scroll region with a sideways cue", () => {
+    render(() => <OptionChainTable {...defaultProps} strikeMatrix={[]} />);
+    const scroll = screen.getByTestId("options-chain-table-scrollarea");
+    expect(scroll.style.overflow).toBe("auto");
+    const inner = within(scroll).getByTestId("options-chain-table-inner");
+    expect(inner.style.minWidth).toBe("980px");
+    expect(within(scroll).getByTestId("options-chain-table-header")).toBeInTheDocument();
+    expect(within(scroll).getByTestId("options-chain-table-subheader")).toBeInTheDocument();
+    expect(screen.getByTestId("options-chain-scroll-cue")).toHaveTextContent("Scroll sideways");
+  });
+
+  it("keeps the strike column sticky in the header, subheader and every row", () => {
+    const strikeMatrix = [
+      { strike: 24500, ce: makeContract({ strike: 24500 }), pe: makeContract({ strike: 24500, type: "PE" }) },
+    ];
+    render(() => <OptionChainTable {...defaultProps} strikeMatrix={strikeMatrix} />);
+    const nodes = [
+      screen.getByTestId("options-chain-strike-header"),
+      screen.getByTestId("options-chain-strike-subheader"),
+      screen.getByTestId("strike-cell"),
+    ];
+    for (const node of nodes) {
+      expect(node.style.position).toBe("sticky");
+      expect(node.style.left).toBe("calc(50% - 40px)");
+    }
   });
 
   it("renders footer with ITM, ATM legend and sentiment badges", () => {
@@ -674,5 +718,89 @@ describe("OptionChainTable", () => {
         expect(source.match(/\brgba?\(/g), `raw rgb()/rgba() in ${rel}`).toBeNull();
       }
     });
+  });
+});
+
+describe("OptionChainTable at 390px", () => {
+  const narrowProps = {
+    filters: { optionType: "BOTH" as const, moneyness: "ALL" as const },
+    spotPrice: 24500,
+    onRowClick: vi.fn(),
+  };
+  const oneStrike = () => [
+    {
+      strike: 24500,
+      ce: makeContract({ strike: 24500 }),
+      pe: makeContract({ strike: 24500, type: "PE", market_data: { ltp: 80.25, oi: 40000 } }),
+    },
+  ];
+
+  beforeEach(() => setNarrowViewport(true));
+
+  it("opens on a meaningful five-column core set instead of an off-screen strike", () => {
+    render(() => <OptionChainTable {...narrowProps} strikeMatrix={oneStrike()} />);
+    expect(screen.getByTestId("options-chain-view-switch")).toBeInTheDocument();
+    expect(screen.getByTestId("options-chain-core-summary")).toHaveTextContent("STRIKE / CE·PE LTP / OI");
+
+    const table = screen.getByTestId("options-chain-table");
+    expect(table).toHaveAttribute("data-mode", "compact");
+    const scroll = screen.getByTestId("options-chain-table-scrollarea");
+    expect(scroll).toHaveAttribute("data-mode", "compact");
+    const inner = within(scroll).getByTestId("options-chain-table-inner");
+    expect(inner.style.minWidth).toBe("0px");
+    expect(inner.style.paddingBottom).toBe("8px");
+    expect(screen.queryByTestId("options-chain-scroll-actions")).not.toBeInTheDocument();
+
+    const subheader = screen.getByTestId("options-chain-table-subheader");
+    expect(Array.from(subheader.children).map((cell) => cell.textContent)).toEqual([
+      "OI",
+      "LTP",
+      "",
+      "LTP",
+      "OI",
+    ]);
+    const row = screen.getByTestId("options-chain-row-24500");
+    expect(row.children).toHaveLength(5);
+    expect(within(row).getAllByTestId("strike-cell")).toHaveLength(1);
+    expect(screen.getByTestId("options-chain-strike-subheader").style.left).toBe("0px");
+    // Real prices from the fixture, never invented.
+    expect(within(row).getByText("150.50")).toBeInTheDocument();
+    expect(within(row).getByText("80.25")).toBeInTheDocument();
+    expect(within(row).getByText("50.0K")).toBeInTheDocument();
+    expect(within(row).getByText("40.0K")).toBeInTheDocument();
+  });
+
+  it("offers a Full chain affordance that reveals all columns with a pinned strike", () => {
+    render(() => <OptionChainTable {...narrowProps} strikeMatrix={oneStrike()} />);
+    const toggle = screen.getByTestId("options-chain-full-chain-toggle");
+    expect(toggle).toHaveTextContent("Full chain");
+    expect(screen.getByTestId("options-chain-scroll-cue")).toHaveTextContent("Scroll sideways → Full chain");
+
+    fireEvent.click(toggle);
+
+    const scroll = screen.getByTestId("options-chain-table-scrollarea");
+    expect(scroll).toHaveAttribute("data-mode", "full");
+    const inner = within(scroll).getByTestId("options-chain-table-inner");
+    expect(inner.style.minWidth).toBe("980px");
+    expect(inner.style.paddingBottom).toBe("152px");
+    expect(screen.getByTestId("options-chain-scroll-actions")).toBeInTheDocument();
+    expect(screen.getByTestId("options-chain-table-subheader").children).toHaveLength(11);
+    expect(screen.getByTestId("options-chain-row-24500").children).toHaveLength(11);
+    expect(screen.getByTestId("options-chain-strike-subheader").style.left).toBe("8px");
+    expect(screen.getByTestId("options-chain-scroll-cue")).toHaveTextContent("all 11 columns");
+    expect(toggle).toHaveTextContent("Compact");
+
+    fireEvent.click(toggle);
+    expect(screen.getByTestId("options-chain-table-scrollarea")).toHaveAttribute("data-mode", "compact");
+    expect(screen.getByTestId("options-chain-table-subheader").children).toHaveLength(5);
+  });
+
+  it("does not build a compact view at desktop width", () => {
+    setNarrowViewport(false);
+    render(() => <OptionChainTable {...narrowProps} strikeMatrix={oneStrike()} />);
+    expect(screen.queryByTestId("options-chain-view-switch")).not.toBeInTheDocument();
+    expect(screen.getByTestId("options-chain-table")).toHaveAttribute("data-mode", "full");
+    expect(screen.getByTestId("options-chain-strike-subheader").style.left).toBe("calc(50% - 40px)");
+    expect(screen.getByTestId("options-chain-table-subheader").children).toHaveLength(11);
   });
 });

@@ -1,4 +1,4 @@
-import { Text, useColorScheme } from "@/ui";
+import { Text, useColorScheme, typeSize } from "@/ui";
 import { Box } from "@/ui";
 import { createEffect, createMemo, onCleanup, onMount } from "solid-js";
 import type * as ECharts from "echarts";
@@ -92,12 +92,12 @@ export function IVSkewChart(props: IVSkewChartProps) {
         backgroundColor: isDark() ? palette.CHART_DROPDOWN : palette.SURFACE,
         textStyle: {
           color: isDark() ? palette.TEXT : palette.TOOLTIP_LIGHT_TEXT,
-          fontSize: 12,
+          fontSize: typeSize("micro"),
         },
       },
       legend: {
         data: ["Call OTM IV", "Put OTM IV"],
-        textStyle: { color: palette.TEXT_MUTED, fontSize: 12 },
+        textStyle: { color: palette.TEXT_MUTED, fontSize: typeSize("micro") },
         bottom: 0,
       },
       grid: {
@@ -109,12 +109,12 @@ export function IVSkewChart(props: IVSkewChartProps) {
       xAxis: {
         type: "category",
         data: strikes,
-        axisLabel: { color: palette.TEXT_MUTED, fontSize: 12 },
+        axisLabel: { color: palette.TEXT_MUTED, fontSize: typeSize("micro") },
         axisLine: { lineStyle: { color: palette.BORDER } },
       },
       yAxis: {
         type: "value",
-        axisLabel: { color: palette.TEXT_MUTED, fontSize: 12, formatter: "{value}%" },
+        axisLabel: { color: palette.TEXT_MUTED, fontSize: typeSize("micro"), formatter: "{value}%" },
         splitLine: {
           lineStyle: { color: palette.BORDER, type: "dashed" },
         },

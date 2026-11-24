@@ -29,7 +29,7 @@ export default meta;
 type Story = StoryObj;
 
 export const Playground: Story = {
-  args: { children: "useValueFlash", block: false, color: "primary" },
+  args: { children: "pickTextColor(fill)", block: false, color: "primary" },
   render: (args) => solidStory(() => <Code {...args} />),
 };
 
@@ -39,7 +39,7 @@ export const InlineAndBlock: Story = {
       <Stack gap="lg" style={{ "max-width": "880px" }}>
         <Section title="Inline" note="Default <code> with the mono utility and a tight 2px/6px pad.">
           <Text size="sm">
-            Inline: <Code>useValueFlash</Code> and <Code color="primary">PRIMARY</Code> inside a sentence.
+            Inline: <Code>pickTextColor(fill)</Code> and <Code color="primary">PRIMARY</Code> inside a sentence.
           </Text>
         </Section>
         <Section title="Block" note="block renders a <pre> with pre-wrap, word-break and horizontal overflow.">

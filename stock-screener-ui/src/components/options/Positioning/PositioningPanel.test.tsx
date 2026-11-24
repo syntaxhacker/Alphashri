@@ -29,9 +29,10 @@ vi.mock("@/utils/loadEcharts", () => ({
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
+  const { typeSize } = await import("@/ui/typography");
   // The shared stub drops `disabled`; the real Button makes retry gating observable.
   const { Button } = await import("@/ui/inputs/Button");
-  return mockSolidUi({ Button });
+  return { ...mockSolidUi({ Button }), typeSize };
 });
 
 afterEach(() => {

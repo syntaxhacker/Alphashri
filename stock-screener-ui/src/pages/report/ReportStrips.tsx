@@ -1,11 +1,13 @@
 import { Show, createEffect, createMemo, createSignal } from "solid-js";
 
+import type { WallsPayload } from "@/api/reportNifty";
 import { Box, Button } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactPanel } from "@/components/common/compact";
 import { MarketAlertLog, MarketAlertStack } from "@/components/notifications/MarketAlertCard";
 
-import { BreadthStrip, ReplayUnavailable } from "./BreadthStrip";
+import { BreadthStrip, REPLAY_UNAVAILABLE_TEXT } from "./BreadthStrip";
+import { snapshotTimeLabel } from "./ReportDecisionStrip.format";
 import { LevelsInPlayContent } from "./LevelsInPlay";
 import { Nifty10sStrip } from "./Nifty10sStrip";
 import { NiftyDeskPlan } from "./NiftyDeskPlan";
@@ -23,6 +25,60 @@ import { OI_ALERT_TOAST_MAX } from "./useNiftyOiAlerts";
 
 const EMPTY_WALL_HISTORY: WallSnapshot[] = [];
 
+/** One truthful reason for the missing walls band. A closed/stale frame names
+ *  its own as-of time; a live frame still waiting on the recorder says so.
+ *  Neither promises an open time — the page may be showing a closed snapshot. */
+export function wallsUnavailableCopy(args: {
+  closed?: boolean;
+  asOf?: string | null;
+}): { kind: "no-data" | "market-closed"; text: string } {
+  if (args.closed) {
+    const time = snapshotTimeLabel(args.asOf ?? null);
+    return {
+      kind: "market-closed",
+      text: time ? `No walls snapshot for ${time}` : "No walls snapshot for this session",
+    };
+  }
+  return { kind: "no-data", text: "Waiting for the walls recorder" };
+}
+
+/** The unavailable-band treatment: one 24px reason line with Retry, the same
+ *  chrome the replay surface gives its live-only bands. An empty band must not
+ *  reserve a full card's height below the chart. */
+function WallsUnavailableStrip(props: {
+  copy: { kind: "no-data" | "market-closed"; text: string };
+  onRetry?: () => void;
+}) {
+  return (
+    <Box
+      data-testid="nifty-walls-card"
+      data-empty-kind={props.copy.kind}
+      className="flex items-center gap-2 h-6 min-h-6 w-full min-w-0 shrink-0 px-2 bg-fin-surface font-mono text-ui-micro"
+    >
+      <span
+        data-report-text="label"
+        className="text-ui-micro font-extrabold uppercase tracking-[0.08em] text-fin-text-muted"
+      >
+        WALLS
+      </span>
+      <span data-report-text="value" className="text-ui-micro text-fin-text-muted">
+        {props.copy.text}
+      </span>
+      <Show when={props.onRetry}>
+        <Button
+          data-testid="nifty-walls-retry"
+          size="xs"
+          variant="subtle"
+          onClick={() => props.onRetry?.()}
+          className="ml-auto min-w-0"
+        >
+          Retry
+        </Button>
+      </Show>
+    </Box>
+  );
+}
+
 export function ReportStrips() {
   const store = useNiftyReport();
 
@@ -37,6 +93,17 @@ export function ReportStrips() {
   });
   const symbol = () => store.selection.symbol();
   const wallsPayload = () => store.walls.data();
+
+  // A live recorder can hand back a truthy envelope with placeholder rows
+  // before the chain has produced OI. That is no more a walls snapshot than
+  // null: only a strike with positive open interest justifies the full card.
+  const realWalls = createMemo((): WallsPayload | null => {
+    const walls = wallsPayload();
+    const hasOi = [...(walls?.calls ?? []), ...(walls?.puts ?? [])].some(
+      (row) => (row.strike ?? 0) > 0 && (row.oi ?? 0) > 0,
+    );
+    return walls && hasOi ? walls : null;
+  });
 
   const spotMove1m = createMemo(() => {
     const rows = store.data.tapeRows();
@@ -54,6 +121,21 @@ export function ReportStrips() {
     if (!frames) return null;
     return frames[store.replay.index()]?.t ?? null;
   });
+
+  // The report's market block is the authority on whether this frame is a live
+  // read or a recorded snapshot. A recorded frame with no walls band says when
+  // it was recorded; a live frame says the recorder has not written it yet.
+  const wallsBand = createMemo(() =>
+    wallsUnavailableCopy({
+      closed: report()?.market?.is_open === false,
+      asOf:
+        report()?.market?.as_of ??
+        report()?.snapshotAt ??
+        report()?.fetchedAt ??
+        replayAsOf() ??
+        null,
+    }),
+  );
 
   const wallHistory = createMemo(() =>
     mode() === "live" ? store.walls.history() : EMPTY_WALL_HISTORY,
@@ -75,21 +157,17 @@ export function ReportStrips() {
   return (
     <Box
       data-testid="nifty-report-strips"
-      className="flex flex-col gap-1 w-full max-w-full min-w-0 shrink-0"
+      data-report-spacing="8"
+      className="flex flex-col gap-2 w-full max-w-full min-w-0 shrink-0"
     >
       <LiveTapeDisclosure
         open={tapeOpen()}
         onToggle={() => setTapeOpen((v) => !v)}
-        closedHint={mode() === "eod" ? "breadth · movers · hidden in replay" : undefined}
+        // Replay already names the reason once in its mode banner. The header
+        // carries that one reason; no band repeats it inside the collapsed body.
+        closedHint={mode() === "eod" ? `live-only · ${REPLAY_UNAVAILABLE_TEXT}` : undefined}
       >
-        <Show
-          when={mode() === "live"}
-          fallback={
-            <div className="flex items-center h-6 min-h-6 px-2">
-              <ReplayUnavailable noun="Breadth" testId="nifty-breadth-live-only" />
-            </div>
-          }
-        >
+        <Show when={mode() === "live"}>
           <BreadthStrip data={store.data.breadth()} />
         </Show>
 
@@ -119,19 +197,33 @@ export function ReportStrips() {
         />
       </LiveTapeDisclosure>
 
-      <NiftyWallsCard
-        compact={store.ui.isDesk()}
-        walls={wallsPayload()}
-        onExpand={() => store.walls.openDrawer()}
-        onOpenDesk={() => store.ui.setDeskOpen(true)}
-        emptyText="Waiting for walls data."
-        unavailableInReplay={mode() === "eod"}
-        levels={
-          symbol() === "NIFTY" ? (
-            <LevelsInPlayContent report={report()} sensex={store.data.sensex()} />
-          ) : undefined
+      {/* Only a snapshot with call/put levels mounts the full card. An empty or
+          partial live envelope collapses to the one-line reason + Retry; replay
+          already names that one reason in its mode banner, so no second line. */}
+      <Show
+        when={realWalls()}
+        fallback={
+          mode() === "live" ? (
+            <WallsUnavailableStrip copy={wallsBand()} onRetry={() => store.data.refresh?.()} />
+          ) : null
         }
-      />
+      >
+        {(walls) => (
+          <NiftyWallsCard
+            compact={store.ui.isDesk()}
+            walls={walls()}
+            onExpand={() => store.walls.openDrawer()}
+            onOpenDesk={() => store.ui.setDeskOpen(true)}
+            emptyText="Waiting for walls data."
+            unavailableInReplay={mode() === "eod"}
+            levels={
+              symbol() === "NIFTY" ? (
+                <LevelsInPlayContent report={report()} sensex={store.data.sensex()} />
+              ) : undefined
+            }
+          />
+        )}
+      </Show>
 
       <NiftyWallsExpanded
         open={store.walls.open()}
@@ -177,12 +269,13 @@ export function ReportStrips() {
             flush
             title={
               <span
+                data-report-text="title"
                 style={{
                   display: "inline-flex",
                   "align-items": "center",
-                  gap: "4px",
+                  gap: "8px",
                   "min-width": 0,
-                  "font-size": `${REPORT_FONT.body}px`,
+                  "font-size": `${REPORT_FONT.value}px`,
                   "line-height": 1.2,
                 }}
               >
@@ -196,7 +289,7 @@ export function ReportStrips() {
                   <Box
                     data-testid="nifty-oi-critical-badge"
                     title={`${store.alerts.criticalCount()} critical burst${store.alerts.criticalCount() === 1 ? "" : "s"} — filtered first`}
-                    className="inline-flex items-center text-[11px] font-bold tracking-[0.08em] text-fin-negative rounded-[3px] px-1 py-[1px] whitespace-nowrap nifty-critical-pulse"
+                    className="inline-flex items-center text-ui-micro font-bold tracking-[0.08em] text-fin-negative rounded-[3px] px-1 py-[1px] whitespace-nowrap nifty-critical-pulse"
                     style={{ "background-color": palette.TINT_NEGATIVE }}
                   >
                     CRITICAL {store.alerts.criticalCount()}
@@ -206,13 +299,13 @@ export function ReportStrips() {
             }
             testId="nifty-oi-bursts-panel"
             action={
-              <Box className="flex gap-1 items-center">
+              <Box className="flex gap-2 items-center">
                 <Button
                   data-testid="nifty-alert-sound-toggle"
                   size="sm"
                   variant="subtle"
                   onClick={() => store.alerts.toggleSound()}
-                  className="min-w-[24px] px-1 text-[13px] leading-none"
+                  className="min-w-[24px] px-1 text-ui-body leading-none"
                   {...{
                     "aria-pressed": !store.alerts.soundMuted(),
                     "aria-label": store.alerts.soundMuted()

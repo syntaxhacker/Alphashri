@@ -1,5 +1,5 @@
 import { createMemo, Show } from "solid-js";
-import { Box, Text } from "@/ui";
+import { Box, Text, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { ChainRow } from "@/api/optionsDock";
 import type { AnalyticsIvPoint, OptionsAnalytics } from "@/api/optionsAnalytics";
@@ -39,7 +39,7 @@ function ivPoints(rows: readonly ChainRow[], side: OptionSide): AnalyticsIvPoint
 }
 
 const INK_STYLE = {
-  "font-size": "10px",
+  "font-size": `${typeSize("micro")}px`,
   color: "var(--color-fin-text-muted)",
 } as const;
 

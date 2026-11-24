@@ -256,7 +256,6 @@ export function PaperTradingTabs(props: {
     <Tabs
       value={props.state.currentView}
       onChange={props.onViewChange}
-      variant="default"
       className="paper-trading-tabs"
       id="paper-tabs"
       data-testid="paper-trading-tabs"

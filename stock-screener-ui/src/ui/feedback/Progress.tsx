@@ -74,6 +74,7 @@ export function Progress(props: UIProgressProps) {
         data-testid={known["data-testid"]}
         id={known.id}
         role="progressbar"
+        aria-label={typeof known.label === "string" ? known.label : "Progress"}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={v}
@@ -96,7 +97,7 @@ export function Progress(props: UIProgressProps) {
               }}
             >
               {(known.label || section.label) && (
-                <span className="text-[10px] font-semibold text-fin-text pointer-events-none select-none">
+                <span className="text-ui-micro font-semibold text-fin-text pointer-events-none select-none">
                   {section.label ?? known.label}
                 </span>
               )}
@@ -112,6 +113,7 @@ export function Progress(props: UIProgressProps) {
       data-testid={known["data-testid"]}
       id={known.id}
       role="progressbar"
+      aria-label={typeof known.label === "string" ? known.label : "Progress"}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={v}
@@ -123,8 +125,9 @@ export function Progress(props: UIProgressProps) {
         style={{ height: h, "border-radius": br, "background-color": palette.BORDER, ...(known.striped ? { "background-image": STRIPE } : {}) }}
       />
       <div
-        className="shrink-0"
+        className="absolute top-0 left-0 shrink-0"
         style={{
+          width: `${v}%`,
           height: h,
           "border-radius": br,
           "background-color": col,

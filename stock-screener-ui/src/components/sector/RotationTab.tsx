@@ -165,7 +165,7 @@ function StripLabel(props: { children: JSX.Element }) {
   return (
     <Text
       c="dimmed"
-      className="text-[9.5px] font-bold tracking-[0.5px] uppercase"
+      className="text-ui-micro font-bold tracking-[0.5px] uppercase"
     >
       {props.children}
     </Text>
@@ -229,7 +229,7 @@ export function RotationTab(props: { market: "india" | "america" }) {
           "flex-shrink": 0,
         }}
       >
-        <Text fw={700} className="text-[12px] whitespace-nowrap">
+        <Text fw={700} className="text-ui-micro whitespace-nowrap">
           Rotation
         </Text>
         <SegmentedControl
@@ -260,13 +260,13 @@ export function RotationTab(props: { market: "india" | "america" }) {
         <Show when={loading() && data()}>
           <Box className="flex items-center gap-1">
             <Loader size="xs" />
-            <Text c="dimmed" className="text-[10px]">
+            <Text c="dimmed" className="text-ui-micro">
               Updating
             </Text>
           </Box>
         </Show>
         <Show when={updatedAt()}>
-          <Text c="dimmed" className="text-[10px] whitespace-nowrap font-mono tabular-nums">
+          <Text c="dimmed" className="text-ui-micro whitespace-nowrap font-mono tabular-nums">
             {updatedAt()}
           </Text>
         </Show>
@@ -292,7 +292,7 @@ export function RotationTab(props: { market: "india" | "america" }) {
               <Text
                 c={regimeAcc().benchmark_change >= 0 ? "success" : "error"}
                 fw={600}
-                className="text-[11px] tabular-nums font-mono"
+                className="text-ui-micro tabular-nums font-mono"
               >
                 {formatPercentage(regimeAcc().benchmark_change)}
               </Text>
@@ -302,14 +302,14 @@ export function RotationTab(props: { market: "india" | "america" }) {
                 <Divider />
                 <Box className="flex items-center gap-1">
                   <StripLabel>VIX</StripLabel>
-                  <Text className="text-[11px] tabular-nums font-mono">
+                  <Text className="text-ui-micro tabular-nums font-mono">
                     {regimeAcc().vix!.toFixed(2)}
                   </Text>
                   <Show when={regimeAcc().vix_change != null}>
                     <Text
                       c={regimeAcc().vix_change! <= 0 ? "success" : "error"}
                       fw={600}
-                      className="text-[10.5px] tabular-nums font-mono"
+                      className="text-ui-micro tabular-nums font-mono"
                     >
                       {formatPercentage(regimeAcc().vix_change!)}
                     </Text>
@@ -320,7 +320,7 @@ export function RotationTab(props: { market: "india" | "america" }) {
             <Divider />
             <Box className="flex items-center gap-1">
               <StripLabel>Breadth</StripLabel>
-              <Text className="text-[11px] tabular-nums font-mono">
+              <Text className="text-ui-micro tabular-nums font-mono">
                 {regimeAcc().breadth.toFixed(0)}%
               </Text>
             </Box>
@@ -332,7 +332,7 @@ export function RotationTab(props: { market: "india" | "america" }) {
               />
               <Text
                 fw={700}
-                className="text-[10px] tracking-[0.6px] uppercase"
+                className="text-ui-micro tracking-[0.6px] uppercase"
                 style={{ color: regimeTone(regimeAcc().label) }}
               >
                 {regimeAcc().label}
@@ -347,10 +347,10 @@ export function RotationTab(props: { market: "india" | "america" }) {
                       className="size-[5px] rounded-full shrink-0"
                       style={{ "background-color": ROTATION_STATUS_COLORS_PANEL[status] }}
                     />
-                    <Text c="dimmed" className="text-[9.5px] font-bold tracking-[0.3px]">
+                    <Text c="dimmed" className="text-ui-micro font-bold tracking-[0.3px]">
                       {ROTATION_STATUS_LABELS[status].short}
                     </Text>
-                    <Text className="text-[10.5px] font-semibold tabular-nums font-mono">
+                    <Text className="text-ui-micro font-semibold tabular-nums font-mono">
                       {counts()[status]}
                     </Text>
                   </Box>
@@ -413,12 +413,12 @@ export function RotationTab(props: { market: "india" | "america" }) {
               padded={false}
               className="min-h-[300px] lg:min-h-0"
               title={
-                <Text className="text-[9.5px] font-bold uppercase tracking-[0.5px] text-fin-text-muted">
+                <Text className="text-ui-micro font-bold uppercase tracking-[0.5px] text-fin-text-muted">
                   Relative rotation
                 </Text>
               }
               description={
-                <Text className="text-[9.5px] text-fin-text-muted">
+                <Text className="text-ui-micro text-fin-text-muted">
                   RS 1M vs momentum · 50 = benchmark
                 </Text>
               }
@@ -436,11 +436,11 @@ export function RotationTab(props: { market: "india" | "america" }) {
               padded={false}
               className="min-h-[260px] lg:min-h-0"
               title={
-                <Text className="text-[9.5px] font-bold uppercase tracking-[0.5px] text-fin-text-muted">
+                <Text className="text-ui-micro font-bold uppercase tracking-[0.5px] text-fin-text-muted">
                   Multi-period
                 </Text>
               }
-              description={<Text className="text-[9.5px] text-fin-text-muted">group returns</Text>}
+              description={<Text className="text-ui-micro text-fin-text-muted">group returns</Text>}
             >
               <RotationMatrix
                 rows={visible()}
@@ -455,11 +455,11 @@ export function RotationTab(props: { market: "india" | "america" }) {
               padded={false}
               className="min-h-[320px] lg:min-h-0"
               title={
-                <Text className="text-[9.5px] font-bold uppercase tracking-[0.5px] text-fin-text-muted">
+                <Text className="text-ui-micro font-bold uppercase tracking-[0.5px] text-fin-text-muted">
                   Rotation board
                 </Text>
               }
-              description={<Text className="text-[9.5px] text-fin-text-muted">sorted by {period()}</Text>}
+              description={<Text className="text-ui-micro text-fin-text-muted">sorted by {period()}</Text>}
             >
               <RotationBoard
                 rows={visible()}

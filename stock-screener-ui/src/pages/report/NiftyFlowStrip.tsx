@@ -1,4 +1,3 @@
-import { Text } from "@/ui";
 import { FLOW_BEAR, FLOW_BULL, FLOW_STRUCT } from "@/ui/palette";
 import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
 import {
@@ -51,9 +50,10 @@ function tickColor(side: FlowSide): string {
   return FLOW_STRUCT;
 }
 
-const FLOW_LEGEND: { id: string; color: string; text: string; title: string }[] = [
+const FLOW_LEGEND: { id: string; code: string; color: string; text: string; title: string }[] = [
   {
     id: "bull",
+    code: "BULL",
     color: FLOW_BULL,
     text: "green = puts sold / calls bought back (bullish)",
     title:
@@ -61,6 +61,7 @@ const FLOW_LEGEND: { id: string; color: string; text: string; title: string }[] 
   },
   {
     id: "bear",
+    code: "BEAR",
     color: FLOW_BEAR,
     text: "red = calls sold / puts bought back (bearish)",
     title:
@@ -68,6 +69,7 @@ const FLOW_LEGEND: { id: string; color: string; text: string; title: string }[] 
   },
   {
     id: "struct",
+    code: "STRUCT",
     color: FLOW_STRUCT,
     text: "amber = structural (wall / max pain / ATM)",
     title: "Amber tick — a wall, max-pain or ATM strike moved",
@@ -79,9 +81,9 @@ function FlowLegend() {
     <div
       data-testid="nifty-flowstrip-legend"
       aria-label="Flow strip legend"
-      class="flex flex-wrap items-center gap-x-2 gap-y-[2px] text-[11px] leading-[1.2] font-mono text-fin-text-muted px-[6px] py-[2px] border-b border-fin-border bg-white/[0.03]"
+      class="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui-micro leading-[1.2] font-mono text-fin-text-muted px-2 py-1 border-b border-fin-border bg-white/[0.03]"
     >
-      <span class="text-[11px] tracking-[0.08em] opacity-60">
+      <span class="text-ui-micro font-bold tracking-[0.08em]">
         FLOW
       </span>
       <For each={FLOW_LEGEND}>
@@ -97,7 +99,8 @@ function FlowLegend() {
               class="inline-block shrink-0 w-2 h-2 rounded-[1px]"
               style={{ "background-color": item.color }}
             />
-            <span>{item.text}</span>
+            <span class="font-bold">{item.code}</span>
+            <span class="hidden min-[720px]:inline">{item.text}</span>
           </span>
         )}
       </For>
@@ -131,10 +134,10 @@ export function NiftyFlowStrip(props: NiftyFlowStripProps) {
     const measure = () => {
       const width = el.clientWidth;
       if (width > 0) {
-        // 10px monospace ≈ 6.4px/char (conservative). Subtract the 12px of
+        // 13px monospace ≈ 8px/char (conservative). Subtract the 16px of
         // horizontal padding and one char of slack; the separator/gap cost is
         // modelled inside `summarizeFlowRuns` so the tail is never clipped.
-        setMaxChars(Math.max(24, Math.floor((width - 12) / 6.4) - 1));
+        setMaxChars(Math.max(16, Math.floor((width - 16) / 8) - 1));
       }
     };
     measure();
@@ -162,11 +165,16 @@ export function NiftyFlowStrip(props: NiftyFlowStripProps) {
     </span>
   );
 
+  // A live-only band with nothing to draw is not a full-height panel: one
+  // micro line carries the single reason and keeps the modal drawer honest.
   const emptyView = () => (
-    <div data-testid="nifty-flowstrip-empty" class="py-2 text-center">
-      <Text size="xs" c="dimmed" data-testid="nifty-flowstrip-empty-text">
-        no flow events
-      </Text>
+    <div
+      data-testid="nifty-flowstrip-empty"
+      data-state="unavailable"
+      class="flex items-center h-5 min-h-5 px-2 text-ui-micro text-fin-text-muted"
+      title="The flow strip is built from live option-chain prints; none were recorded for this tape."
+    >
+      <span data-testid="nifty-flowstrip-empty-text">no flow prints · live only</span>
     </div>
   );
 
@@ -198,13 +206,13 @@ export function NiftyFlowStrip(props: NiftyFlowStripProps) {
         ref={(el) => (labelsRef = el)}
         data-testid="nifty-flowstrip-labels"
         title={summary().fullText}
-        class="flex items-center gap-x-[6px] min-w-0 max-w-full overflow-hidden whitespace-nowrap font-mono text-[11px] leading-[1.2] text-fin-text-muted tabular-nums px-[6px] py-[2px]"
+        class="flex items-center gap-x-1 min-w-0 max-w-full overflow-x-auto whitespace-nowrap font-mono text-ui-body leading-[1.2] text-fin-text-muted tabular-nums px-2 py-1"
       >
         <Show when={summary().showMarker && summary().hidden > 0}>
           <span
             data-testid="nifty-flowstrip-more"
             title={`${summary().hidden} older run${summary().hidden === 1 ? "" : "s"} hidden — ${summary().fullText}`}
-            class="shrink-0 opacity-75"
+            class="shrink-0 opacity-75 text-ui-micro"
           >
             +{summary().hidden} earlier
           </span>
@@ -228,6 +236,12 @@ export function NiftyFlowStrip(props: NiftyFlowStripProps) {
             </>
           )}
         </For>
+      </div>
+      <div
+        data-testid="nifty-flowstrip-scroll-cue"
+        class="text-ui-micro text-fin-text-muted px-2 pb-1 min-[720px]:hidden"
+      >
+        scroll → for older runs
       </div>
     </div>
   );

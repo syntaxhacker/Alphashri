@@ -25,7 +25,7 @@ export function CompactToggle(props: CompactToggleProps) {
             aria-pressed={props.value === option.value ? "true" : "false"}
             onClick={() => props.onChange(option.value)}
             class={cn(
-              "cursor-pointer border-0 px-[6px] text-[9.5px] font-semibold leading-none",
+              "cursor-pointer border-0 px-[6px] text-ui-micro font-semibold leading-none",
               "bg-transparent text-fin-text-muted hover:bg-fin-primary/10",
             )}
             classList={{

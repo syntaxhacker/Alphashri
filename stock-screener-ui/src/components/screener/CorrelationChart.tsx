@@ -1,6 +1,6 @@
 import { Show, createEffect, onCleanup, onMount, createMemo } from "solid-js";
 import type * as ECharts from "echarts";
-import { Box, Loader, Flex, Stack, Text } from "@/ui";
+import { Box, Loader, Flex, Stack, Text, typeSize } from "@/ui";
 import { loadEcharts } from "../../utils/loadEcharts";
 import type { CorrelationDataPoint } from "../../api/correlation";
 import {
@@ -87,14 +87,14 @@ export function CorrelationChart(props: CorrelationChartProps) {
         data: symbols,
         top: 0,
         type: "scroll" as const,
-        textStyle: { fontSize: 11, color: CHART_MUTED },
+        textStyle: { fontSize: typeSize("micro"), color: CHART_MUTED },
       },
       grid: { left: 60, right: 20, top: 40, bottom: 30 },
       xAxis: {
         type: "category" as const,
         data: sortedTimestamps,
         axisLabel: {
-          fontSize: 10,
+          fontSize: typeSize("micro"),
           rotate: 30,
           formatter: (val: string) => {
             const d = new Date(val);
@@ -106,8 +106,8 @@ export function CorrelationChart(props: CorrelationChartProps) {
       yAxis: {
         type: "value" as const,
         name: "% Change",
-        nameTextStyle: { fontSize: 11, color: CHART_MUTED },
-        axisLabel: { fontSize: 10, formatter: "{value}%", color: CHART_MUTED },
+        nameTextStyle: { fontSize: typeSize("micro"), color: CHART_MUTED },
+        axisLabel: { fontSize: typeSize("micro"), formatter: "{value}%", color: CHART_MUTED },
         splitLine: { lineStyle: { type: "dashed", color: CHART_SPLIT } },
         axisLine: { lineStyle: { color: CHART_MUTED } },
       },

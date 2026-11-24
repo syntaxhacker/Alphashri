@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui";
 import type { SymbolChartData } from "../../types/backtest";
 import { normalizeTime } from "../../utils/ui-helpers";
 import {
@@ -150,8 +151,7 @@ export function zoomToTrade(
 ) {
   if (!chartData) return;
 
-  // Fixed chart label sizes — no theme fontSizes scale to rely on.
-  const fontSizes = { xs: 10, sm: 11, md: 12 };
+  const fontSizes = { xs: typeSize("micro"), sm: typeSize("micro"), md: typeSize("micro") };
   const chart = chartInstances.get(symbol);
   if (!chart) return;
 

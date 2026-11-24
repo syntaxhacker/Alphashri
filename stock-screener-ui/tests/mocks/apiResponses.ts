@@ -1,6 +1,7 @@
 // Mock API responses for E2E tests
 
 import { apiRoute } from "./routeHelper";
+import { setupHomeNetworkMocks, setupHomePatternMocks } from "./homeDeskFixtures";
 
 export const mockScreenersList = {
   screeners: [
@@ -678,6 +679,12 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
       contentType: "application/json",
       body: JSON.stringify(mockDashboardResponse),
     });
+  });
+
+  // The app shell fetches news sources even on non-news routes; an unmocked
+  // call logs a console error and fails the evidence honesty guards.
+  await page.route(apiRoute("news/sources"), async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ sources: [] }) });
   });
 }
 
@@ -1876,6 +1883,11 @@ export async function setupStrategiesErrorMocks(page: import("@playwright/test")
 export const mockNiftyReport = {
   mode: "live",
   date: "2026-10-12",
+  market: {
+    is_open: false,
+    session_date: "2026-10-12",
+    as_of: "2026-10-12T10:00:00+05:30",
+  },
   expiry: "2026-10-14",
   spot: 22363.35,
   ohlc: { open: 22300, high: 22410.5, low: 22280, close: 22363.35 },
@@ -2501,6 +2513,20 @@ export async function setupHomeConfigMocks(
     puts: () => clone(puts),
     requests: () => [...requests],
   };
+}
+
+/**
+ * Full /home desk mock stack. Callers register `setupApiMocks`,
+ * `loginAsTestUser` and the news mocks first — those order-sensitive handlers
+ * must stay ahead of the desk's config/network/pattern routes.
+ */
+export async function setupHomeDeskMocks(
+  page: import("@playwright/test").Page,
+): Promise<HomeConfigMockHandle> {
+  const config = await setupHomeConfigMocks(page);
+  await setupHomeNetworkMocks(page);
+  await setupHomePatternMocks(page);
+  return config;
 }
 
 /**

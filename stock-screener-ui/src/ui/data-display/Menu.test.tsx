@@ -359,15 +359,18 @@ function KeyMenu(props: { loop?: boolean; onPick?: (label: string) => void }) {
   );
 }
 
-const openKeyMenu = (props: { loop?: boolean; onPick?: (label: string) => void } = {}) => {
+const openKeyMenu = async (props: { loop?: boolean; onPick?: (label: string) => void } = {}) => {
   render(() => <KeyMenu loop={props.loop} onPick={props.onPick} />);
   fireEvent.click(screen.getByTestId("trigger"));
+  // Focus is applied on a microtask, after the placement pass makes the
+  // dropdown visible — the same ordering the real browser needs.
+  await Promise.resolve();
   return screen.getAllByRole("menuitem");
 };
 
 describe("Menu — keyboard navigation", () => {
-  test("opens with a single tab stop on the first enabled item", () => {
-    const items = openKeyMenu();
+  test("opens with a single tab stop on the first enabled item", async () => {
+    const items = await openKeyMenu();
 
     expect(screen.getByRole("menu")).toBe(screen.getByTestId("dropdown"));
     expect(items).toHaveLength(3);
@@ -376,8 +379,8 @@ describe("Menu — keyboard navigation", () => {
     expect(items[2]).toHaveAttribute("tabindex", "-1");
   });
 
-  test("ArrowDown skips disabled items; ArrowUp wraps by default", () => {
-    const items = openKeyMenu();
+  test("ArrowDown skips disabled items; ArrowUp wraps by default", async () => {
+    const items = await openKeyMenu();
 
     fireEvent.keyDown(items[0], { key: "ArrowDown" });
     expect(document.activeElement).toBe(items[2]);
@@ -389,8 +392,8 @@ describe("Menu — keyboard navigation", () => {
     expect(document.activeElement).toBe(items[2]);
   });
 
-  test("loop={false} clamps at both ends", () => {
-    const items = openKeyMenu({ loop: false });
+  test("loop={false} clamps at both ends", async () => {
+    const items = await openKeyMenu({ loop: false });
 
     fireEvent.keyDown(items[0], { key: "ArrowUp" });
     expect(document.activeElement).toBe(items[0]);
@@ -400,8 +403,8 @@ describe("Menu — keyboard navigation", () => {
     expect(document.activeElement).toBe(items[2]);
   });
 
-  test("Home and End jump to the first and last enabled items", () => {
-    const items = openKeyMenu();
+  test("Home and End jump to the first and last enabled items", async () => {
+    const items = await openKeyMenu();
 
     fireEvent.keyDown(items[0], { key: "End" });
     expect(document.activeElement).toBe(items[2]);
@@ -410,9 +413,9 @@ describe("Menu — keyboard navigation", () => {
     expect(document.activeElement).toBe(items[0]);
   });
 
-  test("Enter and Space each activate once and dismiss the menu", () => {
+  test("Enter and Space each activate once and dismiss the menu", async () => {
     const onPick = vi.fn();
-    const items = openKeyMenu({ onPick });
+    const items = await openKeyMenu({ onPick });
 
     fireEvent.keyDown(items[0], { key: "Enter" });
     expect(onPick).toHaveBeenCalledTimes(1);
@@ -444,5 +447,222 @@ describe("Menu — keyboard navigation", () => {
 
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByTestId("hover-dropdown")).toBeNull();
+  });
+});
+
+describe("Menu — focus follows placement", () => {
+  test("keyboard open moves focus to the first enabled item only after the dropdown is placed", async () => {
+    render(() => <KeyMenu />);
+    const trigger = screen.getByTestId("trigger");
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dropdown = screen.getByTestId("dropdown");
+
+    // The dropdown is still `visibility:hidden` on the placement pass; a
+    // synchronous focus here would be a no-op in a real browser.
+    expect(document.activeElement).toBe(trigger);
+
+    await Promise.resolve();
+    expect(dropdown.style.visibility).toBe("visible");
+    expect(document.activeElement).toBe(screen.getByTestId("item-one"));
+    expect(screen.getByTestId("item-one")).toHaveAttribute("tabindex", "0");
+  });
+
+  test("skips a disabled first item and owns the tab stop on the next enabled one", async () => {
+    render(() => (
+      <Menu>
+        <Menu.Target>
+          <button type="button" data-testid="trigger">Open</button>
+        </Menu.Target>
+        <Menu.Dropdown data-testid="dropdown">
+          <Menu.Item data-testid="disabled-first" disabled>Unavailable</Menu.Item>
+          <Menu.Item data-testid="enabled-second">Second</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ));
+
+    fireEvent.click(screen.getByTestId("trigger"));
+    await Promise.resolve();
+
+    expect(document.activeElement).toBe(screen.getByTestId("enabled-second"));
+    expect(screen.getByTestId("enabled-second")).toHaveAttribute("tabindex", "0");
+  });
+
+  test("Escape and outside click still dismiss after a keyboard open", async () => {
+    render(() => <KeyMenu />);
+    const trigger = screen.getByTestId("trigger");
+    trigger.focus();
+    fireEvent.click(trigger);
+    await Promise.resolve();
+    expect(document.activeElement).toBe(screen.getByTestId("item-one"));
+
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByTestId("dropdown")).toBeNull();
+
+    fireEvent.click(trigger);
+    await Promise.resolve();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("dropdown")).toBeNull();
+  });
+
+  test("hover-open focuses the first enabled item without losing hover dismissal", async () => {
+    render(() => (
+      <Menu trigger="click-hover">
+        <Menu.Target data-testid="hover-target">
+          <button type="button">Hover</button>
+        </Menu.Target>
+        <Menu.Dropdown data-testid="hover-dropdown">
+          <Menu.Item data-testid="hover-item">Only</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ));
+
+    fireEvent.mouseEnter(screen.getByTestId("hover-target"));
+    await Promise.resolve();
+    expect(document.activeElement).toBe(screen.getByTestId("hover-item"));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("hover-dropdown")).toBeNull();
+  });
+});
+
+describe("Menu — disclosure ARIA on the trigger", () => {
+  const renderDisclosure = (dropdownId?: string) => {
+    render(() => (
+      <Menu>
+        <Menu.Target data-testid="target-anchor">
+          <button type="button" data-testid="trigger">
+            Open
+          </button>
+        </Menu.Target>
+        <Menu.Dropdown id={dropdownId} data-testid="dropdown">
+          <Menu.Item>Action</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ));
+    return {
+      trigger: screen.getByTestId("trigger") as HTMLElement,
+      anchor: screen.getByTestId("target-anchor") as HTMLElement,
+    };
+  };
+
+  test("enriches a focusable child rather than the non-focusable wrapper", () => {
+    const { trigger, anchor } = renderDisclosure();
+
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(anchor.tagName).toBe("SPAN");
+    expect(anchor).not.toHaveAttribute("aria-haspopup");
+  });
+
+  test("Enter and Space toggle the menu and aria-expanded", () => {
+    const { trigger } = renderDisclosure();
+
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    expect(screen.getByTestId("dropdown")).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.keyDown(trigger, { key: " " });
+    expect(screen.queryByTestId("dropdown")).toBeNull();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("aria-controls resolves to the dropdown panel", () => {
+    const { trigger } = renderDisclosure();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+
+    const id = trigger.getAttribute("aria-controls");
+    expect(id).toBeTruthy();
+    expect(document.getElementById(id!)).toBe(screen.getByTestId("dropdown"));
+  });
+
+  test("an explicit dropdown id is reused for aria-controls", () => {
+    const { trigger } = renderDisclosure("custom-menu-panel");
+    fireEvent.keyDown(trigger, { key: "Enter" });
+
+    expect(trigger).toHaveAttribute("aria-controls", "custom-menu-panel");
+    expect(document.getElementById("custom-menu-panel")).toBe(screen.getByTestId("dropdown"));
+  });
+
+  test("a non-focusable child becomes a real, keyboard-reachable button", () => {
+    render(() => (
+      <Menu>
+        <Menu.Target data-testid="text-trigger">Open menu</Menu.Target>
+        <Menu.Dropdown data-testid="dropdown">
+          <Menu.Item>Action</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ));
+    const trigger = screen.getByTestId("text-trigger") as HTMLButtonElement;
+
+    expect(trigger.tagName).toBe("BUTTON");
+    expect(trigger).toHaveAttribute("type", "button");
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    expect(screen.getByTestId("dropdown")).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("a component that renders a button is enriched as well", () => {
+    const GhostButton = () => (
+      <button type="button" data-testid="component-trigger">
+        Open
+      </button>
+    );
+    render(() => (
+      <Menu>
+        <Menu.Target>
+          <GhostButton />
+        </Menu.Target>
+        <Menu.Dropdown data-testid="dropdown">
+          <Menu.Item>Action</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ));
+    const trigger = screen.getByTestId("component-trigger");
+
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    expect(screen.getByTestId("dropdown")).toBeInTheDocument();
+  });
+
+  test("a disabled button child stays a single, non-nested control", () => {
+    render(() => (
+      <Menu>
+        <Menu.Target data-testid="anchor">
+          <button type="button" disabled data-testid="disabled-trigger">
+            Open
+          </button>
+        </Menu.Target>
+        <Menu.Dropdown data-testid="dropdown">
+          <Menu.Item>Action</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ));
+
+    expect(screen.getByTestId("anchor").tagName).toBe("SPAN");
+    expect(screen.getByTestId("disabled-trigger")).toHaveAttribute("aria-haspopup", "menu");
+    expect(document.querySelectorAll("button")).toHaveLength(1);
+  });
+
+  test("advertised-but-unused renderTarget never reaches the DOM", () => {
+    const { container } = render(() => (
+      <Menu renderTarget={() => <button type="button">custom</button>}>
+        <Menu.Target>
+          <button type="button">Open</button>
+        </Menu.Target>
+        <Menu.Dropdown data-testid="dropdown">
+          <Menu.Item>Action</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ));
+
+    expect(container.innerHTML).not.toMatch(/renderTarget/i);
   });
 });

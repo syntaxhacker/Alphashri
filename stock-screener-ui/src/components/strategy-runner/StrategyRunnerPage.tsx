@@ -110,7 +110,7 @@ export function StrategyRunnerPage() {
         data-testid="sr-header"
         style={{ flex: "0 0 auto", height: `${palette.FIN_HEADER_H}px`, padding: `0 ${palette.FIN_OUTER_PAD}px`, "border-bottom": "1px solid var(--color-fin-border)" }}
       >
-        <Title order={2} size="h4">Strategy Runner</Title>
+        <Title order={2} size="lg">Strategy Runner</Title>
         <Text size="sm" c="dimmed" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
           Compare bot strategies side by side
           {config().bot_uuids.length > 0 || config().symbols.length > 0

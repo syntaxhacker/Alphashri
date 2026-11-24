@@ -213,8 +213,8 @@ describe("SmilePanel legibility at the 206px band", () => {
     // Preceding the canvas in document order = above it, so no x-axis label can
     // ever be covered by the legend.
     expect(legend.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect((legend.querySelector("p") as HTMLElement).style.fontSize).toBe("10px");
-    expect((screen.getByTestId("smile-caption") as HTMLElement).style.fontSize).toBe("10px");
+    expect((legend.querySelector("p") as HTMLElement).style.fontSize).toBe("12px");
+    expect((screen.getByTestId("smile-caption") as HTMLElement).style.fontSize).toBe("12px");
   });
 });
 

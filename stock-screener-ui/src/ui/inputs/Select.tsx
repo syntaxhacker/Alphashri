@@ -163,7 +163,7 @@ function fieldHeight(size?: UISelectProps["size"]): string {
 }
 
 function fieldPadding(size?: UISelectProps["size"]): string {
-  if (size === "xs") return "pl-2 pr-7 text-[11px]";
+  if (size === "xs") return "pl-2 pr-7 text-ui-micro";
   if (size === "sm") return "pl-2 pr-7 text-xs";
   return "pl-3 pr-7 text-sm";
 }
@@ -212,7 +212,6 @@ export function Select(props: UISelectProps) {
     "w",
     "h",
     "data-testid",
-    "InputProps",
     "aria-label",
   ]);
 

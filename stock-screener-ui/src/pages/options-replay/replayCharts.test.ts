@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import type { OptionReplayResult } from "@/types/optionsPaper";
+import { TYPE_SCALE } from "@/ui/typography";
 import { pathChartOption, payoffChartOption } from "./replayCharts";
 
 const result: OptionReplayResult = {
@@ -35,6 +36,18 @@ function series(option: Record<string, unknown>): Array<Record<string, unknown>>
   return option.series as Array<Record<string, unknown>>;
 }
 
+function numericFontSizes(value: unknown, out: number[] = []): number[] {
+  if (Array.isArray(value)) {
+    for (const item of value) numericFontSizes(item, out);
+  } else if (value && typeof value === "object") {
+    for (const [key, item] of Object.entries(value)) {
+      if (key === "fontSize" && typeof item === "number") out.push(item);
+      else numericFontSizes(item, out);
+    }
+  }
+  return out;
+}
+
 describe("options replay charts", () => {
   test("path option keeps the playhead on the net P&L series only", () => {
     const option = pathChartOption(result, "2026-11-17T09:48:00+05:30");
@@ -56,5 +69,17 @@ describe("options replay charts", () => {
       "₹84.9",
     ]);
     expect(payoffChartOption(null, 0)).toBeDefined();
+  });
+
+  test("every numeric chart font size comes from the type scale", () => {
+    const scale = Object.values(TYPE_SCALE).map((role) => role.size);
+    for (const option of [
+      pathChartOption(result, "2026-11-17T09:48:00+05:30"),
+      payoffChartOption(result, 82.5),
+    ]) {
+      const sizes = numericFontSizes(option);
+      expect(sizes.length).toBeGreaterThan(0);
+      for (const size of sizes) expect(scale).toContain(size);
+    }
   });
 });

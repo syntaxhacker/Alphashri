@@ -1,5 +1,6 @@
 import { For, Show } from "solid-js";
 import * as palette from "@/ui/palette";
+import { REPORT_PAD } from "./reportTokens";
 import type { SetupRead, SetupState } from "./niftySetup";
 import type { PreMoveScore } from "./niftyPreMove";
 
@@ -16,19 +17,20 @@ const STATE_LABEL: Record<SetupState, string> = {
 };
 
 /**
- * Five pre-move gates in one 24px line. Green = condition present, dim = not.
- * The score is the number of gates; ARMED (4/5) means prepare, TRIGGER (5/5)
- * means the wall is actually being covered. Every gate carries its own numbers
- * in the tooltip so the chip is a prompt, not a verdict.
+ * Pre-move gates in one compact line. Green = condition present, dim = not.
+ * The score is the number of gates; ARMED means prepare, TRIGGER means the wall
+ * is actually being covered. Every gate carries its own numbers in the tooltip
+ * so the chip is a prompt, not a verdict. At 390 the gates wrap as whole chips.
  */
 export function SetupRadarStrip(props: { read: SetupRead; preMove?: PreMoveScore }) {
   return (
     <div
       data-testid="nifty-setup-radar"
       data-state={props.read.state}
-      class="flex items-center gap-1.5 min-w-0 shrink-0 overflow-hidden whitespace-nowrap border border-fin-border rounded-sm bg-fin-surface font-mono text-[11px] text-fin-text-muted h-[24px] min-h-[24px] w-full px-2"
+      data-report-spacing="8"
+      class="flex items-center gap-2 min-w-0 shrink-0 whitespace-nowrap border border-fin-border rounded-sm bg-fin-surface font-mono text-ui-micro text-fin-text-muted h-[24px] min-h-[24px] w-full px-2 max-[600px]:h-auto max-[600px]:min-h-0 max-[600px]:flex-wrap max-[600px]:gap-y-1 max-[600px]:py-1"
     >
-      <span class="font-extrabold shrink-0 tracking-[0.08em] text-[11px]" style={{ color: palette.TEXT_MUTED }}>
+      <span data-report-text="label" class="font-extrabold shrink-0 tracking-[0.08em] text-ui-micro" style={{ color: palette.TEXT_MUTED }}>
         SETUP
       </span>
       <For each={props.read.gates}>{(g) => {
@@ -40,15 +42,17 @@ export function SetupRadarStrip(props: { read: SetupRead; preMove?: PreMoveScore
             data-testid={`nifty-setup-${g.key.toLowerCase()}`}
             data-pass={pass ? "true" : "false"}
             title={`${g.key}: ${g.detail}`}
-            class="font-bold shrink-0 tracking-[0.04em] text-[11px] inline-block rounded-[3px]"
+            data-report-spacing="8"
+            class="inline-flex items-baseline gap-1 font-bold shrink-0 tracking-[0.04em] text-ui-body inline-block rounded-[3px]"
             style={{
-              padding: "1px 4px",
+              padding: `${REPORT_PAD.xs}px ${REPORT_PAD.md}px`,
               border: `1px solid ${tone}`,
               "background-color": bg,
               color: tone,
             }}
           >
-            {g.key} {pass ? "✓" : "–"}
+            <span data-report-text="label" class="text-ui-micro">{g.key}</span>{" "}
+            <span data-report-text="value" class="text-ui-body">{pass ? "✓" : "–"}</span>
           </span>
         );
       }}</For>
@@ -59,22 +63,28 @@ export function SetupRadarStrip(props: { read: SetupRead; preMove?: PreMoveScore
           title={props.preMove!.components
             .map((c) => `${c.points > 0 ? "+" : ""}${c.points} ${c.label} — ${c.detail}`)
             .join("\n")}
-          class="font-black shrink-0 tracking-[0.04em] text-[11px] inline-block rounded-[3px]"
+          data-report-spacing="8"
+          class="font-black shrink-0 tracking-[0.04em] text-ui-body inline-block rounded-[3px]"
           style={{
-            padding: "1px 4px",
+            padding: `${REPORT_PAD.xs}px ${REPORT_PAD.md}px`,
             border: `1px solid ${props.preMove!.state === "armed" ? palette.POSITIVE : palette.WARNING}`,
             "background-color": props.preMove!.state === "armed" ? "rgba(63,185,80,0.10)" : "transparent",
             color: props.preMove!.state === "armed" ? palette.POSITIVE : palette.WARNING,
-            "margin-left": "6px",
+            "margin-left": `${REPORT_PAD.md}px`,
           }}
         >
-          PRE {props.preMove!.score}/{props.preMove!.max} {props.preMove!.state === "armed" ? "ARMED" : "WATCH"}
+          <span data-report-text="label" class="text-ui-micro">PRE</span>{" "}
+          <span data-report-text="value" class="text-ui-body">{props.preMove!.score}/{props.preMove!.max} {props.preMove!.state === "armed" ? "ARMED" : "WATCH"}</span>
         </span>
       </Show>
       <span
         data-testid="nifty-setup-score"
-        class="font-black shrink-0 text-[11px]"
-        style={{ "margin-left": props.preMove && props.preMove.state !== "quiet" ? "6px" : "auto", color: STATE_COLOR[props.read.state] }}
+        data-report-text="value"
+        class="font-black shrink-0 text-ui-body"
+        style={{
+          "margin-left": props.preMove && props.preMove.state !== "quiet" ? `${REPORT_PAD.md}px` : "auto",
+          color: STATE_COLOR[props.read.state],
+        }}
       >
         {props.read.score}/{props.read.gates.length} · {STATE_LABEL[props.read.state]}
       </span>

@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import * as palette from "@/ui/palette";
+import { typeSize } from "@/ui/typography";
 import {
   buildAgriChartOption,
   formatAgriDateLabel,
@@ -490,7 +491,7 @@ describe("agriChartTheme — extracted pure helpers", () => {
   it("escapes tooltip text and drops empty rows", () => {
     expect(escapeHtml(`&<>"'`)).toBe("&amp;&lt;&gt;&quot;&apos;");
     expect(tooltipShell("H", ["a", "", "b"])).toBe(
-      `<div style="font-family:monospace;font-size:11px;line-height:1.5">` +
+      `<div style="font-family:monospace;font-size:${typeSize("micro")}px;line-height:1.5">` +
         `<div style="font-weight:600;margin-bottom:4px">H</div>ab</div>`,
     );
     expect(tooltipShell("<b>", [])).toContain("&lt;b&gt;");
@@ -585,8 +586,8 @@ describe("layout and legibility invariants", () => {
       const grid = (option.grid as Array<{ top: number }>)[0];
       expect(title.top, mode).toBeLessThan(legend.top);
       expect(legend.top + 14, mode).toBeLessThanOrEqual(grid.top);
-      expect(title.textStyle.fontSize, mode).toBeGreaterThanOrEqual(10);
-      expect(legend.textStyle.fontSize, mode).toBeGreaterThanOrEqual(10);
+      expect(title.textStyle.fontSize, mode).toBe(typeSize("label"));
+      expect(legend.textStyle.fontSize, mode).toBe(typeSize("micro"));
     }
   });
 
@@ -597,7 +598,7 @@ describe("layout and legibility invariants", () => {
       const label = visible?.axisLabel as { margin: number; hideOverlap: boolean; fontSize: number };
       expect(label.margin, mode).toBeGreaterThanOrEqual(8);
       expect(label.hideOverlap, mode).toBe(true);
-      expect(label.fontSize, mode).toBeGreaterThanOrEqual(10);
+      expect(label.fontSize, mode).toBe(typeSize("micro"));
     }
     for (const [mode, option] of cases) {
       const grids = option.grid as Array<{ bottom: number | string }>;
@@ -606,9 +607,9 @@ describe("layout and legibility invariants", () => {
     }
   });
 
-  it("never sets a chart font below 10px in any mode", () => {
+  it("never sets a chart font below the 12px token floor in any mode", () => {
     for (const [mode, option] of cases) {
-      expect(fontSizes(option).every((size) => size >= 10), mode).toBe(true);
+      expect(fontSizes(option).every((size) => size >= typeSize("micro")), mode).toBe(true);
     }
   });
 });

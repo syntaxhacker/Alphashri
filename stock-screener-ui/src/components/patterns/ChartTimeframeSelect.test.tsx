@@ -8,7 +8,8 @@ import { ChartTimeframeSelect } from "./ChartTimeframeSelect";
 
 vi.mock("@/ui", async () => {
   const { mockSolidUi } = await import("@/test-utils/solidUiMock");
-  return mockSolidUi();
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
 });
 
 const TFS: TFSpec[] = [

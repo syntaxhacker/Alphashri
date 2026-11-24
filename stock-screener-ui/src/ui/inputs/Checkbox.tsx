@@ -1,8 +1,19 @@
 import { createEffect, createMemo, createSignal, createUniqueId, splitProps } from "solid-js";
 import { cn } from "../cn";
+import { TYPE_SCALE, typeSize } from "../typography";
 import type { UICheckboxProps } from "../types";
 
 const BOX_SIDE: Record<string, number> = { xs: 14, sm: 16, md: 16, lg: 18, xl: 18 };
+const SCALE_STEPS = Object.values(TYPE_SCALE).map((s) => s.size);
+
+/** Decorative check mark: sized from the box, snapped to the shared ladder, never < 12px. */
+function snapTypeSize(px: number): number {
+  const nearest = SCALE_STEPS.reduce(
+    (best, step) => (Math.abs(step - px) <= Math.abs(best - px) ? step : best),
+    SCALE_STEPS[0],
+  );
+  return Math.max(typeSize("micro"), nearest);
+}
 
 function boxSide(size?: UICheckboxProps["size"]): number {
   return BOX_SIDE[String(size)] ?? 16;
@@ -47,6 +58,7 @@ export function Checkbox(props: UICheckboxProps) {
     "style",
     "id",
     "data-testid",
+    "aria-label",
     "children",
     "onClick",
     "onMouseEnter",
@@ -74,7 +86,7 @@ export function Checkbox(props: UICheckboxProps) {
   const handleChange = (e: Event & { currentTarget: HTMLInputElement }) => {
     const next = e.currentTarget.checked;
     if (!isControlled()) setUncontrolled(next);
-    known.onChange?.(e as Event & { currentTarget: HTMLInputElement; target: Element });
+    known.onChange?.(next);
   };
 
   const rootClass = createMemo(() =>
@@ -108,7 +120,7 @@ export function Checkbox(props: UICheckboxProps) {
       "box-shadow": focused() ? `0 0 0 1px ${tone}` : "none",
       "background-color": fill,
       color: "var(--color-fin-bg)",
-      "font-size": `${side - 4}px`,
+      "font-size": `${snapTypeSize(side - 4)}px`,
       "line-height": `${side - 2}px`,
       ...(known.disabled ? { opacity: "0.45", cursor: "not-allowed" } : {}),
     };
@@ -138,6 +150,7 @@ export function Checkbox(props: UICheckboxProps) {
         disabled={known.disabled}
         name={known.name}
         id={known.id ?? `${uid}-control`}
+        aria-label={known["aria-label"]}
         aria-invalid={known.error ? "true" : undefined}
         aria-describedby={describedBy()}
         data-testid={known["data-testid"]}

@@ -1,6 +1,6 @@
 import { createSignal, createMemo, createEffect, For, Show } from "solid-js";
 import { IconRefresh } from "@/components/common/Icons";
-import { Badge, Button, Center, Loader, Select, Text, Box, Flex, Group, Stack } from "@/ui";
+import { Badge, Button, Center, Loader, Select, Text, Box, Flex, Group, Stack, typeSize } from "@/ui";
 import { useStoreSnapshot } from "./storeSnapshot";
 import { getPaperTradingState, subscribe } from "../../state/paperTrading";
 import { fetchDashboardAnalytics } from "../../api/paperTrading";
@@ -69,8 +69,8 @@ function chartBase(xData: string[], series: any[], yFormatter = "₹{value}") {
   return {
     grid: { left: 48, right: 12, top: 16, bottom: 24 },
     tooltip: { trigger: "axis" as const },
-    xAxis: { type: "category" as const, data: xData, axisLabel: { fontSize: 10 }, splitLine },
-    yAxis: { type: "value" as const, axisLabel: { fontSize: 10, formatter: yFormatter }, splitLine },
+    xAxis: { type: "category" as const, data: xData, axisLabel: { fontSize: typeSize("micro") }, splitLine },
+    yAxis: { type: "value" as const, axisLabel: { fontSize: typeSize("micro"), formatter: yFormatter }, splitLine },
     series,
   };
 }
@@ -160,8 +160,8 @@ function BotComparisonChart(props: { data: PaperDashboardAnalyticsData }) {
     return {
       grid: { left: 88, right: 12, top: 12, bottom: 20 },
       tooltip: { trigger: "axis" as const },
-      xAxis: { type: "value" as const, axisLabel: { fontSize: 10, formatter: "₹{value}" }, splitLine },
-      yAxis: { type: "category" as const, data: bots.map((b) => b.bot_name), axisLabel: { fontSize: 10 }, splitLine },
+      xAxis: { type: "value" as const, axisLabel: { fontSize: typeSize("micro"), formatter: "₹{value}" }, splitLine },
+      yAxis: { type: "category" as const, data: bots.map((b) => b.bot_name), axisLabel: { fontSize: typeSize("micro") }, splitLine },
       series: [{
         type: "bar",
         data: bots.map((b) => ({
@@ -189,7 +189,7 @@ function ExitReasonChart(props: { data: PaperDashboardAnalyticsData }) {
         value: r.count,
         itemStyle: { color: exitColor(r.reason, i), borderColor: withAlpha(BLACK, 0.1), borderWidth: 1 },
       })),
-      label: { fontSize: 10, formatter: "{b} {d}%" },
+      label: { fontSize: typeSize("micro"), formatter: "{b} {d}%" },
       emphasis: {
         scale: true,
         itemStyle: {

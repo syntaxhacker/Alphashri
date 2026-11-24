@@ -49,7 +49,7 @@ export const Playground: Story = {
           code={`size="${String(args.size)}" · variant="${String(args.variant)}" · color="${String(args.color)}"`}
         >
           <Stack gap="sm" align="flex-start">
-            <Text size="xs" c="dimmed" className="font-mono">radius: {String(args.radius)}</Text>
+            <Text size="xs" c="dimmed" className="font-mono">Icon badge · {String(args.radius)} corners</Text>
             <ThemeIcon size={args.size} color={args.color} variant={args.variant} radius={args.radius}>
               {args.children ?? "★"}
             </ThemeIcon>

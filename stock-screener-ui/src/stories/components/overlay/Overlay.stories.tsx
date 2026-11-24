@@ -86,7 +86,7 @@ export const BlurAndOpacity: Story = {
                   tint: {tinted() ? "primary" : "default"}
                 </Button>
               </Group>
-              <Readout>tint: {tinted() ? "alpha(palette.PRIMARY, 0.35)" : "palette-derived default"}</Readout>
+              <Readout>{tinted() ? "Brand-tinted backdrop" : "Neutral backdrop"}</Readout>
               <Stage height={200}>
                 <BackdropContent />
                 <Overlay
@@ -121,7 +121,7 @@ export const ClickToDismiss: Story = {
                 </Button>
                 <Button size="xs" variant="outline" onClick={() => setClicks(0)}>Reset click count</Button>
               </Group>
-              <Readout>clicks on the layer: {clicks()}</Readout>
+              <Readout>{clicks()} backdrop click{clicks() === 1 ? "" : "s"} recorded</Readout>
               <Stage height={200}>
                 <BackdropContent />
                 <Show when={visible()}>

@@ -69,13 +69,28 @@ describe("Switch — track + knob toggle", () => {
     expect(trackOf("sw").getAttribute("style") ?? "").toContain("var(--color-fin-negative)");
   });
 
-  it("toggles uncontrolled state and emits onChange", () => {
+  it("toggles uncontrolled state and emits onChange with the checked boolean", () => {
     const onChange = vi.fn();
     render(() => <Switch label="Replay scan" data-testid="sw" onChange={onChange} />);
     const input = screen.getByTestId("sw") as HTMLInputElement;
     fireEvent.click(input);
     expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(true);
     expect(trackOf("sw").getAttribute("style") ?? "").toContain("var(--color-fin-primary)");
+
+    fireEvent.click(input);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("emits the checked boolean for a controlled switch without owning state", () => {
+    const onChange = vi.fn();
+    render(() => <Switch label="Replay scan" data-testid="sw" checked={false} onChange={onChange} />);
+    fireEvent.click(screen.getByTestId("sw"));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0]).toBe(true);
+    expect(typeof onChange.mock.calls[0][0]).toBe("boolean");
+    expect(trackOf("sw").getAttribute("style") ?? "").toContain("var(--color-fin-surface-alt)");
   });
 
   it("stays disabled when disabled", () => {

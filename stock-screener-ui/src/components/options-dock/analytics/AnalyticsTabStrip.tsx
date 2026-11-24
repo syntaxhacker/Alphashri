@@ -1,5 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
-import { Box, Text } from "@/ui";
+import { Box, Text, typeSize } from "@/ui";
 import { IconRefresh } from "@/components/common/Icons";
 import type { OptionsAnalytics } from "@/api/optionsAnalytics";
 import { selectedExpiryLabel, verdictChips, type VerdictChip } from "./analyticsRead";
@@ -224,7 +224,7 @@ export function AnalyticsTabStrip(props: {
                     ? "border-fin-primary text-fin-text"
                     : "border-transparent text-fin-text-muted hover:text-fin-text"
                 }`}
-                style={{ "font-size": "9px", "letter-spacing": "0.06em", "line-height": "1" }}
+                style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.06em", "line-height": "1" }}
               >
                 {LABELS[tab]}
               </button>
@@ -236,7 +236,7 @@ export function AnalyticsTabStrip(props: {
             size="xs"
             c="dimmed"
             className="hidden shrink-0 truncate pl-2 font-mono sm:block"
-            style={{ "font-size": "9px" }}
+            style={{ "font-size": `${typeSize("micro")}px` }}
             data-testid="analytics-headline"
           >
             {props.headline}
@@ -250,7 +250,7 @@ export function AnalyticsTabStrip(props: {
           aria-expanded={helpOpen()}
           data-testid="analytics-help"
           onClick={() => setHelpOpen(!helpOpen())}
-          className="ml-1 inline-flex h-[22px] shrink-0 items-center border-0 bg-transparent p-0 font-mono text-[9px] font-semibold uppercase tracking-[0.06em] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+          className="ml-1 inline-flex h-[22px] shrink-0 items-center border-0 bg-transparent p-0 font-mono text-ui-micro font-semibold uppercase tracking-[0.06em] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
         >
           <span className="hidden sm:inline">How to read</span>
           <span className="sm:hidden">?</span>
@@ -273,7 +273,7 @@ export function AnalyticsTabStrip(props: {
             aria-label={`Open full analytics for ${linkSymbol()}`}
             data-testid="analytics-pillars-open"
             onClick={() => props.onOpenPillars?.()}
-            className="ml-1 inline-flex h-[22px] shrink-0 items-center justify-center gap-0.5 whitespace-nowrap border-0 bg-transparent p-0 font-mono text-[9px] font-semibold uppercase tracking-[0.06em] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+            className="ml-1 inline-flex h-[22px] shrink-0 items-center justify-center gap-0.5 whitespace-nowrap border-0 bg-transparent p-0 font-mono text-ui-micro font-semibold uppercase tracking-[0.06em] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
           >
             <span className="hidden sm:inline">Analytics</span>
             <span aria-hidden="true">▤</span>
@@ -287,7 +287,7 @@ export function AnalyticsTabStrip(props: {
           size="xs"
           c={line() ? "normal" : "dimmed"}
           className="min-w-0 truncate font-mono tabular-nums"
-          style={{ "font-size": "9px", "line-height": "1.1" }}
+          style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.1" }}
           data-testid="analytics-context"
         >
           {line() || "—"}
@@ -307,7 +307,7 @@ export function AnalyticsTabStrip(props: {
                 data-testid={chip.testId}
                 title={chip.title}
                 className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap font-mono"
-                style={{ "font-size": "9px", "line-height": "1" }}
+                style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1" }}
               >
                 <span className="text-fin-text-muted">{chip.label}</span>
                 <span
@@ -337,7 +337,7 @@ export function AnalyticsTabStrip(props: {
                   aria-pressed={props.selectedExpiry === option.date}
                   data-testid={`analytics-expiry-${option.date}`}
                   onClick={() => props.onSelectExpiry?.(option.date)}
-                  className={`inline-flex h-[16px] shrink-0 items-center border px-1 font-mono text-[9px] tabular-nums leading-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary ${
+                  className={`inline-flex h-[16px] shrink-0 items-center border px-1 font-mono text-ui-micro tabular-nums leading-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary ${
                     props.selectedExpiry === option.date
                       ? "border-fin-primary bg-fin-surface-alt text-fin-text"
                       : "border-fin-border bg-transparent text-fin-text-muted hover:text-fin-text"
@@ -361,7 +361,7 @@ export function AnalyticsTabStrip(props: {
           className="absolute z-30 w-[280px] max-w-[calc(100vw-16px)] border border-fin-border bg-fin-surface p-2 shadow-lg"
           style={{ "border-radius": "6px" }}
         >
-          <div className="mb-1 font-mono text-[9px] font-bold uppercase tracking-[0.06em] text-fin-text">
+          <div className="mb-1 font-mono text-ui-micro font-bold uppercase tracking-[0.06em] text-fin-text">
             How to read · {LABELS[active()]}
           </div>
           <ul className="m-0 flex list-disc flex-col gap-1 pl-4">
@@ -369,7 +369,7 @@ export function AnalyticsTabStrip(props: {
               {(bullet, index) => (
                 <li
                   data-testid={`analytics-help-bullet-${index()}`}
-                  className="font-mono text-[9px] leading-[1.4] text-fin-text-muted"
+                  className="font-mono text-ui-micro leading-[1.4] text-fin-text-muted"
                 >
                   {bullet}
                 </li>

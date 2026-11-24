@@ -3,7 +3,7 @@
 // trade window. Reuses the NT TradingViewChart (lightweight-charts).
 import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
 import * as palette from "@/ui/palette";
-import { Badge, Text, Card, Stack } from "@/ui";
+import { Badge, Text, Card, Stack, typeSize } from "@/ui";
 import { TradingViewChart } from "../chart/TradingViewChart";
 import type { MarkLineData } from "../../utils/chart/types";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
@@ -216,19 +216,19 @@ function TradeChartRow(props: {
         py="4px"
         style={{ "border-bottom": `1px solid ${palette.BORDER}` }}
       >
-        <Badge size="xs" style={{ height: "16px", "font-size": "10px", "background-color": palette.SURFACE_ALT, color: palette.TEXT }}>
+        <Badge size="xs" style={{ height: "16px", "font-size": `${typeSize("micro")}px`, "background-color": palette.SURFACE_ALT, color: palette.TEXT }}>
           {`#${props.number}`}
         </Badge>
         <Badge
           size="xs"
           data-testid={`trade-symbol-${props.index}`}
-          style={{ height: "16px", "font-size": "10px", "font-weight": 700, "background-color": palette.PRIMARY, color: palette.NT_BG }}
+          style={{ height: "16px", "font-size": `${typeSize("micro")}px`, "font-weight": 700, "background-color": palette.PRIMARY, color: palette.NT_BG }}
         >
           {props.symbol}
         </Badge>
         <Badge
           size="xs"
-          style={{ height: "16px", "font-size": "10px", "font-weight": 700 }}
+          style={{ height: "16px", "font-size": `${typeSize("micro")}px`, "font-weight": 700 }}
           color={canonicalSide(props.trade.side) === "SHORT" ? "negative" : "positive"}
           variant="filled"
         >
@@ -326,7 +326,7 @@ export function BacktestTradeCharts(props: {
             color={s === (props.selectedSymbol ?? symbol()) ? "primary" : "secondary"}
             style={{
               height: "18px",
-              "font-size": "10px",
+              "font-size": `${typeSize("micro")}px`,
               "font-weight": 700,
               cursor: props.onSymbolSelect ? "pointer" : "default",
             }}

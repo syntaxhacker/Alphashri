@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
 import { For } from "solid-js";
@@ -152,8 +154,9 @@ describe("IndexMoversModal", () => {
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
 
-    expect(screen.getByText(/Source: NIFTY50_WEIGHTS/)).toBeInTheDocument();
-    expect(screen.getByText(/As of:/)).toBeInTheDocument();
+    expect(screen.getByTestId("movers-modal-source")).toHaveTextContent("Source:");
+    expect(screen.getByTestId("movers-modal-source")).toHaveTextContent("NIFTY50_WEIGHTS");
+    expect(screen.getByTestId("movers-modal-asof")).toHaveTextContent("As of:");
   });
 
   it("calls onClose when close button clicked", async () => {
@@ -192,6 +195,31 @@ describe("IndexMoversModal", () => {
 
     await waitFor(() => expect(screen.getByTestId("panel-modal")).toBeInTheDocument(), { timeout: 10000 });
     expect(screen.getByTestId("panel-modal-title")).toHaveTextContent("MOVERS · SENSEX 30");
+  });
+
+  it("uses a 16px section title, 12px labels, 13px values and an 8px footer rhythm", async () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "src/pages/report/IndexMoversModal.tsx"),
+      "utf8",
+    );
+    expect(source).toContain('class="font-mono text-ui-title');
+    expect(source).toContain('data-report-spacing="8"');
+    expect(source).toContain("gap-2 flex-wrap mt-2 pt-2 border-t");
+    expect(source).not.toContain("truncate");
+    expect(source).not.toContain("text-ellipsis");
+
+    mockFetchIndexMovers.mockResolvedValue(createMockResponse());
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    await waitFor(() => expect(screen.getByTestId("movers-modal-footer")).toBeInTheDocument(), { timeout: 10000 });
+    const footer = screen.getByTestId("movers-modal-footer");
+    expect(footer.getAttribute("data-report-spacing")).toBe("8");
+    for (const label of footer.querySelectorAll('[data-report-text="label"]')) {
+      expect(label.className).toContain("text-ui-micro");
+    }
+    for (const value of footer.querySelectorAll('[data-report-text="value"]')) {
+      expect(value.className).toContain("text-ui-body");
+      expect(value.className).toContain("whitespace-nowrap");
+    }
   });
 
   it("contribution column shows — when missing", async () => {

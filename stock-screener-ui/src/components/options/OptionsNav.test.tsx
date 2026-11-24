@@ -21,6 +21,51 @@ describe("OptionsNav", () => {
     expect(screen.queryByText("Greeks")).not.toBeInTheDocument();
   });
 
+  it("keeps all five tab labels on one scrollable line without structural overlap", () => {
+    render(() => <OptionsNav activeTab="chain" onTabChange={vi.fn()} />);
+    const list = screen.getByTestId("options-nav-list");
+    const tabs = screen.getAllByRole("tab");
+
+    // The 34px bar cannot wrap, so the strip scrolls instead of letting
+    // adjacent labels overlap at 390px.
+    expect(list).toHaveClass("flex-nowrap");
+    expect(list).toHaveClass("overflow-x-auto");
+    expect(screen.getByTestId("options-nav-wrapper")).toHaveClass("w-full", "min-w-0");
+    expect(screen.getByTestId("options-analytics-link")).toHaveClass("shrink-0", "whitespace-nowrap");
+
+    expect(tabs).toHaveLength(5);
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual([
+      "Option Chain",
+      "Positions",
+      "Premium",
+      "Simulator",
+      "Positioning",
+    ]);
+    for (const tab of tabs) {
+      expect(tab).toHaveClass("shrink-0");
+      expect(tab).toHaveClass("whitespace-nowrap");
+      expect(tab).not.toHaveClass("truncate");
+      expect(tab.textContent).not.toMatch(/\s{2,}/);
+    }
+  });
+
+  it("shows a narrow-only overflow cue that does not block the last tab", () => {
+    render(() => <OptionsNav activeTab="chain" onTabChange={vi.fn()} />);
+    const cue = screen.getByTestId("options-nav-overflow-cue");
+
+    expect(cue).toHaveTextContent("→");
+    expect(cue).toHaveClass("bg-gradient-to-l", "from-fin-surface", "lg:hidden");
+    // The cue is decorative: it must never steal clicks from the last tab.
+    expect(cue).toHaveAttribute("aria-hidden", "true");
+    expect(cue).toHaveClass("pointer-events-none");
+
+    // The strip keeps scrolling on one line, with scroll padding so the last
+    // tab can clear the overlay cue.
+    const list = screen.getByTestId("options-nav-list");
+    expect(list).toHaveClass("flex-nowrap", "overflow-x-auto", "pr-8");
+    expect(screen.getByTestId("nav-tab-positioning")).toHaveClass("whitespace-nowrap");
+  });
+
   it("has clickable tabs", async () => {
     const onTabChange = vi.fn();
     render(() => <OptionsNav activeTab="chain" onTabChange={onTabChange} />);

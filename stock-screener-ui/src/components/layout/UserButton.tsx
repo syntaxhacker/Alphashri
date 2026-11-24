@@ -1,6 +1,6 @@
 import { Show, createMemo, useContext } from "solid-js";
 import { IconLogout } from "../common/Icons";
-import { Avatar, Box, Group, Text, UnstyledButton, Menu, MenuTarget, MenuDropdown, MenuItem } from "@/ui";
+import { Avatar, Box, Group, Text, Menu, MenuTarget, MenuDropdown, MenuItem } from "@/ui";
 import { AuthContext } from "../auth/AuthProvider";
 
 
@@ -12,6 +12,17 @@ declare global {
     };
     handleLogout?: () => void;
   }
+}
+
+/** `@` and `.` are the only word boundaries in an address. Mark them as break
+ *  opportunities so a long email wraps between tokens instead of being clipped
+ *  mid-token; `<wbr>` contributes no text, so the full address stays in the DOM. */
+function breakableEmail(email: string) {
+  return email.split(/(@|\.)/).map((part) => (
+    <>
+      {part}{(part === "@" || part === ".") && <wbr />}
+    </>
+  ));
 }
 
 export function UserButton(props: { collapsed?: boolean }) {
@@ -37,7 +48,8 @@ export function UserButton(props: { collapsed?: boolean }) {
   return (
     <Menu position="right-start" offset={8} shadow="md">
       <MenuTarget>
-        <UnstyledButton
+        <button
+          type="button"
           data-testid="user-menu-trigger"
           id="user-button"
           className="block w-full p-2 text-fin-text rounded-fin hover:bg-fin-surface-alt"
@@ -52,13 +64,19 @@ export function UserButton(props: { collapsed?: boolean }) {
                   {user().displayName}
                 </Text>
 
-                <Text c="dimmed" size="xs" truncate data-testid="user-email">
-                  {user().email}
+                <Text
+                  c="dimmed"
+                  size="xs"
+                  title={user().email}
+                  className="break-words"
+                  data-testid="user-email"
+                >
+                  {breakableEmail(user().email)}
                 </Text>
               </Box>
             </Show>
           </Group>
-        </UnstyledButton>
+        </button>
       </MenuTarget>
 
       <MenuDropdown data-testid="user-menu-dropdown">

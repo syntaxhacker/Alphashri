@@ -1,5 +1,5 @@
 import { createMemo, createEffect, For, Show, onCleanup, type JSX } from "solid-js";
-import { Select, NumberInput, Checkbox, Button, Text, Box } from "@/ui";
+import { Select, NumberInput, Checkbox, Button, Text, Box, typeSize } from "@/ui";
 import { Menu } from "../paper-trading/localOverlays";
 import { IconPlayerPlay, IconChevronDown, IconRefresh } from "@/components/common/Icons";
 import type { Strategy, StrategyVariation } from "../../types/backtest";
@@ -35,7 +35,7 @@ function Field(props: { label?: string; span?: boolean; children?: JSX.Element }
       style={{ "grid-column": props.span ? "1 / -1" : undefined, display: "flex", "flex-direction": "column", gap: "2px", "min-width": 0 }}
     >
       <Show when={props.label}>
-        <Text size="xs" c="dimmed" fw={700} style={{ "letter-spacing": "0.5px", "text-transform": "uppercase", "font-size": "10px", "line-height": 1.2 }}>
+        <Text size="xs" c="dimmed" fw={700} style={{ "letter-spacing": "0.5px", "text-transform": "uppercase", "font-size": `${typeSize("micro")}px`, "line-height": 1.2 }}>
           {props.label}
         </Text>
       </Show>
@@ -188,7 +188,7 @@ export function BacktestConfig(props: BacktestConfigProps) {
             data-testid="include-costs-checkbox"
             label="Include Costs"
             checked={props.includeCosts}
-            onChange={(e) => props.onIncludeCostsChange(e.currentTarget.checked)}
+            onChange={(checked) => props.onIncludeCostsChange(checked)}
             size="sm"
           />
         </Box>

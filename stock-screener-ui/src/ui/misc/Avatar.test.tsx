@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, expect, test } from "vitest";
-import { render, screen } from "@solidjs/testing-library";
+import { cleanup, render, screen } from "@solidjs/testing-library";
+import { TYPE_SCALE, typeSize } from "../typography";
+import type { UIAvatarProps } from "../types";
 import { Avatar } from "./Avatar";
 
 const text = (id: string) => screen.getByTestId(id).textContent;
@@ -49,16 +51,28 @@ describe("Avatar", () => {
     ));
 
     for (const [id, width, font] of [
-      ["xs", "24px", "9.6px"],
-      ["lg", "48px", "19.2px"],
-      ["num", "56px", "22.4px"],
-      ["str", "32px", "12.8px"],
-      ["default", "40px", "16px"],
+      ["xs", "24px", `${typeSize("micro")}px`],
+      ["lg", "48px", `${typeSize("heading")}px`],
+      ["num", "56px", `${typeSize("display")}px`],
+      ["str", "32px", `${typeSize("body")}px`],
+      ["default", "40px", `${typeSize("title")}px`],
     ] as const) {
       const avatar = screen.getByTestId(id);
       expect(avatar.style.width, id).toBe(width);
       expect(avatar.style.height, id).toBe(width);
       expect(avatar.style.fontSize, id).toBe(font);
+    }
+  });
+
+  test("the decorative monogram never leaves the shared ladder or the 12px floor", () => {
+    const scale = Object.values(TYPE_SCALE).map((s) => s.size);
+    const cases: Array<UIAvatarProps["size"]> = ["xs", "sm", "md", "lg", "xl", 1, 12, 24, 32, 56, 120, "40"];
+    for (const size of cases) {
+      const { container } = render(() => <Avatar size={size} />);
+      const glyph = Number.parseFloat((container.firstElementChild as HTMLElement).style.fontSize);
+      expect(scale, `size ${String(size)}`).toContain(glyph);
+      expect(glyph, `size ${String(size)}`).toBeGreaterThanOrEqual(typeSize("micro"));
+      cleanup();
     }
   });
 

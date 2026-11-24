@@ -85,6 +85,16 @@ def _wall(ts: datetime) -> datetime:
     return _as_ist(ts).replace(tzinfo=None)
 
 
+def _now() -> datetime:
+    """Single seam for 'now' in expiry, DTE and replay bounds.
+
+    Expiry settlement must read the same clock as the marks it settles;
+    keeping one indirect read lets a replay book run on a pinned session
+    clock instead of nine scattered wall-clock calls that can drift apart.
+    """
+    return datetime.now(IST)
+
+
 @dataclass
 class ReplayLeg:
     """Duck-typed ``ResolvedLeg`` carrying contract identity for build_replay.
@@ -119,7 +129,7 @@ def _market_open_now() -> bool:
     """Only an omitted entryTs during session may use the live chain."""
     try:
         from trading.utils import is_market_open
-        return bool(is_market_open(datetime.now(IST)))
+        return bool(is_market_open(_now()))
     except Exception:  # a holiday calendar failure must not block a replay fill
         return False
 
@@ -228,7 +238,7 @@ def parse_order(order: OptionPaperOrderRequest):
     except (TypeError, ValueError):
         raise OrderError(f"expiry must be YYYY-MM-DD, got {order.expiry!r}") from None
     if order.source == "live":
-        today = datetime.now(IST).date()
+        today = _now().date()
         if expiry_date < today - _MAX_EXPIRY_PAST or expiry_date > today + _MAX_EXPIRY_FUTURE:
             raise OrderError(f"expiry: out of range {expiry!r}")
 
@@ -307,7 +317,7 @@ def _replay_pricing(
     replay = build_replay(
         legs=duck_legs,
         entry_ts=_as_ist(entry_ts),
-        end_ts=datetime.now(IST),
+        end_ts=_now(),
         provider=provider,
         lot_size=lot_size,
         slippage_ticks=slippage_ticks,
@@ -395,7 +405,7 @@ async def place_order(db, user_id: int, order: OptionPaperOrderRequest) -> dict:
     """Place (or preview) a live or backdated multi-leg paper order."""
     specs, underlying, _expiry_date, expiry = parse_order(order)
     # Minute resolution keeps two identical dry runs byte-for-byte equal.
-    entry_ts = _as_ist(order.entry_ts) if order.entry_ts else datetime.now(IST).replace(
+    entry_ts = _as_ist(order.entry_ts) if order.entry_ts else _now().replace(
         second=0, microsecond=0
     )
     slippage = _finite(order.slippage_ticks)
@@ -578,7 +588,7 @@ async def add_leg(db, position, payload: AddLegRequest) -> dict:
 
     entry_ts = (
         _as_ist(payload.entry_ts) if payload.entry_ts
-        else datetime.now(IST).replace(second=0, microsecond=0)
+        else _now().replace(second=0, microsecond=0)
     )
     position_entry = _as_ist(position.entry_ts) if position.entry_ts else None
     if position_entry is not None and entry_ts < position_entry:
@@ -698,7 +708,7 @@ def _mark_for(db, position, leg) -> tuple[float, str | None]:
 
 def _dte(position) -> int:
     try:
-        return max(0, (date.fromisoformat(position.expiry) - datetime.now(IST).date()).days)
+        return max(0, (date.fromisoformat(position.expiry) - _now().date()).days)
     except (TypeError, ValueError):
         return 0
 
@@ -853,7 +863,7 @@ def settle_expired(db, user_id: int | None = None) -> int:
     insert the same trade twice. OTM legs settle intrinsic (zero), never at a
     stale traded premium.
     """
-    now = datetime.now(IST)
+    now = _now()
     today = now.date()
     query = db.query(OptionPaperPosition).filter(OptionPaperPosition.status == "open")
     if user_id is not None:
@@ -927,7 +937,7 @@ def close_position(db, position, premiums: dict[str, float] | None) -> dict:
 
     premium_map = dict(premiums or {})
     try:
-        now = datetime.now(IST)
+        now = _now()
         realized = 0.0
         for index, leg in enumerate(position.legs):
             override = _override_premium(leg, premium_map, index)
@@ -1001,7 +1011,7 @@ def replay_for_position(db, position) -> dict:
         result = build_replay(
             legs=legs,
             entry_ts=_as_ist(position.entry_ts),
-            end_ts=datetime.now(IST),
+            end_ts=_now(),
             provider=make_provider(db),
             lot_size=_lot_size(db, position.underlying),
             slippage_ticks=0.0,

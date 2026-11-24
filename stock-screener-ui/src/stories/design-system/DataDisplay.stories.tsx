@@ -1,11 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
-import { createSignal } from "solid-js";
+import { createSignal, Match, Show, Switch } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
 import {
   Accordion, Badge, Box, Button, DENSITY_TOKENS, Group, List, ListItem,
-  Menu, MenuDropdown, MenuItem, MenuTarget, Stack, Tab, Tabs, TabsList, TabsPanel, Text, Timeline, Tree,
+  Menu, MenuDropdown, MenuItem, MenuTarget, SegmentedControl, Stack, Tab, Tabs, TabsList, TabsPanel, Text, Timeline, Tree,
   type Density,
 } from "@/ui";
+import { ErrorAlert } from "@/components/common/states";
+import { TableEmptyState } from "@/components/common/TableEmptyState";
+import { TableLoadingState } from "@/components/common/TableLoadingState";
 import * as palette from "@/ui/palette";
 import { ComponentIndex, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
 
@@ -92,7 +95,7 @@ const DensitySurface = (props: { density: Density }) => {
   return (
     <Box style={{ width: "280px", "flex-shrink": 0, background: palette.SURFACE_ALT, border: `1px solid ${palette.BORDER}` }}>
       <Box style={{ padding: t.tableCellPad, "border-bottom": `1px solid ${palette.BORDER}` }}>
-        <Text size="xs" fw={700} c="dimmed" className="font-mono">{props.density} · row {t.tableRowHeight}px</Text>
+        <Text size="xs" fw={700} c="dimmed">{props.density === "compact" ? "Compact spacing" : "Comfortable spacing"}</Text>
       </Box>
       <Box style={{ padding: t.tableCellPad }}>
         <Accordion defaultValue="nifty">
@@ -112,6 +115,82 @@ const DensitySurface = (props: { density: Density }) => {
       </Box>
     </Box>
   );
+};
+
+type ScanState = "empty" | "scanning" | "error";
+
+const RESULT_STATE_COPY: Record<ScanState, { label: string; message: string }> = {
+  empty: { label: "NO MATCHES", message: "No symbols matched this filter" },
+  scanning: { label: "SCANNING", message: "Scanning the universe" },
+  error: { label: "FEED ERROR", message: "The options chain is temporarily unavailable." },
+};
+
+/** One results surface, pinned to a state, with a stable id and honest copy. */
+const ResultStateSurface = (props: { state: ScanState; onWiden?: () => void; onRetry?: () => void }) => (
+  <div
+    data-testid={`story-result-state-${props.state}`}
+    data-story-result-state={props.state}
+    style={{ border: `1px solid ${palette.BORDER}`, background: palette.SURFACE, "min-height": "180px", padding: "8px" }}
+  >
+    <Switch fallback={
+      <TableEmptyState
+        message={RESULT_STATE_COPY.empty.message}
+        action={<Button size="xs" variant="outline" onClick={props.onWiden}>Widen the filter</Button>}
+      />
+    }>
+      <Match when={props.state === "scanning"}>
+        <TableLoadingState message={RESULT_STATE_COPY.scanning.message} />
+      </Match>
+      <Match when={props.state === "error"}>
+        <ErrorAlert
+          title="Feed unavailable"
+          message={RESULT_STATE_COPY.error.message}
+          withRetry
+          onRetry={props.onRetry}
+        />
+      </Match>
+    </Switch>
+  </div>
+);
+
+/** One results surface shown in its three real states, switched by a real control. */
+const ScanStatesSpecimen = (props: { initial?: ScanState; withSelector?: boolean }) => {
+  const [state, setState] = createSignal<ScanState>(props.initial ?? "empty");
+  return (
+    <Stack gap="sm" style={{ "max-width": "640px" }}>
+      <Show when={props.withSelector !== false}>
+        <SegmentedControl
+          aria-label="Scan result state"
+          value={state()}
+          onChange={(next) => setState(next as ScanState)}
+          data={[
+            { value: "empty", label: RESULT_STATE_COPY.empty.label },
+            { value: "scanning", label: RESULT_STATE_COPY.scanning.label },
+            { value: "error", label: RESULT_STATE_COPY.error.label },
+          ]}
+        />
+      </Show>
+      <ResultStateSurface
+        state={state()}
+        onWiden={() => setState("scanning")}
+        onRetry={() => setState("scanning")}
+      />
+    </Stack>
+  );
+};
+
+const PinnedResultStateStory = (state: ScanState): Story => {
+  const label = RESULT_STATE_COPY[state].label;
+  return {
+    name: `Result states · ${label}`,
+    render: () =>
+      solidStory(() => (
+        <Stack gap="sm">
+          <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">{`Result states · ${label}`}</Text>
+          <ScanStatesSpecimen initial={state} withSelector={false} />
+        </Stack>
+      )),
+  };
 };
 
 export const FamilyLanding: Story = {
@@ -147,23 +226,30 @@ export const FamilyLanding: Story = {
         <SpecimenPanel title="Menu" note="Target button, grouped items and a destructive action.">
           <MenuSpecimen />
         </SpecimenPanel>
-        <SpecimenPanel title="Density" note="Tree and timeline read the shared DENSITY_TOKENS rhythm at both settings.">
+        <SpecimenPanel title="Density" note="Tree and timeline read the shared spacing rhythm at both settings.">
           <Group gap="md" align="flex-start" wrap="wrap">
             <DensitySurface density="compact" />
             <DensitySurface density="comfortable" />
           </Group>
         </SpecimenPanel>
-        <FamilyFooter source="src/ui" pages="src/stories/components/Data display" />
+        <SpecimenPanel title="Result states" note="The scan results surface shown empty, while scanning and when the feed fails; switch states to compare the copy.">
+          <ScanStatesSpecimen />
+        </SpecimenPanel>
+        <FamilyFooter source="src/ui" pages="src/stories/components/data-display" />
       </FamilyPage>
     )),
 };
 
+export const ResultStatesEmpty: Story = PinnedResultStateStory("empty");
+export const ResultStatesScanning: Story = PinnedResultStateStory("scanning");
+export const ResultStatesFeedError: Story = PinnedResultStateStory("error");
+
 function MenuSpecimen() {
   const [opened, setOpened] = createSignal(false);
-  const [action, setAction] = createSignal("none");
+  const [action, setAction] = createSignal<string | null>(null);
   return (
     <Stack gap="sm">
-      <Text size="xs" c="dimmed">Open: {String(opened())} · last action: {action()}</Text>
+      <Text size="xs" c="dimmed">{action() ? `${action()} selected` : "Choose an action from the menu."}</Text>
       <Box style={{ width: "320px" }}>
         <Menu opened={opened()} onChange={setOpened}>
           <MenuTarget><Button variant="outline">Actions</Button></MenuTarget>

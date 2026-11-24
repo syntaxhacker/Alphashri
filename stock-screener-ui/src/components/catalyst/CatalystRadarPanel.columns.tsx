@@ -116,7 +116,7 @@ export function buildRadarColumns(ctx: RadarColumnContext): TableColumnDef<Catal
               title={headline}
               testId={`catalyst-headline-${row.original.symbol}`}
             />
-            <Text component="span" c="dimmed" truncate className="text-left text-[10px]">
+            <Text component="span" c="dimmed" truncate className="text-left text-ui-micro">
               {joinOrDash([row.original.source, upper(row.original.kind, "")])}
             </Text>
           </div>
@@ -132,7 +132,7 @@ export function buildRadarColumns(ctx: RadarColumnContext): TableColumnDef<Catal
       cell: ({ row }) => (
         <Text
           component="span"
-          className="text-left font-mono tabular-nums text-[10px]"
+          className="text-left font-mono tabular-nums text-ui-micro"
           data-testid={`catalyst-first-seen-${row.original.symbol}`}
         >
           {formatIstClock(row.original.first_seen)}
@@ -171,13 +171,13 @@ export function buildRadarColumns(ctx: RadarColumnContext): TableColumnDef<Catal
               <Text
                 component="span"
                 truncate
-                className="max-w-full text-right font-mono tabular-nums text-[10px]"
+                className="max-w-full text-right font-mono tabular-nums text-ui-micro"
                 data-testid={`catalyst-confirmation-${row.original.symbol}`}
               >
                 {measured.join(" · ") || "—"}
               </Text>
               <Show when={facts.breadth}>
-                <Text component="span" c="dimmed" truncate className="max-w-full text-right text-[9px]">
+                <Text component="span" c="dimmed" truncate className="max-w-full text-right text-ui-micro">
                   {facts.breadth}
                 </Text>
               </Show>
