@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { buildMarketColumns } from "./marketColumns";
+import * as palette from "@/ui/palette";
 import { MARKET_EXTRA_COLUMNS } from "../../config/marketExtraColumns";
 import type { PatternSummaryItem } from "./usePatternSummary";
 import type { MarketRow } from "../../types/marketScreener";
@@ -384,8 +385,9 @@ describe("PATTERNS column", () => {
 
     const badge = screen.getByTestId("market-patterns-RELIANCE");
     expect(badge).toHaveTextContent("2▲");
-    // Tone derives from the palette anchor — a re-theme moves both together.
-    expect(badge.style.color).toBe("var(--ui-badge-positive-main)");
+    // Light badges carry the tone in the wash; off-white ink keeps it readable.
+    expect(badge.style.backgroundColor).toBe("var(--ui-badge-positive-wash)");
+    expect(badge.style.color).toBe(palette.TEXT);
   });
 
   test("a bearish set renders the down glyph in the negative tone", () => {
@@ -396,7 +398,8 @@ describe("PATTERNS column", () => {
 
     const badge = screen.getByTestId("market-patterns-RELIANCE");
     expect(badge).toHaveTextContent("1▼");
-    expect(badge.style.color).toBe("var(--ui-badge-negative-main)");
+    expect(badge.style.backgroundColor).toBe("var(--ui-badge-negative-wash)");
+    expect(badge.style.color).toBe(palette.TEXT);
   });
 
   test("mixed directions show the count alone in the neutral tone", () => {
@@ -407,7 +410,8 @@ describe("PATTERNS column", () => {
 
     const badge = screen.getByTestId("market-patterns-RELIANCE");
     expect(badge).toHaveTextContent(/^2$/);
-    expect(badge.style.color).toBe("var(--ui-badge-muted-main)");
+    expect(badge.style.backgroundColor).toBe("var(--ui-badge-muted-wash)");
+    expect(badge.style.color).toBe(palette.TEXT);
   });
 
   test("the tooltip lists every pattern name with its confidence", async () => {

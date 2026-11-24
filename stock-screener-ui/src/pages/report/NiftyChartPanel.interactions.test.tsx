@@ -1,10 +1,9 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, within, cleanup } from "@solidjs/testing-library";
+import { render, screen, within, cleanup, fireEvent, waitFor } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import type { JSX } from "solid-js";
-import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import { NiftyChartPanel } from "./NiftyChartPanel";
@@ -413,8 +412,8 @@ describe("NiftyChartPanel", () => {
 
 describe("NiftyChartPanel PATTERNS visible result", () => {
   const toggle = () => screen.getByTestId("nifty-chart-source");
-  const choose = async (label: "LIVE" | "PATTERNS" | "OFFLINE") => {
-    await userEvent.setup().click(within(toggle()).getByRole("button", { name: label }));
+  const choose = (label: "LIVE" | "PATTERNS" | "OFFLINE") => {
+    fireEvent.click(within(toggle()).getByRole("button", { name: label }));
   };
   const withCandles = () =>
     mockReport({
@@ -427,10 +426,12 @@ describe("NiftyChartPanel PATTERNS visible result", () => {
   const chart = () => screen.getByTestId("tradingview-chart");
   const wrap = () => screen.getByTestId("nifty-chart-wrap");
   const scanAndWait = async () => {
-    await userEvent.setup().click(screen.getByTestId("nifty-patterns-scan"));
-    const strip = await screen.findByTestId("nifty-patterns-strip");
-    expect(strip).toHaveAttribute("data-status", "ready");
-    return strip;
+    fireEvent.click(screen.getByTestId("nifty-patterns-scan"));
+    return waitFor(() => {
+      const strip = screen.getByTestId("nifty-patterns-strip");
+      expect(strip).toHaveAttribute("data-status", "ready");
+      return strip;
+    });
   };
 
   test("(a) entering PATTERNS with no prior scan states it is not scanned yet and keeps the run affordance", async () => {

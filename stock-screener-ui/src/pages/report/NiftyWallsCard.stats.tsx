@@ -30,7 +30,7 @@ export function Stat(props: { label: string; value: string; color?: string }) {
         size="xs"
         span
         fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
-        className="tabular-nums whitespace-nowrap overflow-hidden truncate"
+        className="font-mono tabular-nums whitespace-nowrap overflow-hidden truncate"
         style={{
           "font-size": `${REPORT_FONT.md}px`,
           "line-height": REPORT_LINE_HEIGHT.snug,

@@ -108,7 +108,7 @@ export function WallsRead(props: {
                 size="xs"
                 span
                 fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
-                className="tabular-nums"
+                className="font-mono tabular-nums"
                 style={{
                   "font-size": `${REPORT_FONT.xs}px`,
                   "font-weight": REPORT_FONT_WEIGHT.extrabold,
@@ -148,7 +148,7 @@ export function WallsRead(props: {
                   size="xs"
                   span
                   fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
-                  className="tabular-nums"
+                  className="font-mono tabular-nums"
                   style={{
                     "font-size": `${REPORT_FONT.xs}px`,
                     "font-weight": REPORT_FONT_WEIGHT.bold,

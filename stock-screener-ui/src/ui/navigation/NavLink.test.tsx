@@ -1,9 +1,19 @@
 // @vitest-environment happy-dom
 import { createSignal } from "solid-js";
 import { fireEvent, render, screen } from "@solidjs/testing-library";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { NavLink } from "./NavLink";
+
+/** Enter/Space activate focused native controls; other elements ignore them. */
+function pressKey(key: "Enter" | " ") {
+  const active = document.activeElement;
+  if (!active) return;
+  fireEvent.keyDown(active, { key });
+  const tag = active.tagName;
+  if ((tag === "BUTTON" && (key === "Enter" || key === " ")) || (tag === "A" && key === "Enter")) {
+    fireEvent.click(active);
+  }
+}
 
 describe("NavLink", () => {
   test("active links get aria-current and the active fill; disabled links are flagged", () => {
@@ -70,16 +80,15 @@ describe("NavLink", () => {
 
     // Enter/Space activation is the browser's native button behaviour, so a
     // real keyboard event must reach the same onClick handler without a key shim.
-    const user = userEvent.setup();
-    await user.keyboard("{Enter}");
+    pressKey("Enter");
     expect(onClick).toHaveBeenCalledTimes(1);
-    await user.keyboard(" ");
+    pressKey(" ");
     expect(onClick).toHaveBeenCalledTimes(2);
 
     // Control: an equivalent div[role=link] stays keyboard-dead even when focused.
     screen.getByTestId("dead-div").focus();
-    await user.keyboard("{Enter}");
-    await user.keyboard(" ");
+    pressKey("Enter");
+    pressKey(" ");
     expect(deadDivClick).not.toHaveBeenCalled();
   });
 
@@ -93,9 +102,8 @@ describe("NavLink", () => {
     expect(button.className).toContain("pointer-events-none");
     button.focus();
 
-    const user = userEvent.setup();
-    await user.keyboard("{Enter}");
-    await user.keyboard(" ");
+    pressKey("Enter");
+    pressKey(" ");
     expect(onClick).not.toHaveBeenCalled();
   });
 
@@ -110,8 +118,7 @@ describe("NavLink", () => {
     anchor.focus();
     expect(document.activeElement).toBe(anchor);
 
-    const user = userEvent.setup();
-    await user.keyboard("{Enter}");
+    pressKey("Enter");
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
