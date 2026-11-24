@@ -35,6 +35,14 @@ def _lot_size(monkeypatch):
     monkeypatch.setattr(service, "get_lot", lambda symbol: 1000)
 
 
+@pytest.fixture(autouse=True)
+def _frozen_clock(monkeypatch):
+    """Pin the service clock to the recorded session, before the test expiry."""
+    monkeypatch.setattr(
+        service, "_now", lambda: datetime.fromisoformat("2026-11-22T10:00:00+05:30")
+    )
+
+
 @pytest.fixture
 def chain(db):
     """Four minutes of IRFC quotes for a two-leg bull call spread."""
