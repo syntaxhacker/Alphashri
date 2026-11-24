@@ -191,6 +191,9 @@ function TickerContainer(props: TickerContainerProps) {
       id="market-ticker"
       className="market-ticker"
       title={props.title}
+      role="region"
+      aria-label="Market ticker"
+      tabIndex={0}
       px="sm"
       style={{
         display: "flex",
