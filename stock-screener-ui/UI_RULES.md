@@ -118,7 +118,7 @@ Evidence rules: `docs/SCREENSHOT_EVIDENCE.md`.
 
 | Dimension | A+ requires |
 |---|---|
-| **Intuitiveness** | First-read comprehension in ~5 seconds without a paragraph of explanation; axis/rank direction explicit; legend/tooltip identifies every series and month; no clipped or overlapping labels at 1600 or 390. |
+| **First read / How to read** | The verifier writes one sentence: "How to read: …". A first-time reader names the axes/rows and current state in ~5 seconds. The sentence must not need a colour legend, hover or a paragraph. Axis/rank direction explicit; every multi-series time/rank series is directly labelled; colour supports, never carries, historical values; legend/tooltip identifies every series and month; no clipped or overlapping labels at 1600 or 390. |
 | **Usefulness** | Answers a real trading/research question; data density with hierarchy; no decorative noise; shows lookback, sample size, as-of and units; no forecast/BUY signals. |
 | **Hierarchy & spacing** | Section titles, descriptions and body on one consistent 8pt rhythm; no cramped titles; no nested bordered cards; charts fill their panels. |
 | **Chart choice** | ECharts for multi-series rank/time series; native SVG only for matrices/heatmaps where it is demonstrably better. |
@@ -129,6 +129,14 @@ Evidence rules: `docs/SCREENSHOT_EVIDENCE.md`.
 - Score every dimension on every state and viewport. A+ requires all seven clean; there is no
   "strong overall" average.
 - A miss in any dimension means below A+. The caps in §7.4 still apply.
+- **First read is mandatory.** The verdict quotes one "How to read" sentence per chart and records
+  `naive first read: checked`. If that sentence needs a colour legend, hover or a paragraph, the
+  chart fails → **max B**.
+- **Direct labels, not colour memory.** Multi-series time/rank charts label series directly; colour
+  is supporting only. If historical values can only be decoded by matching colours, it fails first read.
+- **Preferred patterns for dense series:** D3-gallery-style small multiples (one panel per series),
+  bump charts with direct end labels, or one highlighted series with muted context. Never 10 equal
+  lines in one frame.
 
 ### 7.4 Grades, caps and automatic fails
 
@@ -145,6 +153,9 @@ Caps apply even when everything else is polished:
 - Multi-series rank/time chart not using ECharts (no documented material advantage) → **max B**.
 - Clipped or unreadable 390px labels → **max B**.
 - Missing loaded/loading/error/empty or selector state → **max B**.
+- Colour-coded historical cell matrix needing >6 colours matched across many columns (e.g. a
+  10-colour × 180-block rotation matrix), even with tooltips → **max B**. Prefer small multiples,
+  bump charts or direct labels.
 - Misleading data or unlabeled axes → **F**.
 - No screenshots, or no verifier access to the running UI → **F**.
 
@@ -157,10 +168,12 @@ VISUAL VERDICT: <A+ | A | B | C | F> — SHIP: <YES only for A+>
 Verifier: <session> (read-only; authored no changed files)
 Approver: <main agent / named human> — <approved | rejected>
 Scope + HEAD: <sha, routes, selectors/modes>
+How to read (one per chart):
+- <chart> — "<one sentence>" — naive first read: checked
 Screenshots reviewed:
 - <path> — 1600×1000 — <state/mode>
 - <path> — 390×844 — <state/mode>
-Rubric: Intuitiveness <...> · Usefulness <...> · Hierarchy/spacing <...> · Chart choice <...> ·
+Rubric: First read <...> · Usefulness <...> · Hierarchy/spacing <...> · Chart choice <...> ·
 States <...> · Accessibility <...> · Data honesty <...>
 Defects:
 - <severity> — <file:line> — <screenshot path + x,y region> — <what is wrong> — <required fix>
@@ -184,5 +197,7 @@ Required before regrade: <numbered list of every defect and suggestion; "none" o
 - **No `git commit`, `git push`, or PR before the A+ verdict is recorded.** Record it in the PR body
   (or commit message) with every screenshot path.
 - Any later UI change invalidates the verdict; re-review is mandatory at the new HEAD.
+- A user rejection of any chart voids the prior A+ immediately; the change is blocked and re-reviewed
+  at the new HEAD, even if nothing in the code changed.
 - The main agent must not merge, PR, or call a UI change done at A/B/C/F or with a missing verdict.
   Green CI never overrides.

@@ -31,8 +31,11 @@ Sibling docs: `AGENTS.md` (repo rules), `LAYOUT_CONTRACT.md` (layout acceptance)
 - **Grade, don't bless.** Return A+/A/B/C/F against `UI_RULES.md` §7.3, with exact file:line and
   screenshot coordinates plus the required fix. A/B/C/F are FAIL; "looks fine" and "minor" are not
   verdicts.
+- **First read.** Quote one "How to read" sentence per chart and record `naive first read: checked`.
+  If it needs a colour legend, hover or a paragraph, the chart fails.
 - **Loop until A+.** The implementer implements **every** suggestion, recaptures and resubmits; the
-  verifier regrades. The implementer never re-grades or triages a defect down.
+  verifier regrades. The implementer never re-grades or triages a defect down. A user-rejected chart
+  voids the prior A+ and restarts the loop.
 - **Approver and commit gate.** The main agent records the A+ verdict; it cannot approve a change it
   implemented or verified. No `git commit`, `git push`, or PR before that record exists.
 
@@ -432,7 +435,7 @@ Canonical source for model routing **and** concurrency — `AGENTS.md` and
 - `npx vitest run src/test/design-scale.test.ts src/test/theme-single-source.test.ts` green
 - tsc count for the scope: before → after (if a tsc task)
 - if the brief claims a layout now fits: `getBoundingClientRect()` before → after
-- UI: independent verifier's **A+** verdict, with screenshot paths and the running UI reviewed
+- UI: independent verifier's **A+** verdict, with the one-sentence "How to read" per chart, screenshot paths and the running UI reviewed
 
 ## Scenario coverage (from docs/TEST_SCENARIOS.md)
 - <paste the relevant rows; each ends as test-added / existing-test / N/A + reason>
@@ -460,6 +463,6 @@ A report is rejected without **pass/fail counts**, the **exact commands**, and a
 6. **Scenario coverage** table — every row from the brief, with test-added / existing-test / N/A+reason.
 7. Risks / untested paths.
 8. Blockers, or "none".
-9. **Visual verdict** (UI work only): grade, verifier/approver, screenshot paths, and every FAIL item with its required fix.
+9. **Visual verdict** (UI work only): grade, verifier/approver, one-sentence "How to read" per chart, naive-read check, screenshot paths, and every FAIL item with its required fix.
 
 Never claim a surface "looks correct" if you cannot see it. Say what you measured.
