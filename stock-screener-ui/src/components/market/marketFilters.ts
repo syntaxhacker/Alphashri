@@ -721,6 +721,31 @@ export const MOVER_PRESETS: readonly MoverPreset[] = [
   },
 ];
 
+/**
+ * Bounds any mover preset may set. A preset is a fresh screen, not an additive
+ * filter: without clearing these, Gap Up followed by Top Gainers keeps the
+ * previous `gapMin` (and 52W/rel-vol bounds) and the second preset returns a
+ * misleading subset. Non-mover filters (sector, price, RSI, search) survive.
+ */
+export const MOVER_PRESET_FILTER_KEYS = [
+  ...new Set(MOVER_PRESETS.flatMap((preset) => Object.keys(preset.filters))),
+] as (keyof MarketFilterState)[];
+
+/** Merge a mover patch, clearing only bounds owned by the previous mover preset. */
+export function mergeMoverPresetFilters(
+  filters: MarketFilterState,
+  patch: Partial<MarketFilterState>,
+): MarketFilterState {
+  const moverKeys = new Set<string>(MOVER_PRESET_FILTER_KEYS);
+  if (!Object.keys(patch).some((key) => moverKeys.has(key))) {
+    return { ...filters, ...patch };
+  }
+  const cleared = Object.fromEntries(
+    MOVER_PRESET_FILTER_KEYS.map((key) => [key, null]),
+  ) as Partial<MarketFilterState>;
+  return { ...filters, ...cleared, ...patch };
+}
+
 function patchActive(filters: MarketFilterState, patch: Partial<MarketFilterState>): boolean {
   for (const [key, value] of Object.entries(patch)) {
     if ((filters as unknown as Record<string, unknown>)[key] !== value) return false;
