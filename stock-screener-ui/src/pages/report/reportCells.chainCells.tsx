@@ -75,7 +75,9 @@ export function sentimentBadge(
         size="xs"
         fw={emphasis ? REPORT_FONT_WEIGHT.extrabold : REPORT_FONT_WEIGHT.bold}
         span
-        style={{ color: tone, opacity: emphasis ? 1 : 0.88 }}
+        // 0.88 alpha on the bearish red measured 4.4:1 on the panel surface;
+        // 0.92 keeps the de-emphasis and clears the 4.5:1 AA text floor.
+        style={{ color: tone, opacity: emphasis ? 1 : 0.92 }}
       >
         {short}
       </Text>

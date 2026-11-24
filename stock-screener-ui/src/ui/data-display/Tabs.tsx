@@ -1,4 +1,13 @@
-import { createContext, createMemo, createSignal, createUniqueId, Show, splitProps, useContext } from "solid-js";
+import {
+  createContext,
+  createMemo,
+  createSignal,
+  createUniqueId,
+  onCleanup,
+  Show,
+  splitProps,
+  useContext,
+} from "solid-js";
 import { cn } from "../cn";
 import type { UITabsProps, UITabProps, UITabsPanelProps } from "../types";
 
@@ -7,6 +16,8 @@ type TabsContextValue = {
   onChange: (v: string | null) => void;
   tabIdFor: (value: string) => string;
   panelIdFor: (value: string) => string;
+  isPanelMounted: (value: string) => boolean;
+  registerPanel: (value: string) => () => void;
 };
 
 const TabsContext = createContext<TabsContextValue | null>(null);
@@ -56,7 +67,26 @@ export function Tabs(props: UITabsProps) {
   const idPart = (value: string) => String(value).replace(/[^A-Za-z0-9_-]/g, "_");
   const tabIdFor = (value: string) => `${uid}-tab-${idPart(value)}`;
   const panelIdFor = (value: string) => `${uid}-panel-${idPart(value)}`;
-  const ctxValue: TabsContextValue = { value: activeValue, onChange: handleChange, tabIdFor, panelIdFor };
+  // A tab strip can drive content rendered outside <Tabs>, so a panel id may
+  // never exist in the DOM. aria-controls is optional on role=tab; emit it only
+  // while the matching panel is actually mounted, never as a dangling IDREF.
+  const [mountedPanels, setMountedPanels] = createSignal<ReadonlySet<string>>(new Set());
+  const registerPanel = (value: string) => {
+    setMountedPanels((prev) => new Set(prev).add(value));
+    return () => setMountedPanels((prev) => {
+      const next = new Set(prev);
+      next.delete(value);
+      return next;
+    });
+  };
+  const ctxValue: TabsContextValue = {
+    value: activeValue,
+    onChange: handleChange,
+    tabIdFor,
+    panelIdFor,
+    isPanelMounted: (value) => mountedPanels().has(value),
+    registerPanel,
+  };
 
   const cls = cn(
     "ui-tabs-wrapper",
@@ -147,7 +177,7 @@ export function Tab(props: UITabProps) {
     "id",
     "data-testid",
   ]);
-  const { value, onChange, tabIdFor, panelIdFor } = useTabsContext();
+  const { value, onChange, tabIdFor, panelIdFor, isPanelMounted } = useTabsContext();
   const active = createMemo(() => value() === known.value);
 
   const handleClick = () => {
@@ -175,7 +205,7 @@ export function Tab(props: UITabProps) {
       id={known.id ?? tabIdFor(known.value)}
       role="tab"
       aria-selected={active()}
-      aria-controls={panelIdFor(known.value)}
+      aria-controls={isPanelMounted(known.value) ? panelIdFor(known.value) : undefined}
       data-testid={known["data-testid"]}
       data-value={known.value}
       disabled={known.disabled}
@@ -192,9 +222,10 @@ export function Tab(props: UITabProps) {
 
 export function TabsPanel(props: UITabsPanelProps) {
   const [known, rest] = splitProps(props, ["value", "keepMounted", "children", "className", "style", "id", "data-testid"]);
-  const { value, tabIdFor, panelIdFor } = useTabsContext();
+  const { value, tabIdFor, panelIdFor, registerPanel } = useTabsContext();
   const isActive = createMemo(() => value() === known.value);
   const cls = cn("ui-tabs-panel", "py-1 min-w-0 min-h-0", known.className);
+  onCleanup(registerPanel(known.value));
 
   return (
     <Show when={isActive() || known.keepMounted}>

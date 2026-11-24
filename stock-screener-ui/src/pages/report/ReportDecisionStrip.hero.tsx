@@ -168,9 +168,11 @@ export function DecisionHero(props: { view: DecisionView }): JSX.Element {
             ...DECISION_STATUS_STYLE,
             // Amber while no call is backed, neutral once a real call exists.
             // A status token is never bullish/bearish green.
+            // 0.18 amber over the raised surface measured 4.4:1 against the
+            // amber ink; 0.14 keeps the tint and clears AA text contrast.
             "background-color": palette.alpha(
               view.decision().chip === "decision" ? palette.TERM_BORDER : palette.WARNING,
-              0.18,
+              0.14,
             ),
             color:
               view.decision().chip === "decision" ? palette.TEXT_MUTED : palette.PRIMARY,

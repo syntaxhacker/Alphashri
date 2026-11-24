@@ -73,6 +73,7 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
               indeterminate={selectedSymbolSet().size > 0 && !allVisibleSelected()}
               onChange={() => handleSelectAll()}
               onClick={(e) => e.stopPropagation()}
+              aria-label="Select all visible symbols"
               data-testid="select-all-checkbox"
             />
           </Box>
@@ -86,6 +87,7 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
               checked={selectedSymbolSet().has(row.original.symbol)}
               onChange={() => toggleSymbolSelection(row.original.symbol)}
               onClick={(e) => e.stopPropagation()}
+              aria-label={`Select ${row.original.symbol}`}
               data-testid={`sel-checkbox-${row.original.symbol}`}
             />
           </Box>
@@ -112,6 +114,7 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
                         variant="subtle"
                         color={copied ? "info" : "secondary"}
                         size="xs"
+                        aria-label={copied ? "Copied all symbols" : "Copy all symbols"}
                         style={{ width: "16px", height: "16px", "min-height": "16px", padding: 0 }}
                         onClick={(e: MouseEvent) => { e.stopPropagation(); copy(); }}
                         data-testid="copy-all-symbols-btn"
@@ -187,6 +190,7 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
                       variant="subtle"
                       color={copied ? "info" : "secondary"}
                       size="xs"
+                      aria-label={copied ? `Copied ${stock.symbol}` : `Copy ${stock.symbol}`}
                       style={{ width: "16px", height: "16px", "min-height": "16px", padding: 0 }}
                       onClick={(e: MouseEvent) => { e.stopPropagation(); copy(); }}
                       data-testid={`copy-symbol-btn-${stock.symbol}`}

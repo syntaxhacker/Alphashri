@@ -142,6 +142,6 @@ describe("reportCells decomposition", () => {
     expect(panel).toContain("inset 3px 0 0 ${palette.TERM_FLIP}");
     expect(columns).toContain("REPORT_FONT_WEIGHT.extrabold");
     expect(cells).toContain("emphasis ? REPORT_FONT_WEIGHT.extrabold : REPORT_FONT_WEIGHT.bold");
-    expect(cells).toContain("opacity: emphasis ? 1 : 0.88");
+    expect(cells).toContain("opacity: emphasis ? 1 : 0.92");
   });
 });

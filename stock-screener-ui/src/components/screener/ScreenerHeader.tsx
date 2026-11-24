@@ -37,6 +37,7 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
             <ActionIcon
               variant="subtle"
               size="xs"
+              aria-label="Refresh"
               onClick={props.onRefresh}
               loading={props.isLoading}
               data-testid="refresh-btn"
@@ -68,6 +69,7 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
             w={96}
             disabled={disableControls()}
             data-testid="provider-select"
+            aria-label="Data provider"
           />
           <Select
             value={props.mode}
@@ -80,6 +82,7 @@ export function ScreenerHeader(props: ScreenerHeaderProps) {
             w={96}
             disabled={disableControls()}
             data-testid="mode-select"
+            aria-label="Scan mode"
           />
       </ToolbarRow>
     </Box>

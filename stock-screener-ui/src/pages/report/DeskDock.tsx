@@ -1,4 +1,4 @@
-import { createEffect, For, Show } from "solid-js";
+import { createEffect, createUniqueId, For, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { ActionIcon, Box, useMediaQuery } from "@/ui";
 import { IconX } from "@/components/common/Icons";
@@ -115,6 +115,7 @@ export function DeskDock(props: {
   const active = () => props.active;
   const mobile = useMediaQuery("(max-width: 600px)");
   const layout = () => dockLayout(mobile());
+  const uid = createUniqueId();
   const activeTab = () => props.tabs.find((tab) => tab.key === active()) ?? null;
 
   const toggle = (key: DeskDockKey) => props.onActiveChange(active() === key ? null : key);
@@ -138,6 +139,17 @@ export function DeskDock(props: {
     const help = dockHelp(tab.key);
     const selectedInk = () => pickTextColor(palette.PRIMARY);
     const subInk = () => (isSelected() ? selectedInk() : palette.TEXT_MUTED);
+    const labelId = `${uid}-bar-label-${tab.key}`;
+    const summaryId = `${uid}-bar-summary-${tab.key}`;
+    const helpId = `${uid}-bar-help-${tab.key}`;
+    // The button's name must start with the words a sighted user sees, or
+    // voice-control users cannot activate it by its visible label. The mirror
+    // carries those words at the current breakpoint; the live summary is pulled
+    // in by IDREF because its value changes with the report.
+    const labelledBy = () =>
+      [labelId, !mobile() && tab.summary != null ? summaryId : "", helpId]
+        .filter(Boolean)
+        .join(" ");
     return (
       <button
         data-testid={`desk-dock-${tab.key}`}
@@ -146,6 +158,7 @@ export function DeskDock(props: {
         type="button"
         aria-pressed={isSelected()}
         aria-label={help.ariaLabel}
+        aria-labelledby={labelledBy()}
         title={help.title}
         onClick={() => toggle(tab.key)}
         class="flex items-center gap-1 min-w-0 shrink-0 h-[32px] px-2 py-0 rounded-sm whitespace-nowrap"
@@ -170,7 +183,7 @@ export function DeskDock(props: {
           </span>
         </span>
         <Show when={tab.summary != null}>
-          <span class="font-normal max-[600px]:hidden" style={{ color: subInk() }}>
+          <span id={summaryId} class="font-normal max-[600px]:hidden" style={{ color: subInk() }}>
             {": "}
             {tab.summary}
           </span>
@@ -178,6 +191,10 @@ export function DeskDock(props: {
         <span class="font-bold" style={{ color: subInk() }} aria-hidden="true">
           {isSelected() ? "▾" : "▸"}
         </span>
+        <span id={labelId} class="sr-only">
+          {index + 1} {mobile() ? help.short : `${help.label} ${help.shows}`}
+        </span>
+        <span id={helpId} class="sr-only">{help.title}</span>
         <Show when={tab.badge != null && tab.badge! > 0}>
           <span
             class="inline-flex items-center justify-center shrink-0 whitespace-nowrap min-w-[18px] h-[18px] rounded-[9px]"
@@ -256,6 +273,7 @@ export function DeskDock(props: {
                     <button
                       type="button"
                       aria-label={dockHelp(tab.key).ariaLabel}
+                      aria-labelledby={`${uid}-drawer-label-${tab.key} ${uid}-drawer-help-${tab.key}`}
                       title={dockHelp(tab.key).title}
                       class="flex items-center gap-1 min-w-0 shrink-0 h-[24px] px-2 py-0 rounded-sm whitespace-nowrap"
                       style={{
@@ -282,6 +300,14 @@ export function DeskDock(props: {
                         }}
                       >
                         {dockHelp(tab.key).shows}
+                      </span>
+                      <span id={`${uid}-drawer-label-${tab.key}`} class="sr-only">
+                        {mobile()
+                          ? dockHelp(tab.key).label
+                          : `${dockHelp(tab.key).label} ${dockHelp(tab.key).shows}`}
+                      </span>
+                      <span id={`${uid}-drawer-help-${tab.key}`} class="sr-only">
+                        {dockHelp(tab.key).title}
                       </span>
                     </button>
                   )}

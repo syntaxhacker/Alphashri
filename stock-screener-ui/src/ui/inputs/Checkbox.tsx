@@ -58,6 +58,7 @@ export function Checkbox(props: UICheckboxProps) {
     "style",
     "id",
     "data-testid",
+    "aria-label",
     "children",
     "onClick",
     "onMouseEnter",
@@ -149,6 +150,7 @@ export function Checkbox(props: UICheckboxProps) {
         disabled={known.disabled}
         name={known.name}
         id={known.id ?? `${uid}-control`}
+        aria-label={known["aria-label"]}
         aria-invalid={known.error ? "true" : undefined}
         aria-describedby={describedBy()}
         data-testid={known["data-testid"]}

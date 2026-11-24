@@ -29,6 +29,7 @@ export function ChainScrollActions(props: ChainScrollActionsProps) {
           color="secondary"
           size="lg"
           radius="xl"
+          aria-label="Scroll to Top"
           onClick={() => props.scrollToEdge("top")}
           className="scroll-action-btn"
           data-testid="options-scroll-top-btn"
@@ -42,6 +43,7 @@ export function ChainScrollActions(props: ChainScrollActionsProps) {
           color="warning"
           size="xl"
           radius="xl"
+          aria-label="Jump to ATM"
           onClick={() => props.scrollToATM("smooth")}
           style={{ "box-shadow": `0 4px 12px ${withAlpha(BLACK, 0.15)}` }}
           className="scroll-action-btn scroll-atm-btn"
@@ -56,6 +58,7 @@ export function ChainScrollActions(props: ChainScrollActionsProps) {
           color="secondary"
           size="lg"
           radius="xl"
+          aria-label="Scroll to Bottom"
           onClick={() => props.scrollToEdge("bottom")}
           className="scroll-action-btn"
           data-testid="options-scroll-bottom-btn"

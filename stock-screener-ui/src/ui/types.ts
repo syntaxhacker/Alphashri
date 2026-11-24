@@ -508,6 +508,8 @@ export interface UISwitchProps extends UIBaseProps {
 
 export interface UICheckboxProps extends UIBaseProps {
   label?: JSX.Element;
+  /** Accessible name for an icon-only checkbox (no visible label). */
+  "aria-label"?: string;
   name?: string;
   checked?: boolean;
   defaultChecked?: boolean;

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/html-vite";
+import type { JSX } from "solid-js";
 import { solidStory } from "@/stories/solidStory";
 import {
   Anchor, Box, Code, Divider, Flex, List, ListItem, Stack, Text, Title,
@@ -118,9 +119,22 @@ const COMPONENTS: FamilyComponentRef[] = [
   { id: "design-system-components-typography-list--docs", name: "List", note: "Ordered, unordered and icon-aligned items." },
 ];
 
+// This story is the densest text specimen in the visual gate, so it is the one
+// that exposes font-stack drift: the Storybook iframe loads no webfont and
+// `var(--font-sans)` falls back to the host's system font (DejaVu on some
+// runners, Liberation/Noto on others). A one-px-per-row line-box change adds up
+// to the 5–10px height delta that failed the committed baseline in CI with no
+// source change. Pin the two variables here so line boxes are stable everywhere.
+// Liberation ships with Ubuntu and is what the committed baseline was made with.
+const BASELINE_FONT_STYLE = {
+  "--font-sans": '"Liberation Sans", sans-serif',
+  "--font-mono": '"Liberation Mono", monospace',
+} as JSX.CSSProperties;
+
 export const Landing: Story = {
   render: () =>
     solidStory(() => (
+      <div style={BASELINE_FONT_STYLE}>
       <FamilyPage width="1100px" padding="0">
         <FamilyHero
           name="Typography"
@@ -170,6 +184,7 @@ export const Landing: Story = {
         />
         <FamilyFooter source="src/ui/typography" pages="src/stories/components/typography" />
       </FamilyPage>
+      </div>
     )),
 };
 

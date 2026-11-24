@@ -2,7 +2,7 @@ import { createEffect, onCleanup, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { Box, Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
-import { hexToRgba } from "@/utils/color";
+import { compositeOver } from "@/utils/contrast";
 import { CompactPanel } from "@/components/common/compact";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
@@ -42,9 +42,14 @@ const OI_CHAIN_PANEL_STYLE: JSX.CSSProperties = {
   "max-height": `${OI_CHAIN_MAX_HEIGHT}px`,
 };
 
-/** Real ATM/wall row emphasis — no placeholder tint on the other rows. */
+/**
+ * Real ATM/wall row emphasis — no placeholder tint on the other rows.
+ * The shared table's cells paint `background-color: inherit`, so a translucent
+ * row tint is composited twice (row + cell) and the desk's blue/amber ink drops
+ * below 4.5:1. Flatten the tint to one opaque layer over the table surface.
+ */
 const OI_CHAIN_FOCUS_STYLE: JSX.CSSProperties = {
-  "background-color": hexToRgba(palette.TERM_FLIP, 0.16),
+  "background-color": compositeOver(palette.TERM_FLIP, palette.SURFACE, 0.1),
   "box-shadow": `inset 3px 0 0 ${palette.TERM_FLIP}`,
 };
 

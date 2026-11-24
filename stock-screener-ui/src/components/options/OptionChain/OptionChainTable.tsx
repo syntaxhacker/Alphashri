@@ -594,6 +594,9 @@ export function OptionChainTable(props: OptionChainTableProps) {
       <div
         ref={(el) => (viewportRef = el)}
         style={{ flex: compact() ? "none" : 1, "min-height": 0, overflow: "auto", "overscroll-behavior": "contain" }}
+        role="region"
+        aria-label="Option chain table"
+        tabindex={0}
         data-mode={compact() ? "compact" : "full"}
         data-testid="options-chain-table-scrollarea"
       >

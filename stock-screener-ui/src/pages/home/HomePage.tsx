@@ -337,19 +337,22 @@ export function HomePage(props: HomePageProps) {
 
       <Show when={isDesk()}>
         <ToolbarRow data-testid="home-layout-tabs">
-          <For each={config().layouts}>
-            {(layout) => (
-              <button
-                type="button"
-                data-testid={`home-layout-tab-${slug(layout.name ?? "")}`}
-                aria-selected={config().active === layout.name}
-                class="rounded-sm border border-fin-border px-2 text-ui-micro text-fin-text hover:bg-fin-surface-alt aria-selected:border-fin-primary"
-                onClick={() => switchTab(layout.name ?? "Main")}
-              >
-                {layout.name}
-              </button>
-            )}
-          </For>
+          <div role="tablist" aria-label="Desk layouts" class="inline-flex flex-wrap items-center gap-2">
+            <For each={config().layouts}>
+              {(layout) => (
+                <button
+                  type="button"
+                  role="tab"
+                  data-testid={`home-layout-tab-${slug(layout.name ?? "")}`}
+                  aria-selected={config().active === layout.name}
+                  class="rounded-sm border border-fin-border px-2 text-ui-micro text-fin-text hover:bg-fin-surface-alt aria-selected:border-fin-primary"
+                  onClick={() => switchTab(layout.name ?? "Main")}
+                >
+                  {layout.name}
+                </button>
+              )}
+            </For>
+          </div>
           <Menu
             data-testid="home-presets-menu"
             opened={presetOpen()}

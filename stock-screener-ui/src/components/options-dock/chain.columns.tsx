@@ -79,8 +79,11 @@ function PriceCell(props: {
   onChart?: (strike: number, type: "CE" | "PE", leg: ChainLeg) => void;
   align?: "right" | "left";
 }) {
+  const priceText = () => (props.leg.ltp == null ? DASH : props.leg.ltp.toFixed(1));
+  // Voice control activates this cell by the number it shows, so the visible
+  // price has to lead the accessible name; the trade affordance follows it.
   const label = () =>
-    `${props.optionType === "CE" ? "Call" : "Put"} ${props.strike} · buy · shift-click to sell`;
+    `${priceText()} — ${props.optionType === "CE" ? "Call" : "Put"} ${props.strike} · buy · shift-click to sell`;
   return (
     <Box className="flex w-full min-w-0 items-center justify-end gap-2">
       <Box
@@ -96,7 +99,7 @@ function PriceCell(props: {
         className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 font-mono tabular-nums text-ui-micro leading-[14px] text-fin-text hover:text-fin-primary"
         style={{ "text-align": props.align ?? "right" }}
       >
-        {props.leg.ltp == null ? DASH : props.leg.ltp.toFixed(1)}
+        {priceText()}
       </Box>
       <Show when={props.onChart}>
         {(onChart) => (

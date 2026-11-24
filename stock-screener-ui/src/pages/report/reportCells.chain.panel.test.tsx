@@ -134,7 +134,7 @@ describe("option-chain row emphasis and panel sizing", () => {
     expect(badgeIn(marked, "ce").style.fontWeight).toBe("800");
     expect(badgeIn(marked, "ce").style.opacity).toBe("1");
     expect(badgeIn(plain, "ce").style.fontWeight).toBe("700");
-    expect(badgeIn(plain, "ce").style.opacity).toBe("0.88");
+    expect(badgeIn(plain, "ce").style.opacity).toBe("0.92");
 
     const oiText = marked.querySelector('[data-testid="nifty-oi-bar-ce"]')!
       .parentElement!.parentElement!.firstElementChild as HTMLElement;
