@@ -2,6 +2,174 @@
 
 1366×890 measured.
 
+## 2026-11-24 re-measure — chart is unreachable (P0)
+
+Measured live on the EOD / replay 11:43 / market-closed state at **1920×890** via `getBoundingClientRect()`:
+
+| Element | y | clientH | scrollH | Reading |
+|---|---|---|---|---|
+| `nifty-report-content` | 99 | 791 | **1177** | 386px clipped by `overflow:hidden` |
+| `nifty-main-row` | 784 | 300 | **422** | 122px clipped; `min-height:300px` |
+| `nifty-chart-panel` | 784 | 300 | 298 | only 106px inside the viewport |
+| chart canvas (`tradingview-chart`) | 832 | 222 | 222 | only **58px** visible |
+| `app-main` | 0 | 890 | 890 | page itself cannot scroll |
+
+**This is not just "below the fold" — it is unreachable.** Two nested `overflow:hidden` owners clip 386px + 122px and no ancestor scrolls. The 1366px plan below assumed the chart was scrollable; that assumption is wrong. Fix reachability before any cosmetic work.
+
+### Revised do-first (supersedes the order at the bottom of this doc)
+
+| # | Change | Frees | Gate (fails today) |
+|---|---|---|---|
+| 0 | Add a layout budget test: chart canvas top + 200 ≤ viewport height AND content scrollH ≤ clientH (or a real scroll owner exists) | — | `nifty-chart-canvas.y + 200 <= innerHeight` is `832+200=1032 > 890` → **FAIL** |
+| 1 | Collapse `MORE STATS` by default; move the two ~190px analytics charts (FUTURES POSITIONING, ITM PE FLOW) into the bottom dock/drawer | ~230px | chart-panel top 784 → ≤ ~554 |
+| 2 | Remove `min-height:300px` from `nifty-main-row`; let it flex-fill. Make `nifty-report-content` the single scroll owner (`overflow-y:auto`) or eliminate its overflow — never both silent-clip | ~120px | content scrollH 1177 → ≤ 791, canvas height ≥ 400 |
+| 3 | Chart focus 38%→100% on click / `F`, `Esc` to restore; verdict levels (sell/cut/target) as labelled chart lines | — | focus + annotation tests |
+| 4 | Toolbar clusters (Underlying / Mode / Session), label renames, glossary expansion | — | label assertions updated |
+
+### Target budget at 890px (desktop ≥1200px)
+
+```
+toolbar (2 rows, clustered)   72
+replay bar                    28
+verdict hero + [All stats ▾]  56
+main split  CHART ~60% | CHAIN 40%   640
+flow strip                    44
+dock (Analytics/Walls/GEX/IV/Tape)   48
+                              ───
+                              888  ≤ 890
+```
+
+Non-negotiables: one scroll owner; chart never clipped; analytics stay reachable via drawer, not deleted; verify at 1600×1000 and 390×844 and read both PNGs back.
+
+### A+ windowed redesign plan (2026-11-24, IN PROGRESS)
+
+Target: lift `/report/index` from the last independent panel (**7 / 8.5 / 8 — not A+**) to the
+A+ gate in `docs/DESIGN_SYSTEM_A_PLUS_GATE.md`: median ≥ 9 on every in-scope dimension from
+three independent read-only raters, zero P0/P1. Self-scoring does not count.
+
+Direction: adopt the **homepage's windowed-view pattern** (mapping in progress) instead of a
+single packed panel. One window per concept — chart, option chain, walls, flow/tape, analytics —
+each with a titlebar, its own scroll owner, predictable focus order and dismiss/restore. This
+addresses the two recurring complaints the current layout cannot fix: poor readability at a
+glance, and the top section getting worse when a disclosure expands.
+
+Readability contract for this redesign:
+- one 32px KPI/decision band; `ALL STATS` opens a bounded popover, never grows the band;
+- each window owns one concept and one scroll; no nested bordered cards; one border per window;
+- `text-ui-*` only (12px floor), mono + tabular numbers, semantic colour once per value;
+- empty/loading/error states collapse and name the reason, never reserve data height;
+- keyboard parity: Tab order follows visual order, Escape dismisses the top overlay,
+  every window has a labelled close/restore control;
+- verify with three independent raters plus 1600×1000 and 390×844 read-back.
+
+Implementation waves will be dispatched once the homepage window map lands; each wave gets
+disjoint file ownership and a measurable gate that fails before the change.
+
+### Window-system mapping (verified 2026-11-24)
+
+The homepage uses two surfaces: `HomeMonitorView` (CSS grid) and an opt-in desk wrapping
+`<WindowManager>`. Panels are registered once as `DockPanelSpec` (`src/components/dock/types.ts`)
+and mounted by `Window` via `spec.mount(context, api)`. A `WindowLayout` is plain rect+z state
+(`src/components/window/types.ts`); `Window` owns only in-flight drag rect, commits once on
+pointer-up. `WindowManager` owns focus id, lock flag, measured canvas and the live region.
+Presets are geometry-only canvas fractions; persistence is a `savedConfig` scope with 800ms
+debounce and a hydration latch. A11y: labelled `region` per frame, `tabindex=0`, arrow keys
+move / Shift+arrows resize, four titlebar buttons, lock hides resize handles. Readability comes
+from `text-ui-micro` uppercase titlebars on `h-7` bars, one border per window, and
+`PanelSkeleton` / `Text size="xs"` fallbacks.
+
+### Waves
+
+| Wave | Scope | Owner files | Gate |
+|---|---|---|---|
+| 1 (in flight) | KPI collapsed 32px + bounded `ALL STATS` popover | `ReportKpiHero.*`, `ReportDecisionStrip.hero.*`, `.moreStats.tsx`, `reportTokens.ts`, shell layout tests | band height identical collapsed/expanded; no inline blow-up |
+| 1 (in flight) | Report window foundation: registry, presets, saved-config scope, `ReportWindowDesk` | new `reportWindow*.ts(x)` files only | non-overlap at 1280/1920/2560; layout round-trip; empty state; labelled regions |
+Eligible window set (APPROVED 2026-11-24): `chart` (min 420×260), `chain` (340×240),
+`walls` (280×180), `flow` (300×180), `analytics` (360×220, tabbed: futures positioning,
+ITM PE flow, delta, GEX, IV skew), `movers` (260×140). Breadth, levels-in-play, GEX profile,
+IV skew and heatmap are TABS inside analytics/chain, not separate windows. Never windows:
+toolbar, 32px KPI/decision band (ALL STATS = bounded popover), replay bar, DESK BAY dock.
+At 390px the monitor view stays chart-first; the desk degrades to single-column tiles.
+
+| 2 | Shell integration: desk view toggle, mount `ReportWindowDesk` in desk mode, keep chart-first mobile fallback | `NiftyReportShell.tsx`, `ReportToolbar.tsx`, their tests | one scroll owner; no chart clipping; keyboard order matches visual order |
+| 3 | Panel readability: consistent panel titlebars, mono/tabular numbers, empty/loading/error copy per window | windowed panel files + their tests | every window has a named empty + loading + error state |
+| 4 | A+ verification: lint/typecheck/build, axe + keyboard gates, 1600×1000/390×844 screenshots read back, three independent read-only raters | main agent + raters | median ≥ 9 on every in-scope dimension, zero P0/P1 |
+
+No A+ claim until wave 4 passes with independent raters. The prior panel (7 / 8.5 / 8) is the
+honest baseline, not certification.
+
+### Work priority (user instruction, 2026-11-24)
+Right now: intuitiveness, design and the visible UI view only. Accessibility and
+code-quality passes come AFTER the UI is visually right. Independent a11y findings
+are logged but deferred unless they cause a visible UI defect.
+
+### Independent verifier findings — 2026-11-24 (layout/fit)
+
+- **P0** `reportWindowPresets.ts:70-77`, `layout.ts:11,51,54,139`, `WindowManager.tsx:174`:
+  first-run `full` preset uses 3 columns at 390px; each window floors to 240px,
+  so col-2 ends at x≈503 (113px off-screen) and the canvas is `overflow-hidden`.
+  `fitAllToScreen` cannot recover (3×234=702 > 390). Fix: phone-aware preset or
+  single-column tiles (already dispatched).
+- **P1** `reportBits.tsx:46` + `NiftyGexProfile.tsx:106-133`: GEX stack exceeds the
+  281px window; text cuts mid-sentence with no scroll cue. Add a cue or shrink the
+  mini chart under a ≤300px container.
+- **P1** `reportWindowTypes.ts:31-38` / adapters: duplicated titles — window frame
+  "INDEX CHART" + inner "NIFTY CHART", "OPTIONS CHAIN" + "Option-chain OI", "OI
+  WALLS" + "WALLS", "OPTIONS ANALYTICS" + tabs + "GEX profile". Suppress/demote
+  inner headers in window adapters (~28px reclaimed per window).
+- **P1** `NiftyChartPanel.body.tsx:182-212`: "CHART OPTIONS" clips to "CHA" at
+  ~240px window; collapse behind `⋯` at narrow container widths.
+- **P2** `NiftyChartPanel.body.tsx:170-181`: at 09:15 replay a blank plot shows
+  only price tags, no candles and no empty state; phone axis reservation (116px)
+  is viewport-keyed, not container-keyed.
+
+### Independent verifier findings — typography/states/semantics (UI items only)
+
+- WALLS stat label/value collision confirmed in captured PNG (source now fixed; re-capture
+  needed). `NiftyWallsCard.stats.tsx:13-45`: adjacent inline label/value spans, `truncate`
+  with no separator/tooltip.
+- `reportCells.chainPanel.tsx:278-284` — 390 scroll cue clipped to `SCROLL FO` and painted
+  over the last ΔOI value. Shorten copy, anchor to visible viewport, opaque backdrop.
+- `reportWindowDeskContent.tsx:49-56` — empty-state reason truncates without recovery
+  (`Not capt…` at 390). Wrap or provide a tooltip.
+- `NiftyGexProfile.legend.tsx` + `.rows.tsx` + `ReportKpiHero.tsx` — flip/spot printed 3–4×
+  (hero KPI, GEX stat row, regime sentence), sentence clips mid-clause at 472px. One owner
+  per fact, duplicates to tooltip.
+- Spot printed at two precisions (`25,976` hero vs `25,976.10` walls vs `25569.60` chart)
+  with no as-of hint. One formatter + snapshot time.
+- CW/PW/MP repeated in chart tags, walls legend and wall tables. Legend codes-only with
+  values in tooltip.
+- GEX glyph drift: `NET Γ (BOOK)` / `Γ FUEL ↓` vs hints `zero γ`, `γ support`. Use `γ`
+  consistently.
+- Deferred (a11y/later): error states disguised as empty in `reportWindowMarketContent.tsx`,
+  missing `title` tooltips, non-focusable legend details.
+
+### Independent verifier findings — code/a11y (UI items kept, rest deferred)
+
+Kept for the UI wave: `Window.tsx:287` + `reportWindowDeskContent.tsx:20-30` — frame body
+`overflow-auto` and inner `WindowBody overflow-y-auto` create two nested scroll owners
+(double scrollbar / ambiguous scroll target); `Window.tsx:278-280` — truncated window title
+has no `title` tooltip so a 320px frame cannot reveal it.
+Deferred until UI is right: dead `REPORT_STANDALONE_PANEL_KEYS`, dead `HeroClaim` export,
+`any` in chart/EChart, restated `rgba` fills, unlabelled analytics tab strip, missing
+`title` tooltips on empty-state reasons, analytics error states disguised as empty.
+
+### Direction chosen (2026-11-24): A + B KPI hero
+
+The "chart-first desk" layout above, with the Bento concept's single 72px KPI band as the
+visual anchor. Rejected: pure-A (keeps the cramped verdict strip as the anchor), pure Bento
+(too much scroll for a live desk), three-column cockpit (panes too narrow at 1600, ugly at 390).
+
+Root cause of "ugly" recorded from the live frame: no focal point — nine equal-weight
+surfaces, two analytics charts placed above the chart, every stat in the same 12px mono weight,
+free-floating sparklines inside stat cells, nested hairline borders, and the DESK BAY shortcut
+overlay sitting on top of live content. The redesign gives one hero, one focal chart, one
+companion table; everything else becomes a strip or a dock/drawer tab.
+
+Implementation lanes (disjoint file sets): A walls-stat label · B glossary · C toolbar
+clusters · D verdict levels on chart · E label renames · L1 shell/KPI hero/analytics
+relocation/focus/scroll owner · L2 main-row reachability.
+
 > **The chart is SMALL by default here.** Tape, walls, flow and GEX outrank candles on a
 > desk. Opposite of Patterns. Click the chart to give it everything.
 
@@ -187,6 +355,8 @@ transform/opacity only       big panel shadows
 ```
 
 ## Do first
+
+> Superseded by the 2026-11-24 re-measure at the top of this file: reachability (P0) comes first.
 
 ```
 1 walls → 56px card + drawer   M med   chrome 800→108
