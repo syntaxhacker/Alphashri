@@ -38,6 +38,15 @@ Sibling docs: `AGENTS.md` (repo rules), `LAYOUT_CONTRACT.md` (layout acceptance)
   voids the prior A+ and restarts the loop.
 - **Approver and commit gate.** The main agent records the A+ verdict; it cannot approve a change it
   implemented or verified. No `git commit`, `git push`, or PR before that record exists.
+- **Evidence is replaced, never appended.** Every UI update replaces the affected evidence; never
+  append a new screenshot while leaving the old one in place. Superseded files are removed from the
+  branch/worktree in the same commit, so the tracked `docs/screenshots/<feature>/` folder holds only
+  files referenced by the current PR. The PR body and every evidence comment name only current
+  files; delete or edit comments referencing removed images. Before push: every embedded raw URL
+  returns **200**, every removed filename returns **404**, and the PR's image list exactly matches
+  the tracked evidence folder. A stale/removed image, orphan screenshot, or old comment reference
+  blocks the PR until fixed, and the verifier grades only current files (`UI_RULES.md` §7.2). Any UI
+  change invalidates the A+ verdict — fresh captures and a regrade are mandatory.
 
 ### Enforcement
 
@@ -463,6 +472,6 @@ A report is rejected without **pass/fail counts**, the **exact commands**, and a
 6. **Scenario coverage** table — every row from the brief, with test-added / existing-test / N/A+reason.
 7. Risks / untested paths.
 8. Blockers, or "none".
-9. **Visual verdict** (UI work only): grade, verifier/approver, one-sentence "How to read" per chart, naive-read check, screenshot paths, and every FAIL item with its required fix.
+9. **Visual verdict** (UI work only): grade, verifier/approver, one-sentence "How to read" per chart, naive-read check, screenshot paths, every FAIL item with its required fix, and confirmation that the tracked evidence folder contains only the current PR's files.
 
 Never claim a surface "looks correct" if you cannot see it. Say what you measured.

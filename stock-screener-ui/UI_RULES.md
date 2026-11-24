@@ -201,3 +201,20 @@ Required before regrade: <numbered list of every defect and suggestion; "none" o
   at the new HEAD, even if nothing in the code changed.
 - The main agent must not merge, PR, or call a UI change done at A/B/C/F or with a missing verdict.
   Green CI never overrides.
+
+### 7.7 Evidence replacement (no stale images)
+
+1. **Replace, never append.** Every UI update replaces the affected evidence; never add a new
+   screenshot while leaving the old one in place.
+2. **Remove in the same commit.** Delete superseded screenshots from the branch/worktree in the
+   same commit as the UI change. The tracked `docs/screenshots/<feature>/` folder contains only
+   files referenced by the current PR.
+3. **Current references only.** Update the PR body and every evidence comment to the current
+   filenames. Delete or edit old comments that reference removed images.
+4. **Check before pushing.** Every embedded raw URL returns **200**, every removed filename returns
+   **404**, and the PR's image list exactly matches the tracked evidence folder.
+5. **Blocker.** A stale/removed image, orphan screenshot, or old comment reference blocks the PR
+   until fixed. Stale evidence is also unreviewable → **max B** (§7.2).
+6. **Verdict reset.** Any UI change invalidates the A+ verdict; fresh captures and a regrade are
+   mandatory at the new HEAD.
+
