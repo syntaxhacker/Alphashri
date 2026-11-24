@@ -13,6 +13,7 @@ import { SectorTable } from "./SectorTable";
 import { IntervalMoversTable } from "./IntervalMoversTable";
 import { SectorCorrelationTab } from "./SectorCorrelationTab";
 import { RotationTab } from "./RotationTab";
+import { SectorHistoryTab } from "./history/SectorHistoryTab";
 import { fetchSectorPerformance } from "../../api/sector";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { fetchHeatmapData } from "../../api/heatmap";
@@ -27,9 +28,10 @@ import { SectorHeatmapView } from "./SectorHeatmapView";
 import { SectorHeatmapControls } from "./SectorHeatmapContext";
 import { CompactToggle } from "./CompactToggle";
 import { SectorAlertsList } from "./SectorAlertsList";
+import { IconHistory } from "../common/Icons";
 import type { ViewMode } from "./SectorHeatmapView";
 
-const SECTOR_TABS = ["dashboard", "correlation", "rotation"] as const;
+const SECTOR_TABS = ["dashboard", "correlation", "rotation", "history"] as const;
 
 type SectorTab = (typeof SECTOR_TABS)[number];
 type DashboardView = "table" | "visual";
@@ -576,6 +578,13 @@ function SectorPageHeader(props: {
             <Tabs.Tab value="rotation" className="shrink-0 whitespace-nowrap text-ui-micro" icon={<IconArrowsExchange size={12} />}>
               Rotation
             </Tabs.Tab>
+            <Tabs.Tab
+              value="history"
+              className="shrink-0 whitespace-nowrap text-ui-micro"
+              icon={<IconHistory size={12} />}
+            >
+              History
+            </Tabs.Tab>
           </Tabs.List>
         </Tabs>
         <Box
@@ -762,7 +771,14 @@ function SectorTabContent(props: {
         </Show>
       }
     >
-      <Show when={props.activeTab === "rotation"} fallback={<SectorCorrelationTab />}>
+      <Show
+        when={props.activeTab === "rotation"}
+        fallback={
+          <Show when={props.activeTab === "history"} fallback={<SectorCorrelationTab />}>
+            <SectorHistoryTab market={props.market} />
+          </Show>
+        }
+      >
         <RotationTab market={props.market} />
       </Show>
     </Show>

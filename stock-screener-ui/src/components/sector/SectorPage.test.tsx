@@ -20,6 +20,12 @@ vi.mock("./RotationTab", () => ({
   ),
 }));
 
+vi.mock("./history/SectorHistoryTab", () => ({
+  SectorHistoryTab: ({ market }: { market: string }) => (
+    <div data-testid="sector-history-tab">SectorHistoryTab {market}</div>
+  ),
+}));
+
 vi.mock("./SectorTable", () => ({
   SectorTable: () => <div data-testid="sector-table">SectorTable</div>,
   getMovementBarValue: vi.fn(),
@@ -206,12 +212,13 @@ describe("SectorPage", () => {
     });
   });
 
-  it("renders tabs: Live Dashboard, Sector Correlation, Rotation", () => {
+  it("renders tabs: Live Dashboard, Sector Correlation, Rotation, History", () => {
     mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
     render(() => <SectorPage />);
     expect(screen.getByText("Live Dashboard")).toBeInTheDocument();
     expect(screen.getByText("Sector Correlation")).toBeInTheDocument();
     expect(screen.getByText("Rotation")).toBeInTheDocument();
+    expect(screen.getByText("History")).toBeInTheDocument();
   });
 
   it("keeps the tab strip scrollable with one-line labels and an overflow cue", () => {
@@ -220,7 +227,7 @@ describe("SectorPage", () => {
     const strip = screen.getByTestId("sector-tabs-list");
     expect(strip).toHaveClass("overflow-x-auto");
     expect(strip).toHaveClass("flex-nowrap");
-    for (const label of ["Live Dashboard", "Sector Correlation", "Rotation"]) {
+    for (const label of ["Live Dashboard", "Sector Correlation", "Rotation", "History"]) {
       const tab = screen.getByText(label).closest('[role="tab"]');
       expect(tab).toHaveClass("whitespace-nowrap");
     }
@@ -240,13 +247,23 @@ describe("SectorPage", () => {
     });
     expect(window.location.search).toContain("tab=correlation");
 
-    // A second hop reaches the last tab, which is the one clipped at 390.
+    // A second hop reaches Rotation, a third reaches History — the tab clipped at 390.
     const correlationTab = screen.getByText("Sector Correlation").closest('[role="tab"]')!;
     fireEvent.keyDown(correlationTab, { key: "ArrowRight" });
     await waitFor(() => {
       expect(screen.getByText("Rotation").closest('[role="tab"]')).toHaveAttribute("aria-selected", "true");
     });
     expect(window.location.search).toContain("tab=rotation");
+
+    const rotationTab = screen.getByText("Rotation").closest('[role="tab"]')!;
+    fireEvent.keyDown(rotationTab, { key: "ArrowRight" });
+    await waitFor(() => {
+      expect(screen.getByText("History").closest('[role="tab"]')).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
+    expect(window.location.search).toContain("tab=history");
   });
 
   it("makes the focusable region the sole horizontal scroller with a sideways cue", async () => {
@@ -296,6 +313,15 @@ describe("SectorPage", () => {
     render(() => <SectorPage />);
     expect(screen.getByTestId("rotation-tab")).toBeInTheDocument();
     expect(screen.getByText("RotationTab india")).toBeInTheDocument();
+    expect(mockFetchSectorPerformance).not.toHaveBeenCalled();
+  });
+
+  it("renders SectorHistoryTab when ?tab=history and does not poll sector data", () => {
+    window.history.replaceState({}, "", "/?tab=history");
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    render(() => <SectorPage />);
+    expect(screen.getByTestId("sector-history-tab")).toBeInTheDocument();
+    expect(screen.getByText("SectorHistoryTab india")).toBeInTheDocument();
     expect(mockFetchSectorPerformance).not.toHaveBeenCalled();
   });
 
