@@ -42,6 +42,7 @@ import {
   buildMarketFilterChips,
   countActiveMarketFilters,
   defaultMarketFilters,
+  mergeMoverPresetFilters,
   filterOnlyMarketRows,
   marketSectors,
   countByCapTier,
@@ -338,7 +339,9 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const [presetOwnsOrder, setPresetOwnsOrder] = createSignal(false);
   const applyPreset = (patch: Partial<MarketFilterState>) => {
     const { sort, ...bounds } = patch;
-    if (Object.keys(bounds).length > 0) patchFilters(bounds);
+    if (Object.keys(bounds).length > 0) {
+      setFilters((current) => mergeMoverPresetFilters(current, bounds));
+    }
     if (!sort) {
       setPresetOwnsOrder(false);
       return;

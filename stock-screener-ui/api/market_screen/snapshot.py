@@ -3,10 +3,9 @@
 One TradingView scan (``api.tv.scan_frame``) per universe. Shaped rows are
 cached per ``(universe, scan_window)`` -- the *scan* window, not the requested
 response cap -- with a read-time TTL: 5s while the universe's cash session is
-live, 60s while it is closed. An expired frame is served stale while one
-background refresh runs: always when the market is closed, and for a live market
-only up to ``LIVE_STALE_MAX_SECONDS``; past that window a live request blocks on
-a real scan. Hygiene universes (US) scan one full frame so
+live, 60s while it is closed. A live request past the TTL blocks on a fresh scan;
+only closed markets serve stale while a background refresh runs. Hygiene
+universes (US) scan one full frame so
 local filters can drop OTC/preferred rows before the frame is sliced to the
 requested ``limit`` per request. Universes without local hygiene (India)
 ceiling-map the requested cap onto a small fixed ladder, bounding upstream TV
@@ -55,14 +54,6 @@ log = logging.getLogger("market_screen.snapshot")
 #: re-scanned every few seconds. Clamped at 3s: a misconfigured env var must not
 #: turn every poll into a TradingView scan.
 LIVE_TTL_SECONDS = max(3.0, float(os.getenv("MARKET_SCREEN_LIVE_TTL_SEC", "5")))
-#: How long an expired live frame stays servable while one background refresh
-#: runs. The dashboard polls every ~5s against a 5s TTL, so nearly every poll
-#: lands just past expiry: blocking there meant paying the full 2-11s TV scan
-#: per request and never hitting the cache. Floored at ``LIVE_TTL_SECONDS`` --
-#: a stale window shorter than the fresh window would make the cache pointless.
-LIVE_STALE_MAX_SECONDS = max(
-    LIVE_TTL_SECONDS, float(os.getenv("MARKET_SCREEN_LIVE_STALE_SEC", "30"))
-)
 #: Closed-market TTL. Prices do not move between sessions, so reuse is free.
 OFF_TTL_SECONDS = 60.0
 MAX_LIMIT = 4000
@@ -794,12 +785,12 @@ def build_snapshot(
     """Assemble the full snapshot response for one universe.
 
     A fresh in-memory entry (within the live/closed TTL) returns the shaped
-    rows directly. An expired entry is served stale while one background refresh
-    runs: always when the market is closed, and for a live market only while the
-    frame is no older than ``LIVE_STALE_MAX_SECONDS``. A live frame past that
-    window blocks on a real scan, as does ``force``. A cold miss follows the
-    same split -- disk-stale serve when closed, a blocking scan when live. On
-    upstream failure both paths fall back to whatever memory/disk frame exists.
+    rows directly. A closed market serves an expired frame stale while one
+    background refresh runs; a live market blocks on a real scan so the UI never
+    shows a frame that is already past its TTL. ``force`` also scans. A cold miss
+    follows the same split -- disk-stale serve when closed, a blocking scan when
+    live. On upstream failure both paths fall back to whatever memory/disk frame
+    exists.
     """
     t0 = time.perf_counter()
     universe = (universe or "all_equity").strip().lower()
@@ -838,27 +829,15 @@ def build_snapshot(
         _log(t0, universe, limit, min(len(entry["rows"]), limit), cache="hit", stale=False)
         return _envelope(entry, universe, limit=limit, cached=True, stale=False)
 
-    # 2. Recently expired live frame: serve it immediately and refresh once in
-    #    the background. The poll interval sits right at the live TTL, so
-    #    blocking here turned every poll into a full TV scan (p50 2.3s, max
-    #    10.9s, no cache hits). Past the window the frame is too old to hand out
-    #    and the request blocks below.
-    if entry is not None and not force and live:
-        if (now - entry["stored_at"]) <= LIVE_STALE_MAX_SECONDS:
-            _maybe_start_background_refresh(key, universe, fetch_limit)
-            _log(t0, universe, limit, min(len(entry["rows"]), limit), cache="hit", stale=True)
-            return _envelope(entry, universe, limit=limit, cached=True, stale=True)
-
-    # 3. Expired memory entry on a closed market: serve stale immediately and
-    #    refresh in the background. A live market gets the same serve only
-    #    inside the window above -- handing out older rows indefinitely would
-    #    keep showing pre-open prices during the session.
+    # 2. Expired memory entry on a closed market: serve stale immediately and
+    #    refresh in the background. Live markets skip this so a poll never
+    #    receives a frame older than the live TTL.
     if entry is not None and not force and not live:
         _maybe_start_background_refresh(key, universe, fetch_limit)
         _log(t0, universe, limit, min(len(entry["rows"]), limit), cache="hit", stale=True)
         return _envelope(entry, universe, limit=limit, cached=True, stale=True)
 
-    # 4. Closed-market miss: serve the disk-stale snapshot immediately on a
+    # 3. Closed-market miss: serve the disk-stale snapshot immediately on a
     #    cold start. Live requests skip this too -- a days-old disk frame is
     #    worse than blocking for one scan.
     if not force and not live:
@@ -868,9 +847,8 @@ def build_snapshot(
             _log(t0, universe, limit, min(len(disk["rows"]), limit), cache="miss", stale=True)
             return _envelope(disk, universe, limit=limit, cached=False, stale=True)
 
-    # 5. Live request past the stale window, force, or no disk snapshot:
-    #    singleflight TV scan (blocks this request, but N concurrent requests
-    #    collapse to one scan).
+    # 4. Live request past the TTL, force, or no disk snapshot: singleflight TV
+    #    scan (blocks this request, but N concurrent requests collapse to one).
     try:
         result = _run_singleflight(key, universe, fetch_limit)
     except Exception:
