@@ -78,19 +78,36 @@ function paperPosition(overrides: Record<string, unknown> = {}) {
  * derives its KPIs from `legs`, so an empty `legs`/`payoff` would hide the very
  * workstation states these assertions cover.
  */
-function replayResult() {
-  const legs = [
-    { action: "BUY", opt: "CE", strike: 1420, lots: 1, qty: 75, entry_premium: 12.5 },
-    { action: "SELL", opt: "CE", strike: 1470, lots: 1, qty: 75, entry_premium: 8.0 },
-  ];
+function replayResult(requestedLegs?: Array<Record<string, unknown>>) {
+  const sourceLegs = requestedLegs?.length
+    ? requestedLegs
+    : [
+        { action: "BUY", opt: "CE", strike: 1420, lots: 1, premium: 12.5 },
+        { action: "SELL", opt: "CE", strike: 1470, lots: 1, premium: 8.0 },
+      ];
+  const legs = sourceLegs.map((leg) => ({
+    action: leg.action,
+    opt: leg.opt,
+    strike: Number(leg.strike),
+    lots: Number(leg.lots ?? 1),
+    qty: Number(leg.lots ?? 1) * 75,
+    entry_premium: Number(leg.premium ?? 0),
+  }));
+  const marks = Object.fromEntries(
+    legs.map((leg, index) => [`${leg.strike}-${leg.opt}`, leg.entry_premium + index * 0.1]),
+  );
+  const active = Object.fromEntries(legs.map((leg) => [`${leg.strike}-${leg.opt}`, true]));
+  const nextMarks = Object.fromEntries(
+    legs.map((leg, index) => [`${leg.strike}-${leg.opt}`, leg.entry_premium + 1.1 + index * 0.1]),
+  );
   const first = "2026-11-18T09:47:00+05:30";
   const last = "2026-11-18T10:15:00+05:30";
   const frames = [
     {
       t: first,
       spot: 1417.4,
-      marks: { "1420-CE": 12.5, "1470-CE": 8.0 },
-      active: { "1420-CE": true, "1470-CE": true },
+      marks,
+      active,
       priced: true,
       gross_pnl: 0,
       net_pnl: -60,
@@ -100,8 +117,8 @@ function replayResult() {
     {
       t: last,
       spot: 1421.6,
-      marks: { "1420-CE": 13.6, "1470-CE": 9.4 },
-      active: { "1420-CE": true, "1470-CE": true },
+      marks: nextMarks,
+      active,
       priced: true,
       gross_pnl: 255,
       net_pnl: 165,
@@ -218,7 +235,7 @@ async function mockOptionsPaper(page: Page): Promise<PaperMocks> {
       contentType: "application/json",
       body: JSON.stringify(
         body.dryRun === true
-          ? replayResult()
+          ? replayResult(body.legs as Array<Record<string, unknown>> | undefined)
           : { dry_run: false, position: paperPosition(), replay: null },
       ),
     });
