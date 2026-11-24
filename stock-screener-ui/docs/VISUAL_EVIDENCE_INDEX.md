@@ -4,33 +4,32 @@ Scope: committed screenshots and browser-gate configuration for the design-syste
 wave. This index separates **evidence** (a file that exists at `HEAD`, plus what
 its pixels can actually show) from **claims** (what a doc asserts or a script
 would check). File presence, PNG headers, dimensions and the final 1600/390
-read-back were checked at the pinned commit below.
+read-back were checked at current HEAD `the final evidence commit`.
 
-Status at `HEAD` = the final evidence commit (2026-11-23) — **final evidence commit**:
+Status at the final evidence commit (2026-11-24) — **final read-back DONE;
+independent rating NOT CERTIFIED**:
 
-- The final **1600/390 screenshot read-back is done at this commit**: PNGs were
+- The final **1600/390 screenshot read-back is DONE at `the final evidence commit`**: PNGs were
   opened and checked for hero/chart/chain/toolbar legibility, no blank canvas and
-  no `undefined`/`NaN` text. The read-back confirms the two latest report fixes:
-  the chart is **pinned to session-scoped candles** (no stale/tape-only fallback
-  or two-day series) and the **390 option chain opens on the ATM strike**, pinned
-  just below the sticky header with the next row visible as a scroll cue. See
-  `DESIGN_SYSTEM_A_PLUS_GATE.md` for the independent rating: three raters at
-  `6d25b3c8` scored **7 / 8.5 / 8** (not A++). No A+ / A++ verdict is claimed.
+  no `undefined`/`NaN` text. The latest report captures show **chart-first layout
+  at both widths, snapshot freshness, a populated option chain and heatmap, and
+  compact walls** — the composition wave landed as intended. See
+  `DESIGN_SYSTEM_A_PLUS_GATE.md`: the independent panel scored **7 / 8.5 / 8**
+  and is **not A++**. The final polish tree has not been re-rated. No A+ / A++
+  verdict is claimed.
 - `docs/screenshots/showcase/` — 52 PNGs committed (26 names × 2 viewports).
   Widths are 1600 / 390 and every height is ≥ viewport; several specimens are
   viewport-sized (e.g. `keyvalue-390.png` = 390×844, `buttons-1600.png` =
   1600×1000) while the family landings are full-page (e.g. `overview-1600.png` =
   1600×2502, `overview-390.png` = 390×5099).
 - `docs/screenshots/app/` — **all 10 PNGs committed**: report, sector, home,
-  screener and patterns at 1600×1000 and 390×844 (all five routes added in
-  `92282149`). The `report-*.png` re-capture is committed at the final HEAD
-  the final evidence commit and read back; `/options` is explicitly out of scope (§1), not a
-  pending capture.
+  screener and patterns at 1600×1000 and 390×844 (all five routes). The
+  `report-*.png` re-capture is committed at `the final evidence commit` and read back; `/options`
+  is explicitly out of scope (§1), not a pending capture.
 - `tests/visual/__screenshots__/` — README plus **12 baseline PNGs committed**
   (6 stories × 2 viewports); `bun run visual:test` passes **12/12**.
 - The **62-image manifest** (10 app + 52 showcase) is the evidence gate. **62/62**
-  files are present at the final evidence commit with the expected dimensions and
-  ≥8 KiB.
+  files are present at `the final evidence commit` with the expected dimensions and ≥8 KiB.
 
 ## 1. App-route captures (`docs/screenshots/app/`)
 
@@ -49,14 +48,14 @@ All paths below are under `docs/screenshots/app/`.
 
 | Route | 1600 | 390 | Status | What it proves |
 | --- | --- | --- | --- | --- |
-| Report | `report-1600.png` | `report-390.png` | **Committed at the final evidence commit**, re-capture included; final 1600/390 read-back done | Real `/report/index` render with mocked Index Report APIs at both sizes; layout/chrome/legibility of the Index Report composition verified in the final read-back, including the chart pinned to candles and the 390 chain opening on the ATM strike. |
-| Sector | `sector-1600.png` | `sector-390.png` | **Committed at HEAD** (`92282149`) | Real `/sector` render with `setupSectorMocks` and the `sector-analysis-view` readiness selector. |
-| Home | `home-1600.png` | `home-390.png` | **Committed at HEAD** (`92282149`) | Real `/home` render at both sizes. |
-| Screener | `screener-1600.png` | `screener-390.png` | **Committed at HEAD** (`92282149`) | `screener-evidence.spec.ts` drives `/screener/screener` with screener-specific mocks and a 390 scroll-cue guard. |
-| Patterns | `patterns-1600.png` | `patterns-390.png` | **Committed at HEAD** (`92282149`) | `patterns-evidence.spec.ts` drives `/patterns` with pattern fixtures and result/scroll-cue guards. |
+| Report | `report-1600.png` | `report-390.png` | **Committed at `the final evidence commit`**, re-capture included; final 1600/390 read-back DONE | Real `/report/index` render with mocked Index Report APIs at both sizes; final read-back confirms chart-first layout at 1600/390, snapshot freshness, a populated option chain and heatmap, and compact walls. The chart is pinned to session-scoped candles and the 390 chain opens on the ATM strike. |
+| Sector | `sector-1600.png` | `sector-390.png` | **Committed at `the final evidence commit`** | Real `/sector` render with `setupSectorMocks` and the `sector-analysis-view` readiness selector. |
+| Home | `home-1600.png` | `home-390.png` | **Committed at `the final evidence commit`** | Real `/home` render at both sizes. |
+| Screener | `screener-1600.png` | `screener-390.png` | **Committed at `the final evidence commit`** | `screener-evidence.spec.ts` drives `/screener/screener` with screener-specific mocks and a 390 scroll-cue guard. |
+| Patterns | `patterns-1600.png` | `patterns-390.png` | **Committed at `the final evidence commit`** | `patterns-evidence.spec.ts` drives `/patterns` with pattern fixtures and result/scroll-cue guards. |
 
 All five routes above are in the evidence manifest (`APP_ROUTES` in
-`scripts/evidence-audit.mjs`), and their PNGs are now present at `HEAD`, so no
+`scripts/evidence-audit.mjs`), and their PNGs are present at `the final evidence commit`, so no
 app-route capture is pending. Options is absent from that manifest by decision,
 not omission. Storybook PNGs are not a substitute for any of these routes.
 
@@ -125,14 +124,14 @@ results.
 | Axe, **app routes** | `tests/e2e/app-a11y.spec.ts` **runs in CI** in the `e2e-smoke` job (step `Verify app routes with axe`, `APP_A11Y=1`, 2 workers), after the smoke tests and reusing the same API + dev server. Real-browser axe audits of `/report/index`, `/sector`, `/options`, `/home` (desk) and bare `/screener` with shared mocks; WCAG 2.0/2.1 A/AA tags; fails on serious/critical only (`color-contrast` incompletes documented/allowed). | **Wired into CI.** Configuration change only — no committed run artifact accompanies this index, so treat the pass as a CI gate claim, not fresh evidence here. |
 | Keyboard, **10 walkthroughs** | `scripts/storybook-keyboard.mjs`: Modal open (Tab cycle/Shift+Tab wrap), Modal dismissal (Escape/focus return), Tree (arrows/expand/select), Menu (arrows/Home/End/Escape), horizontal Tabs, vertical Tabs, Popover, Tooltip, modal FloatingWindow, NavLink (button[role=link] Enter/Space activation, disabled inert, href stays an anchor). | **Configured.** `DESIGN_SYSTEM_A_PLUS_GATE.md` documents 10/10; no committed run artifact accompanies this index, so treat 10/10 as a documented claim, not fresh evidence. |
 | Visual baseline, **12 images** | `tests/visual/__screenshots__/README.md` and `docs/VISUAL_REGRESSION.md`: 6 stories × 2 viewports — `typography-landing`, `overview`, `inputs-landing`, `data-display-landing`, `overlay-landing`, `foundations-landing` at `desktop-1600` / `mobile-390`; `bun run visual:test` must find all 12 (no writes). | **12/12 passing.** Harness + CI step landed in `ff939b9a`; all 12 baseline PNGs (6 stories × 2 viewports) are generated and committed in `tests/visual/__screenshots__/`, and `bun run visual:test` passes **12/12** with no writes. This gate is green. |
-| Screenshot evidence, **62 PNGs** | `scripts/evidence-audit.mjs` via `bun run audit:evidence`: gating structural check of 10 app-route PNGs (`1600×1000` / `390×844`) and 52 showcase PNGs (width 1600 / 390, height ≥ viewport); each must exist, be a valid PNG and be ≥8 KiB. The 10 app-route PNGs cover report, sector, home, **screener and patterns**; the options route is explicitly out of scope and not in the manifest. **Runs in CI** in the `frontend-lint-typecheck` job (step `Verify screenshot evidence`, immediately after `Verify Storybook visual baseline`). | **The 62-image structural audit is the gate.** Wired into CI (exits 1 on missing/invalid/too-small/wrong-dimension). **62/62** manifest files are present at the final evidence commit with the expected dimensions and ≥8 KiB, and the 1600/390 read-back is complete. |
+| Screenshot evidence, **62 PNGs** | `scripts/evidence-audit.mjs` via `bun run audit:evidence`: gating structural check of 10 app-route PNGs (`1600×1000` / `390×844`) and 52 showcase PNGs (width 1600 / 390, height ≥ viewport); each must exist, be a valid PNG and be ≥8 KiB. The 10 app-route PNGs cover report, sector, home, **screener and patterns**; the options route is explicitly out of scope and not in the manifest. **Runs in CI** in the `frontend-lint-typecheck` job (step `Verify screenshot evidence`, immediately after `Verify Storybook visual baseline`). | **The 62-image structural audit is the gate.** Wired into CI (exits 1 on missing/invalid/too-small/wrong-dimension). **62/62** manifest files are present at `the final evidence commit` with the expected dimensions and ≥8 KiB, and the 1600/390 read-back is **DONE**. |
 
 ## 4. Evidence vs claims — the line
 
 - A committed PNG proves only that the captured surface rendered at the measured
   size with the mocked data used for that capture. It does not prove current
   `HEAD` behaviour if source changed afterwards; the final 1600/390 read-back at
-  the final evidence commit is the current visual verdict for the committed report pair.
+  `the final evidence commit` is the current visual verdict for the committed report pair.
 - Static Storybook images do not verify live-route behaviour; the app-route PNGs
   in §1 do cover `/report/index`, `/sector`, `/home`, bare `/screener` and
   `/patterns` at both sizes. Focus order, live WCAG ratios and reduced motion are
@@ -145,19 +144,22 @@ results.
   (`tests/visual/__screenshots__/`), and `bun run visual:test` passes **12/12** —
   "visual regression gate passes" is now a supportable claim.
 - The final 1600/390 screenshot read-back for the Index Report composition is
-  **done at the final evidence commit** — PNGs were opened and checked for legibility and
-  no blank canvas / `undefined` / `NaN`. The read-back specifically confirms the
-  chart is pinned to session-scoped candles (no stale/tape-only or two-day series)
-  and the 390 option chain opens on the ATM strike, pinned below the sticky header
-  with the next row as a scroll cue. The independent panel at `6d25b3c8` scored
-  **7 / 8.5 / 8**, not A++ (see `DESIGN_SYSTEM_A_PLUS_GATE.md`); the presence of
-  a PNG alone is not a rating, and no A+ / A++ verdict is claimed.
+  **DONE at `the final evidence commit`** — PNGs were opened and checked for legibility and no
+  blank canvas / `undefined` / `NaN`. The latest captures show **chart-first
+  layout at both widths, snapshot freshness, a populated option chain and
+  heatmap, and compact walls**; the read-back specifically confirms the chart is
+  pinned to session-scoped candles (no stale/tape-only or two-day series) and the
+  390 option chain opens on the ATM strike, pinned below the sticky header with
+  the next row as a scroll cue. The earlier panel at `6d25b3c8` scored
+  **7 / 8.5 / 8** and is **not A++**. The final polish tree has not been
+  re-rated (see `DESIGN_SYSTEM_A_PLUS_GATE.md`). The presence of a PNG alone is
+  not a rating, and no A+ / A++ verdict is claimed.
 
 ## 5. Open evidence items (no longer capture gaps)
 
 All five in-scope app routes and all 26 showcase names have committed PNGs at both
-viewports (§1–§2); **62/62** manifest images are present at the final evidence commit and
-the final 1600/390 read-back is done. There are no pending captures. The `/options`
+viewports (§1–§2); **62/62** manifest images are present at `the final evidence commit` and the
+final 1600/390 read-back is **DONE**. There are no pending captures. The `/options`
 route is **out of scope**, not pending: it has its own feature spec and is
 deliberately absent from the evidence manifest (§6).
 
@@ -167,10 +169,9 @@ Still not evidenced by a committed artifact:
 2. A committed run result for the 10 keyboard walkthroughs.
 3. Live-app focus/keyboard, actual contrast ratios and reduced-motion evidence —
    currently source-only or Storybook-only.
-4. A fresh **independent rating** for the final tree. The
+4. A fresh **independent rating** for the final tree — **NOT YET RUN**. The
    `6d25b3c8` panel scored **7 / 8.5 / 8** and is not an A++ certification (see
-   `DESIGN_SYSTEM_A_PLUS_GATE.md`). The final 1600/390 read-back is complete at
-   the final evidence commit.
+   `DESIGN_SYSTEM_A_PLUS_GATE.md`). The final 1600/390 read-back is **DONE**.
 
 ## 6. Evidence guard
 
@@ -245,6 +246,5 @@ bun run audit:evidence
 It exits 0 only when all 10 app-route PNGs (report, sector, home, screener,
 patterns; options is out of scope) and 52 showcase PNGs exist, are valid PNG
 files, are ≥8 KiB and have the expected dimensions; a missing/invalid PNG fails
-the command. **62/62** are present at the final evidence commit, with the
-1600/390 read-back complete — `audit:evidence:pending` is not a substitute for
-the gating command.
+the command. **62/62** are present at `the final evidence commit`, with the 1600/390 read-back
+**DONE** — `audit:evidence:pending` is not a substitute for the gating command.
