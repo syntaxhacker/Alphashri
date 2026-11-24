@@ -952,8 +952,33 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
 
       {/* The snapshot hook is the only source for this strip: no extra fetch,
           and the full rows (not the filtered table) define market breadth.
-          US rows carry no index component, so the India desk strip is hidden. */}
-      <Show when={showMarketChrome() && universe() !== "us"}>
+          US rows carry no index component, so the India strip is replaced by a
+          same-box placeholder: unmounting the band moved the table 44px on a
+          universe switch (36px strip + the flex gap) and broke the E2E's stable
+          filter-row geometry. The placeholder mirrors the strip's Paper box and
+          two-line stat so its height tracks any typography change. */}
+      <Show
+        when={showMarketChrome() && universe() !== "us"}
+        fallback={
+          <Show when={showMarketChrome()}>
+            <Paper
+              elevation={0}
+              data-testid="market-breadth-unavailable"
+              role="note"
+              className="flex items-center gap-2 px-2 py-1 border border-fin-border rounded-sm bg-fin-surface flex-shrink-0 min-w-0 overflow-hidden"
+            >
+              <Box className="flex flex-col flex-shrink-0 gap-0.5">
+                <Text size="xs" c="dimmed" className="leading-none">
+                  Breadth
+                </Text>
+                <Text size="xs" c="dimmed" className="font-mono tabular-nums leading-none">
+                  — not available for USA
+                </Text>
+              </Box>
+            </Paper>
+          </Show>
+        }
+      >
         <MarketBreadthStrip
           rows={rows()}
           asOf={asOf()}
@@ -1238,8 +1263,10 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
           aria-label="Filters"
           tabIndex={-1}
           data-testid="market-filter-drawer"
-          className="fixed inset-0 z-50 flex"
-          style={{ "z-index": 1050 }}
+          className="fixed inset-0 z-[1300] flex"
+          // The mobile nav bar is sticky at z-1299; a lower drawer leaves its
+          // header (and the collapse button) unclickable at 390px.
+          style={{ "z-index": 1300 }}
           onClick={closeDrawer}
         >
           <Box

@@ -2563,15 +2563,24 @@ describe("MarketScreenerPanel — market breadth strip", () => {
     expect(screen.queryByTestId("market-breadth")).not.toBeInTheDocument();
   });
 
-  test("hidden for the US universe", async () => {
+  test("hidden for the US universe but replaced by a same-box band", async () => {
     r(() => <MarketScreenerPanel />);
-    expect(screen.getByTestId("market-breadth")).toBeInTheDocument();
+    const breadth = screen.getByTestId("market-breadth");
+    expect(breadth).toBeInTheDocument();
+    const bandParent = breadth.parentElement;
     const combo = screen.getByTestId("market-universe-select").querySelector(
       '[role="combobox"]',
     ) as HTMLInputElement;
     await fireEvent.focus(combo);
     await fireEvent.mouseDown(await screen.findByRole("option", { name: "USA" }));
     expect(screen.queryByTestId("market-breadth")).not.toBeInTheDocument();
+    // The placeholder keeps the strip's Paper box (and the flex gap), so the
+    // table top does not jump when the India-only breadth data disappears.
+    const unavailable = screen.getByTestId("market-breadth-unavailable");
+    expect(unavailable.parentElement).toBe(bandParent);
+    for (const cls of breadth.className.split(/\s+/)) {
+      expect(unavailable).toHaveClass(cls);
+    }
   });
 
   test("loading and empty states come from the snapshot hook", async () => {

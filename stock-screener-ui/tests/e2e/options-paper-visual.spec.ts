@@ -221,7 +221,8 @@ async function replayDockCta(page: Page): Promise<void> {
 
 /**
  * The paper-book modal overrides the shared table's dense metrics at the wrap:
- * 12px numbers / 11px column headers, with the 8/12px cell padding contract.
+ * 12px numbers and 12px column headers on the shared type floor, with the
+ * 8/12px cell padding contract.
  */
 async function positionsTableTypography(page: Page): Promise<void> {
   const wrap = page.getByTestId("option-positions-table-wrap");
@@ -234,7 +235,7 @@ async function positionsTableTypography(page: Page): Promise<void> {
     };
   });
   expect(metrics.cell, "paper-book numbers use the 12px table floor").toBe("12px");
-  expect(metrics.head, "paper-book column headers stay at 11px").toBe("11px");
+  expect(metrics.head, "paper-book column headers stay at the 12px type floor").toBe("12px");
 }
 
 async function noHorizontalOverflow(page: Page, viewport: Viewport): Promise<void> {
@@ -603,7 +604,8 @@ for (const viewport of VIEWPORTS) {
       await expect(page.getByTestId("replay-clock")).toContainText("2026-11-17", { timeout: 15000 });
 
       const clockBefore = await page.getByTestId("replay-clock").textContent();
-      await page.getByTestId("replay-scrubber").focus();
+      // Keyboard nudges land on the thumb; the base testid is a non-focusable wrapper.
+      await page.getByTestId("replay-scrubber-max").focus();
       await page.keyboard.press("ArrowLeft");
       await expect(page.getByTestId("replay-clock")).not.toHaveText(clockBefore ?? "");
 
