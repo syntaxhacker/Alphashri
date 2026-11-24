@@ -10,13 +10,31 @@ Sibling docs: `AGENTS.md` (repo rules), `LAYOUT_CONTRACT.md` (layout acceptance)
 
 | Role | Owns |
 |---|---|
-| Main agent | Brief authoring, review, integration, **only git actor**, screenshots |
+| Main agent | Brief authoring, review, integration, **only git actor**, screenshots, approver |
 | Subagent | Scoped implementation inside one brief; reports to main, never to the user |
+| Independent verifier | Read-only, separate session; grades screenshots + running UI per `UI_RULES.md` §7 |
+| Approver | Main agent (or named human); records the verifier's A+ verdict; no self-approval |
 
 - Subagents never ask the user anything and never spawn subagents.
 - Ambiguity in the brief = **stop and report**, never guess scope.
 - Main must not implement normal code tasks; it scopes, dispatches, reviews, integrates,
   verifies. **No implementation at all** — not even a one-line or one-character fix.
+
+### Visual verifier + approver (UI work)
+
+- **Independence.** The implementing agent, or anyone who authored a changed file, may not verify or
+  approve the visuals. The main agent dispatches a **read-only verifier in a separate session** after
+  the 1600/390 screenshots exist.
+- **Verify the product, not the tests.** The verifier opens every PNG and exercises the running UI
+  (legend/tooltip, selectors, keyboard/focus, 390 overflow). Code, tests, build and Storybook are
+  supporting evidence only. The verifier edits nothing and starts no server or build.
+- **Grade, don't bless.** Return A+/A/B/C/F against `UI_RULES.md` §7.3, with exact file:line and
+  screenshot coordinates plus the required fix. A/B/C/F are FAIL; "looks fine" and "minor" are not
+  verdicts.
+- **Loop until A+.** The implementer implements **every** suggestion, recaptures and resubmits; the
+  verifier regrades. The implementer never re-grades or triages a defect down.
+- **Approver and commit gate.** The main agent records the A+ verdict; it cannot approve a change it
+  implemented or verified. No `git commit`, `git push`, or PR before that record exists.
 
 ### Enforcement
 
@@ -242,7 +260,7 @@ same defect: it reads as the same thing but cannot be retuned together.
 **A tint means something.** Red is error/bearish, never "informational" and never "selected":
 `ORB_AREA`/`IV_AREA_*` (range and IV bands) read INFO blue; `BOT_SELECTED_BG` reads PRIMARY.
 
-Verify visually only if the brief says so — screenshots are the main agent's job.
+Screenshots are captured by the main agent or implementer; only an independent verifier grades them (`UI_RULES.md` §7). A subagent never self-approves.
 
 ---
 
@@ -414,6 +432,7 @@ Canonical source for model routing **and** concurrency — `AGENTS.md` and
 - `npx vitest run src/test/design-scale.test.ts src/test/theme-single-source.test.ts` green
 - tsc count for the scope: before → after (if a tsc task)
 - if the brief claims a layout now fits: `getBoundingClientRect()` before → after
+- UI: independent verifier's **A+** verdict, with screenshot paths and the running UI reviewed
 
 ## Scenario coverage (from docs/TEST_SCENARIOS.md)
 - <paste the relevant rows; each ends as test-added / existing-test / N/A + reason>
@@ -441,5 +460,6 @@ A report is rejected without **pass/fail counts**, the **exact commands**, and a
 6. **Scenario coverage** table — every row from the brief, with test-added / existing-test / N/A+reason.
 7. Risks / untested paths.
 8. Blockers, or "none".
+9. **Visual verdict** (UI work only): grade, verifier/approver, screenshot paths, and every FAIL item with its required fix.
 
 Never claim a surface "looks correct" if you cannot see it. Say what you measured.
