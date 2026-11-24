@@ -1,6 +1,6 @@
 import { Show, createMemo, useContext } from "solid-js";
 import { IconLogout } from "../common/Icons";
-import { Avatar, Box, Group, Text, UnstyledButton, Menu, MenuTarget, MenuDropdown, MenuItem } from "@/ui";
+import { Avatar, Box, Group, Text, Menu, MenuTarget, MenuDropdown, MenuItem } from "@/ui";
 import { AuthContext } from "../auth/AuthProvider";
 
 
@@ -48,7 +48,8 @@ export function UserButton(props: { collapsed?: boolean }) {
   return (
     <Menu position="right-start" offset={8} shadow="md">
       <MenuTarget>
-        <UnstyledButton
+        <button
+          type="button"
           data-testid="user-menu-trigger"
           id="user-button"
           className="block w-full p-2 text-fin-text rounded-fin hover:bg-fin-surface-alt"
@@ -75,7 +76,7 @@ export function UserButton(props: { collapsed?: boolean }) {
               </Box>
             </Show>
           </Group>
-        </UnstyledButton>
+        </button>
       </MenuTarget>
 
       <MenuDropdown data-testid="user-menu-dropdown">
