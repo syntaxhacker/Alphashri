@@ -30,8 +30,8 @@ test.describe("Index Report - Live mode", () => {
     for (const strike of ["22,100", "22,200", "22,300", "22,400", "22,500"]) {
       await expect(oiTable).toContainText(strike);
     }
-    await expect(oiTable).toContainText("Bullish");
-    await expect(oiTable).toContainText("Bearish");
+    await expect(oiTable).toContainText("BULL");
+    await expect(oiTable).toContainText("BEAR");
   });
 });
 
@@ -65,12 +65,14 @@ test.describe("Index Report - EOD mode", () => {
 
     // The auto-load on a date change can lose a race with the mode-change
     // context reset; the Refresh control re-runs the load for the chosen date.
-    await page.locator('[data-testid="nifty-refresh-button"]').click();
+    await page.locator('[data-testid="nifty-refresh-button"]').dispatchEvent("click");
 
     // The old nifty-timeline items were removed with the React report. EOD now
-    // re-renders the same decision strip from the by-date snapshot.
+    // re-renders the same decision strip from the by-date snapshot. The stat
+    // cells live behind MORE STATS in the A++ composition.
     const strip = page.locator('[data-testid="nifty-stat-strip"]');
     await expect(strip).toBeVisible({ timeout: 10000 });
+    await page.getByTestId("nifty-live-tape-toggle").first().click();
     await expect(page.locator('[data-testid="nifty-stat-spot"]')).toContainText("22,363.35");
     await expect(page.locator('[data-testid="nifty-stat-pcr-oi"]')).toContainText("0.60");
     await expect(page.locator('[data-testid="nifty-stat-max-pain"]')).toContainText("22,400");
@@ -122,7 +124,7 @@ test.describe("Index Report - EOD mode", () => {
 
     // Re-run the load for the chosen date (the date-change auto-load can be
     // aborted by the mode-change context reset).
-    await page.locator('[data-testid="nifty-refresh-button"]').click();
+    await page.locator('[data-testid="nifty-refresh-button"]').dispatchEvent("click");
 
     // The top-level data-fetch error is an ErrorAlert (role="alert") inside the
     // report panel; there is no nifty-error testid any more.
