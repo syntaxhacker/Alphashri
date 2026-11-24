@@ -8,6 +8,7 @@ import { fitAllToScreen } from "../../components/window/layout";
 import { WindowManager } from "../../components/window/WindowManager";
 import type { WindowLayout, WindowState } from "../../components/window/types";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { useSectionsConfig } from "../../state/sections/config";
 import {
   createSavedConfigStore,
   registerSavedConfigScope,
@@ -33,6 +34,13 @@ import {
   serializeHomeConfig,
   type HomeWindowConfig,
 } from "./homePanels";
+import {
+  createSectionWindow,
+  ensureSectionTombstones,
+  isSectionPanelId,
+  syncSectionPanels,
+  type SectionPanelSync,
+} from "./homeSectionPanels";
 
 const slug = (name: string): string =>
   name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -123,6 +131,25 @@ export interface HomePageProps {
  */
 export function HomePage(props: HomePageProps) {
   const { config, setConfig, hydrated } = useHomeWindowConfig({ transport: props.transport });
+  const { config: sectionsConfig } = useSectionsConfig();
+  // Sync before hydration settles: normalizeHomeConfig reads the live registry,
+  // so a saved layout pinning a section must survive its first parse.
+  const [sectionPanels, setSectionPanels] = createSignal<SectionPanelSync>(
+    syncSectionPanels(sectionsConfig().sections),
+  );
+  createEffect(() => {
+    setSectionPanels(syncSectionPanels(sectionsConfig().sections));
+  });
+  createEffect(() => {
+    const pinned = config().layouts
+      .flatMap((layout) => layout.windows)
+      .filter((window) => isSectionPanelId(window.type))
+      .map((window) => ({ type: window.type, title: window.title }));
+    const added = ensureSectionTombstones(pinned);
+    if (added.length > 0) {
+      setSectionPanels((prev) => ({ ...prev, tombstones: [...prev.tombstones, ...added] }));
+    }
+  });
   const context: Accessor<DockPanelContext> = () => HOME_PANEL_CONTEXT;
   const [pickerValue, setPickerValue] = createSignal("");
   const [view, setView] = createSignal<HomeView>("monitor");
@@ -237,7 +264,7 @@ export function HomePage(props: HomePageProps) {
   // The Select prop getter is read by several of its own computations, so an
   // unmemoised function sorted and mapped the panel list several times per mount.
   const pickerOptions = createMemo(() =>
-    [...HOME_PANELS]
+    [...HOME_PANELS, ...sectionPanels().live]
       .sort((a, b) => PAGE_ORDER.indexOf(a.page) - PAGE_ORDER.indexOf(b.page))
       .map((spec) => ({
         value: spec.id,
@@ -248,8 +275,17 @@ export function HomePage(props: HomePageProps) {
   const addWindow = (id: string) => {
     if (!id) return;
     const windows = activeLayout().windows;
+    const ordinal = windows.length + 1;
     const maxZ = windows.reduce((max, w) => Math.max(max, w.z), 0);
-    const created = createWindowFor(id, windows.length + 1, props.canvas, maxZ);
+    let created = createWindowFor(id, ordinal, props.canvas, maxZ);
+    if (!created && isSectionPanelId(id)) {
+      created = createSectionWindow(
+        id,
+        ordinal,
+        props.canvas ?? canvasSize() ?? { w: 1280, h: 800 },
+        maxZ,
+      );
+    }
     if (!created) return;
     setActiveWindows([...windows.map((w) => ({ ...w })), created]);
     setPickerValue("");
@@ -406,6 +442,7 @@ export function HomePage(props: HomePageProps) {
         <WindowManager
           layout={activeLayout()}
           context={context}
+          specs={[...HOME_PANELS, ...sectionPanels().live, ...sectionPanels().tombstones]}
           onLayoutChange={(next) => setActiveWindows(next.windows)}
           onCanvasChange={(size) => {
             if (canvasSize()?.w === size.w && canvasSize()?.h === size.h) return;

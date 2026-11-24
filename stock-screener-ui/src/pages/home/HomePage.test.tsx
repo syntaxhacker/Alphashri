@@ -8,8 +8,15 @@ import type { CanvasSize } from "../../components/window/layout";
 import type { WindowLayout, WindowState } from "../../components/window/types";
 import type { SavedConfigTransport } from "../../state/savedConfig";
 import { __resetCatalystStore } from "../../state/catalystStore";
+import { fetchSectionScan, type SectionScanResult } from "../../api/sections";
+import { defaultSectionsConfig } from "../../state/sections/config";
 import { HomePage } from "./HomePage";
 import { HOME_PANELS, normalizeHomeConfig, type HomeWindowConfig } from "./homePanels";
+import { resetSectionPanels } from "./homeSectionPanels";
+
+vi.mock("../../api/sections", () => ({ fetchSectionScan: vi.fn() }));
+
+const sectionScan = vi.mocked(fetchSectionScan);
 
 const CANVAS: CanvasSize = { w: 1280, h: 800 };
 
@@ -64,6 +71,22 @@ const CATALYST_PAYLOAD = {
 };
 const NEWS_PAYLOAD = { items: [] };
 const NEWS_SOURCES_PAYLOAD = { sources: [] };
+const SECTION_SCAN_PAYLOAD: SectionScanResult = {
+  market: "india",
+  generated_at: "2026-11-25T10:00:00+05:30",
+  row_count: 1,
+  delayed_rows: 0,
+  note: null,
+  rows: [{
+    symbol: "HDFCBANK",
+    name: "HDFC Bank",
+    fields: { close: 1700, VWAP: 1690 },
+    signals: { "vwap-reclaim": true },
+  }],
+};
+
+let sectionsPayload: Record<string, unknown> = { v: 1, sections: defaultSectionsConfig().sections };
+const SECTION_CONFIG_URL = /\/api\/user-configs\/user\.sections(?:\?|$)/;
 
 function jsonResponse(body: unknown): Response {
   return {
@@ -94,6 +117,15 @@ function makeFetchMock() {
   const unexpected: string[] = [];
   const mock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (SECTION_CONFIG_URL.test(url)) {
+      return jsonResponse({
+        scope: "user.sections",
+        version: 1,
+        saved: true,
+        updated_at: "rev-0",
+        config: sectionsPayload,
+      });
+    }
     if (SNAPSHOT_URL.test(url)) return jsonResponse(MARKET_SNAPSHOT_PAYLOAD);
     if (EXPIRIES_URL.test(url)) return jsonResponse(EXPIRIES_PAYLOAD);
     if (CHAIN_URL.test(url)) return jsonResponse(CHAIN_PAYLOAD);
@@ -111,6 +143,10 @@ let fetchMock: ReturnType<typeof makeFetchMock>["mock"];
 let unexpectedUrls: string[];
 
 beforeEach(() => {
+  sectionsPayload = { v: 1, sections: defaultSectionsConfig().sections };
+  sectionScan.mockReset();
+  sectionScan.mockResolvedValue(SECTION_SCAN_PAYLOAD);
+  resetSectionPanels();
   const net = makeFetchMock();
   fetchMock = net.mock;
   unexpectedUrls = net.unexpected;
@@ -186,6 +222,7 @@ const requestedUrls = () => fetchMock.mock.calls.map(([url]) => String(url));
 
 afterEach(() => {
   cleanup();
+  resetSectionPanels();
   __resetCatalystStore();
   stubViewport(VIEWPORT.w, VIEWPORT.h);
   vi.unstubAllGlobals();
@@ -449,6 +486,73 @@ describe("HOME window desk", () => {
     expect(normalized).not.toBeNull();
     expect(normalized!.layouts[0].windows.map((w) => w.id)).toEqual(["real"]);
     expect(normalized!.layouts[0].windows[0].type).toBe("sector.table");
+  });
+
+  it("(sections) user sections enter the picker as section:<id> with their own title", async () => {
+    const { transport } = makeTransport();
+    mountHome(transport);
+    goDesk();
+
+    await screen.findByTestId("market-heatmap-panel");
+    await waitFor(() => {
+      const options = Array.from(
+        (screen.getByLabelText("Add window") as HTMLSelectElement).options,
+      );
+      const option = options.find((candidate) => candidate.value === "section:vwap-reclaim");
+      expect(option?.textContent).toBe("VWAP Reclaim");
+    });
+  });
+
+  it("(sections) adding a section window mounts SectionTable with the scanned rows", async () => {
+    const { transport, put } = makeTransport();
+    mountHome(transport);
+    goDesk();
+
+    await screen.findByTestId("market-heatmap-panel");
+    await waitFor(() =>
+      expect(
+        Array.from((screen.getByLabelText("Add window") as HTMLSelectElement).options)
+          .some((option) => option.value === "section:vwap-reclaim"),
+      ).toBe(true),
+    );
+    selectOption(screen.getByLabelText("Add window"), "section:vwap-reclaim");
+
+    expect(await screen.findByTestId("window-section:vwap-reclaim-3")).toBeInTheDocument();
+    await waitFor(
+      () => expect(screen.getByTestId("section-window-vwap-reclaim")).toHaveTextContent("HDFCBANK"),
+      { timeout: 3000 },
+    );
+    expect(sectionScan).toHaveBeenCalledWith(
+      "india",
+      [expect.objectContaining({ id: "vwap-reclaim" })],
+      true,
+    );
+    await waitFor(() => expect(put).toHaveBeenCalled(), { timeout: 2000 });
+    const saved = put.mock.lastCall![1] as unknown as HomeWindowConfig;
+    expect(saved.layouts[0].windows.at(-1)?.type).toBe("section:vwap-reclaim");
+  });
+
+  it("(sections) a deleted section pinned in a saved layout degrades to a named empty state", async () => {
+    const { transport } = makeTransport(
+      config([
+        {
+          name: "Main",
+          windows: [
+            win({ id: "stale", type: "section:gone", title: "OLD SECTION" }),
+            win({ id: "real", type: "sector.table", title: "SECTOR PERFORMANCE" }),
+          ],
+        },
+      ], "Main"),
+    );
+    mountHome(transport);
+    goDesk();
+
+    expect(await screen.findByTestId("window-stale")).toBeInTheDocument();
+    expect(await screen.findByTestId("section-panel-deleted-gone")).toHaveTextContent(
+      "This section was deleted",
+    );
+    expect(screen.getByTestId("sector-table-panel")).toBeInTheDocument();
+    expect(sectionScan).not.toHaveBeenCalled();
   });
 });
 

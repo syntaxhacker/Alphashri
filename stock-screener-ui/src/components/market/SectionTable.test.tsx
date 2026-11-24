@@ -1,0 +1,166 @@
+// @vitest-environment happy-dom
+import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
+import { SectionTable, type SectionScanRow } from "./SectionTable";
+import type { SectionDefinition } from "../../state/sections/types";
+
+afterEach(() => cleanup());
+
+const def = (overrides: Partial<SectionDefinition> = {}): SectionDefinition => ({
+  id: "momentum-5m",
+  name: "Momentum 5m",
+  description: "Five-minute momentum",
+  concept: "momentum_5m",
+  side: "long",
+  conditions: [{ metric: "change|5", op: "gt", value: 0 }],
+  render: { type: "table", columns: ["symbol", "close", "change|5", "relative_volume_10d_calc"] },
+  refreshSec: 60,
+  enabled: true,
+  pinned: false,
+  ...overrides,
+});
+
+const rows: SectionScanRow[] = [
+  {
+    symbol: "RELIANCE",
+    name: "Reliance Industries",
+    fields: { close: 2981.5, "change|5": 0.84, relative_volume_10d_calc: 1.73 },
+    signals: { momentum_5m: true },
+  },
+  {
+    symbol: "TCS",
+    name: "Tata Consultancy",
+    fields: { close: 4120.25, "change|5": -0.31, relative_volume_10d_calc: 0.92 },
+    signals: { momentum_5m: false },
+  },
+];
+
+const panel = () => screen.getByTestId("section-panel-momentum-5m");
+const headers = () =>
+  Array.from(panel().querySelectorAll<HTMLElement>("thead th")).map((th) =>
+    (th.textContent ?? "").replace(/[▲▼]/g, "").trim(),
+  );
+const header = (label: string): HTMLElement =>
+  Array.from(panel().querySelectorAll<HTMLElement>("thead th")).find((th) =>
+    (th.textContent ?? "").includes(label),
+  )!;
+
+describe("SectionTable — full state", () => {
+  it("renders every supplied row with its real field values", () => {
+    render(() => <SectionTable section={def()} rows={rows} />);
+    expect(within(panel()).getByTestId("section-symbol-RELIANCE")).toHaveTextContent("RELIANCE");
+    expect(within(panel()).getByText("Reliance Industries")).toBeInTheDocument();
+    expect(within(panel()).getByText("+0.84%")).toBeInTheDocument();
+    expect(within(panel()).getByText("1.73×")).toBeInTheDocument();
+    expect(document.querySelectorAll("tbody tr[data-row='stock']")).toHaveLength(2);
+    expect(document.querySelector("[data-section-state]")).toBeNull();
+  });
+
+  it("derives the column set from render.columns plus symbol/name, never a second vocabulary", () => {
+    render(() => <SectionTable section={def()} rows={rows} />);
+    expect(headers()).toEqual(["SYMBOL", "NAME", "LTP", "Δ 5M", "RVOL 10D", "SIGNAL"]);
+  });
+
+  it("deduplicates symbol and name when a section lists them in render.columns", () => {
+    render(() => (
+      <SectionTable
+        section={def({ render: { type: "table", columns: ["symbol", "symbol", "name", "close"] } })}
+        rows={rows}
+      />
+    ));
+    expect(headers().filter((h) => h === "SYMBOL")).toHaveLength(1);
+    expect(headers().filter((h) => h === "NAME")).toHaveLength(1);
+  });
+
+  it("omits the signal badge column when no row carries a signal", () => {
+    render(() => (
+      <SectionTable section={def()} rows={rows.map((row) => ({ ...row, signals: {} }))} />
+    ));
+    expect(headers()).not.toContain("SIGNAL");
+    expect(screen.queryByText("MATCH")).toBeNull();
+  });
+});
+
+describe("SectionTable — alignment and typography", () => {
+  it("aligns text left, numbers right (mono/tabular) and badges centre", () => {
+    render(() => <SectionTable section={def()} rows={rows} />);
+    expect(header("SYMBOL").style.textAlign).toBe("left");
+    expect(header("NAME").style.textAlign).toBe("left");
+    expect(header("Δ 5M").style.textAlign).toBe("right");
+    expect(header("RVOL 10D").style.textAlign).toBe("right");
+    expect(header("SIGNAL").style.textAlign).toBe("center");
+
+    const numericCell = within(panel()).getByText("+0.84%").closest("td")!;
+    expect(numericCell.style.textAlign).toBe("right");
+    expect(numericCell.className).toContain("font-mono");
+    expect(numericCell.className).toContain("tabular-nums");
+
+    const textCell = within(panel()).getByTestId("section-symbol-RELIANCE").closest("td")!;
+    expect(textCell.style.textAlign).toBe("left");
+
+    const badgeCell = within(panel()).getByText("MATCH").closest("td")!;
+    expect(badgeCell.style.textAlign).toBe("center");
+  });
+
+  it("makes sortable headers keyboard-operable", () => {
+    render(() => <SectionTable section={def()} rows={rows} />);
+    const th = header("Δ 5M");
+    expect(th).toHaveAttribute("tabindex", "0");
+    expect(th).toHaveAttribute("aria-sort", "none");
+    fireEvent.keyDown(th, { key: "Enter" });
+    expect(th).toHaveAttribute("aria-sort", "descending");
+  });
+
+  it("forwards dense to the shared table and keeps one scrolling primitive", () => {
+    render(() => <SectionTable section={def()} rows={rows} dense />);
+    expect(document.querySelector("table")!.style.getPropertyValue("--tbl-row-h")).toBe("18px");
+    expect(panel().querySelector(".paper-tanstack-scroll")).toBeInTheDocument();
+    expect(panel().querySelectorAll(".paper-tanstack-container")).toHaveLength(0);
+    expect(panel().querySelectorAll("table")).toHaveLength(1);
+  });
+});
+
+describe("SectionTable — named states", () => {
+  it("shows a named empty state with a one-line reason instead of a blank table", () => {
+    render(() => <SectionTable section={def()} rows={[]} />);
+    const state = screen.getByTestId("section-table-empty-momentum-5m");
+    expect(state).toHaveAttribute("data-section-state", "empty");
+    expect(within(state).getByText(/No symbols matched Momentum 5m in the latest scan/)).toBeInTheDocument();
+    expect(document.querySelector("table")).toBeNull();
+  });
+
+  it("shows a named loading state even when stale rows are supplied", () => {
+    render(() => <SectionTable section={def()} rows={rows} loading />);
+    const state = screen.getByTestId("section-table-loading-momentum-5m");
+    expect(state).toHaveAttribute("data-section-state", "loading");
+    expect(within(state).getByText(/Scanning Momentum 5m/)).toBeInTheDocument();
+    expect(screen.queryByText("RELIANCE")).toBeNull();
+  });
+
+  it("shows a named error state with the failure reason, taking precedence over loading", () => {
+    render(() => (
+      <SectionTable section={def()} rows={rows} loading error="TradingView scan timed out" />
+    ));
+    const state = screen.getByTestId("section-table-error-momentum-5m");
+    expect(state).toHaveAttribute("data-section-state", "error");
+    expect(within(state).getByText("TradingView scan timed out")).toBeInTheDocument();
+    expect(screen.queryByText("RELIANCE")).toBeNull();
+    expect(screen.queryByTestId("section-table-loading-momentum-5m")).toBeNull();
+  });
+
+  it("never fabricates a value for a missing or non-finite field", () => {
+    const partial: SectionScanRow[] = [
+      {
+        symbol: "IDEA",
+        name: "Idea Cellular",
+        fields: { close: 12.5, "change|5": null, relative_volume_10d_calc: Number.NaN },
+        signals: {},
+      },
+    ];
+    render(() => <SectionTable section={def()} rows={partial} />);
+    expect(within(panel()).getAllByText("–")).toHaveLength(2);
+    expect(within(panel()).queryByText("0")).toBeNull();
+    expect(within(panel()).queryByText("NaN")).toBeNull();
+    expect(within(panel()).queryByText("undefined")).toBeNull();
+  });
+});
