@@ -130,6 +130,41 @@ async function openDock(page: Page) {
   await expect(page.locator('[data-testid="options-dock"]')).toBeVisible({ timeout: 15000 });
 }
 
+/**
+ * Pick a chain price without letting Chrome park the row under the sticky
+ * header. Once a leg mounts PAPER ORDER and PAYOFF, the chain band can hold
+ * only two dense rows; `scrollIntoViewIfNeeded` scrolls the bare minimum and
+ * leaves an off-ATM row beneath the header, so the click is intercepted.
+ */
+async function clickChainPrice(page: Page, testId: string) {
+  const cell = page.locator(`[data-testid="${testId}"]`);
+  // A leg mounts new bands and the chain re-centres with a smooth scroll. Wait
+  // for that scroll to stop, or it would overwrite the position set below.
+  let lastTop: number | null = null;
+  await expect
+    .poll(async () => {
+      const top = await page.evaluate(() => {
+        const scroller = document.querySelector(
+          '[data-testid="options-chain-table"] .paper-tanstack-scroll',
+        ) as HTMLElement | null;
+        return scroller ? Math.round(scroller.scrollTop) : -1;
+      });
+      const stable = lastTop === top;
+      lastTop = top;
+      return stable;
+    }, { timeout: 5000, intervals: [100] })
+    .toBe(true);
+  await cell.evaluate((node) => {
+    const scroller = node.closest(".paper-tanstack-scroll") as HTMLElement | null;
+    const row = node.closest("tr") as HTMLElement | null;
+    if (!scroller || !row) return;
+    const scrollTop = scroller.scrollTop;
+    const rowTop = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scrollTop;
+    scroller.scrollTop = rowTop - (scroller.clientHeight - row.getBoundingClientRect().height) / 2;
+  });
+  await cell.evaluate((node) => (node as HTMLElement).click());
+}
+
 /** Header labels with the sort-direction arrow stripped (strike sorts ▲ by default). */
 async function chainHeaders(page: Page): Promise<string[]> {
   const raw = await page.locator('[data-testid="options-chain"] thead th').allTextContents();
@@ -228,7 +263,8 @@ test.describe("Options dock", () => {
     const before = dock.counts.underlying + dock.counts.chain;
 
     await page.locator('[data-testid="options-ce-1420"]').click();
-    await page.locator('[data-testid="options-pe-1400"]').click();
+    await expect(page.locator('[data-testid="options-leg-count"]')).toHaveText("1/4");
+    await clickChainPrice(page, "options-pe-1400");
 
     await expect(page.locator('[data-testid="options-leg-count"]')).toHaveText("2/4");
     expect(dock.counts.underlying + dock.counts.chain).toBe(before);

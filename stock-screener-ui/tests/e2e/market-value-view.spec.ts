@@ -115,7 +115,11 @@ async function applyLargeCapFilter(page: Page, narrow: boolean) {
   }
   await page.getByTestId("market-cap-large").click();
   if (narrow) {
-    await page.getByTestId("market-rail-collapse").click();
+    // The sticky 44px app mobile nav bar (z 1299) covers the top edge of the
+    // filter drawer (z 1050), so a pointer click on its Close button is
+    // intercepted at 390px. Escape is the drawer's documented modal close
+    // path: it unmounts the dialog and returns focus to the rail toggle.
+    await page.keyboard.press("Escape");
     await expect(page.getByTestId("market-filter-drawer")).toHaveCount(0);
   }
 }
