@@ -108,6 +108,74 @@ describe("TradingViewChart redraw loop", () => {
   });
 });
 
+describe("chart container fit observer", () => {
+  class FakeResizeObserver {
+    static instances: FakeResizeObserver[] = [];
+    readonly targets: Element[] = [];
+    readonly callback: (entries: unknown[], observer: unknown) => void;
+    disconnects = 0;
+
+    constructor(callback: (entries: unknown[], observer: unknown) => void) {
+      this.callback = callback;
+      FakeResizeObserver.instances.push(this);
+    }
+    observe(target: Element) {
+      this.targets.push(target);
+    }
+    unobserve(target: Element) {
+      const i = this.targets.indexOf(target);
+      if (i >= 0) this.targets.splice(i, 1);
+    }
+    disconnect() {
+      this.disconnects += 1;
+      this.targets.length = 0;
+    }
+    emit(width: number, height: number) {
+      this.callback(
+        [{ contentRect: { width, height } }],
+        this,
+      );
+    }
+  }
+
+  const sizeCalls = (chart: any) =>
+    chart.applyOptions.mock.calls.filter(
+      ([opts]: any[]) =>
+        opts && typeof opts.width === "number" && typeof opts.height === "number",
+    );
+
+  test("fits on the first observation, on a changed rect, and disconnects on unmount", () => {
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    FakeResizeObserver.instances = [];
+    try {
+      const { unmount } = render(() => <TradingViewChart candles={CANDLES} />);
+      const chart = vi.mocked(createChart).mock.results.at(-1)?.value as any;
+      // The sizing observer watches the engine container; the overlay-redraw
+      // observer watches its parent and is deliberately not selected here.
+      const fit = FakeResizeObserver.instances.find((ro) =>
+        ro.targets.some((el) => el.getAttribute("data-testid") === "tradingview-chart"),
+      );
+      expect(fit).toBeTruthy();
+      // happy-dom reports a 0×0 rect: no bogus zero-size apply before the
+      // observer's first real observation.
+      expect(sizeCalls(chart)).toHaveLength(0);
+
+      fit!.emit(800, 420);
+      expect(sizeCalls(chart).at(-1)?.[0]).toEqual({ width: 800, height: 420 });
+
+      fit!.emit(1280, 720);
+      expect(sizeCalls(chart).at(-1)?.[0]).toEqual({ width: 1280, height: 720 });
+      // A repeated observation of the same size must not re-apply options.
+      expect(sizeCalls(chart)).toHaveLength(2);
+
+      unmount();
+      expect(fit!.disconnects).toBeGreaterThan(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe("mark-line overlay churn", () => {
   const levels = () => [
     {

@@ -18,6 +18,8 @@ import { NiftyFlowStrip } from "./NiftyFlowStrip";
 import { NiftyPressureLane } from "./NiftyPressureLane";
 import { IndexMoversModal } from "./IndexMoversModal";
 import { NiftyFlowChart } from "./NiftyFlowChart";
+import { NiftyFuturesPanel } from "./NiftyFuturesPanel";
+import { NiftyItmPeFlowPanel } from "./NiftyItmPeFlow";
 import { buildFlowSeries } from "./niftyFlowSeries";
 import { NiftyOiChain, getNiftyOiColumns } from "./reportCells";
 import type { NiftyStrike } from "@/types/niftyReport";
@@ -190,6 +192,37 @@ export function ReportOverlays() {
               )}
             </Show>
           </Box>
+        </Box>
+      </PanelModal>
+
+      {/* The two ~190px analytics panels moved out of the chart flow into the
+          dock. Their full view reuses the same drawer engine as every other
+          desk panel — the KPI hero and the dock tab open these drawers. */}
+      <PanelModal
+        open={ui.overlayOpen?.("futures") ?? false}
+        title="Futures basis — expanded"
+        onClose={() => ui.setOverlayOpen?.("futures", false)}
+        variant="drawer"
+      >
+        <Box data-testid="nifty-futures-drawer" className="w-full min-w-0">
+          <Show when={store.data.report()?.futures}>
+            {(futures) => <NiftyFuturesPanel futures={futures()} />}
+          </Show>
+        </Box>
+      </PanelModal>
+
+      <PanelModal
+        open={ui.overlayOpen?.("itm") ?? false}
+        title="ITM PE flow — expanded"
+        onClose={() => ui.setOverlayOpen?.("itm", false)}
+        variant="drawer"
+      >
+        <Box data-testid="nifty-itm-pe-drawer" className="w-full min-w-0">
+          <Show when={store.data.report()?.itm_pe_flow}>
+            {(itm) => (
+              <NiftyItmPeFlowPanel flow={itm()} spot={store.data.report()?.spot ?? 0} />
+            )}
+          </Show>
         </Box>
       </PanelModal>
 

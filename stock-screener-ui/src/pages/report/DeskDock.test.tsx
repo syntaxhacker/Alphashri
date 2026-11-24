@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen } from "@solidjs/testing-library";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { DOCK_HELP, DeskDock } from "./DeskDock";
-import type { DeskDockTab } from "./DeskDock";
+import type { DeskDockKey, DeskDockTab } from "./DeskDock";
 
 afterEach(cleanup);
 
@@ -58,5 +58,49 @@ describe("desk dock help", () => {
     const bar = screen.getByTestId("desk-dock").textContent ?? "";
     expect(bar).toContain("Dealer gamma");
     expect(bar).not.toMatch(/GEX|Γ/);
+  });
+
+  test("tabs sit in one tight left cluster with the hint alone on the right", () => {
+    render(() => <DeskDock tabs={tabs()} active={null} onActiveChange={() => {}} />, {
+      wrapper: UIProvider,
+    });
+
+    const bar = screen.getByTestId("desk-dock");
+    expect(bar.className).not.toContain("justify-between");
+    const cluster = within(bar).getByTestId("desk-dock-tabs");
+    expect(cluster.className).toContain("gap-1");
+    expect(cluster.className).not.toContain("justify-between");
+    expect(cluster.parentElement).toBe(bar);
+    for (const tab of tabs()) {
+      expect(within(cluster).getByTestId(`desk-dock-${tab.key}`)).toBeInTheDocument();
+    }
+
+    const hint = screen.getByTestId("desk-dock-hint");
+    expect(hint.parentElement).toBe(bar);
+    expect(hint.className).toContain("ml-auto");
+    expect(Array.from(bar.children).at(-1)).toBe(hint);
+    expect(hint).toHaveTextContent("ALT+1..5 · ESC");
+  });
+
+  test("Alt+1..7 still toggles every dock key", () => {
+    const onActiveChange = vi.fn();
+    const all: DeskDockTab[] = (Object.keys(DOCK_HELP) as DeskDockKey[]).map((key) => ({
+      key,
+      label: DOCK_HELP[key].label,
+      summary: <span>value</span>,
+      content: <div>{key}</div>,
+    }));
+    render(() => <DeskDock tabs={all} active={null} onActiveChange={onActiveChange} />, {
+      wrapper: UIProvider,
+    });
+
+    for (const tab of all) {
+      expect(screen.getByTestId(`desk-dock-${tab.key}`)).toBeInTheDocument();
+    }
+    for (let i = 1; i <= all.length; i++) {
+      onActiveChange.mockClear();
+      fireEvent.keyDown(window, { key: String(i), altKey: true });
+      expect(onActiveChange, `ALT+${i}`).toHaveBeenCalledWith(all[i - 1].key);
+    }
   });
 });

@@ -109,6 +109,8 @@ describe("ReportWorkspace — 390 chain rail and dock footer", () => {
     const grid = screen.getByTestId("nifty-main-row");
     expect(grid).toHaveAttribute("data-report-order", "chart");
     expect(grid.className).toContain("max-[600px]:grid-rows-[minmax(0,1fr)_minmax(0,156px)]!");
+    expect(grid.className).not.toContain("min-h-[300px]");
+    expect(grid.className).not.toContain("max-h-[58vh]");
     expect(screen.getByTestId("nifty-side-tab-chain")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-side-tab-heatmap")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-oi-panel")).toHaveTextContent("Option-chain OI (±750 ATM)");

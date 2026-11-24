@@ -131,7 +131,7 @@ export function FilterStatusRow(props: FilterStatusRowProps) {
           role="region"
           aria-label={FILTER_STATUS_ROW_ARIA_LABEL}
           tabIndex={0}
-          class={`flex ${FILTER_STATUS_ROW_HEIGHT_CLASS} min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap outline-none focus-visible:ring-1 focus-visible:ring-fin-primary ${props.className ?? ""}`}
+          class={`flex ${FILTER_STATUS_ROW_HEIGHT_CLASS} min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap outline-none focus-visible:ring-1 focus-visible:ring-fin-text ${props.className ?? ""}`}
           style={{ "scrollbar-width": "none" }}
         >
           <Show

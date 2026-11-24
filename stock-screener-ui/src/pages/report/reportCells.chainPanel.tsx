@@ -27,6 +27,9 @@ const OI_CHAIN_PANEL_STYLE: JSX.CSSProperties = {
   // flex:1 stretched a five-row chain across the whole chart row. Layout/paint
   // isolation without size containment lets the panel hug its real rows.
   contain: "layout paint",
+  // Containing block for the absolutely positioned scroll cue. No height is
+  // added to the window: the cue floats over the chain's last partial row.
+  position: "relative",
   // A definite width is mandatory here. With `flex: 0 0 auto` the panel is
   // intrinsically sized, but the TanStackTable inside declares `width: 100%`;
   // Chrome resolves that circular percentage against a ~1,000,000px cap. The
@@ -92,6 +95,37 @@ const OI_CHAIN_WRAP_STYLE: JSX.CSSProperties = {
 const OI_CHAIN_TABLE_STYLE: JSX.CSSProperties = { "min-width": 0 };
 
 const OI_CHAIN_EXPAND_CLASS = "min-w-[22px] px-1 leading-none text-ui-micro";
+
+/**
+ * The desk window shows only ~6 rows of a ~29-row chain. A thin scrollbar is
+ * easy to miss, so an aria-hidden gradient fades the last partial row into the
+ * table surface and a separate, readable label names the gesture. Both live in
+ * one overlay with no border and no layout height — vertical scrolling is still
+ * owned by the chain's own scroll area, and the sticky header is untouched.
+ */
+const OI_CHAIN_SCROLL_CUE_CLASS =
+  "pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-end px-2 pb-1 pt-3";
+const OI_CHAIN_SCROLL_CUE_STYLE: JSX.CSSProperties = { position: "absolute" };
+const OI_CHAIN_SCROLL_FADE_STYLE: JSX.CSSProperties = {
+  background: `linear-gradient(to top, ${palette.SURFACE}, ${palette.alpha(palette.SURFACE, 0)})`,
+};
+
+/**
+ * The old single sentence clipped to "SCROLL FO" in the 390px chain and its
+ * glyphs printed straight over the last row's ΔOI value. Two responsive runs
+ * share one testid: the terse `scroll ↓` is the only one shown on the phone,
+ * the full sentence is desk-only. The opaque, width-bounded pill masks the
+ * faded partial row behind it instead of mixing ink with a live value, and it
+ * stays inside the bottom-of-viewport overlay — never a new layout row.
+ */
+const OI_CHAIN_SCROLL_PILL_CLASS =
+  "relative inline-flex max-w-full items-center overflow-hidden whitespace-nowrap rounded-sm px-2 py-0.5 text-ui-micro font-bold leading-none";
+const OI_CHAIN_SCROLL_PILL_STYLE: JSX.CSSProperties = {
+  "background-color": palette.TERM_HEADER,
+  color: palette.TEXT_MUTED,
+};
+const OI_CHAIN_SCROLL_SHORT_CLASS = "hidden max-[600px]:inline uppercase";
+const OI_CHAIN_SCROLL_LONG_CLASS = "inline max-[600px]:hidden uppercase";
 
 const OI_CHAIN_SCROLL_STEP = 80;
 
@@ -188,7 +222,11 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
     <CompactPanel
       flush
       scrollable
-      title={<ReportPanelTitle>Option-chain OI (±750 ATM)</ReportPanelTitle>}
+      title={
+        <span class="report-window-inner-title">
+          <ReportPanelTitle>Option-chain OI (±750 ATM)</ReportPanelTitle>
+        </span>
+      }
       testId={props.panelTestId}
       action={
         <Box className="flex items-center gap-1">
@@ -246,6 +284,30 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
           getRowAttributes={rowAttributes}
           getRowTestId={props.getRowTestId}
         />
+      </Box>
+      <Box
+        data-testid="nifty-chain-v-scroll-overlay"
+        className={OI_CHAIN_SCROLL_CUE_CLASS}
+        style={OI_CHAIN_SCROLL_CUE_STYLE}
+      >
+        <Box
+          data-testid="nifty-chain-v-scroll-fade"
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={OI_CHAIN_SCROLL_FADE_STYLE}
+        />
+        <Text
+          data-testid="nifty-chain-v-scroll-cue"
+          className={OI_CHAIN_SCROLL_PILL_CLASS}
+          style={OI_CHAIN_SCROLL_PILL_STYLE}
+        >
+          <span data-chain-v-cue-copy="short" className={OI_CHAIN_SCROLL_SHORT_CLASS}>
+            scroll ↓
+          </span>
+          <span data-chain-v-cue-copy="full" className={OI_CHAIN_SCROLL_LONG_CLASS}>
+            Scroll for more strikes ↓
+          </span>
+        </Text>
       </Box>
     </CompactPanel>
   );

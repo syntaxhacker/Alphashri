@@ -60,7 +60,7 @@ describe("FilterStatusRow", () => {
     expect(row).toHaveAttribute("aria-label", FILTER_STATUS_ROW_ARIA_LABEL);
     expect(row).toHaveAttribute("tabindex", "0");
     expect(row).toHaveClass("focus-visible:ring-1");
-    expect(row).toHaveClass("focus-visible:ring-fin-primary");
+    expect(row).toHaveClass("focus-visible:ring-fin-text");
 
     row.focus();
     expect(row).toHaveFocus();

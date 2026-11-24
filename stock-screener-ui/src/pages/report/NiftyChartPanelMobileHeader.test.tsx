@@ -7,7 +7,10 @@ import { CHART_HEADER_METRICS, MOBILE_CHART_TARGET } from "./NiftyChartPanel";
 import { computeFeedView } from "./NiftyChartPanel.annotations";
 import { REPORT_FONT } from "./reportTokens";
 
-const env = vi.hoisted(() => ({ mobile: false }));
+const env = vi.hoisted(() => ({
+  mobile: false,
+  resizeCallbacks: [] as Array<(entries: Array<{ target: Element; contentRect: { width: number } }>) => void>,
+}));
 
 vi.mock("@/components/chart/TradingViewChart", () => ({
   TradingViewChart: () => <div data-testid="tradingview-chart" />,
@@ -45,13 +48,33 @@ beforeAll(() => {
       dispatchEvent: () => false,
     }),
   });
+  Object.defineProperty(window, "ResizeObserver", {
+    writable: true,
+    value: class {
+      constructor(
+        callback: (entries: Array<{ target: Element; contentRect: { width: number } }>) => void,
+      ) {
+        env.resizeCallbacks.push(callback);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  });
 });
 
 afterEach(() => {
   cleanup();
   env.mobile = false;
+  env.resizeCallbacks = [];
   window.localStorage.clear();
 });
+
+function setContainerWidth(width: number) {
+  for (const callback of env.resizeCallbacks) {
+    callback([{ target: document.body, contentRect: { width } }]);
+  }
+}
 
 const report = {
   mode: "live",
@@ -80,7 +103,7 @@ function mount() {
 }
 
 describe("NiftyChartPanel — mobile header controls (390px)", () => {
-  test("only the source toggle stays inline; the other four groups sit behind MORE", () => {
+  test("only the source toggle stays inline; the other four groups sit behind CHART OPTIONS", () => {
     env.mobile = true;
     mount();
 
@@ -159,6 +182,19 @@ describe("NiftyChartPanel — mobile header controls (390px)", () => {
   });
 });
 
+describe("NiftyChartPanel — renamed control keyboard parity", () => {
+  test("the chart-options control keeps focus and reports both states by content", () => {
+    env.mobile = true;
+    mount();
+    const more = screen.getByTestId("nifty-chart-controls-more");
+    more.focus();
+    expect(document.activeElement).toBe(more);
+    expect(more).toHaveTextContent("CHART OPTIONS");
+    fireEvent.click(more);
+    expect(more).toHaveTextContent("HIDE OPTIONS");
+  });
+});
+
 describe("NiftyChartPanel — feed label in the header", () => {
   test("every feed state is a whole single word, not a clipped two-word badge", () => {
     const states = [
@@ -228,14 +264,53 @@ describe("NiftyChartPanel — header hierarchy and spacing", () => {
     expect(wrap).toHaveStyle({ gap: `${CHART_HEADER_METRICS.gap}px` });
     const more = screen.getByTestId("nifty-chart-controls-more");
     expect(more).toHaveStyle({ "min-width": "56px" });
-    expect(more).toHaveTextContent("MORE ▾");
+    expect(more).toHaveTextContent("CHART OPTIONS");
+    expect(more).not.toHaveTextContent("MORE ▾");
     expect(more.style.textOverflow).not.toBe("ellipsis");
 
     fireEvent.click(more);
+    expect(more).toHaveTextContent("HIDE OPTIONS");
+    expect(more).not.toHaveTextContent("LESS ▴");
     const extra = screen.getByTestId("nifty-chart-controls-extra");
     expect(extra).toHaveStyle({
       gap: `${CHART_HEADER_METRICS.gap}px`,
       "padding-top": `${CHART_HEADER_METRICS.gap}px`,
     });
+  });
+});
+
+describe("NiftyChartPanel — narrow container header", () => {
+  test("a narrow container collapses CHART OPTIONS to ⋯ without losing its meaning", () => {
+    env.mobile = true;
+    mount();
+    const more = screen.getByTestId("nifty-chart-controls-more");
+    expect(more).toHaveTextContent("CHART OPTIONS");
+
+    setContainerWidth(216);
+    expect(more).toHaveTextContent("⋯");
+    expect(more).toHaveAttribute("aria-label", "Chart options");
+    expect(more).toHaveAttribute("title", "Chart options");
+    expect(more).toHaveStyle({ "min-width": "26px" });
+    expect(more).not.toHaveTextContent("CHA");
+
+    fireEvent.click(more);
+    expect(more).toHaveAttribute("aria-expanded", "true");
+    expect(more).toHaveAttribute("aria-label", "Hide chart options");
+    expect(screen.getByTestId("nifty-chart-controls-extra")).toBeInTheDocument();
+
+    setContainerWidth(366);
+    expect(more).toHaveTextContent("HIDE OPTIONS");
+  });
+
+  test("the desktop header also collapses its caption when the window is narrow", () => {
+    env.mobile = false;
+    mount();
+    const more = screen.getByTestId("nifty-chart-controls-more-desktop");
+    expect(more).toHaveTextContent("CHART OPTIONS");
+
+    setContainerWidth(216);
+    expect(more).toHaveTextContent("⋯");
+    expect(more).toHaveAttribute("aria-label", "Chart options");
+    expect(more).toHaveAttribute("title", "Chart options");
   });
 });

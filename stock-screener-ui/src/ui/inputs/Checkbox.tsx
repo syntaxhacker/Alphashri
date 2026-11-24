@@ -154,7 +154,7 @@ export function Checkbox(props: UICheckboxProps) {
         aria-invalid={known.error ? "true" : undefined}
         aria-describedby={describedBy()}
         data-testid={known["data-testid"]}
-        // The global `:is(input, …):focus` rule paints an amber outline on every
+        // The global `:is(input, …):focus` rule paints a neutral outline on every
         // mouse click; the box below is this control's own indicator, so the
         // native one must stay off in both focus modes.
         className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer appearance-none bg-transparent border-none outline-none focus-visible:outline-none disabled:cursor-not-allowed"

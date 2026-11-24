@@ -1,4 +1,4 @@
-import { Show, Suspense, createEffect, createMemo, createSignal, lazy, onCleanup } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import type { JSX } from "solid-js";
 import { alpha, Box, Button, SegmentedControl, Select, Text, TextInput } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -14,17 +14,7 @@ import { formatReportClock } from "./reportFormat";
 import { useNiftySpotTick } from "./niftyStreamSolid";
 import { REPORT_FONT } from "./reportTokens";
 import { useNiftyReport } from "./ReportContext";
-
-const SimDesk = lazy(() =>
-  import("./sim/SimDesk").then((m) => ({ default: m.SimDesk })),
-);
-
-const SIM_BUTTON_FALLBACK_STYLE: JSX.CSSProperties = {
-  width: "64px",
-  height: "22px",
-  "background-color": palette.SURFACE_ALT,
-  "border-radius": "2px",
-};
+import { reportPresets } from "./reportWindowPresets";
 
 const INDEX_DATA: { value: string; label: string }[] = [
   { value: "NIFTY", label: "NIFTY" },
@@ -43,6 +33,12 @@ const DESK_TOGGLE_DATA: { value: string; label: string }[] = [
   { value: "desk", label: "DESK" },
   { value: "research", label: "RESEARCH" },
 ];
+/** Top-level workspace: the chart-first monitor is the default landing view. */
+export const REPORT_VIEW_DATA: { value: string; label: string }[] = [
+  { value: "monitor", label: "MONITOR" },
+  { value: "desk", label: "DESK" },
+];
+const PRESET_DATA = reportPresets().map((preset) => ({ value: preset.id, label: preset.label }));
 
 const EXPIRY_SELECT_CLASS = "w-[104px] min-w-[104px] max-w-[104px] flex-none";
 
@@ -114,6 +110,29 @@ export const TOOLBAR_DIVIDER_CLASS = "w-px h-[18px] flex-none bg-fin-border";
 // SegmentedControl's inline 12px, just as the old shared label class did.
 const TOGGLE_LABEL_CLASS = "[&>button]:[font-size:var(--text-ui-label)]! shrink-0 snap-start";
 const BODY_LABEL_CLASS = "text-ui-body!";
+
+// Cluster captions sit above their controls: three inline captions would spend
+// the ~16px of 1600 slack three times over. A 16px caption + 4px gap + 26px
+// segmented track still fits inside the 48px primary band at 390.
+export const TOOLBAR_CLUSTER_CLASS = "flex flex-col items-start gap-1 flex-none";
+
+// The primitive paints its selected tab with a surface-alt fill. Key the
+// stronger fill on the same aria-pressed state so the active mode is unmissable
+// without adding a second selected-looking node.
+const SEGMENT_PRESSED_CLASS =
+  "[&_[aria-pressed='true']]:bg-fin-primary! [&_[aria-pressed='true']]:text-fin-bg!";
+
+/**
+ * The workspace switch uses the neutral focus token for both its pressed state
+ * and its keyboard ring: selecting a workspace is a view change, not a primary
+ * action, so it must not borrow the accent fill of the mode toggles.
+ */
+export const REPORT_VIEW_TOGGLE_CLASS = "flex items-center gap-1 shrink-0 snap-start";
+export const REPORT_VIEW_BUTTON_CLASS =
+  "inline-flex h-[22px] items-center rounded-sm border px-2 text-ui-micro whitespace-nowrap focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text";
+export const REPORT_VIEW_PRESSED_CLASS = "border-fin-text bg-fin-surface-alt text-fin-text";
+export const REPORT_VIEW_IDLE_CLASS =
+  "border-fin-border text-fin-text-muted hover:bg-fin-surface-alt";
 
 const STRIP_STYLE: JSX.CSSProperties = {
   "scrollbar-width": "none",
@@ -205,10 +224,28 @@ function ToolbarStatus(props: {
   );
 }
 
+function ClusterLabel(props: { text: string; testId: string }) {
+  return (
+    <Text
+      data-testid={props.testId}
+      size="xs"
+      fw={700}
+      c="dimmed"
+      span
+      className="tracking-[0.04em] whitespace-nowrap"
+    >
+      {props.text}
+    </Text>
+  );
+}
+
 export interface ReportToolbarProps {
   onOpenSymbol?: (s: string) => void;
   /** Leading control merged into the 48px row (e.g. the app nav toggle). */
   leading?: JSX.Element;
+  /** Selected windowed-desk preset; the shell owns the saved-config write. */
+  presetId?: string;
+  onPresetChange?: (id: string) => void;
 }
 
 export function ReportToolbar(props: ReportToolbarProps) {
@@ -229,6 +266,8 @@ export function ReportToolbar(props: ReportToolbarProps) {
   const expiry = () => store.selection.expiry();
   const date = () => store.selection.date();
   const view = () => store.ui.view();
+  const reportView = () => store.ui.reportView();
+  const isWindowDesk = () => store.ui.isWindowDesk();
   const deskMode = () => store.ui.deskMode();
   const report = () => store.data.report();
   const tape = () => store.data.tape();
@@ -310,131 +349,210 @@ export function ReportToolbar(props: ReportToolbarProps) {
               className={TOOLBAR_STRIP_CLASS}
               style={STRIP_STYLE}
             >
-              {/* What am I looking at — subject, session type, view, desk. */}
+              {/* Three labelled clusters: what, how, and which session. */}
               <Box
-                data-testid="toolbar-group-subject"
-                className={TOOLBAR_GROUP_CLASS}
+                data-testid="toolbar-cluster-underlying"
+                className={TOOLBAR_CLUSTER_CLASS}
                 role="group"
-                aria-label="Underlying, session and view"
+                aria-label="Underlying"
               >
-                <SegmentedControl
-                  data-testid="nifty-index-toggle"
-                  value={symbol()}
-                  onChange={(value) => store.selection.handleSymbolChange(value)}
-                  data={INDEX_DATA}
-                  size="xs"
-                  className={TOGGLE_LABEL_CLASS}
-                />
-                <Show when={store.selection.hasRecordedHistory()}>
+                <ClusterLabel text="UNDERLYING" testId="toolbar-cluster-underlying-label" />
+                <Box
+                  data-testid="toolbar-group-subject"
+                  className={TOOLBAR_GROUP_CLASS}
+                  role="group"
+                  aria-label="Underlying selector"
+                >
                   <SegmentedControl
-                    data-testid="nifty-mode-toggle"
-                    value={mode()}
-                    onChange={(value) => store.selection.handleModeChange(value)}
-                    data={MODE_TOGGLE_DATA}
+                    data-testid="nifty-index-toggle"
+                    value={symbol()}
+                    onChange={(value) => store.selection.handleSymbolChange(value)}
+                    data={INDEX_DATA}
                     size="xs"
-                    className={TOGGLE_LABEL_CLASS}
+                    className={`${TOGGLE_LABEL_CLASS} ${SEGMENT_PRESSED_CLASS}`}
                   />
-                </Show>
-                <SegmentedControl
-                  data-testid="nifty-view-toggle"
-                  value={view()}
-                  onChange={(value) => store.ui.handleViewChange(value)}
-                  data={VIEW_TOGGLE_DATA}
-                  size="xs"
-                  className={TOGGLE_LABEL_CLASS}
-                />
-                <SegmentedControl
-                  data-testid="nifty-desk-toggle"
-                  value={deskMode()}
-                  onChange={(value) => store.ui.handleDeskChange(value)}
-                  data={DESK_TOGGLE_DATA}
-                  size="xs"
-                  className={TOGGLE_LABEL_CLASS}
-                />
+                </Box>
               </Box>
               <Box
                 data-testid="toolbar-divider-subject-session"
                 className={TOOLBAR_DIVIDER_CLASS}
                 aria-hidden="true"
               />
-              {/* Which session — contract expiry and the EOD history date. */}
               <Box
-                data-testid="toolbar-group-session"
-                className={TOOLBAR_GROUP_CLASS}
+                data-testid="toolbar-cluster-mode"
+                className={TOOLBAR_CLUSTER_CLASS}
                 role="group"
-                aria-label="Expiry and history date"
+                aria-label="Mode"
               >
-                <Box title={expiryControlTitle(selectedExpiryLabel())} className="flex-none">
-                  <Select
-                    data-testid="nifty-expiry-select"
-                    value={expiry()}
-                    onChange={(value) => store.selection.handleExpiryChange(value)}
-                    data={store.selection
-                      .expiryData()
-                      .map((option) => ({ ...option, label: expiryOptionLabel(option) }))}
+                <ClusterLabel text="MODE" testId="toolbar-cluster-mode-label" />
+                <Box
+                  data-testid="toolbar-group-mode"
+                  className={TOOLBAR_GROUP_CLASS}
+                  role="group"
+                  aria-label="Live or EOD, chart or depth, desk or research"
+                >
+                  <Show when={store.selection.hasRecordedHistory()}>
+                    <SegmentedControl
+                      data-testid="nifty-mode-toggle"
+                      value={mode()}
+                      onChange={(value) => store.selection.handleModeChange(value)}
+                      data={MODE_TOGGLE_DATA}
+                      size="xs"
+                      className={`${TOGGLE_LABEL_CLASS} ${SEGMENT_PRESSED_CLASS}`}
+                    />
+                  </Show>
+                  <SegmentedControl
+                    data-testid="nifty-view-toggle"
+                    value={view()}
+                    onChange={(value) => store.ui.handleViewChange(value)}
+                    data={VIEW_TOGGLE_DATA}
                     size="xs"
-                    w={104}
-                    h={22}
-                    className={`${EXPIRY_SELECT_CLASS} ${BODY_LABEL_CLASS}`}
-                    aria-label={expiryControlTitle(selectedExpiryLabel())}
+                    className={`${TOGGLE_LABEL_CLASS} ${SEGMENT_PRESSED_CLASS}`}
+                  />
+                  <SegmentedControl
+                    data-testid="nifty-desk-toggle"
+                    value={deskMode()}
+                    onChange={(value) => store.ui.handleDeskChange(value)}
+                    data={DESK_TOGGLE_DATA}
+                    size="xs"
+                    className={`${TOGGLE_LABEL_CLASS} ${SEGMENT_PRESSED_CLASS}`}
                   />
                 </Box>
-                <Show when={mode() === "eod"}>
-                  <TextInput
-                    data-testid="nifty-date-input"
-                    type="date"
-                    value={date()}
-                    onChange={(value) => store.selection.setDate(value)}
-                    size="xs"
-                    w={110}
-                    h={22}
-                  />
-                </Show>
-                <Show when={symbol() !== "NIFTY" && expiry() !== "nearest"}>
-                  <span
-                    data-testid="nifty-generic-expiry-note"
-                    title="Recorded history (tape, OI stream, replay) is captured for the nearest expiry — the selected expiry applies to the live chain only."
-                    style={{
-                      "font-size": `${REPORT_FONT.micro}px`,
-                      "font-weight": 700,
-                      "letter-spacing": "0.04em",
-                      color: palette.TEXT_MUTED,
-                      border: `1px solid ${palette.TERM_BORDER}`,
-                      "border-radius": "3px",
-                      "padding-left": "4px",
-                      "padding-right": "4px",
-                      "white-space": "nowrap",
-                    }}
+              </Box>
+              <Box
+                data-testid="toolbar-cluster-workspace"
+                className={TOOLBAR_CLUSTER_CLASS}
+                role="group"
+                aria-label="Workspace"
+              >
+                <ClusterLabel text="VIEW" testId="toolbar-cluster-workspace-label" />
+                <Box
+                  data-testid="toolbar-group-workspace"
+                  className={TOOLBAR_GROUP_CLASS}
+                  role="group"
+                  aria-label="Monitor or windowed desk"
+                >
+                  <Box
+                    data-testid="nifty-report-view-toggle"
+                    className={REPORT_VIEW_TOGGLE_CLASS}
+                    role="group"
+                    aria-label="Report view"
                   >
-                    history = nearest expiry
-                  </span>
-                </Show>
+                    <For each={REPORT_VIEW_DATA}>
+                      {(option) => (
+                        <button
+                          type="button"
+                          data-testid={`nifty-report-view-${option.value}`}
+                          aria-pressed={reportView() === option.value}
+                          title={`${option.label} view`}
+                          className={`${REPORT_VIEW_BUTTON_CLASS} ${
+                            reportView() === option.value
+                              ? REPORT_VIEW_PRESSED_CLASS
+                              : REPORT_VIEW_IDLE_CLASS
+                          }`}
+                          onClick={() => store.ui.handleReportViewChange(option.value)}
+                        >
+                          {option.label}
+                        </button>
+                      )}
+                    </For>
+                  </Box>
+                  <Show when={isWindowDesk()}>
+                    <Select
+                      data-testid="nifty-report-preset-select"
+                      aria-label="Report layout preset"
+                      value={props.presetId ?? ""}
+                      data={PRESET_DATA}
+                      onChange={(value) => props.onPresetChange?.(value ?? "")}
+                      size="xs"
+                      w={96}
+                      h={22}
+                      className={BODY_LABEL_CLASS}
+                    />
+                  </Show>
+                </Box>
+              </Box>
+              <Box
+                data-testid="toolbar-divider-mode-session"
+                className={TOOLBAR_DIVIDER_CLASS}
+                aria-hidden="true"
+              />
+              {/* Which session — contract expiry and the EOD history date. */}
+              <Box
+                data-testid="toolbar-cluster-session"
+                className={TOOLBAR_CLUSTER_CLASS}
+                role="group"
+                aria-label="Session"
+              >
+                <ClusterLabel text="SESSION" testId="toolbar-cluster-session-label" />
+                <Box
+                  data-testid="toolbar-group-session"
+                  className={TOOLBAR_GROUP_CLASS}
+                  role="group"
+                  aria-label="Expiry and history date"
+                >
+                  <Box title={expiryControlTitle(selectedExpiryLabel())} className="flex-none">
+                    <Select
+                      data-testid="nifty-expiry-select"
+                      value={expiry()}
+                      onChange={(value) => store.selection.handleExpiryChange(value)}
+                      data={store.selection
+                        .expiryData()
+                        .map((option) => ({ ...option, label: expiryOptionLabel(option) }))}
+                      size="xs"
+                      w={104}
+                      h={22}
+                      className={`${EXPIRY_SELECT_CLASS} ${BODY_LABEL_CLASS}`}
+                      aria-label={expiryControlTitle(selectedExpiryLabel())}
+                    />
+                  </Box>
+                  <Show when={mode() === "eod"}>
+                    <TextInput
+                      data-testid="nifty-date-input"
+                      type="date"
+                      value={date()}
+                      onChange={(value) => store.selection.setDate(value)}
+                      size="xs"
+                      w={110}
+                      h={22}
+                    />
+                  </Show>
+                  <Show when={symbol() !== "NIFTY" && expiry() !== "nearest"}>
+                    <span
+                      data-testid="nifty-generic-expiry-note"
+                      title="Recorded history (tape, OI stream, replay) is captured for the nearest expiry — the selected expiry applies to the live chain only."
+                      style={{
+                        "font-size": `${REPORT_FONT.micro}px`,
+                        "font-weight": 700,
+                        "letter-spacing": "0.04em",
+                        color: palette.TEXT_MUTED,
+                        border: `1px solid ${palette.TERM_BORDER}`,
+                        "border-radius": "3px",
+                        "padding-left": "4px",
+                        "padding-right": "4px",
+                        "white-space": "nowrap",
+                      }}
+                    >
+                      history = nearest expiry
+                    </span>
+                  </Show>
+                </Box>
               </Box>
               <Box
                 data-testid="toolbar-divider-session-state"
                 className={TOOLBAR_DIVIDER_CLASS}
                 aria-hidden="true"
               />
-              {/* Sim state — the desk and the paper book are separate from the view. */}
+              {/* State — the real paper book, separate from the view. */}
               <Box
                 data-testid="toolbar-group-state"
                 className={TOOLBAR_GROUP_CLASS}
                 role="group"
-                aria-label="Simulation desk and paper book"
+                aria-label="Paper positions"
               >
-                <Text size="xs" fw={700} c="dimmed" span className="tracking-[0.04em] whitespace-nowrap" title="Simulation desk and paper book">
+                <Text size="xs" fw={700} c="dimmed" span className="tracking-[0.04em] whitespace-nowrap" title="Paper positions">
                   STATE
                 </Text>
-                <Suspense fallback={<Box style={SIM_BUTTON_FALLBACK_STYLE} />}>
-                  <SimDesk
-                    symbol={symbol()}
-                    mode={mode()}
-                    date={date()}
-                    report={report()}
-                    replay={replay()}
-                    replayIndex={store.replay.index()}
-                  />
-                </Suspense>
                 <NiftyPositionsDrawer
                   positions={store.data.paperPositions()}
                   strikes={report()?.strikes}
@@ -498,7 +616,7 @@ export function ReportToolbar(props: ReportToolbarProps) {
           aria-label="Data and freshness"
         >
           <Text data-testid="toolbar-data-label" size="xs" fw={700} c="dimmed" span className="tracking-[0.04em] whitespace-nowrap">
-            DATA
+            DATA FRESHNESS
           </Text>
           <Box data-testid="toolbar-status-divider" className={TOOLBAR_DIVIDER_CLASS} aria-hidden="true" />
           <Box

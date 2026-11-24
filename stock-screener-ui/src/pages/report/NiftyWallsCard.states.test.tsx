@@ -57,7 +57,9 @@ describe("NiftyWallsCard", () => {
     expect(within(callTable).getByText("NEW")).toBeInTheDocument();
     expect(within(callTable).getByText("+1.20M")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("EXPAND"));
+    expect(screen.getByText("ALL WALL STATS")).toBeInTheDocument();
+    expect(screen.queryByText("EXPAND")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("ALL WALL STATS"));
     expect(onExpand).toHaveBeenCalledTimes(1);
   });
 
@@ -80,12 +82,15 @@ describe("NiftyWallsCard", () => {
     }
   });
 
-  it("reserves the level legend in the skeleton with dash placeholders", () => {
+  it("collapses a null payload to one compact status line instead of a reserved skeleton", () => {
     render(() => <NiftyWallsCard walls={null} onExpand={onExpand} />);
-    const legend = screen.getByTestId("nifty-walls-levels-legend");
-    expect(legend).toHaveTextContent("CW —");
-    expect(legend).toHaveTextContent("PW —");
-    expect(legend).toHaveTextContent("MP —");
+    const card = screen.getByTestId("nifty-walls-card");
+    expect(card).toHaveAttribute("data-walls-empty", "collapsed");
+    expect(card.className).toContain("h-5");
+    expect(card.querySelector('[data-testid="nifty-walls-skeleton"]')).toBeNull();
+    expect(card.querySelector('[data-testid="nifty-walls-levels-legend"]')).toBeNull();
+    expect(card).toHaveTextContent("No walls data.");
+    expect(card).toHaveAttribute("data-empty-kind");
   });
 
   it("side-codes call/put OI sparklines with OI_CALL / OI_PUT, not wall colours", () => {
@@ -155,6 +160,8 @@ describe("NiftyWallsCard", () => {
 
     expect(screen.getByText("FIRST BREAK")).toBeInTheDocument();
     expect(screen.getByText(/14:25:48 · 74,000/)).toBeInTheDocument();
+    expect(screen.getByText("ALL WALL STATS")).toBeInTheDocument();
+    expect(screen.queryByText("EXPAND")).not.toBeInTheDocument();
     expect(screen.queryByTestId("nifty-walls-alert")).toBeNull();
   });
 
@@ -183,49 +190,62 @@ describe("NiftyWallsCard", () => {
     expect(within(card).queryByTestId("levels-in-play")).toBeNull();
   });
 
-  it("renders a reserved skeleton instead of a one-line empty row when there is no payload", () => {
+  it("collapses the empty card instead of reserving placeholder tables and history", () => {
     render(() => (
     <NiftyWallsCard walls={null} onExpand={onExpand} />
   ));
 
-    expect(screen.getByTestId("nifty-walls-card")).toBeInTheDocument();
-    const skeleton = screen.getByTestId("nifty-walls-skeleton");
-    expect(skeleton).toBeInTheDocument();
-
-    const callTable = within(skeleton).getByTestId("nifty-walls-call");
-    const putTable = within(skeleton).getByTestId("nifty-walls-put");
-    expect(within(callTable).getAllByTestId("nifty-walls-call-placeholder")).toHaveLength(3);
-    expect(within(putTable).getAllByTestId("nifty-walls-put-placeholder")).toHaveLength(3);
-    expect(callTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
-    expect(putTable.querySelectorAll("[data-wall-row='true']")).toHaveLength(3);
-
-    // The READ/SEQ and tracked-history bands stay reserved, so the card keeps
-    // its height; the old empty state was a single 44px line.
-    expect(screen.getByTestId("nifty-walls-skeleton-read")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-walls-skeleton-history")).toBeInTheDocument();
-    expect(screen.getByText("No walls data.")).toBeInTheDocument();
+    const card = screen.getByTestId("nifty-walls-card");
+    expect(card).toHaveAttribute("data-walls-empty", "collapsed");
+    expect(card.className).toContain("h-5");
+    expect(screen.queryByTestId("nifty-walls-skeleton")).toBeNull();
+    expect(screen.queryByTestId("nifty-walls-skeleton-read")).toBeNull();
+    expect(screen.queryByTestId("nifty-walls-skeleton-history")).toBeNull();
+    expect(screen.queryByTestId("nifty-walls-call")).toBeNull();
+    expect(screen.getByText(/No walls data\./)).toBeInTheDocument();
+    expect(screen.queryByText("ALL WALL STATS")).not.toBeInTheDocument();
   });
 
-  it("keeps the caller empty text visible in the skeleton", () => {
+  it("names replay capture in the same one-line empty state", () => {
+    render(() => (
+    <NiftyWallsCard
+        walls={null}
+        onExpand={onExpand}
+        unavailableInReplay
+        emptyText="Waiting for walls data."
+      />
+    ));
+
+    const card = screen.getByTestId("nifty-walls-card");
+    expect(card).toHaveAttribute("data-walls-empty", "collapsed");
+    expect(card.className).toContain("h-5");
+    expect(card).toHaveTextContent("Walls not captured");
+    expect(card).toHaveTextContent("Waiting for walls data.");
+    expect(card).toHaveTextContent("live-only band");
+    expect(screen.queryByTestId("nifty-walls-skeleton")).toBeNull();
+  });
+
+  it("keeps the caller empty text visible in the collapsed line", () => {
     render(() => (
     <NiftyWallsCard walls={null} onExpand={onExpand} emptyText="Waiting for walls data." />
   ));
 
-    expect(screen.getByText("Waiting for walls data.")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-walls-skeleton")).toBeInTheDocument();
+    expect(screen.getByText(/Waiting for walls data\./)).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-walls-card")).toHaveAttribute("data-walls-empty", "collapsed");
+    expect(screen.queryByTestId("nifty-walls-skeleton")).toBeNull();
   });
 
-  it("updates the skeleton empty text when the emptyText prop signal changes", () => {
+  it("updates the collapsed empty text when the emptyText prop signal changes", () => {
     const [emptyTextSig, setEmptyTextSig] = createSignal("No walls data.");
     render(() => <NiftyWallsCard walls={null} onExpand={onExpand} emptyText={emptyTextSig()} />);
 
-    expect(screen.getByText("No walls data.")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-walls-skeleton")).toBeInTheDocument();
+    expect(screen.getByText(/No walls data\./)).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-walls-card")).toHaveAttribute("data-walls-empty", "collapsed");
 
     setEmptyTextSig("Waiting for walls data.");
 
-    expect(screen.getByText("Waiting for walls data.")).toBeInTheDocument();
-    expect(screen.queryByText("No walls data.")).toBeNull();
+    expect(screen.getByText(/Waiting for walls data\./)).toBeInTheDocument();
+    expect(screen.queryByText(/No walls data\./)).toBeNull();
   });
 });
 

@@ -6,7 +6,15 @@ import * as palette from "@/ui/palette";
 import { pickTextColor } from "@/utils/contrast";
 import { REPORT_FONT } from "./reportTokens";
 
-export type DeskDockKey = "flow" | "setup" | "alerts" | "market" | "strips" | "analytics";
+export type DeskDockKey =
+  | "flow"
+  | "setup"
+  | "alerts"
+  | "market"
+  | "strips"
+  | "analytics"
+  | "futures"
+  | "itm";
 
 // The desktop drawer is an overlay anchored above the tab bar: it never enters
 // the flex column, so opening a dock tab cannot steal height from the chart.
@@ -64,6 +72,20 @@ export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
     ariaLabel: "Data panels tab — open tape and flow",
     title:
       "Data panels — the live trade tape and flow windows. Opens the tape and flow panels.",
+  },
+  futures: {
+    label: "Futures basis",
+    short: "Futures",
+    shows: "basis",
+    ariaLabel: "Futures basis tab — open the futures basis panel",
+    title: "Index futures basis — futures close against spot with open-interest change. Opens the futures basis panel.",
+  },
+  itm: {
+    label: "ITM PE flow",
+    short: "ITM PE",
+    shows: "premium",
+    ariaLabel: "ITM PE flow tab — open the ITM put premium flow panel",
+    title: "ITM PE flow — put premium share of the option chain through the session. Opens the ITM PE flow panel.",
   },
   alerts: {
     label: "Alerts",
@@ -178,7 +200,9 @@ export function DeskDock(props: {
           </span>{" "}
           <span class="max-[600px]:hidden">{help.label}</span>
           <span class="hidden max-[600px]:inline">{help.short}</span>{" "}
-          <span class="max-[600px]:hidden" style={{ color: subInk() }}>
+          {/* The qualifier lives in title/aria-label; repeating it in seven
+              closed tabs stretched the bar into a wide, gappy row. */}
+          <span class="hidden" style={{ color: subInk() }}>
             {help.shows}
           </span>
         </span>
@@ -354,15 +378,20 @@ export function DeskDock(props: {
           "min-height": layout().wrap ? "26px" : `${DESK_DOCK_BAR_HEIGHT}px`,
         }}
       >
-        <span
-          class="shrink-0 whitespace-nowrap font-black tracking-[0.08em] text-ui-micro"
-          style={{ color: palette.TEXT, "padding-right": "8px" }}
+        <div
+          data-testid="desk-dock-tabs"
+          class="flex min-w-0 shrink-0 items-center gap-1"
         >
-          DESK BAY
-        </span>
-        <For each={props.tabs}>
-          {(tab, index) => tabButton(tab, index(), () => active() === tab.key)}
-        </For>
+          <span
+            class="shrink-0 whitespace-nowrap font-black tracking-[0.08em] text-ui-micro"
+            style={{ color: palette.TEXT, "padding-right": "8px" }}
+          >
+            DESK BAY
+          </span>
+          <For each={props.tabs}>
+            {(tab, index) => tabButton(tab, index(), () => active() === tab.key)}
+          </For>
+        </div>
         <Show when={layout().showHint}>
           <span
             data-testid="desk-dock-hint"

@@ -2,24 +2,33 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
+import { createSignal } from "solid-js";
 import { UIProvider } from "@/ui";
+import * as palette from "@/ui/palette";
 import {
   CHART_CUTOFF_RIGHT,
   CHART_HEADER_METRICS,
   CHART_PLOT_MARGIN,
 } from "./NiftyChartPanel";
 import {
+  ChartBody,
   MOBILE_AXIS_MIN_WIDTH,
   MOBILE_CUTOFF_LABEL_GAP,
   MOBILE_CUTOFF_LANE,
   MOBILE_CUTOFF_RIGHT,
   MOBILE_EDGE_GUTTER,
+  NARROW_AXIS_MIN_WIDTH,
+  NARROW_CONTAINER_PX,
+  NARROW_CUTOFF_LANE,
+  NARROW_CUTOFF_RIGHT,
+  NARROW_EDGE_GUTTER,
 } from "./NiftyChartPanel.body";
 import { REPORT_FONT, REPORT_PAD } from "./reportTokens";
 
 const env = vi.hoisted(() => ({
   mobile: false,
   mediaListeners: [] as Array<(event: { matches: boolean }) => void>,
+  resizeCallbacks: [] as Array<(entries: Array<{ target: Element; contentRect: { width: number } }>) => void>,
 }));
 const tv = vi.hoisted(() => ({
   onChartReady: null as null | ((chart: unknown, series: unknown) => void),
@@ -29,12 +38,16 @@ vi.mock("@/components/chart/TradingViewChart", () => ({
   TradingViewChart: (props: {
     fitMarkLines?: boolean;
     onChartReady?: (chart: unknown, series: unknown) => void;
+    markLines?: unknown[];
+    candles?: unknown[];
   }) => {
     tv.onChartReady = props.onChartReady ?? null;
     return (
       <div
         data-testid="tradingview-chart"
         data-fit-marklines={props.fitMarkLines ? "1" : "0"}
+        data-candles={props.candles?.length ?? 0}
+        data-marklines={props.markLines?.length ?? 0}
       />
     );
   },
@@ -76,15 +89,36 @@ beforeAll(() => {
       dispatchEvent: () => false,
     }),
   });
+  Object.defineProperty(window, "ResizeObserver", {
+    writable: true,
+    value: class {
+      constructor(
+        callback: (entries: Array<{ target: Element; contentRect: { width: number } }>) => void,
+      ) {
+        env.resizeCallbacks.push(callback);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  });
 });
 
 afterEach(() => {
   cleanup();
   env.mobile = false;
   env.mediaListeners = [];
+  env.resizeCallbacks = [];
   tv.onChartReady = null;
   window.localStorage.clear();
 });
+
+/** Drive the container observers the same way a real ResizeObserver would. */
+function setContainerWidth(width: number) {
+  for (const callback of env.resizeCallbacks) {
+    callback([{ target: document.body, contentRect: { width } }]);
+  }
+}
 
 const report = {
   mode: "live",
@@ -223,6 +257,48 @@ describe("NiftyChartPanel — plot domain and annotation margins", () => {
     expect(time?.options).toMatchObject({ rightOffsetPixels: MOBILE_CUTOFF_LANE });
   });
 
+  test("a narrow CONTAINER shrinks the axis reservation without touching the 390px contract", async () => {
+    expect(NARROW_CONTAINER_PX).toBe(320);
+    expect(NARROW_CUTOFF_RIGHT).toBe(
+      NARROW_EDGE_GUTTER + NARROW_AXIS_MIN_WIDTH + NARROW_CUTOFF_LANE,
+    );
+    expect(NARROW_CUTOFF_RIGHT).toBeLessThan(MOBILE_CUTOFF_RIGHT);
+
+    env.mobile = true;
+    mount();
+    const wrap = screen.getByTestId("nifty-chart-wrap");
+    expect(wrap.style.getPropertyValue("--chart-cutoff-right")).toBe(`${MOBILE_CUTOFF_RIGHT}px`);
+
+    // 216px is a 240px window minus the header padding — narrow even though
+    // the viewport media query still says "phone".
+    setContainerWidth(216);
+    await Promise.resolve();
+    expect(wrap).toHaveAttribute("data-axis-mode", "narrow");
+    expect(wrap).toHaveStyle({ "padding-right": `${NARROW_EDGE_GUTTER}px` });
+    expect(wrap.style.getPropertyValue("--chart-cutoff-right")).toBe(`${NARROW_CUTOFF_RIGHT}px`);
+    expect(screen.getByTestId("nifty-chart-last-data-boundary")).toHaveStyle({
+      right: `${NARROW_CUTOFF_RIGHT}px`,
+    });
+    // The candles gain the reservation we removed, with no invented data.
+    expect(216 - NARROW_CUTOFF_RIGHT).toBeGreaterThan(216 - MOBILE_CUTOFF_RIGHT);
+
+    const { chart, calls } = fakeChart();
+    tv.onChartReady!(chart, null);
+    expect(calls.filter((c) => c.scale === "price" && c.id === "right").at(-1)?.options).toMatchObject({
+      minimumWidth: NARROW_AXIS_MIN_WIDTH,
+      alignLabels: true,
+    });
+    expect(calls.filter((c) => c.scale === "time").at(-1)?.options).toMatchObject({
+      rightOffsetPixels: NARROW_CUTOFF_LANE,
+    });
+
+    // A 390px monitor still gets the full 116px phone budget.
+    setContainerWidth(366);
+    await Promise.resolve();
+    expect(wrap).toHaveAttribute("data-axis-mode", "mobile");
+    expect(wrap.style.getPropertyValue("--chart-cutoff-right")).toBe(`${MOBILE_CUTOFF_RIGHT}px`);
+  });
+
   test("switching back to desktop restores the 24px engine offset and 88px axis", async () => {
     mount();
     const { chart, calls } = fakeChart();
@@ -253,7 +329,7 @@ describe("NiftyChartPanel — plot domain and annotation margins", () => {
 });
 
 describe("NiftyChartPanel — header control rows", () => {
-  test("desktop shows source · timeframe · as-of · expand; size/pattern behind MORE", () => {
+  test("desktop shows source · timeframe · as-of · expand; size/pattern behind CHART OPTIONS", () => {
     mount();
     const row = screen.getByTestId("nifty-chart-controls-desktop");
     for (const id of ["nifty-chart-source", "nifty-tf-toggle", "nifty-chart-asof", "nifty-chart-expand"]) {
@@ -264,10 +340,14 @@ describe("NiftyChartPanel — header control rows", () => {
 
     const more = screen.getByTestId("nifty-chart-controls-more-desktop");
     expect(more).toHaveAttribute("aria-expanded", "false");
+    expect(more).toHaveTextContent("CHART OPTIONS");
+    expect(more).not.toHaveTextContent("MORE ▾");
     const extra = screen.getByTestId("nifty-chart-controls-extra-desktop");
     expect(extra).toHaveStyle({ display: "none" });
     fireEvent.click(more);
     expect(more).toHaveAttribute("aria-expanded", "true");
+    expect(more).toHaveTextContent("HIDE OPTIONS");
+    expect(more).not.toHaveTextContent("LESS ▴");
     expect(extra).toHaveStyle({ display: "flex" });
     expect(extra).toContainElement(screen.getByTestId("nifty-chart-size"));
     expect(extra).toContainElement(screen.getByTestId("nifty-patterns-scan"));
@@ -280,7 +360,8 @@ describe("NiftyChartPanel — header control rows", () => {
     const more = screen.getByTestId("nifty-chart-controls-more");
     expect(wrap).toHaveStyle({ gap: `${CHART_HEADER_METRICS.gap}px` });
     expect(more).toHaveClass("shrink-0");
-    expect(more).toHaveTextContent("MORE ▾");
+    expect(more).toHaveTextContent("CHART OPTIONS");
+    expect(more).not.toHaveTextContent("MORE ▾");
     expect(wrap.firstElementChild).toContainElement(screen.getByTestId("nifty-chart-source"));
     expect(wrap.firstElementChild).toContainElement(more);
     expect(screen.queryByTestId("nifty-chart-controls-extra")).not.toBeInTheDocument();
@@ -412,5 +493,52 @@ describe("NiftyChartPanel — 390px axis label/tag bounds", () => {
     const time = calls.filter((c) => c.scale === "time").at(-1);
     expect(time?.options).toMatchObject({ rightOffsetPixels: CHART_PLOT_MARGIN.dataCutoffLane });
     expect(volumeOptions.lastValueVisible).toBe(false);
+  });
+});
+
+describe("NiftyChartPanel — zero-candle pinned series", () => {
+  test("shows the named empty state instead of a blank plot with floating price tags", () => {
+    const [candles, setCandles] = createSignal(report.candles);
+    const markLines = [
+      { label: { formatter: "CW 25000" }, value: 25000, color: palette.PRIMARY },
+    ] as never;
+
+    render(() => (
+      <UIProvider>
+        <ChartBody
+          view="chart"
+          offlineEmpty={false}
+          sessionDate="2026-10-12"
+          chartCandles={candles()}
+          candlesEverShown={true}
+          chartHeight={null}
+          fillContainer={true}
+          mpTouchesLength={0}
+          flipMarkerPresent={false}
+          patternSourceState="idle"
+          patternOverlayCount={0}
+          chartMarkLines={markLines}
+          chartEmaData={[] as never}
+          touchMarkers={[] as never}
+          lastDataBoundary="LAST DATA 09:15"
+          scanBadge={null}
+          chartSource="live"
+          scanStatus="idle"
+          chartTf="1m"
+          symbol={() => "NIFTY"}
+          onScanPatterns={() => {}}
+        />
+      </UIProvider>
+    ));
+
+    expect(screen.queryByTestId("nifty-chart-empty")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-marklines", "1");
+
+    setCandles([]);
+    expect(screen.getByTestId("nifty-chart-empty")).toHaveTextContent("No intraday candles");
+    expect(screen.getByTestId("nifty-chart-wrap")).toHaveStyle({ display: "none" });
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-candles", "0");
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-marklines", "0");
+    expect(screen.queryByTestId("nifty-chart-last-data-boundary")).not.toBeInTheDocument();
   });
 });

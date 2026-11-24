@@ -571,7 +571,7 @@ export function OptionChainTable(props: OptionChainTableProps) {
             type="button"
             aria-pressed={showFullChain()}
             onClick={() => setShowFullChain((value) => !value)}
-            className="shrink-0 rounded-[6px] border border-fin-border px-2 py-1 font-mono text-ui-micro text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+            className="shrink-0 rounded-[6px] border border-fin-border px-2 py-1 font-mono text-ui-micro text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text"
             data-testid="options-chain-full-chain-toggle"
           >
             {showFullChain() ? "← Compact" : "Full chain →"}

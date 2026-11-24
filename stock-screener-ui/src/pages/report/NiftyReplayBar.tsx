@@ -250,7 +250,7 @@ export function NiftyReplayBar(props: NiftyReplayBarProps) {
           value={replayIndex()}
           onChange={(e) => props.onScrub(Number(e.currentTarget.value))}
           class="w-full"
-          style={{ height: "12px", "accent-color": palette.PRIMARY }}
+          style={{ height: "12px", "accent-color": palette.TEXT }}
         />
       </div>
       <Text

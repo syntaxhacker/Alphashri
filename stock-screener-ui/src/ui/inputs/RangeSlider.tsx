@@ -108,7 +108,7 @@ function Thumb(props: {
         "pointer-events-none",
         "border-2 border-fin-primary bg-fin-surface shadow-sm",
         props.disabled ? "cursor-not-allowed opacity-50" : "cursor-grab active:cursor-grabbing",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fin-primary",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fin-text",
       )}
       style={{ left: `${pct(props.value, props.min, props.max)}%` }}
     />

@@ -61,8 +61,8 @@ body[data-color-scheme="dark"] { color-scheme: dark; }
    TanStackTable). Three states, never more than one tint at a time:
      base      — the panel surface, on the <tr> so every cell inherits it
      hover     — 7% primary over the surface (lighter than the 16% selection)
-     focused   — an inset outline, deliberately NOT a tint, so keyboard focus
-                 can never read as "selected"
+     focused   — a neutral inset outline, deliberately NOT a tint or the amber
+                 primary chrome, so focus can never read as "selected"
    The old `td`-level hover is scoped away from these tables with
    `:not(.paper-row-states)`: it painted `!important` on each cell, which is
    why a row could show a hover fill and a selection fill at the same time. */
@@ -75,7 +75,7 @@ body[data-color-scheme="dark"] { color-scheme: dark; }
 /* A selected row is an inline background from `getRowStyle`, which outranks
    this stylesheet — so hover never repaints it. */
 .paper-row-states tbody tr[data-clickable="true"]:focus-visible {
-  outline: 1px solid var(--color-fin-primary);
+  outline: 1px solid var(--color-fin-text);
   outline-offset: -1px;
 }
 
@@ -91,7 +91,7 @@ body[data-color-scheme="dark"] { color-scheme: dark; }
   box-shadow: inset 2px 0 0 0 var(--color-fin-primary);
 }
 .paper-tanstack-table:not(.paper-row-states) tbody tr:focus-visible {
-  outline: 1px solid var(--color-fin-primary);
+  outline: 1px solid var(--color-fin-text);
   outline-offset: -1px;
 }
 

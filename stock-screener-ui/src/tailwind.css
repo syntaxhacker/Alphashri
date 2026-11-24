@@ -190,13 +190,13 @@
   }
 
   /*
-   * One focus ring for every native control. Components used to each re-invent
-   * `focus-visible:` (or omit it — 55 of 61 raw buttons had no focus state at
-   * all), so keyboard navigation was invisible on most of the app.
+   * One focus ring for every native control. `:focus-visible` only: the old
+   * `:focus` arm on inputs painted the amber primary chrome on a plain mouse
+   * click (most obvious on sliders and selects). The neutral text token is
+   * high-contrast in both themes and cannot be mistaken for a semantic state.
    */
-  :is(button, a, [role="button"], summary):focus-visible,
-  :is(input, select, textarea):focus {
-    outline: 2px solid var(--color-fin-primary);
+  :is(button, a, [role="button"], summary, input, select, textarea):focus-visible {
+    outline: 2px solid var(--color-fin-text);
     outline-offset: 1px;
   }
 }

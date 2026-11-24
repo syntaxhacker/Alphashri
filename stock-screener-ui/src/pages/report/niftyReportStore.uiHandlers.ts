@@ -20,6 +20,7 @@ export function createUiHandlers(s: StoreState, d: StoreDerived) {
     setDate,
     setExpiry,
     setView,
+    setReportView,
     setDeskModeValue,
     setSideTabValue,
     setChartTf,
@@ -39,6 +40,9 @@ export function createUiHandlers(s: StoreState, d: StoreDerived) {
     setFlowExpand,
     setPressureExpand,
     setFlowChartExpand,
+    setChartFocus,
+    setFuturesOpen,
+    setItmOpen,
     setCriticalOnly,
     setSoundMuted,
     setTrailCursor,
@@ -58,6 +62,9 @@ export function createUiHandlers(s: StoreState, d: StoreDerived) {
     flowExpand,
     pressureExpand,
     flowChartExpand,
+    chartFocus,
+    futuresOpen,
+    itmOpen,
     mut,
   } = s;
   const { alertTrail } = d;
@@ -106,6 +113,7 @@ export function createUiHandlers(s: StoreState, d: StoreDerived) {
       s.setReplayIndex(0);
       s.setReplayPlaying(false);
       s.setError(null);
+      setChartFocus(false);
     });
   };
 
@@ -123,6 +131,9 @@ export function createUiHandlers(s: StoreState, d: StoreDerived) {
     setView(value === "depth" ? "depth" : "chart");
   };
 
+  const handleReportViewChange = (value: string) =>
+    setReportView(value === "desk" ? "desk" : "monitor");
+
   const toggleDeskMode = () => setDeskModeValue((value) => (value === "desk" ? "research" : "desk"));
   const handleDeskChange = (value: string) =>
     setDeskModeValue(value === "research" ? "research" : "desk");
@@ -134,6 +145,13 @@ export function createUiHandlers(s: StoreState, d: StoreDerived) {
   const openPlanReasons = () => setPlanOpen(true);
   const openAlertsDock = () => setDeskDockTab("alerts");
   const openChartFull = () => setChartFull(true);
+  // LEVEL 1 is in-shell: it only changes layout, never mounts a second chart.
+  const openChartFocus = () => setChartFocus(true);
+  const closeChartFocus = () => setChartFocus(false);
+  const openFutures = () => setFuturesOpen(true);
+  const closeFutures = () => setFuturesOpen(false);
+  const openItm = () => setItmOpen(true);
+  const closeItm = () => setItmOpen(false);
   const openVisuals = () => setVisualsOpen(true);
   const openMovers = () => setMoversOpen(true);
   const closeMovers = () => setMoversOpen(false);
@@ -148,6 +166,9 @@ export function createUiHandlers(s: StoreState, d: StoreDerived) {
     else if (gammaOpen()) setGammaOpen(false);
     else if (ivOpen()) setIvOpen(false);
     else if (chartFull()) setChartFull(false);
+    else if (chartFocus()) setChartFocus(false);
+    else if (futuresOpen()) setFuturesOpen(false);
+    else if (itmOpen()) setItmOpen(false);
     else if (planOpen()) setPlanOpen(false);
     else if (moversOpen()) setMoversOpen(false);
   };
@@ -167,6 +188,9 @@ export function createUiHandlers(s: StoreState, d: StoreDerived) {
     flow: [flowExpand, setFlowExpand],
     pressure: [pressureExpand, setPressureExpand],
     flowChart: [flowChartExpand, setFlowChartExpand],
+    chartFocus: [chartFocus, setChartFocus],
+    futures: [futuresOpen, setFuturesOpen],
+    itm: [itmOpen, setItmOpen],
   };
 
   const toggleSound = () => {
@@ -184,6 +208,7 @@ export function createUiHandlers(s: StoreState, d: StoreDerived) {
     handleModeChange,
     handleExpiryChange,
     handleViewChange,
+    handleReportViewChange,
     toggleDeskMode,
     handleDeskChange,
     handleChartTf,
@@ -194,6 +219,12 @@ export function createUiHandlers(s: StoreState, d: StoreDerived) {
     openPlanReasons,
     openAlertsDock,
     openChartFull,
+    openChartFocus,
+    closeChartFocus,
+    openFutures,
+    closeFutures,
+    openItm,
+    closeItm,
     openVisuals,
     openMovers,
     closeMovers,

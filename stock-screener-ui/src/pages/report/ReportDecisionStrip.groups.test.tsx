@@ -332,6 +332,58 @@ describe("decision strip — readout width and no-inline-ellipsis contract", () 
     );
   });
 
+  test("max-pain value carries an inline MAX PAIN label before the sparkline", () => {
+    mount();
+    const value = screen.getByTestId("nifty-stat-max-pain-value");
+    const label = screen.getByTestId("nifty-maxpain-inline-label");
+    const spark = screen.getByTestId("nifty-maxpain-spark");
+    const pin = screen.getByTestId("nifty-stat-pin");
+
+    expect(label).toHaveTextContent("MAX PAIN");
+    expect(label.style.textAlign).toBe("left");
+    expect(label.style.textOverflow || "").not.toBe("ellipsis");
+    expect(label.style.overflow || "").not.toBe("hidden");
+    // The 8px gutter is spent the same way as the group hairline: 4px gap +
+    // 1px rule + 3px inset, so the bare number no longer reads as part of
+    // the PIN RISK value to its left.
+    expect(label.style.marginLeft).toBe(`${REPORT_STRIP_METRICS.cellGap}px`);
+    expect(label.style.borderLeftWidth).toBe(`${REPORT_STRIP_METRICS.groupHairline}px`);
+    expect(label.style.paddingLeft).toBe(`${REPORT_STRIP_METRICS.groupInset}px`);
+    expect(label.style.marginRight).toBe(`${REPORT_STRIP_METRICS.cellGap}px`);
+    expect(pin.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const text = value.textContent ?? "";
+    expect(text.indexOf("MAX PAIN")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf("MAX PAIN")).toBeLessThan(text.indexOf("25,000"));
+    const children = Array.from(value.children) as HTMLElement[];
+    const labelIndex = children.indexOf(label as HTMLElement);
+    const sparkIndex = children.indexOf(spark as HTMLElement);
+    expect(labelIndex).toBeGreaterThanOrEqual(0);
+    expect(sparkIndex).toBeGreaterThan(labelIndex);
+    expect(sparkIndex).toBe(children.length - 1);
+  });
+
+  test("missing max pain prints a dash without an orphan inline label", () => {
+    const baseReport = h.store.data.report;
+    h.store.data.report = () => ({ ...baseReport(), maxPain: null });
+    const { unmount } = mount();
+    expect(screen.getByTestId("nifty-stat-max-pain-value")).toHaveTextContent("—");
+    expect(screen.queryByTestId("nifty-maxpain-inline-label")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-maxpain-spark")).not.toBeInTheDocument();
+    unmount();
+    h.store.data.report = baseReport;
+  });
+
+  test("a loading report renders no walls cells", () => {
+    const baseReport = h.store.data.report;
+    h.store.data.report = () => undefined as unknown as ReturnType<typeof baseReport>;
+    const { unmount } = mount();
+    expect(screen.queryByTestId("nifty-stat-group-walls")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-maxpain-inline-label")).not.toBeInTheDocument();
+    unmount();
+    h.store.data.report = baseReport;
+  });
+
   test("the max-pain readout is neither ellipsized nor shrunk inline", () => {
     const start = source.indexOf('testId="nifty-stat-max-pain"');
     const cell = source.slice(start, source.indexOf('testId="nifty-stat-pcr-oi"', start));

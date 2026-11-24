@@ -196,7 +196,7 @@ export function Tooltip(props: TooltipProps) {
   const wrapperTabIndex = () => (known.focusable ? 0 : undefined);
   const focusRingClass = () =>
     known.focusable
-      ? "outline-none focus:ring-1 focus:ring-fin-primary focus-visible:ring-2"
+      ? "outline-none focus:ring-1 focus:ring-fin-text focus-visible:ring-2"
       : undefined;
 
   /**

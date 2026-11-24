@@ -47,7 +47,7 @@ function describeSteps(steps: FocusStep[]): string {
 }
 
 /** The shared report fixture has no futures/ITM block, so add the two live
- *  panels locally to make the flow row a real focus-order competitor. */
+ *  panels locally: they are now DESK BAY tabs, not a band above the chart. */
 async function setupFlowPanels(page: Page) {
   await page.route(apiRoute("reports/nifty/live"), async (route) => {
     await route.fulfill({
@@ -165,7 +165,7 @@ for (const viewport of VIEWPORTS) {
   });
 }
 
-test("390px: forward focus from the decision hero reaches chart controls before DESK BAY / flow", async ({ page }) => {
+test("390px: forward focus from the decision hero reaches chart controls before DESK BAY", async ({ page }) => {
   test.skip(!KEYBOARD, "set REPORT_KEYBOARD=1 to run report keyboard checks");
 
   await openReport(page, 390, 844, true);
@@ -173,28 +173,21 @@ test("390px: forward focus from the decision hero reaches chart controls before 
     const find = (id: string) => document.querySelector(`[data-testid="${id}"]`);
     const chartRow = find("nifty-main-row");
     const dock = find("desk-dock-region");
-    const flow = find("nifty-flow-above-chart");
-    if (
-      !(chartRow instanceof HTMLElement) ||
-      !(dock instanceof HTMLElement) ||
-      !(flow instanceof HTMLElement)
-    ) {
+    if (!(chartRow instanceof HTMLElement) || !(dock instanceof HTMLElement)) {
       return null;
     }
     const follows = (a: HTMLElement, b: HTMLElement) =>
       Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
     return {
       dockAfterChartDom: follows(chartRow, dock),
-      flowAfterChartDom: follows(chartRow, flow),
       dockBelowChart: dock.getBoundingClientRect().top > chartRow.getBoundingClientRect().top,
-      flowBelowChart: flow.getBoundingClientRect().top > chartRow.getBoundingClientRect().top,
     };
   });
-  expect(order, "chart row, DESK BAY and flow row must all render").not.toBeNull();
+  expect(order, "chart row and DESK BAY must both render").not.toBeNull();
   expect(order?.dockAfterChartDom).toBe(true);
-  expect(order?.flowAfterChartDom).toBe(true);
   expect(order?.dockBelowChart).toBe(true);
-  expect(order?.flowBelowChart).toBe(true);
+  await expect(page.getByTestId("desk-dock-futures")).toBeVisible();
+  await expect(page.getByTestId("desk-dock-itm")).toBeVisible();
 
   await page.getByTestId("nifty-plan-reasons-button").focus();
   const steps: FocusStep[] = [];
@@ -218,7 +211,7 @@ test("390px: forward focus from the decision hero reaches chart controls before 
 });
 
 for (const viewport of VIEWPORTS) {
-  test(`${viewport.width}px: MORE STATS disclosure opens/closes from the keyboard`, async ({ page }) => {
+  test(`${viewport.width}px: ALL STATS disclosure opens/closes from the keyboard`, async ({ page }) => {
     test.skip(!KEYBOARD, "set REPORT_KEYBOARD=1 to run report keyboard checks");
 
     await openReport(page, viewport.width, viewport.height);
@@ -226,7 +219,7 @@ for (const viewport of VIEWPORTS) {
     const toggle = disclosure.getByTestId("nifty-live-tape-toggle");
     const content = disclosure.getByTestId("nifty-live-tape-content");
     await expect(toggle).toBeVisible();
-    await expect(toggle).toContainText("MORE STATS");
+    await expect(toggle).toContainText("ALL STATS");
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await expect(disclosure).toHaveAttribute("data-open", "false");
 
@@ -306,4 +299,77 @@ test("390px: option-chain region is focusable and Arrow keys are handled", async
   await page.keyboard.press("ArrowLeft");
   const afterLeft = await chain.evaluate((element) => element.scrollLeft);
   expect(afterLeft).toBeLessThanOrEqual(afterRight);
+});
+
+for (const viewport of VIEWPORTS) {
+  test(`${viewport.width}px: F enters in-shell chart focus, Esc restores`, async ({ page }) => {
+    test.skip(!KEYBOARD, "set REPORT_KEYBOARD=1 to run report keyboard checks");
+
+    await openReport(page, viewport.width, viewport.height);
+    const panel = page.getByTestId("nifty-report-panel");
+    await expect(panel).toHaveAttribute("data-chart-focus", "false");
+    await page.keyboard.press("f");
+    await expect(panel).toHaveAttribute("data-chart-focus", "true");
+    await expect(page.getByTestId("nifty-chart-focus-exit")).toBeVisible();
+    // Nothing unmounts in LEVEL 1: the chart and chain stay in the tree.
+    await expect(page.getByTestId("nifty-main-row")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(panel).toHaveAttribute("data-chart-focus", "false");
+    await expect(page.getByTestId("nifty-chart-focus-exit")).toHaveCount(0);
+  });
+
+  test(`${viewport.width}px: expand is LEVEL 2 fullscreen and Esc closes it`, async ({ page }) => {
+    test.skip(!KEYBOARD, "set REPORT_KEYBOARD=1 to run report keyboard checks");
+
+    await openReport(page, viewport.width, viewport.height);
+    const expand = page.getByTestId("nifty-chart-controls-desktop").getByRole("button", { name: /expand|fullscreen/i });
+    if (await expand.count()) {
+      await expand.first().click();
+      await expect(page.getByTestId("nifty-chart-fullscreen-body")).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId("nifty-chart-fullscreen-body")).toHaveCount(0);
+    }
+  });
+}
+
+test("desktop: analytics tabs open in the dock drawer and Alt+1 toggles", async ({ page }) => {
+  test.skip(!KEYBOARD, "set REPORT_KEYBOARD=1 to run report keyboard checks");
+
+  await openReport(page, 1600, 1000, true);
+  await expect(page.getByTestId("nifty-flow-above-chart")).toHaveCount(0);
+  await page.getByTestId("desk-dock-futures").click();
+  await expect(page.getByTestId("nifty-futures-panel")).toBeVisible();
+  await expect(page.getByTestId("desk-dock-drawer")).toBeVisible();
+  await page.keyboard.press("Alt+1");
+  await expect(page.getByTestId("desk-dock-drawer")).toHaveCount(0);
+});
+
+test("1600px: MONITOR | DESK switch mounts the window desk with a preset picker", async ({ page }) => {
+  test.skip(!KEYBOARD, "set REPORT_KEYBOARD=1 to run report keyboard checks");
+
+  await openReport(page, 1600, 1000);
+  const toggle = page.getByTestId("nifty-report-view-toggle");
+  await expect(toggle.getByTestId("nifty-report-view-monitor")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("window-manager-canvas")).toHaveCount(0);
+
+  await toggle.getByTestId("nifty-report-view-desk").click();
+  await expect(page.getByTestId("report-window-desk")).toBeVisible();
+  await expect(page.getByTestId("window-manager-canvas")).toBeVisible();
+  const picker = page.getByTestId("nifty-report-preset-select");
+  await expect(picker).toBeVisible();
+
+  // Focus order: workspace toggle -> preset picker -> window frames, and the
+  // desk never steals focus onto the canvas or a frame on mount.
+  // DESK is the last button in the toggle, so the next Tab lands on the picker.
+  await toggle.getByTestId("nifty-report-view-desk").focus();
+  await page.keyboard.press("Tab");
+  await expect(picker).toBeFocused();
+  await page.keyboard.press("Tab");
+  const focused = await readFocus(page);
+  expect(focused?.testIds.some((id) => id.startsWith("window-"))).toBe(true);
+
+  await picker.selectOption("full");
+  await expect(page.locator('[data-testid^="window-"][data-window-id]')).toHaveCount(6);
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("report-window-desk")).toBeVisible();
 });

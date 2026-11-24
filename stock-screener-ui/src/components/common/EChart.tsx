@@ -3,6 +3,11 @@ import { loadEcharts } from "../../utils/loadEcharts";
 
 const NO_OPTION = Symbol("no-option");
 
+type ChartSize = { width: number; height: number };
+
+const hasArea = (size?: ChartSize): size is ChartSize =>
+  !!size && size.width > 0 && size.height > 0;
+
 /**
  * `echarts` is pulled in through `loadEcharts()` so it stays in a lazy chunk
  * instead of the entry bundle.
@@ -19,6 +24,10 @@ export function EChart(props: {
   let chartEl: HTMLDivElement | undefined;
   let chart: any = null;
   let disposed = false;
+  let echartsLib: any = null;
+  // Latest content-box size reported by the observer (or measured from the
+  // element when ResizeObserver is unavailable). Null until it is positive.
+  let lastSize: ChartSize | undefined;
 
   let pendingOption: unknown = props.option;
   let lastAppliedOption: unknown = NO_OPTION;
@@ -48,8 +57,11 @@ export function EChart(props: {
     // A frame can be queued before init resolves, and the observer can deliver
     // its final entry between dispose and disconnect; neither may touch a dead
     // instance (ECharts throws on resize-after-dispose).
-    if (disposed || !chart) return;
-    chart.resize();
+    if (disposed || !chart || !hasArea(lastSize)) return;
+    // Pass the observed size explicitly. ECharts' own DOM re-measurement is
+    // stale inside flex/window desks that settle after init; contentRect is the
+    // authoritative size of the box the canvas must fill.
+    chart.resize({ width: lastSize.width, height: lastSize.height });
   };
 
   const scheduleResize = () => {
@@ -60,9 +72,12 @@ export function EChart(props: {
     });
   };
 
-  const hasArea = (entries: ResizeObserverEntry[]) => {
-    const rect = entries[entries.length - 1]?.contentRect;
-    return !!rect && rect.width > 0 && rect.height > 0;
+  const measureFromElement = () => {
+    const el = chartEl;
+    if (!el) return;
+    const width = el.clientWidth;
+    const height = el.clientHeight;
+    if (width > 0 && height > 0) lastSize = { width, height };
   };
 
   // Diff by handler identity: drop names that disappeared, detach replaced
@@ -85,33 +100,63 @@ export function EChart(props: {
     boundEvents = next;
   };
 
+  const initChart = () => {
+    if (disposed || chart || !echartsLib || !chartEl) return;
+    // A lazy/hidden window starts at 0x0. Creating an instance there caches a
+    // zero-size canvas that never recovers until an explicit resize; wait for
+    // the first positive observation instead.
+    if (!hasArea(lastSize)) return;
+    chart = echartsLib.init(chartEl, undefined, { renderer: "canvas" });
+    // The init paint supersedes frames queued by the option effect and by the
+    // observer's first (pre-init) observation.
+    if (optionFrame) {
+      cancelAnimationFrame(optionFrame);
+      optionFrame = 0;
+    }
+    if (resizeFrame) {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = 0;
+    }
+    applyOption();
+    syncEvents(chart, props.onEvents ?? {});
+    // Apply the size observed around init so the first render fits the panel
+    // instead of waiting for a window drag to trigger the observer again.
+    resizeChart();
+  };
+
+  const onWindowResize = () => {
+    if (typeof ResizeObserver === "undefined") measureFromElement();
+    scheduleResize();
+  };
+
   onMount(() => {
     const el = chartEl;
     if (!el) return;
 
-    window.addEventListener("resize", scheduleResize);
+    // Seed from the element so a visible container can init before the first
+    // observer delivery, and so browsers without ResizeObserver still work.
+    measureFromElement();
+
+    window.addEventListener("resize", onWindowResize);
     if (typeof ResizeObserver !== "undefined") {
       // Flex/grid parents settle after ECharts' first init; without this the
       // canvas keeps its initial 100px height even when the panel grows.
       resizeObserver = new ResizeObserver((entries) => {
-        if (!hasArea(entries)) return;
-        scheduleResize();
+        const rect = entries[entries.length - 1]?.contentRect;
+        if (!rect || rect.width <= 0 || rect.height <= 0) return;
+        lastSize = { width: rect.width, height: rect.height };
+        if (chart) scheduleResize();
+        else initChart();
       });
       resizeObserver.observe(el);
     }
 
-    void loadEcharts().then((echartsLib) => {
+    void loadEcharts().then((lib) => {
       // `disposed` covers unmount-before-load; `chart` guards against a second
       // init if the loader ever resolves more than once.
-      if (disposed || !echartsLib || !chartEl || chart) return;
-      chart = echartsLib.init(chartEl, undefined, { renderer: "canvas" });
-      // The init paint supersedes any frame queued by the option effect.
-      if (optionFrame) {
-        cancelAnimationFrame(optionFrame);
-        optionFrame = 0;
-      }
-      applyOption();
-      syncEvents(chart, props.onEvents ?? {});
+      if (disposed || !lib) return;
+      echartsLib = lib;
+      initChart();
     });
   });
 
@@ -127,7 +172,7 @@ export function EChart(props: {
 
   onCleanup(() => {
     disposed = true;
-    window.removeEventListener("resize", scheduleResize);
+    window.removeEventListener("resize", onWindowResize);
     resizeObserver?.disconnect();
     resizeObserver = undefined;
     if (optionFrame) {
@@ -141,6 +186,8 @@ export function EChart(props: {
     boundEvents = {};
     chart?.dispose();
     chart = null;
+    echartsLib = null;
+    lastSize = undefined;
   });
 
   return (

@@ -161,6 +161,12 @@ function PriceGroup(props: { view: DecisionView }): JSX.Element {
 
 function WallsGroup(props: { view: DecisionView }): JSX.Element {
   const view = props.view;
+  // A missing max pain must stay a bare dash: printing 0 (or the label alone)
+  // next to the PIN cell invents a level and mislabels it.
+  const hasMaxPain = () => {
+    const value = view.report()?.maxPain;
+    return typeof value === "number" && Number.isFinite(value) && value > 0;
+  };
   return (
     <StatGroup
       testId="nifty-stat-group-walls"
@@ -224,12 +230,35 @@ function WallsGroup(props: { view: DecisionView }): JSX.Element {
         label="Max pain"
         value={
           <>
-            <AnimatedValue value={view.report()?.maxPain ?? 0} format={formatInt} />
-            <Sparkline
-              values={view.maxPainSeries()}
-              testId="nifty-maxpain-spark"
-              color={palette.PRIMARY}
+            <Show when={hasMaxPain()}>
+              <span
+                data-testid="nifty-maxpain-inline-label"
+                className="text-ui-micro font-bold uppercase text-fin-text-muted"
+                style={{
+                  "text-align": "left",
+                  "white-space": "nowrap",
+                  // Spend the shared 8px gutter as 4px gap + 1px rule + 3px
+                  // inset, so this number cannot read as the PIN cell's value.
+                  "margin-left": `${REPORT_STRIP_METRICS.cellGap}px`,
+                  "border-left": `${REPORT_STRIP_METRICS.groupHairline}px solid ${palette.TERM_BORDER}`,
+                  "padding-left": `${REPORT_STRIP_METRICS.groupInset}px`,
+                  "margin-right": `${REPORT_STRIP_METRICS.cellGap}px`,
+                }}
+              >
+                MAX PAIN
+              </span>
+            </Show>
+            <AnimatedValue
+              value={hasMaxPain() ? view.report()?.maxPain : undefined}
+              format={formatInt}
             />
+            <Show when={hasMaxPain()}>
+              <Sparkline
+                values={view.maxPainSeries()}
+                testId="nifty-maxpain-spark"
+                color={palette.PRIMARY}
+              />
+            </Show>
           </>
         }
         valueSize={REPORT_FONT.value}

@@ -1,20 +1,34 @@
-import { ErrorBoundary, Show, Suspense, createMemo, lazy } from "solid-js";
+import {
+  ErrorBoundary,
+  Show,
+  Suspense,
+  createEffect,
+  createMemo,
+  createSignal,
+  lazy,
+  untrack,
+} from "solid-js";
 import type { JSX } from "solid-js";
-import { Box, Text } from "@/ui";
+import { Box, Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
-import { ReplayUnavailable } from "./BreadthStrip";
 import { ReportProvider, useNiftyReport } from "./ReportContext";
 import { NiftyFuturesPanel } from "./NiftyFuturesPanel";
 import { NiftyItmPeFlowPanel } from "./NiftyItmPeFlow";
-import type { NiftyFutures, NiftyItmPeFlow } from "@/types/niftyReport";
 import type { DeskDockTab } from "./DeskDock";
 import { ReportToolbar } from "./ReportToolbar";
+import type { CanvasSize } from "../../components/window/layout";
+import type { WindowLayout } from "../../components/window/types";
+import type { SavedConfigTransport } from "../../state/savedConfig";
+import { ReportWindowDesk } from "./ReportWindowDesk";
+import { defaultReportLayout, useReportWindowConfig } from "./reportWindowConfig";
+import { getReportPreset, resolveReportPreset } from "./reportWindowPresets";
 import {
   REPORT_FONT,
   REPORT_GUTTER,
   REPORT_PAD,
   REPORT_RADIUS,
+  REPORT_REPLAY_STRIP_HEIGHT,
   REPORT_SECTION_ALIGN,
   REPORT_SECTION_ATTR,
 } from "./reportTokens";
@@ -41,13 +55,38 @@ const NiftyPressureDesk = lazy(() =>
   import("./NiftyPressureDesk").then((m) => ({ default: m.NiftyPressureDesk })),
 );
 
-// Desktop desk surface: strip / chart / dock. The chart track is 70fr so it
-// lands at ~56% of the viewport after the fixed chrome (~174px above the row);
-// the dock track keeps ~210px so an open drawer and the 26px tab bar both fit.
-// The chart row also carries its own 58vh cap for tall viewports. Mobile keeps
-// the flex-column flow unchanged.
+// Desktop desk surface: strip / chart / rail+dock. The bottom track is content
+// sized: the walls rail collapses to one line when no snapshot exists, so a
+// fractional bottom track used to reserve ~150px of dead space under the chart.
+// `1fr` gives every reclaimed pixel to the chart row; the dock is an overlay
+// drawer inside its own band, so it needs no fixed reserve. Mobile keeps the
+// flex-column flow unchanged.
 const DESK_CONTENT_GRID_CLASS =
-  "min-[1200px]:grid min-[1200px]:grid-rows-[auto_minmax(0,70fr)_minmax(0,30fr)]";
+  "min-[1200px]:grid min-[1200px]:grid-rows-[auto_minmax(0,1fr)_auto]";
+
+/**
+ * LEVEL 1 focus changes layout only — the chart and chain stay mounted, and
+ * the report's own scroll container stays the single scroll owner. Every
+ * low-frequency band (including the pinned hero) collapses via CSS so no
+ * lazy boundary is torn down when F is pressed or restored with Esc.
+ */
+const REPORT_CHART_FOCUS_CLASS = [
+  "[&_[data-testid='nifty-decision-hero']]:hidden!",
+  "[&_[data-testid='nifty-kpi-hero']]:hidden!",
+  "[&_[data-testid='nifty-stat-strip']]:hidden!",
+  "[&_[data-testid='nifty-flow-windows-disclosure']]:hidden!",
+  "[&_[data-testid='movers-strip']]:hidden!",
+  "[&_[data-testid='nifty-context-rail']]:hidden!",
+  "[&_[data-testid='nifty-setup-radar']]:hidden!",
+  "[&_[data-testid='desk-dock-region']]:hidden!",
+  "[&_[data-testid='nifty-side-col']]:hidden!",
+  "[&_[data-testid='nifty-report-strips']]:hidden!",
+  "[&_[data-testid='nifty-analytics-row']]:hidden!",
+  "[&_[data-testid='nifty-iv-skew-row']]:hidden!",
+  "[&_[data-testid='nifty-replay-mode-banner']]:hidden!",
+  "[&_[data-testid='nifty-main-row']]:flex-1!",
+  "[&_[data-testid='nifty-main-row']]:min-[1200px]:grid-cols-[minmax(0,1fr)]!",
+].join(" ");
 
 /**
  * The stat strip's per-cell minimums are tuned for the 1600px desk — PRICE
@@ -59,6 +98,10 @@ const DESK_CONTENT_GRID_CLASS =
  * each cell's title/hint still carries the explanation.
  */
 const REPORT_NARROW_KPI_CLASS = [
+  // The decision band is one 32px row at every width; its detail is a fixed
+  // popover, so a phone must never turn the band into a wrapping in-flow block.
+  "max-[600px]:[&_[data-testid='nifty-kpi-hero']]:flex-nowrap!",
+  "max-[600px]:[&_[data-testid='nifty-kpi-hero']]:overflow-visible!",
   // One group per row, each owning the full strip width (overrides the inline
   // `min-width: <sum of cell minimums>px` and the 1600-tuned flex weight).
   "max-[600px]:[&_[data-testid='nifty-decision-stats']]:flex-col",
@@ -177,7 +220,7 @@ const REPORT_MOBILE_CHROME_CLASS = [
   "max-[600px]:[&_[data-testid='nifty-report-content']]:gap-1!",
   "max-[600px]:[&_[data-testid='nifty-report-content']]:pt-1!",
   "max-[600px]:[&_[data-testid='nifty-replay-mode-banner']]:gap-x-2!",
-  "max-[600px]:[&_[data-testid='nifty-replay-mode-banner']]:py-1!",
+  "max-[600px]:[&_[data-testid='nifty-replay-mode-banner']]:px-2!",
 ].join(" ");
 
 /**
@@ -199,38 +242,6 @@ const REPLAY_NOTE_STYLE: JSX.CSSProperties = {
   "font-size": `${REPORT_FONT.micro}px`,
   "line-height": 1.35,
 };
-
-/**
- * Futures basis and ITM premium flow sit above the chart because both explain
- * the same question the chart answers: *why* did spot move. A block the payload
- * does not carry is not painted at all — a placeholder row above the chart is
- * worse than no row.
- */
-function ReportFlowRow(props: {
-  futures: NiftyFutures | null;
-  itm: NiftyItmPeFlow | null;
-  spot: number;
-}) {
-  const hasFutures = () => props.futures != null;
-  const hasItm = () => props.itm != null;
-
-  return (
-    <Show when={hasFutures() || hasItm()}>
-      <Box
-        data-testid="nifty-flow-above-chart"
-        className="grid grid-cols-1 gap-2 w-full max-w-full min-w-0 shrink-0 max-[600px]:order-5 min-[1200px]:-order-1"
-        classList={{ "min-[1200px]:grid-cols-2": hasFutures() && hasItm() }}
-      >
-        <Show when={hasFutures()}>
-          <NiftyFuturesPanel futures={props.futures} />
-        </Show>
-        <Show when={hasItm()}>
-          <NiftyItmPeFlowPanel flow={props.itm} spot={props.spot} />
-        </Show>
-      </Box>
-    </Show>
-  );
-}
 
 function SectionError(props: { name: string; error: unknown }) {
   return (
@@ -268,20 +279,110 @@ function PanelSkeleton(props: { h: number }) {
   );
 }
 
-function ReportBody() {
+interface ReportBodyProps {
+  transport?: SavedConfigTransport;
+  canvas?: CanvasSize;
+}
+
+function ReportBody(props: ReportBodyProps) {
   const store = useNiftyReport();
   const isDesk = () => store.ui.isDesk();
+  const isWindowDesk = () => store.ui.isWindowDesk();
+  const windowConfig = useReportWindowConfig({ transport: props.transport });
+  const [presetId, setPresetId] = createSignal("");
+  // Until the user picks a preset or moves a frame, the first desk visit opens
+  // the full six-panel workspace rather than the foundation's smaller seed. A
+  // layout is only persisted once it is actually authored by the user.
+  const [deskTouched, setDeskTouched] = createSignal(false);
+  const deskLayout = createMemo<WindowLayout>(() => {
+    const current = windowConfig.layout();
+    if (deskTouched()) return current;
+    const full = getReportPreset("full");
+    return full
+      ? { ...current, windows: resolveReportPreset(full, windowConfig.canvas()) }
+      : current;
+  });
+  const applyPreset = (id: string) => {
+    const preset = getReportPreset(id);
+    if (!preset) return;
+    setDeskTouched(true);
+    const current = windowConfig.layout();
+    windowConfig.setLayout({
+      ...current,
+      windows: resolveReportPreset(preset, windowConfig.canvas()),
+    });
+    setPresetId(id);
+  };
+  const commitDeskLayout = (next: WindowLayout) => {
+    setDeskTouched(true);
+    windowConfig.setLayout(next);
+  };
+  // A saved desk (including a deliberately empty one) is already authored. Only
+  // the untouched first-run seed gets the fuller six-panel overlay.
+  createEffect(() => {
+    if (!windowConfig.hydrated() || deskTouched()) return;
+    const current = windowConfig.layout();
+    if (current.windows.length === 0) {
+      setDeskTouched(true);
+      return;
+    }
+    const seed = defaultReportLayout(windowConfig.canvas()).windows;
+    const isSeed =
+      current.windows.length === seed.length &&
+      current.windows.every((win, index) => win.type === seed[index]?.type);
+    if (!isSeed) setDeskTouched(true);
+  });
+
+  // The four store-dependent report panels (chart / walls / flow / movers) read
+  // the live store from Solid context, which the window registry cannot reach.
+  // Hand it through the desk's context bag so those frames render real content.
+  createEffect(() => {
+    const previous = untrack(() => windowConfig.context());
+    windowConfig.setContext({ ...previous, reportStore: store });
+  });
+  // Some section-level suites mount the shell with a partial UI mock; keep the
+  // focus read tolerant so a missing accessor reads as "not focused".
+  const focus = () =>
+    typeof store.ui.overlayOpen === "function" && store.ui.overlayOpen("chartFocus");
   const replayTime = createMemo(() => {
     const t = store.replay.frameT?.();
     return typeof t === "string" && t.length >= 16 ? t.slice(11, 16) : null;
   });
 
-  // The desk surface keeps only the decision strip and the chart above the
-  // fold. Low-frequency bands that used to stack above the chart are one dock
-  // click away instead; research mode keeps its expanded reading layout.
+  const setFocusOpen = (next: boolean) => store.ui.setOverlayOpen?.("chartFocus", next);
+  const closeChartFocus = () => setFocusOpen(false);
+
+  // The two ~190px analytics panels moved out of the chart flow into the same
+  // dock every other low-frequency panel uses. A panel with no recorded data
+  // gets no tab — an empty drawer is worse than no tab.
   const secondaryTabs = createMemo<DeskDockTab[]>(() => {
-    if (!isDesk()) return [];
+    const current = store.data.report();
+    const futures = current?.futures ?? null;
+    const itm = current?.itm_pe_flow ?? null;
+    const tabs: DeskDockTab[] = [];
+    if (futures) {
+      tabs.push({
+        key: "futures",
+        label: "Futures basis",
+        summary: <span>spot · oi</span>,
+        get content() {
+          return <NiftyFuturesPanel futures={futures} />;
+        },
+      });
+    }
+    if (itm) {
+      tabs.push({
+        key: "itm",
+        label: "ITM PE flow",
+        summary: <span>premium</span>,
+        get content() {
+          return <NiftyItmPeFlowPanel flow={itm} spot={current?.spot ?? 0} />;
+        },
+      });
+    }
+    if (!isDesk()) return tabs;
     return [
+      ...tabs,
       {
         key: "strips",
         label: "DESK",
@@ -312,7 +413,8 @@ function ReportBody() {
   return (
     <Box
       data-testid="nifty-report-panel"
-      class={`flex flex-col h-full min-h-0 w-full overflow-hidden ${REPORT_SECTION_ALIGN.panel} ${REPORT_NARROW_KPI_CLASS} ${REPORT_NARROW_DASHBOARD_CLASS} ${REPORT_MOBILE_CHROME_CLASS}`}
+      data-chart-focus={focus() ? "true" : "false"}
+      class={`flex flex-col h-full min-h-0 w-full overflow-hidden ${REPORT_SECTION_ALIGN.panel} ${REPORT_NARROW_KPI_CLASS} ${REPORT_NARROW_DASHBOARD_CLASS} ${REPORT_MOBILE_CHROME_CLASS} ${focus() ? REPORT_CHART_FOCUS_CLASS : ""}`}
       style={{
         display: "flex",
         "flex-direction": "column",
@@ -333,7 +435,7 @@ function ReportBody() {
         data-left-edge={String(REPORT_GUTTER.inline)}
         style={{ "padding-left": `${REPORT_GUTTER.inline}px` }}
       >
-        <ReportToolbar />
+        <ReportToolbar presetId={presetId()} onPresetChange={applyPreset} />
       </Box>
 
       {/* One persistent legend for the whole replay surface: the numbers below
@@ -342,8 +444,10 @@ function ReportBody() {
       <Show when={store.selection.mode() === "eod"}>
         <Box
           data-testid="nifty-replay-mode-banner"
-          className="flex flex-wrap items-center gap-x-3 gap-y-1 w-full min-w-0 shrink-0 px-3 py-2 text-ui-micro"
+          className="flex flex-nowrap items-center gap-x-2 w-full min-w-0 shrink-0 px-3 text-ui-micro"
           style={{
+            height: `${REPORT_REPLAY_STRIP_HEIGHT}px`,
+            "min-height": `${REPORT_REPLAY_STRIP_HEIGHT}px`,
             "background-color": palette.SURFACE_ALT,
             "border-left": `2px solid ${palette.PRIMARY}`,
           }}
@@ -352,10 +456,8 @@ function ReportBody() {
             REPLAY{replayTime() ? ` ${replayTime()}` : ""}
           </Text>
           <Text span style={REPLAY_NOTE_STYLE}>
-            Playhead values below · live-only bands
+            Playhead values · live-only bands hidden
           </Text>
-          <ReplayUnavailable noun="Movers" />
-          <ReplayUnavailable noun="Breadth" />
         </Box>
       </Show>
 
@@ -365,74 +467,109 @@ function ReportBody() {
         </Box>
       </Show>
 
-      <Show
-        when={store.data.report()}
-        fallback={
-          <Box class="flex-1 min-h-0" style={{ flex: 1, "min-height": "0px" }}>
-            <Show
-              when={store.data.loading() || !store.data.booted()}
-              fallback={
-                <EmptyState
-                  title="No report for this selection"
-                  description="Pick another symbol, expiry or session date to load a report."
-                  data-testid="nifty-report-empty"
-                />
-              }
-            >
-              <InlineLoader data-testid="nifty-report-loading" message="Loading index report" />
+      <Show when={isWindowDesk()}>
+        <Box
+          data-testid="nifty-report-window-desk-region"
+          class="flex-1 min-h-0 w-full min-w-0"
+          style={{ flex: 1, "min-height": "0px", overflow: "hidden" }}
+        >
+          <ReportWindowDesk
+            layout={deskLayout()}
+            onLayoutChange={commitDeskLayout}
+            context={() => windowConfig.context()}
+            canvas={windowConfig.canvas()}
+            onCanvasChange={(size) => {
+              const current = windowConfig.canvas();
+              if (current?.w === size.w && current?.h === size.h) return;
+              windowConfig.setCanvas(size);
+            }}
+          />
+        </Box>
+      </Show>
+
+      <Show when={!isWindowDesk()}>
+        <Show
+          when={store.data.report()}
+          fallback={
+            <Box class="flex-1 min-h-0" style={{ flex: 1, "min-height": "0px" }}>
+              <Show
+                when={store.data.loading() || !store.data.booted()}
+                fallback={
+                  <EmptyState
+                    title="No report for this selection"
+                    description="Pick another symbol, expiry or session date to load a report."
+                    data-testid="nifty-report-empty"
+                  />
+                }
+              >
+                <InlineLoader data-testid="nifty-report-loading" message="Loading index report" />
+              </Show>
+            </Box>
+          }
+        >
+          <Box
+            data-testid="nifty-report-content"
+            data-left-edge={String(REPORT_GUTTER.inline)}
+            class={`flex-1 min-h-0 flex flex-col gap-2 ${REPORT_SECTION_ALIGN.content} ${REPORT_MOBILE_ORDER_CLASS} ${REPORT_DESK_FLOW_FIRST_CLASS} ${REPORT_MOBILE_UNAVAILABLE_CLASS} ${isDesk() ? `overflow-y-auto overflow-x-hidden ${DESK_CONTENT_GRID_CLASS}` : "overflow-auto"}`}
+            style={{
+              flex: 1,
+              "min-height": "0px",
+              display: "flex",
+              "flex-direction": "column",
+              gap: `${REPORT_GUTTER.section}px`,
+              overflow: "auto",
+              "overflow-y": "auto",
+              "overflow-x": isDesk() ? "hidden" : "auto",
+              // Keep the horizontal gutter that defines the shared left edge.
+              // The toolbar section keeps a 1px top hairline; a top inset one
+              // pixel short makes the measured section gap exactly 8px.
+              padding: `${REPORT_GUTTER.section - 1}px ${REPORT_GUTTER.inline}px ${REPORT_GUTTER.section}px`,
+            }}
+          >
+            <ErrorBoundary fallback={(err) => <SectionError name="decision strip" error={err} />}>
+              <Suspense fallback={<PanelSkeleton h={48} />}>
+                <ReportDecisionStrip />
+              </Suspense>
+            </ErrorBoundary>
+            <ErrorBoundary fallback={(err) => <SectionError name="workspace" error={err} />}>
+              <Suspense fallback={<PanelSkeleton h={320} />}>
+                <ReportWorkspace secondaryTabs={secondaryTabs()} />
+              </Suspense>
+            </ErrorBoundary>
+            <Show when={!isDesk()}>
+              <ErrorBoundary fallback={(err) => <SectionError name="desk strips" error={err} />}>
+                <Suspense fallback={<PanelSkeleton h={150} />}>
+                  <ReportStrips />
+                </Suspense>
+              </ErrorBoundary>
+              <ErrorBoundary fallback={(err) => <SectionError name="analytics" error={err} />}>
+                <Suspense fallback={<PanelSkeleton h={200} />}>
+                  <ReportAnalytics />
+                </Suspense>
+              </ErrorBoundary>
             </Show>
           </Box>
-        }
-      >
-        <Box
-          data-testid="nifty-report-content"
-          data-left-edge={String(REPORT_GUTTER.inline)}
-          class={`flex-1 min-h-0 flex flex-col gap-2 ${REPORT_SECTION_ALIGN.content} ${REPORT_MOBILE_ORDER_CLASS} ${REPORT_DESK_FLOW_FIRST_CLASS} ${REPORT_MOBILE_UNAVAILABLE_CLASS} ${isDesk() ? `overflow-hidden ${DESK_CONTENT_GRID_CLASS}` : "overflow-auto"}`}
-          style={{
-            flex: 1,
-            "min-height": "0px",
-            display: "flex",
-            "flex-direction": "column",
-            gap: `${REPORT_GUTTER.section}px`,
-            overflow: isDesk() ? "hidden" : "auto",
-            // Keep the horizontal gutter that defines the shared left edge.
-            // The toolbar section keeps a 1px top hairline; a top inset one
-            // pixel short makes the measured section gap exactly 8px.
-            padding: `${REPORT_GUTTER.section - 1}px ${REPORT_GUTTER.inline}px ${REPORT_GUTTER.section}px`,
-          }}
-        >
-          <ErrorBoundary fallback={(err) => <SectionError name="decision strip" error={err} />}>
-            <Suspense fallback={<PanelSkeleton h={48} />}>
-              <ReportDecisionStrip />
-            </Suspense>
-          </ErrorBoundary>
-          <ErrorBoundary fallback={(err) => <SectionError name="workspace" error={err} />}>
-            <Suspense fallback={<PanelSkeleton h={320} />}>
-              <ReportWorkspace secondaryTabs={secondaryTabs()} />
-            </Suspense>
-          </ErrorBoundary>
-          {/* Phone reading order: the chart precedes the futures / ITM detail.
-              The desk restores flow-above-chart with a breakpoint-only order. */}
-          <ErrorBoundary fallback={(err) => <SectionError name="flow panels" error={err} />}>
-            <ReportFlowRow
-              futures={store.data.report()?.futures ?? null}
-              itm={store.data.report()?.itm_pe_flow ?? null}
-              spot={store.data.report()?.spot ?? 0}
-            />
-          </ErrorBoundary>
-          <Show when={!isDesk()}>
-            <ErrorBoundary fallback={(err) => <SectionError name="desk strips" error={err} />}>
-              <Suspense fallback={<PanelSkeleton h={150} />}>
-                <ReportStrips />
-              </Suspense>
-            </ErrorBoundary>
-            <ErrorBoundary fallback={(err) => <SectionError name="analytics" error={err} />}>
-              <Suspense fallback={<PanelSkeleton h={200} />}>
-                <ReportAnalytics />
-              </Suspense>
-            </ErrorBoundary>
+
+          <Show when={focus()}>
+            <Box className="flex shrink-0 justify-end w-full min-w-0 px-1 pb-1">
+              <Button
+                data-testid="nifty-chart-focus-exit"
+                type="button"
+                size="sm"
+                onClick={closeChartFocus}
+                aria-label="Exit chart focus (Escape)"
+                style={{
+                  "background-color": palette.SURFACE_ALT,
+                  color: palette.TEXT,
+                  "font-size": `${REPORT_FONT.micro}px`,
+                  "font-weight": 800,
+                }}
+              >
+                EXIT FOCUS · ESC
+              </Button>
+            </Box>
           </Show>
-        </Box>
+        </Show>
       </Show>
 
       <ErrorBoundary fallback={(err) => <SectionError name="overlays" error={err} />}>
@@ -454,10 +591,14 @@ function ReportBody() {
   );
 }
 
-export function NiftyReportShell(props: { onOpenSymbol?: (s: string) => void }) {
+export interface NiftyReportShellProps extends ReportBodyProps {
+  onOpenSymbol?: (s: string) => void;
+}
+
+export function NiftyReportShell(props: NiftyReportShellProps) {
   return (
     <ReportProvider onOpenSymbol={props.onOpenSymbol}>
-      <ReportBody />
+      <ReportBody transport={props.transport} canvas={props.canvas} />
     </ReportProvider>
   );
 }

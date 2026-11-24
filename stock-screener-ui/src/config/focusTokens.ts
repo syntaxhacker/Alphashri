@@ -4,4 +4,4 @@
  * pulling ECharts into the initial chunk.
  */
 
-export const EXPIRY_CHIP_FOCUS = "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary";
+export const EXPIRY_CHIP_FOCUS = "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text";

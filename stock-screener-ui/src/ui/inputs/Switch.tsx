@@ -179,7 +179,7 @@ export function Switch(props: SwitchProps) {
         aria-describedby={describedBy()}
         data-testid={known["data-testid"]}
         // The native input is an invisible hit area; the global
-        // `:is(input, …):focus` outline would draw a second, amber frame over
+        // `:is(input, …):focus` outline would draw a second, neutral frame over
         // the track's own focused state on every mouse click.
         className="absolute inset-0 z-10 m-0 h-full w-full cursor-pointer appearance-none bg-transparent opacity-0 outline-none focus-visible:outline-none disabled:cursor-not-allowed"
         onChange={handleChange}

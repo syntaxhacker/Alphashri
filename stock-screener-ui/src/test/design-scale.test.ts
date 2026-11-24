@@ -86,13 +86,26 @@ describe("design scale", () => {
     expect(offenders, `\n${report}\n\nAllowed: ${[...RADIUS_SCALE].join(", ")}`).toEqual([]);
   });
 
-  it("every native control gets a focus ring", () => {
-    // One rule in tailwind.css covers all of them; this asserts it still exists
-    // and has not been narrowed to a class a raw button would not carry.
+  it("every native control gets a neutral, keyboard-only focus ring", () => {
+    // One rule in tailwind.css must cover every native control (not a class a
+    // raw element would lack), use :focus-visible only so a mouse click never
+    // flashes chrome, and paint a neutral token rather than amber selection.
     const css = readFileSync(join(SRC, "tailwind.css"), "utf8");
-    expect(css).toMatch(/:is\(button, a, \[role="button"\], summary\):focus-visible/);
-    expect(css).toMatch(/:is\(input, select, textarea\):focus/);
-    expect(css).toMatch(/outline: 2px solid var\(--color-fin-primary\)/);
+    const rule = /:is\(([^)]+)\):focus-visible\s*\{([^}]*)\}/.exec(css);
+    expect(rule, "no native-control :focus-visible rule in tailwind.css").toBeTruthy();
+    const covered = rule![1].split(",").map((control) => control.trim());
+    for (const control of ["button", "a", '[role="button"]', "summary", "input", "select", "textarea"]) {
+      expect(covered, `${control} missing from the focus rule`).toContain(control);
+    }
+    expect(rule![2]).toMatch(/outline:\s*2px solid var\(--color-fin-text\)/);
+    expect(rule![2]).toMatch(/outline-offset:\s*1px/);
+    expect(rule![2], "focus ring must stay neutral").not.toMatch(/color-fin-(primary|warning)|#/);
+    expect(css, "native controls must not use plain :focus").not.toMatch(/\):focus\s*\{/);
+
+    const style = readFileSync(join(SRC, "style.css"), "utf8");
+    const amberFocus = /:focus(?:-visible)?[^{]*\{[^}]*outline:[^;]*var\(--color-fin-primary\)/g;
+    const offenders = [...css.matchAll(amberFocus), ...style.matchAll(amberFocus)].map((m) => m[0]);
+    expect(offenders, `amber focus outlines: ${offenders.join(" | ")}`).toEqual([]);
   });
 });
 

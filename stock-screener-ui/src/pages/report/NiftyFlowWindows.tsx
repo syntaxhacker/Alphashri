@@ -131,8 +131,8 @@ export function NiftyFlowWindows(props: {
       >
         <span
           data-testid="flow-legend"
-          aria-label="Flow window legend: CALL BID means call OI build plus put unwind; PUT BID means call unwind plus put build; BOTH BUILD or BOTH UNWIND is two-sided with no direction"
-          title="CALL BID = CE build + PE unwind · PUT BID = CE unwind + PE build · BOTH BUILD/UNWIND = two-sided, no direction"
+          aria-label="Window legend — CALL BID = CE build + PE unwind · PUT BID = CE unwind + PE build · BOTH BUILD/UNWIND = two-sided, no direction"
+          title="Window legend — CALL BID = CE build + PE unwind · PUT BID = CE unwind + PE build · BOTH BUILD/UNWIND = two-sided, no direction"
           style={{
             "display": "inline-flex",
             "align-items": "center",

@@ -288,7 +288,7 @@ describe("OptionsAnalyticsPage — keyboard parity", () => {
     expect(vol).toHaveTextContent("VOLATILITY");
     expect(vol).toHaveAttribute("role", "tab");
     expect(vol).toHaveClass("focus-visible:ring-1");
-    expect(vol).toHaveClass("focus-visible:ring-fin-primary");
+    expect(vol).toHaveClass("focus-visible:ring-fin-text");
   });
 
   it("is a flex column so the active pillar and its charts fill the body", async () => {

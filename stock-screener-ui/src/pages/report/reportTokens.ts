@@ -155,6 +155,58 @@ export const REPORT_STRIP_GROUP_WEIGHT = {
 } as const;
 
 /**
+ * The single decision band: verdict chip, active levels and the four captioned
+ * KPI cells share one 32px surface. It used to be a 56px banner with a run-on
+ * token line that clipped at 1600; the compact single-row form returns another
+ * 24px to the chart. The band is owned by the decision strip, not pinned by the
+ * shell, so there is exactly one owner of `nifty-kpi-hero`.
+ */
+export const REPORT_KPI_HERO_HEIGHT = 32;
+
+/**
+ * The `ALL STATS` surface is a bounded popover, not a second in-flow band.
+ * Height is capped in px so the 32px band and the chart behind it never move;
+ * the phone sheet keeps an 8px gutter and scrolls inside that same cap.
+ */
+export const REPORT_HERO_POPOVER = {
+  maxWidth: 720,
+  maxHeight: 420,
+  narrowInset: 8,
+  zIndex: 60,
+} as const;
+
+/**
+ * The strip's stat groups are tuned for a 1600px row. Inside the popover the
+ * same cells become a 2–3 column grid of labelled pairs: each group is a
+ * section with its own caption hairline, and no cell keeps its strip min-width.
+ */
+export const REPORT_HERO_STATS_GRID_CLASS = [
+  "[&_[data-testid='nifty-decision-stats']]:grid!",
+  "[&_[data-testid='nifty-decision-stats']]:grid-cols-[repeat(auto-fit,minmax(280px,1fr))]!",
+  "[&_[data-testid='nifty-decision-stats']]:gap-2!",
+  "[&_[data-testid^='nifty-stat-group-']]:flex-none!",
+  "[&_[data-testid^='nifty-stat-group-']]:w-full!",
+  "[&_[data-testid^='nifty-stat-group-']]:min-w-0!",
+  "[&_[data-testid^='nifty-stat-group-']>*]:min-w-0!",
+  "[&_[data-testid^='nifty-stat-group-']>span:first-child]:w-full!",
+  "[&_[data-testid^='nifty-stat-group-']>span:first-child]:border-b!",
+  "[&_[data-testid^='nifty-stat-group-']>span:first-child]:border-[var(--desk-border)]!",
+  "[&_[data-testid^='nifty-stat-group-']>span:first-child]:pb-1!",
+  "[&_[data-testid^='nifty-stat-group-']>span:first-child]:mb-1!",
+  "[&_[data-testid$='-cells']]:flex-col!",
+  "[&_[data-testid$='-cells']]:min-w-0!",
+  "[&_[data-testid$='-cells']>*]:min-w-0!",
+  "[&_[data-testid$='-cells']>*]:flex-row!",
+  "[&_[data-testid$='-cells']>*]:items-center!",
+  "[&_[data-testid$='-cells']>*]:justify-between!",
+  "[&_[data-testid$='-cells']>*]:gap-2!",
+  "[&_[data-testid$='-value']]:text-right!",
+].join(" ");
+
+/** Slim replay strip: playhead time + the one live-only note, nothing else. */
+export const REPORT_REPLAY_STRIP_HEIGHT = 24;
+
+/**
  * The desk surface has one gutter: 4px between inline items, 8px between
  * sections, 16px outside the surface. A section is one bordered/readable band,
  * not every nested cell — dividers inside a section stay at `inline`.

@@ -12,10 +12,11 @@ import {
 
 export function Stat(props: { label: string; value: string; color?: string }) {
   return (
-    <div class="min-w-0 py-[2px]">
+    <div class="flex min-w-0 flex-col gap-[2px] py-[2px]">
       <Text
         size="xs"
         span
+        className="block"
         fw={REPORT_FONT_WEIGHT.extrabold as "normal" | "medium" | "semibold" | "bold" | number}
         style={{
           "font-size": `${REPORT_FONT.micro}px`,
@@ -30,7 +31,8 @@ export function Stat(props: { label: string; value: string; color?: string }) {
         size="xs"
         span
         fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
-        className="font-mono tabular-nums whitespace-nowrap overflow-hidden truncate"
+        className="block font-mono tabular-nums whitespace-nowrap overflow-hidden truncate"
+        title={props.value}
         style={{
           "font-size": `${REPORT_FONT.md}px`,
           "line-height": REPORT_LINE_HEIGHT.snug,

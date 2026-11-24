@@ -146,7 +146,7 @@ describe("report composition — decision and unavailable bands", () => {
     expectMarkers("ReportDecisionStrip.moreStats.tsx", [
       "export function MoreStats(",
       'data-report-band="more-stats"',
-      'label="MORE STATS"',
+      'label="ALL STATS"',
       'testId="nifty-verdict-disclosure"',
     ]);
     expectMarkers("ReportDecisionStrip.tsx", [
@@ -259,6 +259,68 @@ describe("report composition — toolbar bands", () => {
     expect([primary, secondary]).toEqual([48, 20]);
     expectMarkers(TOOLBAR, ["TOOLBAR_PRIMARY_HEIGHT + TOOLBAR_SECONDARY_HEIGHT"]);
     expect(primary + secondary).toBe(68);
+  });
+});
+
+describe("report labels describe content, not the widget", () => {
+  const renamed = [
+    { file: "ReportDecisionStrip.moreStats.tsx", next: 'label="ALL STATS"', old: "MORE STATS" },
+    { file: "NiftyChartPanel.controls.tsx", next: '"CHART OPTIONS"', old: '"MORE ▾"' },
+    { file: "NiftyWallsCard.card.tsx", next: "ALL WALL STATS", old: "EXPAND" },
+    {
+      file: "NiftyFlowWindows.tsx",
+      next: "Window legend — CALL BID",
+      old: "Flow window legend",
+    },
+  ] as const;
+
+  it("ships the new labels and drops the old widget-name strings from source", () => {
+    for (const { file, next, old } of renamed) {
+      const text = source(file);
+      expect(missingMarkers(text, [next]), `${file} lost ${next}`).toEqual([]);
+      expect(text, `${file} still prints ${old}`).not.toContain(old);
+    }
+  });
+
+  it("names the expanded chart and flow states in content terms too", () => {
+    const chart = source("NiftyChartPanel.controls.tsx");
+    expect(missingMarkers(chart, ['"HIDE OPTIONS"'])).toEqual([]);
+    expect(chart).not.toContain("LESS ▴");
+    expect(source("NiftyFlowWindows.tsx")).not.toContain("Flow window legend");
+  });
+});
+
+describe("report density guard — empty bands and compact clusters", () => {
+  it("collapses the walls empty state instead of reserving a skeleton body", () => {
+    const card = source("NiftyWallsCard.card.tsx");
+    expect(card, "walls card lost the collapsed empty-state marker").toContain(
+      'data-walls-empty="collapsed"',
+    );
+    expect(card, "walls empty state must be a 20px status line").toMatch(/class="[^"]*\bh-5\b/);
+    expect(card, "walls card still mounts the full skeleton on an empty payload").not.toContain(
+      "<WallsEmpty {...props} />",
+    );
+  });
+
+  it("keeps the desk dock in one tight cluster with a single right-aligned hint", () => {
+    const dock = source("DeskDock.tsx");
+    expect(dock, "dock lost its explicit tab cluster").toContain(
+      'data-testid="desk-dock-tabs"',
+    );
+    expect(dock, "dock hint must stay right-aligned").toContain("ml-auto");
+    expect(dock, "dock must not stretch its buttons across the bar").not.toContain(
+      "justify-between",
+    );
+  });
+
+  it("keeps the flow legend and run labels tightly grouped without losing tooltips", () => {
+    const flow = source("NiftyFlowStrip.tsx");
+    expect(flow).toMatch(/data-testid="nifty-flowstrip-legend"[\s\S]{0,240}inline-flex/);
+    expect(flow).toMatch(/data-testid="nifty-flowstrip-labels"[\s\S]{0,260}gap-2/);
+    expect(flow, "flow strip must not stretch a single line across the panel").not.toContain(
+      "justify-between",
+    );
+    expect(flow, "legend tooltips were dropped").toContain("title={item.title}");
   });
 });
 

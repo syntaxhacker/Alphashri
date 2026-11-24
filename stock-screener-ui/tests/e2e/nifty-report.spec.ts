@@ -69,7 +69,7 @@ test.describe("Index Report - EOD mode", () => {
 
     // The old nifty-timeline items were removed with the React report. EOD now
     // re-renders the same decision strip from the by-date snapshot. The stat
-    // cells live behind MORE STATS in the A++ composition.
+    // cells live behind ALL STATS in the A++ composition.
     const strip = page.locator('[data-testid="nifty-stat-strip"]');
     await expect(strip).toBeVisible({ timeout: 10000 });
     await page.getByTestId("nifty-live-tape-toggle").first().click();

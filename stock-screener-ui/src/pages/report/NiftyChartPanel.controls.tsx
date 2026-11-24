@@ -1,4 +1,4 @@
-import { Show } from "solid-js";
+import { Show, createSignal, onCleanup, onMount } from "solid-js";
 import { ActionIcon, Button, SegmentedControl, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
@@ -19,6 +19,29 @@ import {
 } from "./NiftyChartPanel.constants";
 import type { FeedView } from "./NiftyChartPanel.annotations";
 import type { ChartSource } from "./niftyReportStore";
+
+/** A report window can be 240px wide inside a desktop monitor, so neither the
+ *  axis reservation nor the header caption may key off the viewport. */
+export const NARROW_CONTAINER_PX = 320;
+
+export function useNarrowContainer(getHost: () => HTMLElement | null | undefined) {
+  const [narrow, setNarrow] = createSignal(false);
+  onMount(() => {
+    const host = getHost();
+    if (!host) return;
+    const apply = (width: number) =>
+      setNarrow(Number.isFinite(width) && width > 0 && width < NARROW_CONTAINER_PX);
+    apply(host.getBoundingClientRect().width);
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries.find((item) => item.target === host) ?? entries[0];
+      apply(entry?.contentRect.width ?? 0);
+    });
+    observer.observe(host);
+    onCleanup(() => observer.disconnect());
+  });
+  return narrow;
+}
 
 interface ChartTitleProps {
   view: "chart" | "depth";
@@ -101,6 +124,13 @@ interface ChartControlsProps {
 }
 
 export function ChartControls(props: ChartControlsProps) {
+  let root: HTMLElement | undefined;
+  const narrow = useNarrowContainer(
+    () => root?.closest("[data-compact-card-header]") ?? root?.parentElement ?? root,
+  );
+  const optionsLabel = () => (props.controlsOpen ? "Hide chart options" : "Chart options");
+  const optionsCaption = () =>
+    narrow() ? "⋯" : props.controlsOpen ? "HIDE OPTIONS" : "CHART OPTIONS";
   const sourceToggle = () => (
     <SegmentedControl
       data-testid="nifty-chart-source"
@@ -182,7 +212,7 @@ export function ChartControls(props: ChartControlsProps) {
     </Text>
   );
   /** Size + pattern actions are secondary: desktop keeps them behind a
-   *  disclosure, mobile behind the existing MORE row. */
+   *  disclosure, mobile behind the existing chart-options row. */
   const primaryControls = () => (
     <>
       {timeframeToggle()}
@@ -204,7 +234,7 @@ export function ChartControls(props: ChartControlsProps) {
         // Primary row: source · timeframe · as-of · expand. Size and
         // pattern actions sit behind a disclosure so the header reads as
         // one decision, not a wall of equal-weight controls.
-        <div class="flex flex-col items-end min-w-0" style={{ gap: `${CHART_HEADER_METRICS.gap}px` }}>
+        <div ref={(element) => (root = element)} class="flex flex-col items-end min-w-0" style={{ gap: `${CHART_HEADER_METRICS.gap}px` }}>
           <div
             data-testid="nifty-chart-controls-desktop"
             class="flex flex-1 min-w-0 items-center justify-end overflow-x-auto"
@@ -219,11 +249,13 @@ export function ChartControls(props: ChartControlsProps) {
               variant="subtle"
               aria-expanded={props.controlsOpen}
               aria-controls="nifty-chart-controls-extra-desktop"
+              aria-label={optionsLabel()}
+              title={optionsLabel()}
               className="shrink-0"
               onClick={props.onToggleControls}
-              style={{ height: "22px", "min-height": "22px", padding: "0 6px", "font-size": `${REPORT_FONT.micro}px`, "font-weight": 800 }}
+              style={{ height: "22px", "min-height": "22px", "min-width": narrow() ? "22px" : undefined, padding: narrow() ? "0 2px" : "0 6px", "font-size": `${REPORT_FONT.micro}px`, "font-weight": 800 }}
             >
-              {props.controlsOpen ? "LESS ▴" : "MORE ▾"}
+              {optionsCaption()}
             </Button>
           </div>
           <div
@@ -238,6 +270,7 @@ export function ChartControls(props: ChartControlsProps) {
       }
     >
       <div
+        ref={(element) => (root = element)}
         data-testid="nifty-chart-controls-mobile"
         className="flex flex-col items-stretch min-w-0"
         style={{ gap: `${CHART_HEADER_METRICS.gap}px` }}
@@ -251,10 +284,12 @@ export function ChartControls(props: ChartControlsProps) {
             variant="subtle"
             aria-expanded={props.controlsOpen}
             aria-controls={props.controlsOpen ? "nifty-chart-controls-extra" : undefined}
+            aria-label={optionsLabel()}
+            title={optionsLabel()}
             onClick={props.onToggleControls}
-            style={{ height: "26px", "min-height": "26px", "min-width": "56px", padding: "0 6px", "font-size": `${REPORT_FONT.micro}px`, "font-weight": 800 }}
+            style={{ height: "26px", "min-height": "26px", "min-width": narrow() ? "26px" : "56px", padding: narrow() ? "0 2px" : "0 6px", "font-size": `${REPORT_FONT.micro}px`, "font-weight": 800 }}
           >
-            {props.controlsOpen ? "LESS ▴" : "MORE ▾"}
+            {optionsCaption()}
           </Button>
         </div>
         <Show when={props.controlsOpen}>

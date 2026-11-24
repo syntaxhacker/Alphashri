@@ -35,6 +35,10 @@ describe("NiftyFlowWindows session units", () => {
     expect(screen.getByTestId("flow-session")).toHaveTextContent("—");
     expect(screen.getByTestId("flow-15m")).toHaveTextContent("—");
     expect(screen.getByTestId("flow-5m")).toHaveTextContent("—");
+    expect(screen.getByTestId("flow-legend")).toHaveAttribute(
+      "title",
+      expect.stringContaining("Window legend — CALL BID"),
+    );
   });
 
   test("hides the ₹cr amount for a generic underlying but keeps the verdict", () => {
@@ -111,14 +115,18 @@ describe("NiftyFlowWindows", () => {
     expect(chip.tagName.toLowerCase()).toBe("span");
     expect(chip).not.toHaveAttribute("role");
     expect(chip).not.toHaveAttribute("tabindex");
+    expect(chip).toHaveTextContent("?");
+    expect(chip).toHaveStyle({ width: "14px", height: "14px" });
   });
 
-  test("the ? help chip still exposes the full rule via aria-label and title", () => {
+  test("the ? help chip names the window rule in its accessible name and title", () => {
     r(() => <NiftyFlowWindows report={report()} />);
     const chip = screen.getByTestId("flow-legend");
-    expect(chip).toHaveAttribute("aria-label", expect.stringContaining("CALL BID"));
+    expect(chip).toHaveAttribute("aria-label", expect.stringContaining("Window legend — CALL BID"));
+    expect(chip).toHaveAttribute("title", expect.stringContaining("Window legend — CALL BID"));
     expect(chip).toHaveAttribute("aria-label", expect.stringContaining("BOTH BUILD"));
-    expect(chip).toHaveAttribute("title", expect.stringContaining("CALL BID"));
     expect(chip).toHaveAttribute("title", expect.stringContaining("BOTH BUILD"));
+    expect(chip.getAttribute("aria-label")).not.toContain("Flow window legend");
+    expect(chip.getAttribute("title")).not.toContain("Flow window legend");
   });
 });

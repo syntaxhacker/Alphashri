@@ -111,10 +111,6 @@ describe("ReportDecisionStrip decomposition", () => {
     for (const testid of [
       "nifty-stat-strip",
       "nifty-decision-hero",
-      "nifty-hero-spot",
-      "nifty-hero-spot-read",
-      "nifty-hero-change",
-      "nifty-hero-change-read",
       "nifty-plan-oneliner",
       "nifty-plan-headline",
       "nifty-plan-confidence",

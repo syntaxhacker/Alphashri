@@ -67,6 +67,10 @@ const mockStore = {
   },
   ui: {
     isDesk: () => true,
+    reportView: () => "monitor",
+    setReportView: () => {},
+    handleReportViewChange: () => {},
+    isWindowDesk: () => false,
     sideTab,
     chartSize: () => "fill",
     heatMetric: () => "oi",
@@ -131,6 +135,23 @@ vi.mock("@/components/notifications/MarketAlertCard", () => ({
 const { NiftyReportShell } = await import("./NiftyReportShell");
 const { DESK_CHART_FLOOR_PX } = await import("./ReportWorkspace");
 
+// L1 makes desk content the single scroll owner; until it lands, clipping is
+// safe only because the row no longer caps its height.
+function expectReachableDeskContent(panel: HTMLElement, content: HTMLElement, main: HTMLElement) {
+  expect(panel.className).toContain("overflow-hidden");
+  const scrollsVertically = (el: HTMLElement) =>
+    /(?:^|\s)overflow-y-auto(?:\s|$)/.test(el.className) || el.style.overflowY === "auto";
+  const isScroller = scrollsVertically(content) || content.style.overflow === "auto";
+  if (isScroller) {
+    expect(scrollsVertically(panel)).toBe(false);
+    expect(content.style.overflow).not.toBe("hidden");
+  } else {
+    expect(["", "hidden"]).toContain(content.style.overflow);
+    expect(main.className).not.toContain("min-h-[300px]");
+    expect(main.className).not.toContain("max-h-[58vh]");
+  }
+}
+
 function pxOf(className: string, token: "h" | "min-h"): number | null {
   const match = new RegExp(`(?:^|\\s)${token}-\\[(\\d+(?:\\.\\d+)?)px\\]`).exec(className);
   return match ? Number(match[1]) : null;
@@ -193,6 +214,9 @@ describe("Index Report layout bugs — measured contracts", () => {
     expect(drawer.getAttribute("data-dock-mode")).toBe("overlay");
     expect(screen.getByTestId("nifty-main-row").className).toBe(before);
     expect(main.className).toContain("flex-1");
+    expect(main.className).toContain("min-h-0");
+    expect(main.className).not.toContain("min-h-[300px]");
+    expect(main.className).not.toContain("max-h-[58vh]");
     expect(main.getAttribute("data-chart-chain")).toBe("flex-1 min-h-0");
   });
 
@@ -207,18 +231,14 @@ describe("Index Report layout bugs — measured contracts", () => {
   });
 
   test("(e) the page never scrolls in either dock state", async () => {
-    await mountShell();
+    const main = await mountShell();
     const panel = screen.getByTestId("nifty-report-panel");
     const content = screen.getByTestId("nifty-report-content");
-    const closed = [panel, content].map((el) => `${el.className}|${el.style.overflow}`);
-    expect(content.className).toContain("overflow-hidden");
-    expect(content.style.overflow).toBe("hidden");
+    expectReachableDeskContent(panel, content, main);
 
     fireEvent.click(screen.getByTestId("desk-dock-strips"));
     await screen.findByTestId("desk-dock-drawer");
-    const open = [panel, content].map((el) => `${el.className}|${el.style.overflow}`);
-    expect(open).toEqual(closed);
-    expect(content.className).not.toMatch(/overflow-(auto|scroll)/);
+    expectReachableDeskContent(panel, content, main);
   });
 });
 

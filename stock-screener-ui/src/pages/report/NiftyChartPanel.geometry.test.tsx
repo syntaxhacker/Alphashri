@@ -17,6 +17,7 @@ import {
   mergeCollidingLabels,
 } from "./NiftyChartPanel";
 import type { NiftyGex, NiftyReport } from "@/types/niftyReport";
+import { verdictMarkLines } from "./niftyVerdictLevels";
 
 vi.mock("@/components/chart/TradingViewChart", async () => {
   const { onMount } = await import("solid-js");
@@ -508,5 +509,67 @@ describe("mergeCollidingLabels", () => {
     // MP 22700 + CW 22705 are 5 pts apart → one gutter label, no duplicates.
     expect(labels.filter((l) => l.includes("MP 22,700") || l.includes("CW 22,705"))).toHaveLength(1);
     expect(labels.join(" ")).toContain("MP 22,700 · CW");
+  });
+});
+
+describe("verdict levels on the Nifty chart", () => {
+  function verdictReport(overrides: Record<string, unknown> = {}) {
+    return mockReport({
+      spot: 25540,
+      ohlc: { open: 25600, high: 25640, low: 25520, close: 25540 },
+      maxPain: 25450,
+      walls: { calls: [], puts: [] },
+      pivots: {
+        type: "classic",
+        pp: 25600, r1: 25700, r2: 25800, r3: 25900,
+        s1: 25500, s2: 25400, s3: 25300, prev: null,
+      },
+      strength: {
+        verdict: "weak", score: 20, ema9: 25600, ema20: 25620,
+        ema50: 25680, rsi: 40, pos_in_range: 0.2,
+      },
+      gex: {
+        strikes: [], netTotal: -10, regime: "short",
+        topPositive: [], topNegative: [], zeroCross: null,
+      },
+      candles: candles3(),
+      ...overrides,
+    });
+  }
+
+  test("chart renders SELL/CUT/TGT labels from the plan", () => {
+    const report = verdictReport();
+    r(() => <NiftyChartPanel report={report} mode="live" view="chart" />);
+    const chart = screen.getByTestId("tradingview-chart");
+    const labels = chart.getAttribute("data-markline-labels") ?? "";
+    for (const code of ["SELL", "CUT", "TGT"]) expect(labels).toContain(code);
+    expect(labels).not.toContain("BUY");
+
+    const planLines = verdictMarkLines(report);
+    expect(planLines.map((l) => l.label.formatter)).toEqual(["SELL 25,520", "CUT 25,540", "TGT 25,450"]);
+    expect(Number(chart.getAttribute("data-marklines"))).toBeGreaterThanOrEqual(planLines.length);
+  });
+
+  test("replay/EOD takes verdict levels from the snapshot report with no live claim", () => {
+    const report = verdictReport({
+      mode: "eod",
+      date: "2026-11-24",
+      candles: [
+        { time: "2026-11-24T09:15:00", open: 25520, high: 25560, low: 25510, close: 25540, volume: 1000 },
+        { time: "2026-11-24T09:16:00", open: 25540, high: 25580, low: 25530, close: 25560, volume: 1100 },
+      ],
+    });
+    r(() => (
+      <NiftyChartPanel report={report} mode="eod" view="chart" asOf="2026-11-24T09:16:00" />
+    ));
+    const labels = screen.getByTestId("tradingview-chart").getAttribute("data-markline-labels") ?? "";
+    for (const code of ["SELL", "CUT", "TGT"]) expect(labels).toContain(code);
+    expect(labels).not.toContain("LIVE");
+  });
+
+  test("neutral plan adds no verdict labels to the chart", () => {
+    r(() => <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
+    const labels = screen.getByTestId("tradingview-chart").getAttribute("data-markline-labels") ?? "";
+    for (const code of ["SELL", "CUT", "TGT"]) expect(labels).not.toContain(code);
   });
 });

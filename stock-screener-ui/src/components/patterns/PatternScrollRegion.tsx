@@ -58,7 +58,7 @@ export function PatternScrollRegion(props: PatternScrollRegionProps) {
         tabIndex={0}
         onKeyDown={onKeyDown}
         className={cn(
-          "min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-fin-primary",
+          "min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-fin-text",
           props.stickyFirstColumn ? STICKY_FIRST_COLUMN : undefined,
           props.className,
         )}

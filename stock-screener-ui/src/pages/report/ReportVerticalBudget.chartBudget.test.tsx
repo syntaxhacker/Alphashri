@@ -65,6 +65,10 @@ const mockStore = {
   },
   ui: {
     isDesk: () => true,
+    reportView: () => "monitor",
+    setReportView: () => {},
+    handleReportViewChange: () => {},
+    isWindowDesk: () => false,
     sideTab: () => "chain",
     chartSize: () => "fill",
     heatMetric: () => "oi",
@@ -138,7 +142,7 @@ afterEach(() => {
 });
 
 describe("Index Report desktop chart/dock share", () => {
-  test("the chart row is a bounded fraction of the viewport via grid classes", async () => {
+  test("the chart row takes the single flexible grid track with no viewport cap", async () => {
     render(() => (
       <UIProvider>
         <NiftyReportShell />
@@ -147,11 +151,45 @@ describe("Index Report desktop chart/dock share", () => {
 
     const main = await screen.findByTestId("nifty-main-row");
     const content = screen.getByTestId("nifty-report-content");
-    expect(main.getAttribute("data-chart-row-share")).toBe("0.56");
-    expect(main.className).toContain("min-[1200px]:max-h-[58vh]");
+    expect(main.getAttribute("data-chart-row-share")).toBe("1");
+    expect(main.className).not.toContain("max-h-[58vh]");
     expect(content.className).toContain(
-      "min-[1200px]:grid-rows-[auto_minmax(0,70fr)_minmax(0,30fr)]",
+      "min-[1200px]:grid-rows-[auto_minmax(0,1fr)_auto]",
     );
+  });
+
+  test("the bottom grid track is content-sized so the chart absorbs the collapsed-walls slack", async () => {
+    render(() => (
+      <UIProvider>
+        <NiftyReportShell />
+      </UIProvider>
+    ));
+
+    const content = screen.getByTestId("nifty-report-content");
+    expect(content.className).toContain("min-[1200px]:grid-rows-[auto_minmax(0,1fr)_auto]");
+    expect(content.className).not.toContain("minmax(0,30fr)");
+    expect(content.className).toContain("overflow-x-hidden");
+    expect(content.style.overflowY).toBe("auto");
+  });
+
+  test("P0 reachability regression: the main row has no 300px floor and the chart declares fill with no fixed height", async () => {
+    render(() => (
+      <UIProvider>
+        <NiftyReportShell />
+      </UIProvider>
+    ));
+
+    const main = await screen.findByTestId("nifty-main-row");
+    // Before the fix: clientH 300 / scrollH 422 at 890px, with the canvas
+    // starting at y=832 — only 58px of it inside the viewport.
+    expect(main.className).not.toContain("min-h-[300px]");
+    expect(main.className).not.toContain("max-h-[58vh]");
+    expect(main.className).toContain("flex-1");
+    expect(main.className).toContain("min-h-0");
+    expect(main.style.height).toBe("");
+    expect(main.style.maxHeight).toBe("");
+    const chart = await screen.findByTestId("nifty-chart-wrap");
+    expect(chart.getAttribute("data-fill")).toBe("true");
   });
 
   test("the chart keeps its flex-1 min-h-0 chain and no fixed height", async () => {
@@ -201,11 +239,12 @@ describe("Index Report desktop desk rail (chart + numbers coexist)", () => {
     expect(within(screen.getByTestId("desk-insight-rail")).getByTestId("nifty-walls-card-rail")).toBeInTheDocument();
   });
 
-  test("(c) the chart keeps its flex-1 min-h-0 chain", async () => {
+  test("(c) the chart keeps its flex-1 min-h-0 chain with no floor or cap", async () => {
     const main = await mountDesk();
     expect(main.getAttribute("data-chart-chain")).toBe("flex-1 min-h-0");
     expect(main.className).toContain("flex-1");
-    expect(main.className).toContain("min-h-[300px]");
+    expect(main.className).not.toContain("min-h-[300px]");
+    expect(main.className).not.toContain("max-h-[58vh]");
     expect(main.className).not.toMatch(/(^|\s)h-\[\d+px\]/);
     expect(main.style.height).toBe("");
     expect((await screen.findByTestId("nifty-chart-wrap")).getAttribute("data-fill")).toBe("true");

@@ -11,6 +11,7 @@ import { REPORT_FONT } from "./reportTokens";
 const HERE = join(process.cwd(), "src/pages/report");
 const SHELL = readFileSync(join(HERE, "NiftyReportShell.tsx"), "utf8");
 const WORKSPACE = readFileSync(join(HERE, "ReportWorkspace.tsx"), "utf8");
+const OVERLAYS = readFileSync(join(HERE, "ReportOverlays.tsx"), "utf8");
 
 const LITERAL_SIZE =
   /text-\[(\d+(?:\.\d+)?)px\]|"font-size":\s*"(\d+(?:\.\d+)?)px"|font-size="(\d+(?:\.\d+)?)"/g;
@@ -33,9 +34,8 @@ describe("Index Report shell/workspace readability rhythm", () => {
     expect(SHELL).toContain("REPORT_FONT.micro"); // 12px note and unavailable labels
     expect(SHELL).toContain("pb-2"); // 8px below the toolbar
     expect(SHELL).toContain("px-3"); // 12px replay inset
-    expect(SHELL).toContain("py-2"); // 8px replay inset
-    expect(SHELL).toContain("gap-x-3"); // 12px between heading and note
-    expect(SHELL).toContain('className="grid grid-cols-1 gap-2'); // 8px flow gutter
+    expect(SHELL).toContain("px-3"); // compact replay inset, no 8px vertical padding
+    expect(SHELL).toContain("gap-x-2"); // one compact replay strip, no stretched placeholders
     // Every narrow override stays max-width gated; 1600 keeps the tuned strip.
     for (const rule of SHELL.split('"').filter((s) => s.includes("max-[600px]"))) {
       expect(rule).toContain("max-[600px]:");
@@ -69,7 +69,6 @@ describe("Index Report shell/workspace readability rhythm", () => {
       "max-[600px]:[&_[data-testid='nifty-main-row']]:order-2",
       "max-[600px]:order-3",
       "min-[1200px]:[&_[data-testid='nifty-stat-strip']]:-order-3",
-      "min-[1200px]:-order-1",
       "data-report-order=\"chart\"",
     ]) {
       expect(SHELL + WORKSPACE, `chart-first order: ${rule}`).toContain(rule);
@@ -79,13 +78,21 @@ describe("Index Report shell/workspace readability rhythm", () => {
     }
   });
 
-  test("the shell DOM puts the chart before the flow band and never uses positive tabindex", () => {
+  test("the shell DOM puts the chart after the strip and never uses positive tabindex", () => {
+    const stripAt = SHELL.indexOf("<ReportDecisionStrip");
     const workspaceAt = SHELL.indexOf("<ReportWorkspace");
-    const flowAt = SHELL.indexOf("<ReportFlowRow");
-    expect(workspaceAt).toBeGreaterThan(-1);
-    expect(flowAt).toBeGreaterThan(workspaceAt);
+    expect(stripAt).toBeGreaterThan(-1);
+    expect(workspaceAt).toBeGreaterThan(stripAt);
+    expect(SHELL).not.toContain("<ReportFlowRow");
+    expect(SHELL).not.toContain('data-testid="nifty-flow-above-chart"');
     expect(SHELL).not.toMatch(/tabindex\s*=\s*["']?[1-9]/);
     expect(WORKSPACE).not.toMatch(/tabindex\s*=\s*["']?[1-9]/);
+  });
+
+  test("one decision band lives in the strip, not in a second shell hero", () => {
+    expect(SHELL).not.toContain("<ReportKpiHero");
+    expect(SHELL).not.toContain('from "./ReportKpiHero"');
+    expect(SHELL).toContain("REPORT_REPLAY_STRIP_HEIGHT");
   });
 
   test("the shell source carries no force-open verdict disclosure rule", () => {
@@ -105,7 +112,7 @@ describe("Index Report shell/workspace readability rhythm", () => {
     expect(SHELL).toContain('data-compact-chrome="true"');
     expect(SHELL).toContain("max-[600px]:pb-1!");
     expect(SHELL).toContain("max-[600px]:overflow-visible!");
-    expect(SHELL).toContain("max-[600px]:[&_[data-testid='nifty-replay-mode-banner']]:py-1!");
+    expect(SHELL).toContain("max-[600px]:[&_[data-testid='nifty-replay-mode-banner']]:px-2!");
     // The shell reduced its own hand-off spacing; it does not reach into the
     // toolbar's control groups (that band owns its own single row / cue).
     expect(SHELL).not.toContain("[data-testid='nifty-view-toggle']]:hidden!");
@@ -143,7 +150,7 @@ describe("Index Report shell/workspace readability rhythm", () => {
     for (const id of [
       "nifty-report-panel",
       "nifty-report-content",
-      "nifty-flow-above-chart",
+      "nifty-chart-focus-exit",
       "nifty-main-row",
       "nifty-side-col",
       "nifty-side-tabs",
@@ -153,5 +160,33 @@ describe("Index Report shell/workspace readability rhythm", () => {
     ]) {
       expect(SHELL + WORKSPACE, id).toContain(id);
     }
+  });
+});
+
+describe("Index Report A+B shell contract", () => {
+  test("the report content is the single scroll owner", () => {
+    expect(SHELL).toContain("overflow-y-auto");
+    expect(SHELL).not.toContain('overflow: isDesk() ? "hidden"');
+    // The page-level panel keeps its clipping frame; only its inner content
+    // scrolls, so `app-main` never becomes a competing scroll container.
+    expect(SHELL).toContain("overflow-hidden");
+  });
+
+  test("chart focus is an in-shell LEVEL 1 state, fullscreen stays LEVEL 2", () => {
+    expect(SHELL).toContain('data-chart-focus=');
+    expect(SHELL).toContain("nifty-chart-focus-exit");
+    expect(SHELL).toContain('overlayOpen("chartFocus")');
+    // LEVEL 2 is the pre-existing fullscreen PanelModal, still driven by the
+    // chart's expand button (owned by the workspace lane).
+    expect(OVERLAYS).toContain("ui.chartFull()");
+    expect(OVERLAYS).toContain('variant="drawer"');
+  });
+
+  test("futures and ITM panels are dock tabs, not a row above the chart", () => {
+    expect(SHELL).toContain('key: "futures"');
+    expect(SHELL).toContain('key: "itm"');
+    expect(SHELL).toContain("<NiftyFuturesPanel");
+    expect(SHELL).toContain("<NiftyItmPeFlowPanel");
+    expect(SHELL).not.toContain("function ReportFlowRow");
   });
 });

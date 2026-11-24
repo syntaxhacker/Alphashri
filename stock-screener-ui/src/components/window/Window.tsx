@@ -250,7 +250,7 @@ export function Window(props: WindowProps) {
       role="region"
       aria-label={props.state.title}
       tabindex="0"
-      class={`flex flex-col overflow-hidden bg-fin-surface shadow-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary ${
+      class={`flex flex-col overflow-hidden bg-fin-surface shadow-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-text ${
         // The width change keeps "which window is active" readable without colour.
         props.focused ? "border-2 border-fin-primary" : "border border-fin-border"
       }`}
@@ -275,7 +275,10 @@ export function Window(props: WindowProps) {
         <Show when={props.settingsSlot}>
           <span data-testid={`window-settings-${props.state.id}`}>{props.settingsSlot}</span>
         </Show>
-        <span class="min-w-0 flex-1 truncate text-ui-micro font-bold uppercase tracking-wide text-fin-text">
+        <span
+          title={props.state.title}
+          class="min-w-0 flex-1 truncate text-ui-micro font-bold uppercase tracking-wide text-fin-text"
+        >
           {props.state.title}
         </span>
         {titleButtons}

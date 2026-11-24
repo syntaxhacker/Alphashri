@@ -63,7 +63,7 @@ function ChartButton(props: {
         event.stopPropagation();
         props.onChart(props.strike, props.optionType, props.leg);
       }}
-      className="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+      className="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text"
     >
       <IconChartLine size={12} />
     </Box>

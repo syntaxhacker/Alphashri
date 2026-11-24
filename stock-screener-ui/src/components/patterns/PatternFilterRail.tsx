@@ -217,7 +217,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
         data-testid={`patterns-filter-pattern-${tileProps.patternId}`}
         className={cn(
           "flex min-w-0 cursor-pointer items-center gap-[3px] rounded-fin border px-1 py-[2px] transition-[border-color,background-color] duration-[120ms]",
-          "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary",
+          "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-text",
           selected()
             ? "border-fin-primary bg-fin-primary/12"
             : "border-fin-border bg-transparent hover:border-fin-primary hover:bg-fin-surface-alt",

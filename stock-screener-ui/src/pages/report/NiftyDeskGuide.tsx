@@ -1,7 +1,9 @@
-import { createSignal, For } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import * as palette from "@/ui/palette";
 import { LocalPanelModal } from "./LocalPanelModal";
-import { REPORT_FONT } from "./reportTokens";
+import { REPORT_FONT, REPORT_LINE_HEIGHT, REPORT_PAD } from "./reportTokens";
+
+export const DESK_GUIDE_HINT_STORAGE_KEY = "alphashri:desk-guide-hint-dismissed";
 
 const IconHelpCircle = (props: { size?: number }) => (
   <svg
@@ -67,6 +69,22 @@ export const DESK_GUIDE_ENTRIES: readonly DeskGuideEntry[] = [
     term: "COSTS",
     text: "~₹81 round trip per lot; a target must clear it.",
   },
+  {
+    term: "CE / PE",
+    text: "CE = a call, the right to buy; PE = a put, the right to sell. The desk labels the two sides of the chain and the OI walls by side: CE calls, PE puts.",
+  },
+  {
+    term: "OI / ΔOI",
+    text: "Open interest is the number of contracts still open; ΔOI is how that count changes over the window shown. OI up = new positions, OI down = positions being closed.",
+  },
+  {
+    term: "RV vs IV",
+    text: "Realised volatility (RV) is how much the index actually moved; implied volatility (IV) is how much the option market expects it to move. IV above RV means options are priced for a bigger move.",
+  },
+  {
+    term: "RSI",
+    text: "Relative Strength Index, a 0–100 momentum gauge built from recent closes. Above 70 = overbought, below 30 = oversold; a warning, not a signal on its own.",
+  },
 ] as const;
 
 interface NiftyDeskGuideProps {
@@ -74,13 +92,34 @@ interface NiftyDeskGuideProps {
   onOpenChange?: (open: boolean) => void;
 }
 
+function hintDismissedInStorage(): boolean {
+  try {
+    return (
+      typeof window !== "undefined" &&
+      window.localStorage.getItem(DESK_GUIDE_HINT_STORAGE_KEY) === "1"
+    );
+  } catch {
+    // Storage can be blocked in private browsing; the hint still dismisses for the session.
+    return false;
+  }
+}
+
 export function NiftyDeskGuide(props: NiftyDeskGuideProps) {
   const openProp = () => props.open;
   const [internalOpen, setInternalOpen] = createSignal(false);
+  const [hintDismissed, setHintDismissed] = createSignal(hintDismissedInStorage());
   const open = () => openProp() ?? internalOpen();
   const setOpen = (next: boolean) => {
     if (openProp() === undefined) setInternalOpen(next);
     props.onOpenChange?.(next);
+  };
+  const dismissHint = () => {
+    try {
+      window.localStorage.setItem(DESK_GUIDE_HINT_STORAGE_KEY, "1");
+    } catch {
+      // Private browsing can reject writes; in-memory dismissal still holds.
+    }
+    setHintDismissed(true);
   };
 
   return (
@@ -103,6 +142,40 @@ export function NiftyDeskGuide(props: NiftyDeskGuideProps) {
         autoHeight
         maxWidth={1040}
       >
+        <Show when={!hintDismissed()}>
+          <div
+            data-testid="nifty-guide-first-run-hint"
+            class="mb-1 flex flex-wrap items-center gap-2"
+            style={{
+              "background-color": palette.SURFACE_ALT,
+              "border-left": `2px solid ${palette.INFO}`,
+              padding: `${REPORT_PAD.md}px ${REPORT_PAD.lg}px`,
+              color: palette.TEXT,
+              "font-size": `${REPORT_FONT.micro}px`,
+              "line-height": REPORT_LINE_HEIGHT.relaxed,
+            }}
+          >
+            <span class="min-w-0 flex-1">
+              First time here? CE / PE, OI / ΔOI, RV vs IV and RSI are the four
+              labels below that are easiest to misread. The rest of the grid is
+              a lookup — you don't need to read it all now.
+            </span>
+            <button
+              type="button"
+              data-testid="nifty-guide-first-run-hint-dismiss"
+              aria-label="Dismiss first-run hint"
+              onClick={dismissHint}
+              class="rounded-fin text-ui-micro text-fin-text"
+              style={{
+                padding: `${REPORT_PAD.xs}px ${REPORT_PAD.md}px`,
+                "background-color": palette.SURFACE,
+                border: `1px solid ${palette.BORDER}`,
+              }}
+            >
+              Got it
+            </button>
+          </div>
+        </Show>
         <div
           data-testid="nifty-help-modal"
           class="min-w-0 grid gap-2 tabular-nums grid-cols-[minmax(0,1fr)] min-[900px]:grid-cols-[repeat(3,minmax(0,1fr))]"
