@@ -4,18 +4,7 @@ import {
   BORDER,
   INFO,
   PRIMARY,
-  SCALE_CYAN,
-  SCALE_GRAPE,
-  SCALE_INDIGO,
-  SCALE_LIME,
-  SCALE_ORANGE,
-  SCALE_PINK,
-  SCALE_TEAL,
-  SCALE_VIOLET,
-  SCALE_YELLOW,
   SURFACE,
-  SURFACE_ALT,
-  TEXT,
   TEXT_MUTED,
   TOOLTIP_BG,
   TOOLTIP_BORDER,
@@ -24,87 +13,47 @@ import {
 import { typeSize } from "@/ui/typography";
 import type { SectorHistorySeries } from "../../../../types/sectorHistory";
 import { EChart } from "../../../common/EChart";
-import { monthIndex, yearOf } from "./shared";
+import { finite, monthIndex, yearOf } from "./shared";
 
 const LABEL_FONT = typeSize("micro");
-const CHART_HEIGHT = 230;
 const CHART_MIN_WIDTH = 900;
-const MAX_RANK_ROWS = 3;
-
-/** Background heatmap keeps the month × rank lattice visible through gaps. */
-export const ROTATION_BACKGROUND_SERIES = "__rotation-matrix-background";
-export const ROTATION_MATRIX_SERIES = "Leadership";
-
-/**
- * Categorical hues only: green/red stay reserved for return semantics. Values
- * come from distinct scales/steps so ten historical leaders cannot share a hue.
- */
-const LEADER_COLORS = [
-  PRIMARY,
-  INFO,
-  SCALE_PINK[4],
-  SCALE_TEAL[2],
-  SCALE_VIOLET[4],
-  SCALE_LIME[4],
-  SCALE_ORANGE[3],
-  SCALE_CYAN[4],
-  SCALE_GRAPE[1],
-  SCALE_INDIGO[5],
-  SCALE_YELLOW[1],
-  SCALE_VIOLET[6],
-];
+export const ROTATION_ROW_HEIGHT = 24;
+export const ROTATION_ROW_GAP = 4;
+export const ROTATION_CHART_TOP = 4;
+export const ROTATION_AXIS_HEIGHT = 24;
+export const ROTATION_TOP_BAND_FILL = alpha(INFO, 0.18);
+export const ROTATION_TOP_BAND_BORDER = alpha(INFO, 0.35);
+const TOP_BAND_END = 3.5;
 
 export interface RotationTimelineProps {
   months: string[];
   series: SectorHistorySeries[];
-  topN?: number;
 }
 
 export interface RotationTimelineInput {
   months: string[];
   series: SectorHistorySeries[];
-  topN?: number;
 }
 
-export interface RotationLeader {
+export interface RotationRow {
   name: string;
-  color: string;
-  sectorIndex: number;
-}
-
-export interface RotationCell {
-  monthIndex: number;
-  month: string;
-  rankIndex: number;
-  rank: number;
-  sectorIndex: number;
-  sector: string;
-  color: string;
-}
-
-export interface RotationCurrentLeader {
-  rank: number;
-  name: string;
-  color: string;
-}
-
-export interface RotationInspectorRow {
-  rank: number;
-  name: string | null;
-  color: string | null;
+  ranks: (number | null)[];
+  currentRank: number | null;
 }
 
 export interface RotationTimelineModel {
   hasData: boolean;
-  rowCount: number;
-  cells: RotationCell[];
-  leaders: RotationLeader[];
-  current: RotationCurrentLeader[];
+  rows: RotationRow[];
+  rankMax: number;
+  latestMonthIndex: number;
   latestMonth: string | null;
 }
 
 export interface RotationTooltipParam {
-  data?: unknown;
+  axisValue?: string;
+  name?: string;
+  seriesName?: string;
+  value?: unknown;
 }
 
 function escapeHtml(value: string): string {
@@ -123,70 +72,57 @@ function monthAxisLabel(value: string): string {
   return index === 6 ? "Jul" : "";
 }
 
-export function formatRotationTooltip(params: RotationTooltipParam): string {
-  const data = params.data as Partial<RotationCell> | undefined;
-  if (
-    !data ||
-    typeof data.month !== "string" ||
-    typeof data.rank !== "number" ||
-    typeof data.sector !== "string"
-  ) {
-    return "";
-  }
-  return `${escapeHtml(data.month)} · #${data.rank} · ${escapeHtml(data.sector)}`;
+function rankOf(value: unknown): number | null {
+  const raw = Array.isArray(value) ? value[value.length - 1] : value;
+  if (raw === null || raw === undefined || raw === "") return null;
+  const rank = typeof raw === "number" ? raw : Number(raw);
+  return Number.isFinite(rank) ? rank : null;
+}
+
+export function formatRotationTooltip(
+  params: RotationTooltipParam | RotationTooltipParam[],
+): string {
+  const list = Array.isArray(params) ? params : [params];
+  const item = list.find((entry) => rankOf(entry.value) !== null);
+  if (!item) return "";
+  const month = item.axisValue ?? item.name ?? "";
+  return `${escapeHtml(month)} · ${escapeHtml(item.seriesName ?? "")} · rank ${Math.round(rankOf(item.value)!)}`;
 }
 
 export function buildRotationModel(input: RotationTimelineInput): RotationTimelineModel {
   const months = input.months;
   const sectors = input.series.filter((item) => !item.is_benchmark);
-  const rowCount = Math.min(MAX_RANK_ROWS, Math.max(1, Math.round(input.topN ?? MAX_RANK_ROWS)));
-  const colored = sectors.map((sector, sectorIndex) => ({
-    sector,
-    sectorIndex,
-    color: LEADER_COLORS[sectorIndex % LEADER_COLORS.length],
-  }));
-
-  const cells: RotationCell[] = [];
-  months.forEach((month, monthIndex) => {
-    for (let rankIndex = 0; rankIndex < rowCount; rankIndex++) {
-      const rank = rankIndex + 1;
-      const match = colored.find((item) => item.sector.ranks[monthIndex] === rank);
-      if (!match) continue;
-      cells.push({
-        monthIndex,
-        month,
-        rankIndex,
-        rank,
-        sectorIndex: match.sectorIndex,
-        sector: match.sector.name,
-        color: match.color,
-      });
+  const rows: RotationRow[] = sectors.map((sector) => {
+    const ranks = months.map((_, index) => {
+      const rank = sector.ranks[index];
+      return finite(rank) ? rank : null;
+    });
+    let currentRank: number | null = null;
+    for (let index = ranks.length - 1; index >= 0; index--) {
+      if (finite(ranks[index])) {
+        currentRank = ranks[index];
+        break;
+      }
     }
+    return { name: sector.name, ranks, currentRank };
   });
 
-  const appearing = new Set(cells.map((cell) => cell.sectorIndex));
-  const leaders: RotationLeader[] = colored
-    .filter((item) => appearing.has(item.sectorIndex))
-    .map((item) => ({ name: item.sector.name, color: item.color, sectorIndex: item.sectorIndex }));
+  const observed = rows.flatMap((row) => row.ranks).filter(finite);
+  const rankMax = Math.max(3, rows.length, ...observed);
 
   let latestMonthIndex = -1;
   for (let index = months.length - 1; index >= 0; index--) {
-    if (cells.some((cell) => cell.monthIndex === index)) {
+    if (rows.some((row) => finite(row.ranks[index]))) {
       latestMonthIndex = index;
       break;
     }
   }
-  const current: RotationCurrentLeader[] = cells
-    .filter((cell) => cell.monthIndex === latestMonthIndex)
-    .sort((a, b) => a.rankIndex - b.rankIndex)
-    .map((cell) => ({ rank: cell.rank, name: cell.sector, color: cell.color }));
 
   return {
-    hasData: months.length > 0 && cells.length > 0,
-    rowCount,
-    cells,
-    leaders,
-    current,
+    hasData: months.length > 0 && rows.length > 0 && observed.length > 0,
+    rows,
+    rankMax,
+    latestMonthIndex,
     latestMonth: latestMonthIndex >= 0 ? months[latestMonthIndex] : null,
   };
 }
@@ -194,29 +130,84 @@ export function buildRotationModel(input: RotationTimelineInput): RotationTimeli
 export function buildRotationOption(input: RotationTimelineInput): Record<string, unknown> {
   const model = buildRotationModel(input);
   const months = input.months;
-  const rankLabels = Array.from({ length: model.rowCount }, (_, index) => `#${index + 1}`);
+  const lastRow = model.rows.length - 1;
 
-  const background = months.flatMap((_, monthIndex) =>
-    Array.from({ length: model.rowCount }, (_, rankIndex) => ({
-      value: [monthIndex, rankIndex, -1],
-      itemStyle: {
-        borderColor: alpha(BORDER, 0.45),
-        borderWidth: 0.5,
-        borderRadius: 2,
-      },
-    })),
-  );
+  const grids = model.rows.map((_, index) => ({
+    left: 6,
+    right: 8,
+    top: ROTATION_CHART_TOP + index * (ROTATION_ROW_HEIGHT + ROTATION_ROW_GAP),
+    height: ROTATION_ROW_HEIGHT,
+    containLabel: false,
+  }));
 
-  const cells = model.cells.map((cell) => ({
-    value: [cell.monthIndex, cell.rankIndex, cell.sectorIndex],
-    month: cell.month,
-    rank: cell.rank,
-    sector: cell.sector,
-    itemStyle: {
-      borderColor: cell.rank === 1 ? alpha(TEXT_MUTED, 0.9) : SURFACE,
-      borderWidth: cell.rank === 1 ? 1.5 : 1,
-      borderRadius: 2,
+  const xAxes = model.rows.map((_, index) => ({
+    type: "category",
+    gridIndex: index,
+    data: months,
+    boundaryGap: false,
+    axisLine: { show: index === lastRow, lineStyle: { color: BORDER } },
+    axisTick: { show: false },
+    axisLabel: {
+      show: index === lastRow,
+      color: TEXT_MUTED,
+      fontSize: LABEL_FONT,
+      hideOverlap: true,
+      interval: 0,
+      margin: 6,
+      formatter: (value: string) => monthAxisLabel(value),
     },
+    splitLine: {
+      show: true,
+      interval: (_index: number, value: string) => monthIndex(value) === 0,
+      lineStyle: { color: alpha(BORDER, 0.55), width: 0.5 },
+    },
+  }));
+
+  const yAxes = model.rows.map((_, index) => ({
+    type: "value",
+    gridIndex: index,
+    inverse: true,
+    min: 1,
+    max: model.rankMax,
+    interval: 1,
+    axisLine: { show: false },
+    axisTick: { show: false },
+    axisLabel: { show: false },
+    splitLine: { show: false },
+  }));
+
+  const series = model.rows.map((row, index) => ({
+    name: row.name,
+    type: "line",
+    gridIndex: index,
+    xAxisIndex: index,
+    yAxisIndex: index,
+    data: row.ranks.map((rank) => {
+      const top = finite(rank) && rank <= 3;
+      return {
+        value: rank,
+        symbolSize: top ? 4 : 2,
+        itemStyle: top
+          ? { color: PRIMARY, opacity: 1, borderColor: SURFACE, borderWidth: 1 }
+          : { color: PRIMARY, opacity: 0.35 },
+      };
+    }),
+    connectNulls: false,
+    symbol: "circle",
+    symbolSize: 2,
+    showSymbol: true,
+    lineStyle: { color: PRIMARY, width: 1.4, opacity: 0.8 },
+    emphasis: { focus: "series", lineStyle: { width: 2 } },
+    markArea: {
+      silent: true,
+      itemStyle: {
+        color: ROTATION_TOP_BAND_FILL,
+        borderColor: ROTATION_TOP_BAND_BORDER,
+        borderWidth: 0.5,
+      },
+      data: [[{ yAxis: 0.5 }, { yAxis: TOP_BAND_END }]],
+    },
+    z: 2,
   }));
 
   return {
@@ -226,101 +217,36 @@ export function buildRotationOption(input: RotationTimelineInput): Record<string
       enabled: true,
       label: {
         description:
-          `Top ${model.rowCount} sector leadership matrix by month. ` +
-          `Rank 1 is strongest; rank, not return. Missing ranks leave a gap.`,
+          "Rank history by sector. Each row is a sector; higher is stronger; " +
+          "the shaded band is the top 3. Hover a month to read its rank.",
       },
     },
-    // ECharts rejects a heatmap series with no visualMap; this one also owns the
-    // empty-slot colour (-1) so the lattice needs no second map.
-    visualMap: {
-      type: "piecewise",
-      show: false,
-      dimension: 2,
-      seriesIndex: [0, 1],
-      pieces: [
-        { value: -1, color: alpha(SURFACE_ALT, 0.45) },
-        ...model.leaders.map((leader) => ({ value: leader.sectorIndex, color: leader.color })),
-      ],
-      outOfRange: { color: alpha(SURFACE_ALT, 0.45) },
-    },
-    grid: { left: 6, right: 10, top: 8, bottom: 4, containLabel: true },
+    grid: grids,
+    xAxis: xAxes,
+    yAxis: yAxes,
     tooltip: {
       trigger: "item",
       confine: true,
       backgroundColor: TOOLTIP_BG,
       borderColor: TOOLTIP_BORDER,
       textStyle: { color: TOOLTIP_TEXT, fontSize: LABEL_FONT },
-      formatter: (params: RotationTooltipParam) => formatRotationTooltip(params),
+      formatter: (params: RotationTooltipParam | RotationTooltipParam[]) =>
+        formatRotationTooltip(params),
     },
-    xAxis: {
-      type: "category",
-      data: months,
-      axisLine: { lineStyle: { color: BORDER } },
-      axisTick: { show: false },
-      axisLabel: {
-        color: TEXT_MUTED,
-        fontSize: LABEL_FONT,
-        hideOverlap: true,
-        interval: 0,
-        margin: 8,
-        formatter: (value: string) => monthAxisLabel(value),
-      },
-      splitLine: {
-        show: true,
-        interval: (_index: number, value: string) => monthIndex(value) === 0,
-        lineStyle: { color: alpha(BORDER, 0.75), width: 1 },
-      },
-    },
-    yAxis: {
-      type: "category",
-      data: rankLabels,
-      inverse: true,
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: {
-        color: TEXT_MUTED,
-        fontSize: LABEL_FONT,
-        formatter: (value: string) => (value === "#1" ? `{top|${value}}` : `{rest|${value}}`),
-        rich: {
-          top: { color: TEXT, fontWeight: "bold", fontSize: LABEL_FONT },
-          rest: { color: TEXT_MUTED, fontSize: LABEL_FONT },
-        },
-      },
-      splitLine: { show: true, lineStyle: { color: alpha(BORDER, 0.55), width: 0.5 } },
-    },
-    series: [
-      {
-        name: ROTATION_BACKGROUND_SERIES,
-        type: "heatmap",
-        data: background,
-        silent: true,
-        tooltip: { show: false },
-        emphasis: { disabled: true },
-        z: 0,
-      },
-      {
-        name: ROTATION_MATRIX_SERIES,
-        type: "heatmap",
-        data: cells,
-        label: { show: false },
-        itemStyle: { borderColor: SURFACE, borderWidth: 1, borderRadius: 2 },
-        emphasis: { itemStyle: { borderColor: TEXT_MUTED, borderWidth: 2 } },
-        z: 2,
-      },
-    ],
+    series,
   };
 }
 
 /**
- * A month × rank matrix, not a line chart: one coloured cell per occupied rank
- * slot, so a nine-leader history cannot collapse into grey spaghetti.
+ * D3-gallery small multiples: one rank strip per sector, direct HTML labels and
+ * no categorical palette — identity comes from the row, not a colour legend.
  */
 export function RotationTimeline(props: RotationTimelineProps) {
   const model = createMemo(() =>
-    buildRotationModel({ months: props.months, series: props.series, topN: props.topN }),
+    buildRotationModel({ months: props.months, series: props.series }),
   );
   const option = createMemo(() =>
-    buildRotationOption({ months: props.months, series: props.series, topN: props.topN }),
+    buildRotationOption({ months: props.months, series: props.series }),
   );
   const [selectedMonth, setSelectedMonth] = createSignal<string | null>(null);
 
@@ -329,85 +255,74 @@ export function RotationTimeline(props: RotationTimelineProps) {
     if (chosen && props.months.includes(chosen)) return chosen;
     return model().latestMonth ?? props.months[props.months.length - 1] ?? "";
   });
+  const activeMonthIndex = createMemo(() => props.months.indexOf(activeMonth()));
 
-  const inspectorRows = createMemo<RotationInspectorRow[]>(() => {
-    const month = activeMonth();
-    return Array.from({ length: model().rowCount }, (_, index) => {
+  const rowsAt = (monthIndex: number) =>
+    Array.from({ length: 3 }, (_, index) => {
       const rank = index + 1;
-      const cell = model().cells.find((item) => item.month === month && item.rank === rank);
-      return { rank, name: cell?.sector ?? null, color: cell?.color ?? null };
+      const row = model().rows.find((item) => item.ranks[monthIndex] === rank);
+      return { rank, name: row?.name ?? null };
     });
-  });
+
+  const currentRows = createMemo(() => rowsAt(model().latestMonthIndex));
+  const inspectorRows = createMemo(() => rowsAt(activeMonthIndex()));
+  const chartHeight = createMemo(
+    () =>
+      ROTATION_CHART_TOP +
+      model().rows.length * (ROTATION_ROW_HEIGHT + ROTATION_ROW_GAP) -
+      ROTATION_ROW_GAP +
+      ROTATION_AXIS_HEIGHT,
+  );
+  const bottomSpacer = ROTATION_AXIS_HEIGHT - ROTATION_ROW_GAP;
 
   return (
-    <div
-      class="flex min-w-0 flex-col gap-1"
-      data-testid={model().hasData ? undefined : "history-rotation-timeline"}
-    >
+    <div class="flex min-w-0 flex-col gap-1">
       <Show
         when={model().hasData}
         fallback={
           <div
-            data-testid="history-rotation-timeline-empty"
+            data-testid="history-rotation-timeline"
             class="py-3 text-center text-ui-micro text-fin-text-muted"
           >
-            No rotation history
+            <div data-testid="history-rotation-timeline-empty">No rotation history</div>
           </div>
         }
       >
-        <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <span class="text-ui-micro font-semibold text-fin-text">
-            Top {model().rowCount} leadership · rank, not return
-          </span>
-          <span class="text-ui-micro text-fin-text-muted">{model().latestMonth}</span>
+        <div class="flex flex-col gap-0.5">
+          <span class="text-ui-micro font-semibold text-fin-text">Rank history by sector</span>
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span class="text-ui-micro text-fin-text-muted">
+              Each row is a sector · higher is stronger · shaded band = top 3
+            </span>
+            <span
+              data-testid="history-rotation-band-key"
+              class="inline-flex items-center gap-1 text-ui-micro text-fin-text-muted"
+            >
+              <span
+                data-testid="history-rotation-band-swatch"
+                aria-hidden="true"
+                class="inline-block h-2 w-2 rounded-sm border"
+                style={{
+                  "background-color": ROTATION_TOP_BAND_FILL,
+                  "border-color": ROTATION_TOP_BAND_BORDER,
+                }}
+              />
+              top 3
+            </span>
+          </div>
         </div>
 
         <div
           data-testid="history-rotation-current"
-          class="flex flex-wrap items-center gap-x-3 gap-y-1"
+          class="flex flex-wrap items-baseline gap-x-2 text-ui-micro text-fin-text-muted"
         >
-          <For each={model().current}>
-            {(leader) => (
-              <span
-                class="inline-flex items-center gap-1 text-ui-micro text-fin-text"
-                aria-label={`#${leader.rank} ${leader.name}`}
-              >
-                <span
-                  aria-hidden="true"
-                  class="inline-block h-2 w-2 shrink-0 rounded-sm"
-                  style={{ "background-color": leader.color }}
-                />
-                <span class="font-mono tabular-nums">{`#${leader.rank}`}</span>
-                <span>{leader.name}</span>
-              </span>
-            )}
+          <span class="font-mono text-fin-text">{model().latestMonth}</span>
+          <For each={currentRows()}>
+            {(item) => <span>{`#${item.rank} ${item.name ?? "no rank"}`}</span>}
           </For>
         </div>
 
-        <div
-          data-testid="history-rotation-legend"
-          aria-label="Sector colours"
-          class="flex flex-wrap items-center gap-x-2 gap-y-0.5"
-        >
-          <span class="hidden shrink-0 text-ui-micro text-fin-text-muted sm:inline">Sectors</span>
-          <For each={model().leaders}>
-            {(leader) => (
-              <span class="inline-flex shrink-0 items-center gap-1 text-ui-micro text-fin-text-muted">
-                <span
-                  aria-hidden="true"
-                  class="inline-block h-2 w-2 rounded-sm"
-                  style={{ "background-color": leader.color }}
-                />
-                {leader.name}
-              </span>
-            )}
-          </For>
-        </div>
-
-        <div class="flex flex-col gap-0.5">
-          <span class="text-ui-micro text-fin-text-muted">
-            Cells are the sector ranked #1–#3 that month · missing = no rank
-          </span>
+        <div class="flex justify-end">
           <span
             data-testid="history-rotation-scroll-hint"
             class="text-ui-micro text-fin-text-muted sm:hidden"
@@ -416,18 +331,83 @@ export function RotationTimeline(props: RotationTimelineProps) {
           </span>
         </div>
 
-        <div data-testid="history-rotation-scroll" class="w-full overflow-x-auto">
-          <div style={{ "min-width": `${CHART_MIN_WIDTH}px`, width: "100%" }}>
-            <EChart
-              option={option()}
-              data-testid="history-rotation-timeline"
-              style={{
-                height: `${CHART_HEIGHT}px`,
-                flex: "none",
-                width: "100%",
-                "min-height": "0px",
-              }}
-            />
+        <div class="flex w-full min-w-0 items-start gap-1">
+          <div
+            data-testid="history-rotation-rail"
+            class="sticky left-0 z-10 flex shrink-0 flex-col border-r border-fin-border bg-fin-surface"
+            style={{ width: "150px" }}
+          >
+            <div style={{ height: `${ROTATION_CHART_TOP}px` }} />
+            <For each={model().rows}>
+              {(row) => (
+                <div
+                  class="flex items-center"
+                  style={{
+                    height: `${ROTATION_ROW_HEIGHT}px`,
+                    "margin-bottom": `${ROTATION_ROW_GAP}px`,
+                  }}
+                >
+                  <span
+                    class={
+                      row.currentRank !== null && row.currentRank <= 3
+                        ? "text-ui-micro text-fin-text"
+                        : "text-ui-micro text-fin-text-muted"
+                    }
+                    title={row.name}
+                  >
+                    {row.name}
+                  </span>
+                </div>
+              )}
+            </For>
+            <div style={{ height: `${bottomSpacer}px` }} />
+          </div>
+
+          <div data-testid="history-rotation-scroll" class="min-w-0 flex-1 overflow-x-auto">
+            <div style={{ "min-width": `${CHART_MIN_WIDTH}px` }}>
+              <EChart
+                option={option()}
+                data-testid="history-rotation-timeline"
+                style={{
+                  height: `${chartHeight()}px`,
+                  flex: "none",
+                  width: "100%",
+                  "min-height": "0px",
+                }}
+              />
+            </div>
+          </div>
+
+          <div
+            data-testid="history-rotation-badges"
+            class="flex shrink-0 flex-col"
+            style={{ width: "44px" }}
+          >
+            <div style={{ height: `${ROTATION_CHART_TOP}px` }} />
+            <For each={model().rows}>
+              {(row, index) => (
+                <div
+                  class="flex items-center justify-end"
+                  style={{
+                    height: `${ROTATION_ROW_HEIGHT}px`,
+                    "margin-bottom": `${ROTATION_ROW_GAP}px`,
+                  }}
+                >
+                  <span
+                    data-testid={`history-rotation-badge-${index()}`}
+                    aria-label={`Current rank ${row.currentRank ?? "none"}`}
+                    class={
+                      row.currentRank !== null && row.currentRank <= 3
+                        ? "inline-flex h-4 min-w-6 items-center justify-center rounded-sm border border-fin-primary/50 bg-fin-primary/15 px-1 font-mono text-ui-micro tabular-nums text-fin-primary"
+                        : "inline-flex h-4 min-w-6 items-center justify-center rounded-sm border border-fin-border bg-fin-surface-alt px-1 font-mono text-ui-micro tabular-nums text-fin-text-muted"
+                    }
+                  >
+                    {row.currentRank !== null ? `#${row.currentRank}` : "—"}
+                  </span>
+                </div>
+              )}
+            </For>
+            <div style={{ height: `${bottomSpacer}px` }} />
           </div>
         </div>
 
@@ -456,11 +436,6 @@ export function RotationTimeline(props: RotationTimelineProps) {
                   aria-label={`#${row.rank} ${row.name ?? "no rank"}`}
                   class="inline-flex items-center gap-1 text-ui-micro"
                 >
-                  <span
-                    aria-hidden="true"
-                    class="inline-block h-2 w-2 rounded-sm border border-fin-border"
-                    style={{ "background-color": row.color ?? "transparent" }}
-                  />
                   <span class="font-mono tabular-nums text-fin-text-muted">{`#${row.rank}`}</span>
                   <span class={row.name ? "text-fin-text" : "text-fin-text-muted"}>
                     {row.name ?? "no rank"}

@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
-import { alpha, SURFACE_ALT } from "@/ui/palette";
+import { alpha, INFO } from "@/ui/palette";
 import {
   MiniSparkline,
   PersistenceMatrix,
@@ -15,8 +15,12 @@ import {
   buildRotationModel,
   buildRotationOption,
   formatRotationTooltip,
-  ROTATION_BACKGROUND_SERIES,
-  ROTATION_MATRIX_SERIES,
+  ROTATION_AXIS_HEIGHT,
+  ROTATION_CHART_TOP,
+  ROTATION_ROW_GAP,
+  ROTATION_ROW_HEIGHT,
+  ROTATION_TOP_BAND_BORDER,
+  ROTATION_TOP_BAND_FILL,
 } from "./RotationTimeline";
 import type {
   SectorHistorySeasonality,
@@ -132,25 +136,6 @@ function expectNoNaN(svg: Element) {
   }
 }
 
-function lab(hex: string): [number, number, number] {
-  const linear = [1, 3, 5].map((offset) => {
-    const channel = parseInt(hex.slice(offset, offset + 2), 16) / 255;
-    return channel > 0.04045 ? ((channel + 0.055) / 1.055) ** 2.4 : channel / 12.92;
-  });
-  const [r, g, b] = linear;
-  const x = (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047;
-  const y = r * 0.2126 + g * 0.7152 + b * 0.0722;
-  const z = (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883;
-  const f = (value: number) => (value > 0.008856 ? Math.cbrt(value) : 7.787 * value + 16 / 116);
-  return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
-}
-
-function deltaE(a: string, b: string): number {
-  const [l1, a1, b1] = lab(a);
-  const [l2, a2, b2] = lab(b);
-  return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
-}
-
 function expectAccessibleLabels(svg: Element) {
   const labelledBy = svg.getAttribute("aria-labelledby");
   expect(labelledBy).toBeTruthy();
@@ -219,22 +204,6 @@ describe("SectorRankHeatmap", () => {
   });
 });
 
-const LAGGARD: SectorHistorySeries = {
-  name: "LAGGARD",
-  is_benchmark: false,
-  monthly_returns: [],
-  ranks: MONTHS.map(() => 4),
-};
-
-const THIRD_ONLY: SectorHistorySeries = {
-  name: "THIRD ONLY",
-  is_benchmark: false,
-  monthly_returns: [],
-  ranks: MONTHS.map(() => 3),
-};
-
-const ALL_LEADERS = [...SERIES, LAGGARD, THIRD_ONLY];
-
 const MATRIX_SERIES: SectorHistorySeries[] = [
   {
     name: "ALPHA",
@@ -278,20 +247,12 @@ const TEN_SERIES: SectorHistorySeries[] = Array.from({ length: 10 }, (_, index) 
 
 type ChartOption = Record<string, any>;
 
-function rotationOption(series: SectorHistorySeries[], topN?: number): ChartOption {
-  return buildRotationOption({ months: MONTHS, series, topN });
+function rotationOption(series: SectorHistorySeries[]): ChartOption {
+  return buildRotationOption({ months: MONTHS, series });
 }
 
-function matrixSeries(option: ChartOption): ChartOption {
-  return (option.series as ChartOption[]).find((item) => item.name === ROTATION_MATRIX_SERIES)!;
-}
-
-function backgroundSeries(option: ChartOption): ChartOption {
-  return (option.series as ChartOption[]).find((item) => item.name === ROTATION_BACKGROUND_SERIES)!;
-}
-
-function cellData(option: ChartOption): ChartOption[] {
-  return matrixSeries(option).data as ChartOption[];
+function optionSeries(option: ChartOption): ChartOption[] {
+  return option.series as ChartOption[];
 }
 
 describe("RotationTimeline", () => {
@@ -300,170 +261,163 @@ describe("RotationTimeline", () => {
     chartCapture.styles.length = 0;
   });
 
-  test("renders a 3-row heatmap matrix with one cell per occupied rank slot", () => {
-    const option = rotationOption(MATRIX_SERIES);
-    const series = option.series as ChartOption[];
-
-    expect(option.dataZoom).toBeUndefined();
-    expect(series.every((item) => item.type === "heatmap")).toBe(true);
-    expect(series.some((item) => item.type === "line")).toBe(false);
-    expect(option.yAxis.data).toEqual(["#1", "#2", "#3"]);
-    expect(option.yAxis.inverse).toBe(true);
-    expect(option.xAxis.data).toEqual(MONTHS);
-
-    const cells = cellData(option);
-    expect(cells).toHaveLength(36);
-    expect(cells[0].value).toEqual([0, 0, 0]);
-    expect(cells[1].value).toEqual([0, 1, 1]);
-    expect(cells[2].value).toEqual([0, 2, 2]);
-    expect(cells.every((cell) => cell.value[1] >= 0 && cell.value[1] <= 2)).toBe(true);
-    expect(backgroundSeries(option).data).toHaveLength(36);
-  });
-
-  test("keeps only sectors that ever held a top-3 rank and drops benchmarks", () => {
-    const model = buildRotationModel({ months: MONTHS, series: ALL_LEADERS });
-    expect(model.leaders.map((leader) => leader.name)).toEqual([
-      "NIFTY IT",
-      "PSU BANK",
-      "FMCG",
-      "THIRD ONLY",
-    ]);
-    expect(model.leaders.map((leader) => leader.name)).not.toContain("LAGGARD");
-    expect(model.leaders.map((leader) => leader.name)).not.toContain("NIFTY 50");
-    expect(model.cells.every((cell) => cell.rank >= 1 && cell.rank <= 3)).toBe(true);
-  });
-
-  test("uses one stable colour per sector and a stronger rank-1 border", () => {
-    const option = rotationOption(MATRIX_SERIES);
-    const model = buildRotationModel({ months: MONTHS, series: MATRIX_SERIES });
-    const cells = cellData(option);
-    const pieces = option.visualMap.pieces as ChartOption[];
-    const colorByIndex = new Map(pieces.map((piece) => [piece.value, piece.color]));
-
-    for (const leader of model.leaders) {
-      const indexed = cells
-        .filter((cell) => cell.sector === leader.name)
-        .map((cell) => cell.value[2]);
-      expect(new Set(indexed)).toEqual(new Set([leader.sectorIndex]));
-      expect(colorByIndex.get(leader.sectorIndex)).toBe(leader.color);
-    }
-
-    const rankOne = cells.filter((cell) => cell.rank === 1);
-    const rankTwo = cells.find((cell) => cell.rank === 2)!;
-    expect(
-      rankOne.every((cell) => cell.itemStyle.borderWidth > rankTwo.itemStyle.borderWidth),
-    ).toBe(true);
-  });
-
-  test("maps every leader colour through a hidden piecewise visualMap", () => {
-    const option = rotationOption(TEN_SERIES);
-    const model = buildRotationModel({ months: MONTHS, series: TEN_SERIES });
-    const visualMap = option.visualMap;
-    expect(visualMap.type).toBe("piecewise");
-    expect(visualMap.show).toBe(false);
-    expect(visualMap.dimension).toBe(2);
-    expect(visualMap.seriesIndex).toEqual([0, 1]);
-
-    const pieces = visualMap.pieces as ChartOption[];
-    expect(pieces.find((piece) => piece.value === -1)?.color).toBe(alpha(SURFACE_ALT, 0.45));
-    for (const leader of model.leaders) {
-      expect(pieces.find((piece) => piece.value === leader.sectorIndex)?.color).toBe(leader.color);
-    }
-    expect(new Set(model.leaders.map((leader) => leader.color)).size).toBe(10);
-  });
-
-  test("does not tooltip empty lattice slots", () => {
-    const option = rotationOption(MATRIX_SERIES);
-    const background = backgroundSeries(option);
-    expect(background.silent).toBe(true);
-    expect(background.tooltip).toEqual({ show: false });
-    expect(cellData(option).every((cell) => cell.value[2] >= 0)).toBe(true);
-  });
-
-  test("assigns unique, perceptually separated colours to ten historical leaders", () => {
-    const model = buildRotationModel({ months: MONTHS, series: TEN_SERIES });
-    expect(model.leaders).toHaveLength(10);
-    const colors = model.leaders.map((leader) => leader.color);
-    expect(new Set(colors).size).toBe(colors.length);
-    // CIE Lab distance catches the old gold/amber pair (~8.5) that read as one hue.
-    for (let i = 0; i < colors.length; i++) {
-      for (let j = i + 1; j < colors.length; j++) {
-        expect(deltaE(colors[i], colors[j])).toBeGreaterThanOrEqual(15);
-      }
-    }
-  });
-
-  test("labels only year boundaries and mid-year anchors without overlap", () => {
-    const option = rotationOption(MATRIX_SERIES);
-    expect(option.xAxis.axisLabel.hideOverlap).toBe(true);
-    expect(option.xAxis.axisLabel.interval).toBe(0);
-    expect(option.xAxis.axisLabel.formatter("2025-01")).toBe("2025");
-    expect(option.xAxis.axisLabel.formatter("2025-07")).toBe("Jul");
-    expect(option.xAxis.axisLabel.formatter("2025-02")).toBe("");
-    expect(option.xAxis.splitLine.interval(0, "2025-01")).toBe(true);
-    expect(option.xAxis.splitLine.interval(1, "2025-02")).toBe(false);
-  });
-
-  test("maps a cell tooltip to YYYY-MM · #rank · sector", () => {
-    const option = rotationOption(MATRIX_SERIES);
-    const first = cellData(option)[0];
-    expect(option.tooltip.trigger).toBe("item");
-    expect(option.tooltip.formatter({ data: first })).toBe("2025-01 · #1 · ALPHA");
-    expect(
-      formatRotationTooltip({
-        data: { value: [0, 0, 0], month: "2025-01", rank: 1, sector: "A&B" },
-      }),
-    ).toBe("2025-01 · #1 · A&amp;B");
-    expect(formatRotationTooltip({})).toBe("");
-  });
-
-  test("leaves months without ranks as empty matrix cells", () => {
-    const model = buildRotationModel({ months: NULL_MONTHS, series: NULL_MONTH_SERIES });
+  test("builds one row per non-benchmark sector with its current rank", () => {
+    const model = buildRotationModel({ months: MONTHS, series: SERIES });
+    expect(model.rows.map((row) => row.name)).toEqual(["NIFTY IT", "PSU BANK", "FMCG"]);
+    expect(model.rows.map((row) => row.currentRank)).toEqual([2, 1, 3]);
+    expect(model.rankMax).toBe(4);
+    expect(model.latestMonth).toBe("2025-12");
     expect(model.hasData).toBe(true);
-    expect(model.cells).toHaveLength(6);
-    expect(model.cells.some((cell) => cell.monthIndex === 1)).toBe(false);
-
-    const option = buildRotationOption({ months: NULL_MONTHS, series: NULL_MONTH_SERIES });
-    expect(cellData(option).some((cell) => cell.value[0] === 1)).toBe(false);
   });
 
-  test("renders the current leaders key, wrapped legend, scroll hint and wrapper", () => {
+  test("renders one line strip per sector with gridIndex-aligned axes", () => {
+    const option = rotationOption(SERIES);
+    const grids = option.grid as ChartOption[];
+    const xAxes = option.xAxis as ChartOption[];
+    const yAxes = option.yAxis as ChartOption[];
+    const series = optionSeries(option);
+
+    expect(option.visualMap).toBeUndefined();
+    expect(option.legend).toBeUndefined();
+    expect(grids).toHaveLength(3);
+    expect(xAxes).toHaveLength(3);
+    expect(yAxes).toHaveLength(3);
+    expect(series).toHaveLength(3);
+    expect(series.every((item) => item.type === "line")).toBe(true);
+    expect(series.some((item) => item.type === "heatmap")).toBe(false);
+    expect(series.map((item) => item.gridIndex)).toEqual([0, 1, 2]);
+    expect(series.map((item) => item.name)).toEqual(["NIFTY IT", "PSU BANK", "FMCG"]);
+    expect(series.some((item) => item.name === "NIFTY 50")).toBe(false);
+    expect(grids.every((grid) => grid.height >= 22 && grid.height <= 26)).toBe(true);
+    expect(grids[1].top).toBe(ROTATION_CHART_TOP + ROTATION_ROW_HEIGHT + ROTATION_ROW_GAP);
+  });
+
+  test("inverts each rank axis and shades the top-3 band in every strip", () => {
+    const option = rotationOption(TEN_SERIES);
+    const yAxes = option.yAxis as ChartOption[];
+    expect(yAxes).toHaveLength(10);
+    for (const axis of yAxes) {
+      expect(axis.inverse).toBe(true);
+      expect(axis.min).toBe(1);
+      expect(axis.max).toBe(10);
+      expect(axis.interval).toBe(1);
+    }
+    for (const item of optionSeries(option)) {
+      expect(item.markArea.data[0][0]).toEqual({ yAxis: 0.5 });
+      expect(item.markArea.data[0][1]).toEqual({ yAxis: 3.5 });
+      expect(item.markArea.itemStyle).toMatchObject({
+        color: alpha(INFO, 0.18),
+        borderColor: alpha(INFO, 0.35),
+      });
+    }
+  });
+
+  test("shows a top-3 band key whose swatch matches the markArea fill", () => {
+    render(() => <RotationTimeline months={MONTHS} series={MATRIX_SERIES} />);
+    expect(ROTATION_TOP_BAND_FILL).toBe(alpha(INFO, 0.18));
+    const key = screen.getByTestId("history-rotation-band-key");
+    expect(key).toHaveTextContent("top 3");
+    expect(screen.getByTestId("history-rotation-band-swatch")).toHaveStyle({
+      "background-color": ROTATION_TOP_BAND_FILL,
+      "border-color": ROTATION_TOP_BAND_BORDER,
+    });
+    for (const item of optionSeries(chartCapture.options.at(-1)!)) {
+      expect(item.markArea.itemStyle.color).toBe(ROTATION_TOP_BAND_FILL);
+    }
+  });
+
+  test("highlights top-3 points and leaves null ranks as gaps", () => {
+    const series = optionSeries(rotationOption(SERIES));
+    const it = series.find((item) => item.name === "NIFTY IT")!;
+    expect(it.connectNulls).toBe(false);
+    expect(it.data[3].value).toBeNull();
+    expect(it.data[0].symbolSize).toBeGreaterThan(it.data[6].symbolSize);
+    expect(it.data[0].itemStyle.opacity).toBe(1);
+    expect(it.data[6].itemStyle.opacity).toBeLessThan(1);
+  });
+
+  test("shares one bottom year axis and draws January separators in every strip", () => {
+    const option = rotationOption(SERIES);
+    const xAxes = option.xAxis as ChartOption[];
+    expect(xAxes[0].axisLabel.show).toBe(false);
+    expect(xAxes[2].axisLabel.show).toBe(true);
+    expect(xAxes[2].axisLabel.hideOverlap).toBe(true);
+    expect(xAxes[2].axisLabel.interval).toBe(0);
+    expect(xAxes[2].axisLabel.formatter("2025-01")).toBe("2025");
+    expect(xAxes[2].axisLabel.formatter("2025-07")).toBe("Jul");
+    expect(xAxes[2].axisLabel.formatter("2025-02")).toBe("");
+    for (const axis of xAxes) {
+      expect(axis.data).toEqual(MONTHS);
+      expect(axis.splitLine.interval(0, "2025-01")).toBe(true);
+      expect(axis.splitLine.interval(1, "2025-02")).toBe(false);
+    }
+  });
+
+  test("tooltip reads YYYY-MM · Sector · rank N", () => {
+    const option = rotationOption(SERIES);
+    expect(option.tooltip.trigger).toBe("item");
+    expect(
+      option.tooltip.formatter({ axisValue: "2025-06", seriesName: "NIFTY IT", value: 1 }),
+    ).toBe("2025-06 · NIFTY IT · rank 1");
+    expect(formatRotationTooltip({ axisValue: "2025-06", seriesName: "A&B", value: 4 })).toBe(
+      "2025-06 · A&amp;B · rank 4",
+    );
+    expect(formatRotationTooltip([{ value: null }])).toBe("");
+  });
+
+  test("renders direct row labels, current rank badges and a text-only summary", () => {
     render(() => <RotationTimeline months={MONTHS} series={MATRIX_SERIES} />);
     expect(screen.getByTestId("history-rotation-timeline")).toBeInTheDocument();
-    expect(screen.getByText("Top 3 leadership · rank, not return")).toBeInTheDocument();
+    expect(screen.getByText("Rank history by sector")).toBeInTheDocument();
+    expect(
+      screen.getByText("Each row is a sector · higher is stronger · shaded band = top 3"),
+    ).toBeInTheDocument();
+
+    const rail = screen.getByTestId("history-rotation-rail");
+    for (const name of ["ALPHA", "BETA", "GAMMA"]) {
+      expect(within(rail).getByText(name)).toBeInTheDocument();
+    }
+    expect(within(rail).queryByText("NIFTY 50")).not.toBeInTheDocument();
+
+    expect(screen.getByTestId("history-rotation-badge-0")).toHaveTextContent("#3");
+    expect(screen.getByTestId("history-rotation-badge-1")).toHaveTextContent("#1");
+    expect(screen.getByTestId("history-rotation-badge-2")).toHaveTextContent("#2");
+    expect(screen.getByTestId("history-rotation-badge-1")).toHaveClass("bg-fin-primary/15");
 
     const current = screen.getByTestId("history-rotation-current");
-    expect(within(current).getByText("ALPHA")).toBeInTheDocument();
-    expect(within(current).getByText("BETA")).toBeInTheDocument();
-    expect(within(current).getByText("GAMMA")).toBeInTheDocument();
-    expect(current.textContent).toContain("#1");
+    expect(current.textContent).toContain("2025-12");
+    expect(current.textContent).toContain("#1 BETA");
+    expect(current.textContent).toContain("#2 GAMMA");
+    expect(current.textContent).toContain("#3 ALPHA");
+    expect(screen.queryByTestId("history-rotation-legend")).not.toBeInTheDocument();
+  });
 
-    const legend = screen.getByTestId("history-rotation-legend");
-    expect(legend).toHaveClass("flex-wrap");
-    expect(legend).not.toHaveClass("overflow-x-auto");
-    expect(within(legend).getByText("ALPHA")).toBeInTheDocument();
+  test("renders ten compact strips and sizes the chart to the shared grid stack", () => {
+    render(() => <RotationTimeline months={MONTHS} series={TEN_SERIES} />);
+    const option = chartCapture.options.at(-1)!;
+    expect(option.grid).toHaveLength(10);
+    expect(option.series).toHaveLength(10);
+    const expectedHeight =
+      ROTATION_CHART_TOP +
+      10 * (ROTATION_ROW_HEIGHT + ROTATION_ROW_GAP) -
+      ROTATION_ROW_GAP +
+      ROTATION_AXIS_HEIGHT;
+    expect(chartCapture.styles.at(-1)).toMatchObject({ height: `${expectedHeight}px` });
+  });
 
+  test("keeps a sticky label rail, scroll hint and 900px scroll canvas", () => {
+    render(() => <RotationTimeline months={MONTHS} series={TEN_SERIES} />);
+    expect(screen.getByTestId("history-rotation-rail")).toHaveClass("sticky");
     const hint = screen.getByTestId("history-rotation-scroll-hint");
     expect(hint).toHaveTextContent("Scroll →");
     expect(hint).toHaveClass("sm:hidden");
-
     const scroll = screen.getByTestId("history-rotation-scroll");
     expect(scroll).toHaveClass("overflow-x-auto");
     expect(scroll.firstElementChild).toHaveStyle({ "min-width": "900px" });
-    expect(chartCapture.styles.at(-1)).toMatchObject({ height: "230px" });
-    expect(chartCapture.options.at(-1)?.yAxis.data).toEqual(["#1", "#2", "#3"]);
+    expect(screen.getByTestId("history-rotation-badges")).toBeInTheDocument();
   });
 
-  test("keeps every historical leader visible in the wrapped legend", () => {
-    const model = buildRotationModel({ months: MONTHS, series: TEN_SERIES });
-    render(() => <RotationTimeline months={MONTHS} series={TEN_SERIES} />);
-    const legend = screen.getByTestId("history-rotation-legend");
-    for (const leader of model.leaders) {
-      expect(within(legend).getByText(leader.name)).toBeInTheDocument();
-    }
-  });
-
-  test("month inspector defaults to the latest month and matches the current key", () => {
+  test("month inspector defaults to the latest month", () => {
     render(() => <RotationTimeline months={MONTHS} series={MATRIX_SERIES} />);
     const select = screen.getByTestId("history-rotation-month") as HTMLSelectElement;
     expect(screen.getByLabelText("Inspect rotation month")).toBe(select);
@@ -474,11 +428,6 @@ describe("RotationTimeline", () => {
     expect(within(inspector).getByLabelText("#1 BETA")).toBeInTheDocument();
     expect(within(inspector).getByLabelText("#2 GAMMA")).toBeInTheDocument();
     expect(within(inspector).getByLabelText("#3 ALPHA")).toBeInTheDocument();
-
-    const current = screen.getByTestId("history-rotation-current");
-    expect(within(current).getByLabelText("#1 BETA")).toBeInTheDocument();
-    expect(within(current).getByLabelText("#2 GAMMA")).toBeInTheDocument();
-    expect(within(current).getByLabelText("#3 ALPHA")).toBeInTheDocument();
   });
 
   test("month inspector keyboard selection lists every month's top three", () => {
@@ -490,7 +439,7 @@ describe("RotationTimeline", () => {
     expect(screen.getByLabelText("#2 BETA")).toBeInTheDocument();
     expect(screen.getByLabelText("#3 GAMMA")).toBeInTheDocument();
 
-    // The latest-month key stays pinned while inspecting an older month.
+    // The latest-month summary stays pinned while inspecting an older month.
     expect(screen.getByTestId("history-rotation-current").textContent).toContain("BETA");
   });
 
@@ -503,13 +452,6 @@ describe("RotationTimeline", () => {
     expect(screen.getByLabelText("#3 no rank")).toBeInTheDocument();
   });
 
-  test("keeps a sector that never reached the top three out of the legend", () => {
-    render(() => <RotationTimeline months={MONTHS} series={ALL_LEADERS} />);
-    const legend = screen.getByTestId("history-rotation-legend");
-    expect(within(legend).queryByText("LAGGARD")).not.toBeInTheDocument();
-    expect(within(legend).getByText("THIRD ONLY")).toBeInTheDocument();
-  });
-
   test("renders an empty state with no history", () => {
     render(() => <RotationTimeline months={[]} series={[]} />);
     expect(screen.getByTestId("history-rotation-timeline")).toBeInTheDocument();
@@ -520,12 +462,6 @@ describe("RotationTimeline", () => {
   test("renders an empty state when every rank is null", () => {
     const noRanks = SERIES.map((item) => ({ ...item, ranks: MONTHS.map(() => null) }));
     render(() => <RotationTimeline months={MONTHS} series={noRanks} />);
-    expect(screen.getByTestId("history-rotation-timeline-empty")).toBeInTheDocument();
-    expect(chartCapture.options).toHaveLength(0);
-  });
-
-  test("renders an empty state when no sector ever reached the top three", () => {
-    render(() => <RotationTimeline months={MONTHS} series={[LAGGARD]} />);
     expect(screen.getByTestId("history-rotation-timeline-empty")).toBeInTheDocument();
     expect(chartCapture.options).toHaveLength(0);
   });
