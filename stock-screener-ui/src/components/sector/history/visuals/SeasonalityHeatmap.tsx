@@ -1,17 +1,14 @@
 import { For, Show, createMemo, createSignal, createUniqueId } from "solid-js";
-import {
-  alpha,
-  BORDER,
-  MONO,
-  NEGATIVE,
-  POSITIVE,
-  PRIMARY,
-  SCALE_GRAY,
-  SURFACE,
-  TEXT_MUTED,
-} from "@/ui/palette";
-import { compositeOver, pickTextColor } from "@/utils/contrast";
+import { alpha, BORDER, MONO, PRIMARY, SURFACE, TEXT_MUTED } from "@/ui/palette";
+import { pickTextColor } from "@/utils/contrast";
 import type { SectorHistorySeasonality } from "../../../../types/sectorHistory";
+import {
+  CHART_MUTED,
+  CHART_NEGATIVE,
+  CHART_NEUTRAL,
+  CHART_POSITIVE,
+  returnColor,
+} from "./chartPalette";
 import { SVG_TEXT, finite, hitRatePercent, monthName, signedPct } from "./shared";
 
 const LABEL_MIN_W = 140;
@@ -109,11 +106,9 @@ export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
           cell && avg !== null
             ? `${monthName(month)} · ${name} · avg ${signedPct(avg)} · hit rate ${hitLabel} · n=${n}`
             : `${monthName(month)} · ${name} · no data · hit rate n/a · n=0`;
-        const intensity = avg !== null && maxAbs > 0 ? Math.min(1, Math.abs(avg) / maxAbs) : 0;
-        const fill = avg === null || avg === 0 ? SURFACE : avg > 0 ? POSITIVE : NEGATIVE;
-        const opacity = avg !== null && avg !== 0 ? 0.14 + 0.5 * intensity : 1;
-        const ink =
-          avg === null ? TEXT_MUTED : pickTextColor(compositeOver(fill, SURFACE, opacity));
+        const fill = avg === null ? SURFACE : avg === 0 ? CHART_NEUTRAL : returnColor(avg, maxAbs);
+        const opacity = 1;
+        const ink = avg === null ? TEXT_MUTED : pickTextColor(fill);
         return {
           key: `${name}-${month}`,
           index: month,
@@ -194,13 +189,13 @@ export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
             <span
               aria-hidden="true"
               class="relative inline-block h-[2px] w-[24px]"
-              style={{ "background-color": alpha(SCALE_GRAY[0], HIT_BAR_TRACK_OPACITY) }}
+              style={{ "background-color": alpha(CHART_MUTED, HIT_BAR_TRACK_OPACITY) }}
             >
               <span
                 class="absolute inset-y-0 left-0"
                 style={{
                   width: "16px",
-                  "background-color": alpha(SCALE_GRAY[0], HIT_BAR_OPACITY),
+                  "background-color": alpha(CHART_MUTED, HIT_BAR_OPACITY),
                 }}
               />
             </span>
@@ -216,14 +211,15 @@ export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
             <span
               aria-hidden="true"
               class="inline-block h-[10px] w-[10px] border border-fin-border"
-              style={{ "background-color": NEGATIVE }}
+              style={{ "background-color": CHART_NEGATIVE }}
             />
             <span>negative</span>
           </span>
           <span class="inline-flex items-center gap-1.5 whitespace-nowrap">
             <span
               aria-hidden="true"
-              class="inline-block h-[10px] w-[10px] border border-fin-border bg-fin-surface"
+              class="inline-block h-[10px] w-[10px] border border-fin-border"
+              style={{ "background-color": CHART_NEUTRAL }}
             />
             <span>flat</span>
           </span>
@@ -231,7 +227,7 @@ export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
             <span
               aria-hidden="true"
               class="inline-block h-[10px] w-[10px] border border-fin-border"
-              style={{ "background-color": POSITIVE }}
+              style={{ "background-color": CHART_POSITIVE }}
             />
             <span>positive</span>
           </span>
@@ -383,7 +379,7 @@ export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
                                     y={rowY() + CELL_H - HIT_BAR_H - 3}
                                     width={CELL_W - HIT_BAR_INSET * 2}
                                     height={HIT_BAR_H}
-                                    fill={SCALE_GRAY[0]}
+                                    fill={CHART_MUTED}
                                     fill-opacity={HIT_BAR_TRACK_OPACITY}
                                     shape-rendering="crispEdges"
                                     pointer-events="none"
@@ -396,7 +392,7 @@ export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
                                     y={rowY() + CELL_H - HIT_BAR_H - 3}
                                     width={barWidth()}
                                     height={HIT_BAR_H}
-                                    fill={SCALE_GRAY[0]}
+                                    fill={CHART_MUTED}
                                     fill-opacity={HIT_BAR_OPACITY}
                                     shape-rendering="crispEdges"
                                     pointer-events="none"

@@ -2,8 +2,6 @@ import { For, Show, createMemo, createSignal } from "solid-js";
 import {
   alpha,
   BORDER,
-  INFO,
-  PRIMARY,
   SURFACE,
   TEXT_MUTED,
   TOOLTIP_BG,
@@ -13,6 +11,7 @@ import {
 import { typeSize } from "@/ui/typography";
 import type { SectorHistorySeries } from "../../../../types/sectorHistory";
 import { EChart } from "../../../common/EChart";
+import { CHART_CURRENT, CHART_LINE, CHART_TOP3 } from "./chartPalette";
 import { finite, monthIndex, yearOf } from "./shared";
 
 const LABEL_FONT = typeSize("micro");
@@ -21,8 +20,8 @@ export const ROTATION_ROW_HEIGHT = 24;
 export const ROTATION_ROW_GAP = 4;
 export const ROTATION_CHART_TOP = 4;
 export const ROTATION_AXIS_HEIGHT = 24;
-export const ROTATION_TOP_BAND_FILL = alpha(INFO, 0.18);
-export const ROTATION_TOP_BAND_BORDER = alpha(INFO, 0.35);
+export const ROTATION_TOP_BAND_FILL = alpha(CHART_TOP3, 0.18);
+export const ROTATION_TOP_BAND_BORDER = alpha(CHART_TOP3, 0.35);
 const TOP_BAND_END = 3.5;
 
 export interface RotationTimelineProps {
@@ -188,15 +187,15 @@ export function buildRotationOption(input: RotationTimelineInput): Record<string
         value: rank,
         symbolSize: top ? 4 : 2,
         itemStyle: top
-          ? { color: PRIMARY, opacity: 1, borderColor: SURFACE, borderWidth: 1 }
-          : { color: PRIMARY, opacity: 0.35 },
+          ? { color: CHART_TOP3, opacity: 1, borderColor: SURFACE, borderWidth: 1 }
+          : { color: CHART_LINE, opacity: 0.35 },
       };
     }),
     connectNulls: false,
     symbol: "circle",
     symbolSize: 2,
     showSymbol: true,
-    lineStyle: { color: PRIMARY, width: 1.4, opacity: 0.8 },
+    lineStyle: { color: CHART_LINE, width: 1.4, opacity: 0.8 },
     emphasis: { focus: "series", lineStyle: { width: 2 } },
     markArea: {
       silent: true,
@@ -316,7 +315,17 @@ export function RotationTimeline(props: RotationTimelineProps) {
           data-testid="history-rotation-current"
           class="flex flex-wrap items-baseline gap-x-2 text-ui-micro text-fin-text-muted"
         >
-          <span class="font-mono text-fin-text">{model().latestMonth}</span>
+          <span
+            data-testid="history-rotation-current-badge"
+            class="inline-flex items-center rounded-sm border px-1 font-mono text-ui-micro"
+            style={{
+              color: CHART_CURRENT,
+              "border-color": alpha(CHART_CURRENT, 0.5),
+              "background-color": alpha(CHART_CURRENT, 0.15),
+            }}
+          >
+            {model().latestMonth}
+          </span>
           <For each={currentRows()}>
             {(item) => <span>{`#${item.rank} ${item.name ?? "no rank"}`}</span>}
           </For>
@@ -395,11 +404,21 @@ export function RotationTimeline(props: RotationTimelineProps) {
                 >
                   <span
                     data-testid={`history-rotation-badge-${index()}`}
+                    data-top3={row.currentRank !== null && row.currentRank <= 3 ? "true" : "false"}
                     aria-label={`Current rank ${row.currentRank ?? "none"}`}
                     class={
                       row.currentRank !== null && row.currentRank <= 3
-                        ? "inline-flex h-4 min-w-6 items-center justify-center rounded-sm border border-fin-primary/50 bg-fin-primary/15 px-1 font-mono text-ui-micro tabular-nums text-fin-primary"
+                        ? "inline-flex h-4 min-w-6 items-center justify-center rounded-sm border px-1 font-mono text-ui-micro tabular-nums"
                         : "inline-flex h-4 min-w-6 items-center justify-center rounded-sm border border-fin-border bg-fin-surface-alt px-1 font-mono text-ui-micro tabular-nums text-fin-text-muted"
+                    }
+                    style={
+                      row.currentRank !== null && row.currentRank <= 3
+                        ? {
+                            "border-color": alpha(CHART_CURRENT, 0.5),
+                            "background-color": alpha(CHART_CURRENT, 0.15),
+                            color: CHART_CURRENT,
+                          }
+                        : undefined
                     }
                   >
                     {row.currentRank !== null ? `#${row.currentRank}` : "—"}

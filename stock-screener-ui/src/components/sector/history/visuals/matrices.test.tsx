@@ -2,8 +2,16 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
-import { NEGATIVE, POSITIVE, SURFACE } from "@/ui/palette";
+import { SCALE_GRAY, SURFACE } from "@/ui/palette";
 import { compositeOver, contrastRatio } from "@/utils/contrast";
+import {
+  CHART_CURRENT,
+  CHART_NEGATIVE,
+  CHART_POSITIVE,
+  rankColor,
+  returnColor,
+  shareColor,
+} from "./chartPalette";
 import type {
   SectorHistorySeasonality,
   SectorHistorySeries,
@@ -97,7 +105,8 @@ function expectRovingCells(svg: Element, selector: string, count: number) {
 }
 
 function expectContrast(cell: Element) {
-  const opacity = Number(cell.getAttribute("fill-opacity"));
+  const rawOpacity = cell.getAttribute("fill-opacity");
+  const opacity = rawOpacity === null ? 1 : Number(rawOpacity);
   const bg = compositeOver(String(cell.getAttribute("fill")), SURFACE, opacity);
   const ink = String(cell.getAttribute("data-ink"));
   const ratio = contrastRatio(ink, bg);
@@ -121,15 +130,24 @@ describe("SectorRankHeatmap axis, width and top-3 emphasis", () => {
     }
     expect(screen.queryByText("Feb")).not.toBeInTheDocument();
     expect(screen.getByTestId("history-rank-heatmap-legend")).toHaveTextContent("1 best → 3 worst");
-    expect(screen.getByText("top 3 = amber outline")).toBeInTheDocument();
+    expect(screen.getByTestId("history-rank-top3-legend")).toHaveTextContent("top 3");
     expect(screen.getByTestId("history-rank-current-legend")).toHaveTextContent(
       "dashed = current month",
     );
+    expect(screen.getByTestId("history-rank-current-legend")).toHaveStyle({
+      color: CHART_CURRENT,
+    });
+    expect(screen.getByTestId("history-rank-latest-key")).toHaveStyle({ color: CHART_CURRENT });
+    expect(svg.querySelector("[data-top3-outline]")).toHaveAttribute("stroke", SCALE_GRAY[0]);
+    expect(
+      Number(svg.querySelector("[data-top3-outline]")?.getAttribute("stroke-width")),
+    ).toBeGreaterThanOrEqual(1.5);
+    expect(svg.querySelector("[data-latest-column]")).toHaveAttribute("stroke", CHART_CURRENT);
     const legend = screen.getByTestId("history-rank-legend");
     expect(legend.style.position).toBe("sticky");
     expect(legend.style.maxWidth).toBe("calc(100vw - 48px)");
     expect(svg.querySelector('[data-testid="history-rank-heatmap-legend"]')).toBeNull();
-    expect(svg.querySelector("title")?.textContent).toMatch(/amber outlines mark the top 3/i);
+    expect(svg.querySelector("title")?.textContent).toMatch(/light outlines mark the top 3/i);
     expect(svg.querySelector("desc")?.textContent).toMatch(/labelled at each quarter/i);
     expectAccessibleLabels(svg);
   });
@@ -141,8 +159,8 @@ describe("SectorRankHeatmap axis, width and top-3 emphasis", () => {
     expect(svg.querySelectorAll("[data-top3-outline]")).toHaveLength(TOP3_COUNT);
     expect(svg.querySelector('[data-cell="rank-0-0"]')).toHaveAttribute("data-top3", "true");
     expect(svg.querySelector('[data-cell="rank-2-5"]')).toHaveAttribute("data-top3", "false");
-    expect(svg.querySelector('[data-cell="rank-2-5"]')).toHaveAttribute("fill", NEGATIVE);
-    expect(svg.querySelector('[data-cell="rank-0-0"]')).toHaveAttribute("fill", POSITIVE);
+    expect(svg.querySelector('[data-cell="rank-2-5"]')).toHaveAttribute("fill", rankColor(4, 3));
+    expect(svg.querySelector('[data-cell="rank-0-0"]')).toHaveAttribute("fill", rankColor(1, 3));
   });
 
   test("fits 60 months inside a 1600px panel without truncating sector names", () => {
@@ -371,8 +389,8 @@ describe("SeasonalityHeatmap legend and hit-rate cue", () => {
     const negative = svg.querySelector('[data-cell="seasonality-1-0"]') as Element;
     expectContrast(positive);
     expectContrast(negative);
-    expect(Number(positive.getAttribute("fill-opacity"))).toBeLessThanOrEqual(0.64);
-    expect(Number(negative.getAttribute("fill-opacity"))).toBeLessThanOrEqual(0.64);
+    expect(positive).toHaveAttribute("fill", returnColor(10, 10));
+    expect(negative).toHaveAttribute("fill", returnColor(-10, 10));
   });
 
   test("uses one seasonality tab stop and moves it with arrow keys", () => {
@@ -428,7 +446,8 @@ describe("PersistenceMatrix axes, contrast and top-3 context", () => {
     const cells = Array.from(svg.querySelectorAll("[data-cell][data-ink]"));
     expect(cells.length).toBe(9);
     for (const cell of cells) {
-      const opacity = Number(cell.getAttribute("fill-opacity"));
+      const rawOpacity = cell.getAttribute("fill-opacity");
+      const opacity = rawOpacity === null ? 1 : Number(rawOpacity);
       const bg = compositeOver(String(cell.getAttribute("fill")), SURFACE, opacity);
       const ink = String(cell.getAttribute("data-ink"));
       const ratio = contrastRatio(ink, bg);
@@ -437,7 +456,10 @@ describe("PersistenceMatrix axes, contrast and top-3 context", () => {
         `${ink} on ${bg} (opacity ${opacity}) = ${ratio.toFixed(2)}:1`,
       ).toBeGreaterThanOrEqual(4.5);
     }
-    expect(svg.querySelectorAll("[data-rail]")).toHaveLength(9);
+    expect(svg.querySelector('[data-cell="persistence-0-0"]')).toHaveAttribute(
+      "fill",
+      shareColor(50, 50),
+    );
   });
 
   test("renders an optional monthly transition denominator and hides it when absent", () => {
@@ -522,8 +544,8 @@ describe("MiniSparkline baseline and sign colours", () => {
     const y = Number(baseline?.getAttribute("y1"));
     expect(y).toBeGreaterThan(2);
     expect(y).toBeLessThan(22);
-    expect(svg.querySelector('[data-sign="positive"]')).toHaveAttribute("stroke", POSITIVE);
-    expect(svg.querySelector('[data-sign="negative"]')).toHaveAttribute("stroke", NEGATIVE);
+    expect(svg.querySelector('[data-sign="positive"]')).toHaveAttribute("stroke", CHART_POSITIVE);
+    expect(svg.querySelector('[data-sign="negative"]')).toHaveAttribute("stroke", CHART_NEGATIVE);
     expectAccessibleLabels(svg);
   });
 });

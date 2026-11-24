@@ -1,5 +1,6 @@
 import { For, createMemo, createUniqueId } from "solid-js";
-import { NEGATIVE, POSITIVE, TEXT_MUTED } from "@/ui/palette";
+import { TEXT_MUTED } from "@/ui/palette";
+import { CHART_NEGATIVE, CHART_POSITIVE } from "./chartPalette";
 import { finite, signedPct } from "./shared";
 
 const PAD = 2;
@@ -99,7 +100,7 @@ export function MiniSparkline(props: MiniSparklineProps) {
   });
 
   const signColor = (sign: SparkSign) =>
-    sign === "positive" ? POSITIVE : sign === "negative" ? NEGATIVE : TEXT_MUTED;
+    sign === "positive" ? CHART_POSITIVE : sign === "negative" ? CHART_NEGATIVE : TEXT_MUTED;
 
   return (
     <svg
@@ -117,8 +118,8 @@ export function MiniSparkline(props: MiniSparklineProps) {
           : `Cumulative monthly return ${signedPct(model().final ?? 0)}`}
       </title>
       <desc id={descId}>
-        Compounded monthly returns with a zero baseline. Green segments sit above zero, red segments
-        below. Missing months break the line.
+        Compounded monthly returns with a zero baseline. Orange segments sit above zero, blue
+        segments below. Missing months break the line.
       </desc>
 
       <line

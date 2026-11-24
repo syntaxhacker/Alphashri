@@ -3,7 +3,8 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
-import { alpha, INFO } from "@/ui/palette";
+import { alpha } from "@/ui/palette";
+import { CHART_CURRENT, CHART_LINE, CHART_TOP3 } from "./chartPalette";
 import {
   MiniSparkline,
   PersistenceMatrix,
@@ -306,15 +307,15 @@ describe("RotationTimeline", () => {
       expect(item.markArea.data[0][0]).toEqual({ yAxis: 0.5 });
       expect(item.markArea.data[0][1]).toEqual({ yAxis: 3.5 });
       expect(item.markArea.itemStyle).toMatchObject({
-        color: alpha(INFO, 0.18),
-        borderColor: alpha(INFO, 0.35),
+        color: alpha(CHART_TOP3, 0.18),
+        borderColor: alpha(CHART_TOP3, 0.35),
       });
     }
   });
 
   test("shows a top-3 band key whose swatch matches the markArea fill", () => {
     render(() => <RotationTimeline months={MONTHS} series={MATRIX_SERIES} />);
-    expect(ROTATION_TOP_BAND_FILL).toBe(alpha(INFO, 0.18));
+    expect(ROTATION_TOP_BAND_FILL).toBe(alpha(CHART_TOP3, 0.18));
     const key = screen.getByTestId("history-rotation-band-key");
     expect(key).toHaveTextContent("top 3");
     expect(screen.getByTestId("history-rotation-band-swatch")).toHaveStyle({
@@ -333,6 +334,8 @@ describe("RotationTimeline", () => {
     expect(it.data[3].value).toBeNull();
     expect(it.data[0].symbolSize).toBeGreaterThan(it.data[6].symbolSize);
     expect(it.data[0].itemStyle.opacity).toBe(1);
+    expect(it.data[0].itemStyle.color).toBe(CHART_TOP3);
+    expect(it.lineStyle.color).toBe(CHART_LINE);
     expect(it.data[6].itemStyle.opacity).toBeLessThan(1);
   });
 
@@ -382,7 +385,13 @@ describe("RotationTimeline", () => {
     expect(screen.getByTestId("history-rotation-badge-0")).toHaveTextContent("#3");
     expect(screen.getByTestId("history-rotation-badge-1")).toHaveTextContent("#1");
     expect(screen.getByTestId("history-rotation-badge-2")).toHaveTextContent("#2");
-    expect(screen.getByTestId("history-rotation-badge-1")).toHaveClass("bg-fin-primary/15");
+    expect(screen.getByTestId("history-rotation-badge-1")).toHaveAttribute("data-top3", "true");
+    expect(screen.getByTestId("history-rotation-badge-1")).toHaveStyle({
+      color: CHART_CURRENT,
+    });
+    expect(screen.getByTestId("history-rotation-current-badge")).toHaveStyle({
+      color: CHART_CURRENT,
+    });
 
     const current = screen.getByTestId("history-rotation-current");
     expect(current.textContent).toContain("2025-12");
@@ -596,7 +605,7 @@ describe("PersistenceMatrix", () => {
 });
 
 describe("MiniSparkline", () => {
-  test("renders green and red segments, breaking on nulls without NaN", () => {
+  test("renders blue and orange segments, breaking on nulls without NaN", () => {
     render(() => <MiniSparkline values={SPARK_VALUES} />);
     const svg = screen.getByTestId("history-sparkline");
     expect(svg).toBeInTheDocument();

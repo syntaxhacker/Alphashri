@@ -4,6 +4,7 @@ import { TanStackTable, type TableColumnDef } from "../../common/TanStackTable";
 import { formatPercentage } from "../../../utils/ui-helpers";
 import type { SectorHistoryRisk, SectorHistorySeries } from "../../../types/sectorHistory";
 import { MiniSparkline } from "./visuals/MiniSparkline";
+import { CHART_MUTED, CHART_NEGATIVE, CHART_POSITIVE } from "./visuals/chartPalette";
 
 interface RiskRow extends SectorHistoryRisk {
   spark: (number | null)[];
@@ -220,13 +221,11 @@ export function RiskTable(props: { risk: SectorHistoryRisk[]; series: SectorHist
           >
             <MiniSparkline values={row.original.spark} width={80} height={18} />
             <span
-              class={`text-ui-micro font-mono tabular-nums whitespace-nowrap ${
-                final == null
-                  ? "text-fin-text-muted"
-                  : final >= 0
-                    ? "text-fin-positive"
-                    : "text-fin-negative"
-              }`}
+              data-testid={`sector-history-risk-cumulative-${row.original.name}`}
+              class="text-ui-micro font-mono tabular-nums whitespace-nowrap"
+              style={{
+                color: final == null ? CHART_MUTED : final >= 0 ? CHART_POSITIVE : CHART_NEGATIVE,
+              }}
             >
               {value}
             </span>

@@ -1,17 +1,9 @@
 import { For, Show, createMemo, createSignal, createUniqueId } from "solid-js";
-import {
-  alpha,
-  BORDER,
-  MONO,
-  NEGATIVE,
-  POSITIVE,
-  PRIMARY,
-  SCALE_GRAY,
-  SURFACE,
-  TEXT_MUTED,
-} from "@/ui/palette";
+import { BORDER, MONO, PRIMARY, SCALE_GRAY, SURFACE, TEXT_MUTED } from "@/ui/palette";
+import { pickTextColor } from "@/utils/contrast";
 import type { SectorHistorySeries } from "../../../../types/sectorHistory";
-import { SVG_TEXT, finite, monthIndex, monthName, rankTone, yearOf } from "./shared";
+import { RANK_STOPS, CHART_CURRENT, rankColor } from "./chartPalette";
+import { SVG_TEXT, finite, monthIndex, monthName, yearOf } from "./shared";
 
 /** 60 months (5Y) plus a full-name rail stays inside the 1600px panel (1404px content). */
 const CELL_W = 20;
@@ -38,7 +30,7 @@ interface RankCell {
   rank: number | null;
   label: string;
   fill: string;
-  opacity: number;
+  ink: string;
   top3: boolean;
 }
 
@@ -103,14 +95,14 @@ export function SectorRankHeatmap(props: SectorRankHeatmapProps) {
           rank === null
             ? `${month} · ${sector.name} · no rank`
             : `${month} · ${sector.name} · rank ${Math.round(rank)}`;
-        const tone = rank === null ? null : rankTone(rank, sectors.length);
+        const fill = rank === null ? SURFACE : rankColor(rank, sectors.length);
         return {
           key: `${sector.name}-${month}`,
           index: monthIndexValue,
           rank,
           label,
-          fill: tone ? tone.fill : SURFACE,
-          opacity: tone ? tone.opacity : 1,
+          fill,
+          ink: rank === null ? TEXT_MUTED : pickTextColor(fill),
           top3: rank !== null && rank <= TOP_RANKS,
         };
       }),
@@ -240,15 +232,16 @@ export function SectorRankHeatmap(props: SectorRankHeatmapProps) {
           >
             <title id={titleId}>
               {model().hasData
-                ? `Sector rank heatmap, ${model().sectorCount} sectors across ${props.months.length} months. Rank 1 is strongest and amber outlines mark the top ${model().topN}.`
+                ? `Sector rank heatmap, ${model().sectorCount} sectors across ${props.months.length} months. Rank 1 is strongest and light outlines mark the top ${model().topN}.`
                 : "Sector rank heatmap, no data"}
             </title>
             <desc id={descId}>
               Rows are sectors and columns are months, grouped by year and labelled at each quarter.
               Green marks a high rank (1 is strongest), red marks a low rank, and the middle of the
-              field is neutral. The amber outline marks ranks 1 through {model().topN}. Missing
-              ranks leave the cell empty. The current key names the latest month's top{" "}
-              {model().topN}. Cells are keyboard-focusable and announce the month, sector and rank.
+              field is neutral. A light ink outline marks ranks 1 through {model().topN}. The dashed
+              cyan outline marks the current month. Missing ranks leave the cell empty. The current
+              key names the latest month's top {model().topN}. Cells are keyboard-focusable and
+              announce the month, sector and rank.
             </desc>
             <rect width={model().width} height={model().height} fill={SURFACE} />
 
@@ -354,7 +347,6 @@ export function SectorRankHeatmap(props: SectorRankHeatmapProps) {
                                   width={CELL_W}
                                   height={CELL_H}
                                   fill={cell.fill}
-                                  fill-opacity={cell.opacity}
                                   stroke={BORDER}
                                   stroke-width={0.5}
                                   shape-rendering="crispEdges"
@@ -383,8 +375,8 @@ export function SectorRankHeatmap(props: SectorRankHeatmapProps) {
                                     width={CELL_W - 2.5}
                                     height={CELL_H - 2.5}
                                     fill="none"
-                                    stroke={PRIMARY}
-                                    stroke-width={1.25}
+                                    stroke={SCALE_GRAY[0]}
+                                    stroke-width={2}
                                     shape-rendering="crispEdges"
                                     pointer-events="none"
                                     aria-hidden="true"
@@ -395,7 +387,7 @@ export function SectorRankHeatmap(props: SectorRankHeatmapProps) {
                                   y={rowY() + CELL_H / 2}
                                   font-size={SVG_TEXT}
                                   font-weight={cell.top3 ? 700 : 500}
-                                  fill={cell.rank === null ? TEXT_MUTED : SCALE_GRAY[0]}
+                                  fill={cell.ink}
                                   text-anchor="middle"
                                   dominant-baseline="central"
                                   pointer-events="none"
@@ -420,7 +412,7 @@ export function SectorRankHeatmap(props: SectorRankHeatmapProps) {
                     width={CELL_W - 1}
                     height={model().rows.length * CELL_H}
                     fill="none"
-                    stroke={PRIMARY}
+                    stroke={CHART_CURRENT}
                     stroke-width={1.5}
                     stroke-dasharray="2 2"
                     shape-rendering="crispEdges"
@@ -478,6 +470,7 @@ export function SectorRankHeatmap(props: SectorRankHeatmapProps) {
                 left: "0px",
                 "z-index": "10",
                 "max-width": "calc(100vw - 48px)",
+                color: CHART_CURRENT,
               }}
             >
               {latestKey()}
@@ -499,7 +492,7 @@ export function SectorRankHeatmap(props: SectorRankHeatmapProps) {
                   aria-hidden="true"
                   class="inline-block h-[11px] w-[84px] border border-fin-border"
                   style={{
-                    background: `linear-gradient(90deg, ${alpha(POSITIVE, 0.85)}, ${SURFACE} 50%, ${alpha(NEGATIVE, 0.85)})`,
+                    background: `linear-gradient(90deg, ${RANK_STOPS.join(", ")})`,
                   }}
                 />
                 <span data-testid="history-rank-heatmap-legend">
@@ -509,16 +502,20 @@ export function SectorRankHeatmap(props: SectorRankHeatmapProps) {
               <span class="inline-flex items-center gap-1.5 whitespace-nowrap">
                 <span
                   aria-hidden="true"
-                  class="inline-block h-[11px] w-[18px] border border-fin-primary bg-fin-surface"
+                  class="inline-block h-[11px] w-[18px] border-2 bg-fin-surface"
+                  style={{ "border-color": SCALE_GRAY[0] }}
                 />
-                <span>{`top ${model().topN} = amber outline`}</span>
+                <span data-testid="history-rank-top3-legend">{`top ${model().topN}`}</span>
               </span>
               <span class="inline-flex items-center gap-1.5 whitespace-nowrap">
                 <span
                   aria-hidden="true"
-                  class="inline-block h-[11px] w-[18px] border border-dashed border-fin-primary"
+                  class="inline-block h-[11px] w-[18px] border border-dashed"
+                  style={{ "border-color": CHART_CURRENT }}
                 />
-                <span data-testid="history-rank-current-legend">dashed = current month</span>
+                <span data-testid="history-rank-current-legend" style={{ color: CHART_CURRENT }}>
+                  dashed = current month
+                </span>
               </span>
             </div>
           </Show>

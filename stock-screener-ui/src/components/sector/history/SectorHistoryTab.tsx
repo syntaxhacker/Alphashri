@@ -18,6 +18,8 @@ import type {
 } from "../../../types/sectorHistory";
 import { useSectorHistory } from "./useSectorHistory";
 import { RiskTable } from "./RiskTable";
+import { HistoryLab, HistoryPanel } from "./HistoryLab";
+import { CompactToggle } from "../CompactToggle";
 import { SectorRankHeatmap } from "./visuals/SectorRankHeatmap";
 import { SeasonalityHeatmap } from "./visuals/SeasonalityHeatmap";
 import { PersistenceMatrix } from "./visuals/PersistenceMatrix";
@@ -27,6 +29,8 @@ const MARKET_OPTIONS = [
   { label: "India", value: "india" },
   { label: "US", value: "america" },
 ];
+
+type HistoryView = "overview" | "lab";
 
 const YEAR_OPTIONS = [
   { label: "3Y", value: "3" },
@@ -62,11 +66,13 @@ function errorCopy(raw: string | null): { primary: string; code: string } {
 function HistoryHeader(props: {
   market: SectorHistoryMarket;
   years: number;
+  view: HistoryView;
   loading: boolean;
   asOf: string;
   cached: boolean | null;
   onMarketChange: (market: SectorHistoryMarket) => void;
   onYearsChange: (years: number) => void;
+  onViewChange: (view: HistoryView) => void;
   onRefresh: () => void;
 }) {
   return (
@@ -105,6 +111,16 @@ function HistoryHeader(props: {
           data-testid="sector-history-years"
         />
       </Box>
+      <CompactToggle
+        testId="sector-history-view-toggle"
+        label="Sector history view"
+        value={props.view}
+        options={[
+          { value: "overview", label: "Overview" },
+          { value: "lab", label: "Rotation Lab" },
+        ]}
+        onChange={(value) => props.onViewChange(value === "lab" ? "lab" : "overview")}
+      />
       <Box className="flex-1" />
       <Show when={props.loading}>
         <Loader size="xs" />
@@ -227,33 +243,6 @@ function ErrorState(props: { error: string; onRetry: () => void }) {
         </Text>
       </Show>
     </StatePanel>
-  );
-}
-
-function HistoryPanel(props: {
-  testId: string;
-  title: string;
-  description: string;
-  children: JSX.Element;
-}) {
-  return (
-    <CompactPanel flush padded={false} testId={props.testId} className="min-w-0">
-      <Box className="border-b border-fin-border px-2 pb-1 pt-2">
-        <Text
-          fw={700}
-          tt="uppercase"
-          className="text-ui-micro font-mono tracking-[0.08em] text-fin-primary"
-        >
-          {props.title}
-        </Text>
-        <Box className="mt-1">
-          <Text c="dimmed" data-testid="status" className="text-ui-micro">
-            {props.description}
-          </Text>
-        </Box>
-      </Box>
-      <Box className="min-w-0 p-2">{props.children}</Box>
-    </CompactPanel>
   );
 }
 
@@ -420,6 +409,7 @@ function SuccessContent(props: {
 export function SectorHistoryTab(props: { market: SectorHistoryMarket }) {
   const [market, setMarket] = createSignal<SectorHistoryMarket>(props.market);
   const [years, setYears] = createSignal(5);
+  const [view, setView] = createSignal<HistoryView>("overview");
 
   createEffect(() => {
     setMarket(props.market);
@@ -478,11 +468,13 @@ export function SectorHistoryTab(props: { market: SectorHistoryMarket }) {
       <HistoryHeader
         market={market()}
         years={years()}
+        view={view()}
         loading={loading() && hasData()}
         asOf={asOf()}
         cached={cached()}
         onMarketChange={setMarket}
         onYearsChange={setYears}
+        onViewChange={setView}
         onRefresh={refresh}
       />
 
@@ -496,15 +488,29 @@ export function SectorHistoryTab(props: { market: SectorHistoryMarket }) {
                 when={hasData()}
                 fallback={<EmptyState market={market()} years={years()} onRefresh={refresh} />}
               >
-                <SuccessContent
-                  months={months()}
-                  series={series()}
-                  universe={universe()}
-                  seasonality={seasonality()}
-                  transitionMatrix={transitionMatrix()}
-                  risk={risk()}
-                  disclaimer={disclaimer()}
-                />
+                <Show
+                  when={view() === "lab"}
+                  fallback={
+                    <SuccessContent
+                      months={months()}
+                      series={series()}
+                      universe={universe()}
+                      seasonality={seasonality()}
+                      transitionMatrix={transitionMatrix()}
+                      risk={risk()}
+                      disclaimer={disclaimer()}
+                    />
+                  }
+                >
+                  <HistoryLab
+                    market={market()}
+                    years={years()}
+                    months={months()}
+                    series={series()}
+                    universe={universe()}
+                    seasonality={seasonality()}
+                  />
+                </Show>
               </Show>
             }
           >

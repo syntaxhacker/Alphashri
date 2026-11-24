@@ -1,6 +1,7 @@
 import { For, Show, createMemo, createSignal, createUniqueId } from "solid-js";
 import { BORDER, MONO, PRIMARY, SCALE_GRAY, SURFACE, TEXT_MUTED } from "@/ui/palette";
-import { compositeOver, pickTextColor } from "@/utils/contrast";
+import { pickTextColor } from "@/utils/contrast";
+import { shareColor } from "./chartPalette";
 import { SVG_TEXT, finite } from "./shared";
 
 const LABEL_W = 76;
@@ -12,11 +13,6 @@ const COUNT_ROW_H = 14;
 const EMPTY_W = 360;
 const EMPTY_H = 96;
 const TOP_N = 3;
-/** Cap the amber wash so either off-white or near-black ink always clears AA. */
-const FILL_BASE = 0.06;
-const FILL_RANGE = 0.46;
-const FILL_DIAGONAL = 0.04;
-const RAIL_W = 2.5;
 
 export interface PersistenceMatrixProps {
   names: string[];
@@ -32,7 +28,7 @@ interface PersistenceCell {
   diagonal: boolean;
   top3: boolean;
   title: string;
-  fillOpacity: number;
+  fill: string;
   ink: string;
 }
 
@@ -108,16 +104,8 @@ export function PersistenceMatrix(props: PersistenceMatrixProps) {
       cells: Array.from({ length: cols }, (_, col) => {
         const pct = pctOf(rowValues[col] ?? null);
         const diagonal = rowIndex === col;
-        const fillOpacity =
-          pct === null
-            ? 1
-            : Math.min(
-                FILL_BASE + FILL_RANGE + FILL_DIAGONAL,
-                FILL_BASE + FILL_RANGE * Math.min(1, pct / maxPct) + (diagonal ? FILL_DIAGONAL : 0),
-              );
-        // Dark ink on the light amber wash, off-white on the near-surface wash.
-        const ink =
-          pct === null ? TEXT_MUTED : pickTextColor(compositeOver(PRIMARY, SURFACE, fillOpacity));
+        const fill = pct === null ? SURFACE : shareColor(pct, maxPct);
+        const ink = pct === null ? TEXT_MUTED : pickTextColor(fill);
         return {
           key: `${rowIndex}-${col}`,
           col,
@@ -128,7 +116,7 @@ export function PersistenceMatrix(props: PersistenceMatrixProps) {
             pct === null
               ? `#${rowIndex + 1} → #${col + 1} · no data`
               : `#${rowIndex + 1} → #${col + 1} · ${exactPct(pct)}`,
-          fillOpacity,
+          fill,
           ink,
         };
       }),
@@ -320,8 +308,7 @@ export function PersistenceMatrix(props: PersistenceMatrixProps) {
                                 y={rowY()}
                                 width={CELL_W}
                                 height={CELL_H}
-                                fill={cell.pct === null ? SURFACE : PRIMARY}
-                                fill-opacity={cell.fillOpacity}
+                                fill={cell.fill}
                                 stroke={cell.diagonal ? PRIMARY : BORDER}
                                 stroke-width={cell.diagonal ? 1.5 : 0.5}
                                 shape-rendering="crispEdges"
@@ -340,19 +327,6 @@ export function PersistenceMatrix(props: PersistenceMatrixProps) {
                               >
                                 <title>{cell.title}</title>
                               </rect>
-                              <Show when={cell.pct !== null}>
-                                <rect
-                                  data-rail="true"
-                                  x={cellX()}
-                                  y={rowY()}
-                                  width={RAIL_W}
-                                  height={CELL_H}
-                                  fill={PRIMARY}
-                                  fill-opacity={0.95}
-                                  pointer-events="none"
-                                  aria-hidden="true"
-                                />
-                              </Show>
                               <Show when={cell.pct !== null && cell.pct >= 10}>
                                 <text
                                   x={cellX() + CELL_W / 2}
