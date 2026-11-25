@@ -27,7 +27,9 @@ _FRAME_LIMIT = 500
 _STREAMING = "streaming"
 # The scanner always carries these; fields_for_sections already includes them,
 # but guard the live-data check even if that contract changes.
-_REQUIRED_FIELDS = ("ticker", "name", "update_mode")
+# ``ticker`` is injected automatically by tradingview_screener; selecting it
+# explicitly creates a duplicate null column and breaks symbol identity.
+_REQUIRED_FIELDS = ("name", "update_mode")
 
 # Monotonic clock as a module attribute so tests can advance a window without
 # sleeping (wall-clock adjustments must never extend a cache window).
@@ -59,7 +61,7 @@ def _union_fields(defs: list[dict]) -> tuple[str, ...]:
         allowed = set(SECTION_FIELDS) | {"ticker", "name"}
         fields = [field for field in fields if field in allowed]
     fields.extend(_REQUIRED_FIELDS)
-    return tuple(sorted(dict.fromkeys(fields)))
+    return tuple(field for field in dict.fromkeys(fields) if field != "ticker")
 
 
 def _default_fetcher(market: str, fields: list[str]):
@@ -95,6 +97,15 @@ def _cell(row: dict, key: str) -> Any:
     return value
 
 
+def _symbol_of(row: dict) -> str:
+    """Same identity rule as the evaluator: ticker first, then name."""
+    for key in ("ticker", "name"):
+        value = row.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return ""
+
+
 def _signals(eval_rows: list[dict], defs: list[dict], allow_delayed: bool) -> list[dict[str, bool]]:
     """Invert ``evaluate``'s section -> symbols map into per-row signals."""
     if not defs:
@@ -105,7 +116,7 @@ def _signals(eval_rows: list[dict], defs: list[dict], allow_delayed: bool) -> li
     matched = evaluate(eval_rows, eval_defs) or {}
     return [
         {
-            str(section_id): str(row.get("ticker")) in symbols
+            str(section_id): _symbol_of(row) in symbols
             for section_id, symbols in matched.items()
         }
         for row in eval_rows
@@ -168,7 +179,7 @@ def scan_sections(
                 continue
 
         row_fields = {field: _cell(raw, field) for field in fields}
-        symbol = str(_cell(raw, "ticker") or _cell(raw, "symbol") or "")
+        symbol = str(_cell(raw, "ticker") or _cell(raw, "symbol") or _cell(raw, "name") or "")
         name = _cell(raw, "name")
         # The evaluator reads `_prev` from the row to detect crosses. It never
         # appears in the response payload.

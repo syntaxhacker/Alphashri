@@ -47,7 +47,40 @@ const SIDE_OPTIONS = [
 
 const ALL_OPS = Object.keys(OP_LABELS) as SectionOp[];
 
+/** `value` is widened locally: a whitelisted TV field name is a valid reference. */
+type ConditionValue = number | string | null;
+type ConditionPatch = Partial<Omit<SectionCondition, "value"> & { value: ConditionValue }>;
+type ValueSource = "number" | "field" | "concept";
+
+const VALUE_SOURCES = [
+  { value: "number", label: "Number" },
+  { value: "field", label: "Field" },
+  { value: "concept", label: "Concept default" },
+] as const;
+
+/** The concept-owned reference the backend resolves when a condition value is null. */
+const CONCEPT_REFERENCE: Partial<Record<SectionConcept, string>> = {
+  vwap_above: "VWAP",
+  vwap_below: "VWAP",
+  vwap_cross: "VWAP",
+  "52w_touch": "price_52_week_high",
+  ema_cross: "EMA50",
+  orb_proxy: "open",
+};
+
+const NO_REFERENCE = "No concept reference configured";
+
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+function valueOf(condition: SectionCondition): ConditionValue {
+  return condition.value as ConditionValue;
+}
+
+function sourceOf(condition: SectionCondition): ValueSource {
+  const value = valueOf(condition);
+  if (value === null || value === undefined) return "concept";
+  return typeof value === "number" ? "number" : "field";
+}
 
 export function SectionManagerModal(props: SectionManagerModalProps): JSX.Element {
   const store = useSectionsConfig();
@@ -57,6 +90,15 @@ export function SectionManagerModal(props: SectionManagerModalProps): JSX.Elemen
   const [confirming, setConfirming] = createSignal(false);
   const [importError, setImportError] = createSignal<string[]>([]);
   const [json, setJson] = createSignal("");
+  /**
+   * A null value is ambiguous after a source switch (concept default and a
+   * blank Number both store null), so the user's choice is tracked explicitly.
+   */
+  const [sourceOverrides, setSourceOverrides] = createSignal<Record<number, ValueSource>>({});
+
+  function resetSources() {
+    setSourceOverrides({});
+  }
 
   createEffect(
     on(
@@ -70,6 +112,7 @@ export function SectionManagerModal(props: SectionManagerModalProps): JSX.Elemen
         setDraft(first ? clone(first) : newSection(SECTION_CONCEPTS[0]!));
         setConfirming(false);
         setImportError([]);
+        resetSources();
       },
     ),
   );
@@ -100,6 +143,29 @@ export function SectionManagerModal(props: SectionManagerModalProps): JSX.Elemen
     return d ? [...importError(), ...validateSection(d)] : [...importError()];
   });
 
+  const usageFields = createMemo(() => {
+    const d = current();
+    if (!d) return [] as string[];
+    const metrics = (d.conditions ?? []).map((condition) => condition.metric);
+    return [...new Set([...metrics, ...(d.render?.columns ?? [])].filter(Boolean))];
+  });
+
+  const usageRule = createMemo(() => {
+    const d = current();
+    const conditions = d?.conditions ?? [];
+    if (conditions.length === 0) return "No conditions configured";
+    return conditions
+      .map((condition) => {
+        const value = valueOf(condition);
+        const reference =
+          value === null || value === undefined
+            ? CONCEPT_REFERENCE[d!.concept] ?? "a concept-supplied reference"
+            : String(value);
+        return `${condition.metric} ${OP_LABELS[condition.op] ?? condition.op} ${reference}`;
+      })
+      .join(" and ");
+  });
+
   function patchDraft(patch: Partial<SectionDefinition>) {
     const d = current();
     if (!d) return;
@@ -113,6 +179,7 @@ export function SectionManagerModal(props: SectionManagerModalProps): JSX.Elemen
     setDraft(clone(found));
     setConfirming(false);
     setImportError([]);
+    resetSources();
   }
 
   function createNew() {
@@ -120,6 +187,7 @@ export function SectionManagerModal(props: SectionManagerModalProps): JSX.Elemen
     setSelectedId(null);
     setConfirming(false);
     setImportError([]);
+    resetSources();
   }
 
   function setConcept(concept: string) {
@@ -132,17 +200,35 @@ export function SectionManagerModal(props: SectionManagerModalProps): JSX.Elemen
       conditions: clone(next.defaultConditions),
       render: { type: "table", columns: clone(next.defaultColumns) },
     });
+    resetSources();
   }
 
-  function updateCondition(index: number, patch: Partial<SectionCondition>) {
+  function updateCondition(index: number, patch: ConditionPatch) {
     const d = current();
     if (!d) return;
     setDraft({
       ...d,
       conditions: d.conditions.map((condition, i) =>
-        i === index ? { ...condition, ...patch } : condition,
+        i === index ? ({ ...condition, ...patch } as SectionCondition) : condition,
       ),
     });
+  }
+
+  function activeSource(index: number, condition: SectionCondition): ValueSource {
+    return sourceOverrides()[index] ?? sourceOf(condition);
+  }
+
+  function setSource(index: number, source: ValueSource) {
+    const condition = current()?.conditions[index];
+    if (!condition || activeSource(index, condition) === source) return;
+    setSourceOverrides({ ...sourceOverrides(), [index]: source });
+    if (source === "field") {
+      if (sourceOf(condition) !== "field") {
+        updateCondition(index, { value: descriptor().fieldOptions[0]?.metric ?? "" });
+      }
+    } else if (valueOf(condition) !== null) {
+      updateCondition(index, { value: null });
+    }
   }
 
   function addCondition() {
@@ -156,12 +242,14 @@ export function SectionManagerModal(props: SectionManagerModalProps): JSX.Elemen
         { metric: option?.metric ?? "close", op: option?.op[0] ?? "gt", value: 0 },
       ],
     });
+    resetSources();
   }
 
   function removeCondition(index: number) {
     const d = current();
     if (!d) return;
     setDraft({ ...d, conditions: d.conditions.filter((_, i) => i !== index) });
+    resetSources();
   }
 
   function save() {
@@ -193,6 +281,7 @@ export function SectionManagerModal(props: SectionManagerModalProps): JSX.Elemen
     setSelectedId(copy.id);
     setDraft(clone(copy));
     setConfirming(false);
+    resetSources();
   }
 
   function removeSelected() {
@@ -206,6 +295,7 @@ export function SectionManagerModal(props: SectionManagerModalProps): JSX.Elemen
     const fallback = next[0] ?? null;
     setSelectedId(fallback?.id ?? null);
     setDraft(fallback ? clone(fallback) : newSection(SECTION_CONCEPTS[0]!));
+    resetSources();
   }
 
   function togglePin() {
@@ -238,6 +328,7 @@ export function SectionManagerModal(props: SectionManagerModalProps): JSX.Elemen
     setDraft(found ? clone(found) : newSection(SECTION_CONCEPTS[0]!));
     setImportError([]);
     setConfirming(false);
+    resetSources();
   }
 
   function cancel() {
@@ -286,6 +377,7 @@ export function SectionManagerModal(props: SectionManagerModalProps): JSX.Elemen
     const first = next[0] ?? null;
     setSelectedId(first?.id ?? null);
     setDraft(first ? clone(first) : newSection(SECTION_CONCEPTS[0]!));
+    resetSources();
   }
 
   return (
@@ -430,19 +522,65 @@ export function SectionManagerModal(props: SectionManagerModalProps): JSX.Elemen
                         onChange={(value) => value && updateCondition(index(), { op: value as SectionOp })}
                       />
                     </div>
-                    <div className="w-24 shrink-0">
-                      <TextInput
+                    <div className="w-full shrink-0 sm:w-32">
+                      <Select
                         size="xs"
-                        aria-label="Value"
-                        data-testid={`condition-value-${index()}`}
-                        value={condition.value === null ? "" : String(condition.value)}
-                        onChange={(value) => {
-                          const parsed = value.trim() === "" ? null : Number(value);
-                          updateCondition(index(), {
-                            value: parsed === null || Number.isNaN(parsed) ? null : parsed,
-                          });
-                        }}
+                        aria-label="Value source"
+                        data-testid={`condition-value-source-${index()}`}
+                        data={VALUE_SOURCES.map((option) => ({ ...option }))}
+                        value={activeSource(index(), condition)}
+                        onChange={(value) => value && setSource(index(), value as ValueSource)}
                       />
+                    </div>
+                    <div className="w-full min-w-0 sm:w-40">
+                      <Show
+                        when={activeSource(index(), condition) === "number"}
+                        fallback={
+                          <Show
+                            when={activeSource(index(), condition) === "field"}
+                            fallback={
+                              <Text
+                                span
+                                className="text-ui-micro text-fin-text-muted"
+                                data-testid={`condition-concept-reference-${index()}`}
+                              >
+                                {CONCEPT_REFERENCE[current()?.concept ?? SECTION_CONCEPTS[0]!] ??
+                                  NO_REFERENCE}
+                              </Text>
+                            }
+                          >
+                            <Select
+                              size="xs"
+                              aria-label="Value field"
+                              data-testid={`condition-value-field-${index()}`}
+                              data={metricOptions()}
+                              value={
+                                typeof valueOf(condition) === "string"
+                                  ? String(valueOf(condition))
+                                  : ""
+                              }
+                              onChange={(value) => value && updateCondition(index(), { value })}
+                            />
+                          </Show>
+                        }
+                      >
+                        <TextInput
+                          size="xs"
+                          aria-label="Value"
+                          data-testid={`condition-value-${index()}`}
+                          value={
+                            typeof valueOf(condition) === "number"
+                              ? String(valueOf(condition))
+                              : ""
+                          }
+                          onChange={(value) => {
+                            const parsed = value.trim() === "" ? null : Number(value);
+                            updateCondition(index(), {
+                              value: parsed === null || Number.isNaN(parsed) ? null : parsed,
+                            });
+                          }}
+                        />
+                      </Show>
                     </div>
                     <Button
                       size="xs"
@@ -482,6 +620,54 @@ export function SectionManagerModal(props: SectionManagerModalProps): JSX.Elemen
                 }
               />
             </div>
+
+            <Box
+              data-testid="section-usage"
+              className="flex flex-col gap-1 rounded-fin border border-fin-border bg-fin-surface-alt p-2"
+            >
+              <Text
+                className="text-ui-label text-fin-text"
+                data-testid="section-usage-label"
+              >
+                {descriptor()?.label ?? "Unknown concept"}
+              </Text>
+              <Text
+                className="text-ui-micro text-fin-text-muted"
+                data-testid="section-usage-description"
+              >
+                {descriptor()?.description ?? "Description unavailable"}
+              </Text>
+              <Text
+                className="text-ui-micro text-fin-text-muted"
+                data-testid="section-usage-side"
+              >
+                Side:{" "}
+                {SIDE_OPTIONS.find((option) => option.value === (current()?.side ?? "both"))?.label ??
+                  "Both"}
+              </Text>
+              <Text
+                className="text-ui-micro text-fin-text-muted"
+                data-testid="section-usage-requires"
+              >
+                Data: {descriptor()?.requires === "bars" ? "Bar history (bars)" : "TV-only snapshot"}
+              </Text>
+              <Text
+                className="text-ui-micro text-fin-text-muted"
+                data-testid="section-usage-fields"
+              >
+                Fields read:{" "}
+                {usageFields().length > 0 ? usageFields().join(", ") : "No fields configured"}
+              </Text>
+              <Text
+                className="text-ui-micro text-fin-text-muted"
+                data-testid="section-usage-used-in"
+              >
+                Used in: Screener Sections{current()?.pinned ? ", Home window" : ""}
+              </Text>
+              <Text className="text-ui-micro text-fin-text" data-testid="section-usage-rule">
+                Rule: {usageRule()}
+              </Text>
+            </Box>
 
             <Show when={confirming()}>
               <div

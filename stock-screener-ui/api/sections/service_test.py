@@ -263,3 +263,18 @@ def test_missing_field_is_none_and_no_signal(adapter):
 
     assert result["rows"][0]["fields"]["relative_volume_10d_calc"] is None
     assert result["rows"][0]["signals"] == {"m1": False}
+
+
+def test_symbol_and_signal_survive_a_missing_ticker_column(adapter):
+    # The library can return a duplicate null `ticker` column when callers
+    # select it explicitly; identity must fall back to `name` and matches must
+    # be compared against that same identity.
+    frame = _frame({
+        "name": "RELIANCE",
+        "relative_volume_10d_calc": 2.0,
+        "update_mode": "streaming",
+    })
+    result = adapter.scan_sections("india", [_momentum()], fetcher=lambda m, f: frame)
+
+    assert result["rows"][0]["symbol"] == "RELIANCE"
+    assert result["rows"][0]["signals"] == {"m1": True}

@@ -247,6 +247,20 @@ describe("NiftyWallsCard", () => {
     expect(screen.getByText(/Waiting for walls data\./)).toBeInTheDocument();
     expect(screen.queryByText(/No walls data\./)).toBeNull();
   });
+
+  it("switches to the full card when walls arrive after mount", () => {
+    const [wallsSig, setWallsSig] = createSignal<typeof walls | null>(null);
+    render(() => <NiftyWallsCard walls={wallsSig()} onExpand={onExpand} />);
+
+    expect(screen.getByTestId("nifty-walls-card")).toHaveAttribute("data-walls-empty", "collapsed");
+    expect(screen.queryByTestId("nifty-walls-grid")).toBeNull();
+
+    setWallsSig(walls);
+
+    expect(screen.queryByTestId("nifty-walls-card")).not.toHaveAttribute("data-walls-empty");
+    expect(screen.getByTestId("nifty-walls-grid")).toBeInTheDocument();
+    expect(screen.getByText("ALL WALL STATS")).toBeInTheDocument();
+  });
 });
 
 describe("NiftyWallsExpanded", () => {

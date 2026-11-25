@@ -53,7 +53,7 @@ export function NiftyWallsCardInner(props: WallsCardProps) {
     }
   });
 
-  if (!walls()) {
+  const empty = () => {
     const emptyKind = () => {
       if (props.unavailableInReplay || props.noDataRecorded || props.loadFailed === false) {
         return "no-data";
@@ -95,7 +95,7 @@ export function NiftyWallsCardInner(props: WallsCardProps) {
         </Show>
       </div>
     );
-  }
+  };
   const stateColor = () => STATE_COLOR[walls()!.state] ?? palette.TEXT_MUTED;
   const alert = () => walls()!.alert;
   const showAlert = () => Boolean(alert() && walls()!.alert_eligible && dismissed() !== alert()!.at);
@@ -121,6 +121,7 @@ export function NiftyWallsCardInner(props: WallsCardProps) {
   };
 
   return (
+    <Show when={walls()} fallback={empty()}>
     <LocalCompactPanel
       title="WALLS"
       testId={props.testId ?? "nifty-walls-card"}
@@ -429,6 +430,7 @@ export function NiftyWallsCardInner(props: WallsCardProps) {
       <WallsLevelsBlock levels={props.levels} />
       </div>
     </LocalCompactPanel>
+    </Show>
   );
 }
 
