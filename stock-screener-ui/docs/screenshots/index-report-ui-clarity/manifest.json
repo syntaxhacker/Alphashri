@@ -1,7 +1,7 @@
 {
   "feature": "index-report-ui-clarity",
   "route": "/report/index",
-  "head": "76da3d4ad64096e5fc11f4d6da80ae1ecb885ebf",
+  "head": "54a96cb19248867bcee0558590208e364be048e8",
   "viewports": [1600, 390],
   "sha256": {
     "index-report-monitor-loaded-1600.png": "27ca4655044c932ef8ae09eb8fbb00fb08ea9ded34e73256b4230cdbb57274d7",
