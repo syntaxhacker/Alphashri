@@ -33,6 +33,7 @@ Use this for every tab/page revamp. Copy it into the PR description and tick eac
 - [ ] `npx vitest run src/ui/inputs/inputs.w-h.test.tsx` passes.
 - [ ] Feature unit tests pass.
 - [ ] chrome-devtools screenshots captured for empty/loading/full and reviewed.
+- [ ] [Visual Review Gate](UI_RULES.md#7-visual-review-gate-independent-verifier--approver) recorded: independent verifier A+, approver decision, screenshot paths; evidence per [`docs/SCREENSHOT_EVIDENCE.md`](docs/SCREENSHOT_EVIDENCE.md). Only A+ ships.
 - [ ] Feature E2E spec passes (targeted, not full suite).
 
 ## 6. Finish

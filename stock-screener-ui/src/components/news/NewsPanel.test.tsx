@@ -168,8 +168,22 @@ describe("NewsPanel2", () => {
     });
   });
 
+  it("gives the feed body the remaining pane height", async () => {
+    renderComponent();
+    await fireEvent.click(screen.getByTestId("news-toggle-btn"));
+
+    await waitFor(() => {
+      const body = document.querySelector(".news-items-container");
+      expect(body).not.toBeNull();
+      expect(body).toHaveClass("min-h-0", "flex-1", "overflow-auto");
+      // ScrollArea does not implement a `flex` prop; a leaked attribute would
+      // mean the body still cannot fill the panel.
+      expect(body).not.toHaveAttribute("flex");
+    });
+  });
+
   it("opens the panel when toggle button is clicked", async () => {
-        renderComponent();
+    renderComponent();
     const toggleBtn = screen.getByTestId("news-toggle-btn");
     await fireEvent.click(toggleBtn);
 
@@ -179,7 +193,7 @@ describe("NewsPanel2", () => {
   });
 
   it("shows overlay when panel is open", async () => {
-        renderComponent();
+    renderComponent();
     await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
     await waitFor(() => {
@@ -188,7 +202,7 @@ describe("NewsPanel2", () => {
   });
 
   it("closes panel when overlay is clicked", async () => {
-        renderComponent();
+    renderComponent();
     await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
     await waitFor(() => {
@@ -204,7 +218,7 @@ describe("NewsPanel2", () => {
   });
 
   it("loads and displays news items", async () => {
-        renderComponent();
+    renderComponent();
     await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
     await waitFor(() => {
@@ -218,7 +232,7 @@ describe("NewsPanel2", () => {
   });
 
   it("opens article reader when news item is clicked", async () => {
-        renderComponent();
+    renderComponent();
     await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
     await waitFor(() => {
@@ -233,7 +247,7 @@ describe("NewsPanel2", () => {
   });
 
   it("retries a failed article load from the reader", async () => {
-        (fetchArticle as any).mockRejectedValueOnce(new Error("Network error"));
+    (fetchArticle as any).mockRejectedValueOnce(new Error("Network error"));
     renderComponent();
     await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
@@ -246,7 +260,7 @@ describe("NewsPanel2", () => {
   });
 
   it("handles source filtering", async () => {
-        renderComponent();
+    renderComponent();
     await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
     await waitFor(() => {
@@ -255,7 +269,7 @@ describe("NewsPanel2", () => {
   });
 
   it("shows error state when fetch fails", async () => {
-        (fetchNews as any).mockRejectedValue(new Error("Network error"));
+    (fetchNews as any).mockRejectedValue(new Error("Network error"));
     renderComponent();
     await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
@@ -265,7 +279,7 @@ describe("NewsPanel2", () => {
   });
 
   it("shows empty state when no news available", async () => {
-        (fetchNews as any).mockResolvedValue([]);
+    (fetchNews as any).mockResolvedValue([]);
     renderComponent();
     await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
@@ -276,7 +290,7 @@ describe("NewsPanel2", () => {
   });
 
   it("handles back navigation from article view", async () => {
-        renderComponent();
+    renderComponent();
     await fireEvent.click(screen.getByTestId("news-toggle-btn"));
 
     await waitFor(() => {

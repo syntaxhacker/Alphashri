@@ -141,6 +141,15 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+describe("BacktestPage viewport shell", () => {
+  it("keeps the route fixed so panels and the trade chart own scrolling", () => {
+    mountPage();
+    const shell = screen.getByTestId("backtest-view");
+    expect(shell).toHaveClass("h-full", "min-h-0", "flex", "flex-col", "overflow-hidden");
+    expect(screen.getByTestId("backtest-rail")).toHaveClass("h-full", "min-h-0", "overflow-hidden");
+  });
+});
+
 describe("BacktestPage trade-history sort persistence", () => {
   it("hydrates a single saved sort entry into sortColumn/sortDirection", async () => {
     seed([{ id: "net_pnl", desc: false }]);

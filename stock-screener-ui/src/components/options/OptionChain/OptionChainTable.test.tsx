@@ -119,6 +119,8 @@ describe("OptionChainTable", () => {
     render(() => <OptionChainTable {...defaultProps} strikeMatrix={[]} />);
     const scroll = screen.getByTestId("options-chain-table-scrollarea");
     expect(scroll.style.overflow).toBe("auto");
+    expect(scroll).toHaveAttribute("role", "region");
+    expect(scroll).toHaveAttribute("tabindex", "0");
     const inner = within(scroll).getByTestId("options-chain-table-inner");
     expect(inner.style.minWidth).toBe("980px");
     expect(within(scroll).getByTestId("options-chain-table-header")).toBeInTheDocument();

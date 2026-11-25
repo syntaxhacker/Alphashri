@@ -8,11 +8,7 @@ import type {
   ProfitTopSignal,
   StrategyProfitRow,
 } from "../../types/profitability";
-import {
-  formatCurrencyCompact,
-  formatPercentage,
-  formatTimeOnly,
-} from "../../utils/ui-helpers";
+import { formatCurrencyCompact, formatPercentage, formatTimeOnly } from "../../utils/ui-helpers";
 
 interface ProfitabilityPageProps {
   universe?: string;
@@ -37,7 +33,13 @@ const WEEKS_OPTIONS = [
 
 function Money(props: { value: number; testId?: string }) {
   return (
-    <NumCell value={props.value} signed fw={700} format={formatCurrencyCompact} testId={props.testId} />
+    <NumCell
+      value={props.value}
+      signed
+      fw={700}
+      format={formatCurrencyCompact}
+      testId={props.testId}
+    />
   );
 }
 
@@ -48,7 +50,11 @@ const STRATEGY_COLUMNS: TableColumnDef<StrategyProfitRow>[] = [
     accessorKey: "label",
     meta: { align: "left" },
     cell: (ctx) => (
-      <TextCell value={ctx.row.original.label} fw={600} testId={`profit-strategy-${ctx.row.original.id}`} />
+      <TextCell
+        value={ctx.row.original.label}
+        fw={600}
+        testId={`profit-strategy-${ctx.row.original.id}`}
+      />
     ),
   },
   {
@@ -216,9 +222,24 @@ export function ProfitabilityPage(props: ProfitabilityPageProps) {
   };
 
   return (
-    <div data-testid="profitability-report" class="flex flex-col gap-2 min-w-0 w-full flex-1">
-      <ToolbarRow gap={8} wrap={false} data-testid="profitability-toolbar" style={{ height: "48px" }}>
-        <Text size="sm" fw={700} span data-testid="profitability-title" className="whitespace-nowrap">
+    <div
+      data-testid="profitability-report"
+      class="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden"
+    >
+      <ToolbarRow
+        gap={8}
+        wrap={false}
+        data-testid="profitability-toolbar"
+        className="shrink-0"
+        style={{ height: "48px" }}
+      >
+        <Text
+          size="sm"
+          fw={700}
+          span
+          data-testid="profitability-title"
+          className="whitespace-nowrap"
+        >
           Pattern Profitability
         </Text>
         <Select
@@ -244,7 +265,13 @@ export function ProfitabilityPage(props: ProfitabilityPageProps) {
           data-testid="profitability-weeks"
           aria-label="Weeks"
         />
-        <Button size="xs" variant="subtle" onClick={handleRefresh} data-testid="profitability-refresh" aria-label="Refresh profitability">
+        <Button
+          size="xs"
+          variant="subtle"
+          onClick={handleRefresh}
+          data-testid="profitability-refresh"
+          aria-label="Refresh profitability"
+        >
           Refresh
         </Button>
         <div class="flex-1 min-w-0" />
@@ -258,69 +285,80 @@ export function ProfitabilityPage(props: ProfitabilityPageProps) {
         </Show>
       </ToolbarRow>
 
-      <Show
-        when={!loading()}
-        fallback={
-          <div class="flex flex-col gap-2 w-full min-w-0" data-testid="profitability-loading">
-            <Skeleton h={16} />
-            <Skeleton h={16} />
-            <Skeleton h={16} />
-          </div>
-        }
+      <div
+        data-testid="profitability-scroll-region"
+        data-scroll="vertical"
+        role="region"
+        aria-label="Profitability results, scroll for more"
+        tabIndex={0}
+        class="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto pr-1 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-fin-primary"
       >
         <Show
-          when={error()}
+          when={!loading()}
           fallback={
-            <Show
-              when={!isEmpty()}
-              fallback={
-                <div class="p-4 text-center w-full" data-testid="profitability-empty">
-                  <Text size="xs" c="dimmed">
-                    No pattern trades in the last {weeks()} week{weeks() === 1 ? "" : "s"}
-                  </Text>
-                </div>
-              }
-            >
-              <ToolbarRow gap={8} wrap={false}>
-                <Text size="sm" fw={700} span data-testid="profitability-strategies-title">
-                  Strategies by net P&amp;L
-                </Text>
-              </ToolbarRow>
-              <TanStackTable<StrategyProfitRow>
-                data={data()?.strategies ?? []}
-                columns={STRATEGY_COLUMNS}
-                dataTestId="profitability-strategies"
-                initialState={{ sorting: [{ id: "net_pnl", desc: true }] }}
-                emptyMessage="No strategy data"
-                dense
-              />
-              <ToolbarRow gap={8} wrap={false}>
-                <Text size="sm" fw={700} span data-testid="profitability-signals-title">
-                  Top signals
-                </Text>
-              </ToolbarRow>
-              <TanStackTable<ProfitTopSignal>
-                data={data()?.top_signals ?? []}
-                columns={SIGNAL_COLUMNS}
-                dataTestId="profitability-signals"
-                initialState={{ sorting: [{ id: "net", desc: true }] }}
-                emptyMessage="No signals"
-                dense
-                onRowClick={props.onOpenSymbol ? (row) => props.onOpenSymbol?.(row.symbol) : undefined}
-                getRowTestId={(row, index) => `profitability-signal-row-${row.symbol}-${index}`}
-              />
-            </Show>
+            <div class="flex flex-col gap-2 w-full min-w-0" data-testid="profitability-loading">
+              <Skeleton h={16} />
+              <Skeleton h={16} />
+              <Skeleton h={16} />
+            </div>
           }
         >
-          {(message) => (
-            <div data-testid="profitability-error">
-              <Alert color="error" data-testid="profitability-error-alert">
-                {message()}
-              </Alert>
-            </div>
-          )}
+          <Show
+            when={error()}
+            fallback={
+              <Show
+                when={!isEmpty()}
+                fallback={
+                  <div class="p-4 text-center w-full" data-testid="profitability-empty">
+                    <Text size="xs" c="dimmed">
+                      No pattern trades in the last {weeks()} week{weeks() === 1 ? "" : "s"}
+                    </Text>
+                  </div>
+                }
+              >
+                <ToolbarRow gap={8} wrap={false}>
+                  <Text size="sm" fw={700} span data-testid="profitability-strategies-title">
+                    Strategies by net P&amp;L
+                  </Text>
+                </ToolbarRow>
+                <TanStackTable<StrategyProfitRow>
+                  data={data()?.strategies ?? []}
+                  columns={STRATEGY_COLUMNS}
+                  dataTestId="profitability-strategies"
+                  initialState={{ sorting: [{ id: "net_pnl", desc: true }] }}
+                  emptyMessage="No strategy data"
+                  dense
+                />
+                <ToolbarRow gap={8} wrap={false}>
+                  <Text size="sm" fw={700} span data-testid="profitability-signals-title">
+                    Top signals
+                  </Text>
+                </ToolbarRow>
+                <TanStackTable<ProfitTopSignal>
+                  data={data()?.top_signals ?? []}
+                  columns={SIGNAL_COLUMNS}
+                  dataTestId="profitability-signals"
+                  initialState={{ sorting: [{ id: "net", desc: true }] }}
+                  emptyMessage="No signals"
+                  dense
+                  onRowClick={
+                    props.onOpenSymbol ? (row) => props.onOpenSymbol?.(row.symbol) : undefined
+                  }
+                  getRowTestId={(row, index) => `profitability-signal-row-${row.symbol}-${index}`}
+                />
+              </Show>
+            }
+          >
+            {(message) => (
+              <div data-testid="profitability-error">
+                <Alert color="error" data-testid="profitability-error-alert">
+                  {message()}
+                </Alert>
+              </div>
+            )}
+          </Show>
         </Show>
-      </Show>
+      </div>
     </div>
   );
 }

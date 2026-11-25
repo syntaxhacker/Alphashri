@@ -1,4 +1,12 @@
-import { Show, createEffect, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import {
+  Show,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+  type JSX,
+} from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { Box, Button, Divider, Indicator, Overlay, ScrollArea, Stack } from "@/ui";
 import { IconNews } from "../common/Icons";
@@ -98,10 +106,7 @@ function useArticleReader(readIds: () => Set<string>) {
   };
 }
 
-function useAutoRefresh(
-  loadNews: () => Promise<void>,
-  autoRefreshMs: () => string,
-) {
+function useAutoRefresh(loadNews: () => Promise<void>, autoRefreshMs: () => string) {
   const [isRefreshing, setIsRefreshing] = createSignal(false);
 
   const ms = () => parseInt(autoRefreshMs(), 10);
@@ -142,7 +147,9 @@ function useNewsSources() {
 
 function useReadManagement(newsItems: () => NewsItem[]) {
   const [readIds, setReadIds] = createSignal<Set<string>>(getReadIds());
-  const unreadCount = createMemo(() => newsItems().filter((item) => !readIds().has(item.id)).length);
+  const unreadCount = createMemo(
+    () => newsItems().filter((item) => !readIds().has(item.id)).length,
+  );
 
   const handleMarkAllRead = () => {
     const newReadIds = new Set(readIds());
@@ -244,44 +251,56 @@ function NewsPanelBody(props: {
   handleArticleClick: (item: NewsItem) => void;
   onRetryArticle?: () => void;
 }) {
-  const selectedSourceName = () => props.sourceData.find((option) => option.value === props.selectedSource)?.label;
+  const selectedSourceName = () =>
+    props.sourceData.find((option) => option.value === props.selectedSource)?.label;
   return (
-    <Show when={props.selectedArticle} fallback={(
-    <Stack gap={0} h="100%" className="news-list-view" data-testid="news-list-view">
-      <NewsListHeader wsConnected={props.wsConnected} isRefreshing={props.isRefreshing} onClose={props.handleClose} />
-
-      <Box p="sm" id="news-panel-controls" data-testid="news-panel-controls">
-        <NewsFilterControls
-          sourceData={props.sourceData}
-          selectedSource={props.selectedSource}
-          autoRefreshMs={props.autoRefreshMs}
-          loading={props.loading}
-          isRefreshing={props.isRefreshing}
-          unreadCount={props.unreadCount}
-          onSourceChange={props.setSelectedSource}
-          onRefresh={() => void props.loadNews()}
-          onAutoRefreshChange={props.setAutoRefreshMs}
-          onMarkAllRead={props.handleMarkAllRead}
-        />
-      </Box>
-      <Divider />
-
-      <ScrollArea flex={1} className="news-items-container">
-          <NewsListContent
-            loading={props.loading}
-            error={props.error}
-            newsItems={props.newsItems}
-            selectedSource={props.selectedSource === "all" ? "all" : selectedSourceName() ?? props.selectedSource}
-            sourceNames={props.sourceNames}
-            groupedNewsItems={props.groupedNewsItems}
-            expandedSources={props.expandedSources}
-            readIds={props.readIds}
-            onToggleSource={props.toggleSourceExpanded}
-            onArticleClick={props.handleArticleClick}
+    <Show
+      when={props.selectedArticle}
+      fallback={
+        <Stack gap={0} h="100%" className="news-list-view" data-testid="news-list-view">
+          <NewsListHeader
+            wsConnected={props.wsConnected}
+            isRefreshing={props.isRefreshing}
+            onClose={props.handleClose}
           />
-        </ScrollArea>
-    </Stack>
-    )}>
+
+          <Box p="sm" id="news-panel-controls" data-testid="news-panel-controls">
+            <NewsFilterControls
+              sourceData={props.sourceData}
+              selectedSource={props.selectedSource}
+              autoRefreshMs={props.autoRefreshMs}
+              loading={props.loading}
+              isRefreshing={props.isRefreshing}
+              unreadCount={props.unreadCount}
+              onSourceChange={props.setSelectedSource}
+              onRefresh={() => void props.loadNews()}
+              onAutoRefreshChange={props.setAutoRefreshMs}
+              onMarkAllRead={props.handleMarkAllRead}
+            />
+          </Box>
+          <Divider />
+
+          <ScrollArea className="news-items-container min-h-0 flex-1">
+            <NewsListContent
+              loading={props.loading}
+              error={props.error}
+              newsItems={props.newsItems}
+              selectedSource={
+                props.selectedSource === "all"
+                  ? "all"
+                  : (selectedSourceName() ?? props.selectedSource)
+              }
+              sourceNames={props.sourceNames}
+              groupedNewsItems={props.groupedNewsItems}
+              expandedSources={props.expandedSources}
+              readIds={props.readIds}
+              onToggleSource={props.toggleSourceExpanded}
+              onArticleClick={props.handleArticleClick}
+            />
+          </ScrollArea>
+        </Stack>
+      }
+    >
       {(article) => (
         <ArticleView
           article={article()}
@@ -414,44 +433,46 @@ export default function NewsPanel2() {
         onToggle={() => panel.setIsOpen(!panel.isOpen())}
       />
 
-      <Show when={panel.isOpen()}><NewsPanelOverlay onClose={panel.handleClose} /></Show>
+      <Show when={panel.isOpen()}>
+        <NewsPanelOverlay onClose={panel.handleClose} />
+      </Show>
 
       <NewsPanelContainer isOpen={panel.isOpen()}>
         <Show when={panel.isOpen()}>
           <NewsPanelBody
-          selectedArticle={panel.selectedArticle()}
-          articleContent={panel.articleContent()}
-          articleLoading={panel.articleLoading()}
-          articleError={panel.articleError()}
-          handleBack={panel.handleBack}
-          handleClose={panel.handleClose}
-          handleSymbolClick={panel.handleSymbolClick}
-          wsConnected={panel.wsConnected()}
-          isRefreshing={panel.isRefreshing()}
-          sourceData={panel.sourceData()}
-          selectedSource={panel.selectedSource()}
-          setSelectedSource={panel.setSelectedSource}
-          autoRefreshMs={panel.autoRefreshMs()}
-          loading={panel.loading()}
-          error={panel.error()}
-          unreadCount={panel.unreadCount()}
-          loadNews={panel.loadNews}
-          setAutoRefreshMs={panel.setAutoRefreshMs}
-          handleMarkAllRead={panel.handleMarkAllRead}
-          newsItems={panel.newsItems()}
-          sourceNames={panel.sourceNames()}
-          groupedNewsItems={panel.groupedNewsItems()}
-          expandedSources={panel.expandedSources()}
-          readIds={panel.readIds()}
-          toggleSourceExpanded={panel.toggleSourceExpanded}
-          handleArticleClick={panel.handleArticleClick}
-          onRetryArticle={
-            panel.selectedArticle()
-              ? () => panel.handleArticleClick(panel.selectedArticle()!)
-              : undefined
-          }
-        />
-      </Show>
+            selectedArticle={panel.selectedArticle()}
+            articleContent={panel.articleContent()}
+            articleLoading={panel.articleLoading()}
+            articleError={panel.articleError()}
+            handleBack={panel.handleBack}
+            handleClose={panel.handleClose}
+            handleSymbolClick={panel.handleSymbolClick}
+            wsConnected={panel.wsConnected()}
+            isRefreshing={panel.isRefreshing()}
+            sourceData={panel.sourceData()}
+            selectedSource={panel.selectedSource()}
+            setSelectedSource={panel.setSelectedSource}
+            autoRefreshMs={panel.autoRefreshMs()}
+            loading={panel.loading()}
+            error={panel.error()}
+            unreadCount={panel.unreadCount()}
+            loadNews={panel.loadNews}
+            setAutoRefreshMs={panel.setAutoRefreshMs}
+            handleMarkAllRead={panel.handleMarkAllRead}
+            newsItems={panel.newsItems()}
+            sourceNames={panel.sourceNames()}
+            groupedNewsItems={panel.groupedNewsItems()}
+            expandedSources={panel.expandedSources()}
+            readIds={panel.readIds()}
+            toggleSourceExpanded={panel.toggleSourceExpanded}
+            handleArticleClick={panel.handleArticleClick}
+            onRetryArticle={
+              panel.selectedArticle()
+                ? () => panel.handleArticleClick(panel.selectedArticle()!)
+                : undefined
+            }
+          />
+        </Show>
       </NewsPanelContainer>
     </>
   );

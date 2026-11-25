@@ -1,6 +1,18 @@
 import { Show, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import type { TableColumnDef } from "../../components/common/TanStackTable";
-import { ActionIcon, Alert, Box, Button, Loader, NumberInput, Select, Switch, Text, ToolbarRow, typeStyle } from "@/ui";
+import {
+  ActionIcon,
+  Alert,
+  Box,
+  Button,
+  Loader,
+  NumberInput,
+  Select,
+  Switch,
+  Text,
+  ToolbarRow,
+  typeStyle,
+} from "@/ui";
 import { Icon } from "../../components/common/Icons";
 import { useAuth } from "../../components/auth/AuthProvider";
 import { TanStackTable } from "../../components/common/TanStackTable";
@@ -41,11 +53,7 @@ function formatUnits(value: number): string {
 
 function cell(align: "left" | "right" | "center", children: JSX.Element) {
   const justify = align === "right" ? "end" : align === "center" ? "center" : "start";
-  return (
-    <Box className={`flex items-center gap-1 justify-${justify}`}>
-      {children}
-    </Box>
-  );
+  return <Box className={`flex items-center gap-1 justify-${justify}`}>{children}</Box>;
 }
 
 export function AdminPatternTimeframesPanel() {
@@ -197,7 +205,9 @@ export function AdminPatternTimeframesPanel() {
       meta: { align: "right" },
       cell: ({ row }) => (
         <Box className={`flex justify-end ${MONO}`}>
-          <Text size="xs" c="dimmed">{row.index + 1}</Text>
+          <Text size="xs" c="dimmed">
+            {row.index + 1}
+          </Text>
         </Box>
       ),
     },
@@ -210,7 +220,9 @@ export function AdminPatternTimeframesPanel() {
         const tf = row.original;
         return (
           <Box className="flex items-center justify-start">
-            <Text size="xs" fw={700} data-testid={`admin-tf-label-${tf.id}`}>{tf.label}</Text>
+            <Text size="xs" fw={700} data-testid={`admin-tf-label-${tf.id}`}>
+              {tf.label}
+            </Text>
           </Box>
         );
       },
@@ -346,7 +358,6 @@ export function AdminPatternTimeframesPanel() {
     },
   ]);
 
-
   const enabledCount = () => timeframes().filter((tf) => tf.enabled).length;
   const totalCount = () => timeframes().length;
   const resampledCount = () => timeframes().filter((tf) => !tf.native).length;
@@ -357,13 +368,15 @@ export function AdminPatternTimeframesPanel() {
       fallback={
         <Box data-testid="admin-pattern-timeframes-panel" className="flex items-center gap-1 p-1">
           <Loader size="sm" />
-          <Text size="xs" c="dimmed">Loading pattern timeframes…</Text>
+          <Text size="xs" c="dimmed">
+            Loading pattern timeframes…
+          </Text>
         </Box>
       }
     >
       <Box
         data-testid="admin-pattern-timeframes-panel"
-        className="flex h-full min-h-0 flex-col p-[2px]"
+        className="flex h-full min-h-0 flex-col overflow-hidden p-[2px]"
       >
         <ToolbarRow gap={8} justify="space-between" wrap={false} className="shrink-0 px-1 py-[2px]">
           <Text size="xs" c="dimmed" data-testid="admin-tf-summary" style={typeStyle("micro")}>
@@ -375,15 +388,12 @@ export function AdminPatternTimeframesPanel() {
         </ToolbarRow>
 
         <Show when={loadError()}>
-          <Alert color="error" variant="light" data-testid="admin-tf-load-error">{loadError()}</Alert>
+          <Alert color="error" variant="light" data-testid="admin-tf-load-error">
+            {loadError()}
+          </Alert>
         </Show>
 
-        <ToolbarRow
-          gap={4}
-          wrap
-          className="shrink-0 px-1"
-          data-testid="admin-tf-add-row"
-        >
+        <ToolbarRow gap={4} wrap className="shrink-0 px-1" data-testid="admin-tf-add-row">
           <NumberInput
             size="sm"
             w={60}
@@ -402,7 +412,9 @@ export function AdminPatternTimeframesPanel() {
             data-testid="admin-tf-unit"
           />
           <Show when={sourceOptions().length > 0}>
-            <Text size="xs" c="dimmed" style={typeStyle("micro")}>src</Text>
+            <Text size="xs" c="dimmed" style={typeStyle("micro")}>
+              src
+            </Text>
             <Select
               size="sm"
               w={100}
@@ -435,7 +447,9 @@ export function AdminPatternTimeframesPanel() {
               Add
             </Button>
           </Show>
-          <Text size="xs" c="dimmed" style={typeStyle("micro")}>e.g. 45m, 6h, 2D, 3W, 3M</Text>
+          <Text size="xs" c="dimmed" style={typeStyle("micro")}>
+            e.g. 45m, 6h, 2D, 3W, 3M
+          </Text>
           <Show when={addError()}>
             <Text size="xs" c="error" data-testid="admin-tf-add-error" style={typeStyle("micro")}>
               <span data-testid="admin-tf-error">{addError()}</span>
@@ -444,7 +458,9 @@ export function AdminPatternTimeframesPanel() {
         </ToolbarRow>
 
         <Show when={actionError()}>
-          <Alert color="error" variant="light" data-testid="admin-tf-error">{actionError()}</Alert>
+          <Alert color="error" variant="light" data-testid="admin-tf-error">
+            {actionError()}
+          </Alert>
         </Show>
 
         <Box className="flex flex-1 min-h-0 flex-col">
@@ -461,6 +477,14 @@ export function AdminPatternTimeframesPanel() {
             emptyMessage="No timeframes configured"
             getRowTestId={(tf) => `admin-tf-row-${tf.id}`}
           />
+          <Text
+            size="xs"
+            c="dimmed"
+            className="shrink-0 px-1 text-ui-micro sm:hidden"
+            data-testid="admin-tf-scroll-hint"
+          >
+            Scroll →
+          </Text>
         </Box>
       </Box>
     </Show>

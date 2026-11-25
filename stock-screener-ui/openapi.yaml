@@ -2904,6 +2904,223 @@ components:
       - rank_change_1m
       title: SectorCorrelationSector
       type: object
+    SectorHistoryPersistence:
+      properties:
+        by_sector:
+          items:
+            $ref: '#/components/schemas/SectorHistoryPersistenceItem'
+          title: By Sector
+          type: array
+        transition_matrix:
+          items:
+            items:
+              anyOf:
+              - type: number
+              - type: 'null'
+            type: array
+          title: Transition Matrix
+          type: array
+        transition_n:
+          default: 0
+          title: Transition N
+          type: integer
+      required:
+      - by_sector
+      - transition_matrix
+      title: SectorHistoryPersistence
+      type: object
+    SectorHistoryPersistenceItem:
+      properties:
+        avg_next_rank:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Avg Next Rank
+        name:
+          title: Name
+          type: string
+        top3_months:
+          title: Top3 Months
+          type: integer
+        top3_persistence_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Top3 Persistence Pct
+        top3_stayed:
+          title: Top3 Stayed
+          type: integer
+      required:
+      - name
+      - top3_months
+      - top3_stayed
+      - top3_persistence_pct
+      - avg_next_rank
+      title: SectorHistoryPersistenceItem
+      type: object
+    SectorHistoryResponse:
+      properties:
+        as_of:
+          title: As Of
+          type: string
+        cached:
+          default: false
+          title: Cached
+          type: boolean
+        disclaimer:
+          title: Disclaimer
+          type: string
+        last_updated:
+          title: Last Updated
+          type: string
+        market:
+          title: Market
+          type: string
+        months:
+          items:
+            type: string
+          title: Months
+          type: array
+        persistence:
+          $ref: '#/components/schemas/SectorHistoryPersistence'
+        risk:
+          items:
+            $ref: '#/components/schemas/SectorHistoryRisk'
+          title: Risk
+          type: array
+        seasonality:
+          items:
+            $ref: '#/components/schemas/SectorHistorySeasonalityItem'
+          title: Seasonality
+          type: array
+        series:
+          items:
+            $ref: '#/components/schemas/SectorHistorySeries'
+          title: Series
+          type: array
+        source:
+          title: Source
+          type: string
+        universe:
+          items:
+            type: string
+          title: Universe
+          type: array
+        years:
+          title: Years
+          type: integer
+      required:
+      - market
+      - years
+      - months
+      - as_of
+      - last_updated
+      - source
+      - disclaimer
+      - universe
+      - series
+      - risk
+      - seasonality
+      - persistence
+      title: SectorHistoryResponse
+      type: object
+    SectorHistoryRisk:
+      properties:
+        current_drawdown:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Current Drawdown
+        max_drawdown:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max Drawdown
+        name:
+          title: Name
+          type: string
+        recovery_days:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Recovery Days
+        sharpe:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Sharpe
+        volatility:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Volatility
+      required:
+      - name
+      - max_drawdown
+      - current_drawdown
+      - recovery_days
+      - sharpe
+      - volatility
+      title: SectorHistoryRisk
+      type: object
+    SectorHistorySeasonalityItem:
+      properties:
+        avg_return:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Avg Return
+        hit_rate:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Hit Rate
+        month:
+          title: Month
+          type: integer
+        n:
+          title: N
+          type: integer
+        name:
+          title: Name
+          type: string
+      required:
+      - name
+      - month
+      - avg_return
+      - hit_rate
+      - n
+      title: SectorHistorySeasonalityItem
+      type: object
+    SectorHistorySeries:
+      properties:
+        is_benchmark:
+          title: Is Benchmark
+          type: boolean
+        monthly_returns:
+          items:
+            anyOf:
+            - type: number
+            - type: 'null'
+          title: Monthly Returns
+          type: array
+        name:
+          title: Name
+          type: string
+        ranks:
+          items:
+            anyOf:
+            - type: integer
+            - type: 'null'
+          title: Ranks
+          type: array
+      required:
+      - name
+      - is_benchmark
+      - monthly_returns
+      - ranks
+      title: SectorHistorySeries
+      type: object
     SectorItem:
       properties:
         advances:
@@ -13050,6 +13267,53 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
       summary: Get Group Performance
+      tags:
+      - sector
+  /api/sector/history:
+    get:
+      description: Monthly sector history, risk, seasonality and rank persistence.
+      operationId: get_sector_history_api_sector_history_get
+      parameters:
+      - in: query
+        name: market
+        required: false
+        schema:
+          default: india
+          pattern: ^(india|america)$
+          title: Market
+          type: string
+      - in: query
+        name: years
+        required: false
+        schema:
+          default: 5
+          maximum: 10
+          minimum: 1
+          title: Years
+          type: integer
+      - description: Bypass the daily cache and refetch
+        in: query
+        name: force
+        required: false
+        schema:
+          default: false
+          description: Bypass the daily cache and refetch
+          title: Force
+          type: boolean
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorHistoryResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Long-horizon sector history
       tags:
       - sector
   /api/sector/themes:

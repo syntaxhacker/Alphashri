@@ -1,4 +1,15 @@
-import { Show, For, createEffect, createMemo, createSignal, onCleanup, type Accessor, type Setter } from "solid-js";
+import {
+  Show,
+  For,
+  Suspense,
+  createEffect,
+  createMemo,
+  createSignal,
+  lazy,
+  onCleanup,
+  type Accessor,
+  type Setter,
+} from "solid-js";
 import { Box, Group, Text, Button, Stack, Tabs, Loader, ScrollArea, ToolbarRow } from "@/ui";
 import {
   IconChartBar,
@@ -27,9 +38,15 @@ import { SectorHeatmapView } from "./SectorHeatmapView";
 import { SectorHeatmapControls } from "./SectorHeatmapContext";
 import { CompactToggle } from "./CompactToggle";
 import { SectorAlertsList } from "./SectorAlertsList";
+import { IconHistory } from "../common/Icons";
 import type { ViewMode } from "./SectorHeatmapView";
 
-const SECTOR_TABS = ["dashboard", "correlation", "rotation"] as const;
+const SECTOR_TABS = ["dashboard", "correlation", "rotation", "history"] as const;
+
+// History pulls in the chart/lab chunk only when that tab is opened.
+const SectorHistoryTab = lazy(() =>
+  import("./history/SectorHistoryTab").then((module) => ({ default: module.SectorHistoryTab })),
+);
 
 type SectorTab = (typeof SECTOR_TABS)[number];
 type DashboardView = "table" | "visual";
@@ -87,7 +104,7 @@ function AlertsAndMovers(props: {
           </Box>
         }
       >
-        <ScrollArea flex={1}>
+        <ScrollArea className="min-h-0 flex-1">
           <SectorAlertsList alerts={props.alerts} />
         </ScrollArea>
       </CompactPanel>
@@ -103,7 +120,7 @@ function AlertsAndMovers(props: {
           </Box>
         }
       >
-        <ScrollArea flex={1}>
+        <ScrollArea className="min-h-0 flex-1">
           <IntervalMoversTable movers={props.intervalMovers} />
         </ScrollArea>
       </CompactPanel>
@@ -119,7 +136,7 @@ function AlertsAndMovers(props: {
           </Box>
         }
       >
-        <ScrollArea flex={1}>
+        <ScrollArea className="min-h-0 flex-1">
           <Show when={props.topStocks.length > 0} fallback={
             <Box className="flex items-center justify-center p-1">
               <Text size="xs" c="dimmed">No movers</Text>
@@ -167,7 +184,7 @@ function LoadingPanel() {
         </Group>
       }
       description="Loading live sector breadth and movers."
-      className="min-h-[400px]"
+      className="flex min-h-[200px] flex-1 flex-col"
     >
       <Box flex={1} className="min-h-0" />
     </CompactPanel>
@@ -179,6 +196,7 @@ function ErrorPanel(props: { error: string; onRetry: () => void }) {
     <CompactPanel
       title="Error"
       description={props.error}
+      className="flex min-h-0 flex-1 flex-col"
       action={
         <Button variant="filled" color="error" size="sm" onClick={props.onRetry}>
           Retry
@@ -192,9 +210,22 @@ function ErrorPanel(props: { error: string; onRetry: () => void }) {
 
 function EmptyPanel() {
   return (
-    <CompactPanel title="No sector data" description="No sector data available for this market.">
+    <CompactPanel title="No sector data" description="No sector data available for this market." className="flex min-h-0 flex-1 flex-col">
       <Box flex={1} />
     </CompactPanel>
+  );
+}
+
+function HistoryTabFallback() {
+  return (
+    <Box
+      data-testid="sector-history-lazy-fallback"
+      role="status"
+      aria-label="Loading sector history"
+      className="flex flex-1 min-h-0 items-center justify-center"
+    >
+      <Loader size="sm" />
+    </Box>
   );
 }
 
@@ -242,7 +273,7 @@ function SectorPerformancePanel(props: { sectors: SectorItem[] }) {
         aria-label="Sector performance table, scroll sideways for all columns"
         tabIndex={0}
         onKeyDown={onSectorTableRegionKeyDown}
-        className="min-h-0 min-w-0 flex-1 overflow-auto focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
+        className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto overscroll-x-contain focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
       >
         <SectorTable sectors={props.sectors} />
       </Box>
@@ -576,6 +607,13 @@ function SectorPageHeader(props: {
             <Tabs.Tab value="rotation" className="shrink-0 whitespace-nowrap text-ui-micro" icon={<IconArrowsExchange size={12} />}>
               Rotation
             </Tabs.Tab>
+            <Tabs.Tab
+              value="history"
+              className="shrink-0 whitespace-nowrap text-ui-micro"
+              icon={<IconHistory size={12} />}
+            >
+              History
+            </Tabs.Tab>
           </Tabs.List>
         </Tabs>
         <Box
@@ -742,30 +780,44 @@ function SectorTabContent(props: {
   dashboardView: DashboardView;
 }) {
   return (
-    <Show
-      when={props.activeTab !== "dashboard"}
-      fallback={
-        <Show when={!props.loading} fallback={<LoadingPanel />}>
-          <Show when={!props.error} fallback={<ErrorPanel error={props.error ?? ""} onRetry={() => props.loadData(props.market)} />}>
-            <Show when={props.data && props.data.sectors.length > 0} fallback={<EmptyPanel />}>
-              <DashboardContent
-                data={props.data!}
-                alerts={props.alerts}
-                intervalMovers={props.intervalMovers}
-                viewMode={props.viewMode}
-                heatmapStocks={props.heatmapStocks}
-                heatmapMetric={props.heatmapMetric}
-                dashboardView={props.dashboardView}
-              />
+    <Box
+      data-testid="sector-tab-content"
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    >
+      <Show
+        when={props.activeTab !== "dashboard"}
+        fallback={
+          <Show when={!props.loading} fallback={<LoadingPanel />}>
+            <Show when={!props.error} fallback={<ErrorPanel error={props.error ?? ""} onRetry={() => props.loadData(props.market)} />}>
+              <Show when={props.data && props.data.sectors.length > 0} fallback={<EmptyPanel />}>
+                <DashboardContent
+                  data={props.data!}
+                  alerts={props.alerts}
+                  intervalMovers={props.intervalMovers}
+                  viewMode={props.viewMode}
+                  heatmapStocks={props.heatmapStocks}
+                  heatmapMetric={props.heatmapMetric}
+                  dashboardView={props.dashboardView}
+                />
+              </Show>
             </Show>
           </Show>
+        }
+      >
+        <Show
+          when={props.activeTab === "rotation"}
+          fallback={
+            <Show when={props.activeTab === "history"} fallback={<SectorCorrelationTab />}>
+              <Suspense fallback={<HistoryTabFallback />}>
+                <SectorHistoryTab market={props.market} />
+              </Suspense>
+            </Show>
+          }
+        >
+          <RotationTab market={props.market} />
         </Show>
-      }
-    >
-      <Show when={props.activeTab === "rotation"} fallback={<SectorCorrelationTab />}>
-        <RotationTab market={props.market} />
       </Show>
-    </Show>
+    </Box>
   );
 }
 
@@ -836,28 +888,24 @@ export function SectorPage() {
           heatmapLoading={heatmapLoading()}
         />
       </Show>
-      <Box className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        <Box
-          id="sector-page"
-          className="flex-1 min-h-0 flex flex-col overflow-hidden w-full"
-        >
-          <Box flex={1} className="min-h-0 overflow-auto flex flex-col items-stretch">
-            <SectorTabContent
-              activeTab={state.activeTab()}
-              data={state.data()}
-              loading={state.loading()}
-              error={state.error()}
-              market={state.market()}
-              alerts={state.alerts()}
-              intervalMovers={state.intervalMovers()}
-              loadData={state.loadData}
-              viewMode={viewMode()}
-              heatmapStocks={heatmapStocks()}
-              heatmapMetric={heatmapMetric()}
-              dashboardView={dashboardView()}
-            />
-          </Box>
-        </Box>
+      <Box
+        id="sector-page"
+        className="flex-1 min-h-0 w-full flex flex-col overflow-hidden"
+      >
+        <SectorTabContent
+          activeTab={state.activeTab()}
+          data={state.data()}
+          loading={state.loading()}
+          error={state.error()}
+          market={state.market()}
+          alerts={state.alerts()}
+          intervalMovers={state.intervalMovers()}
+          loadData={state.loadData}
+          viewMode={viewMode()}
+          heatmapStocks={heatmapStocks()}
+          heatmapMetric={heatmapMetric()}
+          dashboardView={dashboardView()}
+        />
       </Box>
     </Box>
   );

@@ -40,7 +40,7 @@ function PatternsWorkspace(props: PatternsPageProps) {
         <Tabs.Panel
           value="scan"
           data-testid="patterns-panel-scan"
-          className="flex flex-1 min-h-0 flex-col"
+          className="flex flex-1 min-h-0 flex-col overflow-hidden"
           style={{ "padding-top": 0, "padding-bottom": 0 }}
         >
           <ScanToolbar
@@ -98,7 +98,7 @@ function PatternsWorkspace(props: PatternsPageProps) {
           <ResultsSurface model={vm} results={<ResultsView model={vm} />} />
         </Tabs.Panel>
       }
-      watchPanel={<WatchPanel model={vm} />}
+      watchPanel={() => <WatchPanel model={vm} />}
       overlays={
         <>
           <FilterModal model={vm} />
@@ -110,14 +110,21 @@ function PatternsWorkspace(props: PatternsPageProps) {
           />
           <PatternFullscreenView
             {...vm.chartViewProps}
-            opened={!!vm.fullscreen() && (!vm.isDesktop() || vm.chartMaximized() || vm.activeTab() !== "scan")}
-            onClose={vm.isDesktop() && vm.chartMaximized() && vm.activeTab() === "scan"
-              ? () => vm.setChartMaximized(false)
-              : vm.closeChart}
+            opened={
+              !!vm.fullscreen() &&
+              (!vm.isDesktop() || vm.chartMaximized() || vm.activeTab() !== "scan")
+            }
+            onClose={
+              vm.isDesktop() && vm.chartMaximized() && vm.activeTab() === "scan"
+                ? () => vm.setChartMaximized(false)
+                : vm.closeChart
+            }
             onPrev={() => vm.stepChart(-1)}
             onNext={() => vm.stepChart(1)}
             positionLabel={
-              vm.activeIndex() >= 0 ? `${vm.activeIndex() + 1} / ${vm.dockSequence().length}` : undefined
+              vm.activeIndex() >= 0
+                ? `${vm.activeIndex() + 1} / ${vm.dockSequence().length}`
+                : undefined
             }
           />
         </>

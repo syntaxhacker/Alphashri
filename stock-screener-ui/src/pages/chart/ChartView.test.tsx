@@ -212,6 +212,8 @@ describe("ChartView (pattern workspace)", () => {
   it("renders the page with the symbol title", async () => {
     renderPage();
     expect(screen.getByTestId("chart-view")).toBeInTheDocument();
+    const shell = screen.getByTestId("chart-view-root");
+    expect(shell).toHaveClass("h-full", "min-h-0", "flex", "flex-col", "overflow-hidden");
     expect(screen.getByTestId("chart-title")).toHaveTextContent("TEST");
     await waitFor(() => expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument());
   });

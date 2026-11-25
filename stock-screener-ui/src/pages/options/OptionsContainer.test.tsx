@@ -53,6 +53,8 @@ describe("OptionsContainer", () => {
     ));
 
     expect(screen.getByTestId("options-container")).toBeInTheDocument();
+    const shell = screen.getByTestId("options-container");
+    expect(shell).toHaveClass("flex", "h-full", "min-h-0", "flex-col", "overflow-hidden");
   });
 
   it("renders OptionsPage child component", () => {

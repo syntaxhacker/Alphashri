@@ -186,8 +186,8 @@ function watchPayload() {
   };
 }
 
-function r(jsx: JSX.Element) {
-  return render(() => <UIProvider>{jsx}</UIProvider>);
+function r(jsx: () => JSX.Element) {
+  return render(() => <UIProvider>{jsx()}</UIProvider>);
 }
 
 describe("PatternsPage watch tab", () => {
@@ -221,7 +221,7 @@ describe("PatternsPage watch tab", () => {
   afterEach(() => cleanup());
 
   test("renders Scan and Watch tabs, defaulting to Scan", () => {
-    r(<PatternsPage {...makeProps()} />);
+    r(() => <PatternsPage {...makeProps()} />);
     expect(screen.getByTestId("patterns-tab-scan")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-tab-watch")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-list")).toBeInTheDocument();
@@ -229,7 +229,7 @@ describe("PatternsPage watch tab", () => {
   });
 
   test("clicking the Watch tab renders the WatchView", async () => {
-    r(<PatternsPage {...makeProps()} />);
+    r(() => <PatternsPage {...makeProps()} />);
     fireEvent.click(screen.getByTestId("patterns-tab-watch"));
     await waitFor(() => expect(screen.getByTestId("watch-view")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
@@ -244,20 +244,20 @@ describe("PatternsPage watch tab", () => {
   });
 
   test("controlled tab=watch renders the WatchView directly", async () => {
-    r(<PatternsPage {...makeProps({ tab: "watch" })} />);
+    r(() => <PatternsPage {...makeProps({ tab: "watch" })} />);
     await waitFor(() => expect(screen.getByTestId("watch-view")).toBeInTheDocument());
     expect(screen.queryByTestId("patterns-grid")).not.toBeInTheDocument();
   });
 
   test("controlled tab change calls setTab", async () => {
     const setTab = vi.fn();
-    r(<PatternsPage {...makeProps({ tab: "watch", setTab })} />);
+    r(() => <PatternsPage {...makeProps({ tab: "watch", setTab })} />);
     fireEvent.click(screen.getByTestId("patterns-tab-scan"));
     expect(setTab).toHaveBeenCalledWith("scan");
   });
 
   test("clicking a watch row opens the fullscreen chart via detectPatterns", async () => {
-    r(<PatternsPage {...makeProps({ tab: "watch" })} />);
+    r(() => <PatternsPage {...makeProps({ tab: "watch" })} />);
     await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
 
     fireEvent.click(screen.getByTestId("watch-row-RELIANCE"));
@@ -285,7 +285,7 @@ describe("PatternsPage watch tab", () => {
       dispatchEvent: vi.fn(),
     }));
     try {
-      r(<PatternsPage {...makeProps({ tab: "watch" })} />);
+      r(() => <PatternsPage {...makeProps({ tab: "watch" })} />);
       await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
       fireEvent.click(screen.getByTestId("watch-row-RELIANCE"));
       expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();

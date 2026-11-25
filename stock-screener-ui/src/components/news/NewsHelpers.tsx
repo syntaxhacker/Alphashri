@@ -21,49 +21,56 @@ import {
   typeSize,
 } from "@/ui";
 import * as palette from "@/ui/palette";
-import { IconArrowLeft, IconChartLine, IconChevronDown, IconChevronUp, IconExternalLink, IconNews, IconRefresh, IconX } from "../common/Icons";
+import {
+  IconArrowLeft,
+  IconChartLine,
+  IconChevronDown,
+  IconChevronUp,
+  IconExternalLink,
+  IconNews,
+  IconRefresh,
+  IconX,
+} from "../common/Icons";
 import { For, Show, Switch, Match, createMemo, type JSX } from "solid-js";
 import type { NewsItem, NewsSymbol, ArticleResponse } from "./news-types";
 import { AUTO_REFRESH_INTERVALS } from "./NewsLocalStorage";
 import { normalizeSourceName } from "./news-constants";
 import { formatTimeAgo } from "../../utils/ui-helpers";
 
-function ArticleSymbols(props: {
-  symbols: NewsSymbol[];
-  onSymbolClick: (s: NewsSymbol) => void;
-}) {
+function ArticleSymbols(props: { symbols: NewsSymbol[]; onSymbolClick: (s: NewsSymbol) => void }) {
   return (
     <Show when={props.symbols && props.symbols.length > 0}>
-
-    <Box data-testid="news-article-symbols">
-      <Text size="sm" c="dimmed" style={{ "margin-bottom": "4px" }}>
-        Stocks mentioned:
-      </Text>
-      <Group gap="xs" align="center">
-        <For each={props.symbols}>{(symbol) => (
-          <Tooltip
-            label={
-              symbol.instrument_key
-                ? `View ${symbol.trading_symbol} chart`
-                : `Open ${symbol.code} on Moneycontrol`
-            }
-          >
-            <Badge
-              variant="light"
-              color={symbol.instrument_key ? "primary" : "secondary"}
-              onClick={() => props.onSymbolClick(symbol)}
-              data-testid={`news-symbol-${symbol.code}`}
-              style={{ cursor: "pointer" }}
-            >
-              {symbol.name || symbol.code}
-              <Show when={symbol.instrument_key}>
-                <IconChartLine size={12} style={{ "margin-left": "4px" }} />
-              </Show>
-            </Badge>
-          </Tooltip>
-        )}</For>
-      </Group>
-    </Box>
+      <Box data-testid="news-article-symbols">
+        <Text size="sm" c="dimmed" style={{ "margin-bottom": "4px" }}>
+          Stocks mentioned:
+        </Text>
+        <Group gap="xs" align="center">
+          <For each={props.symbols}>
+            {(symbol) => (
+              <Tooltip
+                label={
+                  symbol.instrument_key
+                    ? `View ${symbol.trading_symbol} chart`
+                    : `Open ${symbol.code} on Moneycontrol`
+                }
+              >
+                <Badge
+                  variant="light"
+                  color={symbol.instrument_key ? "primary" : "secondary"}
+                  onClick={() => props.onSymbolClick(symbol)}
+                  data-testid={`news-symbol-${symbol.code}`}
+                  style={{ cursor: "pointer" }}
+                >
+                  {symbol.name || symbol.code}
+                  <Show when={symbol.instrument_key}>
+                    <IconChartLine size={12} style={{ "margin-left": "4px" }} />
+                  </Show>
+                </Badge>
+              </Tooltip>
+            )}
+          </For>
+        </Group>
+      </Box>
     </Show>
   );
 }
@@ -74,11 +81,13 @@ function ArticleBody(props: {
   error: string | null;
 }) {
   return (
-    <Switch fallback={
-      <Text c="dimmed" ta="center" py="xl">
-        Unable to load article content.
-      </Text>
-    }>
+    <Switch
+      fallback={
+        <Text c="dimmed" ta="center" py="xl">
+          Unable to load article content.
+        </Text>
+      }
+    >
       <Match when={props.loading}>
         <Group justify="center" align="center" py="xl">
           <Loader size="sm" />
@@ -88,11 +97,9 @@ function ArticleBody(props: {
       <Match when={props.content?.description}>
         {(description) => (
           <Stack gap="sm">
-            <For each={String(description()).split("\n\n")}>{(para) => (
-              <Text size="sm">
-                {para}
-              </Text>
-            )}</For>
+            <For each={String(description()).split("\n\n")}>
+              {(para) => <Text size="sm">{para}</Text>}
+            </For>
           </Stack>
         )}
       </Match>
@@ -122,7 +129,7 @@ export function ArticleView(props: {
         justify="space-between"
         align="center"
         className="news-article-header"
-        style={{ "border-bottom": `1px solid ${"" }`, "border-bottom-color": "" }}
+        style={{ "border-bottom": `1px solid ${""}`, "border-bottom-color": "" }}
       >
         <Button
           variant="subtle"
@@ -136,7 +143,7 @@ export function ArticleView(props: {
         <CloseButton onClick={props.onClose} />
       </Group>
 
-      <ScrollArea flex={1} p="sm" className="news-article-content">
+      <ScrollArea className="news-article-content min-h-0 flex-1" style={{ padding: "8px" }}>
         <Stack gap="sm">
           <Title order={4} data-testid="news-article-headline">
             {props.article.headline}
@@ -147,7 +154,10 @@ export function ArticleView(props: {
             {formatTimeAgo(props.content?.publishedAt || props.article.publishedAt)}
           </Text>
 
-          <ArticleSymbols symbols={props.content?.symbols ?? []} onSymbolClick={props.onSymbolClick} />
+          <ArticleSymbols
+            symbols={props.content?.symbols ?? []}
+            onSymbolClick={props.onSymbolClick}
+          />
 
           <Divider />
 
@@ -167,7 +177,12 @@ export function ArticleView(props: {
           </Show>
 
           <Show when={props.article.sourceUrl}>
-            <Anchor href={props.article.sourceUrl} target="_blank" rel="noopener noreferrer" size="sm">
+            <Anchor
+              href={props.article.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              size="sm"
+            >
               <Group gap={4} align="center">
                 Open Original <IconExternalLink size={12} />
               </Group>
@@ -225,9 +240,24 @@ export function NewsItemCard(props: {
       aria-current={selected() ? "true" : undefined}
       data-testid={props.testId ?? "news-item"}
     >
-      <Box className="shrink-0" style={{ "margin-top": "4px", display: "flex", "align-items": "center", "justify-content": "center" }}>
+      <Box
+        className="shrink-0"
+        style={{
+          "margin-top": "4px",
+          display: "flex",
+          "align-items": "center",
+          "justify-content": "center",
+        }}
+      >
         <Show when={isUnread()}>
-          <Box style={{ width: "8px", height: "8px", "border-radius": "50%", "background-color": palette.PRIMARY }} />
+          <Box
+            style={{
+              width: "8px",
+              height: "8px",
+              "border-radius": "50%",
+              "background-color": palette.PRIMARY,
+            }}
+          />
         </Show>
       </Box>
       <Box style={{ "min-width": "0px" }}>
@@ -247,11 +277,29 @@ export function NewsItemCard(props: {
         >
           {item().headline}
         </Text>
-        <Box className="flex items-center justify-between gap-4 min-h-[18px]" style={{ display: "flex", "align-items": "center", "justify-content": "space-between", gap: "8px", "min-height": "18px" }}>
+        <Box
+          className="flex items-center justify-between gap-4 min-h-[18px]"
+          style={{
+            display: "flex",
+            "align-items": "center",
+            "justify-content": "space-between",
+            gap: "8px",
+            "min-height": "18px",
+          }}
+        >
           <Box component="span" style={{ "min-width": "0px" }}>
             {props.meta}
           </Box>
-          <Text size="xs" c="dimmed" className="news-item-meta" style={{ flex: "0 0 auto", "font-variant-numeric": "tabular-nums", "margin-top": isDesk() ? "4px" : 0 }}>
+          <Text
+            size="xs"
+            c="dimmed"
+            className="news-item-meta"
+            style={{
+              flex: "0 0 auto",
+              "font-variant-numeric": "tabular-nums",
+              "margin-top": isDesk() ? "4px" : 0,
+            }}
+          >
             {formatTimeAgo(item().publishedAt)}
           </Text>
         </Box>
@@ -274,7 +322,37 @@ export function NewsSourceGroup(props: {
   const isDesk = () => (props.variant ?? "default") === "desk";
   return (
     <Box component={isDesk() ? "section" : "div"} className="news-source-group list-none">
-      <Box role="button" tabIndex={0} onClick={props.onToggle} onKeyDown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); props.onToggle(); } }} aria-expanded={props.isExpanded} data-testid={`news-source-group-${props.source}`} className="flex items-center gap-2 cursor-pointer" style={isDesk() ? { position: "sticky", top: 0, "z-index": 1, "min-height": "36px", "padding-left": "12px", "padding-right": "12px", "border-radius": 0, "border-top": `1px solid ${palette.BORDER}`, "background-color": palette.BG, "transition-property": "background-color", "transition-duration": "120ms" } : { "border-radius": "8px" }}>
+      <Box
+        role="button"
+        tabIndex={0}
+        onClick={props.onToggle}
+        onKeyDown={(e: KeyboardEvent) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            props.onToggle();
+          }
+        }}
+        aria-expanded={props.isExpanded}
+        data-testid={`news-source-group-${props.source}`}
+        className="flex items-center gap-2 cursor-pointer"
+        style={
+          isDesk()
+            ? {
+                position: "sticky",
+                top: 0,
+                "z-index": 1,
+                "min-height": "36px",
+                "padding-left": "12px",
+                "padding-right": "12px",
+                "border-radius": 0,
+                "border-top": `1px solid ${palette.BORDER}`,
+                "background-color": palette.BG,
+                "transition-property": "background-color",
+                "transition-duration": "120ms",
+              }
+            : { "border-radius": "8px" }
+        }
+      >
         <Text size="sm" fw={700} style={{ "text-transform": "uppercase" }}>
           {props.source}
         </Text>
@@ -282,25 +360,35 @@ export function NewsSourceGroup(props: {
           {props.items.length} {props.items.length === 1 ? "article" : "articles"}
         </Text>
         <Box style={{ flex: 1 }} />
-        <Show when={props.isExpanded} fallback={<IconChevronDown size={12} />}><IconChevronUp size={12} /></Show>
+        <Show when={props.isExpanded} fallback={<IconChevronDown size={12} />}>
+          <IconChevronUp size={12} />
+        </Show>
       </Box>
 
       <Collapse in={props.isExpanded}>
-        <Box style={isDesk() ? { "padding-top": 0, "padding-bottom": 0 } : { "padding-top": "4px", "padding-bottom": "4px" }}>
-          <For each={props.items}>{(item) => {
-            const isUnread = !props.readIds.has(item.id);
-            return props.renderItem ? (
-              props.renderItem(item, isUnread)
-            ) : (
-              <NewsItemCard
-                item={item}
-                isUnread={isUnread}
-                testId={props.itemTestId}
-                onClick={props.onItemClick}
-                variant={props.variant}
-              />
-            );
-          }}</For>
+        <Box
+          style={
+            isDesk()
+              ? { "padding-top": 0, "padding-bottom": 0 }
+              : { "padding-top": "4px", "padding-bottom": "4px" }
+          }
+        >
+          <For each={props.items}>
+            {(item) => {
+              const isUnread = !props.readIds.has(item.id);
+              return props.renderItem ? (
+                props.renderItem(item, isUnread)
+              ) : (
+                <NewsItemCard
+                  item={item}
+                  isUnread={isUnread}
+                  testId={props.itemTestId}
+                  onClick={props.onItemClick}
+                  variant={props.variant}
+                />
+              );
+            }}
+          </For>
         </Box>
       </Collapse>
     </Box>
@@ -392,49 +480,59 @@ export function NewsListContent(props: {
   const visibleSources = createMemo(() => {
     const normalizedSelectedSource = normalizeSourceName(props.selectedSource);
     return props.sourceNames.filter(
-      (source) => props.selectedSource === "all" || normalizeSourceName(source) === normalizedSelectedSource,
+      (source) =>
+        props.selectedSource === "all" || normalizeSourceName(source) === normalizedSelectedSource,
     );
   });
   const isDesk = () => (props.variant ?? "default") === "desk";
 
   return (
-    <Switch fallback={
-      <Box component={isDesk() ? "section" : undefined} className="news-source-groups" style={{ width: "100%" }} aria-label="News stories by source">
-        <For each={visibleSources()}>{(source, index) => (
-          <Box component={isDesk() ? "section" : "li"} style={{ "list-style": "none" }}>
-            <NewsSourceGroup
-              source={source}
-              items={props.groupedNewsItems[source]}
-              isExpanded={props.expandedSources.has(source)}
-              readIds={props.readIds}
-              onToggle={() => props.onToggleSource(source)}
-              onItemClick={props.onArticleClick}
-              variant={props.variant}
-              renderItem={(item, isUnread) => (
-                <NewsItemCard
-                  item={item}
-                  isUnread={isUnread}
-                  selected={props.selectedArticleId != null && props.selectedArticleId === item.id}
-                  meta={props.renderItemMeta?.(item)}
-                  testId={props.itemTestId}
-                  onClick={props.onArticleClick}
+    <Switch
+      fallback={
+        <Box
+          component={isDesk() ? "section" : undefined}
+          className="news-source-groups"
+          style={{ width: "100%" }}
+          aria-label="News stories by source"
+        >
+          <For each={visibleSources()}>
+            {(source, index) => (
+              <Box component={isDesk() ? "section" : "li"} style={{ "list-style": "none" }}>
+                <NewsSourceGroup
+                  source={source}
+                  items={props.groupedNewsItems[source]}
+                  isExpanded={props.expandedSources.has(source)}
+                  readIds={props.readIds}
+                  onToggle={() => props.onToggleSource(source)}
+                  onItemClick={props.onArticleClick}
                   variant={props.variant}
+                  renderItem={(item, isUnread) => (
+                    <NewsItemCard
+                      item={item}
+                      isUnread={isUnread}
+                      selected={
+                        props.selectedArticleId != null && props.selectedArticleId === item.id
+                      }
+                      meta={props.renderItemMeta?.(item)}
+                      testId={props.itemTestId}
+                      onClick={props.onArticleClick}
+                      variant={props.variant}
+                    />
+                  )}
                 />
-              )}
-            />
-            <Show when={!isDesk() && index() < visibleSources().length - 1}>
-              <Divider orientation="horizontal" />
-            </Show>
-          </Box>
-        )}</For>
-      </Box>
-    }>
+                <Show when={!isDesk() && index() < visibleSources().length - 1}>
+                  <Divider orientation="horizontal" />
+                </Show>
+              </Box>
+            )}
+          </For>
+        </Box>
+      }
+    >
       <Match when={props.loading && props.newsItems.length === 0}>
         <Box style={{ padding: "16px" }} data-testid="news-loading">
           <Stack className="gap-2">
-            <For each={[0, 1, 2]}>{() => (
-              <Skeleton h={64} radius="sm" visible />
-            )}</For>
+            <For each={[0, 1, 2]}>{() => <Skeleton h={64} radius="sm" visible />}</For>
             <Text size="sm" c="dimmed" className="flex items-center gap-4">
               <Loader size="sm" />
               Loading news...
@@ -448,7 +546,16 @@ export function NewsListContent(props: {
         </Alert>
       </Match>
       <Match when={props.newsItems.length === 0}>
-        <Box style={{ "padding-left": "16px", "padding-right": "16px", "padding-top": "32px", "padding-bottom": "32px", "text-align": "center" }} data-testid="news-empty">
+        <Box
+          style={{
+            "padding-left": "16px",
+            "padding-right": "16px",
+            "padding-top": "32px",
+            "padding-bottom": "32px",
+            "text-align": "center",
+          }}
+          data-testid="news-empty"
+        >
           <IconNews size={32} aria-hidden="true" />
           <Text size="sm" fw={600} style={{ "margin-top": "8px" }}>
             No news available
@@ -476,7 +583,14 @@ export function NewsListHeader(props: {
         <Show when={props.wsConnected}>
           <Tooltip label="Live updates connected">
             <Box style={{ color: palette.POSITIVE, "font-size": `${typeSize("micro")}px` }}>
-              <Box style={{ width: "8px", height: "8px", "border-radius": "50%", "background-color": palette.POSITIVE }} />
+              <Box
+                style={{
+                  width: "8px",
+                  height: "8px",
+                  "border-radius": "50%",
+                  "background-color": palette.POSITIVE,
+                }}
+              />
             </Box>
           </Tooltip>
         </Show>

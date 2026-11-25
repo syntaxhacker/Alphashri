@@ -15,15 +15,21 @@ import { loadHolidays, resetHolidays } from "../../state/holidays";
 const clock = vi.hoisted(() => ({ now: new Date("2026-11-16T05:30:00Z") })); // Mon 11:00 IST
 
 // Mock modules using vi.hoisted
-const { mockGetBrokerStatus, mockConnectUpstox, mockConnectFyers, mockDisconnectUpstox, mockDisconnectFyers, mockAddNotification } =
-  vi.hoisted(() => ({
-    mockGetBrokerStatus: vi.fn(),
-    mockConnectUpstox: vi.fn(),
-    mockConnectFyers: vi.fn(),
-    mockDisconnectUpstox: vi.fn(),
-    mockDisconnectFyers: vi.fn(),
-    mockAddNotification: vi.fn(),
-  }));
+const {
+  mockGetBrokerStatus,
+  mockConnectUpstox,
+  mockConnectFyers,
+  mockDisconnectUpstox,
+  mockDisconnectFyers,
+  mockAddNotification,
+} = vi.hoisted(() => ({
+  mockGetBrokerStatus: vi.fn(),
+  mockConnectUpstox: vi.fn(),
+  mockConnectFyers: vi.fn(),
+  mockDisconnectUpstox: vi.fn(),
+  mockDisconnectFyers: vi.fn(),
+  mockAddNotification: vi.fn(),
+}));
 
 vi.mock("../../api/brokers", () => ({
   getBrokerStatus: () => mockGetBrokerStatus(),
@@ -63,7 +69,9 @@ vi.mock("../../components/settings/BrokerConnectionCard", () => ({
       props.status?.connected &&
       (props.status.expires_in_hours === null || props.status.expires_in_hours >= 0);
     return (
-      <div data-testid={suffix === "upstox" ? "broker-connection-card" : `${suffix}-connection-card`}>
+      <div
+        data-testid={suffix === "upstox" ? "broker-connection-card" : `${suffix}-connection-card`}
+      >
         <span>{props.title ?? "Upstox Connection"}</span>
         <span data-testid={suffix === "upstox" ? "broker-status-badge" : `${suffix}-status-badge`}>
           {isConnected() ? "Connected" : "Disconnected"}
@@ -77,7 +85,12 @@ vi.mock("../../components/settings/BrokerConnectionCard", () => ({
             Connect
           </button>
         )}
-        <button data-testid={suffix === "upstox" ? "refresh-broker-status-btn" : `refresh-${suffix}-status-btn`} onClick={() => props.onRefresh()}>
+        <button
+          data-testid={
+            suffix === "upstox" ? "refresh-broker-status-btn" : `refresh-${suffix}-status-btn`
+          }
+          onClick={() => props.onRefresh()}
+        >
           Refresh
         </button>
       </div>
@@ -124,6 +137,22 @@ describe("SettingsPage", () => {
     renderSettings();
 
     expect(screen.getByTestId("settings-page")).toBeInTheDocument();
+  });
+
+  it("uses an internal scroll region while the page frame stays fixed", () => {
+    mockGetBrokerStatus.mockResolvedValue(null);
+
+    renderSettings();
+
+    const page = screen.getByTestId("settings-page");
+    expect(page).toHaveClass("h-full", "min-h-0", "overflow-hidden");
+
+    const scroll = screen.getByTestId("settings-scroll");
+    expect(scroll).toHaveClass("flex-1", "min-h-0", "overflow-y-auto");
+    expect(scroll).toHaveAttribute("role", "region");
+    expect(scroll).toHaveAttribute("tabindex", "0");
+    // Title stays outside the scroll region so it is always visible.
+    expect(scroll).not.toContainElement(screen.getByText("Settings"));
   });
 
   it("renders settings page inside the app router", () => {
@@ -332,10 +361,7 @@ describe("SettingsPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("density-control")).toBeInTheDocument();
     });
-    expect(screen.getByRole("button", { name: "Compact" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(screen.getByRole("button", { name: "Compact" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("persists Comfortable density to localStorage when selected", async () => {

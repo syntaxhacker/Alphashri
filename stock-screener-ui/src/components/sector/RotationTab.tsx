@@ -404,7 +404,8 @@ export function RotationTab(props: { market: "india" | "america" }) {
         </Match>
         <Match when={true}>
           <Box
-            className="flex-1 min-h-0 grid gap-[2px] p-[2px] overflow-hidden grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] grid-rows-[auto_auto_auto_auto] lg:grid-rows-[minmax(0,1.18fr)_minmax(0,0.82fr)]"
+            data-testid="rotation-grid"
+            className="flex-1 min-h-0 grid gap-[2px] p-[2px] overflow-x-hidden overflow-y-auto lg:overflow-hidden grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] grid-rows-[auto_auto_auto_auto] lg:grid-rows-[minmax(0,1.18fr)_minmax(0,0.82fr)]"
           >
             <CompactPanel
               testId="rotation-rrg-panel"

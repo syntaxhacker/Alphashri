@@ -138,4 +138,21 @@ describe("RotationTab", () => {
     expect(await screen.findByTestId("rotation-error")).toHaveTextContent("rotation down");
     expect(screen.getByTestId("rotation-error")).toHaveTextContent("Rotation data unavailable");
   });
+
+  test("keeps the tab root bounded with the panel grid as the mobile scroll owner", async () => {
+    renderTab();
+    await screen.findByTestId("rotation-board-table");
+
+    const root = screen.getByTestId("rotation-tab");
+    for (const cls of ["flex-1", "min-h-0", "flex-col", "overflow-hidden"]) {
+      expect(root).toHaveClass(cls);
+    }
+
+    const grid = screen.getByTestId("rotation-grid");
+    expect(grid).toHaveClass("flex-1");
+    expect(grid).toHaveClass("min-h-0");
+    // Below lg the four stacked panels scroll as one column; at lg each panel owns its body.
+    expect(grid).toHaveClass("overflow-y-auto");
+    expect(grid).toHaveClass("lg:overflow-hidden");
+  });
 });

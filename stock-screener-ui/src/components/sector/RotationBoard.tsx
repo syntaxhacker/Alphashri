@@ -150,7 +150,7 @@ export function RotationBoard(props: RotationBoardProps) {
   return (
     <Box
       data-testid="rotation-board"
-      className="flex h-full min-h-0 flex-1 flex-col"
+      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
     >
       {/* keyed Show re-creates the table when the period flips so the 1M default sort re-applies */}
       <Show when={props.period} keyed>

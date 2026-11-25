@@ -300,7 +300,7 @@ export function BacktestTradeCharts(props: {
   const netPnl = () => trades().reduce((s, t) => s + (t.pnl ?? 0), 0);
 
   return (
-    <div class="h-full overflow-auto flex flex-col" style={{ "background-color": palette.BG }}>
+    <div class="flex h-full min-h-0 flex-col overflow-hidden" style={{ "background-color": palette.BG }}>
       <Stack
         direction="row"
         align="center"

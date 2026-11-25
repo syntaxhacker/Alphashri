@@ -7,15 +7,15 @@ would check). File presence, PNG headers, dimensions and the final 1600/390
 read-back were checked at current HEAD `the final evidence commit`.
 
 Status at the final evidence commit (2026-11-24) — **final read-back DONE;
-independent rating NOT CERTIFIED**:
+independent verification NOT CERTIFIED**:
 
 - The final **1600/390 screenshot read-back is DONE at `the final evidence commit`**: PNGs were
   opened and checked for hero/chart/chain/toolbar legibility, no blank canvas and
   no `undefined`/`NaN` text. The latest report captures show **chart-first layout
   at both widths, snapshot freshness, a populated option chain and heatmap, and
   compact walls** — the composition wave landed as intended. See
-  `DESIGN_SYSTEM_A_PLUS_GATE.md`: the independent panel scored **7 / 8.5 / 8**
-  and is **not A++**. The final polish tree has not been re-rated. No A+ / A++
+  `DESIGN_SYSTEM_A_PLUS_GATE.md`: the prior review scored **7 / 8.5 / 8**
+  and is **not A+**. The final polish tree has not been re-verified. No A+
   verdict is claimed.
 - `docs/screenshots/showcase/` — 52 PNGs committed (26 names × 2 viewports).
   Widths are 1600 / 390 and every height is ≥ viewport; several specimens are
@@ -30,6 +30,14 @@ independent rating NOT CERTIFIED**:
   (6 stories × 2 viewports); `bun run visual:test` passes **12/12**.
 - The **62-image manifest** (10 app + 52 showcase) is the evidence gate. **62/62**
   files are present at `the final evidence commit` with the expected dimensions and ≥8 KiB.
+
+## Feature evidence
+
+| Feature | Evidence index |
+| --- | --- |
+| `sector-history` | `docs/screenshots/sector-history/manifest.json` |
+
+Feature evidence is indexed by its manifest; it is separate from the 62-image app/showcase manifest.
 
 ## 1. App-route captures (`docs/screenshots/app/`)
 
@@ -150,10 +158,10 @@ results.
   heatmap, and compact walls**; the read-back specifically confirms the chart is
   pinned to session-scoped candles (no stale/tape-only or two-day series) and the
   390 option chain opens on the ATM strike, pinned below the sticky header with
-  the next row as a scroll cue. The earlier panel at `6d25b3c8` scored
-  **7 / 8.5 / 8** and is **not A++**. The final polish tree has not been
-  re-rated (see `DESIGN_SYSTEM_A_PLUS_GATE.md`). The presence of a PNG alone is
-  not a rating, and no A+ / A++ verdict is claimed.
+  the next row as a scroll cue. The earlier review at `6d25b3c8` scored
+  **7 / 8.5 / 8** and is **not A+**. The final polish tree has not been
+  re-verified (see `DESIGN_SYSTEM_A_PLUS_GATE.md`). The presence of a PNG alone is
+  not a rating, and no A+ verdict is claimed.
 
 ## 5. Open evidence items (no longer capture gaps)
 
@@ -169,8 +177,8 @@ Still not evidenced by a committed artifact:
 2. A committed run result for the 10 keyboard walkthroughs.
 3. Live-app focus/keyboard, actual contrast ratios and reduced-motion evidence —
    currently source-only or Storybook-only.
-4. A fresh **independent rating** for the final tree — **NOT YET RUN**. The
-   `6d25b3c8` panel scored **7 / 8.5 / 8** and is not an A++ certification (see
+4. A fresh **independent verification** for the final tree — **NOT YET RUN**. The
+   `6d25b3c8` review scored **7 / 8.5 / 8** and is not an A+ certification (see
    `DESIGN_SYSTEM_A_PLUS_GATE.md`). The final 1600/390 read-back is **DONE**.
 
 ## 6. Evidence guard

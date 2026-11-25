@@ -107,9 +107,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
 
   const stepper =
     props.onPrev || props.onNext ? (
-      <Box
-        className="mt-[2px] flex shrink-0 items-center gap-[2px]"
-      >
+      <Box className="mt-[2px] flex shrink-0 items-center gap-[2px]">
         <Tooltip label="Previous pattern (↑)">
           <ActionIcon
             size="xs"
@@ -167,9 +165,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
         data-testid="patterns-chart-dock"
         className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-fin border border-fin-border bg-fin-surface"
       >
-        <Box
-          className="flex min-w-0 shrink-0 items-start gap-1 border-b border-fin-border px-2 py-1"
-        >
+        <Box className="flex min-w-0 shrink-0 items-start gap-1 border-b border-fin-border px-2 py-1">
           <Box className="min-w-0 flex-1">{toolbar}</Box>
           {stepper}
           {refreshButton}
@@ -213,7 +209,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
             </ActionIcon>
           </Tooltip>
         </Box>
-        <Box className="min-h-0 flex-1">{body}</Box>
+        <Box className="flex min-h-0 flex-1 flex-col overflow-hidden">{body}</Box>
       </Box>
     );
   }
@@ -224,9 +220,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
       onClose={props.onClose}
       withCloseButton
       title={
-        <Box
-          className="flex w-full min-w-0 items-center gap-1"
-        >
+        <Box className="flex w-full min-w-0 items-center gap-1">
           <Box className="min-w-0 flex-1">{toolbar}</Box>
           {stepper}
           {refreshButton}

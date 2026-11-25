@@ -26,6 +26,7 @@ function ReplayPageContent(
       w="100%"
       h="100%"
       mih={0}
+      className="flex h-full min-h-0 w-full flex-col overflow-hidden"
       style={{ display: "flex", "flex-direction": "column", overflow: "hidden", "background-color": palette.BG }}
       data-testid="replay-page"
     >
