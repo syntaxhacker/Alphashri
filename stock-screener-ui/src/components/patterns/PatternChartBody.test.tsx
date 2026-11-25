@@ -265,6 +265,78 @@ describe("PatternChartBody", () => {
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 
+  test("1m header change compares with the prior session's last bar", () => {
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    const candles: ChartCandle[] = [
+      // 17 Nov session: 09:30 and 15:15 IST.
+      { t: "2026-11-17T04:00:00+00:00", o: 100, h: 101, l: 99, c: 100, v: 900 },
+      { t: "2026-11-17T09:45:00+00:00", o: 108, h: 111, l: 107, c: 110, v: 900 },
+      // 18 Nov session: 09:30 and 10:00 IST.
+      { t: "2026-11-18T04:00:00+00:00", o: 112, h: 116, l: 111, c: 115, v: 900 },
+      { t: "2026-11-18T04:30:00+00:00", o: 118, h: 122, l: 117, c: 121, v: 900 },
+    ];
+    const series = resolveCloseSeries({ hit, candles, timeframe: "1m" });
+    // (121 - 110) / 110, not the last bar's (121 - 115) / 115.
+    expect(series.changePct).toBeCloseTo(10, 6);
+
+    render(() => <PatternChartBody hit={hit} candles={candles} timeframe="1m" />);
+    expect(screen.getByText("+10.00%")).toBeInTheDocument();
+    expect(screen.queryByText("+5.22%")).toBeNull();
+  });
+
+  test("intraday without an earlier session falls back to the previous bar", () => {
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    const candles: ChartCandle[] = [
+      { t: "2026-11-18T04:00:00+00:00", o: 100, h: 101, l: 99, c: 100, v: 900 },
+      { t: "2026-11-18T04:30:00+00:00", o: 110, h: 111, l: 109, c: 110, v: 900 },
+    ];
+    expect(
+      resolveCloseSeries({ hit, candles, timeframe: "5m" }).changePct,
+    ).toBeCloseTo(10, 6);
+  });
+
+  test("1D header change stays the prior daily candle's close", () => {
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    const candles: ChartCandle[] = [
+      { t: "2026-11-17", o: 100, h: 101, l: 99, c: 100, v: 900 },
+      { t: "2026-11-18", o: 110, h: 111, l: 109, c: 110, v: 900 },
+    ];
+    expect(
+      resolveCloseSeries({ hit, candles, timeframe: "1D" }).changePct,
+    ).toBeCloseTo(10, 6);
+  });
+
+  test("1W header change stays prior period over prior period", () => {
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    const candles: ChartCandle[] = [
+      { t: "2026-11-13", o: 100, h: 101, l: 99, c: 100, v: 900 },
+      { t: "2026-11-20", o: 90, h: 91, l: 89, c: 90, v: 900 },
+    ];
+    expect(
+      resolveCloseSeries({ hit, candles, timeframe: "1W" }).changePct,
+    ).toBeCloseTo(-10, 6);
+  });
+
   test("a stored hit with no close_bar_date loses to the chart even when end_date is newer", () => {
     const candles: ChartCandle[] = [
       { t: "2026-11-12", o: 3500, h: 3510, l: 3470, c: 3484, v: 1000 },

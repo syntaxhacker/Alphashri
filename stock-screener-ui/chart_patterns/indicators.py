@@ -37,6 +37,7 @@ Rules pinned by the backend contract:
 
 from __future__ import annotations
 
+import re
 from typing import Optional, Sequence
 
 import numpy as np
@@ -57,6 +58,22 @@ SESSION_OPENS = {
 INTRADAY_TIMEFRAMES = frozenset(
     {"1m", "3m", "5m", "10m", "15m", "30m", "1h", "2h", "3h", "4h"}
 )
+
+#: Registered custom frames (``90m``, ``6h``…) are intraday too: the frontend
+#: already treats every frame other than 1D/1W/1M as intraday, so VWAP must
+#: follow the same rule instead of only the built-in set.
+_MINUTE_HOUR_TIMEFRAME = re.compile(r"^\d+[mh]$")
+
+
+def is_intraday_timeframe(timeframe: Optional[str]) -> bool:
+    """True for minute/hour frames, built-in or custom (never 1D/1W/1M)."""
+    text = str(timeframe or "").strip()
+    if not text:
+        return False
+    return text in INTRADAY_TIMEFRAMES or bool(
+        _MINUTE_HOUR_TIMEFRAME.fullmatch(text)
+    )
+
 
 SMA_PERIODS = (20, 50, 200)
 BOLLINGER_PERIOD = 20
@@ -471,14 +488,14 @@ def compute_vwap(
         session = session_for_market(market)
     # Accept both positional orders (candles, session, timeframe) and
     # (candles, timeframe, session) — the payload path always uses keywords.
-    if str(session) in INTRADAY_TIMEFRAMES:
+    if is_intraday_timeframe(session):
         if timeframe is None:
             timeframe, session = str(session), "Asia/Kolkata"
-        elif str(timeframe) not in INTRADAY_TIMEFRAMES:
+        elif not is_intraday_timeframe(timeframe):
             session, timeframe = str(timeframe), str(session)
     if timeframe is None and str(session) in {"1D", "1W", "1M"}:
         return None
-    if timeframe is not None and str(timeframe) not in INTRADAY_TIMEFRAMES:
+    if timeframe is not None and not is_intraday_timeframe(timeframe):
         return None
     candles = _candle_list(candles)
     times, opens, highs, lows, closes, volumes = _candle_arrays(candles)
@@ -575,7 +592,7 @@ def compute_indicators(
         ("bbLower", lower),
     ]
 
-    if timeframe in INTRADAY_TIMEFRAMES:
+    if is_intraday_timeframe(timeframe):
         warmup_candles = _candle_list(warmup) if warmup else []
         if warmup_candles:
             w_times, w_opens, w_highs, w_lows, w_closes, w_volumes = _candle_arrays(
@@ -643,6 +660,7 @@ __all__ = [
     "detect_crosses",
     "detect_sma_crosses",
     "invalid_price_mask",
+    "is_intraday_timeframe",
     "session_for_market",
     "sma",
     "vwap",

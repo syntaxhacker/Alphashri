@@ -151,6 +151,24 @@ def test_vwap_omitted_for_daily_weekly_monthly():
         assert "vwap" not in {series["id"] for series in payload["series"]}
 
 
+def test_vwap_custom_intraday_timeframe_is_classified_intraday():
+    """A registered `90m` frame gets VWAP; the coarse frames still do not."""
+    assert indicators.is_intraday_timeframe("90m")
+    assert indicators.is_intraday_timeframe("6h")
+    assert not indicators.is_intraday_timeframe("1D")
+
+    candles = _intraday_session()
+    assert indicators.compute_vwap(candles, "Asia/Kolkata", "90m") is not None
+    payload = indicators.compute_indicators(candles, "90m")
+    vwap = next(s for s in payload["series"] if s["id"] == "vwap")["values"]
+    assert len(vwap) == len(candles)
+    assert any(value is not None for value in vwap)
+
+    for timeframe in ("1D", "1W", "1M"):
+        payload = indicators.compute_indicators(candles, timeframe)
+        assert "vwap" not in {series["id"] for series in payload["series"]}
+
+
 def test_vwap_resets_by_exchange_timezone():
     candles = [
         _candle("2026-01-06T03:00:00+00:00", 100.0, 10),  # 22:00 ET Jan 5

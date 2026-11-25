@@ -1611,6 +1611,73 @@ def test_symbol_chart_without_lookback_bars_uses_default(cp_client, monkeypatch,
     assert len(chart.json()["candles"]) == 120
 
 
+def test_symbol_chart_live_from_date_filters_display_only(
+    cp_client, monkeypatch, no_stale_first
+):
+    """`from_date` clips live candles; detection still sees the full history."""
+    from types import SimpleNamespace
+
+    seen = {}
+
+    def _fetch(symbol, timeframe, **kwargs):
+        seen.update(kwargs)
+        return _make_df(80)
+
+    def _detect(df, timeframe, symbol):
+        seen["detection_bars"] = len(df)
+        return []
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
+    monkeypatch.setattr(cp_api, "engine_mod", SimpleNamespace(detect_patterns=_detect))
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={"timeframe": "1D", "from_date": "2026-02-01", "detect_patterns": 1},
+    )
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["candles"], "the from-window still has bars"
+    assert body["candles"][0]["t"].startswith("2026-02-01")
+    assert all(candle["t"][:10] >= "2026-02-01" for candle in body["candles"])
+    # Display-only clip: the engine keeps the pre-from bars for detection.
+    assert seen["detection_bars"] == 80
+    assert len(body["indicators"]["series"][0]["values"]) == len(body["candles"])
+
+    # No `from_date`: the current default window is unchanged.
+    plain = cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"}
+    )
+    assert plain.status_code == 200
+    assert len(plain.json()["candles"]) == 80
+    assert plain.json()["candles"][0]["t"].startswith("2026-01-01")
+
+
+def test_symbol_chart_live_from_date_and_lookback_intersect(
+    cp_client, monkeypatch, no_stale_first
+):
+    """Both bounds: newest `lookback_bars` bars inside the from-window."""
+    frame = _make_df(80)
+    seen = {}
+
+    def _fetch(symbol, timeframe, **kwargs):
+        seen.update(kwargs)
+        return frame
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={"timeframe": "1D", "from_date": "2026-02-01", "lookback_bars": 10},
+    )
+    assert chart.status_code == 200
+    body = chart.json()
+    assert seen.get("lookback_bars") == 10
+    assert seen.get("from_date") == "2026-02-01"
+    assert len(body["candles"]) == 10
+    expected_first = frame.index[-10].date().isoformat()
+    assert body["candles"][0]["t"].startswith(expected_first)
+    assert body["candles"][-1]["t"].startswith(frame.index[-1].date().isoformat())
+    assert all(candle["t"][:10] >= "2026-02-01" for candle in body["candles"])
 
 
 def test_results_compute_trendlines_false_skips_detector(cp_client, monkeypatch):

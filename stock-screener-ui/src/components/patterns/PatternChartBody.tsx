@@ -78,6 +78,41 @@ export interface CloseSeries {
   isPartial: boolean;
 }
 
+const COARSE_TIMEFRAMES = new Set(["1D", "1W", "1M"]);
+
+/**
+ * Bar change for the header. Daily/weekly/monthly keep the previous period
+ * (the prior candle); intraday compares the last bar with the final bar of the
+ * prior session, so 1m/5m/1h show the day's move instead of the last bar's.
+ * With no earlier session (or an unknown timestamp) it falls back to the
+ * previous bar's close, preserving the old behavior.
+ */
+function closeChangePct(
+  candles: ChartCandle[],
+  timeframe: string | null | undefined,
+  timeZone: string,
+): number | null {
+  const last = candles.length ? candles[candles.length - 1] : null;
+  if (!last) return null;
+  const tf = typeof timeframe === "string" ? timeframe.trim() : "";
+  const intraday = tf !== "" && !COARSE_TIMEFRAMES.has(tf);
+  let prev = candles.length > 1 ? candles[candles.length - 2] : null;
+  if (intraday) {
+    const lastKey = sessionDateKey(last.t, timeZone);
+    if (lastKey) {
+      const prior = candles
+        .slice(0, -1)
+        .reverse()
+        .find((candle) => {
+          const key = sessionDateKey(candle.t, timeZone);
+          return key != null && key < lastKey;
+        });
+      if (prior) prev = prior;
+    }
+  }
+  return last && prev && prev.c ? ((last.c - prev.c) / prev.c) * 100 : null;
+}
+
 /**
  * Choose one source for the displayed close *and* its change: a hit enrichment
  * only wins when it carries a complete pair whose `close_bar_date` proves the
@@ -90,17 +125,16 @@ export function resolveCloseSeries(
   params: {
     hit: Pick<PatternHitDTO, "last_close" | "day_change_pct" | "close_bar_date">;
     candles: ChartCandle[];
+    timeframe?: string | null;
   },
   timeZone: string = MARKET_TIME_ZONE.india,
 ): CloseSeries {
-  const { hit, candles } = params;
+  const { hit, candles, timeframe } = params;
   const last = candles.length ? candles[candles.length - 1] : null;
-  const prev = candles.length > 1 ? candles[candles.length - 2] : null;
   const isPartial = last?.is_partial === true;
   const chart: CloseSeries = {
     close: last?.c ?? null,
-    changePct:
-      last && prev && prev.c ? ((last.c - prev.c) / prev.c) * 100 : null,
+    changePct: closeChangePct(candles, timeframe, timeZone),
     // Store a canonical session key, never the raw UTC instant: a daily bar is
     // stamped 18:30Z of the previous calendar day and formatting its date part
     // directly labels the session one day early.
@@ -289,11 +323,15 @@ function FullscreenPanel(props: {
   liveChange?: number | null;
   market?: ChartMarket;
   timeZone: string;
+  timeframe?: string | null;
 }) {
   // Enrichment is only as fresh as the frame it was captured on; the drawn
   // candles are the authority whenever the hit cannot be dated or is older.
   const series = createMemo(() =>
-    resolveCloseSeries({ hit: props.hit, candles: props.candles ?? [] }, props.timeZone),
+    resolveCloseSeries(
+      { hit: props.hit, candles: props.candles ?? [], timeframe: props.timeframe },
+      props.timeZone,
+    ),
   );
   const closeLabel = () => {
     const barDate = series().barDate;
@@ -806,6 +844,7 @@ export function PatternChartBody(props: PatternChartBodyProps) {
                   liveChange={props.liveChange}
                   market={props.market}
                   timeZone={timeZone()}
+                  timeframe={props.timeframe}
                 />
               )}
             </Show>

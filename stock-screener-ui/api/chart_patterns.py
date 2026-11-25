@@ -605,6 +605,7 @@ def _stale_chart_fallback(
     clamp_lookback: Optional[int],
     limit: int,
     reason: str,
+    from_date: Optional[str] = None,
 ) -> Optional[dict]:
     """Last good on-disk frame for the live-edge cache entry, else ``None``.
 
@@ -613,7 +614,9 @@ def _stale_chart_fallback(
     considered — historical/as-of namespaced files are never served. A frame
     from an earlier session is returned solely with ``cached``/``stale`` set
     and ``as_of`` pinned to the frame's last session date, so it can never
-    present itself as current data. Never raises.
+    present itself as current data. ``from_date`` clips the displayed frame
+    to the requested start (detection is not part of this fallback). Never
+    raises.
     """
     try:
         lb = None if fetch_lookback is None else int(fetch_lookback)
@@ -625,7 +628,9 @@ def _stale_chart_fallback(
         as_of = candles.frame_last_date(df)
         if not as_of:
             return None
-        series = _clamped_candle_series(df, clamp_lookback, limit)
+        series = _clamped_candle_series(
+            _filter_frame_from(df, from_date), clamp_lookback, limit
+        )
         if not series:
             return None
     except Exception:
@@ -1560,6 +1565,25 @@ def _clamp_to_lookback(df, lookback_bars: Optional[int]):
     if n <= 0 or len(df) <= n:
         return df
     return df.tail(n)
+
+
+def _filter_frame_from(df, from_date: Optional[str]):
+    """Rows whose IST calendar date is on/after ``from_date``; passthrough else.
+
+    The live fetch keeps its normal window so detection still sees the history
+    before ``from_date``; only the displayed frame (candles, indicators and
+    warm-up) is clipped to the requested start. Never raises.
+    """
+    if not from_date or df is None or getattr(df, "empty", True):
+        return df
+    try:
+        keys = _ist_session_dates(df.index)
+        keep = [key >= from_date for key in keys]
+        if all(keep):
+            return df
+        return df[keep]
+    except Exception:
+        return df
 
 
 def _ts_list(idx) -> list:
@@ -3018,7 +3042,7 @@ def _infer_partial_last(candles_list: list, timeframe: str, market: str, now=Non
     last = candles_list[-1]
     if not isinstance(last, dict) or last.get("t") is None:
         return False
-    if timeframe in indicators_mod.INTRADAY_TIMEFRAMES:
+    if indicators_mod.is_intraday_timeframe(timeframe):
         return _intraday_bar_partial(last.get("t"), now, market)
     if timeframe in ("1W", "1M"):
         return _period_bar_partial(last.get("t"), timeframe, now)
@@ -3456,6 +3480,12 @@ async def get_symbol_chart(
             detect_patterns, as_of_date, from_date,
         )
         return _json_response(_with_chart_extras(replay, "india", timeframe))
+    from_part = None
+    if from_date is not None:
+        try:
+            from_part = candles.parse_asof_datetime(from_date).strftime("%Y-%m-%d")
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
     symbol_u = str(symbol).strip().upper()
     session = _ist_session_date()
     lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
@@ -3463,8 +3493,14 @@ async def get_symbol_chart(
     # Stale-first: a session-current frame in the default live-edge disk cache
     # is served immediately (marked cached/stale) while a daemon thread
     # refreshes the cache for the next poll. Replay/as-of never takes this.
-    # An explicit refresh always goes to the network path.
-    stale_first = None if refresh else _stale_first_frame(symbol_u, timeframe, lb)
+    # An explicit refresh always goes to the network path. A `from` window
+    # also does: the default stale entry has no guarantee of covering the
+    # requested start, and its background refresh would not be the from-window
+    # variant either.
+    stale_first = (
+        None if refresh or from_part
+        else _stale_first_frame(symbol_u, timeframe, lb)
+    )
     if stale_first is not None:
         df, as_of, read_ms = stale_first
         try:
@@ -3478,6 +3514,7 @@ async def get_symbol_chart(
         # ends on Friday) that an ``as_of < last_completed_session`` gate
         # suppressed for the whole day.
         display_df, is_partial = _chart_display_frame(df, symbol_u, timeframe)
+        display_df = _filter_frame_from(display_df, from_part)
         appended_today = display_df is not df
         series = _clamped_candle_series(display_df, lookback_bars, limit)
         _mark_partial_last(series, is_partial)
@@ -3557,7 +3594,10 @@ async def get_symbol_chart(
 
     # Negative cache hit: this (symbol, timeframe) already returned no
     # candles this session — answer instantly, no upstream fetch at all.
-    neg = None if refresh else _chart_neg_cache_get(symbol_u, timeframe, session)
+    neg = (
+        None if refresh or from_part
+        else _chart_neg_cache_get(symbol_u, timeframe, session)
+    )
     if neg is not None:
         _log_chart_fetch(
             symbol_u, timeframe, elapsed_ms=0.0, rows=0,
@@ -3566,14 +3606,22 @@ async def get_symbol_chart(
         return _json_response(_with_chart_extras(neg, "india", timeframe))
 
     start = _time.monotonic()
+    fetch_kwargs = {
+        "lookback_bars": lb,
+        "include_partial_today": timeframe == "1D",
+        "force_refresh": bool(refresh),
+    }
+    # With detection on, keep the normal fetch window: the engine needs the
+    # history before `from_date`. With detection off the window itself can
+    # start at `from_date` (display is clipped either way below).
+    if from_part and not detect_patterns:
+        fetch_kwargs["from_date"] = from_part
     try:
         df = await asyncio.wait_for(
             run_in_threadpool(
                 candles.fetch_for_timeframe,
                 symbol_u, timeframe,
-                lookback_bars=lb,
-                include_partial_today=(timeframe == "1D"),
-                force_refresh=bool(refresh),
+                **fetch_kwargs,
             ),
             timeout=_CHART_FETCH_TIMEOUT_SEC,
         )
@@ -3589,6 +3637,7 @@ async def get_symbol_chart(
             symbol_u, timeframe,
             fetch_lookback=lb, clamp_lookback=lookback_bars, limit=limit,
             reason=f"upstream timed out after {_CHART_FETCH_TIMEOUT_SEC:.0f}s",
+            from_date=from_part,
         )
         if stale is not None:
             _log_chart_fetch(
@@ -3598,10 +3647,11 @@ async def get_symbol_chart(
             )
             return _json_response(_with_chart_extras(stale, "india", timeframe))
         payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
-        _chart_neg_cache_put(
-            symbol_u, timeframe, session, payload,
-            ttl=_CHART_NEG_CACHE_TIMEOUT_TTL_SEC,
-        )
+        if not from_part:
+            _chart_neg_cache_put(
+                symbol_u, timeframe, session, payload,
+                ttl=_CHART_NEG_CACHE_TIMEOUT_TTL_SEC,
+            )
         _log_chart_fetch(
             symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
             cache_hit=False, timeout=True, error=reason, stale_fallback=False,
@@ -3616,6 +3666,7 @@ async def get_symbol_chart(
             symbol_u, timeframe,
             fetch_lookback=lb, clamp_lookback=lookback_bars, limit=limit,
             reason="upstream fetch error",
+            from_date=from_part,
         )
         if stale is not None:
             _log_chart_fetch(
@@ -3642,6 +3693,7 @@ async def get_symbol_chart(
             symbol_u, timeframe,
             fetch_lookback=lb, clamp_lookback=lookback_bars, limit=limit,
             reason=f"upstream returned no candles in session {session}",
+            from_date=from_part,
         )
         if stale is not None:
             _log_chart_fetch(
@@ -3651,7 +3703,8 @@ async def get_symbol_chart(
             )
             return _json_response(_with_chart_extras(stale, "india", timeframe))
         payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
-        _chart_neg_cache_put(symbol_u, timeframe, session, payload)
+        if not from_part:
+            _chart_neg_cache_put(symbol_u, timeframe, session, payload)
         _log_chart_fetch(
             symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
             cache_hit=False, timeout=False, error=reason, stale_fallback=False,
@@ -3663,6 +3716,7 @@ async def get_symbol_chart(
     # and the frame identity use the completed-session base frame so an
     # unfinished bar can never form a hit.
     display_df, is_partial = _chart_display_frame(df, symbol_u, timeframe)
+    display_df = _filter_frame_from(display_df, from_part)
     base_df = df
     if getattr(df, "attrs", {}).get("partial_today"):
         base_df = df.iloc[:-1]
