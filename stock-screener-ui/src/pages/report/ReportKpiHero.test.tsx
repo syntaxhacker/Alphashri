@@ -6,8 +6,19 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
+import { TZ_IST } from "@/config/constants";
 import type { NiftyReport } from "@/types/niftyReport";
 import { REPORT_FONT, REPORT_GUTTER, REPORT_KPI_HERO_HEIGHT } from "./reportTokens";
+
+// The SUT prints the snapshot in the runner's local zone; pin that zone and
+// derive the expected clock from the same instant so neither side assumes IST.
+const SNAPSHOT_AT = "2026-11-23T11:44:00+05:30";
+const SNAPSHOT_AS_OF = new Intl.DateTimeFormat("en-IN", {
+  timeZone: TZ_IST,
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+}).format(new Date(SNAPSHOT_AT));
 
 const rawReport = {
   spot: 25_000,
@@ -149,32 +160,37 @@ describe("ReportKpiHero — composed 32px band", () => {
 
 describe("ReportKpiHero — shared spot snapshot descriptor", () => {
   test("one descriptor explains the whole-point KPI against the 2dp walls/chart spot", () => {
-    const view = spotSnapshot(25_976.1, { digits: 0, asOf: "11:44", origin: "Snapshot" });
+    const view = spotSnapshot(25_976.1, { digits: 0, asOf: SNAPSHOT_AS_OF, origin: "Snapshot" });
     expect(view.display).toBe("25,976");
     expect(view.exact).toBe("25,976.10");
-    expect(view.title).toContain("Snapshot 11:44");
+    expect(view.title).toContain(`Snapshot ${SNAPSHOT_AS_OF}`);
     expect(view.title).toContain("25,976.10");
     expect(view.title).toContain("whole points");
 
-    const precise = spotSnapshot(25_976.1, { digits: 2, asOf: "11:44", origin: "Snapshot" });
+    const precise = spotSnapshot(25_976.1, { digits: 2, asOf: SNAPSHOT_AS_OF, origin: "Snapshot" });
     expect(precise.display).toBe("25,976.10");
     expect(precise.exact).toBe(view.exact);
-    expect(precise.title).toContain("Snapshot 11:44");
+    expect(precise.title).toContain(`Snapshot ${SNAPSHOT_AS_OF}`);
   });
 
   test("the SPOT cell keeps its number but its title carries the snapshot instant", () => {
-    mount({
-      report: {
-        ...report,
-        spot: 25_976.1,
-        snapshotAt: "2026-11-23T11:44:00+05:30",
-      } as unknown as NiftyReport,
-    });
-    const spot = screen.getByTestId("nifty-kpi-spot");
-    expect(spot).toHaveTextContent("25,976");
-    expect(spot.getAttribute("title")).toContain("Snapshot 11:44");
-    expect(spot.getAttribute("title")).toContain("25,976.10");
-    expect(spot.getAttribute("title")).toContain("whole points");
+    vi.stubEnv("TZ", TZ_IST);
+    try {
+      mount({
+        report: {
+          ...report,
+          spot: 25_976.1,
+          snapshotAt: SNAPSHOT_AT,
+        } as unknown as NiftyReport,
+      });
+      const spot = screen.getByTestId("nifty-kpi-spot");
+      expect(spot).toHaveTextContent("25,976");
+      expect(spot.getAttribute("title")).toContain(`Snapshot ${SNAPSHOT_AS_OF}`);
+      expect(spot.getAttribute("title")).toContain("25,976.10");
+      expect(spot.getAttribute("title")).toContain("whole points");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 

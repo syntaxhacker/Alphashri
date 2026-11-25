@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { screen, cleanup } from "@solidjs/testing-library";
 import * as palette from "@/ui/palette";
+import { TZ_IST } from "@/config/constants";
 import type { NiftyReport } from "@/types/niftyReport";
 import { buildOiHeatmap, heatmapReadText, readHeatmap, type HeatmapTapeRow } from "./niftyOiHeatmap";
 import { HEATMAP_FLIP, HEATMAP_SPOT, NiftyOiHeatmap } from "./NiftyOiHeatmap";
@@ -23,12 +24,20 @@ vi.mock("./ReportContext", () => ({
 }));
 
 const CANONICAL_SPOT = 22_363.35;
-const CANONICAL_AS_OF = "11:44";
+const CANONICAL_SNAPSHOT_AT = "2026-11-23T11:44:00+05:30";
+// The SUT prints the snapshot in the runner's local zone; pin that zone and
+// derive the expected clock from the same fixture instant.
+const CANONICAL_AS_OF = new Intl.DateTimeFormat("en-IN", {
+  timeZone: TZ_IST,
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+}).format(new Date(CANONICAL_SNAPSHOT_AT));
 const canonicalReport = {
   mode: "live",
   date: "2026-11-23",
   spot: CANONICAL_SPOT,
-  snapshotAt: "2026-11-23T11:44:00+05:30",
+  snapshotAt: CANONICAL_SNAPSHOT_AT,
   regime: { verdict: "range" },
   gex: { regime: "short", zeroCross: 22_400, strikes: [] },
   walls: {
@@ -362,30 +371,35 @@ describe("one spot source across the report surfaces", () => {
   });
 
   test("hero, walls and heatmap read the report spot field with one source and as-of", () => {
-    sharedSpot.report = canonicalReport;
-    const read = readHeatmap(buildOiHeatmap(READ_ROWS, { bucketMin: 5, widthPts: 500 }));
-    r(() => (
-      <>
-        <ReportKpiHero report={canonicalReport} />
-        <NiftyWallsCard walls={wallsFixture} onExpand={() => {}} compact />
-        <HeatmapReadout read={read} readText="" readFallback="" />
-      </>
-    ));
+    vi.stubEnv("TZ", TZ_IST);
+    try {
+      sharedSpot.report = canonicalReport;
+      const read = readHeatmap(buildOiHeatmap(READ_ROWS, { bucketMin: 5, widthPts: 500 }));
+      r(() => (
+        <>
+          <ReportKpiHero report={canonicalReport} />
+          <NiftyWallsCard walls={wallsFixture} onExpand={() => {}} compact />
+          <HeatmapReadout read={read} readText="" readFallback="" />
+        </>
+      ));
 
-    const hero = screen.getByTestId("nifty-kpi-spot");
-    const walls = screen
-      .getByTestId("nifty-walls-card")
-      .querySelector('[data-walls-stat="spot"]') as HTMLElement;
-    const heat = screen.getByTestId("nifty-heatmap-read-spot");
+      const hero = screen.getByTestId("nifty-kpi-spot");
+      const walls = screen
+        .getByTestId("nifty-walls-card")
+        .querySelector('[data-walls-stat="spot"]') as HTMLElement;
+      const heat = screen.getByTestId("nifty-heatmap-read-spot");
 
-    for (const el of [hero, walls, heat]) {
-      expect(el.getAttribute("data-spot-source")).toBe("Snapshot");
-      expect(el.getAttribute("data-spot-as-of")).toBe(CANONICAL_AS_OF);
+      for (const el of [hero, walls, heat]) {
+        expect(el.getAttribute("data-spot-source")).toBe("Snapshot");
+        expect(el.getAttribute("data-spot-as-of")).toBe(CANONICAL_AS_OF);
+      }
+      expect(hero).toHaveTextContent("22,363");
+      expect(walls).toHaveTextContent("22,363.35");
+      expect(heat).toHaveTextContent("22,363");
+      expect(walls.textContent).not.toContain("74,096");
+      expect(heat.textContent).not.toContain("25,760");
+    } finally {
+      vi.unstubAllEnvs();
     }
-    expect(hero).toHaveTextContent("22,363");
-    expect(walls).toHaveTextContent("22,363.35");
-    expect(heat).toHaveTextContent("22,363");
-    expect(walls.textContent).not.toContain("74,096");
-    expect(heat.textContent).not.toContain("25,760");
   });
 });

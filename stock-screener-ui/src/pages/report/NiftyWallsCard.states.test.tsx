@@ -5,11 +5,21 @@ import { createSignal } from "solid-js";
 import { fireEvent, render, screen, within } from "@solidjs/testing-library";
 
 import * as palette from "@/ui/palette";
+import { TZ_IST } from "@/config/constants";
 import { NiftyWallsCard } from "./NiftyWallsCard";
 import { NiftyWallsExpanded } from "./NiftyWallsExpanded";
 import { LevelsInPlayContent } from "./LevelsInPlay";
 import { firstBreakEvent, lastBreakEvent, wallsMaxOi } from "./niftyWallsFormat";
 import { makeReport, onExpand, walls, wallsWithMap } from "./NiftyWallsCard.fixtures";
+
+// The SUT prints the chain snapshot in the runner's local zone; pin that zone
+// and derive the expected clock from the same fixture instant.
+const WALLS_SNAPSHOT_AS_OF = new Intl.DateTimeFormat("en-IN", {
+  timeZone: TZ_IST,
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+}).format(new Date(walls.freshness.last_t));
 
 describe("niftyWallsFormat helpers", () => {
   const row = (oi: number) => ({ strike: 74000, oi });
@@ -106,13 +116,18 @@ describe("NiftyWallsCard", () => {
   });
 
   it("names the chain snapshot instant and the exact spot in the SPOT title", () => {
-    render(() => <NiftyWallsCard walls={walls} onExpand={onExpand} compact />);
-    const card = screen.getByTestId("nifty-walls-card");
-    const spot = card.querySelector('[data-walls-stat="spot"]') as HTMLElement;
-    expect(spot).toHaveTextContent("74,096.00");
-    expect(spot.getAttribute("title")).toContain("Snapshot 15:29");
-    expect(spot.getAttribute("title")).toContain("74,096.00");
-    expect(spot.getAttribute("title")).toContain("whole points");
+    vi.stubEnv("TZ", TZ_IST);
+    try {
+      render(() => <NiftyWallsCard walls={walls} onExpand={onExpand} compact />);
+      const card = screen.getByTestId("nifty-walls-card");
+      const spot = card.querySelector('[data-walls-stat="spot"]') as HTMLElement;
+      expect(spot).toHaveTextContent("74,096.00");
+      expect(spot.getAttribute("title")).toContain(`Snapshot ${WALLS_SNAPSHOT_AS_OF}`);
+      expect(spot.getAttribute("title")).toContain("74,096.00");
+      expect(spot.getAttribute("title")).toContain("whole points");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("opens the pressure desk from the card action", () => {
