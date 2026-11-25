@@ -11,41 +11,65 @@ const PANEL_BODY_CLASS = "flex min-h-0 flex-1 flex-col overflow-hidden px-1 pb-1
 
 export default function AdminPage() {
   return (
-    <Box
-      data-testid="admin-page"
-      className="flex h-full flex-col overflow-hidden"
-    >
-      <Tabs
-        defaultValue="llm"
-        className="flex min-h-0 flex-1 flex-col"
-      >
+    <Box data-testid="admin-page" className="flex h-full min-h-0 flex-col overflow-hidden">
+      <Tabs defaultValue="llm" className="flex min-h-0 flex-1 flex-col">
         <ToolbarRow
           gap={8}
           wrap={false}
           className="shrink-0 border-b border-fin-border px-1"
           style={{ "min-height": "32px", "align-items": "flex-end" }}
         >
-          <Text size="xs" fw={700} c="dimmed" tt="uppercase" style={{ ...typeStyle("micro"), "letter-spacing": "0.6px", "text-transform": "uppercase", "padding-bottom": "7px" }}>
+          <Text
+            size="xs"
+            fw={700}
+            c="dimmed"
+            tt="uppercase"
+            style={{
+              ...typeStyle("micro"),
+              "letter-spacing": "0.6px",
+              "text-transform": "uppercase",
+              "padding-bottom": "7px",
+            }}
+          >
             Admin
           </Text>
-          <Box className="min-w-0 flex-1 overflow-x-auto">
+          <Box
+            className="min-w-0 flex-1 overflow-x-auto"
+            role="region"
+            aria-label="Admin tabs"
+            tabIndex={0}
+          >
             <Tabs.List data-testid="admin-tabs">
               <Tabs.Tab value="llm">LLM stats</Tabs.Tab>
-              <Tabs.Tab value="52w" data-testid="admin-tab-52w">52W range batch</Tabs.Tab>
-              <Tabs.Tab value="news-queue" data-testid="admin-tab-news-queue">News Queue</Tabs.Tab>
-              <Tabs.Tab value="pattern-timeframes" data-testid="admin-tab-pattern-timeframes">Pattern timeframes</Tabs.Tab>
-              <Tabs.Tab value="pattern-images" data-testid="admin-tab-pattern-images">Pattern images</Tabs.Tab>
+              <Tabs.Tab value="52w" data-testid="admin-tab-52w">
+                52W range batch
+              </Tabs.Tab>
+              <Tabs.Tab value="news-queue" data-testid="admin-tab-news-queue">
+                News Queue
+              </Tabs.Tab>
+              <Tabs.Tab value="pattern-timeframes" data-testid="admin-tab-pattern-timeframes">
+                Pattern timeframes
+              </Tabs.Tab>
+              <Tabs.Tab value="pattern-images" data-testid="admin-tab-pattern-images">
+                Pattern images
+              </Tabs.Tab>
             </Tabs.List>
           </Box>
         </ToolbarRow>
         <Tabs.Panel value="llm" className={PANEL_CLASS}>
-          <Box className={PANEL_BODY_CLASS}><LLMStatsPanel /></Box>
+          <Box className={PANEL_BODY_CLASS}>
+            <LLMStatsPanel />
+          </Box>
         </Tabs.Panel>
         <Tabs.Panel value="52w" className={PANEL_CLASS}>
-          <Box className={PANEL_BODY_CLASS}><Admin52wRangePanel /></Box>
+          <Box className={PANEL_BODY_CLASS}>
+            <Admin52wRangePanel />
+          </Box>
         </Tabs.Panel>
         <Tabs.Panel value="news-queue" className={PANEL_CLASS}>
-          <Box className={PANEL_BODY_CLASS}><NewsQueuePanel /></Box>
+          <Box className={PANEL_BODY_CLASS}>
+            <NewsQueuePanel />
+          </Box>
         </Tabs.Panel>
         <Tabs.Panel value="pattern-timeframes" className={PANEL_CLASS}>
           <AdminPatternTimeframesPanel />

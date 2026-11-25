@@ -246,6 +246,8 @@ describe("ChartView (pattern workspace)", () => {
   it("renders the page with the symbol title linked to TradingView", async () => {
     renderPage();
     expect(screen.getByTestId("chart-view")).toBeInTheDocument();
+    const shell = screen.getByTestId("chart-view-root");
+    expect(shell).toHaveClass("h-full", "min-h-0", "flex", "flex-col", "overflow-hidden");
     const title = screen.getByTestId("chart-title");
     expect(title).toHaveTextContent("TEST");
     expect(title).toHaveAttribute(

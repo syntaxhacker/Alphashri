@@ -13,12 +13,7 @@ import { fetchSurges } from "../../api/notifications";
 function TestWrapper(props: { children?: JSX.Element; initialRoute?: string; user?: unknown }) {
   const history = createMemoryHistory();
   history.set({ value: props.initialRoute ?? "/", replace: true, scroll: false });
-  return (
-    <MemoryRouter
-      history={history}
-      root={() => <UIProvider>{props.children}</UIProvider>}
-    />
-  );
+  return <MemoryRouter history={history} root={() => <UIProvider>{props.children}</UIProvider>} />;
 }
 
 // Mock matchMedia
@@ -46,7 +41,11 @@ afterEach(() => {
 
 vi.mock("../layout/NavbarNested", () => ({
   NavbarNested: (props: { activePath: string; collapsed?: boolean }) => (
-    <nav data-testid="navbar-nested" data-active-path={props.activePath} data-collapsed={props.collapsed}>
+    <nav
+      data-testid="navbar-nested"
+      data-active-path={props.activePath}
+      data-collapsed={props.collapsed}
+    >
       NavbarNested
     </nav>
   ),
@@ -75,24 +74,26 @@ describe("AppLayout", () => {
   });
 
   it("renders children correctly", () => {
-    render(() => (<TestWrapper>
+    render(() => (
+      <TestWrapper>
         <AppLayout>
           <div data-testid="child-content">Child Content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     expect(screen.getByTestId("child-content")).toBeInTheDocument();
     expect(screen.getByText("Child Content")).toBeInTheDocument();
   });
 
   it("uses theme for shell backgrounds (live theme aware)", () => {
-    render(() => (<TestWrapper>
+    render(() => (
+      <TestWrapper>
         <AppLayout>
           <div>content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
     // The shell is built from @/ui primitives with theme-aware classes instead of legacy theme vars.
     // Verify shell elements exist and have theme-aware attributes/classes instead of legacy vars.
     const main = screen.getByTestId("app-main");
@@ -105,12 +106,13 @@ describe("AppLayout", () => {
   });
 
   it("renders app shell structure", () => {
-    render(() => (<TestWrapper>
+    render(() => (
+      <TestWrapper>
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
     expect(screen.getByTestId("app-sidebar-header")).toBeInTheDocument();
@@ -119,12 +121,13 @@ describe("AppLayout", () => {
   });
 
   it("does not render a top app bar", () => {
-    render(() => (<TestWrapper>
+    render(() => (
+      <TestWrapper>
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     // The header was removed to reclaim its vertical space; the brand and the
     // controls live in the sidebar chrome instead.
@@ -134,70 +137,76 @@ describe("AppLayout", () => {
   });
 
   it("renders logo", () => {
-    render(() => (<TestWrapper>
+    render(() => (
+      <TestWrapper>
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     expect(screen.getByTestId("app-logo")).toHaveTextContent("Alphashri");
   });
 
   it("renders navbar with NavbarNested", () => {
-    render(() => (<TestWrapper>
+    render(() => (
+      <TestWrapper>
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     expect(screen.getAllByTestId("navbar-nested").length).toBeGreaterThanOrEqual(1);
   });
 
   it("passes active path to NavbarNested", () => {
-    render(() => (<TestWrapper initialRoute="/sector">
+    render(() => (
+      <TestWrapper initialRoute="/sector">
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     const navbars = screen.getAllByTestId("navbar-nested");
     expect(navbars[0]).toHaveAttribute("data-active-path", "/sector");
   });
 
   it("renders children in main content area", () => {
-    render(() => (<TestWrapper>
+    render(() => (
+      <TestWrapper>
         <AppLayout>
           <div data-testid="main-content">Main Content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     const main = screen.getByTestId("app-main");
     expect(main).toContainElement(screen.getByTestId("main-content"));
   });
 
   it("handles navbar collapse toggle", () => {
-    render(() => (<TestWrapper>
+    render(() => (
+      <TestWrapper>
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     const navbars = screen.getAllByTestId("navbar-nested");
     expect(navbars[0]).toHaveAttribute("data-collapsed", "false");
   });
 
   it("toggles desktop collapsed state when sidebar toggle clicked", async () => {
-    render(() => (<TestWrapper initialRoute="/">
+    render(() => (
+      <TestWrapper initialRoute="/">
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
     const toggles = screen.getAllByLabelText("Toggle sidebar");
     await fireEvent.click(toggles[toggles.length - 1]);
     expect(screen.getAllByTestId("navbar-nested")[0]).toHaveAttribute("data-collapsed", "true");
@@ -208,12 +217,13 @@ describe("AppLayout", () => {
   });
 
   it("collapsed rail hides brand, news and bell but keeps the expand control", async () => {
-    render(() => (<TestWrapper initialRoute="/">
+    render(() => (
+      <TestWrapper initialRoute="/">
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     expect(screen.getByTestId("app-logo")).toBeInTheDocument();
     expect(screen.getByTestId("notif-bell")).toBeInTheDocument();
@@ -228,12 +238,13 @@ describe("AppLayout", () => {
   });
 
   it("renders notification bell and opens panel on click", async () => {
-    render(() => (<TestWrapper initialRoute="/">
+    render(() => (
+      <TestWrapper initialRoute="/">
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
     expect(screen.getByTestId("notif-bell")).toBeInTheDocument();
     await fireEvent.click(screen.getByTestId("notif-bell"));
     // NotificationsPanel should be triggered (mocked panel not needed, just bell interaction)
@@ -242,24 +253,26 @@ describe("AppLayout", () => {
 
   it("shows the surge alert count on the bell", async () => {
     vi.mocked(fetchSurges).mockResolvedValueOnce({ total: 5, today_count: 5, events: [] });
-    render(() => (<TestWrapper>
+    render(() => (
+      <TestWrapper>
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     expect(await screen.findByText("5")).toBeInTheDocument();
     expect(screen.getByTestId("notif-badge")).toHaveTextContent("5");
   });
 
   it("hides the surge badge when there are no alerts", async () => {
-    render(() => (<TestWrapper>
+    render(() => (
+      <TestWrapper>
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     await waitFor(() => {
       expect(fetchSurges).toHaveBeenCalled();
@@ -268,24 +281,26 @@ describe("AppLayout", () => {
   });
 
   it("passes collapsed prop correctly to NavbarNested after toggle", async () => {
-    render(() => (<TestWrapper initialRoute="/">
+    render(() => (
+      <TestWrapper initialRoute="/">
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
     const desktopToggle = screen.getAllByLabelText("Toggle sidebar").pop()!;
     await fireEvent.click(desktopToggle);
     expect(screen.getAllByTestId("navbar-nested")[0]).toHaveAttribute("data-collapsed", "true");
   });
 
   it("applies the rail width as a CSS length string", async () => {
-    render(() => (<TestWrapper initialRoute="/">
+    render(() => (
+      <TestWrapper initialRoute="/">
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     expect(screen.getByTestId("app-navbar").getAttribute("style")).toMatch(/width:\s*148px/);
 
@@ -296,23 +311,48 @@ describe("AppLayout", () => {
 
   it("omits the mobile nav bar on desktop", () => {
     // The file-level matchMedia mock reports min-width:900px as matching.
-    render(() => (<TestWrapper>
+    render(() => (
+      <TestWrapper>
         <AppLayout>
           <div>Content</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     expect(screen.queryByTestId("app-mobile-nav-bar")).not.toBeInTheDocument();
   });
 
+  it("makes the shell a fixed frame, not a document scroller", () => {
+    render(() => (
+      <TestWrapper>
+        <AppLayout>
+          <div data-testid="page-root" />
+        </AppLayout>
+      </TestWrapper>
+    ));
+
+    const shell = screen.getByTestId("app-shell");
+    expect(shell.className).toContain("h-screen");
+    expect(shell.className).toContain("overflow-hidden");
+    expect(shell.style.height).toBe("100vh");
+    expect(shell.style.overflow).toBe("hidden");
+
+    const main = screen.getByTestId("app-main");
+    expect(main.className).toContain("overflow-hidden");
+    expect(main.style.overflow).toBe("hidden");
+    // The rail is a flex column so NavbarNested's internal scroll region can
+    // actually shrink; a block wrapper would clip the last nav link.
+    expect(screen.getByTestId("app-navbar").style.display).toBe("flex");
+  });
+
   it("keeps the desktop content column structurally unchanged", () => {
-    render(() => (<TestWrapper>
+    render(() => (
+      <TestWrapper>
         <AppLayout>
           <div data-testid="page-header">Page title</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     const main = screen.getByTestId("app-main");
     // No 44px reservation bar: the page header is the first thing in the
@@ -343,12 +383,13 @@ describe("AppLayout mobile nav gutter", () => {
   });
 
   it("reserves a real 44px sticky bar above page content, with the toggle inside it", () => {
-    render(() => (<TestWrapper>
+    render(() => (
+      <TestWrapper>
         <AppLayout>
           <div data-testid="page-header">Page title</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     const bar = screen.getByTestId("app-mobile-nav-bar");
     expect(bar).toBeInTheDocument();
@@ -366,12 +407,13 @@ describe("AppLayout mobile nav gutter", () => {
   });
 
   it("puts the bar before the content column so headers never start under the toggle", () => {
-    render(() => (<TestWrapper>
+    render(() => (
+      <TestWrapper>
         <AppLayout>
           <div data-testid="page-header">Page title</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     const main = screen.getByTestId("app-main");
     const bar = screen.getByTestId("app-mobile-nav-bar");
@@ -385,12 +427,13 @@ describe("AppLayout mobile nav gutter", () => {
   });
 
   it("structurally reserves the 44px gutter below the desktop breakpoint", () => {
-    render(() => (<TestWrapper>
+    render(() => (
+      <TestWrapper>
         <AppLayout>
           <div data-testid="page-header">Page title</div>
         </AppLayout>
-      </TestWrapper>),
-    );
+      </TestWrapper>
+    ));
 
     const main = screen.getByTestId("app-main");
     const bar = screen.getByTestId("app-mobile-nav-bar");
@@ -412,6 +455,9 @@ describe("AppLayout mobile nav gutter", () => {
     expect(contentColumn.style.width).toBe("100%");
     expect(contentColumn.className).toContain("flex-1");
     expect(contentColumn.style.minHeight).toBe("0px");
-    expect(main.style.overflow).toBe("auto");
+    // The main column is a frame, not the scroll owner: each route page puts
+    // its own internal region in charge so the page chrome never scrolls away.
+    expect(main.style.overflow).toBe("hidden");
+    expect(main.className).toContain("overflow-hidden");
   });
 });

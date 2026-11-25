@@ -60,7 +60,9 @@ export function UniverseBar(props: UniverseBarProps) {
   // so focus the paste box imperatively once the dialog mounts.
   createEffect(() => {
     if (!pasteOpen()) return;
-    const el = document.querySelector<HTMLTextAreaElement>('[data-testid="patterns-paste-symbols-input"]');
+    const el = document.querySelector<HTMLTextAreaElement>(
+      '[data-testid="patterns-paste-symbols-input"]',
+    );
     el?.focus();
   });
 
@@ -76,7 +78,8 @@ export function UniverseBar(props: UniverseBarProps) {
   // ~200px while a scan is queued/running or has failed. It stays mounted
   // (display:none) so the `patterns-job-status` contract is preserved.
   const liveStatuses = new Set(["queued", "running", "failed", "cancelled"]);
-  const showStatus = () => props.scanning || (props.job != null && liveStatuses.has(props.job.status));
+  const showStatus = () =>
+    props.scanning || (props.job != null && liveStatuses.has(props.job.status));
   const customActive = () => props.universe === customUniverse();
   const scanDisabled = () => props.scanning || (customActive() && customSymbolCount() === 0);
   const scanLabel = () =>
@@ -85,7 +88,7 @@ export function UniverseBar(props: UniverseBarProps) {
       : "Scan again";
 
   return (
-    <Box className="sticky top-0 z-[5] min-w-0 bg-fin-surface pb-1">
+    <Box className="sticky top-0 z-[5] min-w-0 shrink-0 bg-fin-surface pb-1">
       <Box
         data-testid="patterns-universe-bar"
         className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-fin-border bg-fin-surface"
@@ -181,15 +184,17 @@ export function UniverseBar(props: UniverseBarProps) {
           </Tooltip>
         </Show>
 
-        <Box
-          className="ml-auto flex min-w-0 shrink-0 flex-nowrap items-center justify-end gap-1.5"
-        >
+        <Box className="ml-auto flex min-w-0 shrink-0 flex-nowrap items-center justify-end gap-1.5">
           <Box
             data-testid="patterns-job-status-wrap"
             data-visible={showStatus() ? "true" : "false"}
             className={cn("min-w-0", showStatus() ? "flex" : "hidden")}
           >
-            <JobStatus job={props.job} queuePosition={props.queuePosition} scanning={props.scanning} />
+            <JobStatus
+              job={props.job}
+              queuePosition={props.queuePosition}
+              scanning={props.scanning}
+            />
           </Box>
           {props.scanActions}
           <button

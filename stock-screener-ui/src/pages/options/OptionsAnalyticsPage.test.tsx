@@ -140,6 +140,15 @@ describe("OptionsAnalyticsPage — route + fetch", () => {
     expect(h.loadDashboard).toHaveBeenCalledWith("AAPL");
   });
 
+  it("keeps the route fixed and delegates scrolling to the analytics body", async () => {
+    renderPage();
+    const shell = screen.getByTestId("options-analytics-page");
+    expect(shell).toHaveClass("h-full", "min-h-0", "flex-col", "overflow-hidden");
+
+    const body = screen.getByTestId("analytics-body");
+    expect(body).toHaveClass("min-h-0", "flex-1", "overflow-hidden");
+  });
+
   it("renders the spot, live badge and the lazy volatility panel with the payload", async () => {
     renderPage();
 

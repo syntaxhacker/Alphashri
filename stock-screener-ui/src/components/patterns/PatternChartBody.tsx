@@ -216,7 +216,11 @@ function SectionLabel(props: { children?: JSX.Element; action?: JSX.Element }) {
         size="xs"
         fw={700}
         c="dimmed"
-        style={{ "font-size": `${typeSize("micro")}px`, "text-transform": "uppercase", "letter-spacing": "0.4px" }}
+        style={{
+          "font-size": `${typeSize("micro")}px`,
+          "text-transform": "uppercase",
+          "letter-spacing": "0.4px",
+        }}
       >
         {props.children}
       </Text>
@@ -361,7 +365,8 @@ function FullscreenPanel(props: {
                 </Text>
               </SymbolTvLink>
               <Text size="xs" c="dimmed" className="whitespace-nowrap text-ui-micro">
-                {props.hit.timeframe} · {props.hit.bars_ago} bar{props.hit.bars_ago === 1 ? "" : "s"} ago
+                {props.hit.timeframe} · {props.hit.bars_ago} bar
+                {props.hit.bars_ago === 1 ? "" : "s"} ago
               </Text>
             </Box>
             <Text size="xs" c="dimmed" className="truncate text-ui-micro">
@@ -429,7 +434,10 @@ function FullscreenPanel(props: {
           <Show when={props.hit.confidence != null}>
             <Box className="flex w-28 flex-shrink-0 flex-col items-end gap-1">
               <Text size="xs" c="dimmed" className="text-ui-micro uppercase tracking-[0.4px]">
-                Confidence <span className="font-mono tabular-nums text-fin-text">{props.hit.confidence}%</span>
+                Confidence{" "}
+                <span className="font-mono tabular-nums text-fin-text">
+                  {props.hit.confidence}%
+                </span>
               </Text>
               <Box
                 className="h-[3px] w-full rounded-full overflow-hidden"
@@ -445,14 +453,23 @@ function FullscreenPanel(props: {
 
       <Show when={!props.docked && props.hits && props.onSelectHit}>
         <Box className="border-t border-fin-border px-3 py-2">
-          <FullscreenPatternList hits={props.hits!} activeKey={activeKey()} onSelect={props.onSelectHit!} />
+          <FullscreenPatternList
+            hits={props.hits!}
+            activeKey={activeKey()}
+            onSelect={props.onSelectHit!}
+          />
         </Box>
       </Show>
 
       <Show when={props.hit.notes}>
         <Box className="flex flex-col gap-1 border-t border-fin-border px-3 py-2">
           <SectionLabel>Notes</SectionLabel>
-          <Text size="xs" c="dimmed" className="text-ui-micro" style={{ "overflow-wrap": "anywhere" }}>
+          <Text
+            size="xs"
+            c="dimmed"
+            className="text-ui-micro"
+            style={{ "overflow-wrap": "anywhere" }}
+          >
             {props.hit.notes}
           </Text>
         </Box>
@@ -721,7 +738,12 @@ function FullscreenTV(props: {
             </Text>
           </Show>
           <Show when={props.chartError}>
-            <Text size="xs" c="dimmed" data-testid="chart-empty-reason" className="font-mono opacity-70">
+            <Text
+              size="xs"
+              c="dimmed"
+              data-testid="chart-empty-reason"
+              className="font-mono opacity-70"
+            >
               {props.chartError}
             </Text>
           </Show>
@@ -767,7 +789,7 @@ export function PatternChartBody(props: PatternChartBodyProps) {
       <Box
         className={
           docked()
-            ? "flex min-h-0 flex-col gap-2 p-2"
+            ? "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2"
             : fill()
               ? "flex min-h-0 flex-1 flex-col gap-4 p-4 lg:flex-row"
               : "flex min-h-0 flex-col gap-4 p-4 h-auto lg:h-[calc(100vh-72px)] lg:flex-row"
@@ -784,7 +806,9 @@ export function PatternChartBody(props: PatternChartBodyProps) {
           }`}
         >
           <ToolbarRow justify="flex-start" gap={6} style={{ "padding-bottom": "4px" }}>
-            <Text size="xs" c="dimmed">History</Text>
+            <Text size="xs" c="dimmed">
+              History
+            </Text>
             <Show when={props.feedLabel || props.delayLabel}>
               <Text
                 size="xs"

@@ -341,5 +341,7 @@ useChartPatterns() -> {
 - Frontend: vitest component/state/API tests; Playwright spec
   `e2e/patterns.spec.ts` (open `/patterns`, see cards, switch TF, filter, open
   detail).
-- Visual: main agent captures chrome-devtools screenshots per TF and per selected
-  pattern on the final build and verifies overlays render correctly.
+- Visual: the implementer captures chrome-devtools screenshots per TF and per selected
+  pattern on the final build. The main agent verifies and approves through the
+  independent gate ([`UI_RULES.md` §7](../UI_RULES.md#7-visual-review-gate-independent-verifier--approver))
+  and is the **sole git actor**; implementers never commit, push or open PRs.

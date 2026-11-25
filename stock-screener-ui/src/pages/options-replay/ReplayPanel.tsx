@@ -771,7 +771,8 @@ export function ReplayPanel(props: ReplayPanelProps) {
                     role="region"
                     aria-label="Payoff table, scroll sideways for more strikes"
                     data-testid="replay-table-scroll"
-                    className="flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden"
+                    tabIndex={0}
+                    className="flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
                   >
                     <div className="h-full min-w-[520px]">
                       <PayoffTable
@@ -787,11 +788,11 @@ export function ReplayPanel(props: ReplayPanelProps) {
                       />
                     </div>
                   </div>
-                  <Show when={isNarrow()}>
-                    <Text size="xs" c="dimmed" data-testid="replay-table-scroll-hint" className="shrink-0">
-                      Scroll sideways to see more strikes.
-                    </Text>
-                  </Show>
+                  <Text size="xs" c="dimmed" data-testid="replay-table-scroll-hint" className="shrink-0">
+                    {isNarrow()
+                      ? "Scroll sideways to see more strikes."
+                      : "Scroll sideways if the payoff matrix is wider than the panel."}
+                  </Text>
                 </div>
               </TabsPanel>
 

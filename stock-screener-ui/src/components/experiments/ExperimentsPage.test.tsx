@@ -105,6 +105,16 @@ describe("ExperimentsPage", () => {
     expect(fetchStrategies).toHaveBeenCalled();
   });
 
+  it("keeps the route shell fixed and the experiment grid as the vertical scroll owner", () => {
+    render(() => (<ExperimentsPage />), { wrapper: Wrapper });
+    const shell = screen.getByTestId("experiments-page");
+    expect(shell).toHaveClass("h-full", "min-h-0", "flex", "flex-col", "overflow-hidden");
+
+    const grid = shell.querySelector(".grid.flex-1") as HTMLElement;
+    expect(grid).toHaveClass("overflow-y-auto");
+    expect(grid).toHaveClass("min-h-0");
+  });
+
   it("renders the session list with session info", () => {
     currentState = makeState({
       sessions: [

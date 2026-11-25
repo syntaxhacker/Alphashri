@@ -3,7 +3,7 @@
 Scope: the Index Report surface (`/report/index`, NIFTY and generic SENSEX/RELIANCE).
 This is a contract over **existing** tokens, components and constants. It invents
 no new component, panel, breakpoint or font size. Every rule below points at the
-file that owns it. The composition is the final A++ shape: one decision hero,
+file that owns it. The composition is the final A+ shape: one decision hero,
 chart-first content at both widths, and everything else collapsed or ordered
 behind it.
 
@@ -72,7 +72,7 @@ Rules:
 - Radius vocabulary `REPORT_RADIUS` 2/4/6/10 only (hairline 2, chip/badge 4,
   control/panel 6, large container 10).
 
-## 3. Final A++ composition
+## 3. Final A+ composition
 
 Both widths lead with the same content: **decision hero → chart → everything else**.
 At 1600 the chart is the largest block (`ReportWorkspace.tsx` `1fr / 420px`,
@@ -272,5 +272,5 @@ claim: `reportFontFloor.test.ts`, `ReportLegibility.test.tsx`,
 `niftyChartData.math.test.ts` / `.session.test.ts`, and every facade's
 `*.structure.test.ts`. This was a docs-only edit: no build, lint, suite, browser
 measurement or screenshot read-back was run for it. The 1600/390 final capture
-read-back and the independent A++ rating are **not claimed here** — they remain
+read-back and the independent A+ verification are **not claimed here** — they remain
 pending and are owned by the code/evidence wave.

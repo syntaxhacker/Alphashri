@@ -59,13 +59,18 @@ export function OptionChainPanel(props: OptionChainPanelProps) {
   const liveState = createMemo(() => getChainLiveState(props.timestamp, nowMs()));
 
   return (
-    <Stack id="chain-panel" spacing={1} className="w-full" data-testid="options-chain-panel">
+    <Stack
+      id="chain-panel"
+      spacing={1}
+      className="flex h-full min-h-0 w-full flex-col"
+      data-testid="options-chain-panel"
+    >
       {/* Spot + sync state only: the underlying/expiry/type filters and the
           guide/refresh actions live in the page's context band. */}
       <Box
         id="chain-header"
         data-testid="options-chain-header"
-        className="flex w-full flex-wrap items-center gap-2 p-2"
+        className="flex w-full shrink-0 flex-wrap items-center gap-2 p-2"
       >
         <LiveSpotChart underlying={props.selectedUnderlying} />
         <Show when={props.timestamp && !props.loading}>
@@ -115,8 +120,14 @@ export function OptionChainPanel(props: OptionChainPanelProps) {
           </Alert>
         </Match>
         <Match when={true}>
-          <Box className="w-full">
-            <Tabs id="chain-view-tabs" defaultValue="table" data-testid="chain-view-tabs" style={{ width: "100%" }}>
+          <Box className="flex min-h-0 w-full flex-1 flex-col">
+            <Tabs
+              id="chain-view-tabs"
+              defaultValue="table"
+              data-testid="chain-view-tabs"
+              className="flex min-h-0 flex-col"
+              style={{ width: "100%", flex: 1 }}
+            >
               <TabsList data-testid="options-chain-view-tabs-list">
                 <Tab value="table" leftSection={<IconTable size={14} />} data-testid="chain-tab-table">
                   Option Chain Table
@@ -126,14 +137,24 @@ export function OptionChainPanel(props: OptionChainPanelProps) {
                 </Tab>
               </TabsList>
 
-              <TabsPanel value="table" data-testid="options-chain-table-panel">
-                <Stack spacing={1} className="w-full">
-                  <ChainSummary strikeMatrix={props.strikeMatrix} spotPrice={props.spotPrice} selectedExpiry={props.selectedExpiry} summary={props.summary} />
+              <TabsPanel
+                value="table"
+                data-testid="options-chain-table-panel"
+                className="flex min-h-0 flex-1 flex-col"
+              >
+                <Stack spacing={1} className="flex h-full min-h-0 w-full flex-col">
+                  <Box className="shrink-0">
+                    <ChainSummary strikeMatrix={props.strikeMatrix} spotPrice={props.spotPrice} selectedExpiry={props.selectedExpiry} summary={props.summary} />
+                  </Box>
                   <OptionChainTable strikeMatrix={props.strikeMatrix} filters={props.filters} spotPrice={props.spotPrice} onRowClick={() => {}} />
                 </Stack>
               </TabsPanel>
 
-              <TabsPanel value="analysis" data-testid="options-chain-analysis-panel">
+              <TabsPanel
+                value="analysis"
+                data-testid="options-chain-analysis-panel"
+                className="min-h-0 flex-1 overflow-y-auto"
+              >
                 <Box className="w-full">
                   <OIAnalysis strikeMatrix={props.strikeMatrix} spotPrice={props.spotPrice} summary={props.summary} />
                 </Box>

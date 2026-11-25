@@ -103,7 +103,10 @@ export function StrategyRunnerPage() {
   };
 
   return (
-    <Box className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-fin-bg">
+    <Box
+      className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-fin-bg"
+      data-testid="strategy-runner-page"
+    >
       <ToolbarRow
         gap={8}
         wrap={false}
@@ -150,7 +153,11 @@ export function StrategyRunnerPage() {
         <StrategyRunnerStats trades={trades()} summary={summary()} isRunning={isRunning()} progress={progress()} />
       </Box>
 
-      <Box style={{ flex: 1, "min-height": 0, "min-width": 0, overflow: "hidden", display: "flex", "flex-direction": "column" }} data-testid="sr-tabs">
+      <Box
+        style={{ flex: 1, "min-height": 0, "min-width": 0, overflow: "hidden", display: "flex", "flex-direction": "column" }}
+        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+        data-testid="sr-tabs"
+      >
         <StrategyRunnerTabs trades={trades()} summary={summary()} bots={bots()} />
       </Box>
     </Box>

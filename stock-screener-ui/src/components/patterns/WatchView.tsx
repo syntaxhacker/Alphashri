@@ -1,6 +1,18 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
-import { Alert, Badge, Box, Loader, NumberInput, Select, Switch, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
+import {
+  Alert,
+  Badge,
+  Box,
+  Loader,
+  NumberInput,
+  Select,
+  Switch,
+  Text,
+  TextInput,
+  ToolbarRow,
+  Tooltip,
+} from "@/ui";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { fetchMarketStatus, fetchWatch, fetchWatchSetups, streamWatch } from "@/api/chartPatterns";
 import type { MarketStatus, WatchRow, WatchSetup } from "@/types/chartPatterns";
@@ -11,6 +23,7 @@ import { isMarketOpenIst } from "@/utils/marketClock";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import { SymbolLink } from "@/components/common/SymbolLink";
 import { PatternTags, hasTag, rowTags, shortIstDate } from "./rowBadges";
+import { PatternScrollRegion } from "./PatternScrollRegion";
 
 export const WATCH_POLL_MS = 60000;
 export const WATCH_AUTO_REFRESH = false;
@@ -140,9 +153,14 @@ function stateCell(ctx: { column?: { accessorKey?: unknown }; row: { original: W
 
 type WatchCellContext = { row: { original: WatchRow } };
 
-const ctxGet = (ctx: { column?: { accessorKey?: unknown }; row: { original: WatchRow } }): unknown => {
+const ctxGet = (ctx: {
+  column?: { accessorKey?: unknown };
+  row: { original: WatchRow };
+}): unknown => {
   const key = ctx.column?.accessorKey;
-  return typeof key === "string" ? (ctx.row.original as unknown as Record<string, unknown>)[key] : undefined;
+  return typeof key === "string"
+    ? (ctx.row.original as unknown as Record<string, unknown>)[key]
+    : undefined;
 };
 
 const symbolCell = (ctx: WatchCellContext) => {
@@ -492,88 +510,93 @@ export function WatchView(props: WatchViewProps) {
   };
 
   const load = async (background: boolean) => {
-      const token = requestRef + 1;
-      requestRef = token;
-      streamControllerRef?.abort();
-      const controller = new AbortController();
-      streamControllerRef = controller;
-      if (background) setRefreshing(true);
-      else {
-        setLoading(true);
-        setItems([]);
-      }
-      setError(null);
-      setStreaming(false);
-      setStreamMeta(null);
-      const query = { setup: setup(), universe: universe(), timeframe: timeframe(), minBaseDays: minBaseDays(), minRelVolume: minRelVolume() };
-
-      {
-        const streamed: WatchRow[] = [];
-        let streamOk = false;
-        let streamFailed = false;
-        setStreaming(true);
-        try {
-          await streamWatch(query, {
-            signal: controller.signal,
-            onMeta: (meta) => {
-              if (requestRef !== token) return;
-              setStreamMeta(meta);
-              if (meta.updated_at) setUpdatedAt(meta.updated_at);
-            },
-            onItem: (row) => {
-              if (requestRef !== token) return;
-              streamed.push(row);
-              setItems([...streamed]);
-              if (!background) setLoading(false);
-            },
-            onDone: () => {
-              streamOk = true;
-            },
-            onError: () => {
-              streamFailed = true;
-            },
-          });
-        } catch {
-          streamFailed = true;
-        }
-        if (requestRef !== token) return;
-        if (controller.signal.aborted) {
-          if (background) setRefreshing(false);
-          else setLoading(false);
-          setStreaming(false);
-          return;
-        }
-        if (streamOk && !streamFailed) {
-          setStreaming(false);
-          setRefreshing(false);
-          setLoading(false);
-          setError(null);
-          return;
-        }
-      }
-
-      try {
-        const payload = await fetchWatch(query);
-        if (requestRef !== token) return;
-        setItems(payload.items ?? []);
-        setUpdatedAt(payload.updated_at ?? null);
-        setError(null);
-      } catch (err) {
-        if (requestRef !== token) return;
-        setError(err instanceof Error && err.message ? err.message : "Failed to load watch list");
-      } finally {
-        if (requestRef === token) {
-          setStreaming(false);
-          if (background) setRefreshing(false);
-          else setLoading(false);
-        }
-      }
+    const token = requestRef + 1;
+    requestRef = token;
+    streamControllerRef?.abort();
+    const controller = new AbortController();
+    streamControllerRef = controller;
+    if (background) setRefreshing(true);
+    else {
+      setLoading(true);
+      setItems([]);
+    }
+    setError(null);
+    setStreaming(false);
+    setStreamMeta(null);
+    const query = {
+      setup: setup(),
+      universe: universe(),
+      timeframe: timeframe(),
+      minBaseDays: minBaseDays(),
+      minRelVolume: minRelVolume(),
     };
+
+    {
+      const streamed: WatchRow[] = [];
+      let streamOk = false;
+      let streamFailed = false;
+      setStreaming(true);
+      try {
+        await streamWatch(query, {
+          signal: controller.signal,
+          onMeta: (meta) => {
+            if (requestRef !== token) return;
+            setStreamMeta(meta);
+            if (meta.updated_at) setUpdatedAt(meta.updated_at);
+          },
+          onItem: (row) => {
+            if (requestRef !== token) return;
+            streamed.push(row);
+            setItems([...streamed]);
+            if (!background) setLoading(false);
+          },
+          onDone: () => {
+            streamOk = true;
+          },
+          onError: () => {
+            streamFailed = true;
+          },
+        });
+      } catch {
+        streamFailed = true;
+      }
+      if (requestRef !== token) return;
+      if (controller.signal.aborted) {
+        if (background) setRefreshing(false);
+        else setLoading(false);
+        setStreaming(false);
+        return;
+      }
+      if (streamOk && !streamFailed) {
+        setStreaming(false);
+        setRefreshing(false);
+        setLoading(false);
+        setError(null);
+        return;
+      }
+    }
+
+    try {
+      const payload = await fetchWatch(query);
+      if (requestRef !== token) return;
+      setItems(payload.items ?? []);
+      setUpdatedAt(payload.updated_at ?? null);
+      setError(null);
+    } catch (err) {
+      if (requestRef !== token) return;
+      setError(err instanceof Error && err.message ? err.message : "Failed to load watch list");
+    } finally {
+      if (requestRef === token) {
+        setStreaming(false);
+        if (background) setRefreshing(false);
+        else setLoading(false);
+      }
+    }
+  };
 
   createEffect(() => {
     void load(false);
   });
-
 
   // Holiday-aware market status: fetched once on mount, refreshed every
   // MARKET_STATUS_POLL_MS (3 min). While available it gates the live badge + the
@@ -617,9 +640,7 @@ export function WatchView(props: WatchViewProps) {
     onCleanup(() => window.clearInterval(timer));
   });
 
-  const setupOptions = createMemo(() =>
-    setups().map((s) => ({ value: s.id, label: s.label })),
-  );
+  const setupOptions = createMemo(() => setups().map((s) => ({ value: s.id, label: s.label })));
   const activeSetup = () => setups().find((s) => s.id === setup()) ?? null;
 
   const filtered = createMemo(() => {
@@ -629,7 +650,13 @@ export function WatchView(props: WatchViewProps) {
       setup() === "near_52w" ? row.close_gap : row.pct_to_trigger;
     return items().filter((row) => {
       if (hideEtfs() && hasTag(row, "ETF")) return false;
-      if (q && !String(row.symbol || "").toUpperCase().includes(q)) return false;
+      if (
+        q &&
+        !String(row.symbol || "")
+          .toUpperCase()
+          .includes(q)
+      )
+        return false;
       if (hideInvalidated() && row.state === "invalidated") return false;
       if (stateFilter() !== "all" && row.state !== stateFilter()) return false;
       if (maxAbs != null) {
@@ -659,7 +686,12 @@ export function WatchView(props: WatchViewProps) {
                     onPreview={props.onSymbolPreview}
                     onPreviewEnd={props.onSymbolPreviewEnd}
                   />
-                  <PatternTags tags={rowTags(ctx.row.original)} symbol={ctx.row.original.symbol} testIdPrefix="watch" compact />
+                  <PatternTags
+                    tags={rowTags(ctx.row.original)}
+                    symbol={ctx.row.original.symbol}
+                    testIdPrefix="watch"
+                    compact
+                  />
                 </Box>
               );
             },
@@ -688,13 +720,26 @@ export function WatchView(props: WatchViewProps) {
   };
 
   return (
-    <Box data-testid="watch-view" className="flex min-w-0 flex-col gap-1">
-      <ToolbarRow justify="space-between" data-testid="watch-toolbar" gap={8} wrap={false} className="h-9">
+    <Box
+      data-testid="watch-view"
+      className="flex h-full min-h-0 min-w-0 flex-col gap-1 overflow-hidden"
+    >
+      <ToolbarRow
+        justify="space-between"
+        data-testid="watch-toolbar"
+        gap={8}
+        wrap={false}
+        className="h-9"
+      >
         <ToolbarRow gap={8} wrap={false}>
           <Select
             value={setup()}
             onChange={(v) => setSetup(String(v ?? "breakout"))}
-            data={setupOptions().length > 0 ? setupOptions() : [{ value: "breakout", label: "Breakout" }]}
+            data={
+              setupOptions().length > 0
+                ? setupOptions()
+                : [{ value: "breakout", label: "Breakout" }]
+            }
             placeholder="Setup"
             aria-label="Watch setup"
             w={200}
@@ -707,7 +752,9 @@ export function WatchView(props: WatchViewProps) {
                 placeholder="Vol (adj) ≥"
                 aria-label="Vol (adj) gate"
                 value={relVol()}
-                onChange={(v: number | string) => setRelVol(typeof v === "number" ? v : v === "" ? "" : Number(v))}
+                onChange={(v: number | string) =>
+                  setRelVol(typeof v === "number" ? v : v === "" ? "" : Number(v))
+                }
                 min={0}
                 step={0.1}
                 w={120}
@@ -737,15 +784,22 @@ export function WatchView(props: WatchViewProps) {
               {snapshotAge()}
             </Text>
           </Show>
-          <Show when={live()} fallback={
-            <Tooltip
-              label={marketStatus()?.holiday ? "NSE holiday — polling paused" : "Market closed — polling paused"}
-            >
-              <Badge color="default" size="xs" data-testid="watch-live-indicator">
-                paused
-              </Badge>
-            </Tooltip>
-          }>
+          <Show
+            when={live()}
+            fallback={
+              <Tooltip
+                label={
+                  marketStatus()?.holiday
+                    ? "NSE holiday — polling paused"
+                    : "Market closed — polling paused"
+                }
+              >
+                <Badge color="default" size="xs" data-testid="watch-live-indicator">
+                  paused
+                </Badge>
+              </Tooltip>
+            }
+          >
             <Badge color="success" size="xs" data-testid="watch-live-indicator">
               live
             </Badge>
@@ -755,7 +809,13 @@ export function WatchView(props: WatchViewProps) {
 
       <ToolbarRow gap={2} wrap={false} clip className="h-6" data-testid="watch-summary">
         <Show when={activeSetup()?.description}>
-          <Text size="xs" c="dimmed" truncate className="min-w-0" data-testid="watch-setup-description">
+          <Text
+            size="xs"
+            c="dimmed"
+            truncate
+            className="min-w-0"
+            data-testid="watch-setup-description"
+          >
             {activeSetup()!.description}
           </Text>
         </Show>
@@ -798,7 +858,9 @@ export function WatchView(props: WatchViewProps) {
           placeholder="≤ % of trigger"
           aria-label="Within % of trigger"
           value={withinPct()}
-          onChange={(v: number | string) => setWithinPct(typeof v === "number" ? v : v === "" ? "" : Number(v))}
+          onChange={(v: number | string) =>
+            setWithinPct(typeof v === "number" ? v : v === "" ? "" : Number(v))
+          }
           min={0}
           step={1}
           size="sm"
@@ -864,42 +926,57 @@ export function WatchView(props: WatchViewProps) {
         </Alert>
       </Show>
 
-      <Show when={loading() && items().length === 0} fallback={
-        <Show when={items().length === 0 && !error()} fallback={
-          // Keyed on the setup so switching setups remounts the table: the
-          // header sort and scroll position belong to the previous setup.
-          <Show when={setup()} keyed>
-            {(_setup) => (
-              <TanStackTable<WatchRow>
-                data={filtered()}
-                columns={columns()}
-                dataTestId="watch-table"
-                loading={loading()}
-                emptyMessage={items().length > 0 ? "No rows match the filters." : "No breakout candidates right now."}
-                initialState={{ sorting: initialSorting() }}
-                onRowClick={(row) => props.onOpenSymbol?.(row.symbol)}
-                getRowTestId={(row) => `watch-row-${row.symbol}`}
-              />
-            )}
-          </Show>
-        }>
-          <Box
-            data-testid="watch-empty"
-            className="flex flex-col items-center gap-2 rounded-fin border border-dashed border-fin-border bg-fin-surface px-4 py-12 text-center"
+      <Show
+        when={loading() && items().length === 0}
+        fallback={
+          <Show
+            when={items().length === 0 && !error()}
+            fallback={
+              // Keyed on the setup so switching setups remounts the table: the
+              // header sort and scroll position belong to the previous setup.
+              <Show when={setup()} keyed>
+                {(_setup) => (
+                  <PatternScrollRegion
+                    testId="watch-table-scroll-region"
+                    cueTestId="watch-table-scroll-cue"
+                    ariaLabel="Watch list, scroll sideways for more columns"
+                    stickyFirstColumn
+                  >
+                    <TanStackTable<WatchRow>
+                      data={filtered()}
+                      columns={columns()}
+                      dataTestId="watch-table"
+                      loading={loading()}
+                      emptyMessage={
+                        items().length > 0
+                          ? "No rows match the filters."
+                          : "No breakout candidates right now."
+                      }
+                      initialState={{ sorting: initialSorting() }}
+                      fillContainer
+                      onRowClick={(row) => props.onOpenSymbol?.(row.symbol)}
+                      getRowTestId={(row) => `watch-row-${row.symbol}`}
+                    />
+                  </PatternScrollRegion>
+                )}
+              </Show>
+            }
           >
-            <Text size="sm" c="dimmed">
-              No breakout candidates right now.
-            </Text>
-            <Text size="xs" c="dimmed">
-              {`${universe()} · ${timeframe()} · ${setup()}`}
-            </Text>
-          </Box>
-        </Show>
-      }>
-        <Box
-          data-testid="watch-loading"
-          className="flex flex-col items-center gap-2 py-12"
-        >
+            <Box
+              data-testid="watch-empty"
+              className="flex flex-col items-center gap-2 rounded-fin border border-dashed border-fin-border bg-fin-surface px-4 py-12 text-center"
+            >
+              <Text size="sm" c="dimmed">
+                No breakout candidates right now.
+              </Text>
+              <Text size="xs" c="dimmed">
+                {`${universe()} · ${timeframe()} · ${setup()}`}
+              </Text>
+            </Box>
+          </Show>
+        }
+      >
+        <Box data-testid="watch-loading" className="flex flex-col items-center gap-2 py-12">
           <Loader size="lg" />
           <Text size="sm" c="dimmed">
             Loading watch list…

@@ -150,13 +150,15 @@ function config(layouts: WindowLayout[], active: string): Record<string, unknown
 }
 
 function makeTransport(saved?: Record<string, unknown>) {
-  const get = vi.fn<SavedConfigTransport["get"]>().mockResolvedValue(
-    envelope(saved ?? {}, saved != null),
-  );
-  const put = vi.fn<SavedConfigTransport["put"]>().mockImplementation(async (_scope, cfg) =>
-    envelope(cfg as Record<string, unknown>, true),
-  );
-  const del = vi.fn<SavedConfigTransport["del"]>().mockResolvedValue({ scope: "window.home", deleted: true });
+  const get = vi
+    .fn<SavedConfigTransport["get"]>()
+    .mockResolvedValue(envelope(saved ?? {}, saved != null));
+  const put = vi
+    .fn<SavedConfigTransport["put"]>()
+    .mockImplementation(async (_scope, cfg) => envelope(cfg as Record<string, unknown>, true));
+  const del = vi
+    .fn<SavedConfigTransport["del"]>()
+    .mockResolvedValue({ scope: "window.home", deleted: true });
   return { transport: { get, put, del }, get, put, del };
 }
 
@@ -206,10 +208,7 @@ describe("HOME window desk", () => {
     // heatmap says nothing about the options window. Await it on its own or the
     // assertion races the dynamic import on a loaded runner.
     expect(await screen.findByTestId("options-chain-window")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringMatching(SNAPSHOT_URL),
-      expect.anything(),
-    );
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(SNAPSHOT_URL), expect.anything());
     expect(screen.getByTestId("home-layout-tab-main")).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("home-layout-tab-blank")).toBeInTheDocument();
     expect(screen.getByTestId("home-layout-tab-macro")).toBeInTheDocument();
@@ -251,7 +250,9 @@ describe("HOME window desk", () => {
     const saved = payload as unknown as HomeWindowConfig;
     expect(saved.active).toBe("Main");
     expect(saved.layouts[0].windows.map((w) => w.type)).toEqual([
-      "market.heatmap", "options.chain", "sector.detail",
+      "market.heatmap",
+      "options.chain",
+      "sector.detail",
     ]);
   });
 
@@ -305,7 +306,15 @@ describe("HOME window desk", () => {
             name: "Main",
             windows: [
               win({ id: "ghost", type: "removed.panel", title: "GONE" }),
-              win({ id: "walls", type: "sector.movers", title: "WALLS", x: 9999, y: -9999, w: -5, h: 0 }),
+              win({
+                id: "walls",
+                type: "sector.movers",
+                title: "WALLS",
+                x: 9999,
+                y: -9999,
+                w: -5,
+                h: 0,
+              }),
             ],
           },
         ],
@@ -465,9 +474,14 @@ describe("HOME monitor", () => {
     expect(screen.queryByTestId("window-manager-canvas")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-layout-tabs")).not.toBeInTheDocument();
 
-    await waitFor(() =>
-      expect(screen.getByTestId("pulse-refresh")).toHaveTextContent("LIVE"),
-    );
+    // The page frame never scrolls; the monitor grid is the scroll owner.
+    const page = screen.getByTestId("home-page");
+    expect(page).toHaveClass("h-full", "min-h-0", "flex-col", "overflow-hidden");
+    const monitor = screen.getByTestId("home-monitor-view");
+    expect(monitor).toHaveClass("min-h-0", "flex-1", "overflow-y-auto");
+    expect(monitor).toHaveAttribute("role", "region");
+
+    await waitFor(() => expect(screen.getByTestId("pulse-refresh")).toHaveTextContent("LIVE"));
   });
 
   it("(toggle) Desk mounts the window manager and Monitor unmounts it", async () => {
@@ -542,17 +556,21 @@ describe("HOME panel settings persistence", () => {
       [
         {
           name: "Main",
-          windows: [{
-            ...win({ id: "hm-main", type: "market.heatmap", title: "HEATMAP" }),
-            settings: { sizeBy: "rsi" },
-          }],
+          windows: [
+            {
+              ...win({ id: "hm-main", type: "market.heatmap", title: "HEATMAP" }),
+              settings: { sizeBy: "rsi" },
+            },
+          ],
         },
         {
           name: "Blank",
-          windows: [{
-            ...win({ id: "hm-blank", type: "market.heatmap", title: "HEATMAP 2" }),
-            settings: { sizeBy: "pe_ratio" },
-          }],
+          windows: [
+            {
+              ...win({ id: "hm-blank", type: "market.heatmap", title: "HEATMAP 2" }),
+              settings: { sizeBy: "pe_ratio" },
+            },
+          ],
         },
       ],
       "Main",

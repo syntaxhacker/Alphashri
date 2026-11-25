@@ -229,7 +229,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
             </ActionIcon>
           </Tooltip>
         </Box>
-        <Box className="min-h-0 flex-1">{renderBody()}</Box>
+        <Box className="flex min-h-0 flex-1 flex-col overflow-hidden">{renderBody()}</Box>
       </Box>
     );
   }

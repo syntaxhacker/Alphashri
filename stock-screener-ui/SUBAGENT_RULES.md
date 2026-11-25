@@ -10,14 +10,45 @@ Sibling docs: `AGENTS.md` (repo rules), `LAYOUT_CONTRACT.md` (layout acceptance)
 
 | Role | Owns |
 |---|---|
-| Main agent | Brief authoring, review, integration, **only git actor**, screenshots |
-| Subagent | Scoped implementation inside one brief; reports to main, never to the user |
+| Main agent | Brief authoring, review, integration, **only git actor**, verifier dispatch, approver |
+| Subagent | Scoped implementation inside one brief, including its screenshots; reports to main, never to the user |
+| Independent verifier | Read-only, separate session; grades screenshots + running UI per `UI_RULES.md` §7 |
+| Approver | Main agent (or named human); records the verifier's A+ verdict; no self-approval |
 
 - Subagents never ask the user anything and never spawn subagents.
 - Ambiguity in the brief = **stop and report**, never guess scope.
 - Main must not implement normal code tasks; it scopes, dispatches, reviews, integrates,
-  verifies. Main may edit only when a subagent is blocked/quota-exhausted, or for a small
-  integration fix — and must say so.
+  verifies. **No implementation at all** — not even a one-line or one-character fix.
+
+### Visual verifier + approver (UI work)
+
+- **Independence.** The implementer captures the screenshots; a separate read-only verifier that
+  authored none of the changed files grades the PNGs plus the running UI.
+- **Grade, don't bless.** One A+/A/B/C/F grade with every defect at exact file:line + screenshot coordinates and its fix; A/B/C/F are FAIL, not `looks fine`/`minor`. Implement **every** item, recapture and regrade until A+; a user rejection voids A+.
+- **Approver and commit gate.** The main agent records A+ as approver and is the sole git actor; no
+  self-verification or self-approval. No commit, push or PR before A+; only A+ ships, and any later UI change voids it.
+
+Roles, rubric, caps, first-read rule and verdict format: [`UI_RULES.md` §7](./UI_RULES.md#7-visual-review-gate-independent-verifier--approver).
+Capture matrix, naming, manifest and replacement checks: [`docs/SCREENSHOT_EVIDENCE.md`](./docs/SCREENSHOT_EVIDENCE.md).
+
+### Enforcement
+
+- The main agent **never** edits source, tests, styles/theme, configs, the generated
+  `openapi.yaml`, or deliverable docs — unless the task **is** a docs task assigned to it.
+- **No quick-fixes.** Any defect found in review — failing assertion, lint warning, misaligned
+  column, stale spec, wrong comment — goes **back to the subagent that owns those files**, with
+  the exact failure output. The main agent does not "just fix it" to unblock itself. If the
+  owner is gone, dispatch a new subagent scoped to those files.
+- **Exception protocol (all three required, in order):** a subagent is blocked/quota-exhausted
+  **or** an emergency recovery is required → (a) ask the user and get explicit approval in the
+  same turn, (b) state `MAIN-AGENT EXCEPTION: <reason>` in that turn, (c) list every file
+  touched. Missing any one of the three = no edit. A "small integration fix" is not an exception.
+- **Verification ≠ implementation.** Running build/lint/typecheck/targeted tests/OpenAPI
+  export/screenshot review and reading output is allowed; changing the code under test to make a
+  check pass is forbidden.
+- **Attribution.** Every edited file must map to a named subagent session in the main agent's
+  report.
+- **Violation handling:** stop, report `main-agent-edit-blocked`, hand the file back to its owner.
 
 ---
 
@@ -57,6 +88,19 @@ Parallel agents share one worktree, so two agents editing one file corrupt each 
 Before your first edit, run `git status --porcelain` and check your lane against it. If a
 file you own is already modified by someone else, **report it and skip it** — do not revert
 or "fix" their work.
+
+### Fast-path dispatch contract
+
+The compressed-pass runbook is [`AGENTS.md` §5](./AGENTS.md#5-fast-path-same-gates-fewer-passes); this section owns its ownership and dispatch rules.
+
+- Before dispatch, publish an ownership matrix. Every shared file — `AppLayout`, `TanStackTable`, shared toggles, E2E specs, evidence/capture scripts and generated specs — has exactly one owner.
+- Every brief lists `OWN` and `DO NOT TOUCH`. An agent that needs a file outside its ownership stops and reports the path; it does not edit it.
+- Cross-file wiring goes to the dedicated integration lane, never "whoever notices."
+- Agents run scoped tests only; they do not run the full suite, build, or start servers.
+- UI agents report `VISUAL FREEZE` after their last source edit; no capture starts until every UI lane has frozen.
+- Product defects go back to the owner; integration defects go to the integration lane.
+- If a gate is slow, propose a faster equivalent check rather than skipping or weakening it; see `AGENTS.md` §5 rule 9.
+- Visual gate: [`UI_RULES.md` §7](./UI_RULES.md#7-visual-review-gate-independent-verifier--approver); do not restate the rubric.
 
 ---
 
@@ -225,7 +269,7 @@ same defect: it reads as the same thing but cannot be retuned together.
 **A tint means something.** Red is error/bearish, never "informational" and never "selected":
 `ORB_AREA`/`IV_AREA_*` (range and IV bands) read INFO blue; `BOT_SELECTED_BG` reads PRIMARY.
 
-Verify visually only if the brief says so — screenshots are the main agent's job.
+Screenshots are captured by the implementer; only an independent verifier grades them (`UI_RULES.md` §7). A subagent never self-approves.
 
 **Chart/canvas/indicator work has a third gate after correctness and visuals.** Any brief touching chart rendering, indicators, overlays, S/R zones, timeframe handling, pattern-chart data mapping or data-dense UI must name the perf commands and targets, and the result must include measured numbers. See §12.
 
@@ -363,7 +407,8 @@ Canonical source for model routing **and** concurrency — `AGENTS.md` and
 - Hard ceiling is the 8 above; do not dispatch a ninth lane. Queued lanes wait for a
   free slot rather than sharing files.
 - Free tiers return `Free usage limit reached` mid-task and can leave the tree half-edited.
-  When that happens: the main agent finishes the task itself and says so.
+  When that happens: dispatch a replacement subagent scoped to the affected files; the main
+  agent edits only under the §1 `MAIN-AGENT EXCEPTION` protocol (user approval first).
 - Verify every agent claim. Reports have asserted success while the page was blank, the
   build broken, or a test failing.
 - **Read this section before the first dispatch, not after.** It is the only place the
@@ -399,6 +444,7 @@ Canonical source for model routing **and** concurrency — `AGENTS.md` and
 - tsc count for the scope: before → after (if a tsc task)
 - if the brief claims a layout now fits: `getBoundingClientRect()` before → after
 - if the brief touches chart/indicator/data-dense UI: the perf commands/targets from §12, with measured median/p95
+- UI: independent verifier's **A+** verdict, with the one-sentence "How to read" per chart, screenshot paths and the running UI reviewed
 
 ## Scenario coverage (from docs/TEST_SCENARIOS.md)
 - <paste the relevant rows; each ends as test-added / existing-test / N/A + reason>
@@ -427,6 +473,7 @@ A report is rejected without **pass/fail counts**, the **exact commands**, and a
 7. Risks / untested paths.
 8. Blockers, or "none".
 9. For chart/UI work: the perf commands run and the observed median/p95 (§12).
+10. **Visual verdict** (UI work only): grade, verifier/approver, one-sentence "How to read" per chart, naive-read check, screenshot paths, every FAIL item with its required fix, and confirmation that the tracked evidence folder contains only the current PR's files.
 
 Never claim a surface "looks correct" if you cannot see it. Say what you measured.
 

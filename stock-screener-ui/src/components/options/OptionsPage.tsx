@@ -126,8 +126,8 @@ export function OptionsPage(props: OptionsPageProps) {
         </ToolbarRow>
       </Show>
 
-      <div className="flex flex-col h-full overflow-hidden w-full min-h-0">
-        <ScrollArea className="h-full" offsetScrollbars>
+      <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+        <ScrollArea className="h-full min-h-0 w-full" offsetScrollbars data-testid="options-tab-scroll">
           {props.activeTab === "chain" && (
             <OptionChainPanel
               selectedUnderlying={props.selectedUnderlying}

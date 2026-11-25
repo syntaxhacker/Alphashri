@@ -4,6 +4,7 @@ Read this first. It replaces exploratory reading of the repo.
 
 - **Repo map:** `docs/MAP.md`
 - **Test rules:** `TEST_RULES.md`
+- **Fast path:** [`AGENTS.md` §5](../AGENTS.md#5-fast-path-same-gates-fewer-passes) — compressed passes, same gates.
 - **UI rules:** `UI_RULES.md`, `../TABLE_CHECKLIST.md` (workspace root), `docs/COLOR_SEMANTICS.md`, `docs/LAYOUT_INVARIANTS.md`
 - **API contract:** `openapi.yaml` (read this before opening `api/**/*.py`)
 - **Night work summary:** `docs/NIGHT_WORK_SUMMARY.md` (docs-only handoff, 2026-11-17)

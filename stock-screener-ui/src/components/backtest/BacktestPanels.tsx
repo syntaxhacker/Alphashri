@@ -28,7 +28,7 @@ export function BacktestLeftPanel(props: BacktestLeftPanelProps) {
     <Tabs
       value={props.activeTab}
       onChange={props.setActiveTab}
-      className="flex flex-col h-full"
+      className="flex h-full min-h-0 flex-col overflow-hidden"
     >
       <Box className="shrink-0 flex items-center justify-center p-2" style={{ flex: "0 0 auto", display: "flex", "align-items": "center", "justify-content": "center", padding: "8px" }}>
         <Tabs.List>

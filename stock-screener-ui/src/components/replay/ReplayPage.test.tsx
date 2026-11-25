@@ -89,6 +89,17 @@ describe("ReplayPage", () => {
     expect(screen.getByText("Simulate paper trading using historical candles")).toBeInTheDocument();
   });
 
+  it("keeps the route shell fixed around the replay work area", async () => {
+    const { ReplayPage } = await import("./ReplayPage");
+    render(() => <UIProvider>
+        <ReplayPage />
+      </UIProvider>,
+    );
+    const shell = screen.getByTestId("replay-page");
+    expect(shell).toHaveClass("h-full", "min-h-0", "flex", "flex-col", "overflow-hidden");
+    expect(screen.getByTestId("replay-main-view")).toBeInTheDocument();
+  });
+
   it("renders ReplayConfigBar component", async () => {
     const { ReplayPage } = await import("./ReplayPage");
     render(() => <UIProvider>

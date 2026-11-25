@@ -243,14 +243,53 @@ describe("ScreenerTable", () => {
     ));
     const wrapper = screen.getByTestId("screener-table-scroll-wrapper");
     expect(wrapper).toHaveClass("overflow-x-auto");
+    // The wrapper is the horizontal scroller, but it fills a bounded flex slot:
+    // vertical overflow belongs to the inner TanStack scrollport below.
+    expect(wrapper).toHaveClass("flex-1");
+    expect(wrapper).toHaveClass("min-h-0");
+    expect(wrapper).toHaveClass("overflow-y-hidden");
+    expect(wrapper).toHaveAttribute("role", "region");
+    expect(wrapper).toHaveAttribute("tabindex", "0");
+    expect(wrapper).toHaveAttribute("data-scroll", "horizontal");
+    expect(wrapper).toHaveAttribute(
+      "aria-label",
+      "Screener results table, scroll sideways for all columns",
+    );
     expect(within(wrapper).getByTestId("screener-table")).toBeInTheDocument();
     expect(screen.getByTestId("screener-table-scroll-cue")).toHaveTextContent("Scroll sideways");
+    expect(screen.getByTestId("screener-table-scroll-cue")).toHaveTextContent("→");
 
     const inner = wrapper.firstElementChild as HTMLElement;
+    expect(inner).toHaveClass("flex-1");
+    expect(inner).toHaveClass("min-h-0");
     expect(Number.parseInt(inner.style.minWidth, 10)).toBeGreaterThanOrEqual(720);
+
+    // fillContainer removes the 65vh content cap, so the scrollport height comes
+    // from the flex ancestors and rows scroll inside it instead of growing.
+    const container = wrapper.querySelector<HTMLElement>(".paper-tanstack-container")!;
+    expect(container.style.flex).toBe("1 1 0%");
+    expect(container.style.maxHeight).toBe("");
+    const scrollport = wrapper.querySelector<HTMLElement>(".paper-tanstack-scroll")!;
+    expect(scrollport.style.minHeight).toBe("0px");
+    expect(scrollport.style.overflow).toBe("auto");
+
     // No column is dropped or clipped away to make the table fit 390px.
     expect(document.querySelectorAll("thead tr th").length).toBe(mockColumns.length + 1);
     expect(screen.getByTestId("number-cell-RELIANCE-tv_price")).toHaveTextContent("2.5K");
+  });
+
+  it("scrolls the focused horizontal region itself with arrow keys", () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerTable {...defaultProps} />
+      </UIProvider>
+    ));
+    const wrapper = screen.getByTestId("screener-table-scroll-wrapper") as HTMLElement;
+    wrapper.scrollLeft = 10;
+    fireEvent.keyDown(wrapper, { key: "ArrowRight" });
+    expect(wrapper.scrollLeft).toBe(90);
+    fireEvent.keyDown(wrapper, { key: "ArrowLeft" });
+    expect(wrapper.scrollLeft).toBe(10);
   });
 
   it("keeps row selection usable from inside the mobile scroll wrapper", () => {

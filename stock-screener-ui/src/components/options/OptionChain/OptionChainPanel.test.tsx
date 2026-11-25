@@ -66,6 +66,20 @@ describe("OptionChainPanel", () => {
     expect(screen.getByTestId("options-chain-panel")).toBeInTheDocument();
   });
 
+  it("fills the page body and gives the chain table the remaining height", () => {
+    render(() => (
+      <OptionChainPanel
+        {...defaultProps}
+        strikeMatrix={[{ strike: 24500, ce: null, pe: null }]}
+      />
+    ));
+    const panel = screen.getByTestId("options-chain-panel");
+    expect(panel).toHaveClass("flex", "h-full", "min-h-0", "flex-col");
+
+    const tablePanel = screen.getByTestId("options-chain-table-panel");
+    expect(tablePanel).toHaveClass("flex", "min-h-0", "flex-1");
+  });
+
   it("renders spot info header row without redundant title text", () => {
     const strikeMatrix = [{ strike: 24500, ce: null, pe: null }];
     render(() => <OptionChainPanel {...defaultProps} strikeMatrix={strikeMatrix} />);

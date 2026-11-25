@@ -55,6 +55,15 @@ describe("OptionsPage", () => {
     expect(screen.getByTestId("options-chain-panel")).toBeInTheDocument();
   });
 
+  it("keeps the route shell fixed and delegates vertical scroll to the tab body", () => {
+    render(() => <OptionsPage {...defaultProps} />);
+    const shell = screen.getByTestId("options-view");
+    expect(shell).toHaveClass("h-full", "min-h-0", "flex-col", "overflow-hidden");
+
+    const scroller = screen.getByTestId("options-tab-scroll");
+    expect(scroller).toHaveClass("h-full", "min-h-0", "w-full");
+  });
+
   it("keeps the tab strip scrollable inside the fixed nav bar with every tab reachable", () => {
     render(() => <OptionsPage {...defaultProps} />);
     const bar = document.querySelector("#options-nav-bar")!;

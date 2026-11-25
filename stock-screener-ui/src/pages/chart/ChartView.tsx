@@ -461,27 +461,31 @@ const ChartView = () => {
     !chart.state().loading && !chart.state().error && chart.state().candles.length === 0;
 
   return (
-    <Show
-      when={symbol()}
-      fallback={
-        <ChartMessage
-          testId="chart-view-error"
-          title="No symbol specified"
-          detail="Open a symbol from the screener, or use /chart/SYMBOL."
-          actionLabel="Back to Screener"
-          onAction={() => navigate("/screener")}
-        />
-      }
+    <div
+      class="flex h-full min-h-0 w-full flex-col overflow-hidden"
+      data-testid="chart-view-root"
     >
-      <div
-        data-testid="chart-view"
-        id="chart-view"
-        data-market={chart.state().market}
-        data-feed={chart.state().feed ?? ""}
-        data-delay-label={chart.state().delayLabel ?? ""}
-        data-session-date={chart.state().sessionDate ?? ""}
-        class="flex h-full min-h-0 w-full flex-col overflow-hidden bg-fin-bg"
+      <Show
+        when={symbol()}
+        fallback={
+          <ChartMessage
+            testId="chart-view-error"
+            title="No symbol specified"
+            detail="Open a symbol from the screener, or use /chart/SYMBOL."
+            actionLabel="Back to Screener"
+            onAction={() => navigate("/screener")}
+          />
+        }
       >
+        <div
+          data-testid="chart-view"
+          id="chart-view"
+          data-market={chart.state().market}
+          data-feed={chart.state().feed ?? ""}
+          data-delay-label={chart.state().delayLabel ?? ""}
+          data-session-date={chart.state().sessionDate ?? ""}
+          class="flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-fin-bg"
+        >
         <div
           data-testid="chart-header"
           class="shrink-0 border-b border-fin-border px-4 py-2"
@@ -626,7 +630,8 @@ const ChartView = () => {
           />
         </Show>
       </div>
-    </Show>
+      </Show>
+    </div>
   );
 };
 

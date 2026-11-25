@@ -61,6 +61,7 @@ data_cache/
 !package.json
 !stock-screener-ui/knip.json
 !stock-screener-ui/api/value_scan/presets.json
+!stock-screener-ui/docs/screenshots/*/manifest.json
 !historical_sector_cycles/rotation_dashboard_data.json
 # nse_instruments.json is untracked — fetch with scripts/fetch_instruments.py
 *.html

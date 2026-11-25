@@ -147,7 +147,6 @@ export const CHART_BG = BG_COLOR;
 /** Pure-black plot background for the TradingView (lightweight-charts) panels. */
 export const CHART_TV_BG = BG_COLOR;
 export const CHART_TEXT = TEXT_COLOR;
-export const CHART_MUTED = TEXT_MUTED_COLOR;
 export const CHART_BORDER = BORDER_COLOR;
 export const CHART_SPLIT = CHART_SPLIT_COLOR;
 export const CHART_CROSSHAIR = "#6B7280";
@@ -155,6 +154,49 @@ export const CHART_OVERLAY = "rgba(14, 16, 18, 0.95)";
 export const CHART_DROPDOWN = "rgba(21, 24, 28, 0.96)";
 export const CHART_DATAZOOM_BG = BG_COLOR;
 export const DATAZOOM_FILLER = alpha(POSITIVE, 0.15);
+
+// ----- Sector-history chart palette ----------------------------------------
+// Data inks for the sector-history visuals. Charts carry data, chrome carries
+// controls, so these hues stay separate from the amber PRIMARY. Neutral, muted
+// and ink reuse the global surface/text ramp instead of near-miss copies, and
+// every generated fill is contrast-checked in paletteFeature.test.tsx.
+/** Single-series line. */
+export const CHART_LINE = "#7DD3FC";
+/** Top-3 accent shared by ranks, movers and transition nodes. */
+export const CHART_TOP3 = "#F2CC60";
+/** Current-state accent (dot, selection, "now" side of a transition). */
+export const CHART_CURRENT = "#56D4DD";
+/** Inactive / previous / axis annotation ink for chart marks. */
+export const CHART_MUTED = TEXT_MUTED_COLOR;
+/** Signed return: negative side (blue, not the UI red). */
+export const CHART_NEGATIVE = "#4C9AFF";
+/** Signed return: positive side (orange, not the UI green). */
+export const CHART_POSITIVE = "#F59E0B";
+/** Zero / no-move fill: the raised surface step, so flat reads as the panel. */
+export const CHART_NEUTRAL = SURFACE_ALT_COLOR;
+/** Chart-fill inks; WCAG contrast picks between them, never a human eye. */
+export const CHART_INK_LIGHT = TEXT_COLOR;
+export const CHART_INK_DARK = BG_COLOR;
+
+/** Rank ramp: 1 (strongest) through N (weakest). */
+export const CHART_RANK_STOPS = [
+  CHART_TOP3,
+  "#C9E265",
+  "#67D4D0",
+  "#2E9BC6",
+  "#1D6FA5",
+  "#123B5E",
+  "#0B1F33",
+] as const;
+
+/** Share-of-total ramp: zero intensity through a full bar. */
+export const CHART_SHARE_STOPS = [
+  CHART_RANK_STOPS[6],
+  CHART_RANK_STOPS[5],
+  CHART_RANK_STOPS[4],
+  CHART_RANK_STOPS[3],
+  CHART_CURRENT,
+] as const;
 
 // --- Desk / terminal surface for the Nifty analytics panels ----------------
 // Deep panel, hairline border, CE-blue / PE-orange legs, mint net-gamma.

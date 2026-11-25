@@ -117,6 +117,19 @@ describe("ScreenerContent", () => {
     expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
   });
 
+  it("fills its tab slot without becoming a page-level scroller", () => {
+    renderWithProvider(
+      <ScreenerContent
+        {...defaultProps}
+        approachingStocks={[mockStock("A")]}
+      />,
+    );
+    const sections = screen.getByTestId("screener-sections");
+    for (const cls of ["flex-1", "min-h-0", "overflow-hidden"]) {
+      expect(sections).toHaveClass(cls);
+    }
+  });
+
   it("renders section with dynamic labels from screenerOptions", () => {
     renderWithProvider(
       <ScreenerContent
