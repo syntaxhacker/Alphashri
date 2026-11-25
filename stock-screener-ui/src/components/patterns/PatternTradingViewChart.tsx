@@ -40,7 +40,7 @@ import { CROSSES_LEGEND_NAME } from "./patternIndicatorData";
 import { chartPriceLocale } from "./chartFormat";
 import { KEY_POINTS_LEGEND_NAME, PIVOT_LEGEND_NAME } from "@/config/patterns";
 import { MARKET_TIME_ZONE, type ChartMarket } from "@/utils/chart/time";
-import { tvTickMarkFormatter, tvTimeFormatter } from "@/utils/tvTimeFormat";
+import { tvDateBadgeLabel, tvTickMarkFormatter, tvTimeFormatter } from "@/utils/tvTimeFormat";
 
 export interface PatternTradingViewChartProps {
   hit: PatternHitDTO | null;
@@ -175,14 +175,27 @@ export const ZONE_LABEL_MIN_BAND_HEIGHT = 12;
 export const ZONE_LABEL_MAX_WIDTH_RATIO = 0.45;
 /** Height of the zone pill, including its border. */
 export const ZONE_LABEL_HEIGHT = 14;
+/** Charts narrower than this use every compact-mode reduction (labels, fit). */
+export const COMPACT_CHART_WIDTH = 640;
 /** Charts narrower than this use the compact (touch-count-free) label. */
-export const ZONE_LABEL_COMPACT_WIDTH = 640;
+export const ZONE_LABEL_COMPACT_WIDTH = COMPACT_CHART_WIDTH;
 /** Time-axis padding (px) at each edge so first/last tick labels stay whole. */
 export const TIME_AXIS_EDGE_PADDING_PX = 18;
 /** Bars reserved after the newest bar (kept in sync with createChart). */
 const TIME_SCALE_RIGHT_OFFSET = 12;
+/** Compact charts fit at most this many recent bars so bars stay ~1 px wide. */
+export const COMPACT_INITIAL_BAR_CAP = 300;
 /** A 3h/4h window longer than this is treated as a multi-month view. */
 const MULTI_MONTH_SPAN_SECONDS = 60 * 24 * 60 * 60;
+/** Badge gains a year once the visible window spans more than this. */
+const DATE_BADGE_YEAR_SPAN_SECONDS = 330 * 24 * 60 * 60;
+
+/** True only for a measured width below the compact breakpoint. */
+export function isCompactChartWidth(width: number | null | undefined): boolean {
+  return (
+    typeof width === "number" && Number.isFinite(width) && width > 0 && width < COMPACT_CHART_WIDTH
+  );
+}
 
 export interface ZoneLabelCandidate {
   /** Wide label, e.g. `S 264.27 ×12`. */
@@ -247,6 +260,18 @@ export function layoutZoneLabel(
 }
 
 /**
+ * Options for the initial logical range. Below `COMPACT_CHART_WIDTH` the data
+ * window is capped to the most recent `maxBars` bars so 500-bar intraday
+ * series are not squeezed into sub-pixel candles.
+ */
+export interface InitialVisibleRangeOptions {
+  /** Container width; compact only when measured and below 640. */
+  chartWidth?: number;
+  /** Data bars kept by the compact window (default 300). */
+  maxBars?: number;
+}
+
+/**
  * Logical range with leading/trailing whitespace so the first/last time tick
  * is not centred on the plot edge. `rightOffset` bars are kept and extra
  * padding is added on both sides in pixels.
@@ -256,13 +281,29 @@ export function initialVisibleLogicalRange(
   rightOffset: number,
   paneWidth: number,
   edgePaddingPx: number = TIME_AXIS_EDGE_PADDING_PX,
+  options: InitialVisibleRangeOptions = {},
 ): { from: number; to: number } | null {
   if (!Number.isFinite(barCount) || barCount <= 0) return null;
   if (!Number.isFinite(paneWidth) || paneWidth <= edgePaddingPx * 2) return null;
   const offset = Number.isFinite(rightOffset) && rightOffset > 0 ? rightOffset : 0;
-  const slots = Math.max(1, barCount - 1 + offset);
+  const requestedBars = options.maxBars;
+  const maxBars =
+    typeof requestedBars === "number" && Number.isFinite(requestedBars) && requestedBars >= 1
+      ? Math.floor(requestedBars)
+      : COMPACT_INITIAL_BAR_CAP;
+  const compact = isCompactChartWidth(options.chartWidth);
+  const fullSlots = Math.max(1, barCount - 1 + offset);
+  // The compact budget includes rightOffset and both padding gutters, so the
+  // visible span (and therefore the bar count on screen) never exceeds ~300.
+  // Short series (fewer bars than the budget) keep the normal full fit.
+  const capped = compact && fullSlots > maxBars;
+  const slots = capped ? maxBars : fullSlots;
   const padBars = Math.ceil((edgePaddingPx * slots) / Math.max(1, paneWidth - edgePaddingPx * 2));
-  return { from: -padBars, to: barCount - 1 + offset + padBars };
+  const visibleBars = capped
+    ? Math.max(1, Math.min(barCount, slots - offset - 2 * padBars))
+    : barCount;
+  const firstVisible = barCount - visibleBars;
+  return { from: firstVisible - padBars, to: barCount - 1 + offset + padBars };
 }
 
 function overlaps(
@@ -389,6 +430,21 @@ function markerLegendName(marker: TVMarker): string {
   if (marker.legendName) return marker.legendName;
   if (marker.group === "crosses") return CROSSES_LEGEND_NAME;
   return marker.group === "keypoints" ? KEY_POINTS_LEGEND_NAME : PIVOT_LEGEND_NAME;
+}
+
+/**
+ * Compact charts render the colored cross shapes without their `GC`/`DC`
+ * text; the Crosses legend still explains the colours and the marker's
+ * low/high position is unchanged, so hover and crosshair behaviour is intact.
+ */
+export function suppressCrossMarkerText(markers: readonly TVMarker[]): TVMarker[] {
+  let changed = false;
+  const result = markers.map((marker) => {
+    if (marker.group !== "crosses" || marker.text === "") return marker;
+    changed = true;
+    return { ...marker, text: "" };
+  });
+  return changed ? result : (markers as TVMarker[]);
 }
 
 /** First cross whose candle index is >= `value`. */
@@ -732,10 +788,20 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     }
   };
 
+  /** Container width, falling back to the pane width in test/zero-layout hosts. */
+  const chartWidthPx = (): number => {
+    const measured = containerEl?.clientWidth ?? 0;
+    if (Number.isFinite(measured) && measured > 0) return measured;
+    const ts = chart?.timeScale();
+    const pane = ts && typeof ts.width === "function" ? ts.width() : 0;
+    return Number.isFinite(pane) && pane > 0 ? pane : 0;
+  };
+
   /**
    * Fit once, then add whitespace before/after the bars so the first and last
-   * tick labels are not centred on — and clipped by — the plot edges. Pan/zoom
-   * are untouched after this initial range is applied.
+   * tick labels are not centred on — and clipped by — the plot edges. Compact
+   * charts keep only the newest ~300 bars so 1m/5m candles stay readable;
+   * panning left reveals the older bars. Pan/zoom are untouched after this.
    */
   const fitContentWithTimePadding = () => {
     const ts = chart?.timeScale();
@@ -750,6 +816,11 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
       data().candles.length,
       timeScaleOptions?.rightOffset ?? TIME_SCALE_RIGHT_OFFSET,
       paneWidth,
+      TIME_AXIS_EDGE_PADDING_PX,
+      {
+        chartWidth: chartWidthPx(),
+        maxBars: COMPACT_INITIAL_BAR_CAP,
+      },
     );
     if (range) ts.setVisibleLogicalRange(range);
   };
@@ -807,8 +878,9 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     if (count < 0) count = 0;
 
     // Crosses only enter/leave at range boundaries; skip the chart API when
-    // the visible marker set is unchanged (most pan frames).
-    const key = `${markerGeneration}:${start}:${count}`;
+    // the visible marker set (and compact label mode) is unchanged.
+    const compactLabels = isCompactChartWidth(chartWidthPx());
+    const key = `${markerGeneration}:${start}:${count}:${compactLabels ? "c" : "w"}`;
     if (key === markerRangeKey) return;
     markerRangeKey = key;
 
@@ -821,6 +893,7 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     } else {
       shown = mergeVisibleMarkers(cache.others, cache.crosses, start, count);
     }
+    if (compactLabels) shown = suppressCrossMarkerText(shown);
     try {
       plugin.setMarkers(shown as never);
     } catch {
@@ -1114,6 +1187,37 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     }
     const cache = overlayCache;
     const placed = overlayScratchRects;
+    const paneWidth = typeof ts.width === "function" ? ts.width() : width;
+    const timeAxisHeight = typeof ts.height === "function" ? ts.height() : 0;
+    const paneHeight = Math.max(1, height - timeAxisHeight);
+
+    // Compact charts often end on a bare day (`23`) or month (`Nov`) tick. A
+    // subdued bottom-right badge names the newest visible bar without adding
+    // another axis label (so the edge-clipping suppression stays untouched).
+    let dateBadge: { text: string; rect: LabelRect } | null = null;
+    if (isCompactChartWidth(width)) {
+      const range = visibleLogicalRange();
+      const candles = cache.data.candles;
+      if (range && candles.length > 0) {
+        const lastIndex = Math.max(0, Math.min(candles.length - 1, Math.floor(range.to)));
+        const firstIndex = Math.max(0, Math.min(lastIndex, Math.ceil(range.from)));
+        const last = candles[lastIndex]!;
+        const first = candles[firstIndex]!;
+        const includeYear = Math.abs(last.time - first.time) > DATE_BADGE_YEAR_SPAN_SECONDS;
+        const text = tvDateBadgeLabel(last.time as Time, timeZoneRef, { includeYear });
+        if (text) {
+          const w = cache.measure(text) + 10;
+          const rect = {
+            x: Math.max(0, paneWidth - w - 4),
+            y: Math.max(0, paneHeight - 16 - 4),
+            w,
+            h: 16,
+          };
+          dateBadge = { text, rect };
+          placed.push(rect);
+        }
+      }
+    }
 
     for (const label of cache.lines) {
       const x = ts.timeToCoordinate?.(label.time as never);
@@ -1150,7 +1254,6 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
 
     // Indicator tags live only in the blank gutter after the newest bar (never
     // on the data, never from LWC's price scale).
-    const paneWidth = typeof ts.width === "function" ? ts.width() : width;
     const lastBarX =
       cache.lastCandleTime != null ? ts.timeToCoordinate?.(cache.lastCandleTime as never) : null;
     if (lastBarX != null && lastBarX >= 0 && lastBarX <= paneWidth) {
@@ -1192,8 +1295,6 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
 
     const zones = cache.zones;
     if (zones.length > 0) {
-      const zonePaneHeight =
-        typeof ts.height === "function" ? Math.max(1, height - ts.height()) : height;
       // Every visible band gets a tag (the 12 px gate is only the helper's
       // default): 1W/1M bands are often a few pixels tall yet still carry a
       // useful price. Overlapping tags are stacked by findVerticalSlot below.
@@ -1207,7 +1308,7 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
           const yBottom = zoneSeries.priceToCoordinate(zone.bottom);
           if (xStart == null || xEnd == null || yTop == null || yBottom == null) continue;
           if (xEnd < 0 || xStart > paneWidth) continue;
-          if (Math.max(yTop, yBottom) < 0 || Math.min(yTop, yBottom) > zonePaneHeight) continue;
+          if (Math.max(yTop, yBottom) < 0 || Math.min(yTop, yBottom) > paneHeight) continue;
 
           const padX = 4;
           const placement = layoutZoneLabel(
@@ -1215,7 +1316,7 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
             {
               chartWidth: width,
               paneWidth,
-              paneHeight: zonePaneHeight,
+              paneHeight,
               minBandHeight,
               measure: (text) => cache.measure(text) + padX * 2,
             },
@@ -1230,7 +1331,7 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
               placement.w,
               placement.y,
               placement.h,
-              zonePaneHeight,
+              paneHeight,
             ) ?? placement.y;
           const { x: bx, w, h } = placement;
           placed.push({ x: bx, y: by, w, h });
@@ -1243,6 +1344,19 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
           ctx.fillText(placement.text, bx + padX, by + h / 2 + 0.5);
         }
       }
+    }
+
+    // Badge reserved above so every other label avoids it; painted last so a
+    // crowded zone/label pass can never hide the date.
+    if (dateBadge) {
+      const { text, rect } = dateBadge;
+      ctx.fillStyle = "rgba(8,8,8,0.82)";
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.strokeStyle = withAlpha(palette.BORDER, 0.8);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+      ctx.fillStyle = palette.TEXT_MUTED;
+      ctx.fillText(text, rect.x + 5, rect.y + rect.h / 2 + 0.5);
     }
 
     // Swap the rect buffers so the next frame erases exactly what was painted.

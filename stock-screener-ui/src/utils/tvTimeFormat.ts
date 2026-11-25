@@ -19,6 +19,29 @@ export const TICK_EDGE_PADDING_PX = 8;
 /** Average glyph width of the library's 12 px axis font (estimate only). */
 const TICK_CHAR_WIDTH_PX = 6.5;
 
+export interface TvDateBadgeOptions {
+  /** Append the year for multi-year windows (e.g. `25 Nov 2026`). */
+  includeYear?: boolean;
+}
+
+/**
+ * Compact right-edge date badge (e.g. `25 Nov`) for charts whose last axis
+ * tick is only a day (`23`) or month (`Nov`). Distinct from the tick labels:
+ * it deliberately bypasses the edge-clipping suppression because it always
+ * sits inside the pane.
+ */
+export function tvDateBadgeLabel(
+  time: Time,
+  timeZone: string = MARKET_TIME_ZONE.india,
+  options: TvDateBadgeOptions = {},
+): string {
+  if (typeof time !== "number") return "";
+  const day = formatISTTick(time, "day", timeZone);
+  const month = formatISTTick(time, "month", timeZone);
+  const year = options.includeYear ? formatISTTick(time, "year", timeZone) : "";
+  return [day, month, year].filter(Boolean).join(" ");
+}
+
 export interface TvTickEdgeContext {
   /** Tick centre in time-pane CSS pixels, or null when not resolvable. */
   x?: number | null;

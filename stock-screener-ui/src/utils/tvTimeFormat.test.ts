@@ -4,6 +4,7 @@ import { MARKET_TIME_ZONE } from "@/utils/chart/time";
 import {
   isTickLabelAtPaneEdge,
   TICK_EDGE_PADDING_PX,
+  tvDateBadgeLabel,
   tvTickMarkFormatter,
 } from "./tvTimeFormat";
 
@@ -66,8 +67,24 @@ describe("tvTickMarkFormatter", () => {
   });
 });
 
-describe("isTickLabelAtPaneEdge", () => {
-  it("accounts for half the label width plus the safety gutter", () => {
+describe("tvDateBadgeLabel", () => {
+  it("renders a compact day + month badge", () => {
+    expect(tvDateBadgeLabel(EPOCH, IST)).toBe("15 Apr");
+  });
+
+  it("adds the year for multi-year windows", () => {
+    expect(tvDateBadgeLabel(EPOCH, IST, { includeYear: true })).toBe("15 Apr 2026");
+  });
+
+  it("formats in the requested zone and skips invalid times", () => {
+    const newYorkEpoch = Date.parse("2026-11-16T14:49:00-05:00") / 1000;
+    expect(tvDateBadgeLabel(newYorkEpoch, "America/New_York")).toBe("16 Nov");
+    expect(tvDateBadgeLabel(Number.NaN, IST)).toBe("");
+    expect(tvDateBadgeLabel({ year: 2026, month: 4, day: 15 })).toBe("");
+  });
+});
+
+describe("isTickLabelAtPaneEdge", () => {  it("accounts for half the label width plus the safety gutter", () => {
     expect(isTickLabelAtPaneEdge("15", { x: 310, paneWidth: 313 })).toBe(true);
     expect(isTickLabelAtPaneEdge("15", { x: 4, paneWidth: 313 })).toBe(true);
     expect(isTickLabelAtPaneEdge("12:00", { x: 300, paneWidth: 313 })).toBe(true);

@@ -88,10 +88,13 @@ vi.mock("lightweight-charts", () => ({
 }));
 
 import {
+  COMPACT_INITIAL_BAR_CAP,
   PatternTradingViewChart,
   initialVisibleLogicalRange,
+  isCompactChartWidth,
   layoutIndicatorTags,
   layoutZoneLabel,
+  suppressCrossMarkerText,
   type IndicatorTagCandidate,
   type ZoneLabelCandidate,
 } from "./PatternTradingViewChart";
@@ -494,6 +497,72 @@ describe("PatternTradingViewChart", () => {
     expect(screen.getByTestId("patterns-tv-chart")).toHaveAttribute("data-visible-crosses", "3");
   });
 
+  it("drops GC/DC text from compact markers but keeps their colored shapes", () => {
+    const width = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(390);
+    try {
+      const many = Array.from({ length: 15 }, (_, index) =>
+        candle(`2026-05-${String(index + 1).padStart(2, "0")}`, 100 + index, 101 + index),
+      );
+      const base = buildPatternTVData({ candles: many, hit: null });
+      const markers: TVMarker[] = base.candles.map((candlePoint, index) => ({
+        time: candlePoint.time,
+        position: index % 2 === 0 ? ("belowBar" as const) : ("aboveBar" as const),
+        shape: "square" as const,
+        color: "#0f0",
+        text: index % 2 === 0 ? "GC" : "DC",
+        group: "crosses" as const,
+        legendName: "Crosses",
+      }));
+
+      render(() => <PatternTradingViewChart hit={null} candles={many} data={{ ...base, markers }} />);
+
+      const shown = mocks.setMarkers.mock.calls.at(-1)?.[0] as TVMarker[];
+      expect(shown).toHaveLength(12);
+      expect(shown.every((marker) => marker.text === "")).toBe(true);
+      expect(
+        shown.every(
+          (marker) =>
+            marker.group === "crosses" &&
+            marker.shape === "square" &&
+            marker.color === "#0f0" &&
+            (marker.position === "belowBar" || marker.position === "aboveBar"),
+        ),
+      ).toBe(true);
+      expect(shown.some((marker) => marker.position === "belowBar")).toBe(true);
+      expect(shown.some((marker) => marker.position === "aboveBar")).toBe(true);
+    } finally {
+      width.mockRestore();
+    }
+  });
+
+  it("keeps GC/DC text on wide charts", () => {
+    const width = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(1600);
+    try {
+      const many = Array.from({ length: 15 }, (_, index) =>
+        candle(`2026-05-${String(index + 1).padStart(2, "0")}`, 100 + index, 101 + index),
+      );
+      const base = buildPatternTVData({ candles: many, hit: null });
+      const markers: TVMarker[] = base.candles.map((candlePoint, index) => ({
+        time: candlePoint.time,
+        position: "belowBar",
+        shape: "square",
+        color: "#0f0",
+        text: index % 2 === 0 ? "GC" : "DC",
+        group: "crosses",
+        legendName: "Crosses",
+      }));
+
+      render(() => <PatternTradingViewChart hit={null} candles={many} data={{ ...base, markers }} />);
+
+      const shown = mocks.setMarkers.mock.calls.at(-1)?.[0] as TVMarker[];
+      expect(shown).toHaveLength(12);
+      expect(shown.every((marker) => marker.text === "GC" || marker.text === "DC")).toBe(true);
+      expect(shown.every((marker) => marker.shape === "square")).toBe(true);
+    } finally {
+      width.mockRestore();
+    }
+  });
+
   it("caps unbounded crosses at the 12 most recent and skips the partial last bar", () => {
     const many = Array.from({ length: 15 }, (_, index) =>
       candle(`2026-05-${String(index + 1).padStart(2, "0")}`, 100 + index, 101 + index),
@@ -844,8 +913,81 @@ describe("initialVisibleLogicalRange", () => {
     expect(to - 499).toBeGreaterThanOrEqual(12);
   });
 
+  it("caps a compact window to the last ~300 bars and preserves edge padding", () => {
+    const paneWidth = 300;
+    const lastIndex = 499;
+    const range = initialVisibleLogicalRange(500, 12, paneWidth, 18, { chartWidth: 390 })!;
+    const span = range.to - range.from;
+    expect(span).toBeLessThanOrEqual(COMPACT_INITIAL_BAR_CAP);
+    expect(range.from).toBeGreaterThan(0);
+    // Older bars stay in the dataset: panning left reveals them.
+    const padBars = range.to - lastIndex - 12;
+    const leftPad = (padBars / span) * paneWidth;
+    const rightPad = ((range.to - lastIndex) / span) * paneWidth;
+    expect(padBars).toBeGreaterThan(0);
+    expect(leftPad).toBeGreaterThanOrEqual(18);
+    expect(rightPad).toBeGreaterThanOrEqual(18);
+
+    const full = initialVisibleLogicalRange(500, 12, paneWidth)!;
+    expect(span).toBeLessThan(full.to - full.from);
+  });
+
+  it("falls back to the full fit when the chart width is missing or invalid", () => {
+    const full = initialVisibleLogicalRange(500, 12, 300)!;
+    expect(initialVisibleLogicalRange(500, 12, 300, 18, { chartWidth: 0 })).toEqual(full);
+    expect(initialVisibleLogicalRange(500, 12, 300, 18, { chartWidth: Number.NaN })).toEqual(full);
+    expect(initialVisibleLogicalRange(500, 12, 300, 18, {})).toEqual(full);
+  });
+
+  it("keeps the full fit for compact charts that have fewer bars than the cap", () => {
+    expect(initialVisibleLogicalRange(120, 12, 300, 18, { chartWidth: 390 })).toEqual(
+      initialVisibleLogicalRange(120, 12, 300, 18),
+    );
+  });
+
   it("skips padding when there are no bars or no plot width", () => {
     expect(initialVisibleLogicalRange(0, 12, 300)).toBeNull();
     expect(initialVisibleLogicalRange(500, 12, 30)).toBeNull();
+  });
+});
+
+describe("compact-width helpers", () => {
+  it("recognizes only measured widths below 640", () => {
+    expect(isCompactChartWidth(390)).toBe(true);
+    expect(isCompactChartWidth(639)).toBe(true);
+    expect(isCompactChartWidth(640)).toBe(false);
+    expect(isCompactChartWidth(1600)).toBe(false);
+    expect(isCompactChartWidth(0)).toBe(false);
+    expect(isCompactChartWidth(Number.NaN)).toBe(false);
+    expect(isCompactChartWidth(undefined)).toBe(false);
+  });
+
+  it("blanks only cross text and keeps marker geometry/hover fields", () => {
+    const markers: TVMarker[] = [
+      {
+        time: 1,
+        position: "inBar",
+        shape: "circle",
+        color: "#fff",
+        text: "P",
+        group: "pivots",
+      },
+      {
+        time: 2,
+        position: "aboveBar",
+        shape: "square",
+        color: "#0f0",
+        text: "GC",
+        group: "crosses",
+        legendName: "Crosses",
+      },
+    ];
+    const compact = suppressCrossMarkerText(markers);
+    expect(compact[0]).toBe(markers[0]);
+    expect(compact[1]).toEqual({ ...markers[1], text: "" });
+    expect(compact[1]?.shape).toBe("square");
+    expect(compact[1]?.position).toBe("aboveBar");
+    expect(compact[1]?.price).toBe(markers[1]?.price);
+    expect(suppressCrossMarkerText(compact)).toBe(compact);
   });
 });
