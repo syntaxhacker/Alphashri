@@ -267,6 +267,31 @@ describe("patternIndicatorData", () => {
     expect(later!.start).not.toBe(epochs[24]);
   });
 
+  it("prefers exact intraday touch timestamps when supplied", () => {
+    const bars = [...intradaySession("2026-04-01"), ...intradaySession("2026-04-02")];
+    const epochs = bars.map((bar) => toEpochSeconds(bar.t));
+    const start = bars[16]!.t; // 13:15 on the first session
+    const end = bars[29]!.t; // 10:15 on the second session
+
+    const [aligned] = alignSRZones(
+      [
+        {
+          ...zoneOn("2026-04-01", "2026-04-02"),
+          start_time: start,
+          end_time: end,
+        },
+      ],
+      epochs,
+      "Asia/Kolkata",
+    );
+
+    expect(aligned).toMatchObject({
+      start: toEpochSeconds(start),
+      end: toEpochSeconds(end),
+    });
+    expect(aligned!.start).not.toBe(epochs[0]);
+  });
+
   it("snaps a weekend zone edge forward to the next available session", () => {
     const bars = [...intradaySession("2026-04-03"), ...intradaySession("2026-04-06")];
     const epochs = bars.map((bar) => toEpochSeconds(bar.t));

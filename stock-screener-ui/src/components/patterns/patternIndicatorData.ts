@@ -281,8 +281,9 @@ export function alignIndicatorCrosses(
  * window starting 09:15 must begin at that session's first bar, not at midnight.
  * Start is the first bar whose local date is >= `start_date`; end is the last
  * bar whose local date is <= `end_date` (so weekend/holiday edges snap to the
- * nearest session). Bands with no overlapping session or an invalid price range
- * are dropped.
+ * nearest session). Intraday zones also carry exact `start_time`/`end_time`
+ * timestamps, which are preferred over the session dates when both parse.
+ * Bands with no overlapping session or an invalid price range are dropped.
  */
 export function alignSRZones(
   zones: SRZone[] | null | undefined,
@@ -302,24 +303,44 @@ export function alignSRZones(
     const bottom = Math.min(zone.top, zone.bottom);
     if (!(top > bottom)) continue;
 
-    const rawStart = sessionDateKey(zone.start_date, timeZone);
-    const rawEnd = sessionDateKey(zone.end_date, timeZone);
-    if (!rawStart || !rawEnd) continue;
-    const from = rawStart <= rawEnd ? rawStart : rawEnd;
-    const to = rawStart <= rawEnd ? rawEnd : rawStart;
-
     let startIndex = -1;
-    for (let i = 0; i < sessionKeys.length; i++) {
-      if (sessionKeys[i]! >= from) {
-        startIndex = i;
-        break;
-      }
-    }
     let endIndex = -1;
-    for (let i = sessionKeys.length - 1; i >= 0; i--) {
-      if (sessionKeys[i]! <= to) {
-        endIndex = i;
-        break;
+    const startTime = zone.start_time ? toEpochSeconds(zone.start_time, timeZone) : NaN;
+    const endTime = zone.end_time ? toEpochSeconds(zone.end_time, timeZone) : NaN;
+
+    if (Number.isFinite(startTime) && Number.isFinite(endTime)) {
+      const from = Math.min(startTime, endTime);
+      const to = Math.max(startTime, endTime);
+      for (let i = 0; i < sortedEpochs.length; i++) {
+        if (sortedEpochs[i]! >= from) {
+          startIndex = i;
+          break;
+        }
+      }
+      for (let i = sortedEpochs.length - 1; i >= 0; i--) {
+        if (sortedEpochs[i]! <= to) {
+          endIndex = i;
+          break;
+        }
+      }
+    } else {
+      const rawStart = sessionDateKey(zone.start_date, timeZone);
+      const rawEnd = sessionDateKey(zone.end_date, timeZone);
+      if (!rawStart || !rawEnd) continue;
+      const from = rawStart <= rawEnd ? rawStart : rawEnd;
+      const to = rawStart <= rawEnd ? rawEnd : rawStart;
+
+      for (let i = 0; i < sessionKeys.length; i++) {
+        if (sessionKeys[i]! >= from) {
+          startIndex = i;
+          break;
+        }
+      }
+      for (let i = sessionKeys.length - 1; i >= 0; i--) {
+        if (sessionKeys[i]! <= to) {
+          endIndex = i;
+          break;
+        }
       }
     }
     if (startIndex < 0 || endIndex < 0 || endIndex < startIndex) continue;

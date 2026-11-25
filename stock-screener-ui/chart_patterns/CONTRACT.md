@@ -255,6 +255,8 @@ branches return `indicators: null` and `sr_zones: []`.
  "sr_zones": [
    {"kind": "support|resistance|sr", "top": 123.4, "bottom": 120.1,
     "start_date": "2026-01-05", "end_date": "2026-03-20",
+    "start_time": "2026-01-05T09:15:00+05:30",
+    "end_time": "2026-03-20T14:45:00+05:30",
     "touches": 3, "score": 1234.5}
  ]}
 ```
@@ -273,7 +275,11 @@ Indicator rules:
 S/R rules: max 4 zones, computed from at most the last 400 bars, confirmed
 pivots only (no lookahead), never extended right of the last candle. Zones
 require >=2 touches, break after two closes beyond `0.5*ATR`, go stale after
-120 untouched bars, and overlap-merge into `sr` with summed touches.
+120 untouched bars, and overlap-merge into `sr` with summed touches. Intraday
+frames (`1m`–`4h`) additionally carry optional `start_time`/`end_time` ISO
+timestamps for the exact first/last touch bars; `start_date`/`end_date` remain
+present for every timeframe, and clients should prefer the timestamps when
+both are supplied.
 
 ---
 

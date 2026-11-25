@@ -71,6 +71,55 @@ def test_two_touches_form_support_and_resistance():
     assert levels.compute_sr_zones(_wire(closes), timeframe="1D") == zones
 
 
+def test_intraday_zones_carry_exact_touch_timestamps():
+    closes = [110, 110, 100, 105, 120, 110, 100, 105, 120, 110, 110, 110]
+    index = pd.date_range(
+        "2026-01-05 09:15", periods=len(closes), freq="15min", tz="Asia/Kolkata"
+    )
+    wire = [
+        {
+            "t": stamp.isoformat(),
+            "o": row,
+            "h": row + 0.5,
+            "l": row - 0.5,
+            "c": row,
+            "v": 1000.0,
+        }
+        for stamp, row in zip(index, closes)
+    ]
+
+    zones = levels.compute_sr_zones(
+        wire, session="Asia/Kolkata", timeframe="15m"
+    )
+    by_kind = {zone["kind"]: zone for zone in zones}
+    support = by_kind["support"]
+    resistance = by_kind["resistance"]
+
+    # Lows at bars 2 and 6; highs at bars 4 and 8. Timestamps are the exact
+    # intraday bars, not the session date (which alone would snap to 09:15).
+    assert support["start_time"] == index[2].isoformat()
+    assert support["end_time"] == index[6].isoformat()
+    assert resistance["start_time"] == index[4].isoformat()
+    assert resistance["end_time"] == index[8].isoformat()
+    for zone in zones:
+        assert zone["start_date"] == "2026-01-05"
+        assert zone["end_date"] == "2026-01-05"
+        assert zone["start_time"] <= zone["end_time"]
+
+
+def test_daily_weekly_monthly_zones_keep_date_only_shape():
+    closes = [110, 110, 100, 105, 120, 110, 100, 105, 120, 110, 110, 110]
+    for timeframe in ("1D", "1W", "1M"):
+        zones = levels.compute_sr_zones(_wire(closes), timeframe=timeframe)
+        assert zones, timeframe
+        for zone in zones:
+            assert "start_time" not in zone
+            assert "end_time" not in zone
+            assert set(zone) == {
+                "kind", "top", "bottom", "start_date", "end_date", "touches", "score",
+            }
+
+
 def test_single_touch_is_rejected():
     zones = levels.compute_sr_zones(
         _wire([100, 101, 102, 90, 103, 104, 105, 106]), timeframe="1D"

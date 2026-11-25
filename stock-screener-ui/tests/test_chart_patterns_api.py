@@ -637,6 +637,98 @@ def test_symbol_chart_vwap_uses_pre_window_session_bars(
         assert value == pytest.approx(float(expected[12 + i]))
 
 
+def test_symbol_chart_asof_vwap_uses_pre_window_session_bars(
+    cp_client, monkeypatch,
+):
+    """An as-of replay whose displayed tail starts mid-session still anchors
+    VWAP at 09:15 using the full fetched frame's earlier bars."""
+    idx = pd.date_range(
+        "2026-01-05 09:15", periods=24, freq="15min", tz="Asia/Kolkata"
+    ).tz_convert("UTC")
+    base = np.arange(24, dtype=float) + 100.0
+    frame = pd.DataFrame(
+        {
+            "open": base,
+            "high": base + 0.5,
+            "low": base - 0.5,
+            "close": base,
+            "volume": np.full(24, 1000.0),
+        },
+        index=idx,
+    )
+    monkeypatch.setattr(
+        cp_api.candles, "fetch_for_timeframe", lambda *a, **k: frame
+    )
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": None, "resistance": None},
+    )
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={
+            "timeframe": "15m",
+            "limit": 4,
+            "as_of_date": "2026-01-05T13:00",
+        },
+    )
+    assert chart.status_code == 200
+    body = chart.json()
+    assert len(body["candles"]) == 4
+    vwap = next(s for s in body["indicators"]["series"] if s["id"] == "vwap")
+    full = cp_api._fast_candle_series(frame, None)
+    expected = cp_api.indicators_mod.compute_vwap(
+        full[:16], "Asia/Kolkata", "15m"
+    )
+    # Bars 12..15 are 12:15–13:00; the first displayed VWAP must carry the
+    # 09:15-anchored session cumulative, not restart at 12:15.
+    for offset, value in enumerate(vwap["values"]):
+        assert value == pytest.approx(float(expected[12 + offset]))
+
+
+def test_symbol_chart_asof_vwap_without_warmup_stays_null(
+    cp_client, monkeypatch,
+):
+    """The old no-warm-up path is unchanged: a mid-session first bar cannot
+    prove an open-anchored VWAP, so it stays null."""
+    idx = pd.date_range(
+        "2026-01-05 09:15", periods=24, freq="15min", tz="Asia/Kolkata"
+    ).tz_convert("UTC")
+    base = np.arange(24, dtype=float) + 100.0
+    frame = pd.DataFrame(
+        {
+            "open": base,
+            "high": base + 0.5,
+            "low": base - 0.5,
+            "close": base,
+            "volume": np.full(24, 1000.0),
+        },
+        index=idx,
+    )
+    monkeypatch.setattr(
+        cp_api.candles, "fetch_for_timeframe", lambda *a, **k: frame
+    )
+    monkeypatch.setattr(cp_api, "_warmup_candles", lambda *a, **k: [])
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": None, "resistance": None},
+    )
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={
+            "timeframe": "15m",
+            "limit": 4,
+            "as_of_date": "2026-01-05T13:00",
+        },
+    )
+    assert chart.status_code == 200
+    vwap = next(
+        s for s in chart.json()["indicators"]["series"] if s["id"] == "vwap"
+    )
+    assert all(value is None for value in vwap["values"])
+
+
 def test_symbol_chart_carries_aligned_indicators_and_zones(cp_client, monkeypatch):
     """Live branch: every value is candle-aligned, daily omits VWAP, no NaN."""
     closes = np.array([110, 110, 100, 105, 120, 110] * 40, dtype=float)
@@ -3936,6 +4028,99 @@ def test_symbol_chart_1w_no_daily_cache_uses_network(cp_client, monkeypatch, tmp
     assert fetch_calls == [("POWERMECH", "1W")], "no 1D cache -> network fetch for 1W"
     assert kicks == []
     assert len(body["candles"]) == 7
+
+
+@pytest.mark.parametrize(
+    "timeframe,label",
+    [("1W", "2026-10-02"), ("1M", "2026-09-30")],
+)
+def test_symbol_chart_period_exact_cache_served_on_wednesday(
+    timeframe, label, cp_client, monkeypatch, tmp_path,
+):
+    """A warm weekly/monthly cache is valid before the next period label:
+    on Wednesday it still covers the last completed week/month, so it is served
+    exactly instead of falling back to the daily resample."""
+    store.save_hits("cpj_period_warm", [_hit("POWERMECH")])
+    df = _make_df_session_current(80, end=label)
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _seed_live_edge_disk_cache("POWERMECH", timeframe, df)
+    _pin_last_completed_session(monkeypatch, "2026-10-07")
+    monkeypatch.setattr(cp_api, "_ist_session_date", lambda: "2026-10-07")
+
+    def _no_fetch(symbol, tf, **kwargs):
+        raise AssertionError("a covering exact cache must not fetch or resample")
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _no_fetch)
+    kicks = _kick_spy(monkeypatch)
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": timeframe}
+    )
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["cached"] is True
+    assert body["as_of"] == label
+    assert len(body["candles"]) == len(df), "exact cache served un-resampled"
+    assert kicks == [("POWERMECH", timeframe, config.READ_LOOKBACK_BARS)]
+
+
+@pytest.mark.parametrize(
+    "timeframe,label",
+    [("1W", "2026-10-09"), ("1M", "2026-10-31")],
+)
+def test_stale_first_period_cache_with_future_label_rejected(
+    timeframe, label, monkeypatch, tmp_path,
+):
+    """A bar labelled in the still-open period (this Friday / this month-end)
+    must not be served as a completed weekly/monthly candle."""
+    df = _make_df_session_current(80, end=label)
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _seed_live_edge_disk_cache("POWERMECH", timeframe, df)
+    _pin_last_completed_session(monkeypatch, "2026-10-07")
+
+    assert cp_api._stale_first_frame("POWERMECH", timeframe, None) is None
+
+
+def test_stale_first_period_cache_within_staleness_tolerance_served(
+    monkeypatch, tmp_path,
+):
+    """A label at most MAX_STALE_DAYS behind the last completed period is kept;
+    a full period behind is refused so the caller falls through to the network."""
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _pin_last_completed_session(monkeypatch, "2026-10-07")
+
+    fresh_enough = _make_df_session_current(80, end="2026-10-01")  # expected Fri 10/02
+    _seed_live_edge_disk_cache("POWERMECH", "1W", fresh_enough)
+    result = cp_api._stale_first_frame("POWERMECH", "1W", None)
+    assert result is not None
+    assert result[1] == "2026-10-01"
+
+    _seed_live_edge_disk_cache(
+        "POWERMECH", "1W", _make_df_session_current(80, end="2026-09-24")
+    )
+    assert cp_api._stale_first_frame("POWERMECH", "1W", None) is None
+
+
+@pytest.mark.parametrize("lcs", ["2026-10-30", "2026-11-02"])
+def test_stale_first_monthly_cache_accepts_month_end_label(
+    lcs, monkeypatch, tmp_path,
+):
+    """Monthly provider bars label the calendar month end (Sat 2026-10-31),
+    which can be after the last trading session but still closes the month."""
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    _seed_live_edge_disk_cache(
+        "POWERMECH", "1M", _make_df_session_current(80, end="2026-10-31")
+    )
+    _pin_last_completed_session(monkeypatch, lcs)
+
+    result = cp_api._stale_first_frame("POWERMECH", "1M", None)
+    assert result is not None
+    assert result[1] == "2026-10-31"
+
+    _seed_live_edge_disk_cache(
+        "POWERMECH", "1M", _make_df_session_current(80, end="2026-11-30")
+    )
+    assert cp_api._stale_first_frame("POWERMECH", "1M", None) is None
 
 
 @pytest.mark.parametrize(

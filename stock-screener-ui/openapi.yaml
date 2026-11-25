@@ -2748,6 +2748,12 @@ components:
         end_date:
           title: End Date
           type: string
+        end_time:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Exact last-touch bar timestamp (intraday frames only).
+          title: End Time
         kind:
           title: Kind
           type: string
@@ -2757,6 +2763,12 @@ components:
         start_date:
           title: Start Date
           type: string
+        start_time:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Exact first-touch bar timestamp (intraday frames only).
+          title: Start Time
         top:
           title: Top
           type: number

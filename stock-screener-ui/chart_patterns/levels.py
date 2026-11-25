@@ -296,6 +296,28 @@ def _date_at(frame: pd.DataFrame, index: int, session: Optional[str]) -> str:
         return ""
 
 
+def _time_at(frame: pd.DataFrame, index: int) -> str:
+    """Exact bar timestamp (ISO 8601) for intraday zone edges."""
+    try:
+        value = frame.index[index]
+        ts = value if isinstance(value, pd.Timestamp) else pd.Timestamp(value)
+        if pd.isna(ts):
+            return ""
+        return ts.isoformat()
+    except Exception:
+        return ""
+
+
+def _is_intraday(timeframe: Optional[str]) -> bool:
+    """True for minute/hour frames; date-only zones are enough elsewhere."""
+    try:
+        from chart_patterns.indicators import is_intraday_timeframe
+
+        return is_intraday_timeframe(timeframe)
+    except Exception:
+        return False
+
+
 def _overlap_ratio(left: dict, right: dict) -> float:
     overlap = min(left["top"], right["top"]) - max(left["bottom"], right["bottom"])
     if overlap <= 0.0:
@@ -359,17 +381,19 @@ def _merge_overlaps(zones: list[dict]) -> list[dict]:
             merged.append(members[0])
             continue
         kinds = {member["raw_kind"] for member in members}
-        merged.append(
-            {
-                "raw_kind": "sr" if len(kinds) > 1 else members[0]["raw_kind"],
-                "top": max(member["top"] for member in members),
-                "bottom": min(member["bottom"] for member in members),
-                "start_date": min(member["start_date"] for member in members),
-                "end_date": max(member["end_date"] for member in members),
-                "touches": sum(member["touches"] for member in members),
-                "last_touch": max(member["last_touch"] for member in members),
-            }
-        )
+        entry = {
+            "raw_kind": "sr" if len(kinds) > 1 else members[0]["raw_kind"],
+            "top": max(member["top"] for member in members),
+            "bottom": min(member["bottom"] for member in members),
+            "start_date": min(member["start_date"] for member in members),
+            "end_date": max(member["end_date"] for member in members),
+            "touches": sum(member["touches"] for member in members),
+            "last_touch": max(member["last_touch"] for member in members),
+        }
+        if all("start_time" in member for member in members):
+            entry["start_time"] = min(member["start_time"] for member in members)
+            entry["end_time"] = max(member["end_time"] for member in members)
+        merged.append(entry)
     return merged
 
 
@@ -473,6 +497,7 @@ def compute_sr_zones(
         return []
 
     closes = frame["close"].to_numpy(dtype=float)
+    intraday = _is_intraday(timeframe)
     zones: list[dict] = []
     for raw_kind, points in (("resistance", high_points), ("support", low_points)):
         for cluster in _cluster_touches(points, tolerance):
@@ -489,17 +514,22 @@ def compute_sr_zones(
             if _is_broken(closes, last_touch, atr, raw_kind, top, bottom):
                 continue
             first_touch = min(cluster["indices"])
-            zones.append(
-                {
-                    "raw_kind": raw_kind,
-                    "top": float(top),
-                    "bottom": float(bottom),
-                    "start_date": _date_at(frame, first_touch, session),
-                    "end_date": _date_at(frame, last_touch, session),
-                    "touches": int(touches),
-                    "last_touch": int(last_touch),
-                }
-            )
+            zone = {
+                "raw_kind": raw_kind,
+                "top": float(top),
+                "bottom": float(bottom),
+                "start_date": _date_at(frame, first_touch, session),
+                "end_date": _date_at(frame, last_touch, session),
+                "touches": int(touches),
+                "last_touch": int(last_touch),
+            }
+            if intraday:
+                start_time = _time_at(frame, first_touch)
+                end_time = _time_at(frame, last_touch)
+                if start_time and end_time:
+                    zone["start_time"] = start_time
+                    zone["end_time"] = end_time
+            zones.append(zone)
 
     zones = _merge_overlaps(zones)
     if not zones:
@@ -511,25 +541,27 @@ def compute_sr_zones(
         if kind != "sr":
             kind = _role_from_close(zone, last_close)
         bars_since = n - 1 - int(zone["last_touch"])
-        final.append(
-            {
-                "kind": kind,
-                "top": round(float(zone["top"]), 6),
-                "bottom": round(float(zone["bottom"]), 6),
-                "start_date": zone["start_date"],
-                "end_date": zone["end_date"],
-                "touches": int(zone["touches"]),
-                "score": _zone_score(
-                    int(zone["touches"]),
-                    bars_since,
-                    n,
-                    float(zone["top"]),
-                    float(zone["bottom"]),
-                    last_close,
-                ),
-                "_bars_since": bars_since,
-            }
-        )
+        entry = {
+            "kind": kind,
+            "top": round(float(zone["top"]), 6),
+            "bottom": round(float(zone["bottom"]), 6),
+            "start_date": zone["start_date"],
+            "end_date": zone["end_date"],
+            "touches": int(zone["touches"]),
+            "score": _zone_score(
+                int(zone["touches"]),
+                bars_since,
+                n,
+                float(zone["top"]),
+                float(zone["bottom"]),
+                last_close,
+            ),
+            "_bars_since": bars_since,
+        }
+        if "start_time" in zone:
+            entry["start_time"] = zone["start_time"]
+            entry["end_time"] = zone["end_time"]
+        final.append(entry)
 
     # Rank deterministically, cap each side, then fill the remaining slots.
     return _select_zones(final)

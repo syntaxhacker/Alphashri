@@ -851,6 +851,23 @@ def _stale_first_frame(symbol: str, timeframe: str, lookback_bars) -> Optional[t
                             symbol, timeframe, as_of, lcs,
                             lag if lag is not None else "", _MAX_STALE_DAYS,
                         )
+                elif timeframe in ("1W", "1M"):
+                    # Period-labelled bars end on their Friday/month-end, never
+                    # "today" (except on the label day itself), so exact-date
+                    # equality rejected almost every warm weekly/monthly cache.
+                    # Accept a frame that covers the last completed period and
+                    # carries no bar for a period that has not closed yet.
+                    expected = _last_completed_period_label(lcs, timeframe)
+                    ok = _period_cache_covers(as_of, lcs, expected, timeframe)
+                    if not ok and lcs:
+                        _chart_logger.info(
+                            "chart_stale_first rejected=period symbol=%s timeframe=%s "
+                            "as_of=%s expected_as_of=%s lag_days=%s max_stale_days=%d",
+                            symbol, timeframe, as_of, expected or lcs,
+                            _session_lag_days(as_of, expected or lcs)
+                            if expected else "",
+                            _MAX_STALE_DAYS,
+                        )
                 else:
                     ok = as_of == _ist_session_date()
                 if ok:
@@ -2871,16 +2888,21 @@ async def _asof_symbol_chart(
             overlay = _live_overlay(record)
             if overlay is not None:
                 overlays.append(overlay)
-    return {
-        "symbol": symbol.upper(),
-        "timeframe": timeframe,
-        "candles": series,
-        "overlays": overlays,
-        "trend_lines": trend_lines,
-        "hits": hits,
-        "as_of": to_dt.isoformat(),
-        "from_date": from_date,
-    }
+    return _with_chart_extras(
+        {
+            "symbol": symbol.upper(),
+            "timeframe": timeframe,
+            "candles": series,
+            "overlays": overlays,
+            "trend_lines": trend_lines,
+            "hits": hits,
+            "as_of": to_dt.isoformat(),
+            "from_date": from_date,
+        },
+        "india",
+        timeframe,
+        warmup=_warmup_candles(df, series),
+    )
 
 
 def _chart_display_frame(base_df, symbol_u: str, timeframe: str) -> tuple:
@@ -2968,6 +2990,83 @@ def _period_last_session(day: date, timeframe: str) -> Optional[date]:
         return candles.previous_trading_day(candidate) or candidate
     except Exception:
         return candidate
+
+
+def _month_end(day: date) -> date:
+    """Calendar month-end date containing ``day``."""
+    return (day.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+
+
+def _last_completed_period_label(lcs: Optional[str], timeframe: str) -> Optional[str]:
+    """Provider label (period end) of the last period closed by ``lcs``.
+
+    Weekly bars are labelled on the week's last session (Friday); monthly bars
+    on the calendar month end, which may be a weekend/holiday after the last
+    session. Before a period's final session, the previous period's label is
+    the last completed one.
+    """
+    if not lcs:
+        return None
+    try:
+        day = date.fromisoformat(lcs)
+    except (TypeError, ValueError):
+        return None
+    if timeframe == "1W":
+        end = _period_last_session(day, timeframe)
+        if end is not None and end > day:
+            end = _period_last_session(day - timedelta(days=7), timeframe)
+        return end.isoformat() if end is not None else None
+    if timeframe == "1M":
+        end = _period_last_session(day, timeframe)
+        if end is None:
+            return None
+        if end > day:
+            return _month_end(day.replace(day=1) - timedelta(days=1)).isoformat()
+        return _month_end(day).isoformat()
+    return None
+
+
+def _period_key(day: date, timeframe: str) -> tuple[int, int]:
+    """Calendar period containing ``day``: ISO week for 1W, year-month for 1M."""
+    if timeframe == "1W":
+        iso = day.isocalendar()
+        return (iso.year, iso.week)
+    return (day.year, day.month)
+
+
+def _period_cache_covers(
+    as_of: Optional[str],
+    lcs: Optional[str],
+    expected: Optional[str],
+    timeframe: str,
+) -> bool:
+    """Whether a period-labelled cache ends at/after the last completed period.
+
+    A label in a later period than the last completed one names a bar for a
+    period that has not closed, so it is never served. Either label convention
+    is accepted within the completed period (period start, mid-period or end),
+    and the daily path's max-staleness tolerance still applies to an older
+    period's label.
+    """
+    if not as_of or not lcs or not expected:
+        return False
+    try:
+        label = date.fromisoformat(as_of)
+        last_session = date.fromisoformat(lcs)
+        period_end = date.fromisoformat(expected)
+    except (TypeError, ValueError):
+        return False
+    # A weekly label may not run past the last completed session (the current
+    # week's Friday is "future" until that week's final session closes).
+    if timeframe == "1W" and label > last_session:
+        return False
+    label_key = _period_key(label, timeframe)
+    expected_key = _period_key(period_end, timeframe)
+    if label_key == expected_key:
+        return True
+    if label_key > expected_key:
+        return False
+    return (period_end - label).days <= _MAX_STALE_DAYS
 
 
 def _intraday_bar_partial(bar_ts, now, market: str) -> bool:
@@ -3399,6 +3498,14 @@ class SRZone(BaseModel):
     end_date: str
     touches: int
     score: float
+    start_time: Optional[str] = Field(
+        default=None,
+        description="Exact first-touch bar timestamp (intraday frames only).",
+    )
+    end_time: Optional[str] = Field(
+        default=None,
+        description="Exact last-touch bar timestamp (intraday frames only).",
+    )
 
 
 class SymbolChartResponse(BaseModel):
@@ -3479,7 +3586,7 @@ async def get_symbol_chart(
             symbol, timeframe, limit, lookback_bars, compute_trendlines,
             detect_patterns, as_of_date, from_date,
         )
-        return _json_response(_with_chart_extras(replay, "india", timeframe))
+        return _json_response(replay)
     from_part = None
     if from_date is not None:
         try:
