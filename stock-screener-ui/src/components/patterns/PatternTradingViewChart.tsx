@@ -32,6 +32,7 @@ import {
   type BuildPatternTVDataResult,
   type TVLine,
   type TVMarker,
+  type TVRect,
   type TVSiblingOverlay,
 } from "./patternTVData";
 import { ZONE_BORDER_ALPHA, ZoneBandPrimitive } from "./ZoneBandPrimitive";
@@ -95,6 +96,77 @@ interface LabelRect {
   y: number;
   w: number;
   h: number;
+}
+
+interface CrossMarkerEntry {
+  marker: TVMarker;
+  /** Candle index, used to clip crosses to the visible logical range. */
+  index: number;
+}
+
+interface MarkerCache {
+  data: BuildPatternTVDataResult;
+  hidden: ReadonlySet<string>;
+  /** Visible non-cross markers, pre-sorted by time. */
+  others: TVMarker[];
+  /** Visible, non-partial crosses in candle order. */
+  crosses: CrossMarkerEntry[];
+}
+
+interface CachedLineLabel {
+  series: { priceToCoordinate?: (price: number) => number | null };
+  time: TVLine["points"][number]["time"];
+  value: number;
+  text: string;
+  color: string;
+  width: number;
+  height: number;
+}
+
+interface CachedZoneLabel {
+  zone: TVRect;
+  fullText: string;
+  compactText: string;
+  fallbackTexts: string[];
+}
+
+interface CachedIndicatorLabel {
+  id: string;
+  label: string;
+  color: string;
+  series: { priceToCoordinate?: (price: number) => number | null };
+  value: number;
+}
+
+interface OverlayLabelCache {
+  data: BuildPatternTVDataResult;
+  hidden: ReadonlySet<string>;
+  locale: string;
+  lines: CachedLineLabel[];
+  zones: CachedZoneLabel[];
+  indicators: CachedIndicatorLabel[];
+  lastCandleTime: number | null;
+  /** Text width cache; labels are measured once per data/locale change. */
+  measure: (text: string) => number;
+}
+
+/** `Intl.NumberFormat` construction is expensive; reuse one set per locale. */
+const PRICE_FORMATS = new Map<
+  string,
+  { full: Intl.NumberFormat; compact: Intl.NumberFormat; short: Intl.NumberFormat }
+>();
+
+function priceFormatsFor(locale: string) {
+  let formats = PRICE_FORMATS.get(locale);
+  if (!formats) {
+    formats = {
+      full: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }),
+      compact: new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }),
+      short: new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }),
+    };
+    PRICE_FORMATS.set(locale, formats);
+  }
+  return formats;
 }
 
 /** Minimum band height (px) that earns an S/R label pill. */
@@ -319,8 +391,55 @@ function markerLegendName(marker: TVMarker): string {
   return marker.group === "keypoints" ? KEY_POINTS_LEGEND_NAME : PIVOT_LEGEND_NAME;
 }
 
-function visibleMarkers(markers: TVMarker[], hidden: ReadonlySet<string>): TVMarker[] {
-  return markers.filter((marker) => !hidden.has(markerLegendName(marker)));
+/** First cross whose candle index is >= `value`. */
+function lowerBoundCross(entries: readonly CrossMarkerEntry[], value: number): number {
+  let lo = 0;
+  let hi = entries.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (entries[mid]!.index < value) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** First cross whose candle index is > `value`. */
+function upperBoundCross(entries: readonly CrossMarkerEntry[], value: number): number {
+  let lo = 0;
+  let hi = entries.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (entries[mid]!.index <= value) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** Merge sorted non-cross markers with a sorted cross slice, no re-sort. */
+function mergeVisibleMarkers(
+  others: readonly TVMarker[],
+  crosses: readonly CrossMarkerEntry[],
+  start: number,
+  count: number,
+): TVMarker[] {
+  const merged = new Array<TVMarker>(others.length + count);
+  let i = 0;
+  let j = 0;
+  let k = 0;
+  while (i < others.length && j < count) {
+    const other = others[i]!;
+    const cross = crosses[start + j]!.marker;
+    if (other.time <= cross.time) {
+      merged[k++] = other;
+      i++;
+    } else {
+      merged[k++] = cross;
+      j++;
+    }
+  }
+  while (i < others.length) merged[k++] = others[i++]!;
+  while (j < count) merged[k++] = crosses[start + j++]!.marker;
+  return merged;
 }
 
 function lineStyleOf(line: TVLine): LineStyle {
@@ -353,6 +472,21 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
   let fittedKey: string | null = null;
   const [visibleCrossCount, setVisibleCrossCount] = createSignal(0);
 
+  // Pan/zoom fires the visible-range callback on every frame. Marker selection
+  // and overlay label metadata are data/hidden dependent, so cache them and
+  // only recompute the range-dependent slice per frame.
+  let markerCache: MarkerCache | null = null;
+  let markerGeneration = 0;
+  let markerRangeKey = "";
+  let overlayCache: OverlayLabelCache | null = null;
+  let overlayFrame = 0;
+  let overlayGeometryDirty = true;
+  let overlaySize: { width: number; height: number } | null = null;
+  let overlayDpr = 0;
+  // Double-buffered label rects: clear only regions painted last frame.
+  let overlayDrawnRects: LabelRect[] = [];
+  let overlayScratchRects: LabelRect[] = [];
+
   const timeZoneOf = () => props.timeZone ?? MARKET_TIME_ZONE.india;
   // The chart is created once; the callbacks read this ref so a zone change
   // repaints the axis without rebuilding the series (and losing pan/zoom).
@@ -370,7 +504,21 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
         multiMonth = candles[to]!.time - candles[from]!.time > MULTI_MONTH_SPAN_SECONDS;
       }
     }
-    return tvTickMarkFormatter(time, kind, timeZoneRef, { timeframe, multiMonth });
+    // Resolve the tick's pane coordinate so the formatter can skip labels that
+    // would be clipped after a user zoom/pan removes the initial edge padding.
+    let x: number | null = null;
+    let paneWidth: number | null = null;
+    const ts = chart?.timeScale();
+    if (ts && typeof ts.timeToCoordinate === "function" && typeof ts.width === "function") {
+      try {
+        x = ts.timeToCoordinate(time as never);
+        paneWidth = ts.width();
+      } catch {
+        x = null;
+        paneWidth = null;
+      }
+    }
+    return tvTickMarkFormatter(time, kind, timeZoneRef, { timeframe, multiMonth, x, paneWidth });
   };
   const crosshairFormatter = (time: Time) => tvTimeFormatter(time, timeZoneRef);
 
@@ -489,23 +637,36 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
           height: containerEl.clientHeight || initialHeight,
         });
       }
+      overlayGeometryDirty = true;
+      scheduleOverlayDraw();
     });
     ro.observe(containerEl);
 
     const ts = created.timeScale();
     if (typeof ts.subscribeVisibleLogicalRangeChange === "function") {
-      const onRedraw = () => {
+      // Pan/zoom only changes the visible slice and the overlay coordinates;
+      // both are cheap once the per-data caches are warm.
+      const onRangeChange = () => {
         updateMarkers();
-        requestAnimationFrame(drawEndLabels);
+        scheduleOverlayDraw();
       };
-      ts.subscribeVisibleLogicalRangeChange(onRedraw);
-      window.addEventListener("resize", onRedraw);
-      const parentRo = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onRedraw) : null;
+      const onResize = () => {
+        overlayGeometryDirty = true;
+        updateMarkers();
+        scheduleOverlayDraw();
+      };
+      ts.subscribeVisibleLogicalRangeChange(onRangeChange);
+      window.addEventListener("resize", onResize);
+      const parentRo = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onResize) : null;
       if (containerEl && parentRo) parentRo.observe(containerEl);
       onCleanup(() => {
-        ts.unsubscribeVisibleLogicalRangeChange?.(onRedraw);
+        ts.unsubscribeVisibleLogicalRangeChange?.(onRangeChange);
         parentRo?.disconnect();
-        window.removeEventListener("resize", onRedraw);
+        window.removeEventListener("resize", onResize);
+        if (overlayFrame) {
+          cancelAnimationFrame(overlayFrame);
+          overlayFrame = 0;
+        }
       });
     }
 
@@ -527,6 +688,11 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
       indicatorLineSeries.clear();
       markers = null;
       priceLines = [];
+      markerCache = null;
+      overlayCache = null;
+      overlaySize = null;
+      overlayDrawnRects = [];
+      overlayScratchRects = [];
     });
   });
 
@@ -588,18 +754,18 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     if (range) ts.setVisibleLogicalRange(range);
   };
 
-  const updateMarkers = () => {
-    const plugin = markers;
-    if (!plugin) return;
-    const d = data();
+  /** Data/hidden-dependent marker index; rebuilt only when either changes. */
+  const buildMarkerCache = (
+    d: BuildPatternTVDataResult,
+    hiddenSet: ReadonlySet<string>,
+  ): MarkerCache => {
     const partial = partialTime();
-    const range = visibleLogicalRange();
     const indexByTime = new Map<number, number>();
     d.candles.forEach((c, i) => indexByTime.set(c.time, i));
-
     const others: TVMarker[] = [];
-    const crosses: TVMarker[] = [];
+    const crosses: CrossMarkerEntry[] = [];
     for (const marker of d.markers) {
+      if (hiddenSet.has(markerLegendName(marker))) continue;
       if (marker.group !== "crosses") {
         others.push(marker);
         continue;
@@ -607,19 +773,60 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
       if (partial != null && marker.time === partial) continue;
       const index = indexByTime.get(marker.time);
       if (index == null) continue;
-      if (range && (index < range.from - 0.5 || index > range.to + 0.5)) continue;
-      crosses.push(marker);
+      crosses.push({ marker, index });
     }
-    const capped =
-      crosses.length > MAX_VISIBLE_CROSSES ? crosses.slice(-MAX_VISIBLE_CROSSES) : crosses;
-    const merged = [...others, ...capped].sort((a, b) => a.time - b.time);
-    const shown = visibleMarkers(merged, hiddenRef);
+    others.sort((a, b) => a.time - b.time);
+    crosses.sort((a, b) => a.index - b.index);
+    markerGeneration += 1;
+    return { data: d, hidden: hiddenSet, others, crosses };
+  };
+
+  const updateMarkers = () => {
+    const plugin = markers;
+    if (!plugin) return;
+    const d = data();
+    if (!markerCache || markerCache.data !== d || markerCache.hidden !== hiddenRef) {
+      markerCache = buildMarkerCache(d, hiddenRef);
+      markerRangeKey = "";
+    }
+    const cache = markerCache;
+
+    // Binary-search the visible candle range instead of walking all markers.
+    const range = visibleLogicalRange();
+    let start = 0;
+    let end = cache.crosses.length;
+    if (range) {
+      start = lowerBoundCross(cache.crosses, range.from - 0.5);
+      end = upperBoundCross(cache.crosses, range.to + 0.5);
+    }
+    let count = end - start;
+    if (count > MAX_VISIBLE_CROSSES) {
+      start = end - MAX_VISIBLE_CROSSES;
+      count = MAX_VISIBLE_CROSSES;
+    }
+    if (count < 0) count = 0;
+
+    // Crosses only enter/leave at range boundaries; skip the chart API when
+    // the visible marker set is unchanged (most pan frames).
+    const key = `${markerGeneration}:${start}:${count}`;
+    if (key === markerRangeKey) return;
+    markerRangeKey = key;
+
+    let shown: TVMarker[];
+    if (count === 0) {
+      shown = cache.others;
+    } else if (cache.others.length === 0) {
+      shown = new Array<TVMarker>(count);
+      for (let i = 0; i < count; i++) shown[i] = cache.crosses[start + i]!.marker;
+    } else {
+      shown = mergeVisibleMarkers(cache.others, cache.crosses, start, count);
+    }
     try {
       plugin.setMarkers(shown as never);
     } catch {
       /* noop */
     }
-    setVisibleCrossCount(shown.filter((marker) => marker.group === "crosses").length);
+    setVisibleCrossCount(count);
   };
 
   // Indicator series are reconciled by stable id: toggles only flip `visible`.
@@ -750,6 +957,100 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     }
   });
 
+  /** Build the data/hidden/locale-scoped label metadata once, then reuse it. */
+  const buildOverlayCache = (
+    ctx: CanvasRenderingContext2D,
+    d: BuildPatternTVDataResult,
+    hiddenSet: ReadonlySet<string>,
+    locale: string,
+  ): OverlayLabelCache => {
+    const measured = new Map<string, number>();
+    const measure = (text: string): number => {
+      let width = measured.get(text);
+      if (width == null) {
+        width = ctx.measureText(text).width;
+        measured.set(text, width);
+      }
+      return width;
+    };
+    const formats = priceFormatsFor(locale);
+
+    const lines: CachedLineLabel[] = [];
+    d.lines.forEach((line, i) => {
+      if (!line.labelEligible || hiddenSet.has(line.name)) return;
+      // Keep the runtime guard: test doubles and future library builds may omit
+      // the coordinate mapper, and the label pass must not throw without it.
+      const series: { priceToCoordinate?: (p: number) => number | null } | undefined = lineSeries[i];
+      if (!series || typeof series.priceToCoordinate !== "function") return;
+      const anchor = line.labelAt === "start" ? line.points[0] : line.points[line.points.length - 1];
+      if (!anchor) return;
+      const text = line.label ?? line.name;
+      lines.push({
+        series,
+        time: anchor.time,
+        value: anchor.value,
+        text,
+        color: line.color,
+        width: measure(text) + 8,
+        height: 16,
+      });
+    });
+
+    const zones: CachedZoneLabel[] = [];
+    d.zones.forEach((zone) => {
+      if (hiddenSet.has(zone.legendName)) return;
+      zones.push({
+        zone,
+        fullText: srZoneLabel(zone, formats.full.format(zone.top)),
+        compactText: srZoneLabel(zone, formats.compact.format(zone.top), true),
+        fallbackTexts: [
+          srZoneLabel(zone, formats.short.format(zone.top), true),
+          zone.kind === "sr" ? "S/R" : zone.kind === "support" ? "S" : "R",
+        ],
+      });
+    });
+
+    const indicators: CachedIndicatorLabel[] = [];
+    d.indicatorLines.forEach((line) => {
+      if (!line.labelEligible || !line.id) return;
+      if (hiddenSet.has(line.legendName ?? line.name)) return;
+      const series = indicatorLineSeries.get(line.id);
+      if (!series || typeof series.priceToCoordinate !== "function") return;
+      const anchor = lastValuedPoint(line.points);
+      if (!anchor) return;
+      indicators.push({
+        id: line.id,
+        label: line.label ?? line.name,
+        color: line.color,
+        series,
+        value: anchor.value,
+      });
+    });
+
+    const candles = d.candles;
+    const lastCandle = candles[candles.length - 1];
+    return {
+      data: d,
+      hidden: hiddenSet,
+      locale,
+      lines,
+      zones,
+      indicators,
+      lastCandleTime: lastCandle ? lastCandle.time : null,
+      measure,
+    };
+  };
+
+  /** Coalesce multiple range/resize events into one overlay paint. */
+  const scheduleOverlayDraw = (geometryDirty = false) => {
+    if (geometryDirty) overlayGeometryDirty = true;
+    if (overlayFrame) return;
+    overlayFrame = requestAnimationFrame(() => {
+      overlayFrame = 0;
+      drawEndLabels();
+    });
+  };
+
   // End labels: draw each line's name at its last point on a transparent canvas
   // overlay (same technique as TradingViewChart's entry pills). Coordinates
   // come from the chart scale + the line's own series; missing coordinates are
@@ -765,44 +1066,65 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     }
     if (!ctx) return;
     const parent = canvas.parentElement;
-    const rect = parent ? parent.getBoundingClientRect() : canvas.getBoundingClientRect();
+    if (!overlaySize || overlayGeometryDirty) {
+      const rect = parent ? parent.getBoundingClientRect() : canvas.getBoundingClientRect();
+      overlaySize = { width: rect.width, height: rect.height };
+      overlayGeometryDirty = false;
+    }
+    const width = overlaySize.width;
+    const height = overlaySize.height;
     const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-    const cw = Math.round(rect.width * dpr);
-    const ch = Math.round(rect.height * dpr);
+    const cw = Math.round(width * dpr);
+    const ch = Math.round(height * dpr);
     if (canvas.width !== cw || canvas.height !== ch) {
       canvas.width = cw;
       canvas.height = ch;
-      canvas.style.width = `${rect.width}px`;
-      canvas.style.height = `${rect.height}px`;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      // Assigning width/height clears the canvas; no stale pills to erase.
+      overlayDrawnRects = [];
+      overlayDpr = dpr;
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, rect.width, rect.height);
-    if (rect.width === 0 || rect.height === 0) return;
+    // Clear only the pills painted last frame instead of the whole overlay.
+    for (const rect of overlayDrawnRects) {
+      ctx.clearRect(rect.x - 2, rect.y - 2, rect.w + 4, rect.h + 4);
+    }
+    overlayScratchRects.length = 0;
+    if (width === 0 || height === 0) {
+      overlayDrawnRects = overlayScratchRects;
+      overlayScratchRects = [];
+      return;
+    }
     const ts = chart.timeScale();
     if (typeof ts.timeToCoordinate !== "function") return;
     ctx.font = `600 ${typeSize("micro")}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
-    const placed: LabelRect[] = [];
-    data().lines.forEach((line, i) => {
-      if (!line.labelEligible || hiddenRef.has(line.name)) return;
-      // Keep the runtime guard: test doubles and future library builds may omit
-      // the coordinate mapper, and the label pass must not throw without it.
-      const series: { priceToCoordinate?: (p: number) => number | null } | undefined = lineSeries[i];
-      if (!series || typeof series.priceToCoordinate !== "function") return;
-      const anchor = line.labelAt === "start" ? line.points[0] : line.points[line.points.length - 1];
-      if (!anchor) return;
-      const x = ts.timeToCoordinate?.(anchor.time as never);
-      const y = series.priceToCoordinate(anchor.value);
-      if (x == null || y == null) return;
-      const text = line.label ?? line.name;
+
+    const d = data();
+    if (
+      !overlayCache ||
+      overlayCache.data !== d ||
+      overlayCache.hidden !== hiddenRef ||
+      overlayCache.locale !== localeRef ||
+      overlayDpr !== dpr
+    ) {
+      overlayCache = buildOverlayCache(ctx, d, hiddenRef, localeRef);
+    }
+    const cache = overlayCache;
+    const placed = overlayScratchRects;
+
+    for (const label of cache.lines) {
+      const x = ts.timeToCoordinate?.(label.time as never);
+      const y = label.series.priceToCoordinate!(label.value);
+      if (x == null || y == null) continue;
+      const { text, color, width: w, height: h } = label;
       const padX = 4;
-      const h = 16;
-      const w = ctx.measureText(text).width + padX * 2;
       // Sit the label just left of the line's last point so it never collides
       // with the library's right-axis price-line titles (Breakout/Stop/Target).
-      let bx = Math.max(0, Math.min(x - w - 6, Math.max(0, rect.width - w)));
-      let by = Math.min(Math.max(y - h / 2, 0), Math.max(0, rect.height - h));
+      let bx = Math.max(0, Math.min(x - w - 6, Math.max(0, width - w)));
+      let by = Math.min(Math.max(y - h / 2, 0), Math.max(0, height - h));
       for (let guard = 0; guard < 12; guard++) {
         const clash = placed.some(
           (p) => bx < p.x + p.w && bx + w > p.x && by < p.y + p.h && by + h > p.y,
@@ -810,28 +1132,27 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
         if (!clash) break;
         if (bx - (w + 4) >= 0) {
           bx -= w + 4;
-        } else if (bx + w + 4 + w <= rect.width) {
+        } else if (bx + w + 4 + w <= width) {
           bx += w + 4;
         } else {
-          by = Math.min(by + h + 2, Math.max(0, rect.height - h));
+          by = Math.min(by + h + 2, Math.max(0, height - h));
         }
       }
       placed.push({ x: bx, y: by, w, h });
       ctx.fillStyle = "rgba(8,8,8,0.92)";
-      ctx.strokeStyle = line.color;
+      ctx.strokeStyle = color;
       ctx.lineWidth = 1;
       ctx.fillRect(bx, by, w, h);
       ctx.strokeRect(bx + 0.5, by + 0.5, w - 1, h - 1);
-      ctx.fillStyle = line.color;
+      ctx.fillStyle = color;
       ctx.fillText(text, bx + padX, by + h / 2 + 0.5);
-    });
+    }
 
     // Indicator tags live only in the blank gutter after the newest bar (never
     // on the data, never from LWC's price scale).
-    const paneWidth = typeof ts.width === "function" ? ts.width() : rect.width;
-    const candles = data().candles;
-    const lastCandle = candles[candles.length - 1];
-    const lastBarX = lastCandle ? ts.timeToCoordinate?.(lastCandle.time as never) : null;
+    const paneWidth = typeof ts.width === "function" ? ts.width() : width;
+    const lastBarX =
+      cache.lastCandleTime != null ? ts.timeToCoordinate?.(cache.lastCandleTime as never) : null;
     if (lastBarX != null && lastBarX >= 0 && lastBarX <= paneWidth) {
       const timeScaleOptions = typeof ts.options === "function" ? ts.options() : null;
       const barSpacing = timeScaleOptions?.barSpacing ?? 6;
@@ -839,26 +1160,25 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
       // tags right of this point sit on blank canvas.
       const gutterLeft = Math.min(paneWidth - 4, lastBarX + Math.max(barSpacing / 2, 2));
       const candidates: IndicatorTagCandidate[] = [];
-      data().indicatorLines.forEach((line) => {
-        if (!line.labelEligible || !line.id) return;
-        if (hiddenRef.has(line.legendName ?? line.name)) return;
-        const series = indicatorLineSeries.get(line.id);
-        if (!series || typeof series.priceToCoordinate !== "function") return;
-        const anchor = lastValuedPoint(line.points);
-        if (!anchor) return;
-        const y = series.priceToCoordinate(anchor.value);
-        if (y == null || y < 0 || y > rect.height) return;
-        candidates.push({ id: line.id, label: line.label ?? line.name, color: line.color, y });
-      });
+      for (const indicator of cache.indicators) {
+        const y = indicator.series.priceToCoordinate!(indicator.value);
+        if (y == null || y < 0 || y > height) continue;
+        candidates.push({
+          id: indicator.id,
+          label: indicator.label,
+          color: indicator.color,
+          y,
+        });
+      }
 
       const { tags } = layoutIndicatorTags(candidates, {
         paneWidth,
-        paneHeight: rect.height,
+        paneHeight: height,
         gutterLeft,
         placed,
-        measure: (text) => ctx.measureText(text).width + 8,
+        measure: (text) => cache.measure(text) + 8,
       });
-      tags.forEach((tag) => {
+      for (const tag of tags) {
         placed.push(tag);
         ctx.fillStyle = "rgba(8,8,8,0.92)";
         ctx.strokeStyle = tag.color;
@@ -867,75 +1187,69 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
         ctx.strokeRect(tag.x + 0.5, tag.y + 0.5, tag.w - 1, tag.h - 1);
         ctx.fillStyle = tag.color;
         ctx.fillText(tag.label, tag.x + 4, tag.y + tag.h / 2 + 0.5);
-      });
+      }
     }
 
-    const zones = data().zones;
-    if (zones.length === 0) return;
-    const priceFormat = new Intl.NumberFormat(localeRef, { maximumFractionDigits: 2 });
-    const compactPriceFormat = new Intl.NumberFormat(localeRef, { maximumFractionDigits: 1 });
-    const shortPriceFormat = new Intl.NumberFormat(localeRef, { maximumFractionDigits: 0 });
-    const zonePaneHeight =
-      typeof ts.height === "function" ? Math.max(1, rect.height - ts.height()) : rect.height;
-    // Every visible band gets a tag (the 12 px gate is only the helper's
-    // default): 1W/1M bands are often a few pixels tall yet still carry a
-    // useful price. Overlapping tags are stacked by findVerticalSlot below.
-    const minBandHeight = 0;
-    zones.forEach((zone) => {
-      if (hiddenRef.has(zone.legendName)) return;
-      const series = candleSeries;
-      if (!series || typeof series.priceToCoordinate !== "function") return;
-      const xStart = ts.timeToCoordinate?.(zone.start as never);
-      const xEnd = ts.timeToCoordinate?.(zone.end as never);
-      const yTop = series.priceToCoordinate(zone.top);
-      const yBottom = series.priceToCoordinate(zone.bottom);
-      if (xStart == null || xEnd == null || yTop == null || yBottom == null) return;
-      if (xEnd < 0 || xStart > paneWidth) return;
-      if (Math.max(yTop, yBottom) < 0 || Math.min(yTop, yBottom) > zonePaneHeight) return;
+    const zones = cache.zones;
+    if (zones.length > 0) {
+      const zonePaneHeight =
+        typeof ts.height === "function" ? Math.max(1, height - ts.height()) : height;
+      // Every visible band gets a tag (the 12 px gate is only the helper's
+      // default): 1W/1M bands are often a few pixels tall yet still carry a
+      // useful price. Overlapping tags are stacked by findVerticalSlot below.
+      const minBandHeight = 0;
+      const zoneSeries = candleSeries;
+      if (zoneSeries && typeof zoneSeries.priceToCoordinate === "function") {
+        for (const { zone, fullText, compactText, fallbackTexts } of zones) {
+          const xStart = ts.timeToCoordinate?.(zone.start as never);
+          const xEnd = ts.timeToCoordinate?.(zone.end as never);
+          const yTop = zoneSeries.priceToCoordinate(zone.top);
+          const yBottom = zoneSeries.priceToCoordinate(zone.bottom);
+          if (xStart == null || xEnd == null || yTop == null || yBottom == null) continue;
+          if (xEnd < 0 || xStart > paneWidth) continue;
+          if (Math.max(yTop, yBottom) < 0 || Math.min(yTop, yBottom) > zonePaneHeight) continue;
 
-      const padX = 4;
-      const placement = layoutZoneLabel(
-        {
-          fullText: srZoneLabel(zone, priceFormat.format(zone.top)),
-          compactText: srZoneLabel(zone, compactPriceFormat.format(zone.top), true),
-          fallbackTexts: [
-            srZoneLabel(zone, shortPriceFormat.format(zone.top), true),
-            zone.kind === "sr" ? "S/R" : zone.kind === "support" ? "S" : "R",
-          ],
-          xStart,
-          topY: yTop,
-          bottomY: yBottom,
-        },
-        {
-          chartWidth: rect.width,
-          paneWidth,
-          paneHeight: zonePaneHeight,
-          minBandHeight,
-          measure: (text) => ctx.measureText(text).width + padX * 2,
-        },
-      );
-      if (!placement) return;
-      // Keep labels readable even when two bands sit on top of each other; the
-      // first free slot wins, with the band centre as the guaranteed fallback.
-      const by =
-        findVerticalSlot(
-          placed,
-          placement.x,
-          placement.w,
-          placement.y,
-          placement.h,
-          zonePaneHeight,
-        ) ?? placement.y;
-      const { x: bx, w, h } = placement;
-      placed.push({ x: bx, y: by, w, h });
-      ctx.fillStyle = "rgba(8,8,8,0.92)";
-      ctx.strokeStyle = withAlpha(zone.color, ZONE_BORDER_ALPHA);
-      ctx.lineWidth = 1;
-      ctx.fillRect(bx, by, w, h);
-      ctx.strokeRect(bx + 0.5, by + 0.5, w - 1, h - 1);
-      ctx.fillStyle = zone.color;
-      ctx.fillText(placement.text, bx + padX, by + h / 2 + 0.5);
-    });
+          const padX = 4;
+          const placement = layoutZoneLabel(
+            { fullText, compactText, fallbackTexts, xStart, topY: yTop, bottomY: yBottom },
+            {
+              chartWidth: width,
+              paneWidth,
+              paneHeight: zonePaneHeight,
+              minBandHeight,
+              measure: (text) => cache.measure(text) + padX * 2,
+            },
+          );
+          if (!placement) continue;
+          // Keep labels readable even when two bands sit on top of each other;
+          // the first free slot wins, with the band centre as the fallback.
+          const by =
+            findVerticalSlot(
+              placed,
+              placement.x,
+              placement.w,
+              placement.y,
+              placement.h,
+              zonePaneHeight,
+            ) ?? placement.y;
+          const { x: bx, w, h } = placement;
+          placed.push({ x: bx, y: by, w, h });
+          ctx.fillStyle = "rgba(8,8,8,0.92)";
+          ctx.strokeStyle = withAlpha(zone.color, ZONE_BORDER_ALPHA);
+          ctx.lineWidth = 1;
+          ctx.fillRect(bx, by, w, h);
+          ctx.strokeRect(bx + 0.5, by + 0.5, w - 1, h - 1);
+          ctx.fillStyle = zone.color;
+          ctx.fillText(placement.text, bx + padX, by + h / 2 + 0.5);
+        }
+      }
+    }
+
+    // Swap the rect buffers so the next frame erases exactly what was painted.
+    const previous = overlayDrawnRects;
+    overlayDrawnRects = placed;
+    overlayScratchRects = previous;
+    overlayScratchRects.length = 0;
   };
 
   createEffect(() => {
