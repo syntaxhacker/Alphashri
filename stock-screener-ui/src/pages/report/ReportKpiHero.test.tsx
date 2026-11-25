@@ -91,10 +91,10 @@ describe("ReportKpiHero — compact decision band", () => {
     );
     for (const cell of cells) expect(cell.className).toContain("flex-col");
     expect(cells.map((cell) => cell.textContent)).toEqual([
-      "SPOT25,000",
-      "REGIMETREND",
-      "GAMMA FLIP25,100",
-      "WALLS25,200/24,800",
+      "SPOT 25,000",
+      "REGIME TREND",
+      "GAMMA FLIP 25,100",
+      "WALLS 25,200/24,800",
     ]);
     expect(row.textContent).not.toContain(" · ");
     expect(row.querySelectorAll("[data-kpi-divider]")).toHaveLength(3);
@@ -221,5 +221,29 @@ describe("ReportKpiHero — fixed band, composed detail", () => {
       expect(value.style.fontVariantNumeric, key).toBe("tabular-nums");
       expect(value.style.whiteSpace, key).toBe("nowrap");
     }
+  });
+});
+
+describe("ReportKpiHero — accessible name contains visible text", () => {
+  const KEYS = ["spot", "regime", "gamma-flip", "walls"] as const;
+
+  function assertNamesMatchVisibleText(): void {
+    for (const key of KEYS) {
+      const cell = screen.getByTestId(`nifty-kpi-${key}`);
+      const name = cell.getAttribute("aria-label");
+      expect(name, `${key} has an accessible name`).toBeTruthy();
+      const visible = (cell.textContent ?? "").replace(/\s+/g, " ").trim();
+      expect(name!, `${key} aria-label contains its visible text`).toContain(visible);
+    }
+  }
+
+  test("every KPI control names exactly what it shows (populated report)", () => {
+    mount();
+    assertNamesMatchVisibleText();
+  });
+
+  test("every KPI control names exactly what it shows (empty report)", () => {
+    mount({ report: null });
+    assertNamesMatchVisibleText();
   });
 });

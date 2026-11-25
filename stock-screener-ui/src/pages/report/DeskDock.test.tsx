@@ -16,8 +16,16 @@ const tabs = (): DeskDockTab[] => [
   { key: "analytics", label: "DATA", summary: <span>tape · flow</span>, content: <div>data</div> },
 ];
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** What a sighted desktop user reads in a closed bar tab, including its live value. */
+const visibleTabText = (button: HTMLElement, key: DeskDockKey, index: number) => {
+  const summary = button.querySelector(`[id$="-bar-summary-${key}"]`)?.textContent ?? "";
+  return `${index + 1} ${DOCK_HELP[key].label} ${summary}`;
+};
+
 describe("desk dock help", () => {
-  test("every dock button has a non-empty title and aria-label", () => {
+  test("every dock button has a descriptive title and an accessible name", () => {
     render(() => <DeskDock tabs={tabs()} active={null} onActiveChange={() => {}} />, {
       wrapper: UIProvider,
     });
@@ -25,13 +33,27 @@ describe("desk dock help", () => {
     for (const tab of tabs()) {
       const button = screen.getByTestId(`desk-dock-${tab.key}`);
       const title = button.getAttribute("title") ?? "";
-      const ariaLabel = button.getAttribute("aria-label") ?? "";
       expect(title.trim(), `${tab.key} title`).not.toBe("");
-      expect(ariaLabel.trim(), `${tab.key} aria-label`).not.toBe("");
       // A real explanation, not the tab name repeated back to the user.
       expect(title.length, `${tab.key} title length`).toBeGreaterThan(30);
-      expect(ariaLabel.length, `${tab.key} aria-label length`).toBeGreaterThan(15);
+      expect(button, `${tab.key} accessible name`).toHaveAccessibleName(/.+/);
     }
+  });
+
+  test("each bar tab's accessible name contains its visible desktop text", () => {
+    render(() => <DeskDock tabs={tabs()} active={null} onActiveChange={() => {}} />, {
+      wrapper: UIProvider,
+    });
+
+    tabs().forEach((tab, index) => {
+      const button = screen.getByTestId(`desk-dock-${tab.key}`);
+      const visible = visibleTabText(button, tab.key, index);
+      // label-content-name-mismatch (axe/wcag21a): a voice-control user must be
+      // able to say what they see, including the live value after the colon.
+      expect(button, `${tab.key} visible text "${visible}"`).toHaveAccessibleName(
+        new RegExp(escapeRegExp(visible)),
+      );
+    });
   });
 
   test("the drawer's tab buttons carry the same help", () => {
@@ -46,7 +68,7 @@ describe("desk dock help", () => {
     expect(tabButtons.length).toBe(tabs().length);
     for (const button of tabButtons) {
       expect(button.getAttribute("title")?.trim()).not.toBe("");
-      expect(button.getAttribute("aria-label")?.trim()).not.toBe("");
+      expect(button).toHaveAccessibleName(/.+/);
     }
   });
 

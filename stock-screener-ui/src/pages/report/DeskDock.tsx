@@ -28,7 +28,6 @@ interface DockHelp {
   /** Whole word used in the 390px tab bar. */
   short: string;
   shows: string;
-  ariaLabel: string;
   title: string;
 }
 
@@ -37,7 +36,6 @@ export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
     label: "Delta",
     short: "Delta",
     shows: "positioning",
-    ariaLabel: "Delta positioning tab — open the delta profile",
     title:
       "Delta positioning — where option writers are net long or short directional exposure. The value shows the current delta balance. Opens the delta profile.",
   },
@@ -45,7 +43,6 @@ export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
     label: "Dealer gamma",
     short: "Gamma",
     shows: "regime",
-    ariaLabel: "Dealer gamma regime tab — open the dealer gamma profile",
     title:
       "Dealer gamma regime — long gamma dampens moves, short gamma amplifies them. The value shows the current regime. Opens the dealer gamma profile.",
   },
@@ -53,7 +50,6 @@ export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
     label: "IV skew",
     short: "IV",
     shows: "strikes",
-    ariaLabel: "IV skew strikes — open the IV skew chart",
     title:
       "Implied volatility skew across strikes. The value shows how many strikes are in the chain. Opens the IV skew chart.",
   },
@@ -61,7 +57,6 @@ export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
     label: "Desk",
     short: "Desk",
     shows: "panels",
-    ariaLabel: "Desk panels — open walls and breadth",
     title:
       "Desk panels — option walls and market breadth. Opens the walls and breadth panels.",
   },
@@ -69,7 +64,6 @@ export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
     label: "Data",
     short: "Data",
     shows: "panels",
-    ariaLabel: "Data panels — open tape and flow",
     title:
       "Data panels — the live trade tape and flow windows. Opens the tape and flow panels.",
   },
@@ -77,21 +71,18 @@ export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
     label: "Futures basis",
     short: "Futures",
     shows: "basis",
-    ariaLabel: "Futures basis tab — open the futures basis panel",
     title: "Index futures basis — futures close against spot with open-interest change. Opens the futures basis panel.",
   },
   itm: {
     label: "ITM PE flow",
     short: "ITM PE",
     shows: "premium",
-    ariaLabel: "ITM PE flow tab — open the ITM put premium flow panel",
     title: "ITM PE flow — put premium share of the option chain through the session. Opens the ITM PE flow panel.",
   },
   alerts: {
     label: "Alerts",
     short: "Alerts",
     shows: "log",
-    ariaLabel: "Alerts log tab — open the alert log",
     title: "Alerts log — option open-interest bursts and risk alerts. Opens the alert log.",
   },
 };
@@ -164,10 +155,10 @@ export function DeskDock(props: {
     const labelId = `${uid}-bar-label-${tab.key}`;
     const summaryId = `${uid}-bar-summary-${tab.key}`;
     const helpId = `${uid}-bar-help-${tab.key}`;
-    // The button's name must start with the words a sighted user sees, or
-    // voice-control users cannot activate it by its visible label. The mirror
-    // carries those words at the current breakpoint; the live summary is pulled
-    // in by IDREF because its value changes with the report.
+    // No aria-label: its static help text cannot contain the live value a
+    // sighted user reads, so axe's label-content-name-mismatch fires. Mirror
+    // the visible words at the current breakpoint, then let the title explain
+    // the panel. The live summary is pulled in by IDREF because it changes.
     const labelledBy = () =>
       [labelId, !mobile() && tab.summary != null ? summaryId : "", helpId]
         .filter(Boolean)
@@ -179,7 +170,6 @@ export function DeskDock(props: {
         data-dock-open={isSelected() ? "true" : "false"}
         type="button"
         aria-pressed={isSelected()}
-        aria-label={help.ariaLabel}
         aria-labelledby={labelledBy()}
         title={help.title}
         onClick={() => toggle(tab.key)}
@@ -200,7 +190,7 @@ export function DeskDock(props: {
           </span>{" "}
           <span class="max-[600px]:hidden">{help.label}</span>
           <span class="hidden max-[600px]:inline">{help.short}</span>{" "}
-          {/* The qualifier lives in title/aria-label; repeating it in seven
+          {/* The qualifier lives in the title/help IDREF; repeating it in seven
               closed tabs stretched the bar into a wide, gappy row. */}
           <span class="hidden" style={{ color: subInk() }}>
             {help.shows}
@@ -216,7 +206,7 @@ export function DeskDock(props: {
           {isSelected() ? "▾" : "▸"}
         </span>
         <span id={labelId} class="sr-only">
-          {index + 1} {mobile() ? help.short : `${help.label} ${help.shows}`}
+          {index + 1} {mobile() ? help.short : help.label}
         </span>
         <span id={helpId} class="sr-only">{help.title}</span>
         <Show when={tab.badge != null && tab.badge! > 0}>
@@ -296,7 +286,6 @@ export function DeskDock(props: {
                   {(tab) => (
                     <button
                       type="button"
-                      aria-label={dockHelp(tab.key).ariaLabel}
                       aria-labelledby={`${uid}-drawer-label-${tab.key} ${uid}-drawer-help-${tab.key}`}
                       title={dockHelp(tab.key).title}
                       class="flex items-center gap-1 min-w-0 shrink-0 h-[24px] px-2 py-0 rounded-sm whitespace-nowrap"
@@ -312,8 +301,8 @@ export function DeskDock(props: {
                     >
                       <span>{dockHelp(tab.key).label}</span>{" "}
                       {/* On a phone the bar is 390px wide; the long "shows"
-                          qualifier is what clipped the labels. The aria-label
-                          and title already carry it. */}
+                          qualifier is what clipped the labels. The labelledby
+                          help span and title already carry it. */}
                       <span
                         class="max-[600px]:hidden"
                         style={{

@@ -147,13 +147,15 @@ function KpiCell(props: { token: KpiToken; onToken?: (key: KpiTokenKey) => void 
   const narrowClass = () => (props.token.narrowHide ? "max-[600px]:hidden" : "");
   const content = (
     <>
-      <Text span style={CAPTION_STYLE}>{props.token.label}</Text>
+      <Text span style={CAPTION_STYLE}>{props.token.label}</Text>{" "}
       <Text span style={VALUE_STYLE}>{props.token.value()}</Text>
     </>
   );
-  // axe requires the visible text to appear in the accessible name; a colon
-  // between caption and value breaks that substring match.
-  const label = `${props.token.label} ${props.token.value()}`;
+  // axe's label-content-name-mismatch compares the DOM's visible text with the
+  // accessible name: the space must exist in both, and stay in sync when a live
+  // report changes the value. A whitespace-only child of a flex column creates
+  // no flex item, so this adds no height or width to the 32px band.
+  const label = () => `${props.token.label} ${props.token.value()}`;
   const ink = { color: props.token.ink() };
   const title = () =>
     typeof props.token.title === "function" ? props.token.title() : props.token.title;
@@ -167,7 +169,7 @@ function KpiCell(props: { token: KpiToken; onToken?: (key: KpiTokenKey) => void 
           data-spot-source={props.token.source?.()}
           data-spot-as-of={props.token.asOf?.() ?? undefined}
           title={title()}
-          aria-label={label}
+          aria-label={label()}
           className={`inline-flex flex-col items-start justify-center shrink-0 min-w-0 rounded-[2px] leading-none ${narrowClass()}`}
           style={ink}
         >
@@ -181,7 +183,7 @@ function KpiCell(props: { token: KpiToken; onToken?: (key: KpiTokenKey) => void 
         data-spot-source={props.token.source?.()}
         data-spot-as-of={props.token.asOf?.() ?? undefined}
         title={title()}
-        aria-label={label}
+        aria-label={label()}
         className={`inline-flex flex-col items-start justify-center shrink-0 min-w-0 rounded-[2px] leading-none ${narrowClass()}`}
         style={ink}
         onClick={() => props.token.open && props.onToken?.(props.token.open)}
