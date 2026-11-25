@@ -78,7 +78,8 @@ describe("PatternsPage fullscreen chart", () => {
       candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
       overlays: [{ pattern_id: "rising_wedge", pattern_name: "Rising Wedge", trendlines: [] }],
       trend_lines: [],
-      hits: [oldConfident, newWeak],
+      // Live detection returns hits stamped with the requested frame.
+      hits: [{ ...oldConfident, timeframe: "1h" }, { ...newWeak, timeframe: "1h" }],
     });
 
     await fireEvent.change(screen.getByTestId("patterns-fullscreen-timeframe"), { target: { value: "1h" } });

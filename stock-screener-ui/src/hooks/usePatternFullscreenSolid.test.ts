@@ -59,6 +59,31 @@ const SR_ZONES: SRZone[] = [
   },
 ];
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+function candleSeries(count: number, price = 1000) {
+  return Array.from({ length: count }, (_, i) => ({
+    t: new Date(Date.UTC(2026, 0, 1) + i * 60_000).toISOString(),
+    o: price,
+    h: price,
+    l: price,
+    c: price,
+    v: 1,
+  }));
+}
+
+function indicatorsFor(count: number, timeframe = "1D"): ChartIndicators {
+  return { ...INDICATORS, timeframe, series: [{ id: "sma20", values: Array(count).fill(100) }] };
+}
+
 function makeHit(id: number, end_date: string): PatternHitDTO {
   return {
     id,
@@ -338,10 +363,15 @@ describe("usePatternFullscreen refreshSymbolChart", () => {
     expect(api.fullscreen()?.hit?.id).toBe(newest.id);
   });
 
-  test("timeframe change keeps the selected hit when its identity exists in the new timeframe", async () => {
+  test("timeframe change drops the old-frame selection and takes the new frame's hit", async () => {
     const newest = makeHit(1, "2026-11-13");
     const oldest = makeHit(3, "2026-11-11");
-    vi.mocked(fetchSymbolChart).mockImplementation(async () => chartPayload(framePrice, [newest, oldest]));
+    vi.mocked(fetchSymbolChart).mockImplementation(async (_symbol, tf) =>
+      chartPayload(framePrice, [
+        { ...newest, timeframe: tf },
+        { ...oldest, timeframe: tf },
+      ]),
+    );
 
     hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
     const api = hook.result.current;
@@ -350,9 +380,12 @@ describe("usePatternFullscreen refreshSymbolChart", () => {
 
     api.selectFullscreenHit(oldest);
     api.changeFullscreenTimeframe("1h");
+    expect(api.fullscreen()?.hit).toBeNull(); // cleared before the new frame loads
     await settled(api);
     expect(api.fullscreen()?.timeframe).toBe("1h");
-    expect(api.fullscreen()?.hit?.id).toBe(oldest.id);
+    expect(api.fullscreen()?.hit?.id).toBe(newest.id);
+    expect(api.fullscreen()?.hit?.timeframe).toBe("1h");
+    expect(api.fullscreen()?.hits.every((h) => h.timeframe === "1h")).toBe(true);
   });
 });
 
@@ -864,5 +897,143 @@ describe("usePatternFullscreen stored-first default (symbol dock)", () => {
     await settled(api);
     expect(api.fullscreen()?.indicators).toEqual(INDICATORS);
     expect(api.fullscreen()?.srZones).toEqual(SR_ZONES);
+  });
+});
+
+describe("usePatternFullscreen timeframe switch integrity", () => {
+  beforeEach(() => {
+    framePrice = 1000;
+    vi.mocked(fetchPatternHit).mockResolvedValue(null as never);
+    vi.mocked(fetchQuotes).mockResolvedValue([
+      { symbol: "KAYNES", close: 2986, change: -12.94 },
+    ]);
+  });
+
+  afterEach(() => {
+    hook?.unmount();
+    hook = undefined;
+    vi.clearAllMocks();
+  });
+
+  test("1D -> 5m clears the old hit immediately and never draws it during phase 2", async () => {
+    const dailyHit = makeHit(1, "2026-11-13");
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => chartPayload(framePrice, [dailyHit]));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES", undefined, true);
+    await settled(api);
+    expect(api.fullscreen()?.hit?.id).toBe(dailyHit.id);
+
+    const phase1 = deferred<ChartPayload>();
+    const phase2 = deferred<ChartPayload>();
+    vi.mocked(fetchSymbolChart).mockClear();
+    vi.mocked(fetchSymbolChart)
+      .mockImplementationOnce(() => phase1.promise)
+      .mockImplementationOnce(() => phase2.promise);
+
+    api.changeFullscreenTimeframe("5m");
+    expect(api.fullscreen()?.timeframe).toBe("5m");
+    expect(api.fullscreen()?.hit).toBeNull();
+    expect(api.fullscreen()?.hits).toEqual([]);
+    expect(api.fullscreen()?.candles).toEqual([]);
+
+    // Phase 1 echoes the old daily hit: the candles-only patch must not adopt it.
+    phase1.resolve({
+      ...chartPayload(framePrice, [dailyHit]),
+      timeframe: "5m",
+      candles: candleSeries(2),
+    });
+    await vi.waitFor(() => expect(api.fullscreen()?.loading).toBe(false));
+    expect(api.fullscreen()?.hit).toBeNull();
+    expect(api.fullscreen()?.candles).toHaveLength(2);
+    expect(api.fullscreen()?.patternsLoading).toBe(true); // still inside phase 2
+
+    phase2.resolve({ ...chartPayload(framePrice), timeframe: "5m", candles: candleSeries(2) });
+    await settled(api);
+    expect(api.fullscreen()?.hit).toBeNull();
+    expect(api.fullscreen()?.hits).toEqual([]);
+  });
+
+  test("phase-2 hits carrying the old timeframe are dropped", async () => {
+    const dailyHit = makeHit(1, "2026-11-13");
+    const fiveMinHit = { ...makeHit(2, "2026-11-20"), timeframe: "5m" };
+    vi.mocked(fetchSymbolChart).mockImplementation(async (_symbol, tf) =>
+      chartPayload(framePrice, tf === "5m" ? [dailyHit, fiveMinHit] : [dailyHit]),
+    );
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES", undefined, true);
+    await settled(api);
+
+    api.changeFullscreenTimeframe("5m");
+    await settled(api);
+    expect(api.fullscreen()?.hits).toEqual([fiveMinHit]);
+    expect(api.fullscreen()?.hit?.id).toBe(fiveMinHit.id);
+    expect(api.fullscreen()?.hit?.timeframe).toBe("5m");
+  });
+
+  test("a failed switch shows an error and no stale candles/hit, even after restoring the old frame", async () => {
+    const dailyHit = makeHit(1, "2026-11-13");
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => chartPayload(framePrice, [dailyHit]));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+    expect(api.fullscreen()?.candles).toHaveLength(1);
+
+    const failedSwitch = deferred<ChartPayload>();
+    vi.mocked(fetchSymbolChart).mockClear();
+    vi.mocked(fetchSymbolChart).mockImplementationOnce(() => failedSwitch.promise);
+    api.changeFullscreenTimeframe("5m");
+    failedSwitch.reject(new Error("candles down"));
+
+    await vi.waitFor(() => expect(api.fullscreen()?.chartError).toBe("request_failed"));
+    expect(api.fullscreen()?.chartNote).toBe("Could not load candles for KAYNES 5m.");
+    expect(api.fullscreen()?.candles).toEqual([]);
+    expect(api.fullscreen()?.hit).toBeNull();
+    expect(api.fullscreen()?.hits).toEqual([]);
+    expect(api.fullscreen()?.loading).toBe(false);
+
+    // Restoring the previous frame reloads from the wire; the failed 5m switch
+    // must not have kept a stale daily hit to resurrect.
+    const failedRestore = deferred<ChartPayload>();
+    vi.mocked(fetchSymbolChart).mockImplementationOnce(() => failedRestore.promise);
+    // Expire the 1D cache so the restore really hits the failing request.
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 120_000);
+    api.changeFullscreenTimeframe("1D");
+    nowSpy.mockRestore();
+    expect(api.fullscreen()?.hit).toBeNull();
+    failedRestore.reject(new Error("candles still down"));
+    await vi.waitFor(() => expect(api.fullscreen()?.loading).toBe(false));
+    expect(api.fullscreen()?.hit).toBeNull();
+    expect(api.fullscreen()?.hits).toEqual([]);
+    expect(api.fullscreen()?.candles).toEqual([]);
+  });
+
+  test("phase-2 extra candle is applied together with its indicator bundle", async () => {
+    const phase1 = {
+      ...chartPayload(framePrice),
+      candles: candleSeries(100),
+      indicators: indicatorsFor(100),
+    };
+    const phase2 = {
+      ...chartPayload(framePrice, [makeHit(1, "2026-11-13")]),
+      candles: candleSeries(101),
+      indicators: indicatorsFor(101),
+    };
+    vi.mocked(fetchSymbolChart).mockImplementation(async (_symbol, _tf, opts) =>
+      typeof opts === "object" && opts?.detectPatterns ? phase2 : phase1,
+    );
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.candles).toHaveLength(101);
+    expect(api.fullscreen()?.indicators?.series[0].values).toHaveLength(101);
   });
 });
