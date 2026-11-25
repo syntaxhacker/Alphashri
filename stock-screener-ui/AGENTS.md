@@ -982,6 +982,23 @@ When a backend `Literal` mirrors a frontend registry (`colorBy`, universes, view
 
 Run test/typecheck/E2E gates when no other lane is writing; re-run before believing a red result. A failure that passes in isolation, or whose count changes between runs, is a concurrent edit — verify before fixing.
 
+## Release PRs and red-CI recovery (MANDATORY lessons)
+
+Use this when fixing CI on an open PR or merging a release:
+
+- **Check every open PR and its base first.** A `develop → main` release PR runs the full E2E suite; do not confuse it with green PR-to-`develop` smoke checks.
+- **Merge small, independent fixes first and the large design wave last.** Between merges, re-query `mergeable`/`mergeStateStatus`; GitHub recomputes after every base merge.
+- **A feature branch that conflicts with `develop` must be updated.** Merge `origin/develop` into the feature branch, keep both changelog sections, rerun typecheck/lint + the affected suites, wait for fresh checks, then merge.
+- **`gh pr checks` output can hide failures.** Always summarize by state (`... | awk -F'\t' '{print $2}' | sort | uniq -c`) and inspect every non-pass line. `E2E Full` is intentionally skipped on PRs to `develop`; it is mandatory on PRs to `main`.
+- **Never trust a local `vite preview` after source edits.** Rebuild, start/restart preview, and wait until `curl 127.0.0.1:5173` returns 200. A stale `dist` makes axe/e2e pass locally while CI fails. Do not put `pkill …` and `bun run preview` in one background shell — the new server can be killed by the same command.
+- **App-route axe failures are usually real semantics.** Scrollable regions need `role`, `aria-label` and `tabIndex=0`; do not put `aria-label` on a span wrapping an icon button; pass a native `<button>` (not a component wrapper) to `MenuTarget` so the trigger is not a button nested inside a fallback button.
+- **Full frontend runner memory:** 4 forks × 8 GB exceeds a 16 GB runner. Keep `maxWorkers: 2` in `vitest.config.ts`; split mega test files (one heavy render per file if necessary) instead of raising `maxDiff`/ignoring worker errors.
+- **Visual baselines must not depend on host fonts.** Bundle the WOFF2 faces used by a dense typography specimen (or use fixed-size specimens); regenerate only the affected baselines. Never raise `maxDiffPixels` to hide font drift.
+- **E2E mocks must mirror the request.** A static preview fixture with two legs made the replay page correctly re-fetch a one-leg structure and fail a “zero extra requests” assertion. Build preview/echo mocks from the request body, not a fixed sample.
+- **Intentional design changes require stale-test updates.** The 12px floor changed old `11px` assertions and the A++ hero hides stat cells behind `MORE STATS`; update the assertion to the new contract, never lower the floor or re-open the old UI just to satisfy a stale test.
+- **Definition of green is the head SHA.** Confirm every required check passes on the current PR head after the last commit; then merge. After merging #266/#267/#269 etc., sync local `develop`, verify the merge commits, and confirm no open PRs remain.
+- **Report the final order and merge commits** (`#266` → `#267` → `#268`, then any CI-recovery PR), plus the exact checks. Do not call a release green from a local run.
+
 ## Known Issues / Deferred
 - **Replay system name→ID migration** (Phase 3) — deferred, known limitation
 - **Portfolio summary compact redesign** — mentioned but not started
