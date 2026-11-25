@@ -656,6 +656,17 @@ Container/sandbox rebuilds erase `/tmp`. In Codespaces (or any environment whose
 - Anything that must survive belongs in the repo (committed code/docs/evidence) or under `.agent-worktrees` / `.agent-artifacts`. Clean up only the task's own artifact dir after the PR is merged and evidence is committed.
 - Perf scripts default to the workspace artifact dir when `CODESPACES=true` (`/workspaces/react/.agent-artifacts/chart-perf`), fall back to `/tmp/opencode/chart-perf`, and honour `CHART_PERF_ARTIFACT_DIR`.
 
+### Codespaces git authentication
+
+In Codespaces, do not trust the default `origin` credential or VS Code `askpass.sh` — it can resolve to another account or hang on an invisible username prompt. Before any push, verify with `env -u GITHUB_TOKEN -u GH_TOKEN gh auth status`, and run `gh pr create/view/checks/merge` the same way so the CLI uses that account. Push feature branches with prompts disabled and explicit token auth; never print, commit or log the token:
+
+```bash
+TOKEN=$(env -u GITHUB_TOKEN -u GH_TOKEN gh auth token)
+GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false git push "https://x-access-token:${TOKEN}@github.com/<owner>/<repo>.git" HEAD:refs/heads/<feature-branch>
+```
+
+If a push shows no progress for >30s and an `askpass.sh` child exists, kill it; do not wait.
+
 ## Performance budgets and checks
 
 - **Last checked: 2026-11-25**
