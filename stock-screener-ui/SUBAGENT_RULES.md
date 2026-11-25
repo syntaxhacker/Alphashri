@@ -36,6 +36,7 @@ Sibling docs: `AGENTS.md` (repo rules), `LAYOUT_CONTRACT.md` (layout acceptance)
 - No DB writes, migrations, or seed runs.
 - No server start/stop/restart, no `start.sh`, no killing processes.
 - No dependency installs, no lockfile edits.
+- **Codespaces: never put worktrees, virtualenvs, fixtures, screenshots, logs or benchmark JSON in `/tmp`** — a container rebuild erases them. Use `/workspaces/react/.agent-worktrees/<task>/` for worktrees and `/workspaces/react/.agent-artifacts/<task>/` for everything else (outside the repo, so `Alphashri/` stays clean). `/tmp/opencode` is allowed only outside Codespaces, or for single-use files a committed script regenerates in one command.
 
 Violation risk → abort, report `blocked: <command>` + reason.
 
@@ -226,6 +227,8 @@ same defect: it reads as the same thing but cannot be retuned together.
 
 Verify visually only if the brief says so — screenshots are the main agent's job.
 
+**Chart/canvas/indicator work has a third gate after correctness and visuals.** Any brief touching chart rendering, indicators, overlays, S/R zones, timeframe handling, pattern-chart data mapping or data-dense UI must name the perf commands and targets, and the result must include measured numbers. See §12.
+
 ---
 
 ## 8. Implementation + verification
@@ -395,6 +398,7 @@ Canonical source for model routing **and** concurrency — `AGENTS.md` and
 - `npx vitest run src/test/design-scale.test.ts src/test/theme-single-source.test.ts` green
 - tsc count for the scope: before → after (if a tsc task)
 - if the brief claims a layout now fits: `getBoundingClientRect()` before → after
+- if the brief touches chart/indicator/data-dense UI: the perf commands/targets from §12, with measured median/p95
 
 ## Scenario coverage (from docs/TEST_SCENARIOS.md)
 - <paste the relevant rows; each ends as test-added / existing-test / N/A + reason>
@@ -422,5 +426,40 @@ A report is rejected without **pass/fail counts**, the **exact commands**, and a
 6. **Scenario coverage** table — every row from the brief, with test-added / existing-test / N/A+reason.
 7. Risks / untested paths.
 8. Blockers, or "none".
+9. For chart/UI work: the perf commands run and the observed median/p95 (§12).
 
 Never claim a surface "looks correct" if you cannot see it. Say what you measured.
+
+---
+
+## 12. Performance audit (mandatory for interactive UI)
+
+Correctness, visual quality and performance are **three gates**. An A+ visual
+review, a green unit suite or a clean build does not waive performance.
+
+- **A chart/UI brief must name the perf commands and targets.** Minimum:
+  `bun run perf:chart:matrix` and `bun run perf:chart`, plus
+  `bun run perf:chart:fixtures` when the fixture/data path changed. Targets and
+  the current exception list live in `perf/chart_ui_budgets.json`; protocol and
+  methodology live in `docs/CHART_PERFORMANCE.md`.
+- **A subagent that changed a chart file must run the commands and report
+  p50/p95 numbers**, not "looks fast" and not "should be fine". Quote the
+  measured route load, timeframe switch, frame p95, long-task max, heap delta,
+  payload bytes/gzip and backend indicator p95, with the viewport(s).
+- **If a target is missed, do one optimization pass, re-measure, and report
+  before/after.** Do not declare the task done while a performance blocker
+  remains. Do not edit the budget to match the measurement; if a limit is real,
+  record the measured limit + cause + owner/date in `known_exceptions` and say
+  so in the report.
+- **Who runs what.** This stays consistent with §2: no server starts, no
+  installs, no git writes by subagents. The perf scripts need a preview server
+  on `127.0.0.1:4174` and Playwright; the main/integration agent or a dedicated
+  harness agent owns those. A subagent may run the scripts itself only if the
+  brief provides the already-running server and the tooling; otherwise it
+  reports the exact command as a blocker and **only reports numbers it actually
+  observed**. Never copy a number from a previous run or from the budget file.
+- **Artifacts.** Fixtures, screenshots, matrix JSON and logs go to
+  `/workspaces/react/.agent-artifacts/<task>/` in Codespaces (or
+  `/tmp/opencode/<task>/` outside); `perf/chart-perf-results.json` is the small
+  gitignored result file. A report that leaves evidence only in `/tmp` is
+  incomplete.
