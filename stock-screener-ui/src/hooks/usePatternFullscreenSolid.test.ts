@@ -3,7 +3,12 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { renderSolidHook } from "@/test-utils/solidRenderHook";
 import { fetchPatternHit, fetchSymbolChart } from "@/api/chartPatterns";
 import { fetchQuotes } from "@/api/marketScreener";
-import type { ChartPayload, PatternHitDTO } from "@/types/chartPatterns";
+import type {
+  ChartIndicators,
+  ChartPayload,
+  PatternHitDTO,
+  SRZone,
+} from "@/types/chartPatterns";
 import { fullscreenChartCacheKey, usePatternFullscreen } from "./usePatternFullscreenSolid";
 
 vi.mock("@/api/chartPatterns", () => ({
@@ -32,6 +37,27 @@ const chartPayload = (price: number, hits: PatternHitDTO[] = []): ChartPayload =
   hits,
   stale: false,
 });
+
+const INDICATORS: ChartIndicators = {
+  aligned: "candles",
+  timeframe: "1D",
+  session: "2026-11-13",
+  partial_last: false,
+  series: [{ id: "sma20", values: [100] }],
+  crosses: [],
+};
+
+const SR_ZONES: SRZone[] = [
+  {
+    kind: "support",
+    top: 101,
+    bottom: 99,
+    start_date: "2026-11-01",
+    end_date: "2026-11-13",
+    touches: 2,
+    score: 0.6,
+  },
+];
 
 function makeHit(id: number, end_date: string): PatternHitDTO {
   return {
@@ -809,5 +835,34 @@ describe("usePatternFullscreen stored-first default (symbol dock)", () => {
     expect(api.fullscreen()?.pinned).toBe(false);
     expect(api.fullscreen()?.hit?.pattern_name).toBe("Consolidation");
     expect(fetchSymbolChart).toHaveBeenCalledTimes(1);
+  });
+
+  test("plumbs indicators and sr_zones through candle and pattern phases", async () => {
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => ({
+      ...chartPayload(framePrice),
+      indicators: INDICATORS,
+      sr_zones: SR_ZONES,
+    }));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.indicators).toEqual(INDICATORS);
+    expect(api.fullscreen()?.srZones).toEqual(SR_ZONES);
+
+    // A timeframe switch re-runs both phases; the fields must not be dropped.
+    api.changeFullscreenTimeframe("1h");
+    await settled(api);
+    expect(api.fullscreen()?.timeframe).toBe("1h");
+    expect(api.fullscreen()?.indicators?.timeframe).toBe("1D");
+    expect(api.fullscreen()?.srZones).toHaveLength(1);
+
+    // Refresh loads a fresh payload and still carries the fields.
+    api.refreshSymbolChart();
+    await settled(api);
+    expect(api.fullscreen()?.indicators).toEqual(INDICATORS);
+    expect(api.fullscreen()?.srZones).toEqual(SR_ZONES);
   });
 });

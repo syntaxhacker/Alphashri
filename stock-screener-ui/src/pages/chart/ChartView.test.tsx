@@ -4,7 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { MemoryRouter, Route, createMemoryHistory } from "@solidjs/router";
 import { UIProvider } from "@/ui";
-import type { ChartPayload, PatternHitDTO, TFSpec } from "@/types/chartPatterns";
+import type {
+  ChartIndicators,
+  ChartPayload,
+  PatternHitDTO,
+  SRZone,
+  TFSpec,
+} from "@/types/chartPatterns";
 import ChartView from "./ChartView";
 import { fetchSymbolChart, fetchTimeframes } from "@/api/chartPatterns";
 
@@ -52,6 +58,10 @@ vi.mock("@/components/patterns/PatternChartBody", () => ({
       data-trend-lines={(props.trendLines ?? []).length}
       data-overlays={(props.overlays ?? []).length}
       data-hit-source={props.hit?.source ?? ""}
+      data-timeframe={props.timeframe ?? "unset"}
+      data-indicators={props.indicators ? "ready" : "none"}
+      data-indicator-timeframe={props.indicators?.timeframe ?? "none"}
+      data-sr-zones={(props.srZones ?? []).length}
     >
       {props.asOf ? (
         <div data-testid="patterns-fullscreen-asof-banner">as of {props.asOf}</div>
@@ -167,6 +177,30 @@ const LIVE_HIT = {
   pattern_name: "Ascending Triangle",
   source: "live",
 } as PatternHitDTO;
+
+const INDICATORS: ChartIndicators = {
+  aligned: "candles",
+  timeframe: "1D",
+  session: "2026-09-26",
+  partial_last: false,
+  series: [
+    { id: "sma20", values: [100, 111] },
+    { id: "sma50", values: [99, 110] },
+  ],
+  crosses: [],
+};
+
+const SR_ZONES: SRZone[] = [
+  {
+    kind: "support",
+    top: 99,
+    bottom: 98,
+    start_date: "2026-09-01",
+    end_date: "2026-09-26",
+    touches: 3,
+    score: 0.8,
+  },
+];
 
 function chartPayload(overrides: Partial<ChartPayload> = {}): ChartPayload {
   return {
@@ -398,6 +432,23 @@ describe("ChartView (pattern workspace)", () => {
     await waitFor(() =>
       expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "1D", expect.any(Object)),
     );
+  });
+
+  it("applies indicators/sr_zones and forwards timeframe + payload fields to the body", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      chartPayload({
+        indicators: INDICATORS,
+        sr_zones: SR_ZONES,
+      }),
+    );
+    renderPage();
+
+    await waitFor(() => expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument());
+    const body = screen.getByTestId("patterns-fullscreen-body");
+    expect(body).toHaveAttribute("data-timeframe", "1D");
+    expect(body).toHaveAttribute("data-indicators", "ready");
+    expect(body).toHaveAttribute("data-indicator-timeframe", "1D");
+    expect(body).toHaveAttribute("data-sr-zones", "1");
   });
 });
 

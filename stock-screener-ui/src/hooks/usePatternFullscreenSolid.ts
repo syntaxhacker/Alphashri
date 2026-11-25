@@ -10,8 +10,10 @@ import { createEffect, createSignal, onCleanup } from "solid-js";
 import { TZ_IST } from "@/config/constants";
 import type {
   ChartCandle,
+  ChartIndicators,
   PatternHitDTO,
   PatternOverlay,
+  SRZone,
   TrendLine,
 } from "@/types/chartPatterns";
 import { fetchPatternHit, fetchSymbolChart } from "@/api/chartPatterns";
@@ -109,6 +111,10 @@ export interface FullscreenChartState {
   candles: ChartCandle[];
   overlays: PatternOverlay[];
   trendLines: TrendLine[];
+  /** Indicator series carried by the chart payload (null = absent). */
+  indicators: ChartIndicators | null;
+  /** Historical reaction zones carried by the chart payload. */
+  srZones: SRZone[];
   loading: boolean;
   patternsLoading?: boolean;
   detectPatterns?: boolean;
@@ -227,6 +233,8 @@ export function usePatternFullscreen({
       candles: hit.candles ?? [],
       overlays: [],
       trendLines: hit.trend_lines ?? [],
+      indicators: null,
+      srZones: [],
       loading: true,
       asOf: null,
       fromDate: null,
@@ -263,6 +271,7 @@ export function usePatternFullscreen({
                 candles: chart.candles?.length ? chart.candles : prev.candles,
                 overlays: [],
                 trendLines: chart.trend_lines ?? resolved.trend_lines ?? prev.trendLines,
+                ...chartIndicators(chart),
                 loading: false,
               }
             : prev,
@@ -297,6 +306,18 @@ export function usePatternFullscreen({
     chartNote: chart.note ?? null,
   });
 
+  /**
+   * Indicator fields must be written by *every* payload patch, including the
+   * candles-only phase: leaving them out of a patch would keep the previous
+   * symbol's studies over the new chart.
+   */
+  const chartIndicators = (
+    chart: SymbolChartPayload,
+  ): Pick<FullscreenChartState, "indicators" | "srZones"> => ({
+    indicators: chart.indicators ?? null,
+    srZones: chart.sr_zones ?? [],
+  });
+
   const applySymbolChart = (
     chart: SymbolChartPayload,
     symbol: string,
@@ -318,6 +339,7 @@ export function usePatternFullscreen({
             candles: chart.candles ?? [],
             overlays: [],
             trendLines: chart.trend_lines ?? [],
+            ...chartIndicators(chart),
             loading: false,
           }
         : prev,
@@ -375,6 +397,7 @@ export function usePatternFullscreen({
               candles: chart.candles ?? [],
               overlays: [],
               trendLines: chart.trend_lines ?? [],
+              ...chartIndicators(chart),
               loading: false,
             }
           : prev,
@@ -417,6 +440,7 @@ export function usePatternFullscreen({
             : resolveHit(hits),
           hits,
           trendLines: chart.trend_lines ?? [],
+          ...chartIndicators(chart),
           patternsLoading: false,
         };
       });
@@ -543,6 +567,8 @@ export function usePatternFullscreen({
       candles: [],
       overlays: [],
       trendLines: [],
+      indicators: null,
+      srZones: [],
       loading: true,
       detectPatterns,
       asOf: replay?.asOf ?? null,

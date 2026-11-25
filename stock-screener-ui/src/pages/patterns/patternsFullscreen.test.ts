@@ -3,7 +3,12 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { renderSolidHook } from "@/test-utils/solidRenderHook";
 import { fetchPatternHit, fetchSymbolChart } from "@/api/chartPatterns";
 import { fetchQuotes } from "@/api/marketScreener";
-import type { ChartPayload, PatternHitDTO } from "@/types/chartPatterns";
+import type {
+  ChartIndicators,
+  ChartPayload,
+  PatternHitDTO,
+  SRZone,
+} from "@/types/chartPatterns";
 import { usePatternFullscreen } from "./patternsFullscreen";
 
 vi.mock("@/api/chartPatterns", () => ({
@@ -31,6 +36,27 @@ const chartPayload = (hits: PatternHitDTO[] = []): ChartPayload => ({
   hits,
   stale: false,
 });
+
+const INDICATORS: ChartIndicators = {
+  aligned: "candles",
+  timeframe: "1D",
+  session: "2026-11-13",
+  partial_last: false,
+  series: [{ id: "sma20", values: [100] }],
+  crosses: [],
+};
+
+const SR_ZONES: SRZone[] = [
+  {
+    kind: "resistance",
+    top: 110,
+    bottom: 108,
+    start_date: "2026-11-01",
+    end_date: "2026-11-13",
+    touches: 4,
+    score: 0.9,
+  },
+];
 
 function makeHit(id: number, end_date: string): PatternHitDTO {
   return {
@@ -451,5 +477,32 @@ describe("usePatternFullscreen (page) stale marker vs displayed candle date", ()
     await settled(api);
 
     expect(api.fullscreen()?.detectionAsOf).toBeNull();
+  });
+
+  test("plumbs indicators and sr_zones through candle and pattern phases", async () => {
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => ({
+      ...chartPayload([makeHit(1, "2026-11-13")]),
+      indicators: INDICATORS,
+      sr_zones: SR_ZONES,
+    }));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(api.fullscreen()?.indicators).toEqual(INDICATORS);
+    expect(api.fullscreen()?.srZones).toEqual(SR_ZONES);
+
+    api.changeFullscreenTimeframe("1h");
+    await settled(api);
+    expect(api.fullscreen()?.timeframe).toBe("1h");
+    expect(api.fullscreen()?.indicators).toEqual(INDICATORS);
+    expect(api.fullscreen()?.srZones).toHaveLength(1);
+
+    api.refreshSymbolChart();
+    await settled(api);
+    expect(api.fullscreen()?.indicators).toEqual(INDICATORS);
+    expect(api.fullscreen()?.srZones).toEqual(SR_ZONES);
   });
 });

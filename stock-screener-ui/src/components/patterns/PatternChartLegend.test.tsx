@@ -10,7 +10,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import * as palette from "@/ui/palette";
 import { createSignal } from "solid-js";
-import { PatternChartLegend } from "./PatternChartLegend";
+import { legendEntryBudget, PatternChartLegend } from "./PatternChartLegend";
 import { buildPatternTVData } from "./patternTVData";
 import type { ChartCandle, PatternHitDTO } from "@/types/chartPatterns";
 
@@ -178,5 +178,66 @@ describe("PatternChartLegend", () => {
     expect(item).toBeInTheDocument();
     fireEvent.click(item);
     expect(onToggle).toHaveBeenCalledWith("Pivots");
+  });
+
+  test("legendEntryBudget maps the chart column width to 3 / 5 / 7 entries", () => {
+    expect(legendEntryBudget(0)).toBe(7);
+    expect(legendEntryBudget(419)).toBe(3);
+    expect(legendEntryBudget(420)).toBe(5);
+    expect(legendEntryBudget(639)).toBe(5);
+    expect(legendEntryBudget(640)).toBe(7);
+  });
+
+  test("maxEntries caps the rendered rows and reports the rest as +N", () => {
+    const lines = [
+      { name: "Alpha", color: palette.POSITIVE },
+      { name: "Bravo", color: palette.NEGATIVE },
+      { name: "Charlie", color: palette.WARNING },
+      { name: "Delta", color: palette.INFO },
+      { name: "Echo", color: palette.PRIMARY },
+    ];
+    render(() => <PatternChartLegend lines={lines} maxEntries={3} />);
+
+    expect(screen.getByTestId("patterns-chart-legend-item-Alpha")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-chart-legend-item-Bravo")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-chart-legend-item-Charlie")).toBeInTheDocument();
+    expect(screen.queryByTestId("patterns-chart-legend-item-Delta")).toBeNull();
+    const overflow = screen.getByTestId("patterns-chart-legend-overflow");
+    expect(overflow).toHaveTextContent("+2");
+    expect(overflow).toHaveAttribute("title", "Delta, Echo");
+  });
+
+  test("maxEntries is a minimum of one and keeps toggle semantics for visible rows", () => {
+    const lines = [
+      { name: "Alpha", color: palette.POSITIVE },
+      { name: "Bravo", color: palette.NEGATIVE },
+    ];
+    const onToggle = vi.fn();
+    render(() => (
+      <PatternChartLegend
+        lines={lines}
+        maxEntries={0}
+        hidden={new Set(["Alpha"])}
+        onToggle={onToggle}
+      />
+    ));
+    const item = screen.getByTestId("patterns-chart-legend-item-Alpha");
+    expect(item).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(item);
+    expect(onToggle).toHaveBeenCalledWith("Alpha");
+    expect(screen.getByTestId("patterns-chart-legend-overflow")).toHaveTextContent("+1");
+  });
+
+  test("no overflow chip when every entry fits", () => {
+    render(() => (
+      <PatternChartLegend
+        lines={[
+          { name: "Alpha", color: palette.POSITIVE },
+          { name: "Bravo", color: palette.NEGATIVE },
+        ]}
+        maxEntries={3}
+      />
+    ));
+    expect(screen.queryByTestId("patterns-chart-legend-overflow")).toBeNull();
   });
 });

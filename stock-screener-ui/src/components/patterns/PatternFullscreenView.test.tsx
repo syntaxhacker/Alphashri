@@ -27,8 +27,14 @@ vi.mock("@/ui", async () => {
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
-import type { PatternHitDTO } from "@/types/chartPatterns";
+import type { ChartIndicators, PatternHitDTO, SRZone } from "@/types/chartPatterns";
 import { PatternFullscreenView } from "./PatternFullscreenView";
+import {
+  __resetChartIndicatorPrefsForTests,
+  setChartIndicator,
+} from "@/state/chartIndicators";
+
+afterEach(() => __resetChartIndicatorPrefsForTests());
 
 vi.mock("./PatternTradingViewChart", () => ({
   PatternTradingViewChart: () => <div data-testid="patterns-tv-chart" />,
@@ -86,6 +92,30 @@ const HIT: PatternHitDTO = {
   pivots: [{ t: "2026-05-04", price: 108, kind: "low" }],
 };
 
+
+const INDICATORS: ChartIndicators = {
+  aligned: "candles",
+  timeframe: "5m",
+  session: "2026-09-26",
+  partial_last: false,
+  series: [
+    { id: "sma20", values: [100] },
+    { id: "vwap", values: [101] },
+  ],
+  crosses: [],
+};
+
+const ZONES: SRZone[] = [
+  {
+    kind: "sr",
+    top: 110,
+    bottom: 108,
+    start_date: "2026-09-01",
+    end_date: "2026-09-26",
+    touches: 5,
+    score: 0.9,
+  },
+];
 
 describe("PatternFullscreenView", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -495,5 +525,114 @@ describe("PatternFullscreenView patterns list (single-select)", () => {
     fireEvent.click(screen.getByTestId("patterns-fullscreen-list-item-0"));
     expect(onSelectHit).toHaveBeenCalledTimes(1);
     expect(onSelectHit).toHaveBeenCalledWith(NEW);
+  });
+
+  test("forwards timeframe, indicators and srZones to the body strip", () => {
+    render(() => (
+      <PatternFullscreenView
+        opened
+        onClose={vi.fn()}
+        hit={HIT}
+        candles={[]}
+        timeframe="5m"
+        indicators={INDICATORS}
+        srZones={ZONES}
+      />
+    ));
+    fireEvent.click(screen.getByTestId("patterns-chart-indicators-trigger"));
+    expect(screen.getByTestId("chart-indicator-vwap")).toBeEnabled();
+    expect(screen.getByTestId("chart-indicator-zones-count")).toHaveTextContent("1 zone");
+  });
+
+  test("fullscreen all-on count matches the six drawable rows", () => {
+    const candles = Array.from({ length: 250 }, (_, index) => {
+      const day = new Date(Date.UTC(2025, 0, 1 + index)).toISOString().slice(0, 10);
+      return { t: day, o: 100, h: 101, l: 99, c: 100, v: 1000 };
+    });
+    const allIndicators: ChartIndicators = {
+      aligned: "candles",
+      timeframe: "1D",
+      session: "2026-09-26",
+      partial_last: false,
+      series: [
+        { id: "sma20", values: candles.map((_, index) => 100 + index * 0.01) },
+        { id: "sma50", values: candles.map((_, index) => 99 + index * 0.01) },
+        { id: "sma200", values: candles.map((_, index) => 90 + index * 0.01) },
+        { id: "bbUpper", values: candles.map((_, index) => 110 + index * 0.01) },
+        { id: "bbMiddle", values: candles.map((_, index) => 105 + index * 0.01) },
+        { id: "bbLower", values: candles.map((_, index) => 100 + index * 0.01) },
+      ],
+      crosses: [{ t: candles[249]!.t, kind: "golden" }],
+    };
+    const zones: SRZone[] = [
+      {
+        ...ZONES[0]!,
+        start_date: candles[0]!.t,
+        end_date: candles[candles.length - 1]!.t,
+      },
+    ];
+    for (const id of [
+      "sma20",
+      "sma50",
+      "sma200",
+      "vwap",
+      "bb",
+      "crosses",
+      "srZones",
+    ] as const) {
+      setChartIndicator(id, true);
+    }
+
+    render(() => (
+      <PatternFullscreenView
+        opened
+        onClose={vi.fn()}
+        hit={HIT}
+        candles={candles}
+        timeframe="1D"
+        indicators={allIndicators}
+        srZones={zones}
+      />
+    ));
+
+    // VWAP is disabled on 1D; the other six rows are drawable.
+    expect(screen.getByTestId("patterns-chart-indicators-count")).toHaveTextContent("6");
+    expect(screen.getByTestId("patterns-chart-indicators-trigger")).toHaveAttribute(
+      "aria-label",
+      "Indicators (6 active)",
+    );
+    const chipRow = screen.getByTestId("chart-active-indicators");
+    expect(chipRow).toHaveAttribute("data-active-count", "6");
+    expect(chipRow.querySelectorAll("[data-indicator]")).toHaveLength(5);
+    expect(chipRow).toHaveTextContent("SMA20");
+    expect(chipRow).toHaveTextContent("SMA50");
+    expect(chipRow).toHaveTextContent("SMA200");
+    expect(chipRow).toHaveTextContent("BB");
+    expect(chipRow).toHaveTextContent("S/R");
+    expect(chipRow).not.toHaveTextContent("Crosses");
+    expect(chipRow.querySelector('[data-indicator="crosses"]')).toBeNull();
+
+    // Dock and fullscreen share the same count and non-Crosses chip rail.
+    cleanup();
+    render(() => (
+      <PatternFullscreenView
+        opened
+        docked
+        onClose={vi.fn()}
+        hit={HIT}
+        candles={candles}
+        timeframe="1D"
+        indicators={allIndicators}
+        srZones={zones}
+      />
+    ));
+    expect(screen.getByTestId("patterns-chart-indicators-count")).toHaveTextContent("6");
+    expect(screen.getByTestId("chart-active-indicators")).toHaveAttribute(
+      "data-active-count",
+      "6",
+    );
+    expect(
+      screen.getByTestId("chart-active-indicators").querySelectorAll("[data-indicator]"),
+    ).toHaveLength(5);
   });
 });

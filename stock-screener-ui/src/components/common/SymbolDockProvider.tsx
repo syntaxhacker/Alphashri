@@ -432,6 +432,8 @@ function DockContent(props: {
             candles={props.state.candles ?? []}
             trendLines={props.state.trendLines ?? []}
             trendlinesView="both"
+            indicators={props.state.indicators}
+            srZones={props.state.srZones}
             timeframe={props.state.timeframe}
             timeframes={FALLBACK_TIMEFRAMES}
             onTimeframeChange={props.onTimeframeChange}

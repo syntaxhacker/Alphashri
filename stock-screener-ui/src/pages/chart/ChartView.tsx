@@ -5,9 +5,11 @@ import { IconArrowsMaximize } from "@/ui/icons";
 import { fetchTimeframes, fetchSymbolChart } from "@/api/chartPatterns";
 import type {
   ChartCandle,
+  ChartIndicators,
   ChartPayload,
   PatternHitDTO,
   PatternOverlay,
+  SRZone,
   TrendLine,
   TFSpec,
 } from "@/types/chartPatterns";
@@ -168,6 +170,10 @@ interface ChartLoaderState {
   overlays: PatternOverlay[];
   candles: ChartCandle[];
   trendLines: TrendLine[];
+  /** Indicator series for the chart/menu (null when the backend omits them). */
+  indicators: ChartIndicators | null;
+  /** Historical reaction zones for the chart/menu. */
+  srZones: SRZone[];
   loading: boolean;
   error: string | null;
   /** Endpoint explanation when the response carries no candles. */
@@ -187,6 +193,8 @@ const EMPTY_LISTS = {
   overlays: [] as PatternOverlay[],
   candles: [] as ChartCandle[],
   trendLines: [] as TrendLine[],
+  indicators: null as ChartIndicators | null,
+  srZones: [] as SRZone[],
   source: null as HitSource | null,
   market: "india" as ChartMarket,
   feed: null as string | null,
@@ -258,6 +266,8 @@ function useSymbolPatternChartSolid(args: {
         overlays: chart.overlays ?? [],
         candles: chart.candles ?? [],
         trendLines: chart.trend_lines ?? [],
+        indicators: chart.indicators ?? null,
+        srZones: chart.sr_zones ?? [],
         loading: false,
         error: null,
         note: (chart.candles?.length ?? 0) > 0 ? null : (chart.note ?? chart.error ?? null),
@@ -562,6 +572,9 @@ const ChartView = () => {
               candles={chart.state().candles}
               overlays={chart.state().overlays}
               trendLines={chart.state().trendLines}
+              timeframe={timeframe()}
+              indicators={chart.state().indicators}
+              srZones={chart.state().srZones}
               asOf={isUS() ? null : asOf()}
               emptyState={
                 isUS() ? undefined : (
@@ -588,6 +601,8 @@ const ChartView = () => {
             onSelectHit={chart.selectHit}
             overlays={chart.state().overlays}
             trendLines={chart.state().trendLines}
+            indicators={chart.state().indicators}
+            srZones={chart.state().srZones}
             timeframe={timeframe()}
             timeframes={visibleTimeframes()}
             onTimeframeChange={setTimeframe}

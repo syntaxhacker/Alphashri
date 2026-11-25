@@ -141,6 +141,8 @@ export function usePatternsPage(props: PatternsPageProps) {
     overlays: [],
     trendLines: fullscreen()?.trendLines ?? [],
     trendlinesView: effectiveTrendlinesView(),
+    indicators: fullscreen()?.indicators ?? null,
+    srZones: fullscreen()?.srZones ?? [],
     timeframe: fullscreen()?.timeframe,
     timeframes: timeframes(),
     onTimeframeChange: changeFullscreenTimeframe,

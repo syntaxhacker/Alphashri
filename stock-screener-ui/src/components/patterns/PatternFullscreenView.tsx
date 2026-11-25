@@ -8,8 +8,10 @@ import {
 } from "@/ui/icons";
 import type {
   ChartCandle,
+  ChartIndicators,
   PatternHitDTO,
   PatternOverlay,
+  SRZone,
   TFSpec,
   TrendLine,
   TrendlinesView,
@@ -47,6 +49,10 @@ export interface PatternFullscreenViewProps {
    */
   trendLines?: TrendLine[];
   trendlinesView?: TrendlinesView;
+  /** Indicator series from the chart payload, forwarded to the body/menu. */
+  indicators?: ChartIndicators | null;
+  /** Historical reaction zones from the chart payload. */
+  srZones?: SRZone[];
   timeframe?: string | null;
   /** Timeframe ladder for the selector (falls back to the contract ladder). */
   timeframes?: TFSpec[];
@@ -68,14 +74,18 @@ export interface PatternFullscreenViewProps {
 }
 
 export function PatternFullscreenView(props: PatternFullscreenViewProps) {
-  const title = () =>
-    props.hit
-      ? `${props.hit.symbol} · ${props.hit.pattern_name}`
-      : props.symbol
-        ? props.symbol
-        : "Pattern chart";
+  const title = () => {
+    const symbol = props.hit?.symbol ?? props.symbol;
+    // The fullscreen header identifies the instrument *and* frame so the
+    // toolbar context is readable before parsing the controls.
+    if (symbol && props.timeframe) return `${symbol} · ${props.timeframe}`;
+    if (props.hit) return `${props.hit.symbol} · ${props.hit.pattern_name}`;
+    return props.symbol || "Pattern chart";
+  };
 
-  const toolbar = (
+  // Render functions, not stored JSX: Modal reads its `title` prop more than
+  // once, and re-inserting the same pre-built node left the header empty.
+  const renderToolbar = () => (
     <PatternChartToolbar
       title={title()}
       timeframe={props.timeframe}
@@ -88,7 +98,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
     />
   );
 
-  const body = (
+  const renderBody = () => (
     <PatternChartBody
       hit={props.hit}
       candles={props.candles}
@@ -97,6 +107,9 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
       overlays={props.overlays}
       trendLines={props.trendLines}
       trendlinesView={props.trendlinesView ?? "both"}
+      timeframe={props.timeframe ?? null}
+      indicators={props.indicators ?? null}
+      srZones={props.srZones ?? []}
       asOf={props.asOf ?? null}
       docked={props.docked ?? false}
       fill={props.docked ?? false}
@@ -109,11 +122,9 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
     />
   );
 
-  const stepper =
+  const renderStepper = () =>
     props.onPrev || props.onNext ? (
-      <Box
-        className="mt-[2px] flex shrink-0 items-center gap-[2px]"
-      >
+      <Box className="mt-[2px] flex shrink-0 items-center gap-[2px]">
         <Tooltip label="Previous pattern (↑)">
           <ActionIcon
             size="xs"
@@ -149,21 +160,22 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
       </Box>
     ) : null;
 
-  const refreshButton = props.onRefresh ? (
-    <Tooltip label="Refresh chart data">
-      <ActionIcon
-        size="xs"
-        variant="subtle"
-        aria-label="Refresh pattern data"
-        loading={props.loading ?? false}
-        onClick={props.onRefresh}
-        data-testid="patterns-dock-refresh"
-        className="mt-[2px] shrink-0"
-      >
-        <IconRefresh size={14} />
-      </ActionIcon>
-    </Tooltip>
-  ) : null;
+  const renderRefreshButton = () =>
+    props.onRefresh ? (
+      <Tooltip label="Refresh chart data">
+        <ActionIcon
+          size="xs"
+          variant="subtle"
+          aria-label="Refresh pattern data"
+          loading={props.loading ?? false}
+          onClick={props.onRefresh}
+          data-testid="patterns-dock-refresh"
+          className="mt-[2px] shrink-0"
+        >
+          <IconRefresh size={14} />
+        </ActionIcon>
+      </Tooltip>
+    ) : null;
 
   if (props.docked ?? false) {
     return (
@@ -174,9 +186,9 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
         <Box
           className="flex min-w-0 shrink-0 items-start gap-1 border-b border-fin-border px-2 py-1"
         >
-          <Box className="min-w-0 flex-1">{toolbar}</Box>
-          {stepper}
-          {refreshButton}
+          <Box className="min-w-0 flex-1">{renderToolbar()}</Box>
+          {renderStepper()}
+          {renderRefreshButton()}
           {props.asOf && props.onLive ? (
             <Tooltip label="Return to live data">
               <Button
@@ -217,7 +229,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
             </ActionIcon>
           </Tooltip>
         </Box>
-        <Box className="min-h-0 flex-1">{body}</Box>
+        <Box className="min-h-0 flex-1">{renderBody()}</Box>
       </Box>
     );
   }
@@ -231,16 +243,16 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
         <Box
           className="flex w-full min-w-0 items-center gap-1"
         >
-          <Box className="min-w-0 flex-1">{toolbar}</Box>
-          {stepper}
-          {refreshButton}
+          <Box className="min-w-0 flex-1">{renderToolbar()}</Box>
+          {renderStepper()}
+          {renderRefreshButton()}
         </Box>
       }
       fullScreen
       padding={0}
       data-testid="patterns-fullscreen-modal"
     >
-      {body}
+      {renderBody()}
     </Modal>
   );
 }
