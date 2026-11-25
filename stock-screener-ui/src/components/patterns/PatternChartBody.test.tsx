@@ -739,8 +739,34 @@ describe("PatternChartBody", () => {
     expect(screen.getByTestId("chart-indicator-zones-count")).toHaveTextContent("1 zone");
   });
 
-  test("indicator prefs persist across pattern navigation while the pattern legend hidden set resets", () => {
-    const illustrated: PatternHitDTO = {
+  test("raw zones that cannot be drawn show 'No zones' without a count badge", () => {
+    setChartIndicator("srZones", true);
+    const stale: SRZone[] = Array.from({ length: 4 }, (_, index) => ({
+      kind: "support",
+      top: 110 + index,
+      bottom: 100 + index,
+      start_date: "2020-01-01",
+      end_date: "2020-01-31",
+      touches: 1,
+      score: 0.5,
+    }));
+    render(() => (
+      <PatternChartBody
+        hit={HIT}
+        candles={CANDLES}
+        timeframe="1D"
+        indicators={INDICATORS}
+        srZones={stale}
+      />
+    ));
+    fireEvent.click(screen.getByTestId("patterns-chart-indicators-trigger"));
+
+    expect(screen.getByTestId("chart-indicator-srZones-reason")).toHaveTextContent("No zones");
+    expect(screen.queryByTestId("chart-indicator-zones-count")).toBeNull();
+    expect(screen.getByTestId("patterns-chart-indicators-count")).toHaveTextContent("1");
+  });
+
+  test("indicator prefs persist across pattern navigation while the pattern legend hidden set resets", () => {    const illustrated: PatternHitDTO = {
       ...HIT,
       trendlines: [
         [

@@ -9,6 +9,7 @@ vi.mock("@/ui", async () => {
 
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import type { ChartIndicators, SRZone } from "@/types/chartPatterns";
 import type { ChartIndicatorId } from "@/config/chartIndicators";
 import { ChartIndicatorsMenu } from "./ChartIndicatorsMenu";
@@ -191,6 +192,84 @@ describe("ChartIndicatorsMenu", () => {
     fireEvent.click(screen.getByTestId("patterns-chart-indicators-trigger"));
     expect(screen.getByTestId("chart-indicator-vwap")).toBeEnabled();
     expect(screen.queryByTestId("chart-indicator-vwap-reason")).toBeNull();
+  });
+
+  test("VWAP checkbox matches the drawable state while its preference survives a timeframe switch", () => {
+    for (const id of [
+      "sma20",
+      "sma50",
+      "sma200",
+      "vwap",
+      "bb",
+      "crosses",
+      "srZones",
+    ] as const) {
+      setChartIndicator(id, true);
+    }
+    const [timeframe, setTimeframe] = createSignal<"1m" | "1D">("1m");
+    render(() => (
+      <ChartIndicatorsMenu
+        timeframe={timeframe()}
+        candleCount={300}
+        indicators={indicators({ timeframe: "1m" })}
+        srZones={ZONES}
+      />
+    ));
+    fireEvent.click(screen.getByTestId("patterns-chart-indicators-trigger"));
+    const vwap = () => screen.getByTestId("chart-indicator-vwap");
+
+    expect(vwap()).toBeChecked();
+    expect(screen.getByTestId("patterns-chart-indicators-count")).toHaveTextContent("7");
+
+    setTimeframe("1D");
+    expect(vwap()).not.toBeChecked();
+    expect(vwap()).toBeDisabled();
+    expect(screen.getByTestId("chart-indicator-vwap-reason")).toHaveTextContent("Intraday only");
+    expect(chartIndicatorPrefs().vwap).toBe(true);
+    expect(screen.getByTestId("patterns-chart-indicators-count")).toHaveTextContent("6");
+
+    setTimeframe("1m");
+    expect(vwap()).toBeChecked();
+    expect(screen.getByTestId("patterns-chart-indicators-count")).toHaveTextContent("7");
+  });
+
+  test("a lone stored VWAP preference shows no active count on a daily frame", () => {
+    setChartIndicator("sma20", false);
+    setChartIndicator("vwap", true);
+    const [timeframe, setTimeframe] = createSignal<"1m" | "1D">("1m");
+    render(() => (
+      <ChartIndicatorsMenu
+        timeframe={timeframe()}
+        candleCount={300}
+        indicators={indicators({ timeframe: "1m" })}
+      />
+    ));
+    expect(screen.getByTestId("patterns-chart-indicators-count")).toHaveTextContent("1");
+
+    setTimeframe("1D");
+    expect(screen.getByTestId("patterns-chart-indicators-count")).toHaveTextContent("0");
+    fireEvent.click(screen.getByTestId("patterns-chart-indicators-trigger"));
+    expect(screen.getByTestId("chart-indicator-vwap")).not.toBeChecked();
+    expect(screen.getByTestId("chart-indicator-vwap")).toBeDisabled();
+  });
+
+  test("the zone badge counts drawable zones, not the raw payload", () => {
+    setChartIndicator("srZones", true);
+    render(() => (
+      <ChartIndicatorsMenu
+        timeframe="5m"
+        candleCount={300}
+        indicators={indicators()}
+        srZones={ZONES}
+        presentIndicatorIds={new Set<ChartIndicatorId>(["sma20"])}
+        drawableZoneCount={0}
+      />
+    ));
+    expect(screen.getByTestId("patterns-chart-indicators-count")).toHaveTextContent("1");
+
+    fireEvent.click(screen.getByTestId("patterns-chart-indicators-trigger"));
+    expect(screen.getByTestId("chart-indicator-srZones-reason")).toHaveTextContent("No zones");
+    expect(screen.queryByTestId("chart-indicator-zones-count")).toBeNull();
   });
 
   test("SMA200 disables below 200 candles and absent payload rows say 'No data'", () => {

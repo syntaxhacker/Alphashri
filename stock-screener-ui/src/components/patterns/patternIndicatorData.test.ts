@@ -229,6 +229,105 @@ describe("patternIndicatorData", () => {
     ]);
   });
 
+  /** 25 fifteen-minute bars, 09:15–15:15, pinned to IST. */
+  function intradaySession(date: string): ChartCandle[] {
+    const bars: ChartCandle[] = [];
+    for (let minutes = 9 * 60 + 15; minutes <= 15 * 60 + 15; minutes += 15) {
+      const hh = String(Math.floor(minutes / 60)).padStart(2, "0");
+      const mm = String(minutes % 60).padStart(2, "0");
+      bars.push(candle(`${date}T${hh}:${mm}:00+05:30`));
+    }
+    return bars;
+  }
+
+  function zoneOn(start_date: string, end_date: string): SRZone {
+    return {
+      kind: "support",
+      top: 105,
+      bottom: 100,
+      start_date,
+      end_date,
+      touches: 1,
+      score: 0.5,
+    };
+  }
+
+  it("maps intraday zone dates onto their own sessions instead of midnight", () => {
+    const bars = [...intradaySession("2026-04-01"), ...intradaySession("2026-04-02")];
+    const epochs = bars.map((bar) => toEpochSeconds(bar.t));
+
+    const [sameDay, later] = alignSRZones(
+      [zoneOn("2026-04-01", "2026-04-01"), zoneOn("2026-04-02", "2026-04-02")],
+      epochs,
+      "Asia/Kolkata",
+    );
+
+    expect(sameDay).toMatchObject({ start: epochs[0], end: epochs[24] });
+    expect(later).toMatchObject({ start: epochs[25], end: epochs[49] });
+    expect(later!.start).not.toBe(epochs[24]);
+  });
+
+  it("snaps a weekend zone edge forward to the next available session", () => {
+    const bars = [...intradaySession("2026-04-03"), ...intradaySession("2026-04-06")];
+    const epochs = bars.map((bar) => toEpochSeconds(bar.t));
+
+    const [aligned] = alignSRZones([zoneOn("2026-04-04", "2026-04-06")], epochs, "Asia/Kolkata");
+
+    expect(aligned).toMatchObject({ start: epochs[25], end: epochs[49] });
+  });
+
+  it("keeps daily zone edges exact", () => {
+    const [aligned] = alignSRZones(
+      [
+        {
+          kind: "resistance",
+          top: 110,
+          bottom: 108,
+          start_date: "2026-04-02",
+          end_date: "2026-04-03",
+          touches: 2,
+          score: 0.55,
+        },
+      ],
+      SORTED_EPOCHS,
+    );
+
+    expect(aligned).toMatchObject({
+      start: toEpochSeconds("2026-04-02"),
+      end: toEpochSeconds("2026-04-03"),
+    });
+  });
+
+  it("drops a zone that starts after the last bar", () => {
+    const bars = intradaySession("2026-04-01");
+    const epochs = bars.map((bar) => toEpochSeconds(bar.t));
+
+    expect(alignSRZones([zoneOn("2026-04-02", "2026-04-02")], epochs, "Asia/Kolkata")).toEqual([]);
+  });
+
+  it("breaks VWAP at the next session's first bar and keeps averages continuous", () => {
+    const bars = [...intradaySession("2026-04-01"), ...intradaySession("2026-04-02")];
+    const epochs = bars.map((bar) => toEpochSeconds(bar.t));
+    const values = epochs.map((_, index) => 100 + index);
+
+    const series = alignIndicatorSeries(
+      bundle({ timeframe: "15m", series: [{ id: "vwap", values }, { id: "sma20", values }] }),
+      epochs,
+      epochs,
+      { timeZone: "Asia/Kolkata" },
+    );
+    const vwap = series.find((entry) => entry.id === "vwap")!;
+    const sma = series.find((entry) => entry.id === "sma20")!;
+
+    expect(vwap.points[24]).toEqual({ time: epochs[24], value: values[24] });
+    expect(vwap.points[25]).toEqual({ time: epochs[25] });
+    expect("value" in vwap.points[25]!).toBe(false);
+    expect(vwap.points[26]).toEqual({ time: epochs[26], value: values[26] });
+    expect(vwap.points.filter((point) => point.time === epochs[25])).toHaveLength(1);
+    expect(sma.points).toHaveLength(epochs.length);
+    expect(sma.points.every((point) => "value" in point)).toBe(true);
+  });
+
   it("exposes the shared legend names for crosses and mixed zones", () => {
     const mixed = alignSRZones(
       [

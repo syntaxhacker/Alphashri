@@ -1,6 +1,6 @@
 import type { ChartIndicators, IndicatorSeriesId, SRZone } from "@/types/chartPatterns";
 import * as palette from "@/ui/palette";
-import { toEpochSeconds } from "@/utils/chart/time";
+import { sessionDateKey, toEpochSeconds } from "@/utils/chart/time";
 
 export type IndicatorLineStyle = "solid" | "dashed" | "dotted";
 
@@ -128,32 +128,49 @@ function epochIndex(sortedEpochs: readonly number[]): Map<number, number> {
   return index;
 }
 
-function nearestEpoch(sortedEpochs: readonly number[], target: number): number | undefined {
-  if (sortedEpochs.length === 0) return undefined;
-  let lo = 0;
-  let hi = sortedEpochs.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (sortedEpochs[mid]! < target) lo = mid + 1;
-    else hi = mid;
+/** Session date of an epoch in the chart's zone (IST when the caller omits it). */
+function zoneSessionKey(epoch: number, timeZone?: string): string {
+  return sessionDateKey(new Date(epoch * 1000).toISOString(), timeZone) ?? "";
+}
+
+/**
+ * Session date with a UTC fallback for the series builder, which does not
+ * thread the display zone. NSE and US cash sessions never cross UTC midnight,
+ * so grouping by UTC date still isolates one trading session per day.
+ */
+function seriesSessionKey(epoch: number, timeZone?: string): string {
+  return sessionDateKey(new Date(epoch * 1000).toISOString(), timeZone ?? "UTC") ?? "";
+}
+
+/**
+ * Intraday axes repeat a session within the same date range; daily/weekly bars
+ * are sessions themselves, where a break per bar would swallow the value.
+ */
+function hasIntradayCadence(sortedEpochs: readonly number[]): boolean {
+  const deltas: number[] = [];
+  for (let i = 1; i < sortedEpochs.length; i++) {
+    const delta = sortedEpochs[i]! - sortedEpochs[i - 1]!;
+    if (delta > 0) deltas.push(delta);
   }
-  const after = sortedEpochs[lo]!;
-  const before = sortedEpochs[lo - 1];
-  if (before !== undefined && Math.abs(before - target) <= Math.abs(after - target)) {
-    return before;
-  }
-  return after;
+  if (deltas.length === 0) return false;
+  deltas.sort((a, b) => a - b);
+  return deltas[Math.floor(deltas.length / 2)]! < 12 * 60 * 60;
 }
 
 /**
  * Join index-aligned indicator values onto the deduped/sorted candle axis.
  * `sourceEpochs` is the payload's candle order (the order `values` follows);
  * series with a length mismatch or unknown id are dropped defensively.
+ *
+ * Session-resetting studies (VWAP) carry a whitespace `{ time }` point at the
+ * first bar of every new session, so lightweight-charts does not bridge the
+ * overnight gap. The first bar's value is consumed by that gap point.
  */
 export function alignIndicatorSeries(
   indicators: ChartIndicators | null | undefined,
   sourceEpochs: readonly number[],
   sortedEpochs: readonly number[],
+  options: { timeZone?: string } = {},
 ): AlignedIndicatorSeries[] {
   if (!indicators || indicators.aligned !== "candles" || sortedEpochs.length === 0) {
     return [];
@@ -162,6 +179,7 @@ export function alignIndicatorSeries(
   const sortedIndexBySource = sourceEpochs.map((time) => byEpoch.get(time) ?? -1);
   const aligned = new Map<IndicatorSeriesId, AlignedIndicatorSeries>();
   const seriesList = Array.isArray(indicators.series) ? indicators.series : [];
+  const intraday = hasIntradayCadence(sortedEpochs);
 
   for (const series of seriesList) {
     if (!series || !hasSeriesId(series.id) || aligned.has(series.id)) continue;
@@ -182,10 +200,26 @@ export function alignIndicatorSeries(
     });
     if (!hasValue) continue;
 
+    const sessionBreak = series.id === "vwap" && intraday;
+    const sessions = sessionBreak
+      ? sortedEpochs.map((time) => seriesSessionKey(time, options.timeZone))
+      : null;
     const points: IndicatorPoint[] = [];
+    let lastSession: string | null = null;
     values.forEach((value, i) => {
+      const time = sortedEpochs[i]!;
+      if (sessions) {
+        const session = sessions[i]!;
+        if (lastSession != null && session !== lastSession && points.length > 0) {
+          // Whitespace point: `{ time }` with no value is the library's gap.
+          points.push({ time } as IndicatorPoint);
+          lastSession = session;
+          return;
+        }
+        lastSession = session;
+      }
       if (value == null) return;
-      points.push({ time: sortedEpochs[i]!, value });
+      points.push({ time, value });
     });
     if (points.length === 0) continue;
     aligned.set(series.id, {
@@ -240,9 +274,15 @@ export function alignIndicatorCrosses(
 }
 
 /**
- * Clamp bands to the drawn candle window and snap their edges onto real candle
- * epochs (lightweight-charts only resolves exact time-scale points). Bands with
- * no overlap or an invalid price range are dropped.
+ * Clamp bands to the drawn candle window and snap their session dates onto real
+ * candle epochs (lightweight-charts only resolves exact time-scale points).
+ *
+ * The backend stamps zones with calendar dates, not instants: an intraday
+ * window starting 09:15 must begin at that session's first bar, not at midnight.
+ * Start is the first bar whose local date is >= `start_date`; end is the last
+ * bar whose local date is <= `end_date` (so weekend/holiday edges snap to the
+ * nearest session). Bands with no overlapping session or an invalid price range
+ * are dropped.
  */
 export function alignSRZones(
   zones: SRZone[] | null | undefined,
@@ -250,8 +290,7 @@ export function alignSRZones(
   timeZone?: string,
 ): AlignedSRZone[] {
   if (!Array.isArray(zones) || zones.length === 0 || sortedEpochs.length === 0) return [];
-  const first = sortedEpochs[0]!;
-  const last = sortedEpochs[sortedEpochs.length - 1]!;
+  const sessionKeys = sortedEpochs.map((epoch) => zoneSessionKey(epoch, timeZone));
   const out: AlignedSRZone[] = [];
 
   for (const zone of zones) {
@@ -263,23 +302,34 @@ export function alignSRZones(
     const bottom = Math.min(zone.top, zone.bottom);
     if (!(top > bottom)) continue;
 
-    const rawStart = toEpochSeconds(zone.start_date, timeZone);
-    const rawEnd = toEpochSeconds(zone.end_date, timeZone);
-    if (!Number.isFinite(rawStart) || !Number.isFinite(rawEnd)) continue;
-    const lo = Math.min(rawStart, rawEnd);
-    const hi = Math.max(rawStart, rawEnd);
-    if (hi < first || lo > last) continue;
+    const rawStart = sessionDateKey(zone.start_date, timeZone);
+    const rawEnd = sessionDateKey(zone.end_date, timeZone);
+    if (!rawStart || !rawEnd) continue;
+    const from = rawStart <= rawEnd ? rawStart : rawEnd;
+    const to = rawStart <= rawEnd ? rawEnd : rawStart;
 
-    const start = nearestEpoch(sortedEpochs, Math.max(lo, first));
-    const end = nearestEpoch(sortedEpochs, Math.min(hi, last));
-    if (start == null || end == null || end < start) continue;
+    let startIndex = -1;
+    for (let i = 0; i < sessionKeys.length; i++) {
+      if (sessionKeys[i]! >= from) {
+        startIndex = i;
+        break;
+      }
+    }
+    let endIndex = -1;
+    for (let i = sessionKeys.length - 1; i >= 0; i--) {
+      if (sessionKeys[i]! <= to) {
+        endIndex = i;
+        break;
+      }
+    }
+    if (startIndex < 0 || endIndex < 0 || endIndex < startIndex) continue;
 
     out.push({
       kind,
       top,
       bottom,
-      start,
-      end,
+      start: sortedEpochs[startIndex]!,
+      end: sortedEpochs[endIndex]!,
       touches: isFiniteNumber(zone.touches) ? zone.touches : 0,
       score: isFiniteNumber(zone.score) ? zone.score : 0,
       color: SR_ZONE_COLORS[kind],

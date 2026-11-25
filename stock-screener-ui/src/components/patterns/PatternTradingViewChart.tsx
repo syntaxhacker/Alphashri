@@ -233,6 +233,15 @@ function lineStyleOf(line: TVLine): LineStyle {
   return line.dashed ? LineStyle.Dashed : LineStyle.Solid;
 }
 
+/** Session breaks are `{ time }` points; end labels must anchor on real values. */
+function lastValuedPoint(points: TVLine["points"]): TVLine["points"][number] | undefined {
+  for (let i = points.length - 1; i >= 0; i--) {
+    const point = points[i]!;
+    if (Number.isFinite(point.value)) return point;
+  }
+  return undefined;
+}
+
 export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
   let containerEl: HTMLDivElement | undefined;
   let overlayEl: HTMLCanvasElement | undefined;
@@ -700,7 +709,7 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
         if (hiddenRef.has(line.legendName ?? line.name)) return;
         const series = indicatorLineSeries.get(line.id);
         if (!series || typeof series.priceToCoordinate !== "function") return;
-        const anchor = line.points[line.points.length - 1];
+        const anchor = lastValuedPoint(line.points);
         if (!anchor) return;
         const y = series.priceToCoordinate(anchor.value);
         if (y == null || y < 0 || y > rect.height) return;

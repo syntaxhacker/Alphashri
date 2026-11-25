@@ -25,6 +25,8 @@ export interface ChartIndicatorsMenuProps {
   srZones?: SRZone[] | null;
   /** Drawable series from the chart data; wins over payload sniffing. */
   presentIndicatorIds?: ReadonlySet<ChartIndicatorId> | null;
+  /** Zones actually built for the chart; wins over the raw payload length. */
+  drawableZoneCount?: number | null;
   /** Compact 28px trigger for narrow chart columns. */
   compact?: boolean;
 }
@@ -56,11 +58,21 @@ export function ChartIndicatorsMenu(props: ChartIndicatorsMenuProps) {
   const [open, setOpen] = createSignal(false);
   let rootEl: HTMLDivElement | undefined;
 
+  // The menu must describe what the chart can draw: a raw payload length would
+  // print "4 zones" next to a "No zones" disabled row when every band dropped.
+  const zoneCount = () => {
+    if (props.drawableZoneCount != null) return Math.max(0, props.drawableZoneCount);
+    if (props.presentIndicatorIds) {
+      return props.presentIndicatorIds.has("srZones") ? (props.srZones?.length ?? 0) : 0;
+    }
+    return props.srZones?.length ?? 0;
+  };
+
   const ctx = createMemo(() => ({
     timeframe: props.timeframe ?? null,
     candleCount: props.candleCount ?? 0,
     indicators: props.indicators ?? null,
-    srZoneCount: props.srZones?.length ?? 0,
+    srZoneCount: zoneCount(),
     presentIndicatorIds: props.presentIndicatorIds ?? null,
   }));
 
@@ -72,7 +84,6 @@ export function ChartIndicatorsMenu(props: ChartIndicatorsMenuProps) {
   );
   const groupSpecs = (group: ChartIndicatorGroup) =>
     CHART_INDICATOR_SPECS.filter((spec) => spec.group === group);
-  const zoneCount = () => props.srZones?.length ?? 0;
 
   // Close on outside click / Escape. The popover is inline (not portaled) so
   // the chart's own stacking context and the fullscreen modal both contain it.
@@ -150,7 +161,7 @@ export function ChartIndicatorsMenu(props: ChartIndicatorsMenuProps) {
                       return (
                         <Checkbox
                           size="xs"
-                          checked={prefs()[spec.id]}
+                          checked={prefs()[spec.id] && availability().enabled}
                           disabled={!availability().enabled}
                           onChange={(checked) => setChartIndicator(spec.id, checked)}
                           aria-label={spec.label}

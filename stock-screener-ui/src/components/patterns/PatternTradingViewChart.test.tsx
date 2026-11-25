@@ -11,6 +11,7 @@ import { cleanup, render, screen } from "@solidjs/testing-library";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import { createSignal } from "solid-js";
 import type { ChartCandle, ChartIndicators, PatternHitDTO, SRZone } from "@/types/chartPatterns";
+import { toEpochSeconds } from "@/utils/chart/time";
 import { buildPatternTVData, type TVMarker } from "./patternTVData";
 import { ZoneBandPrimitive } from "./ZoneBandPrimitive";
 
@@ -305,8 +306,46 @@ describe("PatternTradingViewChart", () => {
     expect(screen.getByTestId("patterns-tv-chart")).toHaveAttribute("data-visible-crosses", "0");
   });
 
-  it("creates one line series per indicator id and toggles visibility in place", () => {
-    const [hidden, setHidden] = createSignal<ReadonlySet<string>>(new Set());
+  it("sends a whitespace VWAP point at the first bar of a new session", () => {
+    const times = [
+      "2026-04-01T09:15:00+05:30",
+      "2026-04-01T09:30:00+05:30",
+      "2026-04-02T09:15:00+05:30",
+      "2026-04-02T09:30:00+05:30",
+    ];
+    const bars = times.map((t, index) => candle(t, 100 + index, 101 + index));
+    const intraday: ChartIndicators = {
+      aligned: "candles",
+      timeframe: "15m",
+      session: "2026-04-02",
+      partial_last: false,
+      series: [{ id: "vwap", values: [100, 101, 102, 103] }],
+      crosses: [],
+    };
+
+    render(() => (
+      <PatternTradingViewChart
+        hit={null}
+        candles={bars}
+        indicators={intraday}
+        timeframe="15m"
+      />
+    ));
+
+    const vwapSeries = mocks.createdSeries[2];
+    const points = vwapSeries?.setData.mock.calls.at(-1)?.[0] as Array<{
+      time: number;
+      value?: number;
+    }>;
+    expect(points).toEqual([
+      { time: toEpochSeconds(times[0]!), value: 100 },
+      { time: toEpochSeconds(times[1]!), value: 101 },
+      { time: toEpochSeconds(times[2]!) },
+      { time: toEpochSeconds(times[3]!), value: 103 },
+    ]);
+  });
+
+  it("creates one line series per indicator id and toggles visibility in place", () => {    const [hidden, setHidden] = createSignal<ReadonlySet<string>>(new Set());
     render(() => (
       <PatternTradingViewChart
         hit={null}

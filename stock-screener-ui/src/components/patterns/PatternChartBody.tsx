@@ -653,6 +653,7 @@ function FullscreenTV(props: {
           indicators={props.indicators}
           srZones={props.srZones}
           presentIndicatorIds={drawablePresence()}
+          drawableZoneCount={data().candles.length > 0 ? data().zones.length : null}
           compact={compactMenu()}
         />
       </Box>
