@@ -9,6 +9,7 @@ import type { SectionDefinition } from "../../state/sections/types";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+  openSymbol: vi.fn(),
   fetchSectionScan: vi.fn(),
   sections: [] as SectionDefinition[],
   hydrating: false,
@@ -17,6 +18,22 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@solidjs/router", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, useNavigate: () => mocks.navigate };
+});
+
+vi.mock("../common/symbolDockContext", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    useSymbolDock: () => ({
+      preview: vi.fn(),
+      endPreview: vi.fn(),
+      open: mocks.openSymbol,
+      close: vi.fn(),
+      pinned: false,
+      setOutlet: vi.fn(),
+      symbol: () => null,
+    }),
+  };
 });
 
 vi.mock("./useMarketSnapshotSolid", () => ({
@@ -71,11 +88,23 @@ vi.mock("../../state/sections/config", () => ({
 // The real components are owned by another lane. These shallow stand-ins keep
 // this suite about the tab's own wiring, not the table/modal internals.
 vi.mock("./SectionTable", () => ({
-  SectionTable: (props: { section: SectionDefinition; rows: unknown[]; error?: string | null; loading?: boolean }) => {
+  SectionTable: (props: {
+    section: SectionDefinition;
+    rows: unknown[];
+    error?: string | null;
+    loading?: boolean;
+    onOpenSymbol?: (symbol: string) => void;
+  }) => {
     const el = document.createElement("div");
     el.setAttribute("data-testid", "section-table");
     el.setAttribute("data-section-id", props.section.id);
     el.textContent = `${props.section.name}|${props.rows.length}|${props.error ?? ""}|${props.loading ? "loading" : ""}`;
+    if (props.onOpenSymbol) {
+      const open = document.createElement("button");
+      open.setAttribute("data-testid", `section-open-${props.section.id}`);
+      open.onclick = () => props.onOpenSymbol!("TESTSYM");
+      el.appendChild(open);
+    }
     return el;
   },
 }));
@@ -233,6 +262,22 @@ describe("MarketScreenerPanel — Sections tab", () => {
     expect(screen.queryByTestId("section-manager-modal")).not.toBeInTheDocument();
     await fireEvent.click(screen.getByTestId("market-sections-add"));
     expect(await screen.findByTestId("section-manager-modal")).toBeInTheDocument();
+  });
+
+  test("forwards selectAndOpen to every section table so a symbol opens the chart dock", async () => {
+    mocks.sections = [section("vwap-reclaim"), section("momentum-5m")];
+    renderPanel(() => <MarketScreenerPanel />);
+    await openSectionsTab();
+
+    const tables = await screen.findAllByTestId("section-table");
+    expect(tables).toHaveLength(2);
+    for (const table of tables) {
+      const id = table.getAttribute("data-section-id")!;
+      await fireEvent.click(within(table).getByTestId(`section-open-${id}`));
+    }
+
+    expect(mocks.openSymbol).toHaveBeenCalledTimes(2);
+    expect(mocks.openSymbol).toHaveBeenCalledWith("TESTSYM");
   });
 
   test("switching back to Table restores the market chrome", async () => {

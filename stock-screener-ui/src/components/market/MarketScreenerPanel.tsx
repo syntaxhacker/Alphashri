@@ -149,7 +149,10 @@ function MoversPanel(props: {
  * interval, no polling — a new scan happens only on mount, market change or the
  * explicit Refresh button.
  */
-function SectionsView(props: { market: "india" | "america" }) {
+function SectionsView(props: {
+  market: "india" | "america";
+  onOpenSymbol?: (symbol: string) => void;
+}) {
   const { config } = useSectionsConfig();
   const activeSections = createMemo(() =>
     [...config().sections]
@@ -321,6 +324,7 @@ function SectionsView(props: { market: "india" | "america" }) {
                       loading={loading()}
                       error={null}
                       dense
+                      onOpenSymbol={props.onOpenSymbol}
                     />
                   </Suspense>
                 </Paper>
@@ -1317,7 +1321,10 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
 
         <Box className="flex-1 min-w-0 min-h-0 flex flex-col">
           {sectionsActive() ? (
-            <SectionsView market={universe() === "us" ? "america" : "india"} />
+            <SectionsView
+              market={universe() === "us" ? "america" : "india"}
+              onOpenSymbol={selectAndOpen}
+            />
           ) : viewMode() === "value" ? (
             <Box
               data-testid="market-value-region"

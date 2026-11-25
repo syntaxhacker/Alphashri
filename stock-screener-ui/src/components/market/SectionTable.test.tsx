@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { SectionTable, type SectionScanRow } from "./SectionTable";
 import type { SectionDefinition } from "../../state/sections/types";
@@ -162,5 +162,60 @@ describe("SectionTable — named states", () => {
     expect(within(panel()).queryByText("0")).toBeNull();
     expect(within(panel()).queryByText("NaN")).toBeNull();
     expect(within(panel()).queryByText("undefined")).toBeNull();
+  });
+});
+
+describe("SectionTable — actionable symbol rows", () => {
+  const clickableCell = (onOpenSymbol: (symbol: string) => void): HTMLElement => {
+    render(() => <SectionTable section={def()} rows={rows} onOpenSymbol={onOpenSymbol} />);
+    return within(panel()).getByTestId("section-symbol-RELIANCE");
+  };
+
+  it("turns the symbol into a button target that opens that symbol's chart on click", () => {
+    const onOpenSymbol = vi.fn();
+    const cell = clickableCell(onOpenSymbol);
+
+    expect(cell).toHaveAttribute("role", "button");
+    expect(cell).toHaveAttribute("tabindex", "0");
+    expect(cell).toHaveAttribute("title", "Open RELIANCE chart");
+    expect(cell).toHaveStyle({ cursor: "pointer" });
+    expect(cell.className).toContain("hover:text-fin-primary");
+
+    fireEvent.click(cell);
+    expect(onOpenSymbol).toHaveBeenCalledTimes(1);
+    expect(onOpenSymbol).toHaveBeenCalledWith("RELIANCE");
+  });
+
+  it.each(["Enter", " "])("opens the symbol's chart on %s", (key) => {
+    const onOpenSymbol = vi.fn();
+    const cell = clickableCell(onOpenSymbol);
+
+    fireEvent.keyDown(cell, { key });
+    expect(onOpenSymbol).toHaveBeenCalledTimes(1);
+    expect(onOpenSymbol).toHaveBeenCalledWith("RELIANCE");
+  });
+
+  it("opens the clicked row's own symbol, not the first row's", () => {
+    const onOpenSymbol = vi.fn();
+    const cell = clickableCell(onOpenSymbol);
+
+    fireEvent.click(within(panel()).getByTestId("section-symbol-TCS"));
+    expect(onOpenSymbol).toHaveBeenCalledTimes(1);
+    expect(onOpenSymbol).toHaveBeenCalledWith("TCS");
+    expect(cell).toHaveTextContent("RELIANCE");
+  });
+
+  it("leaves the symbol cell inert when no handler is supplied", () => {
+    render(() => <SectionTable section={def()} rows={rows} />);
+    const cell = within(panel()).getByTestId("section-symbol-RELIANCE");
+
+    expect(cell).not.toHaveAttribute("role");
+    expect(cell).not.toHaveAttribute("tabindex");
+    expect(cell).not.toHaveAttribute("title");
+    expect(cell).toHaveStyle({ cursor: "default" });
+    expect(cell.className).not.toContain("hover:text-fin-primary");
+
+    fireEvent.click(cell);
+    fireEvent.keyDown(cell, { key: "Enter" });
   });
 });

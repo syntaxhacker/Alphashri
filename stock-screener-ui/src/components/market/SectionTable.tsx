@@ -1,7 +1,9 @@
 import { createMemo, Show, type JSX } from "solid-js";
 import { Badge, Text } from "@/ui";
+import { cn } from "@/ui/cn";
 import { TanStackTable, type TableColumnDef } from "../common/TanStackTable";
 import { DashCell, NumCell, TextCell } from "../common/tableCells";
+import { symbolRowCursor, symbolRowProps, type SymbolOpenHandler } from "../common/symbolRowProps";
 import { InlineLoader } from "../common/states";
 import { formatNumber, formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
 import type { SectionDefinition } from "../../state/sections/types";
@@ -94,6 +96,7 @@ function buildSectionColumns(
   section: SectionDefinition,
   fields: string[],
   withSignals: boolean,
+  onOpenSymbol?: SymbolOpenHandler,
 ): TableColumnDef<SectionScanRow>[] {
   const built: TableColumnDef<SectionScanRow>[] = [
     {
@@ -102,13 +105,27 @@ function buildSectionColumns(
       size: 120,
       accessorFn: (row) => row.symbol,
       meta: { align: "left" },
-      cell: ({ row }) => (
-        <TextCell
-          value={row.original.symbol}
-          fw={700}
-          testId={`section-symbol-${row.original.symbol}`}
-        />
-      ),
+      cell: ({ row }) => {
+        const symbol = row.original.symbol;
+        return (
+          <Text
+            size="xs"
+            fw={700}
+            span
+            truncate
+            data-testid={`section-symbol-${symbol}`}
+            title={onOpenSymbol ? `Open ${symbol} chart` : undefined}
+            className={cn(
+              "text-left min-w-0",
+              onOpenSymbol && "hover:text-fin-primary focus-visible:underline",
+            )}
+            style={{ cursor: symbolRowCursor(onOpenSymbol) }}
+            {...symbolRowProps(onOpenSymbol, symbol)}
+          >
+            {symbol}
+          </Text>
+        );
+      },
     },
     {
       id: "name",
@@ -181,6 +198,7 @@ export function SectionTable(props: {
   loading?: boolean;
   error?: string | null;
   dense?: boolean;
+  onOpenSymbol?: SymbolOpenHandler;
 }): JSX.Element {
   const hasSignals = createMemo(() =>
     props.rows.some((row) => Object.values(row.signals ?? {}).some(Boolean)),
@@ -195,7 +213,7 @@ export function SectionTable(props: {
     const fields = Array.from(new Set(props.section.render.columns ?? [])).filter(
       (field) => field !== "symbol" && field !== "name",
     );
-    return buildSectionColumns(props.section, fields, hasSignals());
+    return buildSectionColumns(props.section, fields, hasSignals(), props.onOpenSymbol);
   });
 
   return (
