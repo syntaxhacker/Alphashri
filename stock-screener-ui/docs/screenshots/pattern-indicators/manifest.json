@@ -1,0 +1,61 @@
+{
+  "feature": "pattern-indicators",
+  "route": "/chart/RELIANCE",
+  "head": "0095aaaf5f303733ca401d79274b8b1443ba775f",
+  "viewports": [
+    1600,
+    390
+  ],
+  "sha256": {
+    "chart-indicators-all-off-1600.png": "528f62f90b5db967fbb4097668fdd7611963a2f7cd04e9e4c578292188183ede",
+    "chart-indicators-all-off-390.png": "6b9a145c2a219c3f2e22838dd4f2e14b96ed42f452dd68e3b2187095bcf920f4",
+    "chart-indicators-all-on-1600.png": "de190a65526c9014191c1653b27abbb2f0824c07ba5ec016bb1122ba54a59462",
+    "chart-indicators-all-on-390.png": "67b00ac61a36bf1fc4c52956e535f0096af7c3978332c7ca755781bb070e3691",
+    "chart-indicators-default-1600.png": "00e584ed664d110b2d5e09f8c85418cd9d5527bcf711706baf004b604e64a58d",
+    "chart-indicators-default-390.png": "a87ad3894e9eb9eb63cf47bb1eb26483674f7c38d17f360e46d2853f33119648",
+    "chart-indicators-fullscreen-1600.png": "911febcde1a80272f36d780eb619fcb1683844985a351a4756875d082b97a644",
+    "chart-indicators-popover-1600.png": "6aab6b937420ec5371d24ee44096ee47af7c0212b71be1d034c09bcd2429653e",
+    "chart-indicators-popover-390.png": "b60632fcaf4084a8b1c5d4476b57a3c474290db70544831ee4e3b55705afec73"
+  },
+  "states": [
+    {
+      "id": "default",
+      "files": {
+        "1600": "chart-indicators-default-1600.png",
+        "390": "chart-indicators-default-390.png"
+      },
+      "covers": "/chart/RELIANCE default: SMA20 chip only; Crosses and zones off; Indicators 1."
+    },
+    {
+      "id": "popover",
+      "files": {
+        "1600": "chart-indicators-popover-1600.png",
+        "390": "chart-indicators-popover-390.png"
+      },
+      "covers": "Indicators popover open: grouped MA/studies/signals/zones, VWAP disabled on 1D, 2 real S/R zones detected."
+    },
+    {
+      "id": "all-on",
+      "files": {
+        "1600": "chart-indicators-all-on-1600.png",
+        "390": "chart-indicators-all-on-390.png"
+      },
+      "covers": "All drawable overlays on: SMA20/50/200, Bollinger 20,2, golden/death marker, 2 S/R zones; VWAP unavailable on daily; active chips and count 6."
+    },
+    {
+      "id": "all-off",
+      "files": {
+        "1600": "chart-indicators-all-off-1600.png",
+        "390": "chart-indicators-all-off-390.png"
+      },
+      "covers": "SMA20 explicitly off after reset: candles/volume only, Indicators 0."
+    },
+    {
+      "id": "fullscreen",
+      "files": {
+        "1600": "chart-indicators-fullscreen-1600.png"
+      },
+      "covers": "Expand from /chart: RELIANCE \u00b7 1D header, 6 active indicators, chips, zones and markers preserved."
+    }
+  ]
+}
