@@ -552,6 +552,12 @@ describe("buildPatternTVData indicator overlays", () => {
     expect(srZoneLabel({ kind: "sr", touches: 4 }, "2,500")).toBe("S/R testing");
   });
 
+  it("drops only the touch count from narrow-chart zone labels", () => {
+    expect(srZoneLabel({ kind: "support", touches: 12 }, "264.3", true)).toBe("S 264.3");
+    expect(srZoneLabel({ kind: "resistance", touches: 2 }, "297.3", true)).toBe("R 297.3");
+    expect(srZoneLabel({ kind: "sr", touches: 4 }, "2,500", true)).toBe("S/R testing");
+  });
+
   it("skips a cross on the partial last bar", () => {
     const last = CANDLES[CANDLES.length - 1]!;
     const out = buildPatternTVData({

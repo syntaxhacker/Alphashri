@@ -97,6 +97,102 @@ interface LabelRect {
   h: number;
 }
 
+/** Minimum band height (px) that earns an S/R label pill. */
+export const ZONE_LABEL_MIN_BAND_HEIGHT = 12;
+/** A zone pill may never cover more than this share of the plot width. */
+export const ZONE_LABEL_MAX_WIDTH_RATIO = 0.45;
+/** Height of the zone pill, including its border. */
+export const ZONE_LABEL_HEIGHT = 14;
+/** Charts narrower than this use the compact (touch-count-free) label. */
+export const ZONE_LABEL_COMPACT_WIDTH = 640;
+/** Time-axis padding (px) at each edge so first/last tick labels stay whole. */
+export const TIME_AXIS_EDGE_PADDING_PX = 18;
+/** Bars reserved after the newest bar (kept in sync with createChart). */
+const TIME_SCALE_RIGHT_OFFSET = 12;
+/** A 3h/4h window longer than this is treated as a multi-month view. */
+const MULTI_MONTH_SPAN_SECONDS = 60 * 24 * 60 * 60;
+
+export interface ZoneLabelCandidate {
+  /** Wide label, e.g. `S 264.27 ×12`. */
+  fullText: string;
+  /** Narrow label without the touch count, e.g. `S 264.3`. */
+  compactText: string;
+  /** Progressively shorter fallbacks when even the compact label is too wide. */
+  fallbackTexts?: readonly string[];
+  /** Band's left edge in plot coordinates. */
+  xStart: number;
+  topY: number;
+  bottomY: number;
+}
+
+export interface ZoneLabelPlacement extends LabelRect {
+  text: string;
+  compact: boolean;
+}
+
+/**
+ * Choose and place one zone label. Bands shorter than
+ * `ZONE_LABEL_MIN_BAND_HEIGHT` are skipped unless the caller lowers the gate
+ * (the chart does, so tiny 1W/1M bands still get a readable tag).
+ * Width is capped at `ZONE_LABEL_MAX_WIDTH_RATIO` of the plot; when the chosen
+ * label does not fit, shorter variants are used instead of dropping the label.
+ */
+export function layoutZoneLabel(
+  candidate: ZoneLabelCandidate,
+  geometry: {
+    chartWidth: number;
+    paneWidth: number;
+    paneHeight: number;
+    measure: (text: string) => number;
+    minBandHeight?: number;
+  },
+): ZoneLabelPlacement | null {
+  const bandHeight = Math.abs(candidate.bottomY - candidate.topY);
+  const minBandHeight = geometry.minBandHeight ?? ZONE_LABEL_MIN_BAND_HEIGHT;
+  if (!(bandHeight >= minBandHeight)) return null;
+
+  const compact = geometry.chartWidth < ZONE_LABEL_COMPACT_WIDTH;
+  const maxWidth = Math.max(0, geometry.paneWidth * ZONE_LABEL_MAX_WIDTH_RATIO);
+  const preferred = compact
+    ? [candidate.compactText, ...(candidate.fallbackTexts ?? [])]
+    : [candidate.fullText, candidate.compactText, ...(candidate.fallbackTexts ?? [])];
+  const variants = [...new Set(preferred.filter((text) => text.length > 0))];
+  if (variants.length === 0) return null;
+
+  const text =
+    variants.find((value) => geometry.measure(value) <= maxWidth) ?? variants[variants.length - 1]!;
+  const h = ZONE_LABEL_HEIGHT;
+  const w = geometry.measure(text);
+  const x = Math.max(0, Math.min(candidate.xStart + 4, Math.max(0, geometry.paneWidth - w - 2)));
+  const y = Math.max(
+    0,
+    Math.min(
+      (candidate.topY + candidate.bottomY) / 2 - h / 2,
+      Math.max(0, geometry.paneHeight - h),
+    ),
+  );
+  return { text, compact, x, y, w, h };
+}
+
+/**
+ * Logical range with leading/trailing whitespace so the first/last time tick
+ * is not centred on the plot edge. `rightOffset` bars are kept and extra
+ * padding is added on both sides in pixels.
+ */
+export function initialVisibleLogicalRange(
+  barCount: number,
+  rightOffset: number,
+  paneWidth: number,
+  edgePaddingPx: number = TIME_AXIS_EDGE_PADDING_PX,
+): { from: number; to: number } | null {
+  if (!Number.isFinite(barCount) || barCount <= 0) return null;
+  if (!Number.isFinite(paneWidth) || paneWidth <= edgePaddingPx * 2) return null;
+  const offset = Number.isFinite(rightOffset) && rightOffset > 0 ? rightOffset : 0;
+  const slots = Math.max(1, barCount - 1 + offset);
+  const padBars = Math.ceil((edgePaddingPx * slots) / Math.max(1, paneWidth - edgePaddingPx * 2));
+  return { from: -padBars, to: barCount - 1 + offset + padBars };
+}
+
 function overlaps(
   placed: readonly LabelRect[],
   bx: number,
@@ -262,8 +358,20 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
   // repaints the axis without rebuilding the series (and losing pan/zoom).
   let timeZoneRef = timeZoneOf();
   let localeRef = chartPriceLocale(props.market);
-  const tickFormatter = (time: Time, kind: TickMarkType) =>
-    tvTickMarkFormatter(time, kind, timeZoneRef);
+  const tickFormatter = (time: Time, kind: TickMarkType) => {
+    const timeframe = props.timeframe ?? props.hit?.timeframe;
+    const range = visibleLogicalRange();
+    const candles = data().candles;
+    let multiMonth = false;
+    if (range && candles.length > 1) {
+      const from = Math.max(0, Math.floor(range.from));
+      const to = Math.min(candles.length - 1, Math.ceil(range.to));
+      if (to > from) {
+        multiMonth = candles[to]!.time - candles[from]!.time > MULTI_MONTH_SPAN_SECONDS;
+      }
+    }
+    return tvTickMarkFormatter(time, kind, timeZoneRef, { timeframe, multiMonth });
+  };
   const crosshairFormatter = (time: Time) => tvTimeFormatter(time, timeZoneRef);
 
   const trendlinesView = () => props.trendlinesView ?? "both";
@@ -323,12 +431,17 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
         borderColor: palette.BORDER,
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: 12,
+        rightOffset: TIME_SCALE_RIGHT_OFFSET,
         barSpacing: 5,
         tickMarkFormatter: tickFormatter,
       },
       localization: { locale: localeRef, timeFormatter: crosshairFormatter },
-      rightPriceScale: { borderColor: palette.BORDER },
+      rightPriceScale: {
+        borderColor: palette.BORDER,
+        // Keep the top and bottom axis ticks fully inside the pane; without
+        // this the price-scale edge label is clipped by the card border.
+        scaleMargins: { top: 0.08, bottom: 0.08 },
+      },
       crosshair: { mode: 1 },
       handleScroll: true,
       handleScale: true,
@@ -451,6 +564,28 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     } catch {
       return null;
     }
+  };
+
+  /**
+   * Fit once, then add whitespace before/after the bars so the first and last
+   * tick labels are not centred on — and clipped by — the plot edges. Pan/zoom
+   * are untouched after this initial range is applied.
+   */
+  const fitContentWithTimePadding = () => {
+    const ts = chart?.timeScale();
+    if (!ts) return;
+    ts.fitContent();
+    if (typeof ts.width !== "function" || typeof ts.setVisibleLogicalRange !== "function") {
+      return;
+    }
+    const paneWidth = ts.width();
+    const timeScaleOptions = typeof ts.options === "function" ? ts.options() : null;
+    const range = initialVisibleLogicalRange(
+      data().candles.length,
+      timeScaleOptions?.rightOffset ?? TIME_SCALE_RIGHT_OFFSET,
+      paneWidth,
+    );
+    if (range) ts.setVisibleLogicalRange(range);
   };
 
   const updateMarkers = () => {
@@ -611,7 +746,7 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     const nextKey = identityKey(d);
     if (nextKey !== fittedKey) {
       fittedKey = nextKey;
-      chart.timeScale().fitContent();
+      fitContentWithTimePadding();
     }
   });
 
@@ -738,6 +873,14 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     const zones = data().zones;
     if (zones.length === 0) return;
     const priceFormat = new Intl.NumberFormat(localeRef, { maximumFractionDigits: 2 });
+    const compactPriceFormat = new Intl.NumberFormat(localeRef, { maximumFractionDigits: 1 });
+    const shortPriceFormat = new Intl.NumberFormat(localeRef, { maximumFractionDigits: 0 });
+    const zonePaneHeight =
+      typeof ts.height === "function" ? Math.max(1, rect.height - ts.height()) : rect.height;
+    // Every visible band gets a tag (the 12 px gate is only the helper's
+    // default): 1W/1M bands are often a few pixels tall yet still carry a
+    // useful price. Overlapping tags are stacked by findVerticalSlot below.
+    const minBandHeight = 0;
     zones.forEach((zone) => {
       if (hiddenRef.has(zone.legendName)) return;
       const series = candleSeries;
@@ -748,25 +891,42 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
       const yBottom = series.priceToCoordinate(zone.bottom);
       if (xStart == null || xEnd == null || yTop == null || yBottom == null) return;
       if (xEnd < 0 || xStart > paneWidth) return;
-      if (Math.max(yTop, yBottom) < 0 || Math.min(yTop, yBottom) > rect.height) return;
+      if (Math.max(yTop, yBottom) < 0 || Math.min(yTop, yBottom) > zonePaneHeight) return;
 
-      const text = srZoneLabel(zone, priceFormat.format(zone.top));
       const padX = 4;
-      const h = 14;
-      const w = ctx.measureText(text).width + padX * 2;
-      // Band label sits at the left edge; skip only when the band has no room
-      // to show a pill vertically.
-      if (Math.abs(yBottom - yTop) < h + 2) return;
-      const bx = Math.max(0, Math.min(xStart + 4, Math.max(0, paneWidth - w - 2)));
-      const by = findVerticalSlot(
-        placed,
-        bx,
-        w,
-        (yTop + yBottom) / 2 - h / 2,
-        h,
-        rect.height,
+      const placement = layoutZoneLabel(
+        {
+          fullText: srZoneLabel(zone, priceFormat.format(zone.top)),
+          compactText: srZoneLabel(zone, compactPriceFormat.format(zone.top), true),
+          fallbackTexts: [
+            srZoneLabel(zone, shortPriceFormat.format(zone.top), true),
+            zone.kind === "sr" ? "S/R" : zone.kind === "support" ? "S" : "R",
+          ],
+          xStart,
+          topY: yTop,
+          bottomY: yBottom,
+        },
+        {
+          chartWidth: rect.width,
+          paneWidth,
+          paneHeight: zonePaneHeight,
+          minBandHeight,
+          measure: (text) => ctx.measureText(text).width + padX * 2,
+        },
       );
-      if (by == null) return;
+      if (!placement) return;
+      // Keep labels readable even when two bands sit on top of each other; the
+      // first free slot wins, with the band centre as the guaranteed fallback.
+      const by =
+        findVerticalSlot(
+          placed,
+          placement.x,
+          placement.w,
+          placement.y,
+          placement.h,
+          zonePaneHeight,
+        ) ?? placement.y;
+      const { x: bx, w, h } = placement;
       placed.push({ x: bx, y: by, w, h });
       ctx.fillStyle = "rgba(8,8,8,0.92)";
       ctx.strokeStyle = withAlpha(zone.color, ZONE_BORDER_ALPHA);
@@ -774,7 +934,7 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
       ctx.fillRect(bx, by, w, h);
       ctx.strokeRect(bx + 0.5, by + 0.5, w - 1, h - 1);
       ctx.fillStyle = zone.color;
-      ctx.fillText(text, bx + padX, by + h / 2 + 0.5);
+      ctx.fillText(placement.text, bx + padX, by + h / 2 + 0.5);
     });
   };
 

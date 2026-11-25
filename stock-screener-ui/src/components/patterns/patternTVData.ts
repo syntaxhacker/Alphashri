@@ -380,9 +380,17 @@ export function buildPatternTVData({
   return { candles: tvCandles, volume, levels, lines, indicatorLines, markers, zones };
 }
 
-/** Compact on-canvas band label (`S 2,480 ×3`, `R 2,560 ×2`, `S/R testing`). */
-export function srZoneLabel(zone: Pick<TVRect, "kind" | "touches">, formattedTop: string): string {
+/**
+ * On-canvas band label (`S 2,480 ×3`, `R 2,560 ×2`, `S/R testing`). The
+ * compact form (`S 2,480`) drops the touch count for narrow charts; callers
+ * pick it when the full pill would cover too much of the plot.
+ */
+export function srZoneLabel(
+  zone: Pick<TVRect, "kind" | "touches">,
+  formattedTop: string,
+  compact = false,
+): string {
   if (zone.kind === "sr") return "S/R testing";
   const prefix = zone.kind === "support" ? "S" : "R";
-  return `${prefix} ${formattedTop} ×${zone.touches}`;
+  return compact ? `${prefix} ${formattedTop}` : `${prefix} ${formattedTop} ×${zone.touches}`;
 }

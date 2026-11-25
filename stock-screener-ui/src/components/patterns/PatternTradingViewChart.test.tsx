@@ -40,6 +40,8 @@ const mocks = vi.hoisted(() => {
   };
   const rangeState: { current: { from: number; to: number } | null } = { current: null };
   const fitContent = vi.fn();
+  const setVisibleLogicalRange = vi.fn();
+  const timeScaleWidth = vi.fn(() => 300);
   const chartApi = {
     addSeries: vi.fn((_kind?: unknown, _options?: unknown) => makeSeries()),
     removeSeries: vi.fn(),
@@ -47,6 +49,10 @@ const mocks = vi.hoisted(() => {
     remove: vi.fn(),
     timeScale: () => ({
       fitContent,
+      setVisibleLogicalRange,
+      width: timeScaleWidth,
+      height: () => 24,
+      options: () => ({ rightOffset: 12, barSpacing: 5 }),
       getVisibleLogicalRange: vi.fn(() => rangeState.current),
     }),
     panes: () => [],
@@ -57,6 +63,8 @@ const mocks = vi.hoisted(() => {
     rangeState,
     applyPriceScaleOptions,
     fitContent,
+    setVisibleLogicalRange,
+    timeScaleWidth,
     chartApi,
     setMarkers,
     CandlestickSeries: { kind: "candlestick" },
@@ -81,8 +89,11 @@ vi.mock("lightweight-charts", () => ({
 
 import {
   PatternTradingViewChart,
+  initialVisibleLogicalRange,
   layoutIndicatorTags,
+  layoutZoneLabel,
   type IndicatorTagCandidate,
+  type ZoneLabelCandidate,
 } from "./PatternTradingViewChart";
 
 function candle(t: string, o: number, c: number): ChartCandle {
@@ -220,6 +231,9 @@ describe("PatternTradingViewChart", () => {
     const options = mocks.createChart.mock.calls[0]?.[1] as Record<string, unknown>;
     expect(options).toMatchObject({ handleScroll: true, handleScale: true });
     expect((options.timeScale as Record<string, unknown>).rightOffset).toBe(12);
+    expect(options.rightPriceScale).toMatchObject({
+      scaleMargins: { top: 0.08, bottom: 0.08 },
+    });
 
     const kinds = mocks.chartApi.addSeries.mock.calls.map((c) => c[0]);
     expect(kinds[0]).toBe(mocks.CandlestickSeries);
@@ -426,6 +440,24 @@ describe("PatternTradingViewChart", () => {
 
     setCandles([...CANDLES, candle("2026-04-06", 108, 110)]);
     expect(mocks.fitContent).toHaveBeenCalledTimes(2);
+  });
+
+  it("pads the initial logical range so edge tick labels are not clipped", () => {
+    render(() => <PatternTradingViewChart hit={makeHit()} candles={CANDLES} />);
+
+    expect(mocks.fitContent).toHaveBeenCalledTimes(1);
+    const range = mocks.setVisibleLogicalRange.mock.calls.at(-1)?.[0] as {
+      from: number;
+      to: number;
+    };
+    expect(range).toBeDefined();
+    expect(range.from).toBeLessThan(0);
+    const lastIndex = CANDLES.length - 1;
+    expect(range.to).toBeGreaterThan(lastIndex + 12);
+    const span = range.to - range.from;
+    const plotWidth = mocks.timeScaleWidth();
+    expect((-range.from / span) * plotWidth).toBeGreaterThanOrEqual(18);
+    expect(((range.to - lastIndex) / span) * plotWidth).toBeGreaterThanOrEqual(18);
   });
 
   it("filters crosses to the visible logical range and keeps pattern markers", () => {
@@ -726,5 +758,94 @@ describe("layoutIndicatorTags", () => {
 
     expect(compact).toBe(true);
     expect(tags).toEqual([]);
+  });
+});
+
+describe("layoutZoneLabel", () => {
+  const measure = (text: string) => text.length * 7 + 8;
+  const candidate = (overrides: Partial<ZoneLabelCandidate> = {}): ZoneLabelCandidate => ({
+    fullText: "S 264.27 ×12",
+    compactText: "S 264.3",
+    xStart: 20,
+    topY: 100,
+    bottomY: 130,
+    ...overrides,
+  });
+  const geometry = (overrides: Record<string, unknown> = {}) => ({
+    chartWidth: 1600,
+    paneWidth: 1000,
+    paneHeight: 600,
+    measure,
+    ...overrides,
+  });
+
+  it("skips bands shorter than 12 px but labels a 12 px band", () => {
+    expect(layoutZoneLabel(candidate({ bottomY: 111 }), geometry())).toBeNull();
+    expect(layoutZoneLabel(candidate({ bottomY: 112 }), geometry())).not.toBeNull();
+  });
+
+  it("uses the compact label below 640 px and the full label on wide charts", () => {
+    const compact = layoutZoneLabel(candidate(), geometry({ chartWidth: 390, paneWidth: 300 }));
+    expect(compact?.text).toBe("S 264.3");
+    expect(compact?.compact).toBe(true);
+
+    const full = layoutZoneLabel(candidate(), geometry());
+    expect(full?.text).toBe("S 264.27 ×12");
+    expect(full?.compact).toBe(false);
+  });
+
+  it("shortens an over-wide full label instead of dropping it", () => {
+    const placement = layoutZoneLabel(
+      candidate({ fullText: "S ".padEnd(120, "9"), compactText: "S 264.3" }),
+      geometry({ paneWidth: 200 }),
+    );
+    expect(placement).not.toBeNull();
+    expect(placement?.text).toBe("S 264.3");
+    expect((placement?.w ?? 0) / 200).toBeLessThanOrEqual(0.45);
+  });
+
+  it("clamps labels inside the plot and pane", () => {
+    const right = layoutZoneLabel(candidate({ xStart: 990 }), geometry());
+    expect(right).not.toBeNull();
+    expect(right!.x + right!.w).toBeLessThanOrEqual(1000);
+    expect(right!.x).toBeGreaterThanOrEqual(0);
+
+    const left = layoutZoneLabel(candidate({ xStart: -80 }), geometry());
+    expect(left?.x).toBe(0);
+
+    const top = layoutZoneLabel(candidate({ topY: -100, bottomY: -80 }), geometry());
+    expect(top?.y).toBe(0);
+
+    const bottom = layoutZoneLabel(
+      candidate({ topY: 590, bottomY: 620 }),
+      geometry({ paneHeight: 600 }),
+    );
+    expect(bottom!.y + bottom!.h).toBeLessThanOrEqual(600);
+  });
+
+  it("can lower the 12 px gate so tiny 1W/1M bands label too", () => {
+    const tiny = candidate({ topY: 100, bottomY: 103 });
+    expect(
+      layoutZoneLabel(tiny, geometry({ chartWidth: 390, paneWidth: 300, minBandHeight: 0 })),
+    ).not.toBeNull();
+  });
+});
+
+describe("initialVisibleLogicalRange", () => {
+  it("keeps rightOffset and adds at least 18 px of whitespace at both edges", () => {
+    const range = initialVisibleLogicalRange(500, 12, 300);
+    expect(range).not.toBeNull();
+    const { from, to } = range!;
+    const span = to - from;
+    const leftPad = (-from / span) * 300;
+    const rightPad = ((to - 499) / span) * 300;
+    expect(leftPad).toBeGreaterThanOrEqual(18);
+    expect(rightPad).toBeGreaterThanOrEqual(18);
+    expect(to - 499).toBeGreaterThanOrEqual(12);
+  });
+
+  it("skips padding when there are no bars or no plot width", () => {
+    expect(initialVisibleLogicalRange(0, 12, 300)).toBeNull();
+    expect(initialVisibleLogicalRange(500, 12, 30)).toBeNull();
   });
 });
