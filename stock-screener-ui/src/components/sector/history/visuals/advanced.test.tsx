@@ -2,10 +2,19 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render, screen } from "@solidjs/testing-library";
+import { TOOLTIP_BG, TOOLTIP_BORDER, TOOLTIP_TEXT } from "@/ui/palette";
+import { typeSize } from "@/ui/typography";
 import type {
   SectorHistorySeasonality,
   SectorHistorySeries,
 } from "../../../../types/sectorHistory";
+import {
+  buildIndexSeries,
+  drawdownSeries,
+  relativeStrengthSeries,
+  seasonalityByMonth,
+  seasonalitySampleLabel,
+} from "../historyMath";
 import {
   CHART_CURRENT,
   CHART_LINE,
@@ -16,7 +25,6 @@ import {
 import {
   UnderwaterDrawdown,
   buildDrawdownAxis,
-  buildIndexSeries,
   buildUnderwaterModel,
   buildUnderwaterOption,
   formatUnderwaterTooltip,
@@ -28,7 +36,6 @@ import {
 } from "./SeasonalityRadial";
 import {
   RelativeStrength,
-  buildCumulativeIndex,
   buildRelativeStrengthModel,
   buildRelativeStrengthOption,
 } from "./RelativeStrength";
@@ -142,6 +149,15 @@ function optionSeries(option: Record<string, any>): any[] {
   return option.series as any[];
 }
 
+function expectDarkTooltip(option: Record<string, any>): void {
+  expect(option.tooltip).toMatchObject({
+    backgroundColor: TOOLTIP_BG,
+    borderColor: TOOLTIP_BORDER,
+    borderWidth: 1,
+    textStyle: { color: TOOLTIP_TEXT, fontSize: typeSize("micro") },
+  });
+}
+
 beforeEach(() => {
   chartCapture.options.length = 0;
   chartCapture.styles.length = 0;
@@ -153,18 +169,25 @@ afterEach(() => {
 
 describe("UnderwaterDrawdown", () => {
   test("compounds monthly returns from 100 and breaks on missing closes", () => {
-    const index = buildIndexSeries([10, -10]);
+    const months = ["2025-01", "2025-02"];
+    const index = buildUnderwaterModel(months, [10, -10]).indices;
+    expect(index).toEqual(buildIndexSeries(months, [10, -10]));
     expect(index[0]).toBeCloseTo(110, 6);
     expect(index[1]).toBeCloseTo(99, 6);
 
-    const gap = buildIndexSeries([10, null, -10]);
+    const gapMonths = ["2025-01", "2025-02", "2025-03"];
+    const gap = buildUnderwaterModel(gapMonths, [10, null, -10]).indices;
+    expect(gap).toEqual(buildIndexSeries(gapMonths, [10, null, -10]));
     expect(gap[0]).toBeCloseTo(110, 6);
     expect(gap[1]).toBeNull();
     expect(gap[2]).toBeCloseTo(99, 6);
   });
 
   test("computes drawdown from the running peak and marks the deepest month", () => {
-    const model = buildUnderwaterModel(["2025-01", "2025-02", "2025-03"], [10, -10, 5]);
+    const months = ["2025-01", "2025-02", "2025-03"];
+    const returns = [10, -10, 5];
+    const model = buildUnderwaterModel(months, returns);
+    expect(model.drawdowns).toEqual(drawdownSeries(buildIndexSeries(months, returns)));
     expect(model.hasData).toBe(true);
     expect(model.drawdowns[0]).toBeCloseTo(0, 6);
     expect(model.drawdowns[1]).toBeCloseTo(-0.1, 6);
@@ -189,6 +212,7 @@ describe("UnderwaterDrawdown", () => {
     expect(option.aria.enabled).toBe(true);
     expect((option.xAxis as { axisLabel: { color: string } }).axisLabel.color).toBe(CHART_MUTED);
     expect((option.yAxis as { axisLabel: { color: string } }).axisLabel.color).toBe(CHART_MUTED);
+    expectDarkTooltip(option);
     expectNoNaN(option);
   });
 
@@ -298,6 +322,12 @@ describe("UnderwaterDrawdown", () => {
 describe("SeasonalityRadial", () => {
   test("maps months to twelve entries with signed tones and hit rates", () => {
     const model = buildSeasonalityRadialModel(RADIAL_CELLS, "NIFTY IT");
+    const rows = seasonalityByMonth(RADIAL_CELLS, "NIFTY IT");
+    expect(
+      model.entries.map(({ month, label, avg, hitPct, n }) => ({ month, label, avg, hitPct, n })),
+    ).toEqual(
+      rows.map(({ month, label, avg, hitRate, n }) => ({ month, label, avg, hitPct: hitRate, n })),
+    );
     expect(model.hasData).toBe(true);
     expect(model.entries).toHaveLength(12);
     expect(model.entries[0].avg).toBeCloseTo(-1.4, 6);
@@ -306,6 +336,7 @@ describe("SeasonalityRadial", () => {
     expect(model.entries[5].color).toBe(CHART_POSITIVE);
     expect(model.entries[5].hitPct).toBeCloseTo(60, 6);
     expect(model.entries[5].n).toBe(5);
+    expect(model.sampleLabel).toBe(seasonalitySampleLabel(RADIAL_CELLS, "NIFTY IT"));
     expect(model.sampleLabel).toBe("n=5 per month");
   });
 
@@ -342,7 +373,37 @@ describe("SeasonalityRadial", () => {
     expect(description).toContain("blue bars");
     expect(description).not.toContain("Green bars");
     expect(description).not.toContain("red bars");
+    expectDarkTooltip(option);
     expectNoNaN(option);
+  });
+
+  test("lists every month as a signed text strip without hover", () => {
+    render(() => <SeasonalityRadial cells={RADIAL_CELLS} sector="NIFTY IT" />);
+    const strip = screen.getByTestId("history-seasonality-radial-values");
+    expect(strip).toHaveAttribute("role", "list");
+    expect(strip).toHaveClass("grid-cols-4", "lg:grid-cols-6");
+    expect(
+      strip.querySelectorAll('[data-testid^="history-seasonality-radial-value-"]'),
+    ).toHaveLength(12);
+    expect(screen.getByTestId("history-seasonality-radial-value-0")).toHaveAccessibleName(
+      "Jan -1.4%",
+    );
+    expect(screen.getByTestId("history-seasonality-radial-value-5")).toHaveAccessibleName(
+      "Jun +2.1%",
+    );
+    const description = chartCapture.options.at(-1)?.aria.label.description as string;
+    expect(description).toContain("text strip");
+    expect(description).toContain("no hover is required");
+  });
+
+  test("moves the signed strip ahead of the wheel on mobile and restores desktop order", () => {
+    render(() => <SeasonalityRadial cells={RADIAL_CELLS} sector="NIFTY IT" />);
+    const strip = screen.getByTestId("history-seasonality-radial-values");
+    const chart = screen.getByTestId("history-seasonality-radial-chart");
+    expect(strip).toHaveClass("order-first", "sm:order-none");
+    expect(strip.parentElement).toBe(chart.parentElement);
+    expect(strip.parentElement).toHaveAttribute("data-testid", "history-seasonality-radial-body");
+    expect(chartCapture.styles.at(-1)).toMatchObject({ height: "300px" });
   });
 
   test("renders the chart and the history footer", () => {
@@ -388,13 +449,17 @@ describe("SeasonalityRadial", () => {
 
 describe("RelativeStrength", () => {
   test("indexes both legs and normalizes the ratio at the first common month", () => {
+    const months = MONTHS.slice(0, 3);
     const model = buildRelativeStrengthModel({
-      months: MONTHS.slice(0, 3),
+      months,
       series: [BENCHMARK, SECTOR],
       sector: "NIFTY IT",
     });
 
-    expect(buildCumulativeIndex([1, 1])[1]).toBeCloseTo(102.01, 6);
+    expect(buildIndexSeries(months, [1, 1])[1]).toBeCloseTo(102.01, 6);
+    expect(model.ratios).toEqual(
+      relativeStrengthSeries(months, SECTOR.monthly_returns, BENCHMARK.monthly_returns),
+    );
     expect(model.hasData).toBe(true);
     expect(model.hasBenchmark).toBe(true);
     expect(model.hasSector).toBe(true);
@@ -436,7 +501,36 @@ describe("RelativeStrength", () => {
     expect(option.yAxis.max).toBeGreaterThanOrEqual(100);
     expect(series.data[0]).toBeCloseTo(100, 6);
     expect(option.aria.enabled).toBe(true);
+    expectDarkTooltip(option);
     expectNoNaN(option);
+  });
+
+  test("uses a uniform whole-number y axis so ticks cannot repeat", () => {
+    const months = MONTHS.slice(0, 8);
+    const sector = makeSeries(
+      "NIFTY IT",
+      months.map(() => 0.1),
+    );
+    const benchmark = makeSeries(
+      "NIFTY 50",
+      months.map(() => 0.05),
+      true,
+    );
+    const option = buildRelativeStrengthOption(
+      buildRelativeStrengthModel({ months, series: [benchmark, sector], sector: "NIFTY IT" }),
+    );
+    const axis = option.yAxis as { min: number; max: number; interval: number };
+    expect(axis.interval).toBeGreaterThanOrEqual(1);
+    expect(axis.min % axis.interval).toBeCloseTo(0, 6);
+    expect(axis.max % axis.interval).toBeCloseTo(0, 6);
+    const labels: string[] = [];
+    for (let value = axis.min; value <= axis.max + 1e-9; value += axis.interval) {
+      labels.push(value.toFixed(0));
+    }
+    expect(labels.length).toBeGreaterThan(2);
+    expect(new Set(labels).size).toBe(labels.length);
+    expect(axis.min).toBeLessThanOrEqual(100);
+    expect(axis.max).toBeGreaterThanOrEqual(100);
   });
 
   test("renders the title, note and chart", () => {
@@ -504,6 +598,9 @@ describe("RelativeStrengthTrail", () => {
     });
     const trail = buildRsTrailModel(base);
 
+    expect(base.ratios).toEqual(
+      relativeStrengthSeries(MONTHS, SECTOR.monthly_returns, BENCHMARK.monthly_returns),
+    );
     expect(trail.hasData).toBe(true);
     expect(trail.enoughHistory).toBe(true);
     expect(trail.points).toHaveLength(12);
@@ -571,7 +668,37 @@ describe("RelativeStrengthTrail", () => {
     expect(firstMonthLabel).toBe(MONTHS[6]);
     expect(currentMonthLabel).toBe(MONTHS[17]);
     expect(option.aria.enabled).toBe(true);
+    expectDarkTooltip(option);
     expectNoNaN(option);
+  });
+
+  test("keeps both trail axes on uniform whole-number ticks", () => {
+    const base = buildRelativeStrengthModel({
+      months: MONTHS,
+      series: [BENCHMARK, SECTOR],
+      sector: "NIFTY IT",
+    });
+    const option = buildRelativeStrengthTrailOption(buildRsTrailModel(base));
+    for (const axis of [
+      option.xAxis as { min: number; max: number; interval: number },
+      option.yAxis as { min: number; max: number; interval: number },
+    ]) {
+      expect(axis.interval).toBeGreaterThanOrEqual(1);
+      expect(axis.min % axis.interval).toBeCloseTo(0, 6);
+      expect(axis.max % axis.interval).toBeCloseTo(0, 6);
+      const labels: string[] = [];
+      for (let value = axis.min; value <= axis.max + 1e-9; value += axis.interval) {
+        labels.push(value.toFixed(0));
+      }
+      expect(labels.length).toBeGreaterThan(2);
+      expect(new Set(labels).size).toBe(labels.length);
+    }
+    const xAxis = option.xAxis as { min: number; max: number };
+    const yAxis = option.yAxis as { min: number; max: number };
+    expect(xAxis.min).toBeLessThanOrEqual(100);
+    expect(xAxis.max).toBeGreaterThanOrEqual(100);
+    expect(yAxis.min).toBeLessThanOrEqual(0);
+    expect(yAxis.max).toBeGreaterThanOrEqual(0);
   });
 
   test("renders the title, note and chart", () => {

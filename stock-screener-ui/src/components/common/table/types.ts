@@ -98,6 +98,12 @@ export interface TableProps<T> {
   onRowClick?: (row: T) => void;
   /** Accessible name for the <table> element (e.g. "Market screener results"). */
   ariaLabel?: string;
+  /**
+   * Accessible name for the horizontal scroll region, when the table is wider
+   * than its scrollport. Defaults to the table's `ariaLabel` plus a sideways
+   * scroll instruction.
+   */
+  scrollRegionLabel?: string;
   getRowClassName?: (row: T) => string | undefined;
   getRowStyle?: (row: T) => CSSProperties | undefined;
   getRowTestId?: (row: T, index: number) => string | undefined;

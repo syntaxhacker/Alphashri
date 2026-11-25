@@ -2,6 +2,7 @@ import { Show, createMemo } from "solid-js";
 import { typeSize } from "@/ui/typography";
 import { EChart } from "../../../common/EChart";
 import { CHART_CURRENT, CHART_LINE, CHART_MUTED, CHART_NEUTRAL } from "./chartPalette";
+import { baseOption, niceAxis, tooltipStyle, valueAxis } from "./core/chartBase";
 import { finite, signedPct } from "./shared";
 import {
   buildRelativeStrengthModel,
@@ -9,8 +10,8 @@ import {
   type RelativeStrengthModel,
 } from "./RelativeStrength";
 
-const LABEL_FONT = typeSize("micro");
 const CHART_HEIGHT = 280;
+const LABEL_FONT = typeSize("micro");
 const MOMENTUM_LOOKBACK = 6;
 const TRAIL_POINTS = 12;
 const PERCENT = 100;
@@ -154,58 +155,39 @@ export function buildRelativeStrengthTrailOption(model: RsTrailModel): Record<st
   }
   const xPadding = Math.max(0.5, (xHigh - xLow) * 0.1);
   const yPadding = Math.max(0.5, (yHigh - yLow) * 0.12);
+  const xAxis = niceAxis(xLow - xPadding, xHigh + xPadding, 5, 1);
+  const yAxis = niceAxis(yLow - yPadding, yHigh + yPadding, 5, 1);
 
   return {
-    animation: false,
-    backgroundColor: "transparent",
-    aria: {
-      enabled: true,
-      label: {
-        description:
-          `${model.sectorName} momentum trail versus ${model.benchmarkName}: relative strength ` +
-          "on the horizontal axis and six-month momentum on the vertical axis. Quadrant lines " +
-          "sit at 100 and zero. The highlighted point is the current month. A descriptive " +
-          "trail, not a JdK relative rotation graph.",
-      },
-    },
+    ...baseOption(
+      `${model.sectorName} momentum trail versus ${model.benchmarkName}: relative strength ` +
+        "on the horizontal axis and six-month momentum on the vertical axis. Quadrant lines " +
+        "sit at 100 and zero. The highlighted point is the current month. A descriptive " +
+        "trail, not a JdK relative rotation graph.",
+    ),
     grid: { left: 56, right: 44, top: 30, bottom: 40 },
-    tooltip: {
-      trigger: "item",
-      confine: true,
-      formatter: (params: TrailTooltipParam | TrailTooltipParam[]) => formatRsTrailTooltip(params),
-    },
+    tooltip: tooltipStyle("item", formatRsTrailTooltip),
     xAxis: {
-      type: "value",
-      min: Number((xLow - xPadding).toFixed(1)),
-      max: Number((xHigh + xPadding).toFixed(1)),
-      name: "RS index",
-      nameLocation: "middle",
-      nameGap: 26,
-      nameTextStyle: { color: CHART_MUTED, fontSize: LABEL_FONT },
-      axisLine: { lineStyle: { color: CHART_MUTED, opacity: 0.45 } },
-      axisTick: { show: false },
-      axisLabel: {
-        color: CHART_MUTED,
-        fontSize: LABEL_FONT,
+      ...valueAxis({
+        min: xAxis.min,
+        max: xAxis.max,
+        interval: xAxis.interval,
+        name: "RS index",
         formatter: (value: number) => value.toFixed(0),
-      },
+      }),
+      nameGap: 26,
+      axisLine: { show: true, lineStyle: { color: CHART_MUTED, opacity: 0.45 } },
       splitLine: { lineStyle: { color: CHART_NEUTRAL, opacity: 0.14 } },
     },
     yAxis: {
-      type: "value",
-      min: Number((yLow - yPadding).toFixed(1)),
-      max: Number((yHigh + yPadding).toFixed(1)),
-      name: "6M momentum",
-      nameLocation: "middle",
-      nameGap: 40,
-      nameTextStyle: { color: CHART_MUTED, fontSize: LABEL_FONT },
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: {
-        color: CHART_MUTED,
-        fontSize: LABEL_FONT,
+      ...valueAxis({
+        min: yAxis.min,
+        max: yAxis.max,
+        interval: yAxis.interval,
+        name: "6M momentum",
         formatter: (value: number) => `${value.toFixed(0)}%`,
-      },
+      }),
+      nameGap: 40,
       splitLine: { lineStyle: { color: CHART_NEUTRAL, opacity: 0.14 } },
     },
     series: [
@@ -232,7 +214,8 @@ export function buildRelativeStrengthTrailOption(model: RsTrailModel): Record<st
         itemStyle: { color: CHART_LINE, opacity: 0.65 },
         label: {
           show: trailPoints.length > 0,
-          position: "right",
+          position: "top",
+          distance: 6,
           color: CHART_MUTED,
           fontSize: LABEL_FONT,
           formatter: (params: { dataIndex?: number; data?: unknown }) => {

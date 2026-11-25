@@ -69,17 +69,26 @@ export function ResultsView(props: { model: ResultsViewModel }) {
             onSymbolOpen={m.openSymbolPinned}
           />
         ) : (
-          <PatternGrid
-            hits={m.filteredLatest()}
-            onSelect={m.openChartHit}
-            onExpand={m.openFromCard}
-            onShowMembers={m.changeMembers}
-            trendlinesView={m.effectiveTrendlinesView()}
-            activeHit={m.fullscreen()?.hit ?? null}
-            onSymbolPreview={m.requestSymbolPreview}
-            onSymbolPreviewEnd={m.endSymbolPreview}
-            onSymbolOpen={m.openSymbolPinned}
-          />
+          <div
+            data-testid="patterns-grid-scroll-region"
+            data-scroll="vertical"
+            role="region"
+            aria-label="Pattern cards, scroll for more results"
+            tabIndex={0}
+            className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-1 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-fin-primary"
+          >
+            <PatternGrid
+              hits={m.filteredLatest()}
+              onSelect={m.openChartHit}
+              onExpand={m.openFromCard}
+              onShowMembers={m.changeMembers}
+              trendlinesView={m.effectiveTrendlinesView()}
+              activeHit={m.fullscreen()?.hit ?? null}
+              onSymbolPreview={m.requestSymbolPreview}
+              onSymbolPreviewEnd={m.endSymbolPreview}
+              onSymbolOpen={m.openSymbolPinned}
+            />
+          </div>
         )}
         <Show when={m.showRefresh()}>
           <Box
@@ -95,11 +104,11 @@ export function ResultsView(props: { model: ResultsViewModel }) {
       </Box>
       {m.isDesktop() && m.activeTab() === "scan" && m.fullscreen() && !m.chartMaximized() ? (
         <Box
+          data-testid="patterns-chart-dock-shell"
           onMouseEnter={m.cancelPreviewClose}
           onMouseLeave={m.endSymbolPreview}
           onMouseDown={m.pinFullscreen}
-          className="sticky top-2 min-h-[360px] min-w-0 shrink-0 lg:w-[460px] xl:w-[620px]"
-          style={{ height: "clamp(360px, calc(100vh - 200px), 980px)" }}
+          className="flex h-full min-h-0 min-w-0 shrink-0 flex-col self-stretch overflow-hidden lg:w-[460px] xl:w-[620px]"
         >
           <PatternFullscreenView
             {...m.chartViewProps}
@@ -110,7 +119,9 @@ export function ResultsView(props: { model: ResultsViewModel }) {
             onPrev={() => m.stepChart(-1)}
             onNext={() => m.stepChart(1)}
             positionLabel={
-              m.activeIndex() >= 0 ? `${m.activeIndex() + 1} / ${m.dockSequence().length}` : undefined
+              m.activeIndex() >= 0
+                ? `${m.activeIndex() + 1} / ${m.dockSequence().length}`
+                : undefined
             }
             onClose={m.closeChart}
             onMaximize={() => m.setChartMaximized(true)}

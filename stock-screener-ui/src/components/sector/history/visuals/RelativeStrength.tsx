@@ -1,14 +1,15 @@
 import { Show, createMemo } from "solid-js";
 import { typeSize } from "@/ui/typography";
 import type { SectorHistorySeries } from "../../../../types/sectorHistory";
+import { buildIndexSeries, relativeStrengthSeries } from "../historyMath";
 import { EChart } from "../../../common/EChart";
-import { CHART_LINE, CHART_MUTED, CHART_NEUTRAL } from "./chartPalette";
+import { CHART_LINE, CHART_MUTED } from "./chartPalette";
+import { baseOption, categoryAxis, niceAxis, tooltipStyle, valueAxis } from "./core/chartBase";
 import { finite } from "./shared";
 
-const LABEL_FONT = typeSize("micro");
 const CHART_HEIGHT = 240;
 const START_INDEX = 100;
-const PERCENT = 100;
+const LABEL_FONT = typeSize("micro");
 
 export interface RelativeStrengthInput {
   months: string[];
@@ -67,37 +68,18 @@ function numericValue(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-/** Compounds monthly percentage returns into an index that starts at 100. */
-export function buildCumulativeIndex(returns: (number | null)[]): (number | null)[] {
-  let factor = 1;
-  return returns.map((value) => {
-    if (!finite(value)) return null;
-    factor *= 1 + Math.max(-PERCENT, value) / PERCENT;
-    return factor * START_INDEX;
-  });
-}
-
 export function buildRelativeStrengthModel(input: RelativeStrengthInput): RelativeStrengthModel {
   const benchmark = input.series.find((item) => item.is_benchmark) ?? null;
   const sector =
     input.series.find((item) => !item.is_benchmark && item.name === input.sector) ?? null;
-  const sectorIndex = sector ? buildCumulativeIndex(sector.monthly_returns) : [];
-  const benchmarkIndex = benchmark ? buildCumulativeIndex(benchmark.monthly_returns) : [];
-
-  const rawRatios: (number | null)[] = input.months.map((_, index) => {
-    const sectorClose = sectorIndex[index];
-    const benchmarkClose = benchmarkIndex[index];
-    if (!finite(sectorClose) || !finite(benchmarkClose) || benchmarkClose <= 0) return null;
-    return sectorClose / benchmarkClose;
-  });
-
-  const firstCommonIndex = rawRatios.findIndex((value) => finite(value));
-  const baseRatio = firstCommonIndex >= 0 ? rawRatios[firstCommonIndex] : null;
-
-  const ratios: (number | null)[] = rawRatios.map((value) => {
-    if (!finite(value) || !finite(baseRatio) || baseRatio <= 0) return null;
-    return (value / baseRatio) * START_INDEX;
-  });
+  const sectorIndex = sector ? buildIndexSeries(input.months, sector.monthly_returns) : [];
+  const benchmarkIndex = benchmark ? buildIndexSeries(input.months, benchmark.monthly_returns) : [];
+  const ratios = relativeStrengthSeries(
+    input.months,
+    sector?.monthly_returns ?? [],
+    benchmark?.monthly_returns ?? [],
+  );
+  const firstCommonIndex = ratios.findIndex((value) => finite(value));
 
   const points: RelativeStrengthPoint[] = [];
   for (let index = 0; index < input.months.length; index++) {
@@ -147,47 +129,23 @@ export function buildRelativeStrengthOption(model: RelativeStrengthModel): Recor
     high = Math.max(high, value);
   }
   const padding = Math.max(1, (high - low) * 0.08);
+  const axis = niceAxis(low - padding, high + padding, 6, 1);
 
   return {
-    animation: false,
-    backgroundColor: "transparent",
-    aria: {
-      enabled: true,
-      label: {
-        description:
-          `${model.sectorName} relative strength versus ${model.benchmarkName}, monthly, ` +
-          "indexed to 100 at the first common month. Values above 100 mean the sector is " +
-          "outperforming the benchmark; values below 100 mean it is lagging.",
-      },
-    },
+    ...baseOption(
+      `${model.sectorName} relative strength versus ${model.benchmarkName}, monthly, ` +
+        "indexed to 100 at the first common month. Values above 100 mean the sector is " +
+        "outperforming the benchmark; values below 100 mean it is lagging.",
+    ),
     grid: { left: 52, right: 56, top: 26, bottom: 32 },
-    tooltip: {
-      trigger: "axis",
-      confine: true,
-      formatter: (params: RelativeStrengthTooltipParam | RelativeStrengthTooltipParam[]) =>
-        formatRelativeStrengthTooltip(params),
-    },
-    xAxis: {
-      type: "category",
-      boundaryGap: false,
-      data: model.months,
-      axisLine: { lineStyle: { color: CHART_MUTED, opacity: 0.45 } },
-      axisTick: { show: false },
-      axisLabel: { color: CHART_MUTED, fontSize: LABEL_FONT, hideOverlap: true },
-    },
-    yAxis: {
-      type: "value",
-      min: Math.floor(low - padding),
-      max: Math.ceil(high + padding),
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: {
-        color: CHART_MUTED,
-        fontSize: LABEL_FONT,
-        formatter: (value: number) => value.toFixed(0),
-      },
-      splitLine: { lineStyle: { color: CHART_NEUTRAL, opacity: 0.16 } },
-    },
+    tooltip: tooltipStyle("axis", formatRelativeStrengthTooltip),
+    xAxis: categoryAxis({ data: model.months }),
+    yAxis: valueAxis({
+      min: axis.min,
+      max: axis.max,
+      interval: axis.interval,
+      formatter: (value: number) => value.toFixed(0),
+    }),
     series: [
       {
         name: `${model.sectorName} / ${model.benchmarkName}`,

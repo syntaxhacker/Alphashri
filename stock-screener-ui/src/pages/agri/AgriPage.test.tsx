@@ -48,8 +48,19 @@ const filtersPayload: AgriFiltersResponse = {
   ],
   // Flat lists stay intentionally broad; the state/district maps must win.
   states: ["Maharashtra", "Karnataka", "Delhi"] as unknown as AgriFiltersResponse["states"],
-  districts: ["Nashik", "Pune", "Kolar", "New Delhi"] as unknown as AgriFiltersResponse["districts"],
-  markets: ["Lasalgaon", "Nashik", "Pune", "Kolar", "New Delhi"] as unknown as AgriFiltersResponse["markets"],
+  districts: [
+    "Nashik",
+    "Pune",
+    "Kolar",
+    "New Delhi",
+  ] as unknown as AgriFiltersResponse["districts"],
+  markets: [
+    "Lasalgaon",
+    "Nashik",
+    "Pune",
+    "Kolar",
+    "New Delhi",
+  ] as unknown as AgriFiltersResponse["markets"],
   state_districts: {
     Maharashtra: ["Nashik", "Pune"],
     Karnataka: ["Kolar"],
@@ -85,8 +96,22 @@ function pricesPayload(overrides: Partial<AgriPricesResponse> = {}): AgriPricesR
       distance_to_msp_pct: -1.6,
     },
     series: [
-      { date: "2026-11-10", modal: 2124, min: 1900, max: 2300, arrivals_qtl: 900, market_count: 40 },
-      { date: "2026-11-17", modal: 2150, min: 1980, max: 2310, arrivals_qtl: 1200, market_count: 42 },
+      {
+        date: "2026-11-10",
+        modal: 2124,
+        min: 1900,
+        max: 2300,
+        arrivals_qtl: 900,
+        market_count: 40,
+      },
+      {
+        date: "2026-11-17",
+        modal: 2150,
+        min: 1980,
+        max: 2310,
+        arrivals_qtl: 1200,
+        market_count: 42,
+      },
     ],
     snapshot: [],
     quotes: [
@@ -156,7 +181,10 @@ function renderPage(url = "/agri") {
 }
 
 const urlParams = (): Record<string, string> =>
-  JSON.parse(screen.getByTestId("url-probe").getAttribute("data-url") ?? "{}") as Record<string, string>;
+  JSON.parse(screen.getByTestId("url-probe").getAttribute("data-url") ?? "{}") as Record<
+    string,
+    string
+  >;
 
 const lastParams = () => {
   const calls = vi.mocked(fetchAgriPrices).mock.calls;
@@ -168,9 +196,12 @@ async function settled() {
   await waitFor(() => expect(screen.queryByTestId("agri-loading")).not.toBeInTheDocument());
 }
 
-const optionSeries = () => (harness.lastOption?.series ?? []) as Array<{ type?: string; name?: string }>;
+const optionSeries = () =>
+  (harness.lastOption?.series ?? []) as Array<{ type?: string; name?: string }>;
 const tooltipHtml = () => {
-  const formatter = (harness.lastOption?.tooltip as { formatter?: (params: unknown) => string } | undefined)?.formatter;
+  const formatter = (
+    harness.lastOption?.tooltip as { formatter?: (params: unknown) => string } | undefined
+  )?.formatter;
   return formatter ? formatter([{ dataIndex: 0 }]) : "";
 };
 
@@ -203,7 +234,16 @@ describe("agri registry parity", () => {
       "spices",
     ]);
     const keys = AGRI_COMMODITIES.map((item) => item.key);
-    for (const key of ["paddy", "maize", "bajra", "jowar", "groundnut", "mustard", "sunflower", "jeera"]) {
+    for (const key of [
+      "paddy",
+      "maize",
+      "bajra",
+      "jowar",
+      "groundnut",
+      "mustard",
+      "sunflower",
+      "jeera",
+    ]) {
       expect(keys).toContain(key);
     }
     expect(agriCommodity("chilli")?.label).toBe("Chilli");
@@ -227,7 +267,9 @@ describe("AgriPage initial load", () => {
     expect(screen.getByTestId("agri-scan-group")).toBeInTheDocument();
     expect(screen.getByTestId("agri-range-group")).toBeInTheDocument();
     expect(screen.getByTestId("agri-geo-group")).toBeInTheDocument();
-    expect(screen.getByTestId("agri-kpi-head")).toHaveTextContent("Prices ₹/quintal · arrivals qtl");
+    expect(screen.getByTestId("agri-kpi-head")).toHaveTextContent(
+      "Prices ₹/quintal · arrivals qtl",
+    );
     expect(screen.getByTestId("agri-table-panel")).toHaveTextContent("Latest mandi quotes");
   });
 
@@ -247,7 +289,9 @@ describe("AgriPage initial load", () => {
   });
 
   it("hydrates every selection from a shareable URL", async () => {
-    renderPage("/agri?commodity=wheat&group=cereals&state=Karnataka&district=Kolar&market=Kolar&range=1m&mode=distribution");
+    renderPage(
+      "/agri?commodity=wheat&group=cereals&state=Karnataka&district=Kolar&market=Kolar&range=1m&mode=distribution",
+    );
     await settled();
 
     expect(lastParams()).toMatchObject({
@@ -297,7 +341,9 @@ describe("AgriPage filters", () => {
     await settled();
 
     expect(selectEl("agri-district-select")).toHaveAttribute("disabled");
-    expect(within(screen.getByTestId("agri-district-select")).queryAllByRole("option")).toHaveLength(1);
+    expect(
+      within(screen.getByTestId("agri-district-select")).queryAllByRole("option"),
+    ).toHaveLength(1);
 
     fireEvent.input(selectEl("agri-state-select"), { target: { value: "Maharashtra" } });
     await waitFor(() => expect(lastParams().state).toBe("Maharashtra"));
@@ -343,7 +389,15 @@ describe("AgriPage chart modes", () => {
     await settled();
 
     const strip = screen.getByTestId("agri-mode-strip");
-    for (const key of ["band", "compare", "distribution", "supplyDemand", "heatmap", "rolling", "seasonality"]) {
+    for (const key of [
+      "band",
+      "compare",
+      "distribution",
+      "supplyDemand",
+      "heatmap",
+      "rolling",
+      "seasonality",
+    ]) {
       expect(within(strip).getByTestId(`agri-mode-${key}`)).toBeInTheDocument();
     }
     expect(within(strip).queryByTestId("agri-mode-ohlc")).not.toBeInTheDocument();
@@ -360,9 +414,7 @@ describe("AgriPage chart modes", () => {
     expect(screen.getByTestId("agri-compare-strip")).toBeInTheDocument();
     expect(screen.getByTestId("agri-compare-active")).toHaveTextContent("Onion");
     expect(screen.getByTestId("agri-compare-wheat")).toBeInTheDocument();
-    await waitFor(() =>
-      expect(lastParams().compare).toEqual(["onion", "wheat", "tomato"]),
-    );
+    await waitFor(() => expect(lastParams().compare).toEqual(["onion", "wheat", "tomato"]));
   });
 
   it("always compares the active commodity and caps the selection at five", async () => {
@@ -421,7 +473,9 @@ describe("AgriPage chart modes", () => {
 
     fireEvent.click(screen.getByTestId("agri-mode-rolling"));
     await waitFor(() =>
-      expect(optionSeries().some((series) => /^Rolling mean \(\d+\)$/.test(series.name ?? ""))).toBe(true),
+      expect(
+        optionSeries().some((series) => /^Rolling mean \(\d+\)$/.test(series.name ?? "")),
+      ).toBe(true),
     );
   });
 
@@ -429,8 +483,22 @@ describe("AgriPage chart modes", () => {
     vi.mocked(fetchAgriPrices).mockResolvedValue(
       pricesPayload({
         series: [
-          { date: "2025-01-15", modal: 2000, min: 1900, max: 2100, arrivals_qtl: null, market_count: 10 },
-          { date: "2026-01-15", modal: 2100, min: 2000, max: 2200, arrivals_qtl: null, market_count: 12 },
+          {
+            date: "2025-01-15",
+            modal: 2000,
+            min: 1900,
+            max: 2100,
+            arrivals_qtl: null,
+            market_count: 10,
+          },
+          {
+            date: "2026-01-15",
+            modal: 2100,
+            min: 2000,
+            max: 2200,
+            arrivals_qtl: null,
+            market_count: 12,
+          },
         ],
       }),
     );
@@ -439,7 +507,9 @@ describe("AgriPage chart modes", () => {
 
     fireEvent.click(screen.getByTestId("agri-mode-seasonality"));
     await waitFor(() =>
-      expect(optionSeries().some((series) => series.type === "bar" && series.name === "Median")).toBe(true),
+      expect(
+        optionSeries().some((series) => series.type === "bar" && series.name === "Median"),
+      ).toBe(true),
     );
     expect(screen.queryByTestId("agri-seasonality-weak")).not.toBeInTheDocument();
   });
@@ -450,12 +520,16 @@ describe("AgriPage chart modes", () => {
 
     fireEvent.click(screen.getByTestId("agri-mode-seasonality"));
     await waitFor(() => expect(screen.getByTestId("agri-seasonality-weak")).toBeInTheDocument());
-    expect(screen.getByTestId("agri-seasonality-weak")).toHaveTextContent("at least two distinct years");
+    expect(screen.getByTestId("agri-seasonality-weak")).toHaveTextContent(
+      "at least two distinct years",
+    );
     expect(screen.getByTestId("agri-seasonality-weak")).toHaveTextContent("need 2+");
     expect(screen.queryByTestId("agri-chart")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("agri-seasonality-band"));
-    await waitFor(() => expect(optionSeries().some((series) => series.name === "Modal")).toBe(true));
+    await waitFor(() =>
+      expect(optionSeries().some((series) => series.name === "Modal")).toBe(true),
+    );
   });
 
   it("labels chart values with ₹/quintal and arrivals in qtl", async () => {
@@ -481,7 +555,9 @@ describe("AgriPage chart modes", () => {
     expect(screen.getByTestId("agri-mode-select")).toBeInTheDocument();
     expect(screen.queryByTestId("agri-mode-strip")).not.toBeInTheDocument();
     fireEvent.input(selectEl("agri-mode-select"), { target: { value: "heatmap" } });
-    await waitFor(() => expect(optionSeries().some((series) => series.type === "heatmap")).toBe(true));
+    await waitFor(() =>
+      expect(optionSeries().some((series) => series.type === "heatmap")).toBe(true),
+    );
   });
 });
 
@@ -629,7 +705,10 @@ describe("AgriPage data states", () => {
     expect(screen.getByTestId("agri-quotes-table")).toBeInTheDocument();
 
     vi.mocked(fetchAgriPrices).mockImplementationOnce(
-      () => new Promise<AgriPricesResponse>((resolve) => { resolveRefresh = resolve; }),
+      () =>
+        new Promise<AgriPricesResponse>((resolve) => {
+          resolveRefresh = resolve;
+        }),
     );
     fireEvent.click(screen.getByTestId("agri-refresh"));
 
@@ -661,7 +740,9 @@ describe("AgriPage data states", () => {
     const warnings = screen.getByTestId("agri-warnings");
     expect(warnings).toHaveTextContent("174-day gap");
     expect(within(warnings).getByTestId("agri-gap-warning")).toBeInTheDocument();
-    expect(within(warnings).getByTestId("agri-coverage-warning")).toHaveTextContent("arrivals coverage");
+    expect(within(warnings).getByTestId("agri-coverage-warning")).toHaveTextContent(
+      "arrivals coverage",
+    );
     expect(warnings).toHaveTextContent("MSP not verified");
   });
 
@@ -669,8 +750,18 @@ describe("AgriPage data states", () => {
     let resolveFirst!: (value: AgriPricesResponse) => void;
     let resolveSecond!: (value: AgriPricesResponse) => void;
     vi.mocked(fetchAgriPrices)
-      .mockImplementationOnce(() => new Promise<AgriPricesResponse>((resolve) => { resolveFirst = resolve; }))
-      .mockImplementationOnce(() => new Promise<AgriPricesResponse>((resolve) => { resolveSecond = resolve; }));
+      .mockImplementationOnce(
+        () =>
+          new Promise<AgriPricesResponse>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<AgriPricesResponse>((resolve) => {
+            resolveSecond = resolve;
+          }),
+      );
 
     renderPage();
     await waitFor(() => expect(fetchAgriPrices).toHaveBeenCalledTimes(1));
@@ -685,7 +776,9 @@ describe("AgriPage data states", () => {
   it("shows an error with Retry and recovers on the next attempt", async () => {
     vi.mocked(fetchAgriPrices).mockRejectedValueOnce(new Error("upstream unavailable"));
     renderPage();
-    await waitFor(() => expect(screen.getByTestId("agri-error")).toHaveTextContent("upstream unavailable"));
+    await waitFor(() =>
+      expect(screen.getByTestId("agri-error")).toHaveTextContent("upstream unavailable"),
+    );
 
     fireEvent.click(screen.getByTestId("agri-error-retry"));
     await waitFor(() => expect(screen.queryByTestId("agri-error")).not.toBeInTheDocument());
@@ -749,10 +842,58 @@ describe("AgriPage data states", () => {
     vi.mocked(fetchAgriPrices).mockResolvedValueOnce(
       pricesPayload({
         snapshot: [
-          { key: "onion", label: "Onion", group: "vegetables", date: "2026-11-17", modal: 2100, min: 1900, max: 2300, markets: 12, chg_1w_pct: 1, chg_1m_pct: 4.2, chg_6m_pct: 8 },
-          { key: "wheat", label: "Wheat", group: "cereals", date: "2026-11-17", modal: 2400, min: 2200, max: 2600, markets: 20, chg_1w_pct: -1, chg_1m_pct: 2.1, chg_6m_pct: -3 },
-          { key: "tomato", label: "Tomato", group: "vegetables", date: "2026-11-17", modal: 1800, min: 1600, max: 2000, markets: 9, chg_1w_pct: -2, chg_1m_pct: -5.6, chg_6m_pct: -7 },
-          { key: "rice", label: "Rice", group: "cereals", date: "2026-11-17", modal: 2200, min: 2000, max: 2400, markets: 15, chg_1w_pct: -1, chg_1m_pct: -3.3, chg_6m_pct: 2 },
+          {
+            key: "onion",
+            label: "Onion",
+            group: "vegetables",
+            date: "2026-11-17",
+            modal: 2100,
+            min: 1900,
+            max: 2300,
+            markets: 12,
+            chg_1w_pct: 1,
+            chg_1m_pct: 4.2,
+            chg_6m_pct: 8,
+          },
+          {
+            key: "wheat",
+            label: "Wheat",
+            group: "cereals",
+            date: "2026-11-17",
+            modal: 2400,
+            min: 2200,
+            max: 2600,
+            markets: 20,
+            chg_1w_pct: -1,
+            chg_1m_pct: 2.1,
+            chg_6m_pct: -3,
+          },
+          {
+            key: "tomato",
+            label: "Tomato",
+            group: "vegetables",
+            date: "2026-11-17",
+            modal: 1800,
+            min: 1600,
+            max: 2000,
+            markets: 9,
+            chg_1w_pct: -2,
+            chg_1m_pct: -5.6,
+            chg_6m_pct: -7,
+          },
+          {
+            key: "rice",
+            label: "Rice",
+            group: "cereals",
+            date: "2026-11-17",
+            modal: 2200,
+            min: 2000,
+            max: 2400,
+            markets: 15,
+            chg_1w_pct: -1,
+            chg_1m_pct: -3.3,
+            chg_6m_pct: 2,
+          },
         ],
       }),
     );
@@ -800,9 +941,15 @@ describe("AgriPage accessibility", () => {
     expect(within(modeStrip).getByTestId("agri-mode-band")).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(within(modeStrip).getByTestId("agri-mode-heatmap"));
     await waitFor(() =>
-      expect(within(modeStrip).getByTestId("agri-mode-heatmap")).toHaveAttribute("aria-pressed", "true"),
+      expect(within(modeStrip).getByTestId("agri-mode-heatmap")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      ),
     );
-    expect(within(modeStrip).getByTestId("agri-mode-band")).toHaveAttribute("aria-pressed", "false");
+    expect(within(modeStrip).getByTestId("agri-mode-band")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
 
     expect(screen.getByTestId("agri-view-chart")).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByTestId("agri-view-groups"));
@@ -825,7 +972,10 @@ describe("AgriPage accessibility", () => {
 
     fireEvent.input(selectEl("agri-mode-select"), { target: { value: "compare" } });
     await waitFor(() => expect(screen.getByTestId("agri-compare-add")).toBeInTheDocument());
-    expect(selectEl("agri-compare-add")).toHaveAttribute("aria-label", "Add commodity to comparison");
+    expect(selectEl("agri-compare-add")).toHaveAttribute(
+      "aria-label",
+      "Add commodity to comparison",
+    );
   });
 });
 
@@ -874,6 +1024,8 @@ describe("AgriPage layout", () => {
     expect(screen.getByTestId("agri-eda-summary")).toHaveClass("overflow-x-auto");
     expect(screen.getByTestId("agri-chart-region")).toHaveClass("min-h-[240px]");
     expect(screen.getByTestId("agri-body")).toHaveClass("overflow-y-auto");
+    expect(screen.getByTestId("agri-table-scroll-hint")).toHaveTextContent("→");
+    expect(screen.getByTestId("agri-page")).toHaveClass("overflow-hidden", "min-h-0");
     expect(screen.getByTestId("agri-refresh")).toBeInTheDocument();
   });
 });

@@ -314,8 +314,8 @@ export function ScreenerPage(props: ScreenerPageProps) {
   );
 
   return (
-    <Box className="w-full min-h-0 flex flex-col p-4">
-      <Stack id="screener-main" data-testid="screener-page" gap={12} className="min-h-0 w-full">
+    <Box className="h-full min-h-0 w-full flex flex-col overflow-hidden p-4">
+      <Stack id="screener-main" data-testid="screener-page" gap={12} className="min-h-0 w-full flex-1 overflow-hidden">
         <Paper
           radius={0}
           data-testid="screener-controls"
@@ -411,14 +411,14 @@ export function ScreenerPage(props: ScreenerPageProps) {
           id="screener-content"
           data-testid="screener-content"
           flex={1}
-          className="min-h-0 flex overflow-hidden"
+          className="flex-1 min-h-0 flex overflow-hidden"
           style={{ display: "flex" }}
         >
           <Switch fallback={<MarketPanel />}>
             <Match when={activeTab() === "screener"}>
               <div
                 data-testid="screener-panel"
-                class="min-w-0 min-h-0 flex-row gap-1"
+                class="min-w-0 min-h-0 flex-1 flex-row gap-1 overflow-hidden"
                 style={{ display: "flex", flex: 1 }}
               >
                 <Suspense fallback={<Box className="p-1"><Skeleton h={24} /></Box>}>
@@ -475,7 +475,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
             <Match when={activeTab() === "correlation"}>
               <div
                 data-testid="correlation-config-panel"
-                class="min-w-0 min-h-0 overflow-auto"
+                class="min-w-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
                 style={{ display: "flex", flex: 1 }}
               >
                 <Suspense fallback={<PanelFallback />}>
@@ -486,7 +486,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
             <Match when={activeTab() === "config"}>
               <div
                 data-testid="correlation-config-panel"
-                class="min-w-0 min-h-0 overflow-auto"
+                class="min-w-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
                 style={{ display: "flex", flex: 1 }}
               >
                 <Suspense fallback={<PanelFallback />}>

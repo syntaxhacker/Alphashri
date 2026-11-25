@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { SCALE_GRAY, SURFACE } from "@/ui/palette";
 import { compositeOver, contrastRatio } from "@/utils/contrast";
 import {
@@ -120,6 +121,24 @@ afterEach(() => {
   cleanup();
 });
 
+function withCompactViewport(run: () => void) {
+  vi.stubGlobal("matchMedia", ((query: string) => ({
+    matches: /max-width:\s*640px/.test(query),
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })) as unknown as typeof window.matchMedia);
+  try {
+    run();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+}
+
 describe("SectorRankHeatmap axis, width and top-3 emphasis", () => {
   test("labels the axis by year and quarter and keeps the legend compact", () => {
     render(() => <SectorRankHeatmap months={MONTHS} series={SERIES} />);
@@ -144,8 +163,8 @@ describe("SectorRankHeatmap axis, width and top-3 emphasis", () => {
     ).toBeGreaterThanOrEqual(1.5);
     expect(svg.querySelector("[data-latest-column]")).toHaveAttribute("stroke", CHART_CURRENT);
     const legend = screen.getByTestId("history-rank-legend");
-    expect(legend.style.position).toBe("sticky");
-    expect(legend.style.maxWidth).toBe("calc(100vw - 48px)");
+    expect(legend.style.position).not.toBe("sticky");
+    expect(legend.style.maxWidth).toBe("");
     expect(svg.querySelector('[data-testid="history-rank-heatmap-legend"]')).toBeNull();
     expect(svg.querySelector("title")?.textContent).toMatch(/light outlines mark the top 3/i);
     expect(svg.querySelector("desc")?.textContent).toMatch(/labelled at each quarter/i);
@@ -184,11 +203,11 @@ describe("SectorRankHeatmap axis, width and top-3 emphasis", () => {
     ];
     render(() => <SectorRankHeatmap months={months} series={series} />);
     const svg = screen.getByTestId("history-rank-heatmap");
-    // 60 cells at 20px plus the full-name rail stays under the 1404px panel body.
-    expect(svg).toHaveAttribute("viewBox", "0 0 1340 78");
-    expect(svg.style.minWidth).toBe("1340px");
-    expect(svg.style.maxWidth).toBe("1340px");
-    expect(1340).toBeLessThanOrEqual(1404);
+    // 60 cells at 20px, the full-name rail and a 6px right gutter stay under the 1404px panel body.
+    expect(svg).toHaveAttribute("viewBox", "0 0 1346 78");
+    expect(svg.style.minWidth).toBe("1346px");
+    expect(svg.style.maxWidth).toBe("1346px");
+    expect(1346).toBeLessThanOrEqual(1404);
     expect(screen.getAllByText("NIFTY CONSUMPTION").length).toBeGreaterThan(0);
     expect(screen.getAllByText("NIFTY FIN_SERVICE").length).toBeGreaterThan(0);
     expect(svg.textContent).not.toContain("…");
@@ -226,14 +245,14 @@ describe("SectorRankHeatmap axis, width and top-3 emphasis", () => {
     expect(
       screen.getByTestId("history-rank-heatmap").querySelector("[data-latest-column]"),
     ).not.toBeNull();
-    expect(screen.getByTestId("history-rank-heatmap")).toHaveAttribute("viewBox", "0 0 860 100");
-    expect(screen.getByTestId("history-rank-heatmap").style.maxWidth).toBe("860px");
+    expect(screen.getByTestId("history-rank-heatmap")).toHaveAttribute("viewBox", "0 0 1370 100");
+    expect(screen.getByTestId("history-rank-heatmap").style.maxWidth).toBe("1370px");
     expect(screen.getByTestId("history-rank-row-rail")).toHaveTextContent("NIFTY CONSUMPTION");
     expect(screen.getByTestId("history-rank-row-rail").style.position).toBe("sticky");
     expect(screen.getByTestId("history-rank-row-rail").style.left).toBe("0px");
   });
 
-  test("keeps 3Y cells at their natural 20px width instead of stretching", () => {
+  test("sizes 3Y cells at 34px so the desktop card is not half empty", () => {
     const months = Array.from({ length: 36 }, (_, index) => {
       const year = 2023 + Math.floor(index / 12);
       return `${year}-${String((index % 12) + 1).padStart(2, "0")}`;
@@ -246,23 +265,75 @@ describe("SectorRankHeatmap axis, width and top-3 emphasis", () => {
     }));
     render(() => <SectorRankHeatmap months={months} series={series} />);
     const svg = screen.getByTestId("history-rank-heatmap");
-    expect(svg).toHaveAttribute("viewBox", "0 0 860 254");
-    expect(svg.style.maxWidth).toBe("860px");
-    expect(svg.style.minWidth).toBe("860px");
-    // 10 rows: 34 header + 10 * 22 = 254 viewBox units, 1:1 at 860px.
+    expect(svg).toHaveAttribute("viewBox", "0 0 1370 254");
+    expect(svg.style.maxWidth).toBe("1370px");
+    expect(svg.style.minWidth).toBe("1370px");
+    // 36 cells at 34px + 140px label rail + 6px right gutter = 1370.
+    expect(140 + 36 * 34 + 6).toBe(1370);
+    expect(svg.querySelector('[data-cell="rank-0-0"]')?.getAttribute("width")).toBe("34");
+    // 10 rows: 34 header + 10 * 22 = 254 viewBox units, 1:1 at 1370px.
     expect(10 * 22 + 34).toBe(254);
     const layout = screen.getByTestId("history-rank-layout");
     expect(layout).toHaveClass("flex", "flex-wrap");
     const chart = screen.getByTestId("history-rank-chart");
-    expect(chart.style.width).toBe("860px");
+    expect(chart.style.width).toBe("1370px");
     expect(chart.style.flex).toBe("0 0 auto");
     const aside = screen.getByTestId("history-rank-aside");
-    expect(aside.style.flex).toBe("1 1 200px");
+    expect(aside.style.flex).toBe("1 1 100%");
     expect(aside.style.minWidth).toBe("200px");
     expect(within(aside).getByTestId("history-rank-latest-key")).toBeInTheDocument();
     expect(within(aside).getByTestId("history-rank-heatmap-legend")).toHaveTextContent(
       "1 best → 10 worst",
     );
+  });
+
+  test("uses 20px 3Y cells at compact viewports", () => {
+    withCompactViewport(() => {
+      const months = Array.from({ length: 36 }, (_, index) => {
+        const year = 2023 + Math.floor(index / 12);
+        return `${year}-${String((index % 12) + 1).padStart(2, "0")}`;
+      });
+      const series = Array.from({ length: 10 }, (_, index) => ({
+        name: `SECTOR ${index + 1}`,
+        is_benchmark: false,
+        monthly_returns: [],
+        ranks: months.map((_, month) => ((index + month) % 10) + 1),
+      }));
+      render(() => <SectorRankHeatmap months={months} series={series} />);
+      const svg = screen.getByTestId("history-rank-heatmap");
+      expect(svg).toHaveAttribute("viewBox", "0 0 866 254");
+      expect(svg.querySelector('[data-cell="rank-0-0"]')?.getAttribute("width")).toBe("20");
+    });
+  });
+
+  test("abbreviates the compact sticky rail but keeps full identity in title/aria", () => {
+    withCompactViewport(() => {
+      const months = Array.from({ length: 60 }, (_, index) => {
+        const year = 2021 + Math.floor(index / 12);
+        return `${year}-${String((index % 12) + 1).padStart(2, "0")}`;
+      });
+      const names = ["US Consumer Discretionary", "US Consumer Staples", "US Technology"];
+      const series = names.map((name, index) => ({
+        name,
+        is_benchmark: false,
+        monthly_returns: [],
+        ranks: months.map((_, month) => ((month + index) % 3) + 1),
+      }));
+      render(() => <SectorRankHeatmap months={months} series={series} />);
+      const rail = screen.getByTestId("history-rank-row-rail");
+      const railWidth = Number.parseFloat(rail.style.width);
+      expect(railWidth).toBeGreaterThanOrEqual(140);
+      expect(railWidth).toBeLessThanOrEqual(150);
+      expect(rail).toHaveTextContent("US Cons. Disc.");
+      expect(rail).toHaveTextContent("US Cons. Staples");
+      expect(rail).not.toHaveTextContent("US Consumer Discretionary");
+      expect(rail.querySelector('[title="US Consumer Discretionary"]')).not.toBeNull();
+      const svg = screen.getByTestId("history-rank-heatmap");
+      expect(svg.textContent).toContain("US Consumer Discretionary");
+      expect(svg.querySelector('[data-cell="rank-0-0"]')?.getAttribute("aria-label")).toContain(
+        "US Consumer Discretionary",
+      );
+    });
   });
 
   test("makes every rank cell keyboard-focusable with a month, sector and rank label", () => {
@@ -274,22 +345,53 @@ describe("SectorRankHeatmap axis, width and top-3 emphasis", () => {
     );
   });
 
+  test("moves the rank tab stop to the newest column when the lookback grows", async () => {
+    const longMonths = Array.from({ length: 24 }, (_, index) => {
+      const year = 2024 + Math.floor(index / 12);
+      return `${year}-${String((index % 12) + 1).padStart(2, "0")}`;
+    });
+    const longRanks = longMonths.map((_, index) => (index % 3) + 1);
+    const [months, setMonths] = createSignal(MONTHS);
+    render(() => (
+      <SectorRankHeatmap
+        months={months()}
+        series={[
+          {
+            name: "NIFTY IT",
+            is_benchmark: false,
+            monthly_returns: [],
+            ranks: longRanks,
+          },
+        ]}
+      />
+    ));
+    const svg = screen.getByTestId("history-rank-heatmap");
+    expect(svg.querySelector('[data-cell="rank-0-11"]')).toHaveAttribute("tabindex", "0");
+
+    setMonths(longMonths);
+    await waitFor(() =>
+      expect(svg.querySelector('[data-cell="rank-0-23"]')).toHaveAttribute("tabindex", "0"),
+    );
+    expect(svg.querySelector('[data-cell="rank-0-11"]')).toHaveAttribute("tabindex", "-1");
+  });
+
   test("uses one rank tab stop and moves it with arrow keys", () => {
     render(() => <SectorRankHeatmap months={MONTHS} series={SERIES} />);
     const svg = screen.getByTestId("history-rank-heatmap");
-    const first = svg.querySelector('[data-cell="rank-0-0"]') as Element;
-    const right = svg.querySelector('[data-cell="rank-0-1"]') as Element;
-    const current = svg.querySelector('[data-cell="rank-1-1"]') as Element;
-    expect(first).toHaveAttribute("tabindex", "0");
+    const last = MONTHS.length - 1;
+    const latest = svg.querySelector(`[data-cell="rank-0-${last}"]`) as Element;
+    const left = svg.querySelector(`[data-cell="rank-0-${last - 1}"]`) as Element;
+    const current = svg.querySelector(`[data-cell="rank-1-${last - 1}"]`) as Element;
+    expect(latest).toHaveAttribute("tabindex", "0");
 
-    fireEvent.keyDown(first, { key: "ArrowRight" });
-    expect(right).toHaveAttribute("tabindex", "0");
-    expect(first).toHaveAttribute("tabindex", "-1");
-    expect(document.activeElement).toBe(right);
+    fireEvent.keyDown(latest, { key: "ArrowLeft" });
+    expect(left).toHaveAttribute("tabindex", "0");
+    expect(latest).toHaveAttribute("tabindex", "-1");
+    expect(document.activeElement).toBe(left);
 
-    fireEvent.keyDown(right, { key: "ArrowDown" });
+    fireEvent.keyDown(left, { key: "ArrowDown" });
     expect(current).toHaveAttribute("tabindex", "0");
-    expect(right).toHaveAttribute("tabindex", "-1");
+    expect(left).toHaveAttribute("tabindex", "-1");
     expect(document.activeElement).toBe(current);
 
     fireEvent.keyDown(current, { key: "Enter" });
@@ -306,8 +408,8 @@ describe("SeasonalityHeatmap legend and hit-rate cue", () => {
     const low = svg.querySelector('[data-hit-bar="seasonality-0-1"]');
     expect(high).toHaveAttribute("data-hit-pct", "60");
     expect(low).toHaveAttribute("data-hit-pct", "40");
-    expect(Number(high?.getAttribute("width"))).toBeCloseTo(22.2, 5);
-    expect(Number(low?.getAttribute("width"))).toBeCloseTo(14.8, 5);
+    expect(Number(high?.getAttribute("width"))).toBeCloseTo(20.4, 5);
+    expect(Number(low?.getAttribute("width"))).toBeCloseTo(13.6, 5);
     expect(screen.getByText("+2.1%")).toBeInTheDocument();
     expect(screen.getByText("-1.4%")).toBeInTheDocument();
     expect(
@@ -317,7 +419,7 @@ describe("SeasonalityHeatmap legend and hit-rate cue", () => {
 
   test("names the return scale, hit-rate bar and honest sample size", () => {
     render(() => <SeasonalityHeatmap cells={SEASONALITY} names={["NIFTY IT", "PSU BANK"]} />);
-    expect(screen.getByText("avg monthly return")).toBeInTheDocument();
+    expect(screen.getByText("avg return")).toBeInTheDocument();
     expect(screen.getByText("bar = up-month hit rate")).toBeInTheDocument();
     const note = screen.getByTestId("history-seasonality-note");
     expect(note).toHaveTextContent("n=3–5 per month");
@@ -325,14 +427,17 @@ describe("SeasonalityHeatmap legend and hit-rate cue", () => {
     expect(screen.queryByText(/forecast return/i)).not.toBeInTheDocument();
   });
 
-  test("keeps the hit-rate legend above the matrix, outside the horizontal scrollport", () => {
+  test("keeps the hit-rate legend above the labelled horizontal scrollport", async () => {
     render(() => <SeasonalityHeatmap cells={SEASONALITY} names={["NIFTY IT", "PSU BANK"]} />);
     const legend = screen.getByTestId("history-seasonality-legend");
     const scroll = screen.getByTestId("history-seasonality-scroll");
     const svg = screen.getByTestId("history-seasonality");
+    expect(scroll).toHaveAttribute("role", "region");
+    expect(scroll).toHaveAttribute("tabindex", "0");
+    expect(scroll.getAttribute("aria-label")).toMatch(/Seasonality heatmap/);
     expect(legend).toHaveTextContent("bar = up-month hit rate");
-    expect(legend).toHaveTextContent("hit rate and n in each cell label");
-    expect(legend).toHaveTextContent("avg monthly return");
+    expect(legend).toHaveTextContent("hover for hit rate and n");
+    expect(legend).toHaveTextContent("avg return");
     expect(legend).toHaveTextContent("negativeflatpositive");
     const note = screen.getByTestId("history-seasonality-note");
     expect(note).toHaveTextContent("n=3–5 per month");
@@ -343,6 +448,17 @@ describe("SeasonalityHeatmap legend and hit-rate cue", () => {
     expect(svg.textContent).not.toContain("n=3–5 per month · history, not a forecast");
     expect(svg.querySelector('[data-testid="history-seasonality-note"]')).toBeNull();
     expect(legend.compareDocumentPosition(scroll) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const hint = screen.getByTestId("history-seasonality-scroll-hint");
+    expect(scroll).not.toContainElement(hint);
+    Object.defineProperty(scroll, "scrollWidth", { configurable: true, value: 1000 });
+    Object.defineProperty(scroll, "clientWidth", { configurable: true, value: 400 });
+    fireEvent.scroll(scroll);
+    await waitFor(() => expect(hint).toHaveClass("flex"));
+    expect(hint).toHaveTextContent("Scroll →");
+    scroll.scrollLeft = 600;
+    fireEvent.scroll(scroll);
+    await waitFor(() => expect(hint).toHaveTextContent("Scroll ←"));
   });
 
   test("scrolls horizontally instead of shrinking cell text below legibility", () => {
@@ -350,14 +466,37 @@ describe("SeasonalityHeatmap legend and hit-rate cue", () => {
     const scroll = screen.getByTestId("history-seasonality-scroll");
     const svg = screen.getByTestId("history-seasonality");
     expect(scroll.style.overflowX).toBe("auto");
-    expect(svg).toHaveAttribute("viewBox", "0 0 682 78");
-    expect(svg.style.minWidth).toBe("682px");
-    expect(svg.style.maxWidth).toBe("682px");
+    expect(svg).toHaveAttribute("viewBox", "0 0 646 78");
+    expect(svg.style.minWidth).toBe("646px");
+    expect(svg.style.maxWidth).toBe("646px");
     expectAccessibleLabels(svg);
     expectRovingCells(svg, "[data-cell]", 24);
     expect(svg.querySelector('[data-cell="seasonality-0-0"]')?.getAttribute("aria-label")).toBe(
       "Jan · NIFTY IT · avg +2.1% · hit rate 60% · n=5",
     );
+  });
+
+  test("fits all twelve months with US-length sector names at 1600", () => {
+    // 1600 - 148 nav - 16 overview padding - 8 column gap - 16 panel padding = 1412 / 2 ≈ 698.
+    const PANEL_BODY_AT_1600 = 698;
+    const names = ["Communication Services", "Consumer Discretionary", "Information Technology"];
+    const cells: SectorHistorySeasonality[] = names.flatMap((name) =>
+      Array.from({ length: 12 }, (_, index) => ({
+        name,
+        month: index + 1,
+        avg_return: index % 2 === 0 ? 1.8 : -1.2,
+        hit_rate: 0.6,
+        n: 5,
+      })),
+    );
+    render(() => <SeasonalityHeatmap cells={cells} names={names} />);
+    const svg = screen.getByTestId("history-seasonality");
+    const width = Number(svg.getAttribute("viewBox")?.split(" ")[2]);
+    expect(width).toBeLessThanOrEqual(PANEL_BODY_AT_1600);
+    const dec = within(svg).getByText("Dec");
+    const decX = Number(dec.getAttribute("x"));
+    expect(decX + 18).toBeLessThanOrEqual(width);
+    expect(screen.getByTestId("history-seasonality-scroll").style.overflowX).toBe("auto");
   });
 
   test("keeps full sector names in the label rail", () => {
@@ -521,7 +660,7 @@ describe("PersistenceMatrix axes, contrast and top-3 context", () => {
     expect(screen.getByTestId("history-persistence").style.maxWidth).toBe("558px");
   });
 
-  test("keeps a 10-rank matrix legible in a horizontal scroll wrapper", () => {
+  test("keeps a 10-rank matrix legible in a labelled horizontal scroll wrapper", async () => {
     const matrix = Array.from({ length: 10 }, (_, row) =>
       Array.from({ length: 10 }, (_, col) => (row === col ? 10 : null)),
     );
@@ -529,9 +668,23 @@ describe("PersistenceMatrix axes, contrast and top-3 context", () => {
     const scroll = screen.getByTestId("history-persistence-scroll");
     const svg = screen.getByTestId("history-persistence");
     expect(scroll.style.overflowX).toBe("auto");
+    expect(scroll).toHaveAttribute("role", "region");
+    expect(scroll).toHaveAttribute("tabindex", "0");
+    expect(scroll.getAttribute("aria-label")).toMatch(/Rank persistence matrix/);
     expect(svg).toHaveAttribute("viewBox", "0 0 558 356");
     expect(svg.style.minWidth).toBe("558px");
     expectAccessibleLabels(svg);
+
+    const hint = screen.getByTestId("history-persistence-scroll-hint");
+    expect(scroll).not.toContainElement(hint);
+    Object.defineProperty(scroll, "scrollWidth", { configurable: true, value: 1000 });
+    Object.defineProperty(scroll, "clientWidth", { configurable: true, value: 400 });
+    fireEvent.scroll(scroll);
+    await waitFor(() => expect(hint).toHaveClass("flex"));
+    expect(hint).toHaveTextContent("Scroll →");
+    scroll.scrollLeft = 600;
+    fireEvent.scroll(scroll);
+    await waitFor(() => expect(hint).toHaveTextContent("Scroll ←"));
   });
 });
 

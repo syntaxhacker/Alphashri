@@ -5,20 +5,21 @@ import { ScanProgress } from "@/components/patterns/ScanProgress";
 import type { PatternsPageModel } from "./usePatternsPage";
 import { ResultsPlaceholder, type ResultsPlaceholderModel } from "./ResultsPlaceholder";
 
-export type ResultsSurfaceModel = ResultsPlaceholderModel & Pick<
-  PatternsPageModel,
-  | "patterns"
-  | "error"
-  | "matrixError"
-  | "view"
-  | "matrixLoading"
-  | "loading"
-  | "hasRows"
-  | "filteredLatest"
-  | "filters"
-  | "setFilter"
-  | "resetFilters"
->;
+export type ResultsSurfaceModel = ResultsPlaceholderModel &
+  Pick<
+    PatternsPageModel,
+    | "patterns"
+    | "error"
+    | "matrixError"
+    | "view"
+    | "matrixLoading"
+    | "loading"
+    | "hasRows"
+    | "filteredLatest"
+    | "filters"
+    | "setFilter"
+    | "resetFilters"
+  >;
 
 export interface ResultsSurfaceProps {
   model: ResultsSurfaceModel;
@@ -29,7 +30,7 @@ export interface ResultsSurfaceProps {
 export function ResultsSurface(props: ResultsSurfaceProps) {
   const m = props.model;
   return (
-    <Box className="flex flex-1 min-h-0 h-0 min-w-0 flex-col gap-2">
+    <Box className="flex flex-1 min-h-0 h-0 min-w-0 flex-col gap-2 overflow-hidden">
       <AppliedFilters
         filters={m.filters()}
         patterns={m.patterns()}

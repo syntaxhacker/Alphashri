@@ -120,6 +120,20 @@ describe("NewsPage", () => {
     expect(screen.getByTestId("article-detail-region")).toBeInTheDocument();
   });
 
+  it("keeps the page frame fixed and scrolls inside the feed pane", () => {
+    render(() => <NewsPage />);
+
+    const page = screen.getByTestId("news-page");
+    expect(page).toHaveClass("h-full", "min-h-0", "flex-col", "overflow-hidden");
+
+    const header = screen.getByTestId("news-workspace-header");
+    expect(header).toHaveClass("shrink-0");
+    // The feed and reader panes own their own vertical overflow; the page root
+    // never becomes a document-level scroller.
+    const feed = screen.getByTestId("news-list-region");
+    expect(feed).toHaveClass("min-h-0", "overflow-hidden");
+  });
+
   it("renders news list component", () => {
     render(() => <NewsPage />);
     expect(screen.getByText("Test News Article")).toBeInTheDocument();

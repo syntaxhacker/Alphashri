@@ -1,13 +1,12 @@
-import { Show, createMemo } from "solid-js";
-import { typeSize } from "@/ui/typography";
+import { For, Show, createMemo } from "solid-js";
 import type { SectorHistorySeasonality } from "../../../../types/sectorHistory";
+import { seasonalityByMonth, seasonalitySampleLabel } from "../historyMath";
 import { EChart } from "../../../common/EChart";
-import { CHART_MUTED, CHART_NEGATIVE, CHART_NEUTRAL, CHART_POSITIVE } from "./chartPalette";
-import { MONTH_NAMES, finite, hitRatePercent, signedPct } from "./shared";
+import { CHART_NEGATIVE, CHART_NEUTRAL, CHART_POSITIVE } from "./chartPalette";
+import { baseOption, categoryAxis, tooltipStyle, valueAxis } from "./core/chartBase";
+import { MONTH_NAMES, signedPct } from "./shared";
 
-const LABEL_FONT = typeSize("micro");
 const CHART_HEIGHT = 300;
-const MONTHS_PER_YEAR = 12;
 
 export interface SeasonalityRadialProps {
   cells: SectorHistorySeasonality[];
@@ -54,52 +53,25 @@ function toneFor(avg: number | null): string {
   return avg > 0 ? CHART_POSITIVE : CHART_NEGATIVE;
 }
 
-function buildSampleLabel(entries: SeasonalityRadialEntry[]): string {
-  const counts = entries
-    .map((entry) => entry.n)
-    .filter((value) => finite(value) && value > 0)
-    .map((value) => Math.round(value));
-  if (counts.length === 0) return "n unavailable";
-  const min = Math.min(...counts);
-  const max = Math.max(...counts);
-  return min === max ? `n=${min} per month` : `n=${min}–${max} per month`;
-}
-
 export function buildSeasonalityRadialModel(
   cells: SectorHistorySeasonality[],
   sector: string,
 ): SeasonalityRadialModel {
-  // The API may send months as 0- or 1-based; the full-year range disambiguates them.
-  const zeroBased =
-    cells.some((cell) => cell.month === 0) && !cells.some((cell) => cell.month === 12);
-  const rows = cells.filter((cell) => cell.name === sector);
-  const byMonth = new Map<number, SectorHistorySeasonality>();
-  for (const row of rows) {
-    const index = zeroBased ? row.month : row.month - 1;
-    if (index >= 0 && index < MONTHS_PER_YEAR) byMonth.set(index, row);
-  }
-
-  const entries = MONTH_NAMES.map((label, month) => {
-    const row = byMonth.get(month);
-    const avg = row && finite(row.avg_return) ? row.avg_return : null;
-    const hitRate = row?.hit_rate ?? null;
-    const hitPct = finite(hitRate) ? hitRatePercent(hitRate) : null;
-    const n = row && finite(row.n) && row.n > 0 ? Math.round(row.n) : 0;
-    return {
-      month,
-      label,
-      avg,
-      hitPct: hitPct === null ? null : Math.max(0, Math.min(100, hitPct)),
-      n,
-      color: toneFor(avg),
-    };
-  });
+  const entries: SeasonalityRadialEntry[] = seasonalityByMonth(cells, sector).map((row) => ({
+    month: row.month,
+    label: row.label,
+    avg: row.avg,
+    hitPct: row.hitRate,
+    n: row.n,
+    color: toneFor(row.avg),
+  }));
 
   return {
-    hasData: rows.length > 0 && entries.some((entry) => entry.avg !== null),
+    hasData:
+      cells.some((cell) => cell.name === sector) && entries.some((entry) => entry.avg !== null),
     sectorName: sector,
     entries,
-    sampleLabel: buildSampleLabel(entries),
+    sampleLabel: seasonalitySampleLabel(cells, sector, "n unavailable"),
   };
 }
 
@@ -114,55 +86,42 @@ export function buildSeasonalityRadialOption(
   sector: string,
 ): Record<string, unknown> {
   const model = buildSeasonalityRadialModel(cells, sector);
+  const angleAxis = categoryAxis({ data: [...MONTH_NAMES] });
 
   return {
-    animation: false,
-    backgroundColor: "transparent",
-    aria: {
-      enabled: true,
-      label: {
-        description:
-          `Average return by calendar month for ${sector}, drawn as a polar bar chart. ` +
-          "Orange bars are positive months and blue bars are negative months. Hover a month for " +
-          "the average return, up-month hit rate and sample size. History, not a forecast.",
-      },
-    },
+    ...baseOption(
+      `Average return by calendar month for ${sector}, drawn as a polar bar chart. ` +
+        "Orange bars are positive months and blue bars are negative months. Hover a month for " +
+        "the average return, up-month hit rate and sample size. Every monthly value is also " +
+        "listed in the text strip below the chart, so no hover is required. History, not a forecast.",
+    ),
     polar: {
       center: ["50%", "50%"],
       radius: ["16%", "68%"],
     },
     angleAxis: {
-      type: "category",
-      data: MONTH_NAMES,
+      ...angleAxis,
+      boundaryGap: true,
       startAngle: 90,
       clockwise: true,
       axisLine: { lineStyle: { color: CHART_NEUTRAL, opacity: 0.35 } },
-      axisTick: { show: false },
       axisLabel: {
-        color: CHART_MUTED,
-        fontSize: LABEL_FONT,
+        ...(angleAxis.axisLabel as Record<string, unknown>),
+        hideOverlap: false,
         interval: 0,
         margin: 8,
       },
-      splitLine: { show: false },
     },
     radiusAxis: {
-      type: "value",
-      axisLine: { show: false },
-      axisTick: { show: false },
+      ...valueAxis(),
       axisLabel: { show: false },
-      splitLine: { lineStyle: { color: CHART_NEUTRAL, opacity: 0.16 } },
     },
-    tooltip: {
-      trigger: "item",
-      confine: true,
-      formatter: (params: SeasonalityTooltipParam | SeasonalityTooltipParam[]) => {
-        const item = Array.isArray(params) ? params[0] : params;
-        const index = typeof item?.dataIndex === "number" ? item.dataIndex : -1;
-        const entry = model.entries[index];
-        return entry ? formatSeasonalityRadialTooltip(entry) : "";
-      },
-    },
+    tooltip: tooltipStyle<SeasonalityTooltipParam | SeasonalityTooltipParam[]>("item", (params) => {
+      const item = Array.isArray(params) ? params[0] : params;
+      const index = typeof item?.dataIndex === "number" ? item.dataIndex : -1;
+      const entry = model.entries[index];
+      return entry ? formatSeasonalityRadialTooltip(entry) : "";
+    }),
     series: [
       {
         name: `Average return · ${sector}`,
@@ -223,17 +182,50 @@ export function SeasonalityRadial(props: SeasonalityRadialProps) {
           </div>
         }
       >
-        <EChart
-          option={option()}
-          data-testid="history-seasonality-radial-chart"
-          style={{ height: `${CHART_HEIGHT}px`, width: "100%" }}
-        />
-        <span
-          data-testid="history-seasonality-radial-note"
-          class="text-ui-micro text-fin-text-muted"
-        >
-          {`avg return by month · hit rate in tooltip · ${model().sampleLabel} · history, not a forecast`}
-        </span>
+        <div data-testid="history-seasonality-radial-body" class="flex min-w-0 flex-col gap-1">
+          <EChart
+            option={option()}
+            data-testid="history-seasonality-radial-chart"
+            style={{ height: `${CHART_HEIGHT}px`, width: "100%" }}
+          />
+          <div
+            data-testid="history-seasonality-radial-values"
+            role="list"
+            aria-label={`Monthly average returns for ${props.sector}`}
+            class="order-first grid min-w-0 grid-cols-4 gap-x-2 gap-y-0.5 sm:order-none lg:grid-cols-6"
+          >
+            <For each={model().entries}>
+              {(entry) => (
+                <div
+                  data-testid={`history-seasonality-radial-value-${entry.month}`}
+                  role="listitem"
+                  aria-label={`${entry.label} ${
+                    entry.avg === null ? "no data" : signedPct(entry.avg)
+                  }`}
+                  class="flex min-w-0 items-baseline justify-between gap-1 border-t border-fin-border px-0.5 py-0.5"
+                >
+                  <span class="inline-flex min-w-0 items-center gap-1 text-ui-micro text-fin-text-muted">
+                    <span
+                      aria-hidden="true"
+                      class="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ "background-color": entry.color }}
+                    />
+                    {entry.label}
+                  </span>
+                  <span class="whitespace-nowrap font-mono text-ui-micro text-fin-text tabular-nums">
+                    {entry.avg === null ? "—" : signedPct(entry.avg)}
+                  </span>
+                </div>
+              )}
+            </For>
+          </div>
+          <span
+            data-testid="history-seasonality-radial-note"
+            class="text-ui-micro text-fin-text-muted"
+          >
+            {`avg return by month · hit rate in tooltip · ${model().sampleLabel} · history, not a forecast`}
+          </span>
+        </div>
       </Show>
     </div>
   );

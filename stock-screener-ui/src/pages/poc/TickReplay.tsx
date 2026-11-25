@@ -3,9 +3,14 @@
 import ReplayShell from "@/components/replay/core/ReplayShell";
 import { getStrategy } from "@/components/replay/strategies";
 import StrategySwitcher from "@/components/replay/strategies/StrategySwitcher";
+import { PocScrollShell } from "./PocScrollShell";
 
 export default function TickReplay() {
   const plugin = getStrategy("vwap-orb");
   if (!plugin) return null;
-  return <ReplayShell plugin={plugin} headerExtra={<StrategySwitcher currentId={plugin.id} />} />;
+  return (
+    <PocScrollShell testId="tick-replay-page" ariaLabel="Tick replay, scroll for charts and trades">
+      <ReplayShell plugin={plugin} headerExtra={<StrategySwitcher currentId={plugin.id} />} />
+    </PocScrollShell>
+  );
 }

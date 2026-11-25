@@ -1,9 +1,11 @@
 import { For, Show, createMemo } from "solid-js";
-import { alpha, TEXT, TOOLTIP_BG, TOOLTIP_BORDER, TOOLTIP_TEXT } from "@/ui/palette";
+import { alpha, TEXT } from "@/ui/palette";
 import { typeSize } from "@/ui/typography";
 import type { SectorHistorySeries } from "../../../../types/sectorHistory";
+import { monthlyTransitionCount, rankAt } from "../historyMath";
 import { EChart } from "../../../common/EChart";
 import { CHART_TOP3, RANK_STOPS } from "./chartPalette";
+import { baseOption, tooltipStyle } from "./core/chartBase";
 
 const LABEL_FONT = typeSize("micro");
 
@@ -11,9 +13,9 @@ const LABEL_FONT = typeSize("micro");
 export const TRANSITION_CHART_HEIGHT = 340;
 
 export const TRANSITION_ARIA_DESCRIPTION =
-  "Rank transitions between consecutive months. The left column is this month's " +
-  "rank band and the right column is next month's. Link thickness is the number " +
-  "of monthly moves between those bands.";
+  "Rank transitions between consecutive months, aggregated across the selected lookback. " +
+  "The left column groups the earlier month's rank band and the right column the following " +
+  "month's. Link thickness is the number of monthly moves between those bands.";
 
 export type RankBandId = "top" | "mid" | "bottom";
 
@@ -27,6 +29,8 @@ export interface RankTransitionSankeyProps {
   months: string[];
   series: SectorHistorySeries[];
   topN?: number;
+  /** Lookback in years; labels the aggregate window when present. */
+  years?: number;
   /** Host panels can suppress the internal title when they render their own header. */
   showHeader?: boolean;
 }
@@ -107,11 +111,6 @@ function nodeName(band: TransitionBand, side: "now" | "next"): string {
 function clampedTopN(topN: number | undefined): number {
   if (!Number.isFinite(topN) || !topN || topN <= 0) return 10;
   return Math.max(1, Math.floor(topN));
-}
-
-function rankAt(series: SectorHistorySeries, index: number): number | null {
-  const rank = series.ranks[index];
-  return typeof rank === "number" && Number.isFinite(rank) ? rank : null;
 }
 
 function bandForRank(rank: number, bands: TransitionBand[]): TransitionBand | null {
@@ -223,7 +222,6 @@ export function buildTransitionSankey(input: TransitionSankeyInput): TransitionS
   ]);
 
   const counts = new Map<string, number>();
-  let transitions = 0;
   for (let month = 0; month < months.length - 1; month++) {
     for (const sector of sectors) {
       const fromRank = rankAt(sector, month);
@@ -234,9 +232,9 @@ export function buildTransitionSankey(input: TransitionSankeyInput): TransitionS
       if (!fromBand || !toBand) continue;
       const key = `${fromBand.id}->${toBand.id}`;
       counts.set(key, (counts.get(key) ?? 0) + 1);
-      transitions++;
     }
   }
+  const transitions = monthlyTransitionCount(sectors);
 
   const links: TransitionSankeyLink[] = [];
   for (const fromBand of bands) {
@@ -256,23 +254,10 @@ export function buildTransitionSankey(input: TransitionSankeyInput): TransitionS
   }
 
   const option = {
-    animation: false,
-    backgroundColor: "transparent",
-    aria: {
-      enabled: true,
-      label: {
-        description: TRANSITION_ARIA_DESCRIPTION,
-      },
-    },
-    tooltip: {
-      trigger: "item",
-      confine: true,
-      backgroundColor: TOOLTIP_BG,
-      borderColor: TOOLTIP_BORDER,
-      textStyle: { color: TOOLTIP_TEXT, fontSize: LABEL_FONT },
-      formatter: (params: TransitionTooltipParam | TransitionTooltipParam[]) =>
-        formatTransitionTooltip(params),
-    },
+    ...baseOption(TRANSITION_ARIA_DESCRIPTION),
+    tooltip: tooltipStyle<TransitionTooltipParam | TransitionTooltipParam[]>("item", (params) =>
+      formatTransitionTooltip(params),
+    ),
     series: [
       {
         type: "sankey",
@@ -325,6 +310,14 @@ export function RankTransitionSankey(props: RankTransitionSankeyProps) {
       topN: props.topN,
     }),
   );
+  const windowLabel = () =>
+    typeof props.years === "number" && Number.isFinite(props.years) ? `${props.years}Y` : "";
+  const title = () =>
+    windowLabel()
+      ? `Rank transitions · ${windowLabel()} band flows`
+      : "Rank transitions · band flows across the lookback";
+  const toBandLabel = () =>
+    windowLabel() ? `To band · ${windowLabel()} aggregate` : "To band · aggregate";
 
   return (
     <div class="flex min-w-0 flex-col gap-1">
@@ -334,7 +327,7 @@ export function RankTransitionSankey(props: RankTransitionSankeyProps) {
             data-testid="history-rank-transition-title"
             class="text-ui-micro font-semibold text-fin-text"
           >
-            Rank transitions · this month → next month
+            {title()}
           </span>
         </Show>
         <span class="text-ui-micro text-fin-text-muted">counts of monthly band moves</span>
@@ -362,8 +355,8 @@ export function RankTransitionSankey(props: RankTransitionSankeyProps) {
             data-testid="history-rank-transition-columns"
             class="flex items-center justify-between text-ui-micro text-fin-text-muted"
           >
-            <span>This month</span>
-            <span>Next month</span>
+            <span>From band</span>
+            <span>{toBandLabel()}</span>
           </div>
         </Show>
       </div>

@@ -2,21 +2,36 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render, screen } from "@solidjs/testing-library";
-import { SURFACE } from "@/ui/palette";
+import {
+  BG,
+  CHART_CURRENT,
+  CHART_INK_DARK,
+  CHART_INK_LIGHT,
+  CHART_LINE,
+  CHART_MUTED,
+  CHART_NEUTRAL,
+  CHART_NEGATIVE,
+  CHART_POSITIVE,
+  CHART_RANK_STOPS,
+  CHART_SHARE_STOPS,
+  CHART_TOP3,
+  MONO,
+  PRIMARY,
+  SURFACE,
+  SURFACE_ALT,
+  TEXT,
+  TEXT_MUTED,
+  TOOLTIP_BG,
+  TOOLTIP_BORDER,
+  TOOLTIP_TEXT,
+} from "@/ui/palette";
+import { typeSize } from "@/ui/typography";
+import { interpolateHex } from "@/utils/color";
 import { compositeOver, contrastRatio, pickTextColor } from "@/utils/contrast";
 import type { SectorHistorySeries } from "../../../../types/sectorHistory";
 import {
-  CATEGORICAL,
-  CHART_CURRENT,
-  CHART_LINE,
-  CHART_MUTED,
-  CHART_NEGATIVE,
-  CHART_NEUTRAL,
-  CHART_POSITIVE,
-  CHART_TOP3,
   RANK_STOPS,
   SHARE_STOPS,
-  interpolateHex,
   rankColor,
   returnColor,
   sampleStops,
@@ -24,6 +39,7 @@ import {
 } from "./chartPalette";
 import {
   RankTransitionSankey,
+  TRANSITION_ARIA_DESCRIPTION,
   TRANSITION_BAND_FILLS,
   TRANSITION_CHART_HEIGHT,
   buildTransitionSankey,
@@ -150,36 +166,30 @@ afterEach(() => {
 });
 
 describe("chart palette tokens", () => {
-  test("pins the dedicated chart tokens away from UI amber", () => {
-    expect(CHART_LINE).toBe("#7DD3FC");
-    expect(CHART_TOP3).toBe("#F2CC60");
-    expect(CHART_CURRENT).toBe("#56D4DD");
-    expect(CHART_MUTED).toBe("#94A3B8");
-    expect(CHART_NEGATIVE).toBe("#4C9AFF");
-    expect(CHART_POSITIVE).toBe("#F59E0B");
-    expect(CHART_NEUTRAL).toBe("#1F242D");
-    expect(RANK_STOPS).toEqual([
-      "#F2CC60",
-      "#C9E265",
-      "#67D4D0",
-      "#2E9BC6",
-      "#1D6FA5",
-      "#123B5E",
-      "#0B1F33",
-    ]);
-    expect(SHARE_STOPS).toEqual(["#0B1F33", "#123B5E", "#1D6FA5", "#2E9BC6", "#56D4DD"]);
+  test("sources chart anchors from the palette and re-exports its ramps", () => {
+    expect(CHART_MUTED).toBe(TEXT_MUTED);
+    expect(CHART_NEUTRAL).toBe(SURFACE_ALT);
+    expect(CHART_INK_LIGHT).toBe(TEXT);
+    expect(CHART_INK_DARK).toBe(BG);
+    expect(RANK_STOPS).toBe(CHART_RANK_STOPS);
+    expect(SHARE_STOPS).toBe(CHART_SHARE_STOPS);
+    expect(CHART_RANK_STOPS[0]).toBe(CHART_TOP3);
+    expect(CHART_SHARE_STOPS[4]).toBe(CHART_CURRENT);
+  });
+
+  test("keeps the data hues distinct from UI amber", () => {
+    for (const color of [CHART_LINE, CHART_TOP3, CHART_CURRENT, CHART_NEGATIVE, CHART_POSITIVE]) {
+      expect(color).toMatch(/^#[0-9A-F]{6}$/);
+      expect(color).not.toBe(PRIMARY);
+    }
+    expect(CHART_RANK_STOPS).toHaveLength(7);
+    expect(new Set(CHART_RANK_STOPS).size).toBe(CHART_RANK_STOPS.length);
+    expect(CHART_SHARE_STOPS).toHaveLength(5);
+    expect(new Set(CHART_SHARE_STOPS).size).toBe(CHART_SHARE_STOPS.length);
   });
 
   test("keeps CHART_MUTED readable on the chart surface", () => {
     expect(contrastRatio(CHART_MUTED, SURFACE)).toBeGreaterThanOrEqual(4.5);
-  });
-
-  test("ships at least eight unique Okabe-Ito-derived categorical hues", () => {
-    expect(CATEGORICAL.length).toBeGreaterThanOrEqual(8);
-    expect(new Set(CATEGORICAL).size).toBe(CATEGORICAL.length);
-    for (const color of CATEGORICAL) {
-      expect(color).toMatch(/^#[0-9A-F]{6}$/);
-    }
   });
 
   test("interpolates hex endpoints, midpoints and clamps the input", () => {
@@ -293,8 +303,8 @@ describe("RankTransitionSankey", () => {
     expect(option.bands.map((band) => band.label)).toEqual(["Top 3", "Mid 4–6", "Bottom 7–10"]);
     expect(TRANSITION_BAND_FILLS).toEqual({
       top: CHART_TOP3,
-      mid: "#67D4D0",
-      bottom: "#2E9BC6",
+      mid: CHART_RANK_STOPS[2],
+      bottom: CHART_RANK_STOPS[3],
     });
     expect(option.nodes.find((node) => node.band === "top")?.itemStyle.color).toBe(CHART_TOP3);
   });
@@ -329,6 +339,35 @@ describe("RankTransitionSankey", () => {
     });
   });
 
+  test("paints the shared dark tooltip and base option scaffolding", () => {
+    const option = buildTransitionSankey({ months: MONTHS, series: SANKEY_SERIES });
+    expect(option.animation).toBe(false);
+    expect(option.backgroundColor).toBe("transparent");
+    expect(option.aria).toMatchObject({
+      enabled: true,
+      label: { description: TRANSITION_ARIA_DESCRIPTION },
+    });
+
+    const tooltip = option.tooltip as Record<string, any>;
+    expect(tooltip).toMatchObject({
+      trigger: "item",
+      confine: true,
+      backgroundColor: TOOLTIP_BG,
+      borderColor: TOOLTIP_BORDER,
+      borderWidth: 1,
+    });
+    expect(tooltip.textStyle).toMatchObject({
+      color: TOOLTIP_TEXT,
+      fontFamily: MONO,
+      fontSize: typeSize("micro"),
+    });
+    expect(
+      tooltip.formatter({
+        data: { source: "Top 3 · now", target: "Mid 4–6 · next", value: 7 },
+      }),
+    ).toBe("Top 3 → Mid 4–6 · 7 moves");
+  });
+
   test("formats edge tooltips as From → To · N moves", () => {
     expect(
       formatTransitionTooltip({
@@ -353,16 +392,13 @@ describe("RankTransitionSankey", () => {
     expect(formatTransitionTooltip({})).toBe("");
   });
 
-  test("renders the direct title, note and 340px EChart", () => {
-    render(() => <RankTransitionSankey months={MONTHS} series={SANKEY_SERIES} />);
-    expect(screen.getByText("Rank transitions · this month → next month")).toBeInTheDocument();
+  test("labels aggregate flows with the selected lookback", () => {
+    render(() => <RankTransitionSankey months={MONTHS} series={SANKEY_SERIES} years={5} />);
+    expect(screen.getByText("Rank transitions · 5Y band flows")).toBeInTheDocument();
     expect(screen.getByText("counts of monthly band moves")).toBeInTheDocument();
-    expect(screen.getByTestId("history-rank-transition-columns").textContent).toContain(
-      "This month",
-    );
-    expect(screen.getByTestId("history-rank-transition-columns").textContent).toContain(
-      "Next month",
-    );
+    const columns = screen.getByTestId("history-rank-transition-columns");
+    expect(columns.textContent).toContain("From band");
+    expect(columns.textContent).toContain("To band · 5Y aggregate");
     expect(screen.getByTestId("history-rank-transition-sankey")).toBeInTheDocument();
     expect(chartCapture.options.at(-1)?.series?.[0]?.type).toBe("sankey");
     expect(chartCapture.styles.at(-1)).toMatchObject({
@@ -376,12 +412,12 @@ describe("RankTransitionSankey", () => {
     ));
     expect(screen.queryByTestId("history-rank-transition-title")).not.toBeInTheDocument();
     expect(
-      screen.queryByText("Rank transitions · this month → next month"),
+      screen.queryByText("Rank transitions · band flows across the lookback"),
     ).not.toBeInTheDocument();
     expect(screen.getByText("counts of monthly band moves")).toBeInTheDocument();
     const columns = screen.getByTestId("history-rank-transition-columns");
-    expect(columns.textContent).toContain("This month");
-    expect(columns.textContent).toContain("Next month");
+    expect(columns.textContent).toContain("From band");
+    expect(columns.textContent).toContain("To band · aggregate");
     expect(screen.getByTestId("history-rank-transition-key")).toBeInTheDocument();
     expect(screen.getByTestId("history-rank-transition-sankey")).toBeInTheDocument();
     expect(chartCapture.options).toHaveLength(1);
@@ -435,7 +471,14 @@ describe("MonthlyMovers", () => {
       "viewBox",
       `0 0 ${MOVERS_VIEW_WIDTH} ${MOVERS_HEADER_HEIGHT + 5 * MOVERS_ROW_HEIGHT}`,
     );
-    expect(screen.getByTestId("history-monthly-movers-scroll")).toHaveClass("overflow-x-auto");
+    expect(screen.getByTestId("history-monthly-movers-rank-caption")).toHaveTextContent(
+      "rank · better →",
+    );
+    const scroll = screen.getByTestId("history-monthly-movers-scroll");
+    expect(scroll).toHaveClass("overflow-x-auto");
+    expect(scroll).toHaveAttribute("role", "region");
+    expect(scroll).toHaveAttribute("tabindex", "0");
+    expect(scroll.getAttribute("aria-label")).toMatch(/Monthly movers/);
     expect(svg.style.minWidth).toBe(`${MOVERS_MIN_WIDTH}px`);
     expect(svg.style.maxWidth).toBe(`${MOVERS_VIEW_WIDTH}px`);
     expect(screen.getByTestId("history-monthly-movers-months")).toHaveTextContent(
@@ -480,6 +523,37 @@ describe("MonthlyMovers", () => {
     expect(svg.querySelector('[data-connector="3"]')).toBeNull();
     expect(svg.querySelector('[data-connector="4"]')).toBeNull();
     expect(svg.querySelector('[data-previous-dot="4"]')).toBeNull();
+  });
+
+  test("shortens the rank caption on compact viewports", () => {
+    const original = window.matchMedia;
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({
+        matches: query === "(max-width: 640px)",
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+    try {
+      render(() => <MonthlyMovers months={MOVER_MONTHS} series={MOVER_SERIES} />);
+      expect(screen.getByTestId("history-monthly-movers-rank-caption")).toHaveTextContent("rank →");
+      expect(screen.getByTestId("history-monthly-movers-rank-caption")).not.toHaveTextContent(
+        "rank · better →",
+      );
+    } finally {
+      Object.defineProperty(window, "matchMedia", {
+        configurable: true,
+        writable: true,
+        value: original,
+      });
+    }
   });
 
   test("showHeader={false} hides the internal title but keeps the visible month pair, note and chart", () => {

@@ -44,13 +44,14 @@ export function PatternScrollRegion(props: PatternScrollRegionProps) {
       ".paper-tanstack-scroll",
     );
     if (!scroller) return;
-    scroller.scrollLeft += event.key === "ArrowRight" ? KEYBOARD_SCROLL_STEP : -KEYBOARD_SCROLL_STEP;
+    scroller.scrollLeft +=
+      event.key === "ArrowRight" ? KEYBOARD_SCROLL_STEP : -KEYBOARD_SCROLL_STEP;
     event.preventDefault();
   };
 
   return (
     <Box className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      <Box
+      <div
         data-testid={props.testId}
         data-scroll="horizontal"
         role="region"
@@ -64,7 +65,7 @@ export function PatternScrollRegion(props: PatternScrollRegionProps) {
         )}
       >
         {props.children}
-      </Box>
+      </div>
       <ScrollSidewaysCue testId={props.cueTestId} className={props.cueClassName} />
     </Box>
   );

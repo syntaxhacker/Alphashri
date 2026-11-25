@@ -9,6 +9,8 @@ export interface MiniSparklineProps {
   values: (number | null)[];
   width?: number;
   height?: number;
+  /** `"neutral"` paints every segment muted so only the adjacent value carries sign. */
+  tone?: "sign" | "neutral";
 }
 
 type SparkSign = "positive" | "negative" | "flat";
@@ -100,7 +102,13 @@ export function MiniSparkline(props: MiniSparklineProps) {
   });
 
   const signColor = (sign: SparkSign) =>
-    sign === "positive" ? CHART_POSITIVE : sign === "negative" ? CHART_NEGATIVE : TEXT_MUTED;
+    props.tone === "neutral"
+      ? TEXT_MUTED
+      : sign === "positive"
+        ? CHART_POSITIVE
+        : sign === "negative"
+          ? CHART_NEGATIVE
+          : TEXT_MUTED;
 
   return (
     <svg

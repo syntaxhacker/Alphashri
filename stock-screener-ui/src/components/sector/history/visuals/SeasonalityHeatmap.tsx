@@ -1,6 +1,7 @@
-import { For, Show, createMemo, createSignal, createUniqueId } from "solid-js";
-import { alpha, BORDER, MONO, PRIMARY, SURFACE, TEXT_MUTED } from "@/ui/palette";
+import { For, Show, createMemo, createUniqueId } from "solid-js";
+import { alpha, BORDER, SURFACE, TEXT_MUTED } from "@/ui/palette";
 import { pickTextColor } from "@/utils/contrast";
+import { seasonalityByMonth } from "../historyMath";
 import type { SectorHistorySeasonality } from "../../../../types/sectorHistory";
 import {
   CHART_MUTED,
@@ -9,12 +10,13 @@ import {
   CHART_POSITIVE,
   returnColor,
 } from "./chartPalette";
-import { SVG_TEXT, finite, hitRatePercent, monthName, signedPct } from "./shared";
+import { labelWidthFor } from "./matrices/labelWidth";
+import { MatrixFrame } from "./matrices/MatrixFrame";
+import { useRovingGrid } from "./matrices/useRovingGrid";
+import { useScrollHint } from "./matrices/useScrollHint";
+import { SVG_TEXT, monthName, signedPct } from "./shared";
 
-const LABEL_MIN_W = 140;
-const LABEL_MAX_W = 210;
-const LABEL_CHAR_W = 7.4;
-const CELL_W = 45;
+const CELL_W = 42;
 const CELL_H = 26;
 const HEADER_H = 26;
 const EMPTY_W = 360;
@@ -23,6 +25,7 @@ const HIT_BAR_INSET = 4;
 const HIT_BAR_H = 2;
 const HIT_BAR_TRACK_OPACITY = 0.18;
 const HIT_BAR_OPACITY = 0.9;
+const MONTHS_IN_YEAR = 12;
 
 export interface SeasonalityHeatmapProps {
   cells: SectorHistorySeasonality[];
@@ -48,40 +51,27 @@ interface SeasonalityRow {
 }
 
 export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
-  const titleId = `history-seasonality-title-${createUniqueId()}`;
-  const descId = `history-seasonality-desc-${createUniqueId()}`;
   const cellIdBase = `history-seasonality-cell-${createUniqueId()}`;
-  const [activeCell, setActiveCell] = createSignal({ row: 0, col: 0 });
+  const hint = useScrollHint();
 
   const model = createMemo(() => {
     const names = props.names;
     const cells = props.cells;
     const hasData = names.length > 0 && cells.length > 0;
-    const longestName = names.reduce((max, name) => Math.max(max, name.length), 0);
-    const labelW = Math.max(
-      LABEL_MIN_W,
-      Math.min(LABEL_MAX_W, Math.ceil(longestName * LABEL_CHAR_W) + 14),
-    );
-    const width = hasData ? labelW + 12 * CELL_W + 2 : EMPTY_W;
+    const labelW = labelWidthFor(names);
+    const width = hasData ? labelW + MONTHS_IN_YEAR * CELL_W + 2 : EMPTY_W;
     const height = hasData ? HEADER_H + names.length * CELL_H : EMPTY_H;
 
-    // The API may send months as 0- or 1-based; the full-year range disambiguates them.
-    const zeroBased =
-      cells.some((cell) => cell.month === 0) && !cells.some((cell) => cell.month === 12);
-    const cellMap = new Map<string, SectorHistorySeasonality>();
-    for (const cell of cells) {
-      const index = zeroBased ? cell.month : cell.month - 1;
-      cellMap.set(`${cell.name}|${index}`, cell);
-    }
-    const findCell = (name: string, index: number) => cellMap.get(`${name}|${index}`) ?? null;
-
-    const nameSet = new Set(names);
-    const inScope = cells.filter((cell) => nameSet.has(cell.name) && finite(cell.avg_return));
-    const avgReturns = inScope.map((cell) => cell.avg_return).filter(finite);
+    const monthly = names.map((name) => seasonalityByMonth(cells, name));
+    const avgReturns = monthly
+      .flat()
+      .map((month) => month.avg)
+      .filter((value): value is number => value !== null);
     const maxAbs = avgReturns.reduce((max, value) => Math.max(max, Math.abs(value)), 0);
-    const observations = inScope
-      .map((cell) => (finite(cell.n) && cell.n > 0 ? Math.round(cell.n) : 0))
-      .filter((value) => value > 0);
+    const observations = monthly
+      .flat()
+      .filter((month) => month.avg !== null && month.n > 0)
+      .map((month) => month.n);
     const nMin = observations.length > 0 ? Math.min(...observations) : null;
     const nMax = observations.length > 0 ? Math.max(...observations) : null;
     const sampleLabel =
@@ -95,29 +85,24 @@ export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
       key: `${name}-${rowIndex}`,
       index: rowIndex,
       name,
-      cells: Array.from({ length: 12 }, (_, month) => {
-        const cell = findCell(name, month);
-        const avg = cell && finite(cell.avg_return) ? cell.avg_return : null;
-        const n = cell && finite(cell.n) ? cell.n : 0;
-        const hitRate = cell?.hit_rate ?? null;
-        const hitPct = finite(hitRate) ? hitRatePercent(hitRate) : null;
+      cells: monthly[rowIndex].map((month) => {
+        const avg = month.avg;
+        const hitPct = month.hitRate;
         const hitLabel = hitPct === null ? "n/a" : `${Math.round(hitPct)}%`;
         const tooltip =
-          cell && avg !== null
-            ? `${monthName(month)} · ${name} · avg ${signedPct(avg)} · hit rate ${hitLabel} · n=${n}`
-            : `${monthName(month)} · ${name} · no data · hit rate n/a · n=0`;
+          avg === null
+            ? `${month.label} · ${name} · no data · hit rate n/a · n=0`
+            : `${month.label} · ${name} · avg ${signedPct(avg)} · hit rate ${hitLabel} · n=${month.n}`;
         const fill = avg === null ? SURFACE : avg === 0 ? CHART_NEUTRAL : returnColor(avg, maxAbs);
-        const opacity = 1;
-        const ink = avg === null ? TEXT_MUTED : pickTextColor(fill);
         return {
-          key: `${name}-${month}`,
-          index: month,
+          key: `${name}-${month.month}`,
+          index: month.month,
           avg,
-          hitPct: hitPct !== null && n > 0 ? Math.max(0, Math.min(100, hitPct)) : null,
+          hitPct,
           tooltip,
           fill,
-          opacity,
-          ink,
+          opacity: 1,
+          ink: avg === null ? TEXT_MUTED : pickTextColor(fill),
         };
       }),
     }));
@@ -126,60 +111,14 @@ export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
   });
 
   const seasonalityCellId = (row: number, col: number) => `${cellIdBase}-${row}-${col}`;
-
-  const activeSeasonalityCell = () => {
-    const rows = model().rows.length;
-    if (rows === 0) return { row: 0, col: 0 };
-    return { row: Math.min(activeCell().row, rows - 1), col: Math.min(activeCell().col, 11) };
-  };
-
-  const focusSeasonalityCell = (row: number, col: number) => {
-    setActiveCell({ row, col });
-    document.getElementById(seasonalityCellId(row, col))?.focus();
-  };
-
-  const onSeasonalityKeyDown = (event: KeyboardEvent, row: number, col: number) => {
-    const maxRow = model().rows.length - 1;
-    const maxCol = 11;
-    let nextRow = row;
-    let nextCol = col;
-    switch (event.key) {
-      case "ArrowLeft":
-        nextCol = Math.max(0, col - 1);
-        break;
-      case "ArrowRight":
-        nextCol = Math.min(maxCol, col + 1);
-        break;
-      case "ArrowUp":
-        nextRow = Math.max(0, row - 1);
-        break;
-      case "ArrowDown":
-        nextRow = Math.min(maxRow, row + 1);
-        break;
-      case "Home":
-        nextCol = 0;
-        break;
-      case "End":
-        nextCol = maxCol;
-        break;
-      case "Enter":
-      case " ":
-        event.preventDefault();
-        return;
-      default:
-        return;
-    }
-    event.preventDefault();
-    if (nextRow === row && nextCol === col) {
-      setActiveCell({ row, col });
-      return;
-    }
-    focusSeasonalityCell(nextRow, nextCol);
-  };
+  const grid = useRovingGrid({
+    rows: () => model().rows.length,
+    cols: MONTHS_IN_YEAR,
+    cellId: seasonalityCellId,
+  });
 
   return (
     <div class="history-seasonality min-w-0">
-      <style>{`.history-seasonality [data-cell]:focus-visible { outline: 2px solid ${PRIMARY}; outline-offset: -2px; }`}</style>
       <Show when={model().hasData}>
         <div
           data-testid="history-seasonality-legend"
@@ -201,11 +140,9 @@ export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
             </span>
             <span>bar = up-month hit rate</span>
           </span>
-          <span class="min-w-0">
-            longer bar = more up months · hit rate and n in each cell label
-          </span>
+          <span class="min-w-0">longer bar = more up months · hover for hit rate and n</span>
           <span class="inline-flex items-center gap-1.5 whitespace-nowrap">
-            <span>avg monthly return</span>
+            <span>avg return</span>
           </span>
           <span class="inline-flex items-center gap-1.5 whitespace-nowrap">
             <span
@@ -238,60 +175,60 @@ export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
       </Show>
 
       <div
+        aria-hidden="true"
+        data-testid="history-seasonality-scroll-hint"
+        class={`mb-1 items-center justify-end ${hint.overflowing() ? "flex" : "hidden"}`}
+      >
+        <span class="text-ui-micro text-fin-text-muted">
+          {hint.atEnd() ? "Scroll ←" : "Scroll →"}
+        </span>
+      </div>
+      <div
+        ref={hint.setRef}
         data-testid="history-seasonality-scroll"
+        role="region"
+        tabIndex={0}
+        aria-label="Seasonality heatmap by calendar month. Scroll sideways for all months."
         style={{ width: "100%", "overflow-x": "auto", "overflow-y": "hidden" }}
+        class="min-w-0 max-w-full focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
       >
         <div class="relative" style={{ "min-width": `${model().width}px` }}>
-          <svg
-            data-testid="history-seasonality"
-            width="100%"
-            viewBox={`0 0 ${model().width} ${model().height}`}
-            preserveAspectRatio="xMinYMin meet"
-            role="img"
-            aria-labelledby={`${titleId} ${descId}`}
-            font-family={MONO}
-            class="history-seasonality"
-            style={{
-              display: "block",
-              width: "100%",
-              height: "auto",
-              "min-width": model().hasData ? `${model().width}px` : "0px",
-              "max-width": `${model().width}px`,
-            }}
-          >
-            <title id={titleId}>
-              {model().hasData
+          <MatrixFrame
+            testId="history-seasonality"
+            title={
+              model().hasData
                 ? `Monthly seasonality history, average return by sector and calendar month. ${props.names.length} sectors.`
-                : "Monthly seasonality, no data"}
-            </title>
-            <desc id={descId}>
-              Rows are sectors and columns are January through December. Cells are coloured green
-              for a positive average monthly return and red for a negative one; the text is the
-              average return. The bar along the bottom of each cell is the share of months that
-              finished up, and each cell announces the exact hit rate and number of observations.
-              The hit-rate legend sits above the matrix so it stays visible on narrow screens. This
-              is descriptive history, not a forecast.
-            </desc>
-            <rect width={model().width} height={model().height} fill={SURFACE} />
-
-            <Show
-              when={model().hasData}
-              fallback={
-                <text
-                  data-testid="history-seasonality-empty"
-                  x={model().width / 2}
-                  y={model().height / 2}
-                  font-size={SVG_TEXT}
-                  fill={TEXT_MUTED}
-                  text-anchor="middle"
-                  dominant-baseline="central"
-                >
-                  No seasonality data
-                </text>
-              }
-            >
+                : "Monthly seasonality, no data"
+            }
+            desc="Rows are sectors and columns are January through December. Cells are coloured green for a positive average monthly return and red for a negative one; the text is the average return. The bar along the bottom of each cell is the share of months that finished up, and each cell announces the exact hit rate and number of observations. The hit-rate legend sits above the matrix so it stays visible on narrow screens. This is descriptive history, not a forecast."
+            width={model().width}
+            height={model().height}
+            rowRail={
+              model().hasData
+                ? {
+                    rows: model().rows.map((row) => ({ label: row.name })),
+                    labelWidth: model().labelW,
+                    headerHeight: HEADER_H,
+                    rowHeight: CELL_H,
+                  }
+                : undefined
+            }
+            empty={
+              <text
+                x={model().width / 2}
+                y={model().height / 2}
+                font-size={SVG_TEXT}
+                fill={TEXT_MUTED}
+                text-anchor="middle"
+                dominant-baseline="central"
+              >
+                No seasonality data
+              </text>
+            }
+          >
+            {model().hasData ? (
               <g>
-                <For each={Array.from({ length: 12 }, (_, index) => index)}>
+                <For each={Array.from({ length: MONTHS_IN_YEAR }, (_, index) => index)}>
                   {(index) => (
                     <text
                       x={model().labelW + index * CELL_W + CELL_W / 2}
@@ -346,16 +283,11 @@ export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
                                   stroke-width={0.5}
                                   shape-rendering="crispEdges"
                                   role="img"
-                                  tabindex={
-                                    activeSeasonalityCell().row === row.index &&
-                                    activeSeasonalityCell().col === cell.index
-                                      ? "0"
-                                      : "-1"
-                                  }
+                                  tabindex={grid.tabIndex(row.index, cell.index)}
                                   aria-label={cell.tooltip}
-                                  onFocus={() => setActiveCell({ row: row.index, col: cell.index })}
+                                  onFocus={() => grid.setActive(row.index, cell.index)}
                                   onKeyDown={(event) =>
-                                    onSeasonalityKeyDown(event, row.index, cell.index)
+                                    grid.onKeyDown(event, row.index, cell.index)
                                   }
                                 >
                                   <title>{cell.tooltip}</title>
@@ -408,40 +340,8 @@ export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
                   }}
                 </For>
               </g>
-            </Show>
-          </svg>
-          <Show when={model().hasData}>
-            <div
-              data-testid="history-seasonality-row-rail"
-              aria-hidden="true"
-              style={{
-                position: "sticky",
-                left: "0px",
-                width: `${model().labelW}px`,
-                height: `${HEADER_H + model().rows.length * CELL_H}px`,
-                "margin-top": `-${model().height}px`,
-                "z-index": "2",
-                "background-color": SURFACE,
-                "pointer-events": "none",
-              }}
-            >
-              <For each={model().rows}>
-                {(row) => (
-                  <div
-                    title={row.name}
-                    class="absolute flex w-full items-center justify-end overflow-hidden border-r border-fin-border pr-1.5 font-mono text-ui-micro whitespace-nowrap text-fin-text-muted"
-                    style={{
-                      top: `${HEADER_H + row.index * CELL_H}px`,
-                      height: `${CELL_H}px`,
-                      "box-sizing": "border-box",
-                    }}
-                  >
-                    {row.name}
-                  </div>
-                )}
-              </For>
-            </div>
-          </Show>
+            ) : undefined}
+          </MatrixFrame>
         </div>
       </div>
     </div>

@@ -122,13 +122,14 @@ export function ExperimentsPage() {
       </Box>
 
       <Box
-        className="flex-1 min-h-0 grid gap-1 overflow-auto"
+        className="flex-1 min-h-0 grid gap-1 overflow-y-auto overflow-x-hidden"
         style={{
           flex: 1,
           "min-height": "0px",
           display: "grid",
           gap: "4px",
-          overflow: "auto",
+          "overflow-y": "auto",
+          "overflow-x": "hidden",
           "grid-template-columns": "1fr",
         }}
       >
@@ -142,7 +143,7 @@ export function ExperimentsPage() {
               {state().sessions.length}
             </Text>
           </Box>
-          <Box flex={1} className="min-h-0 overflow-auto p-1" style={{ flex: 1, "min-height": "0px", overflow: "auto", padding: "4px" }}>
+          <Box flex={1} className="min-h-0 overflow-visible p-1" style={{ flex: 1, "min-height": "0px", overflow: "visible", padding: "4px" }}>
             <Show
               when={state().sessions.length > 0}
               fallback={
@@ -211,7 +212,7 @@ export function ExperimentsPage() {
               Results
             </Text>
           </Box>
-          <Box flex={1} className="min-h-0 overflow-auto p-1 flex flex-col gap-1" style={{ flex: 1, "min-height": "0px", overflow: "auto", padding: "4px", display: "flex", "flex-direction": "column", gap: "4px" }}>
+          <Box flex={1} className="min-h-0 overflow-visible p-1 flex flex-col gap-1" style={{ flex: 1, "min-height": "0px", overflow: "visible", padding: "4px", display: "flex", "flex-direction": "column", gap: "4px" }}>
             <ExperimentsProgress />
             <ExperimentsResultsTable />
           </Box>

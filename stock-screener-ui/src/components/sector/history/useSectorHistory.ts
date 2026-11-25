@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { fetchSectorHistory } from "../../../api/sectorHistory";
 import type { SectorHistoryMarket, SectorHistoryResponse } from "../../../types/sectorHistory";
 
@@ -6,6 +6,8 @@ export interface UseSectorHistoryResult {
   data: () => SectorHistoryResponse | null;
   loading: () => boolean;
   error: () => string | null;
+  /** Exact month-to-month rank pairs behind the persistence matrix, when the payload reports it. */
+  transitionN: () => number | undefined;
   refresh: () => void;
 }
 
@@ -47,5 +49,12 @@ export function useSectorHistory(
 
   const refresh = () => setRequestKey((value) => value + 1);
 
-  return { data, loading, error, refresh };
+  const transitionN = createMemo(() => {
+    const value = data()?.persistence?.transition_n;
+    return typeof value === "number" && Number.isFinite(value)
+      ? Math.max(0, Math.round(value))
+      : undefined;
+  });
+
+  return { data, loading, error, transitionN, refresh };
 }

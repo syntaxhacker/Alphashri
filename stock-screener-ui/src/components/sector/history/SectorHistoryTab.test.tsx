@@ -17,9 +17,12 @@ vi.mock("../../../api/sectorHistory", () => ({
 }));
 
 vi.mock("./visuals/SectorRankHeatmap", () => ({
-  SectorRankHeatmap: (props: { months: string[] }) => (
-    <div data-testid="sector-rank-heatmap">{props.months.length} months</div>
+  SectorRankHeatmap: (props: { months: string[]; showSummary?: boolean }) => (
+    <div data-testid="sector-rank-heatmap" data-show-summary={String(props.showSummary)}>
+      {props.months.length} months
+    </div>
   ),
+  SectorRankSummary: () => <div data-testid="sector-rank-summary" />,
 }));
 
 vi.mock("./visuals/SeasonalityHeatmap", () => ({
@@ -28,7 +31,10 @@ vi.mock("./visuals/SeasonalityHeatmap", () => ({
 
 vi.mock("./visuals/PersistenceMatrix", () => ({
   PersistenceMatrix: (props: { transitionCount?: number }) => (
-    <div data-testid="persistence-matrix" data-transition-count={String(props.transitionCount)} />
+    <div
+      data-testid="persistence-matrix"
+      data-transition-count={props.transitionCount == null ? "none" : String(props.transitionCount)}
+    />
   ),
 }));
 
@@ -92,6 +98,27 @@ vi.mock("./visuals/RelativeStrengthTrail", () => ({
   ),
 }));
 
+function persistence(transitionN?: number) {
+  const block = {
+    by_sector: [
+      {
+        name: "Technology",
+        top3_months: 24,
+        top3_stayed: 15,
+        top3_persistence_pct: 62.5,
+        avg_next_rank: 3.4,
+      },
+    ],
+    transition_matrix: [
+      [0.6, 0.4],
+      [0.2, 0.8],
+    ] as (number | null)[][],
+  };
+  return transitionN === undefined
+    ? (block as SectorHistoryResponse["persistence"])
+    : { ...block, transition_n: transitionN };
+}
+
 function response(overrides: Partial<SectorHistoryResponse> = {}): SectorHistoryResponse {
   return {
     market: "india",
@@ -142,31 +169,13 @@ function response(overrides: Partial<SectorHistoryResponse> = {}): SectorHistory
       },
     ],
     seasonality: [{ name: "Technology", month: 1, avg_return: 1.8, hit_rate: 66.7, n: 10 }],
-    persistence: {
-      by_sector: [
-        {
-          name: "Technology",
-          top3_months: 24,
-          top3_stayed: 15,
-          top3_persistence_pct: 62.5,
-          avg_next_rank: 3.4,
-        },
-      ],
-      transition_matrix: [
-        [0.6, 0.4],
-        [0.2, 0.8],
-      ],
-    },
+    persistence: persistence(4),
     ...overrides,
   };
 }
 
 function renderTab(market: "india" | "america" = "india") {
   return renderWithProviders(() => <SectorHistoryTab market={market} />);
-}
-
-function marketSelect() {
-  return within(screen.getByTestId("sector-history-market")).getByRole("combobox");
 }
 
 function yearsSelect() {
@@ -188,10 +197,13 @@ function panelDescription(testId: string) {
 describe("SectorHistoryTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFetchSectorHistory.mockReset();
+    window.history.replaceState({}, "", "/");
   });
 
   afterEach(() => {
     cleanup();
+    window.history.replaceState({}, "", "/");
   });
 
   test("shows the loading state while the first request is pending", () => {
@@ -242,13 +254,64 @@ describe("SectorHistoryTab", () => {
     expect(cumulative).not.toHaveClass("text-fin-positive");
   });
 
+  test("passes the exact transition_n from the payload to the persistence matrix", async () => {
+    mockFetchSectorHistory.mockResolvedValue(response({ persistence: persistence(7) }));
+    renderTab();
+    await screen.findByTestId("persistence-matrix");
+
+    expect(screen.getByTestId("persistence-matrix")).toHaveAttribute("data-transition-count", "7");
+  });
+
+  test("omits the transition count when the payload has no transition_n", async () => {
+    mockFetchSectorHistory.mockResolvedValue(response({ persistence: persistence() }));
+    renderTab();
+    await screen.findByTestId("persistence-matrix");
+
+    expect(screen.getByTestId("persistence-matrix")).toHaveAttribute(
+      "data-transition-count",
+      "none",
+    );
+  });
+
+  test("keeps the overview when optional sections are missing and empties only those panels", async () => {
+    mockFetchSectorHistory.mockResolvedValue(
+      response({
+        risk: [],
+        seasonality: [],
+        persistence: { by_sector: [], transition_matrix: [] },
+      }),
+    );
+    renderTab();
+
+    expect(await screen.findByTestId("sector-rank-heatmap")).toBeInTheDocument();
+    expect(screen.getByTestId("rotation-timeline")).toBeInTheDocument();
+    expect(screen.getByTestId("sector-history-seasonality-empty")).toHaveTextContent(
+      "No seasonality data for this lookback.",
+    );
+    expect(screen.getByTestId("sector-history-persistence-empty")).toHaveTextContent(
+      "No persistence data for this lookback.",
+    );
+    expect(screen.getByTestId("sector-history-risk-empty")).toHaveTextContent(
+      "No risk metrics for this lookback.",
+    );
+    expect(screen.queryByTestId("seasonality-heatmap")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("persistence-matrix")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("sector-history-risk-table")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("sector-history-empty")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("sector-history-error")).not.toBeInTheDocument();
+  });
+
   test("renders one header and description for every panel", async () => {
     mockFetchSectorHistory.mockResolvedValue(response());
     renderTab();
     await screen.findByTestId("sector-rank-heatmap");
 
     const panels = [
-      ["sector-history-rank-panel", "Sector Rank History", "2 sectors · monthly rank"],
+      [
+        "sector-history-rank-panel",
+        "Sector Rank History",
+        "2 sectors · monthly rank · 2026-01 → 2026-03",
+      ],
       ["sector-history-seasonality-panel", "Seasonality", "avg return by calendar month"],
       ["sector-history-persistence-panel", "Persistence", "top-3 rank stickiness"],
       ["sector-history-rotation-panel", "Rotation Timeline", "rank trajectory over time"],
@@ -263,15 +326,56 @@ describe("SectorHistoryTab", () => {
     }
   });
 
-  test("exposes labelled keyboard scroll regions with a hint for every chart", async () => {
+  test("keeps the header fixed and confines scrolling to the view body", async () => {
+    mockFetchSectorHistory.mockResolvedValue(response());
+    renderTab();
+    await screen.findByTestId("sector-rank-heatmap");
+
+    const tab = screen.getByTestId("sector-history-tab");
+    expect(tab).toHaveClass("h-full", "min-h-0", "flex", "flex-col", "overflow-hidden");
+    const header = screen.getByTestId("sector-history-header");
+    expect(tab.firstElementChild).toBe(header);
+    expect(header).toHaveClass("shrink-0");
+    const overview = screen.getByTestId("sector-history-overview");
+    expect(tab).toContainElement(overview);
+    expect(overview).toHaveClass("flex-1", "min-h-0", "overflow-y-auto");
+
+    switchHistoryView("Rotation Lab");
+    const lab = screen.getByTestId("sector-history-lab");
+    expect(tab).toContainElement(lab);
+    expect(lab).toHaveClass("flex-1", "min-h-0", "overflow-y-auto");
+    expect(header).toBe(tab.firstElementChild);
+  });
+
+  test("marks the active history view with amber ink and fill only", async () => {
+    mockFetchSectorHistory.mockResolvedValue(response());
+    renderTab();
+    await screen.findByTestId("sector-rank-heatmap");
+
+    const toggle = screen.getByTestId("sector-history-view-toggle");
+    const overview = within(toggle).getByRole("button", { name: "Overview" });
+    const lab = within(toggle).getByRole("button", { name: "Rotation Lab" });
+    expect(overview).toHaveAttribute("aria-pressed", "true");
+    expect(overview).toHaveClass("bg-fin-primary/20", "text-fin-primary");
+    expect(overview).not.toHaveClass("text-fin-text-muted");
+    expect(lab).toHaveAttribute("aria-pressed", "false");
+    expect(lab).toHaveClass("text-fin-text-muted");
+    expect(lab).not.toHaveClass("bg-fin-primary/20");
+
+    switchHistoryView("Rotation Lab");
+    expect(lab).toHaveAttribute("aria-pressed", "true");
+    expect(lab).toHaveClass("bg-fin-primary/20", "text-fin-primary");
+    expect(lab).not.toHaveClass("text-fin-text-muted");
+    expect(overview).not.toHaveClass("bg-fin-primary/20");
+  });
+
+  test("exposes the rank scroll region with an edge hint", async () => {
     mockFetchSectorHistory.mockResolvedValue(response());
     renderTab();
     await screen.findByTestId("sector-rank-heatmap");
 
     const regions: Array<[string, RegExp]> = [
       ["sector-history-rank-scroll", /Sector rank history/],
-      ["sector-history-seasonality-scroll", /Seasonality heatmap/],
-      ["sector-history-persistence-scroll", /Rank persistence matrix/],
     ];
 
     for (const [testId, label] of regions) {
@@ -302,18 +406,12 @@ describe("SectorHistoryTab", () => {
       "aria-label",
       "Sector history risk metrics, scroll sideways for all columns",
     );
-    const hint = within(panel).getByTestId("sector-history-risk-scroll-hint");
-    expect(hint).toHaveTextContent("Scroll →");
-    expect(hint).not.toHaveClass("sm:hidden");
-    expect(scroller).not.toContainElement(hint);
+    expect(within(panel).queryByTestId("sector-history-risk-scroll-hint")).not.toBeInTheDocument();
     const sticky = within(panel).getByTestId("sector-history-risk-sticky-style");
     expect(sticky.textContent).toContain("td:first-child");
     expect(sticky.textContent).toContain("position: sticky");
-    expect(sticky.textContent).toContain("height: 20px");
-    expect(sticky.textContent).toContain("padding-top: 1px");
     const table = screen.getByTestId("sector-history-risk-table");
-    expect(table.style.getPropertyValue("--tbl-row-h")).toBe("18px");
-    expect(table.style.getPropertyValue("--tbl-cell-pad")).toBe("1px 6px");
+    expect(table).toBeInTheDocument();
     const spark = screen.getByTestId("sector-history-risk-spark-Technology");
     expect(spark).toHaveClass("flex");
     expect(spark).not.toHaveClass("inline-flex");
@@ -341,7 +439,7 @@ describe("SectorHistoryTab", () => {
     const descriptions: Array<[string, string]> = [
       [
         "sector-history-lab-sankey-panel",
-        "where sectors move by rank band · monthly counts · n=4 monthly transitions · 5Y",
+        "where sectors move by rank band · aggregate band flows · n=4 monthly transitions · 5Y",
       ],
       ["sector-history-lab-movers-panel", "rank change over the latest month"],
       ["sector-history-lab-drawdown-panel", "monthly closes · risk table uses daily closes"],
@@ -413,6 +511,17 @@ describe("SectorHistoryTab", () => {
     });
   });
 
+  test("Rank transitions uses the exact transition_n instead of a guessed count", async () => {
+    mockFetchSectorHistory.mockResolvedValue(response({ persistence: persistence(7) }));
+    renderTab();
+    await screen.findByTestId("sector-rank-heatmap");
+    switchHistoryView("Rotation Lab");
+
+    expect(panelDescription("sector-history-lab-sankey-panel")).toHaveTextContent(
+      "n=7 monthly transitions · 5Y",
+    );
+  });
+
   test("Rank transitions description hides the count without a month pair", async () => {
     const base = response();
     const shortSeries = base.series.map((item) => ({
@@ -428,7 +537,9 @@ describe("SectorHistoryTab", () => {
     switchHistoryView("Rotation Lab");
 
     const description = panelDescription("sector-history-lab-sankey-panel");
-    expect(description).toHaveTextContent("where sectors move by rank band · monthly counts · 5Y");
+    expect(description).toHaveTextContent(
+      "where sectors move by rank band · aggregate band flows · 5Y",
+    );
     expect(description).not.toHaveTextContent("n=");
   });
 
@@ -465,18 +576,20 @@ describe("SectorHistoryTab", () => {
   });
 
   test("lab resets the sector to the latest leader when the market changes", async () => {
+    const [market, setMarket] = createSignal<"india" | "america">("india");
     mockFetchSectorHistory.mockResolvedValueOnce(response()).mockResolvedValueOnce(
       response({
         market: "america",
+        universe: ["US Technology", "US Banking"],
         series: [
           {
-            name: "Technology",
+            name: "US Technology",
             is_benchmark: false,
             monthly_returns: [1, 1, 1],
             ranks: [2, 2, 2],
           },
           {
-            name: "Banking",
+            name: "US Banking",
             is_benchmark: false,
             monthly_returns: [1, 1, 1],
             ranks: [1, 1, 1],
@@ -491,18 +604,18 @@ describe("SectorHistoryTab", () => {
       }),
     );
 
-    renderTab();
+    renderWithProviders(() => <SectorHistoryTab market={market()} />);
     await screen.findByTestId("sector-rank-heatmap");
     switchHistoryView("Rotation Lab");
     expect(panelTitle("sector-history-lab-drawdown-panel")).toHaveTextContent(
       "Monthly drawdown · Technology",
     );
 
-    fireEvent.input(marketSelect(), { target: { value: "america" } });
+    setMarket("america");
 
     await waitFor(() => {
       expect(panelTitle("sector-history-lab-drawdown-panel")).toHaveTextContent(
-        "Monthly drawdown · Banking",
+        "Monthly drawdown · US Banking",
       );
     });
   });
@@ -548,7 +661,11 @@ describe("SectorHistoryTab", () => {
 
     const error = await screen.findByTestId("sector-history-error");
     expect(error).toHaveTextContent("Sector history is temporarily unavailable. Try again.");
-    expect(within(error).getByTestId("sector-history-error-code")).toHaveTextContent(
+    const details = within(error).getByTestId("sector-history-error-details");
+    expect(details.tagName).toBe("DETAILS");
+    expect(details).not.toHaveAttribute("open");
+    expect(within(details).getByText("Details")).toBeInTheDocument();
+    expect(within(details).getByTestId("sector-history-error-code")).toHaveTextContent(
       "sector_history_unavailable",
     );
     expect(within(error).getByTestId("sector-history-retry")).toBeInTheDocument();
@@ -561,26 +678,70 @@ describe("SectorHistoryTab", () => {
     });
   });
 
-  test("market and years selects refetch with the new params", async () => {
+  test("years select refetches and writes hyears without clobbering other params", async () => {
+    window.history.replaceState({}, "", "/sector?tab=history&market=america");
     mockFetchSectorHistory.mockResolvedValue(response());
     renderTab();
     await screen.findByTestId("sector-rank-heatmap");
-
-    fireEvent.input(marketSelect(), { target: { value: "america" } });
-
-    await waitFor(() => {
-      expect(mockFetchSectorHistory).toHaveBeenCalledWith(
-        expect.objectContaining({ market: "america", years: 5 }),
-      );
-    });
 
     fireEvent.input(yearsSelect(), { target: { value: "10" } });
 
     await waitFor(() => {
       expect(mockFetchSectorHistory).toHaveBeenCalledWith(
-        expect.objectContaining({ market: "america", years: 10 }),
+        expect.objectContaining({ market: "india", years: 10 }),
       );
     });
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("hyears")).toBe("10");
+    expect(params.get("tab")).toBe("history");
+    expect(params.get("market")).toBe("america");
+
+    fireEvent.input(yearsSelect(), { target: { value: "5" } });
+
+    await waitFor(() => {
+      expect(new URLSearchParams(window.location.search).get("hyears")).toBeNull();
+    });
+  });
+
+  test("view toggle writes hview and defaults back to overview", async () => {
+    window.history.replaceState({}, "", "/sector?tab=history");
+    mockFetchSectorHistory.mockResolvedValue(response());
+    renderTab();
+    await screen.findByTestId("sector-rank-heatmap");
+
+    switchHistoryView("Rotation Lab");
+    await screen.findByTestId("sector-history-lab");
+    expect(new URLSearchParams(window.location.search).get("hview")).toBe("lab");
+    expect(new URLSearchParams(window.location.search).get("tab")).toBe("history");
+
+    switchHistoryView("Overview");
+    expect(new URLSearchParams(window.location.search).get("hview")).toBeNull();
+  });
+
+  test("restores years and view from query params", async () => {
+    window.history.replaceState({}, "", "/sector?tab=history&hyears=10&hview=lab");
+    mockFetchSectorHistory.mockResolvedValue(response());
+    renderTab();
+
+    expect(yearsSelect()).toHaveValue("10");
+    expect(await screen.findByTestId("sector-history-lab")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockFetchSectorHistory).toHaveBeenCalledWith(
+        expect.objectContaining({ market: "india", years: 10 }),
+      );
+    });
+  });
+
+  test("uses the page market without a second market select", async () => {
+    mockFetchSectorHistory.mockResolvedValue(response());
+    renderTab("america");
+    await screen.findByTestId("sector-rank-heatmap");
+
+    expect(screen.queryByTestId("sector-history-market")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sector-history-market-label")).toHaveTextContent("US");
+    expect(mockFetchSectorHistory).toHaveBeenCalledWith(
+      expect.objectContaining({ market: "america", years: 5 }),
+    );
   });
 
   test("follows the page market when it changes", async () => {
@@ -596,6 +757,7 @@ describe("SectorHistoryTab", () => {
         expect.objectContaining({ market: "america" }),
       );
     });
+    expect(screen.getByTestId("sector-history-market-label")).toHaveTextContent("US");
   });
 
   test("shows the empty state when the response has no series", async () => {

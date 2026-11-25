@@ -3,8 +3,14 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
-import { alpha } from "@/ui/palette";
-import { CHART_CURRENT, CHART_LINE, CHART_TOP3 } from "./chartPalette";
+import { alpha, TEXT_MUTED } from "@/ui/palette";
+import {
+  CHART_CURRENT,
+  CHART_LINE,
+  CHART_NEGATIVE,
+  CHART_POSITIVE,
+  CHART_TOP3,
+} from "./chartPalette";
 import {
   MiniSparkline,
   PersistenceMatrix,
@@ -419,9 +425,12 @@ describe("RotationTimeline", () => {
     expect(screen.getByTestId("history-rotation-rail")).toHaveClass("sticky");
     const hint = screen.getByTestId("history-rotation-scroll-hint");
     expect(hint).toHaveTextContent("Scroll →");
-    expect(hint).toHaveClass("sm:hidden");
+    expect(hint).toHaveAttribute("aria-hidden", "true");
     const scroll = screen.getByTestId("history-rotation-scroll");
     expect(scroll).toHaveClass("overflow-x-auto");
+    expect(scroll).toHaveAttribute("role", "region");
+    expect(scroll).toHaveAttribute("tabindex", "0");
+    expect(scroll).not.toContainElement(hint);
     expect(scroll.firstElementChild).toHaveStyle({ "min-width": "900px" });
     expect(screen.getByTestId("history-rotation-badges")).toBeInTheDocument();
   });
@@ -630,6 +639,28 @@ describe("MiniSparkline", () => {
   test("honours custom dimensions", () => {
     render(() => <MiniSparkline values={SPARK_VALUES} width={120} height={32} />);
     expect(screen.getByTestId("history-sparkline")).toHaveAttribute("viewBox", "0 0 120 32");
+  });
+
+  test("neutral tone mutes every segment while sign stays the default", () => {
+    const neutral = render(() => <MiniSparkline values={SPARK_VALUES} tone="neutral" />);
+    const neutralSvg = screen.getByTestId("history-sparkline");
+    const segments = Array.from(neutralSvg.querySelectorAll("[data-segment]"));
+    expect(segments.length).toBeGreaterThan(0);
+    for (const segment of segments) {
+      expect(segment).toHaveAttribute("stroke", TEXT_MUTED);
+    }
+    neutral.unmount();
+
+    render(() => <MiniSparkline values={SPARK_VALUES} />);
+    const signedSvg = screen.getByTestId("history-sparkline");
+    expect(signedSvg.querySelector('[data-sign="positive"]')).toHaveAttribute(
+      "stroke",
+      CHART_POSITIVE,
+    );
+    expect(signedSvg.querySelector('[data-sign="negative"]')).toHaveAttribute(
+      "stroke",
+      CHART_NEGATIVE,
+    );
   });
 
   test("renders an empty state with no values", () => {

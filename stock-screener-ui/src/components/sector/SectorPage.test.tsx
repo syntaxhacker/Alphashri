@@ -196,6 +196,22 @@ describe("SectorPage", () => {
     });
   });
 
+  it("makes every dashboard side-panel scroll area fill its card", async () => {
+    mockFetchSectorPerformance.mockResolvedValue(mockResponse);
+    render(() => <SectorPage />);
+    await waitFor(() => expect(screen.getByText("Sector Performance")).toBeInTheDocument());
+
+    for (const cardId of ["sector-alerts-card", "sector-interval-movers-card", "sector-top-stocks-card"]) {
+      const card = screen.getByTestId(cardId);
+      const scroller = card.querySelector<HTMLElement>(".overflow-auto");
+      expect(scroller, `${cardId} has no scroll area`).not.toBeNull();
+      expect(scroller).toHaveClass("min-h-0");
+      expect(scroller).toHaveClass("flex-1");
+      // `flex` is not a ScrollArea prop; it must never leak to the DOM as an attribute.
+      expect(scroller).not.toHaveAttribute("flex");
+    }
+  });
+
   it("switches between the dense table view and the visual heatmap view", async () => {
     mockFetchSectorPerformance.mockResolvedValue(mockResponse);
     render(() => <SectorPage />);
@@ -275,7 +291,8 @@ describe("SectorPage", () => {
     expect(region).toHaveAttribute("aria-label", "Sector performance table, scroll sideways for all columns");
     expect(region).toHaveAttribute("tabindex", "0");
     expect(region).toHaveAttribute("data-scroll", "horizontal");
-    expect(region).toHaveClass("overflow-auto");
+    expect(region).toHaveClass("overflow-x-auto");
+    expect(region).toHaveClass("overflow-y-auto");
     // The shared table's own scrollport is switched off, so there is no
     // nested overflow:auto competing with the focused region.
     const scrollStyle = screen.getByTestId("sector-table-scroll-style").textContent ?? "";
@@ -297,6 +314,42 @@ describe("SectorPage", () => {
     expect(region.scrollLeft).toBe(90);
     fireEvent.keyDown(region, { key: "ArrowLeft" });
     expect(region.scrollLeft).toBe(10);
+  });
+
+  it("keeps the route root and tab host bounded so #app-main never scrolls", () => {
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    render(() => <SectorPage />);
+
+    const root = screen.getByTestId("sector-analysis-view");
+    for (const cls of ["h-full", "min-h-0", "flex", "flex-col", "overflow-hidden"]) {
+      expect(root).toHaveClass(cls);
+    }
+
+    // The page-level `overflow-auto` box is gone: each tab owns its scroll.
+    const page = document.getElementById("sector-page") as HTMLElement;
+    expect(page).toHaveClass("flex-1");
+    expect(page).toHaveClass("min-h-0");
+    expect(page).toHaveClass("overflow-hidden");
+    expect(page.className).not.toMatch(/\boverflow-auto\b/);
+
+    const host = screen.getByTestId("sector-tab-content");
+    expect(host).toHaveClass("flex-1");
+    expect(host).toHaveClass("min-h-0");
+    expect(host).toHaveClass("flex-col");
+    expect(host).toHaveClass("overflow-hidden");
+  });
+
+  it("gives the History tab a bounded host instead of a page-level scroller", () => {
+    window.history.replaceState({}, "", "/?tab=history");
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    render(() => <SectorPage />);
+
+    const host = screen.getByTestId("sector-tab-content");
+    expect(host).toHaveClass("flex-1");
+    expect(host).toHaveClass("min-h-0");
+    expect(host).toHaveClass("overflow-hidden");
+    // The lazy fallback must fill the same bounded area, not define its own page height.
+    expect(host).toContainElement(screen.getByTestId("sector-history-tab"));
   });
 
   it("does not render the legacy Historical Cycles tab", () => {

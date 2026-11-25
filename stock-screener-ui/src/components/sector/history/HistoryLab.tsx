@@ -6,6 +6,7 @@ import type {
   SectorHistorySeasonality,
   SectorHistorySeries,
 } from "../../../types/sectorHistory";
+import { monthlyTransitionCount } from "./historyMath";
 import { RankTransitionSankey } from "./visuals/RankTransitionSankey";
 import { MonthlyMovers } from "./visuals/MonthlyMovers";
 import { UnderwaterDrawdown } from "./visuals/UnderwaterDrawdown";
@@ -95,6 +96,7 @@ export function HistoryLab(props: {
   series: SectorHistorySeries[];
   universe: string[];
   seasonality: SectorHistorySeasonality[];
+  transitionN?: number;
 }) {
   const [sector, setSector] = createSignal(
     defaultSector(props.universe, props.series, props.months),
@@ -136,10 +138,13 @@ export function HistoryLab(props: {
   });
 
   const transitionDescription = createMemo(() => {
-    const base = "where sectors move by rank band · monthly counts";
+    const base = "where sectors move by rank band · aggregate band flows";
     const years = `${props.years}Y`;
     if (props.months.length < 2) return `${base} · ${years}`;
-    const count = (props.months.length - 1) * props.universe.length;
+    const count =
+      typeof props.transitionN === "number" && Number.isFinite(props.transitionN)
+        ? props.transitionN
+        : monthlyTransitionCount(props.series);
     return `${base} · n=${count} monthly transitions · ${years}`;
   });
 
@@ -173,7 +178,12 @@ export function HistoryLab(props: {
           title="Rank transitions"
           description={transitionDescription()}
         >
-          <RankTransitionSankey months={props.months} series={props.series} showHeader={false} />
+          <RankTransitionSankey
+            months={props.months}
+            series={props.series}
+            years={props.years}
+            showHeader={false}
+          />
         </HistoryPanel>
 
         <HistoryPanel

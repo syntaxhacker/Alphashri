@@ -1,7 +1,10 @@
 import { For, Show, createMemo, createUniqueId } from "solid-js";
 import { BORDER, MONO, SURFACE, TEXT, TEXT_MUTED } from "@/ui/palette";
+import { useMediaQuery } from "@/ui/hooks";
 import type { SectorHistorySeries } from "../../../../types/sectorHistory";
+import { rankAt } from "../historyMath";
 import { CHART_CURRENT, CHART_MUTED, CHART_TOP3 } from "./chartPalette";
+import { useScrollHint } from "./matrices/useScrollHint";
 import { SVG_TEXT } from "./shared";
 
 /** Row rhythm and fixed geometry shared by the component and its tests. */
@@ -52,12 +55,6 @@ export interface MonthlyMoversInput {
   series: SectorHistorySeries[];
 }
 
-function rankAt(series: SectorHistorySeries, index: number | null): number | null {
-  if (index === null) return null;
-  const rank = series.ranks[index];
-  return typeof rank === "number" && Number.isFinite(rank) ? rank : null;
-}
-
 /**
  * Pick the last two months that actually contain ranks, then order sectors by
  * the size of their rank move. A sector without a previous rank is still shown
@@ -91,7 +88,7 @@ export function buildMonthlyMovers(input: MonthlyMoversInput): MonthlyMoversMode
   for (const sector of sectors) {
     const currentRank = rankAt(sector, currentIndex);
     if (currentRank === null) continue;
-    const previousRank = rankAt(sector, previousIndex);
+    const previousRank = previousIndex === null ? null : rankAt(sector, previousIndex);
     const delta = previousRank === null ? null : previousRank - currentRank;
     rows.push({
       name: sector.name,
@@ -136,6 +133,8 @@ export function MonthlyMovers(props: MonthlyMoversProps) {
   const model = createMemo(() =>
     buildMonthlyMovers({ months: props.months, series: props.series }),
   );
+  const hint = useScrollHint();
+  const compact = useMediaQuery("(max-width: 640px)", undefined, { noSsr: true });
   const titleId = `history-movers-title-${createUniqueId()}`;
   const descId = `history-movers-desc-${createUniqueId()}`;
   const uid = createUniqueId();
@@ -200,15 +199,23 @@ export function MonthlyMovers(props: MonthlyMoversProps) {
           </div>
         }
       >
-        <div class="flex justify-end">
-          <span
-            data-testid="history-monthly-movers-scroll-hint"
-            class="text-ui-micro text-fin-text-muted sm:hidden"
-          >
-            Scroll →
+        <div
+          aria-hidden="true"
+          data-testid="history-monthly-movers-scroll-hint"
+          class={`mb-0.5 items-center justify-end ${hint.overflowing() ? "flex" : "hidden"}`}
+        >
+          <span class="text-ui-micro text-fin-text-muted">
+            {hint.atEnd() ? "Scroll ←" : "Scroll →"}
           </span>
         </div>
-        <div data-testid="history-monthly-movers-scroll" class="min-w-0 overflow-x-auto">
+        <div
+          ref={hint.setRef}
+          data-testid="history-monthly-movers-scroll"
+          role="region"
+          tabIndex={0}
+          aria-label="Monthly movers chart. Scroll sideways to compare ranks."
+          class="min-w-0 overflow-x-auto focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
+        >
           <svg
             data-testid="history-monthly-movers-chart"
             width="100%"
@@ -302,13 +309,14 @@ export function MonthlyMovers(props: MonthlyMoversProps) {
               current
             </text>
             <text
+              data-testid="history-monthly-movers-rank-caption"
               x={(plotLeft() + plotRight()) / 2}
               y={32}
               font-size={SVG_TEXT}
               fill={TEXT_MUTED}
               text-anchor="middle"
             >
-              rank · better →
+              {compact() ? "rank →" : "rank · better →"}
             </text>
 
             <For each={rankTicks()}>

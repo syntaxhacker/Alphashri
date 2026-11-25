@@ -24,7 +24,7 @@ export interface SectorHistorySeasonality {
   n: number;
 }
 
-export interface SectorHistoryPersistence {
+export interface SectorHistoryPersistenceItem {
   name: string;
   top3_months: number;
   top3_stayed: number;
@@ -32,9 +32,10 @@ export interface SectorHistoryPersistence {
   avg_next_rank: number | null;
 }
 
-export interface SectorHistoryPersistenceBlock {
-  by_sector: SectorHistoryPersistence[];
+export interface SectorHistoryPersistence {
+  by_sector: SectorHistoryPersistenceItem[];
   transition_matrix: (number | null)[][];
+  transition_n: number;
 }
 
 export interface SectorHistoryResponse {
@@ -50,5 +51,5 @@ export interface SectorHistoryResponse {
   series: SectorHistorySeries[];
   risk: SectorHistoryRisk[];
   seasonality: SectorHistorySeasonality[];
-  persistence: SectorHistoryPersistenceBlock;
+  persistence: SectorHistoryPersistence;
 }

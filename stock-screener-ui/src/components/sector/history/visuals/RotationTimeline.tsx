@@ -12,6 +12,7 @@ import { typeSize } from "@/ui/typography";
 import type { SectorHistorySeries } from "../../../../types/sectorHistory";
 import { EChart } from "../../../common/EChart";
 import { CHART_CURRENT, CHART_LINE, CHART_TOP3 } from "./chartPalette";
+import { useScrollHint } from "./matrices/useScrollHint";
 import { finite, monthIndex, yearOf } from "./shared";
 
 const LABEL_FONT = typeSize("micro");
@@ -248,6 +249,7 @@ export function RotationTimeline(props: RotationTimelineProps) {
     buildRotationOption({ months: props.months, series: props.series }),
   );
   const [selectedMonth, setSelectedMonth] = createSignal<string | null>(null);
+  const hint = useScrollHint();
 
   const activeMonth = createMemo(() => {
     const chosen = selectedMonth();
@@ -331,12 +333,13 @@ export function RotationTimeline(props: RotationTimelineProps) {
           </For>
         </div>
 
-        <div class="flex justify-end">
-          <span
-            data-testid="history-rotation-scroll-hint"
-            class="text-ui-micro text-fin-text-muted sm:hidden"
-          >
-            Scroll →
+        <div
+          aria-hidden="true"
+          data-testid="history-rotation-scroll-hint"
+          class={`mb-0.5 items-center justify-end ${hint.overflowing() ? "flex" : "hidden"}`}
+        >
+          <span class="text-ui-micro text-fin-text-muted">
+            {hint.atEnd() ? "Scroll ←" : "Scroll →"}
           </span>
         </div>
 
@@ -372,7 +375,14 @@ export function RotationTimeline(props: RotationTimelineProps) {
             <div style={{ height: `${bottomSpacer}px` }} />
           </div>
 
-          <div data-testid="history-rotation-scroll" class="min-w-0 flex-1 overflow-x-auto">
+          <div
+            ref={hint.setRef}
+            data-testid="history-rotation-scroll"
+            role="region"
+            tabIndex={0}
+            aria-label="Rotation timeline chart. Scroll sideways for all months."
+            class="min-w-0 flex-1 overflow-x-auto focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
+          >
             <div style={{ "min-width": `${CHART_MIN_WIDTH}px` }}>
               <EChart
                 option={option()}

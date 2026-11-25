@@ -1,13 +1,12 @@
 import { Show, createMemo } from "solid-js";
-import { typeSize } from "@/ui/typography";
 import type { SectorHistorySeries } from "../../../../types/sectorHistory";
+import { buildIndexSeries, drawdownSeries } from "../historyMath";
 import { EChart } from "../../../common/EChart";
 import { CHART_MUTED, CHART_NEGATIVE, CHART_NEUTRAL } from "./chartPalette";
+import { baseOption, categoryAxis, tooltipStyle, valueAxis } from "./core/chartBase";
 import { finite, signedPct } from "./shared";
 
-const LABEL_FONT = typeSize("micro");
 const CHART_HEIGHT = 250;
-const START_INDEX = 100;
 const PERCENT = 100;
 
 export interface UnderwaterDrawdownProps {
@@ -99,28 +98,13 @@ export function buildDrawdownAxis(values: (number | null)[]): DrawdownAxis {
   return { min: round(min), max: 0, interval: step };
 }
 
-/** Compounds monthly percentage returns into an index that starts at 100. */
-export function buildIndexSeries(returns: (number | null)[]): (number | null)[] {
-  let factor = 1;
-  return returns.map((value) => {
-    if (!finite(value)) return null;
-    factor *= 1 + Math.max(-PERCENT, value) / PERCENT;
-    return factor * START_INDEX;
-  });
-}
-
 /** Running-peak drawdown from an indexed monthly close series. */
 export function buildUnderwaterModel(
   months: string[],
   returns: (number | null)[],
 ): UnderwaterModel {
-  const indices = buildIndexSeries(returns);
-  let peak = START_INDEX;
-  const drawdowns: (number | null)[] = indices.map((index) => {
-    if (!finite(index)) return null;
-    peak = Math.max(peak, index);
-    return index / peak - 1;
-  });
+  const indices = buildIndexSeries(months, returns);
+  const drawdowns = drawdownSeries(indices);
 
   const points: UnderwaterPoint[] = [];
   for (let index = 0; index < months.length; index++) {
@@ -180,49 +164,21 @@ export function buildUnderwaterOption(model: UnderwaterModel): Record<string, un
       : [];
 
   return {
-    animation: false,
-    backgroundColor: "transparent",
-    aria: {
-      enabled: true,
-      label: {
-        description:
-          "Monthly drawdown from the running peak, in percent. The line sits below the zero " +
-          "baseline; the marked point is the deepest drawdown. Monthly closes only; the risk " +
-          "table uses daily closes.",
-      },
-    },
+    ...baseOption(
+      "Monthly drawdown from the running peak, in percent. The line sits below the zero " +
+        "baseline; the marked point is the deepest drawdown. Monthly closes only; the risk " +
+        "table uses daily closes.",
+    ),
     grid: { left: 52, right: 20, top: 28, bottom: 34 },
-    tooltip: {
-      trigger: "axis",
-      confine: true,
-      formatter: (params: UnderwaterTooltipParam | UnderwaterTooltipParam[]) =>
-        formatUnderwaterTooltip(params),
-    },
-    xAxis: {
-      type: "category",
-      boundaryGap: false,
-      data: model.months,
-      axisLine: { lineStyle: { color: CHART_MUTED, opacity: 0.45 } },
-      axisTick: { show: false },
-      axisLabel: {
-        color: CHART_MUTED,
-        fontSize: LABEL_FONT,
-        hideOverlap: true,
-      },
-    },
+    tooltip: tooltipStyle("axis", formatUnderwaterTooltip),
+    xAxis: categoryAxis({ data: model.months }),
     yAxis: {
-      type: "value",
-      min: axis.min,
-      max: axis.max,
+      ...valueAxis({
+        min: axis.min,
+        max: axis.max,
+        formatter: (value: number) => `${(Math.abs(value) < 0.05 ? 0 : value).toFixed(1)}%`,
+      }),
       interval: axis.interval,
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: {
-        color: CHART_MUTED,
-        fontSize: LABEL_FONT,
-        formatter: (value: number) => `${value.toFixed(1)}%`,
-      },
-      splitLine: { lineStyle: { color: CHART_NEUTRAL, opacity: 0.16 } },
     },
     series: [
       {
