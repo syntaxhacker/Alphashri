@@ -403,7 +403,16 @@ function checkManifest(feature) {
     try {
       resolved = git(["rev-parse", "--verify", `${manifest.head}^{commit}`]);
     } catch {
-      problem("stale", `head ${manifest.head} is not a commit in this repository`);
+      // CI checks out with --depth=1, so a manifest head committed earlier on
+      // the branch is absent locally. Fetch just that commit once and retry;
+      // if the fetch is unavailable (offline, SHA not advertised), the stale
+      // check below still reports it as missing.
+      try {
+        git(["fetch", "--quiet", "--depth=1", "origin", manifest.head]);
+        resolved = git(["rev-parse", "--verify", `${manifest.head}^{commit}`]);
+      } catch {
+        problem("stale", `head ${manifest.head} is not a commit in this repository`);
+      }
     }
     if (resolved) {
       const changed = new Set();
