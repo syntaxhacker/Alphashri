@@ -759,6 +759,38 @@ components:
           type: string
       title: ChainSnapshotOut
       type: object
+    ChartIndicators:
+      description: Optional indicator block; ``aligned`` is always ``candles``.
+      properties:
+        aligned:
+          default: candles
+          title: Aligned
+          type: string
+        crosses:
+          items:
+            $ref: '#/components/schemas/IndicatorCross'
+          title: Crosses
+          type: array
+        partial_last:
+          default: false
+          title: Partial Last
+          type: boolean
+        series:
+          items:
+            $ref: '#/components/schemas/IndicatorSeries'
+          title: Series
+          type: array
+        session:
+          title: Session
+          type: string
+        timeframe:
+          title: Timeframe
+          type: string
+      required:
+      - timeframe
+      - session
+      title: ChartIndicators
+      type: object
     ChatRequest:
       properties:
         conversation_id:
@@ -1383,6 +1415,37 @@ components:
           - type: 'null'
           title: Last
       title: IndexQuote
+      type: object
+    IndicatorCross:
+      description: A golden/death SMA50×SMA200 event on a candle ``t`` string.
+      properties:
+        kind:
+          title: Kind
+          type: string
+        t:
+          title: T
+          type: string
+      required:
+      - t
+      - kind
+      title: IndicatorCross
+      type: object
+    IndicatorSeries:
+      description: One indicator line, aligned 1:1 with the response candles.
+      properties:
+        id:
+          title: Id
+          type: string
+        values:
+          items:
+            anyOf:
+            - type: number
+            - type: 'null'
+          title: Values
+          type: array
+      required:
+      - id
+      title: IndicatorSeries
       type: object
     Kpis:
       properties:
@@ -2676,6 +2739,40 @@ components:
       - strategies
       title: RunIn
       type: object
+    SRZone:
+      description: One support/resistance zone, never extended past the last candle.
+      properties:
+        bottom:
+          title: Bottom
+          type: number
+        end_date:
+          title: End Date
+          type: string
+        kind:
+          title: Kind
+          type: string
+        score:
+          title: Score
+          type: number
+        start_date:
+          title: Start Date
+          type: string
+        top:
+          title: Top
+          type: number
+        touches:
+          title: Touches
+          type: integer
+      required:
+      - kind
+      - top
+      - bottom
+      - start_date
+      - end_date
+      - touches
+      - score
+      title: SRZone
+      type: object
     ScanRequest:
       properties:
         as_of_date:
@@ -3799,6 +3896,11 @@ components:
           items: {}
           title: Hits
           type: array
+        indicators:
+          anyOf:
+          - $ref: '#/components/schemas/ChartIndicators'
+          - type: 'null'
+          description: Backend-computed indicator series aligned to `candles` (SMA/BB/VWAP + golden/death crosses); null on empty/error.
         market:
           anyOf:
           - type: string
@@ -3820,6 +3922,12 @@ components:
           - type: 'null'
           description: US session date in ET (YYYY-MM-DD).
           title: Session Date
+        sr_zones:
+          description: Backend-computed support/resistance zones (max 4, no rightward extension past the last candle).
+          items:
+            $ref: '#/components/schemas/SRZone'
+          title: Sr Zones
+          type: array
         stale:
           anyOf:
           - type: boolean

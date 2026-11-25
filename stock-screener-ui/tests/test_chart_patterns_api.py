@@ -3,6 +3,7 @@ import asyncio
 import gzip
 import json
 import logging
+import math
 import pickle
 import threading
 import time as _time
@@ -61,6 +62,47 @@ def _hit(symbol: str, name: str = "Test Co") -> dict:
         "trendlines": [[{"t": "2026-04-26", "price": 129.8}, {"t": "2026-09-26", "price": 112.6}]],
         "notes": "synthetic",
     }
+
+
+_INTRADAY_IDS = {"1m", "3m", "5m", "10m", "15m", "30m", "1h", "2h", "3h", "4h"}
+
+
+def _assert_chart_extras(body, *, session="Asia/Kolkata"):
+    """Every chart branch carries aligned, finite extras (or null/[] if empty)."""
+    assert "indicators" in body and "sr_zones" in body
+    candles = body.get("candles") or []
+    indicators = body["indicators"]
+    if not candles:
+        assert indicators is None
+        assert body["sr_zones"] == []
+        return indicators
+    assert isinstance(indicators, dict)
+    assert indicators["aligned"] == "candles"
+    assert indicators["timeframe"] == body["timeframe"]
+    assert indicators["session"] == session
+    assert indicators["partial_last"] == bool(candles[-1].get("is_partial"))
+    ids = [series["id"] for series in indicators["series"]]
+    for required in ("sma20", "sma50", "sma200", "bbUpper", "bbMiddle", "bbLower"):
+        assert required in ids
+    assert ("vwap" in ids) is (body["timeframe"] in _INTRADAY_IDS)
+    times = {candle["t"] for candle in candles}
+    for series in indicators["series"]:
+        assert len(series["values"]) == len(candles)
+        assert all(
+            value is None or math.isfinite(value) for value in series["values"]
+        )
+    for cross in indicators["crosses"]:
+        assert cross["kind"] in {"golden", "death"}
+        assert cross["t"] in times
+    assert len(body["sr_zones"]) <= 4
+    last_date = str(candles[-1]["t"])[:10]
+    for zone in body["sr_zones"]:
+        assert zone["kind"] in {"support", "resistance", "sr"}
+        assert zone["top"] >= zone["bottom"]
+        assert zone["touches"] >= 2
+        assert zone["start_date"] <= zone["end_date"] <= last_date
+        assert all(math.isfinite(zone[key]) for key in ("top", "bottom", "score"))
+    return indicators
 
 
 @pytest.fixture
@@ -539,8 +581,9 @@ def test_close_bar_date_from_results_enrichment_path(cp_client, monkeypatch):
     assert resp.json()["items"][0]["close_bar_date"] == "2026-11-17"
 
 
-def test_symbol_chart_reports_ist_close_bar_date(cp_client, monkeypatch):
+def test_symbol_chart_reports_ist_close_bar_date(cp_client, monkeypatch, tmp_path):
     """The chart payload must carry an IST bar date, not a raw UTC one."""
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(
         cp_api.candles, "fetch_for_timeframe",
         lambda *a, **k: _make_daily_frame("2026-11-16T18:30:00+00:00"),
@@ -549,6 +592,94 @@ def test_symbol_chart_reports_ist_close_bar_date(cp_client, monkeypatch):
     chart = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"})
     assert chart.status_code == 200
     assert chart.json()["close_bar_date"] == "2026-11-17"
+
+
+def test_symbol_chart_carries_aligned_indicators_and_zones(cp_client, monkeypatch):
+    """Live branch: every value is candle-aligned, daily omits VWAP, no NaN."""
+    closes = np.array([110, 110, 100, 105, 120, 110] * 40, dtype=float)
+    idx = pd.date_range("2026-01-01", periods=len(closes), freq="D")
+    frame = pd.DataFrame(
+        {
+            "open": closes,
+            "high": closes + 0.5,
+            "low": closes - 0.5,
+            "close": closes,
+            "volume": 1000.0,
+        },
+        index=idx,
+    )
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: frame)
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": None, "resistance": None},
+    )
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={"timeframe": "1D", "limit": 120},
+    )
+    assert chart.status_code == 200
+    body = chart.json()
+    indicators = _assert_chart_extras(body)
+    assert len(body["candles"]) == 120
+    assert body["sr_zones"], "repeated pivots must surface zones on the API"
+    sma20 = next(s for s in indicators["series"] if s["id"] == "sma20")
+    # 120 bars is enough to warm up SMA20 but not SMA200.
+    assert sma20["values"][19] is not None
+    sma200 = next(s for s in indicators["series"] if s["id"] == "sma200")
+    assert all(value is None for value in sma200["values"])
+    # Deterministic: a second identical request returns identical extras.
+    again = cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={"timeframe": "1D", "limit": 120},
+    )
+    assert again.json()["indicators"] == indicators
+    assert again.json()["sr_zones"] == body["sr_zones"]
+
+
+def test_chart_extras_are_recomputed_after_cache_retrieval(cp_client, monkeypatch, tmp_path):
+    """A cached payload without extras still gets fresh, aligned extras."""
+    df = _make_df(30)
+    cached = {
+        "symbol": "CACHEX",
+        "timeframe": "1D",
+        "candles": cp_api._fast_candle_series(df, 30),
+        "overlays": [],
+        "trend_lines": [],
+        "error": "no_data",
+        "note": "cached answer",
+    }
+    assert "indicators" not in cached
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(cp_api, "_ist_session_date", lambda: "2026-01-15")
+    cp_api._chart_neg_cache_put("CACHEX", "1D", "2026-01-15", cached)
+
+    chart = cp_client.get("/api/chart-patterns/symbol/CACHEX/chart", params={"timeframe": "1D"})
+    assert chart.status_code == 200
+    body = chart.json()
+    indicators = _assert_chart_extras(body)
+    assert indicators is not None
+    assert len(body["candles"]) == 30
+
+
+def test_chart_extras_usa_session_and_intraday_vwap():
+    """US charts use the New York session and keep the intraday VWAP series."""
+    candles = cp_api._fast_candle_series(_make_df(25), 25)
+    payload = cp_api._with_chart_extras(
+        {"symbol": "AAPL", "timeframe": "1m", "candles": candles}, "usa", "1m"
+    )
+    indicators = _assert_chart_extras(payload, session="America/New_York")
+    assert "vwap" in {series["id"] for series in indicators["series"]}
+
+
+def test_chart_extras_partial_last_flag_suppresses_tail_cross_unit():
+    """The helper reads the displayed `is_partial` marker for crosses/VWAP state."""
+    candles = cp_api._fast_candle_series(_make_df(25), 25)
+    candles[-1]["is_partial"] = True
+    payload = cp_api._with_chart_extras(
+        {"symbol": "IRCON", "timeframe": "1D", "candles": candles}, "india", "1D"
+    )
+    assert payload["indicators"]["partial_last"] is True
 
 
 def test_symbol_chart_overlays_include_pattern_dates(cp_client, monkeypatch):
@@ -2091,7 +2222,9 @@ def test_symbol_chart_without_detect_patterns_returns_stored_hits(cp_client, mon
     assert set(body) - {"expected_as_of"} == {
         "symbol", "timeframe", "candles", "overlays", "trend_lines",
         "as_of", "stale", "detection_as_of", "hits", "close_bar_date",
+        "indicators", "sr_zones",
     }
+    _assert_chart_extras(body)
     assert len(body["overlays"]) == 1
 
 
@@ -2839,6 +2972,8 @@ def test_symbol_chart_fetch_timeout_returns_empty_200(cp_client, monkeypatch, tm
     assert body["error"] == "fetch_timeout"
     assert "exceeded" in body["note"] and "0s" in body["note"]
     assert body["symbol"] == "POWERMECH" and body["timeframe"] == "1D"
+    assert body["indicators"] is None
+    assert body["sr_zones"] == []
     assert set(body) >= {"symbol", "timeframe", "candles", "overlays", "trend_lines", "error", "note"}
     # The timeout bound the wait: nowhere near the 30s hang.
     assert elapsed < 5, f"fetch was not bounded: {elapsed:.1f}s"
@@ -2951,7 +3086,9 @@ def test_symbol_chart_normal_path_unchanged(cp_client, monkeypatch, no_stale_fir
     assert set(body) - {"expected_as_of"} == {
         "symbol", "timeframe", "candles", "overlays", "trend_lines",
         "as_of", "stale", "detection_as_of", "hits", "close_bar_date",
+        "indicators", "sr_zones",
     }
+    _assert_chart_extras(body)
     assert body["hits"][0]["pattern_id"] == "falling_wedge"
     assert body["hits"][0]["source"] == "stored"
     # Every click re-fetches (successful results are not negative-cached).
@@ -3009,6 +3146,7 @@ def test_symbol_chart_fetch_timeout_stale_fallback_returns_cached_frame(
     assert len(body["candles"]) == 80
     assert body["candles"][-1]["c"] == pytest.approx(float(df["close"].iloc[-1]))
     assert body["overlays"] == [] and body["trend_lines"] == []
+    _assert_chart_extras(body)
     assert elapsed < 5, f"fetch was not bounded: {elapsed:.1f}s"
     joined = [rec.getMessage() for rec in caplog.records]
     assert any("chart_fetch" in m and "stale_fallback=true" in m for m in joined), joined
@@ -3230,6 +3368,7 @@ def test_symbol_chart_stale_first_serves_cached_frame_immediately(
     assert "served cached frame" in body["note"] and "background" in body["note"]
     assert "error" not in body
     assert len(body["candles"]) == 80
+    _assert_chart_extras(body)
     assert fetch_calls == [], "stale-first must not touch the network"
     assert kicks == [("POWERMECH", "1D", config.READ_LOOKBACK_BARS)]
     assert body["hits"] and body["hits"][0]["pattern_id"] == "double_bottom"
@@ -3300,6 +3439,7 @@ def test_symbol_chart_replay_as_of_skips_stale_first(cp_client, monkeypatch, tmp
     assert chart.status_code == 200
     body = chart.json()
     assert "cached" not in body and "stale" not in body
+    _assert_chart_extras(body)
     assert kicks == [], "replay must not kick a background refresh"
     assert fetch_calls and fetch_calls[0].get("as_of_date") == "2026-11-05"
 

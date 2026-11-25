@@ -31,6 +31,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from chart_patterns import candles, config, jobs, store
+from chart_patterns import indicators as indicators_mod
+from chart_patterns import levels as levels_mod
 from chart_patterns import scan as scan_mod
 from chart_patterns import trendlines as trendlines_mod
 from chart_patterns import watch as watch_mod
@@ -2857,6 +2859,45 @@ def _mark_partial_last(series: list, is_partial: bool) -> list:
     return series
 
 
+def _with_chart_extras(payload: dict, market: str, timeframe: str) -> dict:
+    """Attach ``indicators`` + ``sr_zones`` to one chart payload.
+
+    This is the single source of the extras for every chart return branch:
+    live, stale-first, cached/negative-cache, as-of replay, US and empty/error.
+    The math runs *after* any cache lookup, on the exact candle list being
+    returned, so a cached payload can never serve stale indicator values:
+    ``values.length === candles.length`` by construction. Empty/error payloads
+    carry ``indicators: None`` + ``sr_zones: []``. Never raises — a math
+    failure degrades to the same empty shape instead of an HTTP 500.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    session = indicators_mod.session_for_market(market)
+    tf = str(payload.get("timeframe") or timeframe or "")
+    payload["indicators"] = None
+    payload["sr_zones"] = []
+    candles_list = payload.get("candles")
+    if not isinstance(candles_list, list) or not candles_list:
+        return payload
+    try:
+        last = candles_list[-1] if isinstance(candles_list[-1], dict) else {}
+        partial_last = bool(last.get("is_partial"))
+        payload["indicators"] = indicators_mod.compute_indicators(
+            candles_list, tf, session, partial_last=partial_last
+        )
+        payload["sr_zones"] = levels_mod.compute_sr_zones(
+            candles_list, session=session, timeframe=tf
+        )
+    except Exception:  # noqa: BLE001 - extras must never break a chart
+        _chart_logger.warning(
+            "chart_extras_failed symbol=%s timeframe=%s market=%s",
+            payload.get("symbol"), tf, market, exc_info=True,
+        )
+        payload["indicators"] = None
+        payload["sr_zones"] = []
+    return payload
+
+
 # US-stock chart (market=usa).
 #
 # The provider/cache/session modules are imported lazily inside the handler so
@@ -3083,7 +3124,7 @@ async def _us_symbol_chart(
         overlays = block["live_overlays"]
         trend_lines = block["trend_lines"]
 
-    return _json_response({
+    return _json_response(_with_chart_extras({
         "symbol": symbol_u,
         "timeframe": timeframe,
         "candles": series,
@@ -3094,7 +3135,7 @@ async def _us_symbol_chart(
         "feed": _meta("feed", _US_DEFAULT_FEED),
         "delay_label": _meta("delay_label", _US_DEFAULT_DELAY_LABEL),
         "session_date": session,
-    })
+    }, "usa", timeframe))
 
 
 def _chart_freshness(
@@ -3129,6 +3170,39 @@ def _chart_freshness(
     return fields
 
 
+class IndicatorSeries(BaseModel):
+    """One indicator line, aligned 1:1 with the response candles."""
+    id: str
+    values: list[Optional[float]] = Field(default_factory=list)
+
+
+class IndicatorCross(BaseModel):
+    """A golden/death SMA50×SMA200 event on a candle ``t`` string."""
+    t: str
+    kind: str
+
+
+class ChartIndicators(BaseModel):
+    """Optional indicator block; ``aligned`` is always ``candles``."""
+    aligned: str = "candles"
+    timeframe: str
+    session: str
+    partial_last: bool = False
+    series: list[IndicatorSeries] = Field(default_factory=list)
+    crosses: list[IndicatorCross] = Field(default_factory=list)
+
+
+class SRZone(BaseModel):
+    """One support/resistance zone, never extended past the last candle."""
+    kind: str
+    top: float
+    bottom: float
+    start_date: str
+    end_date: str
+    touches: int
+    score: float
+
+
 class SymbolChartResponse(BaseModel):
     """Documented shape of the chart payload (India and US paths).
 
@@ -3149,6 +3223,20 @@ class SymbolChartResponse(BaseModel):
     detection_as_of: Optional[str] = None
     expected_as_of: Optional[str] = None
     note: Optional[str] = None
+    indicators: Optional[ChartIndicators] = Field(
+        default=None,
+        description=(
+            "Backend-computed indicator series aligned to `candles` "
+            "(SMA/BB/VWAP + golden/death crosses); null on empty/error."
+        ),
+    )
+    sr_zones: list[SRZone] = Field(
+        default_factory=list,
+        description=(
+            "Backend-computed support/resistance zones (max 4, no rightward "
+            "extension past the last candle)."
+        ),
+    )
     market: Optional[str] = Field(
         default=None, description="Chart market: 'india' (default) or 'usa'."
     )
@@ -3189,10 +3277,11 @@ async def get_symbol_chart(
             detail=f"unknown market {market!r}; expected 'india' or 'usa'",
         )
     if as_of_date is not None:
-        return _json_response(await _asof_symbol_chart(
+        replay = await _asof_symbol_chart(
             symbol, timeframe, limit, lookback_bars, compute_trendlines,
             detect_patterns, as_of_date, from_date,
-        ))
+        )
+        return _json_response(_with_chart_extras(replay, "india", timeframe))
     symbol_u = str(symbol).strip().upper()
     session = _ist_session_date()
     lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
@@ -3287,7 +3376,9 @@ async def get_symbol_chart(
                 "chart_stale_first symbol=%s timeframe=%s read_ms=%.0f as_of=%s",
                 symbol_u, timeframe, read_ms, as_of,
             )
-            return _json_response(payload)
+            return _json_response(
+                _with_chart_extras(payload, "india", timeframe)
+            )
 
     # Negative cache hit: this (symbol, timeframe) already returned no
     # candles this session — answer instantly, no upstream fetch at all.
@@ -3297,7 +3388,7 @@ async def get_symbol_chart(
             symbol_u, timeframe, elapsed_ms=0.0, rows=0,
             cache_hit=True, timeout=False, error=None,
         )
-        return _json_response(neg)
+        return _json_response(_with_chart_extras(neg, "india", timeframe))
 
     start = _time.monotonic()
     try:
@@ -3330,7 +3421,7 @@ async def get_symbol_chart(
                 rows=len(stale["candles"]), cache_hit=True,
                 timeout=True, error=reason, stale_fallback=True,
             )
-            return _json_response(stale)
+            return _json_response(_with_chart_extras(stale, "india", timeframe))
         payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
         _chart_neg_cache_put(
             symbol_u, timeframe, session, payload,
@@ -3340,7 +3431,7 @@ async def get_symbol_chart(
             symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
             cache_hit=False, timeout=True, error=reason, stale_fallback=False,
         )
-        return _json_response(payload)
+        return _json_response(_with_chart_extras(payload, "india", timeframe))
     except Exception as exc:  # noqa: BLE001 - transient upstream failure, never 500
         df = None
         elapsed_ms = (_time.monotonic() - start) * 1000.0
@@ -3357,7 +3448,7 @@ async def get_symbol_chart(
                 rows=len(stale["candles"]), cache_hit=True,
                 timeout=False, error=reason, stale_fallback=True,
             )
-            return _json_response(stale)
+            return _json_response(_with_chart_extras(stale, "india", timeframe))
         payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
         # Transient errors are NOT cached: the next click retries (still bounded
         # by the timeout) so a recovered feed isn't papered over for 5 minutes.
@@ -3365,7 +3456,7 @@ async def get_symbol_chart(
             symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
             cache_hit=False, timeout=False, error=reason, stale_fallback=False,
         )
-        return _json_response(payload)
+        return _json_response(_with_chart_extras(payload, "india", timeframe))
 
     elapsed_ms = (_time.monotonic() - start) * 1000.0
     rows = 0 if df is None or getattr(df, "empty", True) else int(len(df))
@@ -3383,14 +3474,14 @@ async def get_symbol_chart(
                 rows=len(stale["candles"]), cache_hit=True,
                 timeout=False, error=reason, stale_fallback=True,
             )
-            return _json_response(stale)
+            return _json_response(_with_chart_extras(stale, "india", timeframe))
         payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
         _chart_neg_cache_put(symbol_u, timeframe, session, payload)
         _log_chart_fetch(
             symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
             cache_hit=False, timeout=False, error=reason, stale_fallback=False,
         )
-        return _json_response(payload)
+        return _json_response(_with_chart_extras(payload, "india", timeframe))
     # The fetch window carries ~1.5x headroom; clamp the displayed chart to
     # exactly the requested Lookback (Auto keeps the whole window). A trailing
     # synthetic session bar (1D only) is appended for display only — detection
@@ -3452,7 +3543,7 @@ async def get_symbol_chart(
         # Detection off: serve the stored scan hits so the chart matches the
         # table. Replay (as_of_date) never reaches this branch — it stays live.
         payload["hits"] = _stored_hits(symbol_u, timeframe)
-    return _json_response(payload)
+    return _json_response(_with_chart_extras(payload, "india", timeframe))
 
 
 @router.get("/watch/setups")
