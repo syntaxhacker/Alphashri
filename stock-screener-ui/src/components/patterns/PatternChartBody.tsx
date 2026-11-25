@@ -13,6 +13,7 @@ import { buildPatternTVData } from "./patternTVData";
 import { selectLastN } from "./selectLastN";
 import { PatternChartLegend } from "./PatternChartLegend";
 import { PatternTradingViewChart } from "./PatternTradingViewChart";
+import { SymbolTvLink } from "./SymbolTvLink";
 import { FullscreenPatternList, fullscreenHitKey } from "./FullscreenPatternList";
 import { KeyPointLegend } from "./KeyPointLegend";
 import { PivotList } from "./PatternPivotList";
@@ -199,9 +200,15 @@ function FullscreenPanel(props: {
         <Box className="flex items-start justify-between gap-2">
           <Box className="flex min-w-0 flex-col gap-1">
             <Box className="flex items-baseline gap-2">
-              <Text fw={700} className="truncate text-ui-body leading-none">
-                {props.hit.symbol}
-              </Text>
+              <SymbolTvLink
+                symbol={props.hit.symbol}
+                testId="patterns-chart-symbol-link"
+                className="min-w-0"
+              >
+                <Text fw={700} className="truncate text-ui-body leading-none">
+                  {props.hit.symbol}
+                </Text>
+              </SymbolTvLink>
               <Text size="xs" c="dimmed" className="whitespace-nowrap text-ui-micro">
                 {props.hit.timeframe} · {props.hit.bars_ago} bar{props.hit.bars_ago === 1 ? "" : "s"} ago
               </Text>
@@ -421,7 +428,7 @@ export function PatternChartBody(props: PatternChartBodyProps) {
     const asOf = props.asOf;
     return typeof asOf === "string" && asOf !== "" ? asOf.replace("T", " ") : null;
   };
-  const [historyCount, setHistoryCount] = createSignal(3);
+  const [historyCount, setHistoryCount] = createSignal(1);
   const historyHits = createMemo(() => selectLastN(props.hits ?? [], historyCount(), true));
   const docked = () => props.docked ?? false;
   const fill = () => props.fill ?? false;

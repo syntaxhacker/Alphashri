@@ -16,6 +16,7 @@ import type {
 } from "@/types/chartPatterns";
 import { PatternChartBody } from "./PatternChartBody";
 import { PatternChartToolbar } from "./PatternChartToolbar";
+import type { ChartMarket } from "@/utils/chart/time";
 
 export interface PatternFullscreenViewProps {
   opened: boolean;
@@ -60,6 +61,8 @@ export interface PatternFullscreenViewProps {
   /** Live quote from the market snapshot; the LTP line is omitted when null. */
   livePrice?: number | null;
   liveChange?: number | null;
+  /** Exchange whose session defines axis/session dates (India by default). */
+  market?: ChartMarket;
   /** Re-fetch the symbol chart, bypassing the in-memory chart cache. */
   onRefresh?: () => void;
 }
@@ -102,6 +105,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
       loading={props.loading ?? false}
       livePrice={props.livePrice}
       liveChange={props.liveChange}
+      market={props.market}
     />
   );
 

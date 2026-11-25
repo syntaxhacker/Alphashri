@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { MemoryRouter, Route, createMemoryHistory } from "@solidjs/router";
 import { UIProvider } from "@/ui";
 import type { ChartPayload, PatternHitDTO, TFSpec } from "@/types/chartPatterns";
@@ -209,11 +209,34 @@ describe("ChartView (pattern workspace)", () => {
     vi.mocked(fetchSymbolChart).mockResolvedValue(chartPayload());
   });
 
-  it("renders the page with the symbol title", async () => {
+  it("renders the page with the symbol title linked to TradingView", async () => {
     renderPage();
     expect(screen.getByTestId("chart-view")).toBeInTheDocument();
-    expect(screen.getByTestId("chart-title")).toHaveTextContent("TEST");
+    const title = screen.getByTestId("chart-title");
+    expect(title).toHaveTextContent("TEST");
+    expect(title).toHaveAttribute(
+      "href",
+      "https://www.tradingview.com/chart/?symbol=NSE%3ATEST",
+    );
     await waitFor(() => expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument());
+  });
+
+  it("opens the fullscreen chart from the header and closes it without refetching", async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument());
+    const fetchCount = vi.mocked(fetchSymbolChart).mock.calls.length;
+
+    fireEvent.click(screen.getByTestId("chart-expand"));
+
+    const modal = screen.getByTestId("patterns-fullscreen-modal");
+    expect(within(modal).getByTestId("patterns-fullscreen-body")).toBeInTheDocument();
+    expect(within(modal).getByTestId("patterns-fullscreen-panel")).toBeInTheDocument();
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(fetchCount);
+
+    fireEvent.click(screen.getByTestId("patterns-fullscreen-modal-close"));
+
+    expect(screen.queryByTestId("patterns-fullscreen-modal")).toBeNull();
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(fetchCount);
   });
 
   it("loads stored hits first with detection off", async () => {

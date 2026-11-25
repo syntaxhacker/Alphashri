@@ -118,7 +118,7 @@ describe("PatternChartBody", () => {
     expect(screen.getByTestId("patterns-chart-body")).toBeInTheDocument();
     const history = screen.getByTestId("patterns-history-count");
     expect(history).toBeInTheDocument();
-    expect(within(history).getByRole("button", { name: "3" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(history).getByRole("button", { name: "1" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "5" })).toBeInTheDocument();
     const tv = screen.getByTestId("pattern-tv-stub");
@@ -177,6 +177,18 @@ describe("PatternChartBody", () => {
     expect(screen.getByText("Breakout above ₹112.60 on volume")).toBeInTheDocument();
     expect(screen.getByTestId("pattern-tv-stub")).toHaveAttribute("data-candle-count", "2");
     expect(screen.queryByText("No chart data")).toBeNull();
+  });
+
+  test("fullscreen panel symbol links to TradingView", () => {
+    render(() => <PatternChartBody hit={HIT} candles={CANDLES} />);
+    const link = screen.getByTestId("patterns-chart-symbol-link");
+    expect(link).toHaveTextContent("IRCON");
+    expect(link).toHaveAttribute(
+      "href",
+      "https://www.tradingview.com/chart/?symbol=NSE%3AIRCON",
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 
   test("a stored hit with no close_bar_date loses to the chart even when end_date is newer", () => {
@@ -353,7 +365,7 @@ describe("PatternChartBody", () => {
     expect(screen.queryByTestId("patterns-fullscreen-panel")).toBeNull();
   });
 
-  test("history segmented control toggles between 1/3/5", () => {
+  test("history segmented control defaults to 1 and toggles between 1/3/5", () => {
     const hits: PatternHitDTO[] = [1, 2, 3].map((n) => ({
       ...HIT,
       id: n,
@@ -363,7 +375,11 @@ describe("PatternChartBody", () => {
     }));
     render(() => <PatternChartBody hit={HIT} hits={hits} onSelectHit={vi.fn()} candles={CANDLES} />);
     const box = screen.getByTestId("patterns-history-count");
+    expect(within(box).getByRole("button", { name: "1" })).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(within(box).getByRole("button", { name: "3" }));
     expect(within(box).getByRole("button", { name: "3" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(box).getByRole("button", { name: "1" })).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.click(within(box).getByRole("button", { name: "5" }));
     expect(within(box).getByRole("button", { name: "5" })).toHaveAttribute("aria-pressed", "true");

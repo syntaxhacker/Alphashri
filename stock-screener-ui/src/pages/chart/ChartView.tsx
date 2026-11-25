@@ -1,6 +1,7 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, Show, Switch, Match } from "solid-js";
 import { useParams, useSearchParams, useNavigate } from "@solidjs/router";
-import { Badge, Button, Center, Loader, Text, ToolbarRow } from "@/ui";
+import { Badge, Button, Center, Loader, Text, ToolbarRow, ActionIcon, Tooltip } from "@/ui";
+import { IconArrowsMaximize } from "@/ui/icons";
 import { fetchTimeframes, fetchSymbolChart } from "@/api/chartPatterns";
 import type {
   ChartCandle,
@@ -16,6 +17,8 @@ import {
 } from "@/components/patterns/FullscreenPatternList";
 import { PatternChartBody } from "@/components/patterns/PatternChartBody";
 import { PatternChartToolbar } from "@/components/patterns/PatternChartToolbar";
+import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenView";
+import { SymbolTvLink } from "@/components/patterns/SymbolTvLink";
 import type { ChartMarket } from "@/utils/chart/time";
 
 /** Patterns read best on the daily frame; the URL can override it (`?tf=1W`). */
@@ -341,6 +344,7 @@ const ChartView = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [timeframes, setTimeframes] = createSignal<TFSpec[]>(FALLBACK_TIMEFRAMES);
+  const [expanded, setExpanded] = createSignal(false);
 
   const symbol = () => params.symbol ?? "";
   const timeframe = createMemo(() => firstParam(searchParams.tf) || DEFAULT_TIMEFRAME);
@@ -474,8 +478,7 @@ const ChartView = () => {
                   ← Back
                 </Button>
               }
-              title={symbol().toUpperCase()}
-              titleTestId="chart-title"
+              title={<SymbolTvLink symbol={symbol()} testId="chart-title">{symbol().toUpperCase()}</SymbolTvLink>}
               titleSize="md"
               timeframe={timeframe()}
               timeframes={visibleTimeframes()}
@@ -506,6 +509,17 @@ const ChartView = () => {
                 )}
               </Show>
             </Show>
+            <Tooltip label="Expand chart">
+              <ActionIcon
+                size="xs"
+                variant="subtle"
+                aria-label="Expand chart"
+                data-testid="chart-expand"
+                onClick={() => setExpanded(true)}
+              >
+                <IconArrowsMaximize size={14} />
+              </ActionIcon>
+            </Tooltip>
           </ToolbarRow>
         </div>
 
@@ -562,6 +576,30 @@ const ChartView = () => {
             />
           </Match>
         </Switch>
+
+        <Show when={expanded()}>
+          <PatternFullscreenView
+            opened
+            onClose={() => setExpanded(false)}
+            symbol={symbol().toUpperCase()}
+            hit={chart.state().hit}
+            candles={chart.state().candles}
+            hits={chart.state().hits}
+            onSelectHit={chart.selectHit}
+            overlays={chart.state().overlays}
+            trendLines={chart.state().trendLines}
+            timeframe={timeframe()}
+            timeframes={visibleTimeframes()}
+            onTimeframeChange={setTimeframe}
+            loading={chart.state().loading}
+            asOf={isUS() ? null : asOf()}
+            fromDate={isUS() ? null : fromDate()}
+            onAsOfChange={isUS() ? undefined : setAsOf}
+            chartError={chart.state().error}
+            chartNote={chart.state().note}
+            market={market()}
+          />
+        </Show>
       </div>
     </Show>
   );
