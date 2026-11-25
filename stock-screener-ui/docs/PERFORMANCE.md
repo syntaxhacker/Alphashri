@@ -12,7 +12,7 @@ Keep this page a pointer; do not duplicate numbers here.
 | Topic | Source |
 |---|---|
 | Wall/test budgets (backend + frontend) | [`perf/budgets.json`](../perf/budgets.json) |
-| API latency budgets (per-route warm p95; `API_COLD` = `agri_filters` cold budget 10,000 ms) | [`perf/api_budgets.json`](../perf/api_budgets.json) |
+| API latency budgets (per-route warm p95, including the seeded-cache chart route; `API_COLD` = `agri_filters` cold budget 10,000 ms) | [`perf/api_budgets.json`](../perf/api_budgets.json) |
 | Interactive chart/UI protocol, budgets and scripts (initial targets pending baseline) | [docs/CHART_PERFORMANCE.md](./CHART_PERFORMANCE.md) · [`perf/chart_ui_budgets.json`](../perf/chart_ui_budgets.json) · [`scripts/perf/`](../scripts/perf/) |
 | API benchmark, warm/cold semantics, verdicts, known breach | [docs/API_LATENCY.md](./API_LATENCY.md) · [`scripts/bench_api.py`](../scripts/bench_api.py) |
 | Backend fast changed-test runner (selection rules, markers, flags) | [docs/TESTING_SPEED.md](./TESTING_SPEED.md) · [`scripts/test/run_changed.py`](../scripts/test/run_changed.py) |
@@ -39,6 +39,11 @@ last-checked / next-check on every review.
   only. Warm and cold are separate tables, never averaged together. Cold paths
   must be tagged `API_COLD` — only `/api/agri/filters` has an agreed cold budget
   (10,000 ms); other routes report `cold: null` as INFO.
+- **Chart route warm read.** The in-process chart benchmark pre-seeds a
+  session-current `1D` candle file under its own temp workdir and disables only
+  the stale-first *background* refresh, so the measured p95 is candle-cache
+  read + indicators/SR + payload. It is not an upstream-fetch number, and over
+  `--base-url` it is informational because the harness cannot seed the server.
 - **Report the median (p50), not the mean.** Use p95 only for the tail budgets
   that name it; quote the sample size and the window. A single run is an
   anecdote — repeat and report the spread.

@@ -25,6 +25,9 @@ started by the harness):
 .venv/bin/python scripts/bench_api.py --in-process --mode warm \
   --route health --route login
 
+# Chart route only: seeded warm candle cache, no external feed.
+.venv/bin/python scripts/bench_api.py --in-process --mode warm --route chart
+
 # Live server (you start it with ./start.sh): ordinary HTTP transport.
 .venv/bin/python scripts/bench_api.py --base-url http://localhost:8765 --mode warm
 
@@ -53,6 +56,16 @@ Over `--base-url` a cold run **cannot restart the server**, so its rows say
 Treat those numbers as cold-ish, not a controlled cold measurement. Only
 `/api/agri/filters` has an agreed cold budget (10 s); other routes have
 `"cold": null` and are reported as `INFO` — measured but not enforced.
+
+The chart route is measured through the normal stale-first read. In-process, the
+harness redirects `chart_patterns.candles.CACHE_DIR` to its throwaway workdir and
+pre-seeds a 520-bar `1D` frame for the fake `BENCHCHART` symbol, ending on today's
+IST date (or the latest weekday on a weekend). That makes the warm number a
+cache-hit read plus payload/indicator work, with no Upstox/network fetch.
+`CHART_REFRESH_MAX_ATTEMPTS=0` is set before the app import so the stale-first
+background refresh thread starts (as in production) but performs no external
+fetch. Over `--base-url` there is no fixture: the number depends on the live
+server's own candle cache and is informational.
 
 Each row also prints sample count and status counts (`2xx/3xx/4xx/5xx`). Errors
 and non-2xx responses are counted separately and never become latency samples.
@@ -121,6 +134,7 @@ contract test.
 | `/api/reports/profitability` | GET | — | no | 2 s |
 | `/api/market/snapshot` | GET | `universe=all_equity&limit=100` | yes | 2 s |
 | `/api/replay/configs` | GET | — | yes | 500 ms |
+| `/api/chart-patterns/symbol/{symbol}/chart` | GET | `timeframe=1D` (fixture symbol `BENCHCHART`) | no | 500 ms |
 
 ## Sample run (2026-11-22, in-process, this workspace)
 
@@ -146,6 +160,38 @@ The requested health/login sample alone measured `health p95 2.42 ms` and
 this workspace, not a warm-up artifact). Report mode exits 0; adding `--enforce`
 exits 1 for that route.
 
+## Chart route warm run (2026-11-25, in-process, this workspace)
+
+Command (repeat three times):
+
+```bash
+.venv/bin/python scripts/bench_api.py --in-process --mode warm --route chart
+```
+
+The fixture is a 520-bar `1D` frame for `BENCHCHART` ending today (IST); the
+route takes the stale-first cache path, so this is candle-cache read + trendline
+/ indicator / SR-zone computation + JSON payload, not an upstream fetch. The
+shared host was busy with other suites during the first three runs (load average
+~7.7–10.5 on 2 vCPU); run 4 came after that load dropped:
+
+| Run | p50 | p95 | p99 | Samples | Budget | Verdict |
+|---|---:|---:|---:|---:|---:|---|
+| 1 | 57.94 ms | 115.37 ms | 224.22 ms | 30 | 500 ms | PASS |
+| 2 | 63.61 ms | 204.14 ms | 319.84 ms | 30 | 500 ms | PASS |
+| 3 | 96.20 ms | 298.44 ms | 346.66 ms | 30 | 500 ms | PASS |
+| 4 | 39.92 ms | 65.71 ms | 70.53 ms | 30 | 500 ms | PASS |
+
+The 500 ms warm budget is the measured worst p95 (298.44 ms) plus ~68 % headroom,
+and sits above the worst observed p99 (346.66 ms). That keeps the gate tolerant
+of the loaded shared host while still failing a >1.7× regression against the
+loaded run (or ~7.6× against the quiet run). The cold budget stays `null`/INFO:
+cold mode still uses the seeded disk fixture (existing cold semantics allow disk
+caches to persist), so it measures interpreter-cold only and cannot represent an
+upstream candle fetch. The observed cold row was 322.00 ms, INFO.
+
+`--enforce` (same command plus `--enforce`) on the quiet host measured
+p50 **38.75 ms**, p95 **52.69 ms**, p99 **57.30 ms**, verdict **PASS**, exit 0.
+
 ## Known limitations
 
 - Disk-backed caches are never cleared. A "cold" in-process run has a fresh
@@ -156,3 +202,6 @@ exits 1 for that route.
   `--base-url` once a snapshot exists.
 - The first agri call in a fresh interpreter can take ~20 s; use the default
   60 s timeout or raise `--timeout`.
+- The chart budget is only deterministic in-process, where the harness seeds its
+  own candle cache. Over `--base-url` the route reads whatever the live server
+  has cached and may fetch upstream, so treat that number as informational.

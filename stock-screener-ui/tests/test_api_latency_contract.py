@@ -34,6 +34,7 @@ EXPECTED_ROUTES = {
     "profitability": ("GET", "/api/reports/profitability", 2000, None, False),
     "market_snapshot": ("GET", "/api/market/snapshot", 2000, None, True),
     "replay_configs": ("GET", "/api/replay/configs", 500, None, True),
+    "chart": ("GET", "/api/chart-patterns/symbol/{symbol}/chart", 500, None, False),
 }
 
 
@@ -75,6 +76,7 @@ class TestBudgetDocument:
     def test_fixed_query_parameters_are_string_valued(self, specs):
         assert specs["agri_prices"].query == {"commodity": "onion", "range": "1m"}
         assert specs["market_snapshot"].query == {"universe": "all_equity", "limit": "100"}
+        assert specs["chart"].query == {"timeframe": "1D"}
         assert specs["health"].query == {}
 
 
@@ -171,6 +173,15 @@ class TestRequestConstruction:
         assert kwargs["headers"] == {"Authorization": "Bearer tok"}
         _, _, without = bench_api.build_request(specs["market_snapshot"], credentials={}, token=None)
         assert "headers" not in without
+
+    def test_chart_path_substitutes_the_fixture_symbol_and_query(self, specs):
+        method, path, kwargs = bench_api.build_request(
+            specs["chart"], credentials={}, token=None
+        )
+        assert method == "GET"
+        assert path == f"/api/chart-patterns/symbol/{bench_api.CHART_BENCH_SYMBOL}/chart"
+        assert "{symbol}" not in path
+        assert kwargs == {"params": {"timeframe": "1D"}}
 
 
 class TestCliAndColdChild:

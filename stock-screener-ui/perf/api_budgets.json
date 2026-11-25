@@ -71,6 +71,14 @@
       "auth": true,
       "budgets_ms": {"warm": 500, "cold": null},
       "cache_state": "DB read, no shared cache"
+    },
+    "chart": {
+      "method": "GET",
+      "path": "/api/chart-patterns/symbol/{symbol}/chart",
+      "query": {"timeframe": "1D"},
+      "auth": false,
+      "budgets_ms": {"warm": 500, "cold": null},
+      "cache_state": "seeded session-current 1D candle cache (stale-first read); in-process benchmark disables the background refresh"
     }
   }
 }
