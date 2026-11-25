@@ -11,7 +11,9 @@ os.environ.setdefault("CI_MODE", "1")
 from api_server_fastapi import app  # noqa: E402
 from api.auth import get_current_user  # noqa: E402
 from api.options_paper import service  # noqa: E402
+from options_paper import spec  # noqa: E402
 from db.models import User  # noqa: E402
+from db.models.broker import Instrument  # noqa: E402
 from db.models.option_snapshot import OptionChainSnapshot  # noqa: E402
 from db.models.options_paper import OptionPaperLeg, OptionPaperPosition  # noqa: E402
 from db.models.trade import Trade  # noqa: E402
@@ -25,8 +27,12 @@ STRIKES = (82.5, 85.0)
 
 @pytest.fixture(autouse=True)
 def _lot_size(monkeypatch):
-    """Keep lot sizing independent of the real instruments master."""
+    """Keep lot sizing independent of the real master and the live listing."""
     monkeypatch.setattr(service, "get_lot", lambda symbol: 1000)
+    # Tests must never touch the network; individual tests override this seam
+    # with hand-built contract rows. raising=False also allows the pre-fix code
+    # (which has no live seam) to run these tests, so the regression is honest.
+    monkeypatch.setattr(spec, "_live_listing", lambda symbol: [], raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -108,6 +114,24 @@ def test_lot_resolution_is_sourced_and_never_invented(db, monkeypatch):
     assert service._lot_size(db, "IRFC") == 5425
     with pytest.raises(service.OrderError, match="no verified lot size"):
         service._lot_size(db, "UNKNOWNXYZ")
+
+
+def test_lot_resolves_from_trading_symbol_when_name_is_empty(db, monkeypatch):
+    from options_paper.spec import get_lot as real_get_lot
+
+    monkeypatch.setattr(service, "get_lot", real_get_lot)
+    db.add(
+        Instrument(
+            instrument_key="NSE_FO|HINDZINC_TEST",
+            trading_symbol="HINDZINC 730 CE 26 MAY 26",
+            name="",
+            exchange="NSE",
+            segment="NSE_FO",
+            lot_size=1225,
+        )
+    )
+    db.flush()
+    assert service._lot_size(db, "HINDZINC") == 1225
 
 
 def test_expired_positions_settle_on_read(auth_client, db):
@@ -390,3 +414,77 @@ def test_wrong_user_cannot_read_or_close(auth_client, chain, db):
         assert auth_client.get(f"/api/options-paper/replay/{position['id']}").status_code == 404
     finally:
         app.dependency_overrides[get_current_user] = lambda: db.query(User).filter(User.id == 1).one()
+
+
+# ---------------------------------------------------------------------------
+# Lot-size resolution: the CURRENT expiry's lot, never the smallest historical
+# ---------------------------------------------------------------------------
+def _live_rows(*pairs):
+    """Hand-built ``api.options_underlying._listing`` rows for one symbol."""
+    return [{"date": date, "lot_size": lot} for date, lot in pairs]
+
+
+@pytest.mark.parametrize("symbol,rows,expected", [
+    # The nearer/default expiry is authoritative; later expiries can carry a
+    # different lot (e.g. CROMPTON 2325 in Jan/Feb, current 2150).
+    ("KAYNES", _live_rows(("2027-01-21", 150), ("2027-02-18", 150)), 150),
+    ("CROMPTON", _live_rows(("2027-01-21", 2150), ("2027-02-18", 2325)), 2150),
+    ("TATAELXSI", _live_rows(("2027-01-21", 125), ("2027-02-18", 175)), 125),
+    ("HINDZINC", _live_rows(("2027-01-21", 1225)), 1225),
+])
+def test_lot_uses_live_default_expiry_for_non_static_symbols(
+    db, monkeypatch, symbol, rows, expected
+):
+    from options_paper.spec import get_lot as real_get_lot
+
+    monkeypatch.setattr(service, "get_lot", real_get_lot)
+    monkeypatch.setattr(spec, "_live_listing", lambda sym: rows)
+    assert service._lot_size(db, symbol) == expected
+
+
+@pytest.mark.parametrize("symbol,rows,expected", [
+    # Master rows carrying several historical expiries: the NEWEST expiry
+    # encoded in trading_symbol wins, not the smallest lot (100/1800/100).
+    ("KAYNES", [
+        ("KAYNES 150 CE 17 DEC 26", 100),
+        ("KAYNES 150 CE 28 JUL 27", 150),
+    ], 150),
+    ("CROMPTON", [
+        ("CROMPTON 2150 CE 17 DEC 26", 1800),
+        ("CROMPTON 2150 CE 28 JUL 27", 2150),
+    ], 2150),
+    ("TATAELXSI", [
+        ("TATAELXSI 125 CE 17 DEC 26", 100),
+        ("TATAELXSI 125 CE 28 JUL 27", 125),
+    ], 125),
+])
+def test_master_fallback_prefers_newest_trading_symbol_expiry(
+    db, monkeypatch, symbol, rows, expected
+):
+    def _missing(_symbol):
+        raise KeyError(_symbol)
+
+    monkeypatch.setattr(service, "get_lot", _missing)
+    for trading_symbol, lot in rows:
+        db.add(Instrument(
+            instrument_key=f"NSE_FO|{symbol}|{trading_symbol}",
+            trading_symbol=trading_symbol, name="", exchange="NSE",
+            segment="NSE_FO", lot_size=lot,
+        ))
+    db.flush()
+    assert service._lot_size(db, symbol) == expected
+
+
+@pytest.mark.parametrize("symbol,expected", [("IRFC", 5425), ("NIFTY", 65)])
+def test_static_lots_remain_authoritative(symbol, expected):
+    assert spec.get_lot(symbol) == expected
+
+
+def test_unknown_symbol_still_raises_from_spec(db, monkeypatch):
+    monkeypatch.setattr(spec, "_lookup_master_lot", lambda symbol: None)
+    with pytest.raises(KeyError):
+        spec.get_lot("UNKNOWNXYZ")
+    monkeypatch.setattr(service, "get_lot", spec.get_lot)
+    with pytest.raises(service.OrderError, match="no verified lot size"):
+        service._lot_size(db, "UNKNOWNXYZ")
+
