@@ -2,8 +2,11 @@
 
 Every query filters on the canonical ``commodity_key``; the raw source spelling
 is audit metadata only. Prices come from the local SQLite cache built by
-``scripts/market/agri_import.py`` and the daily collector. A missing cache is
+``scripts/market/agri_import.py`` and the daily collector, or from a read-only
+release snapshot selected with ``?source=release:<tag>``. A missing cache is
 reported as ``data_source="empty"``; it is never presented as a successful load.
+Sources are listed by ``/api/agri/sources``; GET never downloads, writes or
+migrates a snapshot.
 
 The read path uses ``store.fetch_rows(commodity_keys=...)`` and
 ``store.latest_date_per_key(...)``; raw ``commodity`` matching is never used.
@@ -21,7 +24,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 import config
 
-from . import aggregate, registry, store
+from . import aggregate, registry, sources, store
 from .contract import (
     MAX_COMPARE,
     RANGES,
@@ -29,7 +32,9 @@ from .contract import (
     CommoditiesResponse,
     FiltersPayload,
     Kpis,
+    PriceSource,
     PricesResponse,
+    SourcesResponse,
 )
 
 router = APIRouter(prefix="/api/agri", tags=["agri"])
@@ -42,8 +47,23 @@ _PRICES_CACHE_MAX: int = 64
 _PRICES_CACHE: dict[tuple[Any, ...], tuple[float, PricesResponse]] = {}
 
 
-def _reader() -> Optional[Any]:
-    return store.open_reader(DB_PATH)
+def _resolve_source(value: Optional[str]) -> sources.SourceInfo:
+    try:
+        return sources.resolve(value, local_path=DB_PATH)
+    except sources.UnknownSource as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _reader(info: sources.SourceInfo) -> Optional[Any]:
+    if info.id == sources.LOCAL_ID:
+        return store.open_reader(info.path or DB_PATH)
+    try:
+        conn = store.open_snapshot_reader(info.path)
+    except store.SnapshotError as exc:
+        raise HTTPException(status_code=400, detail=f"source '{info.id}' is unavailable: {exc}") from exc
+    if conn is None:
+        raise HTTPException(status_code=400, detail=f"source '{info.id}' is unavailable: snapshot is missing")
+    return conn
 
 
 def _cache_get(cache_key: tuple[Any, ...]) -> Optional[PricesResponse]:
@@ -360,10 +380,23 @@ def _per_key_freshness_warnings(
     return out
 
 
+@router.get("/sources", response_model=SourcesResponse, summary="Agri price sources")
+def get_agri_sources() -> SourcesResponse:
+    """Local cache plus validated release snapshots; no network and no writes."""
+    available = sources.discover(local_path=DB_PATH)
+    return SourcesResponse(
+        sources=[PriceSource(**info.as_dict()) for info in available],
+        default=sources.LOCAL_ID,
+    )
+
+
 @router.get("/filters", response_model=FiltersPayload, summary="Agri price filter options")
-def get_agri_filters() -> FiltersPayload:
-    """Commodity/group registries and the geographies present in the cache."""
-    conn = _reader()
+def get_agri_filters(
+    source: str = Query(sources.LOCAL_ID, description="Source id: local | release:<tag>"),
+) -> FiltersPayload:
+    """Commodity/group registries and the geographies present in the source."""
+    info = _resolve_source(source)
+    conn = _reader(info)
     try:
         options = _as_of_options(conn)
         geography = _geography(conn)
@@ -379,12 +412,15 @@ def get_agri_filters() -> FiltersPayload:
         states=options["states"],
         districts=options["districts"],
         markets=options["markets"],
+        source_id=info.id,
+        dataset=info.dataset,
         **geography,
     )
 
 
 @router.get("/prices", response_model=PricesResponse, summary="Agri mandi price dashboard payload")
 def get_agri_prices(
+    source: str = Query(sources.LOCAL_ID, description="Source id: local | release:<tag>"),
     commodity: Optional[str] = Query(None, description="Tracked commodity key"),
     group: Optional[str] = Query(None, description="Commodity group key"),
     state: Optional[str] = Query(None, description="State name"),
@@ -397,6 +433,7 @@ def get_agri_prices(
     limit: int = Query(100, ge=1, le=1000, description="Maximum quotes to return"),
 ) -> PricesResponse:
     """Snapshot, time series, mandi quotes, KPIs and up to five comparisons."""
+    info = _resolve_source(source)
     key = _check_commodity(commodity)
     group_key = _check_group(group)
     range_name = _check_range(range)
@@ -418,18 +455,19 @@ def get_agri_prices(
         "markets": [market] if market else None,
     }
     filters = AppliedFilters(
-        commodity=key, group=group_key, state=state, district=district,
+        source=info.id, commodity=key, group=group_key, state=state, district=district,
         market=market, range=range_name, date_from=from_day, date_to=to_day,
     )
     empty_kpis = Kpis(unit=registry.PRICE_UNIT, arrivals_unit=registry.ARRIVALS_UNIT)
 
-    conn = _reader()
+    conn = _reader(info)
     if conn is None:
         warnings = ["no rows matched the current filters", "agri price cache is missing; run scripts/market/agri_import.py"]
         if key:
             warnings.append(f"MSP not verified for {registry.label_for(key)}; distance_to_msp_pct is null")
         return PricesResponse(
-            ok=True, data_source=DATA_SOURCE_EMPTY, filters=filters, kpis=empty_kpis,
+            ok=True, source_id=info.id, dataset=info.dataset,
+            data_source=DATA_SOURCE_EMPTY, filters=filters, kpis=empty_kpis,
             warnings=warnings,
         )
 
@@ -438,7 +476,7 @@ def get_agri_prices(
         cache_key: Optional[tuple[Any, ...]] = None
         if identity is not None:
             cache_key = (
-                key, group_key, state, district, market, range_name,
+                info.id, key, group_key, state, district, market, range_name,
                 from_day, to_day, tuple(compare_keys), limit, identity,
                 datetime.now(config.IST).date().isoformat(),
             )
@@ -451,7 +489,8 @@ def get_agri_prices(
         global_as_of = store.latest_date(conn)
         if not global_as_of:
             return PricesResponse(
-                ok=True, data_source=DATA_SOURCE_EMPTY, filters=filters, kpis=empty_kpis,
+                ok=True, source_id=info.id, dataset=info.dataset,
+                data_source=DATA_SOURCE_EMPTY, filters=filters, kpis=empty_kpis,
                 warnings=["agri price cache is empty; run scripts/market/agri_import.py"],
             )
 
@@ -530,6 +569,8 @@ def get_agri_prices(
             ok=True,
             as_of=as_of,
             freshness_days=aggregate.freshness_days(as_of),
+            source_id=info.id,
+            dataset=info.dataset,
             data_source=_data_source(chain(selected_rows, latest_rows, history_rows)),
             filters=filters,
             kpis=kpis,
