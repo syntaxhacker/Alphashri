@@ -271,7 +271,7 @@ export function Modal(props: ModalProps) {
                   aria-label="close"
                   data-testid={testId ? `${testId}-close` : undefined}
                   onClick={() => known.onClose?.()}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 flex size-6 items-center justify-center rounded text-fin-text-muted hover:text-fin-text hover:bg-fin-border"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 flex size-7 items-center justify-center rounded text-fin-text-muted hover:text-fin-text hover:bg-fin-border"
                 >
                   ×
                 </button>

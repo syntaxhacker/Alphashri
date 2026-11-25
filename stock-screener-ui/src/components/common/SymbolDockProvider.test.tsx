@@ -53,8 +53,15 @@ vi.mock("@/components/patterns/PatternFullscreenView", () => ({
     symbol: string | null;
     loading?: boolean;
     onRefresh?: () => void;
+    indicators?: unknown;
+    srZones?: unknown[];
   }) => (
-    <div data-testid="patterns-chart-dock" data-loading={String(Boolean(props.loading))}>
+    <div
+      data-testid="patterns-chart-dock"
+      data-loading={String(Boolean(props.loading))}
+      data-indicators={String(Boolean(props.indicators))}
+      data-sr-zones={String(props.srZones?.length ?? 0)}
+    >
       {props.symbol}
       {props.onRefresh ? (
         <button
@@ -447,6 +454,53 @@ describe("inline outlet", () => {
     const outlet = screen.getByTestId("chart-dock-outlet");
     await waitFor(() => expect(outlet.querySelector('[data-testid="symbol-dock"]')).not.toBeNull());
     expect(outlet.querySelector('[data-testid="symbol-dock"]')!.className).not.toContain("fixed");
+  });
+
+  test("forwards indicator payload fields from chart state into the dock view", async () => {
+    mockedFetchSymbolChart.mockResolvedValue({
+      ...(FRESH_CHART as Record<string, unknown>),
+      symbol: "RELIANCE",
+      timeframe: "1D",
+      overlays: [],
+      indicators: {
+        aligned: "candles",
+        timeframe: "1D",
+        session: "2026-11-06",
+        partial_last: false,
+        series: [{ id: "sma20", values: [120] }],
+        crosses: [],
+      },
+      sr_zones: [
+        {
+          kind: "support",
+          top: 118,
+          bottom: 117,
+          start_date: "2026-11-01",
+          end_date: "2026-11-06",
+          touches: 2,
+          score: 0.6,
+        },
+      ],
+    } as never);
+    render(() => (
+      <Router
+        root={() => (
+          <UIProvider>
+            <SymbolDockProvider>
+              <DockHarness />
+              <ChartDockOutlet class="test-outlet" />
+            </SymbolDockProvider>
+          </UIProvider>
+        )}
+      />
+    ));
+
+    await fireEvent.click(screen.getByTestId("open-reliance"));
+    await waitFor(() => expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("RELIANCE"));
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-chart-dock")).toHaveAttribute("data-indicators", "true"),
+    );
+    expect(screen.getByTestId("patterns-chart-dock")).toHaveAttribute("data-sr-zones", "1");
   });
 });
 

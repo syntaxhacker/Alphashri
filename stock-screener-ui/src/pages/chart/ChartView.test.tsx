@@ -1,10 +1,16 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import { fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { MemoryRouter, Route, createMemoryHistory } from "@solidjs/router";
 import { UIProvider } from "@/ui";
-import type { ChartPayload, PatternHitDTO, TFSpec } from "@/types/chartPatterns";
+import type {
+  ChartIndicators,
+  ChartPayload,
+  PatternHitDTO,
+  SRZone,
+  TFSpec,
+} from "@/types/chartPatterns";
 import ChartView from "./ChartView";
 import { fetchSymbolChart, fetchTimeframes } from "@/api/chartPatterns";
 
@@ -52,6 +58,10 @@ vi.mock("@/components/patterns/PatternChartBody", () => ({
       data-trend-lines={(props.trendLines ?? []).length}
       data-overlays={(props.overlays ?? []).length}
       data-hit-source={props.hit?.source ?? ""}
+      data-timeframe={props.timeframe ?? "unset"}
+      data-indicators={props.indicators ? "ready" : "none"}
+      data-indicator-timeframe={props.indicators?.timeframe ?? "none"}
+      data-sr-zones={(props.srZones ?? []).length}
     >
       {props.asOf ? (
         <div data-testid="patterns-fullscreen-asof-banner">as of {props.asOf}</div>
@@ -168,6 +178,30 @@ const LIVE_HIT = {
   source: "live",
 } as PatternHitDTO;
 
+const INDICATORS: ChartIndicators = {
+  aligned: "candles",
+  timeframe: "1D",
+  session: "2026-09-26",
+  partial_last: false,
+  series: [
+    { id: "sma20", values: [100, 111] },
+    { id: "sma50", values: [99, 110] },
+  ],
+  crosses: [],
+};
+
+const SR_ZONES: SRZone[] = [
+  {
+    kind: "support",
+    top: 99,
+    bottom: 98,
+    start_date: "2026-09-01",
+    end_date: "2026-09-26",
+    touches: 3,
+    score: 0.8,
+  },
+];
+
 function chartPayload(overrides: Partial<ChartPayload> = {}): ChartPayload {
   return {
     symbol: "TEST",
@@ -209,13 +243,36 @@ describe("ChartView (pattern workspace)", () => {
     vi.mocked(fetchSymbolChart).mockResolvedValue(chartPayload());
   });
 
-  it("renders the page with the symbol title", async () => {
+  it("renders the page with the symbol title linked to TradingView", async () => {
     renderPage();
     expect(screen.getByTestId("chart-view")).toBeInTheDocument();
     const shell = screen.getByTestId("chart-view-root");
     expect(shell).toHaveClass("h-full", "min-h-0", "flex", "flex-col", "overflow-hidden");
-    expect(screen.getByTestId("chart-title")).toHaveTextContent("TEST");
+    const title = screen.getByTestId("chart-title");
+    expect(title).toHaveTextContent("TEST");
+    expect(title).toHaveAttribute(
+      "href",
+      "https://www.tradingview.com/chart/?symbol=NSE%3ATEST",
+    );
     await waitFor(() => expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument());
+  });
+
+  it("opens the fullscreen chart from the header and closes it without refetching", async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument());
+    const fetchCount = vi.mocked(fetchSymbolChart).mock.calls.length;
+
+    fireEvent.click(screen.getByTestId("chart-expand"));
+
+    const modal = screen.getByTestId("patterns-fullscreen-modal");
+    expect(within(modal).getByTestId("patterns-fullscreen-body")).toBeInTheDocument();
+    expect(within(modal).getByTestId("patterns-fullscreen-panel")).toBeInTheDocument();
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(fetchCount);
+
+    fireEvent.click(screen.getByTestId("patterns-fullscreen-modal-close"));
+
+    expect(screen.queryByTestId("patterns-fullscreen-modal")).toBeNull();
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(fetchCount);
   });
 
   it("loads stored hits first with detection off", async () => {
@@ -377,6 +434,99 @@ describe("ChartView (pattern workspace)", () => {
     await waitFor(() =>
       expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "1D", expect.any(Object)),
     );
+  });
+
+  // Regression: the ladder used to start as [1D], so a valid deep link was
+  // rewritten before `/timeframes` resolved and fetched the wrong frame.
+  it("keeps a deep-linked intraday timeframe while /timeframes is in flight", async () => {
+    vi.mocked(fetchTimeframes).mockImplementation(() => new Promise(() => {}));
+    const { history } = renderPage("/chart/TEST?tf=15m");
+
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "15m", STORED_OPTIONS),
+    );
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(1);
+    expect(fetchSymbolChart).not.toHaveBeenCalledWith("TEST", "1D", expect.any(Object));
+    expect(history.get()).toContain("tf=15m");
+    expect(history.get()).not.toContain("tf=1D");
+  });
+
+  // An admin-registered frame is not in the local ladder; while the catalog is
+  // loading it must be trusted rather than rewritten to 1D.
+  it("keeps a deep-linked catalog-only timeframe while /timeframes is in flight", async () => {
+    vi.mocked(fetchTimeframes).mockImplementation(() => new Promise(() => {}));
+    const { history } = renderPage("/chart/TEST?tf=3m");
+
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "3m", STORED_OPTIONS),
+    );
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(1);
+    expect(fetchSymbolChart).not.toHaveBeenCalledWith("TEST", "1D", expect.any(Object));
+    expect(history.get()).toContain("tf=3m");
+    expect(history.get()).not.toContain("tf=1D");
+  });
+
+  it("keeps a deep-linked catalog-only timeframe once the catalog includes it", async () => {
+    vi.mocked(fetchTimeframes).mockResolvedValue([
+      ...TIMEFRAMES,
+      { id: "3m", label: "3m" } as TFSpec,
+    ]);
+    const { history } = renderPage("/chart/TEST?tf=3m");
+
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "3m", STORED_OPTIONS),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("chart-timeframe-select").querySelector('option[value="3m"]'),
+      ).toBeInTheDocument(),
+    );
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(1);
+    expect(fetchSymbolChart).not.toHaveBeenCalledWith("TEST", "1D", expect.any(Object));
+    expect(history.get()).toContain("tf=3m");
+    expect(history.get()).not.toContain("tf=1D");
+  });
+
+  it("rewrites a catalog-only timeframe once the catalog resolves without it", async () => {
+    vi.mocked(fetchTimeframes).mockResolvedValue(TIMEFRAMES);
+    const { history } = renderPage("/chart/TEST?tf=3m");
+
+    await waitFor(() => expect(history.get()).toContain("tf=1D"));
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "1D", STORED_OPTIONS),
+    );
+    expect(history.get()).not.toContain("tf=3m");
+  });
+
+  it("keeps the requested timeframe when the catalog request fails", async () => {
+    vi.mocked(fetchTimeframes).mockRejectedValue(new Error("catalog offline"));
+    const { history } = renderPage("/chart/TEST?tf=3m");
+
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "3m", STORED_OPTIONS),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(1);
+    expect(fetchSymbolChart).not.toHaveBeenCalledWith("TEST", "1D", expect.any(Object));
+    expect(history.get()).toContain("tf=3m");
+    expect(history.get()).not.toContain("tf=1D");
+  });
+
+  it("applies indicators/sr_zones and forwards timeframe + payload fields to the body", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      chartPayload({
+        indicators: INDICATORS,
+        sr_zones: SR_ZONES,
+      }),
+    );
+    renderPage();
+
+    await waitFor(() => expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument());
+    const body = screen.getByTestId("patterns-fullscreen-body");
+    expect(body).toHaveAttribute("data-timeframe", "1D");
+    expect(body).toHaveAttribute("data-indicators", "ready");
+    expect(body).toHaveAttribute("data-indicator-timeframe", "1D");
+    expect(body).toHaveAttribute("data-sr-zones", "1");
   });
 });
 

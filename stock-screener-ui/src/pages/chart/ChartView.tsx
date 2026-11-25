@@ -1,12 +1,15 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, Show, Switch, Match } from "solid-js";
 import { useParams, useSearchParams, useNavigate } from "@solidjs/router";
-import { Badge, Button, Center, Loader, Text, ToolbarRow } from "@/ui";
+import { Badge, Button, Center, Loader, Text, ToolbarRow, ActionIcon, Tooltip } from "@/ui";
+import { IconArrowsMaximize } from "@/ui/icons";
 import { fetchTimeframes, fetchSymbolChart } from "@/api/chartPatterns";
 import type {
   ChartCandle,
+  ChartIndicators,
   ChartPayload,
   PatternHitDTO,
   PatternOverlay,
+  SRZone,
   TrendLine,
   TFSpec,
 } from "@/types/chartPatterns";
@@ -16,13 +19,13 @@ import {
 } from "@/components/patterns/FullscreenPatternList";
 import { PatternChartBody } from "@/components/patterns/PatternChartBody";
 import { PatternChartToolbar } from "@/components/patterns/PatternChartToolbar";
+import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenView";
+import { FALLBACK_TIMEFRAMES } from "@/components/patterns/TimeframeSelect";
+import { SymbolTvLink } from "@/components/patterns/SymbolTvLink";
 import type { ChartMarket } from "@/utils/chart/time";
 
 /** Patterns read best on the daily frame; the URL can override it (`?tf=1W`). */
 const DEFAULT_TIMEFRAME = "1D";
-
-/** Minimal ladder while `/timeframes` is in flight or unavailable. */
-const FALLBACK_TIMEFRAMES: TFSpec[] = [{ id: "1D", label: "1D" } as TFSpec];
 
 /** Timeframes the US provider serves; the India registry is never reused for US. */
 const US_TIMEFRAMES = ["1D", "1m", "5m", "15m", "1h"] as const;
@@ -165,6 +168,10 @@ interface ChartLoaderState {
   overlays: PatternOverlay[];
   candles: ChartCandle[];
   trendLines: TrendLine[];
+  /** Indicator series for the chart/menu (null when the backend omits them). */
+  indicators: ChartIndicators | null;
+  /** Historical reaction zones for the chart/menu. */
+  srZones: SRZone[];
   loading: boolean;
   error: string | null;
   /** Endpoint explanation when the response carries no candles. */
@@ -184,6 +191,8 @@ const EMPTY_LISTS = {
   overlays: [] as PatternOverlay[],
   candles: [] as ChartCandle[],
   trendLines: [] as TrendLine[],
+  indicators: null as ChartIndicators | null,
+  srZones: [] as SRZone[],
   source: null as HitSource | null,
   market: "india" as ChartMarket,
   feed: null as string | null,
@@ -255,6 +264,8 @@ function useSymbolPatternChartSolid(args: {
         overlays: chart.overlays ?? [],
         candles: chart.candles ?? [],
         trendLines: chart.trend_lines ?? [],
+        indicators: chart.indicators ?? null,
+        srZones: chart.sr_zones ?? [],
         loading: false,
         error: null,
         note: (chart.candles?.length ?? 0) > 0 ? null : (chart.note ?? chart.error ?? null),
@@ -336,11 +347,15 @@ function firstParam(v: string | string[] | undefined): string | null {
   return raw ?? null;
 }
 
+type TimeframeCatalogStatus = "loading" | "ready" | "failed";
+
 const ChartView = () => {
   const params = useParams<{ symbol?: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [timeframes, setTimeframes] = createSignal<TFSpec[]>(FALLBACK_TIMEFRAMES);
+  const [catalogStatus, setCatalogStatus] = createSignal<TimeframeCatalogStatus>("loading");
+  const [expanded, setExpanded] = createSignal(false);
 
   const symbol = () => params.symbol ?? "";
   const timeframe = createMemo(() => firstParam(searchParams.tf) || DEFAULT_TIMEFRAME);
@@ -371,10 +386,14 @@ const ChartView = () => {
     let active = true;
     fetchTimeframes()
       .then((list) => {
-        if (active && list.length > 0) setTimeframes(list);
+        if (!active) return;
+        if (list.length > 0) setTimeframes(list);
+        setCatalogStatus("ready");
       })
       .catch(() => {
-        /* non-fatal: keep the 1D fallback */
+        // Non-fatal: keep the fallback ladder and trust the requested frame;
+        // the backend may still serve an admin-registered id.
+        if (active) setCatalogStatus("failed");
       });
     onCleanup(() => {
       active = false;
@@ -411,10 +430,13 @@ const ChartView = () => {
     });
   };
 
-  // An unknown/garbled `?tf=` falls back to 1D. US validates against its fixed
-  // ladder immediately: the async `/timeframes` response starts as the 1D-only
-  // fallback, so consulting it here would clobber a valid deep link (e.g. 5m)
-  // before the real options arrive and fire a spurious second request.
+  // An unknown/garbled `?tf=` falls back to 1D once the catalog proves it
+  // absent. US validates against its fixed ladder immediately: the async
+  // `/timeframes` response starts as the 1D-only fallback, so consulting it
+  // here would clobber a valid deep link (e.g. 5m) before the real options
+  // arrive and fire a spurious second request. India waits for the catalog:
+  // an admin-registered frame (e.g. 3m) is not in the local fallback but is
+  // still valid, and a failed catalog must not rewrite the user's frame.
   createEffect(() => {
     const tf = timeframe();
     if (tf === DEFAULT_TIMEFRAME) return;
@@ -424,6 +446,8 @@ const ChartView = () => {
       patchSearchParams({ tf: DEFAULT_TIMEFRAME });
       return;
     }
+
+    if (catalogStatus() !== "ready") return;
 
     const list = visibleTimeframes();
     if (!list.length) return;
@@ -478,8 +502,7 @@ const ChartView = () => {
                   ← Back
                 </Button>
               }
-              title={symbol().toUpperCase()}
-              titleTestId="chart-title"
+              title={<SymbolTvLink symbol={symbol()} testId="chart-title">{symbol().toUpperCase()}</SymbolTvLink>}
               titleSize="md"
               timeframe={timeframe()}
               timeframes={visibleTimeframes()}
@@ -510,6 +533,17 @@ const ChartView = () => {
                 )}
               </Show>
             </Show>
+            <Tooltip label="Expand chart">
+              <ActionIcon
+                size="xs"
+                variant="subtle"
+                aria-label="Expand chart"
+                data-testid="chart-expand"
+                onClick={() => setExpanded(true)}
+              >
+                <IconArrowsMaximize size={14} />
+              </ActionIcon>
+            </Tooltip>
           </ToolbarRow>
         </div>
 
@@ -552,6 +586,9 @@ const ChartView = () => {
               candles={chart.state().candles}
               overlays={chart.state().overlays}
               trendLines={chart.state().trendLines}
+              timeframe={timeframe()}
+              indicators={chart.state().indicators}
+              srZones={chart.state().srZones}
               asOf={isUS() ? null : asOf()}
               emptyState={
                 isUS() ? undefined : (
@@ -566,6 +603,32 @@ const ChartView = () => {
             />
           </Match>
         </Switch>
+
+        <Show when={expanded()}>
+          <PatternFullscreenView
+            opened
+            onClose={() => setExpanded(false)}
+            symbol={symbol().toUpperCase()}
+            hit={chart.state().hit}
+            candles={chart.state().candles}
+            hits={chart.state().hits}
+            onSelectHit={chart.selectHit}
+            overlays={chart.state().overlays}
+            trendLines={chart.state().trendLines}
+            indicators={chart.state().indicators}
+            srZones={chart.state().srZones}
+            timeframe={timeframe()}
+            timeframes={visibleTimeframes()}
+            onTimeframeChange={setTimeframe}
+            loading={chart.state().loading}
+            asOf={isUS() ? null : asOf()}
+            fromDate={isUS() ? null : fromDate()}
+            onAsOfChange={isUS() ? undefined : setAsOf}
+            chartError={chart.state().error}
+            chartNote={chart.state().note}
+            market={market()}
+          />
+        </Show>
       </div>
       </Show>
     </div>

@@ -10,8 +10,10 @@ import { createEffect, createSignal, onCleanup } from "solid-js";
 import { TZ_IST } from "@/config/constants";
 import type {
   ChartCandle,
+  ChartIndicators,
   PatternHitDTO,
   PatternOverlay,
+  SRZone,
   TrendLine,
 } from "@/types/chartPatterns";
 import { fetchPatternHit, fetchSymbolChart } from "@/api/chartPatterns";
@@ -109,6 +111,10 @@ export interface FullscreenChartState {
   candles: ChartCandle[];
   overlays: PatternOverlay[];
   trendLines: TrendLine[];
+  /** Indicator series carried by the chart payload (null = absent). */
+  indicators: ChartIndicators | null;
+  /** Historical reaction zones carried by the chart payload. */
+  srZones: SRZone[];
   loading: boolean;
   patternsLoading?: boolean;
   detectPatterns?: boolean;
@@ -148,6 +154,31 @@ export function fullscreenHitIdentity(hit: PatternHitDTO): string {
 export function fullscreenDedupeKey(hit: PatternHitDTO): string {
   return `${hit.symbol}|${hit.timeframe}|${hit.pattern_id}|${hit.start_date}|${hit.end_date}`;
 }
+
+/** A hit without a timeframe predates the field; it cannot be proven foreign. */
+const hitTimeframeMatches = (hit: PatternHitDTO, tf: string): boolean =>
+  !hit.timeframe || hit.timeframe === tf;
+
+const retainHitsForTimeframe = (
+  hits: PatternHitDTO[],
+  tf: string,
+): PatternHitDTO[] => hits.filter((hit) => hitTimeframeMatches(hit, tf));
+
+/**
+ * `alignIndicatorSeries` drops every series whose `values.length` differs from
+ * the displayed candle count. Phase 2 runs on its own candle frame, so a bar
+ * closing between the two requests would otherwise erase the whole bundle.
+ */
+const indicatorsFitCandles = (
+  bundle: ChartIndicators | null,
+  candleCount: number,
+): boolean => {
+  if (!bundle || bundle.aligned !== "candles") return true;
+  const series = Array.isArray(bundle.series) ? bundle.series : [];
+  return series.every(
+    (row) => Array.isArray(row.values) && row.values.length === candleCount,
+  );
+};
 
 export function usePatternFullscreen({
   timeframe: defaultTimeframe,
@@ -198,8 +229,11 @@ export function usePatternFullscreen({
 
   const resolveHit = (hits: PatternHitDTO[]): PatternHitDTO | null => {
     const picked = selectedHit;
-    if (picked && hits.some((h) => fullscreenHitIdentity(h) === fullscreenHitIdentity(picked))) {
-      return picked;
+    if (picked) {
+      // Render the object from the fresh payload, not the stale pick: the old
+      // object can carry a previous frame's trendlines and close_bar_date.
+      const match = hits.find((h) => fullscreenHitIdentity(h) === fullscreenHitIdentity(picked));
+      if (match) return match;
     }
     return newestHit(hits);
   };
@@ -227,6 +261,8 @@ export function usePatternFullscreen({
       candles: hit.candles ?? [],
       overlays: [],
       trendLines: hit.trend_lines ?? [],
+      indicators: null,
+      srZones: [],
       loading: true,
       asOf: null,
       fromDate: null,
@@ -263,6 +299,7 @@ export function usePatternFullscreen({
                 candles: chart.candles?.length ? chart.candles : prev.candles,
                 overlays: [],
                 trendLines: chart.trend_lines ?? resolved.trend_lines ?? prev.trendLines,
+                ...chartIndicators(chart),
                 loading: false,
               }
             : prev,
@@ -297,6 +334,18 @@ export function usePatternFullscreen({
     chartNote: chart.note ?? null,
   });
 
+  /**
+   * Indicator fields must be written by *every* payload patch, including the
+   * candles-only phase: leaving them out of a patch would keep the previous
+   * symbol's studies over the new chart.
+   */
+  const chartIndicators = (
+    chart: SymbolChartPayload,
+  ): Pick<FullscreenChartState, "indicators" | "srZones"> => ({
+    indicators: chart.indicators ?? null,
+    srZones: chart.sr_zones ?? [],
+  });
+
   const applySymbolChart = (
     chart: SymbolChartPayload,
     symbol: string,
@@ -305,7 +354,7 @@ export function usePatternFullscreen({
     extra?: Partial<FullscreenChartState>,
   ) => {
     if (chartRequestToken !== token) return;
-    const hits = sortHitsNewest(chart.hits ?? []);
+    const hits = sortHitsNewest(retainHitsForTimeframe(chart.hits ?? [], tf));
     setFullscreen((prev) =>
       prev && prev.symbol === symbol && prev.timeframe === tf
         ? {
@@ -318,6 +367,7 @@ export function usePatternFullscreen({
             candles: chart.candles ?? [],
             overlays: [],
             trendLines: chart.trend_lines ?? [],
+            ...chartIndicators(chart),
             loading: false,
           }
         : prev,
@@ -372,9 +422,12 @@ export function usePatternFullscreen({
               ...prev,
               ...staleFields(chart),
               ...chartProblem(chart),
+              hit: prev.hit && hitTimeframeMatches(prev.hit, tf) ? prev.hit : null,
+              hits: retainHitsForTimeframe(prev.hits, tf),
               candles: chart.candles ?? [],
               overlays: [],
               trendLines: chart.trend_lines ?? [],
+              ...chartIndicators(chart),
               loading: false,
             }
           : prev,
@@ -397,10 +450,19 @@ export function usePatternFullscreen({
 
     const applyPatterns = (chart: SymbolChartPayload) => {
       if (chartRequestToken !== token) return;
-      const hits = sortHitsNewest(chart.hits ?? []);
+      const hits = sortHitsNewest(retainHitsForTimeframe(chart.hits ?? [], tf));
       setFullscreen((prev) => {
         if (!prev || prev.symbol !== symbol || prev.timeframe !== tf) return prev;
         const current = prev.hit;
+        // Phase 2 carries its own candle frame. Apply it together with the
+        // indicators when a bar closed between the two requests.
+        const payloadCandles = chart.candles ?? [];
+        const candles = payloadCandles.length > 0 && payloadCandles.length !== prev.candles.length
+          ? payloadCandles
+          : prev.candles;
+        const indicators = indicatorsFitCandles(chart.indicators ?? null, candles.length)
+          ? chart.indicators ?? null
+          : null;
         // Preserve the selection identity, but take the object from the new
         // hits array — the old object carries a stale `close_bar_date` (null),
         // which would make the panel fall back to the chart close instead of
@@ -416,7 +478,10 @@ export function usePatternFullscreen({
             ? matches ?? newestHit(hits)
             : resolveHit(hits),
           hits,
+          candles,
           trendLines: chart.trend_lines ?? [],
+          indicators,
+          srZones: chart.sr_zones ?? [],
           patternsLoading: false,
         };
       });
@@ -543,6 +608,8 @@ export function usePatternFullscreen({
       candles: [],
       overlays: [],
       trendLines: [],
+      indicators: null,
+      srZones: [],
       loading: true,
       detectPatterns,
       asOf: replay?.asOf ?? null,
@@ -610,14 +677,33 @@ export function usePatternFullscreen({
     if (!current || tf === current.timeframe) return;
     const token = ++chartRequestToken;
     const { symbol, asOf, fromDate } = current;
+    // A hit from the old frame cannot be mapped onto the new one: drop it (and
+    // the explicit pick) before the header starts naming the new frame.
+    if (selectedHit && !hitTimeframeMatches(selectedHit, tf)) selectedHit = null;
+    const keptHits = retainHitsForTimeframe(current.hits, tf);
+    const keptHit = current.hit
+      ? keptHits.find((h) => fullscreenHitIdentity(h) === fullscreenHitIdentity(current.hit!)) ?? null
+      : null;
     stopLivePoll();
     setFullscreen((prev) =>
       prev
         ? {
             ...prev,
             timeframe: tf,
+            hit: keptHit,
+            hits: keptHits,
+            candles: [],
+            overlays: [],
+            trendLines: [],
+            indicators: null,
+            srZones: [],
             loading: true,
             patternsLoading: undefined,
+            chartError: null,
+            chartNote: null,
+            stale: false,
+            dataAsOf: null,
+            detectionAsOf: null,
             livePrice: null,
             liveChange: null,
           }

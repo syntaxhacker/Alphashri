@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "status": "initial-targets-not-baselined",
+  "policy": "Initial targets for interactive chart/UI work, not yet baselined. A miss is an optimization task, never a budget edit: optimize, re-measure, and repeat until the target is met. If a target cannot be met, record the measured limit, cause, owner and date in known_exceptions with real numbers. The harness only waives a check when the measurement is at or below the recorded measured_limit.",
+  "units": {
+    "duration": "decimal milliseconds (ms)",
+    "payload": "decimal bytes (1 KB = 1000 B); raw is UTF-8 JSON, gzip is zlib gzip of the same UTF-8 bytes",
+    "heap": "decimal megabytes (1 MB = 1,000,000 bytes)"
+  },
+  "targets": {
+    "initial_route_chart_ms": 2000,
+    "timeframe_switch_ms": 1000,
+    "pan_zoom_frame_p95_ms": 33,
+    "long_task_max_ms": 200,
+    "heap_growth_after_cycles_mb": 20,
+    "canvas_count_growth_max": 0,
+    "listener_count_growth_max": 0,
+    "indicator_payload_raw_bytes": 150000,
+    "indicator_payload_gzip_bytes": 30000,
+    "backend_indicator_zones_p95_ms": 100,
+    "toggle_all_ms": 300
+  },
+  "gate_stats": {
+    "initial_route_chart_ms": "median",
+    "timeframe_switch_ms": "median",
+    "pan_zoom_frame_p95_ms": "p95",
+    "long_task_max_ms": "max",
+    "heap_growth_after_cycles_mb": "max",
+    "canvas_count_growth_max": "max",
+    "listener_count_growth_max": "max",
+    "indicator_payload_raw_bytes": "max",
+    "indicator_payload_gzip_bytes": "max",
+    "backend_indicator_zones_p95_ms": "p95",
+    "toggle_all_ms": "median"
+  },
+  "measurement": {
+    "fixture_symbol": "POWERGRID.NS",
+    "fixture_timeframes": ["1m", "5m", "10m", "15m", "30m", "1h", "3h", "4h", "1D", "1W", "1M"],
+    "fixture_bars": 500,
+    "viewports": [
+      { "width": 1600, "height": 1000 },
+      { "width": 390, "height": 844 }
+    ],
+    "warmup_runs": 1,
+    "measured_runs": 3,
+    "statistic": "median and p95 from measured runs only",
+    "cycles": {
+      "timeframe_switches": 20,
+      "menu_toggles": 10,
+      "fullscreen_cycles": 5
+    },
+    "artifact_dir": {
+      "codespaces": "/workspaces/react/.agent-artifacts/chart-perf",
+      "fallback": "/tmp/opencode/chart-perf",
+      "override_env": "CHART_PERF_ARTIFACT_DIR"
+    },
+    "results_file": "perf/chart-perf-results.json",
+    "server": "http://127.0.0.1:4174"
+  },
+  "known_exceptions": []
+}

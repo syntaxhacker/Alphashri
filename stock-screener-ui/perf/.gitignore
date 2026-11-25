@@ -3,3 +3,4 @@
 # only the checked-in budget files must be trackable.
 !budgets.json
 !api_budgets.json
+!chart_ui_budgets.json

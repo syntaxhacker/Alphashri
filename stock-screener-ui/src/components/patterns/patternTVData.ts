@@ -1,7 +1,9 @@
 import type {
   ChartCandle,
+  ChartIndicators,
   PatternHitDTO,
   PatternOverlay,
+  SRZone,
   TrendLine,
   TrendlinesView,
   Trendline,
@@ -11,6 +13,13 @@ import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import { toEpochSeconds } from "@/utils/chart/time";
 import { createAxisIndex } from "./axisIndex";
+import {
+  CROSSES_LEGEND_NAME,
+  alignIndicatorCrosses,
+  alignIndicatorSeries,
+  alignSRZones,
+  type IndicatorLineStyle,
+} from "./patternIndicatorData";
 import { resolveVisibleStandalone } from "./standaloneLines";
 
 export const PATTERN_TV_COLORS: string[] = PATTERN_SERIES_COLORS;
@@ -52,6 +61,12 @@ export interface TVLine {
   dashed: boolean;
   width: number;
   name: string;
+  /** Stable series key, set for indicator lines so they can update in place. */
+  id?: string;
+  /** Legend grouping key (BB upper/middle/lower all use `"BB"`). */
+  legendName?: string;
+  /** Explicit stroke style; pattern lines keep the `dashed` boolean. */
+  lineStyle?: IndicatorLineStyle;
   label?: string;
   /**
    * Whether this line draws an inline end label. Only a pattern group's first
@@ -71,7 +86,22 @@ export interface TVMarker {
   text: string;
   price?: number;
   size?: number;
-  group?: "pivots" | "keypoints";
+  group?: "pivots" | "keypoints" | "crosses";
+  /** Legend grouping key; golden/death crosses use `"Crosses"`. */
+  legendName?: string;
+}
+
+/** A support/resistance band ready for the zone primitive. Times are epochs. */
+export interface TVRect {
+  kind: SRZone["kind"];
+  top: number;
+  bottom: number;
+  start: number;
+  end: number;
+  touches: number;
+  score: number;
+  color: string;
+  legendName: string;
 }
 
 /** An overlay bundle, optionally carrying instance identity (mirrors `SiblingOverlay`). */
@@ -87,6 +117,12 @@ export interface BuildPatternTVDataInput {
   trendLines?: TrendLine[];
   trendlinesView?: TrendlinesView;
   historyHits?: PatternHitDTO[];
+  /** Server-computed indicator bundle; ignored when its timeframe disagrees. */
+  indicators?: ChartIndicators | null;
+  /** Server-computed support/resistance bands (view-only overlay). */
+  srZones?: SRZone[];
+  /** Chart timeframe used to reject an indicator bundle built for another TF. */
+  timeframe?: string;
   /**
    * IANA zone used to pin *naive* candle timestamps. Defaults to IST; pass
    * `TZ_US` for a US session. Timestamps with an explicit offset are always
@@ -100,7 +136,10 @@ export interface BuildPatternTVDataResult {
   volume: TVVolume[];
   levels: TVLevel[];
   lines: TVLine[];
+  /** Indicator overlays, separate so their series can update in place. */
+  indicatorLines: TVLine[];
   markers: TVMarker[];
+  zones: TVRect[];
 }
 
 function byTimeAsc(a: { time: number }, b: { time: number }): number {
@@ -126,9 +165,20 @@ export function buildPatternTVData({
   trendLines,
   trendlinesView = "both",
   historyHits = [],
+  indicators,
+  srZones,
+  timeframe,
   timeZone,
 }: BuildPatternTVDataInput): BuildPatternTVDataResult {
-  const empty: BuildPatternTVDataResult = { candles: [], volume: [], levels: [], lines: [], markers: [] };
+  const empty: BuildPatternTVDataResult = {
+    candles: [],
+    volume: [],
+    levels: [],
+    lines: [],
+    indicatorLines: [],
+    markers: [],
+    zones: [],
+  };
   const times = candles.map((c) => c.t);
   if (times.length === 0) return empty;
 
@@ -269,7 +319,78 @@ export function buildPatternTVData({
   });
   lines.sort((a, b) => (a.points[0]?.time ?? 0) - (b.points[0]?.time ?? 0));
 
-  const markers: TVMarker[] = [];
+  // Case-sensitive: `1m` (minute) and `1M` (month) are different frames, so a
+  // stale monthly bundle must not draw during a switch to the 1-minute chart.
+  const sameTimeframe = (a: unknown, b: string) =>
+    typeof a === "string" && a.trim() === b.trim();
+  const usableIndicators =
+    indicators && (timeframe == null || sameTimeframe(indicators.timeframe, timeframe))
+      ? indicators
+      : null;
 
-  return { candles: tvCandles, volume, levels, lines, markers };
+  const indicatorLines: TVLine[] = alignIndicatorSeries(usableIndicators, epochs, sortedEpochs).map(
+    (series) => {
+      // The BB band prints one tag (middle); its outer lines must never label.
+      const labelEligible = series.id !== "bbUpper" && series.id !== "bbLower";
+      return {
+        points: series.points,
+        color: series.color,
+        dashed: series.lineStyle === "dashed",
+        lineStyle: series.lineStyle,
+        width: series.width,
+        name: series.legendName,
+        id: series.id,
+        legendName: series.legendName,
+        ...(labelEligible ? { label: series.legendName } : {}),
+        labelEligible,
+      };
+    },
+  );
+
+  const markers: TVMarker[] = alignIndicatorCrosses(usableIndicators, sortedEpochs, {
+    timeZone,
+    skipPartialLast:
+      usableIndicators?.partial_last === true ||
+      sortedCandles[sortedCandles.length - 1]?.is_partial === true,
+  }).map((cross) => {
+    const golden = cross.kind === "golden";
+    return {
+      time: cross.time,
+      position: golden ? "belowBar" : "aboveBar",
+      shape: "square",
+      color: golden ? POSITIVE : NEGATIVE,
+      text: golden ? "GC" : "DC",
+      group: "crosses",
+      legendName: CROSSES_LEGEND_NAME,
+    };
+  });
+
+  const zones: TVRect[] = alignSRZones(srZones, sortedEpochs, timeZone).map((zone) => ({
+    kind: zone.kind,
+    top: zone.top,
+    bottom: zone.bottom,
+    start: zone.start,
+    end: zone.end,
+    touches: zone.touches,
+    score: zone.score,
+    color: zone.color,
+    legendName: zone.legendName,
+  }));
+
+  return { candles: tvCandles, volume, levels, lines, indicatorLines, markers, zones };
+}
+
+/**
+ * On-canvas band label (`S 2,480 ×3`, `R 2,560 ×2`, `S/R testing`). The
+ * compact form (`S 2,480`) drops the touch count for narrow charts; callers
+ * pick it when the full pill would cover too much of the plot.
+ */
+export function srZoneLabel(
+  zone: Pick<TVRect, "kind" | "touches">,
+  formattedTop: string,
+  compact = false,
+): string {
+  if (zone.kind === "sr") return "S/R testing";
+  const prefix = zone.kind === "support" ? "S" : "R";
+  return compact ? `${prefix} ${formattedTop}` : `${prefix} ${formattedTop} ×${zone.touches}`;
 }

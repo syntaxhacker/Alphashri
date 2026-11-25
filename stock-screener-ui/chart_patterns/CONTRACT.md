@@ -214,7 +214,7 @@ in lifespan (prompt initial run during market hours, then interval
 | GET | `/results` | `job_id, universe, timeframe, family[], direction[], status[], quality, formed_within_bars, volume_confirmed, min_rr, symbol, limit=100, offset=0` | `{items:[PatternHitDTO], total, summary, data_through}` |
 | GET | `/summary` | same filters | `{scanned, patterns, in_view, confirmed, bullish, bearish, data_through}` |
 | GET | `/symbol/{symbol}` | `?timeframe` | `{symbol,name,last_close,day_change_pct,history_bars,timeframes:[...],counts:{confirmed,forming},patterns:[PatternHitDTO]}` |
-| GET | `/symbol/{symbol}/chart` | `?timeframe&limit` | `{symbol,timeframe,candles:[{t,o,h,l,c,v}],overlays}` |
+| GET | `/symbol/{symbol}/chart` | `?timeframe&limit` | `{symbol,timeframe,candles:[{t,o,h,l,c,v}],overlays, indicators?, sr_zones?}` |
 
 **JobDTO**
 ```json
@@ -232,6 +232,54 @@ in lifespan (prompt initial run during market hours, then interval
  "breakout_level":112.6,"target":129.6,"stop":102.5,"rr":1.7,"bars_ago":1,
  "volume_confirmed":true,"trendlines":[[{"t":"...","price":...}]],"notes":"..."}
 ```
+
+### Chart extras (optional, backend-owned)
+
+`GET /symbol/{symbol}/chart` may additionally carry `indicators` and
+`sr_zones`. Both are computed by the backend from the **exact returned candle
+window** (after any cache lookup), so clients must render them as-is and never
+re-derive a value. The fields are optional and backward-compatible; empty/error
+branches return `indicators: null` and `sr_zones: []`.
+
+```json
+{"indicators": {
+   "aligned": "candles",
+   "timeframe": "1D",
+   "session": "Asia/Kolkata",
+   "partial_last": false,
+   "series": [
+     {"id": "sma20|sma50|sma200|bbUpper|bbMiddle|bbLower|vwap", "values": [12.3, null]}
+   ],
+   "crosses": [{"t": "<candle t>", "kind": "golden|death"}]
+ },
+ "sr_zones": [
+   {"kind": "support|resistance|sr", "top": 123.4, "bottom": 120.1,
+    "start_date": "2026-01-05", "end_date": "2026-03-20",
+    "start_time": "2026-01-05T09:15:00+05:30",
+    "end_time": "2026-03-20T14:45:00+05:30",
+    "touches": 3, "score": 1234.5}
+ ]}
+```
+
+Indicator rules:
+- Every `values` array has **exactly** `candles.length` entries; warm-up or
+  invalid windows are `null` (never `NaN`/`Infinity`).
+- SMA 20/50/200 on close; Bollinger 20,2 with population sigma (`ddof=0`).
+- Golden/death crosses use SMA50 vs SMA200 with
+  `eps = 1e-9 * max(1, |fast|, |slow|)`, start at index 200, and a cross on the
+  trailing `is_partial` bar is suppressed.
+- `vwap` exists only for intraday timeframes (`1m`–`4h`); it resets on the
+  exchange-local session (`Asia/Kolkata` for India, `America/New_York` for US)
+  and is omitted for `1D`/`1W`/`1M`.
+
+S/R rules: max 4 zones, computed from at most the last 400 bars, confirmed
+pivots only (no lookahead), never extended right of the last candle. Zones
+require >=2 touches, break after two closes beyond `0.5*ATR`, go stale after
+120 untouched bars, and overlap-merge into `sr` with summed touches. Intraday
+frames (`1m`–`4h`) additionally carry optional `start_time`/`end_time` ISO
+timestamps for the exact first/last touch bars; `start_date`/`end_date` remain
+present for every timeframe, and clients should prefer the timestamps when
+both are supplied.
 
 ---
 

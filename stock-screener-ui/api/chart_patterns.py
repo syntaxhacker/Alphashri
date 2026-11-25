@@ -31,6 +31,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from chart_patterns import candles, config, jobs, store
+from chart_patterns import indicators as indicators_mod
+from chart_patterns import levels as levels_mod
 from chart_patterns import scan as scan_mod
 from chart_patterns import trendlines as trendlines_mod
 from chart_patterns import watch as watch_mod
@@ -603,6 +605,7 @@ def _stale_chart_fallback(
     clamp_lookback: Optional[int],
     limit: int,
     reason: str,
+    from_date: Optional[str] = None,
 ) -> Optional[dict]:
     """Last good on-disk frame for the live-edge cache entry, else ``None``.
 
@@ -611,7 +614,9 @@ def _stale_chart_fallback(
     considered — historical/as-of namespaced files are never served. A frame
     from an earlier session is returned solely with ``cached``/``stale`` set
     and ``as_of`` pinned to the frame's last session date, so it can never
-    present itself as current data. Never raises.
+    present itself as current data. ``from_date`` clips the displayed frame
+    to the requested start (detection is not part of this fallback). Never
+    raises.
     """
     try:
         lb = None if fetch_lookback is None else int(fetch_lookback)
@@ -623,7 +628,9 @@ def _stale_chart_fallback(
         as_of = candles.frame_last_date(df)
         if not as_of:
             return None
-        series = _clamped_candle_series(df, clamp_lookback, limit)
+        series = _clamped_candle_series(
+            _filter_frame_from(df, from_date), clamp_lookback, limit
+        )
         if not series:
             return None
     except Exception:
@@ -844,6 +851,23 @@ def _stale_first_frame(symbol: str, timeframe: str, lookback_bars) -> Optional[t
                             symbol, timeframe, as_of, lcs,
                             lag if lag is not None else "", _MAX_STALE_DAYS,
                         )
+                elif timeframe in ("1W", "1M"):
+                    # Period-labelled bars end on their Friday/month-end, never
+                    # "today" (except on the label day itself), so exact-date
+                    # equality rejected almost every warm weekly/monthly cache.
+                    # Accept a frame that covers the last completed period and
+                    # carries no bar for a period that has not closed yet.
+                    expected = _last_completed_period_label(lcs, timeframe)
+                    ok = _period_cache_covers(as_of, lcs, expected, timeframe)
+                    if not ok and lcs:
+                        _chart_logger.info(
+                            "chart_stale_first rejected=period symbol=%s timeframe=%s "
+                            "as_of=%s expected_as_of=%s lag_days=%s max_stale_days=%d",
+                            symbol, timeframe, as_of, expected or lcs,
+                            _session_lag_days(as_of, expected or lcs)
+                            if expected else "",
+                            _MAX_STALE_DAYS,
+                        )
                 else:
                     ok = as_of == _ist_session_date()
                 if ok:
@@ -857,13 +881,45 @@ def _stale_first_frame(symbol: str, timeframe: str, lookback_bars) -> Optional[t
         return None
 
 
+def _ist_session_dates(index) -> list[str]:
+    """IST calendar date (``YYYY-MM-DD``) for each index entry; never raises."""
+    try:
+        idx = index
+        if idx.tz is None:
+            idx = idx.tz_localize("UTC").tz_convert("Asia/Kolkata")
+        else:
+            idx = idx.tz_convert("Asia/Kolkata")
+        return [ts.date().isoformat() for ts in idx]
+    except Exception:
+        return [str(ts)[:10] for ts in index]
+
+
+def _drop_resampled_after(df: pd.DataFrame, as_of: str) -> pd.DataFrame:
+    """Drop resampled bars whose label (period end) is after ``as_of``.
+
+    ``_resample_ohlcv`` labels weekly bars on Friday and monthly bars on
+    month-end, so a Wednesday daily frame would otherwise return a Friday /
+    month-end candle newer than the data it covers. A bar whose period has not
+    ended by the last daily session is incomplete; completed-candle semantics
+    mean it is omitted, not back-dated or stamped with a future timestamp.
+    """
+    if df is None or df.empty:
+        return df
+    dates = _ist_session_dates(df.index)
+    keep = [stamp <= as_of for stamp in dates]
+    return df[keep]
+
+
 def _stale_first_resampled_daily(symbol: str, timeframe: str) -> Optional[tuple]:
     """Resample the default ``1D`` live-edge cache into ``1W`` (``W-FRI``) or
     ``1M`` (month-end) candles. Network-free, local disk only.
 
-    Returns ``(df, as_of, read_ms)`` where ``as_of`` is the last session date
-    of the source daily frame (truthful "data through" date), or ``None`` when
-    there is no usable ``1D`` cache. The caller marks the result ``stale``.
+    Only periods that end on or before the source frame's last session are
+    kept: a partial current week/month is dropped rather than emitted with a
+    future label. Returns ``(df, as_of, read_ms)`` where ``as_of`` is the last
+    session date of the source daily frame (truthful "data through" date), or
+    ``None`` when there is no usable ``1D`` cache. The caller marks the result
+    ``stale``.
     """
     try:
         path = candles._cache_path("1D", symbol, None)
@@ -898,6 +954,9 @@ def _stale_first_resampled_daily(symbol: str, timeframe: str) -> Optional[tuple]
             return None
         rule = "W-FRI" if timeframe == "1W" else "ME"
         out = candles._resample_ohlcv(df, rule)
+        if out is None or out.empty:
+            return None
+        out = _drop_resampled_after(out, as_of)
         if out is None or out.empty:
             return None
         return out, as_of, read_ms
@@ -1525,6 +1584,25 @@ def _clamp_to_lookback(df, lookback_bars: Optional[int]):
     return df.tail(n)
 
 
+def _filter_frame_from(df, from_date: Optional[str]):
+    """Rows whose IST calendar date is on/after ``from_date``; passthrough else.
+
+    The live fetch keeps its normal window so detection still sees the history
+    before ``from_date``; only the displayed frame (candles, indicators and
+    warm-up) is clipped to the requested start. Never raises.
+    """
+    if not from_date or df is None or getattr(df, "empty", True):
+        return df
+    try:
+        keys = _ist_session_dates(df.index)
+        keep = [key >= from_date for key in keys]
+        if all(keep):
+            return df
+        return df[keep]
+    except Exception:
+        return df
+
+
 def _ts_list(idx) -> list:
     """Isoformat timestamp strings for an index (calendar-cached)."""
     try:
@@ -1634,6 +1712,24 @@ def _clamped_candle_series(df, lookback_bars, limit) -> list:
         if frame is None or getattr(frame, "empty", True):
             return []
         return _fast_candle_series(frame, limit)
+    except Exception:
+        return []
+
+
+def _warmup_candles(frame, series: list) -> list:
+    """Bars preceding the displayed tail of ``frame`` (indicator warm-up).
+
+    The displayed series is always a tail of the frame, so this is the exact
+    earlier slice a session VWAP needs. Never raises; no frame/series → ``[]``.
+    """
+    if frame is None or not series:
+        return []
+    try:
+        total = len(frame)
+        shown = len(series)
+        if total <= shown:
+            return []
+        return _fast_candle_series(frame.iloc[: total - shown], None)
     except Exception:
         return []
 
@@ -2792,16 +2888,21 @@ async def _asof_symbol_chart(
             overlay = _live_overlay(record)
             if overlay is not None:
                 overlays.append(overlay)
-    return {
-        "symbol": symbol.upper(),
-        "timeframe": timeframe,
-        "candles": series,
-        "overlays": overlays,
-        "trend_lines": trend_lines,
-        "hits": hits,
-        "as_of": to_dt.isoformat(),
-        "from_date": from_date,
-    }
+    return _with_chart_extras(
+        {
+            "symbol": symbol.upper(),
+            "timeframe": timeframe,
+            "candles": series,
+            "overlays": overlays,
+            "trend_lines": trend_lines,
+            "hits": hits,
+            "as_of": to_dt.isoformat(),
+            "from_date": from_date,
+        },
+        "india",
+        timeframe,
+        warmup=_warmup_candles(df, series),
+    )
 
 
 def _chart_display_frame(base_df, symbol_u: str, timeframe: str) -> tuple:
@@ -2855,6 +2956,243 @@ def _mark_partial_last(series: list, is_partial: bool) -> list:
     if is_partial and series:
         series[-1]["is_partial"] = True
     return series
+
+
+def _local_timestamp(value, tz_name: str):
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is None:
+        return ts.tz_localize(tz_name)
+    return ts.tz_convert(tz_name)
+
+
+def _now_timestamp(now, tz_name: str):
+    if now is None:
+        return pd.Timestamp.now(tz=tz_name)
+    ts = pd.Timestamp(now)
+    if ts.tzinfo is None:
+        return ts.tz_localize(tz_name)
+    return ts.tz_convert(tz_name)
+
+
+def _period_last_session(day: date, timeframe: str) -> Optional[date]:
+    """Last trading day of the week/month containing ``day`` (NSE calendar)."""
+    if timeframe == "1M":
+        candidate = (
+            day.replace(day=28) + timedelta(days=4)
+        ).replace(day=1) - timedelta(days=1)
+    elif timeframe == "1W":
+        candidate = day + timedelta(days=(4 - day.weekday()) % 7)
+    else:
+        return None
+    try:
+        if candles._is_trading_day(candidate):
+            return candidate
+        return candles.previous_trading_day(candidate) or candidate
+    except Exception:
+        return candidate
+
+
+def _month_end(day: date) -> date:
+    """Calendar month-end date containing ``day``."""
+    return (day.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+
+
+def _last_completed_period_label(lcs: Optional[str], timeframe: str) -> Optional[str]:
+    """Provider label (period end) of the last period closed by ``lcs``.
+
+    Weekly bars are labelled on the week's last session (Friday); monthly bars
+    on the calendar month end, which may be a weekend/holiday after the last
+    session. Before a period's final session, the previous period's label is
+    the last completed one.
+    """
+    if not lcs:
+        return None
+    try:
+        day = date.fromisoformat(lcs)
+    except (TypeError, ValueError):
+        return None
+    if timeframe == "1W":
+        end = _period_last_session(day, timeframe)
+        if end is not None and end > day:
+            end = _period_last_session(day - timedelta(days=7), timeframe)
+        return end.isoformat() if end is not None else None
+    if timeframe == "1M":
+        end = _period_last_session(day, timeframe)
+        if end is None:
+            return None
+        if end > day:
+            return _month_end(day.replace(day=1) - timedelta(days=1)).isoformat()
+        return _month_end(day).isoformat()
+    return None
+
+
+def _period_key(day: date, timeframe: str) -> tuple[int, int]:
+    """Calendar period containing ``day``: ISO week for 1W, year-month for 1M."""
+    if timeframe == "1W":
+        iso = day.isocalendar()
+        return (iso.year, iso.week)
+    return (day.year, day.month)
+
+
+def _period_cache_covers(
+    as_of: Optional[str],
+    lcs: Optional[str],
+    expected: Optional[str],
+    timeframe: str,
+) -> bool:
+    """Whether a period-labelled cache ends at/after the last completed period.
+
+    A label in a later period than the last completed one names a bar for a
+    period that has not closed, so it is never served. Either label convention
+    is accepted within the completed period (period start, mid-period or end),
+    and the daily path's max-staleness tolerance still applies to an older
+    period's label.
+    """
+    if not as_of or not lcs or not expected:
+        return False
+    try:
+        label = date.fromisoformat(as_of)
+        last_session = date.fromisoformat(lcs)
+        period_end = date.fromisoformat(expected)
+    except (TypeError, ValueError):
+        return False
+    # A weekly label may not run past the last completed session (the current
+    # week's Friday is "future" until that week's final session closes).
+    if timeframe == "1W" and label > last_session:
+        return False
+    label_key = _period_key(label, timeframe)
+    expected_key = _period_key(period_end, timeframe)
+    if label_key == expected_key:
+        return True
+    if label_key > expected_key:
+        return False
+    return (period_end - label).days <= _MAX_STALE_DAYS
+
+
+def _intraday_bar_partial(bar_ts, now, market: str) -> bool:
+    """True while the bar's session is still trading.
+
+    A bar dated before today is historical and complete; after the exchange
+    close the last bar is final. Only the current session's trailing bar is
+    flagged.
+    """
+    tz_name = indicators_mod.session_for_market(market)
+    try:
+        bar_local = _local_timestamp(bar_ts, tz_name)
+        now_local = _now_timestamp(now, tz_name)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    if bar_local.date() != now_local.date():
+        return False
+    if market == "usa":
+        try:
+            from market_data.providers import sessions as us_sessions
+
+            return bool(us_sessions.is_us_open(now_local.to_pydatetime()))
+        except Exception:
+            return False
+    try:
+        from trading.utils import MARKET_CLOSE
+
+        close_hour, close_minute = MARKET_CLOSE
+    except Exception:
+        close_hour, close_minute = 15, 30
+    if now_local.hour * 60 + now_local.minute >= close_hour * 60 + close_minute:
+        return False
+    try:
+        if candles.current_session_date(now_local.to_pydatetime()) is None:
+            return False
+    except Exception:
+        pass
+    return True
+
+
+def _period_bar_partial(bar_ts, timeframe: str, now) -> bool:
+    """True when the weekly/monthly bar's period has not closed yet."""
+    try:
+        bar_local = _local_timestamp(bar_ts, "Asia/Kolkata")
+        now_local = _now_timestamp(now, "Asia/Kolkata")
+    except (TypeError, ValueError, OverflowError):
+        return False
+    period_end = _period_last_session(bar_local.date(), timeframe)
+    if period_end is None:
+        return False
+    today = now_local.date()
+    if today != period_end:
+        return today < period_end
+    try:
+        from trading.utils import MARKET_CLOSE
+
+        close_hour, close_minute = MARKET_CLOSE
+    except Exception:
+        close_hour, close_minute = 15, 30
+    return now_local.hour * 60 + now_local.minute < close_hour * 60 + close_minute
+
+
+def _infer_partial_last(candles_list: list, timeframe: str, market: str, now=None) -> bool:
+    """Whether the trailing candle's forming period is still open.
+
+    The explicit ``is_partial`` marker covers the 1D synthetic bar; intraday
+    and weekly/monthly bars are inferred here so a cross on a still-forming
+    bar is suppressed on every timeframe, not just ``1D``.
+    """
+    if not candles_list:
+        return False
+    last = candles_list[-1]
+    if not isinstance(last, dict) or last.get("t") is None:
+        return False
+    if indicators_mod.is_intraday_timeframe(timeframe):
+        return _intraday_bar_partial(last.get("t"), now, market)
+    if timeframe in ("1W", "1M"):
+        return _period_bar_partial(last.get("t"), timeframe, now)
+    return False
+
+
+def _with_chart_extras(
+    payload: dict, market: str, timeframe: str, *,
+    warmup: Optional[list] = None, now=None,
+) -> dict:
+    """Attach ``indicators`` + ``sr_zones`` to one chart payload.
+
+    This is the single source of the extras for every chart return branch:
+    live, stale-first, cached/negative-cache, as-of replay, US and empty/error.
+    The math runs *after* any cache lookup, on the exact candle list being
+    returned, so a cached payload can never serve stale indicator values:
+    ``values.length === candles.length`` by construction. ``warmup`` carries
+    earlier bars from the source frame when the caller has one, so a displayed
+    window that starts mid-session still gets an open-anchored VWAP; without
+    it the partial first session stays ``None``. Empty/error payloads carry
+    ``indicators: None`` + ``sr_zones: []``. Never raises — a math failure
+    degrades to the same empty shape instead of an HTTP 500.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    session = indicators_mod.session_for_market(market)
+    tf = str(payload.get("timeframe") or timeframe or "")
+    payload["indicators"] = None
+    payload["sr_zones"] = []
+    candles_list = payload.get("candles")
+    if not isinstance(candles_list, list) or not candles_list:
+        return payload
+    try:
+        last = candles_list[-1] if isinstance(candles_list[-1], dict) else {}
+        if last and _infer_partial_last(candles_list, tf, market, now):
+            last["is_partial"] = True
+        partial_last = bool(last.get("is_partial"))
+        payload["indicators"] = indicators_mod.compute_indicators(
+            candles_list, tf, session, warmup=warmup, partial_last=partial_last
+        )
+        payload["sr_zones"] = levels_mod.compute_sr_zones(
+            candles_list, session=session, timeframe=tf
+        )
+    except Exception:  # noqa: BLE001 - extras must never break a chart
+        _chart_logger.warning(
+            "chart_extras_failed symbol=%s timeframe=%s market=%s",
+            payload.get("symbol"), tf, market, exc_info=True,
+        )
+        payload["indicators"] = None
+        payload["sr_zones"] = []
+    return payload
 
 
 # US-stock chart (market=usa).
@@ -3083,7 +3421,7 @@ async def _us_symbol_chart(
         overlays = block["live_overlays"]
         trend_lines = block["trend_lines"]
 
-    return _json_response({
+    return _json_response(_with_chart_extras({
         "symbol": symbol_u,
         "timeframe": timeframe,
         "candles": series,
@@ -3094,7 +3432,7 @@ async def _us_symbol_chart(
         "feed": _meta("feed", _US_DEFAULT_FEED),
         "delay_label": _meta("delay_label", _US_DEFAULT_DELAY_LABEL),
         "session_date": session,
-    })
+    }, "usa", timeframe, warmup=_warmup_candles(df, series)))
 
 
 def _chart_freshness(
@@ -3129,6 +3467,47 @@ def _chart_freshness(
     return fields
 
 
+class IndicatorSeries(BaseModel):
+    """One indicator line, aligned 1:1 with the response candles."""
+    id: str
+    values: list[Optional[float]] = Field(default_factory=list)
+
+
+class IndicatorCross(BaseModel):
+    """A golden/death SMA50×SMA200 event on a candle ``t`` string."""
+    t: str
+    kind: str
+
+
+class ChartIndicators(BaseModel):
+    """Optional indicator block; ``aligned`` is always ``candles``."""
+    aligned: str = "candles"
+    timeframe: str
+    session: str
+    partial_last: bool = False
+    series: list[IndicatorSeries] = Field(default_factory=list)
+    crosses: list[IndicatorCross] = Field(default_factory=list)
+
+
+class SRZone(BaseModel):
+    """One support/resistance zone, never extended past the last candle."""
+    kind: str
+    top: float
+    bottom: float
+    start_date: str
+    end_date: str
+    touches: int
+    score: float
+    start_time: Optional[str] = Field(
+        default=None,
+        description="Exact first-touch bar timestamp (intraday frames only).",
+    )
+    end_time: Optional[str] = Field(
+        default=None,
+        description="Exact last-touch bar timestamp (intraday frames only).",
+    )
+
+
 class SymbolChartResponse(BaseModel):
     """Documented shape of the chart payload (India and US paths).
 
@@ -3149,6 +3528,20 @@ class SymbolChartResponse(BaseModel):
     detection_as_of: Optional[str] = None
     expected_as_of: Optional[str] = None
     note: Optional[str] = None
+    indicators: Optional[ChartIndicators] = Field(
+        default=None,
+        description=(
+            "Backend-computed indicator series aligned to `candles` "
+            "(SMA/BB/VWAP + golden/death crosses); null on empty/error."
+        ),
+    )
+    sr_zones: list[SRZone] = Field(
+        default_factory=list,
+        description=(
+            "Backend-computed support/resistance zones (max 4, no rightward "
+            "extension past the last candle)."
+        ),
+    )
     market: Optional[str] = Field(
         default=None, description="Chart market: 'india' (default) or 'usa'."
     )
@@ -3189,10 +3582,17 @@ async def get_symbol_chart(
             detail=f"unknown market {market!r}; expected 'india' or 'usa'",
         )
     if as_of_date is not None:
-        return _json_response(await _asof_symbol_chart(
+        replay = await _asof_symbol_chart(
             symbol, timeframe, limit, lookback_bars, compute_trendlines,
             detect_patterns, as_of_date, from_date,
-        ))
+        )
+        return _json_response(replay)
+    from_part = None
+    if from_date is not None:
+        try:
+            from_part = candles.parse_asof_datetime(from_date).strftime("%Y-%m-%d")
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
     symbol_u = str(symbol).strip().upper()
     session = _ist_session_date()
     lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
@@ -3200,8 +3600,14 @@ async def get_symbol_chart(
     # Stale-first: a session-current frame in the default live-edge disk cache
     # is served immediately (marked cached/stale) while a daemon thread
     # refreshes the cache for the next poll. Replay/as-of never takes this.
-    # An explicit refresh always goes to the network path.
-    stale_first = None if refresh else _stale_first_frame(symbol_u, timeframe, lb)
+    # An explicit refresh always goes to the network path. A `from` window
+    # also does: the default stale entry has no guarantee of covering the
+    # requested start, and its background refresh would not be the from-window
+    # variant either.
+    stale_first = (
+        None if refresh or from_part
+        else _stale_first_frame(symbol_u, timeframe, lb)
+    )
     if stale_first is not None:
         df, as_of, read_ms = stale_first
         try:
@@ -3215,9 +3621,11 @@ async def get_symbol_chart(
         # ends on Friday) that an ``as_of < last_completed_session`` gate
         # suppressed for the whole day.
         display_df, is_partial = _chart_display_frame(df, symbol_u, timeframe)
+        display_df = _filter_frame_from(display_df, from_part)
         appended_today = display_df is not df
         series = _clamped_candle_series(display_df, lookback_bars, limit)
         _mark_partial_last(series, is_partial)
+        warmup = _warmup_candles(display_df, series)
         if series:
             # The disk frame is the completed-session base — the same frame
             # detection uses, so it is safe to publish for the matrix.
@@ -3287,27 +3695,40 @@ async def get_symbol_chart(
                 "chart_stale_first symbol=%s timeframe=%s read_ms=%.0f as_of=%s",
                 symbol_u, timeframe, read_ms, as_of,
             )
-            return _json_response(payload)
+            return _json_response(
+                _with_chart_extras(payload, "india", timeframe, warmup=warmup)
+            )
 
     # Negative cache hit: this (symbol, timeframe) already returned no
     # candles this session — answer instantly, no upstream fetch at all.
-    neg = None if refresh else _chart_neg_cache_get(symbol_u, timeframe, session)
+    neg = (
+        None if refresh or from_part
+        else _chart_neg_cache_get(symbol_u, timeframe, session)
+    )
     if neg is not None:
         _log_chart_fetch(
             symbol_u, timeframe, elapsed_ms=0.0, rows=0,
             cache_hit=True, timeout=False, error=None,
         )
-        return _json_response(neg)
+        return _json_response(_with_chart_extras(neg, "india", timeframe))
 
     start = _time.monotonic()
+    fetch_kwargs = {
+        "lookback_bars": lb,
+        "include_partial_today": timeframe == "1D",
+        "force_refresh": bool(refresh),
+    }
+    # With detection on, keep the normal fetch window: the engine needs the
+    # history before `from_date`. With detection off the window itself can
+    # start at `from_date` (display is clipped either way below).
+    if from_part and not detect_patterns:
+        fetch_kwargs["from_date"] = from_part
     try:
         df = await asyncio.wait_for(
             run_in_threadpool(
                 candles.fetch_for_timeframe,
                 symbol_u, timeframe,
-                lookback_bars=lb,
-                include_partial_today=(timeframe == "1D"),
-                force_refresh=bool(refresh),
+                **fetch_kwargs,
             ),
             timeout=_CHART_FETCH_TIMEOUT_SEC,
         )
@@ -3323,6 +3744,7 @@ async def get_symbol_chart(
             symbol_u, timeframe,
             fetch_lookback=lb, clamp_lookback=lookback_bars, limit=limit,
             reason=f"upstream timed out after {_CHART_FETCH_TIMEOUT_SEC:.0f}s",
+            from_date=from_part,
         )
         if stale is not None:
             _log_chart_fetch(
@@ -3330,17 +3752,18 @@ async def get_symbol_chart(
                 rows=len(stale["candles"]), cache_hit=True,
                 timeout=True, error=reason, stale_fallback=True,
             )
-            return _json_response(stale)
+            return _json_response(_with_chart_extras(stale, "india", timeframe))
         payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
-        _chart_neg_cache_put(
-            symbol_u, timeframe, session, payload,
-            ttl=_CHART_NEG_CACHE_TIMEOUT_TTL_SEC,
-        )
+        if not from_part:
+            _chart_neg_cache_put(
+                symbol_u, timeframe, session, payload,
+                ttl=_CHART_NEG_CACHE_TIMEOUT_TTL_SEC,
+            )
         _log_chart_fetch(
             symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
             cache_hit=False, timeout=True, error=reason, stale_fallback=False,
         )
-        return _json_response(payload)
+        return _json_response(_with_chart_extras(payload, "india", timeframe))
     except Exception as exc:  # noqa: BLE001 - transient upstream failure, never 500
         df = None
         elapsed_ms = (_time.monotonic() - start) * 1000.0
@@ -3350,6 +3773,7 @@ async def get_symbol_chart(
             symbol_u, timeframe,
             fetch_lookback=lb, clamp_lookback=lookback_bars, limit=limit,
             reason="upstream fetch error",
+            from_date=from_part,
         )
         if stale is not None:
             _log_chart_fetch(
@@ -3357,7 +3781,7 @@ async def get_symbol_chart(
                 rows=len(stale["candles"]), cache_hit=True,
                 timeout=False, error=reason, stale_fallback=True,
             )
-            return _json_response(stale)
+            return _json_response(_with_chart_extras(stale, "india", timeframe))
         payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
         # Transient errors are NOT cached: the next click retries (still bounded
         # by the timeout) so a recovered feed isn't papered over for 5 minutes.
@@ -3365,7 +3789,7 @@ async def get_symbol_chart(
             symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
             cache_hit=False, timeout=False, error=reason, stale_fallback=False,
         )
-        return _json_response(payload)
+        return _json_response(_with_chart_extras(payload, "india", timeframe))
 
     elapsed_ms = (_time.monotonic() - start) * 1000.0
     rows = 0 if df is None or getattr(df, "empty", True) else int(len(df))
@@ -3376,6 +3800,7 @@ async def get_symbol_chart(
             symbol_u, timeframe,
             fetch_lookback=lb, clamp_lookback=lookback_bars, limit=limit,
             reason=f"upstream returned no candles in session {session}",
+            from_date=from_part,
         )
         if stale is not None:
             _log_chart_fetch(
@@ -3383,25 +3808,28 @@ async def get_symbol_chart(
                 rows=len(stale["candles"]), cache_hit=True,
                 timeout=False, error=reason, stale_fallback=True,
             )
-            return _json_response(stale)
+            return _json_response(_with_chart_extras(stale, "india", timeframe))
         payload = _chart_empty_payload(symbol_u, timeframe, reason=reason, note=note)
-        _chart_neg_cache_put(symbol_u, timeframe, session, payload)
+        if not from_part:
+            _chart_neg_cache_put(symbol_u, timeframe, session, payload)
         _log_chart_fetch(
             symbol_u, timeframe, elapsed_ms=elapsed_ms, rows=0,
             cache_hit=False, timeout=False, error=reason, stale_fallback=False,
         )
-        return _json_response(payload)
+        return _json_response(_with_chart_extras(payload, "india", timeframe))
     # The fetch window carries ~1.5x headroom; clamp the displayed chart to
     # exactly the requested Lookback (Auto keeps the whole window). A trailing
     # synthetic session bar (1D only) is appended for display only — detection
     # and the frame identity use the completed-session base frame so an
     # unfinished bar can never form a hit.
     display_df, is_partial = _chart_display_frame(df, symbol_u, timeframe)
+    display_df = _filter_frame_from(display_df, from_part)
     base_df = df
     if getattr(df, "attrs", {}).get("partial_today"):
         base_df = df.iloc[:-1]
     series = _clamped_candle_series(display_df, lookback_bars, limit)
     _mark_partial_last(series, is_partial)
+    warmup = _warmup_candles(display_df, series)
     # ``df`` is the fetched frame and may carry today's appended tape bar
     # (``partial_today``); ``_remember_frame`` trims that trailing bar, leaving
     # exactly ``base_df`` — the frame detection used.
@@ -3452,7 +3880,9 @@ async def get_symbol_chart(
         # Detection off: serve the stored scan hits so the chart matches the
         # table. Replay (as_of_date) never reaches this branch — it stays live.
         payload["hits"] = _stored_hits(symbol_u, timeframe)
-    return _json_response(payload)
+    return _json_response(
+        _with_chart_extras(payload, "india", timeframe, warmup=warmup)
+    )
 
 
 @router.get("/watch/setups")

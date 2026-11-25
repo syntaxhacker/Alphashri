@@ -47,7 +47,10 @@
     "audit:typography": "node scripts/typography-audit.mjs",
     "audit:typography:check": "node scripts/typography-audit.mjs --check",
     "visual:test": "node scripts/visual-regression.mjs",
-    "visual:update": "UPDATE_SNAPSHOTS=1 node scripts/visual-regression.mjs"
+    "visual:update": "UPDATE_SNAPSHOTS=1 node scripts/visual-regression.mjs",
+    "perf:chart:fixtures": "python scripts/perf/gen_chart_fixtures.py",
+    "perf:chart:matrix": "node scripts/perf/chart_tf_matrix.mjs",
+    "perf:chart": "node scripts/perf/chart_perf.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -30,6 +31,7 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
+from urllib.parse import quote
 
 import httpx
 
@@ -49,6 +51,11 @@ PASSWORD_MISSING_REASON = (
     "BENCH_QA_PASSWORD is not set and there is no password fallback; "
     "set BENCH_QA_PASSWORD or pass --password to benchmark login/auth routes"
 )
+#: Fake NSE symbol used only by the in-process chart fixture. It is not a real
+#: ticker, so the seeded cache/DB rows cannot collide with user data.
+CHART_BENCH_SYMBOL = "BENCHCHART"
+CHART_BENCH_TIMEFRAME = "1D"
+CHART_FIXTURE_BARS = 520
 
 _TOP_KEYS = frozenset({"schema_version", "description", "defaults", "routes"})
 _ROUTE_KEYS = frozenset({"method", "path", "query", "auth", "budgets_ms", "cache_state"})
@@ -243,13 +250,16 @@ def build_request(
 ) -> tuple[str, str, dict[str, Any]]:
     """Build the call for a route; quoted params keep query values explicit."""
     kwargs: dict[str, Any] = {}
+    path = spec.path
+    if "{symbol}" in path:
+        path = path.replace("{symbol}", quote(CHART_BENCH_SYMBOL, safe=""))
     if spec.query:
         kwargs["params"] = dict(spec.query)
     if spec.name == "login":
         kwargs["json"] = dict(credentials)
     if spec.auth and token:
         kwargs["headers"] = {"Authorization": f"Bearer {token}"}
-    return spec.method, spec.path, kwargs
+    return spec.method, path, kwargs
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -287,8 +297,16 @@ def build_parser() -> argparse.ArgumentParser:
 # --- transport and measurement ---
 
 
-def configure_isolated_env() -> Path:
-    """Force CI mode and a throwaway DB so the in-process app never touches user data."""
+def configure_isolated_env(*, disable_chart_refresh: bool = False) -> Path:
+    """Force CI mode and a throwaway DB so the in-process app never touches user data.
+
+    ``disable_chart_refresh`` also sets ``CHART_REFRESH_MAX_ATTEMPTS=0`` before
+    the app imports ``api.chart_patterns``. The chart route's stale-first path
+    starts a background refresh thread; the response never waits on it, but a
+    benchmark that allowed it would make external candle calls. Zero attempts
+    keeps the request path (including thread start) intact and the measurement
+    network-free.
+    """
     base = Path("/tmp/opencode")
     if not base.is_dir():
         base = Path(tempfile.gettempdir())
@@ -296,7 +314,62 @@ def configure_isolated_env() -> Path:
     os.environ["CI_MODE"] = "1"
     os.environ["SKIP_ALEMBIC"] = "1"
     os.environ["DATABASE_URL"] = f"sqlite:///{workdir / 'bench.db'}"
+    if disable_chart_refresh:
+        os.environ["CHART_REFRESH_MAX_ATTEMPTS"] = "0"
     return workdir
+
+
+def seed_chart_fixture(symbol: str, timeframe: str, workdir: Path) -> Path:
+    """Write a deterministic 1D candle pickle for the in-process chart route.
+
+    ``GET /symbol/{symbol}/chart`` takes the stale-first path when the default
+    live-edge cache holds a session-current frame. The fixture redirects
+    ``chart_patterns.candles.CACHE_DIR`` into the benchmark workdir, writes
+    ``CHART_FIXTURE_BARS`` synthetic weekday bars ending today (IST) when today
+    is a weekday, and uses the same ``lb<READ_LOOKBACK_BARS>`` variant the route
+    asks for. The frame's last date is session-current, so the display path never
+    tries to append a synthetic bar from the intraday tape. No real cache file or
+    external feed is touched.
+    """
+    import pickle
+
+    import numpy as np
+    import pandas as pd
+
+    import config
+    from chart_patterns import candles
+    from chart_patterns import config as chart_config
+
+    candles.CACHE_DIR = workdir / "chart-candles"
+    # The harness intentionally sets CHART_REFRESH_MAX_ATTEMPTS=0, so every
+    # stale-first serve logs "exhausted attempts=0" at WARNING. That is expected
+    # benchmark noise, not a route problem; keep errors visible.
+    logging.getLogger("api.chart_patterns").setLevel(logging.ERROR)
+    end = pd.Timestamp.now(tz=config.IST).normalize().tz_localize(None) + pd.Timedelta(
+        hours=15, minutes=30
+    )
+    index = pd.date_range(end=end, periods=CHART_FIXTURE_BARS, freq="B")
+    index = index.tz_localize(config.IST).tz_convert("UTC")
+    rng = np.random.default_rng(20261125)
+    close = 100.0 + np.cumsum(rng.normal(0.0, 0.4, len(index)))
+    open_ = close + rng.normal(0.0, 0.2, len(index))
+    frame = pd.DataFrame(
+        {
+            "open": open_,
+            "high": np.maximum(open_, close) + 1.0,
+            "low": np.minimum(open_, close) - 1.0,
+            "close": close,
+            "volume": np.full(len(index), 1_000_000.0),
+        },
+        index=index,
+    )
+    path = candles._cache_path(
+        timeframe, symbol, None, variant=f"lb{chart_config.READ_LOOKBACK_BARS}"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as handle:
+        pickle.dump(frame, handle)
+    return path
 
 
 def seed_qa_user(email: str, password: str) -> None:
@@ -322,14 +395,19 @@ def seed_qa_user(email: str, password: str) -> None:
 
 
 @asynccontextmanager
-async def make_client(args: argparse.Namespace) -> Iterator[httpx.AsyncClient]:
+async def make_client(
+    args: argparse.Namespace, specs: dict[str, RouteSpec]
+) -> Iterator[httpx.AsyncClient]:
     if args.in_process:
-        configure_isolated_env()
+        needs_chart_fixture = any("{symbol}" in spec.path for spec in specs.values())
+        workdir = configure_isolated_env(disable_chart_refresh=needs_chart_fixture)
         from api_server_fastapi import app  # lazy: importing the app starts DB/config work
 
         async with app.router.lifespan_context(app):
             if args.password:
                 seed_qa_user(args.email, args.password)
+            if needs_chart_fixture:
+                seed_chart_fixture(CHART_BENCH_SYMBOL, CHART_BENCH_TIMEFRAME, workdir)
             transport = httpx.ASGITransport(app=app)
             async with httpx.AsyncClient(
                 transport=transport, base_url="http://bench.local", timeout=args.timeout
@@ -512,7 +590,7 @@ async def run_mode(
     password_missing = not args.password
     credentials = {"email": args.email, "password": args.password or ""}
     results: list[Measurement] = []
-    async with make_client(args) as client:
+    async with make_client(args, specs) as client:
         token, token_error = None, "not needed"
         if password_missing:
             token_error = PASSWORD_MISSING_REASON

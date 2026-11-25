@@ -8,26 +8,40 @@ vi.mock("@/ui", async () => {
 });
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
-import type { ChartCandle, PatternHitDTO } from "@/types/chartPatterns";
+import type { ChartCandle, ChartIndicators, PatternHitDTO, SRZone } from "@/types/chartPatterns";
+import type { TVMarker } from "./patternTVData";
 import { createSignal } from "solid-js";
 import { getPnLTextColor } from "@/utils/ui-helpers";
-import { PatternChartBody, resolveCloseSeries } from "./PatternChartBody";
+import {
+  activeIndicatorChipWindow,
+  markerLegendEntries,
+  PatternChartBody,
+  prioritizeCompactChips,
+  resolveCloseSeries,
+} from "./PatternChartBody";
+import {
+  __resetChartIndicatorPrefsForTests,
+  chartIndicatorPrefs,
+  setChartIndicator,
+} from "@/state/chartIndicators";
 
 vi.mock("./PatternTradingViewChart", () => ({
-  PatternTradingViewChart: ({
-    hit,
-    candles,
-    market,
-  }: {
+  PatternTradingViewChart: (props: {
     hit: PatternHitDTO | null;
     candles: ChartCandle[];
     market?: string;
+    timeframe?: string;
+    hiddenNames?: ReadonlySet<string>;
+    data?: { candles: unknown[] };
   }) => (
     <div
       data-testid="pattern-tv-stub"
-      data-hit-symbol={hit?.symbol ?? "null"}
-      data-candle-count={String(candles.length)}
-      data-market={market ?? "unset"}
+      data-hit-symbol={props.hit?.symbol ?? "null"}
+      data-candle-count={String(props.candles.length)}
+      data-market={props.market ?? "unset"}
+      data-timeframe={props.timeframe ?? "unset"}
+      data-data-candles={String(props.data?.candles.length ?? -1)}
+      data-hidden={[...(props.hiddenNames ?? [])].sort().join(",")}
     />
   ),
 }));
@@ -59,6 +73,36 @@ const CANDLES: ChartCandle[] = [
   { t: "2026-09-25", o: 100, h: 105, l: 99, c: 102, v: 1000 },
   { t: "2026-09-26", o: 102, h: 106, l: 101, c: 104, v: 1200 },
 ];
+
+/** Enough bars for SMA200 availability in chip/count tests. */
+const LONG_CANDLES: ChartCandle[] = Array.from({ length: 250 }, (_, index) => {
+  const t = new Date(Date.UTC(2025, 0, 1 + index)).toISOString().slice(0, 10);
+  return { t, o: 100, h: 101, l: 99, c: 100, v: 1000 };
+});
+
+const LONG_ZONES: SRZone[] = [
+  {
+    kind: "support",
+    top: 101,
+    bottom: 99,
+    start_date: LONG_CANDLES[0]!.t,
+    end_date: LONG_CANDLES[LONG_CANDLES.length - 1]!.t,
+    touches: 3,
+    score: 0.8,
+  },
+];
+
+/** A payload whose series arrays are aligned 1:1 with LONG_CANDLES. */
+function longIndicators(overrides: Partial<ChartIndicators> = {}): ChartIndicators {
+  const values = LONG_CANDLES.map((_, index) => 100 + index * 0.01);
+  return {
+    ...INDICATORS,
+    timeframe: "1D",
+    series: INDICATORS.series.map((series) => ({ ...series, values })),
+    crosses: [{ t: LONG_CANDLES[LONG_CANDLES.length - 1]!.t, kind: "golden" }],
+    ...overrides,
+  };
+}
 
 const HIT: PatternHitDTO = {
   id: 7,
@@ -106,11 +150,41 @@ const US_HIT: PatternHitDTO = {
   pivots: [],
 };
 
+const INDICATORS: ChartIndicators = {
+  aligned: "candles",
+  timeframe: "1D",
+  session: "2026-09-26",
+  partial_last: false,
+  series: [
+    { id: "sma20", values: [100, 101] },
+    { id: "sma50", values: [99, 100] },
+    { id: "sma200", values: [90, 91] },
+    { id: "bbUpper", values: [110, 111] },
+    { id: "bbMiddle", values: [105, 106] },
+    { id: "bbLower", values: [100, 101] },
+    { id: "vwap", values: [101, 102] },
+  ],
+  crosses: [],
+};
+
+const ZONES: SRZone[] = [
+  {
+    kind: "support",
+    top: 101,
+    bottom: 99,
+    start_date: "2026-09-01",
+    end_date: "2026-09-26",
+    touches: 3,
+    score: 0.8,
+  },
+];
+
 
 describe("PatternChartBody", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+    __resetChartIndicatorPrefsForTests();
   });
 
   test("default render (no hit): body, history control, empty TV, no chart data", () => {
@@ -118,7 +192,7 @@ describe("PatternChartBody", () => {
     expect(screen.getByTestId("patterns-chart-body")).toBeInTheDocument();
     const history = screen.getByTestId("patterns-history-count");
     expect(history).toBeInTheDocument();
-    expect(within(history).getByRole("button", { name: "3" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(history).getByRole("button", { name: "1" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "5" })).toBeInTheDocument();
     const tv = screen.getByTestId("pattern-tv-stub");
@@ -177,6 +251,90 @@ describe("PatternChartBody", () => {
     expect(screen.getByText("Breakout above ₹112.60 on volume")).toBeInTheDocument();
     expect(screen.getByTestId("pattern-tv-stub")).toHaveAttribute("data-candle-count", "2");
     expect(screen.queryByText("No chart data")).toBeNull();
+  });
+
+  test("fullscreen panel symbol links to TradingView", () => {
+    render(() => <PatternChartBody hit={HIT} candles={CANDLES} />);
+    const link = screen.getByTestId("patterns-chart-symbol-link");
+    expect(link).toHaveTextContent("IRCON");
+    expect(link).toHaveAttribute(
+      "href",
+      "https://www.tradingview.com/chart/?symbol=NSE%3AIRCON",
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  test("1m header change compares with the prior session's last bar", () => {
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    const candles: ChartCandle[] = [
+      // 17 Nov session: 09:30 and 15:15 IST.
+      { t: "2026-11-17T04:00:00+00:00", o: 100, h: 101, l: 99, c: 100, v: 900 },
+      { t: "2026-11-17T09:45:00+00:00", o: 108, h: 111, l: 107, c: 110, v: 900 },
+      // 18 Nov session: 09:30 and 10:00 IST.
+      { t: "2026-11-18T04:00:00+00:00", o: 112, h: 116, l: 111, c: 115, v: 900 },
+      { t: "2026-11-18T04:30:00+00:00", o: 118, h: 122, l: 117, c: 121, v: 900 },
+    ];
+    const series = resolveCloseSeries({ hit, candles, timeframe: "1m" });
+    // (121 - 110) / 110, not the last bar's (121 - 115) / 115.
+    expect(series.changePct).toBeCloseTo(10, 6);
+
+    render(() => <PatternChartBody hit={hit} candles={candles} timeframe="1m" />);
+    expect(screen.getByText("+10.00%")).toBeInTheDocument();
+    expect(screen.queryByText("+5.22%")).toBeNull();
+  });
+
+  test("intraday without an earlier session falls back to the previous bar", () => {
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    const candles: ChartCandle[] = [
+      { t: "2026-11-18T04:00:00+00:00", o: 100, h: 101, l: 99, c: 100, v: 900 },
+      { t: "2026-11-18T04:30:00+00:00", o: 110, h: 111, l: 109, c: 110, v: 900 },
+    ];
+    expect(
+      resolveCloseSeries({ hit, candles, timeframe: "5m" }).changePct,
+    ).toBeCloseTo(10, 6);
+  });
+
+  test("1D header change stays the prior daily candle's close", () => {
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    const candles: ChartCandle[] = [
+      { t: "2026-11-17", o: 100, h: 101, l: 99, c: 100, v: 900 },
+      { t: "2026-11-18", o: 110, h: 111, l: 109, c: 110, v: 900 },
+    ];
+    expect(
+      resolveCloseSeries({ hit, candles, timeframe: "1D" }).changePct,
+    ).toBeCloseTo(10, 6);
+  });
+
+  test("1W header change stays prior period over prior period", () => {
+    const hit: PatternHitDTO = {
+      ...HIT,
+      last_close: null,
+      day_change_pct: null,
+      close_bar_date: null,
+    };
+    const candles: ChartCandle[] = [
+      { t: "2026-11-13", o: 100, h: 101, l: 99, c: 100, v: 900 },
+      { t: "2026-11-20", o: 90, h: 91, l: 89, c: 90, v: 900 },
+    ];
+    expect(
+      resolveCloseSeries({ hit, candles, timeframe: "1W" }).changePct,
+    ).toBeCloseTo(-10, 6);
   });
 
   test("a stored hit with no close_bar_date loses to the chart even when end_date is newer", () => {
@@ -353,7 +511,7 @@ describe("PatternChartBody", () => {
     expect(screen.queryByTestId("patterns-fullscreen-panel")).toBeNull();
   });
 
-  test("history segmented control toggles between 1/3/5", () => {
+  test("history segmented control defaults to 1 and toggles between 1/3/5", () => {
     const hits: PatternHitDTO[] = [1, 2, 3].map((n) => ({
       ...HIT,
       id: n,
@@ -363,7 +521,11 @@ describe("PatternChartBody", () => {
     }));
     render(() => <PatternChartBody hit={HIT} hits={hits} onSelectHit={vi.fn()} candles={CANDLES} />);
     const box = screen.getByTestId("patterns-history-count");
+    expect(within(box).getByRole("button", { name: "1" })).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(within(box).getByRole("button", { name: "3" }));
     expect(within(box).getByRole("button", { name: "3" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(box).getByRole("button", { name: "1" })).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.click(within(box).getByRole("button", { name: "5" }));
     expect(within(box).getByRole("button", { name: "5" })).toHaveAttribute("aria-pressed", "true");
@@ -619,5 +781,380 @@ describe("PatternChartBody", () => {
     expect(within(panel).getByText("₹352.25")).toBeInTheDocument();
     expect(within(panel).getByText("₹354.10")).toBeInTheDocument();
     expect(panel.textContent).not.toContain("$");
+  });
+
+  test("renders the 28px indicator strip and forwards timeframe/indicators/zones to the chart", () => {
+    render(() => (
+      <PatternChartBody
+        hit={HIT}
+        candles={CANDLES}
+        timeframe="5m"
+        indicators={{ ...INDICATORS, timeframe: "5m" }}
+        srZones={ZONES}
+      />
+    ));
+    const strip = screen.getByTestId("patterns-chart-indicator-strip");
+    expect(strip).toHaveStyle({ height: "28px" });
+    expect(screen.getByTestId("patterns-chart-indicators-trigger")).toBeInTheDocument();
+
+    const chart = screen.getByTestId("pattern-tv-stub");
+    expect(chart).toHaveAttribute("data-timeframe", "5m");
+    expect(chart).toHaveAttribute("data-data-candles", "2");
+    // Default SMA20 is on; every other indicator starts hidden.
+    expect(chart).toHaveAttribute(
+      "data-hidden",
+      "BB,Crosses,Pivots,Resistance,S/R,SMA200,SMA50,Support,VWAP",
+    );
+
+    fireEvent.click(screen.getByTestId("patterns-chart-indicators-trigger"));
+    expect(screen.getByTestId("chart-indicator-vwap")).toBeEnabled();
+    expect(screen.getByTestId("chart-indicator-zones-count")).toHaveTextContent("1 zone");
+  });
+
+  test("raw zones that cannot be drawn show 'No zones' without a count badge", () => {
+    setChartIndicator("srZones", true);
+    const stale: SRZone[] = Array.from({ length: 4 }, (_, index) => ({
+      kind: "support",
+      top: 110 + index,
+      bottom: 100 + index,
+      start_date: "2020-01-01",
+      end_date: "2020-01-31",
+      touches: 1,
+      score: 0.5,
+    }));
+    render(() => (
+      <PatternChartBody
+        hit={HIT}
+        candles={CANDLES}
+        timeframe="1D"
+        indicators={INDICATORS}
+        srZones={stale}
+      />
+    ));
+    fireEvent.click(screen.getByTestId("patterns-chart-indicators-trigger"));
+
+    expect(screen.getByTestId("chart-indicator-srZones-reason")).toHaveTextContent("No zones");
+    expect(screen.queryByTestId("chart-indicator-zones-count")).toBeNull();
+    expect(screen.getByTestId("patterns-chart-indicators-count")).toHaveTextContent("1");
+  });
+
+  test("indicator prefs persist across pattern navigation while the pattern legend hidden set resets", () => {    const illustrated: PatternHitDTO = {
+      ...HIT,
+      trendlines: [
+        [
+          { t: "2026-09-25", price: 103 },
+          { t: "2026-09-26", price: 106 },
+        ],
+        [
+          { t: "2026-09-25", price: 99 },
+          { t: "2026-09-26", price: 101 },
+        ],
+      ],
+    };
+    const [hit, setHit] = createSignal<PatternHitDTO>(illustrated);
+    render(() => (
+      <PatternChartBody
+        hit={hit()}
+        candles={CANDLES}
+        timeframe="1D"
+        indicators={INDICATORS}
+        srZones={ZONES}
+      />
+    ));
+
+    // Hide one pattern series through the legend.
+    const boundary = screen.getByTestId("patterns-chart-legend-item-Falling Wedge");
+    expect(boundary).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(boundary);
+    expect(screen.getByTestId("patterns-chart-legend-item-Falling Wedge")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+
+    // Turn on SMA50 from the session menu.
+    fireEvent.click(screen.getByTestId("patterns-chart-indicators-trigger"));
+    fireEvent.click(screen.getByTestId("chart-indicator-sma50"));
+    expect(chartIndicatorPrefs().sma50).toBe(true);
+
+    // A different hit resets the pattern legend visibility…
+    setHit({
+      ...illustrated,
+      id: 8,
+      pattern_id: "ascending_triangle",
+      start_date: "2026-05-01",
+    });
+    expect(screen.getByTestId("patterns-chart-legend-item-Falling Wedge")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    // …but the indicator preference is still on and drawn.
+    expect(chartIndicatorPrefs().sma50).toBe(true);
+    expect(screen.getByTestId("chart-indicator-sma50")).toBeChecked();
+    expect(screen.getByTestId("pattern-tv-stub").getAttribute("data-hidden")).not.toContain(
+      "SMA50",
+    );
+  });
+
+  test("Crosses legend appears only while the indicator pref is enabled", () => {
+    const noPivots: PatternHitDTO = { ...HIT, pivots: [] };
+    const crossIndicators: ChartIndicators = {
+      ...INDICATORS,
+      crosses: [{ t: "2026-09-26", kind: "golden" }],
+    };
+    render(() => (
+      <PatternChartBody
+        hit={noPivots}
+        candles={CANDLES}
+        timeframe="1D"
+        indicators={crossIndicators}
+      />
+    ));
+
+    // Default pref is off: no legend entry and the marker stays hidden.
+    expect(screen.queryByTestId("patterns-chart-legend-item-Crosses")).toBeNull();
+    expect(screen.queryByTestId("patterns-chart-legend-item-Pivots")).toBeNull();
+    expect(screen.queryByTestId("patterns-chart-legend-item-Key points")).toBeNull();
+    expect(screen.getByTestId("pattern-tv-stub").getAttribute("data-hidden")).toContain(
+      "Crosses",
+    );
+
+    // Enabling from the menu adds the entry and draws the markers.
+    fireEvent.click(screen.getByTestId("patterns-chart-indicators-trigger"));
+    fireEvent.click(screen.getByTestId("chart-indicator-crosses"));
+    expect(chartIndicatorPrefs().crosses).toBe(true);
+    const crosses = screen.getByTestId("patterns-chart-legend-item-Crosses");
+    expect(crosses).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("pattern-tv-stub").getAttribute("data-hidden")).not.toContain(
+      "Crosses",
+    );
+
+    // Toggling the legend off removes both the entry and the markers.
+    fireEvent.click(crosses);
+    expect(chartIndicatorPrefs().crosses).toBe(false);
+    expect(screen.queryByTestId("patterns-chart-legend-item-Crosses")).toBeNull();
+    expect(screen.getByTestId("pattern-tv-stub").getAttribute("data-hidden")).toContain(
+      "Crosses",
+    );
+  });
+
+  test("markerLegendEntries gates Crosses but keeps pivots/key points", () => {
+    const marker = (
+      group: TVMarker["group"],
+      legendName?: string,
+    ): TVMarker => ({
+      time: 1,
+      position: "inBar",
+      shape: "circle",
+      color: "#fff",
+      text: "",
+      group,
+      legendName,
+    });
+
+    expect(markerLegendEntries([marker("crosses", "Crosses")])).toEqual([]);
+    expect(
+      markerLegendEntries([marker("crosses", "Crosses")], { crossesEnabled: true }),
+    ).toEqual([{ name: "Crosses", color: expect.any(String) }]);
+    expect(markerLegendEntries([marker("pivots"), marker("keypoints")])).toEqual([
+      { name: "Pivots", color: expect.any(String) },
+      { name: "Key points", color: expect.any(String) },
+    ]);
+    expect(
+      markerLegendEntries([marker("pivots"), marker("crosses", "Crosses")], {
+        crossesEnabled: false,
+      }),
+    ).toEqual([{ name: "Pivots", color: expect.any(String) }]);
+    expect(
+      markerLegendEntries([marker("pivots"), marker("crosses", "Crosses")], {
+        crossesEnabled: true,
+      }),
+    ).toEqual([
+      { name: "Pivots", color: expect.any(String) },
+      { name: "Crosses", color: expect.any(String) },
+    ]);
+  });
+
+  test("VWAP visibility follows the timeframe gate even when the pref is on", () => {
+    const [timeframe, setTimeframe] = createSignal<string | null>("5m");
+    render(() => (
+      <PatternChartBody
+        hit={HIT}
+        candles={CANDLES}
+        timeframe={timeframe()}
+        indicators={{ ...INDICATORS, timeframe: "5m" }}
+      />
+    ));
+    fireEvent.click(screen.getByTestId("patterns-chart-indicators-trigger"));
+    fireEvent.click(screen.getByTestId("chart-indicator-vwap"));
+    expect(chartIndicatorPrefs().vwap).toBe(true);
+    expect(screen.getByTestId("pattern-tv-stub").getAttribute("data-hidden")).not.toContain(
+      "VWAP",
+    );
+
+    setTimeframe("1D");
+    expect(screen.getByTestId("pattern-tv-stub").getAttribute("data-hidden")).toContain("VWAP");
+    expect(screen.getByTestId("chart-indicator-vwap")).toBeDisabled();
+    expect(screen.getByTestId("chart-indicator-vwap-reason")).toHaveTextContent("Intraday only");
+  });
+
+  test("default state shows one active-indicator chip: SMA20", () => {
+    render(() => (
+      <PatternChartBody
+        hit={HIT}
+        candles={CANDLES}
+        timeframe="1D"
+        indicators={INDICATORS}
+      />
+    ));
+    const row = screen.getByTestId("chart-active-indicators");
+    expect(row).toHaveAttribute("data-active-count", "1");
+    expect(row.querySelectorAll("[data-indicator]")).toHaveLength(1);
+    expect(row.querySelector('[data-indicator="sma20"]')).toHaveTextContent("SMA20");
+    expect(row.querySelector('[data-indicator="sma50"]')).toBeNull();
+  });
+
+  test("all-on chips label every non-Crosses active row including S/R", () => {
+    for (const id of [
+      "sma20",
+      "sma50",
+      "sma200",
+      "vwap",
+      "bb",
+      "crosses",
+      "srZones",
+    ] as const) {
+      setChartIndicator(id, true);
+    }
+    render(() => (
+      <PatternChartBody
+        hit={HIT}
+        candles={LONG_CANDLES}
+        timeframe="1D"
+        indicators={longIndicators()}
+        srZones={LONG_ZONES}
+      />
+    ));
+    const row = screen.getByTestId("chart-active-indicators");
+    // VWAP is disabled on 1D; the other six rows are drawable.
+    expect(row).toHaveAttribute("data-active-count", "6");
+    const ids = [...row.querySelectorAll("[data-indicator]")].map((chip) =>
+      chip.getAttribute("data-indicator"),
+    );
+    expect(ids).toEqual(["sma20", "sma50", "sma200", "bb", "srZones"]);
+    expect(row).toHaveTextContent("SMA20");
+    expect(row).toHaveTextContent("SMA50");
+    expect(row).toHaveTextContent("SMA200");
+    expect(row).toHaveTextContent("BB");
+    expect(row).toHaveTextContent("S/R");
+    expect(row).not.toHaveTextContent("Crosses");
+    expect(row).not.toHaveTextContent("VWAP");
+  });
+
+  test("compact 390px prioritizes SMA20/BB/S/R and keeps Crosses label visible", () => {
+    const width = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockReturnValue(390);
+    for (const id of [
+      "sma20",
+      "sma50",
+      "sma200",
+      "vwap",
+      "bb",
+      "crosses",
+      "srZones",
+    ] as const) {
+      setChartIndicator(id, true);
+    }
+    try {
+      render(() => (
+        <PatternChartBody
+          hit={HIT}
+          candles={LONG_CANDLES}
+          timeframe="1D"
+          indicators={longIndicators()}
+          srZones={LONG_ZONES}
+        />
+      ));
+      const row = screen.getByTestId("chart-active-indicators");
+      expect(row).toHaveAttribute("data-active-count", "6");
+      const ids = [...row.querySelectorAll("[data-indicator]")].map((chip) =>
+        chip.getAttribute("data-indicator"),
+      );
+      expect(ids).toEqual(["sma20", "bb", "srZones", "overflow"]);
+      expect(row).toHaveTextContent("SMA20");
+      expect(row).toHaveTextContent("BB");
+      expect(row).toHaveTextContent("S/R");
+      expect(row.querySelector('[data-indicator="overflow"]')).toHaveTextContent("+2");
+      expect(row).not.toHaveTextContent("Crosses");
+      expect(screen.getByTestId("patterns-chart-indicators-count")).toHaveTextContent("6");
+      expect(screen.getByTestId("patterns-chart-indicators-trigger")).toHaveAttribute(
+        "aria-label",
+        "Indicators (6 active)",
+      );
+
+      const crossesLegend = screen.getByTestId("patterns-chart-legend-item-Crosses");
+      expect(crossesLegend).toHaveTextContent("Crosses");
+      const legendBlock = screen.getByTestId("patterns-chart-legend-block");
+      expect(legendBlock.className).toContain("shrink-0");
+      expect(legendBlock.className).toContain("min-w-[72px]");
+    } finally {
+      width.mockRestore();
+    }
+  });
+
+  test("all-off hides the active-indicator chip row", () => {
+    for (const id of [
+      "sma20",
+      "sma50",
+      "sma200",
+      "vwap",
+      "bb",
+      "crosses",
+      "srZones",
+    ] as const) {
+      setChartIndicator(id, false);
+    }
+    render(() => (
+      <PatternChartBody
+        hit={HIT}
+        candles={LONG_CANDLES}
+        timeframe="1D"
+        indicators={INDICATORS}
+        srZones={ZONES}
+      />
+    ));
+    expect(screen.queryByTestId("chart-active-indicators")).toBeNull();
+  });
+
+  test("compact chips prioritize SMA20, BB and S/R", () => {
+    expect(
+      prioritizeCompactChips([
+        { id: "sma50" },
+        { id: "srZones" },
+        { id: "bb" },
+        { id: "sma20" },
+      ]).map((spec) => spec.id),
+    ).toEqual(["sma20", "bb", "srZones", "sma50"]);
+  });
+
+  test("chip window handles 0 / 1 / 3 / overflow in compact mode", () => {
+    expect(activeIndicatorChipWindow([], true)).toEqual({ visible: [], overflow: 0 });
+    expect(activeIndicatorChipWindow(["a"], true)).toEqual({ visible: ["a"], overflow: 0 });
+    expect(activeIndicatorChipWindow(["a", "b", "c"], true)).toEqual({
+      visible: ["a", "b", "c"],
+      overflow: 0,
+    });
+    expect(activeIndicatorChipWindow(["a", "b", "c", "d", "e"], true)).toEqual({
+      visible: ["a", "b", "c"],
+      overflow: 2,
+    });
+    expect(activeIndicatorChipWindow(["a", "b", "c", "d", "e", "f"], true)).toEqual({
+      visible: ["a", "b", "c"],
+      overflow: 3,
+    });
+    expect(activeIndicatorChipWindow(["a", "b", "c", "d", "e", "f"], false)).toEqual({
+      visible: ["a", "b", "c", "d", "e", "f"],
+      overflow: 0,
+    });
   });
 });

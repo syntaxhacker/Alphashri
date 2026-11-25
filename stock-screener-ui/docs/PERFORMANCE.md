@@ -1,7 +1,7 @@
 # Performance — index
 
-- **Last checked: 2026-11-22**
-- **Next check: 2026-11-29**
+- **Last checked: 2026-11-25**
+- **Next check: 2026-12-02**
 
 Short index only. The budgets and the enforcement rules live in
 [`AGENTS.md` → *Performance budgets and checks*](../AGENTS.md#performance-budgets-and-checks).
@@ -12,7 +12,8 @@ Keep this page a pointer; do not duplicate numbers here.
 | Topic | Source |
 |---|---|
 | Wall/test budgets (backend + frontend) | [`perf/budgets.json`](../perf/budgets.json) |
-| API latency budgets (per-route warm p95; `API_COLD` = `agri_filters` cold budget 10,000 ms) | [`perf/api_budgets.json`](../perf/api_budgets.json) |
+| API latency budgets (per-route warm p95, including the seeded-cache chart route; `API_COLD` = `agri_filters` cold budget 10,000 ms) | [`perf/api_budgets.json`](../perf/api_budgets.json) |
+| Interactive chart/UI protocol, budgets and scripts (initial targets pending baseline) | [docs/CHART_PERFORMANCE.md](./CHART_PERFORMANCE.md) · [`perf/chart_ui_budgets.json`](../perf/chart_ui_budgets.json) · [`scripts/perf/`](../scripts/perf/) |
 | API benchmark, warm/cold semantics, verdicts, known breach | [docs/API_LATENCY.md](./API_LATENCY.md) · [`scripts/bench_api.py`](../scripts/bench_api.py) |
 | Backend fast changed-test runner (selection rules, markers, flags) | [docs/TESTING_SPEED.md](./TESTING_SPEED.md) · [`scripts/test/run_changed.py`](../scripts/test/run_changed.py) |
 | CI shard/tier facts (12 python shards; E2E 20 shards) | [`.github/workflows/test.yml`](../../.github/workflows/test.yml) · `AGENTS.md` |
@@ -25,8 +26,9 @@ carries a known ~230-failure debt and is **not** a gate until green. Never lower
 a budget silently — optimize, mark the slow test, or record an explicit
 exception with owner + date in the relevant budget file (`perf/budgets.json` for
 wall/test budgets, `perf/api_budgets.json` for API latency; API budget changes
-must also update the contract test), and refresh last-checked / next-check on
-every review.
+must also update the contract test; `perf/chart_ui_budgets.json` for interactive
+chart/UI, see [docs/CHART_PERFORMANCE.md](./CHART_PERFORMANCE.md)), and refresh
+last-checked / next-check on every review.
 
 ## Measurement methodology
 
@@ -37,6 +39,11 @@ every review.
   only. Warm and cold are separate tables, never averaged together. Cold paths
   must be tagged `API_COLD` — only `/api/agri/filters` has an agreed cold budget
   (10,000 ms); other routes report `cold: null` as INFO.
+- **Chart route warm read.** The in-process chart benchmark pre-seeds a
+  session-current `1D` candle file under its own temp workdir and disables only
+  the stale-first *background* refresh, so the measured p95 is candle-cache
+  read + indicators/SR + payload. It is not an upstream-fetch number, and over
+  `--base-url` it is informational because the harness cannot seed the server.
 - **Report the median (p50), not the mean.** Use p95 only for the tail budgets
   that name it; quote the sample size and the window. A single run is an
   anecdote — repeat and report the spread.
@@ -52,3 +59,10 @@ every review.
 - **Narrow runs for feedback.** Prefer the changed-only runners to full sweeps;
   see [docs/TESTING_SPEED.md](./TESTING_SPEED.md) for the exact commands. CI is
   the gate for the full matrix.
+- **Interactive UI has its own protocol.** Chart/canvas/indicator changes use
+  [docs/CHART_PERFORMANCE.md](./CHART_PERFORMANCE.md): warm-up, 3+ runs, median
+  and p95, fixed 1600×1000 and 390×844 viewports, real fixtures, no concurrent
+  suites, and hardware/date recorded. Its numbers live in
+  [`perf/chart_ui_budgets.json`](../perf/chart_ui_budgets.json) and are gated by
+  `bun run perf:chart`; they are not averaged with the API or test-budget tables
+  here.

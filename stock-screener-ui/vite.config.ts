@@ -73,15 +73,21 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
 
   return {
-    // Solid ships browser + server builds behind export conditions. The
-    // development/browser pair forces the browser build and keeps
-    // `solid-js/web` on the client instead of the SSR stub.
+    // Solid ships browser + server builds behind export conditions. Keep the
+    // browser condition in every mode so `solid-js/web` resolves to the client
+    // build instead of the SSR stub. Only development needs the `development`
+    // condition: production builds must resolve production exports, otherwise
+    // packages such as lightweight-charts ship their (much larger) development
+    // bundle. Tests declare their own conditions in vitest.config.ts.
     resolve: {
       alias: {
         "@": fileURLToPath(new URL('./src', import.meta.url)),
         tslib: fileURLToPath(new URL('./node_modules/tslib/tslib.es6.js', import.meta.url)),
       },
-      conditions: ['development', 'browser'],
+      conditions:
+        mode === 'development'
+          ? ['development', 'browser']
+          : ['module', 'browser', 'production'],
     },
     plugins: [
       solid(),
