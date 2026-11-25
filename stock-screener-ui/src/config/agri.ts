@@ -12,6 +12,20 @@ export const AGRICULTURE_UNIT = `${AGRI_CURRENCY_SYMBOL}/quintal`;
 export const AGRI_ARRIVALS_UNIT = "qtl";
 export const AGRI_LOCALE = "en-IN";
 
+/** The local cache is always available and is the zero-param default. */
+export const AGRI_SOURCE_LOCAL = "local";
+export const AGRI_SOURCE_RELEASE_PREFIX = "release:";
+
+/** Labels for origins the `/sources` payload does not describe (yet). */
+export function agriSourceLabel(id: string, label?: string): string {
+  if (label?.trim()) return label;
+  if (id === AGRI_SOURCE_LOCAL) return "Local cache";
+  if (id.startsWith(AGRI_SOURCE_RELEASE_PREFIX)) {
+    return `Release ${id.slice(AGRI_SOURCE_RELEASE_PREFIX.length)}`;
+  }
+  return id;
+}
+
 /** Backend `/api/agri/prices` refuses more than five comparison keys. */
 export const AGRI_MAX_COMPARE = 5;
 /** Curated starting overlay; the active commodity is always added first. */
