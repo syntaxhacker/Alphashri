@@ -165,6 +165,15 @@ def _expected_matrix(
     return matrix
 
 
+def _expected_transition_n(ranks_by_name: Dict[str, List[Optional[int]]]) -> int:
+    return sum(
+        1
+        for ranks in ranks_by_name.values()
+        for i in range(len(ranks) - 1)
+        if ranks[i] is not None and ranks[i + 1] is not None
+    )
+
+
 # ===== Monthly aggregation =====
 
 class TestMonthlyAggregation:
@@ -210,6 +219,32 @@ class TestMonthlyAggregation:
         ranks = _rank_frame(returns, ["A", "B", "C"])
 
         assert ranks.iloc[0].tolist() == [1.0, 1.0, 3.0]
+
+    def test_rank_frame_nulls_rows_below_eighty_percent_coverage(self):
+        index = pd.period_range("2024-01", periods=2, freq="M")
+        returns = pd.DataFrame(
+            {
+                "A": [5.0, 5.0],
+                "B": [4.0, 4.0],
+                "C": [3.0, 3.0],
+                "D": [2.0, None],
+                "E": [1.0, 1.0],
+            },
+            index=index,
+        )
+
+        ranks = _rank_frame(returns, ["A", "B", "C", "D", "E"])
+
+        # First month: 5/5 = 100% coverage -> ranked.
+        assert ranks.iloc[0].notna().all()
+        # Second month: 4/5 = 80% -> still ranked.
+        assert ranks.iloc[1].notna().sum() == 4
+        assert pd.isna(ranks.iloc[1]["D"])
+
+        # 3/5 = 60% coverage -> every rank in that row is null.
+        returns.loc[index[1], "C"] = None
+        sparse = _rank_frame(returns, ["A", "B", "C", "D", "E"])
+        assert sparse.iloc[1].isna().all()
 
 
 # ===== Risk =====
@@ -269,6 +304,18 @@ class TestRiskMetrics:
             "sharpe": None,
             "volatility": None,
         }
+
+    def test_drops_todays_in_progress_ist_bar(self):
+        index = pd.date_range(
+            end=pd.Timestamp.now(tz=IST).normalize(), periods=3, freq="D"
+        )
+        close = pd.Series([100.0, 110.0, 50.0], index=index)
+
+        metrics = _risk_metrics(close)
+
+        # Without dropping today's partial bar the max drawdown would be -54.5%.
+        assert metrics["max_drawdown"] == 0.0
+        assert metrics["current_drawdown"] == 0.0
 
 
 # ===== Seasonality / persistence helpers =====
@@ -412,6 +459,9 @@ class TestBuildHistoryPayload:
                 assert matrix[i][j] == pytest.approx(expected[i][j], abs=0.01)
         for row in matrix:
             assert sum(row) == pytest.approx(100.0, abs=0.05)
+        assert payload.persistence.transition_n == _expected_transition_n(
+            EXPECTED_RANKS
+        )
 
     def test_missing_month_keeps_alignment_with_nulls(self, synthetic_closes):
         closes = dict(synthetic_closes)
@@ -431,7 +481,77 @@ class TestBuildHistoryPayload:
         # No prior close means the next month's return is undefined too.
         assert by_name["NIFTY IT"].monthly_returns[position + 1] is None
         assert by_name["NIFTY BANK"].monthly_returns[position] is not None
-        assert by_name["NIFTY BANK"].ranks[position] is not None
+        # Two of three universe members is only ~67% coverage, below the
+        # 80% monthly ranking threshold, so the whole row is null.
+        assert by_name["NIFTY BANK"].ranks[position] is None
+        assert by_name["NIFTY FMCG"].ranks[position] is None
+        assert by_name["NIFTY BANK"].ranks[position + 1] is None
+        # Coverage recovers once the gapped series has a prior close again.
+        assert by_name["NIFTY BANK"].ranks[position + 2] is not None
+
+    def test_one_year_window_trims_to_twelve_months(self, synthetic_closes):
+        payload = _build_history_payload("india", 1, synthetic_closes)
+
+        assert payload is not None
+        assert len(payload.months) == 12
+        assert payload.months[0] == "2024-01"
+        assert payload.months[-1] == "2024-12"
+        assert payload.universe == SECTORS
+        # The first displayed month still has its return vs the prior close.
+        by_name = {series.name: series for series in payload.series}
+        assert by_name["NIFTY BANK"].monthly_returns[0] is not None
+
+    def test_two_month_sector_keeps_universe_and_other_ranks(self, synthetic_closes):
+        baseline = _build_history_payload("india", 5, synthetic_closes)
+        closes = dict(synthetic_closes)
+        closes["NIFTY REALTY"] = _monthly_frame([100.0, 101.0], start="2024-11")
+
+        payload = _build_history_payload("india", 5, closes)
+
+        assert payload is not None
+        assert payload.universe == baseline.universe
+        by_name = {series.name: series for series in payload.series}
+        for name in baseline.universe:
+            before = next(series for series in baseline.series if series.name == name)
+            assert by_name[name].ranks == before.ranks
+            assert by_name[name].monthly_returns == before.monthly_returns
+
+        short = by_name["NIFTY REALTY"]
+        assert len(short.monthly_returns) == N_MONTHS
+        assert short.ranks == [None] * N_MONTHS
+        assert all(item.name != "NIFTY REALTY" for item in payload.seasonality)
+        assert all(
+            item.name != "NIFTY REALTY" for item in payload.persistence.by_sector
+        )
+
+    def test_gapped_short_series_does_not_raise(self, synthetic_closes):
+        closes = dict(synthetic_closes)
+        # Present in ``series`` (2 monthly closes) but far too short for ranks.
+        closes["NIFTY REALTY"] = _monthly_frame([90.0, 91.0], start="2023-03")
+
+        payload = _build_history_payload("india", 5, closes)
+
+        assert payload is not None
+        assert "NIFTY REALTY" in [series.name for series in payload.series]
+        assert "NIFTY REALTY" not in payload.universe
+
+    def test_source_provenance_summary(self, synthetic_closes):
+        payload = _build_history_payload(
+            "india",
+            5,
+            synthetic_closes,
+            sources={
+                BENCHMARK: "upstox",
+                "NIFTY BANK": "upstox",
+                "NIFTY IT": "yfinance",
+                "NIFTY FMCG": "upstox",
+            },
+        )
+
+        assert payload is not None
+        assert "Upstox NIFTY sector indices (3)" in payload.source
+        assert "yfinance fallback (1)" in payload.source
+        assert "7 unavailable" in payload.source
 
     def test_fewer_than_two_ranked_sectors_unavailable(self, synthetic_closes):
         closes = {
@@ -479,11 +599,18 @@ def client():
 
 class TestSectorHistoryEndpoint:
 
+    @patch("api.sector_history._coverage_is_adequate", return_value=True)
     @patch("api.sector_history._write_cache")
     @patch("api.sector_history._read_cache", return_value=None)
     @patch("api.sector_history._fetch_history_data")
     def test_success_shape(
-        self, mock_fetch, mock_read_cache, mock_write_cache, client, synthetic_closes
+        self,
+        mock_fetch,
+        mock_read_cache,
+        mock_write_cache,
+        mock_coverage,
+        client,
+        synthetic_closes,
     ):
         mock_fetch.return_value = synthetic_closes
 
@@ -520,9 +647,9 @@ class TestSectorHistoryEndpoint:
         assert len(data["persistence"]["transition_matrix"]) == 3
         benchmark = next(series for series in data["series"] if series["is_benchmark"])
         assert benchmark["ranks"] == [None] * N_MONTHS
-        mock_read_cache.assert_called_once_with("india_5")
+        mock_read_cache.assert_called_once_with("v2_india_5")
         mock_write_cache.assert_called_once()
-        assert mock_write_cache.call_args[0][0] == "india_5"
+        assert mock_write_cache.call_args[0][0] == "v2_india_5"
 
     @patch("api.sector_history._fetch_history_data")
     @patch("api.sector_history._read_cache")
@@ -538,11 +665,18 @@ class TestSectorHistoryEndpoint:
         assert response.json()["cached"] is True
         mock_fetch.assert_not_called()
 
+    @patch("api.sector_history._read_stale_cache", return_value=None)
     @patch("api.sector_history._write_cache")
     @patch("api.sector_history._read_cache", return_value=None)
     @patch("api.sector_history._fetch_history_data")
     def test_insufficient_sectors_returns_503(
-        self, mock_fetch, mock_read_cache, mock_write_cache, client, synthetic_closes
+        self,
+        mock_fetch,
+        mock_read_cache,
+        mock_write_cache,
+        mock_stale,
+        client,
+        synthetic_closes,
     ):
         mock_fetch.return_value = {
             BENCHMARK: synthetic_closes[BENCHMARK],
@@ -555,11 +689,12 @@ class TestSectorHistoryEndpoint:
         assert response.json() == {"detail": "sector_history_unavailable"}
         mock_write_cache.assert_not_called()
 
+    @patch("api.sector_history._read_stale_cache", return_value=None)
     @patch("api.sector_history._write_cache")
     @patch("api.sector_history._read_cache", return_value=None)
     @patch("api.sector_history._fetch_history_data")
     def test_short_history_returns_503(
-        self, mock_fetch, mock_read_cache, mock_write_cache, client
+        self, mock_fetch, mock_read_cache, mock_write_cache, mock_stale, client
     ):
         mock_fetch.return_value = {
             BENCHMARK: _monthly_frame(_closes_from_returns(BENCH_RETURNS[:11])),
@@ -571,6 +706,165 @@ class TestSectorHistoryEndpoint:
 
         assert response.status_code == 503
         assert response.json() == {"detail": "sector_history_unavailable"}
+
+    @patch("api.sector_history._coverage_is_adequate", return_value=True)
+    @patch("api.sector_history._write_cache")
+    @patch("api.sector_history._fetch_history_data")
+    @patch("api.sector_history._read_cache")
+    def test_force_bypasses_fresh_cache(
+        self,
+        mock_read_cache,
+        mock_fetch,
+        mock_write_cache,
+        mock_coverage,
+        client,
+        synthetic_closes,
+    ):
+        cached = _build_history_payload("india", 5, synthetic_closes)
+        mock_read_cache.return_value = cached.model_dump()
+        mock_fetch.return_value = synthetic_closes
+
+        response = client.get("/api/sector/history?market=india&years=5&force=true")
+
+        assert response.status_code == 200
+        assert response.json()["cached"] is False
+        mock_read_cache.assert_not_called()
+        mock_fetch.assert_called_once()
+        mock_write_cache.assert_called_once()
+
+    @patch("api.sector_history._read_stale_cache", return_value=None)
+    @patch("api.sector_history._write_cache")
+    @patch("api.sector_history._read_cache", return_value=None)
+    @patch("api.sector_history._fetch_history_data")
+    def test_partial_fetch_is_served_but_not_cached(
+        self,
+        mock_fetch,
+        mock_read_cache,
+        mock_write_cache,
+        mock_stale,
+        client,
+        synthetic_closes,
+    ):
+        # 3 of 11 expected proxies -> payload is usable but coverage is partial.
+        mock_fetch.return_value = {
+            BENCHMARK: synthetic_closes[BENCHMARK],
+            "NIFTY BANK": synthetic_closes["NIFTY BANK"],
+            "NIFTY IT": synthetic_closes["NIFTY IT"],
+        }
+
+        response = client.get("/api/sector/history?market=india&years=5")
+
+        assert response.status_code == 200
+        assert response.json()["cached"] is False
+        mock_write_cache.assert_not_called()
+        mock_stale.assert_called_once()
+
+    @patch("api.sector_history._read_stale_cache", return_value=None)
+    @patch("api.sector_history._write_cache")
+    @patch("api.sector_history._read_cache", return_value=None)
+    @patch("api.sector_history._fetch_history_data")
+    def test_adequate_coverage_writes_cache(
+        self,
+        mock_fetch,
+        mock_read_cache,
+        mock_write_cache,
+        mock_stale,
+        client,
+        synthetic_closes,
+    ):
+        names = [
+            "NIFTY 50",
+            "NIFTY BANK",
+            "NIFTY IT",
+            "NIFTY FMCG",
+            "NIFTY PHARMA",
+            "NIFTY AUTO",
+            "NIFTY ENERGY",
+            "NIFTY REALTY",
+            "NIFTY METAL",
+        ]
+        mock_fetch.return_value = {
+            name: synthetic_closes.get(name, synthetic_closes[BENCHMARK])
+            for name in names
+        }
+
+        response = client.get("/api/sector/history?market=india&years=5")
+
+        assert response.status_code == 200
+        assert len(response.json()["series"]) == len(names)
+        mock_write_cache.assert_called_once()
+        assert mock_write_cache.call_args[0][0] == "v2_india_5"
+
+    @patch("api.sector_history._write_cache")
+    @patch("api.sector_history._read_stale_cache")
+    @patch("api.sector_history._read_cache", return_value=None)
+    @patch("api.sector_history._fetch_history_data")
+    def test_expired_cache_and_failed_fetch_serves_stale(
+        self,
+        mock_fetch,
+        mock_read_cache,
+        mock_read_stale,
+        mock_write_cache,
+        client,
+        synthetic_closes,
+    ):
+        cached = _build_history_payload("india", 5, synthetic_closes)
+        mock_read_stale.return_value = cached.model_dump()
+        mock_fetch.side_effect = RuntimeError("upstream down")
+
+        response = client.get("/api/sector/history?market=india&years=5")
+
+        assert response.status_code == 200
+        assert response.json()["cached"] is True
+        assert response.json()["universe"] == SECTORS
+        mock_read_stale.assert_called_once_with("v2_india_5")
+        mock_write_cache.assert_not_called()
+
+    @patch("api.sector_history._coverage_is_adequate", return_value=True)
+    @patch("api.sector_history._write_cache")
+    @patch("api.sector_history._read_cache")
+    @patch("api.sector_history._fetch_history_data")
+    def test_invalid_cached_payload_falls_back_to_fetch(
+        self,
+        mock_fetch,
+        mock_read_cache,
+        mock_write_cache,
+        mock_coverage,
+        client,
+        synthetic_closes,
+    ):
+        mock_read_cache.return_value = {"market": "india", "unexpected": True}
+        mock_fetch.return_value = synthetic_closes
+
+        response = client.get("/api/sector/history?market=india&years=5")
+
+        assert response.status_code == 200
+        assert response.json()["cached"] is False
+        mock_fetch.assert_called_once()
+        mock_write_cache.assert_called_once()
+
+    @patch("api.sector_history._write_cache")
+    @patch("api.sector_history._read_cache", return_value=None)
+    @patch("api.sector_history._fetch_history_data")
+    def test_gapped_short_series_returns_200(
+        self,
+        mock_fetch,
+        mock_read_cache,
+        mock_write_cache,
+        client,
+        synthetic_closes,
+    ):
+        closes = dict(synthetic_closes)
+        closes["NIFTY REALTY"] = _monthly_frame([100.0, 101.0], start="2024-11")
+        mock_fetch.return_value = closes
+
+        response = client.get("/api/sector/history?market=india&years=5")
+
+        assert response.status_code == 200
+        data = response.json()
+        realty = next(series for series in data["series"] if series["name"] == "NIFTY REALTY")
+        assert realty["ranks"] == [None] * N_MONTHS
+        assert "NIFTY REALTY" not in data["universe"]
 
     def test_invalid_market_returns_422(self, client):
         response = client.get("/api/sector/history?market=invalid")

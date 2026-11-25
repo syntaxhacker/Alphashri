@@ -2920,6 +2920,10 @@ components:
             type: array
           title: Transition Matrix
           type: array
+        transition_n:
+          default: 0
+          title: Transition N
+          type: integer
       required:
       - by_sector
       - transition_matrix
@@ -13287,6 +13291,15 @@ paths:
           minimum: 1
           title: Years
           type: integer
+      - description: Bypass the daily cache and refetch
+        in: query
+        name: force
+        required: false
+        schema:
+          default: false
+          description: Bypass the daily cache and refetch
+          title: Force
+          type: boolean
       responses:
         '200':
           content:

@@ -3,10 +3,14 @@
 Endpoint: ``GET /api/sector/history?market=india|america&years=5``.
 Monthly returns, ranks, risk, seasonality and rank persistence are derived
 from the same index/ETF price series used by the sector correlation endpoint.
+
+Fetching/normalisation lives in :mod:`api.market_history`; the canonical
+sector universe lives in :mod:`api.sector_universe`.  This module owns the
+response models, analytics, payload assembly and the HTTP route.
 """
 
-import asyncio
-from datetime import datetime, timedelta
+import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -16,13 +20,25 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from config import IST
-from api.sector import (
-    NIFTY_SECTOR_INDICES,
-    US_SECTOR_ETFS,
+from api.market_history import (
+    HistoryData,
     _fetch_upstox_index_data,
     _get_instrument_key_map,
+    fetch_market_history,
+    normalize_daily_frame,
+    source_summary,
 )
-from api.utils import make_cache_helpers
+from api.sector_universe import (
+    BENCHMARK_BY_MARKET,
+    DESCRIPTORS_BY_MARKET,
+    NIFTY_SECTOR_INDICES,
+    NIFTY_YF_FALLBACK,
+    US_SECTOR_ETFS,
+    YF_FALLBACK_BY_MARKET,
+)
+from api.utils import finite_or_none, make_cache_helpers
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/sector", tags=["sector"])
 
@@ -33,29 +49,30 @@ CACHE_DIR = (
     / "sector_history_cache"
 )
 CACHE_TTL_SECONDS = 86400
+#: Bump whenever the persisted payload shape/semantics change; old files then
+#: miss (and are validated again) instead of being served with stale fields.
+CACHE_SCHEMA_VERSION = 2
 
-_get_cache_path, _get_cache_meta_path, _read_cache, _write_cache = make_cache_helpers(
-    CACHE_DIR, CACHE_TTL_SECONDS
-)
+_cache_helpers = make_cache_helpers(CACHE_DIR, CACHE_TTL_SECONDS)
+_get_cache_path, _get_cache_meta_path, _read_cache, _write_cache = _cache_helpers
+_read_stale_cache = _cache_helpers.read_stale
 
 DISCLAIMER = (
     "Monthly history. Sample size per calendar month is shown. "
     "Historical context, not a forecast."
 )
 
-NIFTY_YF_FALLBACK = {
-    "NIFTY 50": "^NSEI",
-    "NIFTY BANK": "^NSEBANK",
-    "NIFTY IT": "^CNXIT",
-    "NIFTY FMCG": "^CNXFMCG",
-    "NIFTY PHARMA": "^CNXPHARMA",
-    "NIFTY AUTO": "^CNXAUTO",
-    "NIFTY ENERGY": "^CNXENERGY",
-    "NIFTY METAL": "^CNXMETAL",
-    "NIFTY REALTY": "^CNXREALTY",
-    "NIFTY CONSUMPTION": "^CNXCONSUM",
-    "NIFTY FIN_SERVICE": "^CNXFIN",
-}
+#: A non-benchmark needs a real history before it can influence ranks.
+MIN_UNIVERSE_RETURNS = 12
+MIN_UNIVERSE_MONTH_COVERAGE = 0.60
+#: A month is only ranked when at least this share of the universe has a
+#: return; short/partial series must not silently shrink the comparison set.
+MIN_RANK_MONTH_COVERAGE = 0.80
+#: Only persist a market snapshot when most expected proxies were fetched.
+MIN_CACHE_SERIES_COVERAGE = 0.80
+
+# Compatibility aliases for callers that imported these from this module.
+_normalize_daily_frame = normalize_daily_frame
 
 
 class SectorHistorySeries(BaseModel):
@@ -93,6 +110,8 @@ class SectorHistoryPersistenceItem(BaseModel):
 class SectorHistoryPersistence(BaseModel):
     by_sector: List[SectorHistoryPersistenceItem]
     transition_matrix: List[List[Optional[float]]]
+    #: Exact number of observed month-to-month rank pairs behind the matrix.
+    transition_n: int = 0
 
 
 class SectorHistoryResponse(BaseModel):
@@ -112,13 +131,8 @@ class SectorHistoryResponse(BaseModel):
 
 
 def _round_or_none(value: Any, digits: int = 2) -> Optional[float]:
-    if value is None:
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    if not np.isfinite(number):
+    number = finite_or_none(value)
+    if number is None:
         return None
     return round(number, digits)
 
@@ -147,13 +161,61 @@ def _monthly_returns(closes: pd.Series) -> pd.Series:
     return closes.pct_change(fill_method=None) * 100
 
 
-def _rank_frame(returns: pd.DataFrame, universe: List[str]) -> pd.DataFrame:
-    return returns[universe].rank(axis=1, ascending=False, method="min")
+def _rank_frame(
+    returns: pd.DataFrame,
+    universe: List[str],
+    min_coverage: Optional[float] = MIN_RANK_MONTH_COVERAGE,
+) -> pd.DataFrame:
+    """Rank each month, nulling rows with insufficient universe coverage."""
+    if not universe:
+        return pd.DataFrame(index=returns.index)
+
+    frame = returns.reindex(columns=universe)
+    ranks = frame.rank(axis=1, ascending=False, method="min")
+    if min_coverage is not None and universe:
+        required = float(len(universe)) * float(min_coverage)
+        enough = frame.notna().sum(axis=1) >= required
+        ranks = ranks.where(enough, np.nan)
+    return ranks
+
+
+def _qualifies_for_universe(
+    returns: pd.DataFrame,
+    name: str,
+    total_months: int,
+    history_returns: Optional[pd.DataFrame] = None,
+) -> bool:
+    """Require >=12 observed returns and >=60% window coverage.
+
+    ``history_returns`` (the untrimmed frame) proves the series is old enough;
+    ``returns`` is the requested window whose coverage must not be sparse.
+    """
+    if name not in returns.columns or total_months <= 0:
+        return False
+    history = history_returns if history_returns is not None else returns
+    if name not in history.columns or name not in returns.columns:
+        return False
+    observed = int(history[name].notna().sum())
+    if observed < MIN_UNIVERSE_RETURNS:
+        return False
+    window_observed = int(returns[name].notna().sum())
+    return window_observed / float(total_months) >= MIN_UNIVERSE_MONTH_COVERAGE
+
+
+def _drop_in_progress_bar(series: pd.Series) -> pd.Series:
+    """Drop today's IST bar: the session is still forming for risk metrics."""
+    if series.empty or not isinstance(series.index, pd.DatetimeIndex):
+        return series
+    index = series.index
+    if index.tz is not None:
+        index = index.tz_convert(IST).tz_localize(None)
+    cutoff = pd.Timestamp.now(tz=IST).tz_localize(None).normalize()
+    return series[index.normalize() < cutoff]
 
 
 def _risk_metrics(close: pd.Series) -> Dict[str, Optional[float]]:
     series = pd.to_numeric(close, errors="coerce").dropna()
-    series = series[series > 0].sort_index()
+    series = _drop_in_progress_bar(series[series > 0].sort_index())
     if series.empty:
         return {
             "max_drawdown": None,
@@ -174,7 +236,7 @@ def _risk_metrics(close: pd.Series) -> Dict[str, Optional[float]]:
         int((recovered.index[0] - trough_ts).days) if len(recovered) else None
     )
 
-    daily = series.pct_change().dropna()
+    daily = series.pct_change(fill_method=None).dropna()
     std = float(daily.std(ddof=1)) if len(daily) > 1 else float("nan")
     mean = float(daily.mean()) if len(daily) else float("nan")
     sharpe = (
@@ -260,109 +322,37 @@ def _transition_matrix(ranks: pd.DataFrame, size: int) -> List[List[Optional[flo
     return matrix
 
 
-def _normalize_daily_frame(df: pd.DataFrame) -> pd.DataFrame:
-    index = pd.DatetimeIndex(df.index)
-    if index.tz is not None:
-        index = index.tz_convert(IST)
-    index = index.normalize()
-    close = pd.to_numeric(df["close"], errors="coerce")
-    frame = pd.DataFrame({"close": close.to_numpy()}, index=index)
-    frame = frame[~frame.index.duplicated(keep="last")]
-    return frame.sort_index().dropna()
+def _transition_sample_size(ranks: pd.DataFrame) -> int:
+    """Count observed adjacent rank pairs (the matrix denominator)."""
+    total = 0
+    for name in ranks.columns:
+        pairs = ranks[name].notna() & ranks[name].shift(-1).notna()
+        total += int(pairs.sum())
+    return total
 
 
-def _build_upstox_client():
-    from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
-    from config import UPSTOX_API_KEY, UPSTOX_API_SECRET
-
-    if not UPSTOX_API_KEY or not UPSTOX_API_SECRET:
-        return None
-    api = UpstoxAPI(
-        api_key=UPSTOX_API_KEY,
-        api_secret=UPSTOX_API_SECRET,
-        quiet=True,
-    )
-    if not api.instruments:
-        api._download_and_cache_instruments()
-    return api
+async def _fetch_history_data(
+    market: str, years: int, force: bool = False
+) -> HistoryData:
+    """Compatibility wrapper around the shared market-history fetcher."""
+    return await fetch_market_history(market, years, force=force)
 
 
-async def _fetch_yfinance_history(
-    symbol: str, years: int
-) -> Optional[pd.DataFrame]:
-    def _load() -> Optional[pd.DataFrame]:
-        import yfinance as yf
-
-        end = datetime.now(IST) + timedelta(days=1)
-        start = end - timedelta(days=years * 365 + 10)
-        df = yf.Ticker(symbol).history(
-            start=start.date().isoformat(),
-            end=end.date().isoformat(),
-            interval="1d",
-        )
-        if df is None or df.empty or "Close" not in df.columns:
-            return None
-        return df.rename(columns={"Close": "close"})[["close"]]
-
-    try:
-        df = await asyncio.to_thread(_load)
-    except Exception:
-        return None
-    if df is None or df.empty:
-        return None
-    return _normalize_daily_frame(df)
-
-
-async def _fetch_india_history(years: int) -> Dict[str, pd.DataFrame]:
-    lookback_days = years * 365 + 10
-    key_map = await asyncio.to_thread(_get_instrument_key_map)
-    upper_keys = {name.upper(): key for name, key in key_map.items()}
-
-    try:
-        api = await asyncio.to_thread(_build_upstox_client)
-    except Exception:
-        api = None
-
-    results: Dict[str, pd.DataFrame] = {}
-    for display_name, _ in NIFTY_SECTOR_INDICES:
-        df = None
-        instrument_key = upper_keys.get(display_name)
-        if api is not None and instrument_key:
-            df = await _fetch_upstox_index_data(api, instrument_key, lookback_days)
-            if df is not None and not df.empty:
-                df = _normalize_daily_frame(df)
-
-        if df is None or df.empty:
-            yf_symbol = NIFTY_YF_FALLBACK.get(display_name)
-            if yf_symbol:
-                df = await _fetch_yfinance_history(yf_symbol, years)
-
-        if df is not None and not df.empty:
-            results[display_name] = df
-    return results
-
-
-async def _fetch_us_history(years: int) -> Dict[str, pd.DataFrame]:
-    results: Dict[str, pd.DataFrame] = {}
-    for display_name, yf_symbol in US_SECTOR_ETFS:
-        df = await _fetch_yfinance_history(yf_symbol, years)
-        if df is not None and not df.empty:
-            results[display_name] = df
-    return results
-
-
-async def _fetch_history_data(market: str, years: int) -> Dict[str, pd.DataFrame]:
-    if market == "india":
-        return await _fetch_india_history(years)
-    return await _fetch_us_history(years)
+def _generic_source(market: str) -> str:
+    return "NIFTY sector indices" if market == "india" else "US sector ETFs"
 
 
 def _build_history_payload(
-    market: str, years: int, closes: Dict[str, pd.DataFrame]
+    market: str,
+    years: int,
+    closes: Dict[str, pd.DataFrame],
+    sources: Optional[Dict[str, str]] = None,
 ) -> Optional[SectorHistoryResponse]:
-    definitions = NIFTY_SECTOR_INDICES if market == "india" else US_SECTOR_ETFS
-    ordered = [name for name, _ in definitions]
-    benchmark = ordered[0]
+    definitions = DESCRIPTORS_BY_MARKET.get(market)
+    if not definitions:
+        return None
+    ordered = [descriptor.display for descriptor in definitions]
+    benchmark = BENCHMARK_BY_MARKET[market]
 
     monthly: Dict[str, pd.Series] = {}
     daily: Dict[str, pd.Series] = {}
@@ -381,27 +371,39 @@ def _build_history_payload(
     if not monthly:
         return None
 
-    month_index = pd.PeriodIndex(
+    full_month_index = pd.PeriodIndex(
         sorted({period for series in monthly.values() for period in series.index}),
         freq="M",
     )
+    if len(full_month_index) < 13:
+        return None
     close_frame = pd.DataFrame(
-        {name: series.reindex(month_index) for name, series in monthly.items()},
-        index=month_index,
+        {
+            name: series.reindex(full_month_index)
+            for name, series in monthly.items()
+        },
+        index=full_month_index,
     )
-    returns = pd.DataFrame(
+    full_returns = pd.DataFrame(
         {name: _monthly_returns(close_frame[name]) for name in close_frame.columns},
-        index=month_index,
+        index=full_month_index,
     )
+
+    # Returns are computed before trimming so the first displayed month keeps
+    # its return against the prior close; only the payload window is trimmed.
+    max_months = max(1, int(years) * 12)
+    month_index = full_month_index[-max_months:]
+    returns = full_returns.iloc[-max_months:]
 
     universe = [
         name
         for name in ordered
         if name != benchmark
-        and name in returns.columns
-        and bool(returns[name].notna().any())
+        and _qualifies_for_universe(
+            returns, name, len(month_index), history_returns=full_returns
+        )
     ]
-    if len(universe) < 2 or len(month_index) < 13:
+    if len(universe) < 2:
         return None
 
     rank_frame = _rank_frame(returns, universe)
@@ -410,6 +412,10 @@ def _build_history_payload(
     series_items: List[SectorHistorySeries] = []
     for name in series_names:
         is_benchmark = name == benchmark
+        if is_benchmark or name not in rank_frame.columns:
+            ranks: List[Optional[int]] = [None] * len(month_index)
+        else:
+            ranks = [_rank_or_none(value) for value in rank_frame[name]]
         series_items.append(
             SectorHistorySeries(
                 name=name,
@@ -417,11 +423,7 @@ def _build_history_payload(
                 monthly_returns=[
                     _round_or_none(value) for value in returns[name]
                 ],
-                ranks=(
-                    [None] * len(month_index)
-                    if is_benchmark
-                    else [_rank_or_none(value) for value in rank_frame[name]]
-                ),
+                ranks=ranks,
             )
         )
 
@@ -444,6 +446,15 @@ def _build_history_payload(
         for name in universe
     ]
 
+    resolved_sources = (
+        sources if sources is not None else getattr(closes, "sources", None)
+    )
+    source = (
+        source_summary(market, resolved_sources)
+        if resolved_sources
+        else _generic_source(market)
+    )
+
     return SectorHistoryResponse(
         market=market,
         years=years,
@@ -451,7 +462,7 @@ def _build_history_payload(
         months=[str(period) for period in month_index],
         as_of=month_index[-1].to_timestamp(how="end").strftime("%Y-%m-%d"),
         last_updated=datetime.now(IST).isoformat(),
-        source="NIFTY sector indices" if market == "india" else "US sector ETFs",
+        source=source,
         disclaimer=DISCLAIMER,
         universe=universe,
         series=series_items,
@@ -462,8 +473,52 @@ def _build_history_payload(
             transition_matrix=_transition_matrix(
                 rank_frame[universe], len(universe)
             ),
+            transition_n=_transition_sample_size(rank_frame[universe]),
         ),
     )
+
+
+def _cache_key(market: str, years: int) -> str:
+    return f"v{CACHE_SCHEMA_VERSION}_{market}_{years}"
+
+
+def _load_cached_payload(
+    key: str,
+    market: str,
+    years: int,
+    *,
+    stale: bool = False,
+) -> Optional[SectorHistoryResponse]:
+    """Read + validate a cache entry; any schema mismatch falls back to a miss."""
+    raw = _read_stale_cache(key) if stale else _read_cache(key)
+    if raw is None:
+        return None
+    try:
+        payload = SectorHistoryResponse.model_validate(raw)
+    except Exception:
+        logger.warning("Ignoring invalid sector history cache entry %s", key)
+        return None
+    if payload.market != market or payload.years != years:
+        logger.warning("Ignoring mismatched sector history cache entry %s", key)
+        return None
+    return payload.model_copy(update={"cached": True})
+
+
+def _coverage_is_adequate(payload: SectorHistoryResponse, market: str) -> bool:
+    expected = len(DESCRIPTORS_BY_MARKET.get(market, ()))
+    benchmark = BENCHMARK_BY_MARKET.get(market)
+    series_names = {series.name for series in payload.series}
+    if expected == 0 or len(payload.universe) < 2 or not benchmark:
+        return False
+    if benchmark not in series_names:
+        return False
+    complete = sum(
+        1
+        for series in payload.series
+        if sum(value is not None for value in series.monthly_returns)
+        >= MIN_UNIVERSE_RETURNS
+    )
+    return complete / float(expected) >= MIN_CACHE_SERIES_COVERAGE
 
 
 @router.get(
@@ -474,23 +529,39 @@ def _build_history_payload(
 async def get_sector_history(
     market: str = Query("india", pattern="^(india|america)$"),
     years: int = Query(5, ge=1, le=10),
+    force: bool = Query(False, description="Bypass the daily cache and refetch"),
 ):
     """Monthly sector history, risk, seasonality and rank persistence."""
-    cache_key = f"{market}_{years}"
-    cached = _read_cache(cache_key)
-    if cached is not None:
-        return SectorHistoryResponse(**cached).model_copy(
-            update={"cached": True}
+    cache_key = _cache_key(market, years)
+    if not force:
+        cached = _load_cached_payload(cache_key, market, years)
+        if cached is not None:
+            return cached
+
+    payload: Optional[SectorHistoryResponse] = None
+    try:
+        closes = await _fetch_history_data(market, years, force=force)
+        payload = _build_history_payload(market, years, closes)
+    except Exception:
+        logger.warning(
+            "Sector history fetch failed for %s/%sY", market, years, exc_info=True
         )
 
-    try:
-        closes = await _fetch_history_data(market, years)
-    except Exception:
-        closes = {}
+    if payload is not None and _coverage_is_adequate(payload, market):
+        try:
+            _write_cache(cache_key, payload.model_dump())
+        except Exception:
+            logger.warning("Sector history cache write failed for %s", cache_key)
+        return payload
 
-    payload = _build_history_payload(market, years, closes)
-    if payload is None:
-        raise HTTPException(status_code=503, detail="sector_history_unavailable")
+    # A failed or partial refresh must not replace/serve a degraded snapshot
+    # for a day: fall back to the last complete cache regardless of TTL.
+    stale = _load_cached_payload(cache_key, market, years, stale=True)
+    if stale is not None:
+        return stale
 
-    _write_cache(cache_key, payload.model_dump())
-    return payload
+    if payload is not None:
+        # Partial but still useful: serve live without persisting it.
+        return payload
+
+    raise HTTPException(status_code=503, detail="sector_history_unavailable")
