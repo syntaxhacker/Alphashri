@@ -75,13 +75,21 @@ describe("chart indicator specs", () => {
     expect(isVwapDisabledTimeframe("1D")).toBe(true);
     expect(isVwapDisabledTimeframe("1W")).toBe(true);
     expect(isVwapDisabledTimeframe("1M")).toBe(true);
-    expect(isVwapDisabledTimeframe("1d")).toBe(true);
+    expect(isVwapDisabledTimeframe(" 1M ")).toBe(true);
+    // Case matters: `1m` is a minute frame, not a month.
+    expect(isVwapDisabledTimeframe("1m")).toBe(false);
     expect(isVwapDisabledTimeframe("5m")).toBe(false);
     expect(isVwapDisabledTimeframe("1h")).toBe(false);
     expect(chartIndicatorAvailability("vwap", { timeframe: "1D" })).toEqual({
       enabled: false,
       reason: "Intraday only",
     });
+    expect(
+      chartIndicatorAvailability("vwap", {
+        timeframe: "1m",
+        indicators: indicators(),
+      }),
+    ).toEqual({ enabled: true, reason: null });
   });
 
   test("SMA200 needs 200 candles before it is selectable", () => {

@@ -319,8 +319,10 @@ export function buildPatternTVData({
   });
   lines.sort((a, b) => (a.points[0]?.time ?? 0) - (b.points[0]?.time ?? 0));
 
+  // Case-sensitive: `1m` (minute) and `1M` (month) are different frames, so a
+  // stale monthly bundle must not draw during a switch to the 1-minute chart.
   const sameTimeframe = (a: unknown, b: string) =>
-    typeof a === "string" && a.trim().toUpperCase() === b.trim().toUpperCase();
+    typeof a === "string" && a.trim() === b.trim();
   const usableIndicators =
     indicators && (timeframe == null || sameTimeframe(indicators.timeframe, timeframe))
       ? indicators

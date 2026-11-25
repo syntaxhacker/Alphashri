@@ -434,6 +434,82 @@ describe("ChartView (pattern workspace)", () => {
     );
   });
 
+  // Regression: the ladder used to start as [1D], so a valid deep link was
+  // rewritten before `/timeframes` resolved and fetched the wrong frame.
+  it("keeps a deep-linked intraday timeframe while /timeframes is in flight", async () => {
+    vi.mocked(fetchTimeframes).mockImplementation(() => new Promise(() => {}));
+    const { history } = renderPage("/chart/TEST?tf=15m");
+
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "15m", STORED_OPTIONS),
+    );
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(1);
+    expect(fetchSymbolChart).not.toHaveBeenCalledWith("TEST", "1D", expect.any(Object));
+    expect(history.get()).toContain("tf=15m");
+    expect(history.get()).not.toContain("tf=1D");
+  });
+
+  // An admin-registered frame is not in the local ladder; while the catalog is
+  // loading it must be trusted rather than rewritten to 1D.
+  it("keeps a deep-linked catalog-only timeframe while /timeframes is in flight", async () => {
+    vi.mocked(fetchTimeframes).mockImplementation(() => new Promise(() => {}));
+    const { history } = renderPage("/chart/TEST?tf=3m");
+
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "3m", STORED_OPTIONS),
+    );
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(1);
+    expect(fetchSymbolChart).not.toHaveBeenCalledWith("TEST", "1D", expect.any(Object));
+    expect(history.get()).toContain("tf=3m");
+    expect(history.get()).not.toContain("tf=1D");
+  });
+
+  it("keeps a deep-linked catalog-only timeframe once the catalog includes it", async () => {
+    vi.mocked(fetchTimeframes).mockResolvedValue([
+      ...TIMEFRAMES,
+      { id: "3m", label: "3m" } as TFSpec,
+    ]);
+    const { history } = renderPage("/chart/TEST?tf=3m");
+
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "3m", STORED_OPTIONS),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("chart-timeframe-select").querySelector('option[value="3m"]'),
+      ).toBeInTheDocument(),
+    );
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(1);
+    expect(fetchSymbolChart).not.toHaveBeenCalledWith("TEST", "1D", expect.any(Object));
+    expect(history.get()).toContain("tf=3m");
+    expect(history.get()).not.toContain("tf=1D");
+  });
+
+  it("rewrites a catalog-only timeframe once the catalog resolves without it", async () => {
+    vi.mocked(fetchTimeframes).mockResolvedValue(TIMEFRAMES);
+    const { history } = renderPage("/chart/TEST?tf=3m");
+
+    await waitFor(() => expect(history.get()).toContain("tf=1D"));
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "1D", STORED_OPTIONS),
+    );
+    expect(history.get()).not.toContain("tf=3m");
+  });
+
+  it("keeps the requested timeframe when the catalog request fails", async () => {
+    vi.mocked(fetchTimeframes).mockRejectedValue(new Error("catalog offline"));
+    const { history } = renderPage("/chart/TEST?tf=3m");
+
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "3m", STORED_OPTIONS),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(1);
+    expect(fetchSymbolChart).not.toHaveBeenCalledWith("TEST", "1D", expect.any(Object));
+    expect(history.get()).toContain("tf=3m");
+    expect(history.get()).not.toContain("tf=1D");
+  });
+
   it("applies indicators/sr_zones and forwards timeframe + payload fields to the body", async () => {
     vi.mocked(fetchSymbolChart).mockResolvedValue(
       chartPayload({

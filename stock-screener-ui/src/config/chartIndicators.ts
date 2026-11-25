@@ -208,7 +208,9 @@ export function chartIndicatorSpec(id: ChartIndicatorId): ChartIndicatorSpec {
 const VWAP_DISABLED_TIMEFRAMES = new Set(["1D", "1W", "1M"]);
 
 export function normalizeChartTimeframe(timeframe: string | null | undefined): string {
-  return typeof timeframe === "string" ? timeframe.trim().toUpperCase() : "";
+  // Trim only: `1m` is a minute frame, `1M` is a month. Uppercasing made them
+  // indistinguishable and disabled VWAP on every 1-minute chart.
+  return typeof timeframe === "string" ? timeframe.trim() : "";
 }
 
 /** True only for the daily/weekly/monthly frames named in the UI contract. */

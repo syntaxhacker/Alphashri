@@ -502,6 +502,50 @@ describe("buildPatternTVData indicator overlays", () => {
     expect(out.markers).toEqual([]);
   });
 
+  it("accepts a bundle on its own minute timeframe", () => {
+    const out = buildPatternTVData({
+      candles: CANDLES,
+      hit: null,
+      indicators: { ...INDICATORS, timeframe: "1m" },
+      timeframe: "1m",
+    });
+
+    expect(out.indicatorLines.length).toBeGreaterThan(0);
+  });
+
+  it("rejects a monthly bundle on a minute chart", () => {
+    const out = buildPatternTVData({
+      candles: CANDLES,
+      hit: null,
+      indicators: { ...INDICATORS, timeframe: "1M" },
+      timeframe: "1m",
+    });
+
+    expect(out.indicatorLines).toEqual([]);
+  });
+
+  it("trims padded timeframe labels before comparing", () => {
+    const out = buildPatternTVData({
+      candles: CANDLES,
+      hit: null,
+      indicators: { ...INDICATORS, timeframe: " 1M " },
+      timeframe: "1M",
+    });
+
+    expect(out.indicatorLines.length).toBeGreaterThan(0);
+  });
+
+  it("rejects a minute bundle on a monthly chart", () => {
+    const out = buildPatternTVData({
+      candles: CANDLES,
+      hit: null,
+      indicators: { ...INDICATORS, timeframe: "1m" },
+      timeframe: "1M",
+    });
+
+    expect(out.indicatorLines).toEqual([]);
+  });
+
   it("formats the compact S/R band labels drawn on the overlay canvas", () => {
     expect(srZoneLabel({ kind: "support", touches: 3 }, "2,480")).toBe("S 2,480 ×3");
     expect(srZoneLabel({ kind: "resistance", touches: 2 }, "2,560")).toBe("R 2,560 ×2");

@@ -20,14 +20,12 @@ import {
 import { PatternChartBody } from "@/components/patterns/PatternChartBody";
 import { PatternChartToolbar } from "@/components/patterns/PatternChartToolbar";
 import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenView";
+import { FALLBACK_TIMEFRAMES } from "@/components/patterns/TimeframeSelect";
 import { SymbolTvLink } from "@/components/patterns/SymbolTvLink";
 import type { ChartMarket } from "@/utils/chart/time";
 
 /** Patterns read best on the daily frame; the URL can override it (`?tf=1W`). */
 const DEFAULT_TIMEFRAME = "1D";
-
-/** Minimal ladder while `/timeframes` is in flight or unavailable. */
-const FALLBACK_TIMEFRAMES: TFSpec[] = [{ id: "1D", label: "1D" } as TFSpec];
 
 /** Timeframes the US provider serves; the India registry is never reused for US. */
 const US_TIMEFRAMES = ["1D", "1m", "5m", "15m", "1h"] as const;
@@ -349,11 +347,14 @@ function firstParam(v: string | string[] | undefined): string | null {
   return raw ?? null;
 }
 
+type TimeframeCatalogStatus = "loading" | "ready" | "failed";
+
 const ChartView = () => {
   const params = useParams<{ symbol?: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [timeframes, setTimeframes] = createSignal<TFSpec[]>(FALLBACK_TIMEFRAMES);
+  const [catalogStatus, setCatalogStatus] = createSignal<TimeframeCatalogStatus>("loading");
   const [expanded, setExpanded] = createSignal(false);
 
   const symbol = () => params.symbol ?? "";
@@ -385,10 +386,14 @@ const ChartView = () => {
     let active = true;
     fetchTimeframes()
       .then((list) => {
-        if (active && list.length > 0) setTimeframes(list);
+        if (!active) return;
+        if (list.length > 0) setTimeframes(list);
+        setCatalogStatus("ready");
       })
       .catch(() => {
-        /* non-fatal: keep the 1D fallback */
+        // Non-fatal: keep the fallback ladder and trust the requested frame;
+        // the backend may still serve an admin-registered id.
+        if (active) setCatalogStatus("failed");
       });
     onCleanup(() => {
       active = false;
@@ -425,10 +430,13 @@ const ChartView = () => {
     });
   };
 
-  // An unknown/garbled `?tf=` falls back to 1D. US validates against its fixed
-  // ladder immediately: the async `/timeframes` response starts as the 1D-only
-  // fallback, so consulting it here would clobber a valid deep link (e.g. 5m)
-  // before the real options arrive and fire a spurious second request.
+  // An unknown/garbled `?tf=` falls back to 1D once the catalog proves it
+  // absent. US validates against its fixed ladder immediately: the async
+  // `/timeframes` response starts as the 1D-only fallback, so consulting it
+  // here would clobber a valid deep link (e.g. 5m) before the real options
+  // arrive and fire a spurious second request. India waits for the catalog:
+  // an admin-registered frame (e.g. 3m) is not in the local fallback but is
+  // still valid, and a failed catalog must not rewrite the user's frame.
   createEffect(() => {
     const tf = timeframe();
     if (tf === DEFAULT_TIMEFRAME) return;
@@ -438,6 +446,8 @@ const ChartView = () => {
       patchSearchParams({ tf: DEFAULT_TIMEFRAME });
       return;
     }
+
+    if (catalogStatus() !== "ready") return;
 
     const list = visibleTimeframes();
     if (!list.length) return;
