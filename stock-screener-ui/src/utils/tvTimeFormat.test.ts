@@ -1,4 +1,5 @@
 import { TickMarkType } from "lightweight-charts";
+import type { Time, UTCTimestamp } from "lightweight-charts";
 import { describe, expect, it } from "vitest";
 import { MARKET_TIME_ZONE } from "@/utils/chart/time";
 import {
@@ -8,7 +9,8 @@ import {
   tvTickMarkFormatter,
 } from "./tvTimeFormat";
 
-const EPOCH = Date.parse("2026-04-15T09:15:00+05:30") / 1000;
+const EPOCH = (Date.parse("2026-04-15T09:15:00+05:30") / 1000) as UTCTimestamp;
+const INVALID = Number.NaN as unknown as Time;
 const IST = MARKET_TIME_ZONE.india;
 
 describe("tvTickMarkFormatter", () => {
@@ -77,9 +79,9 @@ describe("tvDateBadgeLabel", () => {
   });
 
   it("formats in the requested zone and skips invalid times", () => {
-    const newYorkEpoch = Date.parse("2026-11-16T14:49:00-05:00") / 1000;
+    const newYorkEpoch = (Date.parse("2026-11-16T14:49:00-05:00") / 1000) as UTCTimestamp;
     expect(tvDateBadgeLabel(newYorkEpoch, "America/New_York")).toBe("16 Nov");
-    expect(tvDateBadgeLabel(Number.NaN, IST)).toBe("");
+    expect(tvDateBadgeLabel(INVALID, IST)).toBe("");
     expect(tvDateBadgeLabel({ year: 2026, month: 4, day: 15 })).toBe("");
   });
 });
