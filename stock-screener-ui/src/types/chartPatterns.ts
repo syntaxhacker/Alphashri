@@ -131,6 +131,52 @@ export interface TrendLine {
 /** View-only filter controlling which standalone trendlines are drawn. */
 export type TrendlinesView = "both" | "support" | "resistance" | "none";
 
+/** Server-computed overlay lines (`ChartPayload.indicators`). */
+export type IndicatorSeriesId =
+  | "sma20"
+  | "sma50"
+  | "sma200"
+  | "bbUpper"
+  | "bbMiddle"
+  | "bbLower"
+  | "vwap";
+
+/**
+ * One indicator line. `values` aligns 1:1 with the payload's `candles` order
+ * (`ChartIndicators.aligned === "candles"`); `null` marks a warm-up gap.
+ */
+export interface IndicatorSeries {
+  id: IndicatorSeriesId;
+  values: (number | null)[];
+}
+
+/** Golden/death cross between the fast and slow averages. */
+export interface IndicatorCross {
+  t: string;
+  kind: "golden" | "death";
+}
+
+/** Server-computed indicator bundle attached to a symbol chart payload. */
+export interface ChartIndicators {
+  aligned: "candles";
+  timeframe: string;
+  session: string;
+  partial_last: boolean;
+  series: IndicatorSeries[];
+  crosses: IndicatorCross[];
+}
+
+/** Server-computed horizontal support/resistance band. */
+export interface SRZone {
+  kind: "support" | "resistance" | "sr";
+  top: number;
+  bottom: number;
+  start_date: string;
+  end_date: string;
+  touches: number;
+  score: number;
+}
+
 /** Pattern hit row (`PatternHitDTO`, `GET /results`). */
 export interface PatternHitDTO {
   id: number;
@@ -265,6 +311,10 @@ export interface ChartPayload {
   overlays: PatternOverlay[];
   /** Auto-computed standalone support/resistance lines (view-only overlay). */
   trend_lines?: TrendLine[];
+  /** Server-computed SMA/BB/VWAP overlay bundle (null/absent on older backends). */
+  indicators?: ChartIndicators | null;
+  /** Server-computed support/resistance bands (view-only overlay). */
+  sr_zones?: SRZone[];
   /**
    * Live pattern hits detected on this timeframe (`detect_patterns=1`).
    * Absent unless detection was requested.

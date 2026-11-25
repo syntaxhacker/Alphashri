@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
-import type { ChartCandle, PatternHitDTO, TrendLine } from "@/types/chartPatterns";
-import { buildPatternTVData, PATTERN_TV_COLORS, toTVTime } from "./patternTVData";
+import type {
+  ChartCandle,
+  ChartIndicators,
+  PatternHitDTO,
+  SRZone,
+  TrendLine,
+} from "@/types/chartPatterns";
+import { buildPatternTVData, PATTERN_TV_COLORS, srZoneLabel, toTVTime } from "./patternTVData";
 import { TZ_US } from "@/utils/chart/time";
+import { INDICATOR_SERIES_META } from "./patternIndicatorData";
 import { makeIRCONHit, makeTrendLine } from "./patternTestFixtures";
 
 function candle(t: string, o: number, c: number, v = 1000): ChartCandle {
@@ -208,7 +215,7 @@ describe("buildPatternTVData", () => {
     expect(new Set(times).size).toBe(times.length);
   });
 
-  it("emits no dot markers (the chart draws lines only)", () => {
+  it("emits no pattern markers when there are no indicator crosses", () => {
     const out = buildPatternTVData({ candles: CANDLES, hit: makeHit(), trendLines: [] });
     expect(out.markers).toEqual([]);
   });
@@ -219,12 +226,16 @@ describe("buildPatternTVData", () => {
       volume: [],
       levels: [],
       lines: [],
+      indicatorLines: [],
       markers: [],
+      zones: [],
     });
     const noHit = buildPatternTVData({ candles: CANDLES, hit: null });
     expect(noHit.levels).toEqual([]);
     expect(noHit.lines).toEqual([]);
+    expect(noHit.indicatorLines).toEqual([]);
     expect(noHit.markers).toEqual([]);
+    expect(noHit.zones).toEqual([]);
     expect(noHit.candles).toHaveLength(CANDLES.length);
   });
 
@@ -271,5 +282,247 @@ describe("buildPatternTVData", () => {
     const stale: ChartCandle[] = [{ ...CANDLES[0]!, is_partial: true }, ...CANDLES.slice(1)];
     const out = buildPatternTVData({ candles: stale, hit: null });
     expect(out.candles.every((c) => c.isPartial == null)).toBe(true);
+  });
+});
+
+const INDICATORS: ChartIndicators = {
+  aligned: "candles",
+  timeframe: "1D",
+  session: "2026-04-05",
+  partial_last: false,
+  series: [
+    { id: "sma20", values: [100, null, 101, 102, 103] },
+    { id: "bbLower", values: [95, 96, 97, 98, 99] },
+    { id: "bbUpper", values: [110, 111, 112, 113, 114] },
+    { id: "bbMiddle", values: [105, 106, 107, 108, 109] },
+  ],
+  crosses: [
+    { t: "2026-04-03", kind: "golden" },
+    { t: "2026-04-04", kind: "death" },
+    { t: "2026-04-06", kind: "golden" },
+  ],
+};
+
+const SR_ZONES: SRZone[] = [
+  {
+    kind: "support",
+    top: 101,
+    bottom: 99,
+    start_date: "2026-04-02",
+    end_date: "2026-04-04",
+    touches: 3,
+    score: 0.72,
+  },
+  {
+    kind: "resistance",
+    top: 120,
+    bottom: 110,
+    start_date: "2026-04-01",
+    end_date: "2026-04-03",
+    touches: 2,
+    score: 0.55,
+  },
+];
+
+describe("buildPatternTVData indicator overlays", () => {
+  it("maps SMA/BB lines, crosses and zones to exact TV arrays", () => {
+    const out = buildPatternTVData({
+      candles: CANDLES,
+      hit: null,
+      indicators: INDICATORS,
+      srZones: SR_ZONES,
+      timeframe: "1D",
+    });
+
+    expect(out.indicatorLines).toEqual([
+      {
+        points: [
+          { time: toTVTime("2026-04-01"), value: 100 },
+          { time: toTVTime("2026-04-03"), value: 101 },
+          { time: toTVTime("2026-04-04"), value: 102 },
+          { time: toTVTime("2026-04-05"), value: 103 },
+        ],
+        color: INDICATOR_SERIES_META.sma20.color,
+        dashed: false,
+        lineStyle: "solid",
+        width: 1,
+        name: "SMA20",
+        id: "sma20",
+        legendName: "SMA20",
+        label: "SMA20",
+        labelEligible: true,
+      },
+      {
+        points: [
+          { time: toTVTime("2026-04-01"), value: 110 },
+          { time: toTVTime("2026-04-02"), value: 111 },
+          { time: toTVTime("2026-04-03"), value: 112 },
+          { time: toTVTime("2026-04-04"), value: 113 },
+          { time: toTVTime("2026-04-05"), value: 114 },
+        ],
+        color: INDICATOR_SERIES_META.bbUpper.color,
+        dashed: true,
+        lineStyle: "dashed",
+        width: 1,
+        name: "BB",
+        id: "bbUpper",
+        legendName: "BB",
+        labelEligible: false,
+      },
+      {
+        points: [
+          { time: toTVTime("2026-04-01"), value: 105 },
+          { time: toTVTime("2026-04-02"), value: 106 },
+          { time: toTVTime("2026-04-03"), value: 107 },
+          { time: toTVTime("2026-04-04"), value: 108 },
+          { time: toTVTime("2026-04-05"), value: 109 },
+        ],
+        color: INDICATOR_SERIES_META.bbMiddle.color,
+        dashed: true,
+        lineStyle: "dashed",
+        width: 1,
+        name: "BB",
+        id: "bbMiddle",
+        legendName: "BB",
+        label: "BB",
+        labelEligible: true,
+      },
+      {
+        points: [
+          { time: toTVTime("2026-04-01"), value: 95 },
+          { time: toTVTime("2026-04-02"), value: 96 },
+          { time: toTVTime("2026-04-03"), value: 97 },
+          { time: toTVTime("2026-04-04"), value: 98 },
+          { time: toTVTime("2026-04-05"), value: 99 },
+        ],
+        color: INDICATOR_SERIES_META.bbLower.color,
+        dashed: true,
+        lineStyle: "dashed",
+        width: 1,
+        name: "BB",
+        id: "bbLower",
+        legendName: "BB",
+        labelEligible: false,
+      },
+    ]);
+
+    expect(out.markers).toEqual([
+      {
+        time: toTVTime("2026-04-03"),
+        position: "belowBar",
+        shape: "square",
+        color: POSITIVE,
+        text: "GC",
+        group: "crosses",
+        legendName: "Crosses",
+      },
+      {
+        time: toTVTime("2026-04-04"),
+        position: "aboveBar",
+        shape: "square",
+        color: NEGATIVE,
+        text: "DC",
+        group: "crosses",
+        legendName: "Crosses",
+      },
+    ]);
+
+    expect(out.zones).toEqual([
+      {
+        kind: "support",
+        top: 101,
+        bottom: 99,
+        start: toTVTime("2026-04-02"),
+        end: toTVTime("2026-04-04"),
+        touches: 3,
+        score: 0.72,
+        color: POSITIVE,
+        legendName: "Support",
+      },
+      {
+        kind: "resistance",
+        top: 120,
+        bottom: 110,
+        start: toTVTime("2026-04-01"),
+        end: toTVTime("2026-04-03"),
+        touches: 2,
+        score: 0.55,
+        color: NEGATIVE,
+        legendName: "Resistance",
+      },
+    ]);
+
+    expect(out.levels).toEqual([]);
+  });
+
+  it("draws the BB band as three lines sharing one legend name", () => {
+    const out = buildPatternTVData({
+      candles: CANDLES,
+      hit: null,
+      indicators: INDICATORS,
+      timeframe: "1D",
+    });
+
+    const band = out.indicatorLines.filter((line) => line.legendName === "BB");
+    expect(band.map((line) => line.id)).toEqual(["bbUpper", "bbMiddle", "bbLower"]);
+    expect(band.every((line) => line.name === "BB" && line.lineStyle === "dashed")).toBe(true);
+    expect(band.map((line) => line.labelEligible)).toEqual([false, true, false]);
+    expect(band.filter((line) => line.labelEligible).map((line) => line.label)).toEqual(["BB"]);
+  });
+
+  it("leaves the base result untouched for an empty indicator bundle", () => {
+    const base = buildPatternTVData({ candles: CANDLES, hit: makeHit() });
+    const empty = buildPatternTVData({
+      candles: CANDLES,
+      hit: makeHit(),
+      indicators: {
+        aligned: "candles",
+        timeframe: "1D",
+        session: "2026-04-05",
+        partial_last: false,
+        series: [],
+        crosses: [],
+      },
+      srZones: [],
+      timeframe: "1D",
+    });
+
+    expect(empty).toEqual(base);
+  });
+
+  it("drops an indicator bundle built for a different timeframe", () => {
+    const out = buildPatternTVData({
+      candles: CANDLES,
+      hit: null,
+      indicators: INDICATORS,
+      timeframe: "5m",
+    });
+
+    expect(out.indicatorLines).toEqual([]);
+    expect(out.markers).toEqual([]);
+  });
+
+  it("formats the compact S/R band labels drawn on the overlay canvas", () => {
+    expect(srZoneLabel({ kind: "support", touches: 3 }, "2,480")).toBe("S 2,480 ×3");
+    expect(srZoneLabel({ kind: "resistance", touches: 2 }, "2,560")).toBe("R 2,560 ×2");
+    expect(srZoneLabel({ kind: "sr", touches: 4 }, "2,500")).toBe("S/R testing");
+  });
+
+  it("skips a cross on the partial last bar", () => {
+    const last = CANDLES[CANDLES.length - 1]!;
+    const out = buildPatternTVData({
+      candles: [...CANDLES.slice(0, -1), { ...last, is_partial: true }],
+      hit: null,
+      indicators: {
+        ...INDICATORS,
+        crosses: [
+          { t: "2026-04-04", kind: "golden" },
+          { t: "2026-04-05", kind: "death" },
+        ],
+      },
+      timeframe: "1D",
+    });
+
+    expect(out.markers.map((marker) => marker.time)).toEqual([toTVTime("2026-04-04")]);
   });
 });
