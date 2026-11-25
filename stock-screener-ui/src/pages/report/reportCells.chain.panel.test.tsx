@@ -377,4 +377,238 @@ describe("full-density chain — bounded scroll and ATM auto-centre", () => {
     expect(screen.getByTestId("nifty-oi-panel").className).toContain("max-[600px]:flex-1!");
     expect(screen.getByTestId("nifty-chain-scroll-cue")).toHaveTextContent("⇄");
   });
+
+  test("a labelled bottom-fade cue makes the bounded chain's vertical scroll discoverable", async () => {
+    mount(() => 26400);
+    await settle();
+    const wrap = screen.getByTestId("nifty-oi-wrap") as HTMLElement;
+    const panel = screen.getByTestId("nifty-oi-panel") as HTMLElement;
+
+    // A real, readable hint plus an aria-hidden decorative fade — one overlay,
+    // no second bordered card.
+    const cue = screen.getByTestId("nifty-chain-v-scroll-cue");
+    expect(cue).toHaveTextContent(/scroll/i);
+    expect(cue).not.toHaveAttribute("aria-hidden");
+    const fade = screen.getByTestId("nifty-chain-v-scroll-fade");
+    expect(fade).toHaveAttribute("aria-hidden", "true");
+    expect(cue.parentElement).toBe(fade.parentElement);
+    expect(cue.closest('[data-testid="nifty-oi-panel"]')).toBe(panel);
+
+    // The window keeps its content-sized contract; the cue is an overlay and
+    // never a fixed-height row that steals space from the six visible strikes.
+    expect(panel.style.height).toBe("");
+    expect(panel.style.maxHeight).toBe(`${OI_CHAIN_MAX_HEIGHT}px`);
+    const overlay = cue.parentElement as HTMLElement;
+    expect(overlay.style.position).toBe("absolute");
+    expect(overlay.className).toContain("pointer-events-none");
+
+    // Vertical scroll stays with the chain region and the header stays sticky.
+    expect(wrap).toHaveAttribute("data-chain-v-scroll", "1");
+    expect(wrap.style.overflowY).toBe("auto");
+    expect((wrap.querySelector(".paper-tanstack-scroll") as HTMLElement).style.overflow).toBe("auto");
+    const strikeHeader = Array.from(
+      screen.getByTestId("nifty-oi-table").querySelectorAll("thead th"),
+    ).find((th) => th.textContent === "STRIKE") as HTMLElement;
+    expect(strikeHeader.style.position).toBe("sticky");
+
+    // ATM pinning survives the overlay.
+    expect(wrap).toHaveAttribute("data-chain-atm-centered", "1");
+  });
+});
+
+describe("option-chain vertical cue — narrow copy and opaque viewport lane", () => {
+  function mountFullChain() {
+    return render(() => (
+      <NiftyOiChain
+        strikes={Array.from({ length: 29 }, (_, i) => chainRow(25000 + i * 100))}
+        columns={getNiftyOiColumns(26400, { showLegChange: false })}
+        getRowStyle={() => undefined}
+        getRowTestId={(row) => `nifty-strike-row-${row.strike}`}
+        panelTestId="nifty-oi-panel"
+        tableTestId="nifty-oi-table"
+        wrapTestId="nifty-oi-wrap"
+      />
+    ));
+  }
+
+  test("the phone cue reads 'scroll ↓' on one opaque pill anchored in the scroll viewport", () => {
+    mountFullChain();
+    const cue = screen.getByTestId("nifty-chain-v-scroll-cue") as HTMLElement;
+    const fade = screen.getByTestId("nifty-chain-v-scroll-fade") as HTMLElement;
+    const overlay = screen.getByTestId("nifty-chain-v-scroll-overlay") as HTMLElement;
+    const wrap = screen.getByTestId("nifty-oi-wrap") as HTMLElement;
+
+    // Two responsive runs, one testid. The terse run is the only one shown at
+    // 390; the full sentence is desk-only, so nothing clips to "SCROLL FO".
+    const short = cue.querySelector('[data-chain-v-cue-copy="short"]') as HTMLElement;
+    const full = cue.querySelector('[data-chain-v-cue-copy="full"]') as HTMLElement;
+    expect(short).toBeTruthy();
+    expect(full).toBeTruthy();
+    expect(short.textContent).toBe("scroll ↓");
+    expect(full.textContent).toBe("Scroll for more strikes ↓");
+    expect(short.className).toContain("hidden");
+    expect(short.className).toContain("max-[600px]:inline");
+    expect(full.className).toContain("inline");
+    expect(full.className).toContain("max-[600px]:hidden");
+    expect(short.textContent!.length).toBeLessThan(full.textContent!.length);
+
+    // Opaque, palette-derived backdrop: the glyphs sit on solid ink instead of
+    // being painted straight over the last row's ΔOI value.
+    expect(cue.style.backgroundColor).toBe(palette.TERM_HEADER);
+    expect(cue.style.backgroundColor).not.toMatch(/rgba|transparent/);
+    expect(cue.style.color).toBe(palette.TEXT_MUTED);
+    expect(cue.className).toContain("max-w-full");
+    expect(cue.className).toContain("overflow-hidden");
+    expect(cue.className).toContain("whitespace-nowrap");
+
+    // Anchored to the visible scroll viewport, not a new layout row and not a
+    // child of a data cell: the overlay stays absolute at the wrap's bottom.
+    expect(cue.parentElement).toBe(overlay);
+    expect(fade.parentElement).toBe(overlay);
+    expect(overlay.style.position).toBe("absolute");
+    expect(overlay.className).toContain("bottom-0");
+    expect(overlay.className).toContain("pointer-events-none");
+    expect(wrap.contains(cue)).toBe(false);
+    expect(cue.closest("table")).toBeNull();
+
+    // ATM centring is exercised with mocked geometry in the describe above;
+    // here only the cue's structural invariants need to hold.
+    expect(wrap).toHaveAttribute("data-chain-v-scroll", "1");
+    expect(
+      Array.from(screen.getByTestId("nifty-oi-table").querySelectorAll("thead th")).find(
+        (th) => th.textContent === "STRIKE",
+      )!.style.position,
+    ).toBe("sticky");
+    expect(screen.getByTestId("nifty-chain-scroll-cue")).toHaveTextContent("⇄");
+  });
+});
+
+describe("option-chain 390 window — sticky boundary, horizontal cue and last-column reach", () => {
+  const FULL_ROWS = Array.from({ length: 29 }, (_, i) => chainRow(25000 + i * 100));
+  // Seven roomy columns (712px) behind a ~374px phone chain window.
+  const H_CONTENT_W = 712;
+  const H_VIEW_W = 374;
+
+  function mountFull() {
+    return render(() => (
+      <NiftyOiChain
+        strikes={FULL_ROWS}
+        columns={getNiftyOiColumns(26400)}
+        getRowStyle={() => undefined}
+        getRowTestId={(row) => `nifty-strike-row-${row.strike}`}
+        panelTestId="nifty-oi-panel"
+        tableTestId="nifty-oi-table"
+        wrapTestId="nifty-oi-wrap"
+      />
+    ));
+  }
+
+  test("the sticky-header boundary is masked and the phone cue names the sideways gesture", () => {
+    mountFull();
+    const wrap = screen.getByTestId("nifty-oi-wrap") as HTMLElement;
+
+    // A solid band below the sticky header covers the row sliver that used to
+    // print under it when the ATM row was centred lower in the window.
+    expect(wrap.className).toContain(
+      "[&_thead_th]:[box-shadow:0_3px_0_var(--color-fin-surface-alt)]!",
+    );
+    expect(wrap).toHaveAttribute("data-chain-sticky-mask", "1");
+    const stickyHeader = Array.from(
+      screen.getByTestId("nifty-oi-table").querySelectorAll("thead th"),
+    ).find((th) => th.textContent === "STRIKE") as HTMLElement;
+    expect(stickyHeader.style.position).toBe("sticky");
+
+    // A readable, 390-only cue — the panel's ⇄ glyph alone was too easy to
+    // mistake for chrome, and the built-in hint sat above the sticky header.
+    const cue = screen.getByTestId("nifty-chain-h-scroll-cue") as HTMLElement;
+    expect(cue.textContent).toContain("SCROLL →");
+    expect(cue.className).toContain("hidden");
+    expect(cue.className).toContain("max-[600px]:inline-flex");
+    expect(cue.parentElement).toBe(screen.getByTestId("nifty-chain-v-scroll-overlay"));
+    expect(cue).not.toHaveAttribute("aria-hidden");
+    // The old header glyph is desk-only now: exactly one readable horizontal
+    // cue per scroller at 390, and it sits on the viewport it describes.
+    const headerCue = screen.getByTestId("nifty-chain-scroll-cue") as HTMLElement;
+    expect(headerCue).toHaveTextContent("⇄");
+    expect(headerCue.className).toContain("max-[600px]:hidden");
+
+    const fade = screen.getByTestId("nifty-chain-h-scroll-fade") as HTMLElement;
+    expect(fade).toHaveAttribute("aria-hidden", "true");
+  });
+
+  test("the chain region is the single horizontal owner and the last PE ΔOI column is reachable", () => {
+    mountFull();
+    const wrap = screen.getByTestId("nifty-oi-wrap") as HTMLElement;
+
+    // The inner TanStack host is sized to its columns, so the focusable region
+    // is the only horizontal scrollport: arrow keys and touch move the same
+    // node, and the last numeric column can be scrolled all the way in.
+    for (const rule of [
+      "max-[600px]:[&_.paper-tanstack-container]:[flex:none]!",
+      "max-[600px]:[&_.paper-tanstack-container]:[width:max-content]!",
+      "max-[600px]:[&_.paper-tanstack-scroll]:[width:max-content]!",
+      "max-[600px]:[&_table]:[width:max-content]!",
+    ]) {
+      expect(wrap.className, rule).toContain(rule);
+    }
+    expect(wrap).toHaveAttribute("data-chain-h-scroll", "1");
+    expect(wrap).toHaveAttribute("role", "region");
+
+    Object.defineProperty(wrap, "scrollWidth", { configurable: true, get: () => H_CONTENT_W });
+    Object.defineProperty(wrap, "clientWidth", { configurable: true, get: () => H_VIEW_W });
+
+    const headers = Array.from(screen.getByTestId("nifty-oi-table").querySelectorAll("thead th"));
+    expect(headers.map((th) => th.textContent)).toEqual([
+      "CE Chg",
+      "CE ΔOI",
+      "CE SIG",
+      "STRIKE",
+      "PE SIG",
+      "PE ΔOI",
+      "PE Chg",
+    ]);
+    expect(screen.getByTestId("nifty-chain-h-scroll-cue")).toBeInTheDocument();
+
+    wrap.scrollLeft = H_CONTENT_W - H_VIEW_W;
+    fireEvent.scroll(wrap);
+    // Last column fully inside the window; no dangling cue once there is
+    // nothing more to reveal.
+    expect(wrap.scrollLeft + wrap.clientWidth).toBeGreaterThanOrEqual(H_CONTENT_W);
+    expect(screen.queryByTestId("nifty-chain-h-scroll-cue")).toBeNull();
+    expect(screen.queryByTestId("nifty-chain-h-scroll-fade")).toBeNull();
+  });
+
+  test("both 390 cues are lifted into a reserved lane clear of the DESK BAY edge", () => {
+    mountFull();
+    const overlay = screen.getByTestId("nifty-chain-v-scroll-overlay") as HTMLElement;
+    const hCue = screen.getByTestId("nifty-chain-h-scroll-cue") as HTMLElement;
+    const vCue = screen.getByTestId("nifty-chain-v-scroll-cue") as HTMLElement;
+
+    // The phone track ends flush with the pinned DESK BAY bar. An overlay
+    // anchored at bottom:0 loses the lower half of both pills to that edge, so
+    // the phone lane reserves the pill height as bottom padding and lifts them.
+    const lane = Number(overlay.getAttribute("data-chain-cue-lane"));
+    expect(Number.isFinite(lane)).toBe(true);
+    expect(lane).toBeGreaterThanOrEqual(16);
+    expect(overlay.style.getPropertyValue("--oi-chain-cue-lane")).toBe(`${lane}px`);
+    expect(overlay.className).toContain("max-[600px]:pb-[var(--oi-chain-cue-lane)]");
+    expect(overlay.className).toContain("bottom-0");
+    expect(overlay.className).toContain("pointer-events-none");
+
+    // One overlay and one scroll owner: both cues are raised together, stay
+    // opaque over the clipped partial row, and never become a layout row.
+    expect(hCue.parentElement).toBe(overlay);
+    expect(vCue.parentElement).toBe(overlay);
+    expect(vCue.closest("table")).toBeNull();
+    expect(hCue.style.backgroundColor).toBe(palette.TERM_HEADER);
+    expect(vCue.style.backgroundColor).toBe(palette.TERM_HEADER);
+    expect(overlay.style.position).toBe("absolute");
+
+    // The lift must not disturb the mask, the single owner or ATM pinning.
+    const wrap = screen.getByTestId("nifty-oi-wrap");
+    expect(wrap).toHaveAttribute("data-chain-sticky-mask", "1");
+    expect(wrap).toHaveAttribute("data-chain-v-scroll", "1");
+    expect(wrap).toHaveAttribute("data-chain-h-scroll", "1");
+    expect(wrap).toHaveAttribute("data-chain-mobile-row", String(OI_CHAIN_MOBILE_ROW_PX));
+  });
 });

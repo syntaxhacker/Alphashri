@@ -1236,7 +1236,7 @@ describe("TanStackTable — row states (selected / hovered / focused)", () => {
     const css = readFileSync(resolve(process.cwd(), "src/style.css"), "utf8");
     expect(css).toMatch(/\.paper-row-states tbody tr\[data-row="stock"\]\s*\{[^}]*background-color: var\(--color-fin-surface\)/);
     expect(css).toMatch(/\.paper-row-states tbody tr\[data-clickable="true"\]:hover\s*\{[^}]*background-color: color-mix\(in srgb, var\(--color-fin-primary\) 7%/);
-    expect(css).toMatch(/\.paper-row-states tbody tr\[data-clickable="true"\]:focus-visible\s*\{[^}]*outline: 1px solid var\(--color-fin-primary\)/);
+    expect(css).toMatch(/\.paper-row-states tbody tr\[data-clickable="true"\]:focus-visible\s*\{[^}]*outline: 1px solid var\(--color-fin-text\)/);
     expect(css).toMatch(/\.paper-row-states tbody tr\[data-clickable="true"\]:focus-visible\s*\{[^}]*outline-offset: -1px/);
     // The old cell-level `!important` hover must not reach these rows again.
     expect(css).toMatch(/\.paper-tanstack-table:not\(\.paper-row-states\) tbody tr:hover td/);

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -93,6 +93,7 @@ vi.mock("./reportBits", () => ({
 }));
 
 import { ReportDecisionStrip } from "./ReportDecisionStrip";
+import { ReportKpiHero } from "./ReportKpiHero";
 import {
   REPORT_GUTTER,
   REPORT_SECTION_ALIGN,
@@ -218,5 +219,37 @@ describe("Index Report — one grid, one border per section", () => {
     ]) {
       expect(screen.getByTestId(id), id).toBeInTheDocument();
     }
+  });
+});
+
+describe("Index Report — A+B KPI hero discipline", () => {
+  test("the 32px hero is one bordered band with no card nested inside it", () => {
+    render(() => (
+      <UIProvider>
+        <ReportKpiHero report={null} />
+      </UIProvider>
+    ));
+    const hero = screen.getByTestId("nifty-kpi-hero");
+    expect(hero.style.height).toBe("32px");
+    expect(isCardBorder(hero)).toBe(false); // inset hairline, not a nested card border
+    expect(hero.style.boxShadow).toContain("inset");
+    for (const child of Array.from(hero.children) as HTMLElement[]) {
+      expect(isCardBorder(child), child.getAttribute("data-testid") ?? "").toBe(false);
+    }
+    expect(
+      hero.querySelectorAll("[data-testid^='nifty-kpi-']:not([data-testid='nifty-kpi-tokens'])"),
+    ).toHaveLength(4);
+  });
+
+  test("expanded detail is a popover surface, not a second bordered card in the band", () => {
+    mount();
+    const toggle = screen.getByTestId("nifty-live-tape-toggle");
+    fireEvent.click(toggle);
+    const content = screen.getByTestId("nifty-live-tape-content");
+    expect(content.style.position).toBe("fixed");
+    expect(content.style.boxShadow).toContain("inset");
+    expect(content.style.border).toBe("");
+    expect(content.closest('[data-testid="nifty-kpi-hero"]')).not.toBeNull();
+    expect(screen.getByTestId("nifty-kpi-hero").style.height).toBe("32px");
   });
 });

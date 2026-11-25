@@ -1,27 +1,29 @@
-import { Show } from "solid-js";
+import { Show, createEffect, createSignal, createUniqueId, onCleanup } from "solid-js";
 import type { JSX } from "solid-js";
-import { Box, Button } from "@/ui";
+import { Box, Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
-import { NiftySpotValue } from "./reportCells";
-import { NiftyVerdictStrip } from "./NiftyVerdictStrip";
-import { REPORT_FONT } from "./reportTokens";
+import {
+  REPORT_FONT,
+  REPORT_GUTTER,
+  REPORT_HERO_POPOVER,
+  REPORT_KPI_HERO_HEIGHT,
+  REPORT_RADIUS,
+} from "./reportTokens";
+import { ReportKpiHero, type KpiTokenKey } from "./ReportKpiHero";
+import { DecisionStats } from "./ReportDecisionStrip.groups";
+import { VerdictContent } from "./ReportDecisionStrip.moreStats";
 import type { DecisionView } from "./ReportDecisionStrip.derive";
 import {
-  DECISION_HERO_HEIGHT,
   DECISION_REASON_STYLE,
   DECISION_STATUS_STYLE,
   GROUP_LABEL_STYLE,
   HERO_CLAIM_STYLE,
-  HERO_VALUE_STYLE,
-  INDIA_VIX_STYLE,
-  PLAN_BAR_STYLE,
-  PLAN_CONFIDENCE_STYLE,
   PLAN_ONELINER_STYLE,
-  TAPE_BADGE_STYLE,
-  VERDICT_EVIDENCE_GAP,
-  VERDICT_NARROW_OVERRIDES,
-  verdictWrapLayout,
+  PLAN_CONFIDENCE_STYLE,
 } from "./ReportDecisionStrip.format";
+
+// Kept at the hero's stable import path for the context rail.
+export { TapeBadgeControl } from "./ReportDecisionStrip.moreStats";
 
 /** The claim slot holds a real directional call and nothing else. When the
  *  read has no call it stays empty — the single status token and its reason are
@@ -74,31 +76,6 @@ export function RailClaim(props: { view: DecisionView }): JSX.Element {
   );
 }
 
-/** Tape speed is evidence, not a second verdict; the plan button lives in the
- *  hero so its testid appears exactly once per render. */
-export function TapeBadgeControl(props: { view: DecisionView }): JSX.Element {
-  return (
-    <Show when={props.view.tapeBadge()}>
-      {(current) => (
-        <span
-          data-testid="nifty-plan-tape"
-          data-conflict={current().conflict ? "true" : "false"}
-          title={`Last 5 min ${current().up ? "+" : ""}${Math.round(current().delta)} pts — ${current().ratio.toFixed(1)}× the median 5-min move${current().conflict ? " · this OPPOSES the plan side" : ""}`}
-          style={{
-            ...TAPE_BADGE_STYLE,
-            // Inside the bordered stat strip: a second border would be a
-            // card-inside-card, so the tone lives in text and tint only.
-            "background-color": palette.alpha(current().tone, 0.18),
-            color: current().tone,
-          }}
-        >
-          {current().conflict ? "⚠ " : ""}TAPE {current().up ? "↑" : "↓"} {current().ratio.toFixed(1)}×
-        </span>
-      )}
-    </Show>
-  );
-}
-
 function ReasonsButton(props: { view: DecisionView }): JSX.Element {
   return (
     <Button
@@ -114,154 +91,322 @@ function ReasonsButton(props: { view: DecisionView }): JSX.Element {
   );
 }
 
-/** The first viewport's single decision band: SPOT, CHANGE and one claim.
- *  No evidence chips are duplicated here — they live below in More stats. */
+const POPUP_CAPTION_STYLE: JSX.CSSProperties = {
+  ...GROUP_LABEL_STYLE,
+  "font-size": `${REPORT_FONT.micro}px`,
+  "font-weight": 800,
+  color: palette.PRIMARY,
+};
+
+const HAIRLINE_STYLE: JSX.CSSProperties = {
+  height: "1px",
+  "background-color": palette.TERM_BORDER,
+  "flex-shrink": 0,
+};
+
+/** The popover is a *scrolling* flex column with a 420px cap. Left as default
+ *  flex items, its sections shrink to fit the cap instead of scrolling, so the
+ *  stat grid and the evidence block paint over each other. Every direct child
+ *  keeps its natural height; the popover is the only scroll owner. */
+const POPOVER_NO_SHRINK_CLASS = "[&>*]:shrink-0!";
+
+/** The band's evidence row is a nowrap, four-equal-cell strip. The same cells
+ *  cannot share a 720px (or 374px) popover: `COIL 0.0x RV — / IV —` and
+ *  `score 0.0 · RSI —` were cut and read as two colliding columns. Here the
+ *  strip is a deterministic one-column grid — one cell per line, no `auto-fit`
+ *  track guessing — and the long readouts wrap inside their cell. The full
+ *  read also stays on its `title`. */
+const POPOVER_EVIDENCE_CLASS = [
+  POPOVER_NO_SHRINK_CLASS,
+  "[&_[data-testid='nifty-verdict-wrap']]:h-auto!",
+  "[&_[data-testid='nifty-verdict-wrap']]:min-h-0!",
+  "[&_[data-testid='nifty-verdict-wrap']]:w-full!",
+  "[&_[data-testid='nifty-verdict-wrap']]:overflow-visible!",
+  "[&_[data-testid='nifty-verdict-strip']]:grid!",
+  "[&_[data-testid='nifty-verdict-strip']]:grid-cols-1!",
+  "[&_[data-testid='nifty-verdict-strip']]:h-auto!",
+  "[&_[data-testid='nifty-verdict-strip']]:min-h-0!",
+  "[&_[data-testid='nifty-verdict-strip']]:flex-wrap!",
+  "[&_[data-testid='nifty-verdict-strip']]:overflow-visible!",
+  "[&_[data-testid='nifty-verdict-strip']>*]:w-full!",
+  "[&_[data-testid='nifty-verdict-strip']>*]:[flex-basis:100%]!",
+  "[&_[data-testid='nifty-verdict-strip']>*]:min-w-0!",
+  "[&_[data-testid='nifty-verdict-strip']>*]:[flex:none]!",
+  "[&_[data-testid='nifty-verdict-strip']>*]:h-auto!",
+  "[&_[data-testid='nifty-verdict-strip']>*]:border-l-0!",
+  "[&_[data-testid='nifty-verdict-strip']>*]:overflow-visible!",
+  "[&_[data-testid^='nifty-verdict-']]:whitespace-normal!",
+  "[&_[data-testid^='nifty-verdict-']]:[text-overflow:clip]!",
+  "[&_[data-testid^='nifty-coil-']]:whitespace-normal!",
+  "[&_[data-testid^='nifty-coil-']]:[text-overflow:clip]!",
+  "[&_[data-testid^='nifty-coil-']]:[flex-shrink:1]!",
+  "[&_[data-testid$='-primary']]:overflow-visible!",
+  "[&_[data-testid$='-primary']]:[overflow-wrap:anywhere]!",
+  "[&_[data-testid$='-secondary']]:overflow-visible!",
+  "[&_[data-testid$='-secondary']]:[overflow-wrap:anywhere]!",
+  "[&_[data-testid^='nifty-coil-']]:overflow-visible!",
+  "[&_[data-testid^='nifty-coil-']]:[overflow-wrap:anywhere]!",
+  "[&_[data-testid='nifty-india-vix-label']]:whitespace-normal!",
+  "[&_[data-testid='nifty-india-vix-label']]:[flex-shrink:1]!",
+].join(" ");
+
+/** The one decision band: semantic verdict chip, action levels and one
+ *  percentage share a 32px surface with the four captioned KPI cells. The
+ *  ALL STATS detail is a fixed popover, so opening it never changes this row. */
 export function DecisionHero(props: { view: DecisionView }): JSX.Element {
   const view = props.view;
-  const narrow = view.narrow;
+  const [statsOpen, setStatsOpen] = createSignal(false);
+  const [reposition, setReposition] = createSignal(0);
+  const detailId = createUniqueId();
+  let disclosureEl: HTMLDivElement | undefined;
+  let toggleEl: HTMLButtonElement | undefined;
+
+  // `planConfidenceLabel` returns "confidence 83%"; inside the band the word
+  // appears in the control's aria-label, so printing it again beside the number
+  // used to read "CONFIDENCE confidence 83%". Keep the percentage once.
+  const percent = () =>
+    view.planConfidence().computed
+      ? view.planConfidence().text.replace(/^confidence\s*/i, "")
+      : "";
+
+  // The claim arrives as `BEARISH · spot 25,569.6 · sell … · cut … · target …`.
+  // SPOT is owned by the hero's KPI cell and the verdict by the status chip, so
+  // the level readout drops both segments instead of printing a second call.
+  const verdict = () => {
+    const match = /^\s*(BULLISH|BEARISH|NEUTRAL)\b/i.exec(view.decision().claim);
+    return match ? match[1].toUpperCase() : "";
+  };
+  const levels = () =>
+    view.decision()
+      .claim.replace(/\s*·?\s*spot\s+[\d,.]+/i, "")
+      .replace(/^\s*(BULLISH|BEARISH|NEUTRAL)\s*·\s*/i, "")
+      .trim();
+
+  const chipInk = () => {
+    const side = verdict();
+    if (side === "BEARISH") return palette.NEGATIVE;
+    if (side === "BULLISH") return palette.POSITIVE;
+    return view.decision().chip === "decision" ? palette.TEXT_MUTED : palette.PRIMARY;
+  };
+
+  const openToken = (key: KpiTokenKey) => {
+    if (key === "walls") view.store.walls?.openDrawer?.();
+    else view.store.ui.setOverlayOpen?.("gamma", true);
+  };
+
+  // The popover is fixed below the toggle: it escapes the strip's overflow clip
+  // and never participates in the band's height. `reposition` re-reads the
+  // anchor geometry while an internal scroll or a resize moves it.
+  const geometry = () => {
+    reposition();
+    const rect = toggleEl?.getBoundingClientRect();
+    const narrow = window.innerWidth <= 600;
+    const inset = REPORT_HERO_POPOVER.narrowInset;
+    const width = narrow
+      ? Math.max(200, window.innerWidth - inset * 2)
+      : Math.min(REPORT_HERO_POPOVER.maxWidth, window.innerWidth - inset * 2);
+    const top = (rect?.bottom ?? REPORT_KPI_HERO_HEIGHT) + REPORT_GUTTER.inline;
+    const left = narrow
+      ? inset
+      : Math.max(inset, Math.min(rect?.left ?? inset, window.innerWidth - width - inset));
+    const available = Math.max(160, window.innerHeight - top - inset);
+    return {
+      top: `${top}px`,
+      left: `${left}px`,
+      width: `${width}px`,
+      "max-height": `${Math.min(REPORT_HERO_POPOVER.maxHeight, available)}px`,
+    };
+  };
+
+  createEffect(() => {
+    if (!statsOpen()) return;
+    const recompute = () => setReposition((n) => n + 1);
+    window.addEventListener("resize", recompute);
+    document.addEventListener("scroll", recompute, true);
+    onCleanup(() => {
+      window.removeEventListener("resize", recompute);
+      document.removeEventListener("scroll", recompute, true);
+    });
+  });
+
+  createEffect(() => {
+    if (!statsOpen()) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        // The popover owns this Escape; chart focus and drawers keep theirs.
+        event.stopImmediatePropagation();
+        setStatsOpen(false);
+        toggleEl?.focus();
+      }
+    };
+    const onOutside = (event: Event) => {
+      const target = event.target as Node | null;
+      if (target && !disclosureEl?.contains(target)) setStatsOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onOutside);
+    document.addEventListener("click", onOutside);
+    onCleanup(() => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onOutside);
+      document.removeEventListener("click", onOutside);
+    });
+  });
+
+  const decisionSlot = (
+    <Box
+      data-testid="nifty-plan-oneliner"
+      className="flex flex-nowrap items-center gap-1 min-w-0"
+      style={view.decision().claim ? PLAN_ONELINER_STYLE : {}}
+    >
+      <span
+        data-testid="nifty-decision-state"
+        data-decision-kind={view.decision().kind}
+        title={
+          view.decision().kind === "closed"
+            ? "No live feed — this is a stored snapshot"
+            : `${view.decision().stateLabel} — ${view.decision().claim}`
+        }
+        className="shrink-0"
+        style={{
+          ...DECISION_STATUS_STYLE,
+          "background-color": palette.alpha(chipInk(), 0.16),
+          color: chipInk(),
+        }}
+      >
+        {verdict() || view.decision().stateLabel}
+      </span>
+      <Show when={view.decision().reason}>
+        <span
+          data-testid="nifty-decision-chip"
+          className="max-[600px]:hidden"
+          style={DECISION_REASON_STYLE}
+        >
+          {view.decision().reason}
+        </span>
+      </Show>
+      <Box
+        data-testid="nifty-plan-headline"
+        data-decision-kind={view.decision().kind}
+        title={`${view.decision().stateLabel} — ${view.decision().claim}`}
+        className="min-w-0 overflow-hidden text-ellipsis max-[600px]:hidden"
+        style={{
+          ...HERO_CLAIM_STYLE,
+          "font-size": `${REPORT_FONT.body}px`,
+          color: view.claimTone(),
+        }}
+      >
+        {levels()}
+      </Box>
+      <Box
+        data-testid="nifty-plan-confidence"
+        data-confidence-computed={view.planConfidence().computed ? "true" : "false"}
+        title={
+          view.planConfidence().computed
+            ? "Weighted confidence behind the active side"
+            : "No directional call, so there is no confidence to compute"
+        }
+        className="shrink-0"
+        style={{
+          ...PLAN_CONFIDENCE_STYLE,
+          "background-color": palette.alpha(palette.TERM_BORDER, 0.18),
+          "border-radius": `${REPORT_RADIUS.sm}px`,
+          "padding-left": "3px",
+          "padding-right": "3px",
+        }}
+      >
+        {percent()}
+      </Box>
+      <Box className="shrink-0 max-[600px]:hidden">
+        <ReasonsButton view={view} />
+      </Box>
+    </Box>
+  );
+
+  const statsToggle = (
+    <Box
+      ref={(el: HTMLDivElement) => (disclosureEl = el)}
+      data-testid="nifty-verdict-disclosure"
+      data-open={statsOpen() ? "true" : "false"}
+      className="relative shrink-0"
+    >
+      <Button
+        ref={(el: HTMLButtonElement) => (toggleEl = el)}
+        data-testid="nifty-live-tape-toggle"
+        type="button"
+        size="xs"
+        variant="subtle"
+        aria-label={
+          statsOpen()
+            ? "Hide all stats: walls, volatility and evidence"
+            : "Show all stats: walls, volatility and evidence"
+        }
+        aria-expanded={statsOpen()}
+        aria-controls={detailId}
+        title="Show walls, volatility and evidence"
+        className="h-6 min-h-6 px-1 gap-1 text-ui-micro font-extrabold uppercase tracking-[0.08em]"
+        style={{ color: palette.PRIMARY }}
+        onClick={() => setStatsOpen((open) => !open)}
+      >
+        <span aria-hidden="true">{statsOpen() ? "▾" : "▸"}</span>
+        <span>ALL STATS</span>
+      </Button>
+      <Box
+        id={detailId}
+        data-testid="nifty-live-tape-content"
+        role="group"
+        aria-label="All report statistics"
+        className={`flex flex-col gap-2 w-full min-w-0 ${POPOVER_NO_SHRINK_CLASS}`}
+        style={{
+          display: statsOpen() ? "flex" : "none",
+          position: "fixed",
+          top: geometry().top,
+          left: geometry().left,
+          width: geometry().width,
+          "max-height": geometry()["max-height"],
+          "z-index": `${REPORT_HERO_POPOVER.zIndex}`,
+          overflow: "auto",
+          "overflow-y": "auto",
+          "overflow-x": "hidden",
+          "overscroll-behavior": "contain",
+          "background-color": palette.SURFACE_ALT,
+          "box-shadow": `inset 0 0 0 1px ${palette.BORDER}`,
+          "border-radius": `${REPORT_RADIUS.md}px`,
+          padding: `${REPORT_GUTTER.inline}px`,
+        }}
+      >
+        <Text span style={POPUP_CAPTION_STYLE}>ALL STATS · report snapshot</Text>
+        <DecisionStats view={view} popover />
+        <Box aria-hidden="true" style={HAIRLINE_STYLE} />
+        <Box
+          data-testid="nifty-live-tape-evidence"
+          data-evidence-layout="rows"
+          className={`flex flex-col gap-2 min-w-0 w-full ${POPOVER_EVIDENCE_CLASS}`}
+        >
+          <Text span style={POPUP_CAPTION_STYLE}>EVIDENCE</Text>
+          <VerdictContent view={view} popover />
+        </Box>
+      </Box>
+    </Box>
+  );
+
   return (
     <Box
       data-testid="nifty-decision-hero"
       data-report-band="decision-hero"
-      className={`flex min-w-0 shrink-0 ${narrow() ? "flex-col gap-0.5 py-1" : "flex-row items-center gap-3 py-1"}`}
+      className="flex flex-row items-center min-w-0 shrink-0 w-full"
       style={{
-        height: narrow() ? "auto" : `${DECISION_HERO_HEIGHT.wide}px`,
-        "min-height": narrow() ? "56px" : `${DECISION_HERO_HEIGHT.wide}px`,
-        "max-height": narrow() ? `${DECISION_HERO_HEIGHT.narrowMax}px` : undefined,
-        overflow: "hidden",
+        height: `${REPORT_KPI_HERO_HEIGHT}px`,
+        "min-height": `${REPORT_KPI_HERO_HEIGHT}px`,
       }}
     >
-      <Box className="flex items-center gap-2 min-w-0">
-        <Box data-testid="nifty-hero-spot" className="flex items-baseline gap-1 shrink-0">
-          <span style={{ ...GROUP_LABEL_STYLE, "font-size": `${REPORT_FONT.micro}px` }}>
-            SPOT
-          </span>
-          <span data-testid="nifty-hero-spot-read" style={HERO_VALUE_STYLE}>
-            <NiftySpotValue live={view.mode() === "live"} fallback={view.report()?.spot ?? 0} />
-          </span>
-        </Box>
-        <Box data-testid="nifty-hero-change" className="flex items-baseline gap-1 shrink-0">
-          <span style={{ ...GROUP_LABEL_STYLE, "font-size": `${REPORT_FONT.micro}px` }}>
-            CHANGE
-          </span>
-          <span
-            data-testid="nifty-hero-change-read"
-            style={{ ...HERO_VALUE_STYLE, color: view.changeTone() }}
-          >
-            {view.sessionChange() ? view.formatSignedPoints(view.sessionChange()!.pts) : "—"}
-          </span>
-        </Box>
-        <Box className="ml-auto shrink-0">
-          <ReasonsButton view={view} />
-        </Box>
-      </Box>
-      <Box className={`flex flex-wrap items-center gap-2 min-w-0 ${narrow() ? "" : "flex-1"}`}>
-        <span
-          data-testid="nifty-decision-state"
-          data-decision-kind={view.decision().kind}
-          title={
-            view.decision().kind === "closed"
-              ? "No live feed — this is a stored snapshot"
-              : view.decision().stateLabel
-          }
-          style={{
-            ...DECISION_STATUS_STYLE,
-            // Amber while no call is backed, neutral once a real call exists.
-            // A status token is never bullish/bearish green.
-            // 0.18 amber over the raised surface measured 4.4:1 against the
-            // amber ink; 0.14 keeps the tint and clears AA text contrast.
-            "background-color": palette.alpha(
-              view.decision().chip === "decision" ? palette.TERM_BORDER : palette.WARNING,
-              0.14,
-            ),
-            color:
-              view.decision().chip === "decision" ? palette.TEXT_MUTED : palette.PRIMARY,
-          }}
-        >
-          {view.decision().stateLabel}
-        </span>
-        <Show when={view.decision().reason}>
-          <span data-testid="nifty-decision-chip" style={DECISION_REASON_STYLE}>
-            {view.decision().reason}
-          </span>
-        </Show>
-        <Show when={!narrow()}>
-          <HeroClaim view={view} />
-        </Show>
-      </Box>
-      <Show when={narrow()}>
-        <HeroClaim view={view} />
-      </Show>
-    </Box>
-  );
-}
-
-/** The verdict block holds only evidence: no second claim, no second verdict. */
-export function VerdictContent(props: { view: DecisionView }): JSX.Element {
-  const view = props.view;
-  const narrow = view.narrow;
-  const wrapLayout = () => verdictWrapLayout(narrow());
-  return (
-    <Box
-      data-testid="nifty-verdict-wrap"
-      className={`flex gap-1 min-w-0 ${wrapLayout().direction === "column" ? "flex-col items-stretch flex-wrap py-0.5" : "flex-nowrap items-center"} ${VERDICT_NARROW_OVERRIDES}`}
-      style={{
-        height: wrapLayout().height,
-        "min-height": wrapLayout().minHeight,
-        overflow: wrapLayout().overflow,
-      }}
-    >
-      {/* Evidence only. The verdict claim is rendered once, in the hero; a
-          second copy here is what made "NEUTRAL · no trade" the loudest text. */}
-      <Box
-        data-testid="nifty-verdict-block"
-        className={`flex items-center min-w-0 flex-1 rounded-[4px] px-2 ${narrow() ? "flex-col items-stretch py-1" : "flex-nowrap"}`}
-        style={{
-          "align-self": "stretch",
-          "background-color": palette.alpha(palette.TERM_BORDER, 0.18),
-          gap: narrow() ? undefined : `${VERDICT_EVIDENCE_GAP}px`,
-        }}
-      >
-        <span
-          aria-hidden="true"
-          data-testid="nifty-verdict-rail"
-          style={{ ...PLAN_BAR_STYLE, "background-color": view.claimTone() }}
-        />
-        <Box data-testid="nifty-verdict-evidence" className="flex flex-1 min-w-0 items-stretch gap-2">
-          <span className="shrink-0 self-center" style={GROUP_LABEL_STYLE}>
-            Evidence
-          </span>
-          <Box className="flex flex-1 min-w-0">
-            <NiftyVerdictStrip report={view.report()!} mode="context" />
-          </Box>
-        </Box>
-        <span
-          aria-hidden="true"
-          data-testid="nifty-verdict-divider"
-          className="shrink-0"
-          style={{
-            width: "1px",
-            "align-self": "stretch",
-            "margin-top": "6px",
-            "margin-bottom": "6px",
-            "background-color": palette.TERM_BORDER,
-          }}
-        />
-        <Show when={view.isDesk()}>
-          <Box className="flex items-center gap-1 shrink-0">
-            <TapeBadgeControl view={view} />
-          </Box>
-        </Show>
-      </Box>
-      <Show when={view.symbol() !== "NIFTY"}>
-        <span
-          data-testid="nifty-india-vix-label"
-          title="VIX source: INDIA_VIX — this is India VIX, not a US VIX."
-          style={INDIA_VIX_STYLE}
-        >
-          INDIA VIX
-        </span>
-      </Show>
+      <ReportKpiHero
+        report={view.report()!}
+        decisionSlot={decisionSlot}
+        statsToggle={statsToggle}
+        expand={statsOpen()}
+        onToken={openToken}
+      />
     </Box>
   );
 }

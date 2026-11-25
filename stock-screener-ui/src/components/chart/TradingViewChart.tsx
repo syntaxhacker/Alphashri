@@ -122,6 +122,23 @@ function clampWidth(w?: number): LineWidth {
 }
 
 /**
+ * Positive integer chart dimensions from a measured rect. A hidden or not-yet-
+ * laid-out flex container reports 0×0; pushing that to the engine blanks the
+ * canvas, so it is ignored and the next observation supplies the real size.
+ */
+export function chartSizeFromRect(
+  rect: { width: number; height: number } | undefined | null,
+): { width: number; height: number } | null {
+  if (!rect) return null;
+  const width = Math.round(rect.width);
+  const height = Math.round(rect.height);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) {
+    return null;
+  }
+  return { width, height };
+}
+
+/**
  * Last-value tag preference for the price axis.
  *
  * The engine paints the last value as a filled box at the last price's y. On a
@@ -459,6 +476,8 @@ export function TradingViewChart(props: TradingViewChartProps) {
   let rsiPriceLines: IPriceLine[] = [];
   /** Pending pan/zoom/resize redraw frame — cancelled on cleanup. */
   let rafId: number | null = null;
+  /** Last container size pushed to the engine; duplicate observations are inert. */
+  let lastFitSize: string | null = null;
   let lastFitTime: string | undefined;
   const [ready, setReady] = createSignal(false);
 
@@ -482,12 +501,17 @@ export function TradingViewChart(props: TradingViewChartProps) {
     const tagPref = lastValueTagPreference(compact);
     const el = containerRef;
     if (!el) return;
+    // The engine ignores applyOptions({width,height}) while `autoSize` is on,
+    // so a chart created auto-sized can never be corrected after the flex
+    // parent settles. Start from the measured size (1×1 when still hidden)
+    // and let the observer below own every subsequent fit. A caller passing
+    // `height` still gets that fixed height; otherwise the container wins.
+    const initialSize = chartSizeFromRect(el.getBoundingClientRect());
     const created = createChart(el, {
       layout: { background: { type: ColorType.Solid, color: c.bg }, textColor: c.text },
       grid: { vertLines: { visible: false }, horzLines: { visible: false } },
-      ...(fixedHeight != null
-        ? { width: el.clientWidth, height: fixedHeight }
-        : { autoSize: true }),
+      width: initialSize?.width ?? 1,
+      height: fixedHeight ?? initialSize?.height ?? 1,
       timeScale: { borderColor: c.grid, timeVisible: true, secondsVisible: false, rightOffset: untrack(() => props.rightOffsetBars ?? 0), barSpacing: 5, tickMarkFormatter: tvTickMarkFormatter },
       localization: { locale: "en-IN", timeFormatter: tvTimeFormatter },
       rightPriceScale: { borderColor: c.grid },
@@ -532,19 +556,34 @@ export function TradingViewChart(props: TradingViewChartProps) {
     props.onChartReady?.(created, createdCandle as any);
     setReady(true);
 
-    let ro: ResizeObserver | null = null;
-    if (fixedHeight != null) {
-      ro = new ResizeObserver(() => {
-        if (containerRef && chart) {
-          chart.applyOptions({ width: containerRef.clientWidth });
-        }
-      });
-      ro.observe(el);
+    // One observer owns sizing in both modes. A flex parent (min-h-0) can be
+    // 0-sized when this effect runs and grow afterwards — the report's chart
+    // view starts hidden, and a monitor switch resizes it without a remount.
+    // ResizeObserver delivers at most one callback per frame after layout, so
+    // applying synchronously here is frame-coalesced; the signature guard drops
+    // duplicate observations without forcing another layout read.
+    let fitObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      const applyFit = (observed: { width: number; height: number } | undefined) => {
+        const currentChart = chart;
+        if (!currentChart) return;
+        const size =
+          chartSizeFromRect(observed) ?? chartSizeFromRect(el.getBoundingClientRect());
+        if (!size) return;
+        const height = untrack(() => props.height) ?? size.height;
+        const sig = `${size.width}x${height}`;
+        if (lastFitSize === sig) return;
+        lastFitSize = sig;
+        currentChart.applyOptions({ width: size.width, height });
+      };
+      fitObserver = new ResizeObserver((entries) => applyFit(entries[0]?.contentRect));
+      fitObserver.observe(el);
     }
 
     onCleanup(() => {
       setReady(false);
-      ro?.disconnect();
+      fitObserver?.disconnect();
+      lastFitSize = null;
       created.remove();
       chart = null;
       candleSeries = null;

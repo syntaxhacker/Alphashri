@@ -75,7 +75,7 @@ export function createEffectsCore(s: StoreState, d: StoreDerived, rh: ReportHand
   const { resetContext, load } = rh;
   const {
     toggleDeskMode,
-    openChartFull,
+    openChartFocus,
     openPlanReasons,
     openVisuals,
     closeTopModal,
@@ -113,7 +113,7 @@ export function createEffectsCore(s: StoreState, d: StoreDerived, rh: ReportHand
 
   useDeskHotkeys({
     onToggleDesk: toggleDeskMode,
-    onChartFullscreen: openChartFull,
+    onChartFocus: openChartFocus,
     onExpandHovered: openPlanReasons,
     onVisualsGrid: openVisuals,
     onClose: closeTopModal,

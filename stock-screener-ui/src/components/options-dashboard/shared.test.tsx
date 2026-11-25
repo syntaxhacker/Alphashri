@@ -267,7 +267,7 @@ describe("ExpiryChips keyboard parity", () => {
       expect(chip).toHaveAttribute("aria-pressed");
       expect(chip).not.toHaveAttribute("tabindex");
       expect(chip).toHaveClass("focus-visible:ring-1");
-      expect(chip).toHaveClass("focus-visible:ring-fin-primary");
+      expect(chip).toHaveClass("focus-visible:ring-fin-text");
     }
     second.focus();
     fireEvent.keyDown(second, { key: "Enter" });

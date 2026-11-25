@@ -117,14 +117,13 @@ vi.mock("./reportBits", () => ({
 
 import { UIProvider } from "@/ui";
 import {
-  DECISION_HERO_HEIGHT,
   ReportDecisionStrip,
   VERDICT_BLOCK_HEIGHT,
   planConfidenceLabel,
   planHeadlineStyle,
   verdictWrapLayout,
 } from "./ReportDecisionStrip";
-import { REPORT_FONT } from "./reportTokens";
+import { REPORT_FONT, REPORT_KPI_HERO_HEIGHT } from "./reportTokens";
 
 function mount() {
   return render(() => (
@@ -160,12 +159,12 @@ describe("Index Report decision strip — conclusion before evidence", () => {
     expect(ids.indexOf("nifty-decision-hero")).toBeLessThan(headline);
   });
 
-  test("(b) the hero claim uses the 16px value step, not the 24px display step", () => {
+  test("(b) the hero claim uses the 13px body step in the 32px KPI band", () => {
     mount();
     const headline = screen.getByTestId("nifty-plan-headline");
-    expect(headline.style.fontSize).toBe(`${REPORT_FONT.value}px`);
+    expect(headline.style.fontSize).toBe(`${REPORT_FONT.body}px`);
     expect(screen.getByTestId("nifty-decision-hero").style.height).toBe(
-      `${DECISION_HERO_HEIGHT.wide}px`,
+      `${REPORT_KPI_HERO_HEIGHT}px`,
     );
     // The legacy helper contracts still hold for the narrow-layout guard.
     expect(planHeadlineStyle(false)["white-space"]).toBe("nowrap");

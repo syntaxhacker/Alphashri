@@ -335,7 +335,7 @@ export function MarketSectorTreemap(props: VisRenderProps) {
           title="Expand to fullscreen"
           onClick={() => setExpanded(true)}
           data-testid="market-sector-map-expand"
-          className="flex size-6 shrink-0 items-center justify-center rounded text-fin-text-muted hover:text-fin-text hover:bg-fin-border focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+          className="flex size-6 shrink-0 items-center justify-center rounded text-fin-text-muted hover:text-fin-text hover:bg-fin-border focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text"
         >
           <IconArrowsMaximize size={14} />
         </button>

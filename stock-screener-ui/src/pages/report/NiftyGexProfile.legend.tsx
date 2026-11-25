@@ -1,20 +1,28 @@
 import { Show } from "solid-js";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
-import { spotVsFlip } from "./NiftyGammaTime";
 import { REPORT_FONT } from "./reportTokens";
 import type { GexProfilePoint } from "./niftyGex";
 import { GEX_DASH, formatGexStrike, gexTone } from "./NiftyGexProfile.format";
 import { GEX_SIGNIFICANCE_SHARE } from "./NiftyGexProfile.geometry";
 import type { GexProfileStats, GexSideLevel } from "./NiftyGexProfile.levels";
 
-/** What the profile means for the next move — the panel's reading header. */
+/**
+ * Verdict only — the stat row is the single numeric owner of flip and spot.
+ * The long reading lives in the tooltip so a 472px window cannot clip a
+ * half-sentence with no way to recover the rest.
+ */
 export function GexRegimeRow(props: { stats: GexProfileStats; spot: number }) {
   const regimeText = () => (props.stats.regime ? `${props.stats.regime} GAMMA` : GEX_DASH);
   const regimeTone = () =>
     gexTone(props.stats.regime === "LONG" ? 1 : props.stats.regime === "SHORT" ? -1 : null);
-  const flipDistance = () => spotVsFlip(props.spot, props.stats.zeroCross);
-  const regimeSentence = () =>
+  const verdict = () =>
+    props.stats.regime === "LONG"
+      ? "magnet · dips bought"
+      : props.stats.regime === "SHORT"
+        ? "fuel · moves accelerate"
+        : "";
+  const detail = () =>
     props.stats.regime === "LONG"
       ? "Dealers hold long gamma — the big peak is a magnet: dips there get bought, rallies get sold into."
       : props.stats.regime === "SHORT"
@@ -41,22 +49,19 @@ export function GexRegimeRow(props: { stats: GexProfileStats; spot: number }) {
       >
         {regimeText()}
       </Text>
-      <Show when={regimeSentence()}>
+      <Show when={verdict()}>
         <Text
+          data-testid="nifty-gex-profile-verdict"
           size="xs"
           span
-          title={regimeSentence()}
-          className="min-w-0 flex-1 overflow-hidden truncate whitespace-nowrap"
+          title={detail()}
+          className="min-w-0 whitespace-normal break-words rounded-[4px] px-1"
           style={{
             "color": palette.TEXT_MUTED,
+            "border": `1px solid ${palette.TERM_BORDER}`,
           }}
         >
-          {regimeSentence()}
-        </Text>
-      </Show>
-      <Show when={flipDistance()}>
-        <Text size="xs" span c="dimmed" className="whitespace-nowrap">
-          Spot {formatGexStrike(Number.isFinite(props.spot) ? props.spot : null)} · {flipDistance()}
+          {verdict()}
         </Text>
       </Show>
     </div>

@@ -1,17 +1,24 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@solidjs/testing-library";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createSignal } from "solid-js";
 import { TYPE_CLASS, UIProvider } from "@/ui";
 import { REPORT_FONT } from "./reportTokens";
+import { REPORT_STORE_PANEL_KEYS, REPORT_WINDOW_KEYS } from "./reportWindowTypes";
 
 // The shell is a section-order contract here: every heavy section is stubbed
 // so the test only sees the order the desk reader meets them in.
 const [report, setReport] = createSignal<Record<string, unknown> | null>(null);
+const [focus, setFocus] = createSignal(false);
+const [desk, setDesk] = createSignal(false);
+const [view, setView] = createSignal<"monitor" | "desk">("monitor");
+const [updatedAtMs, setUpdatedAtMs] = createSignal<number | null>(null);
 
+// The windowed desk mounts the real report panel adapters, so the mock must
+// answer every accessor they read — not just the ones the monitor shell uses.
 const mockStore = {
   data: {
     error: () => null,
@@ -19,19 +26,98 @@ const mockStore = {
     report,
     loading: () => false,
     booted: () => true,
+    tapeRows: () => [],
+    effectiveBursts: () => [],
+    tape: () => null,
+    oiPoints: () => [],
+    flipAt: () => null,
+    visibleStrikes: () => [],
+    atmStrike: () => null,
+    oiScale: () => ({ maxCeOiChange: 0, maxPeOiChange: 0 }),
+    oiWalls: () => ({ calls: [], puts: [] }),
+    freshness: {
+      updatedAtMs,
+      nowMs: () => Date.now(),
+      wsConnected: () => false,
+      wsDownSinceMs: () => null,
+      wsDownForMs: () => 0,
+      marketClosed: () => true,
+      isStale: () => false,
+      staleMins: () => 0,
+      nextUpdateAtMs: () => null,
+      touchNow: () => {},
+    },
   },
   // #197's shell reads these three; they were absent from #195's mock, so the
   // shell threw while resolving the replay label before any section painted.
-  ui: { isDesk: () => false },
+  ui: {
+    isDesk: desk,
+    isWindowDesk: () => view() === "desk",
+    reportView: view,
+    setReportView: setView,
+    handleReportViewChange: (value: string) => setView(value === "desk" ? "desk" : "monitor"),
+    view: () => "chart",
+    chartTf: () => "1m",
+    chartSize: () => "fill",
+    handleChartTf: () => {},
+    handleChartSize: () => {},
+    openChartFull: () => {},
+    deskOpen: () => false,
+    setDeskOpen: () => {},
+    openMovers: () => {},
+    overlayOpen: () => focus(),
+    setOverlayOpen: (_key: string, next: boolean) => setFocus(next),
+  },
+  walls: {
+    data: () => null,
+    openDrawer: () => {},
+  },
   replay: { frameT: () => undefined },
-  selection: { mode: () => "live" },
+  selection: { mode: () => "live", symbol: () => "NIFTY", index: () => "nifty" },
 };
 
 vi.mock("./ReportContext", () => ({
   ReportProvider: (props: { children?: unknown }) => props.children,
   useNiftyReport: () => mockStore,
 }));
-vi.mock("./ReportToolbar", () => ({ ReportToolbar: () => <div data-testid="toolbar-stub" /> }));
+vi.mock("./ReportToolbar", () => ({
+  ReportToolbar: (props: { presetId?: string; onPresetChange?: (id: string) => void }) => (
+    <div data-testid="toolbar-stub">
+      <div data-testid="nifty-report-view-toggle" role="group" aria-label="Report view">
+        <button
+          type="button"
+          data-testid="nifty-report-view-monitor"
+          aria-pressed={view() === "monitor"}
+          onClick={() => mockStore.ui.handleReportViewChange("monitor")}
+        >
+          MONITOR
+        </button>
+        <button
+          type="button"
+          data-testid="nifty-report-view-desk"
+          aria-pressed={view() === "desk"}
+          onClick={() => mockStore.ui.handleReportViewChange("desk")}
+        >
+          DESK
+        </button>
+      </div>
+      <select
+        data-testid="nifty-report-preset-select"
+        aria-label="Report layout preset"
+        value={props.presetId ?? ""}
+        onChange={(event) => props.onPresetChange?.(event.currentTarget.value)}
+      >
+        <option value="focus">Focus</option>
+        <option value="desk">Desk</option>
+        <option value="flow">Flow</option>
+        <option value="full">Full desk</option>
+      </select>
+    </div>
+  ),
+}));
+vi.mock("./ReportKpiHero", () => ({
+  ReportKpiHero: () => <div data-testid="nifty-kpi-hero" data-report-section="true" />,
+}));
 // Mirror the real facade's sibling shape: the stat strip followed by its tail
 // sections. A single decision stub would hide the default-order siblings that
 // used to paint above the hero and chart.
@@ -54,7 +140,12 @@ vi.mock("./ReportStrips", () => ({
   ReportStrips: () => <div data-testid="strips-stub"><button type="button" data-testid="strips-focus" /></div>,
 }));
 vi.mock("./ReportWorkspace", () => ({
-  ReportWorkspace: () => <div data-testid="workspace-stub"><button type="button" data-testid="workspace-focus" /></div>,
+  ReportWorkspace: () => (
+    <div data-testid="workspace-stub">
+      <div data-testid="nifty-chart-panel" />
+      <button type="button" data-testid="workspace-focus" />
+    </div>
+  ),
 }));
 vi.mock("./ReportAnalytics", () => ({
   ReportAnalytics: () => <div data-testid="analytics-stub"><button type="button" data-testid="analytics-focus" /></div>,
@@ -82,9 +173,7 @@ function sectionOrder(): string[] {
   return Array.from(root.querySelectorAll("[data-testid]"))
     .map((el) => el.getAttribute("data-testid") ?? "")
     .filter((id) =>
-      ["decision-stub", "nifty-flow-above-chart", "workspace-stub", "strips-stub", "analytics-stub"].includes(
-        id,
-      ),
+      ["decision-stub", "workspace-stub", "strips-stub", "analytics-stub"].includes(id),
     );
 }
 
@@ -103,9 +192,27 @@ function mobileOrder(cls: string, testId: string): number | null {
   return self ? Number(self[1]) : null;
 }
 
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: () => Promise.resolve({ chain: [], expiries: [], rows: [], sectors: [] }),
+      text: () => Promise.resolve("{}"),
+    }) as unknown as Response),
+  );
+});
+
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   setReport(null);
+  setFocus(false);
+  setDesk(false);
+  setView("monitor");
+  setUpdatedAtMs(null);
 });
 
 describe("NiftyReportShell section order", () => {
@@ -121,7 +228,6 @@ describe("NiftyReportShell section order", () => {
     expect(sectionOrder()).toEqual([
       "decision-stub",
       "workspace-stub",
-      "nifty-flow-above-chart",
       "strips-stub",
       "analytics-stub",
     ]);
@@ -141,7 +247,6 @@ describe("NiftyReportShell section order", () => {
     expect(sectionOrder()).toEqual([
       "decision-stub",
       "workspace-stub",
-      "nifty-flow-above-chart",
       "strips-stub",
       "analytics-stub",
     ]);
@@ -154,44 +259,13 @@ describe("NiftyReportShell section order", () => {
       focusables
         .map((el) => el.getAttribute("data-testid"))
         .filter((id) => id?.endsWith("-focus")),
-    ).toEqual([
-      "decision-focus",
-      "workspace-focus",
-      "flow-focus",
-      "strips-focus",
-      "analytics-focus",
-    ]);
+    ).toEqual(["decision-focus", "workspace-focus", "strips-focus", "analytics-focus"]);
     for (const el of content.querySelectorAll<HTMLElement>("[tabindex]")) {
       expect(Number(el.getAttribute("tabindex"))).toBeLessThanOrEqual(0);
     }
   });
 
-  test("the flow row is absent when neither block was recorded", async () => {
-    setReport({ spot: 25_980 });
-    mount();
-
-    await screen.findByTestId("workspace-stub");
-    expect(screen.queryByTestId("nifty-flow-above-chart")).not.toBeInTheDocument();
-    expect(sectionOrder()).toEqual([
-      "decision-stub",
-      "workspace-stub",
-      "strips-stub",
-      "analytics-stub",
-    ]);
-  });
-
-  test("one recorded block renders alone, without a dead column", async () => {
-    setReport({ spot: 25_980, futures: { series: [], regime: "neutral" } });
-    mount();
-
-    const row = await screen.findByTestId("nifty-flow-above-chart");
-    expect(screen.getByTestId("futures-stub")).toBeInTheDocument();
-    expect(screen.queryByTestId("itm-stub")).not.toBeInTheDocument();
-    expect(row.className).toContain("grid-cols-1");
-    expect(row.className).not.toContain("min-[1200px]:grid-cols-2");
-  });
-
-  test("both blocks stack at 390 and sit side by side from 1200", async () => {
+  test("the two analytics panels never render above the chart", async () => {
     setReport({
       spot: 25_980,
       futures: { series: [], regime: "neutral" },
@@ -199,11 +273,160 @@ describe("NiftyReportShell section order", () => {
     });
     mount();
 
-    const row = await screen.findByTestId("nifty-flow-above-chart");
-    expect(row.className).toContain("grid-cols-1");
-    expect(row.className).toContain("min-[1200px]:grid-cols-2");
-    expect(row.className).toContain("min-w-0");
-    expect(row.querySelectorAll(":scope > [data-testid]")).toHaveLength(2);
+    await screen.findByTestId("workspace-stub");
+    expect(screen.queryByTestId("nifty-flow-above-chart")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("futures-stub")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("itm-stub")).not.toBeInTheDocument();
+  });
+
+  test("the shell leaves the single decision band to the strip", async () => {
+    setReport({ spot: 25_980 });
+    mount();
+
+    await screen.findByTestId("workspace-stub");
+    expect(screen.queryByTestId("nifty-kpi-hero")).not.toBeInTheDocument();
+    expect(screen.getByTestId("decision-stub")).toBeInTheDocument();
+  });
+
+  test("the chart focus state is a data attribute on the shell, not an unmount", async () => {
+    setReport({ spot: 25_980 });
+    mount();
+
+    const panel = screen.getByTestId("nifty-report-panel");
+    expect(panel).toHaveAttribute("data-chart-focus", "false");
+    setFocus(true);
+    expect(panel).toHaveAttribute("data-chart-focus", "true");
+    expect(screen.getByTestId("nifty-chart-focus-exit")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-stub")).toBeInTheDocument();
+    setFocus(false);
+    expect(panel).toHaveAttribute("data-chart-focus", "false");
+  });
+
+  test("clicking the chart plot does not open chart focus", async () => {
+    setReport({ spot: 25_980 });
+    mount();
+
+    const panel = await screen.findByTestId("nifty-report-panel");
+    const chart = await screen.findByTestId("nifty-chart-panel");
+    expect(panel).toHaveAttribute("data-chart-focus", "false");
+    fireEvent.click(chart);
+    expect(panel).toHaveAttribute("data-chart-focus", "false");
+    expect(screen.queryByTestId("nifty-chart-focus-exit")).not.toBeInTheDocument();
+  });
+
+  test("the report content is the single scroll owner in desk mode", async () => {
+    setDesk(true);
+    setReport({ spot: 25_980 });
+    try {
+      mount();
+
+      const content = screen.getByTestId("nifty-report-content");
+      expect(content.className).toContain("overflow-y-auto");
+      expect(content.style.overflowY).toBe("auto");
+      expect(content.className).toContain("overflow-x-hidden");
+      expect(content.style.overflowX).toBe("hidden");
+      // The collapsed walls rail sits in a content-sized bottom track, so the
+      // chart row absorbs the slack instead of leaving a dead band above the dock.
+      expect(content.className).toContain("min-[1200px]:grid-rows-[auto_minmax(0,1fr)_auto]");
+      expect(content.className).not.toContain("minmax(0,30fr)");
+      expect(screen.getByTestId("nifty-report-panel").style.overflow).toBe("hidden");
+    } finally {
+      setDesk(false);
+    }
+  });
+});
+
+describe("NiftyReportShell workspace switch", () => {
+  test("the chart-first monitor is the default and DESK swaps in the windowed workspace", async () => {
+    setReport({
+      spot: 25_980,
+      futures: { series: [], regime: "neutral" },
+      itm_pe_flow: { series: [], top: [] },
+    });
+    mount();
+    await screen.findByTestId("workspace-stub");
+
+    expect(screen.getByTestId("nifty-report-view-monitor")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("nifty-report-view-desk")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("report-window-desk")).not.toBeInTheDocument();
+    expect(screen.getByTestId("nifty-report-content")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("nifty-report-view-desk"));
+    expect(screen.getByTestId("nifty-report-view-desk")).toHaveAttribute("aria-pressed", "true");
+    const desk = await screen.findByTestId("report-window-desk");
+    expect(desk).toBeInTheDocument();
+    expect(screen.getByTestId("window-manager-canvas")).toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-report-content")).not.toBeInTheDocument();
+
+    // The first desk visit opens all six registered report panels. Preset ids
+    // are `${type}-${ordinal}`, so match by the registry-owned type prefix.
+    for (const key of REPORT_WINDOW_KEYS) {
+      expect(await screen.findByTestId(new RegExp(`^window-${key}-\\d+$`))).toBeInTheDocument();
+    }
+    expect(screen.getAllByRole("region")).toHaveLength(REPORT_WINDOW_KEYS.length);
+
+    fireEvent.click(screen.getByTestId("nifty-report-view-monitor"));
+    expect(screen.queryByTestId("report-window-desk")).not.toBeInTheDocument();
+    expect(screen.getByTestId("nifty-report-content")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-stub")).toBeInTheDocument();
+  });
+
+  test("the shell injects the live report store into store-dependent window panels", async () => {
+    // A closed session parks the movers adapter on its named empty state
+    // instead of polling a live endpoint; the reason still proves the store
+    // reached the adapter rather than its no-store fallback.
+    setReport({ spot: 25_980, market: { is_open: false } });
+    mount();
+    fireEvent.click(screen.getByTestId("nifty-report-view-desk"));
+
+    const realContent: Record<(typeof REPORT_STORE_PANEL_KEYS)[number], string> = {
+      chart: "nifty-chart-panel",
+      walls: "walls-empty",
+      flow: "flow-empty",
+      movers: "movers-empty",
+    };
+    for (const key of REPORT_STORE_PANEL_KEYS) {
+      const windowBody = await screen.findByTestId(`report-${key}-window`);
+      expect(windowBody, key).toBeInTheDocument();
+      expect(await screen.findByTestId(realContent[key]), key).toBeInTheDocument();
+      expect(windowBody, key).not.toHaveTextContent(/Report store not connected/i);
+    }
+    // Standalone panels own their data path: real windows with their own named
+    // empty states, never the report-store dependency placeholder.
+    for (const key of ["chain", "analytics"]) {
+      expect(await screen.findByTestId(`report-${key}-window`)).toBeInTheDocument();
+      expect(screen.getByTestId(`report-${key}-window-empty`)).toBeInTheDocument();
+    }
+  });
+
+  test("an emptied desk is honored and paints the report-window empty state", async () => {
+    setReport({ spot: 25_980 });
+    mount();
+    fireEvent.click(screen.getByTestId("nifty-report-view-desk"));
+    await screen.findByTestId("window-manager-canvas");
+
+    for (;;) {
+      const close = document.querySelector<HTMLElement>('[data-testid^="window-close-"]');
+      if (!close) break;
+      fireEvent.click(close);
+    }
+    expect(await screen.findByTestId("report-window-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("report-window-empty")).toHaveAttribute("role", "status");
+    expect(screen.queryAllByRole("region")).toHaveLength(0);
+  });
+
+  test("the preset picker resolves geometry through the shell before the desk consumes it", async () => {
+    setReport({ spot: 25_980 });
+    mount();
+    fireEvent.click(screen.getByTestId("nifty-report-view-desk"));
+    await screen.findByTestId("window-manager-canvas");
+
+    const picker = screen.getByTestId("nifty-report-preset-select") as HTMLSelectElement;
+    fireEvent.change(picker, { target: { value: "focus" } });
+
+    expect(screen.getAllByRole("region")).toHaveLength(1);
+    expect(screen.getByRole("region", { name: "INDEX CHART" })).toBeInTheDocument();
+    expect(picker).toHaveValue("focus");
   });
 });
 
@@ -223,6 +446,17 @@ describe("NiftyReportShell KPI strip at 390", () => {
     // No mid-number ellipsis: a clipped price is a wrong price.
     expect(cls).toContain("max-[600px]:[&_[data-testid$='-value']]:text-clip!");
     expect(cls).toContain("max-[600px]:[&_[data-testid$='-value']]:overflow-visible!");
+  });
+
+  test("the hero stays a single row at 390 so its popover cannot shift the chart", async () => {
+    setReport({ spot: 25_980 });
+    mount();
+
+    const cls = screen.getByTestId("nifty-report-panel").className;
+    expect(cls).toContain("max-[600px]:[&_[data-testid='nifty-kpi-hero']]:flex-nowrap!");
+    expect(cls).toContain("max-[600px]:[&_[data-testid='nifty-kpi-hero']]:overflow-visible!");
+    // The shell never forces the strip's own disclosure open or closed.
+    expect(cls).not.toContain("nifty-verdict-disclosure']_[data-testid='nifty-live-tape-content']");
   });
 
   test("desktop strip layout is untouched (overrides are max-width gated)", async () => {
@@ -309,7 +543,7 @@ describe("NiftyReportShell 390 composition", () => {
     expect(cls).toContain("nifty-decision-stats']_[data-testid$='-cells']]:gap-1!");
   });
 
-  test("DOM order is decision → chart → flow → strips → analytics (mobile reading order)", async () => {
+  test("DOM order is hero → decision → chart → strips → analytics (mobile reading order)", async () => {
     setReport({
       spot: 25_980,
       futures: { series: [], regime: "neutral" },
@@ -321,7 +555,6 @@ describe("NiftyReportShell 390 composition", () => {
     expect(sectionOrder()).toEqual([
       "decision-stub",
       "workspace-stub",
-      "nifty-flow-above-chart",
       "strips-stub",
       "analytics-stub",
     ]);
@@ -332,7 +565,8 @@ describe("NiftyReportShell 390 composition", () => {
     expect(contentCls).toContain("nifty-stat-strip']]:order-1");
     expect(contentCls).toContain("nifty-main-row']]:order-2");
     expect(contentCls).toContain("nifty-stat-strip']]:-order-3");
-    expect(screen.getByTestId("nifty-flow-above-chart").className).toContain("min-[1200px]:-order-1");
+    expect(screen.queryByTestId("nifty-kpi-hero")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-flow-above-chart")).not.toBeInTheDocument();
   });
 });
 
@@ -346,18 +580,16 @@ describe("NiftyReportShell 390 visual order (including decision tail)", () => {
     mount();
   }
 
-  test("every content band owns one unique slot: hero → chart → dock/flow/tail → strips → analytics", async () => {
+  test("every content band owns one unique slot: chart → dock/tail → strips → analytics", async () => {
     mountFull();
     await screen.findByTestId("workspace-stub");
 
     const content = screen.getByTestId("nifty-report-content").className;
-    const flow = screen.getByTestId("nifty-flow-above-chart").className;
     const slots: Array<[string, number | null]> = [
       ["nifty-stat-strip", mobileOrder(content, "nifty-stat-strip")],
       ["nifty-main-row", mobileOrder(content, "nifty-main-row")],
       ["desk-dock-region", mobileOrder(content, "desk-dock-region")],
       ["nifty-flow-windows-disclosure", mobileOrder(content, "nifty-flow-windows-disclosure")],
-      ["nifty-flow-above-chart", mobileOrder(flow, "nifty-flow-above-chart")],
       ["movers-strip", mobileOrder(content, "movers-strip")],
       ["nifty-context-rail", mobileOrder(content, "nifty-context-rail")],
       ["nifty-setup-radar", mobileOrder(content, "nifty-setup-radar")],
@@ -365,7 +597,7 @@ describe("NiftyReportShell 390 visual order (including decision tail)", () => {
       ["nifty-analytics-row", mobileOrder(content, "nifty-analytics-row")],
       ["nifty-iv-skew-row", mobileOrder(content, "nifty-iv-skew-row")],
     ];
-    expect(slots.map(([, order]) => order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(slots.map(([, order]) => order)).toEqual([1, 2, 3, 4, 6, 7, 8, 9, 10, 11]);
     expect(new Set(slots.map(([, order]) => order)).size).toBe(slots.length);
   });
 
@@ -428,7 +660,7 @@ describe("NiftyReportShell 390 visual order (including decision tail)", () => {
 });
 
 describe("NiftyReportShell spacing rhythm", () => {
-  test("toolbar, replay band and flow row use deliberate 8/12 spacings", async () => {
+  test("toolbar, replay band and KPI hero use deliberate 8/12 spacings", async () => {
     setReport({
       spot: 25_980,
       futures: { series: [], regime: "neutral" },
@@ -446,11 +678,11 @@ describe("NiftyReportShell spacing rhythm", () => {
 
       const banner = screen.getByTestId("nifty-replay-mode-banner");
       expect(banner.className).toContain("px-3");
-      expect(banner.className).toContain("py-2");
-      expect(banner.className).toContain("gap-x-3");
+      expect(banner.className).toContain("gap-x-2");
+      expect(banner.style.height).toBe("24px");
 
-      const flow = screen.getByTestId("nifty-flow-above-chart");
-      expect(flow.className).toContain("gap-2"); // 8px between the two flow panels
+      expect(screen.queryByTestId("nifty-kpi-hero")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("nifty-flow-above-chart")).not.toBeInTheDocument();
     } finally {
       mockStore.selection.mode = liveMode;
     }
@@ -471,5 +703,105 @@ describe("NiftyReportShell spacing rhythm", () => {
     } finally {
       mockStore.selection.mode = liveMode;
     }
+  });
+
+  test("the replay strip is 24px with time and one active note, no empty placeholders", async () => {
+    setReport({ spot: 25_980 });
+    const liveMode = mockStore.selection.mode;
+    mockStore.selection.mode = () => "eod";
+    try {
+      mount();
+      const banner = screen.getByTestId("nifty-replay-mode-banner");
+      expect(banner.style.height).toBe("24px");
+      expect(banner.style.minHeight).toBe("24px");
+      expect(banner.textContent).not.toContain("Not captured in replay");
+      expect(banner.children).toHaveLength(2);
+      expect(banner.textContent).toMatch(/REPLAY/);
+    } finally {
+      mockStore.selection.mode = liveMode;
+    }
+  });
+
+  test("the shell does not paint a second KPI hero above the strip", async () => {
+    setReport({ spot: 25_980 });
+    mount();
+    await screen.findByTestId("workspace-stub");
+    expect(screen.queryByTestId("nifty-kpi-hero")).not.toBeInTheDocument();
+  });
+});
+
+describe("NiftyReportShell no-payload reason", () => {
+  // 2026-11-25 15:55Z = 21:25 IST on the 25th — the same clock the toolbar
+  // prints as `SNAPSHOT 21:25` when the feed is closed.
+  const SNAPSHOT_MS = Date.parse("2026-11-25T15:55:00Z");
+
+  const TITLE = "No report for this selection";
+
+  function reasonBand(text: string) {
+    const empty = screen.getByTestId("nifty-report-empty");
+    const reason = screen.getByTestId("nifty-report-empty-reason");
+    expect(empty).toBeInTheDocument();
+    expect(reason).toHaveTextContent(text);
+    // D5: the reason is a separate line of copy, never a second printing of
+    // the title. Both the snapshot and no-snapshot branches must read as a
+    // title plus one distinct explanation.
+    const title = empty.children[0] as HTMLElement;
+    expect(title).toHaveTextContent(TITLE);
+    expect(reason.textContent).not.toBe(title.textContent);
+    expect(reason.textContent).not.toContain(TITLE);
+    expect(reason).toHaveClass("text-ui-micro");
+    expect(reason.className).toContain("whitespace-normal");
+    expect(reason.className).not.toContain("border");
+    // One hairline rail on the band (happy-dom serialises the shorthand as
+    // longhands), nothing on the other edges or its children: no nested card.
+    expect(empty.style.borderLeftWidth).toBe("2px");
+    expect(empty.style.borderLeftStyle).toBe("solid");
+    expect(empty.style.borderLeftColor).not.toBe("");
+    for (const edge of ["Top", "Right", "Bottom"]) {
+      expect(empty.style[`border${edge}Width` as keyof typeof empty.style]).toBe("");
+    }
+    expect(empty.children).toHaveLength(2);
+    for (const child of Array.from(empty.children) as HTMLElement[]) {
+      expect(child.getAttribute("style") ?? "").not.toContain("border");
+    }
+    return { empty, reason };
+  }
+
+  test("names the recorded snapshot's session/as-of at 1600", () => {
+    setUpdatedAtMs(SNAPSHOT_MS);
+    mount();
+
+    const { empty } = reasonBand(
+      "Snapshot 21:25 · 2026-11-25 — no live report for this selection",
+    );
+    expect(empty.className).toContain("px-3");
+  });
+
+  test("names the recorded snapshot's session/as-of at 390", () => {
+    setUpdatedAtMs(SNAPSHOT_MS);
+    mount();
+
+    reasonBand("Snapshot 21:25 · 2026-11-25 — no live report for this selection");
+    expect(screen.getByTestId("nifty-report-panel").className).toContain(
+      "max-[600px]:[&_[data-testid='nifty-report-empty']]:px-2!",
+    );
+  });
+
+  test("states a distinct failure reason when no snapshot is available at 1600", () => {
+    setUpdatedAtMs(null);
+    mount();
+
+    const { empty } = reasonBand("The report request failed. Retry or pick another selection.");
+    expect(empty.className).toContain("px-3");
+  });
+
+  test("states a distinct failure reason when no snapshot is available at 390", () => {
+    setUpdatedAtMs(null);
+    mount();
+
+    reasonBand("The report request failed. Retry or pick another selection.");
+    expect(screen.getByTestId("nifty-report-panel").className).toContain(
+      "max-[600px]:[&_[data-testid='nifty-report-empty']]:px-2!",
+    );
   });
 });

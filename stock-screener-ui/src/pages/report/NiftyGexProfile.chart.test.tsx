@@ -159,7 +159,8 @@ describe("NiftyGexProfile render", () => {
     expect(screen.getByTestId("nifty-gex-profile-resist")).toHaveTextContent("22,800");
     const regime = screen.getByTestId("nifty-gex-profile-regime");
     expect(regime).toHaveTextContent("magnet");
-    expect(regime).toHaveTextContent("Spot 22,700 · 50 pts above flip");
+    // Flip is owned by the stat row once; the regime row keeps only the verdict.
+    expect(screen.getByTestId("nifty-gex-profile-zero")).toHaveTextContent("22,650");
     const caption = screen.getByTestId("nifty-gex-profile-caption");
     expect(caption).toHaveTextContent("above 0 = dampening");
     const explain = caption.getAttribute("title") ?? "";

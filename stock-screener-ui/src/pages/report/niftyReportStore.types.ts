@@ -28,6 +28,10 @@ import { buildPressure } from "./niftyPressure";
 export type ReportSymbol = "NIFTY" | "SENSEX" | "RELIANCE";
 export type ReportIndex = "nifty" | "sensex";
 export type ChartView = "chart" | "depth";
+/** The shell's top-level workspace. "monitor" is the chart-first landing view;
+ *  "desk" swaps in the windowed report workspace. Independent of `DeskMode`,
+ *  which still describes the old DESK / RESEARCH strip inside monitor. */
+export type ReportView = "monitor" | "desk";
 export type DeskMode = "desk" | "research";
 export type SideTab = "chain" | "heatmap";
 export type HeatMetric = "oi" | "volume" | "premium";
@@ -46,7 +50,10 @@ export type DeskOverlayKey =
   | "heat"
   | "flow"
   | "pressure"
-  | "flowChart";
+  | "flowChart"
+  | "chartFocus"
+  | "futures"
+  | "itm";
 
 /** What the report chart visualises: live stream, pattern overlay, or the recorded replay frame. */
 export type ChartSource = "live" | "patterns" | "offline";
@@ -229,6 +236,10 @@ export interface NiftyReportUi {
   view: () => ChartView;
   setView: (next: ChartView) => void;
   handleViewChange: (value: string) => void;
+  reportView: () => ReportView;
+  setReportView: (next: ReportView) => void;
+  handleReportViewChange: (value: string) => void;
+  isWindowDesk: () => boolean;
   deskMode: () => DeskMode;
   isDesk: () => boolean;
   toggleDeskMode: () => void;

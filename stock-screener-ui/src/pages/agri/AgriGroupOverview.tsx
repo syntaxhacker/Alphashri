@@ -311,7 +311,7 @@ function GroupCard(props: {
         "flex min-w-0 flex-col gap-1 rounded-[4px] border bg-fin-surface p-2 text-left",
         props.selected ? "border-fin-primary" : "border-fin-border",
         props.onSelect
-          ? "cursor-pointer hover:bg-fin-surface-alt focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+          ? "cursor-pointer hover:bg-fin-surface-alt focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text"
           : "",
       ].join(" ")}
     >

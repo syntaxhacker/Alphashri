@@ -1594,3 +1594,119 @@ class TestWindowHomeScope:
         put = user_client.put(WINDOW_HOME_URL, json={"config": payload, "version": 1})
         assert put.status_code == 200, put.text
         assert put.json()["config"]["v"] == 1
+
+
+WINDOW_REPORT_URL = "/api/user-configs/window.report"
+# Mirrors `serializeReportLayout`: one WindowLayout (name + windows) stamped with
+# the wire version marker. Unlike `window.home` there is no active/layouts
+# envelope — the report desk owns a single layout document.
+WINDOW_REPORT_DEFAULTS = {"v": 1, "name": "Main", "windows": []}
+WINDOW_REPORT_SAMPLE = {
+    "v": 1,
+    "name": "Main",
+    "windows": [
+        {
+            "id": "chart-1",
+            "type": "chart",
+            "title": "INDEX CHART",
+            "x": 8,
+            "y": 8,
+            "w": 600,
+            "h": 400,
+            "z": 1,
+            "minimized": False,
+            "maximized": False,
+            "settings": {"symbol": "NIFTY", "timeframe": "1m"},
+        }
+    ],
+}
+
+
+class TestWindowReportScope:
+    """The report desk must persist its layout, just like the home desk.
+
+    `window.report` was never added to `SCOPE_REGISTRY`, so every save 404'd as
+    `unknown_scope`. The client treats 404 as "config API absent — stay quiet",
+    so the report desk looked like it saved and silently persisted nothing.
+    """
+
+    def test_scope_is_registered(self):
+        from api.user_configs import SCOPE_REGISTRY
+
+        assert "window.report" in SCOPE_REGISTRY
+
+    def test_default_read_is_not_a_404(self, user_client):
+        get = user_client.get(WINDOW_REPORT_URL)
+        assert get.status_code == 200, get.text
+        assert get.json()["saved"] is False
+        assert get.json()["config"] == WINDOW_REPORT_DEFAULTS
+
+    def test_layout_round_trips(self, user_client):
+        put = user_client.put(
+            WINDOW_REPORT_URL, json={"config": WINDOW_REPORT_SAMPLE, "version": 1}
+        )
+        assert put.status_code == 200, put.text
+        assert put.json()["saved"] is True
+
+        got = user_client.get(WINDOW_REPORT_URL)
+        assert got.status_code == 200, got.text
+        assert got.json()["saved"] is True
+        assert got.json()["config"] == WINDOW_REPORT_SAMPLE
+
+    def test_legacy_window_type_survives_a_round_trip(self, user_client):
+        # A layout written by a build with a different panel registry must keep
+        # its window `type` id — windows own their bag and are not an enum here.
+        legacy = {
+            **WINDOW_REPORT_SAMPLE,
+            "windows": [{**WINDOW_REPORT_SAMPLE["windows"][0], "type": "market.heatmap"}],
+        }
+        assert user_client.put(
+            WINDOW_REPORT_URL, json={"config": legacy, "version": 1}
+        ).status_code == 200
+        assert user_client.get(WINDOW_REPORT_URL).json()["config"] == legacy
+
+    def test_unknown_stored_key_is_dropped_not_fatal(self, user_client, db):
+        db.add(
+            UserSavedConfig(
+                user_id=1,
+                scope="window.report",
+                name="",
+                config={**WINDOW_REPORT_SAMPLE, "futureField": 1},
+                version=1,
+            )
+        )
+        db.commit()
+        body = user_client.get(WINDOW_REPORT_URL).json()
+        assert body["saved"] is True
+        assert "futureField" not in body["config"]
+        assert body["config"] == WINDOW_REPORT_SAMPLE
+
+    def test_legacy_row_without_version_marker_still_reads(self, user_client, db):
+        # A row written before the client stamped `v` must restore, not fall back
+        # to defaults: the marker defaults to 1 on read (writes stay strict).
+        legacy = {"name": "Main", "windows": WINDOW_REPORT_SAMPLE["windows"]}
+        db.add(
+            UserSavedConfig(user_id=1, scope="window.report", name="", config=legacy, version=1)
+        )
+        db.commit()
+        body = user_client.get(WINDOW_REPORT_URL).json()
+        assert body["saved"] is True
+        assert body["config"]["v"] == 1
+        assert body["config"]["windows"] == WINDOW_REPORT_SAMPLE["windows"]
+
+    @pytest.mark.parametrize(
+        "config",
+        [
+            {"v": 1, "name": "Main", "windows": "not-a-list"},
+            {"v": 1, "name": "Main", "windows": [{} for _ in range(65)]},
+            {"v": 0, "name": "Main", "windows": []},
+            {"v": "one", "name": "Main", "windows": []},
+            {"v": 1, "name": "x" * 65, "windows": []},
+            {**WINDOW_REPORT_SAMPLE, "bogus": 1},
+        ],
+    )
+    def test_invalid_payload_is_422(self, user_client, db, config):
+        response = user_client.put(WINDOW_REPORT_URL, json={"config": config})
+        assert response.status_code == 422
+        assert response.json()["detail"] in {"invalid_config", "unknown_key"}
+        assert db.query(UserSavedConfig).count() == 0

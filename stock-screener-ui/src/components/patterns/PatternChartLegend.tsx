@@ -92,7 +92,7 @@ function EntryButton(props: {
         aria-pressed={!props.isHidden}
         title={title()}
         data-testid={`patterns-chart-legend-item-${props.entry.name}`}
-        class={`${ENTRY_CLASS} cursor-pointer hover:bg-fin-surface-alt focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary`}
+        class={`${ENTRY_CLASS} cursor-pointer hover:bg-fin-surface-alt focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-text`}
         style={style}
       >
         {swatch}

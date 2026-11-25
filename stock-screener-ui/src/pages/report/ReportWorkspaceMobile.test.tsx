@@ -139,6 +139,10 @@ describe("ReportWorkspace — mobile heatmap disclosure (390px)", () => {
     const grid = screen.getByTestId("nifty-main-row");
     expect(grid.className).toContain("max-[600px]:grid-rows-[minmax(0,1fr)_auto]");
     expect(grid.className).not.toContain("minmax(0,56px)");
+    expect(grid.className).toContain("flex-1");
+    expect(grid.className).toContain("min-h-0");
+    expect(grid.className).not.toContain("min-h-[300px]");
+    expect(grid.className).not.toContain("max-h-[58vh]");
 
     const metric = screen.getByTestId("nifty-heatmap-metric-oi");
     expect(metric.style.height).toBe("24px");
@@ -157,6 +161,8 @@ describe("ReportWorkspace — mobile heatmap disclosure (390px)", () => {
     expect(grid.className).not.toContain("max-[600px]:order-");
     expect(grid.className).toContain("max-[600px]:grid-rows-[minmax(0,1fr)_auto]");
     expect(grid.className).not.toContain("minmax(0,156px)]!");
+    expect(grid.className).not.toContain("min-h-[300px]");
+    expect(grid.className).not.toContain("max-h-[58vh]");
   });
 
   test("desktop keeps the inline heatmap and its original grid row", async () => {

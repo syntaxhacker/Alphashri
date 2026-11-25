@@ -13,6 +13,8 @@ import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
+from sqlalchemy import or_
+
 import config
 
 from db.models.broker import Instrument
@@ -34,7 +36,7 @@ from options_paper.replay_data import (
     upstox_history_enabled,
     upstox_resolve_key,
 )
-from options_paper.spec import get_lot, option_symbol
+from options_paper.spec import _pick_master_lot, get_lot, option_symbol
 
 from .schemas import AddLegRequest, OptionPaperOrderRequest
 
@@ -165,20 +167,33 @@ def make_provider(db) -> CompositeChainProvider:
 
 
 def _lot_size(db, underlying: str) -> int:
-    """Resolve a lot from the spec, then the broker master; never invent one."""
+    """Resolve the CURRENT lot; never invent one.
+
+    Precedence: ``options_paper.spec.get_lot`` (static tables, then the live
+    contract listing's default expiry, then the instruments master) and, only
+    when that has no answer, this request's ``db`` master rows. Both master
+    paths use ``_pick_master_lot``: the newest expiry encoded in
+    ``trading_symbol`` beats the smallest historical lot, and ``trading_symbol``
+    is searched alongside ``name`` because some NSE_FO rows have no name.
+    """
     try:
         return get_lot(underlying)
     except KeyError:
-        row = (
-            db.query(Instrument)
+        rows = [
+            (row.lot_size, row.trading_symbol)
+            for row in db.query(Instrument)
             .filter(
                 Instrument.segment.like("NSE_FO%"),
-                Instrument.name.ilike(f"%{underlying}%"),
+                or_(
+                    Instrument.trading_symbol.ilike(f"%{underlying}%"),
+                    Instrument.name.ilike(f"%{underlying}%"),
+                ),
             )
-            .first()
-        )
-        if row is not None and row.lot_size and row.lot_size > 0:
-            return int(row.lot_size)
+            .all()
+        ]
+        lot = _pick_master_lot(rows)
+        if lot:
+            return lot
     raise OrderError(
         f"underlying: no verified lot size for {underlying}; add it to options_paper.spec.STOCK_LOTS"
     )

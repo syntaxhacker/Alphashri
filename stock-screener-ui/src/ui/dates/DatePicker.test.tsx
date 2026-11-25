@@ -206,7 +206,7 @@ describe("DatePicker — public contract", () => {
   it("keeps a visible focus ring on the native input", () => {
     const { container } = render(() => <DatePicker />);
     const className = inputOf(container).className;
-    expect(className).toContain("focus:ring-fin-primary");
+    expect(className).toContain("focus:ring-fin-text");
     expect(className).toContain("focus-visible:ring-2");
   });
 });

@@ -296,7 +296,7 @@ export function WallsMapChart(props: {
       role="group"
       aria-label="Wall map. Use left and right arrows to inspect minutes."
       onKeyDown={handleKeyDown}
-      class="min-w-0 outline-none focus-visible:outline-1 focus-visible:outline-fin-primary"
+      class="min-w-0 outline-none focus-visible:outline-1 focus-visible:outline-fin-text"
     >
       <div
         class="flex items-center justify-between flex-wrap mb-2 row-gap-1"

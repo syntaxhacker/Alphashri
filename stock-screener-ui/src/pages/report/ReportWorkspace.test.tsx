@@ -10,6 +10,7 @@ import { UIProvider } from "@/ui";
 // signal drives the empty/populated states without any network or timers.
 const [report, setReport] = createSignal<any>(null);
 const [desk, setDesk] = createSignal(false);
+const [mode, setMode] = createSignal("live");
 
 const mockStore = {
   data: {
@@ -28,7 +29,7 @@ const mockStore = {
     intradayStart: () => null,
   },
   walls: { data: () => null },
-  selection: { mode: () => "live", symbol: () => "NIFTY" },
+  selection: { mode, symbol: () => "NIFTY" },
   replay: { frameT: () => null },
   ui: {
     isDesk: desk,
@@ -50,7 +51,11 @@ const mockStore = {
 };
 
 vi.mock("./ReportContext", () => ({ useNiftyReport: () => mockStore }));
-vi.mock("./NiftyChartPanel", () => ({ NiftyChartPanel: () => <div data-testid="chart-stub" /> }));
+vi.mock("./NiftyChartPanel", () => ({
+  NiftyChartPanel: (props: any) => (
+    <div data-testid="chart-stub" data-fill={props.fillContainer ? "true" : "false"} />
+  ),
+}));
 vi.mock("./DeskDock", () => ({ DeskDock: () => null }));
 vi.mock("./NiftyDeltaPositioning", () => ({
   NiftyDeltaPositioning: () => <div data-testid="delta-stub" />,
@@ -63,7 +68,7 @@ vi.mock("./reportCells", () => ({
   getNiftyOiColumns: () => [],
 }));
 
-const { ReportWorkspace } = await import("./ReportWorkspace");
+const { ReportWorkspace, DESK_CHART_FLOOR_PX } = await import("./ReportWorkspace");
 
 function mount() {
   return render(() => (
@@ -77,6 +82,7 @@ afterEach(() => {
   cleanup();
   setReport(null);
   setDesk(false);
+  setMode("live");
 });
 
 describe("ReportWorkspace grid", () => {
@@ -150,5 +156,39 @@ describe("ReportWorkspace grid", () => {
     expect(screen.getAllByTestId("nifty-heatmap-metric-toggle")).toHaveLength(1);
     expect(screen.getAllByTestId("nifty-heatmap-wrap")).toHaveLength(1);
     expect(screen.getAllByTestId("nifty-side-tabs")).toHaveLength(1);
+  });
+
+  test("the desk main row flex-fills with no floor or viewport cap", async () => {
+    setDesk(true);
+    setReport({ spot: 25_000, strikes: [], positioning: {}, gex: null });
+    mount();
+
+    const grid = screen.getByTestId("nifty-main-row");
+    expect(grid).toHaveAttribute("data-chart-primary", "true");
+    expect(grid).toHaveAttribute("data-chart-row-share", "1");
+    expect(grid).toHaveAttribute("data-chart-chain", "flex-1 min-h-0");
+    expect(grid).toHaveAttribute("data-chart-floor", String(DESK_CHART_FLOOR_PX));
+    expect(grid.className).toContain("flex-1");
+    expect(grid.className).toContain("min-h-0");
+    expect(grid.className).not.toContain("min-h-[300px]");
+    expect(grid.className).not.toContain("max-h-[58vh]");
+    expect(grid.style.height).toBe("");
+    expect(grid.style.maxHeight).toBe("");
+    expect(await screen.findByTestId("chart-stub")).toHaveAttribute("data-fill", "true");
+  });
+
+  test("the fill contract holds in live, EOD and replay modes", () => {
+    setDesk(true);
+    setReport({ spot: 25_000, strikes: [], positioning: {}, gex: null });
+    for (const sessionMode of ["live", "eod", "replay"]) {
+      setMode(sessionMode);
+      mount();
+      const grid = screen.getByTestId("nifty-main-row");
+      expect(grid).toHaveAttribute("data-chart-primary", "true");
+      expect(grid.className).toContain("flex-1");
+      expect(grid.className).not.toContain("min-h-[300px]");
+      expect(grid.className).not.toContain("max-h-[58vh]");
+      cleanup();
+    }
   });
 });

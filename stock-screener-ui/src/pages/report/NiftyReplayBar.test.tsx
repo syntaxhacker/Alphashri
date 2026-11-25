@@ -78,6 +78,60 @@ describe("NiftyReplayBar", () => {
     expect(bar).toHaveStyle({ height: "24px" });
   });
 
+  test("coverage title names recorded/session minutes, percent and missing count from coverage", () => {
+    const { bar, props } = renderBar();
+    const cov = props.coverage!;
+    // The title is built from the coverage object, not hardcoded literals.
+    expect(within(bar).getByTestId("nifty-replay-coverage")).toHaveAttribute(
+      "title",
+      `Recorded ${cov.recorded} of ${cov.sessionMinutes} session minutes (${cov.pct}%) — ${cov.missing} minutes missing`,
+    );
+  });
+
+  test("coverage title tracks values that differ from the fixture", () => {
+    cleanup();
+    const coverage = {
+      ...computeReplayCoverage(replayFixture().snapshots),
+      recorded: 373,
+      missing: 12,
+      pct: 96.9,
+    };
+    const { bar } = renderBar({ coverage });
+    expect(within(bar).getByTestId("nifty-replay-coverage")).toHaveAttribute(
+      "title",
+      "Recorded 373 of 385 session minutes (96.9%) — 12 minutes missing",
+    );
+  });
+
+  test("count title names the playhead frame and total recorded snapshots", () => {
+    cleanup();
+    const { bar } = renderBar({ replayIndex: 1 });
+    expect(within(bar).getByTestId("nifty-replay-count")).toHaveAttribute(
+      "title",
+      "Replay frame 2 of 3 recorded snapshots",
+    );
+  });
+
+  test("count title tracks a different snapshot count and playhead index", () => {
+    cleanup();
+    const replay = replayFixture();
+    const bigReplay = {
+      ...replay,
+      snapshots: [...replay.snapshots, replay.snapshots[0], replay.snapshots[1]],
+      count: 5,
+    } as unknown as NiftyReplay;
+    const { bar } = renderBar({
+      replay: bigReplay,
+      replayIndex: 2,
+      coverage: computeReplayCoverage(bigReplay.snapshots),
+    });
+    expect(within(bar).getByTestId("nifty-replay-count")).toHaveTextContent("3/5");
+    expect(within(bar).getByTestId("nifty-replay-count")).toHaveAttribute(
+      "title",
+      "Replay frame 3 of 5 recorded snapshots",
+    );
+  });
+
   test("play button label follows `playing` and fires onTogglePlay", () => {
     const { props, bar } = renderBar();
     fireEvent.click(within(bar).getByTestId("nifty-replay-play"));

@@ -218,7 +218,7 @@ function ChainSideToggle(props: {
             aria-pressed={props.value === item.side}
             data-testid={`options-chain-side-${item.side.toLowerCase()}`}
             onClick={() => props.onChange(item.side)}
-            className={`inline-flex h-full min-w-8 cursor-pointer items-center justify-center border-0 px-2 font-mono text-ui-micro font-bold leading-[14px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary ${
+            className={`inline-flex h-full min-w-8 cursor-pointer items-center justify-center border-0 px-2 font-mono text-ui-micro font-bold leading-[14px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text ${
               props.value === item.side
                 ? "bg-fin-surface-alt text-fin-text"
                 : "bg-transparent text-fin-text-muted"
@@ -738,7 +738,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                 aria-label="Open option paper positions"
                 data-testid="options-positions-chip"
                 onClick={() => setPositionsOpen(true)}
-                className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-fin border border-fin-border-default bg-transparent px-2 font-mono text-ui-micro leading-[14px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+                className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-fin border border-fin-border-default bg-transparent px-2 font-mono text-ui-micro leading-[14px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text"
               >
                 POSITIONS {openPaperPositions().length} · {formatSignedPnl(paperPnl())}
               </Box>
@@ -919,7 +919,7 @@ export function OptionsDockPanel(props: { onClose?: () => void }) {
                         aria-label="Reset to strike order"
                         data-testid="options-chain-reset-sort"
                         onClick={() => setChainSorting([...DEFAULT_CHAIN_SORTING])}
-                        className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-fin border border-fin-border-default bg-transparent px-2 font-mono text-ui-micro leading-[14px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+                        className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-fin border border-fin-border-default bg-transparent px-2 font-mono text-ui-micro leading-[14px] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text"
                       >
                         <IconRotate size={12} />
                         <span className="hidden sm:inline">Strike</span>

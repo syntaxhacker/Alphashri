@@ -219,7 +219,7 @@ export function AnalyticsTabStrip(props: {
                 data-testid={`analytics-tab-${tab}`}
                 title={LABELS[tab]}
                 onClick={() => select(tab)}
-                className={`inline-flex shrink-0 items-center justify-center border-b-2 px-2 font-mono outline-none focus-visible:ring-1 focus-visible:ring-fin-primary ${
+                className={`inline-flex shrink-0 items-center justify-center border-b-2 px-2 font-mono outline-none focus-visible:ring-1 focus-visible:ring-fin-text ${
                   active() === tab
                     ? "border-fin-primary text-fin-text"
                     : "border-transparent text-fin-text-muted hover:text-fin-text"
@@ -250,7 +250,7 @@ export function AnalyticsTabStrip(props: {
           aria-expanded={helpOpen()}
           data-testid="analytics-help"
           onClick={() => setHelpOpen(!helpOpen())}
-          className="ml-1 inline-flex h-[22px] shrink-0 items-center border-0 bg-transparent p-0 font-mono text-ui-micro font-semibold uppercase tracking-[0.06em] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+          className="ml-1 inline-flex h-[22px] shrink-0 items-center border-0 bg-transparent p-0 font-mono text-ui-micro font-semibold uppercase tracking-[0.06em] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text"
         >
           <span className="hidden sm:inline">How to read</span>
           <span className="sm:hidden">?</span>
@@ -273,7 +273,7 @@ export function AnalyticsTabStrip(props: {
             aria-label={`Open full analytics for ${linkSymbol()}`}
             data-testid="analytics-pillars-open"
             onClick={() => props.onOpenPillars?.()}
-            className="ml-1 inline-flex h-[22px] shrink-0 items-center justify-center gap-0.5 whitespace-nowrap border-0 bg-transparent p-0 font-mono text-ui-micro font-semibold uppercase tracking-[0.06em] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+            className="ml-1 inline-flex h-[22px] shrink-0 items-center justify-center gap-0.5 whitespace-nowrap border-0 bg-transparent p-0 font-mono text-ui-micro font-semibold uppercase tracking-[0.06em] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text"
           >
             <span className="hidden sm:inline">Analytics</span>
             <span aria-hidden="true">▤</span>
@@ -337,7 +337,7 @@ export function AnalyticsTabStrip(props: {
                   aria-pressed={props.selectedExpiry === option.date}
                   data-testid={`analytics-expiry-${option.date}`}
                   onClick={() => props.onSelectExpiry?.(option.date)}
-                  className={`inline-flex h-[16px] shrink-0 items-center border px-1 font-mono text-ui-micro tabular-nums leading-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary ${
+                  className={`inline-flex h-[16px] shrink-0 items-center border px-1 font-mono text-ui-micro tabular-nums leading-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text ${
                     props.selectedExpiry === option.date
                       ? "border-fin-primary bg-fin-surface-alt text-fin-text"
                       : "border-fin-border bg-transparent text-fin-text-muted hover:text-fin-text"

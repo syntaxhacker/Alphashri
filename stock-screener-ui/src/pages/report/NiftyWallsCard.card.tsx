@@ -10,15 +10,34 @@ import {
   REPORT_LETTER_SPACING,
 } from "./reportTokens";
 import type { WallsCardProps } from "./NiftyWallsCard.shared";
-import { WallsEmpty } from "./NiftyWallsCard.empty";
+import { injectCollapseRule } from "@/components/common/states";
+import { formatTimeOnly } from "@/utils/ui-helpers";
+import { isMarketOpenNow } from "@/state/holidays";
+import { sharedReportSpotSource, spotSnapshot } from "./ReportKpiHero";
 import { Stat, WallsLevelsLegend } from "./NiftyWallsCard.stats";
 import { WallTable } from "./NiftyWallsCard.table";
 import { MiniHistory } from "./NiftyWallsCard.history";
 import { WallsRead } from "./NiftyWallsCard.read";
 import { WallsLevelsBlock } from "./NiftyWallsCard.skeleton";
 
+// The focused empty-state module stays on this card's public surface; the null
+// branch itself renders a collapsed status line so the rail cannot reserve
+// five-column data height for a frame where no walls were captured.
+export { WallsEmpty } from "./NiftyWallsCard.empty";
+
 export function NiftyWallsCardInner(props: WallsCardProps) {
   const walls = () => props.walls;
+  // A walls payload is its own snapshot; the shared report field wins so the
+  // three nearby SPOT readouts name one source and one instant.
+  const spotView = () =>
+    spotSnapshot(
+      sharedReportSpotSource() ?? {
+        value: walls()?.spot,
+        asOf: walls()?.freshness?.last_t ? formatTimeOnly(walls()!.freshness.last_t) : null,
+        origin: "Snapshot",
+      },
+      { digits: 2 },
+    );
   const [dismissed, setDismissed] = createSignal<string | null>(null);
 
   // One alert per wall per cooldown: the backend latches `alert.at` to the
@@ -47,9 +66,49 @@ export function NiftyWallsCardInner(props: WallsCardProps) {
     }
   });
 
-  if (!walls()) {
-    return <WallsEmpty {...props} />;
-  }
+  const empty = () => {
+    const emptyKind = () => {
+      if (props.unavailableInReplay || props.noDataRecorded || props.loadFailed === false) {
+        return "no-data";
+      }
+      return isMarketOpenNow() ? "failed" : "market-closed";
+    };
+    const status = () => {
+      const reason = props.emptyText ?? "No walls data.";
+      if (props.unavailableInReplay) return `Walls not captured · ${reason} · live-only band`;
+      if (emptyKind() === "failed") return `Walls request failed · ${reason}`;
+      if (emptyKind() === "market-closed") return `No walls snapshot · ${reason}`;
+      return reason;
+    };
+    return (
+      <div
+        data-testid={props.testId ?? "nifty-walls-card"}
+        data-walls-empty="collapsed"
+        data-empty-kind={emptyKind()}
+        title="The walls band is captured from the live option chain; this frame has no snapshot."
+        class="flex h-5 min-h-5 w-full min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap px-2 text-ui-micro text-fin-text-muted"
+      >
+        {injectCollapseRule(
+          "walls-rail",
+          `[data-testid="desk-insight-rail"]:has([data-testid="nifty-walls-card-rail"] [data-empty-kind]){height:auto !important;}`,
+        )}
+        <span data-testid="nifty-walls-compact-summary" class="min-w-0 truncate">
+          {status()}
+        </span>
+        <Show when={emptyKind() === "failed" && props.onRetry}>
+          <button
+            data-testid="nifty-walls-retry"
+            type="button"
+            class="shrink-0 rounded-sm text-ui-micro text-fin-primary"
+            style={{ "text-decoration": "underline" }}
+            onClick={() => props.onRetry?.()}
+          >
+            Retry
+          </button>
+        </Show>
+      </div>
+    );
+  };
   const stateColor = () => STATE_COLOR[walls()!.state] ?? palette.TEXT_MUTED;
   const alert = () => walls()!.alert;
   const showAlert = () => Boolean(alert() && walls()!.alert_eligible && dismissed() !== alert()!.at);
@@ -75,6 +134,7 @@ export function NiftyWallsCardInner(props: WallsCardProps) {
   };
 
   return (
+    <Show when={walls()} fallback={empty()}>
     <LocalCompactPanel
       title="WALLS"
       testId={props.testId ?? "nifty-walls-card"}
@@ -109,7 +169,7 @@ export function NiftyWallsCardInner(props: WallsCardProps) {
               "font-size": `${REPORT_FONT.micro}px`,
             }}
           >
-            EXPAND
+            ALL WALL STATS
           </Button>
         </div>
       }
@@ -148,39 +208,91 @@ export function NiftyWallsCardInner(props: WallsCardProps) {
               <span class="text-ui-micro">CW</span> {fmtNum(walls()!.call_wall?.strike)} · <span class="text-ui-micro">PW</span> {fmtNum(walls()!.put_wall?.strike)}
             </Text>
           </div>
-          <div class="flex items-center gap-2 min-w-0 whitespace-nowrap overflow-x-auto [&>*]:shrink-0">
-            <Text size="xs" span style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}>
-              <span class="text-ui-micro">SPOT</span> {fmtNum(walls()!.spot, 2)}
-            </Text>
-            <Text size="xs" span style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}>
-              <span class="text-ui-micro">MP</span> {fmtNum(walls()!.max_pain)}
-            </Text>
-            <Text
-              size="xs"
-              span
-              style={{ "font-size": `${REPORT_FONT.xs}px`, color: pinColor() }}
+          <div class="flex items-center gap-3 min-w-0 whitespace-nowrap overflow-x-auto">
+            <div
+              data-walls-stat="spot"
+              data-spot-source={spotView().source}
+              data-spot-as-of={spotView().asOf ?? undefined}
+              class="flex items-center gap-1 min-w-0 shrink-0"
+              title={spotView().title}
             >
-              <span class="text-ui-micro">PIN</span> {walls()!.pin_distance_pts > 0 ? "+" : ""}
-              {fmtNum(walls()!.pin_distance_pts, 0)} ({walls()!.pin_distance_pct.toFixed(2)}%)
-            </Text>
-            <Text
-              size="xs"
-              span
-              style={{
-                "font-size": `${REPORT_FONT.xs}px`,
-                color: walls()!.gex_degraded ? palette.TEXT_MUTED : palette.TEXT_COLOR,
-              }}
-            >
-              <span class="text-ui-micro">GEX</span> {walls()!.gex_degraded ? "n/a" : fmtNum(walls()!.net_gex, 1)}
-            </Text>
-            <Show when={showAlert() && alert()}>
+              <span class="text-ui-micro shrink-0" style={{ color: palette.TEXT_MUTED }}>SPOT</span>
               <Text
                 size="xs"
                 span
-                style={{ "font-size": `${REPORT_FONT.xs}px`, "font-weight": REPORT_FONT_WEIGHT.extrabold, color: palette.NEGATIVE }}
+                className="font-mono tabular-nums truncate min-w-0"
+                style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}
               >
-                WALL BREAK {fmtNum(alert()!.wall)} · {fmtNum(alert()!.spot, 1)}
+                {spotView().display}
               </Text>
+            </div>
+            <div
+              data-walls-stat="max-pain"
+              class="flex items-center gap-1 min-w-0 shrink-0 border-l pl-2"
+              style={{ "border-left-color": palette.BORDER }}
+              title={`MAX PAIN ${fmtNum(walls()!.max_pain)}`}
+            >
+              <span class="text-ui-micro shrink-0" style={{ color: palette.TEXT_MUTED }}>MP</span>
+              <Text
+                size="xs"
+                span
+                className="font-mono tabular-nums truncate min-w-0"
+                style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}
+              >
+                {fmtNum(walls()!.max_pain)}
+              </Text>
+            </div>
+            <div
+              data-walls-stat="pin"
+              class="flex items-center gap-1 min-w-0 shrink-0 border-l pl-2"
+              style={{ "border-left-color": palette.BORDER }}
+              title={`PIN ${walls()!.pin_distance_pts > 0 ? "+" : ""}${fmtNum(walls()!.pin_distance_pts, 0)} (${walls()!.pin_distance_pct.toFixed(2)}%)`}
+            >
+              <span class="text-ui-micro shrink-0" style={{ color: palette.TEXT_MUTED }}>PIN</span>
+              <Text
+                size="xs"
+                span
+                className="font-mono tabular-nums truncate min-w-0"
+                style={{ "font-size": `${REPORT_FONT.xs}px`, color: pinColor() }}
+              >
+                {walls()!.pin_distance_pts > 0 ? "+" : ""}{fmtNum(walls()!.pin_distance_pts, 0)} ({walls()!.pin_distance_pct.toFixed(2)}%)
+              </Text>
+            </div>
+            <div
+              data-walls-stat="gex"
+              class="flex items-center gap-1 min-w-0 shrink-0 border-l pl-2"
+              style={{ "border-left-color": palette.BORDER }}
+              title={`GEX ${walls()!.gex_degraded ? "n/a" : fmtNum(walls()!.net_gex, 1)}`}
+            >
+              <span class="text-ui-micro shrink-0" style={{ color: palette.TEXT_MUTED }}>GEX</span>
+              <Text
+                size="xs"
+                span
+                className="font-mono tabular-nums truncate min-w-0"
+                style={{
+                  "font-size": `${REPORT_FONT.xs}px`,
+                  color: walls()!.gex_degraded ? palette.TEXT_MUTED : palette.TEXT_COLOR,
+                }}
+              >
+                {walls()!.gex_degraded ? "n/a" : fmtNum(walls()!.net_gex, 1)}
+              </Text>
+            </div>
+            <Show when={showAlert() && alert()}>
+              <div
+                data-walls-stat="alert"
+                class="flex items-center min-w-0 shrink-0 border-l pl-2"
+                style={{ "border-left-color": palette.BORDER }}
+                title={`WALL BREAK ${fmtNum(alert()!.wall)} · ${fmtNum(alert()!.spot, 1)}`}
+              >
+                <Text
+                  size="xs"
+                  span
+                  className="font-mono tabular-nums truncate min-w-0"
+                  style={{ "font-size": `${REPORT_FONT.xs}px`, "font-weight": REPORT_FONT_WEIGHT.extrabold, color: palette.NEGATIVE }}
+                >
+                  WALL BREAK {fmtNum(alert()!.wall)} · {fmtNum(alert()!.spot, 1)}
+                </Text>
+              </div>
             </Show>
           </div>
           <div
@@ -196,11 +308,11 @@ export function NiftyWallsCardInner(props: WallsCardProps) {
         style={{ display: props.compact === true ? "none" : "contents" }}
       >
       <div
-        // The five-column band is the point of this card: at the xs variant it
-        // stacked CALL/PUT/READ/history into one column and grew to 475px,
-        // which pushed the chart below the fold. Media query, not inline style,
-        // so the wide layout actually wins at desk width.
-        class="grid items-start gap-[8px] p-[8px] grid-cols-1 min-[1100px]:grid-cols-[250px_1fr_1fr_minmax(280px,1fr)_minmax(120px,1fr)]"
+        // auto-fit follows this grid's own width, not the viewport: the old
+        // min-[1100px] track list forced 690px into the 472px windowed desk and
+        // clipped 218px of labels. It wraps to 1-2 narrow columns here and
+        // expands on a wide monitor without a media-query/inline-style race.
+        class="grid items-start gap-[8px] p-[8px] grid-cols-[repeat(auto-fit,minmax(190px,1fr))]"
         data-testid="nifty-walls-grid"
       >
         <div class="min-w-0">
@@ -229,6 +341,8 @@ export function NiftyWallsCardInner(props: WallsCardProps) {
                 size="xs"
                 span
                 fw={REPORT_FONT_WEIGHT.bold as "normal" | "medium" | "semibold" | "bold" | number}
+                title={dteLabel()}
+                className="min-w-0 truncate"
                 style={{
                   "font-size": `${REPORT_FONT.xs}px`,
                   "font-weight": REPORT_FONT_WEIGHT.bold,
@@ -242,6 +356,8 @@ export function NiftyWallsCardInner(props: WallsCardProps) {
             <Text
               size="xs"
               span
+              title={`${walls()!.expiry ?? "—"} · tape ${walls()!.freshness.last_t.slice(11, 16)}`}
+              className="min-w-0 truncate"
               style={{
                 "font-size": `${REPORT_FONT.xs}px`,
                 color: palette.TEXT_MUTED,
@@ -280,7 +396,14 @@ export function NiftyWallsCardInner(props: WallsCardProps) {
               "margin-top": `${REPORT_PAD.sm}px`,
             }}
           >
-            <Stat label="SPOT" value={fmtNum(walls()!.spot, 2)} />
+            <div
+              data-walls-stat="spot"
+              data-spot-source={spotView().source}
+              data-spot-as-of={spotView().asOf ?? undefined}
+              title={spotView().title}
+            >
+              <Stat label="SPOT" value={spotView().display} />
+            </div>
             <Stat label="MAX PAIN" value={fmtNum(walls()!.max_pain)} />
             <Stat
               label="PIN"
@@ -303,24 +426,33 @@ export function NiftyWallsCardInner(props: WallsCardProps) {
 
         </div>
 
-        <WallTable side="CALL" rows={walls()!.calls} spot={walls()!.spot} />
-        <WallTable side="PUT" rows={walls()!.puts} spot={walls()!.spot} />
+        <div class="min-w-0">
+          <WallTable side="CALL" rows={walls()!.calls} spot={walls()!.spot} />
+        </div>
+        <div class="min-w-0">
+          <WallTable side="PUT" rows={walls()!.puts} spot={walls()!.spot} />
+        </div>
 
-        <WallsRead
-          walls={walls()!}
-          alert={alert()}
-          showAlert={showAlert()}
-          breakEvent={breakEvent()}
-          lastBreak={lastBreak()}
-          events={events()}
-          onDismiss={dismiss}
-        />
+        <div class="min-w-0">
+          <WallsRead
+            walls={walls()!}
+            alert={alert()}
+            showAlert={showAlert()}
+            breakEvent={breakEvent()}
+            lastBreak={lastBreak()}
+            events={events()}
+            onDismiss={dismiss}
+          />
+        </div>
 
-        <MiniHistory walls={walls()!} />
+        <div class="min-w-0">
+          <MiniHistory walls={walls()!} />
+        </div>
       </div>
       <WallsLevelsBlock levels={props.levels} />
       </div>
     </LocalCompactPanel>
+    </Show>
   );
 }
 

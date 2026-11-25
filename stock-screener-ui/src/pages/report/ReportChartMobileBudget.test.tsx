@@ -100,6 +100,10 @@ const mockStore = {
     setDeskDockTab: () => {},
     openPlanReasons: () => {},
     setGammaOpen: () => {},
+    reportView: () => "monitor",
+    setReportView: () => {},
+    handleReportViewChange: () => {},
+    isWindowDesk: () => false,
   },
 };
 
@@ -170,6 +174,23 @@ beforeAll(() => {
 
 const { NiftyReportShell } = await import("./NiftyReportShell");
 
+// L1 makes desk content the single scroll owner; until it lands, clipping is
+// safe only because the row no longer caps its height.
+function expectReachableDeskContent(panel: HTMLElement, content: HTMLElement, main: HTMLElement) {
+  expect(panel.className).toContain("overflow-hidden");
+  const scrollsVertically = (el: HTMLElement) =>
+    /(?:^|\s)overflow-y-auto(?:\s|$)/.test(el.className) || el.style.overflowY === "auto";
+  const isScroller = scrollsVertically(content) || content.style.overflow === "auto";
+  if (isScroller) {
+    expect(scrollsVertically(panel)).toBe(false);
+    expect(content.style.overflow).not.toBe("hidden");
+  } else {
+    expect(["", "hidden"]).toContain(content.style.overflow);
+    expect(main.className).not.toContain("min-h-[300px]");
+    expect(main.className).not.toContain("max-h-[58vh]");
+  }
+}
+
 afterEach(cleanup);
 
 function mount() {
@@ -215,15 +236,15 @@ describe("Index Report mobile vertical budget (390 × 844)", () => {
 
     const panel = screen.getByTestId("nifty-report-panel");
     const content = screen.getByTestId("nifty-report-content");
-    expect(panel.className).toContain("overflow-hidden");
-    expect(content.className).toContain("overflow-hidden");
-    expect(content.className).not.toMatch(/overflow-(auto|scroll)/);
-    expect(content.style.overflow).toBe("hidden");
-
     const main = await screen.findByTestId("nifty-main-row", undefined, { timeout: 5000 });
+    expectReachableDeskContent(panel, content, main);
+
     expect(main.className).toContain("flex-1");
-    // Grows into the reclaimed flow-band height; the floor is the only bound.
-    expect(main.className).toContain("min-h-[300px]");
+    // Grows into the reclaimed flow-band height; no floor and no vh cap.
+    expect(main.className).toContain("min-h-0");
+    expect(main.className).not.toContain("min-h-[300px]");
+    expect(main.className).not.toContain("max-h-[58vh]");
+    expect(main.style.height).toBe("");
     expect(main.style.maxHeight).toBe("");
   });
 });

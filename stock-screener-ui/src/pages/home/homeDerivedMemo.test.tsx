@@ -74,15 +74,16 @@ function countLayoutFinds(spy: MockInstance): number {
 }
 
 /**
- * `pickerOptions()` is exactly `[...HOME_PANELS].sort(...).map(...)`. Counting
- * sorts whose subject is that panel list counts the derivation itself — no
- * production instrumentation required, so the same test runs before and
- * after the memo is introduced.
+ * `pickerOptions()` sorts `[...HOME_PANELS, ...userSectionPanels]`. Counting
+ * sorts whose subject is that combined panel list counts the derivation itself.
  */
 function countPickerBuilds(spy: MockInstance): number {
   return spy.mock.contexts.filter((ctx: unknown) => {
-    if (!Array.isArray(ctx) || ctx.length !== HOME_PANELS.length) return false;
-    return ctx.every((item: unknown) => panelIds.has((item as { id?: string })?.id ?? ""));
+    if (!Array.isArray(ctx) || ctx.length < HOME_PANELS.length) return false;
+    return ctx.every((item: unknown) => {
+      const id = String((item as { id?: string })?.id ?? "");
+      return panelIds.has(id) || id.startsWith("section:");
+    });
   }).length;
 }
 
@@ -105,9 +106,11 @@ describe("HomePage derived values", () => {
     }
 
     expect(countPickerBuilds(sortSpy)).toBe(afterMount);
-    // The 12-item sort + map has no reactive inputs: it must run once, not
-    // once per consumer of the prop getter (3 on mount before the memo).
-    expect(countPickerBuilds(sortSpy)).toBe(1);
+    // The picker now includes user sections, so hydration can legitimately
+    // rebuild it once after mount. It must still not rebuild per consumer or
+    // on unrelated state changes (asserted above).
+    expect(afterMount).toBeGreaterThanOrEqual(1);
+    expect(afterMount).toBeLessThanOrEqual(2);
   });
 
   it("resolves the active layout once per config change, not once per consumer", async () => {

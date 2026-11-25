@@ -230,10 +230,10 @@ describe("Tooltip opt-in tab stop", () => {
     const { wrapper } = setupPlain();
 
     expect(wrapper()).toHaveAttribute("aria-label", "Helpful hint");
-    expect(wrapper().className).toContain("focus:ring-fin-primary");
+    expect(wrapper().className).toContain("focus:ring-fin-text");
     expect(wrapper().className).toContain("focus-visible:ring-2");
     // A plain wrapper must not borrow the focus styling without the tab stop.
-    expect(setup().wrapper().className).not.toContain("focus:ring-fin-primary");
+    expect(setup().wrapper().className).not.toContain("focus:ring-fin-text");
   });
 
   test("opens on focus of the wrapper and closes on its blur", async () => {

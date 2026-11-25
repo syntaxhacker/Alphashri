@@ -105,7 +105,7 @@ export function SegmentedControl(props: UISegmentedControlProps) {
               ? "bg-fin-surface-alt text-fin-text"
               : "bg-transparent text-fin-text-muted hover:text-fin-text",
             item.disabled && "opacity-50 cursor-not-allowed",
-            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary",
+            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text",
           )}
           style={itemStyle()}
         >

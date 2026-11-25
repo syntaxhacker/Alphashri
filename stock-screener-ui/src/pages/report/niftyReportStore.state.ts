@@ -40,6 +40,7 @@ import type {
   ReportIndex,
   ReportStreamHandle,
   ReportSymbol,
+  ReportView,
   SideTab,
 } from "./niftyReportStore.types";
 
@@ -79,6 +80,7 @@ export function createStoreState(options: NiftyReportStoreOptions) {
   const [trailCursor, setTrailCursor] = createSignal<number | null>(null);
 
   const [view, setView] = createSignal<ChartView>("chart");
+  const [reportView, setReportView] = createSignal<ReportView>("monitor");
   const [deskMode, setDeskModeValue] = createSignal<DeskMode>(
     readStoredEnum<DeskMode>(NIFTY_DESK_MODE_KEY, ["desk", "research"], "desk"),
   );
@@ -105,6 +107,11 @@ export function createStoreState(options: NiftyReportStoreOptions) {
   const [flowExpand, setFlowExpand] = createSignal(false);
   const [pressureExpand, setPressureExpand] = createSignal(false);
   const [flowChartExpand, setFlowChartExpand] = createSignal(false);
+  // A+B shell: LEVEL 1 chart focus is an in-shell state (no unmount, no second
+  // overlay engine); the futures/ITM panels live in dock drawers.
+  const [chartFocus, setChartFocus] = createSignal(false);
+  const [futuresOpen, setFuturesOpen] = createSignal(false);
+  const [itmOpen, setItmOpen] = createSignal(false);
 
   const [criticalOnly, setCriticalOnly] = createSignal(false);
   const [soundMuted, setSoundMuted] = createSignal(alertsMuted());
@@ -251,6 +258,8 @@ export function createStoreState(options: NiftyReportStoreOptions) {
     setTrailCursor,
     view,
     setView,
+    reportView,
+    setReportView,
     deskMode,
     setDeskModeValue,
     sideTab,
@@ -295,6 +304,12 @@ export function createStoreState(options: NiftyReportStoreOptions) {
     setPressureExpand,
     flowChartExpand,
     setFlowChartExpand,
+    chartFocus,
+    setChartFocus,
+    futuresOpen,
+    setFuturesOpen,
+    itmOpen,
+    setItmOpen,
     criticalOnly,
     setCriticalOnly,
     soundMuted,

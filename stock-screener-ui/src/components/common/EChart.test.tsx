@@ -36,10 +36,12 @@ import { EChart } from "./EChart";
 
 type ROEntry = { contentRect: { width: number; height: number } };
 let mockRoCallbacks: ResizeObserverCallback[] = [];
+let mockRoCount = 0;
 const mockRoDisconnect = vi.fn();
 
 class FakeResizeObserver {
   constructor(callback: ResizeObserverCallback) {
+    mockRoCount += 1;
     mockRoCallbacks.push(callback);
   }
   observe = vi.fn();
@@ -80,6 +82,7 @@ beforeEach(() => {
   mockAutoResolve = true;
   mockResolveLoad = undefined;
   mockRoCallbacks = [];
+  mockRoCount = 0;
   mockRoDisconnect.mockClear();
   mockInit.mockClear();
   mockLoadSettled.mockClear();
@@ -103,6 +106,7 @@ describe("EChart lifecycle", () => {
   it("initializes one instance and applies the option with replace semantics", async () => {
     const option = { series: [{ type: "line", data: [1] }] };
     render(() => <EChart option={option} data-testid="chart" />);
+    fireResize(320, 200);
 
     await waitFor(() => expect(mockInit).toHaveBeenCalledTimes(1));
 
@@ -119,6 +123,7 @@ describe("EChart lifecycle", () => {
   it("coalesces rapid option changes into one paint with the latest option", async () => {
     const [option, setOption] = createSignal({ v: 0 });
     render(() => <EChart option={option()} />);
+    fireResize(320, 200);
     await waitFor(() => expect(mockChart.setOption).toHaveBeenCalledTimes(1));
 
     setOption({ v: 1 });
@@ -141,6 +146,7 @@ describe("EChart lifecycle", () => {
   it("disposes the instance, disconnects the observer and cancels frames on cleanup", async () => {
     const [option, setOption] = createSignal({ v: 0 });
     const { unmount } = render(() => <EChart option={option()} />);
+    fireResize(320, 200);
     await waitFor(() => expect(mockChart.setOption).toHaveBeenCalledTimes(1));
 
     setOption({ v: 1 });
@@ -162,6 +168,7 @@ describe("EChart lifecycle", () => {
       hover: h1,
     });
     render(() => <EChart option={{ v: 0 }} onEvents={events()} />);
+    fireResize(320, 200);
     await waitFor(() => expect(mockChart.setOption).toHaveBeenCalledTimes(1));
 
     expect(mockChart.on).toHaveBeenCalledWith("click", h1);
@@ -183,6 +190,8 @@ describe("EChart lifecycle", () => {
     expect(mockResolveLoad).toBeDefined();
 
     unmount();
+    // A late observation from the disconnected observer must not resurrect it.
+    fireResize(320, 200);
     mockResolveLoad?.();
     await waitFor(() => expect(mockLoadSettled).toHaveBeenCalledTimes(1));
 
@@ -190,26 +199,47 @@ describe("EChart lifecycle", () => {
     expect(mockChart.setOption).not.toHaveBeenCalled();
     expect(mockChart.dispose).not.toHaveBeenCalled();
   });
+});
 
-  it("coalesces observer resizes per frame, ignores zero-size entries and disconnects", async () => {
-    const { unmount } = render(() => <EChart option={{ v: 0 }} />);
-    await waitFor(() => expect(mockInit).toHaveBeenCalledTimes(1));
-
-    fireResize(0, 0);
-    expect(mockRafQueue.size).toBe(0);
+describe("EChart container sizing (windowed desk)", () => {
+  it("does not create a zero-dimension instance for a hidden/lazy container", async () => {
+    render(() => <EChart option={{ v: 0 }} />);
+    await waitFor(() => expect(loadEcharts).toHaveBeenCalledTimes(1));
+    // Let the loader `.then` run: no positive observation has happened yet, so
+    // no chart may be created inside the still-empty window.
+    await Promise.resolve();
+    expect(mockInit).not.toHaveBeenCalled();
     expect(mockChart.resize).not.toHaveBeenCalled();
 
     fireResize(320, 200);
-    fireResize(360, 200);
+    await waitFor(() => expect(mockInit).toHaveBeenCalledTimes(1));
+  });
+
+  it("creates one observer, resizes to the first observed size at init and to every later size", async () => {
+    const { unmount } = render(() => <EChart option={{ v: 0 }} />);
+    fireResize(320, 200);
+    await waitFor(() => expect(mockInit).toHaveBeenCalledTimes(1));
+
+    expect(mockRoCount).toBe(1);
+    expect(mockChart.resize).toHaveBeenCalledTimes(1);
+    expect(mockChart.resize).toHaveBeenCalledWith({ width: 320, height: 200 });
+
+    // Rapid size changes coalesce into one rAF and use the latest measurement.
+    fireResize(400, 240);
+    fireResize(440, 240);
     expect(mockRafQueue.size).toBe(1);
     flushRaf();
-    expect(mockChart.resize).toHaveBeenCalledTimes(1);
+    expect(mockChart.resize).toHaveBeenCalledTimes(2);
+    expect(mockChart.resize).toHaveBeenLastCalledWith({ width: 440, height: 240 });
 
-    fireResize(400, 200);
+    // A container that collapses to zero must never resize the instance.
+    fireResize(0, 0);
+    fireResize(0, 120);
     flushRaf();
     expect(mockChart.resize).toHaveBeenCalledTimes(2);
 
     unmount();
     expect(mockRoDisconnect).toHaveBeenCalledTimes(1);
+    expect(mockChart.dispose).toHaveBeenCalledTimes(1);
   });
 });

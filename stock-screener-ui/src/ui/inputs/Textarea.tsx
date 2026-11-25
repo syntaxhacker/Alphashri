@@ -80,7 +80,7 @@ export function Textarea(props: UITextareaProps) {
    */
   const inputStyle = createMemo<Record<string, string>>(() => {
     const lineHeight = lineHeightOf(known.size);
-    const border = isError() ? "var(--color-fin-negative)" : focused() ? "var(--color-fin-primary)" : "var(--color-fin-border)";
+    const border = isError() ? "var(--color-fin-negative)" : focused() ? "var(--color-fin-text)" : "var(--color-fin-border)";
     const rows = effectiveMinRows();
     const natural = `${rows * lineHeight + 18}px`;
     const height = explicitHeight() ?? natural;

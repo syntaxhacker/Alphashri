@@ -255,7 +255,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
             <SymbolLink
               symbol={r.symbol}
               market={r.exchange ?? "NSE"}
-              showOptions={hasIndianOptionsChain(r.exchange)}
+              showOptions={Boolean(r.fno) && !r.etf && hasIndianOptionsChain(r.exchange)}
               testId={`market-symbol-${r.symbol}`}
               chartTestId={`market-chart-${r.symbol}`}
               size="xs"
@@ -272,7 +272,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
                   : undefined
               }
             />
-            {r.fno && hasIndianOptionsChain(r.exchange) ? (
+            {r.fno && !r.etf && hasIndianOptionsChain(r.exchange) ? (
               <Box className={BADGE_WRAP_CLASS}>
                 <Badge size="xs" variant="light" color="info" data-testid={`market-fno-${r.symbol}`}>
                   F&O

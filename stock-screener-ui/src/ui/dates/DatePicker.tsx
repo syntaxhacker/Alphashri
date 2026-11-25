@@ -122,7 +122,7 @@ export function DatePicker(props: UIDatePickerProps) {
           disabled={known.disabled}
           className={cn(
             "w-full bg-fin-surface border border-fin-border text-fin-text rounded-fin px-2 py-1.5 text-sm",
-            "outline-none focus:ring-1 focus:ring-fin-primary focus-visible:ring-2",
+            "outline-none focus:ring-1 focus:ring-fin-text focus-visible:ring-2",
             rejected() && "border-fin-negative",
             known.disabled && "opacity-50 cursor-not-allowed",
           )}

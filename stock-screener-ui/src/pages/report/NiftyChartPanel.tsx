@@ -20,8 +20,10 @@ import {
   buildMarkLines,
   emaSeries,
   labelGapPctFor,
+  mergeCollidingLabels,
   resampleCandles,
 } from "./niftyChartMath";
+import { verdictMarkLines } from "./niftyVerdictLevels";
 import {
   computeFeedView,
   computeFlipMarker,
@@ -333,11 +335,23 @@ export function NiftyChartPanel(props: NiftyChartPanelProps) {
   const patterns = createChartPatterns({ chartSource, chartTf, chartCandles, emaData });
 
   const wallOverlay = createMemo(() => computeWallOverlay(bursts(), asOf()));
-  const chartMarkLines = createMemo(() => [
-    ...markLines(),
-    ...(patterns.patternOverlay()?.markLines ?? []),
-    ...wallOverlay().markLines,
-  ]);
+  const verdictLines = createMemo(() =>
+    verdictMarkLines(report(), labelGapPctFor(report(), chartHeight() ?? FILL_LABEL_HEIGHT)),
+  );
+  const chartMarkLines = createMemo(() => {
+    const lines = [
+      ...markLines(),
+      ...(patterns.patternOverlay()?.markLines ?? []),
+      ...wallOverlay().markLines,
+      ...verdictLines(),
+    ];
+    // Neutral reports add nothing, so their existing geometry stays byte-for-byte
+    // identical. A directional verdict runs the shared collision pass so its
+    // gutter labels never stack on a wall/pivot label at compact heights.
+    return verdictLines().length > 0
+      ? mergeCollidingLabels(lines, report().spot, labelGapPctFor(report(), chartHeight() ?? FILL_LABEL_HEIGHT))
+      : lines;
+  });
   const mpTouches = createMemo(() => computeMaxPainTouches(chartCandles(), report()));
   const flipMarker = createMemo(() => computeFlipMarker(flipAt(), chartCandles()));
   const touchMarkers = createMemo(() => [

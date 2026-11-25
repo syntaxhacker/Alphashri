@@ -138,7 +138,7 @@ export function ChartFrame(props: {
       role="img"
       aria-label={props.label}
       tabIndex={0}
-      className="relative flex h-full min-h-[200px] min-w-0 flex-col overflow-hidden rounded-fin border border-fin-border bg-fin-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-fin-primary sm:min-h-[180px]"
+      className="relative flex h-full min-h-[200px] min-w-0 flex-col overflow-hidden rounded-fin border border-fin-border bg-fin-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-fin-text sm:min-h-[180px]"
       data-testid={`${props.testId}-frame`}
     >
       <Show when={unit()}>

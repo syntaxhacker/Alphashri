@@ -2,8 +2,10 @@ import { Show, createEffect, createSignal, onCleanup, onMount, type ComponentPro
 import type { IChartApi } from "lightweight-charts";
 import { Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
+import { formatTimeOnly } from "@/utils/ui-helpers";
 import { TradingViewChart } from "@/components/chart/TradingViewChart";
 import { EmptyCompact } from "@/components/common/states";
+import { spotSnapshot } from "./ReportKpiHero";
 import { NiftyDepthMap } from "./NiftyDepthMap";
 import { REPORT_FONT, REPORT_LINE_HEIGHT, REPORT_RADIUS } from "./reportTokens";
 import { PATTERN_LOOKBACK_BARS, type PatternScanState } from "./useNiftyPatternScan";
@@ -11,16 +13,19 @@ import type { NiftyReport } from "@/types/niftyReport";
 import type { ReplayCandle } from "@/types/replay";
 import type { ChartSource } from "./niftyReportStore";
 import {
-  applyChartPlotMargin,
-  CHART_CUTOFF_RIGHT,
-  CHART_PLOT_MARGIN,
-  FILL_MAX_HEIGHT,
-  FILL_MIN_HEIGHT,
-  MOBILE_CHART_TARGET,
-  type ChartTimeframe,
+  applyChartPlotMargin, CHART_CUTOFF_RIGHT, CHART_PLOT_MARGIN,
+  FILL_MAX_HEIGHT, FILL_MIN_HEIGHT, MOBILE_CHART_TARGET,
+  TIME_AXIS_LABEL_GUTTER_PX, useGutteredChartRange, type ChartTimeframe,
 } from "./NiftyChartPanel.constants";
 import { computePatternStripTitle, type ScanBadge } from "./NiftyChartPanel.annotations";
-import { phoneViewport, usePinnedChartRange } from "./NiftyChartPanel.range";
+import { phoneViewport } from "./NiftyChartPanel.range";
+import { NARROW_CONTAINER_PX, useNarrowContainer } from "./NiftyChartPanel.controls";
+import {
+  applyOverlayAxisGeometry,
+  ChartOverlayLegend,
+  plottableCandleCount,
+} from "./NiftyChartPanel.overlayLegend";
+export { NARROW_CONTAINER_PX };
 
 type ChartProps = ComponentProps<typeof TradingViewChart>;
 
@@ -34,6 +39,12 @@ export const MOBILE_CUTOFF_LANE = 16;
 export const MOBILE_CUTOFF_LABEL_GAP = 6;
 export const MOBILE_CUTOFF_RIGHT =
   MOBILE_EDGE_GUTTER + MOBILE_AXIS_MIN_WIDTH + MOBILE_CUTOFF_LANE;
+
+/** Compact reservation for a window narrower than the 390px monitor case. */
+export const NARROW_AXIS_MIN_WIDTH = 56;
+export const NARROW_EDGE_GUTTER = 4;
+export const NARROW_CUTOFF_LANE = 10;
+export const NARROW_CUTOFF_RIGHT = NARROW_EDGE_GUTTER + NARROW_AXIS_MIN_WIDTH + NARROW_CUTOFF_LANE;
 
 interface ChartBodyProps {
   view: "chart" | "depth";
@@ -63,6 +74,8 @@ interface ChartBodyProps {
  *  inactive wrapper is `display: none` so switching never remounts an engine. */
 export function ChartBody(props: ChartBodyProps) {
   const [phone, setPhone] = createSignal(phoneViewport());
+  let bodyRef: HTMLDivElement | undefined;
+  const narrowContainer = useNarrowContainer(() => bodyRef?.parentElement ?? bodyRef);
   onMount(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
     const mq = window.matchMedia("(max-width: 600px)");
@@ -72,89 +85,71 @@ export function ChartBody(props: ChartBodyProps) {
     onCleanup(() => mq.removeEventListener("change", onChange));
   });
 
-  const cutoffRight = () => (phone() ? MOBILE_CUTOFF_RIGHT : CHART_CUTOFF_RIGHT);
+  const axisGeometry = () =>
+    narrowContainer()
+      ? { axis: NARROW_AXIS_MIN_WIDTH, lane: NARROW_CUTOFF_LANE, gutter: NARROW_EDGE_GUTTER, shift: true }
+      : phone()
+        ? { axis: MOBILE_AXIS_MIN_WIDTH, lane: MOBILE_CUTOFF_LANE, gutter: MOBILE_EDGE_GUTTER, shift: true }
+        : { axis: CHART_PLOT_MARGIN.axisMinWidth, lane: CHART_PLOT_MARGIN.dataCutoffLane, gutter: CHART_PLOT_MARGIN.edgeGutter, shift: false };
+  const hasPinnedCandles = () => plottableCandleCount(props.chartCandles) > 0;
+  // One accessor feeds both the engine and the key. A legend that named a
+  // different series than the one drawn would be worse than no legend.
+  const overlaySeries = () => (hasPinnedCandles() ? props.chartEmaData : []);
+  const chartSpotTime = () => props.chartCandles[props.chartCandles.length - 1]?.time;
+  const chartSpotView = () =>
+    spotSnapshot(props.chartCandles[props.chartCandles.length - 1]?.close, {
+      digits: 2,
+      asOf: chartSpotTime() ? formatTimeOnly(chartSpotTime()!) : null,
+      origin: props.lastDataBoundary.includes("replay") ? "Replay playhead" : "Chart last bar",
+    });
+  const emptyReason = () =>
+    props.lastDataBoundary
+      ? `${props.lastDataBoundary} — no candles at this playhead. Showing option-chain levels only.`
+      : "Showing option-chain levels only.";
+  const cutoffRight = () => axisGeometry().gutter + axisGeometry().axis + axisGeometry().lane;
+  const edgePadding = () => {
+    const base = { "padding-right": phone() ? `${MOBILE_EDGE_GUTTER}px` : `${CHART_PLOT_MARGIN.edgeGutter}px` };
+    return narrowContainer() ? { "padding-right": `${NARROW_EDGE_GUTTER}px` } : base;
+  };
 
   let chartRef: IChartApi | null = null;
-  let mobileAxisApplied = false;
   const [chartVersion, setChartVersion] = createSignal(0);
 
-  /** The volume histogram is the only overlay series. Its "109K" tag stacked
-   *  against the price tag at 390px; the bars still render, only the redundant
-   *  tag is suppressed (as is the candle tag via `hideLastValueTag`). The live
-   *  spot stays visible in the decision strip's HTML `NiftySpotValue` chip. */
-  const volumeSeriesOf = (chart: IChartApi) => {
-    for (const pane of chart.panes?.() ?? []) {
-      for (const series of pane.getSeries()) {
-        if (series.seriesType() === "Histogram") return series;
-      }
-    }
-    return null;
-  };
-  const applyMobileAxis = () => {
+  const applyAxisGeometry = () => {
     const chart = chartRef;
-    if (!chart) return;
-    const isPhone = phone();
-    if (isPhone) {
-      // The blank lane must match the CSS boundary or the rule floats over live bars.
-      chart.timeScale().applyOptions({ rightOffsetPixels: MOBILE_CUTOFF_LANE });
-      chart.priceScale("right").applyOptions({
-        minimumWidth: MOBILE_AXIS_MIN_WIDTH,
-        // Keep the overlap resolver on so a tag is shifted, not clipped to "00".
-        alignLabels: true,
-        entireTextOnly: true,
-      });
-      mobileAxisApplied = true;
-    } else if (mobileAxisApplied) {
-      chart.timeScale().applyOptions({ rightOffsetPixels: CHART_PLOT_MARGIN.dataCutoffLane });
-      chart.priceScale("right").applyOptions({ minimumWidth: CHART_PLOT_MARGIN.axisMinWidth });
-      mobileAxisApplied = false;
-    }
-    const volume = volumeSeriesOf(chart);
-    if (!volume) return;
-    if (volume.options().lastValueVisible !== false) {
-      // The volume value is in the tooltip; its axis tag collides with the
-      // price label at both widths, so suppress it rather than overlay it.
-      volume.applyOptions({ lastValueVisible: false });
-    }
+    if (chart) applyOverlayAxisGeometry(chart, axisGeometry());
   };
   const chartReady = (chart: IChartApi) => {
     chartRef = chart;
-    mobileAxisApplied = false;
     applyChartPlotMargin(chart);
-    applyMobileAxis();
+    applyAxisGeometry();
     setChartVersion((v) => v + 1);
   };
 
-  usePinnedChartRange(
-    () => chartRef,
-    () => props.chartCandles.length,
-    cutoffRight,
-    chartVersion,
+  useGutteredChartRange(
+    () => chartRef, () => props.chartCandles.length, cutoffRight,
+    () => { chartVersion(); phone(); narrowContainer(); }, () => TIME_AXIS_LABEL_GUTTER_PX,
   );
 
   // TradingViewChart re-enables the volume tag whenever the candle series
-  // changes. Re-apply after the current flush so the phone axis stays clear.
+  // changes. Re-apply after the current flush so a compact axis stays clear.
   createEffect(() => {
     void props.chartCandles;
     phone();
+    narrowContainer();
     chartVersion();
-    queueMicrotask(applyMobileAxis);
+    queueMicrotask(applyAxisGeometry);
   });
 
   return (
     <div
+      ref={(element) => (bodyRef = element)}
       data-testid="nifty-chart-view"
       class="flex flex-col"
-      style={{
-        display: props.view === "chart" ? "flex" : "none",
-        flex: props.view === "chart" ? "1" : undefined,
-        "min-height": "0px",
-      }}
+      style={{ display: props.view === "chart" ? "flex" : "none", flex: props.view === "chart" ? "1" : undefined, "min-height": "0px" }}
     >
-      {/* The empty card is taller than a short mobile body. A flex-1 slot
-          gives it the panel's height budget and scrolls internally instead
-          of spilling over the pattern footer / side tabs; on a tall panel
-          it centres in the freed chart area rather than leaving a black band. */}
+      {/* A flex-1 slot gives the empty card the panel's height budget and
+          scrolls it instead of spilling over the pattern footer / side tabs. */}
       <Show when={props.offlineEmpty}>
         <div
           data-testid="nifty-chart-offline-slot"
@@ -167,42 +162,41 @@ export function ChartBody(props: ChartBodyProps) {
           />
         </div>
       </Show>
-      <Show when={!props.offlineEmpty && props.chartCandles.length === 0}>
+      <Show when={!props.offlineEmpty && !hasPinnedCandles()}>
         <div
           data-testid="nifty-chart-empty-slot"
+          data-reason="pinned-playhead-no-candles"
           class="flex flex-1 min-h-0 items-center justify-center overflow-auto"
         >
           <EmptyCompact
             data-testid="nifty-chart-empty"
             title="No intraday candles"
-            description="Showing option-chain levels only."
+            description={emptyReason()}
           />
         </div>
       </Show>
-      <Show when={props.chartCandles.length > 0 || props.candlesEverShown}>
+      <Show when={hasPinnedCandles() || props.candlesEverShown}>
         <div
           data-testid="nifty-chart-wrap"
-          data-fill={props.chartHeight == null ? "1" : undefined}
-          data-mobile-chart-min={MOBILE_CHART_TARGET}
-          data-mp-touches={props.mpTouchesLength}
-          data-flip-marker={props.flipMarkerPresent ? "1" : "0"}
-          data-pattern-source={props.patternSourceState}
-          data-pattern-overlays={props.patternOverlayCount}
-          data-cutoff-right={CHART_CUTOFF_RIGHT}
-          data-cutoff-lane={CHART_PLOT_MARGIN.dataCutoffLane}
-          data-axis-gutter={CHART_PLOT_MARGIN.edgeGutter}
-          data-mobile-axis-gutter={MOBILE_AXIS_MIN_WIDTH}
-          data-mobile-cutoff-lane={MOBILE_CUTOFF_LANE}
-          data-mobile-left-gutter={phone() ? "6" : "0"}
+          data-pinned-candles={props.chartCandles.length}
+          data-axis-mode={narrowContainer() ? "narrow" : phone() ? "mobile" : "desktop"}
+          data-effective-axis-gutter={axisGeometry().axis} data-effective-cutoff-lane={axisGeometry().lane}
+          data-fill={props.chartHeight == null ? "1" : undefined} data-mobile-chart-min={MOBILE_CHART_TARGET}
+          data-mp-touches={props.mpTouchesLength} data-flip-marker={props.flipMarkerPresent ? "1" : "0"}
+          data-pattern-source={props.patternSourceState} data-pattern-overlays={props.patternOverlayCount}
+          data-cutoff-right={CHART_CUTOFF_RIGHT} data-cutoff-lane={CHART_PLOT_MARGIN.dataCutoffLane}
+          data-axis-gutter={CHART_PLOT_MARGIN.edgeGutter} data-mobile-axis-gutter={MOBILE_AXIS_MIN_WIDTH}
+          data-mobile-cutoff-lane={MOBILE_CUTOFF_LANE} data-mobile-left-gutter={phone() ? "6" : "0"}
           data-hide-last-value-tag={phone() ? "1" : "0"}
           class="w-full max-w-full min-w-0 shrink-0 overflow-hidden flex-1 min-h-0"
           style={{
             position: "relative",
             "padding-left": phone() ? "6px" : undefined,
-            "padding-right": phone() ? `${MOBILE_EDGE_GUTTER}px` : `${CHART_PLOT_MARGIN.edgeGutter}px`,
+            ...edgePadding(),
             ["--chart-cutoff-right"]: `${cutoffRight()}px`,
+            ["--chart-time-label-gutter"]: `${TIME_AXIS_LABEL_GUTTER_PX}px`,
             ...(props.chartHeight == null ? undefined : { height: `${props.chartHeight}px` }),
-            display: props.chartCandles.length > 0 ? "flex" : "none",
+            display: hasPinnedCandles() ? "flex" : "none",
             flex: props.chartHeight == null ? "1" : undefined,
             "min-width": "0px",
             "min-height": "0px",
@@ -212,26 +206,28 @@ export function ChartBody(props: ChartBodyProps) {
         >
           <TradingViewChart
             candles={props.chartCandles}
-            markLines={props.chartMarkLines}
-            emaData={props.chartEmaData}
-            touchMarkers={props.touchMarkers}
+            markLines={hasPinnedCandles() ? props.chartMarkLines : []}
+            emaData={overlaySeries()}
+            touchMarkers={hasPinnedCandles() ? props.touchMarkers : []}
             {...(props.chartHeight != null ? { height: props.chartHeight! } : {})}
             fitMarkLines
             hideLastValueTag={phone()}
             rightOffsetBars={0}
             onChartReady={chartReady}
           />
-          <Show when={props.lastDataBoundary}>
+          <ChartOverlayLegend lines={overlaySeries()} compact={narrowContainer() || phone()} />
+          <Show when={hasPinnedCandles() && props.lastDataBoundary}>
             {(boundary) => (
               <div
                 data-testid="nifty-chart-last-data-boundary"
                 class="pointer-events-none absolute"
-                title={boundary()}
+                title={`${chartSpotView().title} · ${boundary()}`}
                 style={{
-                  top: "0px",
-                  bottom: "0px",
-                  left: "0px",
+                  top: "0px", bottom: "0px", left: "0px",
                   right: "var(--chart-cutoff-right)",
+                  // The engine shifts the last bar left by the label gutter;
+                  // keep the dashed cutoff on that bar, not the old edge.
+                  transform: "translateX(calc(-1 * var(--chart-time-label-gutter)))",
                   "border-right": `1px dashed ${palette.BORDER}`,
                 }}
               >
@@ -260,7 +256,7 @@ export function ChartBody(props: ChartBodyProps) {
               </div>
             )}
           </Show>
-          <Show when={props.chartSource === "patterns" && props.scanBadge}>
+          <Show when={hasPinnedCandles() && props.chartSource === "patterns" && props.scanBadge}>
             {(badge) => (
               <div
                 data-testid="nifty-patterns-chart-badge"

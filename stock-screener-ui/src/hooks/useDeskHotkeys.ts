@@ -5,7 +5,9 @@ export type DeskChartTimeframe = "1m" | "5m" | "15m";
 export interface DeskHotkeyCallbacks {
   /** `D` — toggle desk/research. */
   onToggleDesk?: () => void;
-  /** `F` — chart fullscreen. */
+  /** `F` — LEVEL 1 in-shell chart focus. Nothing unmounts; Esc restores. */
+  onChartFocus?: () => void;
+  /** LEVEL 2 fullscreen is owned by the chart's expand button, not a hotkey. */
   onChartFullscreen?: () => void;
   /** `E` — expand the last-hovered panel (plan reasons fallback). */
   onExpandHovered?: () => void;
@@ -55,7 +57,7 @@ export function useDeskHotkeys(callbacks: DeskHotkeyCallbacks): void {
       if (lower === "d") {
         c.onToggleDesk?.();
       } else if (lower === "f") {
-        c.onChartFullscreen?.();
+        c.onChartFocus?.();
       } else if (lower === "e") {
         c.onExpandHovered?.();
       } else if (lower === "v") {

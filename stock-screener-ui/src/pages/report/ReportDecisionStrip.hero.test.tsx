@@ -95,7 +95,23 @@ vi.mock("./reportCells", () => ({
   formatSignedPoints: () => "+63 pts",
 }));
 vi.mock("./NiftyVerdictStrip", () => ({
-  NiftyVerdictStrip: () => <div data-testid="nifty-verdict-strip" />,
+  // The compact evidence cells carry their full read in `title`, the way the
+  // real verdict strip does. The popover test needs those nodes to prove no
+  // evidence string is dropped when the columns stop colliding.
+  NiftyVerdictStrip: () => (
+    <div
+      data-testid="nifty-verdict-strip"
+      className="flex flex-nowrap items-stretch w-full min-w-0 min-h-6 overflow-hidden [&>*]:flex-[1_1_0] [&>*]:min-w-0"
+    >
+      <div
+        data-testid="nifty-verdict-control"
+        title="SESSION · CALL WRITING — ΔOI (chain) C +372K P — · skew -0.11"
+      />
+      <div data-testid="nifty-coil-gauge" title="COIL — 0.0x · RV — / IV —" />
+      <div data-testid="nifty-verdict-vix" title="VIX 17.21 (+0.04%) — day 17.04–17.32" />
+      <div data-testid="nifty-verdict-strength" title="WEAK — score 0.0 · RSI —" />
+    </div>
+  ),
   resolveRegimeLabel: () => "—",
   regimeAccent: () => "",
   regimeDetail: () => "",
@@ -122,13 +138,12 @@ vi.mock("./reportBits", () => ({
 }));
 
 import {
-  DECISION_CONTEXT_HEIGHT,
-  DECISION_HERO_HEIGHT,
   ReportDecisionStrip,
   decisionEvidenceSources,
   resolveDecisionState,
   snapshotTimeLabel,
 } from "./ReportDecisionStrip";
+import { REPORT_KPI_HERO_HEIGHT } from "./reportTokens";
 
 function setNarrow(narrow: boolean) {
   Object.defineProperty(window, "matchMedia", {
@@ -262,13 +277,16 @@ describe("decision hero at 390", () => {
     mount();
     const hero = screen.getByTestId("nifty-decision-hero");
     expect(hero).toBeVisible();
-    expect(hero.style.maxHeight).toBe(`${DECISION_HERO_HEIGHT.narrowMax}px`);
-    expect(within(hero).getByTestId("nifty-hero-spot")).toHaveTextContent("SPOT");
-    expect(within(hero).getByTestId("nifty-hero-change")).toHaveTextContent("CHANGE");
+    expect(hero.style.minHeight).toBe(`${REPORT_KPI_HERO_HEIGHT}px`);
+    expect(hero.style.maxHeight).toBe("");
+    expect(within(hero).getByTestId("nifty-kpi-spot")).toHaveTextContent("SPOT");
+    expect(within(hero).queryByTestId("nifty-hero-change")).not.toBeInTheDocument();
 
     const disclosure = screen.getByTestId("nifty-verdict-disclosure");
     expect(disclosure).toHaveAttribute("data-open", "false");
-    expect(within(disclosure).getByTestId("nifty-live-tape-toggle")).toHaveTextContent("MORE STATS");
+    const toggle = within(disclosure).getByTestId("nifty-live-tape-toggle");
+    expect(toggle).toHaveTextContent("ALL STATS");
+    expect(toggle).not.toHaveTextContent("MORE STATS");
     expect(within(disclosure).getByTestId("nifty-live-tape-content").style.display).toBe("none");
     // Detail stays in the DOM so every preserved testid is still reachable.
     expect(within(disclosure).getByTestId("nifty-verdict-wrap")).toBeInTheDocument();
@@ -313,37 +331,38 @@ describe("decision hero at 390", () => {
       tone: "negative",
     };
     mount();
-    expect(screen.getByTestId("nifty-decision-state")).toHaveTextContent("LIVE READ");
-    expect(screen.getByTestId("nifty-plan-headline")).toHaveTextContent("BEARISH · sell premium");
+    expect(screen.getByTestId("nifty-decision-state")).toHaveTextContent("BEARISH");
+    expect(screen.getByTestId("nifty-plan-headline")).toHaveTextContent("sell premium");
+    expect(screen.getByTestId("nifty-plan-headline")).not.toHaveTextContent("BEARISH");
     expect(screen.queryByTestId("nifty-decision-chip")).toBeNull();
   });
 });
 
 describe("reduced band count", () => {
-  test("1600 renders a decision header and one disclosure row, with one claim", () => {
+  test("1600 renders one decision band with an inline disclosure, with one claim", () => {
     setNarrow(false);
     mount();
     const bands = document.querySelectorAll("[data-report-band]");
     expect(Array.from(bands).map((el) => el.getAttribute("data-report-band"))).toEqual([
       "decision-hero",
-      "more-stats",
+      "decision-band",
     ]);
     expect(screen.getByTestId("nifty-decision-hero").style.height).toBe(
-      `${DECISION_HERO_HEIGHT.wide}px`,
+      `${REPORT_KPI_HERO_HEIGHT}px`,
     );
-    expect((document.querySelector('[data-report-band="more-stats"]') as HTMLElement).style.minHeight).toBe(
-      `${DECISION_CONTEXT_HEIGHT}px`,
-    );
+    expect(screen.getByTestId("nifty-kpi-hero").style.height).toBe("32px");
+    expect(document.querySelector('[data-report-band="more-stats"]')).toBeNull();
     expect(screen.getAllByTestId("nifty-plan-headline")).toHaveLength(1);
     expect(screen.getAllByTestId("nifty-plan-oneliner")).toHaveLength(1);
     expect(screen.getAllByTestId("nifty-verdict-strip")).toHaveLength(1);
     expect(screen.getByTestId("nifty-stat-strip").textContent).not.toContain("NEUTRAL · no trade");
   });
 
-  test("390 keeps the same two bands", () => {
+  test("390 keeps the same single band", () => {
     setNarrow(true);
     mount();
     expect(document.querySelectorAll("[data-report-band]")).toHaveLength(2);
+    expect(screen.getAllByTestId("nifty-kpi-hero")).toHaveLength(1);
     expect(screen.getAllByTestId("nifty-plan-headline")).toHaveLength(1);
   });
 });
@@ -396,13 +415,328 @@ describe("decision hero — one status token, neutral tone, no duplicate copy", 
     expect(screen.getByTestId("nifty-plan-headline").style.color).toBe(palette.TEXT_MUTED);
   });
 
-  test("SPOT and CHANGE stay one compact stat", () => {
+  test("SPOT appears once in the band's token row, not in a second hero", () => {
     mountLiveWithoutCall();
     const hero = screen.getByTestId("nifty-decision-hero");
-    const spot = within(hero).getByTestId("nifty-hero-spot");
-    const change = within(hero).getByTestId("nifty-hero-change");
-    expect(spot.parentElement).toBe(change.parentElement);
-    expect(within(hero).getAllByTestId("nifty-hero-spot")).toHaveLength(1);
-    expect(within(hero).getAllByTestId("nifty-hero-change")).toHaveLength(1);
+    expect(within(hero).getAllByTestId("nifty-kpi-spot")).toHaveLength(1);
+    expect(hero.textContent!.match(/SPOT/g) ?? []).toHaveLength(1);
+    expect(within(hero).queryByTestId("nifty-hero-spot")).not.toBeInTheDocument();
+  });
+});
+
+describe("collapsed top section — one decision band", () => {
+  function mountDirectional() {
+    setNarrow(false);
+    h.state.report.market = { is_open: true, as_of: "2026-11-19T10:05:00+05:30" };
+    h.state.report.regime = { verdict: "trend" };
+    h.state.report.gex = { regime: "short", strikes: [], netTotal: 0 };
+    h.state.plan = {
+      headline: "BEARISH · sell at 22,300 · cut 22,450 · target 22,100",
+      action: "sell",
+      confidence: 83,
+      tone: "negative",
+    };
+    return mount();
+  }
+
+  test("a single 32px band owns the verdict chip, action levels and percentage once", () => {
+    mountDirectional();
+    expect(screen.getAllByTestId("nifty-kpi-hero")).toHaveLength(1);
+    const band = screen.getByTestId("nifty-kpi-hero");
+    expect(band.style.height).toBe("32px");
+    expect(band.textContent!.match(/SPOT/g) ?? []).toHaveLength(1);
+    const headline = within(band).getByTestId("nifty-plan-headline");
+    expect(headline).toHaveTextContent("sell at 22,300");
+    expect(headline).toHaveTextContent("cut 22,450");
+    expect(headline).toHaveTextContent("target 22,100");
+    const percent = within(band).getByTestId("nifty-plan-confidence");
+    expect(percent.textContent).toBe("83%");
+    expect(percent.textContent).not.toContain("confidence");
+    expect(band.textContent).not.toMatch(/confidence\s+confidence/i);
+    expect(within(band).getByTestId("nifty-decision-state")).toHaveTextContent("BEARISH");
+  });
+
+  test("ALL STATS is a compact button inside the band and its disclosure still works", () => {
+    mountDirectional();
+    const band = screen.getByTestId("nifty-kpi-hero");
+    const disclosure = within(band).getByTestId("nifty-verdict-disclosure");
+    const toggle = within(disclosure).getByTestId("nifty-live-tape-toggle");
+    expect(toggle.className).not.toContain("w-full");
+    expect(toggle.textContent).not.toContain("walls · volatility · evidence");
+    expect(within(disclosure).getByTestId("nifty-live-tape-content").style.display).toBe("none");
+    fireEvent.click(toggle);
+    expect(disclosure).toHaveAttribute("data-open", "true");
+    expect(within(disclosure).getByTestId("nifty-live-tape-content").style.display).toBe("flex");
+    expect(within(disclosure).getByTestId("nifty-verdict-wrap")).toBeInTheDocument();
+    expect(within(disclosure).getByTestId("nifty-stat-group-walls")).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-testid="nifty-verdict-disclosure"]')).toHaveLength(1);
+  });
+
+  test("no full-width ALL STATS row sits between the band and the chart", () => {
+    mountDirectional();
+    expect(document.querySelectorAll('[data-report-band]')).toHaveLength(2);
+    expect(document.querySelectorAll('[data-report-band="more-stats"]')).toHaveLength(0);
+  });
+
+  test("replay / closed market carries a stored-snapshot chip and no live claim", () => {
+    setNarrow(false);
+    h.state.mode = "eod";
+    mount();
+    const band = screen.getByTestId("nifty-kpi-hero");
+    expect(within(band).getByTestId("nifty-decision-state")).toHaveTextContent("MARKET CLOSED");
+    expect(within(band).getByTestId("nifty-plan-headline").textContent).toBe("");
+  });
+
+  test("a directional call reads as one semantic verdict chip plus levels", () => {
+    mountDirectional();
+    const band = screen.getByTestId("nifty-kpi-hero");
+    const chip = within(band).getByTestId("nifty-decision-state");
+    expect(chip).toHaveTextContent("BEARISH");
+    expect(chip.style.color).toBe(palette.NEGATIVE);
+    const headline = within(band).getByTestId("nifty-plan-headline");
+    expect(headline.textContent).not.toMatch(/bearish|bullish|neutral/i);
+    expect(headline).toHaveTextContent("sell at 22,300");
+    expect(headline).toHaveTextContent("cut 22,450");
+    expect(headline).toHaveTextContent("target 22,100");
+  });
+
+  test("SPOT and confidence each appear once in the band", () => {
+    mountDirectional();
+    const band = screen.getByTestId("nifty-kpi-hero");
+    expect(within(band).getAllByTestId("nifty-kpi-spot")).toHaveLength(1);
+    expect(band.textContent!.match(/SPOT/g) ?? []).toHaveLength(1);
+    expect(within(band).getAllByTestId("nifty-plan-confidence")).toHaveLength(1);
+    expect(band.textContent!.match(/83%/g) ?? []).toHaveLength(1);
+  });
+});
+
+describe("expanded ALL STATS — bounded popover, fixed band", () => {
+  function open() {
+    setNarrow(false);
+    h.state.report.market = { is_open: true, as_of: "2026-11-19T10:05:00+05:30" };
+    h.state.report.regime = { verdict: "trend" };
+    h.state.report.gex = { regime: "short", strikes: [], netTotal: 0 };
+    h.state.plan = {
+      headline: "BEARISH · sell at 22,300 · cut 22,450 · target 22,100",
+      action: "sell",
+      confidence: 83,
+      tone: "negative",
+    };
+    mount();
+    const toggle = screen.getByTestId("nifty-live-tape-toggle");
+    fireEvent.click(toggle);
+    return {
+      toggle,
+      disclosure: screen.getByTestId("nifty-verdict-disclosure"),
+      content: screen.getByTestId("nifty-live-tape-content"),
+      band: screen.getByTestId("nifty-kpi-hero"),
+      hero: screen.getByTestId("nifty-decision-hero"),
+    };
+  }
+
+  test("opening the detail never grows the 32px band or the hero", () => {
+    const { band, hero, disclosure, content } = open();
+    expect(disclosure).toHaveAttribute("data-open", "true");
+    expect(content.style.display).toBe("flex");
+    expect(band.style.height).toBe("32px");
+    expect(band.style.minHeight).toBe("32px");
+    expect(hero.style.height).toBe(`${REPORT_KPI_HERO_HEIGHT}px`);
+    expect(content.closest('[data-testid="nifty-kpi-hero"]')).toBe(band);
+  });
+
+  test("detail is a fixed, bounded, scrollable popover owned by the band", () => {
+    const { content } = open();
+    expect(content.style.position).toBe("fixed");
+    expect(Number.parseInt(content.style.zIndex, 10)).toBeGreaterThan(0);
+    expect(Number.parseInt(content.style.maxHeight, 10)).toBeGreaterThan(0);
+    expect(content.style.overflowY).toBe("auto");
+    expect(content.style.overflowX).toBe("hidden");
+    expect(content.style.boxShadow).toContain("inset");
+    // The grid belongs to the stats surface, not to the popover shell: two
+    // fixed tracks at 720px and one at 390px, never an `auto-fit` guess.
+    const stats = within(content).getByTestId("nifty-decision-stats");
+    expect(stats.getAttribute("data-stat-layout")).toBe("popover-grid");
+    expect(stats.className).toContain("grid-cols-1");
+    expect(stats.className).toContain("min-[601px]:grid-cols-2");
+    expect(stats.className).not.toContain("auto-fit");
+    expect(content.className).toContain("[&>*]:shrink-0!");
+  });
+
+  test("measured geometry: capped at 1600, a full-width scroll sheet at 390", () => {
+    const { content } = open();
+    const originalWidth = window.innerWidth;
+    try {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 1600 });
+      fireEvent.resize(window);
+      expect(content.style.width).toBe("720px");
+      expect(content.style.maxHeight).toBe("420px");
+      expect(content.style.overflowY).toBe("auto");
+
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });
+      fireEvent.resize(window);
+      expect(content.style.width).toBe("374px");
+      expect(content.style.left).toBe("8px");
+      expect(content.style.maxHeight).toBe("420px");
+      expect(content.style.overflowY).toBe("auto");
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
+    }
+  });
+
+  test("the toggle, Escape and an outside click each dismiss the popover", () => {
+    const { toggle, disclosure, content } = open();
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(toggle);
+    expect(disclosure).toHaveAttribute("data-open", "false");
+    expect(content.style.display).toBe("none");
+
+    fireEvent.click(toggle);
+    expect(disclosure).toHaveAttribute("data-open", "true");
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(disclosure).toHaveAttribute("data-open", "false");
+
+    fireEvent.click(toggle);
+    expect(disclosure).toHaveAttribute("data-open", "true");
+    fireEvent.click(document.body);
+    expect(disclosure).toHaveAttribute("data-open", "false");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("the expanded surface keeps section detail without duplicating the call", () => {
+    const { band, content } = open();
+    expect(within(content).getByTestId("nifty-stat-group-price")).toBeInTheDocument();
+    expect(within(content).getByTestId("nifty-stat-group-walls")).toBeInTheDocument();
+    expect(within(content).getByTestId("nifty-stat-group-volatility")).toBeInTheDocument();
+    expect(within(content).getByTestId("nifty-verdict-wrap")).toBeInTheDocument();
+    expect(within(content).queryByTestId("nifty-plan-headline")).not.toBeInTheDocument();
+    expect(band.textContent!.match(/SPOT/g) ?? []).toHaveLength(1);
+  });
+});
+
+describe("ALL STATS popover — evidence columns never clip or overlap", () => {
+  function openAt(width: number) {
+    setNarrow(width <= 600);
+    const original = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+    mount();
+    fireEvent.click(screen.getByTestId("nifty-live-tape-toggle"));
+    return {
+      restore: () => Object.defineProperty(window, "innerWidth", { configurable: true, value: original }),
+      content: screen.getByTestId("nifty-live-tape-content"),
+    };
+  }
+
+  test.each([1600, 390])("at %ipx every evidence cell is a full row with its full tooltip", (width) => {
+    const { content, restore } = openAt(width);
+    try {
+      expect(content.style.overflowX).toBe("hidden");
+      expect(content.style.overflowY).toBe("auto");
+
+      const evidence = within(content).getByTestId("nifty-live-tape-evidence");
+      expect(evidence).toHaveAttribute("data-evidence-layout", "rows");
+      // The compact verdict strip is nowrap with equal flex cells in the band;
+      // inside this bounded popover each cell must take a whole line instead.
+      expect(evidence.className).toContain("[&_[data-testid='nifty-verdict-strip']]:flex-wrap!");
+      expect(evidence.className).toContain("[&_[data-testid='nifty-verdict-strip']>*]:w-full!");
+      expect(evidence.className).toContain(
+        "[&_[data-testid='nifty-verdict-strip']>*]:[flex-basis:100%]!",
+      );
+      // One scroll owner: the inner evidence block never opens a second scroller.
+      expect(evidence.style.overflow).not.toMatch(/auto|scroll/);
+      expect((within(evidence).getByTestId("nifty-verdict-wrap") as HTMLElement).style.overflow).not.toMatch(
+        /auto|scroll/,
+      );
+
+      const evidenceCells = [
+        "nifty-verdict-control",
+        "nifty-coil-gauge",
+        "nifty-verdict-vix",
+        "nifty-verdict-strength",
+      ].map((id) => within(evidence).getByTestId(id));
+      expect(evidenceCells).toHaveLength(4);
+      for (const cell of evidenceCells) {
+        expect(cell.getAttribute("title")).toBeTruthy();
+      }
+      expect(within(evidence).getByTestId("nifty-verdict-strength").getAttribute("title")).toContain(
+        "score 0.0 · RSI —",
+      );
+      expect(within(evidence).getByTestId("nifty-coil-gauge").getAttribute("title")).toContain(
+        "RV — / IV —",
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  // happy-dom has no layout engine, so "no overlap" is asserted through the
+  // layout contract that produces it: a 420px-capped flex column only stacks
+  // sections instead of painting them on top of each other when every direct
+  // child is `flex-shrink: 0` and the sections themselves are block-level.
+  test.each([1600, 390])("at %ipx the capped popover scrolls instead of shrinking its sections", (width) => {
+    const { content, restore } = openAt(width);
+    try {
+      expect(content.className).toContain("[&>*]:shrink-0!");
+      expect(content.style.maxHeight).toBe("420px");
+      expect(content.style.overflowY).toBe("auto");
+      const evidence = within(content).getByTestId("nifty-live-tape-evidence");
+      expect(evidence.className).toContain("[&>*]:shrink-0!");
+      expect(evidence).toHaveAttribute("data-evidence-layout", "rows");
+
+      // One column of whole cells: no `auto-fit` track guessing, no equal-basis
+      // flex row that can clip `COIL 0.0x RV — / IV —` mid-number.
+      expect(evidence.className).toContain(
+        "[&_[data-testid='nifty-verdict-strip']]:grid!",
+      );
+      expect(evidence.className).toContain(
+        "[&_[data-testid='nifty-verdict-strip']]:grid-cols-1!",
+      );
+      expect(evidence.className).not.toContain("auto-fit");
+      for (const token of [
+        "[&_[data-testid='nifty-verdict-strip']>*]:w-full!",
+        "[&_[data-testid='nifty-verdict-strip']>*]:[flex:none]!",
+        "[&_[data-testid^='nifty-coil-']]:whitespace-normal!",
+        "[&_[data-testid$='-secondary']]:[overflow-wrap:anywhere]!",
+        "[&_[data-testid^='nifty-verdict-']]:[text-overflow:clip]!",
+      ]) {
+        expect(evidence.className, token).toContain(token);
+      }
+
+      const wrap = within(evidence).getByTestId("nifty-verdict-wrap") as HTMLElement;
+      expect(wrap.style.height).toBe("auto");
+      expect(wrap.style.minHeight).toBe("0px");
+      expect(wrap.style.overflow).toBe("visible");
+      expect(wrap.className).toContain("flex-col");
+      for (const id of [
+        "nifty-verdict-control",
+        "nifty-coil-gauge",
+        "nifty-verdict-vix",
+        "nifty-verdict-strength",
+      ]) {
+        expect(within(evidence).getByTestId(id).getAttribute("title")).toBeTruthy();
+      }
+    } finally {
+      restore();
+    }
+  });
+});
+
+describe("single source for SPOT", () => {
+  test("the strip below does not repeat the hero's SPOT value in its claim", () => {
+    setNarrow(false);
+    h.state.report.market = { is_open: true, as_of: "2026-11-19T10:05:00+05:30" };
+    h.state.report.regime = { verdict: "trend" };
+    h.state.report.gex = { regime: "short", strikes: [], netTotal: 0 };
+    h.state.plan = {
+      headline: "BEARISH · spot 22,363 · sell at 22,300 · cut 22,450 · target 22,100",
+      action: "sell",
+      confidence: 83,
+      tone: "negative",
+    };
+    mount();
+    const headline = screen.getByTestId("nifty-plan-headline");
+    expect(headline.textContent).not.toMatch(/spot/i);
+    expect(headline.textContent).toContain("sell at 22,300");
+    expect(headline.textContent).toContain("cut 22,450");
+    expect(headline.textContent).toContain("target 22,100");
   });
 });

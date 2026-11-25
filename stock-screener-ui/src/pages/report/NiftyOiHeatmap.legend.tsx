@@ -22,6 +22,7 @@ import {
 } from "./NiftyOiHeatmap.format";
 import type { readHeatmap } from "./niftyOiHeatmap";
 import type { HeatmapCoverage, HeatmapEmptyKind } from "./niftyOiHeatmap";
+import { sharedReportSpotSource, spotSnapshot } from "./ReportKpiHero";
 
 type HeatmapRead = ReturnType<typeof readHeatmap>;
 
@@ -219,9 +220,24 @@ export interface HeatmapReadoutProps {
   read: HeatmapRead;
   readText: string;
   readFallback: string;
+  /** As-of label for the tape spot when no shared report snapshot is present. */
+  asOf?: string | null;
+  /** Payload name for that fallback spot. */
+  source?: string;
 }
 
 export function HeatmapReadout(props: HeatmapReadoutProps) {
+  // The tape carries its own spot; use it only outside a report frame. Inside
+  // the page, the shared report field is the single source for all readouts.
+  const spotView = () =>
+    spotSnapshot(
+      sharedReportSpotSource() ?? {
+        value: props.read.spot,
+        asOf: props.asOf ?? null,
+        origin: props.source ?? "Tape snapshot",
+      },
+      { digits: 0 },
+    );
   return (
     <div
       data-testid="nifty-heatmap-read"
@@ -243,15 +259,17 @@ export function HeatmapReadout(props: HeatmapReadoutProps) {
         {(s) => (
           <span
             data-testid="nifty-heatmap-read-spot"
+            data-spot-source={spotView().source}
+            data-spot-as-of={spotView().asOf ?? undefined}
             class="shrink-0 text-fin-text whitespace-nowrap"
-            title="Latest spot against the max-pain pin"
+            title={spotView().title}
             style={{
               "font-size": `${REPORT_FONT.body}px`,
               "font-weight": 600,
               "line-height": 1.2,
             }}
           >
-            <span class="text-ui-micro text-fin-text-muted">SPOT</span> {s().spot} <span class="text-ui-micro text-fin-text-muted">{s().relation}</span> <span class="text-ui-micro text-fin-text-muted">MP</span> {s().maxPain}
+            <span class="text-ui-micro text-fin-text-muted">SPOT</span> {spotView().display} <span class="text-ui-micro text-fin-text-muted">{s().relation}</span> <span class="text-ui-micro text-fin-text-muted">MP</span> {s().maxPain}
           </span>
         )}
       </Show>

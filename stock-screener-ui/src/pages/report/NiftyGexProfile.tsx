@@ -1,4 +1,5 @@
-import { createMemo } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { Text } from "@/ui";
 import { MiniLineChart } from "@/components/common/charts/MiniLineChart";
 import * as palette from "@/ui/palette";
 import type { NiftyGex } from "@/types/niftyReport";
@@ -78,6 +79,19 @@ interface NiftyGexProfileProps {
   spot: number;
 }
 
+/** Measured content box of the analytics window that docks this panel. */
+const GEX_WINDOW_HEIGHT = 281;
+/** Reserved at the scrollport's end so the cue never sits on top of a value. */
+const GEX_CUE_GUTTER = 16;
+const GEX_SCROLL_STEP = 56;
+
+function onGexScrollKeyDown(event: KeyboardEvent) {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+  const region = event.currentTarget as HTMLElement;
+  region.scrollTop += event.key === "ArrowDown" ? GEX_SCROLL_STEP : -GEX_SCROLL_STEP;
+  event.preventDefault();
+}
+
 export function NiftyGexProfile(props: NiftyGexProfileProps) {
   const gex = () => props.gex;
   const spot = () => props.spot;
@@ -92,6 +106,43 @@ export function NiftyGexProfile(props: NiftyGexProfileProps) {
   const below = () => sides().below;
   const above = () => sides().above;
 
+  let scrollEl: HTMLDivElement | undefined;
+  let contentEl: HTMLDivElement | undefined;
+  const attachScroll = (el: HTMLDivElement) => { scrollEl = el; };
+  const attachContent = (el: HTMLDivElement) => { contentEl = el; };
+  const [hasOverflow, setHasOverflow] = createSignal(false);
+  const [moreBelow, setMoreBelow] = createSignal(false);
+
+  const syncCue = () => {
+    const el = scrollEl;
+    if (!el) return;
+    const remaining = el.scrollHeight - el.clientHeight - el.scrollTop;
+    setHasOverflow(el.scrollHeight - el.clientHeight > 1);
+    setMoreBelow(remaining > 1);
+  };
+
+  onMount(() => {
+    syncCue();
+    if (!scrollEl || !contentEl) return;
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? undefined
+        : new ResizeObserver(syncCue);
+    observer?.observe(scrollEl);
+    observer?.observe(contentEl);
+    scrollEl.addEventListener("scroll", syncCue);
+    onCleanup(() => {
+      observer?.disconnect();
+      scrollEl?.removeEventListener("scroll", syncCue);
+    });
+  });
+
+  createEffect(() => {
+    chart();
+    sides();
+    queueMicrotask(syncCue);
+  });
+
   return (
     <LocalCompactPanel
       title="GEX profile"
@@ -103,33 +154,79 @@ export function NiftyGexProfile(props: NiftyGexProfileProps) {
         "border-radius": `${REPORT_RADIUS.md}px`,
       }}
     >
-      <div class="flex flex-col gap-[4px] w-full min-w-0">
-        <GexStatRow stats={stats()} below={below()} above={above()} />
-        <GexRegimeRow stats={stats()} spot={spot()} />
-        <GexCoverage
-          band={band()}
-          significant={chart().significant}
-          total={profile().length}
-        />
+      <div class="relative w-full min-w-0 min-h-0">
+        <div
+          ref={attachScroll}
+          data-testid="nifty-gex-scroll-region"
+          role="region"
+          aria-label="GEX profile detail"
+          tabIndex={0}
+          onScroll={syncCue}
+          onKeyDown={onGexScrollKeyDown}
+          class="w-full min-w-0 min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-width:thin]"
+          style={{
+            "max-height": `${GEX_WINDOW_HEIGHT}px`,
+            "padding-bottom": hasOverflow() ? `${GEX_CUE_GUTTER}px` : "0px",
+          }}
+        >
+          <div ref={attachContent} class="flex flex-col gap-[4px] w-full min-w-0">
+            <GexStatRow stats={stats()} below={below()} above={above()} />
+            <GexRegimeRow stats={stats()} spot={spot()} />
+            <GexCoverage
+              band={band()}
+              significant={chart().significant}
+              total={profile().length}
+            />
 
-        {/* Explicit px height (never vh): ECharts/SVG need a non-zero fixed
-            box, and vh balloons on tall monitors. 120px still resolves the
-            single gamma-profile curve; the line spans the full inner box. */}
-        <div class="w-full min-w-0">
-          <MiniLineChart
-            series={chart().series}
-            labels={chart().labels}
-            markers={chart().markers}
-            zeroLine={chart().zeroLine}
-            scale="sqrt"
-            height={120}
-            formatValue={formatGexCr}
-            testId="nifty-gex-profile-chart"
-            emptyMessage="No per-strike GEX profile"
-          />
+            {/* Explicit px height (never vh): ECharts/SVG need a non-zero fixed
+                box, and vh balloons on tall monitors. 120px still resolves the
+                single gamma-profile curve; the line spans the full inner box. */}
+            <div class="w-full min-w-0">
+              <MiniLineChart
+                series={chart().series}
+                labels={chart().labels}
+                markers={chart().markers}
+                zeroLine={chart().zeroLine}
+                scale="sqrt"
+                height={120}
+                formatValue={formatGexCr}
+                testId="nifty-gex-profile-chart"
+                emptyMessage="No per-strike GEX profile"
+              />
+            </div>
+            <GexLevelsLegend below={below()} above={above()} />
+            <GexCaption show={profile().length > 0} />
+          </div>
         </div>
-        <GexLevelsLegend below={below()} above={above()} />
-        <GexCaption show={profile().length > 0} />
+        {/* The thin native scrollbar is easy to miss in a dense desk. This cue
+            names the gesture and fades only the reserved bottom gutter, so no
+            stat or caption is ever covered. */}
+        <Show when={moreBelow()}>
+          <div
+            data-testid="nifty-gex-scroll-cue-overlay"
+            class="pointer-events-none absolute inset-x-0 bottom-0 flex justify-end px-2 pb-[2px] pt-[6px]"
+          >
+            <div
+              data-testid="nifty-gex-scroll-fade"
+              aria-hidden="true"
+              class="absolute inset-0"
+              style={{
+                background: `linear-gradient(to top, ${palette.TERM_BG}, ${palette.alpha(palette.TERM_BG, 0)})`,
+              }}
+            />
+            <Text
+              data-testid="nifty-gex-scroll-cue"
+              size="xs"
+              span
+              fw={700}
+              title="Scroll the GEX profile for the remaining stats and explanation"
+              className="relative whitespace-nowrap uppercase"
+              style={{ color: palette.TEXT_MUTED }}
+            >
+              Scroll for more ↓
+            </Text>
+          </div>
+        </Show>
       </div>
     </LocalCompactPanel>
   );

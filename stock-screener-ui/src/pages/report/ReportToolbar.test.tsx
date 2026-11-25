@@ -8,6 +8,11 @@ import {
   expiryControlTitle,
   expiryOptionLabel,
   ReportToolbar,
+  REPORT_VIEW_DATA,
+  REPORT_VIEW_BUTTON_CLASS,
+  REPORT_VIEW_IDLE_CLASS,
+  REPORT_VIEW_PRESSED_CLASS,
+  REPORT_VIEW_TOGGLE_CLASS,
   snapshotClockLabel,
   STRIP_FADE_STYLE,
   TOOLBAR_ACTIONS_CLASS,
@@ -25,10 +30,16 @@ import {
 const harness = vi.hoisted(() => ({ store: {} as Record<string, unknown> }));
 
 vi.mock("./ReportContext", () => ({ useNiftyReport: () => harness.store }));
-vi.mock("./sim/SimDesk", () => ({ SimDesk: () => null }));
+// The simulator is a standalone feature; emulate its chip so the toolbar's
+// absence assertion fails if the affordance is ever mounted here again.
+vi.mock("./sim/SimDesk", () => ({
+  SimDesk: () => <button type="button" data-testid="sim-open">SIM · 1</button>,
+}));
 vi.mock("./NiftyPositionsDrawer", () => ({ NiftyPositionsDrawer: () => null }));
 vi.mock("./NiftyDeskGuide", () => ({ NiftyDeskGuide: () => null }));
-vi.mock("./NiftyReplayBar", () => ({ NiftyReplayBar: () => null }));
+vi.mock("./NiftyReplayBar", () => ({
+  NiftyReplayBar: () => <div data-testid="nifty-replay-bar" />,
+}));
 vi.mock("./niftyStreamSolid", () => ({ useNiftySpotTick: () => () => null }));
 
 function secondsAgo(seconds: number): string {
@@ -65,8 +76,11 @@ describe("ReportToolbar freshness indicators", () => {
       },
       ui: {
         view: () => "chart",
+        reportView: () => "monitor",
+        isWindowDesk: () => false,
         deskMode: () => "desk",
         handleViewChange: () => {},
+        handleReportViewChange: () => {},
         handleDeskChange: () => {},
       },
       data: {
@@ -145,6 +159,28 @@ describe("ReportToolbar freshness indicators", () => {
     expect(dataBadge.textContent).toBe("STALE");
     expect(screen.getByTestId("nifty-stale-badge")).toHaveTextContent("WS DOWN 46m");
     expect(secondaryStatusText()).not.toContain("SNAPSHOT");
+  });
+
+  test("a days-old stale feed promotes the unit and keeps exact seconds in the title", () => {
+    const freshness = (harness.store.data as any).freshness;
+    freshness.isStale = () => true;
+    freshness.staleMins = () => 64142;
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const status = screen.getByTestId("nifty-updated-at");
+    // 64142m = 1069h = 44d — never a five-digit minute count on a 20px band.
+    expect(status).toHaveTextContent("STALE 44d");
+    expect(status.textContent).not.toContain("64142m");
+    // The promoted unit hides the precise age; the tooltip keeps it exactly.
+    expect(status.getAttribute("title")).toContain("3848520");
+    expect(
+      toolbarStatusLabel({ state: "stale", updatedAtMs: TEN_IST, staleMins: 64142, liveClockMs: TEN_IST }),
+    ).toBe("STALE 44d");
+    expect(secondaryStatusText()).not.toContain("live (WS)");
   });
 
   test("a stale tape with a connected WebSocket is also STALE, never live (WS)", () => {
@@ -263,7 +299,153 @@ describe("ReportToolbar freshness indicators", () => {
       expect(secondary.contains(screen.getByTestId(id)), id).toBe(true);
       expect(primary.contains(screen.getByTestId(id)), id).toBe(false);
     }
-    expect(screen.getByTestId("toolbar-data-label").textContent).toBe("DATA");
+    expect(screen.getByTestId("toolbar-data-label").textContent).toBe("DATA FRESHNESS");
+  });
+
+  test("primary strip shows labelled Underlying / Mode / Session clusters with dividers and pressed state", () => {
+    (harness.store.selection as { hasRecordedHistory: () => boolean }).hasRecordedHistory = () => true;
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const strip = screen.getByTestId("toolbar-strip");
+    const clusters: [string, string, string][] = [
+      ["toolbar-cluster-underlying", "UNDERLYING", "nifty-index-toggle"],
+      ["toolbar-cluster-mode", "MODE", "nifty-mode-toggle"],
+      ["toolbar-cluster-session", "SESSION", "nifty-expiry-select"],
+    ];
+    for (const [clusterId, label, controlId] of clusters) {
+      const cluster = screen.getByTestId(clusterId);
+      expect(strip.contains(cluster), clusterId).toBe(true);
+      expect(cluster.getAttribute("role"), clusterId).toBe("group");
+      expect(cluster.getAttribute("aria-label"), clusterId).toBeTruthy();
+      expect(screen.getByTestId(`${clusterId}-label`), `${clusterId} caption`).toHaveTextContent(label);
+      expect(cluster.className, clusterId).toContain("flex-col");
+      expect(cluster.contains(screen.getByTestId(controlId)), controlId).toBe(true);
+    }
+
+    // The dividers are reused where possible; the mode→session boundary is new.
+    const dividers = [
+      "toolbar-divider-subject-session",
+      "toolbar-divider-mode-session",
+      "toolbar-divider-session-state",
+    ].map((id) => screen.getByTestId(id));
+    const children = [...strip.children];
+    for (const divider of dividers) {
+      expect(strip.contains(divider)).toBe(true);
+      expect(divider.className).toContain("w-px");
+    }
+    expect(children.indexOf(dividers[0])).toBeLessThan(children.indexOf(dividers[1]));
+    expect(children.indexOf(dividers[1])).toBeLessThan(children.indexOf(dividers[2]));
+
+    // Pressed state is keyed on the primitive's own aria-pressed attribute, so
+    // the active mode reads without adding a second selected-looking control.
+    for (const id of [
+      "nifty-index-toggle",
+      "nifty-mode-toggle",
+      "nifty-view-toggle",
+      "nifty-desk-toggle",
+    ]) {
+      const toggle = screen.getByTestId(id);
+      expect(toggle.className, id).toContain("[aria-pressed='true']");
+      expect(toggle.querySelectorAll('button[aria-pressed="true"]'), id).toHaveLength(1);
+      expect(toggle.querySelectorAll('button[aria-pressed="false"]').length, id).toBeGreaterThan(0);
+      const buttons = [...toggle.querySelectorAll("button")];
+      for (const button of buttons) {
+        expect(button.tagName).toBe("BUTTON");
+        expect(button).toHaveAttribute("type", "button");
+      }
+      buttons[0].focus();
+      expect(document.activeElement, id).toBe(buttons[0]);
+    }
+  });
+
+  test("the report toolbar never mounts the SIM simulator affordance", () => {
+    // The simulator stays available as its own feature, but this page must not
+    // mount its chip: STATE here describes the real paper book only.
+    const assertNoSim = () => {
+      expect(screen.queryByTestId("sim-open")).toBeNull();
+      expect(screen.queryByText(/^SIM/)).toBeNull();
+      const state = screen.getByTestId("toolbar-group-state");
+      expect(state).toHaveAttribute("role", "group");
+      expect(state.getAttribute("aria-label")).toBe("Paper positions");
+      expect(state.textContent).not.toMatch(/SIM/);
+      expect(state.parentElement).toBe(screen.getByTestId("toolbar-strip"));
+      expect(screen.getByTestId("toolbar-divider-session-state")).toBeInTheDocument();
+      expect(screen.getByTestId("toolbar-cluster-session")).toBeInTheDocument();
+      expect(screen.getByTestId("toolbar-data-label")).toHaveTextContent("DATA FRESHNESS");
+    };
+
+    // Full live state.
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+    assertNoSim();
+    expect(screen.getByTestId("toolbar-cluster-underlying")).toBeInTheDocument();
+    expect(screen.getByTestId("toolbar-cluster-mode")).toBeInTheDocument();
+    cleanup();
+
+    // Replay is history playback, not SIM: it must survive EOD with no live claim.
+    (harness.store.selection as Record<string, unknown>).mode = () => "eod";
+    (harness.store.selection as Record<string, unknown>).date = () => "2026-11-16";
+    (harness.store.replay as Record<string, unknown>).replay = () => ({ snapshots: [{ t: 1 }] });
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+    assertNoSim();
+    expect(screen.getByTestId("nifty-replay-bar")).toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-updated-at")).toBeNull();
+    cleanup();
+
+    // Empty data must not revive the affordance either.
+    (harness.store.data as Record<string, unknown>).report = () => null;
+    (harness.store.data as Record<string, unknown>).tape = () => null;
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+    assertNoSim();
+  });
+
+  test("moving the mode toggle into the MODE cluster keeps EOD date gating intact", () => {
+    const selection = harness.store.selection as Record<string, (value?: string) => unknown>;
+    selection.hasRecordedHistory = () => true;
+    selection.mode = () => "eod";
+    selection.date = () => "";
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const eod = [...screen.getByTestId("nifty-mode-toggle").querySelectorAll("button")].find(
+      (button) => button.textContent === "EOD",
+    ) as HTMLButtonElement;
+    expect(eod).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("nifty-date-input")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-refresh-button")).toBeDisabled();
+    expect(screen.getByTestId("nifty-snapshot-button")).toBeDisabled();
+    expect(screen.getByTestId("nifty-snapshot-button")).toHaveAttribute(
+      "title",
+      "Only available in Live mode — an EOD date is history, not a snapshot",
+    );
+
+    cleanup();
+    selection.date = () => "2026-11-16";
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+    expect(screen.getByTestId("nifty-date-input")).toHaveValue("2026-11-16");
+    expect(screen.getByTestId("nifty-refresh-button")).toBeEnabled();
   });
 
   test("the Depth tab strip scrolls with a visible cue instead of clipping a word", () => {
@@ -547,6 +729,89 @@ describe("ReportToolbar freshness indicators", () => {
     expect(toolbar.className).toContain("flex-wrap");
     expect(toolbar.className).toContain("min-[1200px]:overflow-x-auto");
     expect(TOOLBAR_CLASS).toBe(toolbar.className);
+  });
+
+  test("the compact MONITOR | DESK workspace toggle is labelled, keyboard reachable and neutral-pressed", () => {
+    const handleReportViewChange = vi.fn();
+    (harness.store.ui as Record<string, unknown>).handleReportViewChange = handleReportViewChange;
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const toggle = screen.getByTestId("nifty-report-view-toggle");
+    expect(toggle).toHaveAttribute("role", "group");
+    expect(toggle).toHaveAttribute("aria-label", "Report view");
+    expect(toggle.className).toContain(REPORT_VIEW_TOGGLE_CLASS);
+    expect(REPORT_VIEW_DATA.map((option) => option.label)).toEqual(["MONITOR", "DESK"]);
+
+    const monitor = screen.getByTestId("nifty-report-view-monitor");
+    const desk = screen.getByTestId("nifty-report-view-desk");
+    expect([monitor.textContent, desk.textContent]).toEqual(["MONITOR", "DESK"]);
+    for (const button of [monitor, desk]) {
+      expect(button.tagName).toBe("BUTTON");
+      expect(button).toHaveAttribute("type", "button");
+      expect(button.className).toContain(REPORT_VIEW_BUTTON_CLASS);
+      // Neutral focus token, not the accent fill of the mode toggles.
+      expect(button.className).toContain("focus-visible:ring-fin-text");
+      expect(button.className).not.toContain("bg-fin-primary");
+    }
+    expect(monitor).toHaveAttribute("aria-pressed", "true");
+    expect(monitor.className).toContain(REPORT_VIEW_PRESSED_CLASS);
+    expect(desk).toHaveAttribute("aria-pressed", "false");
+    expect(desk.className).toContain(REPORT_VIEW_IDLE_CLASS);
+
+    desk.focus();
+    expect(document.activeElement).toBe(desk);
+    fireEvent.click(desk);
+    expect(handleReportViewChange).toHaveBeenCalledWith("desk");
+    monitor.focus();
+    fireEvent.click(monitor);
+    expect(handleReportViewChange).toHaveBeenLastCalledWith("monitor");
+
+    // The toggle lives in the primary band; the two-band DOM is untouched.
+    expect(screen.getByTestId("toolbar-primary-row").contains(toggle)).toBe(true);
+    expect([...screen.getByTestId("nifty-toolbar").children]).toEqual([
+      screen.getByTestId("toolbar-primary-row"),
+      screen.getByTestId("toolbar-secondary-row"),
+    ]);
+  });
+
+  test("the layout preset picker appears only in desk view and reports the chosen preset", () => {
+    const onPresetChange = vi.fn();
+    render(() => (
+      <UIProvider>
+        <ReportToolbar presetId="desk" onPresetChange={onPresetChange} />
+      </UIProvider>
+    ));
+    // Monitor keeps exactly one combobox (the expiry Select).
+    expect(screen.queryByTestId("nifty-report-preset-select")).toBeNull();
+    expect(screen.getAllByRole("combobox")).toHaveLength(1);
+
+    cleanup();
+    (harness.store.ui as Record<string, unknown>).reportView = () => "desk";
+    (harness.store.ui as Record<string, unknown>).isWindowDesk = () => true;
+    render(() => (
+      <UIProvider>
+        <ReportToolbar presetId="desk" onPresetChange={onPresetChange} />
+      </UIProvider>
+    ));
+
+    const picker = screen.getByTestId("nifty-report-preset-select");
+    const native = picker.querySelector("select") as HTMLSelectElement;
+    expect(native).toHaveAttribute("aria-label", "Report layout preset");
+    expect(screen.getByRole("combobox", { name: "Report layout preset" })).toBe(native);
+    expect(native).toHaveValue("desk");
+    const options = [...picker.querySelectorAll("option")].map((option) => option.value);
+    expect(options).toEqual(["focus", "desk", "flow", "full"]);
+    // DOM order keeps the workspace toggle before the picker.
+    const toggle = screen.getByTestId("nifty-report-view-toggle");
+    expect(
+      Boolean(toggle.compareDocumentPosition(picker) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
+    fireEvent.input(native, { target: { value: "full" } });
+    expect(onPresetChange).toHaveBeenCalledWith("full");
   });
 });
 

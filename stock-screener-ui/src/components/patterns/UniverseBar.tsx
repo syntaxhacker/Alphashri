@@ -118,7 +118,7 @@ export function UniverseBar(props: UniverseBarProps) {
                   data-testid={`patterns-universe-${u.id}`}
                   className={cn(
                     "inline-flex cursor-pointer appearance-none items-baseline gap-1 whitespace-nowrap rounded-fin border-0 px-1 py-[3px] font-[inherit] text-ui-micro leading-[1.25] transition-colors",
-                    "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary",
+                    "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-text",
                     active()
                       ? "bg-fin-primary/12 font-semibold text-fin-primary shadow-[inset_0_0_0_1px_var(--color-fin-primary)]"
                       : "font-medium text-fin-text-muted hover:bg-fin-surface hover:text-fin-text",
@@ -149,7 +149,7 @@ export function UniverseBar(props: UniverseBarProps) {
             data-testid="patterns-universe-custom"
             className={cn(
               "inline-flex cursor-pointer appearance-none items-center gap-1 whitespace-nowrap rounded-fin border-0 px-1 py-[3px] font-[inherit] text-ui-micro leading-[1.25] transition-colors",
-              "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary",
+              "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-text",
               customActive()
                 ? "bg-fin-primary/12 font-semibold text-fin-primary shadow-[inset_0_0_0_1px_var(--color-fin-primary)]"
                 : "font-medium text-fin-text-muted hover:bg-fin-surface hover:text-fin-text",

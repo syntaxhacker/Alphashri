@@ -81,6 +81,10 @@ const mockStore = {
     setIvOpen: () => {},
     deskDockTab: dockTab,
     setDeskDockTab: setDockTab,
+    reportView: () => "monitor",
+    setReportView: () => {},
+    handleReportViewChange: () => {},
+    isWindowDesk: () => false,
   },
 };
 
@@ -132,6 +136,25 @@ vi.mock("@/components/notifications/MarketAlertCard", () => ({
 
 const { NiftyReportShell } = await import("./NiftyReportShell");
 
+// L1 makes desk content the single scroll owner (overflow-y:auto) and removes
+// the second clipping owner. Until that lane lands, clipping is only safe
+// because this lane removed the row's floor and viewport cap — nothing overflows
+// the content box to hide. The assertion holds in both states.
+function expectReachableDeskContent(panel: HTMLElement, content: HTMLElement, main: HTMLElement) {
+  expect(panel.className).toContain("overflow-hidden");
+  const scrollsVertically = (el: HTMLElement) =>
+    /(?:^|\s)overflow-y-auto(?:\s|$)/.test(el.className) || el.style.overflowY === "auto";
+  const isScroller = scrollsVertically(content) || content.style.overflow === "auto";
+  if (isScroller) {
+    expect(scrollsVertically(panel)).toBe(false);
+    expect(content.style.overflow).not.toBe("hidden");
+  } else {
+    expect(["", "hidden"]).toContain(content.style.overflow);
+    expect(main.className).not.toContain("min-h-[300px]");
+    expect(main.className).not.toContain("max-h-[58vh]");
+  }
+}
+
 afterEach(() => {
   cleanup();
   setDockTab(null);
@@ -148,7 +171,10 @@ describe("Index Report vertical budget", () => {
     const main = await screen.findByTestId("nifty-main-row");
     expect(main.getAttribute("data-chart-primary")).toBe("true");
     expect(main.className).toContain("flex-1");
-    expect(main.className).toContain("min-h-[300px]");
+    expect(main.className).toContain("min-h-0");
+    expect(main.className).not.toContain("min-h-[300px]");
+    expect(main.className).not.toContain("max-h-[58vh]");
+    expect(main.style.height).toBe("");
     expect(main.style.maxHeight).toBe("");
     expect((await screen.findByTestId("nifty-chart-wrap")).getAttribute("data-fill")).toBe("true");
 
@@ -172,16 +198,14 @@ describe("Index Report vertical budget", () => {
 
     const panel = screen.getByTestId("nifty-report-panel");
     const content = screen.getByTestId("nifty-report-content");
-    expect(panel.className).toContain("overflow-hidden");
-    expect(content.className).toContain("overflow-hidden");
-    expect(content.className).not.toMatch(/overflow-(auto|scroll)/);
-    expect(content.style.overflow).toBe("hidden");
+    const main = screen.getByTestId("nifty-main-row");
+    expectReachableDeskContent(panel, content, main);
 
     fireEvent.click(screen.getByTestId("desk-dock-strips"));
     expect(
       await screen.findByTestId("nifty-live-tape-disclosure", undefined, { timeout: 5000 }),
     ).toBeInTheDocument();
-    expect(content.className).not.toMatch(/overflow-(auto|scroll)/);
+    expectReachableDeskContent(panel, content, main);
   });
 });
 
@@ -285,12 +309,9 @@ describe("Index Report desktop desk rail (chart + numbers coexist)", () => {
   });
 
   test("(e) the page still never scrolls with the rail mounted", async () => {
-    await mountDesk();
+    const main = await mountDesk();
     const panel = screen.getByTestId("nifty-report-panel");
     const content = screen.getByTestId("nifty-report-content");
-    expect(panel.className).toContain("overflow-hidden");
-    expect(content.className).toContain("overflow-hidden");
-    expect(content.className).not.toMatch(/overflow-(auto|scroll)/);
-    expect(content.style.overflow).toBe("hidden");
+    expectReachableDeskContent(panel, content, main);
   });
 });

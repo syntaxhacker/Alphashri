@@ -1,4 +1,4 @@
-import type { JSX } from "solid-js";
+import { createEffect, onCleanup, type JSX } from "solid-js";
 import type { IChartApi } from "lightweight-charts";
 import type { FyersTick } from "@/hooks/useFyersTickStream";
 import type { ReplayCandle } from "@/types/replay";
@@ -91,6 +91,76 @@ export function applyChartPlotMargin(chart: IChartApi): void {
   chart.priceScale("right").applyOptions({
     minimumWidth: CHART_PLOT_MARGIN.axisMinWidth,
     entireTextOnly: true,
+  });
+}
+
+/**
+ * A `HH:MM` tick is five 12px-mono glyphs (~36px), and the engine centres the
+ * first and last ticks on their bars. `entireTextOnly` widens the *price* axis
+ * only, so without a real plot gutter the edge ticks render as `:15` / `10:0`.
+ * One half-label plus a glyph of slack on each side keeps both intact at 390
+ * and 1600, including the labelled data-cutoff lane after the last candle.
+ */
+export const TIME_AXIS_LABEL_GUTTER_PX = 24;
+
+type TimeScale = ReturnType<IChartApi["timeScale"]>;
+
+/** Pixel spacing from the engine's own coordinate mapping, with a safe floor
+ *  for the first pin (the engine may not have a mapped series yet). */
+function barSpacingPx(scale: TimeScale): number {
+  const logical = (value: number) => value as Parameters<TimeScale["logicalToCoordinate"]>[0];
+  const first = scale.logicalToCoordinate?.(logical(0));
+  const next = scale.logicalToCoordinate?.(logical(1));
+  if (first != null && next != null && Number.isFinite(first) && Number.isFinite(next)) {
+    const spacing = Math.abs(next - first);
+    if (spacing >= 0.5) return spacing;
+  }
+  return 8;
+}
+
+/**
+ * Pin the visible range to the real candles while keeping a `HH:MM`-sized
+ * gutter on both edges. The left gutter is a fractional logical offset (the
+ * engine has no `leftOffsetPixels`), the right one extends the pixel offset
+ * past the cutoff lane so the boundary line still marks the last candle.
+ */
+export function useGutteredChartRange(
+  getChart: () => IChartApi | null,
+  getCount: () => number,
+  getRightOffset: () => number,
+  getVersion: () => void,
+  getLeftGutter: () => number,
+): void {
+  createEffect(() => {
+    // Tracks chart creation and every axis-mode change: re-applying the base
+    // overlay geometry on a viewport switch would otherwise reset the offset.
+    getVersion();
+    const chart = getChart();
+    const count = getCount();
+    if (!chart || count === 0) return;
+
+    const pin = () => {
+      if (getChart() !== chart) return;
+      const scale = chart.timeScale();
+      scale.applyOptions({
+        rightOffset: 0,
+        rightOffsetPixels: getRightOffset() + getLeftGutter(),
+      });
+      if (typeof scale.setVisibleLogicalRange === "function") {
+        scale.setVisibleLogicalRange({
+          from: -getLeftGutter() / barSpacingPx(scale),
+          to: count - 1,
+        });
+      }
+    };
+
+    queueMicrotask(pin);
+    const timer = setTimeout(pin, 0);
+    const late = setTimeout(pin, 120);
+    onCleanup(() => {
+      clearTimeout(timer);
+      clearTimeout(late);
+    });
   });
 }
 

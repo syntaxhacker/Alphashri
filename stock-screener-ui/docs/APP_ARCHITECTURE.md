@@ -141,10 +141,6 @@ unauthenticated login screen. "Store" names a module under `src/state/`; "API" a
 **Components:** [`BotsPage.tsx`](../src/components/bots/BotsPage.tsx) via [`pages/bots/index.tsx`](../src/pages/bots/index.tsx); `BotStatusPanel`, `BotConfigModal`.
 **Store:** [`bots.ts`](../src/state/bots.ts) · **API:** [`bots.ts`](../src/api/bots.ts), [`botControlApi.ts`](../src/api/botControlApi.ts) · **Backend:** [`api/bots_api/bots_router.py`](../api/bots_api/bots_router.py) (`/api/bots`).
 
-#### Experiments — `/experiments`
-**Components:** [`ExperimentsPage.tsx`](../src/components/experiments/ExperimentsPage.tsx) via [`pages/experiments/index.tsx`](../src/pages/experiments/index.tsx).
-**Store:** [`experiments.ts`](../src/state/experiments.ts) · **API:** [`experiments.ts`](../src/api/experiments.ts) · **Backend:** [`api/experiment_routes.py`](../api/experiment_routes.py) (`/api/experiments`), [`trading/autoresearch_engine.py`](../trading/autoresearch_engine.py).
-
 ### 3.4 Options
 
 #### Options — `/options`
@@ -264,7 +260,7 @@ No Redux, no `useState` for store-owned data. The pattern:
 | Chart Patterns | [`chartPatterns.ts`](../src/state/chartPatterns.ts) |
 | Sector / Correlation | [`sector.ts`](../src/state/sector.ts), [`sectorCorrelation.ts`](../src/state/sectorCorrelation.ts), [`correlation.ts`](../src/state/correlation.ts) |
 | Options dock / analytics / dashboard | [`optionsDock.ts`](../src/state/optionsDock.ts), [`optionsAnalytics.ts`](../src/state/optionsAnalytics.ts), [`optionsDashboard.ts`](../src/state/optionsDashboard.ts), [`optionsStore.ts`](../src/state/optionsStore.ts) |
-| Experiments / saved config / holidays / catalysts | [`experiments.ts`](../src/state/experiments.ts), [`savedConfig.ts`](../src/state/savedConfig.ts), [`holidays.ts`](../src/state/holidays.ts), [`catalystStore.ts`](../src/state/catalystStore.ts) |
+| Saved config / holidays / catalysts | [`savedConfig.ts`](../src/state/savedConfig.ts), [`holidays.ts`](../src/state/holidays.ts), [`catalystStore.ts`](../src/state/catalystStore.ts) |
 | Auth / News WS / Index Report | [`auth.ts`](../src/state/auth.ts), [`newsWebSocket.tsx`](../src/state/newsWebSocket.tsx), [`pages/report/niftyReportStore.ts`](../src/pages/report/niftyReportStore.ts) |
 
 ---
@@ -337,7 +333,7 @@ subscribers. Falls back to polling when the stream drops.
 ## 8. Where things are NOT
 
 - **Routes** are not in a config file — all 31 are inline `<Route>` elements in [`src/App.tsx`](../src/App.tsx). Guard: [`src/test/routes.test.ts`](../src/test/routes.test.ts).
-- **Seven page folders are stubs.** The actual components live under `src/components/`; the `pages/<name>/index.tsx` files only re-export: [`sector`](../src/pages/sector/index.tsx), [`backtest`](../src/pages/backtest/index.tsx), [`bots`](../src/pages/bots/index.tsx), [`experiments`](../src/pages/experiments/index.tsx), [`paper`](../src/pages/paper/index.tsx), [`replay`](../src/pages/replay/index.tsx), [`strategy-runner`](../src/pages/strategy-runner/index.tsx).
+- **Six page folders are stubs.** The actual components live under `src/components/`; the `pages/<name>/index.tsx` files only re-export: [`sector`](../src/pages/sector/index.tsx), [`backtest`](../src/pages/backtest/index.tsx), [`bots`](../src/pages/bots/index.tsx), [`paper`](../src/pages/paper/index.tsx), [`replay`](../src/pages/replay/index.tsx), [`strategy-runner`](../src/pages/strategy-runner/index.tsx).
 - **Screener tab panels are not co-located with the tab strip.** Market lives in [`pages/market/`](../src/pages/market/MarketScreenerPage.tsx), while Correlation/Config/F&O live in `components/screener/`. Deep Value is no longer a tab — its panel in [`components/value/`](../src/components/value/ValuePanel.tsx) is mounted by the Market `value` view.
 - **Some screens are docked panels, not pages.** The catalyst radar is registered in [`panelRegistry.ts`](../src/components/window/panelRegistry.ts) and mounted by Home's `WindowManager`, not by a route.
 - **There is no standalone `/heatmap` route** and no `src/pages/heatmap/` directory (removed 2026-11-14); the treemap is shared, rendered by [`MarketMapView.tsx`](../src/components/market/MarketMapView.tsx) over [`marketTreemap.ts`](../src/components/market/marketTreemap.ts).

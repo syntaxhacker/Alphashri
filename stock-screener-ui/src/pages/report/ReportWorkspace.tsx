@@ -36,22 +36,19 @@ const NiftyOiHeatmap = lazy(() =>
 
 const CHART_HEIGHTS = { s: 180, m: 320, l: 520, xl: 760 } as const;
 const CHART_ROW_CHROME = 48;
-const FILL_MAX_HEIGHT = 300;
 
-// The desktop chart is the largest block, but 77% of the viewport leaves the
-// dock a 26px stub. The content grid settles it near 56% (496px at 890px tall,
-// 538px at 950px), and 58vh is the hard ceiling for tall viewports — both well
-// above the ~380px where a candle chart stops being readable. A viewport cap
-// keeps the flex-1/min-h-0 chain intact; no fixed height is set on a flex panel.
-const DESK_CHART_ROW_SHARE = "0.56";
-const DESK_CHART_ROW_MAX_CLASS = "min-[1200px]:max-h-[58vh]";
+// The shell gives the chart the single flexible track of its content grid: all
+// the stretch after fixed chrome, including the band a collapsed walls rail no
+// longer needs. The row itself is uncapped: a floor or a vh cap here made the
+// canvas unreachable at 890px tall even though the grid had room.
+const DESK_CHART_ROW_SHARE = "1";
 const CHART_FILL_CHAIN = "flex-1 min-h-0";
 
 // The dock used to grow a 354px drawer that stole height from the chart. That
 // reclaimed band is now a permanent rail: walls (CW/PW/MP/PIN) and breadth are
 // readable beside the chart with no click, and the drawer overlays the rail
-// instead of resizing the chart. At 890px the chart canvas measures 467px, so
-// 430px is the stated floor an open dock must never cross.
+// instead of resizing the chart. This is a documented reachability target for
+// the open dock, not a CSS floor — the row itself must stay uncapped.
 export const DESK_CHART_FLOOR_PX = 430;
 const DESK_RAIL_HEIGHT_PX = 136;
 // Replay keeps only the walls summary in this rail (breadth/movers are absent),
@@ -245,6 +242,19 @@ function PanelSkeleton(props: { h: number }) {
   );
 }
 
+/** The fill chart has no fixed height, so its skeleton fills the grid cell. */
+function FillSkeleton() {
+  return (
+    <Box
+      class="w-full h-full min-w-0 min-h-0"
+      style={{
+        "background-color": palette.SURFACE_ALT,
+        "border-radius": "2px",
+      }}
+    />
+  );
+}
+
 export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
   const store = useNiftyReport();
   const isMobile = useMediaQuery("(max-width: 600px)");
@@ -262,11 +272,13 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
   const showChain = () => !isDesk() || sideTab() === "chain";
   const showSideHeatmap = () => isDesk() && (sideTab() === "heatmap" || !isMobile());
 
+  const chartIsFill = () => isDesk() && chartSize() === "fill";
+
+  // Only the explicit s/m/l/xl sizes have a pixel height. Fill uses a
+  // height-matched skeleton that occupies the grid cell instead.
   const chartRowHeight = createMemo(() => {
     const size = chartSize();
-    return size === "fill"
-      ? FILL_MAX_HEIGHT + CHART_ROW_CHROME
-      : CHART_HEIGHTS[size] + CHART_ROW_CHROME;
+    return CHART_HEIGHTS[size === "fill" ? "m" : size] + CHART_ROW_CHROME;
   });
 
   const maxWalls = createMemo(() => {
@@ -417,11 +429,11 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
         data-testid="nifty-main-row"
         data-left-edge={String(REPORT_GUTTER.inline)}
         data-report-order="chart"
-        data-chart-primary={isDesk() && chartSize() === "fill" ? "true" : undefined}
+        data-chart-primary={chartIsFill() ? "true" : undefined}
         data-chart-row-share={isDesk() ? DESK_CHART_ROW_SHARE : undefined}
         data-chart-chain={CHART_FILL_CHAIN}
         data-chart-floor={isDesk() ? String(DESK_CHART_FLOOR_PX) : undefined}
-        className={`grid grid-cols-1 ${isDesk() ? "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,624px)]"} grid-rows-[minmax(0,1fr)_minmax(0,120px)] ${mobileHeatmap() ? MOBILE_GRID_HEATMAP : `${MOBILE_GRID_DEFAULT} ${MOBILE_GRID_CHAIN}`} min-[1200px]:grid-rows-[minmax(0,1fr)] gap-0 items-stretch w-full max-w-full min-w-0 flex-1 min-h-[300px] overflow-hidden${isDesk() ? ` ${DESK_CHART_ROW_MAX_CLASS}` : ""}`}
+        className={`grid grid-cols-1 ${isDesk() ? "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : "min-[1200px]:grid-cols-[minmax(0,1fr)_minmax(0,624px)]"} grid-rows-[minmax(0,1fr)_minmax(0,120px)] ${mobileHeatmap() ? MOBILE_GRID_HEATMAP : `${MOBILE_GRID_DEFAULT} ${MOBILE_GRID_CHAIN}`} min-[1200px]:grid-rows-[minmax(0,1fr)] gap-0 items-stretch w-full max-w-full min-w-0 flex-1 min-h-0 overflow-hidden`}
         style={{
           "max-height":
             isDesk() && chartSize() !== "fill" ? `${chartRowHeight()}px` : undefined,
@@ -436,7 +448,11 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
 
         <Show when={store.data.report()}>
           {(current) => (
-            <Suspense fallback={<PanelSkeleton h={chartRowHeight()} />}>
+            <Suspense
+              fallback={
+                chartIsFill() ? <FillSkeleton /> : <PanelSkeleton h={chartRowHeight()} />
+              }
+            >
               <NiftyChartPanel
                 report={current()}
                 bursts={store.data.effectiveBursts()}
@@ -452,7 +468,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
                 onTimeframeChange={(tf) => store.ui.handleChartTf(tf)}
                 onSizeChange={(size) => store.ui.handleChartSize(size)}
                 onExpand={() => store.ui.openChartFull()}
-                fillContainer={isDesk() && chartSize() === "fill"}
+                fillContainer={chartIsFill()}
               />
             </Suspense>
           )}

@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { createSignal } from "solid-js";
+import { REPORT_KPI_HERO_HEIGHT } from "./reportTokens";
 import { UIProvider } from "@/ui";
 import {
   REPORT_GUTTER,
@@ -16,6 +17,7 @@ import {
 // that box, and the 8px rhythm leaves no dead band under the dock. Heavy
 // children are stubbed so the suite is about geometry, not panel contents.
 const [dockTab, setDockTab] = createSignal<string | null>(null);
+const [focus, setFocus] = createSignal(false);
 
 const mockStore = {
   data: {
@@ -54,6 +56,10 @@ const mockStore = {
     handleChartTf: () => {},
     handleChartSize: () => {},
     openChartFull: () => {},
+    reportView: () => "monitor",
+    setReportView: () => {},
+    handleReportViewChange: () => {},
+    isWindowDesk: () => false,
     setSideTab: () => {},
     setHeatMetric: () => {},
     setHeatExpand: () => {},
@@ -62,6 +68,8 @@ const mockStore = {
     setIvOpen: () => {},
     deskDockTab: dockTab,
     setDeskDockTab: setDockTab,
+    overlayOpen: () => focus(),
+    setOverlayOpen: (_key: string, next: boolean) => setFocus(next),
   },
 };
 
@@ -70,6 +78,9 @@ vi.mock("./ReportContext", () => ({
   useNiftyReport: () => mockStore,
 }));
 vi.mock("./ReportToolbar", () => ({ ReportToolbar: () => <div data-testid="nifty-toolbar" /> }));
+vi.mock("./ReportKpiHero", () => ({
+  ReportKpiHero: () => <div data-testid="nifty-kpi-hero" style={{ height: `${REPORT_KPI_HERO_HEIGHT}px` }} />,
+}));
 vi.mock("./ReportDecisionStrip", () => ({
   ReportDecisionStrip: () => (
     <>
@@ -111,6 +122,7 @@ function mount() {
 afterEach(() => {
   cleanup();
   setDockTab(null);
+  setFocus(false);
 });
 
 describe("Index Report single left edge", () => {
@@ -181,20 +193,35 @@ describe("Index Report single left edge", () => {
     const main = await screen.findByTestId("nifty-main-row");
     expect(main.getAttribute("data-chart-chain")).toBe("flex-1 min-h-0");
     expect(main.className).toContain("flex-1");
-    expect(main.className).toContain("min-h-[300px]");
     expect(main.className).not.toMatch(/(^|\s)h-\[\d+px\]/);
     expect(main.style.height).toBe("");
     expect((await screen.findByTestId("nifty-chart-wrap")).getAttribute("data-fill")).toBe("true");
   });
 
-  test("(d) the page never scrolls", async () => {
+  test("(d) the report content is the single scroll owner, the page never scrolls", async () => {
     mount();
     const panel = screen.getByTestId("nifty-report-panel");
     const content = screen.getByTestId("nifty-report-content");
     expect(panel.className).toContain("overflow-hidden");
     expect(panel.style.overflow).toBe("hidden");
-    expect(content.className).toContain("overflow-hidden");
-    expect(content.className).not.toMatch(/overflow-(auto|scroll)/);
-    expect(content.style.overflow).toBe("hidden");
+    expect(content.className).toContain("overflow-y-auto");
+    expect(content.style.overflowY).toBe("auto");
+    // The single 56px decision band is owned by the strip inside the scroll
+    // owner, so the shell paints no second pinned band above the chart.
+    expect(screen.queryByTestId("nifty-kpi-hero")).not.toBeInTheDocument();
+    expect(content.className).toContain(
+      "min-[1200px]:grid-rows-[auto_minmax(0,1fr)_auto]",
+    );
+  });
+
+  test("(e) chart focus keeps the chart mounted and exposes one exit affordance", async () => {
+    mount();
+    const panel = screen.getByTestId("nifty-report-panel");
+    expect(panel).toHaveAttribute("data-chart-focus", "false");
+    expect(screen.queryByTestId("nifty-chart-focus-exit")).not.toBeInTheDocument();
+    setFocus(true);
+    expect(panel).toHaveAttribute("data-chart-focus", "true");
+    expect(await screen.findByTestId("nifty-main-row")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-chart-focus-exit")).toBeInTheDocument();
   });
 });

@@ -12,10 +12,14 @@
 import { test, expect } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser, setupNiftyReportMocks } from "../mocks/apiResponses";
 
+// The decision strip is now one 32px KPI band with distinct caption/value
+// cells. The old hero-specific ids no longer exist; measure the current cells
+// so the overlap regression still checks real geometry.
 const CELL_IDS = [
-  "nifty-hero-spot-read",
-  "nifty-hero-change-read",
-  "nifty-decision-state",
+  "nifty-kpi-spot",
+  "nifty-kpi-regime",
+  "nifty-kpi-gamma-flip",
+  "nifty-kpi-walls",
 ];
 
 async function openReport(page: import("@playwright/test").Page) {
@@ -27,7 +31,7 @@ async function openReport(page: import("@playwright/test").Page) {
   await page.waitForSelector('[data-testid="nifty-decision-hero"]', { timeout: 10000 });
 }
 
-async function assertNoOverlap(page: import("@playwright/test").Page) {
+async function assertNoOverlap(page: import("@playwright/test").Page, minimumCells = 2) {
   const boxes = await page.evaluate((ids) => {
     return ids.map((id) => {
       const el = document.querySelector(`[data-testid="${id}"]`);
@@ -39,7 +43,7 @@ async function assertNoOverlap(page: import("@playwright/test").Page) {
   }, CELL_IDS);
 
   const present = boxes.filter((b): b is NonNullable<typeof b> => b !== null);
-  expect(present.length, "no decision cells rendered").toBeGreaterThanOrEqual(2);
+  expect(present.length, "no decision cells rendered").toBeGreaterThanOrEqual(minimumCells);
 
   const overlaps: string[] = [];
   for (let i = 0; i < present.length; i++) {
@@ -63,7 +67,8 @@ for (const width of [1280, 1600, 390]) {
   test(`@smoke no overlap at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
     await openReport(page);
-    await assertNoOverlap(page);
+    // Phone hides the secondary KPI cells by design; one cell still carries the strip.
+    await assertNoOverlap(page, width === 390 ? 1 : 2);
   });
 }
 

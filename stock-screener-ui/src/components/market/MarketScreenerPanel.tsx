@@ -32,7 +32,7 @@ import {
   Indicator,
   useMediaQuery,
 } from "@/ui";
-import { IconAlertCircle, IconFilter, IconRefresh, IconSearch, IconX } from "../common/Icons";
+import { IconAlertCircle, IconFilter, IconPlus, IconRefresh, IconSearch, IconX } from "../common/Icons";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { MARKET_UNIVERSES, DEFAULT_MARKET_UNIVERSE } from "../../api/marketScreener";
 import type { SortEntry, TableColumnDef as ColumnDef } from "../common/TanStackTable";
@@ -58,7 +58,7 @@ import { usePatternSummary } from "./usePatternSummary";
 import { alpha, PRIMARY } from "@/ui/palette";
 import { MarketFilterRail } from "./MarketFilterRail";
 import {
-  MarketViewToggle,
+  MARKET_VIEW_OPTIONS,
   VIS_OPTIONS,
   VIS_RENDERERS,
   normalizeMarketView,
@@ -81,6 +81,8 @@ import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { MarketBreadthStrip } from "./MarketBreadthStrip";
 import { useSymbolDock } from "../common/symbolDockContext";
 import { useMarketConfig, type MarketConfigValue } from "./useMarketConfig";
+import { fetchSectionScan, type SectionScanResult } from "../../api/sections";
+import { useSectionsConfig } from "../../state/sections/config";
 
 // Movers owns the whole dashboard module; keep it out of the Market chunk.
 const DashboardView = lazy(() =>
@@ -90,6 +92,20 @@ const DashboardView = lazy(() =>
 const ValueView = lazy(() =>
   import("../value/ValuePanel").then((m) => ({ default: m.ValuePanel })),
 );
+// Sections are a separate feature surface: neither its table nor its manager
+// belongs in the Market chunk. Both are activated only from the Sections tab.
+const SectionTable = lazy(() =>
+  import("./SectionTable").then((m) => ({ default: m.SectionTable })),
+);
+const SectionManagerModal = lazy(() =>
+  import("./SectionManagerModal").then((m) => ({ default: m.SectionManagerModal })),
+);
+
+const SECTION_TABS: { value: string; label: string }[] = [
+  ...MARKET_VIEW_OPTIONS,
+  { value: "sections", label: "Sections" },
+];
+type ScreenerTab = MarketViewMode | "sections";
 
 function MoversPanel(props: {
   universe: string;
@@ -126,6 +142,205 @@ function MoversPanel(props: {
     );
   });
   return tree;
+}
+
+/**
+ * Owns the Sections tab's one request per refresh. Mounting is activation: no
+ * interval, no polling — a new scan happens only on mount, market change or the
+ * explicit Refresh button.
+ */
+function SectionsView(props: {
+  market: "india" | "america";
+  onOpenSymbol?: (symbol: string) => void;
+}) {
+  const { config } = useSectionsConfig();
+  const activeSections = createMemo(() =>
+    [...config().sections]
+      .filter((section) => section.enabled)
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned)),
+  );
+  // TradingView's public scanner currently returns delayed_streaming_* for all
+  // rows. Default to accepting it so sections are useful, with the delay shown
+  // in the strip and on every table; users can opt into streaming-only data.
+  const [allowDelayed, setAllowDelayed] = createSignal(true);
+  const [result, setResult] = createSignal<SectionScanResult | null>(null);
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const [managerOpen, setManagerOpen] = createSignal(false);
+  let disposed = false;
+  onCleanup(() => {
+    disposed = true;
+  });
+
+  const load = async () => {
+    const definitions = untrack(activeSections);
+    if (definitions.length === 0) {
+      setResult(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await fetchSectionScan(props.market, definitions, untrack(allowDelayed));
+      if (!disposed) setResult(next);
+    } catch (cause) {
+      if (!disposed) {
+        setError(cause instanceof Error ? cause.message : "Failed to load sections");
+        setResult(null);
+      }
+    } finally {
+      if (!disposed) setLoading(false);
+    }
+  };
+
+  createEffect(on(() => props.market, () => void load()));
+
+  return (
+    <Box
+      data-testid="market-sections-region"
+      className="flex-1 min-w-0 min-h-0 flex flex-col gap-2 overflow-hidden"
+    >
+      <ToolbarRow
+        gap={8}
+        wrap
+        data-testid="market-sections-toolbar"
+        className="flex-shrink-0 px-2 py-1 border border-fin-border rounded-sm bg-fin-surface"
+      >
+        <Text size="xs" c="dimmed" className="whitespace-nowrap">
+          Signal sections
+        </Text>
+        <Button
+          size="xs"
+          variant="subtle"
+          leftSection={<IconRefresh size={12} />}
+          onClick={() => void load()}
+          disabled={loading() || activeSections().length === 0}
+          data-testid="market-sections-refresh"
+        >
+          Refresh
+        </Button>
+        <Button
+          size="xs"
+          variant={allowDelayed() ? "light" : "subtle"}
+          aria-pressed={allowDelayed()}
+          onClick={() => setAllowDelayed((value) => !value)}
+          data-testid="market-sections-allow-delayed"
+        >
+          Include delayed
+        </Button>
+        <Box className="flex-1 min-w-0" />
+        <Show when={(result()?.delayed_rows ?? 0) > 0}>
+          <Badge size="xs" variant="light" color="warning" data-testid="market-sections-delayed">
+            {result()!.delayed_rows} delayed
+          </Badge>
+        </Show>
+        <Text size="xs" c="dimmed" className="font-numeric whitespace-nowrap">
+          {result()?.row_count ?? 0} rows
+        </Text>
+        <Button
+          size="xs"
+          variant="subtle"
+          leftSection={<IconPlus size={12} />}
+          onClick={() => setManagerOpen(true)}
+          data-testid="market-sections-add"
+        >
+          Add section
+        </Button>
+      </ToolbarRow>
+
+      <Show when={result()?.note}>
+        {(note) => (
+          <Box
+            role="note"
+            data-testid="market-sections-note"
+            className="flex-shrink-0 px-2 py-1 border border-fin-border rounded-sm bg-fin-surface"
+          >
+            <Text size="xs" c="dimmed">
+              {note()}
+            </Text>
+          </Box>
+        )}
+      </Show>
+
+      <Show
+        when={error() === null}
+        fallback={
+          <Paper
+            elevation={0}
+            role="alert"
+            data-testid="market-sections-error"
+            className="flex-1 border border-fin-border border-l-[3px] border-l-fin-negative rounded-sm bg-fin-surface flex flex-col items-center justify-center gap-2 p-6 text-center"
+          >
+            <IconAlertCircle size={24} />
+            <Text size="sm" fw={600}>
+              Couldn’t load signal sections
+            </Text>
+            <Text size="xs" c="dimmed" data-testid="market-sections-error-message">
+              {error()}
+            </Text>
+            <Button
+              size="sm"
+              variant="outline"
+              leftSection={<IconRefresh size={12} />}
+              onClick={() => void load()}
+              data-testid="market-sections-retry"
+            >
+              Retry
+            </Button>
+          </Paper>
+        }
+      >
+        <Show
+          when={activeSections().length > 0}
+          fallback={
+            <Paper
+              elevation={0}
+              role="note"
+              data-testid="market-sections-empty"
+              className="flex-1 border border-fin-border rounded-sm bg-fin-surface flex items-center justify-center p-4"
+            >
+              <Text size="xs" c="dimmed">
+                No enabled sections yet — add one to scan for signals.
+              </Text>
+            </Paper>
+          }
+        >
+          <Box
+            data-testid="market-sections-grid"
+            className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-2 overflow-y-auto"
+          >
+            <For each={activeSections()}>
+              {(section) => (
+                <Paper
+                  elevation={0}
+                  className="min-w-0 min-h-0 border border-fin-border rounded-sm bg-fin-surface overflow-hidden flex flex-col"
+                >
+                  <Suspense fallback={<Skeleton h={120} visible />}>
+                    <SectionTable
+                      section={section}
+                      rows={result()?.rows ?? []}
+                      loading={loading()}
+                      error={null}
+                      dense
+                      onOpenSymbol={props.onOpenSymbol}
+                    />
+                  </Suspense>
+                </Paper>
+              )}
+            </For>
+          </Box>
+        </Show>
+      </Show>
+
+      <Show when={managerOpen()}>
+        <Suspense fallback={null}>
+          <SectionManagerModal opened={managerOpen()} onClose={() => setManagerOpen(false)} />
+        </Suspense>
+      </Show>
+    </Box>
+  );
 }
 
 const STALE_AFTER_MS = 15 * 60 * 1000;
@@ -307,6 +522,10 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const [railCollapsed, setRailCollapsed] = createSignal(false);
   const [drawerOpen, setDrawerOpen] = createSignal(false);
   const [viewMode, setViewMode] = createSignal<MarketViewMode>(normalizeMarketView(props.initialView));
+  // Sections is an overlay tab, not a MarketViewMode: the saved-config and URL
+  // vocabularies stay unchanged, and leaving the tab restores the previous view.
+  const [sectionsActive, setSectionsActive] = createSignal(false);
+  const activeTab = (): ScreenerTab => (sectionsActive() ? "sections" : viewMode());
   // The Vis tab renders through the registry. The selector writes this signal;
   // it is intentionally local state — a viz choice is not a saved config, and
   // must never echo back through save()/scheduleSave().
@@ -314,7 +533,8 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const [sizeBy, setSizeBy] = createSignal<MarketSizeMetric>(DEFAULT_MARKET_SIZE_METRIC);
   // Value is a view, not a separate page: every Market filter lives in this
   // component's signals, so switching back restores the table as it was.
-  const showMarketChrome = () => viewMode() !== "movers" && viewMode() !== "value";
+  const showMarketChrome = () =>
+    viewMode() !== "movers" && viewMode() !== "value" && !sectionsActive();
   const [selectedSymbol, setSelectedSymbol] = createSignal<string | null>(null);
   const dock = useSymbolDock();
   const navigate = useNavigate();
@@ -457,7 +677,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
     useMarketSnapshotSolid(universe, {
       // Wait for `market.filters` so the first snapshot is the saved universe,
       // not defaults followed by a second fetch when hydration lands.
-      enabled: () => viewMode() !== "value" && configReady(),
+      enabled: () => viewMode() !== "value" && !sectionsActive() && configReady(),
       deferCacheUntilEnabled: true,
       wireFormat,
     });
@@ -649,7 +869,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   });
   // Opening Value must not leave a modal filter drawer floating above it.
   createEffect(() => {
-    if (viewMode() === "value" && drawerOpen()) closeDrawer();
+    if ((viewMode() === "value" || sectionsActive()) && drawerOpen()) closeDrawer();
   });
 
   const focusablesInDrawer = (): HTMLElement[] => {
@@ -758,8 +978,8 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       // A modal drawer owns the keyboard; arrow keys inside it are not row steps.
       if (drawerOpen()) return;
-      // The Value view owns its own table; don't step market rows behind it.
-      if (viewMode() === "value") return;
+      // The Value view and the Sections tab own their own tables.
+      if (viewMode() === "value" || sectionsActive()) return;
       const target = event.target as HTMLElement | null;
       if (
         target &&
@@ -777,9 +997,15 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
     onCleanup(() => document.removeEventListener("keydown", onKeyDown));
   });
 
-  const chooseView = (mode: MarketViewMode) => {
-    // A modal drawer would otherwise float above the value table.
-    if (mode === "value") closeDrawer();
+  const chooseView = (mode: ScreenerTab) => {
+    // A modal drawer would otherwise float above the value/sections panel.
+    if (mode === "value" || mode === "sections") closeDrawer();
+    // Sections is not persisted: leaving it restores the previous market view.
+    if (mode === "sections") {
+      setSectionsActive(true);
+      return;
+    }
+    setSectionsActive(false);
     setViewMode(mode);
     // The market search is hidden in Movers; keeping a live filter there
     // would silently shrink the table when the user comes back. Value leaves
@@ -831,7 +1057,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         </Show>
         {/* The toolbar sits directly under the tab strip: a default "top"
             tooltip renders above the viewport and is clipped. */}
-        <Show when={viewMode() !== "value"}>
+        <Show when={viewMode() !== "value" && !sectionsActive()}>
           <Tooltip label={modeBadge().hint} position="bottom">
             <Badge
               size="xs"
@@ -843,7 +1069,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
             </Badge>
           </Tooltip>
         </Show>
-        <Show when={stale() && viewMode() !== "value"}>
+        <Show when={stale() && viewMode() !== "value" && !sectionsActive()}>
           <Tooltip
             position="bottom"
             multiline
@@ -867,7 +1093,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
             {formatNumberIN(matchCount())} / {formatNumberIN(rows().length)}
           </Text>
         </Show>
-        <Show when={viewMode() !== "value"}>
+        <Show when={viewMode() !== "value" && !sectionsActive()}>
           <Tooltip label="Refresh snapshot — fresh scan" position="bottom">
             <span>
               <ActionIcon
@@ -935,7 +1161,13 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
             </Tooltip>
           </Indicator>
         </Show>
-        <MarketViewToggle value={viewMode()} onChange={chooseView} />
+        <SegmentedControl
+          value={activeTab()}
+          onChange={(value) => chooseView(value as ScreenerTab)}
+          data={SECTION_TABS}
+          size="xs"
+          data-testid="market-view-toggle"
+        />
         <Show when={showMarketChrome()}>
           <Button
             size="xs"
@@ -986,7 +1218,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         />
       </Show>
 
-      <Show when={showWarmingHint() && viewMode() !== "value"}>
+      <Show when={showWarmingHint() && viewMode() !== "value" && !sectionsActive()}>
         <Box
           role="status"
           data-testid="market-warming-hint"
@@ -1008,7 +1240,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         </Box>
       </Show>
 
-      <Show when={showErrorBanner() && viewMode() !== "value"}>
+      <Show when={showErrorBanner() && viewMode() !== "value" && !sectionsActive()}>
         <Box
           role="alert"
           data-testid="market-error-banner"
@@ -1030,7 +1262,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         </Box>
       </Show>
 
-      <Show when={viewMode() !== "value"}>
+      <Show when={viewMode() !== "value" && !sectionsActive()}>
         <FilterStatusRow
           testId="market-active-chips"
           hasFilters={chips().length > 0 || (props.symbolAllowlist?.length ?? 0) > 0}
@@ -1088,7 +1320,12 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
         </Show>
 
         <Box className="flex-1 min-w-0 min-h-0 flex flex-col">
-          {viewMode() === "value" ? (
+          {sectionsActive() ? (
+            <SectionsView
+              market={universe() === "us" ? "america" : "india"}
+              onOpenSymbol={selectAndOpen}
+            />
+          ) : viewMode() === "value" ? (
             <Box
               data-testid="market-value-region"
               className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden"
@@ -1250,7 +1487,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
             </Show>
           )}
         </Box>
-        <Show when={isWide() && viewMode() !== "value"}>
+        <Show when={isWide() && viewMode() !== "value" && !sectionsActive()}>
           <ChartDockOutlet class="flex-shrink-0 basis-[38%] min-w-80 max-w-3xl min-h-0 flex flex-col overflow-hidden" />
         </Show>
       </Box>

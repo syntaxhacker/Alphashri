@@ -214,7 +214,7 @@ export function DockPillarsView(props: {
           type="button"
           data-testid="dock-pillars-back"
           onClick={back}
-          className="inline-flex h-[20px] shrink-0 items-center gap-1 whitespace-nowrap border border-fin-border bg-transparent px-1.5 font-mono text-ui-micro font-semibold uppercase tracking-[0.06em] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary"
+          className="inline-flex h-[20px] shrink-0 items-center gap-1 whitespace-nowrap border border-fin-border bg-transparent px-1.5 font-mono text-ui-micro font-semibold uppercase tracking-[0.06em] text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text"
           style={{ "border-radius": "4px" }}
         >
           <span aria-hidden="true">←</span>
@@ -241,7 +241,7 @@ export function DockPillarsView(props: {
                 data-testid={`dock-pillar-tab-${tab.key}`}
                 title={tab.label}
                 onClick={() => setActive(tab.key)}
-                className={`inline-flex shrink-0 items-center justify-center border-b-2 px-2 font-mono outline-none focus-visible:ring-1 focus-visible:ring-fin-primary max-sm:px-1 ${
+                className={`inline-flex shrink-0 items-center justify-center border-b-2 px-2 font-mono outline-none focus-visible:ring-1 focus-visible:ring-fin-text max-sm:px-1 ${
                   active() === tab.key
                     ? "border-fin-primary text-fin-text"
                     : "border-transparent text-fin-text-muted hover:text-fin-text"
@@ -310,7 +310,7 @@ export function DockPillarsView(props: {
           data-testid="dock-pillars-refresh"
           onClick={() => void refreshDashboard()}
           disabled={refreshing()}
-          className="inline-flex h-[16px] w-[16px] shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 font-mono text-ui-micro leading-none text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-[16px] w-[16px] shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 font-mono text-ui-micro leading-none text-fin-text-muted hover:text-fin-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text disabled:cursor-not-allowed disabled:opacity-50"
         >
           <span aria-hidden="true">⟳</span>
         </button>
@@ -343,7 +343,7 @@ export function DockPillarsView(props: {
                 aria-pressed={selectedExpiry() === expiry.date}
                 data-testid={`dock-pillars-expiry-${expiry.date}`}
                 onClick={() => chooseExpiry(expiry.date)}
-                className={`inline-flex h-[16px] shrink-0 items-center border px-1 font-mono text-ui-micro tabular-nums leading-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-primary ${
+                className={`inline-flex h-[16px] shrink-0 items-center border px-1 font-mono text-ui-micro tabular-nums leading-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text ${
                   selectedExpiry() === expiry.date
                     ? "border-fin-primary bg-fin-surface-alt text-fin-text"
                     : "border-fin-border bg-transparent text-fin-text-muted hover:text-fin-text"

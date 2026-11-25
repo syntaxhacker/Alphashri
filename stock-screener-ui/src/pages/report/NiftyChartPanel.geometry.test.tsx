@@ -1,10 +1,12 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { describe, expect, test, vi, afterEach } from "vitest";
+import { describe, expect, test, vi, afterEach, beforeAll } from "vitest";
 import { render, screen, within, cleanup } from "@solidjs/testing-library";
+import { ChartBody } from "./NiftyChartPanel.body";
 import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
+import { emaSeries } from "./niftyChartMath";
 import {
   CHART_HEIGHTS,
   NiftyChartPanel,
@@ -16,16 +18,20 @@ import {
   levelsWithinScale,
   mergeCollidingLabels,
 } from "./NiftyChartPanel";
+import { TIME_AXIS_LABEL_GUTTER_PX } from "./NiftyChartPanel.constants";
 import type { NiftyGex, NiftyReport } from "@/types/niftyReport";
+import { verdictMarkLines } from "./niftyVerdictLevels";
 
 vi.mock("@/components/chart/TradingViewChart", async () => {
-  const { onMount } = await import("solid-js");
+  const { createSignal, onMount } = await import("solid-js");
   return {
     TradingViewChart: (props: {
-      candles?: { open: number; high: number; low: number; close: number }[];
+      candles?: { open: number; high: number; low: number; close: number; time?: string }[];
       markLines?: { label: { formatter: string } }[];
       emaData?: unknown[];
       fitMarkLines?: boolean;
+      hideLastValueTag?: boolean;
+      onChartReady?: (chart: unknown) => void;
       touchMarkers?: {
         time: string;
         value: number;
@@ -34,8 +40,11 @@ vi.mock("@/components/chart/TradingViewChart", async () => {
         text?: string;
       }[];
     }) => {
+      const [labels, setLabels] = createSignal({ first: "", last: "" });
+      panelMocks.setTimeLabels = setLabels;
       onMount(() => {
         panelMocks.tvMounts += 1;
+        panelMocks.onChartReady = props.onChartReady ?? null;
       });
       const first = () => props.candles?.[0];
       return (
@@ -54,21 +63,54 @@ vi.mock("@/components/chart/TradingViewChart", async () => {
           data-touch-details={(props.touchMarkers ?? [])
             .map((m) => `${m.shape ?? "circle"}:${m.color ?? ""}:${m.text ?? ""}`)
             .join("|")}
-        />
+        >
+          <span data-testid="chart-time-first-label">{labels().first}</span>
+          <span data-testid="chart-time-last-label">{labels().last}</span>
+        </div>
       );
     },
   };
 });
 
-const panelMocks = vi.hoisted(() => ({ tvMounts: 0 }));
+const panelMocks = vi.hoisted(() => ({
+  tvMounts: 0,
+  onChartReady: null as null | ((chart: unknown) => void),
+  setTimeLabels: null as null | ((value: { first: string; last: string }) => void),
+  mobile: false,
+  mediaListeners: [] as Array<(event: { matches: boolean }) => void>,
+}));
 
 const CHART_SOURCE_KEY = "nifty.chartSource";
+
+beforeAll(() => {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: (query: string) => ({
+      matches: query.includes("max-width: 600px") ? panelMocks.mobile : false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: (_type: string, fn: (event: { matches: boolean }) => void) => {
+        panelMocks.mediaListeners.push(fn);
+      },
+      removeEventListener: (_type: string, fn: (event: { matches: boolean }) => void) => {
+        panelMocks.mediaListeners = panelMocks.mediaListeners.filter((f) => f !== fn);
+      },
+      dispatchEvent: () => false,
+    }),
+  });
+});
 
 afterEach(() => {
   cleanup();
   window.localStorage.removeItem(CHART_SOURCE_KEY);
   vi.clearAllMocks();
   panelMocks.tvMounts = 0;
+  panelMocks.onChartReady = null;
+  panelMocks.setTimeLabels = null;
+  panelMocks.mobile = false;
+  panelMocks.mediaListeners = [];
 });
 
 function r(ui: () => JSX.Element) {
@@ -111,6 +153,20 @@ function candles3() {
     { time: "2026-10-12T09:16:00", open: 25620, high: 25680, low: 25600, close: 25640, volume: 1100 },
     { time: "2026-10-12T09:20:00", open: 25640, high: 25700, low: 25610, close: 25680, volume: 1200 },
   ];
+}
+
+/** The exact 10-bar report payload used by setupNiftyReportMocks in the
+ *  index-report evidence: EMA9 seeds at bar 9 and draws a short amber segment,
+ *  EMA20 never seeds and draws nothing. */
+function reportFixtureCandles() {
+  return Array.from({ length: 10 }, (_, i) => ({
+    time: `2026-10-12T${String(9 + Math.floor((15 + i * 5) / 60)).padStart(2, "0")}:${String((15 + i * 5) % 60).padStart(2, "0")}:00`,
+    open: 22300 + i * 6,
+    high: 22320 + i * 6,
+    low: 22290 + i * 6,
+    close: 22310 + i * 6,
+    volume: 100000 + i * 1000,
+  }));
 }
 
 describe("NiftyChartPanel", () => {
@@ -508,5 +564,298 @@ describe("mergeCollidingLabels", () => {
     // MP 22700 + CW 22705 are 5 pts apart → one gutter label, no duplicates.
     expect(labels.filter((l) => l.includes("MP 22,700") || l.includes("CW 22,705"))).toHaveLength(1);
     expect(labels.join(" ")).toContain("MP 22,700 · CW");
+  });
+});
+
+describe("verdict levels on the Nifty chart", () => {
+  function verdictReport(overrides: Record<string, unknown> = {}) {
+    return mockReport({
+      spot: 25540,
+      ohlc: { open: 25600, high: 25640, low: 25520, close: 25540 },
+      maxPain: 25450,
+      walls: { calls: [], puts: [] },
+      pivots: {
+        type: "classic",
+        pp: 25600, r1: 25700, r2: 25800, r3: 25900,
+        s1: 25500, s2: 25400, s3: 25300, prev: null,
+      },
+      strength: {
+        verdict: "weak", score: 20, ema9: 25600, ema20: 25620,
+        ema50: 25680, rsi: 40, pos_in_range: 0.2,
+      },
+      gex: {
+        strikes: [], netTotal: -10, regime: "short",
+        topPositive: [], topNegative: [], zeroCross: null,
+      },
+      candles: candles3(),
+      ...overrides,
+    });
+  }
+
+  test("chart renders SELL/CUT/TGT labels from the plan", () => {
+    const report = verdictReport();
+    r(() => <NiftyChartPanel report={report} mode="live" view="chart" />);
+    const chart = screen.getByTestId("tradingview-chart");
+    const labels = chart.getAttribute("data-markline-labels") ?? "";
+    for (const code of ["SELL", "CUT", "TGT"]) expect(labels).toContain(code);
+    expect(labels).not.toContain("BUY");
+
+    const planLines = verdictMarkLines(report);
+    expect(planLines.map((l) => l.label.formatter)).toEqual(["SELL 25,520", "CUT 25,540", "TGT 25,450"]);
+    expect(Number(chart.getAttribute("data-marklines"))).toBeGreaterThanOrEqual(planLines.length);
+  });
+
+  test("replay/EOD takes verdict levels from the snapshot report with no live claim", () => {
+    const report = verdictReport({
+      mode: "eod",
+      date: "2026-11-24",
+      candles: [
+        { time: "2026-11-24T09:15:00", open: 25520, high: 25560, low: 25510, close: 25540, volume: 1000 },
+        { time: "2026-11-24T09:16:00", open: 25540, high: 25580, low: 25530, close: 25560, volume: 1100 },
+      ],
+    });
+    r(() => (
+      <NiftyChartPanel report={report} mode="eod" view="chart" asOf="2026-11-24T09:16:00" />
+    ));
+    const labels = screen.getByTestId("tradingview-chart").getAttribute("data-markline-labels") ?? "";
+    for (const code of ["SELL", "CUT", "TGT"]) expect(labels).toContain(code);
+    expect(labels).not.toContain("LIVE");
+  });
+
+  test("neutral plan adds no verdict labels to the chart", () => {
+    r(() => <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
+    const labels = screen.getByTestId("tradingview-chart").getAttribute("data-markline-labels") ?? "";
+    for (const code of ["SELL", "CUT", "TGT"]) expect(labels).not.toContain(code);
+  });
+});
+
+describe("NiftyChartPanel — named overlays and honest spot labels", () => {
+  test("the orange EMA overlay is named in a chart legend, not left to colour memory", () => {
+    const bars = reportFixtureCandles();
+    const closes = bars.map((c) => c.close);
+    // Prove the fixture is the one that produced the two-point amber segment.
+    expect(emaSeries(closes, 9).filter((v) => v != null)).toHaveLength(2);
+    expect(emaSeries(closes, 20).every((v) => v == null)).toBe(true);
+    r(() => <NiftyChartPanel report={mockReport({ candles: bars })} mode="live" view="chart" />);
+    const legend = screen.getByTestId("nifty-chart-overlay-legend");
+    expect(legend).toBeVisible();
+    expect(legend).toHaveTextContent("EMA9");
+    expect(legend).not.toHaveTextContent("EMA20");
+    const swatches = legend.querySelectorAll("[data-overlay-swatch]");
+    expect(Array.from(swatches).map((el) => (el as HTMLElement).style.backgroundColor)).toEqual([
+      palette.WARNING,
+    ]);
+    // The chart's own overlay canvas is z-index 3; a key below it is not drawn.
+    expect(Number(legend.style.zIndex)).toBeGreaterThan(3);
+    expect(legend.getAttribute("title")).toContain("EMA9");
+    expect(legend.getAttribute("title")).not.toContain("EMA20");
+  });
+
+  test("the chart boundary title separates the replay bar close from the snapshot spot", () => {
+    r(() => (
+      <NiftyChartPanel
+        report={mockReport({ candles: candles3() })}
+        mode="eod"
+        view="chart"
+        asOf="2026-10-12T09:20:00"
+      />
+    ));
+    const boundary = screen.getByTestId("nifty-chart-last-data-boundary");
+    expect(boundary.getAttribute("title")).toContain("25,680.00");
+    expect(boundary.getAttribute("title")).toContain("Replay playhead 09:20");
+    expect(boundary.getAttribute("title")).toContain("whole points");
+  });
+
+  test("a single zero-range spot tick is not a candle series: show the named empty state", () => {
+    const flatBar = {
+      time: "2026-10-12T09:15:00+05:30",
+      open: 26000,
+      high: 26000,
+      low: 26000,
+      close: 26000,
+      volume: 0,
+    };
+    render(() => (
+      <UIProvider>
+        <ChartBody
+          view="chart"
+          offlineEmpty={false}
+          sessionDate="2026-10-12"
+          chartCandles={[flatBar]}
+          candlesEverShown={true}
+          chartHeight={null}
+          fillContainer={true}
+          mpTouchesLength={0}
+          flipMarkerPresent={false}
+          patternSourceState="idle"
+          patternOverlayCount={0}
+          chartMarkLines={[{ label: { formatter: "CW 26,000" } }] as never}
+          chartEmaData={[] as never}
+          touchMarkers={[] as never}
+          lastDataBoundary="LAST DATA 09:15 · replay"
+          scanBadge={null}
+          chartSource="live"
+          scanStatus="idle"
+          chartTf="1m"
+          symbol={() => "NIFTY"}
+          onScanPatterns={() => {}}
+        />
+      </UIProvider>
+    ));
+    const empty = screen.getByTestId("nifty-chart-empty");
+    expect(empty).toHaveTextContent("No intraday candles");
+    expect(screen.getByTestId("nifty-chart-empty-slot")).toHaveAttribute(
+      "data-reason",
+      "pinned-playhead-no-candles",
+    );
+    expect(empty).toHaveTextContent("LAST DATA 09:15");
+    expect(screen.getByTestId("nifty-chart-wrap")).toHaveStyle({ display: "none" });
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-marklines", "0");
+  });
+
+  const deskBody = (ema: { label: string; color: string; data: number[] }[]) =>
+    render(() => (
+      <UIProvider>
+        <ChartBody
+          view="chart"
+          offlineEmpty={false}
+          sessionDate="2026-10-12"
+          chartCandles={candles3()}
+          candlesEverShown={true}
+          chartHeight={null}
+          fillContainer={true}
+          mpTouchesLength={0}
+          flipMarkerPresent={false}
+          patternSourceState="idle"
+          patternOverlayCount={0}
+          chartMarkLines={[] as never}
+          chartEmaData={ema as never}
+          touchMarkers={[] as never}
+          lastDataBoundary="LAST DATA 09:20 · live"
+          scanBadge={null}
+          chartSource="live"
+          scanStatus="idle"
+          chartTf="1m"
+          symbol={() => "NIFTY"}
+          onScanPatterns={() => {}}
+        />
+      </UIProvider>
+    ));
+
+  test("DESK fill path mounts the key from the exact series the engine draws", () => {
+    const closes = reportFixtureCandles().map((c) => c.close);
+    deskBody([
+      { label: "EMA9", color: palette.WARNING, data: emaSeries(closes, 9) },
+      { label: "EMA20", color: palette.PRIMARY, data: emaSeries(closes, 20) },
+    ]);
+    const wrap = screen.getByTestId("nifty-chart-wrap");
+    expect(wrap).toHaveAttribute("data-fill", "1");
+    // The engine still receives both series; only the painted one is named.
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-emas", "2");
+    const legend = screen.getByTestId("nifty-chart-overlay-legend");
+    expect(wrap).toContainElement(legend);
+    expect(legend).toHaveTextContent("EMA9");
+    expect(legend).not.toHaveTextContent("EMA20");
+    const swatches = legend.querySelectorAll("[data-overlay-swatch]");
+    expect(Array.from(swatches).map((el) => (el as HTMLElement).style.backgroundColor)).toEqual([
+      palette.WARNING,
+    ]);
+    expect(Number(legend.style.zIndex)).toBeGreaterThan(3);
+  });
+
+  test("no EMA or overlay series: no key advertises a line that is not drawn", () => {
+    deskBody([]);
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-emas", "0");
+    expect(screen.queryByTestId("nifty-chart-overlay-legend")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The engine centres the first/last `HH:MM` tick on its bar, so the plot needs
+ * a half-label gutter on each edge. `entireTextOnly` only widens the price
+ * axis; without this gutter the evidence PNGs read `:15` and `10:0` at both
+ * 1600 and 390. Model the engine's coordinate mapping from the options the
+ * panel actually pushes, then assert the whole five-glyph text in the DOM.
+ */
+describe("NiftyChartPanel — full HH:MM edge ticks", () => {
+  const FIRST = "09:15";
+  const LAST = "10:00";
+  const CHAR_PX = 7.2;
+  const HALF_LABEL_PX = 18;
+
+  type Call = { scale: string; id?: string; options: Record<string, unknown> };
+
+  function engine(width: number, barSpacing: number) {
+    const calls: Call[] = [];
+    let range: { from: number; to: number } | null = null;
+    const scale = {
+      applyOptions: (options: Record<string, unknown>) => calls.push({ scale: "time", options }),
+      setVisibleLogicalRange: (next: { from: number; to: number }) => {
+        range = next;
+      },
+      logicalToCoordinate: (logical: number) => (logical - (range?.from ?? 0)) * barSpacing,
+      options: () => ({ barSpacing }),
+    };
+    return {
+      chart: {
+        timeScale: () => scale,
+        priceScale: (id: string) => ({
+          applyOptions: (options: Record<string, unknown>) => calls.push({ scale: "price", id, options }),
+        }),
+        panes: () => [],
+      },
+      calls,
+      getRange: () => range,
+      width,
+      barSpacing,
+    };
+  }
+
+  type Model = ReturnType<typeof engine>;
+
+  function visibleTicks(model: Model) {
+    const lastPrice = [...model.calls].reverse().find((c) => c.scale === "price" && c.id === "right");
+    const lastOffset = [...model.calls].reverse().find((c) => c.scale === "time" && typeof c.options.rightOffsetPixels === "number");
+    const axis = Number(lastPrice?.options.minimumWidth ?? 88);
+    const rightOffset = Number(lastOffset?.options.rightOffsetPixels ?? 0);
+    const from = model.getRange()?.from ?? 0;
+    // Bar centre distances: the first from the plot's left edge, the last from
+    // its right edge (the right offset is measured from the whole chart, so the
+    // price axis width is subtracted).
+    const firstGap = Math.round(-from * model.barSpacing);
+    const lastGap = Math.round(rightOffset - axis);
+    const shown = (text: string, gap: number, clipLeft: boolean) => {
+      const chars = Math.min(text.length, Math.max(0, Math.floor((gap + HALF_LABEL_PX) / CHAR_PX)));
+      return clipLeft ? text.slice(text.length - chars) : text.slice(0, chars);
+    };
+    return { first: shown(FIRST, firstGap, true), last: shown(LAST, lastGap, false), firstGap, lastGap };
+  }
+
+  async function measure(width: number, mobile: boolean) {
+    panelMocks.mobile = mobile;
+    const model = engine(width, width > 600 ? 18 : 27);
+    r(() => <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
+    panelMocks.onChartReady!(model.chart);
+    // The range pin runs on a microtask and two timers (0ms and 120ms).
+    await new Promise((resolve) => setTimeout(resolve, 160));
+    const ticks = visibleTicks(model);
+    panelMocks.setTimeLabels!({ first: ticks.first, last: ticks.last });
+    return { ticks, model };
+  }
+
+  test("1600 desktop reserves a full HH:MM gutter on both time-axis edges", async () => {
+    const { ticks } = await measure(1600, false);
+    expect(screen.getByTestId("chart-time-first-label")).toHaveTextContent(FIRST);
+    expect(screen.getByTestId("chart-time-last-label")).toHaveTextContent(LAST);
+    expect(ticks.firstGap).toBeGreaterThanOrEqual(TIME_AXIS_LABEL_GUTTER_PX);
+    expect(ticks.lastGap).toBeGreaterThanOrEqual(TIME_AXIS_LABEL_GUTTER_PX);
+  });
+
+  test("390 monitor reserves a full HH:MM gutter on both time-axis edges", async () => {
+    const { ticks } = await measure(390, true);
+    expect(screen.getByTestId("chart-time-first-label")).toHaveTextContent(FIRST);
+    expect(screen.getByTestId("chart-time-last-label")).toHaveTextContent(LAST);
+    expect(ticks.firstGap).toBeGreaterThanOrEqual(TIME_AXIS_LABEL_GUTTER_PX);
+    expect(ticks.lastGap).toBeGreaterThanOrEqual(TIME_AXIS_LABEL_GUTTER_PX);
   });
 });

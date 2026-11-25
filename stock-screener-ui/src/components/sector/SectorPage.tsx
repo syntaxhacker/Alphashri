@@ -273,7 +273,7 @@ function SectorPerformancePanel(props: { sectors: SectorItem[] }) {
         aria-label="Sector performance table, scroll sideways for all columns"
         tabIndex={0}
         onKeyDown={onSectorTableRegionKeyDown}
-        className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto overscroll-x-contain focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
+        className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto overscroll-x-contain focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-text"
       >
         <SectorTable sectors={props.sectors} />
       </Box>

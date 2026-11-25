@@ -159,7 +159,7 @@ export function AccordionControl(props: UIAccordionControlProps) {
 
   const cls = cn(
     "ui-accordion-control",
-    "flex w-full items-center gap-2 px-3 py-[6px] text-left text-ui-label font-medium text-fin-text bg-transparent border-none outline-none focus-visible:ring-1 focus-visible:ring-fin-primary cursor-pointer hover:bg-fin-surface-alt",
+    "flex w-full items-center gap-2 px-3 py-[6px] text-left text-ui-label font-medium text-fin-text bg-transparent border-none outline-none focus-visible:ring-1 focus-visible:ring-fin-text cursor-pointer hover:bg-fin-surface-alt",
     known.className,
   );
 

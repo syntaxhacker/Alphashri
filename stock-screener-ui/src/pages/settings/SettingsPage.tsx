@@ -216,7 +216,12 @@ export function SettingsPage() {
             </Text>
           </div>
           <span
-            class="relative inline-flex items-center gap-2 text-sm leading-none cursor-pointer select-none"
+            class={cn(
+              "relative inline-flex items-center gap-2 text-sm leading-none cursor-pointer select-none",
+              "relative inline-block shrink-0 flex items-center rounded-full border border-fin-border bg-fin-surface transition-colors duration-200 h-5 w-9",
+              showMarketTicker() ? "bg-fin-positive" : "",
+              "peer-checked:bg-fin-positive peer-focus-visible:ring-1 peer-focus-visible:ring-fin-text",
+            )}
             data-testid="market-ticker-toggle"
             onClick={(e) => {
               if (!(e.target instanceof HTMLInputElement)) setShowMarketTicker((v) => !v);

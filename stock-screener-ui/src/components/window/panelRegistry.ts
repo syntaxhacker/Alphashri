@@ -157,7 +157,19 @@ export const WINDOW_PANELS: DockPanelSpec[] = [
   SECTOR_MOVERS_PANEL,
   SECTOR_ROTATION_PANEL,
 ];
-export const WINDOW_PANEL_TYPES: ReadonlySet<string> = new Set(
+/**
+ * Live set: dynamic panels join the same registry the desk and normalizer read.
+ * A saved layout may pin a section that has since been deleted. Those ids must
+ * survive normalization so the desk can render a named empty state instead of
+ * silently dropping the window (the generic unknown-panel fallback is not one).
+ */
+class PanelTypeSet extends Set<string> {
+  has(value: string): boolean {
+    return value.startsWith("section:") || super.has(value);
+  }
+}
+
+export const WINDOW_PANEL_TYPES: Set<string> = new PanelTypeSet(
   WINDOW_PANELS.map((spec) => spec.id),
 );
 
@@ -165,6 +177,36 @@ const BY_TYPE = new Map(WINDOW_PANELS.map((spec) => [spec.id, spec]));
 
 export function getPanelSpec(type: string): DockPanelSpec | undefined {
   return BY_TYPE.get(type);
+}
+
+/**
+ * The only write path to the desk registry. User sections register their specs
+ * here instead of mounting a second window manager; re-registering an id replaces
+ * the spec in place so an open window picks up a renamed section on its next
+ * layout commit without being torn down.
+ */
+export function registerPanelSpecs(specs: readonly DockPanelSpec[]): void {
+  for (const spec of specs) {
+    const existing = BY_TYPE.get(spec.id);
+    if (existing) {
+      const index = WINDOW_PANELS.findIndex((candidate) => candidate.id === spec.id);
+      if (index >= 0) WINDOW_PANELS[index] = spec;
+    } else {
+      WINDOW_PANELS.push(spec);
+      WINDOW_PANEL_TYPES.add(spec.id);
+    }
+    BY_TYPE.set(spec.id, spec);
+  }
+}
+
+/** Test/isolation seam — never called from a live page while windows are open. */
+export function unregisterPanelSpecs(ids: readonly string[]): void {
+  for (const id of ids) {
+    const index = WINDOW_PANELS.findIndex((candidate) => candidate.id === id);
+    if (index >= 0) WINDOW_PANELS.splice(index, 1);
+    WINDOW_PANEL_TYPES.delete(id);
+    BY_TYPE.delete(id);
+  }
 }
 
 const escapeHtml = (value: string): string =>
