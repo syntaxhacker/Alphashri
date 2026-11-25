@@ -84,6 +84,14 @@ Existing `@/ui` mocks are debt: retire one when you touch the file. Do not add n
   market hours and takes >15 min, which is how tests stop being run at all.
 - Playwright: always pass a file filter. `--workers=4`, `--output=/tmp/...`.
 
+### Test-process rules (fast path)
+
+- Scoped tests run during lanes; one full suite at the end (or CI equivalent); never a full suite between waves.
+- One canonical longest-window fixture per feature, sliced to 3Y/5Y/10Y; assert latest ranks, `as_of`, `transition_n`, seasonality `n` and risk values stay coherent across slices.
+- Put visual-invariant checks in the feature E2E or capture checker, never as one-off manual review.
+- On a <16 GB host the full suite uses one worker; a worker termination is an infrastructure error, not a pass.
+- Slow tests should be scoped, sharded or automated, not deleted or unmarked; time-optimization principle: [`AGENTS.md` §5](./AGENTS.md#5-fast-path-same-gates-fewer-passes).
+
 ### Skip-suite env vars (pre-commit hooks)
 
 ```bash
@@ -102,6 +110,7 @@ Never use these to hide a failure — only to skip suites your diff cannot affec
 - A pure helper's tests live beside the helper, not beside its consumer.
 - E2E in `tests/e2e/*.spec.ts`.
 - Backend in `tests/**/test_*.py`.
+- Feature mock data lives in `<feature>/testFixtures.ts` (e.g. `src/components/paper-trading/testFixtures.ts`); one fixture module per feature, never duplicated payloads. The shared ECharts capture mock belongs in `src/test-utils/echartCapture.tsx`; import it instead of forking per-test mocks.
 
 ---
 

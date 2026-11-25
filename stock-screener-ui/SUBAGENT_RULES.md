@@ -10,8 +10,8 @@ Sibling docs: `AGENTS.md` (repo rules), `LAYOUT_CONTRACT.md` (layout acceptance)
 
 | Role | Owns |
 |---|---|
-| Main agent | Brief authoring, review, integration, **only git actor**, screenshots, approver |
-| Subagent | Scoped implementation inside one brief; reports to main, never to the user |
+| Main agent | Brief authoring, review, integration, **only git actor**, verifier dispatch, approver |
+| Subagent | Scoped implementation inside one brief, including its screenshots; reports to main, never to the user |
 | Independent verifier | Read-only, separate session; grades screenshots + running UI per `UI_RULES.md` §7 |
 | Approver | Main agent (or named human); records the verifier's A+ verdict; no self-approval |
 
@@ -22,31 +22,14 @@ Sibling docs: `AGENTS.md` (repo rules), `LAYOUT_CONTRACT.md` (layout acceptance)
 
 ### Visual verifier + approver (UI work)
 
-- **Independence.** The implementing agent, or anyone who authored a changed file, may not verify or
-  approve the visuals. The main agent dispatches a **read-only verifier in a separate session** after
-  the 1600/390 screenshots exist.
-- **Verify the product, not the tests.** The verifier opens every PNG and exercises the running UI
-  (legend/tooltip, selectors, keyboard/focus, 390 overflow). Code, tests, build and Storybook are
-  supporting evidence only. The verifier edits nothing and starts no server or build.
-- **Grade, don't bless.** Return A+/A/B/C/F against `UI_RULES.md` §7.3, with exact file:line and
-  screenshot coordinates plus the required fix. A/B/C/F are FAIL; "looks fine" and "minor" are not
-  verdicts.
-- **First read.** Quote one "How to read" sentence per chart and record `naive first read: checked`.
-  If it needs a colour legend, hover or a paragraph, the chart fails.
-- **Loop until A+.** The implementer implements **every** suggestion, recaptures and resubmits; the
-  verifier regrades. The implementer never re-grades or triages a defect down. A user-rejected chart
-  voids the prior A+ and restarts the loop.
-- **Approver and commit gate.** The main agent records the A+ verdict; it cannot approve a change it
-  implemented or verified. No `git commit`, `git push`, or PR before that record exists.
-- **Evidence is replaced, never appended.** Every UI update replaces the affected evidence; never
-  append a new screenshot while leaving the old one in place. Superseded files are removed from the
-  branch/worktree in the same commit, so the tracked `docs/screenshots/<feature>/` folder holds only
-  files referenced by the current PR. The PR body and every evidence comment name only current
-  files; delete or edit comments referencing removed images. Before push: every embedded raw URL
-  returns **200**, every removed filename returns **404**, and the PR's image list exactly matches
-  the tracked evidence folder. A stale/removed image, orphan screenshot, or old comment reference
-  blocks the PR until fixed, and the verifier grades only current files (`UI_RULES.md` §7.2). Any UI
-  change invalidates the A+ verdict — fresh captures and a regrade are mandatory.
+- **Independence.** The implementer captures the screenshots; a separate read-only verifier that
+  authored none of the changed files grades the PNGs plus the running UI.
+- **Grade, don't bless.** One A+/A/B/C/F grade with every defect at exact file:line + screenshot coordinates and its fix; A/B/C/F are FAIL, not `looks fine`/`minor`. Implement **every** item, recapture and regrade until A+; a user rejection voids A+.
+- **Approver and commit gate.** The main agent records A+ as approver and is the sole git actor; no
+  self-verification or self-approval. No commit, push or PR before A+; only A+ ships, and any later UI change voids it.
+
+Roles, rubric, caps, first-read rule and verdict format: [`UI_RULES.md` §7](./UI_RULES.md#7-visual-review-gate-independent-verifier--approver).
+Capture matrix, naming, manifest and replacement checks: [`docs/SCREENSHOT_EVIDENCE.md`](./docs/SCREENSHOT_EVIDENCE.md).
 
 ### Enforcement
 
@@ -61,7 +44,7 @@ Sibling docs: `AGENTS.md` (repo rules), `LAYOUT_CONTRACT.md` (layout acceptance)
   same turn, (b) state `MAIN-AGENT EXCEPTION: <reason>` in that turn, (c) list every file
   touched. Missing any one of the three = no edit. A "small integration fix" is not an exception.
 - **Verification ≠ implementation.** Running build/lint/typecheck/targeted tests/OpenAPI
-  export/screenshots and reading output is allowed; changing the code under test to make a
+  export/screenshot review and reading output is allowed; changing the code under test to make a
   check pass is forbidden.
 - **Attribution.** Every edited file must map to a named subagent session in the main agent's
   report.
@@ -104,6 +87,19 @@ Parallel agents share one worktree, so two agents editing one file corrupt each 
 Before your first edit, run `git status --porcelain` and check your lane against it. If a
 file you own is already modified by someone else, **report it and skip it** — do not revert
 or "fix" their work.
+
+### Fast-path dispatch contract
+
+The compressed-pass runbook is [`AGENTS.md` §5](./AGENTS.md#5-fast-path-same-gates-fewer-passes); this section owns its ownership and dispatch rules.
+
+- Before dispatch, publish an ownership matrix. Every shared file — `AppLayout`, `TanStackTable`, shared toggles, E2E specs, evidence/capture scripts and generated specs — has exactly one owner.
+- Every brief lists `OWN` and `DO NOT TOUCH`. An agent that needs a file outside its ownership stops and reports the path; it does not edit it.
+- Cross-file wiring goes to the dedicated integration lane, never "whoever notices."
+- Agents run scoped tests only; they do not run the full suite, build, or start servers.
+- UI agents report `VISUAL FREEZE` after their last source edit; no capture starts until every UI lane has frozen.
+- Product defects go back to the owner; integration defects go to the integration lane.
+- If a gate is slow, propose a faster equivalent check rather than skipping or weakening it; see `AGENTS.md` §5 rule 9.
+- Visual gate: [`UI_RULES.md` §7](./UI_RULES.md#7-visual-review-gate-independent-verifier--approver); do not restate the rubric.
 
 ---
 
@@ -272,7 +268,7 @@ same defect: it reads as the same thing but cannot be retuned together.
 **A tint means something.** Red is error/bearish, never "informational" and never "selected":
 `ORB_AREA`/`IV_AREA_*` (range and IV bands) read INFO blue; `BOT_SELECTED_BG` reads PRIMARY.
 
-Screenshots are captured by the main agent or implementer; only an independent verifier grades them (`UI_RULES.md` §7). A subagent never self-approves.
+Screenshots are captured by the implementer; only an independent verifier grades them (`UI_RULES.md` §7). A subagent never self-approves.
 
 ---
 

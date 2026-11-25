@@ -83,9 +83,10 @@ Mantine-only props are silently dropped — that is the root cause of "stretched
 
 ## 7. Visual Review Gate (independent verifier + approver)
 
-A green build, tests, typecheck or CI are **not** visual evidence and never visual approval. Every
-UI change needs an independent verifier's grade and a recorded approver decision; **only A+ ships**.
-Evidence rules: `docs/SCREENSHOT_EVIDENCE.md`.
+A green build, tests, typecheck or CI is **not** visual evidence and never visual approval. Every UI
+change needs an independent verifier's grade and a recorded approver decision; **only A+ ships**.
+Evidence mechanics — capture matrix, naming, manifest, replacement and URL checks — are in
+[`docs/SCREENSHOT_EVIDENCE.md`](./docs/SCREENSHOT_EVIDENCE.md).
 
 ### 7.1 Roles
 
@@ -95,24 +96,18 @@ Evidence rules: `docs/SCREENSHOT_EVIDENCE.md`.
 | Independent verifier | Read-only review of actual screenshots + running UI; one grade and defect list | Edit a changed file, add evidence, or be an implementer of the change |
 | Approver | Accepts/rejects the verdict and records the decision | Approve their own implementation or their own verification |
 
-- The verifier is a **separate session** dispatched by the main agent after the screenshots exist,
-  and authored none of the changed files. A main agent that implemented the change cannot verify or
-  approve it.
-- The approver is the main agent (or a named human). Approval is a recorded A+ verdict, never a
-  verbal "looks good". If the main agent also verified, a different approver is required.
-- No averaging, waivers or self-approval. Any change to UI files after a verdict voids it.
+- The verifier is a **separate session** the main agent dispatches after the screenshots exist and authored none of the changed files; a main agent that implemented the change cannot verify or approve it.
+- The approver is the main agent (or a named human); approval is a recorded A+ verdict, never a verbal "looks good". If the main agent verified, a different approver is required. No averaging, waivers or self-approval; any UI file change after a verdict voids it.
+- The main agent is the **sole git actor**; subagents never commit, push or open PRs.
 
 ### 7.2 Evidence first
 
-- **1600×1000** and **390×844**: loaded, loading, error, empty, plus one capture per selector
-  option / mode / tab the change touches.
-- The verifier opens every PNG **and exercises the running UI**: legend/tooltip, selectors,
-  keyboard/focus, 390 overflow. Screenshots alone cannot prove interaction.
-- The verifier uses the app the main agent already runs; it starts no server and runs no build.
-- Code, tests, build/lint output, DOM dumps and Storybook are supporting evidence only; they do not
-  show layout, legibility, hierarchy or usability.
-- Missing, unopened, unreadable or stale (not final HEAD) evidence leaves that state unreviewed →
-  **max B**. No screenshots or no verifier access to the running UI → **F**.
+- **Visual freeze.** No capture until every UI lane reports `VISUAL FREEZE`; a later UI edit voids the freeze and the affected captures.
+- **Mechanical pre-checks.** The set must pass automated checks for clipped text/boxes beyond their panel or scrollport, duplicate or missing scroll cues (exactly one visible cue per horizontal scroller), active-toggle styling, duplicate or rounded axis ticks, as-of/latest-month mismatch, transition-count mismatch, `-0.0%`/`NaN`/`undefined`, and blank canvases. The verifier sees only a passing set and still grades the actual PNGs.
+- **Selective recapture.** After a blocker fix, recapture only affected states with `--only <state>`; a full-set recapture is required only for a global change.
+- The verifier opens every committed PNG **and exercises the running UI** (legend/tooltip, selectors, keyboard/focus, 390 overflow); screenshots alone cannot prove interaction. It uses the app the main agent already runs and starts no server or build.
+- Code, tests, build/lint output, DOM dumps and Storybook are supporting evidence only; they do not show layout, legibility, hierarchy or usability.
+- Missing, unopened, unreadable or stale (not the final UI HEAD) evidence leaves that state unreviewed → **max B**. No screenshots or no verifier access to the running UI → **F**.
 
 ### 7.3 A+ rubric
 
@@ -126,17 +121,9 @@ Evidence rules: `docs/SCREENSHOT_EVIDENCE.md`.
 | **Accessibility** | `role`/title/desc, keyboard/focus, contrast, and no colour-only meaning. |
 | **Data honesty** | Units, denominators, `n`, cached/as-of labels; no invented values. |
 
-- Score every dimension on every state and viewport. A+ requires all seven clean; there is no
-  "strong overall" average.
-- A miss in any dimension means below A+. The caps in §7.4 still apply.
-- **First read is mandatory.** The verdict quotes one "How to read" sentence per chart and records
-  `naive first read: checked`. If that sentence needs a colour legend, hover or a paragraph, the
-  chart fails → **max B**.
-- **Direct labels, not colour memory.** Multi-series time/rank charts label series directly; colour
-  is supporting only. If historical values can only be decoded by matching colours, it fails first read.
-- **Preferred patterns for dense series:** D3-gallery-style small multiples (one panel per series),
-  bump charts with direct end labels, or one highlighted series with muted context. Never 10 equal
-  lines in one frame.
+- Score every dimension on every state and viewport. A+ requires all seven clean; there is no "strong overall" average and a miss in any dimension is below A+ (caps in §7.4 still apply).
+- **First read is mandatory.** Quote one "How to read" sentence per chart and record `naive first read: checked`; needing a colour legend, hover or a paragraph → **max B**.
+- **Direct labels, not colour memory.** Multi-series time/rank charts label series directly; colour is supporting only. Values decodable only by matching colours fail first read. Prefer small multiples, bump charts with direct end labels, or one highlighted series with muted context; never 10 equal lines in one frame.
 
 ### 7.4 Grades, caps and automatic fails
 
@@ -149,15 +136,10 @@ Evidence rules: `docs/SCREENSHOT_EVIDENCE.md`.
 | **F** | Misleading, broken, unreadable or unreviewable. |
 
 Caps apply even when everything else is polished:
-- More than ~6 line series without hierarchy → **max C**. A grey 10-line bump chart is the canonical case.
-- Multi-series rank/time chart not using ECharts (no documented material advantage) → **max B**.
-- Clipped or unreadable 390px labels → **max B**.
-- Missing loaded/loading/error/empty or selector state → **max B**.
-- Colour-coded historical cell matrix needing >6 colours matched across many columns (e.g. a
-  10-colour × 180-block rotation matrix), even with tooltips → **max B**. Prefer small multiples,
-  bump charts or direct labels.
-- Misleading data or unlabeled axes → **F**.
-- No screenshots, or no verifier access to the running UI → **F**.
+- More than ~6 line series without hierarchy → **max C**. A grey 10-line bump chart is the canonical case. A multi-series rank/time chart not using ECharts (no documented material advantage) → **max B**.
+- Clipped/unreadable 390px labels, or a missing loaded/loading/error/empty/selector state → **max B**.
+- A colour matrix needing >6 colours matched across columns (e.g. 10-colour × 180-block rotation), even with tooltips → **max B**. Prefer small multiples, bump charts or direct labels.
+- Misleading data, unlabeled axes, no screenshots, or no verifier access to the running UI → **F**.
 
 `A`, `B`, `C` and `F` are all **FAIL** for commit/PR. No "ship with follow-ups", no "accepted debt".
 
@@ -170,51 +152,27 @@ Approver: <main agent / named human> — <approved | rejected>
 Scope + HEAD: <sha, routes, selectors/modes>
 How to read (one per chart):
 - <chart> — "<one sentence>" — naive first read: checked
-Screenshots reviewed:
-- <path> — 1600×1000 — <state/mode>
-- <path> — 390×844 — <state/mode>
-Rubric: First read <...> · Usefulness <...> · Hierarchy/spacing <...> · Chart choice <...> ·
-States <...> · Accessibility <...> · Data honesty <...>
+Screenshots reviewed: <path> — 1600×1000 — <state>; <path> — 390×844 — <state>
+Rubric: First read <...> · Usefulness <...> · Hierarchy/spacing <...> · Chart choice <...> · States <...> · Accessibility <...> · Data honesty <...>
 Defects:
 - <severity> — <file:line> — <screenshot path + x,y region> — <what is wrong> — <required fix>
 Required before regrade: <numbered list of every defect and suggestion; "none" only for A+>
 ```
 
-- The verdict lists every screenshot it relies on with viewport and state; no unreferenced claims.
-- A non-A+ defect names exact file:line (or the computed element/selector), the screenshot path +
-  x,y region, and the required fix.
+- The verdict lists every screenshot it relies on with viewport and state, and every non-A+ defect
+  names exact file:line (or element/selector), screenshot path + x,y region, and the required fix.
 - `looks fine`, `minor`, `acceptable`, `P2`, or a grade with open suggestions is not a verdict.
 
-### 7.6 Loop, record and commit gate
+### 7.6 Loop, record and commit/PR gate
 
-1. The implementer captures every screenshot at final HEAD.
-2. The main agent dispatches the verifier (§7.1).
-3. The verifier grades and lists every defect and suggestion.
-4. The implementer implements **all** of them, recaptures and resubmits. No triage, no waivers.
-5. The verifier regrades the fresh screenshots. Repeat until A+.
-6. The approver records the grade, verifier, approver and screenshot paths.
+1. The implementer captures every screenshot at the final UI HEAD; the main agent dispatches the verifier (§7.1).
+2. The verifier grades and lists every defect and suggestion.
+3. The implementer implements **all** of them, recaptures and resubmits. No triage, no waivers.
+4. The verifier regrades the fresh screenshots. Repeat until A+.
+5. The approver records the grade, verifier, approver and screenshot paths.
 
-- **No `git commit`, `git push`, or PR before the A+ verdict is recorded.** Record it in the PR body
-  (or commit message) with every screenshot path.
-- Any later UI change invalidates the verdict; re-review is mandatory at the new HEAD.
-- A user rejection of any chart voids the prior A+ immediately; the change is blocked and re-reviewed
-  at the new HEAD, even if nothing in the code changed.
-- The main agent must not merge, PR, or call a UI change done at A/B/C/F or with a missing verdict.
-  Green CI never overrides.
-
-### 7.7 Evidence replacement (no stale images)
-
-1. **Replace, never append.** Every UI update replaces the affected evidence; never add a new
-   screenshot while leaving the old one in place.
-2. **Remove in the same commit.** Delete superseded screenshots from the branch/worktree in the
-   same commit as the UI change. The tracked `docs/screenshots/<feature>/` folder contains only
-   files referenced by the current PR.
-3. **Current references only.** Update the PR body and every evidence comment to the current
-   filenames. Delete or edit old comments that reference removed images.
-4. **Check before pushing.** Every embedded raw URL returns **200**, every removed filename returns
-   **404**, and the PR's image list exactly matches the tracked evidence folder.
-5. **Blocker.** A stale/removed image, orphan screenshot, or old comment reference blocks the PR
-   until fixed. Stale evidence is also unreviewable → **max B** (§7.2).
-6. **Verdict reset.** Any UI change invalidates the A+ verdict; fresh captures and a regrade are
-   mandatory at the new HEAD.
+- **No `git commit`, `git push`, or PR before A+ is recorded.** Record grade, verifier, approver and every screenshot path in the PR body (or commit message).
+- Any later UI change — or a user rejection of any chart — voids the A+; re-review at the new HEAD is mandatory even if no code changed.
+- Superseded evidence is removed in the same commit, the PR body/comments name only current files, and the 200/404/folder-match checks pass before push (mechanics in the evidence doc at the top).
+- The main agent must not merge, PR, or call a UI change done at A/B/C/F or with a missing verdict. Green CI never overrides.
 

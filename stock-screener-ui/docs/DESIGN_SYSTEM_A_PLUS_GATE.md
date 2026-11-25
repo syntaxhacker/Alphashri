@@ -2,7 +2,11 @@
 
 **Goal:** reach an **A+ score for the dark-only financial-terminal design system**, not Ant Design parity. Light mode, i18n/RTL and SSR are explicitly out of scope by product decision.
 
-This file is the loop contract. We do not mark the design-system task finished until the gate below is met.
+This file is the design-system scorecard and loop contract. The visual gate itself — roles, the
+seven-dimension rubric, caps and verdict format — is
+[`UI_RULES.md` §7](../UI_RULES.md#7-visual-review-gate-independent-verifier--approver). This file
+adds only the design-system dimensions below; do not restate or reinterpret §7 here. We do not mark
+the design-system task finished until §7 records an A+.
 
 ## Scope-adjusted A+ definition
 
@@ -21,15 +25,18 @@ This file is the loop contract. We do not mark the design-system task finished u
 | Performance | 8/10 | no new runtime deps, CSS-only motion, no layout thrash, bundle budget no regression |
 | i18n / RTL / light / SSR | N/A | explicitly out of scope; documented, not silently broken |
 
-A+ is the **median of three independent raters**, each scoring the table above from source, tests, Storybook and screenshots. Self-scoring by the implementation agent does not count.
+An A+ requires every in-scope dimension to meet its target **and** the
+[`UI_RULES.md` §7.3 rubric](../UI_RULES.md#73-a-rubric) to be clean in every state and viewport. The verdict comes from one independent verifier; the approver (main agent or named human)
+records it. There is no averaging, no median across raters, no self-scoring by the implementing
+agent and no self-approval. Only A+ ships.
 
 ## Loop
 
-1. Run **3 disjoint fix agents** on P0/P1 gaps.
-2. Integrate and verify: typecheck, lint, targeted tests, axe gate, Storybook build, 1600/390 screenshots.
-3. Run **3 independent rating agents** (no edit permission) against this table.
-4. If median < 9 on any in-scope dimension, or any P0/P1 remains, open the next 3-agent wave.
-5. Repeat until the median is ≥ 9 on every in-scope dimension and no P0/P1 remains.
+1. The implementer closes P0/P1 gaps in the design-system scorecard.
+2. The implementer integrates and verifies: typecheck, lint, targeted tests, axe gate, Storybook build, 1600/390 screenshots.
+3. The main agent dispatches one **independent verifier** (read-only, authored no changed files) against this table and the §7 rubric.
+4. A miss on any in-scope dimension, or any remaining P0/P1, sends the work back to the implementer. Repeat until the verifier records A+.
+5. The approver records the A+ verdict, verifier, approver and screenshot paths. The main agent is the **sole git actor** and commits/opens the PR only after A+ is recorded.
 6. Only then mark the task finished.
 
 ## Current known gaps (as of 2026-11-24, at HEAD `the final evidence commit`; see composition wave below)
@@ -47,44 +54,24 @@ Resolved since the first draft (verified against source/CI, not memory):
 Still open — keep the A+ verdict honest:
 
 - **Token contract (dark-only).** With one colour scheme, static semantic palette imports are the intended contract; `tokenColor`/`useTokenColor` exist for the cases that must read a computed CSS variable. The guard is the absence of raw hex outside `palette.ts` (asserted by `theme-single-source.test.ts`), not call-site counts. This is a scope correction, not a claim that every chart was migrated to a runtime accessor.
-- **API callback conventions (resolved).** `onChange` is value-based across the input family, including `Checkbox`/`Switch`/`Chip` (`boolean`); `onClick` is the `UIBaseProps` `MouseEvent` handler on every control, including `NavLink`, `Menu.Item` and `CloseButton`. No void overrides remain — reopen this only with a new independent rating.
+- **API callback conventions (resolved).** `onChange` is value-based across the input family, including `Checkbox`/`Switch`/`Chip` (`boolean`); `onClick` is the `UIBaseProps` `MouseEvent` handler on every control, including `NavLink`, `Menu.Item` and `CloseButton`. No void overrides remain — reopen this only with a new independent verification.
 - **Visual regression baseline.** Browser axe now covers **30 stories** including rendered contrast, and the keyboard walkthrough covers **10 interactions**; `docs/COMPONENT_AUDIT.md` reports **100 audited modules, 96 story files / 403 story entries, 88/100 modules with a story, 100/100 with a co-located test and 0 violations** (modules with no standalone story are composition-only helpers documented in `docs/COMPONENT_AUDIT_EXCEPTIONS.md`). The automated 1600/390 image-diff harness (`scripts/visual-regression.mjs`, `bun run visual:test`, plus the `Verify Storybook visual baseline` CI step added in `ff939b9a`) is in place, and its 12 baseline PNGs (6 stories × 2 viewports) are generated and committed under `tests/visual/__screenshots__/`; `bun run visual:test` passes **12/12**, so the pixel gate is green. The Storybook showcase is captured by `scripts/storybook-showcase.mjs` (width 1600 / 390, height ≥ viewport — some full-page, some viewport-sized), and app-route captures are 1600×1000 / 390×844 by `tests/e2e/design-evidence.spec.ts`, which reproduces the checked-in `docs/screenshots/app/report-{1600,390}.png` when run with `SCREENSHOT_EVIDENCE=1`.
 - **Coverage is scoped, not universal.** `docs/COMPONENT_AUDIT.md` reports **100 audited modules, 96 story files / 403 story entries, 88/100 with a story, 100/100 with a co-located test, 0 violations**; the 12 modules without a standalone story are context providers, error boundaries, chart adapters and similar composition-only helpers listed in `docs/COMPONENT_AUDIT_EXCEPTIONS.md`. "story: yes" means one exported name is imported, not that every state is reviewed.
 - DatePicker is intentionally single-date; no range/time/locale.
 - Tooltip requires a focusable child unless the opt-in tab stop is used.
 - Screenshots are current at `the final evidence commit` (62/62, 1600/390 read-back **DONE**).
 
-## Index Report independent rating — prior panel and current status
+## Prior review — historical, superseded
 
-Three read-only raters reviewed the **pre-fix** committed report pair at `6d25b3c8` and scored **7 / 8.5 / 8** — **not A++**. No P0 was found; the remaining P1s were mobile pre-chart chrome, duplicated closed-state signalling, mobile chain window and the final polish items. That panel is historical and was taken before the composition wave; it is **not** a verdict on the current tree.
+An earlier review wave scored the pre-fix tree at `6d25b3c8` as **7 / 8.5 / 8** — **not A+**. It found no P0; the remaining P1s were mobile pre-chart chrome, duplicated closed-state signalling, mobile chain window and the final polish items. That review predates the composition wave and is **not** a verdict on the current tree.
 
-For the current tree at `the final evidence commit`, the final 1600/390 read-back is **DONE** and the final polish tree has **not been re-rated**. The last three-rater panel scored **7 / 8.5 / 8** and is **not A++**. No A++ / A+ certification is claimed. Do not close the gate until a fresh three-rater panel scores every dimension ≥ 9 with zero P0/P1.
+For the current tree at `the final evidence commit`, the final 1600/390 read-back is **DONE** and the final polish tree has **not been re-verified** under `UI_RULES.md` §7. No A+ certification is claimed. Do not close the gate until one independent verifier records A+, the approver records it, and no P0/P1 remains.
 
-## Prior independent rating — 2026-11-23 (pre-fix wave, superseded)
+The 2026-11-23 P5 per-dimension scores are retained in git history only; the retired panel process does not certify or block the current tree. Only the §7 verdict does.
 
-Three read-only raters scored the P5 tree. **Not A+**: no P0, multiple P1s. This table is historical; it is superseded by the fresh rating on the final tree, which is not yet run, never by implementer self-scoring.
+## Index Report composition wave — 2026-11-23 (post-review; read-back DONE, A+ NOT CERTIFIED)
 
-| Dimension | Target | Rater 1 | Rater 2 | Rater 3 |
-|---|---:|---:|---:|---:|
-| Tokens / theme | 9 | 7.5 | — | — |
-| Typography | 9 | 6.5 | — | 7 |
-| API consistency | 9 | 5.5 | — | — |
-| Forms | 8 | 8.0 | — | — |
-| Performance | 8 | 8.0 | — | — |
-| Accessibility | 9 | — | 8.0 | — |
-| Overlays | 9 | — | 8.5 | — |
-| Data display | 9 | — | 8.0 | 7 |
-| Test strategy | 9 | — | 8.0 | — |
-| Component completeness | 9 | — | 8.0 | — |
-| Documentation | 9 | — | — | 7 |
-| Visual confidence | 9 | — | — | 7 |
-| Evidence quality | 6 | — | — | 6 |
-
-The P1 set driving that wave: primitive rem size aliases (now fixed — `Text/Title/Anchor/List` resolve through `TYPE_CLASS` on the shared scale), event-vs-value input callbacks (now fixed — value-based `onChange`, event-based `onClick`), void `onClick` overrides (now fixed — `NavLink`/`Menu.Item`/`CloseButton` inherit `UIBaseProps.onClick`), swallowed legacy props (now fixed — `InputProps`, Select compat props and Tooltip `withinPortal` are gone from every public type), vertical Tabs keyboard, Menu/Popover disclosure ARIA, missing primitive tests, and an advertised-but-unimplemented Tabs/overlay prop surface. This section is superseded only by the fresh independent rating now pending on `the final evidence commit`, never by implementer self-scoring.
-
-## Index Report composition wave — 2026-11-23 (post-rating; read-back DONE, fresh rating NOT CERTIFIED)
-
-Source changes landed on `/report/index` **after** the rating above. This section records the work, not a score: **no A+ and no A++ verdict is claimed here.** The contract is `docs/INDEX_REPORT_DENSITY.md`; its §3 heading "Final A++ composition" names a target shape, not an achieved grade.
+Source changes landed on `/report/index` **after** the review above. This section records the work, not a score: **no A+ verdict is claimed here.** The contract is `docs/INDEX_REPORT_DENSITY.md`; its §3 composition target names a target shape, not an achieved grade.
 
 | Area | What landed | Source / guard |
 | --- | --- | --- |
@@ -98,18 +85,18 @@ Source changes landed on `/report/index` **after** the rating above. This sectio
 | Decomposition | 11 report facades now re-export satellites that own constants, pure helpers and rendering, each with a `*.structure.test.ts`: `niftyReportStore`, `NiftyWallsCard`, `NiftyWallsExpanded`, `NiftyPressureDesk`, `NiftyOiHeatmap`, `niftyOiBursts`, `NiftyChartPanel`, `ReportDecisionStrip`, `reportCells`, `NiftyDepthMap`, `NiftyGexProfile`. | `*.structure.test.ts`; `e4cfca16`, `ec679d1d`, `3d9c9197`, `185cde52`, `851d5848`, `699cb297` |
 | a11y fixes | Unique disclosure content ids, accessible option-chain scroll region, chart-draw and mobile-disclosure accessibility, mobile chart-first focus order, 390 app-route axe audits added to `app-a11y.spec.ts`, `report-keyboard.spec.ts` walkthrough and `NiftyChartPanel.a11y.test.tsx`. | `f806a852`, `fac47217`, `2995d67e`, `e30103d6`, `0ee91f5b`; config/tests only — no committed run artifact |
 
-Verification status at `the final evidence commit`: the **final 1600/390 screenshot read-back is DONE** — all PNGs were opened and checked for hero/chart/chain/toolbar legibility, no blank canvas and no `undefined`/`NaN`. The latest report captures show **chart-first layout at both widths, snapshot freshness, a populated option chain and heatmap, and compact walls**, confirming the composition wave landed as intended; the chart is pinned to session-scoped candles (no stale/tape-only or two-day series) and the 390 option chain opens on the ATM strike, pinned below the sticky header with the next row as a scroll cue. **62/62** screenshot files are present at `the final evidence commit` (`VISUAL_EVIDENCE_INDEX.md`), including the committed `report-*.png` re-capture. The earlier panel at `6d25b3c8` scored **7 / 8.5 / 8** (pre-fix, **not A++**); the final polish tree has not been re-rated; the earlier panel is **not A++**. No A+ / A++ verdict is claimed.
+Verification status at `the final evidence commit`: the **final 1600/390 screenshot read-back is DONE** — all PNGs were opened and checked for hero/chart/chain/toolbar legibility, no blank canvas and no `undefined`/`NaN`. The latest report captures show **chart-first layout at both widths, snapshot freshness, a populated option chain and heatmap, and compact walls**, confirming the composition wave landed as intended; the chart is pinned to session-scoped candles (no stale/tape-only or two-day series) and the 390 option chain opens on the ATM strike, pinned below the sticky header with the next row as a scroll cue. **62/62** screenshot files are present at `the final evidence commit` (`VISUAL_EVIDENCE_INDEX.md`), including the committed `report-*.png` re-capture. The earlier review at `6d25b3c8` scored **7 / 8.5 / 8** (pre-fix, **not A+**); the final polish tree has not been re-verified. No A+ verdict is claimed.
 
 **OPEN — do not mark finished:**
 
-- The fresh **independent rating** on `the final evidence commit` (three read-only raters, median
-  per dimension) — **NOT RUN**. The `6d25b3c8` panel was
-  pre-fix and is not an A++ certification.
+- The fresh **independent verification** on `the final evidence commit` (one read-only verifier
+  against this scorecard and `UI_RULES.md` §7, with the approver's record) — **NOT RUN**. The
+  `6d25b3c8` review was pre-fix and is not an A+ certification.
 - Re-run of the integrated gates on the final tree (typecheck, lint, affected
   tests, axe/keyboard gates, gating `bun run audit:evidence`).
 
 The final 1600/390 read-back is **DONE** at `the final evidence commit` (62/62). No P0/P1 closure
-claim and no A+ / A++ claim is made for this wave until a fresh rating and
+claim and no A+ claim is made for this wave until the §7 verification and
 gate items above are evidenced.
 
 ## P5 evidence (2026-11-23)
@@ -132,5 +119,5 @@ Current capture state at `the final evidence commit`: all five in-scope app rout
 sector, home, screener, patterns) and all 26 showcase names have committed PNGs
 at 1600 and 390; **62/62** manifest images are present and the final 1600/390
 read-back is **DONE**. See `VISUAL_EVIDENCE_INDEX.md` for the file-by-file state.
-The final tree has not been re-rated; the independent panel scored 7 / 8.5 / 8
-at `6d25b3c8` and is **not A++**. No A++ claim is made.
+The final tree has not been re-verified; the independent review scored 7 / 8.5 / 8
+at `6d25b3c8` and is **not A+**. No A+ claim is made.
