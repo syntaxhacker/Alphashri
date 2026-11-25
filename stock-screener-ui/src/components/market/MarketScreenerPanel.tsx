@@ -156,7 +156,10 @@ function SectionsView(props: { market: "india" | "america" }) {
       .filter((section) => section.enabled)
       .sort((a, b) => Number(b.pinned) - Number(a.pinned)),
   );
-  const [allowDelayed, setAllowDelayed] = createSignal(false);
+  // TradingView's public scanner currently returns delayed_streaming_* for all
+  // rows. Default to accepting it so sections are useful, with the delay shown
+  // in the strip and on every table; users can opt into streaming-only data.
+  const [allowDelayed, setAllowDelayed] = createSignal(true);
   const [result, setResult] = createSignal<SectionScanResult | null>(null);
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);

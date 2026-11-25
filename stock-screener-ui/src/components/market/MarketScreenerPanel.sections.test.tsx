@@ -150,7 +150,7 @@ describe("MarketScreenerPanel — Sections tab", () => {
     expect(screen.getByTestId("market-sections-region")).toBeInTheDocument();
     expect(screen.queryByTestId("market-search")).not.toBeInTheDocument();
     expect(mocks.fetchSectionScan).toHaveBeenCalledTimes(1);
-    expect(mocks.fetchSectionScan).toHaveBeenCalledWith("india", [pinned, plain], false);
+    expect(mocks.fetchSectionScan).toHaveBeenCalledWith("india", [pinned, plain], true);
     const tables = await screen.findAllByTestId("section-table");
     expect(tables).toHaveLength(2);
     expect(tables.map((t) => t.getAttribute("data-section-id"))).toEqual([
@@ -168,13 +168,18 @@ describe("MarketScreenerPanel — Sections tab", () => {
     await fireEvent.click(screen.getByTestId("market-sections-refresh"));
     expect(mocks.fetchSectionScan).toHaveBeenCalledTimes(2);
 
+    // Delayed is on by default; toggling it off must forward streaming-only.
+    expect(screen.getByTestId("market-sections-allow-delayed")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     await fireEvent.click(screen.getByTestId("market-sections-allow-delayed"));
     await fireEvent.click(screen.getByTestId("market-sections-refresh"));
     expect(mocks.fetchSectionScan).toHaveBeenCalledTimes(3);
     expect(mocks.fetchSectionScan).toHaveBeenLastCalledWith(
       "india",
       [mocks.sections[0]],
-      true,
+      false,
     );
   });
 
