@@ -135,7 +135,7 @@ function ByBotTab(props: { summary: StrategyRunnerSummary | null; trades: Strate
 
   return (
     <Show when={botEntries().length > 0} fallback={<Text c="dimmed" ta="center" py="lg">No bot data yet</Text>}>
-      <ScrollArea>
+      <ScrollArea className="min-h-0 flex-1">
         <TanStackTable data={botEntries()} columns={columns()} enableSorting={false} />
       </ScrollArea>
     </Show>
@@ -253,7 +253,7 @@ function BySymbolTab(props: TabsProps) {
 
   return (
     <Show when={symbolEntries().length > 0} fallback={<Text c="dimmed" ta="center" py="lg">No symbol data yet</Text>}>
-      <ScrollArea>
+      <ScrollArea className="min-h-0 flex-1">
         <TanStackTable data={symbolEntries()} columns={columns()} enableSorting={false} />
       </ScrollArea>
     </Show>
@@ -380,12 +380,12 @@ function TradeLogTab(props: { trades: StrategyRunnerTrade[] }) {
 
   return (
     <Show when={props.trades.length > 0} fallback={<Text c="dimmed" ta="center" py="lg">No trades yet</Text>}>
-      <Box style={{ display: "flex", "flex-direction": "column", height: "100%" }}>
+      <Box style={{ display: "flex", "flex-direction": "column", height: "100%", "min-height": 0 }}>
         <Group gap="sm" align="center" mb="xs" style={{ flex: "0 0 auto" }}>
           <Text size="xs" fw={500}>Trade Log</Text>
           <Text size="xs" c="dimmed" class="font-mono tabular-nums">{props.trades.length} trade{props.trades.length !== 1 ? "s" : ""}</Text>
         </Group>
-        <ScrollArea style={{ flex: 1 }} h="100%">
+        <ScrollArea className="min-h-0 flex-1" style={{ flex: 1 }} h="100%">
           <TanStackTable<StrategyRunnerTrade>
             data={props.trades}
             columns={columns()}
@@ -488,7 +488,7 @@ function CorrelationTab(props: TabsProps) {
         </Text>
       }
     >
-      <ScrollArea>
+      <ScrollArea className="min-h-0 flex-1">
         <TanStackTable data={symbolRows()} columns={columns()} enableSorting={false} />
       </ScrollArea>
     </Show>
@@ -499,23 +499,23 @@ function CorrelationTab(props: TabsProps) {
 
 export function StrategyRunnerTabs(props: TabsProps) {
   return (
-    <Tabs defaultValue="by_bot">
-      <Tabs.List>
+    <Tabs defaultValue="by_bot" className="flex h-full min-h-0 flex-col" data-testid="sr-tabs-content">
+      <Tabs.List className="shrink-0">
         <Tabs.Tab value="by_bot" data-testid="sr-tab-bybot">By Bot</Tabs.Tab>
         <Tabs.Tab value="by_symbol" data-testid="sr-tab-bysymbol">By Symbol</Tabs.Tab>
         <Tabs.Tab value="trade_log" data-testid="sr-tab-trades">Trade Log</Tabs.Tab>
         <Tabs.Tab value="correlation" data-testid="sr-tab-correlation">Correlation</Tabs.Tab>
       </Tabs.List>
-      <Tabs.Panel value="by_bot" className="pt-2">
+      <Tabs.Panel value="by_bot" className="flex min-h-0 flex-1 flex-col pt-2">
         <ByBotTab summary={props.summary} trades={props.trades} />
       </Tabs.Panel>
-      <Tabs.Panel value="by_symbol" className="pt-2">
+      <Tabs.Panel value="by_symbol" className="flex min-h-0 flex-1 flex-col pt-2">
         <BySymbolTab summary={props.summary} trades={props.trades} bots={props.bots} />
       </Tabs.Panel>
-      <Tabs.Panel value="trade_log" className="pt-2" style={{ flex: 1, "min-height": "300px" }}>
+      <Tabs.Panel value="trade_log" className="flex min-h-0 flex-1 flex-col pt-2">
         <TradeLogTab trades={props.trades} />
       </Tabs.Panel>
-      <Tabs.Panel value="correlation" className="pt-2">
+      <Tabs.Panel value="correlation" className="flex min-h-0 flex-1 flex-col pt-2">
         <CorrelationTab summary={props.summary} trades={props.trades} bots={props.bots} />
       </Tabs.Panel>
     </Tabs>

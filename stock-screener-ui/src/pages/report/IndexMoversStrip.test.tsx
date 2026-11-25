@@ -171,6 +171,33 @@ describe("IndexMoversStrip", () => {
     expect(strip).toHaveTextContent("-2.52%");
   });
 
+  it("reserves the EXPAND lane and masks mover text in the 460px desk window", async () => {
+    mockFetchIndexMovers.mockResolvedValue(createMockResponse());
+    render(() => <IndexMoversStrip index="NIFTY" onExpand={onExpand} />);
+
+    await waitFor(() => expect(screen.getByText("TCS")).toBeInTheDocument(), { timeout: 10000 });
+
+    const strip = screen.getByTestId("movers-strip");
+    const row = strip.querySelector('[data-testid="movers-row"]') as HTMLElement | null;
+    expect(row).not.toBeNull();
+    // The 1600px monitor shows a ~460px desk panel while the viewport stays wide,
+    // so the phone wrap media query never fires. The lane must clip its overflow
+    // instead of painting the trailing loser under the EXPAND control.
+    expect(row!.className).toContain("min-w-0");
+    expect(row!.className).toContain("flex-auto");
+    expect(row!.className).toContain("overflow-hidden");
+    expect(row!.style.textOverflow).toBe("ellipsis");
+    // Full value survives in the DOM and the hover tooltip even when masked.
+    expect(strip.textContent).toContain("TCS");
+    expect(strip.textContent).toContain("-2.52%");
+    expect(row!.getAttribute("title")).toContain("TCS");
+    expect(row!.getAttribute("title")).toContain("-2.52%");
+    // The button keeps its own non-shrinking lane, so its width is reserved.
+    const actions = screen.getByTestId("movers-actions");
+    expect(actions.className).toContain("shrink-0");
+    expect(actions.querySelector('[data-testid="movers-expand"]')).not.toBeNull();
+  });
+
   describe("one status strip for unavailable bands", () => {
     const slot = (label: string, available: boolean) => ({
       label,

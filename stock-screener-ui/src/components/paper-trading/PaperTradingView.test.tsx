@@ -136,6 +136,26 @@ function r() {
 }
 
 describe("PaperTradingView", () => {
+  describe("viewport shell", () => {
+    test("keeps the route fixed and lets the live content scroll on a phone", () => {
+      r();
+      const shell = screen.getByTestId("paper-trading-view");
+      expect(shell).toHaveClass("h-full", "min-h-0", "flex", "flex-col", "overflow-hidden");
+
+      const live = screen.getByTestId("live-view-grid");
+      expect(live).toHaveClass("overflow-y-auto");
+      expect(live).toHaveClass("md:overflow-hidden");
+    });
+
+    test("settings content is a flex child scrollport, not an auto-height div", () => {
+      mockStateStore.currentView = "settings";
+      r();
+      const scroller = document.querySelector(".paper-settings-scroll") as HTMLElement;
+      expect(scroller).toHaveClass("flex-1");
+      expect(scroller).toHaveClass("min-h-0");
+    });
+  });
+
   describe("error state", () => {
     test("renders error alert when state.error is set", () => {
       mockStateStore.error = "Something went wrong";

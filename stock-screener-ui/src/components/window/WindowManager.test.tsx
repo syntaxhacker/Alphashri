@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { createMemo, createSignal } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@/ui";
-import type { DockPanelContext } from "../dock/types";
+import type { DockPanelApi, DockPanelContext, DockPanelSpec } from "../dock/types";
 import { DEFAULT_MIN_SIZE, MIN_VISIBLE_X, type CanvasSize } from "./layout";
 import { WindowManager, type WindowManagerProps } from "./WindowManager";
 import type { WindowLayout, WindowState } from "./types";
@@ -35,14 +35,28 @@ interface HarnessProps {
   canvas?: CanvasSize;
   lockedInitially?: boolean;
   settingsSlot?: WindowManagerProps["settingsSlot"];
+  specs?: DockPanelSpec[];
+  /** Mimics a host whose registry getter yields fresh spec objects on a layout commit. */
+  freshSpecsOnLayout?: boolean;
+  /** Mimics the report shell's saved-config clone: every window is a fresh object. */
+  cloneOnSave?: boolean;
 }
 
 function Harness(props: HarnessProps) {
   const [layout, setLayout] = createSignal<WindowLayout>({ windows: props.windows, name: "Main" });
   const apply = (next: WindowLayout) => {
-    setLayout(next);
-    props.onLayout(next);
+    const committed = props.cloneOnSave
+      ? { ...next, windows: next.windows.map((w) => ({ ...w })) }
+      : next;
+    setLayout(committed);
+    props.onLayout(committed);
   };
+  const specs = createMemo(() => {
+    layout();
+    return props.freshSpecsOnLayout
+      ? props.specs?.map((spec) => ({ ...spec }))
+      : props.specs;
+  });
   return (
     <WindowManager
       layout={layout()}
@@ -51,6 +65,7 @@ function Harness(props: HarnessProps) {
       canvas={props.canvas ?? CANVAS}
       lockedInitially={props.lockedInitially}
       settingsSlot={props.settingsSlot}
+      specs={specs()}
     />
   );
 }
@@ -68,6 +83,9 @@ function renderDesk(windows: WindowState[], opts: Partial<HarnessProps> = {}) {
         canvas={CANVAS}
         lockedInitially={opts.lockedInitially}
         settingsSlot={opts.settingsSlot}
+        specs={opts.specs}
+        freshSpecsOnLayout={opts.freshSpecsOnLayout}
+        cloneOnSave={opts.cloneOnSave}
       />
     </UIProvider>
   ));
@@ -307,7 +325,7 @@ describe("WindowManager — recovery, lock, keyboard", () => {
  * and the button's `onClick` never ran. `fireEvent.click` alone hides this — it is
  * exactly why the click-only tests above passed while a real mouse click did nothing.
  */
-function realTitleButtonClick(id: string, action: "minimize" | "maximize" | "close") {
+async function realTitleButtonClick(id: string, action: "minimize" | "maximize" | "close") {
   const testId = `window-${action}-${id}`;
   const pressed = screen.getByTestId(testId);
   fireEvent.pointerDown(pressed, { button: 0, clientX: 100, clientY: 50, pointerId: 1 });
@@ -317,37 +335,140 @@ function realTitleButtonClick(id: string, action: "minimize" | "maximize" | "clo
   fireEvent.mouseUp(released, { button: 0 });
   const survived = pressed === released && pressed.isConnected;
   fireEvent.click(survived ? pressed : screen.getByTestId(`window-title-${id}`));
+  // Focus for a control is committed after its click so a host's first layout
+  // emit cannot replace the button mid-press; flush that deferred commit.
+  await Promise.resolve();
   return survived;
 }
 
 describe("WindowManager — a real pointer sequence reaches the title buttons", () => {
-  it("minimize: the full pointer sequence toggles data-minimized and keeps focus-on-click", () => {
+  it("minimize: the full pointer sequence toggles data-minimized and keeps focus-on-click", async () => {
     const b = win({ id: "b", type: "sector.movers", title: "WALLS", x: 400, z: 4 });
     const { root } = renderDesk([win(), b]);
 
-    const survived = realTitleButtonClick("a", "minimize");
+    const survived = await realTitleButtonClick("a", "minimize");
 
     expect(root("a")).toHaveAttribute("data-minimized");
     expect(root("a").style.zIndex).toBe("5");
     expect(survived).toBe(true);
   });
 
-  it("maximize: the full pointer sequence toggles data-maximized", () => {
+  it("maximize: the full pointer sequence toggles data-maximized", async () => {
     const { root } = renderDesk([win({ x: 33, y: 77, w: 321, h: 199 })]);
 
-    const survived = realTitleButtonClick("a", "maximize");
+    const survived = await realTitleButtonClick("a", "maximize");
     expect(root("a")).toHaveAttribute("data-maximized");
     expect(root("a").style).toMatchObject({ left: "0px", top: "0px" });
     expect(survived).toBe(true);
   });
 
-  it("close: the full pointer sequence removes the window", () => {
+  it("close: the full pointer sequence removes the window", async () => {
     const b = win({ id: "b", type: "sector.movers", title: "WALLS", x: 400, z: 2 });
     renderDesk([win(), b]);
 
-    const survived = realTitleButtonClick("a", "close");
+    const survived = await realTitleButtonClick("a", "close");
     expect(screen.queryByTestId("window-a")).not.toBeInTheDocument();
     expect(screen.getByTestId("window-b")).toBeInTheDocument();
+    expect(survived).toBe(true);
+  });
+});
+
+/** Body controls own their selection signal, exactly like the report analytics tabs. */
+function TabbedBody() {
+  const [tab, setTab] = createSignal("futures");
+  return (
+    <div>
+      <button
+        type="button"
+        data-testid="probe-tab-futures"
+        aria-pressed={tab() === "futures"}
+        onClick={() => setTab("futures")}
+      >
+        FUTURES
+      </button>
+      <button
+        type="button"
+        data-testid="probe-tab-gex"
+        aria-pressed={tab() === "gex"}
+        onClick={() => setTab("gex")}
+      >
+        GEX
+      </button>
+    </div>
+  );
+}
+
+const TABBED_SPEC: DockPanelSpec = {
+  id: "probe.tabs",
+  page: "report",
+  title: "OPTIONS ANALYTICS",
+  size: 1,
+  minWidth: 300,
+  singleton: true,
+  requires: [],
+  mount: (_ctx: () => DockPanelContext, _api: DockPanelApi) => <TabbedBody />,
+};
+
+/** Same pointer sequence a browser fires: press on the original node, release
+ * wherever the cursor is, then click the nearest common ancestor. */
+function realTabClick(id: string): boolean {
+  const pressed = screen.getByTestId(id);
+  fireEvent.pointerDown(pressed, { button: 0, clientX: 100, clientY: 100, pointerId: 1 });
+  const released = screen.getByTestId(id);
+  fireEvent.mouseDown(pressed, { button: 0 });
+  fireEvent.pointerUp(released, { button: 0, pointerId: 1 });
+  fireEvent.mouseUp(released, { button: 0 });
+  const survived = pressed === released && pressed.isConnected;
+  fireEvent.click(survived ? pressed : screen.getByTestId("window-body-a"));
+  return survived;
+}
+
+describe("WindowManager — the first real click on a body tab is not swallowed", () => {
+  it("selects GEX on the first click in an unfocused window", () => {
+    const b = win({ id: "b", type: "sector.movers", title: "WALLS", x: 400, z: 4 });
+    renderDesk([win({ type: "probe.tabs" }), b], {
+      specs: [TABBED_SPEC],
+      freshSpecsOnLayout: true,
+    });
+
+    expect(screen.getByTestId("probe-tab-futures")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("probe-tab-gex")).toHaveAttribute("aria-pressed", "false");
+
+    const survived = realTabClick("probe-tab-gex");
+    expect(screen.getByTestId("probe-tab-gex")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("probe-tab-futures")).toHaveAttribute("aria-pressed", "false");
+    expect(survived).toBe(true);
+  });
+
+  it("selects GEX when the host clones every window on layout save", () => {
+    const b = win({ id: "b", type: "sector.movers", title: "WALLS", x: 400, z: 4 });
+    renderDesk([win({ type: "probe.tabs" }), b], {
+      specs: [TABBED_SPEC],
+      freshSpecsOnLayout: true,
+      cloneOnSave: true,
+    });
+
+    const survived = realTabClick("probe-tab-gex");
+
+    expect(screen.getByTestId("probe-tab-gex")).toHaveAttribute("aria-pressed", "true");
+    expect(survived).toBe(true);
+  });
+
+  it("selects GEX on the first click even when the window is already focused", () => {
+    renderDesk([win({ type: "probe.tabs" })], {
+      specs: [TABBED_SPEC],
+      freshSpecsOnLayout: true,
+    });
+    fireEvent.pointerDown(screen.getByTestId("window-a"), {
+      button: 0,
+      clientX: 60,
+      clientY: 60,
+      pointerId: 1,
+    });
+
+    const survived = realTabClick("probe-tab-gex");
+
+    expect(screen.getByTestId("probe-tab-gex")).toHaveAttribute("aria-pressed", "true");
     expect(survived).toBe(true);
   });
 });

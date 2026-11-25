@@ -1248,6 +1248,33 @@ describe("ScreenerPage", () => {
     expect(screen.getByTestId("screener-content").className).not.toMatch(/\bpx-2\b/);
   });
 
+  it("keeps the route root, active tab panel and table region bounded", async () => {
+    render(() => (
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>), { initialRoute: "/?tab=screener" });
+    expect(await screen.findByTestId("screener-panel")).toBeInTheDocument();
+
+    const page = screen.getByTestId("screener-page");
+    const root = page.parentElement as HTMLElement;
+    for (const cls of ["h-full", "min-h-0", "flex", "flex-col", "overflow-hidden"]) {
+      expect(root).toHaveClass(cls);
+    }
+    expect(page).toHaveClass("flex-1");
+    expect(page).toHaveClass("min-h-0");
+    expect(page).toHaveClass("overflow-hidden");
+
+    const content = screen.getByTestId("screener-content");
+    expect(content).toHaveClass("flex-1");
+    expect(content).toHaveClass("min-h-0");
+    expect(content).toHaveClass("overflow-hidden");
+
+    const panel = screen.getByTestId("screener-panel");
+    expect(panel).toHaveClass("flex-1");
+    expect(panel).toHaveClass("min-h-0");
+    expect(panel).toHaveClass("overflow-hidden");
+  });
+
   it("keeps the chrome controls on one height tier for the 28px band", () => {
     render(() => (
       <UIProvider>

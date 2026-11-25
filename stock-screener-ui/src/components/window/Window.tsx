@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, onCleanup, Show, untrack } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, Show, untrack } from "solid-js";
 import type { Accessor, JSX } from "solid-js";
 import { Text } from "@/ui";
 import type { DockPanelApi, DockPanelContext, DockPanelSpec } from "../dock/types";
@@ -96,6 +96,31 @@ export function Window(props: WindowProps) {
     origin: Rect;
     last: Rect | null;
   } | null = null;
+  let pendingFocusId: string | null = null;
+
+  const onCapturePointerDown = (event: PointerEvent) => {
+    const target = event.target as HTMLElement | null;
+    // A press on a control must not emit a layout while the browser is still
+    // assembling the click: a host that authors a preset-only desk on the first
+    // commit briefly replaces the frames, so mousedown is retargeted and the
+    // click never reaches the control. Drag/resize chrome still raises focus on
+    // pointerdown; a title button raises it after its click has been dispatched.
+    if (target?.closest?.('[data-testid^="window-title-"] button')) {
+      pendingFocusId = props.state.id;
+      return;
+    }
+    // Panel content owns its own state. A focus commit from a body press would
+    // remount the panel and reset that state, so the frame is not re-raised here;
+    // chrome presses still raise it (drag, resize, title bar).
+    pendingFocusId = null;
+    if (target?.closest?.('[data-testid^="window-body-"]')) return;
+    props.onFocus(props.state.id);
+  };
+  const onControlClick = () => {
+    const id = pendingFocusId;
+    pendingFocusId = null;
+    if (id) queueMicrotask(() => props.onFocus(id));
+  };
 
   const detach = () => {
     window.removeEventListener("pointermove", onMove);
@@ -206,12 +231,24 @@ export function Window(props: WindowProps) {
     </button>
   );
 
-  // Focus emits a new layout on pointerdown, and `raiseToFront` replaces every
+  // Focus emits a new layout on pointerdown, and `raiseToFront` replaces the
   // WindowState object. A `titleButton(...)` call in a JSX child position is a
-  // reactive expression in Solid, so that emit rebuilt all four buttons while the
-  // pointer was still down; the browser then synthesised `click` on the common
-  // ancestor (the title bar), not the button, so a real mouse click did nothing.
-  // Build the nodes once — only the labels read reactive state, updating in place.
+  // reactive expression, so that emit rebuilt all four buttons while the pointer
+  // was still down; build them once and let only the labels update in place.
+  // Minimise is a real lifecycle boundary: the panel's effects must be disposed
+  // while hidden and mounted once on restore. Isolate the boolean so a fresh
+  // `props.state` object cannot re-run the body memo, and read the spec/context
+  // untracked so a fresh spec cannot remount the panel mid-press.
+  const [bodyHidden, setBodyHidden] = createSignal(!!props.state.minimized);
+  createEffect(() => {
+    const hidden = !!props.state.minimized;
+    setBodyHidden((prev) => (prev === hidden ? prev : hidden));
+  });
+  const body = createMemo(() => {
+    if (bodyHidden()) return null;
+    return untrack(() => spec()?.mount(props.context, api) ?? null);
+  });
+
   const titleButtons = untrack(() => [
     titleButton(
       `window-popout-${props.state.id}`,
@@ -262,7 +299,8 @@ export function Window(props: WindowProps) {
         height: `${current().h}px`,
         "z-index": String(props.state.z),
       }}
-      oncapture:pointerdown={() => props.onFocus(props.state.id)}
+      oncapture:pointerdown={onCapturePointerDown}
+      onClick={onControlClick}
       onKeyDown={onKeyDown}
     >
       <div
@@ -299,7 +337,7 @@ export function Window(props: WindowProps) {
               </div>
             }
           >
-            {spec()!.mount(props.context, api)}
+            {body()}
           </Show>
         </div>
       </Show>

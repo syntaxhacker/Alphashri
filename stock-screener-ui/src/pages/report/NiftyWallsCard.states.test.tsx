@@ -105,6 +105,16 @@ describe("NiftyWallsCard", () => {
     expect(palette.LEVEL_PUT_WALL).toBe(palette.POSITIVE_COLOR);
   });
 
+  it("names the chain snapshot instant and the exact spot in the SPOT title", () => {
+    render(() => <NiftyWallsCard walls={walls} onExpand={onExpand} compact />);
+    const card = screen.getByTestId("nifty-walls-card");
+    const spot = card.querySelector('[data-walls-stat="spot"]') as HTMLElement;
+    expect(spot).toHaveTextContent("74,096.00");
+    expect(spot.getAttribute("title")).toContain("Snapshot 15:29");
+    expect(spot.getAttribute("title")).toContain("74,096.00");
+    expect(spot.getAttribute("title")).toContain("whole points");
+  });
+
   it("opens the pressure desk from the card action", () => {
     const onOpenDesk = vi.fn();
     render(() => (

@@ -40,17 +40,14 @@ export function NewsList(props: NewsListProps) {
   );
   const storyLabel = () =>
     `${newsItems().length} ${newsItems().length === 1 ? "story" : "stories"}`;
-  const showInitialLoader = () => isLoading() && Object.keys(props.groupedNewsItems ?? {}).length === 0;
+  const showInitialLoader = () =>
+    isLoading() && Object.keys(props.groupedNewsItems ?? {}).length === 0;
 
   return (
-    <Box
-      className="flex flex-col flex-1 min-h-0 w-full"
-      id="news-feed"
-      data-testid="news-feed"
-    >
+    <Box className="flex flex-col flex-1 min-h-0 w-full" id="news-feed" data-testid="news-feed">
       <Box
         data-testid="news-feed-toolbar"
-        className="sticky top-0 z-20 bg-fin-surface border-b border-fin-border"
+        className="sticky top-0 z-20 shrink-0 bg-fin-surface border-b border-fin-border"
         style={{
           position: "sticky",
           top: "0px",
@@ -59,10 +56,20 @@ export function NewsList(props: NewsListProps) {
           "border-bottom": `1px solid ${palette.BORDER}`,
         }}
       >
-        <Box style={{ "padding-left": "12px", "padding-right": "12px", "padding-top": "10px", "padding-bottom": "6px" }}>
+        <Box
+          style={{
+            "padding-left": "12px",
+            "padding-right": "12px",
+            "padding-top": "10px",
+            "padding-bottom": "6px",
+          }}
+        >
           <ToolbarRow gap={8}>
             <Box style={{ "min-width": "0px", flex: "0 0 auto", width: "100%" }}>
-              <Box className="flex items-center gap-3" style={{ display: "flex", "align-items": "center", gap: "6px" }}>
+              <Box
+                className="flex items-center gap-3"
+                style={{ display: "flex", "align-items": "center", gap: "6px" }}
+              >
                 <Text size="sm" fw={700} style={{ "line-height": 1.2 }}>
                   Market feed
                 </Text>
@@ -92,9 +99,14 @@ export function NewsList(props: NewsListProps) {
                 c="dimmed"
                 data-testid="news-story-count"
                 className="block mt-2 font-mono [font-variant-numeric:tabular-nums]"
-                style={{ display: "block", "margin-top": "2px", "font-variant-numeric": "tabular-nums" }}
+                style={{
+                  display: "block",
+                  "margin-top": "2px",
+                  "font-variant-numeric": "tabular-nums",
+                }}
               >
-                {storyLabel()} across {visibleSourceNames().length} {visibleSourceNames().length === 1 ? "source" : "sources"}
+                {storyLabel()} across {visibleSourceNames().length}{" "}
+                {visibleSourceNames().length === 1 ? "source" : "sources"}
               </Text>
             </Box>
             <Box style={{ flex: 1, "min-width": "0px", display: "none" }} />
@@ -150,10 +162,17 @@ export function NewsList(props: NewsListProps) {
                   <Box
                     component="span"
                     className="flex items-center gap-3 min-w-0"
-                    style={{ display: "flex", "align-items": "center", gap: "6px", "min-width": "0px" }}
+                    style={{
+                      display: "flex",
+                      "align-items": "center",
+                      gap: "6px",
+                      "min-width": "0px",
+                    }}
                   >
                     {item.sentiment ? <SentimentBadge sentiment={item.sentiment} /> : null}
-                    {item.impact_score !== undefined ? <ImpactScore score={item.impact_score} compact /> : null}
+                    {item.impact_score !== undefined ? (
+                      <ImpactScore score={item.impact_score} compact />
+                    ) : null}
                   </Box>
                 ) : null
               }
@@ -162,9 +181,7 @@ export function NewsList(props: NewsListProps) {
         }
       >
         <Stack className="gap-2" style={{ padding: "12px" }} data-testid="news-loader">
-          <For each={[0, 1, 2, 3]}>{() => (
-            <Skeleton h={64} className="rounded" />
-          )}</For>
+          <For each={[0, 1, 2, 3]}>{() => <Skeleton h={64} className="rounded" />}</For>
           <Text size="sm" c="dimmed">
             Loading market headlines…
           </Text>

@@ -317,6 +317,41 @@ def _unknown_window_keys(config: dict[str, Any]) -> list[str]:
     return sorted(set(config) - WINDOW_FIELD_NAMES)
 
 
+class ReportWindowV1(BaseModel):
+    """The ``window.report`` scope: the report desk's one layout document.
+
+    Unlike the home desk's named tabs + active tab, the report desk persists a
+    single ``WindowLayout``: geometry plus each panel's settings bag. The wire
+    shape mirrors ``serializeReportLayout`` — a version marker, an optional
+    layout name and a bounded list of windows. As on the home desk, a window's
+    ``settings`` bag belongs to its panel, so windows stay dicts; the bounds here
+    cap the blob rather than police panel-owned fields.
+
+    Before this existed the desk posted here and received ``404 unknown_scope``,
+    which the client treats as "API absent — use defaults quietly": the layout
+    looked like it saved and persisted nothing.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    #: Version marker the client stamps on every write (``REPORT_WINDOW_VERSION``).
+    v: int = Field(default=1, ge=1, le=99)
+    name: str = Field(default="Main", max_length=64)
+    windows: list[dict[str, Any]] = Field(default_factory=list, max_length=64)
+
+
+REPORT_WINDOW_FIELD_NAMES: frozenset[str] = frozenset(ReportWindowV1.model_fields)
+
+
+def default_report_window_payload() -> dict[str, Any]:
+    return ReportWindowV1().model_dump()
+
+
+def _unknown_report_window_keys(config: dict[str, Any]) -> list[str]:
+    """Keys this scope must never store. Panels own their own `settings` bag."""
+    return sorted(set(config) - REPORT_WINDOW_FIELD_NAMES)
+
+
 def default_table_prefs_payload() -> dict[str, Any]:
     return TablePrefsV1().model_dump()
 
@@ -375,6 +410,17 @@ SCOPE_REGISTRY: dict[str, ScopeSpec] = {
         default=default_home_window_payload,
         max_bytes=MAX_CONFIG_BYTES,
         unknown_keys=_unknown_window_keys,
+    ),
+    # The REPORT desk. One layout document (geometry + panel settings); without
+    # an entry here every save 404s as `unknown_scope`, which the client treats as
+    # "API absent" and swallows — the report desk looked like it persisted and did not.
+    "window.report": ScopeSpec(
+        scope="window.report",
+        version=1,
+        schema=ReportWindowV1,
+        default=default_report_window_payload,
+        max_bytes=MAX_CONFIG_BYTES,
+        unknown_keys=_unknown_report_window_keys,
     ),
 }
 

@@ -100,4 +100,22 @@ describe("SectorCorrelationTab theme", () => {
     setScheme("light");
     expect(screen.getByTestId("beta-stub")).toHaveAttribute("data-is-dark", "false");
   });
+
+  test("keeps the tab root bounded and scrolls its own content column", () => {
+    render(() => <SectorCorrelationTab />);
+
+    const root = screen.getByTestId("sector-correlation-tab");
+    for (const cls of ["flex-1", "min-h-0", "flex-col", "overflow-hidden"]) {
+      expect(root).toHaveClass(cls);
+    }
+
+    const header = screen.getByTestId("sector-correlation-header");
+    const scroll = screen.getByTestId("sector-correlation-scroll");
+    expect(scroll).toHaveClass("flex-1");
+    expect(scroll).toHaveClass("min-h-0");
+    expect(scroll).toHaveClass("overflow-y-auto");
+    // The context header stays put; only the panels below it scroll.
+    expect(scroll).not.toContainElement(header);
+    expect(root).toContainElement(header);
+  });
 });

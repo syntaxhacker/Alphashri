@@ -24,6 +24,17 @@ interface ScreenerTableProps {
   tableId?: string;
 }
 
+const SCREENER_TABLE_SCROLL_STEP = 80;
+
+/** Arrow keys must move the same element that carries focus and `role=region`. */
+function onScreenerTableRegionKeyDown(event: KeyboardEvent) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  const region = event.currentTarget as HTMLElement;
+  region.scrollLeft +=
+    event.key === "ArrowRight" ? SCREENER_TABLE_SCROLL_STEP : -SCREENER_TABLE_SCROLL_STEP;
+  event.preventDefault();
+}
+
 export function ScreenerTable(props: ScreenerTableProps) {
   const tableId = () => props.tableId ?? `screener.${props.testId ?? "table"}`;
   // useTablePrefs is instantiated per id. Keying the body remounts it when the
@@ -250,18 +261,32 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
   });
 
     return (
-      <Box className="w-full rounded-sm" data-testid={containerTestId()}>
-        <Stack spacing={0} className="w-full">
-          <Box className="flex w-full items-center justify-end px-3 py-1 sm:hidden" data-testid="screener-table-scroll-cue">
+      <Box
+        data-testid={containerTestId()}
+        className="flex h-full min-h-0 w-full flex-1 flex-col rounded-sm"
+      >
+        <Stack spacing={0} className="flex min-h-0 w-full flex-1 flex-col">
+          <Box
+            className="flex w-full shrink-0 items-center justify-end px-3 py-1 sm:hidden"
+            data-testid="screener-table-scroll-cue"
+          >
             <Text size="sm" className="text-fin-text-muted">
               Scroll sideways →
             </Text>
           </Box>
           <Box
-            className="w-full overflow-x-auto overscroll-x-contain"
+            className="flex min-h-0 w-full flex-1 flex-col overflow-x-auto overflow-y-hidden overscroll-x-contain focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
             data-testid="screener-table-scroll-wrapper"
+            data-scroll="horizontal"
+            role="region"
+            aria-label="Screener results table, scroll sideways for all columns"
+            tabIndex={0}
+            onKeyDown={onScreenerTableRegionKeyDown}
           >
-            <Box style={{ "min-width": `${scrollMinWidth()}px` }}>
+            <Box
+              className="flex min-h-0 w-full flex-1 flex-col"
+              style={{ "min-width": `${scrollMinWidth()}px` }}
+            >
               <TanStackTable<Stock>
                 data={props.stocks}
                 columns={tanStackColumns()}
@@ -270,6 +295,7 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
                 sorting={prefs().sorting}
                 onSortingChange={setSorting}
                 stickyHeader
+                fillContainer
                 className="w-full min-w-0"
                 minTableWidth={scrollMinWidth()}
                 getRowTestId={(row) => `stock-row-${row.symbol}`}

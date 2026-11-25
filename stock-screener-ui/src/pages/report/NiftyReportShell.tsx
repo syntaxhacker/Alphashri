@@ -9,12 +9,14 @@ import {
   untrack,
 } from "solid-js";
 import type { JSX } from "solid-js";
-import { Box, Button, Text } from "@/ui";
+import { Box, Button, Text, TYPE_CLASS } from "@/ui";
 import * as palette from "@/ui/palette";
-import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
+import { ErrorAlert, InlineLoader } from "@/components/common/states";
 import { ReportProvider, useNiftyReport } from "./ReportContext";
 import { NiftyFuturesPanel } from "./NiftyFuturesPanel";
 import { NiftyItmPeFlowPanel } from "./NiftyItmPeFlow";
+import { istSessionDate } from "./niftyDataFreshness";
+import { formatReportClock, REPORT_DASH } from "./reportFormat";
 import type { DeskDockTab } from "./DeskDock";
 import { ReportToolbar } from "./ReportToolbar";
 import type { CanvasSize } from "../../components/window/layout";
@@ -221,6 +223,7 @@ const REPORT_MOBILE_CHROME_CLASS = [
   "max-[600px]:[&_[data-testid='nifty-report-content']]:pt-1!",
   "max-[600px]:[&_[data-testid='nifty-replay-mode-banner']]:gap-x-2!",
   "max-[600px]:[&_[data-testid='nifty-replay-mode-banner']]:px-2!",
+  "max-[600px]:[&_[data-testid='nifty-report-empty']]:px-2!",
 ].join(" ");
 
 /**
@@ -276,6 +279,31 @@ function PanelSkeleton(props: { h: number }) {
         "border-radius": `${REPORT_RADIUS.xs}px`,
       }}
     />
+  );
+}
+
+/** The no-payload state owns one reason line. When a recorded snapshot exists
+ *  it names its clock and session so a closed feed is not read as a missing
+ *  report; without one it says so plainly. One left rail, no nested card. */
+function NoReportState(props: { reason: string }) {
+  return (
+    <Box
+      data-testid="nifty-report-empty"
+      className="w-full min-w-0 px-3 py-2"
+      style={{ "border-left": `2px solid ${palette.TEXT_MUTED}` }}
+    >
+      <Text span className={`${TYPE_CLASS.micro} block font-bold`} style={{ color: palette.TEXT }}>
+        No report for this selection
+      </Text>
+      <Text
+        span
+        data-testid="nifty-report-empty-reason"
+        className={`${TYPE_CLASS.micro} block whitespace-normal`}
+        style={{ color: palette.TEXT_MUTED }}
+      >
+        {props.reason}
+      </Text>
+    </Box>
   );
 }
 
@@ -347,6 +375,20 @@ function ReportBody(props: ReportBodyProps) {
   const replayTime = createMemo(() => {
     const t = store.replay.frameT?.();
     return typeof t === "string" && t.length >= 16 ? t.slice(11, 16) : null;
+  });
+  // The toolbar's `SNAPSHOT 21:25` and this reason read the same clock. Naming
+  // the session keeps a stored snapshot from being mistaken for a live report.
+  // With no usable snapshot the reason is its own honest sentence — repeating
+  // the title ("No report for this selection") reads as duplicated copy.
+  const NO_SNAPSHOT_REASON = "The report request failed. Retry or pick another selection.";
+  const noReportReason = createMemo(() => {
+    const updatedAtMs = store.data.freshness?.updatedAtMs?.();
+    if (typeof updatedAtMs !== "number" || !Number.isFinite(updatedAtMs)) {
+      return NO_SNAPSHOT_REASON;
+    }
+    const clock = formatReportClock(updatedAtMs);
+    if (!clock || clock === REPORT_DASH) return NO_SNAPSHOT_REASON;
+    return `Snapshot ${clock.slice(0, 5)} · ${istSessionDate(updatedAtMs)} — no live report for this selection`;
   });
 
   const setFocusOpen = (next: boolean) => store.ui.setOverlayOpen?.("chartFocus", next);
@@ -494,13 +536,7 @@ function ReportBody(props: ReportBodyProps) {
             <Box class="flex-1 min-h-0" style={{ flex: 1, "min-height": "0px" }}>
               <Show
                 when={store.data.loading() || !store.data.booted()}
-                fallback={
-                  <EmptyState
-                    title="No report for this selection"
-                    description="Pick another symbol, expiry or session date to load a report."
-                    data-testid="nifty-report-empty"
-                  />
-                }
+                fallback={<NoReportState reason={noReportReason()} />}
               >
                 <InlineLoader data-testid="nifty-report-loading" message="Loading index report" />
               </Show>

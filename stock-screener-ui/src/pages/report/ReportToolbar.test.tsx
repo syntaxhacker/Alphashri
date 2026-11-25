@@ -161,6 +161,28 @@ describe("ReportToolbar freshness indicators", () => {
     expect(secondaryStatusText()).not.toContain("SNAPSHOT");
   });
 
+  test("a days-old stale feed promotes the unit and keeps exact seconds in the title", () => {
+    const freshness = (harness.store.data as any).freshness;
+    freshness.isStale = () => true;
+    freshness.staleMins = () => 64142;
+    render(() => (
+      <UIProvider>
+        <ReportToolbar />
+      </UIProvider>
+    ));
+
+    const status = screen.getByTestId("nifty-updated-at");
+    // 64142m = 1069h = 44d — never a five-digit minute count on a 20px band.
+    expect(status).toHaveTextContent("STALE 44d");
+    expect(status.textContent).not.toContain("64142m");
+    // The promoted unit hides the precise age; the tooltip keeps it exactly.
+    expect(status.getAttribute("title")).toContain("3848520");
+    expect(
+      toolbarStatusLabel({ state: "stale", updatedAtMs: TEN_IST, staleMins: 64142, liveClockMs: TEN_IST }),
+    ).toBe("STALE 44d");
+    expect(secondaryStatusText()).not.toContain("live (WS)");
+  });
+
   test("a stale tape with a connected WebSocket is also STALE, never live (WS)", () => {
     (harness.store.data as any).tape = () => ({
       date: "2026-11-16",

@@ -279,13 +279,31 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
   const gainers = () => data()?.gainers ?? [];
   const losers = () => data()?.losers ?? [];
 
+  // The striped lane can be squeezed below its content width on a wide-viewport
+  // desk panel; the full mover text stays reachable from the tooltip.
+  const moversTitle = () => {
+    const label = `MOVERS · ${index()} ${index() === "NIFTY" ? "50" : "30"}`;
+    const format = (row: IndexMoverRow, isGainer: boolean) =>
+      `${isGainer ? ARROW_GAINER : ARROW_LOSER} ${row.symbol} ${isGainer ? "+" : ""}${row.change_pct.toFixed(2)}%`;
+    return [
+      label,
+      ...gainers().map((row) => format(row, true)),
+      ...losers().map((row) => format(row, false)),
+    ].join("  ");
+  };
+
   const dataView = () => (
     <div
       data-testid="movers-strip"
       data-report-spacing="8"
       class="flex items-center justify-between gap-2 h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-ui-micro whitespace-nowrap shrink-0 max-[700px]:h-auto max-[700px]:min-h-0 max-[700px]:flex-wrap max-[700px]:gap-y-1 max-[700px]:py-1"
     >
-      <span class="inline-flex items-center gap-2 min-w-0 flex-auto max-[700px]:flex-wrap max-[700px]:gap-y-1">
+      <span
+        data-testid="movers-row"
+        title={moversTitle()}
+        class="inline-flex items-center gap-2 min-w-0 flex-auto overflow-hidden max-[700px]:flex-wrap max-[700px]:gap-y-1"
+        style={{ "text-overflow": "ellipsis" }}
+      >
         <Text
           span
           size="xs"
@@ -314,7 +332,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
       </span>
 
       {/* Right side: EXPAND button + stale badge */}
-      <span class="flex items-center gap-2 shrink-0">
+      <span data-testid="movers-actions" class="flex items-center gap-2 shrink-0">
         <Show when={isStale()}>
           <Tooltip label={`Data is stale (${data()?.as_of})`} position="bottom-start">
             <span

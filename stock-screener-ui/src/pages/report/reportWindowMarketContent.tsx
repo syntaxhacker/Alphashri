@@ -156,6 +156,14 @@ const ANALYTICS_HEADER_STYLE: JSX.CSSProperties = {
   "border-bottom": `1px solid ${palette.TERM_BORDER}`,
 };
 
+/**
+ * The shared Button transitions background-color over 150ms. A selection tab
+ * is a state indicator, not a decorative animation: mid-transition the old tab
+ * keeps its filled colour while the new panel is already on screen. Suppress
+ * the transition so the fill changes in the same frame as `aria-pressed`.
+ */
+const ANALYTICS_TAB_STYLE: JSX.CSSProperties = { "transition-property": "none" };
+
 /** The report's own analytics blocks, tabbed — no broker-auth placeholder. */
 export function ReportAnalyticsWindow(
   props: ReportWindowMarketContentProps,
@@ -229,6 +237,7 @@ export function ReportAnalyticsWindow(
                   size="sm"
                   variant={tab() === item.key ? "filled" : "subtle"}
                   aria-pressed={tab() === item.key}
+                  style={ANALYTICS_TAB_STYLE}
                   onClick={() => setTab(item.key)}
                 >
                   {item.label}

@@ -1,11 +1,13 @@
 import { For, Show, type JSX } from "solid-js";
 import * as palette from "@/ui/palette";
 import { Box, Text } from "@/ui";
-import { formatNumberIN } from "@/utils/ui-helpers";
+import { formatNumberIN, formatTimeOnly } from "@/utils/ui-helpers";
 import type { NiftyReport } from "@/types/niftyReport";
+import { formatReportNum } from "./reportFormat";
 import { gexFlipAtSpot } from "./niftyGex";
 import { resolveRegimeLabel } from "./NiftyVerdictStrip";
 import { REPORT_FONT, REPORT_GUTTER, REPORT_KPI_HERO_HEIGHT, REPORT_RADIUS } from "./reportTokens";
+import { useNiftyReport } from "./ReportContext";
 
 export type KpiTokenKey = "flip" | "walls";
 
@@ -24,13 +26,90 @@ export interface ReportKpiHeroProps {
 
 const DASH = "—";
 
+/** One payload field owns every nearby spot readout: `report.spot` at the
+ * instant named by `report.snapshotAt`. Walls and tape rows may carry their
+ * own spot; they are snapshots of other instants and must not be substituted. */
+export interface SpotSource {
+  value: number | null | undefined;
+  asOf: string | null;
+  origin: string;
+}
+
+/**
+ * The Index Report prints spot at two precisions: the KPI rounds to whole
+ * points, the walls card and the chart keep paise. One descriptor owns both
+ * renderings, the source name and the as-of instant, so a difference between
+ * payloads is named instead of looking like a feed disagreement.
+ */
+export interface SpotSnapshotView {
+  /** Value at the caller's precision — never recomputed in a component. */
+  display: string;
+  /** Always two decimals, used by every title. */
+  exact: string;
+  asOf: string | null;
+  /** Payload that owns the value, exposed on each surface for inspection. */
+  source: string;
+  title: string;
+}
+
+export function reportSpotSource(report: NiftyReport | null | undefined): SpotSource {
+  return {
+    value: report?.spot,
+    asOf: report?.snapshotAt ? formatTimeOnly(report.snapshotAt) : report?.date || null,
+    origin: report?.mode === "eod" ? "EOD snapshot" : "Snapshot",
+  };
+}
+
+/** Outside <ReportProvider> this is null: standalone widgets and tests keep
+ * their own payload label rather than throwing on the context lookup. */
+export function sharedReportSpotSource(): SpotSource | null {
+  try {
+    const report = useNiftyReport().data.report();
+    return report ? reportSpotSource(report) : null;
+  } catch {
+    return null;
+  }
+}
+
+function isSpotSource(value: SpotSource | number | null | undefined): value is SpotSource {
+  return typeof value === "object" && value !== null && "value" in value;
+}
+
+export function spotSnapshot(
+  source: SpotSource | number | null | undefined,
+  options: { digits?: number; asOf?: string | null; origin?: string } = {},
+): SpotSnapshotView {
+  const snapshot: SpotSource = isSpotSource(source)
+    ? source
+    : {
+        value: source,
+        asOf: options.asOf ?? null,
+        origin: options.origin ?? "Snapshot",
+      };
+  const digits = options.digits ?? 0;
+  const display = formatReportNum(snapshot.value, {
+    digits,
+    minDigits: digits,
+    round: digits === 0,
+  });
+  const exact = formatReportNum(snapshot.value, { digits: 2, minDigits: 2 });
+  const asOf = snapshot.asOf?.trim() || null;
+  const origin = snapshot.origin || "Snapshot";
+  const precision = digits === 2 ? "2 dp" : "whole points";
+  const title = `${asOf ? `${origin} ${asOf}` : origin} · spot ${exact} (shown in ${precision}) · KPI rounds to whole points; walls and chart print 2 dp`;
+  return { display, exact, asOf, source: origin, title };
+}
+
 interface KpiToken {
   key: string;
   label: string;
   value: () => string;
   ink: () => string;
   open?: KpiTokenKey;
-  title: string;
+  title: string | (() => string);
+  /** Provenance of the value, mirrored as data-* so surfaces can be compared. */
+  source?: () => string;
+  asOf?: () => string | null;
   /** SPOT is the only KPI that can hold a row beside the call on a phone. */
   narrowHide?: boolean;
 }
@@ -76,6 +155,8 @@ function KpiCell(props: { token: KpiToken; onToken?: (key: KpiTokenKey) => void 
   // between caption and value breaks that substring match.
   const label = `${props.token.label} ${props.token.value()}`;
   const ink = { color: props.token.ink() };
+  const title = () =>
+    typeof props.token.title === "function" ? props.token.title() : props.token.title;
 
   return (
     <Show
@@ -83,7 +164,9 @@ function KpiCell(props: { token: KpiToken; onToken?: (key: KpiTokenKey) => void 
       fallback={
         <span
           data-testid={`nifty-kpi-${props.token.key}`}
-          title={props.token.title}
+          data-spot-source={props.token.source?.()}
+          data-spot-as-of={props.token.asOf?.() ?? undefined}
+          title={title()}
           aria-label={label}
           className={`inline-flex flex-col items-start justify-center shrink-0 min-w-0 rounded-[2px] leading-none ${narrowClass()}`}
           style={ink}
@@ -95,7 +178,9 @@ function KpiCell(props: { token: KpiToken; onToken?: (key: KpiTokenKey) => void 
       <button
         type="button"
         data-testid={`nifty-kpi-${props.token.key}`}
-        title={props.token.title}
+        data-spot-source={props.token.source?.()}
+        data-spot-as-of={props.token.asOf?.() ?? undefined}
+        title={title()}
         aria-label={label}
         className={`inline-flex flex-col items-start justify-center shrink-0 min-w-0 rounded-[2px] leading-none ${narrowClass()}`}
         style={ink}
@@ -114,12 +199,9 @@ function KpiCell(props: { token: KpiToken; onToken?: (key: KpiTokenKey) => void 
  * neither this band nor the chart behind it can change height when it opens.
  */
 export function ReportKpiHero(props: ReportKpiHeroProps): JSX.Element {
-  const spot = (): string => {
-    const value = props.report?.spot;
-    return typeof value === "number" && Number.isFinite(value)
-      ? formatNumberIN(Math.round(value))
-      : DASH;
-  };
+  const spotView = () =>
+    spotSnapshot(sharedReportSpotSource() ?? reportSpotSource(props.report), { digits: 0 });
+  const spot = (): string => spotView().display;
 
   const regime = (): string => {
     const block = props.report?.regime;
@@ -151,7 +233,9 @@ export function ReportKpiHero(props: ReportKpiHeroProps): JSX.Element {
       label: "SPOT",
       value: spot,
       ink: () => palette.TEXT,
-      title: "Index spot from the current report snapshot.",
+      title: () => spotView().title,
+      source: () => spotView().source,
+      asOf: () => spotView().asOf,
     },
     {
       key: "regime",

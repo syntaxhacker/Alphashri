@@ -41,30 +41,54 @@ export function TapeBadgeControl(props: { view: DecisionView }): JSX.Element {
   );
 }
 
-/** The verdict block holds only evidence: no second claim, no second verdict. */
-export function VerdictContent(props: { view: DecisionView }): JSX.Element {
+/** The verdict block holds only evidence: no second claim, no second verdict.
+ *  In the bounded popover it stacks into one column; the compact band layout
+ *  stays exactly as it was for any other consumer. */
+export function VerdictContent(props: { view: DecisionView; popover?: boolean }): JSX.Element {
   const view = props.view;
   const narrow = view.narrow;
   const wrapLayout = () => verdictWrapLayout(narrow());
   return (
     <Box
       data-testid="nifty-verdict-wrap"
-      className={`flex gap-1 min-w-0 ${wrapLayout().direction === "column" ? "flex-col items-stretch flex-wrap py-0.5" : "flex-nowrap items-center"} ${VERDICT_NARROW_OVERRIDES}`}
-      style={{
-        height: wrapLayout().height,
-        "min-height": wrapLayout().minHeight,
-        overflow: wrapLayout().overflow,
-      }}
+      className={
+        props.popover
+          ? "flex flex-col items-stretch gap-1 w-full min-w-0 h-auto py-1"
+          : `flex gap-1 min-w-0 ${
+              wrapLayout().direction === "column"
+                ? "flex-col items-stretch flex-wrap py-0.5"
+                : "flex-nowrap items-center"
+            } ${VERDICT_NARROW_OVERRIDES}`
+      }
+      style={
+        props.popover
+          ? { height: "auto", "min-height": "0px", overflow: "visible", width: "100%" }
+          : {
+              height: wrapLayout().height,
+              "min-height": wrapLayout().minHeight,
+              overflow: wrapLayout().overflow,
+            }
+      }
     >
       {/* Evidence only. The verdict claim is rendered once, in the hero; a
           second copy here is what made "NEUTRAL · no trade" the loudest text. */}
       <Box
         data-testid="nifty-verdict-block"
-        className={`flex items-center min-w-0 flex-1 rounded-[4px] px-2 ${narrow() ? "flex-col items-stretch py-1" : "flex-nowrap"}`}
+        className={
+          props.popover
+            ? "flex flex-col items-stretch w-full min-w-0 h-auto gap-1 rounded-[4px] px-2 py-1"
+            : `flex items-center min-w-0 flex-1 rounded-[4px] px-2 ${
+                narrow() ? "flex-col items-stretch py-1" : "flex-nowrap"
+              }`
+        }
         style={{
           "align-self": "stretch",
           "background-color": palette.alpha(palette.TERM_BORDER, 0.18),
-          gap: narrow() ? undefined : `${VERDICT_EVIDENCE_GAP}px`,
+          gap: props.popover
+            ? "4px"
+            : narrow()
+              ? undefined
+              : `${VERDICT_EVIDENCE_GAP}px`,
         }}
       >
         <span
@@ -72,18 +96,30 @@ export function VerdictContent(props: { view: DecisionView }): JSX.Element {
           data-testid="nifty-verdict-rail"
           style={{ ...PLAN_BAR_STYLE, "background-color": view.claimTone() }}
         />
-        <Box data-testid="nifty-verdict-evidence" className="flex flex-1 min-w-0 items-stretch gap-2">
-          <span className="shrink-0 self-center" style={GROUP_LABEL_STYLE}>
+        <Box
+          data-testid="nifty-verdict-evidence"
+          className={
+            props.popover
+              ? "flex flex-col items-stretch w-full min-w-0 gap-1"
+              : "flex flex-1 min-w-0 items-stretch gap-2"
+          }
+        >
+          {/* The popover already captions this section; a second "Evidence"
+              label inside it would name the same concept twice. */}
+          <span
+            className={props.popover ? "hidden!" : "shrink-0 self-center"}
+            style={GROUP_LABEL_STYLE}
+          >
             Evidence
           </span>
-          <Box className="flex flex-1 min-w-0">
+          <Box className={props.popover ? "flex w-full min-w-0" : "flex flex-1 min-w-0"}>
             <NiftyVerdictStrip report={view.report()!} mode="context" />
           </Box>
         </Box>
         <span
           aria-hidden="true"
           data-testid="nifty-verdict-divider"
-          className="shrink-0"
+          className={`shrink-0 ${props.popover ? "hidden!" : ""}`}
           style={{
             width: "1px",
             "align-self": "stretch",

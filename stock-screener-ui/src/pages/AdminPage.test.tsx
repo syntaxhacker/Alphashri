@@ -15,7 +15,10 @@ vi.mock("@/ui", async (importOriginal) => {
   const { createSignal, Show } = await import("solid-js");
   const stubbed = await uiLayoutStub(actual);
 
-  let currentTabs: { value: () => string | null | undefined; set: (v: string | null) => void } | null = null;
+  let currentTabs: {
+    value: () => string | null | undefined;
+    set: (v: string | null) => void;
+  } | null = null;
 
   const Tabs = (props: any) => {
     const [value, setValue] = createSignal<string | null>(props.defaultValue ?? null);
@@ -93,6 +96,18 @@ describe("AdminPage", () => {
   it("shows LLM stats tab by default", () => {
     render(() => <AdminPage />);
     expect(screen.getByTestId("llm-stats-panel")).toBeInTheDocument();
+  });
+
+  it("keeps the admin frame fixed and scrolls each panel internally", () => {
+    render(() => <AdminPage />);
+
+    const page = screen.getByTestId("admin-page");
+    expect(page).toHaveClass("h-full", "min-h-0", "flex-col", "overflow-hidden");
+    expect(screen.getByTestId("admin-tabs")).toBeInTheDocument();
+
+    const tabScroller = screen.getByLabelText("Admin tabs");
+    expect(tabScroller).toHaveClass("overflow-x-auto");
+    expect(tabScroller).toHaveAttribute("role", "region");
   });
 
   it("switches to 52W tab", () => {

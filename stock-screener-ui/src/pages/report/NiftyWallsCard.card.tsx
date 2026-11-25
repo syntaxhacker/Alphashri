@@ -11,7 +11,9 @@ import {
 } from "./reportTokens";
 import type { WallsCardProps } from "./NiftyWallsCard.shared";
 import { injectCollapseRule } from "@/components/common/states";
+import { formatTimeOnly } from "@/utils/ui-helpers";
 import { isMarketOpenNow } from "@/state/holidays";
+import { sharedReportSpotSource, spotSnapshot } from "./ReportKpiHero";
 import { Stat, WallsLevelsLegend } from "./NiftyWallsCard.stats";
 import { WallTable } from "./NiftyWallsCard.table";
 import { MiniHistory } from "./NiftyWallsCard.history";
@@ -25,6 +27,17 @@ export { WallsEmpty } from "./NiftyWallsCard.empty";
 
 export function NiftyWallsCardInner(props: WallsCardProps) {
   const walls = () => props.walls;
+  // A walls payload is its own snapshot; the shared report field wins so the
+  // three nearby SPOT readouts name one source and one instant.
+  const spotView = () =>
+    spotSnapshot(
+      sharedReportSpotSource() ?? {
+        value: walls()?.spot,
+        asOf: walls()?.freshness?.last_t ? formatTimeOnly(walls()!.freshness.last_t) : null,
+        origin: "Snapshot",
+      },
+      { digits: 2 },
+    );
   const [dismissed, setDismissed] = createSignal<string | null>(null);
 
   // One alert per wall per cooldown: the backend latches `alert.at` to the
@@ -198,8 +211,10 @@ export function NiftyWallsCardInner(props: WallsCardProps) {
           <div class="flex items-center gap-3 min-w-0 whitespace-nowrap overflow-x-auto">
             <div
               data-walls-stat="spot"
+              data-spot-source={spotView().source}
+              data-spot-as-of={spotView().asOf ?? undefined}
               class="flex items-center gap-1 min-w-0 shrink-0"
-              title={`SPOT ${fmtNum(walls()!.spot, 2)}`}
+              title={spotView().title}
             >
               <span class="text-ui-micro shrink-0" style={{ color: palette.TEXT_MUTED }}>SPOT</span>
               <Text
@@ -208,7 +223,7 @@ export function NiftyWallsCardInner(props: WallsCardProps) {
                 className="font-mono tabular-nums truncate min-w-0"
                 style={{ "font-size": `${REPORT_FONT.xs}px`, color: palette.TEXT_MUTED }}
               >
-                {fmtNum(walls()!.spot, 2)}
+                {spotView().display}
               </Text>
             </div>
             <div
@@ -381,7 +396,14 @@ export function NiftyWallsCardInner(props: WallsCardProps) {
               "margin-top": `${REPORT_PAD.sm}px`,
             }}
           >
-            <Stat label="SPOT" value={fmtNum(walls()!.spot, 2)} />
+            <div
+              data-walls-stat="spot"
+              data-spot-source={spotView().source}
+              data-spot-as-of={spotView().asOf ?? undefined}
+              title={spotView().title}
+            >
+              <Stat label="SPOT" value={spotView().display} />
+            </div>
             <Stat label="MAX PAIN" value={fmtNum(walls()!.max_pain)} />
             <Stat
               label="PIN"

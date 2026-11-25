@@ -60,7 +60,7 @@ export function RotationMatrix(props: RotationMatrixProps) {
   return (
     <Box
       data-testid="rotation-matrix"
-      className="flex h-full min-h-0 flex-1 flex-col"
+      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
     >
       <TanStackTable<RotationRow>
         data={props.rows}

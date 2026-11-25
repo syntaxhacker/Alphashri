@@ -51,7 +51,7 @@ afterEach(cleanup);
 
 // Imported dynamically so this file is also a regression proving the module
 // did not exist before the A+B hero landed.
-const { ReportKpiHero } = await import("./ReportKpiHero");
+const { ReportKpiHero, spotSnapshot } = await import("./ReportKpiHero");
 
 describe("ReportKpiHero — compact decision band", () => {
   test("is one compact 32px band, not the old 56px banner", () => {
@@ -144,6 +144,37 @@ describe("ReportKpiHero — composed 32px band", () => {
     expect(Array.from(spot.children).map((el) => el.textContent)).toEqual(["SPOT", "25,000"]);
     expect(screen.getByTestId("nifty-kpi-tokens").textContent).not.toContain(" · ");
     expect(screen.getByTestId("decision-slot-stub").parentElement).not.toBe(hero);
+  });
+});
+
+describe("ReportKpiHero — shared spot snapshot descriptor", () => {
+  test("one descriptor explains the whole-point KPI against the 2dp walls/chart spot", () => {
+    const view = spotSnapshot(25_976.1, { digits: 0, asOf: "11:44", origin: "Snapshot" });
+    expect(view.display).toBe("25,976");
+    expect(view.exact).toBe("25,976.10");
+    expect(view.title).toContain("Snapshot 11:44");
+    expect(view.title).toContain("25,976.10");
+    expect(view.title).toContain("whole points");
+
+    const precise = spotSnapshot(25_976.1, { digits: 2, asOf: "11:44", origin: "Snapshot" });
+    expect(precise.display).toBe("25,976.10");
+    expect(precise.exact).toBe(view.exact);
+    expect(precise.title).toContain("Snapshot 11:44");
+  });
+
+  test("the SPOT cell keeps its number but its title carries the snapshot instant", () => {
+    mount({
+      report: {
+        ...report,
+        spot: 25_976.1,
+        snapshotAt: "2026-11-23T11:44:00+05:30",
+      } as unknown as NiftyReport,
+    });
+    const spot = screen.getByTestId("nifty-kpi-spot");
+    expect(spot).toHaveTextContent("25,976");
+    expect(spot.getAttribute("title")).toContain("Snapshot 11:44");
+    expect(spot.getAttribute("title")).toContain("25,976.10");
+    expect(spot.getAttribute("title")).toContain("whole points");
   });
 });
 

@@ -175,6 +175,35 @@ export function snapshotClockLabel(updatedAtMs: number | null): string {
   return clock === "—" ? "—" : clock.slice(0, 5);
 }
 
+/**
+ * Promote a stale age to the largest whole unit (m → h → d, days is the cap).
+ * Mirrors `getChainLiveState` in `src/hooks/chainLiveState.ts`; that helper takes
+ * a timestamp while the toolbar already holds minutes. The one-minute floor
+ * stops a zero/negative reading from claiming a live feed.
+ */
+export function formatStaleDuration(staleMins: number): string {
+  const minutes = Number.isFinite(staleMins) ? Math.max(1, Math.floor(staleMins)) : 1;
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
+/** The promoted label hides precision, so the tooltip carries the exact age. */
+export function toolbarStatusTitle(input: {
+  state: ToolbarFeedState;
+  staleMins: number;
+}): string {
+  if (input.state === "closed") return "Market closed — showing the last recorded snapshot";
+  if (input.state === "stale") {
+    const seconds = Number.isFinite(input.staleMins)
+      ? Math.max(0, Math.round(input.staleMins * 60))
+      : 0;
+    return `Feed not current — showing the last recorded data (${seconds} seconds old)`;
+  }
+  return "WebSocket feed connected";
+}
+
 export function toolbarStatusLabel(input: {
   state: ToolbarFeedState;
   updatedAtMs: number | null;
@@ -182,7 +211,7 @@ export function toolbarStatusLabel(input: {
   liveClockMs: number;
 }): string {
   if (input.state === "closed") return `SNAPSHOT ${snapshotClockLabel(input.updatedAtMs)}`;
-  if (input.state === "stale") return `STALE ${Math.max(1, input.staleMins)}m`;
+  if (input.state === "stale") return `STALE ${formatStaleDuration(input.staleMins)}`;
   return `Updated ${formatReportClock(input.liveClockMs)} · live (WS)`;
 }
 
@@ -206,13 +235,7 @@ function ToolbarStatus(props: {
       size="xs"
       c={props.state === "live" ? "dimmed" : "warning"}
       span
-      title={
-        props.state === "closed"
-          ? "Market closed — showing the last recorded snapshot"
-          : props.state === "stale"
-            ? "Feed not current — showing the last recorded data"
-            : "WebSocket feed connected"
-      }
+      title={toolbarStatusTitle({ state: props.state, staleMins: props.staleMins })}
     >
       {toolbarStatusLabel({
         state: props.state,

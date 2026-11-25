@@ -11,26 +11,26 @@ import { PatternsPage, type PatternsPageProps } from "./PatternsPage";
 vi.setConfig({ testTimeout: 60_000 });
 
 vi.mock("@/ui", async (importOriginal) => {
-  const { uiLayoutStub } = await import("@/pages/solidTestStubs");
-  const stubbed = await uiLayoutStub(await importOriginal<Record<string, unknown>>());
+  const actual = await importOriginal<Record<string, unknown>>();
   const passthrough = (props: any) => <div>{props.children}</div>;
   const Item = (props: any) => (
-    <button type="button" onClick={() => props.onSelect?.(props)} data-testid={props["data-testid"]}>
+    <button
+      type="button"
+      onClick={() => props.onSelect?.(props)}
+      data-testid={props["data-testid"]}
+    >
       {props.children}
     </button>
   );
-  const Menu = Object.assign(
-    (props: any) => <div data-testid="menu-root">{props.children}</div>,
-    {
-      Target: passthrough,
-      Dropdown: passthrough,
-      Item,
-      Divider: () => <hr />,
-      Label: (props: any) => <span>{props.children}</span>,
-    },
-  );
+  const Menu = Object.assign((props: any) => <div data-testid="menu-root">{props.children}</div>, {
+    Target: passthrough,
+    Dropdown: passthrough,
+    Item,
+    Divider: () => <hr />,
+    Label: (props: any) => <span>{props.children}</span>,
+  });
   return {
-    ...stubbed,
+    ...actual,
     Menu,
     MenuTarget: passthrough,
     MenuDropdown: passthrough,
@@ -57,11 +57,39 @@ vi.mock("@/api/chartPatterns", () => ({
   fetchSymbolChart: (...args: unknown[]) => fetchSymbolChart(...args),
   fetchPatternMatrix: (...args: unknown[]) => fetchPatternMatrix(...args),
   fetchPatternHit: (...args: unknown[]) => fetchPatternHit(...args),
+  fetchWatch: vi.fn(async () => ({ items: [], updated_at: null })),
+  fetchWatchSetups: vi.fn(async () => []),
+  fetchMarketStatus: vi.fn(async () => ({ open: false })),
+  streamWatch: vi.fn(async () => {}),
+  fetchIndexMembers: vi.fn(async () => ({ label: "Index", count: 0, symbols: [] })),
 }));
 
 const fetchPatternImages = vi.fn();
+vi.mock("@/api/marketScreener", () => ({
+  fetchQuotes: vi.fn(async () => []),
+}));
+
 vi.mock("@/api/patternImages", () => ({
   fetchPatternImages: (...args: unknown[]) => fetchPatternImages(...args),
+}));
+
+// The real thumbnail component is covered by its own suite. Here it sits inside
+// a partially mocked UI kit (Box is a plain stub), and 19 live <img> branches
+// under that stub balloon the happy-dom worker past its heap limit. Keep the
+// image contract (test id + src / placeholder) with a lightweight stand-in.
+vi.mock("@/components/patterns/PatternImage", () => ({
+  PatternImage: (props: { patternId: string; images?: Record<string, string>; alt?: string }) => {
+    const src = () => props.images?.[props.patternId];
+    return (
+      <Show when={src()} fallback={<span data-testid="pattern-image-placeholder" />}>
+        <img
+          src={src()}
+          alt={props.alt ?? props.patternId}
+          data-testid={`pattern-image-${props.patternId}`}
+        />
+      </Show>
+    );
+  },
 }));
 
 const gridTrendlinesViews = vi.hoisted(() => [] as unknown[]);
@@ -167,10 +195,16 @@ vi.mock("@/components/patterns/PatternFullscreenView", () => ({
     fullscreenTrendlinesViews.push(props.trendlinesView ?? "both");
     fullscreenOverlays.push(props.overlays);
     const docked = () => props.docked ?? false;
-    const tfs = () => ((props.timeframes as any[]) ?? []).length > 0 ? (props.timeframes as any[]) : [{ id: props.timeframe, label: props.timeframe }];
+    const tfs = () =>
+      ((props.timeframes as any[]) ?? []).length > 0
+        ? (props.timeframes as any[])
+        : [{ id: props.timeframe, label: props.timeframe }];
     return (
       <Show when={props.opened}>
-        <div data-testid={docked() ? "patterns-chart-dock" : "patterns-fullscreen-modal"} data-trendlines-view={props.trendlinesView ?? "both"}>
+        <div
+          data-testid={docked() ? "patterns-chart-dock" : "patterns-fullscreen-modal"}
+          data-trendlines-view={props.trendlinesView ?? "both"}
+        >
           <div data-testid="patterns-fullscreen-active-hit">{props.hit?.pattern_name}</div>
           <For each={(props.hits ?? []) as any[]}>
             {(h: any, i: number) => (
@@ -188,14 +222,12 @@ vi.mock("@/components/patterns/PatternFullscreenView", () => ({
               data-testid="patterns-fullscreen-timeframe"
               aria-label="Fullscreen timeframe"
               value={props.timeframe}
-              onChange={(e) => props.onTimeframeChange((e.currentTarget as HTMLSelectElement).value)}
+              onChange={(e) =>
+                props.onTimeframeChange((e.currentTarget as HTMLSelectElement).value)
+              }
             >
               <For each={tfs()}>
-                {(tf: any) => (
-                  <option value={tf.id}>
-                    {tf.label || tf.id}
-                  </option>
-                )}
+                {(tf: any) => <option value={tf.id}>{tf.label || tf.id}</option>}
               </For>
             </select>
           </Show>
@@ -224,7 +256,7 @@ vi.mock("@/components/patterns/PatternFullscreenView", () => ({
             <div data-testid="patterns-chart-position">{props.positionLabel}</div>
           </Show>
           <div data-testid="patterns-fullscreen-chart" />
-          <Show when={((props.candles?.length ?? 0) === 0)}>
+          <Show when={(props.candles?.length ?? 0) === 0}>
             <div>No chart data</div>
           </Show>
         </div>
@@ -236,7 +268,8 @@ vi.mock("@/components/patterns/PatternFullscreenView", () => ({
 // Native-select stubs so toolbar wiring is deterministic (the real Select needs popup interaction). Testids + onChange contracts preserved.
 vi.mock("@/components/patterns/TimeframeSelect", () => ({
   TimeframeSelect: (props: any) => {
-    const selected = () => (Array.isArray(props.value) ? props.value : props.value ? [props.value] : []);
+    const selected = () =>
+      Array.isArray(props.value) ? props.value : props.value ? [props.value] : [];
     const source = () =>
       (props.timeframes as any[]).length > 0
         ? (props.timeframes as any[])
@@ -330,7 +363,13 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
     timeframes: [],
     universes: [{ id: "nifty500", label: "Nifty 500", count: 500 }],
     patterns: [
-      { pattern_id: "falling_wedge", name: "Falling Wedge", family: "reversal", direction: "bullish", description: "…" },
+      {
+        pattern_id: "falling_wedge",
+        name: "Falling Wedge",
+        family: "reversal",
+        direction: "bullish",
+        description: "…",
+      },
     ],
     timeframe: "1D",
     setTimeframe: vi.fn(),
@@ -356,7 +395,8 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
       max_range_pct: null,
       sort: "confidence",
       trendlines: "both",
-    },    setFilter: vi.fn(),
+    },
+    setFilter: vi.fn(),
     resetFilters: vi.fn(),
     applyFilters: vi.fn(),
     computeTrendlines: true,
@@ -379,8 +419,8 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
   };
 }
 
-function r(jsx: JSX.Element) {
-  return render(() => <UIProvider>{jsx}</UIProvider>);
+function r(jsx: () => JSX.Element) {
+  return render(() => <UIProvider>{jsx()}</UIProvider>);
 }
 
 /**
@@ -424,7 +464,12 @@ describe("PatternsPage rail-modal", () => {
         {
           pattern_id: "rising_wedge",
           pattern_name: "Rising Wedge",
-          trendlines: [[{ t: "2026-06-10", price: 235 }, { t: "2026-09-15", price: 311 }]],
+          trendlines: [
+            [
+              { t: "2026-06-10", price: 235 },
+              { t: "2026-09-15", price: 311 },
+            ],
+          ],
         },
       ],
     });
@@ -432,7 +477,7 @@ describe("PatternsPage rail-modal", () => {
   afterEach(() => cleanup());
 
   test("Filters button opens the modal with the full rail", async () => {
-    r(<PatternsPage {...makeProps()} />);
+    r(() => <PatternsPage {...makeProps()} />);
     expect(screen.queryByTestId("patterns-filter-rail")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("patterns-open-filters"));
     expect(await screen.findByTestId("patterns-filter-rail")).toBeInTheDocument();
@@ -442,12 +487,14 @@ describe("PatternsPage rail-modal", () => {
       "Falling Wedge",
     );
     fireEvent.click(screen.getByTestId("patterns-filters-done"));
-    await waitFor(() => expect(screen.queryByTestId("patterns-filter-rail")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByTestId("patterns-filter-rail")).not.toBeInTheDocument(),
+    );
   });
 
   test("filter edits are staged and applied only when Filter is clicked", async () => {
     const props = makeProps();
-    r(<PatternsPage {...props} />);
+    r(() => <PatternsPage {...props} />);
     fireEvent.click(screen.getByTestId("patterns-open-filters"));
     await pickMultiOption("patterns-family-select", /^Reversal/);
     expect(props.setFilter).not.toHaveBeenCalled();
@@ -459,7 +506,7 @@ describe("PatternsPage rail-modal", () => {
 
   test("Cmd/Ctrl+Enter applies the latest staged draft, not the draft captured at open", async () => {
     const props = makeProps();
-    r(<PatternsPage {...props} />);
+    r(() => <PatternsPage {...props} />);
     fireEvent.click(screen.getByTestId("patterns-open-filters"));
     await pickMultiOption("patterns-family-select", /^Reversal/);
     expect(props.applyFilters).not.toHaveBeenCalled();
@@ -475,11 +522,12 @@ describe("PatternsPage rail-modal", () => {
 
   test("a preset replaces the staged filters instead of merging with them", async () => {
     const props = makeProps();
-    r(<PatternsPage {...props} />);
+    r(() => <PatternsPage {...props} />);
     fireEvent.click(screen.getByTestId("patterns-open-filters"));
 
     await pickMultiOption("patterns-direction-select", "Bearish");
-    fireEvent.input(within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox"),
+    fireEvent.input(
+      within(screen.getByTestId("patterns-preset-select-input")).getByRole("combobox"),
       { target: { value: "builtin:fresh_reversals" } },
     );
 
@@ -496,12 +544,10 @@ describe("PatternsPage rail-modal", () => {
 
   test("filters modal exposes the modal region; Reset all stages a reset", async () => {
     const props = makeProps();
-    r(<PatternsPage {...props} />);
+    r(() => <PatternsPage {...props} />);
     fireEvent.click(screen.getByTestId("patterns-open-filters"));
     expect(await screen.findByTestId("patterns-filter-modal")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("patterns-reset"));
     expect(props.resetFilters).not.toHaveBeenCalled();
   });
-
-
 });

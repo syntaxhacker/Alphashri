@@ -64,6 +64,15 @@ describe("BacktestTradeCharts", () => {
     cleanup();
   });
 
+  test("uses one vertical scroll owner below the fixed symbol header", () => {
+    const { container } = render(() => <BacktestTradeCharts chartData={makeChartData()} />, { wrapper: UIProvider });
+    const shell = container.firstElementChild as HTMLElement;
+    expect(shell).toHaveClass("h-full", "min-h-0", "overflow-hidden");
+    const scroller = screen.getByTestId("trade-charts");
+    expect(scroller).toHaveClass("flex-1", "min-h-0", "overflow-auto");
+    cleanup();
+  });
+
   test("empty state when no trades", () => {
     const data = { ...makeChartData(), trades: [] } as unknown as SymbolChartData;
     render(() => <BacktestTradeCharts chartData={data} />, { wrapper: UIProvider });

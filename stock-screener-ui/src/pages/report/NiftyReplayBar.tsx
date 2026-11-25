@@ -179,7 +179,8 @@ export function NiftyReplayBar(props: NiftyReplayBarProps) {
   const coverageTitle = () => {
     const coverage = props.coverage;
     return coverage
-      ? `${coverage.missing} of ${coverage.sessionMinutes} session minutes are missing` +
+      ? `Recorded ${coverage.recorded} of ${coverage.sessionMinutes} session minutes (${coverage.pct}%)` +
+        ` — ${coverage.missing} minutes missing` +
         (props.reasons.length > 0
           ? ` — ${props.reasons.map((r) => `${r.label} ×${r.n}`).join(", ")}`
           : "")
@@ -298,6 +299,7 @@ export function NiftyReplayBar(props: NiftyReplayBarProps) {
         size="xs"
         span
         c="dimmed"
+        title={`Replay frame ${replayIndex() + 1} of ${replay().snapshots.length} recorded snapshots`}
         style={{ "flex-shrink": "0", "font-variant-numeric": "tabular-nums" }}
       >
         {replayIndex() + 1}/{replay().snapshots.length}

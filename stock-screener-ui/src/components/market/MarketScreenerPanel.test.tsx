@@ -765,6 +765,20 @@ describe("MarketScreenerPanel — active-filter row layout stability", () => {
     expect(screen.getByTestId("market-table-region")).toBe(table);
     expect(screen.getByTestId("market-table-region").className).toBe(tableClasses);
   });
+
+  test("keeps the route root bounded and the wide table inside its own scroll region", () => {
+    r(() => <MarketScreenerPanel />);
+
+    const root = screen.getByTestId("market-screener");
+    for (const cls of ["flex-1", "h-full", "min-h-0", "flex-col", "overflow-hidden"]) {
+      expect(root).toHaveClass(cls);
+    }
+
+    // The table scroller stays inside the bounded table region, not #app-main.
+    const tableRegion = screen.getByTestId("market-table-region");
+    expect(tableRegion).toContainElement(screen.getByTestId("market-grid"));
+    expect(tableRegion.querySelector(".paper-tanstack-scroll")).toBeInTheDocument();
+  });
 });
 
 describe("MarketScreenerPanel — symbol allowlist", () => {

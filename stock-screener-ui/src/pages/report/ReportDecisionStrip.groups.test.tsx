@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { cleanup, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { UIProvider } from "@/ui";
 
@@ -406,6 +406,133 @@ describe("decision strip — readout width and no-inline-ellipsis contract", () 
       expect(chip).toHaveTextContent(text);
       expect(chip.getAttribute("title")).toContain(text);
       expect(chip.getAttribute("aria-label")).toContain(text);
+    }
+  });
+});
+
+describe("ALL STATS popover — every stat cell keeps its floor and its value", () => {
+  const CELL_MIN: Record<string, number> = {
+    "nifty-stat-symbol": REPORT_STRIP_CELL_MIN.symbol,
+    "nifty-stat-change": REPORT_STRIP_CELL_MIN.change,
+    "nifty-stat-spot": REPORT_STRIP_CELL_MIN.spot,
+    "nifty-stat-regime": REPORT_STRIP_CELL_MIN.regime,
+    "nifty-stat-flip": REPORT_STRIP_CELL_MIN.flip,
+    "nifty-stat-call-wall": REPORT_STRIP_CELL_MIN.callWall,
+    "nifty-stat-put-wall": REPORT_STRIP_CELL_MIN.putWall,
+    "nifty-stat-pin": REPORT_STRIP_CELL_MIN.pin,
+    "nifty-stat-max-pain": REPORT_STRIP_CELL_MIN.maxPain,
+    "nifty-squeeze-fuel": REPORT_STRIP_CELL_MIN.squeezeFuel,
+    "nifty-stat-pcr-oi": REPORT_STRIP_CELL_MIN.pcrOi,
+    "nifty-stat-pcr-vol": REPORT_STRIP_CELL_MIN.pcrVol,
+    "nifty-chip-setup": REPORT_STRIP_CELL_MIN.chipSetup,
+    "nifty-chip-intel": REPORT_STRIP_CELL_MIN.chipIntel,
+    "nifty-chip-gamma": REPORT_STRIP_CELL_MIN.chipGamma,
+  };
+
+  function openAt(width: number) {
+    const original = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+    mount();
+    fireEvent.click(screen.getByTestId("nifty-live-tape-toggle"));
+    return {
+      restore: () =>
+        Object.defineProperty(window, "innerWidth", { configurable: true, value: original }),
+      content: screen.getByTestId("nifty-live-tape-content"),
+    };
+  }
+
+  test.each([1600, 390])("at %ipx no cell min-width can overflow the popover content box", (width) => {
+    const { content, restore } = openAt(width);
+    try {
+      const contentWidth = Number.parseFloat(content.style.width);
+      expect(contentWidth).toBeGreaterThan(0);
+      // The 8px inset on each side is the popover's only horizontal padding.
+      const usable = contentWidth - 16;
+      const floors: number[] = [];
+      for (const [id, expected] of Object.entries(CELL_MIN)) {
+        const cell = within(content).queryByTestId(id);
+        if (!cell) continue; // squeeze fuel is conditional on the payload
+        const floor = Number.parseFloat(cell.style.minWidth);
+        expect(floor, `${id} min-width`).toBe(expected);
+        expect(floor, `${id} floor`).toBeLessThanOrEqual(usable);
+        expect(cell.getAttribute("title"), `${id} tooltip`).toBeTruthy();
+        floors.push(floor);
+      }
+      expect(floors.length).toBeGreaterThanOrEqual(14);
+    } finally {
+      restore();
+    }
+  });
+
+  test.each([1600, 390])("at %ipx FLOW chips become full-width wrapping rows", (width) => {
+    const { content, restore } = openAt(width);
+    try {
+      const flow = within(content).getByTestId("nifty-stat-group-flow");
+      expect(flow).toHaveAttribute("data-stat-variant", "popover");
+      const cells = within(flow).getByTestId("nifty-stat-group-flow-cells");
+      expect(cells.className).toMatch(/(^|\s)flex-col(\s|$)/);
+      expect(cells.className).toContain("[&>button]:w-full!");
+      expect(cells.className).toContain("[&>button]:flex-col!");
+      expect(cells.className).toContain("[&>button]:whitespace-normal!");
+      expect(cells.className).toContain("[&>button>span:last-child]:overflow-visible!");
+      expect(cells.className).toContain("[&>button>span:last-child]:whitespace-normal!");
+      expect(content.style.overflowX).toBe("hidden");
+      for (const [id, label] of [
+        ["nifty-chip-setup", "Setup checks"],
+        ["nifty-chip-intel", "Institutional flows"],
+        ["nifty-chip-gamma", "Dealer gamma"],
+      ] as const) {
+        const chip = within(cells).getByTestId(id);
+        expect(chip.tagName.toLowerCase()).toBe("button");
+        expect(chip).toHaveTextContent(label);
+        expect(chip.getAttribute("title")).toContain(label);
+      }
+    } finally {
+      restore();
+    }
+  });
+
+  // DOM-measured regression: the previous popover used `auto-fit minmax(280px,
+  // 1fr)` and let the shell's two-attribute phone rules win, so the FLOW chips
+  // measured 9px wide outside their group. These class contracts are what give
+  // every group exactly one full-width grid cell at both viewport widths.
+  test.each([1600, 390])("at %ipx the stats grid has fixed columns and one cell per group", (width) => {
+    const { content, restore } = openAt(width);
+    try {
+      const stats = within(content).getByTestId("nifty-decision-stats");
+      expect(stats).toHaveAttribute("data-stat-layout", "popover-grid");
+      expect(stats.className).toContain("grid-cols-1");
+      expect(stats.className).toContain("min-[601px]:grid-cols-2");
+      expect(stats.className).not.toContain("auto-fit");
+      expect(stats.className).toContain("[grid-auto-rows:minmax(0,auto)]!");
+
+      const flow = within(content).getByTestId("nifty-stat-group-flow");
+      expect((flow as HTMLElement).style.gridColumn).toBe("1 / -1");
+      // Outrank `NiftyReportShell`'s `max-[600px]` two-attribute selectors.
+      for (const token of [
+        "[&&&_[data-testid^='nifty-stat-group-']]:flex-col!",
+        "[&&&_[data-testid$='-cells']]:flex-col!",
+        "[&&&_[data-testid$='-cells']>*]:w-full!",
+        "[&&&_[data-testid$='-cells']>*]:[flex-basis:auto]!",
+      ]) {
+        expect(stats.className, token).toContain(token);
+      }
+      const cells = within(flow).getByTestId("nifty-stat-group-flow-cells");
+      for (const token of [
+        "[&&&>button]:w-full!",
+        "[&&&>button]:flex-none!",
+        "[&&&>button]:flex-col!",
+        "[&&&>button>span:last-child]:w-full!",
+      ]) {
+        expect(cells.className, token).toContain(token);
+      }
+      for (const id of ["nifty-chip-setup", "nifty-chip-intel", "nifty-chip-gamma"]) {
+        const chip = within(cells).getByTestId(id);
+        expect(chip.getAttribute("title")).toBeTruthy();
+        expect((chip as HTMLElement).style.minWidth).toBeTruthy();
+      }
+    } finally {
+      restore();
     }
   });
 });

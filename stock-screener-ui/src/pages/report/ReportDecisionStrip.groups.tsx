@@ -22,6 +22,42 @@ import {
   formatInt,
 } from "./ReportDecisionStrip.format";
 
+/** Fixed tracks replace `auto-fit minmax(280px,1fr)`: the guess let wide floors
+ *  escape their track (FLOW chips painted 9px wide, outside the group). */
+const POPOVER_STATS_CLASS = [
+  "grid grid-cols-1 min-[601px]:grid-cols-2 items-start min-w-0 w-full",
+  "[gap:8px]! [grid-auto-rows:minmax(0,auto)]! [&>*]:min-w-0! [&>*]:shrink-0!",
+  "[&_[data-testid^='nifty-stat-group-']]:min-w-0! [&_[data-testid^='nifty-stat-group-']]:w-full! [&_[data-testid^='nifty-stat-group-']]:flex-none! [&_[data-testid^='nifty-stat-group-']>*]:min-w-0!",
+  "[&_[data-testid^='nifty-stat-group-']>span:first-child]:w-full! [&_[data-testid^='nifty-stat-group-']>span:first-child]:border-b! [&_[data-testid^='nifty-stat-group-']>span:first-child]:border-[var(--desk-border)]! [&_[data-testid^='nifty-stat-group-']>span:first-child]:pb-1! [&_[data-testid^='nifty-stat-group-']>span:first-child]:mb-1!",
+  "[&_[data-testid$='-cells']]:flex-col! [&_[data-testid$='-cells']]:w-full! [&_[data-testid$='-cells']]:min-w-0! [&_[data-testid$='-cells']]:items-stretch! [&_[data-testid$='-cells']]:shrink-0!",
+  "[&_[data-testid$='-cells']>*]:min-w-0! [&_[data-testid$='-cells']>*]:w-full! [&_[data-testid$='-cells']>*]:h-auto! [&_[data-testid$='-cells']>*]:shrink-0! [&_[data-testid$='-cells']>*]:flex-none!",
+  "[&_[data-testid$='-cells']>*]:border-l-0! [&_[data-testid$='-cells']>*]:px-0! [&_[data-testid$='-cells']>*]:py-1! [&_[data-testid$='-cells']>*]:gap-1!",
+  "[&_[data-testid$='-value']]:text-right! [&_[data-testid$='-value']]:whitespace-normal! [&_[data-testid$='-value']]:overflow-visible! [&_[data-testid$='-value']]:[text-overflow:clip]!",
+  "[&_[data-testid$='-label']]:whitespace-normal! [&_[data-testid$='-label']]:overflow-visible! [&_[data-testid$='-label']]:[text-overflow:clip]!",
+  "[&_[data-testid='nifty-maxpain-inline-label']]:border-l-0! [&_[data-testid='nifty-maxpain-inline-label']]:whitespace-normal!",
+  // Stacked `&` outranks the shell's two-attribute phone selectors.
+  "[&&&_[data-testid^='nifty-stat-group-']]:flex-col! [&&&_[data-testid^='nifty-stat-group-']]:items-stretch! [&&&_[data-testid^='nifty-stat-group-']]:min-w-0! [&&&_[data-testid^='nifty-stat-group-']]:w-full!",
+  "[&&&_[data-testid$='-cells']]:flex-col! [&&&_[data-testid$='-cells']]:w-full! [&&&_[data-testid$='-cells']]:min-w-0! [&&&_[data-testid$='-cells']]:items-stretch!",
+  "[&&&_[data-testid$='-cells']>*]:w-full! [&&&_[data-testid$='-cells']>*]:min-w-0! [&&&_[data-testid$='-cells']>*]:h-auto! [&&&_[data-testid$='-cells']>*]:flex-none!",
+  "[&&&_[data-testid$='-cells']>*]:[flex-basis:auto]! [&&&_[data-testid$='-cells']>*]:px-0! [&&&_[data-testid$='-cells']>*]:py-1! [&&&_[data-testid$='-cells']>*]:border-l-0!",
+  "[&&&_[data-testid$='-value']]:whitespace-normal! [&&&_[data-testid$='-value']]:overflow-visible! [&&&_[data-testid$='-value']]:[text-overflow:clip]!",
+].join(" ");
+
+/** Label and value share a line only when they fit; a long readout wraps. */
+const POPOVER_GROUP_CLASS = [
+  "[&_[data-testid$='-value']]:whitespace-normal! [&_[data-testid$='-value']]:overflow-visible!",
+].join(" ");
+
+/** Chips become full-width wrapping lines instead of an ellipsised inline row. */
+const POPOVER_CELLS_CLASS = [
+  "flex-col w-full",
+  "[&>button]:w-full! [&>button]:h-auto! [&>button]:flex-none! [&>button]:min-w-0! [&>button]:shrink-0! [&>button]:flex-col! [&>button]:items-stretch! [&>button]:gap-1! [&>button]:py-1! [&>button]:whitespace-normal!",
+  "[&>button>span]:min-w-0! [&>button>span]:whitespace-normal! [&>button>span:last-child]:w-full! [&>button>span:last-child]:overflow-visible! [&>button>span:last-child]:whitespace-normal! [&>button>span:last-child]:text-left! [&>button>span:last-child]:[text-overflow:clip]! [&>button>span:last-child]:[flex:none]!",
+  // Out-specify the shell's `basis-[calc(50%_-_2px)]!` phone rule.
+  "[&&&>button]:w-full! [&&&>button]:h-auto! [&&&>button]:flex-none! [&&&>button]:min-w-0! [&&&>button]:flex-col! [&&&>button]:items-stretch! [&&&>button]:gap-1! [&&&>button]:py-1! [&&&>button]:whitespace-normal!",
+  "[&&&>button>span]:min-w-0! [&&&>button>span]:whitespace-normal! [&&&>button>span:last-child]:w-full! [&&&>button>span:last-child]:overflow-visible! [&&&>button>span:last-child]:whitespace-normal! [&&&>button>span:last-child]:text-left! [&&&>button>span:last-child]:[text-overflow:clip]!",
+].join(" ");
+
 /** One labelled zone of the stat strip. The hairline sits inside the 8px
  *  gutter (4px row gap + 1px rule + 3px inset), so cells never drift apart. */
 export function StatGroup(props: {
@@ -35,6 +71,9 @@ export function StatGroup(props: {
   fullRow?: boolean;
   wrapCells?: boolean;
   cellsMaxWidth?: number;
+  /** The popover reuses the same cells with a column layout, not a second
+   *  strip with its own copy of the numbers. */
+  popover?: boolean;
   children: JSX.Element;
 }): JSX.Element {
   const m = REPORT_STRIP_METRICS;
@@ -42,16 +81,16 @@ export function StatGroup(props: {
     <Box
       data-testid={props.testId}
       data-group-label={props.label}
-      className="flex flex-col"
+      data-stat-variant={props.popover ? "popover" : "strip"}
+      className={`flex flex-col ${props.popover ? POPOVER_GROUP_CLASS : ""}`}
       style={{
+        // The inline contract is shared with the strip: CSS zeroes the floor
+        // inside the bounded popover, the derived number stays on the node.
         flex: props.fullRow ? "1 0 100%" : `${props.weight} 1 0%`,
-        // A full-row group keeps only its widest cell as the floor: the summed
-        // weight would re-widen the grid track past the viewport and pin this
-        // group to the far right again. Every other group keeps the full floor
-        // so its cells cannot shrink into their neighbour.
         "min-width": `${props.fullRow ? REPORT_STRIP_CELL_MIN.chipGamma : props.weight}px`,
         gap: `${m.cellGap}px`,
-        ...(props.divider
+        ...(props.fullRow && props.popover ? { "grid-column": "1 / -1" } : {}),
+        ...(props.divider && !props.popover
           ? {
               "border-left": `1px solid ${palette.TERM_BORDER}`,
               "padding-left": `${m.groupInset}px`,
@@ -64,7 +103,10 @@ export function StatGroup(props: {
       </span>
       <Box
         data-testid={props.cellsTestId ?? `${props.testId}-cells`}
-        className={`flex items-stretch flex-1 min-w-0 ${props.wrapCells ? "flex-wrap" : ""}`}
+        data-stat-variant={props.popover ? "popover" : "strip"}
+        className={`flex items-stretch flex-1 min-w-0 ${props.wrapCells ? "flex-wrap" : ""} ${
+          props.popover ? POPOVER_CELLS_CLASS : ""
+        }`}
         style={{
           gap: `${m.cellGap}px`,
           ...(props.cellsMaxWidth != null ? { "max-width": `${props.cellsMaxWidth}px` } : {}),
@@ -76,13 +118,14 @@ export function StatGroup(props: {
   );
 }
 
-function PriceGroup(props: { view: DecisionView }): JSX.Element {
+function PriceGroup(props: { view: DecisionView; popover?: boolean }): JSX.Element {
   const view = props.view;
   return (
     <StatGroup
       testId="nifty-stat-group-price"
       label="PRICE"
       weight={REPORT_STRIP_GROUP_WEIGHT.price}
+      popover={props.popover}
     >
       <DecisionCell
         testId="nifty-stat-symbol"
@@ -159,7 +202,7 @@ function PriceGroup(props: { view: DecisionView }): JSX.Element {
   );
 }
 
-function WallsGroup(props: { view: DecisionView }): JSX.Element {
+function WallsGroup(props: { view: DecisionView; popover?: boolean }): JSX.Element {
   const view = props.view;
   // A missing max pain must stay a bare dash: printing 0 (or the label alone)
   // next to the PIN cell invents a level and mislabels it.
@@ -173,6 +216,7 @@ function WallsGroup(props: { view: DecisionView }): JSX.Element {
       label="WALLS"
       weight={REPORT_STRIP_GROUP_WEIGHT.walls}
       divider
+      popover={props.popover}
     >
       <DecisionCell
         testId="nifty-stat-call-wall"
@@ -268,7 +312,7 @@ function WallsGroup(props: { view: DecisionView }): JSX.Element {
   );
 }
 
-function VolatilityGroup(props: { view: DecisionView }): JSX.Element {
+function VolatilityGroup(props: { view: DecisionView; popover?: boolean }): JSX.Element {
   const view = props.view;
   return (
     <StatGroup
@@ -277,6 +321,7 @@ function VolatilityGroup(props: { view: DecisionView }): JSX.Element {
       weight={REPORT_STRIP_GROUP_WEIGHT.volatility}
       divider
       cellsTestId="nifty-context-stats"
+      popover={props.popover}
     >
       <Show when={view.squeezeFuel()}>
         {(fuel) => (
@@ -318,7 +363,7 @@ function VolatilityGroup(props: { view: DecisionView }): JSX.Element {
   );
 }
 
-function FlowGroup(props: { view: DecisionView }): JSX.Element {
+function FlowGroup(props: { view: DecisionView; popover?: boolean }): JSX.Element {
   const view = props.view;
   return (
     <StatGroup
@@ -326,9 +371,10 @@ function FlowGroup(props: { view: DecisionView }): JSX.Element {
       label="FLOW & ACTION"
       weight={REPORT_STRIP_GROUP_WEIGHT.flow}
       divider
-      fullRow={!view.narrow()}
+      fullRow={props.popover ? true : !view.narrow()}
       wrapCells
       cellsMaxWidth={FLOW_CELLS_MAX_WIDTH}
+      popover={props.popover}
     >
       <DecisionChip
         testId="nifty-chip-setup"
@@ -371,23 +417,28 @@ function FlowGroup(props: { view: DecisionView }): JSX.Element {
 
 /** The detail bands behind More stats: every derived stat cell and chip,
  *  with the same testids, units, hints and 12/13/16 type hierarchy. */
-export function DecisionStats(props: { view: DecisionView }): JSX.Element {
+export function DecisionStats(props: { view: DecisionView; popover?: boolean }): JSX.Element {
   const view = props.view;
   return (
     <Box className="flex flex-wrap min-[1200px]:flex-nowrap items-stretch min-w-0 min-h-[28px]">
       <Box
         data-testid="nifty-decision-stats"
-        className="flex flex-wrap flex-auto min-w-0 w-full [&_[data-testid$='-value']]:text-right"
+        data-stat-layout={props.popover ? "popover-grid" : "strip"}
+        className={
+          props.popover
+            ? POPOVER_STATS_CLASS
+            : "flex flex-wrap flex-auto min-w-0 w-full [&_[data-testid$='-value']]:text-right"
+        }
         style={{ gap: `${REPORT_STRIP_METRICS.groupRowGap}px` }}
       >
-        <PriceGroup view={view} />
-        <WallsGroup view={view} />
-        <VolatilityGroup view={view} />
+        <PriceGroup view={view} popover={props.popover} />
+        <WallsGroup view={view} popover={props.popover} />
+        <VolatilityGroup view={view} popover={props.popover} />
         {/* Claim a whole line and keep the chips at their measured width:
             the old summed floor widened the grid track past 1600, so the
             group sat at the far right and Institutional flows read "Ins". */}
         <Show when={view.isDesk()}>
-          <FlowGroup view={view} />
+          <FlowGroup view={view} popover={props.popover} />
         </Show>
       </Box>
     </Box>

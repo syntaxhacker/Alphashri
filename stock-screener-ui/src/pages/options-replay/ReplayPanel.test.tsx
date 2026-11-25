@@ -370,6 +370,15 @@ describe("ReplayPanel", () => {
     expect(preview).not.toHaveBeenCalled();
   });
 
+  test("keeps the route shell fixed and gives the replay panel its own scrollport", () => {
+    render(() => <OptionsReplayPage />);
+    const shell = screen.getByTestId("options-replay-page");
+    expect(shell).toHaveClass("h-full", "min-h-0", "flex", "flex-col", "overflow-hidden");
+
+    const panel = screen.getByTestId("options-replay-panel");
+    expect(panel).toHaveClass("h-full", "min-h-0", "flex-col", "overflow-hidden");
+  });
+
   test("empty header names the missing structure instead of an em-dash meta", () => {
     render(() => <ReplayPanel />);
     const panel = screen.getByTestId("options-replay-panel");
@@ -946,17 +955,18 @@ describe("ReplayPanel", () => {
     const scroller = screen.getByTestId("replay-table-scroll");
     expect(scroller.className).toContain("overflow-x-auto");
     expect(scroller).toHaveAttribute("aria-label", "Payoff table, scroll sideways for more strikes");
+    expect(scroller).toHaveAttribute("tabindex", "0");
     expect(screen.getByTestId("replay-table-scroll-hint")).toHaveTextContent("Scroll sideways");
   });
 
-  test("wide viewports keep descriptive tab labels and no scroll hint", async () => {
+  test("wide viewports keep descriptive tab labels and a persistent scroll hint", async () => {
     setPendingOrder(request);
     render(() => <ReplayPanel />);
     await screen.findByTestId("replay-table-scroll");
 
     expect(screen.getByTestId("replay-view-tab-table")).toHaveTextContent("ADVANCED · TABLE");
     expect(screen.getByTestId("replay-view-tab-matrix")).toHaveTextContent("PAYOFF MATRIX");
-    expect(screen.queryByTestId("replay-table-scroll-hint")).toBeNull();
+    expect(screen.getByTestId("replay-table-scroll-hint")).toHaveTextContent("Scroll sideways");
     expect(screen.getByTestId("replay-playhead")).toBeInTheDocument();
   });
 

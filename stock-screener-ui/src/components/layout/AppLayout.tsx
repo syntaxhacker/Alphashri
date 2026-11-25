@@ -59,7 +59,12 @@ export function AppLayout(props: AppLayoutProps) {
   return (
     <Box
       className="flex h-screen overflow-hidden bg-fin-bg"
-      style={{ display: "flex", height: "100vh", overflow: "hidden", "background-color": palette.BG }}
+      style={{
+        display: "flex",
+        height: "100vh",
+        overflow: "hidden",
+        "background-color": palette.BG,
+      }}
       id="app-shell"
       data-testid="app-shell"
     >
@@ -68,13 +73,16 @@ export function AppLayout(props: AppLayoutProps) {
       <Show when={!isDesktop()}>
         <div
           style={{
-            display: mobileOpened() ? "block" : "none",
+            display: mobileOpened() ? "flex" : "none",
             position: "fixed",
             top: "0px",
             left: "0px",
             bottom: "0px",
             width: "168px",
             "box-sizing": "border-box",
+            "flex-direction": "column",
+            "min-height": "0px",
+            overflow: "hidden",
             "z-index": 1300,
           }}
         >
@@ -94,9 +102,11 @@ export function AppLayout(props: AppLayoutProps) {
           id="app-navbar"
           data-testid="app-navbar"
           style={{
-            display: "block",
+            display: "flex",
             width: `${navWidth()}px`,
+            "flex-direction": "column",
             "flex-shrink": "0",
+            "min-height": "0px",
             transition: "width 0.2s ease-in-out",
             overflow: "hidden",
           }}
@@ -114,12 +124,12 @@ export function AppLayout(props: AppLayoutProps) {
 
       <Box
         component="main"
-        className="flex-1 min-w-0 min-h-0 overflow-auto bg-fin-bg flex flex-col"
+        className="flex-1 min-w-0 min-h-0 overflow-hidden bg-fin-bg flex flex-col"
         style={{
           "flex-grow": 1,
           "min-width": "0px",
           "min-height": "0px",
-          overflow: "auto",
+          overflow: "hidden",
           "background-color": palette.BG,
           display: "flex",
           "flex-direction": "column",

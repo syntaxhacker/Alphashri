@@ -20,6 +20,12 @@ vi.mock("./RotationTab", () => ({
   ),
 }));
 
+vi.mock("./history/SectorHistoryTab", () => ({
+  SectorHistoryTab: ({ market }: { market: string }) => (
+    <div data-testid="sector-history-tab">SectorHistoryTab {market}</div>
+  ),
+}));
+
 vi.mock("./SectorTable", () => ({
   SectorTable: () => <div data-testid="sector-table">SectorTable</div>,
   getMovementBarValue: vi.fn(),
@@ -190,6 +196,22 @@ describe("SectorPage", () => {
     });
   });
 
+  it("makes every dashboard side-panel scroll area fill its card", async () => {
+    mockFetchSectorPerformance.mockResolvedValue(mockResponse);
+    render(() => <SectorPage />);
+    await waitFor(() => expect(screen.getByText("Sector Performance")).toBeInTheDocument());
+
+    for (const cardId of ["sector-alerts-card", "sector-interval-movers-card", "sector-top-stocks-card"]) {
+      const card = screen.getByTestId(cardId);
+      const scroller = card.querySelector<HTMLElement>(".overflow-auto");
+      expect(scroller, `${cardId} has no scroll area`).not.toBeNull();
+      expect(scroller).toHaveClass("min-h-0");
+      expect(scroller).toHaveClass("flex-1");
+      // `flex` is not a ScrollArea prop; it must never leak to the DOM as an attribute.
+      expect(scroller).not.toHaveAttribute("flex");
+    }
+  });
+
   it("switches between the dense table view and the visual heatmap view", async () => {
     mockFetchSectorPerformance.mockResolvedValue(mockResponse);
     render(() => <SectorPage />);
@@ -206,12 +228,13 @@ describe("SectorPage", () => {
     });
   });
 
-  it("renders tabs: Live Dashboard, Sector Correlation, Rotation", () => {
+  it("renders tabs: Live Dashboard, Sector Correlation, Rotation, History", () => {
     mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
     render(() => <SectorPage />);
     expect(screen.getByText("Live Dashboard")).toBeInTheDocument();
     expect(screen.getByText("Sector Correlation")).toBeInTheDocument();
     expect(screen.getByText("Rotation")).toBeInTheDocument();
+    expect(screen.getByText("History")).toBeInTheDocument();
   });
 
   it("keeps the tab strip scrollable with one-line labels and an overflow cue", () => {
@@ -220,7 +243,7 @@ describe("SectorPage", () => {
     const strip = screen.getByTestId("sector-tabs-list");
     expect(strip).toHaveClass("overflow-x-auto");
     expect(strip).toHaveClass("flex-nowrap");
-    for (const label of ["Live Dashboard", "Sector Correlation", "Rotation"]) {
+    for (const label of ["Live Dashboard", "Sector Correlation", "Rotation", "History"]) {
       const tab = screen.getByText(label).closest('[role="tab"]');
       expect(tab).toHaveClass("whitespace-nowrap");
     }
@@ -240,13 +263,23 @@ describe("SectorPage", () => {
     });
     expect(window.location.search).toContain("tab=correlation");
 
-    // A second hop reaches the last tab, which is the one clipped at 390.
+    // A second hop reaches Rotation, a third reaches History — the tab clipped at 390.
     const correlationTab = screen.getByText("Sector Correlation").closest('[role="tab"]')!;
     fireEvent.keyDown(correlationTab, { key: "ArrowRight" });
     await waitFor(() => {
       expect(screen.getByText("Rotation").closest('[role="tab"]')).toHaveAttribute("aria-selected", "true");
     });
     expect(window.location.search).toContain("tab=rotation");
+
+    const rotationTab = screen.getByText("Rotation").closest('[role="tab"]')!;
+    fireEvent.keyDown(rotationTab, { key: "ArrowRight" });
+    await waitFor(() => {
+      expect(screen.getByText("History").closest('[role="tab"]')).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
+    expect(window.location.search).toContain("tab=history");
   });
 
   it("makes the focusable region the sole horizontal scroller with a sideways cue", async () => {
@@ -258,7 +291,8 @@ describe("SectorPage", () => {
     expect(region).toHaveAttribute("aria-label", "Sector performance table, scroll sideways for all columns");
     expect(region).toHaveAttribute("tabindex", "0");
     expect(region).toHaveAttribute("data-scroll", "horizontal");
-    expect(region).toHaveClass("overflow-auto");
+    expect(region).toHaveClass("overflow-x-auto");
+    expect(region).toHaveClass("overflow-y-auto");
     // The shared table's own scrollport is switched off, so there is no
     // nested overflow:auto competing with the focused region.
     const scrollStyle = screen.getByTestId("sector-table-scroll-style").textContent ?? "";
@@ -282,6 +316,42 @@ describe("SectorPage", () => {
     expect(region.scrollLeft).toBe(10);
   });
 
+  it("keeps the route root and tab host bounded so #app-main never scrolls", () => {
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    render(() => <SectorPage />);
+
+    const root = screen.getByTestId("sector-analysis-view");
+    for (const cls of ["h-full", "min-h-0", "flex", "flex-col", "overflow-hidden"]) {
+      expect(root).toHaveClass(cls);
+    }
+
+    // The page-level `overflow-auto` box is gone: each tab owns its scroll.
+    const page = document.getElementById("sector-page") as HTMLElement;
+    expect(page).toHaveClass("flex-1");
+    expect(page).toHaveClass("min-h-0");
+    expect(page).toHaveClass("overflow-hidden");
+    expect(page.className).not.toMatch(/\boverflow-auto\b/);
+
+    const host = screen.getByTestId("sector-tab-content");
+    expect(host).toHaveClass("flex-1");
+    expect(host).toHaveClass("min-h-0");
+    expect(host).toHaveClass("flex-col");
+    expect(host).toHaveClass("overflow-hidden");
+  });
+
+  it("gives the History tab a bounded host instead of a page-level scroller", () => {
+    window.history.replaceState({}, "", "/?tab=history");
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    render(() => <SectorPage />);
+
+    const host = screen.getByTestId("sector-tab-content");
+    expect(host).toHaveClass("flex-1");
+    expect(host).toHaveClass("min-h-0");
+    expect(host).toHaveClass("overflow-hidden");
+    // The lazy fallback must fill the same bounded area, not define its own page height.
+    expect(host).toContainElement(screen.getByTestId("sector-history-tab"));
+  });
+
   it("does not render the legacy Historical Cycles tab", () => {
     mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
     render(() => <SectorPage />);
@@ -296,6 +366,15 @@ describe("SectorPage", () => {
     render(() => <SectorPage />);
     expect(screen.getByTestId("rotation-tab")).toBeInTheDocument();
     expect(screen.getByText("RotationTab india")).toBeInTheDocument();
+    expect(mockFetchSectorPerformance).not.toHaveBeenCalled();
+  });
+
+  it("renders SectorHistoryTab when ?tab=history and does not poll sector data", () => {
+    window.history.replaceState({}, "", "/?tab=history");
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    render(() => <SectorPage />);
+    expect(screen.getByTestId("sector-history-tab")).toBeInTheDocument();
+    expect(screen.getByText("SectorHistoryTab india")).toBeInTheDocument();
     expect(mockFetchSectorPerformance).not.toHaveBeenCalled();
   });
 

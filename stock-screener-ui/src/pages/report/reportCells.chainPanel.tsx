@@ -1,4 +1,4 @@
-import { createEffect, onCleanup, Show } from "solid-js";
+import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { Box, Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -79,9 +79,23 @@ const OI_CHAIN_WRAP_CLASS = [
   "[&_th]:[height:28px]!",
   "[&_th]:[font-size:var(--text-ui-micro)]!",
   "[&_thead_th]:[border-bottom:2px_solid_var(--color-fin-border)]!",
+  // Sticky header boundary: the shadow paints a solid band under the header's
+  // own border, masking the sub-pixel strip of the row scrolled behind it.
+  // It is a paint-only rule, so no row height is stolen and ATM pinning is
+  // unaffected.
+  "[&_thead_th]:[box-shadow:0_3px_0_var(--color-fin-surface-alt)]!",
   "[&_td]:[text-overflow:clip]!",
   "[&_.paper-tanstack-scroll]:overflow-y-auto",
   "[&_.paper-tanstack-scroll]:[scrollbar-width:thin]",
+  // Seven roomy columns are ~712px behind a ~374px phone window. At that
+  // breakpoint, size the TanStack host and its scrollport to the table's
+  // columns so neither clips or scrolls sideways: the focusable region then
+  // owns x-scroll alone (arrow keys move what the finger drags) and PE ΔOI is
+  // reachable in full. The 1600 compact chain keeps its full-width table.
+  "max-[600px]:[&_.paper-tanstack-container]:[flex:none]!",
+  "max-[600px]:[&_.paper-tanstack-container]:[width:max-content]!",
+  "max-[600px]:[&_.paper-tanstack-scroll]:[width:max-content]!",
+  "max-[600px]:[&_table]:[width:max-content]!",
 ].join(" ");
 const OI_CHAIN_WRAP_STYLE: JSX.CSSProperties = {
   height: "auto",
@@ -103,11 +117,26 @@ const OI_CHAIN_EXPAND_CLASS = "min-w-[22px] px-1 leading-none text-ui-micro";
  * one overlay with no border and no layout height — vertical scrolling is still
  * owned by the chain's own scroll area, and the sticky header is untouched.
  */
+/**
+ * The phone chain track ends flush with the pinned DESK BAY bar. An overlay
+ * anchored at `bottom-0` loses the lower half of both cue pills to that edge,
+ * so the phone breakpoint reserves the pill's own height as bottom padding and
+ * lifts the pills inside the visible window. Both cues share the one overlay;
+ * the opaque pills still mask the clipped partial row behind them.
+ */
+export const OI_CHAIN_CUE_LANE_PX = 16;
 const OI_CHAIN_SCROLL_CUE_CLASS =
-  "pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-end px-2 pb-1 pt-3";
-const OI_CHAIN_SCROLL_CUE_STYLE: JSX.CSSProperties = { position: "absolute" };
+  "pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-end px-2 pb-1 pt-3 max-[600px]:pb-[var(--oi-chain-cue-lane)]";
+const OI_CHAIN_SCROLL_CUE_STYLE: JSX.CSSProperties = {
+  position: "absolute",
+  "--oi-chain-cue-lane": `${OI_CHAIN_CUE_LANE_PX}px`,
+};
 const OI_CHAIN_SCROLL_FADE_STYLE: JSX.CSSProperties = {
   background: `linear-gradient(to top, ${palette.SURFACE}, ${palette.alpha(palette.SURFACE, 0)})`,
+};
+/** Right-edge wash: clipped columns read as "more to the right", not a bug. */
+const OI_CHAIN_H_FADE_STYLE: JSX.CSSProperties = {
+  background: `linear-gradient(to right, ${palette.alpha(palette.SURFACE, 0)}, ${palette.SURFACE})`,
 };
 
 /**
@@ -126,6 +155,14 @@ const OI_CHAIN_SCROLL_PILL_STYLE: JSX.CSSProperties = {
 };
 const OI_CHAIN_SCROLL_SHORT_CLASS = "hidden max-[600px]:inline uppercase";
 const OI_CHAIN_SCROLL_LONG_CLASS = "inline max-[600px]:hidden uppercase";
+
+/**
+ * The sideways cue is hidden at the base breakpoint and becomes an opaque pill
+ * on the phone only. It sits at the left of the bottom overlay so the vertical
+ * `scroll ↓` pill keeps the right corner; both disappear at the scroll end.
+ */
+const OI_CHAIN_H_SCROLL_CUE_CLASS =
+  "relative mr-auto hidden max-w-full max-[600px]:inline-flex items-center overflow-hidden whitespace-nowrap rounded-sm px-2 py-0.5 text-ui-micro font-bold leading-none";
 
 const OI_CHAIN_SCROLL_STEP = 80;
 
@@ -162,12 +199,15 @@ function centreChainAtm(root: HTMLElement | undefined): void {
   const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
   const rowTop = target.top - viewport.top + scroller.scrollTop;
   // A phone viewport only holds two rows, so centring would tuck ATM under the
-  // sticky header. Pin it directly below the header: ATM plus the row under it
-  // are both full, and the sliver below is the vertical scroll cue.
-  const inset =
-    scroller.clientHeight <= OI_CHAIN_MOBILE_VIEWPORT_MAX
-      ? OI_CHAIN_HEADER_HEIGHT
-      : (viewport.height - target.height) / 2;
+  // sticky header and leave a half row printed beneath it. Pin it directly
+  // below the header: ATM plus the row under it are both full, and the sliver
+  // below is the vertical scroll cue. The phone decision is width-keyed too —
+  // a desk-window chain dropped into a 390px layout has a taller scrollport
+  // than the 156px grid track, and height alone would centre it again.
+  const isPhone =
+    scroller.clientHeight <= OI_CHAIN_MOBILE_VIEWPORT_MAX ||
+    (typeof window !== "undefined" && window.innerWidth <= 600);
+  const inset = isPhone ? OI_CHAIN_HEADER_HEIGHT : (viewport.height - target.height) / 2;
   scroller.scrollTop = Math.max(0, Math.min(rowTop - inset, max));
   root.setAttribute("data-chain-atm-centered", "1");
 }
@@ -198,6 +238,12 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
   const rowAttributes = (row: NiftyStrike) => ({
     "data-chain-focus": focusOf(row) ? "1" : undefined,
   });
+
+  const [hAtEnd, setHAtEnd] = createSignal(false);
+  const measureHorizontal = (el: HTMLElement) => {
+    const max = el.scrollWidth - el.clientWidth;
+    setHAtEnd(max <= 2 || el.scrollLeft >= max - 2);
+  };
 
   let wrapEl: HTMLDivElement | undefined;
   const attachWrap = (el: HTMLDivElement | undefined) => {
@@ -233,7 +279,7 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
           <Text
             data-testid="nifty-chain-scroll-cue"
             aria-hidden="true"
-            className="hidden max-[600px]:inline-flex whitespace-nowrap text-ui-micro font-bold"
+            className="inline-flex max-[600px]:hidden whitespace-nowrap text-ui-micro font-bold"
             style={{ color: palette.TEXT_MUTED }}
           >
             ⇄
@@ -263,12 +309,17 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
         data-chain-value-size={OI_CHAIN_METRICS.valueSize}
         data-chain-variant={props.columns.length <= 5 ? "compact" : "full"}
         data-chain-scroll="1"
+        data-chain-h-scroll="1"
         data-chain-v-scroll="1"
+        data-chain-sticky-mask="1"
         data-chain-mobile-row={OI_CHAIN_MOBILE_ROW_PX}
         role="region"
         aria-label="Option chain"
         tabIndex={0}
         onKeyDown={onChainRegionKeyDown}
+        onScroll={(event: Event & { currentTarget: HTMLDivElement }) =>
+          measureHorizontal(event.currentTarget)
+        }
         className={OI_CHAIN_WRAP_CLASS}
         style={OI_CHAIN_WRAP_STYLE}
       >
@@ -285,8 +336,23 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
           getRowTestId={props.getRowTestId}
         />
       </Box>
+      <Show when={!hAtEnd()}>
+        <Box
+          data-testid="nifty-chain-h-scroll-overlay"
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-0 right-0 top-1/2 z-10 hidden w-6 max-[600px]:block"
+        >
+          <Box
+            data-testid="nifty-chain-h-scroll-fade"
+            aria-hidden="true"
+            className="absolute inset-0"
+            style={OI_CHAIN_H_FADE_STYLE}
+          />
+        </Box>
+      </Show>
       <Box
         data-testid="nifty-chain-v-scroll-overlay"
+        data-chain-cue-lane={OI_CHAIN_CUE_LANE_PX}
         className={OI_CHAIN_SCROLL_CUE_CLASS}
         style={OI_CHAIN_SCROLL_CUE_STYLE}
       >
@@ -296,6 +362,15 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
           className="absolute inset-0"
           style={OI_CHAIN_SCROLL_FADE_STYLE}
         />
+        <Show when={!hAtEnd()}>
+          <Text
+            data-testid="nifty-chain-h-scroll-cue"
+            className={OI_CHAIN_H_SCROLL_CUE_CLASS}
+            style={OI_CHAIN_SCROLL_PILL_STYLE}
+          >
+            SCROLL →
+          </Text>
+        </Show>
         <Text
           data-testid="nifty-chain-v-scroll-cue"
           className={OI_CHAIN_SCROLL_PILL_CLASS}

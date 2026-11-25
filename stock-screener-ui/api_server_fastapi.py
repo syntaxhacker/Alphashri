@@ -1507,6 +1507,8 @@ _include_api("api.brokers", "router", "brokers", msg="✅ Brokers API loaded at 
 
 _include_api("api.sector", "router", "sector", msg="✅ Sector API loaded at /api/sector")
 
+_include_api("api.sector_history", "router", "sector", msg="✅ Sector History API loaded at /api/sector/history")
+
 _include_api("api.rotation", "router", "rotation", msg="✅ Rotation API loaded at /api/rotation")
 
 # import from the SUBMODULE, not the package: `from api.value_scan import router`

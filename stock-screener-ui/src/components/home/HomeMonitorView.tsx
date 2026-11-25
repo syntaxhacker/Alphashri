@@ -6,11 +6,7 @@ import type { DockPanelApi, DockPanelContext, DockPanelSpec } from "../dock/type
 import { getPanelSpec } from "../window/panelRegistry";
 import { formatIstStamp, isSafeSourceUrl } from "../catalyst/catalystRows";
 import { formatPercentage } from "@/utils/ui-helpers";
-import {
-  clearHomeDerivedCache,
-  readHomeDerived,
-  type HomeCacheScope,
-} from "./homeDerivedCache";
+import { clearHomeDerivedCache, readHomeDerived, type HomeCacheScope } from "./homeDerivedCache";
 
 /**
  * The Monitor owns no data: every region is either a registered dock panel or a
@@ -77,7 +73,8 @@ function maxRelVolume(data: CatalystToday): number | null {
 }
 
 function scheduledCount(data: CatalystToday): number {
-  return (data.rows ?? []).filter((row) => row.kind === "event" && row.state === "scheduled").length;
+  return (data.rows ?? []).filter((row) => row.kind === "event" && row.state === "scheduled")
+    .length;
 }
 
 function positioningCount(data: CatalystToday): number {
@@ -260,10 +257,21 @@ function RegionLoading(props: { testId: string; label: string }) {
  * A dock panel rendered in place. `getPanelSpec` is the only registry lookup:
  * an unregistered id is an explicit gap, not a silently blank cell.
  */
-function PanelRegion(props: { id: string; title: string; testId: string; className?: string; heading?: boolean }) {
+function PanelRegion(props: {
+  id: string;
+  title: string;
+  testId: string;
+  className?: string;
+  heading?: boolean;
+}) {
   const spec = createMemo<DockPanelSpec | undefined>(() => getPanelSpec(props.id));
   return (
-    <MonitorPanel title={props.title} testId={props.testId} heading={props.heading} className={props.className}>
+    <MonitorPanel
+      title={props.title}
+      testId={props.testId}
+      heading={props.heading}
+      className={props.className}
+    >
       <Show
         when={spec()}
         fallback={
@@ -309,9 +317,7 @@ function SectorPulse(props: { onRetry: () => void }) {
           <RegionNote testId="monitor-auto-empty">No sector pulse yet.</RegionNote>
         </Match>
         <Match when={!sector()}>
-          <RegionNote testId="monitor-auto-empty">
-            Today's snapshot has no sector pulse.
-          </RegionNote>
+          <RegionNote testId="monitor-auto-empty">Today's snapshot has no sector pulse.</RegionNote>
         </Match>
         <Match when={true}>
           <Box className="flex min-h-0 flex-col gap-1.5 px-2 py-1.5">
@@ -339,7 +345,9 @@ function SectorPulse(props: { onRetry: () => void }) {
             </Box>
 
             <Box className="flex items-baseline justify-between gap-2">
-              <Text size="xs" c="dimmed">RELATIVE STRENGTH</Text>
+              <Text size="xs" c="dimmed">
+                RELATIVE STRENGTH
+              </Text>
               <Text
                 size="xs"
                 fw={600}
@@ -351,7 +359,9 @@ function SectorPulse(props: { onRetry: () => void }) {
             </Box>
 
             <Box className="flex items-baseline justify-between gap-2">
-              <Text size="xs" c="dimmed">BREADTH</Text>
+              <Text size="xs" c="dimmed">
+                BREADTH
+              </Text>
               <Text
                 size="xs"
                 fw={600}
@@ -364,15 +374,14 @@ function SectorPulse(props: { onRetry: () => void }) {
 
             <Show when={advancingWidth() !== null}>
               <Box className="h-1 w-full overflow-hidden bg-fin-negative" aria-hidden="true">
-                <Box
-                  class="h-full bg-fin-positive"
-                  style={{ width: `${advancingWidth()}%` }}
-                />
+                <Box class="h-full bg-fin-positive" style={{ width: `${advancingWidth()}%` }} />
               </Box>
             </Show>
 
             <Box className="flex items-baseline justify-between gap-2">
-              <Text size="xs" c="dimmed">INDIA VIX</Text>
+              <Text size="xs" c="dimmed">
+                INDIA VIX
+              </Text>
               <Text
                 size="xs"
                 fw={600}
@@ -495,7 +504,12 @@ function SectorLeaders(props: {
   });
 
   return (
-    <MonitorPanel title="SECTOR LEADERS" testId="monitor-auto-leaders" heading className={props.className}>
+    <MonitorPanel
+      title="SECTOR LEADERS"
+      testId="monitor-auto-leaders"
+      heading
+      className={props.className}
+    >
       <Switch>
         <Match when={store.error() && !store.data()}>
           <RegionError
@@ -532,7 +546,11 @@ function SectorLeaders(props: {
                   >
                     {formatPercentage(row.move_pct, 2, true)}
                   </Text>
-                  <Text size="xs" c="dimmed" className="w-10 shrink-0 text-right font-mono tabular-nums">
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                    className="w-10 shrink-0 text-right font-mono tabular-nums"
+                  >
                     {volumeText(row.rel_volume)}
                   </Text>
                 </Box>
@@ -557,15 +575,17 @@ function CatalystNews(props: {
       "catalyst-news",
       props.scope(),
       newsFingerprint(all),
-      () =>
-        all
-          .filter((row) => (row.headline ?? "").trim() !== "")
-          .slice(0, 5),
+      () => all.filter((row) => (row.headline ?? "").trim() !== "").slice(0, 5),
     );
   });
 
   return (
-    <MonitorPanel title="CATALYST NEWS" testId="monitor-catalyst-news" heading className={props.className}>
+    <MonitorPanel
+      title="CATALYST NEWS"
+      testId="monitor-catalyst-news"
+      heading
+      className={props.className}
+    >
       <Switch>
         <Match when={store.error() && !store.data()}>
           <RegionError
@@ -592,7 +612,11 @@ function CatalystNews(props: {
                   >
                     <Show
                       when={url()}
-                      fallback={<Text size="xs" className="min-w-0">{row.headline}</Text>}
+                      fallback={
+                        <Text size="xs" className="min-w-0">
+                          {row.headline}
+                        </Text>
+                      }
                     >
                       {(href) => (
                         <a
@@ -654,6 +678,9 @@ export function HomeMonitorView() {
     <Box
       data-testid="home-monitor-view"
       data-columns={String(columns())}
+      role="region"
+      aria-label="Home monitor"
+      tabindex="0"
       style={{
         "grid-template-columns": template(),
         "grid-template-rows": columns() === 1 ? "none" : "minmax(0, 1fr)",

@@ -6,6 +6,44 @@
 - **NEVER push directly to `develop` or `main`** — both are protected shared branches. All work goes through a short-lived feature branch (`feat/…`, `fix/…`, `chore/…`, `docs/…`) pushed to origin, then a PR targeting `develop` (or `develop` → `main` to release). No direct `git push origin develop` / `git push origin main`, ever.
 - **NEVER delete report artifacts** — anything under `reports/**` (figures, PNGs, HTML, CSV, JSON, scripts, notes) is kept, even after regeneration. Overwrite in place instead of `rm`-ing first. The user deletes their own reports.
 
+## 🚫 Main Agent — Orchestration Only (ZERO IMPLEMENTATION)
+
+The main agent exists to scope, dispatch, review and integrate. It does not write the code, the tests, the styles, the configs, the generated spec, or the docs that ship with a task.
+
+**The main agent NEVER edits:**
+- source code (`src/**`, `api/**`, `trading/**`, `backtest/**`, `db/**`, `scripts/**`, `chart_patterns/**`, `upstox_trader/**`, **any** `.ts`/`.tsx`/`.py`/`.sql`/`.css`)
+- tests (`*.test.ts(x)`, `*.spec.ts`, `tests/**`, fixtures)
+- styles / theme / palette (`src/tailwind.css`, `src/ui/palette.ts`, `style.css`)
+- configs (vite, tsconfig, oxlint/knip, CI workflows, `package.json`, lockfiles, env files)
+- generated specs — **`openapi.yaml` is generated, never hand-edited** (see the OpenAPI section)
+- deliverable docs (`AGENTS.md`, `SUBAGENT_RULES.md`, `UI_RULES.md`, `PRODUCTION.md`, `docs/**`, feature docs) — unless the task **is** a docs task assigned to the main agent
+
+**The main agent MAY only:**
+1. read / search / inspect the tree and diff — no writes
+2. scope work and write subagent briefs (template: `SUBAGENT_RULES.md` §10)
+3. dispatch subagents and track their file ownership
+4. review diffs against the brief and the repo rules
+5. run verification commands — `bun run build`, `bun run lint`, `bun run typecheck`, targeted `npx vitest run <file>`, targeted `.venv/bin/python -m pytest <file> -q`, OpenAPI export + drift check, screenshot review
+6. integrate by **sending fixes back to the owning subagent**, never by editing the file itself
+7. act as the **sole git actor** (branch, commit, push feature branch, PR) — subagents stay read-only on git. For a UI change, no commit/push/PR until an independent verifier records **A+** (`UI_RULES.md` §7).
+
+**Defects go back to the owner.** Every file has an owning subagent session. A defect found in review — a failing assertion, a lint warning, a misaligned column, a stale `openapi.yaml`, a wrong comment — is sent back to the subagent that owns those files with the exact failure output. The main agent must **not** "quick-fix" it, even a one-character fix, even to unblock itself. If the owner is gone, dispatch a new subagent scoped to those files.
+
+**The only exception** is when the owning subagent is blocked or quota-exhausted, or an emergency recovery is required. Then the main agent must, in this order:
+1. **ask the user first** and wait for an explicit approval in the same turn
+2. state `MAIN-AGENT EXCEPTION: <reason>` in that turn
+3. list **every** file it touched
+
+Without both the user's approval **and** the `MAIN-AGENT EXCEPTION:` label, no edit happens. A "small integration fix" is not an exception unless it clears that bar.
+
+**Verification is not implementation.** Running commands and reading their output is allowed and expected. Changing the code under test to make a command pass is implementation — it is forbidden, and it also invalidates the verification.
+
+**Attribution is mandatory.** Every edited file in the main agent's final report must be attributable to a **named subagent session** (files changed by that session, one line each). A file with no owner is a violation, not bookkeeping.
+
+**Violation handling:** if the main agent catches itself about to edit an owned file, it must stop, report `main-agent-edit-blocked`, and hand the file back to its owner. It must not finish the edit and disclose it afterwards.
+
+Everything below in this file describes the work; it does not grant the main agent a licence to perform it.
+
 ## Start here
 
 - **[`docs/AGENT_QUICKSTART.md`](./docs/AGENT_QUICKSTART.md)** — commands, folder map, unit/E2E/backend recipes, fixtures. Read this before exploring the tree.
@@ -37,14 +75,14 @@
 
 **PR cycle (end-to-end, verified 2026-11-16):**
 1. Branch from the latest `develop`; never commit on `develop`/`main`.
-2. Pre-PR gate: `bun run lint`, `bun run build`, targeted unit + E2E for the touched areas, and `npx tsc --noEmit 2>&1 | grep -c "error TS"` (record the count; it must not rise).
+2. Pre-PR gate: `bun run lint`, `bun run build`, `bun run typecheck`, targeted unit + E2E for the touched areas, the unconditional filesystem-scanning guards, and the test/perf/evidence audits in `## Integration & audit gates` when the change is a data path or UI work.
 3. `git push -u origin <branch>`, then `gh pr create --base develop`. The body lists areas changed, behaviour changes (auth, migrations), verification commands/counts, and a test plan.
 4. Wait for checks. PR-to-`develop` runs **E2E Smoke (22)** + frontend unit/lint + the **662-test Python fast tier across 12 shards** (`unit and not slow`) + GitGuardian; **E2E Full (20 shards) never runs on PR-to-develop**. Push to `main` / the 02:00 nightly schedule instead run the full **8,987-test exclusion sweep** (`not (slow or slow_testcontainers or integration or contract or e2e or testcontainers or postgres)`) across the same 12 shards — that is the debt alarm, not a PR gate (the full suite carries a known ~230-failure debt and is not a gate until green). Full E2E is deliberately main-only: it runs on push to `main`, on PR-to-`main`, and on the 02:00 nightly schedule, because 20 shards is slow and the smoke set is the accepted gate for feature branches. There is **no `workflow_dispatch` trigger** in `test.yml`, so a branch cannot request the full suite — treat smoke plus the touched test files as the gate, and let the release PR to `main` run the rest.
-5. **Attach UI screenshots to every PR with user-visible UI changes.** This is mandatory, not optional. Commit the evidence under `stock-screener-ui/docs/screenshots/<feature>/` (`reports/**` is gitignored) and embed the images in the PR body or a PR comment using their raw GitHub URLs. Cover **1600 and 390** plus every new/changed mode, selector and empty/loading/error state. Read each PNG back before claiming it; a blank canvas, a suspiciously small file, or `undefined`/`NaN` text means the change is not done. Refresh the screenshots in the same commit as the UI change. See `docs/SCREENSHOT_EVIDENCE.md` for the checklist.
-5. Merge with `gh pr merge <n> --merge` (preserves commit messages/measurements; do not squash a multi-commit bundle unless the user asks). Never `--admin`/bypass.
-6. `git switch develop && git pull --ff-only`; verify the merge commit and that the key files/fields actually landed.
-7. Delete the merged branch with `git branch -d <branch>` and `git push origin --delete <branch>` — only after step 6 verifies. An ancestor `feat/…` branch is also redundant; confirm before deleting it.
-8. One PR per branch. If a branch contains multiple independent features, ask whether to split; a single bundle PR is allowed only when the user explicitly says so, and its body must say that it is a bundle.
+5. **UI evidence and visual gate.** For user-visible UI changes, the implementer captures **1600×1000** and **390×844** screenshots for every changed mode/selector and loaded/loading/error/empty state, commits them under `docs/screenshots/<feature>/` with a manifest, and embeds the raw URLs in the PR body. An independent verifier grades the actual PNGs + running UI; the main agent records A+ as approver and is the sole git actor. **No `git commit`, `git push`, or PR before A+**; only A+ ships and a user rejection voids it. Superseded evidence is removed in the same commit, with PR body/comments naming only current files and the 200/404/folder-match checks passing. Capture/naming/manifest/replacement: `docs/SCREENSHOT_EVIDENCE.md`; gate: `UI_RULES.md` §7.
+6. Merge with `gh pr merge <n> --merge` (preserves commit messages/measurements; do not squash a multi-commit bundle unless the user asks). Never `--admin`/bypass.
+7. `git switch develop && git pull --ff-only`; verify the merge commit and that the key files/fields actually landed.
+8. Delete the merged branch with `git branch -d <branch>` and `git push origin --delete <branch>` — only after step 7 verifies. An ancestor `feat/…` branch is also redundant; confirm before deleting it.
+9. One PR per branch. If a branch contains multiple independent features, ask whether to split; a single bundle PR is allowed only when the user explicitly says so, and its body must say that it is a bundle.
 
 **Release (develop → main; convention `v0.1.0`, `v0.2.0`):**
 1. Open a PR `develop` → `main`. PR-to-`main` runs the **full E2E suite (20 shards)** — wait for it, not just smoke.
@@ -160,7 +198,7 @@ Judgement rules for any screen: [docs/UX_PRINCIPLES.md](./docs/UX_PRINCIPLES.md)
 2. **Inputs default to `fullWidth`.** In a row, give each an explicit `w={n}` or wrap it in a flex cell (`<Box className="flex-1 min-w-0">` + `style={{ width: "100%" }}`). Accidental full-width selects are a bug.
 3. **Control rows use `<ToolbarRow>`** (from `@/ui`) — it forces `align-items:center` + explicit gap. `Group` defaults to `align-items: stretch`; if used for controls, pass `align="center"`.
 4. **No nested bordered cards**; one border per section, inner separation via dividers. Panels/charts fill their flex container (`autoSize`, no fixed heights in flex panels).
-5. **Verify visually, not just build.** After any UI change: `bun run build && bun run lint`, then a chrome-devtools screenshot at a real viewport in empty/loading/full states, then run the guard suite listed once in `SUBAGENT_RULES.md §8` (do not keep a second copy here) plus the feature's unit tests and its E2E spec.
+5. **Verify visually, not just build.** After any UI change: `bun run build && bun run lint`, then a chrome-devtools screenshot at a real viewport in empty/loading/error/full states, then run the guard suite listed once in `SUBAGENT_RULES.md §8` (do not keep a second copy here) plus the feature's unit tests and its E2E spec.
    Build/lint do NOT catch alignment bugs — the screenshot is part of the definition of done.
    **DEFAULT TO VISUAL CHECKS FOR DATA-DRIVEN UI — do not wait to be asked.** Green unit/lint/tsc/E2E is not evidence that a screen works. On 2026-11-18 the Market heatmap's colour-by feature shipped 323 passing tests, a clean build, clean lint and `tsc 321` while **selecting any non-default metric threw `Cannot read properties of undefined (reading 'trim')` and blanked the whole screener**. Every test fed day-change-shaped inputs; the crash needed a 0–1 metric *and* a real render. `AGENTS.md` already said the screen must be verified — it was still skipped, so treat it as a hard gate, not advice:
    - **Screenshot every state of the control you touched**, not just the default: for a selector/dropdown, one shot per option. A default-only shot is what hid this bug.
@@ -169,6 +207,7 @@ Judgement rules for any screen: [docs/UX_PRINCIPLES.md](./docs/UX_PRINCIPLES.md)
    - **Exercise the non-default branches explicitly**: every option in a metric/mode selector, empty result, and a value that is 0/negative/undefined in the data. Those are where the branch-only bugs live.
    - A crash found by eye that the suite missed means the suite has a **missing range case** — add the regression test (per `TEST_RULES.md §0`, prove it fails first), do not just fix the crash.
 6. **A page is not "done" until it is measured, not eyeballed.** The Index Report chrome was 800px above the chart (walls card 475px) with the chart permanently below the fold, and it survived review because nothing measured it. If a fix claims "now it fits", take the `getBoundingClientRect()` numbers before/after and put them in the commit message.
+7. **Visual Review Gate.** Build, lint, tests, typecheck and green CI are not visual approval. An independent verifier grades the actual PNGs + running UI; the main agent records A+ as approver and is the sole git actor. Only A+ ships; a user rejection voids it and any later UI change is re-reviewed. Roles, seven-dimension rubric, caps and verdict: [`UI_RULES.md` §7](./UI_RULES.md). Capture/naming/manifest/replacement: [`docs/SCREENSHOT_EVIDENCE.md`](./docs/SCREENSHOT_EVIDENCE.md).
 
 ## State Management
 - All stores in `src/state/` — custom `createSubscriber` pattern + `useStoreSubscription` hook
@@ -621,7 +660,7 @@ npx vitest run src/components/common/SymbolAutocomplete.test.tsx  # use vitest f
 | Backend per-test fixture setup | **p95 < 50 ms** |
 | Backend test collection (`pytest --collect-only -q`) | **< 30 s** |
 | Frontend changed-only (`vitest run --changed`) | **< 2 min** |
-| Frontend full suite | **< 10 min** |
+| Frontend full suite | **≤ 10 min on a 16 GB runner; ≤ 25 min on an 8 GB host with `--maxWorkers=1`** |
 | API warm reads | per-endpoint **warm p95** budgets in [`perf/api_budgets.json`](./perf/api_budgets.json) (e.g. health 100 ms, login 500 ms, agri filters 500 ms), measured in [docs/API_LATENCY.md](./docs/API_LATENCY.md) |
 | API cold agri filter path | **API_COLD** exception = the `cold` budget for `agri_filters` in [`perf/api_budgets.json`](./perf/api_budgets.json): **10,000 ms**. Other routes have `cold: null` (INFO, not enforced). See the known current breach in [docs/API_LATENCY.md](./docs/API_LATENCY.md) |
 
@@ -644,6 +683,80 @@ bun run test:fast          # or: npx vitest run --dir src --changed
 .venv/bin/python scripts/bench_api.py --in-process --mode warm           # report (exits 0)
 .venv/bin/python scripts/bench_api.py --in-process --mode warm --enforce # gate (exits 1 on FAIL)
 ```
+
+## Integration & audit gates
+
+Large features fail at the seams, not in the lanes. A green lane report is not an integrated PR. Run these audits only when subagent lanes are quiet, and record the actual numbers in the PR body.
+
+### 1. Test audit
+- Every P0/P1 review finding gets a regression test named for the failure mode. A fix without a failing-first test does not close the finding.
+- UI features need a **composed render test**: render the real page; mock only the network module and the shared chart wrapper. Mocking every visual proves wiring, not composition.
+- Async data needs an **abort/stale test**: switch market while a request is in flight; a late response must not overwrite the new market, and unmount must abort.
+- Every new tab/route gets its own Playwright spec (loaded, loading, error, empty, selector changes) with web-first assertions and no `waitForTimeout`.
+- `--changed` misses filesystem-scanning guards. Run them unconditionally on every PR: `theme-single-source`, `design-scale`, `style-keys`, `numeric-typography`, `ui-guard`, `table-structure`, `no-props-destructure`. Add new scanners to this list and to CI.
+- After backend model/route changes, run `python scripts/export_openapi.py` and `pytest tests/contract/test_openapi_sync.py`; never hand-edit `openapi.yaml`.
+- A full suite is justified only for a large cross-cutting refactor. On a <16 GB host use `--maxWorkers=1`; two 8 GB forks get killed. A worker exit is an infrastructure error, not a pass: rerun the missing files and get a clean file count.
+- Subagent test counts cover their files only. The integrated count comes from the main agent after the last lane lands.
+
+### 2. Performance audit
+- Measure before and after; never report only a code-review estimate. Build production (`bun run build`), serve `vite preview`, and profile the real route.
+- Frontend record: first chart, mode toggle, time-window switch, DOM nodes, canvases, observers/listeners, long tasks, heap, and the lazy chunk's raw/gzip size. Confirm the feature is not in the initial route chunk.
+- Backend record: upstream call count/concurrency, shared-resource parse/download count, cache key/TTL/schema, single-flight, `force`, stale fallback, payload raw/gzip, event-loop offload, cold/warm p95.
+- Add budgets before optimizing; if a budget is missed, optimize or record a dated exception — never lower it silently.
+- Keep the measured baseline in this file or [`docs/PERFORMANCE.md`](./docs/PERFORMANCE.md) so the next agent can detect a regression.
+
+### 3. Evidence audit
+- Curate, don't accumulate: one state per mode at 1600 and 390, plus the required loading/error/empty. Target ≤24–30 files; no duplicate hashes.
+- Re-read every PNG before attaching. Reject clipped axes/labels, missing scroll hints, overlapping ticks, `-0.0%`, blank canvases, and tables clipped without an affordance.
+- Manifest + sha256 + `head`; `bun run audit:evidence`; `node scripts/check-evidence-urls.mjs <pr>` for 200/404/tracked-set match.
+- Replace superseded files in the same commit; PR body/comments name only the current set. Any UI change voids A+ and requires a full recapture + regrade.
+
+### 4. Large-refactor orchestration
+- Dependency order: foundation lanes first (shared math, chart base, matrix primitives), then consumer lanes, then tests/evidence/docs. Do not let consumers invent their own primitives.
+- One owner per file set; list new files explicitly. Docs and rules are a separate lane.
+- At least 10 agents total for a large multi-file refactor; run them in waves sized to the host (3–5 active) and never two owners on one file.
+- Reserve one integration lane for cross-file wiring (API type → UI prop → tests). Product defects go back to the owning lane; the main agent merges and verifies, and is the sole git actor.
+- Remove agent artifacts (`*.log`, `tsc-*.txt`, `run-*.txt`) from the repo root before the first commit.
+- Do not commit lane-by-lane before A+ on UI work; one coherent commit/PR after the integrated gates and regrade.
+
+### 5. Fast path (same gates, fewer passes)
+
+Use this when several lanes feed one PR. It compresses passes, never gates.
+
+1. **One full suite, at the end.** Scoped tests run per lane while agents work; no full suite
+   between waves. On a <16 GB host use one worker. The final full suite (or CI equivalent) is
+   non-negotiable.
+2. **Visual freeze before capture.** No capture until every UI lane reports `VISUAL FREEZE`;
+   capture the final set once. A blocker fix recaptures only the affected states via
+   `--only <state>`, never the whole set.
+3. **Mechanical checks before the verifier.** Run the automated visual invariants owned by
+   `UI_RULES.md` §7.2; the verifier sees only a set that already passes.
+4. **Canonical fixtures, sliced by lookback.** One longest-window fixture per feature, sliced to
+   3Y/5Y/10Y; slice coherence is asserted per
+   [`TEST_RULES.md` §2](./TEST_RULES.md#test-process-rules-fast-path).
+5. **One owner per shared file.** Pre-assign shared files and list `OWN` / `DO NOT TOUCH` in
+   every brief; ownership and integration lanes are defined in
+   [`SUBAGENT_RULES.md` §3](./SUBAGENT_RULES.md#fast-path-dispatch-contract).
+6. **Serialize heavy work.** One build, one preview, one capture. Stop dev/preview before the
+   full suite; never run Vitest + Playwright + preview together on one host.
+7. **Fast runbook.** Relative budgets, not task logs.
+
+| Phase | Gate | Owner · budget |
+|---|---|---|
+| Scope | Shared files assigned; `OWN` / `DO NOT TOUCH` | Main · ~5% |
+| Lanes | Dependency-ordered; scoped tests green per lane | Lane owners · ~40% |
+| Integration | Typecheck + targeted tests + build | Integration lane · ~20% |
+| Full verification | One full suite + feature E2E | Main · ~20% |
+| Visual gate | Freeze → capture → mechanical checks → independent verifier | Implementer + verifier · ~10% |
+| Ship | Blockers fixed, changed states recaptured, regrade, commit/push/PR, evidence URL check | Main · ~5% |
+
+8. **Do not cut:** final full suite or CI equivalent, independent verifier, 1600/390 captures for changed states, unconditional filesystem guards, A+ gate.
+9. **Quality-preserving time optimization.** When a gate is slow, optimize the process first —
+   batch or automate the check, reuse the last valid result, run it selectively, or move it to
+   CI. Measure where the wall time actually goes; prefer incremental deterministic checks over
+   repeated full passes. Never remove or weaken a gate for speed; rule 8 is not tradeable.
+
+Capture mechanics and manifest/URL checks: [`docs/SCREENSHOT_EVIDENCE.md`](./docs/SCREENSHOT_EVIDENCE.md). Gate roles, rubric and verdict: [`UI_RULES.md` §7](./UI_RULES.md#7-visual-review-gate-independent-verifier--approver).
 
 ## Mutation Testing
 - See [MUTATION_TESTING.md](./MUTATION_TESTING.md) for advanced testing guide
@@ -670,10 +783,13 @@ finished because time is up or CI is green on one lane. The loop runs until the 
 2. **Keep a live lane list.** At the start of every turn, read the ledger and state the list:
    `DONE / RUNNING / BLOCKED` per lane, with the exact files or metric owned. Never re-dispatch a
    lane that is already running, and never let two lanes own the same file set.
-3. **Dispatch in waves of 3–5 background agents.** One agent, one file set, one measurable outcome,
-   `model: "opencode-go/hy4-flash-free"`. Give each a self-contained brief with the token/API contract,
+3. **Dispatch in dependency-ordered waves.** One agent, one file set, one measurable outcome. For a
+   large multi-file refactor use **at least 10 agents total** across foundation → consumer →
+   verification waves, keeping 3–5 active at once so file ownership and memory stay sane. Never let
+   two owners touch one file. Pass the model explicitly (`model: "opencode-go/hy4-flash-free"`). Give
+   each a self-contained brief with the token/API contract,
    the target mapping, verification commands and a required before/after count. The main agent keeps
-   working on non-overlapping integration, gates, docs or evidence while they run.
+   working on non-overlapping review, gates or evidence while they run.
 4. **Integrate small, verify by lane.** Review each report, run its targeted tests/typecheck/lint,
    then commit that lane on its own. Do not accumulate a 2,000-line unverified branch. A lane report
    without exact test counts is rejected.
@@ -684,9 +800,9 @@ finished because time is up or CI is green on one lane. The loop runs until the 
 6. **Run the integrated gates only with lanes quiet.** Then: typecheck, lint, affected tests, the
    browser/a11y/visual evidence, and a fresh screenshot read-back at 1600 and 390 for UI work. A
    passing unit test is not visual evidence.
-7. **Use independent raters, not the implementers.** Three read-only raters score the gate from
-   source, tests, catalog and screenshots. Self-scoring does not count. Compare the median per
-   dimension, not just the overall vibe.
+7. **Use one independent verifier, not the implementers.** The verifier scores the gate from source,
+   tests, catalog and screenshots; the main agent records the verdict as approver. Self-scoring does
+   not count. Do not average multiple raters and do not target A++ — only A+ ships.
 8. **If any dimension is below target, or any P0/P1 remains, launch the next wave.** Fix the actual
    gap, re-run the gates, re-rate. Never lower a target, add an allowlist, delete a failing test,
    hide text/overflow, or mark “accepted debt” to clear the gate.
@@ -700,7 +816,7 @@ finished because time is up or CI is green on one lane. The loop runs until the 
 - **No builds, no servers.** Agents run only their targeted tests (`npx vitest run <file>`, `.venv/bin/python -m pytest <file> -q`). `bun run build`, `./start.sh`, dev servers and browser/devtools sessions belong to the main agent.
 - **Protected paths.** Never edit `db/alphashri.db`, `.github/workflows/test.yml`, or unrelated files already dirty in the worktree.
 - **Return contract.** Report changes, files touched, the exact test command with pass/fail counts, and anything not done. A report without test counts is rejected.
-- **Review gate.** The main agent reviews the diff, fills integration gaps, then runs the full affected suite + `oxlint` + `bun run build` + the UI guards before committing. Agents never commit.
+- **Review gate.** The main agent reviews each diff and reopens the owning subagent for product gaps. Reserve one integration lane for cross-file wiring (API type → UI prop → tests); cross-file stitching is not a product fix. Main runs the integrated suite + `oxlint` + `bun run build` + the UI guards before committing. Agents never commit.
 - **Free model pool:** owned by `SUBAGENT_RULES.md §9` — use the pool listed there, one model per independent scope.
 
 ### CPU budget — check before heavy tests (MANDATORY)
@@ -730,6 +846,7 @@ Vitest spawns a worker per file and a worker pool can saturate the box; a strand
 **Rule: Commit small, commit often — on a feature branch. Pushing a feature branch is fine; pushing `develop`/`main` is forbidden.**
 
 - **Branch first:** on `develop`, `git switch -c <type>/<name>` before committing. Never commit then push `develop`.
+- **UI gate first:** no commit or push for a UI change until the independent verifier records **A+** (`UI_RULES.md` §7.6). WIP commits do not bypass this.
 - **Size:** One logical change per commit, max ~80-120 lines / one `src/ui/*` group / one component family.
 - **Frequency:** After each green checkpoint (`bun run build` + `bun run lint` pass, or `bun run test` + `bun run typecheck` pass for UI). Do not accumulate >30 min or >100 lines without a commit.
 - **Format:** Conventional `type: scope` — `feat`, `fix`, `refactor`, `chore`. No `Co-authored-by` line unless user asks.

@@ -2,8 +2,10 @@ import { Show, createEffect, createSignal, onCleanup, onMount, type ComponentPro
 import type { IChartApi } from "lightweight-charts";
 import { Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
+import { formatTimeOnly } from "@/utils/ui-helpers";
 import { TradingViewChart } from "@/components/chart/TradingViewChart";
 import { EmptyCompact } from "@/components/common/states";
+import { spotSnapshot } from "./ReportKpiHero";
 import { NiftyDepthMap } from "./NiftyDepthMap";
 import { REPORT_FONT, REPORT_LINE_HEIGHT, REPORT_RADIUS } from "./reportTokens";
 import { PATTERN_LOOKBACK_BARS, type PatternScanState } from "./useNiftyPatternScan";
@@ -22,6 +24,11 @@ import {
 import { computePatternStripTitle, type ScanBadge } from "./NiftyChartPanel.annotations";
 import { phoneViewport, usePinnedChartRange } from "./NiftyChartPanel.range";
 import { NARROW_CONTAINER_PX, useNarrowContainer } from "./NiftyChartPanel.controls";
+import {
+  applyOverlayAxisGeometry,
+  ChartOverlayLegend,
+  plottableCandleCount,
+} from "./NiftyChartPanel.overlayLegend";
 export { NARROW_CONTAINER_PX };
 
 type ChartProps = ComponentProps<typeof TradingViewChart>;
@@ -88,7 +95,21 @@ export function ChartBody(props: ChartBodyProps) {
       : phone()
         ? { axis: MOBILE_AXIS_MIN_WIDTH, lane: MOBILE_CUTOFF_LANE, gutter: MOBILE_EDGE_GUTTER, shift: true }
         : { axis: CHART_PLOT_MARGIN.axisMinWidth, lane: CHART_PLOT_MARGIN.dataCutoffLane, gutter: CHART_PLOT_MARGIN.edgeGutter, shift: false };
-  const hasPinnedCandles = () => props.chartCandles.length > 0;
+  const hasPinnedCandles = () => plottableCandleCount(props.chartCandles) > 0;
+  // One accessor feeds both the engine and the key. A legend that named a
+  // different series than the one drawn would be worse than no legend.
+  const overlaySeries = () => (hasPinnedCandles() ? props.chartEmaData : []);
+  const chartSpotTime = () => props.chartCandles[props.chartCandles.length - 1]?.time;
+  const chartSpotView = () =>
+    spotSnapshot(props.chartCandles[props.chartCandles.length - 1]?.close, {
+      digits: 2,
+      asOf: chartSpotTime() ? formatTimeOnly(chartSpotTime()!) : null,
+      origin: props.lastDataBoundary.includes("replay") ? "Replay playhead" : "Chart last bar",
+    });
+  const emptyReason = () =>
+    props.lastDataBoundary
+      ? `${props.lastDataBoundary} — no candles at this playhead. Showing option-chain levels only.`
+      : "Showing option-chain levels only.";
   const cutoffRight = () => axisGeometry().gutter + axisGeometry().axis + axisGeometry().lane;
   const edgePadding = () => {
     const base = { "padding-right": phone() ? `${MOBILE_EDGE_GUTTER}px` : `${CHART_PLOT_MARGIN.edgeGutter}px` };
@@ -98,35 +119,9 @@ export function ChartBody(props: ChartBodyProps) {
   let chartRef: IChartApi | null = null;
   const [chartVersion, setChartVersion] = createSignal(0);
 
-  /** The volume histogram is the only overlay series. Its "109K" tag stacked
-   *  against the price tag at 390px; the bars still render, only the redundant
-   *  tag is suppressed (as is the candle tag via `hideLastValueTag`). The live
-   *  spot stays visible in the decision strip's HTML `NiftySpotValue` chip. */
-  const volumeSeriesOf = (chart: IChartApi) => {
-    for (const pane of chart.panes?.() ?? []) {
-      for (const series of pane.getSeries()) {
-        if (series.seriesType() === "Histogram") return series;
-      }
-    }
-    return null;
-  };
   const applyAxisGeometry = () => {
     const chart = chartRef;
-    if (!chart) return;
-    const g = axisGeometry();
-    // The blank lane must match the CSS boundary or the rule floats over live bars.
-    chart.timeScale().applyOptions({ rightOffsetPixels: g.lane });
-    chart.priceScale("right").applyOptions({
-      minimumWidth: g.axis,
-      // Compact lanes rely on the overlap resolver: shift a tag, never clip "00".
-      ...(g.shift ? { alignLabels: true, entireTextOnly: true } : {}),
-    });
-    // The volume value is in the tooltip; its axis tag collides with the price
-    // label at both widths, so suppress it rather than overlay it.
-    const volume = volumeSeriesOf(chart);
-    if (volume && volume.options().lastValueVisible !== false) {
-      volume.applyOptions({ lastValueVisible: false });
-    }
+    if (chart) applyOverlayAxisGeometry(chart, axisGeometry());
   };
   const chartReady = (chart: IChartApi) => {
     chartRef = chart;
@@ -171,12 +166,13 @@ export function ChartBody(props: ChartBodyProps) {
       <Show when={!props.offlineEmpty && !hasPinnedCandles()}>
         <div
           data-testid="nifty-chart-empty-slot"
+          data-reason="pinned-playhead-no-candles"
           class="flex flex-1 min-h-0 items-center justify-center overflow-auto"
         >
           <EmptyCompact
             data-testid="nifty-chart-empty"
             title="No intraday candles"
-            description="Showing option-chain levels only."
+            description={emptyReason()}
           />
         </div>
       </Show>
@@ -211,7 +207,7 @@ export function ChartBody(props: ChartBodyProps) {
           <TradingViewChart
             candles={props.chartCandles}
             markLines={hasPinnedCandles() ? props.chartMarkLines : []}
-            emaData={hasPinnedCandles() ? props.chartEmaData : []}
+            emaData={overlaySeries()}
             touchMarkers={hasPinnedCandles() ? props.touchMarkers : []}
             {...(props.chartHeight != null ? { height: props.chartHeight! } : {})}
             fitMarkLines
@@ -219,12 +215,13 @@ export function ChartBody(props: ChartBodyProps) {
             rightOffsetBars={0}
             onChartReady={chartReady}
           />
+          <ChartOverlayLegend lines={overlaySeries()} compact={narrowContainer() || phone()} />
           <Show when={hasPinnedCandles() && props.lastDataBoundary}>
             {(boundary) => (
               <div
                 data-testid="nifty-chart-last-data-boundary"
                 class="pointer-events-none absolute"
-                title={boundary()}
+                title={`${chartSpotView().title} · ${boundary()}`}
                 style={{
                   top: "0px",
                   bottom: "0px",

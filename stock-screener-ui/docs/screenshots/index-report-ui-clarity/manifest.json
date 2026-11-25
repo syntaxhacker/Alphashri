@@ -1,0 +1,67 @@
+{
+  "feature": "index-report-ui-clarity",
+  "route": "/report/index",
+  "head": "76da3d4ad64096e5fc11f4d6da80ae1ecb885ebf",
+  "viewports": [1600, 390],
+  "sha256": {
+    "index-report-monitor-loaded-1600.png": "27ca4655044c932ef8ae09eb8fbb00fb08ea9ded34e73256b4230cdbb57274d7",
+    "index-report-monitor-loaded-390.png": "0133ef7a6d7edbda9690eb6b73f4fd698c7c7e098747d1bf937650aeb442640c",
+    "index-report-desk-loaded-1600.png": "8184a02e9160bc2da6a2cbc06ccd3681f1c67f71cbb33d172c035918825a2a6b",
+    "index-report-desk-loaded-390.png": "31f8724aac5eaa37e534e6c2097e709b868d1286cd480a896be91da2464465fa",
+    "index-report-gex-1600.png": "34f9b3ea943ce4f49135396d66d7e0162ca07ff83ff4ed336ca7eff4b1796058",
+    "index-report-gex-390.png": "def8bfc758dea963db13199344677b4eb123f4e4d1a1adf118e683ae746b2054",
+    "index-report-all-stats-popover-1600.png": "b3869af0ad64265121873389e4a6c4c613989351796fbdfaf3c56bfbf84bfe79",
+    "index-report-all-stats-popover-390.png": "6d6e510d03b65609a66eb0a37e88bfc6305b83fe3a1783ea0315051f386b1553",
+    "index-report-loading-1600.png": "c569df151e6405b8368627286c87171371373ff2ecbae790d022548e81b0a881",
+    "index-report-loading-390.png": "a3288c839a663c4307e3040f832d48056ab491da0ce21efd049fe8158e1d5047",
+    "index-report-error-1600.png": "b9c09de1e72e9645973c0b4ce16d4ca47d7b6ef25fca292ced487b6199ff486c",
+    "index-report-error-390.png": "5d1c5c009bbd4c4bb1071fc60c2a1fa3cd6c87194dc00af8949955e0eccdfc9a",
+    "index-report-snapshot-empty-1600.png": "d28febbfd274388ebf0af529e96230274c43fcaac3ea93876b518bc4f34cc898",
+    "index-report-snapshot-empty-390.png": "8868db7afb79251c067ebae2f46b8196a2f1ce6313f691f5097c7d70bb2921db"
+  },
+  "states": [
+    {
+      "id": "monitor-loaded",
+      "files": { "1600": "index-report-monitor-loaded-1600.png", "390": "index-report-monitor-loaded-390.png" },
+      "covers": "Chart-first monitor view with a loaded report (spot 22,363.35, candles, EMA9 legend, OI chain, heatmap, walls and movers). Tooltip age reads STALE 44d; no spinner or five-digit minute count."
+    },
+    {
+      "id": "desk-loaded",
+      "files": { "1600": "index-report-desk-loaded-1600.png", "390": "index-report-desk-loaded-390.png" },
+      "covers": "DESK view with real panel content in every window (chart, chain, walls, flow, options analytics and movers) and no Loading or NO DATA placeholders."
+    },
+    {
+      "id": "gex",
+      "files": { "1600": "index-report-gex-1600.png", "390": "index-report-gex-390.png" },
+      "covers": "DESK > OPTIONS ANALYTICS after a real page.click on the GEX tab: aria-pressed=true, yellow active fill settled with transition-property none, and the GEX profile panel visible at both viewports."
+    },
+    {
+      "id": "all-stats-popover",
+      "files": { "1600": "index-report-all-stats-popover-1600.png", "390": "index-report-all-stats-popover-390.png" },
+      "covers": "MONITOR view with the ALL STATS disclosure opened via nifty-live-tape-toggle; bounded popover shows the report snapshot including spot 22,363.35 and Max-OI call."
+    },
+    {
+      "id": "loading",
+      "files": { "1600": "index-report-loading-1600.png", "390": "index-report-loading-390.png" },
+      "covers": "Report shell while nifty-report-loading is visible (MOCKED: delayed /api/reports/nifty/live route handler)."
+    },
+    {
+      "id": "error",
+      "files": { "1600": "index-report-error-1600.png", "390": "index-report-error-390.png" },
+      "covers": "Report shell error banner (MOCKED: /api/reports/nifty/live fulfilled with HTTP 500 and detail 'mock failure'); exactly one alert carries the failure copy."
+    },
+    {
+      "id": "snapshot-empty",
+      "files": { "1600": "index-report-snapshot-empty-1600.png", "390": "index-report-snapshot-empty-390.png" },
+      "covers": "App's real no-payload fallback reached by selecting EOD with no session date; nifty-report-empty-reason names the last recorded snapshot ('Snapshot 10:00 · 2026-10-12 — no live report for this selection')."
+    }
+  ],
+  "notes": [
+    "Recaptured at the final working-tree state after all UI fix lanes landed; head is the current committed HEAD the pixels are built on.",
+    "Loaded/GEX/popover frames use setupApiMocks, loginAsTestUser and setupNiftyReportMocks plus enriched report, tape, walls and movers route payloads so no window is left in Loading or NO DATA; the app renders the real UI from those seeded responses.",
+    "Capture asserts real loaded data: spot 22,363.35 consistent across hero and ALL STATS, STALE 44d (never 64142m), EMA9 overlay legend visible, and at 390 both chain cue pills fully inside the viewport with the 16px reserved cue lane.",
+    "GEX is selected by a real Playwright click; the active yellow fill is checked via transition-property none and a distinct background from the inactive Futures tab before the screenshot.",
+    "loading and error are deliberately mocked with Playwright route handlers; no live server state can produce them on demand.",
+    "snapshot-empty is not mocked: it is the application's own no-payload selection state with a single explicit reason line."
+  ]
+}

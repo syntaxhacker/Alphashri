@@ -2,9 +2,11 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
 import { render, screen, within, cleanup } from "@solidjs/testing-library";
+import { ChartBody } from "./NiftyChartPanel.body";
 import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
+import { emaSeries } from "./niftyChartMath";
 import {
   CHART_HEIGHTS,
   NiftyChartPanel,
@@ -112,6 +114,20 @@ function candles3() {
     { time: "2026-10-12T09:16:00", open: 25620, high: 25680, low: 25600, close: 25640, volume: 1100 },
     { time: "2026-10-12T09:20:00", open: 25640, high: 25700, low: 25610, close: 25680, volume: 1200 },
   ];
+}
+
+/** The exact 10-bar report payload used by setupNiftyReportMocks in the
+ *  index-report evidence: EMA9 seeds at bar 9 and draws a short amber segment,
+ *  EMA20 never seeds and draws nothing. */
+function reportFixtureCandles() {
+  return Array.from({ length: 10 }, (_, i) => ({
+    time: `2026-10-12T${String(9 + Math.floor((15 + i * 5) / 60)).padStart(2, "0")}:${String((15 + i * 5) % 60).padStart(2, "0")}:00`,
+    open: 22300 + i * 6,
+    high: 22320 + i * 6,
+    low: 22290 + i * 6,
+    close: 22310 + i * 6,
+    volume: 100000 + i * 1000,
+  }));
 }
 
 describe("NiftyChartPanel", () => {
@@ -571,5 +587,146 @@ describe("verdict levels on the Nifty chart", () => {
     r(() => <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
     const labels = screen.getByTestId("tradingview-chart").getAttribute("data-markline-labels") ?? "";
     for (const code of ["SELL", "CUT", "TGT"]) expect(labels).not.toContain(code);
+  });
+});
+
+describe("NiftyChartPanel — named overlays and honest spot labels", () => {
+  test("the orange EMA overlay is named in a chart legend, not left to colour memory", () => {
+    const bars = reportFixtureCandles();
+    const closes = bars.map((c) => c.close);
+    // Prove the fixture is the one that produced the two-point amber segment.
+    expect(emaSeries(closes, 9).filter((v) => v != null)).toHaveLength(2);
+    expect(emaSeries(closes, 20).every((v) => v == null)).toBe(true);
+    r(() => <NiftyChartPanel report={mockReport({ candles: bars })} mode="live" view="chart" />);
+    const legend = screen.getByTestId("nifty-chart-overlay-legend");
+    expect(legend).toBeVisible();
+    expect(legend).toHaveTextContent("EMA9");
+    expect(legend).not.toHaveTextContent("EMA20");
+    const swatches = legend.querySelectorAll("[data-overlay-swatch]");
+    expect(Array.from(swatches).map((el) => (el as HTMLElement).style.backgroundColor)).toEqual([
+      palette.WARNING,
+    ]);
+    // The chart's own overlay canvas is z-index 3; a key below it is not drawn.
+    expect(Number(legend.style.zIndex)).toBeGreaterThan(3);
+    expect(legend.getAttribute("title")).toContain("EMA9");
+    expect(legend.getAttribute("title")).not.toContain("EMA20");
+  });
+
+  test("the chart boundary title separates the replay bar close from the snapshot spot", () => {
+    r(() => (
+      <NiftyChartPanel
+        report={mockReport({ candles: candles3() })}
+        mode="eod"
+        view="chart"
+        asOf="2026-10-12T09:20:00"
+      />
+    ));
+    const boundary = screen.getByTestId("nifty-chart-last-data-boundary");
+    expect(boundary.getAttribute("title")).toContain("25,680.00");
+    expect(boundary.getAttribute("title")).toContain("Replay playhead 09:20");
+    expect(boundary.getAttribute("title")).toContain("whole points");
+  });
+
+  test("a single zero-range spot tick is not a candle series: show the named empty state", () => {
+    const flatBar = {
+      time: "2026-10-12T09:15:00+05:30",
+      open: 26000,
+      high: 26000,
+      low: 26000,
+      close: 26000,
+      volume: 0,
+    };
+    render(() => (
+      <UIProvider>
+        <ChartBody
+          view="chart"
+          offlineEmpty={false}
+          sessionDate="2026-10-12"
+          chartCandles={[flatBar]}
+          candlesEverShown={true}
+          chartHeight={null}
+          fillContainer={true}
+          mpTouchesLength={0}
+          flipMarkerPresent={false}
+          patternSourceState="idle"
+          patternOverlayCount={0}
+          chartMarkLines={[{ label: { formatter: "CW 26,000" } }] as never}
+          chartEmaData={[] as never}
+          touchMarkers={[] as never}
+          lastDataBoundary="LAST DATA 09:15 · replay"
+          scanBadge={null}
+          chartSource="live"
+          scanStatus="idle"
+          chartTf="1m"
+          symbol={() => "NIFTY"}
+          onScanPatterns={() => {}}
+        />
+      </UIProvider>
+    ));
+    const empty = screen.getByTestId("nifty-chart-empty");
+    expect(empty).toHaveTextContent("No intraday candles");
+    expect(screen.getByTestId("nifty-chart-empty-slot")).toHaveAttribute(
+      "data-reason",
+      "pinned-playhead-no-candles",
+    );
+    expect(empty).toHaveTextContent("LAST DATA 09:15");
+    expect(screen.getByTestId("nifty-chart-wrap")).toHaveStyle({ display: "none" });
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-marklines", "0");
+  });
+
+  const deskBody = (ema: { label: string; color: string; data: number[] }[]) =>
+    render(() => (
+      <UIProvider>
+        <ChartBody
+          view="chart"
+          offlineEmpty={false}
+          sessionDate="2026-10-12"
+          chartCandles={candles3()}
+          candlesEverShown={true}
+          chartHeight={null}
+          fillContainer={true}
+          mpTouchesLength={0}
+          flipMarkerPresent={false}
+          patternSourceState="idle"
+          patternOverlayCount={0}
+          chartMarkLines={[] as never}
+          chartEmaData={ema as never}
+          touchMarkers={[] as never}
+          lastDataBoundary="LAST DATA 09:20 · live"
+          scanBadge={null}
+          chartSource="live"
+          scanStatus="idle"
+          chartTf="1m"
+          symbol={() => "NIFTY"}
+          onScanPatterns={() => {}}
+        />
+      </UIProvider>
+    ));
+
+  test("DESK fill path mounts the key from the exact series the engine draws", () => {
+    const closes = reportFixtureCandles().map((c) => c.close);
+    deskBody([
+      { label: "EMA9", color: palette.WARNING, data: emaSeries(closes, 9) },
+      { label: "EMA20", color: palette.PRIMARY, data: emaSeries(closes, 20) },
+    ]);
+    const wrap = screen.getByTestId("nifty-chart-wrap");
+    expect(wrap).toHaveAttribute("data-fill", "1");
+    // The engine still receives both series; only the painted one is named.
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-emas", "2");
+    const legend = screen.getByTestId("nifty-chart-overlay-legend");
+    expect(wrap).toContainElement(legend);
+    expect(legend).toHaveTextContent("EMA9");
+    expect(legend).not.toHaveTextContent("EMA20");
+    const swatches = legend.querySelectorAll("[data-overlay-swatch]");
+    expect(Array.from(swatches).map((el) => (el as HTMLElement).style.backgroundColor)).toEqual([
+      palette.WARNING,
+    ]);
+    expect(Number(legend.style.zIndex)).toBeGreaterThan(3);
+  });
+
+  test("no EMA or overlay series: no key advertises a line that is not drawn", () => {
+    deskBody([]);
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-emas", "0");
+    expect(screen.queryByTestId("nifty-chart-overlay-legend")).not.toBeInTheDocument();
   });
 });

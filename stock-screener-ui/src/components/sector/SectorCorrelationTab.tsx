@@ -56,7 +56,7 @@ function CorrelationHeader(props: { currentMarket: string; currentLookback: numb
   };
 
   return (
-    <Box data-testid="sector-correlation-header" className="flex items-center gap-1 flex-wrap px-1 py-0.5 min-h-[28px] border-b border-fin-border">
+    <Box data-testid="sector-correlation-header" className="flex min-h-[28px] shrink-0 items-center gap-1 flex-wrap border-b border-fin-border px-1 py-0.5 overflow-x-auto">
       <Text fw={700} className="text-ui-micro whitespace-nowrap">
         Sector Correlation
       </Text>
@@ -222,7 +222,7 @@ function ErrorState(props: { error: string }) {
     void fetchCorrelationData();
   };
   return (
-    <Box data-testid="sector-correlation-error" className="flex items-center gap-2 p-2">
+    <Box data-testid="sector-correlation-error" className="flex min-h-0 flex-1 items-center gap-2 p-2">
       <Text size="xs" c="error">
         {props.error}
       </Text>
@@ -260,81 +260,88 @@ export function SectorCorrelationTab() {
     !showLoading() && !showError() && (!store().data || !store().data!.sector_names || store().data!.sector_names.length === 0);
 
   return (
-    <Show when={!showLoading()} fallback={<LoadingState />}>
-      <Show when={!showError()} fallback={<ErrorState error={store().error ?? ""} />}>
-        <Show
-          when={!showEmpty()}
-          fallback={
-            <Box data-testid="sector-correlation-empty" className="flex items-center justify-center p-2">
-              <Text size="xs" c="dimmed">
-                No correlation data available.
-              </Text>
-            </Box>
-          }
-        >
-          <Stack spacing={0.5} className="p-1 w-full min-w-0">
+    <Box
+      data-testid="sector-correlation-tab"
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    >
+      <Show when={!showLoading()} fallback={<LoadingState />}>
+        <Show when={!showError()} fallback={<ErrorState error={store().error ?? ""} />}>
+          <Show
+            when={!showEmpty()}
+            fallback={
+              <Box data-testid="sector-correlation-empty" className="flex min-h-0 flex-1 items-center justify-center p-2">
+                <Text size="xs" c="dimmed">
+                  No correlation data available.
+                </Text>
+              </Box>
+            }
+          >
             <CorrelationHeader
               currentMarket={store().market}
               currentLookback={store().lookbackDays}
               lastUpdated={store().data?.last_updated}
             />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-1 w-full">
-              <CompactPanel
-                flush
-                padded={false}
-                id="sector-correlation-heatmap"
-                testId="sector-correlation-heatmap"
-                title={<Text className="text-ui-micro font-bold">Cross-Sector Correlation</Text>}
-                className="min-w-0"
-              >
-                <Box className="p-1 min-h-[280px] w-full">
-                  <CorrelationHeatmap matrix={store().data!.correlation_matrix} symbols={store().data!.sector_names} isDark={isDark()} />
-                </Box>
-              </CompactPanel>
-              <CompactPanel
-                flush
-                padded={false}
-                id="sector-beta-chart"
-                testId="sector-beta-chart"
-                title={<Text className="text-ui-micro font-bold">Sector Beta vs Benchmark</Text>}
-                className="min-w-0"
-              >
-                <Box className="p-1 h-[320px] w-full flex">
-                  <SectorBetaChart
-                    sectors={sortedSectors()}
-                    benchmark={store().market === "india" ? "NIFTY 50" : "SPY"}
-                    isDark={isDark()}
-                  />
-                </Box>
-              </CompactPanel>
-            </div>
-            <CompactPanel
-              flush
-              padded={false}
-              id="relative-strength-table"
-              testId="relative-strength-table"
-              title={<Text className="text-ui-micro font-bold">Relative Strength Rankings</Text>}
-              className="min-w-0"
-            >
-              <Box className="w-full min-w-0">
-                <RelativeStrengthTable sectors={sortedSectors()} />
-              </Box>
-            </CompactPanel>
-            <CompactPanel
-              flush
-              padded={false}
-              id="rotation-timeline"
-              testId="rotation-timeline"
-              title={<Text className="text-ui-micro font-bold">Sector Rotation (1-Month Rank Change)</Text>}
-              className="min-w-0"
-            >
-              <Box className="p-1 h-[400px] w-full flex">
-                <RotationTimeline sectors={sortedSectors()} isDark={isDark()} />
-              </Box>
-            </CompactPanel>
-          </Stack>
+            <Box data-testid="sector-correlation-scroll" className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-1">
+              <Stack spacing={0.5} className="w-full min-w-0">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-1 w-full">
+                  <CompactPanel
+                    flush
+                    padded={false}
+                    id="sector-correlation-heatmap"
+                    testId="sector-correlation-heatmap"
+                    title={<Text className="text-ui-micro font-bold">Cross-Sector Correlation</Text>}
+                    className="min-w-0"
+                  >
+                    <Box className="p-1 min-h-[280px] w-full">
+                      <CorrelationHeatmap matrix={store().data!.correlation_matrix} symbols={store().data!.sector_names} isDark={isDark()} />
+                    </Box>
+                  </CompactPanel>
+                  <CompactPanel
+                    flush
+                    padded={false}
+                    id="sector-beta-chart"
+                    testId="sector-beta-chart"
+                    title={<Text className="text-ui-micro font-bold">Sector Beta vs Benchmark</Text>}
+                    className="min-w-0"
+                  >
+                    <Box className="p-1 h-[320px] w-full flex">
+                      <SectorBetaChart
+                        sectors={sortedSectors()}
+                        benchmark={store().market === "india" ? "NIFTY 50" : "SPY"}
+                        isDark={isDark()}
+                      />
+                    </Box>
+                  </CompactPanel>
+                </div>
+                <CompactPanel
+                  flush
+                  padded={false}
+                  id="relative-strength-table"
+                  testId="relative-strength-table"
+                  title={<Text className="text-ui-micro font-bold">Relative Strength Rankings</Text>}
+                  className="min-w-0"
+                >
+                  <Box className="w-full min-w-0">
+                    <RelativeStrengthTable sectors={sortedSectors()} />
+                  </Box>
+                </CompactPanel>
+                <CompactPanel
+                  flush
+                  padded={false}
+                  id="rotation-timeline"
+                  testId="rotation-timeline"
+                  title={<Text className="text-ui-micro font-bold">Sector Rotation (1-Month Rank Change)</Text>}
+                  className="min-w-0"
+                >
+                  <Box className="p-1 h-[400px] w-full flex">
+                    <RotationTimeline sectors={sortedSectors()} isDark={isDark()} />
+                  </Box>
+                </CompactPanel>
+              </Stack>
+            </Box>
+          </Show>
         </Show>
       </Show>
-    </Show>
+    </Box>
   );
 }

@@ -67,7 +67,7 @@ export function BotStatusPanel(props: BotStatusPanelProps) {
       data-testid="bot-status-panel"
       data-bot-id={props.bot.id}
       id="bot-status-panel"
-      className="bot-status-panel flex h-full min-h-0 flex-col"
+      className="bot-status-panel flex h-full min-h-0 flex-col overflow-hidden"
     >
       <Stack spacing={1} gap="sm" className="flex flex-1 min-h-0 flex-col gap-2 p-2">
         <Card

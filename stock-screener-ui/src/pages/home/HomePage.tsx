@@ -1,4 +1,13 @@
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type Accessor } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+  type Accessor,
+} from "solid-js";
 import { Box, Menu, MenuDropdown, MenuItem, MenuTarget, Select, Text, ToolbarRow } from "@/ui";
 import { HomeMonitorView } from "../../components/home/HomeMonitorView";
 import { SessionPulseBar } from "../../components/home/SessionPulseBar";
@@ -43,7 +52,10 @@ import {
 } from "./homeSectionPanels";
 
 const slug = (name: string): string =>
-  name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 
 type HomeView = "monitor" | "desk";
 
@@ -108,7 +120,10 @@ export function useHomeWindowConfig(
     config: () => read().value ?? defaultHomeConfig(homeCanvas),
     setConfig: (next) =>
       store.scheduleSave({
-        layouts: next.layouts.map((layout) => ({ ...layout, windows: layout.windows.map((w) => ({ ...w })) })),
+        layouts: next.layouts.map((layout) => ({
+          ...layout,
+          windows: layout.windows.map((w) => ({ ...w })),
+        })),
         active: next.active,
       }),
     hydrated: () => read().hydrated,
@@ -247,9 +262,22 @@ export function HomePage(props: HomePageProps) {
   // consumers below (props getters and handlers alike) re-runs this find.
   const activeLayout: Accessor<WindowLayout> = createMemo(() => {
     const current = config();
-    return current.layouts.find((layout) => layout.name === current.active)
-      ?? current.layouts[0]
-      ?? { name: "Main", windows: [] };
+    return (
+      current.layouts.find((layout) => layout.name === current.active) ??
+      current.layouts[0] ?? { name: "Main", windows: [] }
+    );
+  });
+
+  // WindowManager reuses frames by index. Switching tabs or hydrating a saved
+  // desk can put a different panel at the same index, so rebuild on structural
+  // changes; rect edits stay keyed and keep their frames.
+  const deskKey = createMemo(() => {
+    if (!isDesk()) return false;
+    const layout = activeLayout();
+    const sectionIds = [...sectionPanels().live, ...sectionPanels().tombstones]
+      .map((spec) => spec.id)
+      .join(",");
+    return `${layout.name}|${layout.windows.map((window) => window.type).join(",")}|${sectionIds}`;
   });
 
   const setActiveWindows = (windows: WindowState[]) =>
@@ -270,7 +298,8 @@ export function HomePage(props: HomePageProps) {
         value: spec.id,
         label: spec.title,
         group: PAGE_LABEL[spec.page],
-      })));
+      })),
+  );
 
   const addWindow = (id: string) => {
     if (!id) return;
@@ -315,7 +344,7 @@ export function HomePage(props: HomePageProps) {
   };
 
   return (
-    <Box data-testid="home-page" className="flex h-full min-h-0 flex-col gap-2 p-4">
+    <Box data-testid="home-page" className="flex h-full min-h-0 flex-col gap-2 overflow-hidden p-4">
       <ToolbarRow data-testid="home-toolbar">
         <Text size="sm" fw={700}>
           HOME
@@ -373,7 +402,11 @@ export function HomePage(props: HomePageProps) {
 
       <Show when={isDesk()}>
         <ToolbarRow data-testid="home-layout-tabs">
-          <div role="tablist" aria-label="Desk layouts" class="inline-flex flex-wrap items-center gap-2">
+          <div
+            role="tablist"
+            aria-label="Desk layouts"
+            class="inline-flex flex-wrap items-center gap-2"
+          >
             <For each={config().layouts}>
               {(layout) => (
                 <button
@@ -438,27 +471,24 @@ export function HomePage(props: HomePageProps) {
         <HomeMonitorView />
       </Show>
 
-      <Show when={isDesk()}>
-        <WindowManager
-          layout={activeLayout()}
-          context={context}
-          specs={[...HOME_PANELS, ...sectionPanels().live, ...sectionPanels().tombstones]}
-          onLayoutChange={(next) => setActiveWindows(next.windows)}
-          onCanvasChange={(size) => {
-            if (canvasSize()?.w === size.w && canvasSize()?.h === size.h) return;
-            homeCanvas = size;
-            setCanvasSize(size);
-          }}
-          canvas={props.canvas}
-        />
+      <Show when={deskKey()} keyed>
+        <Box className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <WindowManager
+            layout={activeLayout()}
+            context={context}
+            specs={[...HOME_PANELS, ...sectionPanels().live, ...sectionPanels().tombstones]}
+            onLayoutChange={(next) => setActiveWindows(next.windows)}
+            onCanvasChange={(size) => {
+              if (canvasSize()?.w === size.w && canvasSize()?.h === size.h) return;
+              homeCanvas = size;
+              setCanvasSize(size);
+            }}
+            canvas={props.canvas}
+          />
+        </Box>
       </Show>
 
-      <div
-        data-testid="home-live"
-        class="sr-only"
-        aria-live="polite"
-        aria-atomic="true"
-      >
+      <div data-testid="home-live" class="sr-only" aria-live="polite" aria-atomic="true">
         {liveMessage()}
       </div>
     </Box>

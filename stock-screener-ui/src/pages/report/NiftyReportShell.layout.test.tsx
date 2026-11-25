@@ -15,6 +15,7 @@ const [report, setReport] = createSignal<Record<string, unknown> | null>(null);
 const [focus, setFocus] = createSignal(false);
 const [desk, setDesk] = createSignal(false);
 const [view, setView] = createSignal<"monitor" | "desk">("monitor");
+const [updatedAtMs, setUpdatedAtMs] = createSignal<number | null>(null);
 
 // The windowed desk mounts the real report panel adapters, so the mock must
 // answer every accessor they read — not just the ones the monitor shell uses.
@@ -34,6 +35,18 @@ const mockStore = {
     atmStrike: () => null,
     oiScale: () => ({ maxCeOiChange: 0, maxPeOiChange: 0 }),
     oiWalls: () => ({ calls: [], puts: [] }),
+    freshness: {
+      updatedAtMs,
+      nowMs: () => Date.now(),
+      wsConnected: () => false,
+      wsDownSinceMs: () => null,
+      wsDownForMs: () => 0,
+      marketClosed: () => true,
+      isStale: () => false,
+      staleMins: () => 0,
+      nextUpdateAtMs: () => null,
+      touchNow: () => {},
+    },
   },
   // #197's shell reads these three; they were absent from #195's mock, so the
   // shell threw while resolving the replay label before any section painted.
@@ -199,6 +212,7 @@ afterEach(() => {
   setFocus(false);
   setDesk(false);
   setView("monitor");
+  setUpdatedAtMs(null);
 });
 
 describe("NiftyReportShell section order", () => {
@@ -713,5 +727,81 @@ describe("NiftyReportShell spacing rhythm", () => {
     mount();
     await screen.findByTestId("workspace-stub");
     expect(screen.queryByTestId("nifty-kpi-hero")).not.toBeInTheDocument();
+  });
+});
+
+describe("NiftyReportShell no-payload reason", () => {
+  // 2026-11-25 15:55Z = 21:25 IST on the 25th — the same clock the toolbar
+  // prints as `SNAPSHOT 21:25` when the feed is closed.
+  const SNAPSHOT_MS = Date.parse("2026-11-25T15:55:00Z");
+
+  const TITLE = "No report for this selection";
+
+  function reasonBand(text: string) {
+    const empty = screen.getByTestId("nifty-report-empty");
+    const reason = screen.getByTestId("nifty-report-empty-reason");
+    expect(empty).toBeInTheDocument();
+    expect(reason).toHaveTextContent(text);
+    // D5: the reason is a separate line of copy, never a second printing of
+    // the title. Both the snapshot and no-snapshot branches must read as a
+    // title plus one distinct explanation.
+    const title = empty.children[0] as HTMLElement;
+    expect(title).toHaveTextContent(TITLE);
+    expect(reason.textContent).not.toBe(title.textContent);
+    expect(reason.textContent).not.toContain(TITLE);
+    expect(reason).toHaveClass("text-ui-micro");
+    expect(reason.className).toContain("whitespace-normal");
+    expect(reason.className).not.toContain("border");
+    // One hairline rail on the band (happy-dom serialises the shorthand as
+    // longhands), nothing on the other edges or its children: no nested card.
+    expect(empty.style.borderLeftWidth).toBe("2px");
+    expect(empty.style.borderLeftStyle).toBe("solid");
+    expect(empty.style.borderLeftColor).not.toBe("");
+    for (const edge of ["Top", "Right", "Bottom"]) {
+      expect(empty.style[`border${edge}Width` as keyof typeof empty.style]).toBe("");
+    }
+    expect(empty.children).toHaveLength(2);
+    for (const child of Array.from(empty.children) as HTMLElement[]) {
+      expect(child.getAttribute("style") ?? "").not.toContain("border");
+    }
+    return { empty, reason };
+  }
+
+  test("names the recorded snapshot's session/as-of at 1600", () => {
+    setUpdatedAtMs(SNAPSHOT_MS);
+    mount();
+
+    const { empty } = reasonBand(
+      "Snapshot 21:25 · 2026-11-25 — no live report for this selection",
+    );
+    expect(empty.className).toContain("px-3");
+  });
+
+  test("names the recorded snapshot's session/as-of at 390", () => {
+    setUpdatedAtMs(SNAPSHOT_MS);
+    mount();
+
+    reasonBand("Snapshot 21:25 · 2026-11-25 — no live report for this selection");
+    expect(screen.getByTestId("nifty-report-panel").className).toContain(
+      "max-[600px]:[&_[data-testid='nifty-report-empty']]:px-2!",
+    );
+  });
+
+  test("states a distinct failure reason when no snapshot is available at 1600", () => {
+    setUpdatedAtMs(null);
+    mount();
+
+    const { empty } = reasonBand("The report request failed. Retry or pick another selection.");
+    expect(empty.className).toContain("px-3");
+  });
+
+  test("states a distinct failure reason when no snapshot is available at 390", () => {
+    setUpdatedAtMs(null);
+    mount();
+
+    reasonBand("The report request failed. Retry or pick another selection.");
+    expect(screen.getByTestId("nifty-report-panel").className).toContain(
+      "max-[600px]:[&_[data-testid='nifty-report-empty']]:px-2!",
+    );
   });
 });

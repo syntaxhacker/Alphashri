@@ -188,30 +188,30 @@ function LiveView(props: { state: PaperTradingSnapshot; activeBotId: string | nu
   });
 
   return (
-    <div class="paper-live-view-grid flex flex-col md:flex-row gap-2 flex-1 min-h-0" data-testid="live-view-grid" id="live-view-grid">
-      <div class="paper-live-left-panel flex-1 md:[flex:0_0_42%] min-w-0 min-h-0 flex flex-col gap-2" data-testid="paper-left-panel" id="left-panel">
+    <div class="paper-live-view-grid flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto md:flex-row md:overflow-hidden" data-testid="live-view-grid" id="live-view-grid">
+      <div class="paper-live-left-panel flex min-h-0 min-w-0 flex-none flex-col gap-2 md:[flex:0_0_42%]" data-testid="paper-left-panel" id="left-panel">
         <Card className="paper-portfolio-card-wrap" id="paper-portfolio-card-wrap">
           <div class="paper-portfolio-card-content p-1 flex-1 min-h-0 flex flex-col">
             <PaperPortfolioCard portfolio={props.state.portfolio as Portfolio | null} />
           </div>
         </Card>
-        <Card className="paper-positions-card-wrap flex-1 min-h-40 flex flex-col" id="paper-positions-card-wrap">
+        <Card className="paper-positions-card-wrap min-h-40 flex flex-none flex-col md:min-h-0 md:flex-1" id="paper-positions-card-wrap">
           <div class="paper-positions-card-content p-1 flex-1 min-h-0 flex flex-col">
-            <ScrollArea className="paper-positions-scroll min-h-0" flex={1}>
+            <ScrollArea className="paper-positions-scroll min-h-0" style={{ flex: "1 1 auto" }}>
               <Stack className="paper-positions-stack" spacing={0.5}>
                 <PaperPositionsTable activeBotId={props.activeBotId} />
               </Stack>
             </ScrollArea>
           </div>
         </Card>
-        <Card className="paper-watchlist-card-wrap [flex:0_1_auto] min-h-0 overflow-hidden flex flex-col" id="paper-watchlist-card-wrap">
+        <Card className="paper-watchlist-card-wrap flex min-h-0 flex-none flex-col overflow-hidden md:[flex:0_1_auto]" id="paper-watchlist-card-wrap">
           <div class="paper-watchlist-card-content p-1 flex-1 min-h-0 overflow-auto flex flex-col">
             <WatchlistScan2 snapshot={props.state.botSnapshot} selectedSymbol={props.state.selectedSymbol} onRefresh={props.handleScanRefresh} refreshing={props.scanRefreshing} />
           </div>
         </Card>
       </div>
-      <div class="paper-live-right-panel flex-1 md:[flex:1_1_58%] min-w-0 min-h-0 flex flex-col gap-2 overflow-hidden" data-testid="paper-right-panel" id="right-panel">
-        <Card className="paper-chart-card-wrap flex-1 min-h-0 flex flex-col" id="paper-chart-card-wrap">
+      <div class="paper-live-right-panel flex min-h-0 min-w-0 flex-none flex-col gap-2 md:overflow-hidden md:[flex:1_1_58%]" data-testid="paper-right-panel" id="right-panel">
+        <Card className="paper-chart-card-wrap min-h-[320px] flex-none flex flex-col md:min-h-0 md:flex-1" id="paper-chart-card-wrap">
           <div class="paper-chart-card-content p-1 flex-1 min-h-0 flex flex-col">
             <PaperChart />
           </div>
@@ -256,7 +256,7 @@ function HistoryView(props: { state: PaperTradingSnapshot }) {
 function SettingsView() {
   return (
     <div class="paper-settings-view flex-1 min-h-0 flex flex-col" data-testid="paper-settings-panel" id="settings-view">
-      <ScrollArea className="paper-settings-scroll min-h-0" flex={1} type="auto">
+      <ScrollArea className="paper-settings-scroll min-h-0 flex-1" style={{ flex: 1 }} type="auto">
         <div class="paper-settings-inner max-w-[1200px] mx-auto w-full p-1" id="paper-settings-inner">
           <PaperSettings />
         </div>
@@ -325,7 +325,7 @@ export function PaperTradingView() {
   const vm = usePaperTradingViewModel();
 
   return (
-    <div class="paper-trading-view px-4 py-1 flex flex-col h-full overflow-hidden" data-testid="paper-trading-view" id="paper-trading-main">
+    <div class="paper-trading-view flex h-full min-h-0 flex-col overflow-hidden px-4 py-1" data-testid="paper-trading-view" id="paper-trading-main">
       <LivePriceUpdater />
       <Show when={vm.state().error}>
         {(message) => <ErrorAlert message={message()!} onClose={vm.handleClearError} />}
@@ -352,12 +352,12 @@ export function PaperTradingView() {
             <SettingsView />
           </Match>
           <Match when={vm.state().currentView === "activity"}>
-            <ScrollArea className="min-h-0" flex={1} type="auto">
+            <ScrollArea className="min-h-0 flex-1" style={{ flex: 1 }} type="auto">
               <ActivityFeed />
             </ScrollArea>
           </Match>
           <Match when={vm.state().currentView === "aggregated"}>
-            <ScrollArea className="min-h-0" flex={1} type="auto">
+            <ScrollArea className="min-h-0 flex-1" style={{ flex: 1 }} type="auto">
               <AggregatedDashboard />
             </ScrollArea>
           </Match>

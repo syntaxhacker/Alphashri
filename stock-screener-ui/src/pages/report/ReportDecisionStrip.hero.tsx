@@ -6,7 +6,6 @@ import {
   REPORT_FONT,
   REPORT_GUTTER,
   REPORT_HERO_POPOVER,
-  REPORT_HERO_STATS_GRID_CLASS,
   REPORT_KPI_HERO_HEIGHT,
   REPORT_RADIUS,
 } from "./reportTokens";
@@ -104,6 +103,52 @@ const HAIRLINE_STYLE: JSX.CSSProperties = {
   "background-color": palette.TERM_BORDER,
   "flex-shrink": 0,
 };
+
+/** The popover is a *scrolling* flex column with a 420px cap. Left as default
+ *  flex items, its sections shrink to fit the cap instead of scrolling, so the
+ *  stat grid and the evidence block paint over each other. Every direct child
+ *  keeps its natural height; the popover is the only scroll owner. */
+const POPOVER_NO_SHRINK_CLASS = "[&>*]:shrink-0!";
+
+/** The band's evidence row is a nowrap, four-equal-cell strip. The same cells
+ *  cannot share a 720px (or 374px) popover: `COIL 0.0x RV — / IV —` and
+ *  `score 0.0 · RSI —` were cut and read as two colliding columns. Here the
+ *  strip is a deterministic one-column grid — one cell per line, no `auto-fit`
+ *  track guessing — and the long readouts wrap inside their cell. The full
+ *  read also stays on its `title`. */
+const POPOVER_EVIDENCE_CLASS = [
+  POPOVER_NO_SHRINK_CLASS,
+  "[&_[data-testid='nifty-verdict-wrap']]:h-auto!",
+  "[&_[data-testid='nifty-verdict-wrap']]:min-h-0!",
+  "[&_[data-testid='nifty-verdict-wrap']]:w-full!",
+  "[&_[data-testid='nifty-verdict-wrap']]:overflow-visible!",
+  "[&_[data-testid='nifty-verdict-strip']]:grid!",
+  "[&_[data-testid='nifty-verdict-strip']]:grid-cols-1!",
+  "[&_[data-testid='nifty-verdict-strip']]:h-auto!",
+  "[&_[data-testid='nifty-verdict-strip']]:min-h-0!",
+  "[&_[data-testid='nifty-verdict-strip']]:flex-wrap!",
+  "[&_[data-testid='nifty-verdict-strip']]:overflow-visible!",
+  "[&_[data-testid='nifty-verdict-strip']>*]:w-full!",
+  "[&_[data-testid='nifty-verdict-strip']>*]:[flex-basis:100%]!",
+  "[&_[data-testid='nifty-verdict-strip']>*]:min-w-0!",
+  "[&_[data-testid='nifty-verdict-strip']>*]:[flex:none]!",
+  "[&_[data-testid='nifty-verdict-strip']>*]:h-auto!",
+  "[&_[data-testid='nifty-verdict-strip']>*]:border-l-0!",
+  "[&_[data-testid='nifty-verdict-strip']>*]:overflow-visible!",
+  "[&_[data-testid^='nifty-verdict-']]:whitespace-normal!",
+  "[&_[data-testid^='nifty-verdict-']]:[text-overflow:clip]!",
+  "[&_[data-testid^='nifty-coil-']]:whitespace-normal!",
+  "[&_[data-testid^='nifty-coil-']]:[text-overflow:clip]!",
+  "[&_[data-testid^='nifty-coil-']]:[flex-shrink:1]!",
+  "[&_[data-testid$='-primary']]:overflow-visible!",
+  "[&_[data-testid$='-primary']]:[overflow-wrap:anywhere]!",
+  "[&_[data-testid$='-secondary']]:overflow-visible!",
+  "[&_[data-testid$='-secondary']]:[overflow-wrap:anywhere]!",
+  "[&_[data-testid^='nifty-coil-']]:overflow-visible!",
+  "[&_[data-testid^='nifty-coil-']]:[overflow-wrap:anywhere]!",
+  "[&_[data-testid='nifty-india-vix-label']]:whitespace-normal!",
+  "[&_[data-testid='nifty-india-vix-label']]:[flex-shrink:1]!",
+].join(" ");
 
 /** The one decision band: semantic verdict chip, action levels and one
  *  percentage share a 32px surface with the four captioned KPI cells. The
@@ -311,7 +356,7 @@ export function DecisionHero(props: { view: DecisionView }): JSX.Element {
         data-testid="nifty-live-tape-content"
         role="group"
         aria-label="All report statistics"
-        className={`flex flex-col gap-2 w-full min-w-0 ${REPORT_HERO_STATS_GRID_CLASS}`}
+        className={`flex flex-col gap-2 w-full min-w-0 ${POPOVER_NO_SHRINK_CLASS}`}
         style={{
           display: statsOpen() ? "flex" : "none",
           position: "fixed",
@@ -331,10 +376,16 @@ export function DecisionHero(props: { view: DecisionView }): JSX.Element {
         }}
       >
         <Text span style={POPUP_CAPTION_STYLE}>ALL STATS · report snapshot</Text>
-        <DecisionStats view={view} />
+        <DecisionStats view={view} popover />
         <Box aria-hidden="true" style={HAIRLINE_STYLE} />
-        <Text span style={POPUP_CAPTION_STYLE}>EVIDENCE</Text>
-        <VerdictContent view={view} />
+        <Box
+          data-testid="nifty-live-tape-evidence"
+          data-evidence-layout="rows"
+          className={`flex flex-col gap-2 min-w-0 w-full ${POPOVER_EVIDENCE_CLASS}`}
+        >
+          <Text span style={POPUP_CAPTION_STYLE}>EVIDENCE</Text>
+          <VerdictContent view={view} popover />
+        </Box>
       </Box>
     </Box>
   );

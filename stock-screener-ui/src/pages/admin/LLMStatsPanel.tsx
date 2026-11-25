@@ -46,7 +46,11 @@ const RUN_COLUMNS: TableColumnDef<LLMRun>[] = [
     header: "Model",
     accessorKey: "model",
     meta: { align: "left" },
-    cell: ({ row }) => <Text size="xs" class={MONO}>{row.original.model.split("/").pop()}</Text>,
+    cell: ({ row }) => (
+      <Text size="xs" class={MONO}>
+        {row.original.model.split("/").pop()}
+      </Text>
+    ),
   },
   {
     id: "tokens",
@@ -131,7 +135,8 @@ export function LLMStatsPanel() {
   };
 
   const clearLogs = async () => {
-    if (!window.confirm("Clear all LLM stats logs? Article analysis cache is not affected.")) return;
+    if (!window.confirm("Clear all LLM stats logs? Article analysis cache is not affected."))
+      return;
     setClearing(true);
     setError(null);
     try {
@@ -163,13 +168,17 @@ export function LLMStatsPanel() {
       fallback={
         <Box data-testid="admin-llm-loading" className="flex items-center gap-1 p-1">
           <Loader size="xs" />
-          <Text size="xs" c="dimmed">Loading LLM stats…</Text>
+          <Text size="xs" c="dimmed">
+            Loading LLM stats…
+          </Text>
         </Box>
       }
     >
       <Stack gap={4} className="h-full min-h-0" data-testid="admin-llm-panel">
         <Show when={error()}>
-          <Alert color="error" data-testid="admin-llm-error">{error()}</Alert>
+          <Alert color="error" data-testid="admin-llm-error">
+            {error()}
+          </Alert>
         </Show>
 
         <Box className="shrink-0">
@@ -178,10 +187,20 @@ export function LLMStatsPanel() {
             <CompactStat
               dense
               label="Total tokens"
-              value={vm().agg?.total_tokens != null ? vm().agg!.total_tokens!.toLocaleString() : "—"}
+              value={
+                vm().agg?.total_tokens != null ? vm().agg!.total_tokens!.toLocaleString() : "—"
+              }
             />
-            <CompactStat dense label="Total cost" value={formatCost(vm().agg?.total_cost_usd ?? 0)} />
-            <CompactStat dense label="Avg response" value={formatResponseTime(vm().agg?.avg_response_time_ms ?? 0)} />
+            <CompactStat
+              dense
+              label="Total cost"
+              value={formatCost(vm().agg?.total_cost_usd ?? 0)}
+            />
+            <CompactStat
+              dense
+              label="Avg response"
+              value={formatResponseTime(vm().agg?.avg_response_time_ms ?? 0)}
+            />
           </CompactStatGrid>
         </Box>
 
@@ -201,10 +220,23 @@ export function LLMStatsPanel() {
             description={vm().runs.length ? `${vm().runs.length} logged runs` : "No recent runs"}
             action={
               <ToolbarRow gap={4}>
-                <Button size="xs" variant="light" leftSection={<Icon name="refresh" size={12} />} onClick={fetchStats} loading={loading()}>
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<Icon name="refresh" size={12} />}
+                  onClick={fetchStats}
+                  loading={loading()}
+                >
                   Refresh
                 </Button>
-                <Button size="xs" variant="filled" color="error" leftSection={<Icon name="trash" size={12} />} onClick={clearLogs} loading={clearing()}>
+                <Button
+                  size="xs"
+                  variant="filled"
+                  color="error"
+                  leftSection={<Icon name="trash" size={12} />}
+                  onClick={clearLogs}
+                  loading={clearing()}
+                >
                   Clear logs
                 </Button>
               </ToolbarRow>
@@ -218,17 +250,25 @@ export function LLMStatsPanel() {
                 panel already draws the section border — `bare` keeps the table
                 from nesting a second one. */}
             <Box className="flex min-h-0 flex-col" style={{ height: "100%" }}>
-            <TanStackTable<LLMRun>
-              data={vm().runs}
-              columns={RUN_COLUMNS}
-              dataTestId="runs-table"
-              enableSorting={false}
-              emptyMessage="No recent runs"
-              dense
-              bare
-              fillContainer
-              rowWindowSize={40}
-            />
+              <TanStackTable<LLMRun>
+                data={vm().runs}
+                columns={RUN_COLUMNS}
+                dataTestId="runs-table"
+                enableSorting={false}
+                emptyMessage="No recent runs"
+                dense
+                bare
+                fillContainer
+                rowWindowSize={40}
+              />
+              <Text
+                size="xs"
+                c="dimmed"
+                className="shrink-0 px-1 text-ui-micro sm:hidden"
+                data-testid="admin-llm-scroll-hint"
+              >
+                Scroll →
+              </Text>
             </Box>
           </CompactPanel>
         </Box>

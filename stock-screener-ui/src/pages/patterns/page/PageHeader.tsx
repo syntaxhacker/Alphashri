@@ -10,7 +10,7 @@ export interface PageHeaderProps {
 
 export function PageHeader(props: PageHeaderProps) {
   return (
-    <Box className="flex w-full min-w-0 items-stretch gap-2 border-b border-fin-border">
+    <Box className="flex w-full min-w-0 shrink-0 items-stretch gap-2 border-b border-fin-border">
       <Tabs.List
         data-testid="patterns-tab-list"
         // The wrapper owns the single bottom rule; the list's own is
@@ -25,11 +25,7 @@ export function PageHeader(props: PageHeaderProps) {
         </Tabs.Tab>
       </Tabs.List>
       <Box className="ml-auto flex min-w-0 items-center overflow-x-auto">
-        <ScanStats
-          summary={props.displaySummary()}
-          job={props.job}
-          onSelect={props.onSelectStat}
-        />
+        <ScanStats summary={props.displaySummary()} job={props.job} onSelect={props.onSelectStat} />
       </Box>
     </Box>
   );

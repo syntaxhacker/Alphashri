@@ -1,4 +1,4 @@
-import { For, Show, createEffect } from "solid-js";
+import { For, Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { Button, Paper, ScrollArea, ToolbarRow, useDensity, typeSize } from "@/ui";
 import { InlineLoader } from "./states";
 import { ColumnPicker } from "./ColumnPicker";
@@ -33,6 +33,29 @@ export const TABLE_METRICS: Record<TableMetricsPreset, TableMetrics> = {
   dense: { rowHeight: 18, cellPadding: "1px 6px", fontSize: typeSize("micro"), headerFontSize: typeSize("micro") },
   paper: { rowHeight: 23, cellPadding: "2px 8px", fontSize: typeSize("micro"), headerFontSize: typeSize("micro") },
 };
+
+/** One arrow press moves the same element that owns focus and the region role. */
+const TABLE_HSCROLL_STEP = 80;
+
+function onTableScrollRegionKeyDown(event: KeyboardEvent) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  const region = event.currentTarget as HTMLElement;
+  const target = event.target as HTMLElement | null;
+  if (
+    target &&
+    target !== region &&
+    (target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.tagName === "SELECT" ||
+      target.isContentEditable)
+  ) {
+    return;
+  }
+  if (region.scrollWidth <= region.clientWidth) return;
+  region.scrollLeft +=
+    event.key === "ArrowRight" ? TABLE_HSCROLL_STEP : -TABLE_HSCROLL_STEP;
+  event.preventDefault();
+}
 
 export function TanStackTable<T>(props: TableProps<T>) {
   const densityApi = useDensity();
@@ -97,6 +120,68 @@ export function TanStackTable<T>(props: TableProps<T>) {
   const showEmpty = () => !props.loading && props.data.length === 0;
   const emptyMessage = () => props.emptyMessage ?? "No data";
 
+  let scrollEl: HTMLDivElement | undefined;
+  let measureFrame = 0;
+  const [overflowing, setOverflowing] = createSignal(false);
+  const [atEnd, setAtEnd] = createSignal(false);
+
+  const measureScroll = () => {
+    const el = scrollEl;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    // A consumer can deliberately move horizontal scrolling to an outer region
+    // (SectorPage does this so focus and the scrolled node are the same element).
+    // In that case this scrollport is `overflow: visible`; do not claim a region.
+    let overflowX = el.style.overflowX || el.style.overflow || "auto";
+    if (typeof getComputedStyle === "function") {
+      const computed = getComputedStyle(el).overflowX;
+      if (computed) overflowX = computed;
+    }
+    const scrollsHorizontally = overflowX === "auto" || overflowX === "scroll" || overflowX === "overlay";
+    const overflows = max > 2 && scrollsHorizontally;
+    setOverflowing(overflows);
+    setAtEnd(!overflows || el.scrollLeft >= max - 2);
+  };
+
+  const scheduleScrollMeasure = () => {
+    if (measureFrame !== 0) return;
+    if (typeof requestAnimationFrame !== "function") {
+      measureScroll();
+      return;
+    }
+    measureFrame = requestAnimationFrame(() => {
+      measureFrame = 0;
+      measureScroll();
+    });
+  };
+
+  const scrollRegionLabel = () =>
+    props.scrollRegionLabel ??
+    (props.ariaLabel
+      ? `${props.ariaLabel} — scroll sideways for all columns`
+      : "Data table — scroll sideways for all columns");
+
+  onMount(() => {
+    const el = scrollEl;
+    if (!el) return;
+    const resize =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(scheduleScrollMeasure) : null;
+    resize?.observe(el);
+    const table = el.querySelector("table");
+    if (table) resize?.observe(table);
+    const onWindowResize = () => scheduleScrollMeasure();
+    window.addEventListener("resize", onWindowResize);
+    scheduleScrollMeasure();
+    onCleanup(() => {
+      resize?.disconnect();
+      window.removeEventListener("resize", onWindowResize);
+      if (measureFrame !== 0 && typeof cancelAnimationFrame === "function") {
+        cancelAnimationFrame(measureFrame);
+      }
+      measureFrame = 0;
+    });
+  });
+
   const tableScroll = (
     <>
       <Show when={props.enableColumnControls}>
@@ -116,9 +201,27 @@ export function TanStackTable<T>(props: TableProps<T>) {
           />
         </ToolbarRow>
       </Show>
+      <Show when={overflowing()}>
+        <div
+          data-testid={props.dataTestId ? `${props.dataTestId}-scroll-hint` : "table-scroll-hint"}
+          aria-hidden="true"
+          class="flex h-[16px] shrink-0 items-center justify-end border-b border-fin-border bg-fin-surface px-2 text-ui-micro text-fin-text-muted"
+        >
+          {atEnd() ? "← Older" : "Scroll →"}
+        </div>
+      </Show>
       <ScrollArea
+        ref={(el: HTMLDivElement | undefined) => {
+          scrollEl = el;
+        }}
         className="paper-tanstack-scroll"
         style={{ flex: 1, "min-height": "0px", overflow: "auto", display: "flex", "flex-direction": "column", "background-color": "var(--color-fin-surface)" }}
+        role={overflowing() ? "region" : undefined}
+        tabIndex={overflowing() ? 0 : undefined}
+        aria-label={overflowing() ? scrollRegionLabel() : undefined}
+        data-scroll={overflowing() ? "horizontal" : undefined}
+        onScroll={scheduleScrollMeasure}
+        onKeyDown={onTableScrollRegionKeyDown}
       >
         <table
           ref={(el: HTMLTableElement) => (tableEl = el)}

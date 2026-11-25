@@ -26,11 +26,10 @@ export function CompactToggle(props: CompactToggleProps) {
             onClick={() => props.onChange(option.value)}
             class={cn(
               "cursor-pointer border-0 px-[6px] text-ui-micro font-semibold leading-none",
-              "bg-transparent text-fin-text-muted hover:bg-fin-primary/10",
+              props.value === option.value
+                ? "bg-fin-primary/20 text-fin-primary"
+                : "bg-transparent text-fin-text-muted hover:bg-fin-primary/10",
             )}
-            classList={{
-              "bg-fin-primary/10 text-fin-primary": props.value === option.value,
-            }}
           >
             {option.label}
           </button>

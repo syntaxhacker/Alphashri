@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 // Harness first: its vi.mock registrations must run before PageShell loads.
+import { createSignal } from "solid-js";
 import { r, resetHarness, testHooks } from "./PatternsPage.mainHarness";
 import { Tabs } from "@/ui";
 import { PageShell } from "./page/PageShell";
@@ -17,12 +18,24 @@ describe("Patterns page shell", () => {
         model={{ activeTab: () => "scan", handleTabChange: onTabChange }}
         header={
           <Tabs.List>
-            <Tabs.Tab value="scan" data-testid="shell-tab-scan">Scan</Tabs.Tab>
-            <Tabs.Tab value="watch" data-testid="shell-tab-watch">Watch</Tabs.Tab>
+            <Tabs.Tab value="scan" data-testid="shell-tab-scan">
+              Scan
+            </Tabs.Tab>
+            <Tabs.Tab value="watch" data-testid="shell-tab-watch">
+              Watch
+            </Tabs.Tab>
           </Tabs.List>
         }
-        scanPanel={<Tabs.Panel value="scan" data-testid="shell-panel-scan">scan</Tabs.Panel>}
-        watchPanel={<Tabs.Panel value="watch" data-testid="shell-panel-watch">watch</Tabs.Panel>}
+        scanPanel={
+          <Tabs.Panel value="scan" data-testid="shell-panel-scan">
+            scan
+          </Tabs.Panel>
+        }
+        watchPanel={() => (
+          <Tabs.Panel value="watch" data-testid="shell-panel-watch">
+            watch
+          </Tabs.Panel>
+        )}
         overlays={<div data-testid="shell-overlay" />}
       />
     ));
@@ -33,5 +46,44 @@ describe("Patterns page shell", () => {
     fireEvent.click(screen.getByTestId("shell-tab-watch"));
     expect(onTabChange).toHaveBeenCalledWith("watch");
     expect(screen.getByTestId("shell-overlay")).toBeInTheDocument();
+  });
+
+  test("constructs the watch panel only after its tab is selected", () => {
+    const [tab, setTab] = createSignal<"scan" | "watch">("scan");
+    const watchPanel = vi.fn(() => (
+      <Tabs.Panel value="watch" data-testid="shell-panel-watch">
+        watch
+      </Tabs.Panel>
+    ));
+    r(() => (
+      <PageShell
+        model={{
+          activeTab: tab,
+          handleTabChange: (value) => value && setTab(value as "scan" | "watch"),
+        }}
+        header={
+          <Tabs.List>
+            <Tabs.Tab value="scan" data-testid="shell-tab-scan">
+              Scan
+            </Tabs.Tab>
+            <Tabs.Tab value="watch" data-testid="shell-tab-watch">
+              Watch
+            </Tabs.Tab>
+          </Tabs.List>
+        }
+        scanPanel={
+          <Tabs.Panel value="scan" data-testid="shell-panel-scan">
+            scan
+          </Tabs.Panel>
+        }
+        watchPanel={watchPanel}
+        overlays={null}
+      />
+    ));
+
+    expect(watchPanel).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("shell-tab-watch"));
+    expect(watchPanel).toHaveBeenCalled();
+    expect(screen.getByTestId("shell-panel-watch")).toBeInTheDocument();
   });
 });

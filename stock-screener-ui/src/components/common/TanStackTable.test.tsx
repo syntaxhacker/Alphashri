@@ -1,12 +1,18 @@
 // @vitest-environment happy-dom
 import { createSignal } from "solid-js";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
+import { render, screen, cleanup, fireEvent, waitFor } from "@solidjs/testing-library";
 import { TanStackTable, type ColumnPrefs, type SortEntry, type TableColumnDef } from "./TanStackTable";
 
 afterEach(() => {
   cleanup();
 });
+
+/** happy-dom has no layout; give the scrollport explicit dimensions for the contract. */
+function setHorizontalMetrics(el: HTMLElement, scrollWidth: number, clientWidth: number) {
+  Object.defineProperty(el, "scrollWidth", { configurable: true, value: scrollWidth });
+  Object.defineProperty(el, "clientWidth", { configurable: true, value: clientWidth });
+}
 
 interface TestItem {
   id: string;
@@ -1822,5 +1828,108 @@ describe("TanStackTable — typography and spacing metrics", () => {
     for (const th of Array.from(tableOf("metrics-cols").querySelectorAll<HTMLElement>("thead th"))) {
       expect(th.style.fontSize).toBe("12px");
     }
+  });
+});
+
+describe("TanStackTable — horizontal scroll region", () => {
+  it("exposes a labelled focusable region only when the table overflows", async () => {
+    const { container } = render(() => (
+      <TanStackTable<TestItem>
+        data={data}
+        columns={columns}
+        dataTestId="region-table"
+        ariaLabel="Market results"
+      />
+    ));
+    const scroll = container.querySelector(".paper-tanstack-scroll") as HTMLElement;
+    expect(scroll).not.toHaveAttribute("role");
+    expect(scroll).not.toHaveAttribute("tabindex");
+
+    setHorizontalMetrics(scroll, 900, 400);
+    fireEvent.scroll(scroll);
+
+    await waitFor(() => expect(scroll).toHaveAttribute("role", "region"));
+    expect(scroll).toHaveAttribute("tabindex", "0");
+    expect(scroll).toHaveAttribute("aria-label", "Market results — scroll sideways for all columns");
+    expect(scroll).toHaveAttribute("data-scroll", "horizontal");
+
+    // Narrowing the table back removes the region from the tab order.
+    setHorizontalMetrics(scroll, 400, 400);
+    fireEvent.scroll(scroll);
+    await waitFor(() => expect(scroll).not.toHaveAttribute("role"));
+    expect(scroll).not.toHaveAttribute("tabindex");
+  });
+
+  it("uses the explicit scrollRegionLabel when provided", async () => {
+    const { container } = render(() => (
+      <TanStackTable<TestItem>
+        data={data}
+        columns={columns}
+        dataTestId="region-label-table"
+        scrollRegionLabel="Positions table, scroll horizontally"
+      />
+    ));
+    const scroll = container.querySelector(".paper-tanstack-scroll") as HTMLElement;
+    setHorizontalMetrics(scroll, 800, 320);
+    fireEvent.scroll(scroll);
+
+    await waitFor(() =>
+      expect(scroll).toHaveAttribute("aria-label", "Positions table, scroll horizontally"),
+    );
+  });
+
+  it("scrolls the focused region itself with left/right arrow keys", async () => {
+    const { container } = render(() => (
+      <TanStackTable<TestItem> data={data} columns={columns} dataTestId="keyboard-table" />
+    ));
+    const scroll = container.querySelector(".paper-tanstack-scroll") as HTMLElement;
+    setHorizontalMetrics(scroll, 900, 400);
+    fireEvent.scroll(scroll);
+    await waitFor(() => expect(scroll).toHaveAttribute("tabindex", "0"));
+
+    scroll.scrollLeft = 10;
+    fireEvent.keyDown(scroll, { key: "ArrowRight" });
+    expect(scroll.scrollLeft).toBe(90);
+    fireEvent.keyDown(scroll, { key: "ArrowLeft" });
+    expect(scroll.scrollLeft).toBe(10);
+  });
+
+  it("leaves arrow keys to the page when the table fits", async () => {
+    const { container } = render(() => (
+      <TanStackTable<TestItem> data={data} columns={columns} dataTestId="narrow-table" />
+    ));
+    const scroll = container.querySelector(".paper-tanstack-scroll") as HTMLElement;
+    setHorizontalMetrics(scroll, 400, 400);
+    const event = new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true });
+    scroll.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(scroll.scrollLeft).toBe(0);
+  });
+
+  it("shows Scroll → then ← Older as the horizontal position changes", async () => {
+    const { container } = render(() => (
+      <TanStackTable<TestItem> data={data} columns={columns} dataTestId="hint-table" />
+    ));
+    const scroll = container.querySelector(".paper-tanstack-scroll") as HTMLElement;
+    expect(screen.queryByTestId("hint-table-scroll-hint")).toBeNull();
+
+    setHorizontalMetrics(scroll, 900, 400);
+    fireEvent.scroll(scroll);
+
+    const hint = await screen.findByTestId("hint-table-scroll-hint");
+    expect(hint).toHaveTextContent("Scroll →");
+    expect(hint).toHaveAttribute("aria-hidden", "true");
+
+    scroll.scrollLeft = 500;
+    fireEvent.scroll(scroll);
+    await waitFor(() => expect(hint).toHaveTextContent("← Older"));
+
+    scroll.scrollLeft = 0;
+    fireEvent.scroll(scroll);
+    await waitFor(() => expect(hint).toHaveTextContent("Scroll →"));
+
+    setHorizontalMetrics(scroll, 400, 400);
+    fireEvent.scroll(scroll);
+    await waitFor(() => expect(screen.queryByTestId("hint-table-scroll-hint")).toBeNull());
   });
 });

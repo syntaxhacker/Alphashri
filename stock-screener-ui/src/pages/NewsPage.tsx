@@ -71,8 +71,14 @@ function NewsWorkspaceHeader(props: { storyCount: number; sourceCount: number })
     <Box
       component="header"
       data-testid="news-workspace-header"
-      className="flex items-center gap-2 border-b border-fin-border bg-fin-surface"
-      style={{ "min-height": "56px", "padding-left": "16px", "padding-right": "16px", "padding-top": "8px", "padding-bottom": "8px" }}
+      className="flex shrink-0 items-center gap-2 border-b border-fin-border bg-fin-surface"
+      style={{
+        "min-height": "56px",
+        "padding-left": "16px",
+        "padding-right": "16px",
+        "padding-top": "8px",
+        "padding-bottom": "8px",
+      }}
     >
       <Box
         className="size-8 grid place-items-center rounded-fin flex-shrink-0"
@@ -95,11 +101,7 @@ function NewsWorkspaceHeader(props: { storyCount: number; sourceCount: number })
         </Text>
       </Box>
       <Box className="min-w-0 flex-1" />
-      <Stack
-        direction="row"
-        gap={6}
-        className="hidden sm:flex divide-x divide-fin-border"
-      >
+      <Stack direction="row" gap={6} className="hidden sm:flex divide-x divide-fin-border">
         <Box className="text-right">
           <Text size="xs" c="dimmed" style={{ "line-height": 1 }}>
             Stories
@@ -136,7 +138,7 @@ function NewsPageMobile(props: {
         component="section"
         aria-label="News feed"
         data-testid="news-list-region"
-        className={`${paneClassName} flex-1 mt-2`}
+        className={`${paneClassName} flex-1 m-2`}
       >
         <NewsList {...props.newsListProps} />
       </Paper>
@@ -154,9 +156,7 @@ function NewsPageMobile(props: {
   );
 }
 
-function NewsPageDesktop(props: {
-  articleDetailProps: ArticleDetailProps;
-}) {
+function NewsPageDesktop(props: { articleDetailProps: ArticleDetailProps }) {
   return (
     <Box role="region" aria-label="Article reader" className={paneClassName}>
       <ArticleDetail {...props.articleDetailProps} />
@@ -167,14 +167,17 @@ function NewsPageDesktop(props: {
 export default function NewsPage() {
   const navigate = useNavigate();
   const isMobile = useMediaQuery("(max-width: 899px)");
-  const { newsItems, sources, selectedSource, setSelectedSource, loading, error, loadNews } = useNewsList();
+  const { newsItems, sources, selectedSource, setSelectedSource, loading, error, loadNews } =
+    useNewsList();
   const article = useArticleDetail(isMobile);
   const sourceData = () => getSourceOptions(sources());
-  const selectedSourceName = () => sourceData().find((option) => option.value === selectedSource())?.label;
-  const { groupedNewsItems, sourceNames, expandedSources, toggleSourceExpanded } = useNewsSourceGroups({
-    newsItems,
-    autoExpandCount: 999,
-  });
+  const selectedSourceName = () =>
+    sourceData().find((option) => option.value === selectedSource())?.label;
+  const { groupedNewsItems, sourceNames, expandedSources, toggleSourceExpanded } =
+    useNewsSourceGroups({
+      newsItems,
+      autoExpandCount: 999,
+    });
 
   const handleSymbolClick = (symbol: NewsSymbol) => {
     if (symbol.instrument_key && symbol.trading_symbol) navigate(`/chart/${symbol.trading_symbol}`);
@@ -214,10 +217,7 @@ export default function NewsPage() {
   }));
 
   return (
-    <Box
-      className="h-full min-h-0 flex flex-col overflow-hidden bg-fin-bg"
-      data-testid="news-page"
-    >
+    <Box className="h-full min-h-0 flex flex-col overflow-hidden bg-fin-bg" data-testid="news-page">
       <NewsWorkspaceHeader storyCount={newsItems().length} sourceCount={sourceNames().length} />
       <Show
         when={isMobile()}

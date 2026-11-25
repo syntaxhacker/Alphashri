@@ -95,7 +95,23 @@ vi.mock("./reportCells", () => ({
   formatSignedPoints: () => "+63 pts",
 }));
 vi.mock("./NiftyVerdictStrip", () => ({
-  NiftyVerdictStrip: () => <div data-testid="nifty-verdict-strip" />,
+  // The compact evidence cells carry their full read in `title`, the way the
+  // real verdict strip does. The popover test needs those nodes to prove no
+  // evidence string is dropped when the columns stop colliding.
+  NiftyVerdictStrip: () => (
+    <div
+      data-testid="nifty-verdict-strip"
+      className="flex flex-nowrap items-stretch w-full min-w-0 min-h-6 overflow-hidden [&>*]:flex-[1_1_0] [&>*]:min-w-0"
+    >
+      <div
+        data-testid="nifty-verdict-control"
+        title="SESSION · CALL WRITING — ΔOI (chain) C +372K P — · skew -0.11"
+      />
+      <div data-testid="nifty-coil-gauge" title="COIL — 0.0x · RV — / IV —" />
+      <div data-testid="nifty-verdict-vix" title="VIX 17.21 (+0.04%) — day 17.04–17.32" />
+      <div data-testid="nifty-verdict-strength" title="WEAK — score 0.0 · RSI —" />
+    </div>
+  ),
   resolveRegimeLabel: () => "—",
   regimeAccent: () => "",
   regimeDetail: () => "",
@@ -536,7 +552,14 @@ describe("expanded ALL STATS — bounded popover, fixed band", () => {
     expect(content.style.overflowY).toBe("auto");
     expect(content.style.overflowX).toBe("hidden");
     expect(content.style.boxShadow).toContain("inset");
-    expect(content.className).toContain("grid-cols");
+    // The grid belongs to the stats surface, not to the popover shell: two
+    // fixed tracks at 720px and one at 390px, never an `auto-fit` guess.
+    const stats = within(content).getByTestId("nifty-decision-stats");
+    expect(stats.getAttribute("data-stat-layout")).toBe("popover-grid");
+    expect(stats.className).toContain("grid-cols-1");
+    expect(stats.className).toContain("min-[601px]:grid-cols-2");
+    expect(stats.className).not.toContain("auto-fit");
+    expect(content.className).toContain("[&>*]:shrink-0!");
   });
 
   test("measured geometry: capped at 1600, a full-width scroll sheet at 390", () => {
@@ -587,6 +610,113 @@ describe("expanded ALL STATS — bounded popover, fixed band", () => {
     expect(within(content).getByTestId("nifty-verdict-wrap")).toBeInTheDocument();
     expect(within(content).queryByTestId("nifty-plan-headline")).not.toBeInTheDocument();
     expect(band.textContent!.match(/SPOT/g) ?? []).toHaveLength(1);
+  });
+});
+
+describe("ALL STATS popover — evidence columns never clip or overlap", () => {
+  function openAt(width: number) {
+    setNarrow(width <= 600);
+    const original = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+    mount();
+    fireEvent.click(screen.getByTestId("nifty-live-tape-toggle"));
+    return {
+      restore: () => Object.defineProperty(window, "innerWidth", { configurable: true, value: original }),
+      content: screen.getByTestId("nifty-live-tape-content"),
+    };
+  }
+
+  test.each([1600, 390])("at %ipx every evidence cell is a full row with its full tooltip", (width) => {
+    const { content, restore } = openAt(width);
+    try {
+      expect(content.style.overflowX).toBe("hidden");
+      expect(content.style.overflowY).toBe("auto");
+
+      const evidence = within(content).getByTestId("nifty-live-tape-evidence");
+      expect(evidence).toHaveAttribute("data-evidence-layout", "rows");
+      // The compact verdict strip is nowrap with equal flex cells in the band;
+      // inside this bounded popover each cell must take a whole line instead.
+      expect(evidence.className).toContain("[&_[data-testid='nifty-verdict-strip']]:flex-wrap!");
+      expect(evidence.className).toContain("[&_[data-testid='nifty-verdict-strip']>*]:w-full!");
+      expect(evidence.className).toContain(
+        "[&_[data-testid='nifty-verdict-strip']>*]:[flex-basis:100%]!",
+      );
+      // One scroll owner: the inner evidence block never opens a second scroller.
+      expect(evidence.style.overflow).not.toMatch(/auto|scroll/);
+      expect((within(evidence).getByTestId("nifty-verdict-wrap") as HTMLElement).style.overflow).not.toMatch(
+        /auto|scroll/,
+      );
+
+      const evidenceCells = [
+        "nifty-verdict-control",
+        "nifty-coil-gauge",
+        "nifty-verdict-vix",
+        "nifty-verdict-strength",
+      ].map((id) => within(evidence).getByTestId(id));
+      expect(evidenceCells).toHaveLength(4);
+      for (const cell of evidenceCells) {
+        expect(cell.getAttribute("title")).toBeTruthy();
+      }
+      expect(within(evidence).getByTestId("nifty-verdict-strength").getAttribute("title")).toContain(
+        "score 0.0 · RSI —",
+      );
+      expect(within(evidence).getByTestId("nifty-coil-gauge").getAttribute("title")).toContain(
+        "RV — / IV —",
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  // happy-dom has no layout engine, so "no overlap" is asserted through the
+  // layout contract that produces it: a 420px-capped flex column only stacks
+  // sections instead of painting them on top of each other when every direct
+  // child is `flex-shrink: 0` and the sections themselves are block-level.
+  test.each([1600, 390])("at %ipx the capped popover scrolls instead of shrinking its sections", (width) => {
+    const { content, restore } = openAt(width);
+    try {
+      expect(content.className).toContain("[&>*]:shrink-0!");
+      expect(content.style.maxHeight).toBe("420px");
+      expect(content.style.overflowY).toBe("auto");
+      const evidence = within(content).getByTestId("nifty-live-tape-evidence");
+      expect(evidence.className).toContain("[&>*]:shrink-0!");
+      expect(evidence).toHaveAttribute("data-evidence-layout", "rows");
+
+      // One column of whole cells: no `auto-fit` track guessing, no equal-basis
+      // flex row that can clip `COIL 0.0x RV — / IV —` mid-number.
+      expect(evidence.className).toContain(
+        "[&_[data-testid='nifty-verdict-strip']]:grid!",
+      );
+      expect(evidence.className).toContain(
+        "[&_[data-testid='nifty-verdict-strip']]:grid-cols-1!",
+      );
+      expect(evidence.className).not.toContain("auto-fit");
+      for (const token of [
+        "[&_[data-testid='nifty-verdict-strip']>*]:w-full!",
+        "[&_[data-testid='nifty-verdict-strip']>*]:[flex:none]!",
+        "[&_[data-testid^='nifty-coil-']]:whitespace-normal!",
+        "[&_[data-testid$='-secondary']]:[overflow-wrap:anywhere]!",
+        "[&_[data-testid^='nifty-verdict-']]:[text-overflow:clip]!",
+      ]) {
+        expect(evidence.className, token).toContain(token);
+      }
+
+      const wrap = within(evidence).getByTestId("nifty-verdict-wrap") as HTMLElement;
+      expect(wrap.style.height).toBe("auto");
+      expect(wrap.style.minHeight).toBe("0px");
+      expect(wrap.style.overflow).toBe("visible");
+      expect(wrap.className).toContain("flex-col");
+      for (const id of [
+        "nifty-verdict-control",
+        "nifty-coil-gauge",
+        "nifty-verdict-vix",
+        "nifty-verdict-strength",
+      ]) {
+        expect(within(evidence).getByTestId(id).getAttribute("title")).toBeTruthy();
+      }
+    } finally {
+      restore();
+    }
   });
 });
 

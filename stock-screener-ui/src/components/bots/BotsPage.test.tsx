@@ -179,7 +179,9 @@ describe("BotsPage", () => {
 
   it("renders bots-view container", () => {
     renderWithProviders(() => <BotsPage />);
-    expect(screen.getByTestId("bots-view")).toBeInTheDocument();
+    const shell = screen.getByTestId("bots-view");
+    expect(shell).toBeInTheDocument();
+    expect(shell).toHaveClass("h-full", "min-h-0", "flex", "flex-col", "overflow-hidden");
   });
 
   it("renders loading state with InlineLoader", () => {

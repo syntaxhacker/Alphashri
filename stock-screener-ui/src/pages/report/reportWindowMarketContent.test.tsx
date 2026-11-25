@@ -209,6 +209,34 @@ describe("ReportAnalyticsWindow — report-native analytics", () => {
     expect(screen.getByTestId("nifty-iv-skew-atm")).toHaveTextContent("%");
   });
 
+  test("active fill follows aria-pressed: selecting GEX clears FUTURES", () => {
+    mount(() => (
+      <ReportAnalyticsWindow context={context(storeWith(analyticsReport()))} api={api()} />
+    ));
+
+    const futures = screen.getByTestId("report-analytics-tab-futures");
+    const gex = screen.getByTestId("report-analytics-tab-gex");
+    const filledClass = "bg-[var(--ui-button-primary-bg)]";
+
+    expect(futures).toHaveAttribute("aria-pressed", "true");
+    expect(gex).toHaveAttribute("aria-pressed", "false");
+    expect(futures.className).toContain(filledClass);
+    expect(gex.className).not.toContain(filledClass);
+
+    // Tab fill must switch in lockstep with aria-pressed. The shared Button
+    // carries a 150ms background-color transition, which leaves the previously
+    // selected tab visibly filled after selection moves — the D4 defect.
+    expect(futures).toHaveStyle({ "transition-property": "none" });
+    expect(gex).toHaveStyle({ "transition-property": "none" });
+
+    fireEvent.click(gex);
+
+    expect(futures).toHaveAttribute("aria-pressed", "false");
+    expect(gex).toHaveAttribute("aria-pressed", "true");
+    expect(futures.className).not.toContain(filledClass);
+    expect(gex.className).toContain(filledClass);
+  });
+
   test("never renders the global registry Upstox notice", () => {
     mount(() => (
       <ReportAnalyticsWindow context={context(storeWith(analyticsReport()))} api={api()} />
