@@ -72,7 +72,9 @@ function KpiCell(props: { token: KpiToken; onToken?: (key: KpiTokenKey) => void 
       <Text span style={VALUE_STYLE}>{props.token.value()}</Text>
     </>
   );
-  const label = `${props.token.label}: ${props.token.value()}`;
+  // axe requires the visible text to appear in the accessible name; a colon
+  // between caption and value breaks that substring match.
+  const label = `${props.token.label} ${props.token.value()}`;
   const ink = { color: props.token.ink() };
 
   return (

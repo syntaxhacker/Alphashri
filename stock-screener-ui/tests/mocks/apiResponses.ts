@@ -2284,6 +2284,15 @@ function isTableScope(scope: string): boolean {
   return scope.startsWith("table.");
 }
 
+function isSectionsScope(scope: string): boolean {
+  return scope === "user.sections";
+}
+
+function mergeSectionsConfig(raw: unknown): Record<string, unknown> {
+  const base = { sections: [] as Record<string, unknown>[], version: 1 };
+  return isPlainObject(raw) ? { ...base, ...raw } : base;
+}
+
 /** `table.*` bodies are echoed with the three v1 fields defaulted, never reshaped. */
 function mergeTableConfig(raw: unknown): Record<string, unknown> {
   const base = JSON.parse(JSON.stringify(DEFAULT_TABLE_CONFIG)) as Record<string, unknown>;
@@ -2343,7 +2352,7 @@ export async function setupUserConfigMocks(
     const scope = new URL(request.url()).pathname.split("/").pop() ?? "";
     const method = request.method();
 
-    if (scope !== "market.filters" && !isTableScope(scope)) {
+    if (scope !== "market.filters" && !isTableScope(scope) && !isSectionsScope(scope)) {
       await route.fulfill({
         status: 404,
         contentType: "application/json",
@@ -2371,7 +2380,9 @@ export async function setupUserConfigMocks(
       const entry: UserConfigEntry = {
         config: isTableScope(scope)
           ? mergeTableConfig(body.config ?? body)
-          : mergeMarketFilters(body.config),
+          : isSectionsScope(scope)
+            ? mergeSectionsConfig(body.config ?? body)
+            : mergeMarketFilters(body.config),
         updatedAt: nextUpdatedAt(),
       };
       scopes.set(scope, entry);
@@ -2413,7 +2424,11 @@ export async function setupUserConfigMocks(
           version: 1,
           saved: false,
           updated_at: null,
-          config: isTableScope(scope) ? mergeTableConfig(null) : mergeMarketFilters(null),
+          config: isTableScope(scope)
+            ? mergeTableConfig(null)
+            : isSectionsScope(scope)
+              ? mergeSectionsConfig(null)
+              : mergeMarketFilters(null),
         };
     await route.fulfill({
       status: 200,

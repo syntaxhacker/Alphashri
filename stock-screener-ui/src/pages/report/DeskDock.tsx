@@ -53,7 +53,7 @@ export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
     label: "IV skew",
     short: "IV",
     shows: "strikes",
-    ariaLabel: "Implied volatility skew tab — open the IV skew chart",
+    ariaLabel: "IV skew strikes — open the IV skew chart",
     title:
       "Implied volatility skew across strikes. The value shows how many strikes are in the chain. Opens the IV skew chart.",
   },
@@ -61,7 +61,7 @@ export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
     label: "Desk",
     short: "Desk",
     shows: "panels",
-    ariaLabel: "Desk panels tab — open walls and breadth",
+    ariaLabel: "Desk panels — open walls and breadth",
     title:
       "Desk panels — option walls and market breadth. Opens the walls and breadth panels.",
   },
@@ -69,7 +69,7 @@ export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
     label: "Data",
     short: "Data",
     shows: "panels",
-    ariaLabel: "Data panels tab — open tape and flow",
+    ariaLabel: "Data panels — open tape and flow",
     title:
       "Data panels — the live trade tape and flow windows. Opens the tape and flow panels.",
   },

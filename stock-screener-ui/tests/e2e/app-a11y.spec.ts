@@ -31,6 +31,7 @@ import {
   setupHomeDeskMocks,
   setupNiftyReportMocks,
   setupOptionsMocks,
+  setupUserConfigMocks,
   setupSectorMocks,
 } from "../mocks/apiResponses";
 import {
@@ -200,6 +201,9 @@ const ROUTES: readonly AuditRoute[] = [
       // Same order as home-desk.spec.ts / design-evidence.spec.ts: later
       // route handlers take priority in Playwright.
       await setupNewsMocks(page);
+      // user.sections is requested by the Home section-window registry; without
+      // this the real API returns 401 and the audit fails on console noise.
+      await setupUserConfigMocks(page);
       await setupHomeDeskMocks(page);
     },
     // Load the real /home route directly (as design-evidence.spec.ts does)
