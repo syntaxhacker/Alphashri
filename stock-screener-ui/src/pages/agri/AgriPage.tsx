@@ -54,6 +54,7 @@ import {
   agriDistrictKey,
   agriGroupLabel,
   agriRange,
+  agriSourceCompactLabel,
   agriSourceLabel,
   formatAgriPrice,
   formatArrivals,
@@ -427,16 +428,22 @@ export function AgriPage() {
   );
   const availableSources = createMemo(() => sourcesData()?.sources ?? []);
   const sourceOptions = createMemo<SelectOption[]>(() => {
+    // A native select uses the option text as its closed label too: show the
+    // full name on wide screens, but only the complete dataset tag on mobile.
+    const compact = isMobile();
+    const labelFor = (id: string, label: string, dataset: string | null) =>
+      compact ? agriSourceCompactLabel(id, dataset) : agriSourceLabel(id, label);
     const options: SelectOption[] = [
-      { value: AGRI_SOURCE_LOCAL, label: agriSourceLabel(AGRI_SOURCE_LOCAL) },
+      { value: AGRI_SOURCE_LOCAL, label: labelFor(AGRI_SOURCE_LOCAL, "Local cache", null) },
       ...availableSources()
         .filter((item) => item.id !== AGRI_SOURCE_LOCAL)
-        .map((item) => ({ value: item.id, label: agriSourceLabel(item.id, item.label) })),
+        .map((item) => ({ value: item.id, label: labelFor(item.id, item.label, item.dataset) })),
     ];
     // Keep a URL-selected origin visible even if discovery has not landed yet.
     const selected = source();
     if (selected !== AGRI_SOURCE_LOCAL && !options.some((option) => option.value === selected)) {
-      options.push({ value: selected, label: agriSourceLabel(selected) });
+      const dataset = availableSources().find((item) => item.id === selected)?.dataset;
+      options.push({ value: selected, label: labelFor(selected, "", dataset ?? null) });
     }
     return options;
   });
@@ -772,7 +779,7 @@ export function AgriPage() {
             <Text c="dimmed" className={`${MICRO_LABEL} hidden sm:inline`}>
               Source
             </Text>
-            <Box className="w-[132px] max-sm:w-[112px]">
+            <Box className="w-[200px] max-sm:w-[132px]">
               <Select
                 data={sourceOptions()}
                 value={source()}
@@ -930,7 +937,7 @@ export function AgriPage() {
             </Text>
           </Box>
           <Show when={sourceBadge()}>
-            <Badge color="info" size="xs" data-testid="agri-source-badge" title={source()}>
+            <Badge color="info" size="xs" data-testid="agri-source-badge" title={sourceBadge()}>
               {sourceBadge()}
             </Badge>
           </Show>

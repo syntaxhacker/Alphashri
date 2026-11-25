@@ -243,6 +243,9 @@ function selectEl(testId: string): HTMLSelectElement {
   return native as HTMLSelectElement;
 }
 
+const selectedLabel = (testId: string): string =>
+  selectEl(testId).selectedOptions[0]?.textContent?.trim() ?? "";
+
 beforeEach(() => {
   vi.clearAllMocks();
   harness.lastOption = undefined;
@@ -365,6 +368,38 @@ describe("AgriPage source selection", () => {
     expect(lastParams().source).toBe("release:data-2026-11");
     expect(lastFilterSource()).toBe("release:data-2026-11");
     expect(urlParams().source).toBe("release:data-2026-11");
+  });
+
+  it("shows the complete release label in a wide closed control at desktop width", async () => {
+    renderPage("/agri?source=release:data-2026-11");
+    await settled();
+
+    expect(selectedLabel("agri-source-select")).toBe("Release data-2026-11");
+    expect(selectedLabel("agri-source-select")).not.toMatch(/…|\.\.\./);
+    expect(screen.getByTestId("agri-source-select").parentElement).toHaveClass("w-[200px]");
+    expect(screen.getByTestId("agri-source-badge")).toHaveAttribute(
+      "title",
+      "Release data-2026-11",
+    );
+  });
+
+  it("shows the complete compact dataset tag when the control is narrow", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width: 640px"),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    renderPage("/agri?source=release:data-2026-11");
+    await settled();
+
+    expect(selectedLabel("agri-source-select")).toBe("data-2026-11");
+    expect(selectedLabel("agri-source-select")).not.toMatch(/…|\.\.\./);
+    expect(selectEl("agri-source-select")).toHaveValue("release:data-2026-11");
+    expect(screen.getByTestId("agri-source-select").parentElement).toHaveClass(
+      "max-sm:w-[132px]",
+    );
+    expect(screen.getByTestId("agri-source-badge")).toHaveTextContent("Release data-2026-11");
   });
 
   it("reloads filters and prices and writes the URL when a release is selected", async () => {

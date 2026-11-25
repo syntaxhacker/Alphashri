@@ -26,6 +26,16 @@ export function agriSourceLabel(id: string, label?: string): string {
   return id;
 }
 
+/** Narrow screens show only the complete dataset tag, never a clipped phrase. */
+export function agriSourceCompactLabel(id: string, dataset?: string | null): string {
+  if (id === AGRI_SOURCE_LOCAL) return "Local cache";
+  if (dataset?.trim()) return dataset.trim();
+  if (id.startsWith(AGRI_SOURCE_RELEASE_PREFIX)) {
+    return id.slice(AGRI_SOURCE_RELEASE_PREFIX.length);
+  }
+  return id;
+}
+
 /** Backend `/api/agri/prices` refuses more than five comparison keys. */
 export const AGRI_MAX_COMPARE = 5;
 /** Curated starting overlay; the active commodity is always added first. */
