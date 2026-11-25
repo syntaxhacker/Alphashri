@@ -26,7 +26,11 @@ Rules pinned by the backend contract:
   suppressed.
 * VWAP is intraday-only, resets on each exchange-local session and is omitted
   entirely for ``1D``/``1W``/``1M``. Zero-volume bars carry the previous value;
-  an all-zero session is ``None``.
+  an all-zero session is ``None``. A session whose first observed bar is after
+  the exchange open is left entirely ``None``: without the opening bars its
+  cumulative price/volume would be wrong. Callers that have earlier bars pass
+  them as ``warmup`` to :func:`compute_indicators`, which anchors the first
+  displayed session at its true open.
 * Invalid price bars (non-finite, ``<= 0``, ``high < low``) poison any window
   that contains them. No ``NaN``/``Infinity`` ever leaves this module.
 """
@@ -41,6 +45,13 @@ import pandas as pd
 MARKET_SESSIONS = {
     "india": "Asia/Kolkata",
     "usa": "America/New_York",
+}
+
+#: Exchange-local opening time (hour, minute) per session label. Used only to
+#: decide whether the first observed bar can anchor a session VWAP.
+SESSION_OPENS = {
+    "Asia/Kolkata": (9, 15),
+    "America/New_York": (9, 30),
 }
 
 INTRADAY_TIMEFRAMES = frozenset(
@@ -276,6 +287,28 @@ def _session_key(value, session: str):
         return None
 
 
+def _session_anchored(value, session: str) -> bool:
+    """True when ``value`` is at/before the exchange open (session visible).
+
+    The first bar of a session can anchor its VWAP only if no earlier
+    same-session bar exists. A window that starts mid-session cannot recover
+    the morning's price/volume, so its VWAP stays ``None`` rather than being
+    computed from a partial cumulative.
+    """
+    open_hm = SESSION_OPENS.get(session)
+    if open_hm is None:
+        return True
+    try:
+        ts = pd.Timestamp(value)
+        if ts.tzinfo is None:
+            ts = ts.tz_localize(session)
+        else:
+            ts = ts.tz_convert(session)
+    except (TypeError, ValueError, OverflowError):
+        return True
+    return (ts.hour * 60 + ts.minute) <= (open_hm[0] * 60 + open_hm[1])
+
+
 def compute_vwap(
     candles: Sequence,
     session: str = "Asia/Kolkata",
@@ -288,7 +321,10 @@ def compute_vwap(
     ``timeframe`` is checked here so callers cannot accidentally draw an
     intraday VWAP on a daily/weekly/monthly chart. Zero-volume bars carry the
     previous in-session value; an invalid bar is ``NaN``; a session with no
-    usable volume is entirely ``NaN``.
+    usable volume is entirely ``NaN``. A session whose first supplied bar is
+    after the exchange open is also entirely ``NaN`` — the missing opening
+    trades make the cumulative wrong, and a partial session must not be
+    presented as the day's VWAP.
     """
     if market is not None:
         session = session_for_market(market)
@@ -312,6 +348,7 @@ def compute_vwap(
     cumulative_pv = 0.0
     cumulative_vol = 0.0
     previous_value = float("nan")
+    anchored = True
     for i in range(n):
         key = _session_key(times[i], session)
         if key is None:
@@ -322,6 +359,10 @@ def compute_vwap(
             cumulative_pv = 0.0
             cumulative_vol = 0.0
             previous_value = float("nan")
+            anchored = _session_anchored(times[i], session)
+        if not anchored:
+            out[i] = np.nan
+            continue
         volume = float(volumes[i])
         if invalid[i] or not np.isfinite(volume) or volume < 0.0:
             out[i] = np.nan
@@ -365,10 +406,17 @@ def compute_indicators(
     timeframe: Optional[str],
     session: Optional[str] = None,
     *,
+    warmup: Optional[Sequence] = None,
     partial_last: Optional[bool] = None,
     market: Optional[str] = None,
 ) -> dict:
-    """Build the full ``indicators`` payload for a displayed candle window."""
+    """Build the full ``indicators`` payload for a displayed candle window.
+
+    ``warmup`` carries earlier bars from the same source frame (the bars just
+    before a tail-clamped display window). Only VWAP uses them: it needs the
+    session from its opening bar, while SMA/Bollinger/crosses stay exactly
+    aligned to the displayed candles and keep their warm-up nulls.
+    """
     candles = _candle_list(candles)
     timeframe = str(timeframe or "")
     session = str(session or session_for_market(market))
@@ -394,9 +442,13 @@ def compute_indicators(
     )
 
     if timeframe in INTRADAY_TIMEFRAMES:
-        vwap_values = compute_vwap(candles, session=session, timeframe=timeframe)
-        if vwap_values is not None:
-            series.append({"id": "vwap", "values": _values_to_json(vwap_values)})
+        warmup_candles = _candle_list(warmup) if warmup else []
+        computed = compute_vwap(
+            list(warmup_candles) + candles, session=session, timeframe=timeframe
+        )
+        if computed is not None:
+            displayed = computed[len(warmup_candles):]
+            series.append({"id": "vwap", "values": _values_to_json(displayed)})
 
     crosses = detect_sma_crosses(
         sma_by_period[50],

@@ -567,9 +567,11 @@ def test_historical_fetch_ignores_today_cache(cp_store, monkeypatch, tmp_path):
     assert candles_mod._cache_path("1D", "AAA", "2020-01-05").exists()
 
 
-def test_resample_bins_anchor_to_ist_midnight():
+def test_resample_bins_anchor_to_session_first_bar():
     from chart_patterns.candles import _resample
 
+    # 00:00-23:00 UTC is 05:30 IST onward; the synthetic frame is not an NSE
+    # session, so bins start at its own first bar rather than IST midnight.
     idx = pd.date_range("2026-01-05 00:00", periods=24, freq="h", tz="UTC")
     base = np.arange(24, dtype=float) + 100.0
     df = pd.DataFrame(
@@ -579,10 +581,10 @@ def test_resample_bins_anchor_to_ist_midnight():
     )
     out = _resample(df, 120)
     assert len(out) > 0
-    # UTC-anchored 2h bins would land on :30 in IST; IST-anchored land on the hour.
     ist = out.index.tz_convert("Asia/Kolkata")
-    assert all(ts.minute == 0 for ts in ist)
-    assert all(ts.hour % 2 == 0 for ts in ist)
+    assert ist[0].strftime("%H:%M") == "05:30"
+    assert ist[1].strftime("%H:%M") == "07:30"
+    assert all(ts.minute == 30 for ts in ist)
     # Index returns to the original timezone.
     assert str(out.index.tz) == "UTC"
 
@@ -1098,10 +1100,12 @@ def test_4h_fetch_pulls_1h_then_resamples_to_240m(monkeypatch, tmp_path):
     assert seen["from_date"] == "2025-09-30" and seen["to_date"] == "2026-09-30"
     assert got is not None and not got.empty
     diffs = got.index.to_series().diff().dropna().dt.total_seconds() / 60.0
-    assert len(diffs) == 3
+    assert len(diffs) == 2
     assert all(abs(d - 240.0) < 1e-6 for d in diffs)
+    # Session-anchored: bins start at the frame's first bar (09:00 IST), not
+    # at the old IST-midnight grid (08:00/12:00/16:00).
     ist = got.index.tz_convert("Asia/Kolkata")
-    assert all(ts.minute == 0 and ts.hour % 4 == 0 for ts in ist)
+    assert [ts.strftime("%H:%M") for ts in ist] == ["09:00", "13:00", "17:00"]
 
 
 

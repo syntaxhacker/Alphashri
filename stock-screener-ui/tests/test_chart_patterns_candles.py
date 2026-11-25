@@ -270,17 +270,87 @@ def _resample_sample_df(tz="UTC") -> pd.DataFrame:
     )
 
 
-def test_resample_equals_resample_ohlcv_with_left_bins():
+def test_resample_anchors_intraday_bins_to_first_session_bar():
     df = _resample_sample_df()
     n = 15
     got = candles_mod._resample(df, n)
-    expected = candles_mod._resample_ohlcv(
-        df, md._resample_rule(n), label="left", closed="left"
+    # 2026-09-01 03:45 UTC is 09:15 IST; 12 x 5m bars end at 10:10 IST.
+    ist = got.index.tz_convert("Asia/Kolkata")
+    assert [ts.strftime("%H:%M") for ts in ist] == [
+        "09:15", "09:30", "09:45", "10:00",
+    ]
+    first = got.iloc[0]
+    assert first["open"] == df["open"].iloc[0]
+    assert first["high"] == df["high"].iloc[0:3].max()
+    assert first["low"] == df["low"].iloc[0:3].min()
+    assert first["close"] == df["close"].iloc[2]
+    assert first["volume"] == df["volume"].iloc[0:3].sum()
+
+
+def _hourly_nse_session() -> pd.DataFrame:
+    idx = pd.date_range("2026-11-25 09:15", periods=7, freq="h",
+                        tz="Asia/Kolkata")
+    base = np.arange(7, dtype=float) + 100.0
+    return pd.DataFrame(
+        {
+            "open": base,
+            "high": base + 2.0,
+            "low": base - 2.0,
+            "close": base + 1.0,
+            "volume": np.full(7, 100.0),
+        },
+        index=idx,
     )
-    pd.testing.assert_frame_equal(got, expected)
-    # The delegation must actually thread the bin sides: default right/right
-    # buckets group the same rows differently, so the two cannot coincide.
-    assert not got.equals(candles_mod._resample_ohlcv(df, md._resample_rule(n)))
+
+
+def test_resample_4h_starts_at_session_open_with_full_first_bin():
+    df = _hourly_nse_session()
+    out = candles_mod._resample(df, 240)
+    ist = out.index.tz_convert("Asia/Kolkata")
+    assert [ts.strftime("%H:%M") for ts in ist] == ["09:15", "13:15"]
+
+    first = out.iloc[0]  # 09:15, 10:15, 11:15, 12:15
+    assert first["open"] == 100.0
+    assert first["high"] == 105.0
+    assert first["low"] == 98.0
+    assert first["close"] == 104.0
+    assert first["volume"] == 400.0
+
+    second = out.iloc[1]  # 13:15, 14:15, 15:15
+    assert second["open"] == 104.0
+    assert second["high"] == 108.0
+    assert second["low"] == 102.0
+    assert second["close"] == 107.0
+    assert second["volume"] == 300.0
+
+
+def test_resample_3h_merges_trailing_15m_stub_into_prior_bin():
+    df = _hourly_nse_session()
+    out = candles_mod._resample(df, 180)
+    ist = out.index.tz_convert("Asia/Kolkata")
+    assert [ts.strftime("%H:%M") for ts in ist] == ["09:15", "12:15"]
+
+    first = out.iloc[0]  # 09:15, 10:15, 11:15
+    assert first["open"] == 100.0
+    assert first["high"] == 104.0
+    assert first["low"] == 98.0
+    assert first["close"] == 103.0
+    assert first["volume"] == 300.0
+
+    second = out.iloc[1]  # 12:15 + 13:15 + 14:15 + merged 15:15 stub
+    assert second["open"] == 103.0
+    assert second["high"] == 108.0
+    assert second["low"] == 101.0
+    assert second["close"] == 107.0
+    assert second["volume"] == 400.0
+
+
+def test_resample_keeps_forming_trailing_bin():
+    """An in-progress bin must not be treated as a completed-session stub."""
+    df = _hourly_nse_session().iloc[:2]  # 09:15, 10:15; the session is still live
+    out = candles_mod._resample(df, 240)
+    assert len(out) == 1
+    assert out.index[0].tz_convert("Asia/Kolkata").strftime("%H:%M") == "09:15"
 
 
 @pytest.mark.parametrize("tz", ["UTC", "Asia/Kolkata", None])

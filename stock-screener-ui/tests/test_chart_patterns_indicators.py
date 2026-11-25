@@ -152,12 +152,15 @@ def test_vwap_omitted_for_daily_weekly_monthly():
 
 def test_vwap_resets_by_exchange_timezone():
     candles = [
-        _candle("2026-01-06T03:00:00+00:00", 100.0, 10),
-        _candle("2026-01-06T06:00:00+00:00", 200.0, 10),
+        _candle("2026-01-06T03:00:00+00:00", 100.0, 10),  # 22:00 ET Jan 5
+        _candle("2026-01-06T06:00:00+00:00", 200.0, 10),  # 01:00 ET Jan 6
     ]
     new_york = indicators.compute_vwap(candles, "America/New_York", "1h")
     kolkata = indicators.compute_vwap(candles, "Asia/Kolkata", "1h")
-    assert new_york.tolist() == pytest.approx([100.0, 200.0])
+    # NY sees two sessions; the first starts after its open and cannot be
+    # anchored, so it stays null. Kolkata sees one session from 08:30, which is
+    # before its 09:15 open and therefore anchored.
+    assert np.isnan(new_york[0]) and new_york[1] == pytest.approx(200.0)
     assert kolkata.tolist() == pytest.approx([100.0, 150.0])
 
 
@@ -177,6 +180,59 @@ def test_vwap_invalid_price_and_volume_never_emit_nan_to_payload():
     assert len(vwap["values"]) == len(candles)
     assert vwap["values"][1] is None and vwap["values"][2] is None
     assert all(value is None or math.isfinite(value) for value in vwap["values"])
+
+
+def _intraday_session(start: str = "2026-01-05 09:15", periods: int = 24):
+    import pandas as pd
+
+    idx = pd.date_range(start, periods=periods, freq="5min", tz="Asia/Kolkata")
+    return [_candle(ts.isoformat(), 100.0 + i, 10.0 + i) for i, ts in enumerate(idx)]
+
+
+def test_vwap_warmup_anchors_mid_session_display_to_session_open():
+    """A tail-clamped window uses the morning warm-up, not its own first bar."""
+    candles = _intraday_session()
+    displayed = candles[12:]  # starts 10:15, mid-session
+    warmup = candles[:12]
+    expected = indicators.compute_vwap(candles, "Asia/Kolkata", "5m")
+
+    payload = indicators.compute_indicators(displayed, "5m", warmup=warmup)
+    vwap = next(s for s in payload["series"] if s["id"] == "vwap")["values"]
+
+    assert displayed[0]["t"].startswith("2026-01-05T10:15")
+    assert len(vwap) == len(displayed)
+    for i, value in enumerate(vwap):
+        assert value == pytest.approx(float(expected[12 + i]))
+
+
+def test_vwap_without_warmup_leaves_partial_first_session_null():
+    """No warm-up: do not fabricate a session VWAP from the afternoon only."""
+    candles = _intraday_session()
+    displayed = candles[12:]  # entire displayed window is the partial session
+
+    payload = indicators.compute_indicators(displayed, "5m")
+    vwap = next(s for s in payload["series"] if s["id"] == "vwap")["values"]
+    assert all(value is None for value in vwap), "partial session must stay null"
+
+
+def test_vwap_partial_warmup_does_not_fake_the_open_and_next_session_resumes():
+    candles = _intraday_session()
+    displayed = candles[12:]
+    partial_warmup = candles[4:12]  # still mid-session: no 09:15 bar
+
+    payload = indicators.compute_indicators(displayed, "5m", warmup=partial_warmup)
+    vwap = next(s for s in payload["series"] if s["id"] == "vwap")["values"]
+    assert all(value is None for value in vwap)
+
+    next_session = [
+        _candle("2026-01-06T09:15:00+05:30", 200.0, 10),
+        _candle("2026-01-06T09:20:00+05:30", 220.0, 10),
+    ]
+    resumed = indicators.compute_indicators(displayed + next_session, "5m")
+    values = next(s for s in resumed["series"] if s["id"] == "vwap")["values"]
+    assert all(value is None for value in values[: len(displayed)])
+    assert values[-2] == pytest.approx(200.0)
+    assert values[-1] == pytest.approx(210.0)
 
 
 # --- Full payload ----------------------------------------------------------

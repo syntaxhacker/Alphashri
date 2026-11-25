@@ -468,15 +468,145 @@ def clear_cache(
 
 
 def _resample(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
-    """Resample OHLCV to tf_minutes using a rule derived from the target width.
+    """Resample OHLCV to ``tf_minutes``.
 
-    Bins are anchored to the IST session (Asia/Kolkata midnight), not UTC
-    midnight: the index is converted to IST before ``resample`` and back to its
-    original timezone after, so 2h/3h/3min bins align with the NSE session open.
+    Intraday targets are binned per exchange session, starting at that
+    session's first supplied bar (09:15 for NSE), because a fixed IST-midnight
+    grid produced off-session bins (e.g. 4h bars at 08:00/12:00/16:00, with a
+    45-minute first bar). Daily/weekly/monthly targets keep the generic
+    calendar-rule resample (``_resample_ohlcv``).
     """
+    minutes = int(tf_minutes)
+    if minutes < 1440:
+        return _resample_session_binned(df, minutes)
     return _resample_ohlcv(
-        df, _resample_rule(int(tf_minutes)), label="left", closed="left"
+        df, _resample_rule(minutes), label="left", closed="left"
     )
+
+
+def _infer_bar_step(index) -> Optional[pd.Timedelta]:
+    """Typical spacing of the supplied bars (median positive diff), or None."""
+    try:
+        diffs = pd.Series(index).diff().dropna()
+        diffs = diffs[diffs > pd.Timedelta(0)]
+        if diffs.empty:
+            return None
+        step = diffs.median()
+        return step if pd.notna(step) and step > pd.Timedelta(0) else None
+    except Exception:
+        return None
+
+
+def _nse_session_close(first, last, step) -> Optional[pd.Timestamp]:
+    """15:30 IST on ``first``'s date when the group looks like an NSE session.
+
+    A group is treated as the NSE session only when it opens around 09:15 and
+    its last bar does not run past the close by more than one source bar (the
+    synthetic midnight-anchored test frames, for example, run to 20:00 and must
+    keep their own scaling).
+    """
+    open_minutes = first.hour * 60 + first.minute
+    if not (9 * 60 <= open_minutes <= 9 * 60 + 30):
+        return None
+    try:
+        from trading.utils import MARKET_CLOSE
+
+        close_hour, close_minute = MARKET_CLOSE
+    except Exception:
+        close_hour, close_minute = 15, 30
+    close = first.normalize() + pd.Timedelta(hours=close_hour, minutes=close_minute)
+    if last > close + (step or pd.Timedelta(0)):
+        return None
+    return close
+
+
+def _aggregate_bin(chunk: pd.DataFrame, columns: list) -> dict:
+    row = {}
+    for name in columns:
+        values = chunk[name]
+        if name == "open":
+            row[name] = values.iloc[0]
+        elif name == "high":
+            row[name] = values.max()
+        elif name == "low":
+            row[name] = values.min()
+        elif name == "volume":
+            row[name] = values.sum()
+        else:
+            row[name] = values.iloc[-1]
+    return row
+
+
+def _resample_session_binned(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
+    """Aggregate intraday OHLCV into bins anchored to each session's first bar.
+
+    The final bin of a session is merged into the previous bin when it covers
+    less than 25% of the target width (e.g. NSE 3h: 12:15 + a 15:15-15:30
+    stub becomes one 12:15 bar). Merging keeps the session's closing print in
+    the series; dropping it would end the chart at 15:15. A single-bin session
+    is never merged away. Never raises; returns ``df`` unchanged on failure.
+    """
+    if df is None or df.empty:
+        return df
+    agg = ("open", "high", "low", "close", "volume")
+    available = [name for name in agg if name in df.columns]
+    if "close" not in available:
+        return df
+    orig_tz = df.index.tz
+    try:
+        if orig_tz is None:
+            ist_index = df.index.tz_localize("UTC").tz_convert("Asia/Kolkata")
+        else:
+            ist_index = df.index.tz_convert("Asia/Kolkata")
+    except Exception:
+        return df
+    work = df.copy()
+    work.index = ist_index
+    width = pd.Timedelta(minutes=int(tf_minutes))
+    step = _infer_bar_step(ist_index)
+    timestamps: list = []
+    rows: list = []
+    try:
+        for _session_date, group in work.groupby(ist_index.date):
+            group = group.sort_index()
+            if group.empty:
+                continue
+            first = group.index[0]
+            last = group.index[-1]
+            bins = [int(delta // width) for delta in (group.index - first)]
+            bin_ids = sorted(set(bins))
+            merge_last = False
+            if len(bin_ids) > 1:
+                final_start = first + width * bin_ids[-1]
+                end = last + (step or width)
+                session_close = _nse_session_close(first, last, step)
+                if session_close is not None and end >= session_close:
+                    end = session_close
+                merge_last = (end - final_start) < width * 0.25
+            for position, bin_id in enumerate(bin_ids):
+                if merge_last and position >= len(bin_ids) - 2:
+                    continue
+                chunk = group[[b == bin_id for b in bins]]
+                timestamps.append(first + width * bin_id)
+                rows.append(_aggregate_bin(chunk, available))
+            if merge_last:
+                chunk = group[[b >= bin_ids[-2] for b in bins]]
+                timestamps.append(first + width * bin_ids[-2])
+                rows.append(_aggregate_bin(chunk, available))
+    except Exception:
+        return df
+    if not rows:
+        return df
+    out = pd.DataFrame(rows, index=pd.DatetimeIndex(timestamps), columns=available)
+    out = out.dropna(subset=["close"])
+    try:
+        if orig_tz is None:
+            out.index = out.index.tz_convert("UTC").tz_localize(None)
+        else:
+            out.index = out.index.tz_convert(orig_tz)
+    except Exception:
+        pass
+    return out
 
 
 def _resample_ohlcv(
@@ -486,9 +616,11 @@ def _resample_ohlcv(
 
     ``rule`` is a raw pandas offset alias (e.g. ``"W-FRI"`` for weekly
     candles or ``"ME"`` for month-end). Aggregates open=first, high=max,
-    low=min, close=last, volume=sum. Bins are anchored to the IST session
-    and the frame is returned in its original timezone. Never raises;
-    returns the input unchanged when it cannot be resampled.
+    low=min, close=last, volume=sum. The index is converted to IST before
+    resampling so calendar rules label on IST boundaries, then returned in its
+    original timezone. This is a calendar grid, not a session grid — intraday
+    resampling must go through :func:`_resample`. Never raises; returns the
+    input unchanged when it cannot be resampled.
     """
     if df is None or df.empty:
         return df
