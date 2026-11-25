@@ -13,16 +13,12 @@ import type { NiftyReport } from "@/types/niftyReport";
 import type { ReplayCandle } from "@/types/replay";
 import type { ChartSource } from "./niftyReportStore";
 import {
-  applyChartPlotMargin,
-  CHART_CUTOFF_RIGHT,
-  CHART_PLOT_MARGIN,
-  FILL_MAX_HEIGHT,
-  FILL_MIN_HEIGHT,
-  MOBILE_CHART_TARGET,
-  type ChartTimeframe,
+  applyChartPlotMargin, CHART_CUTOFF_RIGHT, CHART_PLOT_MARGIN,
+  FILL_MAX_HEIGHT, FILL_MIN_HEIGHT, MOBILE_CHART_TARGET,
+  TIME_AXIS_LABEL_GUTTER_PX, useGutteredChartRange, type ChartTimeframe,
 } from "./NiftyChartPanel.constants";
 import { computePatternStripTitle, type ScanBadge } from "./NiftyChartPanel.annotations";
-import { phoneViewport, usePinnedChartRange } from "./NiftyChartPanel.range";
+import { phoneViewport } from "./NiftyChartPanel.range";
 import { NARROW_CONTAINER_PX, useNarrowContainer } from "./NiftyChartPanel.controls";
 import {
   applyOverlayAxisGeometry,
@@ -130,7 +126,10 @@ export function ChartBody(props: ChartBodyProps) {
     setChartVersion((v) => v + 1);
   };
 
-  usePinnedChartRange(() => chartRef, () => props.chartCandles.length, cutoffRight, chartVersion);
+  useGutteredChartRange(
+    () => chartRef, () => props.chartCandles.length, cutoffRight,
+    () => { chartVersion(); phone(); narrowContainer(); }, () => TIME_AXIS_LABEL_GUTTER_PX,
+  );
 
   // TradingViewChart re-enables the volume tag whenever the candle series
   // changes. Re-apply after the current flush so a compact axis stays clear.
@@ -195,6 +194,7 @@ export function ChartBody(props: ChartBodyProps) {
             "padding-left": phone() ? "6px" : undefined,
             ...edgePadding(),
             ["--chart-cutoff-right"]: `${cutoffRight()}px`,
+            ["--chart-time-label-gutter"]: `${TIME_AXIS_LABEL_GUTTER_PX}px`,
             ...(props.chartHeight == null ? undefined : { height: `${props.chartHeight}px` }),
             display: hasPinnedCandles() ? "flex" : "none",
             flex: props.chartHeight == null ? "1" : undefined,
@@ -223,10 +223,11 @@ export function ChartBody(props: ChartBodyProps) {
                 class="pointer-events-none absolute"
                 title={`${chartSpotView().title} · ${boundary()}`}
                 style={{
-                  top: "0px",
-                  bottom: "0px",
-                  left: "0px",
+                  top: "0px", bottom: "0px", left: "0px",
                   right: "var(--chart-cutoff-right)",
+                  // The engine shifts the last bar left by the label gutter;
+                  // keep the dashed cutoff on that bar, not the old edge.
+                  transform: "translateX(calc(-1 * var(--chart-time-label-gutter)))",
                   "border-right": `1px dashed ${palette.BORDER}`,
                 }}
               >

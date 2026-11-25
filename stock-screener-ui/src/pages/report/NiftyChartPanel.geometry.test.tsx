@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { describe, expect, test, vi, afterEach } from "vitest";
+import { describe, expect, test, vi, afterEach, beforeAll } from "vitest";
 import { render, screen, within, cleanup } from "@solidjs/testing-library";
 import { ChartBody } from "./NiftyChartPanel.body";
 import type { JSX } from "solid-js";
@@ -18,17 +18,20 @@ import {
   levelsWithinScale,
   mergeCollidingLabels,
 } from "./NiftyChartPanel";
+import { TIME_AXIS_LABEL_GUTTER_PX } from "./NiftyChartPanel.constants";
 import type { NiftyGex, NiftyReport } from "@/types/niftyReport";
 import { verdictMarkLines } from "./niftyVerdictLevels";
 
 vi.mock("@/components/chart/TradingViewChart", async () => {
-  const { onMount } = await import("solid-js");
+  const { createSignal, onMount } = await import("solid-js");
   return {
     TradingViewChart: (props: {
-      candles?: { open: number; high: number; low: number; close: number }[];
+      candles?: { open: number; high: number; low: number; close: number; time?: string }[];
       markLines?: { label: { formatter: string } }[];
       emaData?: unknown[];
       fitMarkLines?: boolean;
+      hideLastValueTag?: boolean;
+      onChartReady?: (chart: unknown) => void;
       touchMarkers?: {
         time: string;
         value: number;
@@ -37,8 +40,11 @@ vi.mock("@/components/chart/TradingViewChart", async () => {
         text?: string;
       }[];
     }) => {
+      const [labels, setLabels] = createSignal({ first: "", last: "" });
+      panelMocks.setTimeLabels = setLabels;
       onMount(() => {
         panelMocks.tvMounts += 1;
+        panelMocks.onChartReady = props.onChartReady ?? null;
       });
       const first = () => props.candles?.[0];
       return (
@@ -57,21 +63,54 @@ vi.mock("@/components/chart/TradingViewChart", async () => {
           data-touch-details={(props.touchMarkers ?? [])
             .map((m) => `${m.shape ?? "circle"}:${m.color ?? ""}:${m.text ?? ""}`)
             .join("|")}
-        />
+        >
+          <span data-testid="chart-time-first-label">{labels().first}</span>
+          <span data-testid="chart-time-last-label">{labels().last}</span>
+        </div>
       );
     },
   };
 });
 
-const panelMocks = vi.hoisted(() => ({ tvMounts: 0 }));
+const panelMocks = vi.hoisted(() => ({
+  tvMounts: 0,
+  onChartReady: null as null | ((chart: unknown) => void),
+  setTimeLabels: null as null | ((value: { first: string; last: string }) => void),
+  mobile: false,
+  mediaListeners: [] as Array<(event: { matches: boolean }) => void>,
+}));
 
 const CHART_SOURCE_KEY = "nifty.chartSource";
+
+beforeAll(() => {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: (query: string) => ({
+      matches: query.includes("max-width: 600px") ? panelMocks.mobile : false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: (_type: string, fn: (event: { matches: boolean }) => void) => {
+        panelMocks.mediaListeners.push(fn);
+      },
+      removeEventListener: (_type: string, fn: (event: { matches: boolean }) => void) => {
+        panelMocks.mediaListeners = panelMocks.mediaListeners.filter((f) => f !== fn);
+      },
+      dispatchEvent: () => false,
+    }),
+  });
+});
 
 afterEach(() => {
   cleanup();
   window.localStorage.removeItem(CHART_SOURCE_KEY);
   vi.clearAllMocks();
   panelMocks.tvMounts = 0;
+  panelMocks.onChartReady = null;
+  panelMocks.setTimeLabels = null;
+  panelMocks.mobile = false;
+  panelMocks.mediaListeners = [];
 });
 
 function r(ui: () => JSX.Element) {
@@ -728,5 +767,95 @@ describe("NiftyChartPanel — named overlays and honest spot labels", () => {
     deskBody([]);
     expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-emas", "0");
     expect(screen.queryByTestId("nifty-chart-overlay-legend")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The engine centres the first/last `HH:MM` tick on its bar, so the plot needs
+ * a half-label gutter on each edge. `entireTextOnly` only widens the price
+ * axis; without this gutter the evidence PNGs read `:15` and `10:0` at both
+ * 1600 and 390. Model the engine's coordinate mapping from the options the
+ * panel actually pushes, then assert the whole five-glyph text in the DOM.
+ */
+describe("NiftyChartPanel — full HH:MM edge ticks", () => {
+  const FIRST = "09:15";
+  const LAST = "10:00";
+  const CHAR_PX = 7.2;
+  const HALF_LABEL_PX = 18;
+
+  type Call = { scale: string; id?: string; options: Record<string, unknown> };
+
+  function engine(width: number, barSpacing: number) {
+    const calls: Call[] = [];
+    let range: { from: number; to: number } | null = null;
+    const scale = {
+      applyOptions: (options: Record<string, unknown>) => calls.push({ scale: "time", options }),
+      setVisibleLogicalRange: (next: { from: number; to: number }) => {
+        range = next;
+      },
+      logicalToCoordinate: (logical: number) => (logical - (range?.from ?? 0)) * barSpacing,
+      options: () => ({ barSpacing }),
+    };
+    return {
+      chart: {
+        timeScale: () => scale,
+        priceScale: (id: string) => ({
+          applyOptions: (options: Record<string, unknown>) => calls.push({ scale: "price", id, options }),
+        }),
+        panes: () => [],
+      },
+      calls,
+      getRange: () => range,
+      width,
+      barSpacing,
+    };
+  }
+
+  type Model = ReturnType<typeof engine>;
+
+  function visibleTicks(model: Model) {
+    const lastPrice = [...model.calls].reverse().find((c) => c.scale === "price" && c.id === "right");
+    const lastOffset = [...model.calls].reverse().find((c) => c.scale === "time" && typeof c.options.rightOffsetPixels === "number");
+    const axis = Number(lastPrice?.options.minimumWidth ?? 88);
+    const rightOffset = Number(lastOffset?.options.rightOffsetPixels ?? 0);
+    const from = model.getRange()?.from ?? 0;
+    // Bar centre distances: the first from the plot's left edge, the last from
+    // its right edge (the right offset is measured from the whole chart, so the
+    // price axis width is subtracted).
+    const firstGap = Math.round(-from * model.barSpacing);
+    const lastGap = Math.round(rightOffset - axis);
+    const shown = (text: string, gap: number, clipLeft: boolean) => {
+      const chars = Math.min(text.length, Math.max(0, Math.floor((gap + HALF_LABEL_PX) / CHAR_PX)));
+      return clipLeft ? text.slice(text.length - chars) : text.slice(0, chars);
+    };
+    return { first: shown(FIRST, firstGap, true), last: shown(LAST, lastGap, false), firstGap, lastGap };
+  }
+
+  async function measure(width: number, mobile: boolean) {
+    panelMocks.mobile = mobile;
+    const model = engine(width, width > 600 ? 18 : 27);
+    r(() => <NiftyChartPanel report={mockReport({ candles: candles3() })} mode="live" view="chart" />);
+    panelMocks.onChartReady!(model.chart);
+    // The range pin runs on a microtask and two timers (0ms and 120ms).
+    await new Promise((resolve) => setTimeout(resolve, 160));
+    const ticks = visibleTicks(model);
+    panelMocks.setTimeLabels!({ first: ticks.first, last: ticks.last });
+    return { ticks, model };
+  }
+
+  test("1600 desktop reserves a full HH:MM gutter on both time-axis edges", async () => {
+    const { ticks } = await measure(1600, false);
+    expect(screen.getByTestId("chart-time-first-label")).toHaveTextContent(FIRST);
+    expect(screen.getByTestId("chart-time-last-label")).toHaveTextContent(LAST);
+    expect(ticks.firstGap).toBeGreaterThanOrEqual(TIME_AXIS_LABEL_GUTTER_PX);
+    expect(ticks.lastGap).toBeGreaterThanOrEqual(TIME_AXIS_LABEL_GUTTER_PX);
+  });
+
+  test("390 monitor reserves a full HH:MM gutter on both time-axis edges", async () => {
+    const { ticks } = await measure(390, true);
+    expect(screen.getByTestId("chart-time-first-label")).toHaveTextContent(FIRST);
+    expect(screen.getByTestId("chart-time-last-label")).toHaveTextContent(LAST);
+    expect(ticks.firstGap).toBeGreaterThanOrEqual(TIME_AXIS_LABEL_GUTTER_PX);
+    expect(ticks.lastGap).toBeGreaterThanOrEqual(TIME_AXIS_LABEL_GUTTER_PX);
   });
 });
