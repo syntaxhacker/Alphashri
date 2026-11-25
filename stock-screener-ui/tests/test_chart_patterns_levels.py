@@ -188,3 +188,85 @@ def test_wire_candles_and_frame_inputs_agree_and_stay_json_safe():
             math.isfinite(zone[key]) for key in ("top", "bottom", "score")
         )
         assert zone["end_date"] <= wire[-1]["t"]
+
+
+# --- Optimisation-guard vectors -------------------------------------------
+# The zone scan now builds numeric columns directly and starts the pivot scan
+# at the lookback boundary. These pin the exact boundary and coercion rules.
+
+
+def test_window_pivots_slice_matches_full_frame_scan():
+    rng = np.random.default_rng(20261125)
+    for _ in range(25):
+        values = rng.normal(100.0, 4.0, 1500)
+        values[rng.integers(0, 1500, 20)] = np.nan
+        for order in (2, 6):
+            window_start = 1500 - 400
+            for kind in ("high", "low"):
+                full = levels.features.pivot_indices(
+                    values, order, order, kind, nan_tolerant=False
+                )
+                expected = [
+                    (i, float(values[i]))
+                    for i in full
+                    if i >= window_start
+                    and np.isfinite(values[i])
+                    and values[i] > 0.0
+                ]
+                assert (
+                    levels._window_pivots(values, order, window_start, kind)
+                    == expected
+                )
+
+
+def test_window_pivots_keeps_the_first_lookback_bar():
+    values = np.full(1500, 100.0)
+    # A confirmed spike exactly at window_start (1100) must survive; one bar
+    # earlier must be discarded, matching the old full-frame scan + filter.
+    values[1100] = 140.0
+    values[1099] = 90.0
+    points = levels._window_pivots(values, 6, 1100, "high")
+    assert (1100, 140.0) in points
+    assert all(i >= 1100 for i, _ in points)
+
+
+def test_wire_fast_path_matches_sanitized_frame_exactly():
+    raw = [
+        (100.0, 101.0, 99.0, 100.0),
+        ("101.5", "102.5", "100.5", "101.5"),
+        (None, None, None, None),
+        ("bad", "bad", "bad", "bad"),
+        (102, 103, 101, 102),
+        (True, True, True, True),
+        (103.25, 104.25, 102.25, 103.25),
+        (0.0, 1.0, -1.0, 0.0),
+        (-5.0, -4.0, -6.0, -5.0),
+    ]
+    wire = [
+        {
+            "t": f"2026-01-{i + 1:02d}",
+            "o": o,
+            "h": h,
+            "l": low,
+            "c": c,
+            "v": 1000,
+        }
+        for i, (o, h, low, c) in enumerate(raw)
+    ]
+    from_wire = levels._prepare_frame(wire)
+    frame = pd.DataFrame(
+        {
+            "t": [candle["t"] for candle in wire],
+            "open": [candle["o"] for candle in wire],
+            "high": [candle["h"] for candle in wire],
+            "low": [candle["l"] for candle in wire],
+            "close": [candle["c"] for candle in wire],
+        }
+    ).set_index("t")
+    from_frame = levels._prepare_frame(frame)
+    pd.testing.assert_frame_equal(from_wire, from_frame.rename_axis(None))
+    # Invalid/non-numeric bars are NaN, never emitted as data.
+    assert from_wire.loc["2026-01-03"].isna().all()
+    assert from_wire.loc["2026-01-04"].isna().all()
+    assert (from_wire.loc[["2026-01-08", "2026-01-09"]] == 0.0).sum().sum() == 0
+    assert from_wire.loc["2026-01-08"].isna().all()

@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from chart_patterns import indicators
@@ -293,3 +294,192 @@ def test_compute_indicators_marks_partial_last_and_uses_market_session():
     assert "vwap" in {series["id"] for series in india["series"]}
     usa = indicators.compute_indicators(candles, "5m", market="usa")
     assert usa["session"] == "America/New_York"
+
+
+# --- Optimisation-guard vectors -------------------------------------------
+# These pin the exact semantics of the vectorised session-key, JSON-null,
+# cross and resampling paths so a faster implementation cannot silently drift.
+
+
+def test_session_keys_vector_path_matches_per_value_semantics():
+    aware = [
+        "2026-01-05T09:15:00+05:30",   # IST aware
+        "2026-01-05T23:30:00+05:30",   # late same IST date
+        "2026-01-06T00:15:00+05:30",   # next IST date
+        "2026-01-06T09:15:00+05:30",
+    ]
+    keys, minutes = indicators._session_keys(aware, "Asia/Kolkata")
+    assert minutes is not None
+    expected = [indicators._session_key(value, "Asia/Kolkata") for value in aware]
+    assert list(keys) == expected
+    for value, minute in zip(aware, minutes):
+        ts = pd.Timestamp(value).tz_convert("Asia/Kolkata")
+        assert int(minute) == ts.hour * 60 + ts.minute
+
+    # A homogeneous UTC tape takes the same vector path and converts once.
+    utc = [pd.Timestamp(value).tz_convert("UTC").isoformat() for value in aware]
+    utc_keys, utc_minutes = indicators._session_keys(utc, "Asia/Kolkata")
+    assert utc_minutes is not None
+    assert list(utc_keys) == expected
+    assert list(utc_minutes) == list(minutes)
+
+    naive = ["2026-01-05T09:15:00", "2026-01-06T09:15:00"]
+    keys, minutes = indicators._session_keys(naive, "Asia/Kolkata")
+    assert minutes is not None
+    assert list(keys) == [
+        indicators._session_key(value, "Asia/Kolkata") for value in naive
+    ]
+
+    # Malformed/mixed inputs fall back per value and stay identical.
+    mixed = ["2026-01-05T09:15:00+05:30", None, "not-a-date", 12345]
+    fallback, minutes = indicators._session_keys(mixed, "Asia/Kolkata")
+    assert minutes is None
+    assert fallback == [
+        indicators._session_key(value, "Asia/Kolkata") for value in mixed
+    ]
+
+
+def test_vwap_is_identical_for_ist_utc_and_naive_wire_times():
+    ist = [
+        "2026-01-05T09:15:00+05:30",
+        "2026-01-05T09:20:00+05:30",
+        "2026-01-05T23:30:00+05:30",
+        "2026-01-06T00:15:00+05:30",
+        "2026-01-06T09:15:00+05:30",
+    ]
+    candles = [_candle(t, 100.0 + i, 10.0 + i) for i, t in enumerate(ist)]
+    utc = [
+        pd.Timestamp(t).tz_convert("UTC").isoformat() for t in ist
+    ]
+    naive = [t.replace("+05:30", "") for t in ist]
+    expected = indicators.compute_vwap(candles, "Asia/Kolkata", "5m")
+    for times in (utc, naive):
+        variant = [
+            _candle(t, candle["o"], candle["v"])
+            for t, candle in zip(times, candles)
+        ]
+        values = indicators.compute_vwap(variant, "Asia/Kolkata", "5m")
+        np.testing.assert_allclose(values, expected, rtol=0.0, atol=0.0)
+    # 23:30 and 00:15 are different exchange-local dates: the cumulative
+    # restarts at 00:15, then 09:15 continues that calendar date's VWAP.
+    def typical(candle):
+        return (candle["h"] + candle["l"] + candle["c"]) / 3.0
+
+    assert expected[3] == pytest.approx(typical(candles[3]))
+    assert expected[4] == pytest.approx(
+        (
+            typical(candles[3]) * candles[3]["v"]
+            + typical(candles[4]) * candles[4]["v"]
+        )
+        / (candles[3]["v"] + candles[4]["v"])
+    )
+
+
+def test_values_to_json_batch_matches_scalar_null_rules():
+    arrays = [
+        np.array([1.0, np.nan, 2.5, np.inf, -np.inf, -0.0]),
+        np.array([np.nan, np.nan, 3.0, 4.0, np.nan, 5.0]),
+        np.array([], dtype=float),
+    ]
+    batched = indicators._values_to_json_batch(arrays)
+    assert batched == [indicators._values_to_json(values) for values in arrays]
+    assert batched[0] == [1.0, None, 2.5, None, None, -0.0]
+    assert all(
+        value is None or math.isfinite(value)
+        for row in batched
+        for value in row
+    )
+
+
+def test_cross_vectorisation_matches_reference_loop():
+    rng = np.random.default_rng(20261125)
+    for _ in range(50):
+        n = int(rng.integers(2, 260))
+        fast = rng.normal(100.0, 3.0, n)
+        slow = rng.normal(100.0, 3.0, n)
+        # Force equality/flat stretches, which are the eps boundary.
+        if n > 6:
+            fast[2:5] = slow[2:5]
+            slow[5:n:17] = fast[5:n:17]
+        if n > 10:
+            fast[n // 2] = np.nan
+            slow[n // 3] = np.inf
+        times = [f"t{i}" for i in range(n)]
+        for earliest in (0, 1, 5, 200):
+            for partial in (False, True):
+                expected = []
+                start = max(earliest, 1)
+                for i in range(start, n):
+                    if partial and i == n - 1:
+                        continue
+                    fi, si = fast[i], slow[i]
+                    fp, sp = fast[i - 1], slow[i - 1]
+                    if not (
+                        np.isfinite(fi) and np.isfinite(si)
+                        and np.isfinite(fp) and np.isfinite(sp)
+                    ):
+                        continue
+                    gap = float(fi - si)
+                    prev_gap = float(fp - sp)
+                    eps = 1e-9 * max(1.0, abs(float(fi)), abs(float(si)))
+                    kind = None
+                    if prev_gap <= 0.0 and gap > eps:
+                        kind = "golden"
+                    elif prev_gap >= 0.0 and gap < -eps:
+                        kind = "death"
+                    if kind is not None:
+                        expected.append({"t": times[i], "kind": kind})
+                actual = indicators.detect_sma_crosses(
+                    fast, slow, times, earliest_index=earliest,
+                    partial_last=partial,
+                )
+                assert actual == expected
+
+
+def test_resampled_3h_4h_vwap_anchors_at_session_open():
+    """3h/4h bars carry session-binned timestamps; VWAP must still anchor."""
+    from chart_patterns import candles as candles_mod
+
+    rows = []
+    index = []
+    for day in ("2026-01-05", "2026-01-06"):
+        for bar in range(7):
+            index.append(pd.Timestamp(f"{day}T{9 + bar:02d}:15:00+05:30"))
+            rows.append(
+                {
+                    "open": 100.0 + bar,
+                    "high": 101.0 + bar,
+                    "low": 99.0 + bar,
+                    "close": 100.5 + bar,
+                    "volume": 1000.0 + bar,
+                }
+            )
+    hourly = pd.DataFrame(rows, index=pd.DatetimeIndex(index))
+    for tf, minutes in (("3h", 180), ("4h", 240)):
+        frame = candles_mod._resample(hourly, minutes)
+        assert frame.index[0].strftime("%H:%M") == "09:15"
+        wire = [
+            {
+                "t": stamp.isoformat(),
+                "o": row["open"],
+                "h": row["high"],
+                "l": row["low"],
+                "c": row["close"],
+                "v": row["volume"],
+            }
+            for stamp, row in frame.iterrows()
+        ]
+        payload = indicators.compute_indicators(wire, tf)
+        vwap = next(s for s in payload["series"] if s["id"] == "vwap")["values"]
+        expected = indicators.compute_vwap(wire, "Asia/Kolkata", tf)
+        assert len(vwap) == len(wire) == len(expected)
+        assert vwap[0] == pytest.approx(expected[0])
+        assert all(
+            value is None or math.isfinite(value) for value in vwap
+        ), "no NaN/Inf leaves the payload"
+        # The second session resets to its own first bar.
+        first_second = next(
+            i for i, candle in enumerate(wire)
+            if candle["t"].startswith("2026-01-06")
+        )
+        assert vwap[first_second] == pytest.approx(expected[first_second])

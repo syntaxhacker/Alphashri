@@ -97,6 +97,78 @@ def _to_frame(candles) -> Optional[pd.DataFrame]:
     return frame
 
 
+def _coerce_float(value) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float("nan")
+
+
+def _numeric_column(rows: Sequence, key: str) -> np.ndarray:
+    try:
+        return np.array([row.get(key) for row in rows], dtype=float)
+    except (TypeError, ValueError):
+        return np.fromiter(
+            (_coerce_float(row.get(key)) for row in rows),
+            dtype=float,
+            count=len(rows),
+        )
+
+
+def _prepare_frame(candles) -> Optional[pd.DataFrame]:
+    """Sanitised numeric OHLC frame from wire candles or a DataFrame.
+
+    The wire fast path builds the numeric columns directly instead of
+    ``DataFrame.from_records`` + four ``pd.to_numeric`` passes + a ``.loc``
+    block copy. Values, index and invalid-bar rules are unchanged.
+    """
+    if isinstance(candles, pd.DataFrame):
+        frame = _to_frame(candles)
+        if frame is None:
+            return None
+        return _sanitize(frame)
+    if candles is None:
+        return None
+    try:
+        rows = candles if isinstance(candles, (list, tuple)) else list(candles)
+    except TypeError:
+        return None
+    n = len(rows)
+    if n == 0:
+        return None
+    try:
+        index: list = []
+        for i in range(n):
+            candle = rows[i]
+            if not isinstance(candle, dict):
+                return None
+            index.append(candle.get("t", i))
+        opens = _numeric_column(rows, "o")
+        highs = _numeric_column(rows, "h")
+        lows = _numeric_column(rows, "l")
+        closes = _numeric_column(rows, "c")
+        finite = (
+            np.isfinite(opens)
+            & np.isfinite(highs)
+            & np.isfinite(lows)
+            & np.isfinite(closes)
+        )
+        positive = (opens > 0.0) & (highs > 0.0) & (lows > 0.0) & (closes > 0.0)
+        ordered = highs >= lows
+        good = finite & positive & ordered
+        return pd.DataFrame(
+            {
+                "open": np.where(good, opens, np.nan),
+                "high": np.where(good, highs, np.nan),
+                "low": np.where(good, lows, np.nan),
+                "close": np.where(good, closes, np.nan),
+            },
+            index=index,
+        )
+    except Exception:
+        return None
+
+
 def _sanitize(frame: pd.DataFrame) -> pd.DataFrame:
     """Numeric OHLC with invalid bars replaced by NaN (never emitted as data)."""
     out = pd.DataFrame(index=frame.index)
@@ -342,6 +414,30 @@ def _select_zones(zones: list[dict]) -> list[dict]:
     return selected
 
 
+def _window_pivots(
+    values: np.ndarray, order: int, window_start: int, kind: str
+) -> list[tuple[int, float]]:
+    """Pivot points at/after ``window_start``, scanning only the used slice.
+
+    A pivot at ``i >= window_start`` only reads ``[i - order, i + order]``, so
+    starting the scan ``order`` bars before ``window_start`` preserves every
+    kept pivot exactly while skipping the unused leading bars of a long frame.
+    """
+    start = max(0, window_start - order)
+    indices = features.pivot_indices(
+        values[start:], order, order, kind, nan_tolerant=False
+    )
+    points: list[tuple[int, float]] = []
+    for local_index in indices:
+        i = local_index + start
+        if i < window_start:
+            continue
+        value = float(values[i])
+        if np.isfinite(value) and value > 0.0:
+            points.append((i, value))
+    return points
+
+
 def compute_sr_zones(
     candles,
     *,
@@ -354,10 +450,9 @@ def compute_sr_zones(
         from chart_patterns.indicators import session_for_market
 
         session = session_for_market(market)
-    frame = _to_frame(candles)
+    frame = _prepare_frame(candles)
     if frame is None or len(frame) < 5:
         return []
-    frame = _sanitize(frame)
     n = len(frame)
     last_close = _last_close(frame)
     if last_close is None:
@@ -372,25 +467,10 @@ def compute_sr_zones(
     high_values = frame["high"].to_numpy(dtype=float)
     low_values = frame["low"].to_numpy(dtype=float)
     try:
-        high_indices = features.pivot_indices(
-            high_values, order, order, "high", nan_tolerant=False
-        )
-        low_indices = features.pivot_indices(
-            low_values, order, order, "low", nan_tolerant=False
-        )
+        high_points = _window_pivots(high_values, order, window_start, "high")
+        low_points = _window_pivots(low_values, order, window_start, "low")
     except Exception:
         return []
-
-    high_points = [
-        (i, float(high_values[i]))
-        for i in high_indices
-        if i >= window_start and np.isfinite(high_values[i]) and high_values[i] > 0.0
-    ]
-    low_points = [
-        (i, float(low_values[i]))
-        for i in low_indices
-        if i >= window_start and np.isfinite(low_values[i]) and low_values[i] > 0.0
-    ]
 
     closes = frame["close"].to_numpy(dtype=float)
     zones: list[dict] = []

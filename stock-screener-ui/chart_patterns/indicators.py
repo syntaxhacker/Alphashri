@@ -104,41 +104,56 @@ def bollinger_bands(
     values: Sequence[float],
     period: int = BOLLINGER_PERIOD,
     num_std: float = BOLLINGER_STD,
+    *,
+    middle: Optional[Sequence[float]] = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Bollinger bands ``(upper, middle, lower)`` with population sigma.
 
     The variance is a second pass around the rolling mean, which keeps a flat
     window exactly collapsed (``upper == middle == lower``) instead of leaving
     a catastrophic-cancellation residue from ``E[x^2] - E[x]^2``.
+
+    ``middle`` optionally supplies an already-computed :func:`sma` of the same
+    input (the indicator payload computes it for ``sma20`` anyway); the valid
+    window mask is still derived here, so this only saves the duplicate rolling
+    sum and cannot change the result.
     """
     arr = np.asarray(values, dtype=float)
     n = arr.size
     upper = np.full(n, np.nan, dtype=float)
-    middle = np.full(n, np.nan, dtype=float)
+    middle_out = np.full(n, np.nan, dtype=float)
     lower = np.full(n, np.nan, dtype=float)
     if period <= 0 or n < period:
-        return upper, middle, lower
+        return upper, middle_out, lower
     valid = np.isfinite(arr) & (arr > 0)
     safe = np.where(valid, arr, 0.0)
-    sums = np.concatenate(([0.0], np.cumsum(safe, dtype=float)))
     counts = np.concatenate(([0], np.cumsum(valid, dtype=np.int64)))
-    window_sums = sums[period:] - sums[:-period]
     window_counts = counts[period:] - counts[:-period]
     all_valid = window_counts == period
-    means = window_sums / float(period)
+    if middle is not None:
+        supplied = np.asarray(middle, dtype=float)
+        if supplied.size == n:
+            means = supplied[period - 1:]
+        else:
+            middle = None
+    if middle is None:
+        sums = np.concatenate(([0.0], np.cumsum(safe, dtype=float)))
+        window_sums = sums[period:] - sums[:-period]
+        means = window_sums / float(period)
     # Compute the deviation around each window's own mean. Windows with any
     # invalid bar are ignored anyway, so the zero-filled placeholder is safe.
     from numpy.lib.stride_tricks import sliding_window_view
 
     windows = sliding_window_view(safe, period)
     deviations = windows - means[:, None]
-    variances = np.mean(deviations * deviations, axis=1)
+    deviations *= deviations
+    variances = np.mean(deviations, axis=1)
     variances = np.where(np.isfinite(variances) & (variances >= 0.0), variances, 0.0)
     sigmas = np.sqrt(variances) * float(num_std)
-    middle[period - 1:] = np.where(all_valid, means, np.nan)
+    middle_out[period - 1:] = np.where(all_valid, means, np.nan)
     upper[period - 1:] = np.where(all_valid, means + sigmas, np.nan)
     lower[period - 1:] = np.where(all_valid, means - sigmas, np.nan)
-    return upper, middle, lower
+    return upper, middle_out, lower
 
 
 def detect_sma_crosses(
@@ -163,32 +178,33 @@ def detect_sma_crosses(
     if n < 2:
         return []
     times_list = list(times)
-    crosses: list[dict] = []
     start = max(int(earliest_index), 1)
-    for i in range(start, n):
-        if partial_last and i == n - 1:
-            continue
-        fast_i = fast_arr[i]
-        slow_i = slow_arr[i]
-        fast_prev = fast_arr[i - 1]
-        slow_prev = slow_arr[i - 1]
-        if not (
-            np.isfinite(fast_i)
-            and np.isfinite(slow_i)
-            and np.isfinite(fast_prev)
-            and np.isfinite(slow_prev)
-        ):
-            continue
-        gap = float(fast_i - slow_i)
-        prev_gap = float(fast_prev - slow_prev)
-        eps = _CROSS_EPS_FACTOR * max(1.0, abs(float(fast_i)), abs(float(slow_i)))
-        kind = None
-        if prev_gap <= 0.0 and gap > eps:
-            kind = "golden"
-        elif prev_gap >= 0.0 and gap < -eps:
-            kind = "death"
-        if kind is None:
-            continue
+    end = n - 1 if partial_last else n
+    if end <= start:
+        return []
+
+    fast_cur = fast_arr[start:end]
+    slow_cur = slow_arr[start:end]
+    fast_prev = fast_arr[start - 1:end - 1]
+    slow_prev = slow_arr[start - 1:end - 1]
+    valid = (
+        np.isfinite(fast_cur)
+        & np.isfinite(slow_cur)
+        & np.isfinite(fast_prev)
+        & np.isfinite(slow_prev)
+    )
+    gap = fast_cur - slow_cur
+    prev_gap = fast_prev - slow_prev
+    eps = _CROSS_EPS_FACTOR * np.maximum(
+        1.0, np.maximum(np.abs(fast_cur), np.abs(slow_cur))
+    )
+    golden = valid & (prev_gap <= 0.0) & (gap > eps)
+    death = valid & (prev_gap >= 0.0) & (gap < -eps)
+
+    crosses: list[dict] = []
+    for offset in np.flatnonzero(golden | death):
+        i = start + int(offset)
+        kind = "golden" if golden[offset] else "death"
         t = times_list[i] if i < len(times_list) else str(i)
         crosses.append({"t": str(t), "kind": kind})
     return crosses
@@ -196,46 +212,83 @@ def detect_sma_crosses(
 
 def _candle_list(candles) -> list:
     """Accept the wire candle list or a normalized OHLCV DataFrame."""
-    if not isinstance(candles, pd.DataFrame):
-        return list(candles or [])
-    frame = candles
-    columns = {str(col).lower(): col for col in frame.columns}
-    if not {"open", "high", "low", "close"}.issubset(columns):
+    if isinstance(candles, pd.DataFrame):
+        frame = candles
+        columns = {str(col).lower(): col for col in frame.columns}
+        if not {"open", "high", "low", "close"}.issubset(columns):
+            return []
+        times = frame["t"] if "t" in frame.columns else frame.index
+        out: list[dict] = []
+        for i, (stamp, open_, high, low, close) in enumerate(
+            zip(
+                times,
+                frame[columns["open"]],
+                frame[columns["high"]],
+                frame[columns["low"]],
+                frame[columns["close"]],
+            )
+        ):
+            volume = frame[columns["volume"]].iloc[i] if "volume" in columns else None
+            out.append(
+                {
+                    "t": stamp.isoformat() if hasattr(stamp, "isoformat") else stamp,
+                    "o": open_,
+                    "h": high,
+                    "l": low,
+                    "c": close,
+                    "v": volume,
+                }
+            )
+        return out
+    if isinstance(candles, list):
+        # The wire path already hands us a list; copying it per call was pure
+        # overhead and no caller mutates the result.
+        return candles
+    if candles is None:
         return []
-    times = frame["t"] if "t" in frame.columns else frame.index
-    out: list[dict] = []
-    for i, (stamp, open_, high, low, close) in enumerate(
-        zip(
-            times,
-            frame[columns["open"]],
-            frame[columns["high"]],
-            frame[columns["low"]],
-            frame[columns["close"]],
+    try:
+        return list(candles)
+    except TypeError:
+        return []
+
+
+def _float_column(candles: Sequence, key: str, n: int) -> np.ndarray:
+    """One float column from candle dicts, vectorised for numeric wire values."""
+    try:
+        return np.array([candle.get(key) for candle in candles], dtype=float)
+    except (TypeError, ValueError):
+        # Non-numeric/odd value: preserve the per-value coercion contract.
+        return np.fromiter(
+            (_float_or_nan(candle.get(key)) for candle in candles),
+            dtype=float,
+            count=n,
         )
-    ):
-        volume = frame[columns["volume"]].iloc[i] if "volume" in columns else None
-        out.append(
-            {
-                "t": stamp.isoformat() if hasattr(stamp, "isoformat") else stamp,
-                "o": open_,
-                "h": high,
-                "l": low,
-                "c": close,
-                "v": volume,
-            }
-        )
-    return out
 
 
 def _candle_arrays(candles: Sequence) -> tuple[np.ndarray, ...]:
     """Extract ``(t, open, high, low, close, volume)`` from the wire candles."""
     n = len(candles)
+    if n == 0:
+        empty = np.empty(0, dtype=float)
+        return [], empty, empty, empty, empty, empty
+
+    if all(isinstance(candle, dict) for candle in candles):
+        times = [candle.get("t", str(i)) for i, candle in enumerate(candles)]
+        return (
+            times,
+            _float_column(candles, "o", n),
+            _float_column(candles, "h", n),
+            _float_column(candles, "l", n),
+            _float_column(candles, "c", n),
+            _float_column(candles, "v", n),
+        )
+
     opens = np.full(n, np.nan, dtype=float)
     highs = np.full(n, np.nan, dtype=float)
     lows = np.full(n, np.nan, dtype=float)
     closes = np.full(n, np.nan, dtype=float)
     volumes = np.full(n, np.nan, dtype=float)
-    times: list = []
+    times = []
     for i, candle in enumerate(candles):
         if not isinstance(candle, dict):
             times.append(str(i))
@@ -309,6 +362,94 @@ def _session_anchored(value, session: str) -> bool:
     return (ts.hour * 60 + ts.minute) <= (open_hm[0] * 60 + open_hm[1])
 
 
+def _session_keys(values, session: str):
+    """Exchange-local calendar dates for every bar, or a per-value fallback.
+
+    Returns ``(dates, minutes)``; ``minutes`` is the exchange-local
+    minute-of-day array when the vectorised ISO-8601 path succeeded and
+    ``None`` when the caller must fall back to :func:`_session_anchored`
+    (mixed offsets, naive values, malformed strings). The fallback keeps the
+    exact per-value semantics for every non-standard input while the normal
+    wire path parses the whole window in one pandas call.
+    """
+    n = len(values)
+    if n == 0:
+        return [], None
+    try:
+        if all(isinstance(value, str) for value in values):
+            index = pd.to_datetime(values, format="ISO8601", errors="coerce")
+            if not bool(index.isna().any()):
+                if index.tz is None:
+                    index = index.tz_localize(session)
+                else:
+                    index = index.tz_convert(session)
+                return index.date, index.hour * 60 + index.minute
+    except Exception:
+        pass
+    return [_session_key(value, session) for value in values], None
+
+
+def _vwap_from_arrays(
+    times: Sequence,
+    opens: np.ndarray,
+    highs: np.ndarray,
+    lows: np.ndarray,
+    closes: np.ndarray,
+    volumes: np.ndarray,
+    session: str,
+) -> np.ndarray:
+    """Session-reset VWAP over already-extracted candle arrays."""
+    n = len(times)
+    out = np.full(n, np.nan, dtype=float)
+    if n == 0:
+        return out
+    invalid = invalid_price_mask(opens, highs, lows, closes)
+    keys, minutes = _session_keys(times, session)
+    open_hm = SESSION_OPENS.get(session)
+    open_minute = open_hm[0] * 60 + open_hm[1] if open_hm is not None else None
+    current_key = object()
+    cumulative_pv = 0.0
+    cumulative_vol = 0.0
+    previous_value = float("nan")
+    anchored = True
+    for i in range(n):
+        key = keys[i]
+        if key is None:
+            out[i] = np.nan
+            continue
+        if key != current_key:
+            current_key = key
+            cumulative_pv = 0.0
+            cumulative_vol = 0.0
+            previous_value = float("nan")
+            if minutes is not None:
+                anchored = open_minute is None or int(minutes[i]) <= open_minute
+            else:
+                anchored = _session_anchored(times[i], session)
+        if not anchored:
+            out[i] = np.nan
+            continue
+        volume = float(volumes[i])
+        if invalid[i] or not np.isfinite(volume) or volume < 0.0:
+            out[i] = np.nan
+            continue
+        if volume == 0.0:
+            # Inside a session, a no-trade bar holds the last VWAP; before the
+            # first trade (or in an all-zero session) it stays null.
+            out[i] = previous_value
+            continue
+        typical = (float(highs[i]) + float(lows[i]) + float(closes[i])) / 3.0
+        if not np.isfinite(typical) or typical <= 0.0:
+            out[i] = np.nan
+            continue
+        cumulative_pv += typical * volume
+        cumulative_vol += volume
+        value = cumulative_pv / cumulative_vol if cumulative_vol > 0.0 else float("nan")
+        out[i] = value
+        previous_value = value
+    return out
+
+
 def compute_vwap(
     candles: Sequence,
     session: str = "Asia/Kolkata",
@@ -341,55 +482,48 @@ def compute_vwap(
         return None
     candles = _candle_list(candles)
     times, opens, highs, lows, closes, volumes = _candle_arrays(candles)
-    n = len(candles)
-    out = np.full(n, np.nan, dtype=float)
-    invalid = invalid_price_mask(opens, highs, lows, closes)
-    current_key = object()
-    cumulative_pv = 0.0
-    cumulative_vol = 0.0
-    previous_value = float("nan")
-    anchored = True
-    for i in range(n):
-        key = _session_key(times[i], session)
-        if key is None:
-            out[i] = np.nan
-            continue
-        if key != current_key:
-            current_key = key
-            cumulative_pv = 0.0
-            cumulative_vol = 0.0
-            previous_value = float("nan")
-            anchored = _session_anchored(times[i], session)
-        if not anchored:
-            out[i] = np.nan
-            continue
-        volume = float(volumes[i])
-        if invalid[i] or not np.isfinite(volume) or volume < 0.0:
-            out[i] = np.nan
-            continue
-        if volume == 0.0:
-            # Inside a session, a no-trade bar holds the last VWAP; before the
-            # first trade (or in an all-zero session) it stays null.
-            out[i] = previous_value
-            continue
-        typical = (float(highs[i]) + float(lows[i]) + float(closes[i])) / 3.0
-        if not np.isfinite(typical) or typical <= 0.0:
-            out[i] = np.nan
-            continue
-        cumulative_pv += typical * volume
-        cumulative_vol += volume
-        value = cumulative_pv / cumulative_vol if cumulative_vol > 0.0 else float("nan")
-        out[i] = value
-        previous_value = value
-    return out
+    return _vwap_from_arrays(
+        times, opens, highs, lows, closes, volumes, session
+    )
 
 
 def _values_to_json(values: np.ndarray) -> list[Optional[float]]:
     """Finite floats stay numbers; everything else becomes ``null``."""
-    out: list[Optional[float]] = []
-    for value in np.asarray(values, dtype=float):
-        out.append(float(value) if np.isfinite(value) else None)
-    return out
+    return _values_to_json_batch([values])[0]
+
+
+def _values_to_json_batch(
+    arrays: Sequence[np.ndarray],
+) -> list[list[Optional[float]]]:
+    """Convert aligned series to JSON-ready rows with one mask per series batch.
+
+    ``astype(object)`` + masked assignment replaces a per-value ``isfinite`` /
+    ``float`` Python loop; the all-finite fast path is a plain ``tolist()``.
+    """
+    if not arrays:
+        return []
+    rows = [np.asarray(values, dtype=float) for values in arrays]
+    size = rows[0].size
+    if all(values.size == size for values in rows):
+        matrix = np.empty((len(rows), size), dtype=float)
+        for i, values in enumerate(rows):
+            matrix[i] = values
+        finite = np.isfinite(matrix)
+        if bool(finite.all()):
+            return matrix.tolist()
+        out = matrix.astype(object)
+        out[~finite] = None
+        return out.tolist()
+    converted: list[list[Optional[float]]] = []
+    for values in rows:
+        finite = np.isfinite(values)
+        if bool(finite.all()):
+            converted.append(values.tolist())
+        else:
+            obj = values.astype(object)
+            obj[~finite] = None
+            converted.append(obj.tolist())
+    return converted
 
 
 def _normalise_partial_last(candles: Sequence, partial_last: Optional[bool]) -> bool:
@@ -421,34 +555,57 @@ def compute_indicators(
     timeframe = str(timeframe or "")
     session = str(session or session_for_market(market))
     partial = _normalise_partial_last(candles, partial_last)
-    times, opens, highs, lows, closes, _volumes = _candle_arrays(candles)
+    times, opens, highs, lows, closes, volumes = _candle_arrays(candles)
     invalid = invalid_price_mask(opens, highs, lows, closes)
     clean_close = np.where(invalid, np.nan, closes)
 
-    series: list[dict] = []
     sma_by_period: dict[int, np.ndarray] = {}
     for period in SMA_PERIODS:
-        values = sma(clean_close, period)
-        sma_by_period[period] = values
-        series.append({"id": f"sma{period}", "values": _values_to_json(values)})
+        sma_by_period[period] = sma(clean_close, period)
 
-    upper, middle, lower = bollinger_bands(clean_close)
-    series.extend(
-        [
-            {"id": "bbUpper", "values": _values_to_json(upper)},
-            {"id": "bbMiddle", "values": _values_to_json(middle)},
-            {"id": "bbLower", "values": _values_to_json(lower)},
-        ]
+    upper, middle, lower = bollinger_bands(
+        clean_close, middle=sma_by_period[BOLLINGER_PERIOD]
     )
+    specs: list[tuple[str, np.ndarray]] = [
+        ("sma20", sma_by_period[20]),
+        ("sma50", sma_by_period[50]),
+        ("sma200", sma_by_period[200]),
+        ("bbUpper", upper),
+        ("bbMiddle", middle),
+        ("bbLower", lower),
+    ]
 
     if timeframe in INTRADAY_TIMEFRAMES:
         warmup_candles = _candle_list(warmup) if warmup else []
-        computed = compute_vwap(
-            list(warmup_candles) + candles, session=session, timeframe=timeframe
+        if warmup_candles:
+            w_times, w_opens, w_highs, w_lows, w_closes, w_volumes = _candle_arrays(
+                warmup_candles
+            )
+            all_times = w_times + times
+            all_opens = np.concatenate((w_opens, opens))
+            all_highs = np.concatenate((w_highs, highs))
+            all_lows = np.concatenate((w_lows, lows))
+            all_closes = np.concatenate((w_closes, closes))
+            all_volumes = np.concatenate((w_volumes, volumes))
+        else:
+            all_times, all_opens, all_highs = times, opens, highs
+            all_lows, all_closes, all_volumes = lows, closes, volumes
+        computed = _vwap_from_arrays(
+            all_times,
+            all_opens,
+            all_highs,
+            all_lows,
+            all_closes,
+            all_volumes,
+            session,
         )
-        if computed is not None:
-            displayed = computed[len(warmup_candles):]
-            series.append({"id": "vwap", "values": _values_to_json(displayed)})
+        specs.append(("vwap", computed[len(warmup_candles):]))
+
+    converted = _values_to_json_batch([values for _, values in specs])
+    series = [
+        {"id": series_id, "values": values}
+        for (series_id, _), values in zip(specs, converted)
+    ]
 
     crosses = detect_sma_crosses(
         sma_by_period[50],
