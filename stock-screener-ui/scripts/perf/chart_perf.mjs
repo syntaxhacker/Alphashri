@@ -147,25 +147,10 @@ async function installAuth(context) {
     localStorage.setItem("alphashri_refresh_token", "chart_perf_opaque_refresh");
     localStorage.setItem("alphashri_user", JSON.stringify(user));
   }, USER);
-  await context.addInitScript(() => {
-    const live = new Map();
-    const add = EventTarget.prototype.addEventListener;
-    const remove = EventTarget.prototype.removeEventListener;
-    EventTarget.prototype.addEventListener = function addListener(type, listener, options) {
-      const capture = typeof options === "boolean" ? options : Boolean(options?.capture);
-      const key = `${String(type)}|${capture ? 1 : 0}`;
-      live.set(key, (live.get(key) ?? 0) + 1);
-      return add.call(this, type, listener, options);
-    };
-    EventTarget.prototype.removeEventListener = function removeListener(type, listener, options) {
-      const capture = typeof options === "boolean" ? options : Boolean(options?.capture);
-      const key = `${String(type)}|${capture ? 1 : 0}`;
-      live.set(key, Math.max(0, (live.get(key) ?? 0) - 1));
-      return remove.call(this, type, listener, options);
-    };
-    window.__chartPerfListenerCount = () =>
-      [...live.values()].reduce((total, count) => total + count, 0);
-  });
+  // Listener counts come from CDP Performance.getMetrics(JSEventListeners),
+  // not from patching add/removeEventListener: the latter counts attaches to
+  // DOM nodes that are later removed and GC'd without an explicit remove,
+  // inflating the delta. See openListenerMetrics()/liveListenerCount().
 }
 
 async function installMocks(context, fixtures) {
@@ -458,53 +443,76 @@ async function forceGc(page) {
   await page.waitForTimeout(150);
 }
 
+// A single CDP session is kept open across the before/after reads so the
+// Performance domain stays enabled and the metric is sampled consistently.
+async function openListenerMetrics(page) {
+  const client = await page.context().newCDPSession(page);
+  await client.send("Performance.enable");
+  return client;
+}
+
+async function liveListenerCount(client) {
+  const { metrics } = await client.send("Performance.getMetrics");
+  const metric = metrics.find((entry) => entry.name === "JSEventListeners");
+  if (!metric || !Number.isFinite(metric.value)) return null;
+  return Math.round(metric.value);
+}
+
 async function measureCycles(page, budgets) {
-  await forceGc(page);
-  const heapBefore = await heapUsed(page);
-  const canvasesBefore = await page.locator("canvas").count();
-  const listenersBefore = await page.evaluate(() => window.__chartPerfListenerCount?.() ?? 0);
+  const listenerClient = await openListenerMetrics(page);
+  try {
+    await forceGc(page);
+    const heapBefore = await heapUsed(page);
+    const canvasesBefore = await page.locator("canvas").count();
+    const listenersBefore = await liveListenerCount(listenerClient);
 
-  const switches = budgets.measurement.cycles.timeframe_switches;
-  for (let index = 0; index < switches; index += 1) {
-    await selectTimeframe(page, TF_IDS[index % TF_IDS.length]);
+    const switches = budgets.measurement.cycles.timeframe_switches;
+    for (let index = 0; index < switches; index += 1) {
+      await selectTimeframe(page, TF_IDS[index % TF_IDS.length]);
+    }
+
+    const toggles = budgets.measurement.cycles.menu_toggles;
+    for (let index = 0; index < toggles; index += 1) {
+      await openIndicators(page);
+      await closeIndicators(page);
+    }
+
+    const fullscreenCycles = budgets.measurement.cycles.fullscreen_cycles;
+    for (let index = 0; index < fullscreenCycles; index += 1) {
+      await page.locator('[data-testid="chart-expand"]').click();
+      await page
+        .locator('[data-testid="patterns-fullscreen-modal"]')
+        .waitFor({ state: "visible", timeout: 10000 });
+      await page.keyboard.press("Escape");
+      await page
+        .locator('[data-testid="patterns-fullscreen-modal"]')
+        .waitFor({ state: "hidden", timeout: 10000 });
+    }
+
+    await page.waitForTimeout(250);
+    await forceGc(page);
+    const heapAfter = await heapUsed(page);
+    const canvasesAfter = await page.locator("canvas").count();
+    const listenersAfter = await liveListenerCount(listenerClient);
+
+    return {
+      heap_before_bytes: heapBefore,
+      heap_after_bytes: heapAfter,
+      heap_growth_mb:
+        heapBefore == null || heapAfter == null
+          ? null
+          : round((heapAfter - heapBefore) / 1_000_000),
+      canvas_before: canvasesBefore,
+      canvas_after: canvasesAfter,
+      canvas_growth: canvasesAfter - canvasesBefore,
+      listeners_before: listenersBefore,
+      listeners_after: listenersAfter,
+      listener_growth:
+        listenersBefore == null || listenersAfter == null ? null : listenersAfter - listenersBefore,
+    };
+  } finally {
+    await listenerClient.detach().catch(() => {});
   }
-
-  const toggles = budgets.measurement.cycles.menu_toggles;
-  for (let index = 0; index < toggles; index += 1) {
-    await openIndicators(page);
-    await closeIndicators(page);
-  }
-
-  const fullscreenCycles = budgets.measurement.cycles.fullscreen_cycles;
-  for (let index = 0; index < fullscreenCycles; index += 1) {
-    await page.locator('[data-testid="chart-expand"]').click();
-    await page
-      .locator('[data-testid="patterns-fullscreen-modal"]')
-      .waitFor({ state: "visible", timeout: 10000 });
-    await page.keyboard.press("Escape");
-    await page
-      .locator('[data-testid="patterns-fullscreen-modal"]')
-      .waitFor({ state: "hidden", timeout: 10000 });
-  }
-
-  await page.waitForTimeout(250);
-  await forceGc(page);
-  const heapAfter = await heapUsed(page);
-  const canvasesAfter = await page.locator("canvas").count();
-  const listenersAfter = await page.evaluate(() => window.__chartPerfListenerCount?.() ?? 0);
-
-  return {
-    heap_before_bytes: heapBefore,
-    heap_after_bytes: heapAfter,
-    heap_growth_mb:
-      heapBefore == null || heapAfter == null ? null : round((heapAfter - heapBefore) / 1_000_000),
-    canvas_before: canvasesBefore,
-    canvas_after: canvasesAfter,
-    canvas_growth: canvasesAfter - canvasesBefore,
-    listeners_before: listenersBefore,
-    listeners_after: listenersAfter,
-    listener_growth: listenersAfter - listenersBefore,
-  };
 }
 
 function exceptionFor(budgets, target) {

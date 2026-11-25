@@ -13,6 +13,11 @@ Usage:
         --out /workspaces/react/.agent-artifacts/chart-perf/fixtures \
         --symbol POWERGRID.NS --bars 500 --as-of 2026-11-24
 
+    # No network: re-time the candles already in fixtures.json and refresh
+    # only manifest.json (5 warm-ups + 30 measured runs by default).
+    python scripts/perf/gen_chart_fixtures.py --from-fixtures \
+        --out /workspaces/react/.agent-artifacts/chart-perf/fixtures
+
 Artifacts (under --out):
     fixtures.json   per-timeframe {candles, indicators, sr_zones}
     manifest.json   sources, actual bar counts, hardware, indicator timings
@@ -245,9 +250,12 @@ def _compute_raw(candles: list[dict], tf_id: str) -> tuple[dict, list]:
     return indicators, zones
 
 
-def _measure_extras(candles: list[dict], tf_id: str, runs: int) -> tuple[dict, dict]:
+def _measure_extras(
+    candles: list[dict], tf_id: str, runs: int, warmups: int = 1
+) -> tuple[dict, dict]:
     # Warm-up: imports, numpy plans and pandas paths are not part of the gate.
-    _compute_raw(candles, tf_id)
+    for _ in range(max(0, warmups)):
+        _compute_raw(candles, tf_id)
     samples: list[float] = []
     indicators: dict = {}
     zones: list = []
@@ -297,24 +305,93 @@ def _hardware() -> dict:
     }
 
 
+def measure_existing_fixtures(out_dir: Path, runs: int, warmups: int) -> int:
+    """Re-time real candles already on disk; rewrite only manifest.json."""
+    fixtures_path = out_dir / "fixtures.json"
+    if not fixtures_path.exists():
+        raise SystemExit(f"missing {fixtures_path}; generate fixtures first")
+    fixture_payload = json.loads(fixtures_path.read_text(encoding="utf-8"))
+    timeframes = fixture_payload.get("timeframes") or {}
+    expected = [tf.id for tf in _enabled_timeframes()]
+    if sorted(timeframes) != sorted(expected):
+        raise SystemExit(
+            f"expected timeframes {expected} in {fixtures_path}, got {sorted(timeframes)}"
+        )
+
+    print(
+        f"re-timing existing fixtures: {fixture_payload.get('symbol')} "
+        f"tfs={expected} warmups={warmups} runs={runs}"
+    )
+    manifest_rows: dict[str, dict] = {}
+    for tf_id in expected:
+        fixture = timeframes[tf_id]
+        candles = fixture["candles"]
+        _, timings = _measure_extras(candles, tf_id, runs, warmups)
+        extras = {
+            "indicators": fixture.get("indicators"),
+            "sr_zones": fixture.get("sr_zones", []),
+        }
+        manifest_rows[tf_id] = {
+            "bars": len(candles),
+            "first_bar": candles[0]["t"],
+            "last_bar": candles[-1]["t"],
+            "indicator_ms": timings,
+            "payload": _payload_sizes(candles, extras, fixture_payload.get("symbol", "")),
+        }
+        print(
+            f"  {tf_id:<3} {len(candles):>4} bars  "
+            f"indicator p95 {timings['p95_ms']:.1f} ms  "
+            f"median {timings['median_ms']:.1f} ms"
+        )
+
+    manifest = {
+        "schema_version": 1,
+        "symbol": fixture_payload.get("symbol"),
+        "as_of": fixture_payload.get("as_of"),
+        "generated_at": datetime.now(IST).isoformat(timespec="seconds"),
+        "bars_requested": fixture_payload.get("bars_requested"),
+        "runs": runs,
+        "warmup_runs": warmups,
+        "timeframe_ids": expected,
+        "hardware": _hardware(),
+        "source": "existing fixtures.json candles + real compute_indicators/compute_sr_zones (no yfinance download)",
+        "timeframes": manifest_rows,
+    }
+    manifest_path = out_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    print(f"wrote {manifest_path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default=None, help="output directory (fixtures.json + manifest.json)")
+    parser.add_argument("--from-fixtures", action="store_true",
+                        help="reuse fixtures.json candles and rewrite only manifest.json (no network)")
     parser.add_argument("--symbol", default=DEFAULT_SYMBOL, help="yfinance symbol")
     parser.add_argument("--bars", type=int, default=DEFAULT_BARS, help="max bars per timeframe")
     parser.add_argument("--as-of", type=_parse_date, default=None, help="last session (YYYY-MM-DD)")
-    parser.add_argument("--runs", type=int, default=DEFAULT_RUNS, help="measured backend runs")
+    parser.add_argument("--runs", type=int, default=None,
+                        help="measured backend runs (default 3 fresh / 30 --from-fixtures)")
+    parser.add_argument("--warmups", type=int, default=5,
+                        help="warm-up runs for --from-fixtures (default 5)")
     args = parser.parse_args(argv)
 
     if args.bars <= 0:
         parser.error("--bars must be > 0")
-    if args.runs <= 0:
+    runs = args.runs if args.runs is not None else (30 if args.from_fixtures else DEFAULT_RUNS)
+    if runs <= 0:
         parser.error("--runs must be > 0")
+    if args.warmups < 0:
+        parser.error("--warmups must be >= 0")
+
+    out_dir = Path(args.out).expanduser() if args.out else _artifact_root() / "fixtures"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if args.from_fixtures:
+        return measure_existing_fixtures(out_dir, runs, args.warmups)
 
     as_of = args.as_of or _default_as_of()
     end_ts = pd.Timestamp(as_of, tz=IST) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
-    out_dir = Path(args.out).expanduser() if args.out else _artifact_root() / "fixtures"
-    out_dir.mkdir(parents=True, exist_ok=True)
 
     timeframes = _enabled_timeframes()
     unexpected = [tf.id for tf in timeframes if tf.id not in SOURCE_PLAN]
@@ -331,7 +408,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         f"fixtures: {args.symbol} as-of {as_of} bars<={args.bars} "
-        f"tfs={[tf.id for tf in timeframes]} runs={args.runs}"
+        f"tfs={[tf.id for tf in timeframes]} runs={runs}"
     )
     for tf in timeframes:
         interval, days = SOURCE_PLAN[tf.id]
@@ -346,7 +423,7 @@ def main(argv: list[str] | None = None) -> int:
             candles = _candles_json(frame, args.bars)
             if not candles:
                 raise RuntimeError("candle serialization produced no bars")
-            extras, timings = _measure_extras(candles, tf.id, args.runs)
+            extras, timings = _measure_extras(candles, tf.id, runs)
             sizes = _payload_sizes(candles, extras, args.symbol)
             fixtures[tf.id] = {
                 "bars": len(candles),
@@ -397,7 +474,7 @@ def main(argv: list[str] | None = None) -> int:
         "as_of": as_of.isoformat(),
         "generated_at": generated_at,
         "bars_requested": args.bars,
-        "runs": args.runs,
+        "runs": runs,
         "warmup_runs": 1,
         "timeframe_ids": [tf.id for tf in timeframes],
         "hardware": _hardware(),

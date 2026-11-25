@@ -84,8 +84,19 @@ the only network step:
   explicit completed session for repeatable comparisons.
 
 The generator writes `fixtures.json` and `manifest.json`. `manifest.json`
-carries per-timeframe indicator+zone timings (1 warm-up + 3 measured runs,
-median and p95) used by the backend budget check.
+carries per-timeframe indicator+zone timings used by the backend budget check
+(1 warm-up + 3 measured runs on a fresh download; 5 warm-ups + 30 measured
+runs when re-timing existing fixtures offline with `--from-fixtures`).
+
+Re-timing the real candles already on disk requires no network:
+
+```bash
+python scripts/perf/gen_chart_fixtures.py --from-fixtures \
+  --out /workspaces/react/.agent-artifacts/chart-perf/fixtures
+```
+
+This rewrites only `manifest.json`; `fixtures.json` (including its recorded
+indicators and zones) is left untouched.
 
 ## Methodology
 
@@ -102,6 +113,11 @@ median and p95) used by the backend budget check.
   harness. Contended timings are a range, not a number.
 - **Record hardware and date** in every result (`chart-perf-results.json` does
   this automatically: CPU model/count, RAM, OS, Node, browser, viewport).
+- Listener counts come from a live CDP source (`Performance.getMetrics` →
+  `JSEventListeners`) before and after the stress cycles, with forced GC.
+  Patching `addEventListener`/`removeEventListener` is deliberately **not**
+  used: listeners on DOM nodes that are removed and garbage-collected never
+  call `removeEventListener`, so that counter over-reports growth.
 - Route-load and timeframe-switch numbers come from the **real UI** with the
   backend mocked from the generated fixtures, so they isolate client work.
   Backend indicator+zone numbers come from the Python fixture generator.
@@ -120,7 +136,7 @@ are decimal bytes (1 KB = 1000 B); MB is 1,000,000 bytes.
 | Frame during pan/zoom | **p95 < 33 ms** | p95 | rAF deltas while dragging and wheel-zooming the chart |
 | Long task during interaction | **none > 200 ms** | max | `PerformanceObserver("longtask")` during the same interaction |
 | Heap growth after 20 switches + 10 menu toggles + 5 fullscreen cycles | **< 20 MB** | max | `performance.memory.usedJSHeapSize` before/after, forced GC |
-| Canvas/listener counts | **stable** (growth ≤ 0) | max | DOM `canvas` count + instrumented add/remove-listener delta |
+| Canvas/listener counts | **stable** (growth ≤ 0) | max | DOM `canvas` count + CDP `Performance.getMetrics` → `JSEventListeners` delta before/after the cycles |
 | Indicator payload for 500 bars | **< 150 KB raw, < 30 KB gzip** | max | UTF-8 JSON of `{indicators, sr_zones}` and its gzip |
 | Backend indicator+zones per TF | **p95 < 100 ms** | p95 | real `compute_indicators` + `compute_sr_zones` in the fixture generator |
 | Toggle all-on / all-off | **< 300 ms** | median | one in-page click sequence over every enabled menu row, through the next frame |
