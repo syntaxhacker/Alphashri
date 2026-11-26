@@ -262,7 +262,10 @@ describe("SectorHistoryTab", () => {
     expect(within(table).getByText("0.0%")).toBeInTheDocument();
     expect(within(table).queryByText("+0.0%")).not.toBeInTheDocument();
     expect(within(table).getAllByText("—").length).toBeGreaterThanOrEqual(3);
-    expect(within(table).getByText("Cumulative return")).toBeInTheDocument();
+    expect(screen.getByTestId("sector-history-risk-spark-Technology")).toHaveAttribute(
+      "aria-label",
+      "Cumulative return +4.3%",
+    );
     expect(screen.getByTestId("sector-history-risk-spark-Technology")).toHaveAttribute(
       "title",
       "Cumulative return +4.3%",
@@ -409,31 +412,25 @@ describe("SectorHistoryTab", () => {
     }
   });
 
-  test("pins the risk sector column and exposes the table scrollport as a region", async () => {
+  test("renders the risk panel as direct-labeled drawdown bars without table chrome", async () => {
     mockFetchSectorHistory.mockResolvedValue(response());
     renderTab();
     await screen.findByTestId("sector-history-risk-table");
 
     const panel = screen.getByTestId("sector-history-risk-panel");
-    const scroller = panel.querySelector<HTMLElement>(".paper-tanstack-scroll")!;
-    expect(scroller).not.toBeNull();
-    await waitFor(() => {
-      expect(scroller).toHaveAttribute("role", "region");
-    });
-    expect(scroller).toHaveAttribute("tabindex", "0");
-    expect(scroller).toHaveAttribute(
-      "aria-label",
-      "Sector history risk metrics, scroll sideways for all columns",
-    );
+    const bars = screen.getByTestId("sector-history-risk-table");
+    expect(bars.tagName).not.toBe("TABLE");
+    expect(bars.querySelector("table, thead, tbody, tr, td, th")).toBeNull();
+    expect(panel.querySelector(".paper-tanstack-scroll")).toBeNull();
+    expect(within(panel).queryByTestId("sector-history-risk-sticky-style")).not.toBeInTheDocument();
     expect(within(panel).queryByTestId("sector-history-risk-scroll-hint")).not.toBeInTheDocument();
-    const sticky = within(panel).getByTestId("sector-history-risk-sticky-style");
-    expect(sticky.textContent).toContain("td:first-child");
-    expect(sticky.textContent).toContain("position: sticky");
-    const table = screen.getByTestId("sector-history-risk-table");
-    expect(table).toBeInTheDocument();
+
+    const rows = within(bars).getAllByTestId(/^sector-history-risk-row-/);
+    expect(rows.map((row) => row.getAttribute("data-sector"))).toEqual(["Technology", "Banking"]);
     const spark = screen.getByTestId("sector-history-risk-spark-Technology");
     expect(spark).toHaveClass("flex");
     expect(spark).not.toHaveClass("inline-flex");
+    expect(screen.getByTestId("sector-history-risk-bar-Technology")).toBeInTheDocument();
   });
 
   test("Rotation Lab shows all six advanced panels", async () => {

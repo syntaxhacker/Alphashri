@@ -9,7 +9,7 @@ import type {
 import { HistoryPanel } from "./HistoryLab";
 import { HistoryScroller } from "./HistoryScroller";
 import { HistoryPanelEmpty } from "./HistoryStates";
-import { RiskTable } from "./RiskTable";
+import { RiskDrawdownPanel } from "./risk/RiskDrawdownPanel";
 import { SectorRankHeatmap, SectorRankSummary } from "./visuals/SectorRankHeatmap";
 import { SeasonalityHeatmap } from "./visuals/SeasonalityHeatmap";
 import { PersistenceMatrix } from "./visuals/PersistenceMatrix";
@@ -142,7 +142,7 @@ export function HistoryOverview(props: HistoryOverviewProps) {
             />
           }
         >
-          <RiskTable risk={props.risk} series={props.series} />
+          <RiskDrawdownPanel risk={props.risk} series={props.series} />
         </Show>
       </HistoryPanel>
 
