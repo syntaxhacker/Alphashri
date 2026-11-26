@@ -241,11 +241,11 @@ show_logs() {
 
 # ── Main ──────────────────────────────────────────────────────────────
 check_prereqs || exit 1
-setup_log
 activate_venv ".venv"
 
 case "${1:-status}" in
   start)
+    setup_log
     start_backend
     start_frontend
     $START_BOTS && start_bots
@@ -260,6 +260,7 @@ case "${1:-status}" in
     echo "All stopped."
     ;;
   restart)
+    setup_log
     mode="${2:-dev}"
     [ "$mode" = "prod" ] && RELOAD_FLAG=""
     echo "Restarting in $mode mode..."
@@ -271,6 +272,7 @@ case "${1:-status}" in
     show_status
     ;;
   dev)
+    setup_log
     start_backend
     start_frontend
     $START_BOTS && start_bots
@@ -280,6 +282,7 @@ case "${1:-status}" in
     wait
     ;;
   prod)
+    setup_log
     RELOAD_FLAG=""
     echo "Starting in production mode (no reload)..."
     start_backend
@@ -310,9 +313,11 @@ case "${1:-status}" in
     show_logs "${1:-50}"
     ;;
   backend|api)
+    setup_log
     start_backend
     ;;
   frontend|ui)
+    setup_log
     start_frontend
     ;;
   *)
