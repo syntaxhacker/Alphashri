@@ -200,13 +200,6 @@ export function PatternsContainer() {
   let firstRun = true;
   let parsed: ParsedPatternParams | null = null;
   let lastWritten = "";
-  /** Search we just wrote; a stale URL must not be read back over a local edit. */
-  let localWriteTarget: string | null = null;
-  /** Trailing debounce: a burst of filter edits gets one URL commit. */
-  let writeTimer: ReturnType<typeof setTimeout> | null = null;
-  onCleanup(() => {
-    if (writeTimer != null) clearTimeout(writeTimer);
-  });
 
   const currentState = () => ({
     universe: universe(),
@@ -220,6 +213,34 @@ export function PatternsContainer() {
     members: members(),
     filters: filters(),
   });
+
+  /** Adopt a parsed URL into the store, ignoring fields that already match. */
+  function applyUrlState(p: ParsedPatternParams): void {
+    if (p.universe && p.universe !== universe()) selectUniverse(p.universe);
+    if (p.timeframes) {
+      if (!filterValuesEqual(selectedTimeframes() ?? [timeframe()], p.timeframes)) {
+        selectTimeframes(p.timeframes);
+      }
+    } else if (p.timeframe && p.timeframe !== timeframe()) {
+      selectTimeframe(p.timeframe);
+    }
+    if ((p.lookback ?? null) !== (lookbackBars() ?? null)) setLookbackBars(p.lookback);
+    if (p.computeTrendlines != null && p.computeTrendlines !== (computeTrendlines() ?? true)) {
+      setComputeTrendlines(p.computeTrendlines);
+    }
+    if (p.tab != null && p.tab !== tab()) setTab(p.tab);
+    if (p.view != null && p.view !== view()) setView(p.view);
+    if (p.indexGroup != null && p.indexGroup !== indexGroup()) setIndexGroup(p.indexGroup);
+    if (p.members !== (members() ?? null)) setMembers(p.members);
+    const entries = Object.entries(p.filters);
+    if (entries.length > 0) {
+      const differs = entries.some(([key, value]) => {
+        const current = (filters() as unknown as Record<string, unknown>)[key];
+        return !filterValuesEqual(current, value);
+      });
+      if (differs) applyFilters(p.filters);
+    }
+  }
 
   createEffect(() => {
     // Mount-only: parse the incoming URL and adopt it into the store.
@@ -241,28 +262,7 @@ export function PatternsContainer() {
       return;
     }
     parsed = p;
-    if (p.universe && p.universe !== universe()) selectUniverse(p.universe);
-    const currentSelection = selectedTimeframes() ?? [timeframe()];
-    if (p.timeframes) {
-      if (!filterValuesEqual(currentSelection, p.timeframes)) {
-        selectTimeframes(p.timeframes);
-      }
-    } else if (p.timeframe && p.timeframe !== timeframe()) {
-      selectTimeframe(p.timeframe);
-    }
-    if (p.lookback != null && p.lookback !== lookbackBars()) setLookbackBars(p.lookback);
-    if (p.computeTrendlines != null && p.computeTrendlines !== computeTrendlines()) {
-      setComputeTrendlines(p.computeTrendlines);
-    }
-    if (p.tab != null && p.tab !== tab()) setTab(p.tab);
-    if (p.view != null && p.view !== view()) setView(p.view);
-    if (p.indexGroup != null && p.indexGroup !== indexGroup()) setIndexGroup(p.indexGroup);
-    if (p.members != null && p.members !== members()) setMembers(p.members);
-    const filtersDiffer = Object.entries(p.filters).some(([key, value]) => {
-      const current = (filters() as unknown as Record<string, unknown>)[key];
-      return !filterValuesEqual(current, value);
-    });
-    if (filtersDiffer) applyFilters(p.filters);
+    applyUrlState(p);
   });
 
   createEffect(() => {
@@ -309,64 +309,19 @@ export function PatternsContainer() {
     const merged = mergeWithSearch(location.search, next);
     lastWritten = merged;
     if (normalizeSearch(location.search) === normalizeSearch(merged)) return;
-    // A filter edit patches the store synchronously, so this effect can run
-    // before the navigation lands. Hold the readback until the URL matches the
-    // value we wrote; otherwise it re-applies the previous `hist` and the
-    // applied filter is lost while the old param stays in the address bar.
-    localWriteTarget = merged;
-    // The store already has the edit. Only the URL is debounced: consecutive
-    // picks in a multi-select must not navigate (and remount the rail) between
-    // writes, or the first symbol is lost before the second is staged.
-    if (writeTimer != null) clearTimeout(writeTimer);
-    writeTimer = setTimeout(() => {
-      writeTimer = null;
-      if (normalizeSearch(location.search) === normalizeSearch(lastWritten)) return;
-      setSearchParams(next, { replace: true });
-    }, 600);
-  });
-
-  createEffect(() => {
-    const search = location.search;
-    if (localWriteTarget !== null) {
-      if (normalizeSearch(search) === normalizeSearch(localWriteTarget)) localWriteTarget = null;
-      else return;
-    }
-    if (!hydrated) return;
-    const merged = mergeWithSearch(search, buildParamsObject(currentState()));
-    if (merged === lastWritten) return;
-    if (!normalizeSearch(search)) return;
-    lastWritten = merged;
-
-    const p = parsePatternParams(new URLSearchParams(search));
-    if (p.universe && p.universe !== universe()) selectUniverse(p.universe);
-    if (p.timeframes) {
-      if (!filterValuesEqual(selectedTimeframes() ?? [timeframe()], p.timeframes)) {
-        selectTimeframes(p.timeframes);
-      }
-    } else if (p.timeframe && p.timeframe !== timeframe()) {
-      selectTimeframe(p.timeframe);
-    }
-    if ((p.lookback ?? null) !== (lookbackBars() ?? null)) {
-      setLookbackBars(p.lookback);
-    }
-    if (p.computeTrendlines != null && p.computeTrendlines !== (computeTrendlines() ?? true)) {
-      setComputeTrendlines(p.computeTrendlines);
-    }
-    if (p.tab != null && p.tab !== tab()) setTab(p.tab);
-    if (p.view != null && p.view !== view()) setView(p.view);
-    if (p.indexGroup != null && p.indexGroup !== indexGroup()) setIndexGroup(p.indexGroup);
-    if (p.members !== (members() ?? null)) setMembers(p.members);
-    const entries = Object.entries(p.filters);
-    if (entries.length > 0) {
-      const differs = entries.some(([key, value]) => {
-        const currentValue = (filters() as unknown as Record<string, unknown>)[key];
-        return !filterValuesEqual(currentValue, value);
-      });
-      if (differs) applyFilters(p.filters);
-    }
+    setSearchParams(next, { replace: true });
   });
 
   onMount(() => {
+    // Only real back/forward navigation adopts URL state. Our own writes must
+    // never read back into the store: that re-applied stale filters and reset
+    // the modal draft and the open chart dock.
+    const onPopState = () => {
+      if (!hydrated) return;
+      applyUrlState(parsePatternParams(new URLSearchParams(window.location.search)));
+    };
+    window.addEventListener("popstate", onPopState);
+    onCleanup(() => window.removeEventListener("popstate", onPopState));
     void loadCatalog();
   });
 

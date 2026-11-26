@@ -6,9 +6,19 @@ import { MemoryRouter, Route, createMemoryHistory, _mergeSearchString } from "@s
 import type { PatternHitDTO } from "@/types/chartPatterns";
 
 const pagePropsCapture = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
+const harness = vi.hoisted(() => ({
+  history: null as { get: () => string } | null,
+  listeners: [] as Array<() => void>,
+}));
 
 vi.mock("@/state/chartPatterns", () => ({
-  subscribe: vi.fn(() => () => {}),
+  subscribe: vi.fn((cb: () => void) => {
+    harness.listeners.push(cb);
+    return () => {
+      const index = harness.listeners.indexOf(cb);
+      if (index >= 0) harness.listeners.splice(index, 1);
+    };
+  }),
   getChartPatternsState: vi.fn(),
   loadCatalog: vi.fn(),
   triggerReplayScan: vi.fn(),
@@ -48,11 +58,18 @@ vi.mock("@/state/chartPatterns", () => ({
 vi.mock("./PatternsPage", () => ({
   PatternsPage: (props: Record<string, unknown>) => {
     pagePropsCapture.current = props;
-    return <div data-testid="patterns-page-stub" />;
+    return (
+      <div>
+        <div data-testid="patterns-page-stub" />
+        <div data-testid="view-probe">{String(props.view)}</div>
+        <div data-testid="tab-probe">{String(props.tab)}</div>
+      </div>
+    );
   },
 }));
 
 import {
+  applyFilters,
   getChartPatternsState,
   loadCatalog,
   selectTimeframes,
@@ -147,6 +164,7 @@ function makeState(overrides: Record<string, unknown> = {}) {
 
 function renderContainer(initialEntry = "/patterns") {
   const history = createMemoryHistory();
+  harness.history = history;
   history.set({ value: initialEntry, replace: true });
   return render(() => (
     <MemoryRouter history={history}>
@@ -166,10 +184,39 @@ describe("PatternsContainer", () => {
     expect(merged).not.toContain("%3F");
   });
 
+  test("writes state changes to the URL without a reactive readback", async () => {
+    const state = makeState();
+    mockGetState.mockReturnValue(state);
+    renderContainer();
+    await waitFor(() => expect(mockLoadCatalog).toHaveBeenCalled());
+
+    mockGetState.mockReturnValue(makeState({ filters: { ...state.filters, history: 3 } }));
+    harness.listeners.forEach((cb) => cb());
+
+    await waitFor(() => expect(harness.history?.get()).toContain("hist=3"));
+    expect(vi.mocked(applyFilters)).not.toHaveBeenCalled();
+  });
+
+  test("popstate adopts back/forward URL state", async () => {
+    mockGetState.mockReturnValue(makeState());
+    renderContainer();
+    await waitFor(() => expect(mockLoadCatalog).toHaveBeenCalled());
+
+    window.history.replaceState({}, "", "/patterns?tab=watch&view=grid");
+    window.dispatchEvent(new Event("popstate"));
+
+    await waitFor(() =>
+      expect((pagePropsCapture.current?.view as () => string)()).toBe("grid"),
+    );
+    expect((pagePropsCapture.current?.tab as () => string)()).toBe("watch");
+  });
+
   afterEach(() => cleanup());
 
   beforeEach(() => {
     vi.clearAllMocks();
+    harness.listeners.length = 0;
+    harness.history = null;
   });
 
   test("bootstraps the catalog on each mount", () => {
