@@ -32,7 +32,7 @@ type DrawerArgs = {
 };
 
 const meta: Meta<DrawerArgs> = {
-  title: "Design System/Components/App/MembersDrawer",
+  title: "App/Components/MembersDrawer",
   tags: ["autodocs"],
   parameters: {
     docs: {

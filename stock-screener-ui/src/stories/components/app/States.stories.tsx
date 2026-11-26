@@ -27,7 +27,7 @@ type StatesArgs = {
 };
 
 const meta: Meta<StatesArgs> = {
-  title: "Design System/Components/App/States",
+  title: "App/Components/States",
   tags: ["autodocs"],
   parameters: {
     docs: {

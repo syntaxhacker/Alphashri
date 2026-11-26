@@ -13,7 +13,7 @@ type BoundaryArgs = {
 };
 
 const meta: Meta<BoundaryArgs> = {
-  title: "Design System/Components/App/ErrorBoundary",
+  title: "App/Components/ErrorBoundary",
   tags: ["autodocs"],
   parameters: {
     docs: {

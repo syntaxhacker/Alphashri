@@ -139,7 +139,7 @@ const COMPONENTS: FamilyComponentRef[] = [
   { id: "design-system-components-layout-card--docs", name: "Card", note: "The wider, panel-level radius scale." },
   { id: "design-system-components-typography-text--docs", name: "Text", note: "Type sizes, tones and mono figures." },
   { id: "design-system-components-feedback-badge--docs", name: "Badge", note: "Semantic fills for status and direction." },
-  { id: "design-system-components-app-tanstacktable--docs", name: "TanStackTable", note: "Where density is written to CSS." },
+  { id: "app-components-tanstacktable--docs", name: "TanStackTable", note: "Where density is written to CSS." },
 ];
 
 export const Landing: Story = {

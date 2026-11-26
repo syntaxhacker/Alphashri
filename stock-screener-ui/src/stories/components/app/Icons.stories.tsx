@@ -31,7 +31,7 @@ type IconArgs = {
 };
 
 const meta: Meta<IconArgs> = {
-  title: "Design System/Components/App/Icons",
+  title: "App/Components/Icons",
   tags: ["autodocs"],
   parameters: {
     docs: {

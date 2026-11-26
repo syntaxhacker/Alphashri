@@ -9,7 +9,7 @@ type NoticeArgs = {
 };
 
 const meta: Meta<NoticeArgs> = {
-  title: "Design System/Components/App/BrokerAuthNotice",
+  title: "App/Components/BrokerAuthNotice",
   tags: ["autodocs"],
   parameters: {
     docs: {

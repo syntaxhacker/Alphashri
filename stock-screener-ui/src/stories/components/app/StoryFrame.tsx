@@ -4,7 +4,6 @@ import { Box, Stack } from "@/ui";
 /** Shared specimen widths — wide enough that no data column is clipped. */
 export const DEMO_WIDTH = 880;
 export const TABLE_WIDTH = 880;
-export const PAPER_TABLE_WIDTH = 840;
 
 /**
  * title/detail/meta/flush stay on the signature for API compatibility: all 81

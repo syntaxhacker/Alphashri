@@ -85,6 +85,65 @@ const INDEX_COLUMNS: TableColumnDef<IndexQuote>[] = [
 
 const ALL_COLUMN_IDS = ["symbol", "ltp", "changePct", "oi"];
 
+const PAPER_FIXTURE_LABEL = "frozen paper book snapshot · 2026-11-20 15:10 IST";
+
+interface PaperPosition {
+  symbol: string;
+  side: "LONG" | "SHORT";
+  qty: number;
+  avg: number;
+  ltp: number;
+  pnl: number;
+}
+
+const PAPER_POSITIONS: PaperPosition[] = [
+  Object.freeze({ symbol: "NIFTY 24SEP FUT", side: "LONG", qty: 75, avg: 23412.4, ltp: 23450.85, pnl: 2883.75 }),
+  Object.freeze({ symbol: "RELIANCE", side: "LONG", qty: 200, avg: 2841.5, ltp: 2832.1, pnl: -1880 }),
+  Object.freeze({ symbol: "TCS", side: "SHORT", qty: 150, avg: 4120.0, ltp: 4102.5, pnl: 2625 }),
+  Object.freeze({ symbol: "BANKNIFTY 24SEP FUT", side: "SHORT", qty: 30, avg: 51310.0, ltp: 51284.5, pnl: 765 }),
+  Object.freeze({ symbol: "INFY", side: "LONG", qty: 400, avg: 1872.3, ltp: 1884.6, pnl: 4920 }),
+];
+
+const PAPER_COLUMNS: TableColumnDef<PaperPosition>[] = [
+  { id: "symbol", header: "Symbol", accessorKey: "symbol", meta: { align: "left" }, size: 190 },
+  {
+    id: "side",
+    header: "Side",
+    accessorKey: "side",
+    meta: { align: "center" },
+    size: 90,
+    cell: ({ row }) => (
+      <span
+        style={{
+          color: row.original.side === "LONG" ? "var(--color-fin-positive)" : "var(--color-fin-negative)",
+          "font-variant-numeric": "tabular-nums",
+        }}
+      >
+        {row.original.side}
+      </span>
+    ),
+  },
+  { id: "qty", header: "Qty", accessorKey: "qty", meta: { align: "right" }, size: 100, cell: ({ row }) => integerFormat.format(row.original.qty) },
+  { id: "avg", header: "Avg", accessorKey: "avg", meta: { align: "right" }, size: 126, cell: ({ row }) => numberFormat.format(row.original.avg) },
+  { id: "ltp", header: "LTP", accessorKey: "ltp", meta: { align: "right" }, size: 126, cell: ({ row }) => numberFormat.format(row.original.ltp) },
+  {
+    id: "pnl",
+    header: "P&L",
+    accessorKey: "pnl",
+    meta: { align: "right" },
+    size: 150,
+    cell: ({ row }) => {
+      const value = row.original.pnl;
+      return (
+        <span style={{ color: value >= 0 ? "var(--color-fin-positive)" : "var(--color-fin-negative)" }}>
+          {value >= 0 ? "+" : ""}
+          {numberFormat.format(value)}
+        </span>
+      );
+    },
+  },
+];
+
 type TableArgs = {
   dense: boolean;
   loading: boolean;
@@ -94,7 +153,7 @@ type TableArgs = {
 };
 
 const meta: Meta<TableArgs> = {
-  title: "Design System/Components/App/TanStackTable",
+  title: "App/Components/TanStackTable",
   tags: ["autodocs"],
   parameters: {
     docs: {
@@ -489,6 +548,64 @@ export const Grouped: Story = {
               </span>
             )}
             stickyHeader
+            bare
+            style={{ width: "100%" }}
+          />
+        </DemoPanel>
+      </DemoStack>
+    )),
+};
+
+/** Paper-book rhythm: `metricsPreset="paper"` keeps the 23px rows on the shared table. */
+export const PaperDensity: Story = {
+  render: () =>
+    solidStory(() => (
+      <DemoStack width={TABLE_WIDTH}>
+        <DemoPanel
+          title="Paper book · paper density"
+          detail={`${PAPER_FIXTURE_LABEL} · metricsPreset paper · row ${TABLE_METRICS.paper.rowHeight}px · pad ${TABLE_METRICS.paper.cellPadding}`}
+          meta={`${PAPER_POSITIONS.length} rows · 6 columns`}
+          testId="story-table-paper-density-frame"
+        >
+          <TanStackTable
+            data={PAPER_POSITIONS}
+            columns={PAPER_COLUMNS}
+            dataTestId="story-table-paper-density"
+            ariaLabel="Frozen paper positions, 23px rows"
+            metricsPreset="paper"
+            stickyHeader
+            getRowKey={(row) => row.symbol}
+            bare
+            style={{ width: "100%" }}
+          />
+        </DemoPanel>
+      </DemoStack>
+    )),
+};
+
+/** Expandable rows: the one paper-family scenario the common stories did not cover. */
+export const Expandable: Story = {
+  render: () =>
+    solidStory(() => (
+      <DemoStack width={TABLE_WIDTH}>
+        <DemoPanel
+          title="Paper book · expandable rows"
+          detail={`${PAPER_FIXTURE_LABEL} · click the NIFTY row to expand its frozen entry reason`}
+          meta={`${PAPER_POSITIONS.length} rows · 1 expandable`}
+          testId="story-table-expandable-frame"
+        >
+          <TanStackTable
+            data={PAPER_POSITIONS}
+            columns={PAPER_COLUMNS}
+            dataTestId="story-table-expandable"
+            ariaLabel="Expandable frozen paper positions"
+            metricsPreset="paper"
+            stickyHeader
+            getRowKey={(row) => row.symbol}
+            getRowCanExpand={(row) => row.symbol.startsWith("NIFTY")}
+            renderSubComponent={(row) => (
+              <Text size="xs">{`${row.symbol} · frozen entry reason: ORB breakout · qty ${row.qty}`}</Text>
+            )}
             bare
             style={{ width: "100%" }}
           />
