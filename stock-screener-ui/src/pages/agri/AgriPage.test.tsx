@@ -281,6 +281,20 @@ const selectedLabel = (testId: string): string =>
 
 const openDataView = () => fireEvent.click(screen.getByTestId("agri-view-data"));
 
+const CHART_REGION_HEIGHTS = [
+  ["agri-chart-region", "240px"],
+  ["agri-rank-region", "200px"],
+  ["agri-season-region", "200px"],
+  ["agri-dispersion-region", "220px"],
+] as const;
+
+/** ECharts measures its container at mount; a flex-only parent can read 0px. */
+const expectChartRegionsSized = () => {
+  for (const [id, height] of CHART_REGION_HEIGHTS) {
+    expect(screen.getByTestId(id), id).toHaveStyle({ "min-height": height });
+  }
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   harness.options = {};
@@ -1188,6 +1202,7 @@ describe("AgriPage redesign grammar", () => {
     expect(screen.getByTestId("agri-toolbar")).toHaveClass("sticky", "shrink-0");
     expect(screen.getByTestId("agri-page")).toHaveClass("overflow-hidden", "min-h-0");
     expect(screen.getByTestId("agri-body")).not.toHaveAttribute("aria-busy", "true");
+    expectChartRegionsSized();
   });
 });
 
@@ -1241,6 +1256,7 @@ describe("AgriPage layout", () => {
     expect(screen.getByTestId("agri-rank-region")).toHaveClass("min-h-[200px]");
     expect(screen.getByTestId("agri-season-region")).toHaveClass("min-h-[200px]");
     expect(screen.getByTestId("agri-dispersion-region")).toHaveClass("min-h-[220px]");
+    expectChartRegionsSized();
     expect(screen.getByTestId("agri-page")).toHaveClass("overflow-hidden", "min-h-0");
     expect(screen.getByTestId("agri-refresh")).toBeInTheDocument();
   });

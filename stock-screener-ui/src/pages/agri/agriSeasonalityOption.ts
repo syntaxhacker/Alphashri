@@ -114,11 +114,14 @@ export function buildAgriSeasonalityOption(
         containLabel: true,
       },
     ],
-    xAxis: [categoryAxis(MONTHS, t, 0, true)],
+    // ECharts heatmap requires category axes with boundaryGap on both sides;
+    // categoryAxis() defaults grid 0 to false for line series.
+    xAxis: [{ ...categoryAxis(MONTHS, t, 0, true), boundaryGap: true }],
     yAxis: [
       {
         type: "category",
         data: rows.map((row) => row.label),
+        boundaryGap: true,
         axisLine: { lineStyle: { color: t.border } },
         axisTick: { show: false },
         axisLabel: { color: t.muted, fontSize: typeSize("micro"), width: compact ? 56 : 84, overflow: "truncate" },

@@ -1601,7 +1601,8 @@ export function AgriPage() {
                   }
                 >
                   <Box
-                    className={isMobile() ? "flex min-h-[240px] flex-1" : "flex min-h-0 flex-1"}
+                    className="flex min-h-[240px] flex-1"
+                    style={{ "min-height": "240px", flex: "1 1 0%" }}
                     data-testid="agri-chart-region"
                   >
                     <EChart
@@ -1666,7 +1667,8 @@ export function AgriPage() {
                 }
               >
                 <Box
-                  className={isMobile() ? "flex min-h-[200px] flex-1" : "flex min-h-0 flex-1"}
+                  className="flex min-h-[200px] flex-1"
+                  style={{ "min-height": "200px", flex: "1 1 0%" }}
                   data-testid="agri-rank-region"
                 >
                   <EChart option={rankOption()} data-testid="agri-rank-chart" />
@@ -1707,7 +1709,8 @@ export function AgriPage() {
                 }
               >
                 <Box
-                  className={isMobile() ? "flex min-h-[200px] flex-1" : "flex min-h-0 flex-1"}
+                  className="flex min-h-[200px] flex-1"
+                  style={{ "min-height": "200px", flex: "1 1 0%" }}
                   data-testid="agri-season-region"
                 >
                   <EChart option={seasonOption()} data-testid="agri-season-chart" />
@@ -1738,7 +1741,8 @@ export function AgriPage() {
                 }
               >
                 <Box
-                  className={isMobile() ? "flex min-h-[220px] flex-1" : "flex min-h-0 flex-1"}
+                  className="flex min-h-[220px] flex-1"
+                  style={{ "min-height": "220px", flex: "1 1 0%" }}
                   data-testid="agri-dispersion-region"
                 >
                   <EChart option={dispersionOption()} data-testid="agri-dispersion-chart" />

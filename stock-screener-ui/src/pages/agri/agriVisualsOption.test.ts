@@ -106,6 +106,9 @@ describe("seasonality option", () => {
     expect(option.visualMap[0].inRange.color).toEqual([...AGRI_SEASON_STOPS]);
     expect(option.visualMap[0].min).toBe(-20);
     expect(option.visualMap[0].max).toBe(20);
+    // HeatmapView rejects a cartesian heatmap without boundaryGap on both axes.
+    expect(option.xAxis[0].boundaryGap).toBe(true);
+    expect(option.yAxis[0].boundaryGap).toBe(true);
     expect((option.series[0].label as { show: boolean }).show).toBe(true);
     expect((option.title as { subtext: string }).subtext).toContain("n ≥ 2");
     const tooltip = option.tooltip.formatter as (params: unknown) => string;
