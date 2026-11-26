@@ -6,8 +6,15 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
 
+import bcrypt
 import pytest
 from fastapi.testclient import TestClient
+
+
+def _fast_hash(password: str) -> str:
+    """Fixture-only hash at cost 4; verify_password still reads the cost from the hash."""
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=4)).decode("utf-8")
+
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -32,8 +39,9 @@ def _patch_session(db):
 
 
 def _register_and_login(client: TestClient, email: str, password: str = "Test123!Aa"):
-    client.post("/api/auth/register", json={"email": email, "password": password, "display_name": "U"})
-    r = client.post("/api/auth/login", json={"email": email, "password": password})
+    with patch("api.auth.hash_password", side_effect=lambda p: _fast_hash(p)):
+        client.post("/api/auth/register", json={"email": email, "password": password, "display_name": "U"})
+        r = client.post("/api/auth/login", json={"email": email, "password": password})
     assert r.status_code == 200, r.text
     token = r.json()["access_token"]
     return token, {"Authorization": f"Bearer {token}"}
