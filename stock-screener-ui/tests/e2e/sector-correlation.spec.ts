@@ -1,20 +1,31 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { setupSectorTest, gotoSector } from "./helpers/sectorHelpers";
+
+async function gotoCorrelation(page: Page) {
+  await page.getByTestId("sector-nav-correlation").click();
+  await expect(page.locator("#correlation")).toBeInViewport();
+  await expect(page.getByTestId("sector-section-correlation")).toBeInViewport();
+}
 
 test.describe("Sector Correlation & Rotation", () => {
   test.beforeEach(async ({ page }) => {
     await setupSectorTest(page);
   });
 
-  test("should display Sector Correlation tab", async ({ page }) => {
+  test("should display the Sector Correlation section anchor", async ({ page }) => {
     await gotoSector(page);
-    const tabs = page.locator('[data-testid="sector-analysis-view"]').locator('[role="tablist"]');
-    await expect(tabs.locator('[role="tab"]:has-text("Sector Correlation")')).toBeVisible();
+    const nav = page.getByTestId("sector-section-nav");
+    await expect(nav).toBeVisible();
+    const link = page.getByTestId("sector-nav-correlation");
+    await expect(link).toHaveAttribute("href", "#correlation");
+    await expect(link).toHaveText("Correlation");
+    await expect(page.locator("#correlation")).toBeAttached();
+    await expect(page.getByTestId("sector-section-correlation")).toHaveAttribute("tabindex", "-1");
   });
 
-  test("should navigate to correlation tab and display heatmap", async ({ page }) => {
+  test("should navigate to the correlation section and display heatmap", async ({ page }) => {
     await gotoSector(page);
-    await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
+    await gotoCorrelation(page);
 
     const heatmap = page.locator('[data-testid="sector-correlation-heatmap"]');
     await expect(heatmap).toBeVisible();
@@ -26,7 +37,7 @@ test.describe("Sector Correlation & Rotation", () => {
 
   test("should display beta bar chart", async ({ page }) => {
     await gotoSector(page);
-    await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
+    await gotoCorrelation(page);
 
     const betaChart = page.locator('[data-testid="sector-beta-chart"]');
     await expect(betaChart).toBeVisible();
@@ -36,7 +47,7 @@ test.describe("Sector Correlation & Rotation", () => {
 
   test("should display relative strength table with rankings", async ({ page }) => {
     await gotoSector(page);
-    await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
+    await gotoCorrelation(page);
 
     const table = page.locator('[data-testid="relative-strength-table"] table');
     await expect(table).toBeVisible();
@@ -55,7 +66,7 @@ test.describe("Sector Correlation & Rotation", () => {
 
   test("should display rotation timeline", async ({ page }) => {
     await gotoSector(page);
-    await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
+    await gotoCorrelation(page);
 
     const timeline = page.locator('[data-testid="rotation-timeline"]');
     await expect(timeline).toBeVisible();
@@ -64,7 +75,7 @@ test.describe("Sector Correlation & Rotation", () => {
 
   test("should switch between India and US markets", async ({ page }) => {
     await gotoSector(page);
-    await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
+    await gotoCorrelation(page);
 
     // Initially India - check table shows Indian sectors
     const table = page.locator('[data-testid="relative-strength-table"]');
@@ -81,7 +92,7 @@ test.describe("Sector Correlation & Rotation", () => {
 
   test("should change lookback period and refresh data", async ({ page }) => {
     await gotoSector(page);
-    await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
+    await gotoCorrelation(page);
 
     const table = page.locator('[data-testid="relative-strength-table"]');
     await expect(table).toBeVisible({ timeout: 10000 });
@@ -95,7 +106,7 @@ test.describe("Sector Correlation & Rotation", () => {
 
   test("should show last updated timestamp", async ({ page }) => {
     await gotoSector(page);
-    await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
+    await gotoCorrelation(page);
 
     // Look for timestamp indicator (clock icon nearby)
     const view = page.locator('[data-testid="sector-analysis-view"]');
