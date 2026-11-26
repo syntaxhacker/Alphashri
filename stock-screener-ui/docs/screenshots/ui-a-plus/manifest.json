@@ -1,7 +1,7 @@
 {
   "feature": "ui-a-plus",
   "route": "/",
-  "head": "0c3533e1790e52a5207bc0ecf2623388c5846ba1",
+  "head": "68eef22c0a336736e8adb440257f656c36d1157f",
   "viewports": [
     1600,
     390
@@ -91,7 +91,7 @@
     },
     {
       "id": "report-index",
-      "covers": "NIFTY index report desk with candle reconstruction, OI ladder, OI heatmap and walls (NEAR CW 22,450 / PW 22,350); chain header shows CE SIG IBEAR · PE SIG IBULL.",
+      "covers": "NIFTY index report desk with candle reconstruction, OI ladder, OI heatmap and walls (NEAR CW 22,450 / PW 22,350); chain header shows CE SIG IBEAR \u00b7 PE SIG IBULL.",
       "files": {
         "390": "report-index-390.png",
         "1600": "report-index-1600.png"
@@ -321,7 +321,7 @@
     "report-index-390.png": "32124c8b42dc27dde70ddf42966b39633ec16f15dfdc14be2284423d5d6dad51",
     "report-profit-1600.png": "c6b4b69e9d1b18e02ab7d19736e6bc866b00c5b13961001dd4bca196f544f374",
     "report-profit-390.png": "96441c2d2ec5f4482015f6f7dc64fa5be0b47105ab50be8e6f34e1f4daaa8f81",
-    "screener-1600.png": "af8a6f2c6da7f9621da038f98635ec5aec9ed289fefdcf9173e720555b3e15af",
+    "screener-1600.png": "232a5aeb4c14e6b28aebc3f6acb4a335790b30e58bb2985df3a80787663216b0",
     "screener-390.png": "7b766b43a904e79717f78246c973b10e76be9ef4f2a8bc96ebb0dffddd01f34a",
     "sector-1600.png": "9e5bfc6380aaacdb05cd3668f524284b4eba01614da92ac52f942107c60ea523",
     "sector-390.png": "bb8214e248ebd0d7c9f9ffbfc0341f0347c6e80a61a56e3d70ac060194ab48b4",

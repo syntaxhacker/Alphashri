@@ -13,7 +13,7 @@
  * is registered after `setupSectorMocks`' broad `/api/sector` handler.
  */
 import type { Page } from "@playwright/test";
-import { setupSectorMocks, setupUserConfigMocks } from "./apiResponses";
+import { mockTrendingResponse, setupSectorMocks, setupUserConfigMocks } from "./apiResponses";
 import { apiRoute } from "./routeHelper";
 
 export const SCREENER_EVIDENCE_PATH = "/screener/screener";
@@ -55,6 +55,50 @@ const MARKET_SNAPSHOT = {
   rows: MARKET_SNAPSHOT_ROWS,
 };
 
+// Evidence-only labels for the trending tab. The shared fixture's MOCK1/MOCK2/MOCK3
+// symbols are asserted by controls.spec.ts and buyer-interest.spec.ts, so relabel a
+// copy here instead of changing the shared fixture. Prices match the RELIANCE / INFY
+// / TCS rows in `mockDashboardResponse`.
+const EVIDENCE_TICKERS = {
+  MOCK1: {
+    symbol: "RELIANCE",
+    tv_price: 2940.0,
+    upstox_price: 2940.15,
+    broker_diff: 0.15,
+    high_52w: 3020.25,
+    day_change: 1.2,
+  },
+  MOCK2: {
+    symbol: "TCS",
+    tv_price: 4120.0,
+    upstox_price: 4120.05,
+    broker_diff: 0.05,
+    high_52w: 4136.5,
+    day_change: -0.5,
+  },
+  MOCK3: {
+    symbol: "INFY",
+    tv_price: 1850.0,
+    upstox_price: 1850.08,
+    broker_diff: 0.08,
+    high_52w: 1850.0,
+    day_change: 0.9,
+  },
+} as const;
+
+function evidenceTrendingResponse() {
+  const relabel = (row: (typeof mockTrendingResponse.approaching)[number]) => {
+    const replacement =
+      EVIDENCE_TICKERS[row.symbol as keyof typeof EVIDENCE_TICKERS] ?? undefined;
+    return replacement ? { ...row, ...replacement } : row;
+  };
+  return {
+    ...mockTrendingResponse,
+    approaching: mockTrendingResponse.approaching.map(relabel),
+    touched: mockTrendingResponse.touched.map(relabel),
+  };
+}
+
 const json = (body: object) => ({
   status: 200,
   contentType: "application/json",
@@ -69,4 +113,16 @@ export async function setupScreenerEvidenceMocks(page: Page): Promise<void> {
     route.fulfill(json(SCREENER_EVIDENCE_GROUPS)),
   );
   await page.route(apiRoute("market/snapshot"), (route) => route.fulfill(json(MARKET_SNAPSHOT)));
+  // Registered after setupApiMocks so this handler wins for the trending tab only.
+  await page.route(apiRoute("screener"), (route) => {
+    const url = route.request().url();
+    if (
+      url.includes("/api/screeners") ||
+      url.includes("/api/screener/dashboard") ||
+      url.includes("screener=buyer_interest_enhanced")
+    ) {
+      return route.fallback();
+    }
+    return route.fulfill(json(evidenceTrendingResponse()));
+  });
 }
