@@ -157,6 +157,12 @@ for (const [width, height] of [
       candles: el.getAttribute("data-pinned-candles"),
     }));
     expect.soft(page.getByTestId("nifty-chain-signal-key")).toBeVisible();
+    if (width === 390) {
+      const sig = page.getByTestId("nifty-chain-mobile-sig");
+      await expect.soft(sig).toBeVisible();
+      expect.soft(await sig.textContent()).toMatch(/CE SIG\s*[I]?(BULL|BEAR)/);
+      expect.soft(await sig.textContent()).toMatch(/PE SIG\s*[I]?(BULL|BEAR)/);
+    }
     const boundaryLabel = await page
       .getByTestId("nifty-chart-last-data-boundary")
       .locator("span")
