@@ -657,163 +657,8 @@ def test_cache_path_variant_does_not_poison_default():
 
 
 # ---------------------------------------------------------------------------
-# Scan-time trend_lines: computed once per symbol in _process_symbol and
-# persisted through save_hits → query_results.
-# ---------------------------------------------------------------------------
-
-
-def test_process_symbol_attaches_trend_lines(cp_store, monkeypatch):
-    monkeypatch.setattr(
-        scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
-    )
-    monkeypatch.setattr(
-        scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
-    )
-    store.save_job({
-        "job_id": "cpj_tlproc", "universe": "nifty50", "timeframe": "1D", "status": "queued",
-    })
-
-    result = scan._process_symbol("AAA", "1D", "cpj_tlproc")
-
-    assert result["status"] == "ok"
-    # _process_symbol no longer persists per symbol; persistence is batched in
-    # run_job, so persist the returned hits explicitly here.
-    store.save_hits("cpj_tlproc", result.get("hits") or [])
-    items, total, _ = store.query_results({"job_id": "cpj_tlproc"})
-    assert total == 1
-    assert isinstance(items[0].get("trend_lines"), list)
-
-
-def test_process_symbol_trendlines_failure_still_persists_hits(cp_store, monkeypatch):
-    monkeypatch.setattr(
-        scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
-    )
-    monkeypatch.setattr(
-        scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
-    )
-    monkeypatch.setattr(scan, "trendlines_mod", None)
-    store.save_job({
-        "job_id": "cpj_tlproc_fail", "universe": "nifty50", "timeframe": "1D", "status": "queued",
-    })
-
-    result = scan._process_symbol("AAA", "1D", "cpj_tlproc_fail")
-
-    assert result["status"] == "ok"
-    store.save_hits("cpj_tlproc_fail", result.get("hits") or [])
-    items, total, _ = store.query_results({"job_id": "cpj_tlproc_fail"})
-    assert total == 1
-    assert items[0].get("trend_lines") == []
-
-
-def test_save_hits_round_trips_trend_lines(cp_store):
-    store.save_job({
-        "job_id": "cpj_tlrt", "universe": "nifty50", "timeframe": "1D", "status": "completed",
-    })
-    line = {
-        "kind": "support",
-        "start_date": "2026-01-01T00:00:00+00:00",
-        "start_price": 100.0,
-        "end_date": "2026-02-01T00:00:00+00:00",
-        "end_price": 110.0,
-        "slope": 0.2,
-        "touches": 3,
-        "span_bars": 30,
-        "violations": 0,
-    }
-    store.save_hits("cpj_tlrt", [dict(_dupe_hit(), trend_lines=[line])])
-
-    items, total, _ = store.query_results({"job_id": "cpj_tlrt"})
-    assert total == 1
-    assert items[0]["trend_lines"] == [line]
-
-
-def test_process_symbol_forwards_lookback_to_trendlines(cp_store, monkeypatch):
-    """`_process_symbol` passes its `lookback_bars` into `detect_trendlines`."""
-    monkeypatch.setattr(
-        scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
-    )
-    monkeypatch.setattr(
-        scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
-    )
-    seen = {}
-
-    def fake_tl(df, lookback_bars=None):
-        seen["lookback_bars"] = lookback_bars
-        return {"support": None, "resistance": None}
-
-    monkeypatch.setattr(scan.trendlines_mod, "detect_trendlines", fake_tl)
-    store.save_job({
-        "job_id": "cpj_tlfwd", "universe": "nifty50", "timeframe": "1D", "status": "queued",
-    })
-
-    result = scan._process_symbol("AAA", "1D", "cpj_tlfwd", lookback_bars=40)
-    assert result["status"] == "ok"
-    assert seen["lookback_bars"] == 40
-
-    result = scan._process_symbol("AAA", "1D", "cpj_tlfwd")
-    assert result["status"] == "ok"
-    assert seen["lookback_bars"] is None
-
-
-def test_process_symbol_stamps_trend_lines_sig(cp_store, monkeypatch):
-    """Hit records carry `trend_lines_sig` matching the detector signature."""
-    from chart_patterns import config as cp_config
-
-    monkeypatch.setattr(
-        scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
-    )
-    monkeypatch.setattr(
-        scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
-    )
-    store.save_job({
-        "job_id": "cpj_tlsig", "universe": "nifty50", "timeframe": "1D", "status": "queued",
-    })
-
-    result = scan._process_symbol("AAA", "1D", "cpj_tlsig")
-
-    assert result["status"] == "ok"
-    store.save_hits("cpj_tlsig", result.get("hits") or [])
-    items, total, _ = store.query_results({"job_id": "cpj_tlsig"})
-    assert total == 1
-    assert items[0].get("trend_lines_sig") == cp_config.trendline_signature()
-
-
-def test_run_job_compute_trendlines_false_skips_detector(cp_store, monkeypatch):
-    """`params={"compute_trendlines": False}` stores empty lines, no detector call."""
-    monkeypatch.setattr(
-        scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
-    )
-    monkeypatch.setattr(
-        scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
-    )
-    monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"]))
-
-    def _boom(df, lookback_bars=None):
-        raise AssertionError("detect_trendlines must not run when compute_trendlines=false")
-
-    monkeypatch.setattr(scan.trendlines_mod, "detect_trendlines", _boom)
-    store.save_job({
-        "job_id": "cpj_tlskip", "universe": "nifty50", "timeframe": "1D",
-        "status": "queued", "params": {"compute_trendlines": False},
-    })
-
-    scan.run_job("cpj_tlskip")
-
-    row = store.get_job("cpj_tlskip")
-    assert row["status"] == "completed"
-    items, total, _ = store.query_results({"job_id": "cpj_tlskip"})
-    assert total == 1
-    assert items[0].get("trend_lines") == []
-
-
-# ---------------------------------------------------------------------------
-# Missing coverage: empty/None frames, stale freshness, None flag default,
-# and detection-input slicing.
+# Missing coverage: empty/None frames, stale freshness and detection-input
+# slicing.
 # ---------------------------------------------------------------------------
 
 
@@ -863,34 +708,6 @@ def test_run_job_stale_combo_reruns(cp_store, monkeypatch):
 
     assert fetched == ["AAA"]
     assert store.get_job("cpj_stale_new")["status"] == "completed"
-
-
-def test_run_job_compute_trendlines_none_defaults_to_true(cp_store, monkeypatch):
-    """An explicit `compute_trendlines=None` param still runs the detector."""
-    monkeypatch.setattr(
-        scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None, include_partial_today=None, partial_bar=None: _make_df(80),
-    )
-    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)]))
-    monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"]))
-    seen = {}
-
-    def fake_tl(df, lookback_bars=None):
-        seen["ran"] = True
-        return {"support": None, "resistance": None}
-
-    monkeypatch.setattr(scan.trendlines_mod, "detect_trendlines", fake_tl)
-    store.save_job({
-        "job_id": "cpj_tlnone", "universe": "nifty50", "timeframe": "1D",
-        "status": "queued", "params": {"compute_trendlines": None},
-    })
-
-    scan.run_job("cpj_tlnone")
-
-    assert seen.get("ran") is True
-    items, total, _ = store.query_results({"job_id": "cpj_tlnone"})
-    assert total == 1
-    assert items[0].get("trend_lines_sig") is not None
 
 
 def test_process_symbol_lookback_slices_detection_input(cp_store, monkeypatch):
@@ -1521,7 +1338,7 @@ def test_genuine_exception_increments_failed(cp_store, monkeypatch):
     monkeypatch.setattr(scan.logger, "warning", lambda *a, **k: logs.append(a))
 
     def fake_process(symbol, timeframe, job_id, name=None, lookback_bars=None,
-                     compute_trendlines=True, as_of_date=None, from_date=None,
+                     as_of_date=None, from_date=None,
                      include_partial_today=None, partial_bar=None, prev_hit=None,
                      signature=None):
         if symbol == "BOOM":
@@ -1657,7 +1474,7 @@ def test_changed_last_close_forces_redetect(cp_store, monkeypatch):
     """A changed last close changes the source signature -> re-detect."""
     _market_open(monkeypatch)
     detect_calls = []
-    prev_sig = scan._source_sig(_make_df(80), "1D", None, True)
+    prev_sig = scan._source_sig(_make_df(80), "1D", None)
     _seed_prev_hit("cpj_close_prev", "AAA", source_sig=prev_sig,
                    finished_age_sec=scan.SCAN_FRESH_SECONDS + 60)
 
@@ -1690,7 +1507,7 @@ def test_force_always_detects(cp_store, monkeypatch):
     """`force=True` re-detects even when the source signature matches."""
     _market_open(monkeypatch)
     detect_calls = []
-    prev_sig = scan._source_sig(_make_df(80), "1D", None, True)
+    prev_sig = scan._source_sig(_make_df(80), "1D", None)
     _seed_prev_hit("cpj_force_prev", "AAA", source_sig=prev_sig,
                    finished_age_sec=scan.SCAN_FRESH_SECONDS + 60)
 
@@ -1770,7 +1587,7 @@ def test_different_frame_interior_forces_redetect(cp_store, monkeypatch):
     detect_calls = []
 
     frame_a = _make_df(80)  # close 100->120, last close 120
-    prev_sig = scan._source_sig(frame_a, "1D", None, True)
+    prev_sig = scan._source_sig(frame_a, "1D", None)
     _seed_prev_hit("cpj_interior_prev", "AAA", source_sig=prev_sig,
                    finished_age_sec=scan.SCAN_FRESH_SECONDS + 60)
 
@@ -1875,8 +1692,6 @@ def _eq_items(job_id: str) -> dict:
             "status": i["status"],
             "direction": i["direction"],
             "source_sig": i.get("source_sig"),
-            "trend_lines": i.get("trend_lines"),
-            "trend_lines_sig": i.get("trend_lines_sig"),
             "confidence": i.get("confidence"),
         }
         for i in items
@@ -1898,7 +1713,7 @@ def _eq_patch(monkeypatch):
 
 
 def test_process_mode_matches_threads_on_hits(cp_store, monkeypatch):
-    """Process path yields identical hits/symbols/statuses/source_sig/trend_lines vs threads."""
+    """Process path yields identical hits/symbols/statuses/source_sig vs threads."""
     _eq_patch(monkeypatch)
     monkeypatch.delenv("PATTERN_SCAN_USE_PROCESSES", raising=False)
     _FakeProcessPool.instances.clear()
@@ -2329,18 +2144,18 @@ def test_source_sig_precomputed_values_match_default(cp_store):
 
     ``_process_symbol`` now forwards values it already computed so the frame
     digest avoids a second timezone conversion; the result must be identical
-    to the four-argument form used by stored-hit comparisons.
+    to the three-argument form used by stored-hit comparisons.
     """
     df = _make_df(80)
     last_date = scan.candles.frame_last_date(df)
     detector_sig = scan._detector_signature()
-    expected = scan._source_sig(df, "1D", 40, True)
+    expected = scan._source_sig(df, "1D", 40)
     assert scan._source_sig(
-        df, "1D", 40, True, detector_sig=detector_sig, last_date=last_date
+        df, "1D", 40, detector_sig=detector_sig, last_date=last_date
     ) == expected
     # Proves the forwarded date is actually used, not ignored.
     assert scan._source_sig(
-        df, "1D", 40, True, detector_sig=detector_sig, last_date="2000-01-01"
+        df, "1D", 40, detector_sig=detector_sig, last_date="2000-01-01"
     ) != expected
 
 
@@ -2386,9 +2201,7 @@ def test_auto_cancellation_still_works(cp_store, monkeypatch):
 
 
 def test_process_symbol_uses_precomputed_signature(cp_store, monkeypatch):
-    """A supplied (detector_sig, tl_sig) pair is used verbatim, never rebuilt."""
-    from chart_patterns import config as cp_config
-
+    """A supplied detector signature is used verbatim, never rebuilt."""
     df = _make_df(80)
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
@@ -2398,42 +2211,35 @@ def test_process_symbol_uses_precomputed_signature(cp_store, monkeypatch):
         scan, "engine_mod", SimpleNamespace(detect_patterns=lambda d, tf, s: [_hit(s)])
     )
 
-    real_sig = cp_config.trendline_signature()
+    real_sig = scan._detector_signature()
     calls = []
 
-    def counting_sig():
+    def counting_sig(*args, **kwargs):
         calls.append(1)
         return real_sig
 
-    monkeypatch.setattr(cp_config, "trendline_signature", counting_sig)
+    monkeypatch.setattr(scan, "_detector_signature", counting_sig)
 
     store.save_job({
         "job_id": "cpj_sig_pre", "universe": "nifty50", "timeframe": "1D", "status": "queued",
     })
-    det_sig = f"v{scan.SCAN_DETECTOR_VERSION}|tl:{real_sig}"
-    result = scan._process_symbol(
-        "AAA", "1D", "cpj_sig_pre", signature=(det_sig, real_sig)
-    )
+    result = scan._process_symbol("AAA", "1D", "cpj_sig_pre", signature=real_sig)
 
     assert result["status"] == "ok"
-    assert calls == [], "a precomputed signature must not rebuild trendline settings"
+    assert calls == [], "a precomputed signature must not rebuild the detector settings"
     record = result["hits"][0]
-    assert record["trend_lines_sig"] == real_sig
     assert record["source_sig"] == scan._source_sig(
-        df, "1D", None, True, detector_sig=det_sig,
+        df, "1D", None, detector_sig=real_sig,
         last_date=scan.candles.frame_last_date(df),
     )
 
 
 def test_run_job_builds_signature_once_for_all_symbols(cp_store, monkeypatch):
-    """A full job rebuilds the detector settings signature exactly once.
+    """The job-invariant detector signature is shared with every worker.
 
-    Before the hoist every symbol rebuilt it twice (source key + hit stamp) and
-    ``run_job`` rebuilt it four more times for the terminal state, so three
-    symbols cost ten identical string builds instead of one.
+    ``run_job`` builds it once and passes it to each ``_process_symbol`` call as
+    ``signature=``; workers must all see the identical value.
     """
-    from chart_patterns import config as cp_config
-
     df = _make_df(80)
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
@@ -2448,14 +2254,15 @@ def test_run_job_builds_signature_once_for_all_symbols(cp_store, monkeypatch):
         SimpleNamespace(get_universe=lambda uid: ["AAA", "BBB", "CCC"]),
     )
 
-    real_sig = cp_config.trendline_signature()
-    calls = []
+    expected = scan._detector_signature()
+    seen = []
+    real_process = scan._process_symbol
 
-    def counting_sig():
-        calls.append(1)
-        return real_sig
+    def capturing(*args, **kwargs):
+        seen.append(kwargs.get("signature"))
+        return real_process(*args, **kwargs)
 
-    monkeypatch.setattr(cp_config, "trendline_signature", counting_sig)
+    monkeypatch.setattr(scan, "_process_symbol", capturing)
 
     job_id = "cpj_sig_once"
     store.save_job({
@@ -2463,12 +2270,9 @@ def test_run_job_builds_signature_once_for_all_symbols(cp_store, monkeypatch):
     })
     scan.run_job(job_id)
 
-    assert len(calls) == 1, f"expected one signature build per job, got {len(calls)}"
+    assert seen == [expected, expected, expected]
     row = store.get_job(job_id)
     assert row["status"] == "completed"
-    assert row["params"]["scan_signature"].startswith(
-        f"v{scan.SCAN_DETECTOR_VERSION}|tl:{real_sig}"
-    )
+    assert row["params"]["scan_signature"].startswith(f"v{scan.SCAN_DETECTOR_VERSION}")
     items, total, _ = store.query_results({"job_id": job_id})
     assert total == 3
-    assert all(item["trend_lines_sig"] == real_sig for item in items)

@@ -77,7 +77,7 @@ ChartView (market=usa)
         india -> UpstoxProvider (existing path, unchanged)
         usa   -> YahooProvider (default) | AlpacaProvider (if key)
      -> tz-aware UTC OHLCV
-     -> {symbol, timeframe, candles, overlays:[], trend_lines:[], hits:[], market, feed}
+     -> {symbol, timeframe, candles, overlays:[], hits:[], market, feed}
 ```
 
 - **Provider protocol:** `candles(symbol, timeframe, range) -> DataFrame` with
@@ -93,10 +93,10 @@ ChartView (market=usa)
   the US session is open; pin after close. Bump `CACHE_VERSION`. Namespace the
   negative cache too.
 - **Patterns (shipped, revised):** the original v1 returned empty
-  `hits`/`overlays`/`trend_lines`. The US pattern engine now runs on demand:
+  `hits`/`overlays`. The US pattern engine now runs on demand:
   `?detect_patterns=1` applies the **pure price engine** directly to the
   provider frame (no NSE scan store, no Upstox, no IST calendar) and returns
-  `hits` tagged `source="live"` with overlays/trend lines. Validated on a live
+  `hits` tagged `source="live"` with overlays. Validated on a live
   AAPL 1D chart — **3 hits**. With detection off, hits stay empty.
 
 ## API contract (shipped)
@@ -107,7 +107,7 @@ the provider registry selects **Yahoo** by default and **Alpaca** only when
 
 - `market` query param: `india` (default) | `usa`; any other value → 400.
 - existing `timeframe` (US: `1m`/`5m`/`15m`/`1h`/`1D`), `limit`,
-  `lookback_bars`, `detect_patterns`, `compute_trendlines`;
+  `lookback_bars`, `detect_patterns`;
   `as_of_date`/`from_date` are India-only (US replay is not in v1).
 - response (documented by `SymbolChartResponse` in `openapi.yaml`) is the
   existing chart payload plus:
@@ -115,7 +115,7 @@ the provider registry selects **Yahoo** by default and **Alpaca** only when
   - `feed: "yahoo" | "alpaca-iex" | "alpaca-sip"`
   - `delay_label: "~1 min (forming)" | "live (IEX)" | "15 min delayed (SIP)"`
   - `session_date: "YYYY-MM-DD"` (ET)
-  - `hits`/`overlays`/`trend_lines` from live detection when `detect_patterns=1`
+  - `hits`/`overlays` from live detection when `detect_patterns=1`
 - `market=usa` never calls Upstox, the NSE holiday calendar, or the stored scan.
 
 **Validated limits (measured, not assumed):** `BRK.B` does not resolve but

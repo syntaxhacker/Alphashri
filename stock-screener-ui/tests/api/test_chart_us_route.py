@@ -192,7 +192,6 @@ def test_usa_response_shape_and_tz_aware_candles(client, us_stack):
     assert body["delay_label"] == "~1 min (forming)"
     assert body["session_date"] == "2026-11-17"
     assert body["overlays"] == []
-    assert body["trend_lines"] == []
     assert body["hits"] == []
 
     assert len(body["candles"]) == 3
@@ -214,7 +213,7 @@ def test_usa_detect_patterns_uses_engine_not_nse_stack(client, us_stack, monkeyp
 
     resp = _get(
         client, market="usa", timeframe="1m",
-        detect_patterns="true", compute_trendlines="true",
+        detect_patterns="true",
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -222,13 +221,12 @@ def test_usa_detect_patterns_uses_engine_not_nse_stack(client, us_stack, monkeyp
     assert all(hit["source"] == "live" for hit in body["hits"])
     assert any(hit["pattern_id"] == "triple_bottom" for hit in body["hits"])
     assert body["overlays"], "overlays come from live hits, not the store"
-    assert body["trend_lines"], "support/resistance computed from the provider frame"
     forbidden.assert_not_called()
     us_stack.registry.provider_for.assert_called_once_with("usa")
 
 
 def test_usa_daily_live_hits_regression(client, us_stack):
-    """A provider-style 1D frame must yield live hits, overlays and trend lines.
+    """A provider-style 1D frame must yield live hits and overlays.
 
     The stale pre-fix route ignored ``detect_patterns`` and answered ``[]``
     even though the engine found patterns on the very same frame; the chart
@@ -238,7 +236,7 @@ def test_usa_daily_live_hits_regression(client, us_stack):
 
     resp = _get(
         client, market="usa", timeframe="1D",
-        detect_patterns="true", compute_trendlines="true",
+        detect_patterns="true",
     )
 
     assert resp.status_code == 200
@@ -247,7 +245,6 @@ def test_usa_daily_live_hits_regression(client, us_stack):
     assert all(hit["source"] == "live" for hit in body["hits"])
     assert any(hit["pattern_id"] == "triple_bottom" for hit in body["hits"])
     assert body["overlays"], "overlays must be derived from the live hits"
-    assert body["trend_lines"], "support/resistance must come from the provider frame"
     assert len(body["candles"]) == 70
     assert all(c["t"].endswith("+00:00") for c in body["candles"])
 
@@ -536,14 +533,8 @@ def test_india_path_unchanged_and_is_default(client, us_stack, monkeypatch, para
         cp_api.candles, "_last_completed_session",
         lambda: pd.Timestamp("2026-11-17", tz="UTC"),
     )
-    monkeypatch.setattr(
-        cp_api, "_stored_overlays_and_lines", lambda *a, **k: ([], [])
-    )
+    monkeypatch.setattr(cp_api, "_stored_overlays", lambda *a, **k: [])
     monkeypatch.setattr(cp_api, "_stored_hits", lambda *a, **k: [])
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda *a, **k: {"support": None, "resistance": None},
-    )
 
     resp = client.get(
         ROUTE.format(symbol="RELIANCE"), params={"timeframe": "1m", **params}

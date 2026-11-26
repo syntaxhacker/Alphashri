@@ -256,10 +256,10 @@ def latest_hits_by_symbol(
     """The previous completed job's hits for a universe/timeframe, keyed by symbol.
 
     Returns the latest completed job (excluding ``exclude_job_id``) and keeps the
-    newest hit per symbol. Each value is the hit dto with ``source_sig`` plus the
-    scan-time ``trend_lines`` / ``trend_lines_sig`` promoted from ``payload_json``
-    to the top level, so :func:`chart_patterns.scan.run_job` can compare
-    signatures without re-parsing payloads. Returns ``{}`` when there is no
+    newest hit per symbol. Each value is the hit dto with ``source_sig``
+    promoted from ``payload_json`` to the top level, so
+    :func:`chart_patterns.scan.run_job` can compare signatures without re-parsing
+    payloads. Returns ``{}`` when there is no
     previous completed job with hits, and never raises on DB failure.
 
     This is the read side of the source-signature reuse contract: a symbol whose
@@ -294,15 +294,6 @@ def latest_hits_by_symbol(
             dto = row.to_dict(payload)
             source_sig = payload.get("source_sig")
             dto["source_sig"] = str(source_sig) if source_sig else None
-            trend_lines = payload.get("trend_lines")
-            if isinstance(trend_lines, list):
-                dto["trend_lines"] = trend_lines
-            trend_lines_sig = payload.get("trend_lines_sig")
-            if trend_lines_sig:
-                dto["trend_lines_sig"] = str(trend_lines_sig)
-            trend_lines_window = payload.get("trend_lines_window")
-            if trend_lines_window:
-                dto["trend_lines_window"] = str(trend_lines_window)
             by_symbol[sym] = dto
         return by_symbol
     except Exception:
@@ -380,9 +371,6 @@ def _add_hit_rows(session, job_id: str, hits: Iterable[dict]) -> int:
             "trendlines": hit.get("trendlines") or [],
             "notes": hit.get("notes") or "",
             "pivots": hit.get("pivots") or [],
-            "trend_lines": hit.get("trend_lines") or [],
-            "trend_lines_sig": hit.get("trend_lines_sig") or "",
-            "trend_lines_window": hit.get("trend_lines_window") or "",
             "source_sig": hit.get("source_sig") or "",
         }
         row = PatternHit(
@@ -459,8 +447,8 @@ def save_hits_batch(entries: list[tuple[str, list[dict]]]) -> int:
 def _payload_dict(raw) -> dict:
     """Parse a hit's ``payload_json`` once; accept an already-parsed dict too.
 
-    The read paths parse each row once and hand the dict to ``to_dict`` and all
-    four field helpers, replacing five ``json.loads`` calls per row.
+    The read paths parse each row once and hand the dict to ``to_dict`` and the
+    field helpers, replacing repeated ``json.loads`` calls per row.
     """
     if isinstance(raw, dict):
         return raw
@@ -473,26 +461,6 @@ def _payload_dict(raw) -> dict:
     return parsed if isinstance(parsed, dict) else {}
 
 
-def _payload_trend_lines(raw) -> list:
-    """Scan-time ``trend_lines`` carried in a hit's ``payload_json``.
-
-    ``raw`` is either the once-parsed payload dict or the raw column value;
-    missing/blank/malformed values yield ``[]``.
-    """
-    lines = _payload_dict(raw).get("trend_lines") or []
-    return list(lines) if isinstance(lines, list) else []
-
-
-def _payload_trend_lines_sig(raw) -> Optional[str]:
-    """Scan-time ``trend_lines_sig`` carried in a hit's ``payload_json``.
-
-    Accepts the once-parsed payload dict. Missing/blank/malformed values yield
-    ``None`` (treated as stale).
-    """
-    sig = _payload_dict(raw).get("trend_lines_sig")
-    return str(sig) if sig else None
-
-
 def _payload_source_sig(raw) -> Optional[str]:
     """``source_sig`` carried in a hit's ``payload_json``.
 
@@ -501,18 +469,6 @@ def _payload_source_sig(raw) -> Optional[str]:
     """
     sig = _payload_dict(raw).get("source_sig")
     return str(sig) if sig else None
-
-
-def _payload_trend_lines_window(raw) -> Optional[str]:
-    """``trend_lines_window`` carried in a hit's ``payload_json``.
-
-    Fingerprints the trailing window the scan-time ``trend_lines`` were fitted
-    to. Accepts the once-parsed payload dict. Missing/blank/malformed values
-    yield ``None`` — legacy rows predate it, so a read cannot prove the stored
-    geometry still applies and falls back to the detector-signature gate.
-    """
-    window = _payload_dict(raw).get("trend_lines_window")
-    return str(window) if window else None
 
 
 def _apply_filters(query, filters: dict, session=None):
@@ -715,9 +671,6 @@ def query_results(filters: dict, limit: Optional[int] = 100, offset: int = 0):
             payload = _payload_dict(row.payload_json)
             dto = row.to_dict(payload)
             dto["breakout_score"] = breakout_score(dto)
-            dto["trend_lines"] = _payload_trend_lines(payload)
-            dto["trend_lines_sig"] = _payload_trend_lines_sig(payload)
-            dto["trend_lines_window"] = _payload_trend_lines_window(payload)
             dto["source_sig"] = _payload_source_sig(payload)
             items.append(dto)
         _attach_52w_gaps(session, items)
@@ -999,9 +952,6 @@ def get_symbol_detail(
             payload = _payload_dict(row.payload_json)
             dto = row.to_dict(payload)
             dto["breakout_score"] = breakout_score(dto)
-            dto["trend_lines"] = _payload_trend_lines(payload)
-            dto["trend_lines_sig"] = _payload_trend_lines_sig(payload)
-            dto["trend_lines_window"] = _payload_trend_lines_window(payload)
             patterns.append(dto)
         patterns.sort(
             key=lambda p: (

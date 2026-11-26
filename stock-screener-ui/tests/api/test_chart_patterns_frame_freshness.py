@@ -79,10 +79,6 @@ def test_stale_stored_close_replaced_by_current_frame(monkeypatch):
     """A 3,382 stored close can never survive an enrichment on a 3,430 frame."""
     df = _frame([3300.0, 3382.0, 3430.0], "2026-11-13")
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: df)
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
 
     item = _stale_item()
     out = cp_api._enrich_with_candles([item], "1D")
@@ -111,11 +107,9 @@ def test_series_cache_key_changes_with_frame_last_bar():
 
     out_old = cp_api._finalize_item(
         _stale_item(), old, key=("KAYNES", "1D"), lookback_bars=500,
-        compute_trendlines=False, tl_cache={},
     )
     out_new = cp_api._finalize_item(
         _stale_item(), new, key=("KAYNES", "1D"), lookback_bars=500,
-        compute_trendlines=False, tl_cache={},
     )
 
     assert out_old["last_close"] == 3382.0
@@ -148,7 +142,7 @@ def test_refresh_clears_only_target_symbol_enrichment(monkeypatch):
     for symbol, df in frames.items():
         cp_api._finalize_item(
             {"symbol": symbol, "timeframe": "1D"}, df, key=(symbol, "1D"),
-            lookback_bars=500, compute_trendlines=False, tl_cache={},
+            lookback_bars=500,
         )
     assert len(cp_api._enrichment_cache) == 2
 
@@ -235,11 +229,9 @@ def test_series_cache_preserves_close_bar_date():
 
     first = cp_api._finalize_item(
         _stale_item(), df, key=key, lookback_bars=500,
-        compute_trendlines=False, tl_cache={},
     )
     second = cp_api._finalize_item(
         _stale_item(), df, key=key, lookback_bars=500,
-        compute_trendlines=False, tl_cache={},
     )
 
     assert first["close_bar_date"] == second["close_bar_date"] == "2026-11-13"
@@ -401,10 +393,6 @@ def test_symbol_then_matrix_keeps_the_stored_triple(monkeypatch):
     item["close_bar_date"] = "2026-11-13"
     df = _daily_frame([3300.0, 3382.0], "2026-11-13")
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: df)
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
 
     cp_api._candle_fields("KAYNES", "1D")
     close, change = _close(df)
@@ -438,13 +426,7 @@ def test_chart_with_a_partial_bar_does_not_change_the_matrix(monkeypatch, tmp_pa
         cp_api.candles, "fetch_for_timeframe",
         lambda symbol, *a, **k: cp_api.candles.with_partial_today(base, symbol),
     )
-    monkeypatch.setattr(
-        cp_api, "_stored_overlays_and_lines", lambda *a, **k: ([], [])
-    )
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
+    monkeypatch.setattr(cp_api, "_stored_overlays", lambda *a, **k: [])
 
     app, client = _chart_client()
     try:
@@ -606,11 +588,7 @@ def _stale_chart_setup(monkeypatch, tmp_path, base, last_completed=None):
     monkeypatch.setattr(
         "market_data.market_data.get_api_client", lambda: _tape_client()
     )
-    monkeypatch.setattr(cp_api, "_stored_overlays_and_lines", lambda *a, **k: ([], []))
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
+    monkeypatch.setattr(cp_api, "_stored_overlays", lambda *a, **k: [])
     monkeypatch.setattr(cp_api, "_kick_stale_first_refresh", lambda *a, **k: True)
 
 
@@ -858,13 +836,7 @@ def test_refresh_query_skips_stale_first_and_forces_fetch(monkeypatch, tmp_path)
         return base
 
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
-    monkeypatch.setattr(
-        cp_api, "_stored_overlays_and_lines", lambda *a, **k: ([], [])
-    )
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
+    monkeypatch.setattr(cp_api, "_stored_overlays", lambda *a, **k: [])
 
     app, client = _chart_client()
     try:
@@ -907,13 +879,7 @@ def test_refresh_reports_today_when_the_tape_bar_is_appended(monkeypatch, tmp_pa
         return cp_api.candles.with_partial_today(base, symbol)
 
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
-    monkeypatch.setattr(
-        cp_api, "_stored_overlays_and_lines", lambda *a, **k: ([], [])
-    )
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
+    monkeypatch.setattr(cp_api, "_stored_overlays", lambda *a, **k: [])
 
     app, client = _chart_client()
     try:
@@ -955,13 +921,7 @@ def test_refresh_appends_the_bar_even_if_the_fetch_returns_base_only(
     monkeypatch.setattr(
         cp_api.candles, "fetch_for_timeframe", lambda *a, **k: base
     )
-    monkeypatch.setattr(
-        cp_api, "_stored_overlays_and_lines", lambda *a, **k: ([], [])
-    )
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
+    monkeypatch.setattr(cp_api, "_stored_overlays", lambda *a, **k: [])
 
     app, client = _chart_client()
     try:
@@ -1003,11 +963,7 @@ def test_network_path_carries_freshness_keys(monkeypatch, tmp_path):
     )
     cp_api.candles._PARTIAL_CACHE.clear()
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: base)
-    monkeypatch.setattr(cp_api, "_stored_overlays_and_lines", lambda *a, **k: ([], []))
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
+    monkeypatch.setattr(cp_api, "_stored_overlays", lambda *a, **k: [])
 
     app, client = _chart_client()
     try:
@@ -1033,11 +989,7 @@ def test_network_path_intraday_current_without_expected_date(monkeypatch, tmp_pa
     frame = _frame_hourly([100.0, 101.0, 102.0], "2026-11-16T08:45:00")
     monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: frame)
-    monkeypatch.setattr(cp_api, "_stored_overlays_and_lines", lambda *a, **k: ([], []))
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
+    monkeypatch.setattr(cp_api, "_stored_overlays", lambda *a, **k: [])
 
     app, client = _chart_client()
     try:
