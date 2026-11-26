@@ -664,6 +664,29 @@ async def _shutdown_cancel_and_wait(*tasks, timeout: float = _SHUTDOWN_CANCEL_TI
             )
 
 
+def _prebuild_route_dependants(app: FastAPI) -> int:
+    """Build included-router dependants at boot rather than on the first request.
+
+    FastAPI 0.143 expands each ``include_router`` wrapper lazily through
+    ``effective_candidates()`` on the first matching request; that expansion
+    builds every route's Dependant and Pydantic models (~330 ms across this
+    app). Calling it here moves that cost off the first request entirely.
+
+    Returns the number of wrappers prebuilt so the lifespan can report it.
+    """
+    built = 0
+    for route in app.router.routes:
+        # `effective_candidates` is a private, version-dependent FastAPI hook on
+        # the `_IncludedRouter` wrapper, not on plain APIRoutes. The hasattr
+        # guard makes this best-effort: a FastAPI release that builds candidates
+        # elsewhere skips the optimisation instead of breaking startup.
+        if not hasattr(route, "effective_candidates"):
+            continue
+        route.effective_candidates()
+        built += 1
+    return built
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print(f'🚀 Alphashri API starting...')
@@ -698,6 +721,9 @@ async def lifespan(app: FastAPI):
         from db.database import init_db
         init_db()
         print("✅ Database initialized")
+
+        _prebuilt = _prebuild_route_dependants(app)
+        print(f"⚡ Prebuilt route dependants for {_prebuilt} included router(s)")
 
         try:
             from trading.holidays_seed import seed_missing_holidays
