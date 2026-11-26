@@ -68,6 +68,13 @@ export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
   const threshold = () => Number(minStocks()) || 1;
   const visible = createMemo(() => groups().filter((g) => g.stock_count >= threshold()));
   const maxAbs = createMemo(() => visible().reduce((m, g) => Math.max(m, Math.abs(finiteChange(g.change))), 0));
+  const isEmpty = createMemo(() => !loading() && !error() && visible().length === 0);
+
+  // An empty rail is a dead end: fold it to its toggle without hiding the
+  // ability to expand and read the "No groups found" state.
+  createEffect(() => {
+    if (isEmpty()) setCollapsed(true);
+  });
 
   return (
     <Switch>
@@ -77,7 +84,7 @@ export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
           data-testid="group-performance-panel"
           data-collapsed="true"
           w={32}
-          className="flex-shrink-0 min-h-0 flex flex-col items-center py-2 border border-fin-border"
+          className="flex-shrink-0 self-start min-h-0 flex flex-col items-center py-2 border border-fin-border"
         >
           <ActionIcon
             size="xs"
@@ -95,7 +102,7 @@ export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
           data-testid="group-performance-panel"
           data-collapsed="false"
           w={props.width ?? 248}
-          className="flex-shrink-0 min-h-0 flex flex-col overflow-hidden border border-fin-border"
+          className="flex-shrink-0 self-start max-h-full min-h-0 flex flex-col overflow-hidden border border-fin-border"
         >
           <ToolbarRow gap={4} clip data-testid="group-performance-header" wrap={false}>
             <Box className="flex items-center gap-0 px-2 pt-2 w-full">
@@ -186,7 +193,7 @@ export function GroupPerformancePanel(props: GroupPerformancePanelProps) {
               </Box>
             </Match>
             <Match when={visible().length > 0}>
-              <Box className="flex-1 min-h-0 overflow-y-auto flex flex-col px-1 pb-1" data-testid="group-performance-list">
+              <Box className="flex-none max-h-[70vh] min-h-0 overflow-y-auto flex flex-col px-1 pb-1" data-testid="group-performance-list">
                 <For each={visible()}>
                   {(g) => {
                     const pct = maxAbs() > 0 ? (Math.abs(finiteChange(g.change)) / maxAbs()) * 100 : 0;
