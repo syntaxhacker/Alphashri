@@ -10,6 +10,17 @@ const harness = vi.hoisted(() => ({
   history: null as { get: () => string } | null,
   listeners: [] as Array<() => void>,
 }));
+const navCalls = vi.hoisted(() => [] as Array<{ to: string; options: Record<string, unknown> }>);
+
+vi.mock("@solidjs/router", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@solidjs/router")>();
+  return {
+    ...actual,
+    useNavigate: () => (to: string, options: Record<string, unknown>) => {
+      navCalls.push({ to, options });
+    },
+  };
+});
 
 vi.mock("@/state/chartPatterns", () => ({
   subscribe: vi.fn((cb: () => void) => {
@@ -52,6 +63,7 @@ vi.mock("@/state/chartPatterns", () => ({
     max_range_pct: null,
     sort: "confidence",
     trendlines: "both",
+    history: 1,
   },
 }));
 
@@ -184,16 +196,24 @@ describe("PatternsContainer", () => {
     expect(merged).not.toContain("%3F");
   });
 
-  test("writes state changes to the URL without a reactive readback", async () => {
+  test("writes state changes with one non-resolving navigate and no reactive readback", async () => {
     const state = makeState();
     mockGetState.mockReturnValue(state);
     renderContainer();
     await waitFor(() => expect(mockLoadCatalog).toHaveBeenCalled());
 
-    mockGetState.mockReturnValue(makeState({ filters: { ...state.filters, history: 3 } }));
+    mockGetState.mockReturnValue(makeState({
+      filters: { ...state.filters, history: 1, symbols: ["IRCON", "TCS"] },
+    }));
     harness.listeners.forEach((cb) => cb());
 
-    await waitFor(() => expect(harness.history?.get()).toContain("hist=3"));
+    await waitFor(() => expect(navCalls.length).toBeGreaterThan(0));
+    const write = navCalls.at(-1)!;
+    expect(write.to).toBe("/patterns?universe=nifty500&symbol=IRCON&symbol=TCS");
+    expect(write.to).not.toContain("hist=");
+    expect(write.to).not.toContain("??");
+    expect(write.to).not.toContain("%3F");
+    expect(write.options).toEqual({ replace: true, scroll: false, resolve: false });
     expect(vi.mocked(applyFilters)).not.toHaveBeenCalled();
   });
 
@@ -205,10 +225,8 @@ describe("PatternsContainer", () => {
     window.history.replaceState({}, "", "/patterns?tab=watch&view=grid");
     window.dispatchEvent(new Event("popstate"));
 
-    await waitFor(() =>
-      expect((pagePropsCapture.current?.view as () => string)()).toBe("grid"),
-    );
-    expect((pagePropsCapture.current?.tab as () => string)()).toBe("watch");
+    await waitFor(() => expect(screen.getByTestId("view-probe")).toHaveTextContent("grid"));
+    expect(screen.getByTestId("tab-probe")).toHaveTextContent("watch");
   });
 
   afterEach(() => cleanup());
@@ -217,6 +235,7 @@ describe("PatternsContainer", () => {
     vi.clearAllMocks();
     harness.listeners.length = 0;
     harness.history = null;
+    navCalls.length = 0;
   });
 
   test("bootstraps the catalog on each mount", () => {

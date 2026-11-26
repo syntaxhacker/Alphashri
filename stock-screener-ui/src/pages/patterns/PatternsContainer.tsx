@@ -1,5 +1,5 @@
 import { createEffect, createSignal, onMount, onCleanup } from "solid-js";
-import { useLocation, useSearchParams } from "@solidjs/router";
+import { useLocation, useNavigate } from "@solidjs/router";
 import {
   subscribe,
   getChartPatternsState,
@@ -193,13 +193,12 @@ export function PatternsContainer() {
   const [indexGroup, setIndexGroup] = createSignal<IndexGroup>("all");
   const [members, setMembers] = createSignal<string | null>(null);
 
-  const [, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const location = useLocation();
 
   let hydrated = false;
   let firstRun = true;
   let parsed: ParsedPatternParams | null = null;
-  let lastWritten = "";
 
   const currentState = () => ({
     universe: universe(),
@@ -269,7 +268,6 @@ export function PatternsContainer() {
     const state = currentState();
     if (firstRun) {
       firstRun = false;
-      lastWritten = mergeWithSearch(location.search, buildParamsObject(state));
       return;
     }
     if (!hydrated && parsed) {
@@ -307,9 +305,15 @@ export function PatternsContainer() {
 
     const next = buildParamsObject(state);
     const merged = mergeWithSearch(location.search, next);
-    lastWritten = merged;
     if (normalizeSearch(location.search) === normalizeSearch(merged)) return;
-    setSearchParams(next, { replace: true });
+    // `resolve: false` commits the query without re-resolving the route, so a
+    // locally filtered desk keeps its page state (open dock, modal draft).
+    const query = new URLSearchParams(normalizeSearch(merged)).toString();
+    navigate(location.pathname + (query ? "?" + query : ""), {
+      replace: true,
+      scroll: false,
+      resolve: false,
+    });
   });
 
   onMount(() => {
