@@ -114,7 +114,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
       srZones={props.srZones ?? []}
       asOf={props.asOf ?? null}
       docked={props.docked ?? false}
-      fill
+      fill={props.docked ?? false}
       chartError={props.chartError ?? null}
       chartNote={props.chartNote ?? null}
       loading={props.loading ?? false}

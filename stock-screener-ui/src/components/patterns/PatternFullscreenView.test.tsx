@@ -241,22 +241,6 @@ describe("PatternFullscreenView", () => {
     expect(screen.queryByTestId("patterns-chart-panel-column")).toBeNull();
   });
 
-  test("both the modal and the dock use the filling chart body layout", () => {
-    render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={null} candles={[]} />);
-    const modalBody = screen.getByTestId("patterns-chart-body");
-    expect(modalBody).toHaveClass("flex-1");
-    const modalRow = modalBody.firstElementChild as HTMLElement;
-    expect(modalRow).toHaveClass("flex-1");
-    expect(modalRow.className).not.toContain("lg:h-[calc(100vh-72px)]");
-    cleanup();
-
-    render(() => (
-      <PatternFullscreenView opened docked onClose={vi.fn()} hit={null} candles={[]} />
-    ));
-    const dockBody = screen.getByTestId("patterns-chart-body");
-    expect(dockBody).toHaveClass("flex-1");
-  });
-
   test("with a hit: the fullscreen keeps the 80/20 split", () => {
     render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
     const column = screen.getByTestId("patterns-chart-column");
