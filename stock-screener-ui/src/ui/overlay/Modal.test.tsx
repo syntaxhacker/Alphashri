@@ -425,3 +425,56 @@ describe("Modal background containment", () => {
     expect(background).not.toHaveAttribute("aria-hidden");
   });
 });
+
+describe("Modal title layout", () => {
+  function titleNode(container: HTMLElement): HTMLElement {
+    const labelledby = backdrop(container).getAttribute("aria-labelledby");
+    if (!labelledby) throw new Error("aria-labelledby missing");
+    const title = document.getElementById(labelledby);
+    if (!title) throw new Error("title node missing");
+    return title;
+  }
+
+  test("the default title truncates and keeps pr-8 clear of the close ×", () => {
+    const { container } = render(() => (
+      <Modal opened onClose={() => {}} title="Details">
+        body
+      </Modal>
+    ));
+
+    const title = titleNode(container);
+    expect(title).toHaveClass("flex-1", "text-sm", "font-medium", "text-fin-text");
+    expect(title).toHaveClass("pr-8", "truncate");
+  });
+
+  test("titleClassName replaces the default truncate class and does not leak to the dialog", () => {
+    const { container } = render(() => (
+      <Modal
+        opened
+        onClose={() => {}}
+        title="Details"
+        titleClassName="min-w-0 whitespace-normal overflow-visible"
+      >
+        body
+      </Modal>
+    ));
+
+    const title = titleNode(container);
+    expect(title).not.toHaveClass("truncate");
+    expect(title).toHaveClass("min-w-0", "whitespace-normal", "overflow-visible", "pr-8");
+    expect(backdrop(container)).not.toHaveAttribute("titleClassName");
+  });
+});
+
+describe("Modal stacking", () => {
+  test("the overlay sits above the sticky app header at z-[1299]", () => {
+    const { container } = render(() => (
+      <Modal opened onClose={() => {}} title="Details">
+        body
+      </Modal>
+    ));
+
+    expect(backdrop(container)).toHaveClass("z-[1300]");
+    expect(backdrop(container)).not.toHaveClass("z-50");
+  });
+});

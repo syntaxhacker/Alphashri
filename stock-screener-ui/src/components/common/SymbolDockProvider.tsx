@@ -377,8 +377,9 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
         </Show>
       </Show>
       <Show when={maximized() && showDock() && mode() === "chart"}>
-        {/* The rail is z-[1100]; the Modal's own z-50 would sit behind it. */}
-        <Box className="fixed inset-0 z-[1200]">
+        {/* The rail is z-[1100] and the app header is z-[1299]; the maximized
+            chart must sit above both. */}
+        <Box className="fixed inset-0 z-[1300]">
           <Suspense
             fallback={
               <Box className="absolute inset-0 flex items-center justify-center">

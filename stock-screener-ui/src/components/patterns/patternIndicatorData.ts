@@ -109,6 +109,7 @@ export interface AlignedSRZone {
   end: number;
   touches: number;
   score: number;
+  bars_since_touch?: number;
   color: string;
   legendName: string;
 }
@@ -353,6 +354,9 @@ export function alignSRZones(
       end: sortedEpochs[endIndex]!,
       touches: isFiniteNumber(zone.touches) ? zone.touches : 0,
       score: isFiniteNumber(zone.score) ? zone.score : 0,
+      ...(isFiniteNumber(zone.bars_since_touch)
+        ? { bars_since_touch: zone.bars_since_touch }
+        : {}),
       color: SR_ZONE_COLORS[kind],
       legendName: SR_ZONE_LEGEND_NAMES[kind],
     });

@@ -175,6 +175,8 @@ export interface SRZone {
   end_date: string;
   touches: number;
   score: number;
+  /** Bars since the last confirmed touch; absent on older backends. */
+  bars_since_touch?: number;
   /** Exact first-touch bar timestamp on intraday charts (ISO 8601). */
   start_time?: string;
   /** Exact last-touch bar timestamp on intraday charts (ISO 8601). */

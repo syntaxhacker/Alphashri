@@ -23,6 +23,8 @@ on:
       # The reports index is generated and has its own --check gate, so a change
       # to its scanner is a change to a verified artefact.
       - 'stock-screener-ui/scripts/market/reports_index.py'
+      # CI-only tooling: changes to the E2E failure summarizer must run through CI.
+      - 'stock-screener-ui/scripts/ci/**'
       - 'stock-screener-ui/package.json'
       - 'stock-screener-ui/bun.lock'
       - 'stock-screener-ui/vite.config.*'
@@ -380,13 +382,17 @@ jobs:
         env:
           NODE_PATH: ${{ github.workspace }}/stock-screener-ui/node_modules
       - name: Run smoke E2E tests
-        run: cd stock-screener-ui && npx playwright test --grep @smoke
+        # --reporter=blob,list,json keeps the CI blob/list reporters and adds a
+        # machine-readable report; PLAYWRIGHT_JSON_OUTPUT_NAME writes it to disk.
+        run: cd stock-screener-ui && npx playwright test --grep @smoke --reporter=blob,list,json
         env:
           CI: true
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/smoke-report.json
       - name: Verify app routes with axe
-        run: cd stock-screener-ui && APP_A11Y=1 npx playwright test tests/e2e/app-a11y.spec.ts --workers=2
+        run: cd stock-screener-ui && APP_A11Y=1 npx playwright test tests/e2e/app-a11y.spec.ts --workers=2 --reporter=blob,list,json
         env:
           CI: true
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/a11y-report.json
       - name: Dump server logs on failure
         if: failure()
         run: |
@@ -466,9 +472,12 @@ jobs:
         env:
           NODE_PATH: ${{ github.workspace }}/stock-screener-ui/node_modules
       - name: Run full E2E tests
-        run: cd stock-screener-ui && npx playwright test --shard=${{ matrix.shard }}/20
+        # --reporter=blob,list,json keeps the CI blob/list reporters and adds a
+        # machine-readable report; PLAYWRIGHT_JSON_OUTPUT_NAME writes it to disk.
+        run: cd stock-screener-ui && npx playwright test --shard=${{ matrix.shard }}/20 --reporter=blob,list,json
         env:
           CI: true
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/report.json
       - name: Dump server logs on failure
         if: failure()
         run: |
@@ -482,3 +491,9 @@ jobs:
           name: e2e-report-shard-${{ matrix.shard }}
           path: stock-screener-ui/test-results/
           retention-days: 7
+      - name: Summarize failed E2E tests
+        # GITHUB_STEP_SUMMARY is provided by Actions; the script never exits non-zero.
+        if: always()
+        continue-on-error: true
+        working-directory: stock-screener-ui
+        run: node scripts/ci/summarize-e2e.mjs --shard ${{ matrix.shard }}/20 --report test-results/report.json

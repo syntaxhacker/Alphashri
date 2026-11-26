@@ -3,7 +3,10 @@ import { cn } from "../cn";
 import { containBackground } from "./backgroundContainment";
 import type { UIModalProps, UISize } from "../types";
 
-type ModalProps = UIModalProps;
+type ModalProps = UIModalProps & {
+  /** Override the default single-line title truncation for complex title rows. */
+  titleClassName?: string;
+};
 
 const SIZE_MAX_WIDTH: Record<string, string> = {
   xs: "max-w-xs",
@@ -92,6 +95,7 @@ export function Modal(props: ModalProps) {
     "opened",
     "onClose",
     "title",
+    "titleClassName",
     "size",
     "fullScreen",
     "withCloseButton",
@@ -233,7 +237,7 @@ export function Modal(props: ModalProps) {
         ref={(el) => (dialogRef = el)}
         id={known.id}
         data-testid={testId}
-        className={cn("fixed inset-0 z-50 flex items-center justify-center", known.className)}
+        className={cn("fixed inset-0 z-[1300] flex items-center justify-center", known.className)}
         style={overlayStyle}
         onClick={handleBackdropClick}
         role="dialog"
@@ -258,8 +262,9 @@ export function Modal(props: ModalProps) {
                 <div
                   id={titleId}
                   className={cn(
-                    "flex-1 text-sm font-medium text-fin-text truncate",
+                    "flex-1 text-sm font-medium text-fin-text",
                     showCloseButton() ? "pr-8" : undefined,
+                    known.titleClassName ?? "truncate",
                   )}
                 >
                   {known.title}
