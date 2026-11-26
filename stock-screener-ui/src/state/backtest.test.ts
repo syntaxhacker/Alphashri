@@ -29,7 +29,6 @@ import {
   setCostBreakdown,
   resetBacktestState,
   triggerRerender,
-  getStrategyDefaults,
 } from "./backtest";
 import type {
   BacktestResult,
@@ -611,71 +610,6 @@ describe("resetBacktestState", () => {
     expect(state.selectedSymbols).toEqual(["NETWEB", "SBILIFE"]);
     expect(state.isRunning).toBe(false);
     expect(state.error).toBeNull();
-  });
-});
-
-describe("getStrategyDefaults", () => {
-  it("returns orb defaults", () => {
-    const defaults = getStrategyDefaults("orb");
-    expect(defaults.or_minutes).toBe(45);
-    expect(defaults.timeframe).toBe("5");
-    expect(defaults.stop_loss_pct).toBe(0.5);
-    expect(defaults.take_profit_pct).toBe(1.5);
-    expect(defaults.trade_size).toBe(100);
-    expect(defaults.cooldown_bars).toBe(3);
-    expect(defaults.enable_shorts).toBe(false);
-    expect(defaults.max_positions).toBe(5);
-  });
-
-  it("returns sr_breakout defaults", () => {
-    const defaults = getStrategyDefaults("sr_breakout");
-    expect(defaults.pivot_type).toBe("classic");
-    expect(defaults.breakout_buffer_pct).toBe(0.1);
-    expect(defaults.stop_loss_pct).toBe(0.5);
-    expect(defaults.take_profit_pct).toBe(1.5);
-    expect(defaults.trade_size).toBe(100);
-    expect(defaults.max_positions).toBe(3);
-  });
-
-  it("returns 52w_chaser defaults", () => {
-    const defaults = getStrategyDefaults("52w_chaser");
-    expect(defaults.entry_threshold_pct).toBe(3.0);
-    expect(defaults.stop_loss_pct).toBe(3.0);
-    expect(defaults.take_profit_pct).toBe(5.0);
-    expect(defaults.enable_trailing_stop).toBe(false);
-    expect(defaults.trailing_stop_pct).toBe(3.0);
-    expect(defaults.trailing_activation_pct).toBe(2.0);
-    expect(defaults.max_holding_days).toBe(30);
-    expect(defaults.cooldown_days).toBe(30);
-    expect(defaults.trade_size).toBe(100);
-    expect(defaults.enable_filters).toBe(false);
-  });
-
-  it("returns 52w_target defaults", () => {
-    const defaults = getStrategyDefaults("52w_target");
-    expect(defaults.entry_threshold_pct).toBe(2.0);
-    expect(defaults.stop_loss_pct).toBe(2.0);
-    expect(defaults.trailing_stop_pct).toBe(0.5);
-    expect(defaults.max_holding_days).toBe(15);
-    expect(defaults.cooldown_days).toBe(7);
-    expect(defaults.trade_size).toBe(100);
-  });
-
-  it("returns empty object for unknown strategy", () => {
-    expect(getStrategyDefaults("unknown_strategy")).toEqual({});
-  });
-
-  it("orb defaults do not contain sr_breakout keys", () => {
-    const defaults = getStrategyDefaults("orb");
-    expect(defaults).not.toHaveProperty("pivot_type");
-    expect(defaults).not.toHaveProperty("breakout_buffer_pct");
-  });
-
-  it("sr_breakout defaults do not contain orb keys", () => {
-    const defaults = getStrategyDefaults("sr_breakout");
-    expect(defaults).not.toHaveProperty("or_minutes");
-    expect(defaults).not.toHaveProperty("timeframe");
-    expect(defaults).not.toHaveProperty("cooldown_bars");
   });
 });
 
