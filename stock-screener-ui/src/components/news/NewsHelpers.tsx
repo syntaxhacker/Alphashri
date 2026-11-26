@@ -272,7 +272,10 @@ export function NewsItemCard(props: {
             overflow: isDesk() ? "hidden" : undefined,
             "line-height": isDesk() ? 1.35 : undefined,
             "padding-right": isDesk() ? "4px" : undefined,
-            "white-space": isDesk() ? "nowrap" : undefined,
+            // Line-clamp needs normal wrapping; `nowrap` clipped headlines
+            // mid-word with no ellipsis at narrow widths.
+            "white-space": isDesk() ? "normal" : undefined,
+            "overflow-wrap": isDesk() ? "anywhere" : undefined,
           }}
         >
           {item().headline}

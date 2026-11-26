@@ -77,8 +77,8 @@ export function ArticleDetail(props: ArticleDetailProps) {
         when={article()}
         fallback={
           <Box
-            className="flex-1 flex items-center justify-center bg-fin-bg"
-            style={{ padding: "24px" }}
+            className="flex flex-1 flex-col items-center bg-fin-bg"
+            style={{ padding: "16px", "align-items": "center", "justify-content": "flex-start" }}
             data-testid="article-detail"
           >
             <EmptyState

@@ -139,6 +139,32 @@ describe("NewsPage", () => {
     expect(screen.getByText("Test News Article")).toBeInTheDocument();
   });
 
+  it("keeps the empty desktop feed and reader compact instead of a full-height void", () => {
+    mockUseNewsList.mockReturnValue({
+      newsItems: () => [],
+      sources: () => [],
+      selectedSource: () => "all",
+      setSelectedSource: vi.fn(),
+      loading: () => false,
+      error: () => null,
+      loadNews: vi.fn(),
+    });
+    mockUseNewsSourceGroups.mockReturnValue({
+      groupedNewsItems: () => ({}),
+      sourceNames: () => [],
+      expandedSources: () => new Set(),
+      toggleSourceExpanded: vi.fn(),
+    });
+
+    render(() => <NewsPage />);
+
+    expect(screen.getByTestId("news-list-region")).toHaveClass("self-start", "h-[240px]");
+    expect(screen.getByRole("region", { name: "Article reader" })).toHaveClass(
+      "self-start",
+      "h-[240px]",
+    );
+  });
+
   it("shows error state", () => {
     mockUseNewsList.mockReturnValue({
       newsItems: () => [],

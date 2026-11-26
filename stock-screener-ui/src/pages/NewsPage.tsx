@@ -156,9 +156,13 @@ function NewsPageMobile(props: {
   );
 }
 
-function NewsPageDesktop(props: { articleDetailProps: ArticleDetailProps }) {
+function NewsPageDesktop(props: { articleDetailProps: ArticleDetailProps; compact: boolean }) {
   return (
-    <Box role="region" aria-label="Article reader" className={paneClassName}>
+    <Box
+      role="region"
+      aria-label="Article reader"
+      className={`${paneClassName}${props.compact ? " self-start h-[240px]" : ""}`}
+    >
       <ArticleDetail {...props.articleDetailProps} />
     </Box>
   );
@@ -215,6 +219,8 @@ export default function NewsPage() {
       ? () => article.handleArticleClick(article.selectedArticle() as NewsItem)
       : undefined,
   }));
+  // Empty panes must not stretch into a full-height void on desktop.
+  const compactFeedClass = () => (newsItems().length > 0 ? "" : " self-start h-[240px]");
 
   return (
     <Box className="h-full min-h-0 flex flex-col overflow-hidden bg-fin-bg" data-testid="news-page">
@@ -230,11 +236,14 @@ export default function NewsPage() {
               component="section"
               aria-label="News feed"
               data-testid="news-list-region"
-              className={paneClassName}
+              className={`${paneClassName}${compactFeedClass()}`}
             >
               <NewsList {...newsListProps} />
             </Paper>
-            <NewsPageDesktop articleDetailProps={articleDetailProps} />
+            <NewsPageDesktop
+              articleDetailProps={articleDetailProps}
+              compact={!article.selectedArticle()}
+            />
           </Box>
         }
       >

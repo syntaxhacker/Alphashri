@@ -217,7 +217,7 @@ export function LLMStatsPanel() {
         <Box className="flex min-h-0 flex-1 flex-col">
           <CompactPanel
             title="Recent Runs"
-            description={vm().runs.length ? `${vm().runs.length} logged runs` : "No recent runs"}
+            description={vm().runs.length ? `${vm().runs.length} logged runs` : undefined}
             action={
               <ToolbarRow gap={4}>
                 <Button
