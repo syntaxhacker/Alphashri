@@ -137,9 +137,12 @@ export function detachSectorPanel(): void {
   resetSectorState();
   rebuildResetToken = sectorResetGeneration();
   const token = ++rebuildGeneration;
-  setTimeout(() => {
+  // Release the carried frame after the rebuild's onMount effects have run.
+  // A microtask keeps this fake-timer-invisible: minimized windows must leave
+  // no polling timer behind, and this cleanup must not add one.
+  queueMicrotask(() => queueMicrotask(() => {
     if (token === rebuildGeneration) rebuildFrame = null;
-  }, 0);
+  }));
 }
 
 export function switchSectorMarket(market: SectorMarket): void {
