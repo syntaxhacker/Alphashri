@@ -251,7 +251,7 @@ export function ReportStrips() {
             alerts={store.alerts.toasts()}
             max={OI_ALERT_TOAST_MAX}
             onDismiss={(id) => store.alerts.dismissToast(id)}
-            onOpen={() => scrollToLog()}
+            onOpen={(a) => { if (!a.href) scrollToLog(); }}
           />
         </Box>
       </Show>
@@ -351,7 +351,7 @@ export function ReportStrips() {
               alerts={store.alerts.displayedTrail()}
               fill={false}
               height={oiBurstLogHeight(store.alerts.displayedTrail().length)}
-              onOpen={() => scrollToLog()}
+              onOpen={(a) => { if (!a.href) scrollToLog(); }}
             />
           </CompactPanel>
         </Box>
