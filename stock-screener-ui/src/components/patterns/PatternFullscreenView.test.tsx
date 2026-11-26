@@ -698,4 +698,19 @@ describe("PatternFullscreenView full-chart page link", () => {
     expect(onDocumentEscape).toHaveBeenCalledTimes(1);
     document.removeEventListener("keydown", onDocumentEscape);
   });
+
+  test("the modal title row wraps its toolbar and pushes the link last at narrow widths", () => {
+    render(() => (
+      <PatternFullscreenView opened onClose={vi.fn()} symbol="IRCON" hit={HIT} candles={[]} />
+    ));
+
+    const title = screen.getByTestId("patterns-fullscreen-modal-title");
+    const row = title.firstElementChild as HTMLElement;
+    expect(row.className).toContain("max-[640px]:flex-wrap");
+    expect(row.className).toContain("max-[640px]:items-start");
+    expect((row.firstElementChild as HTMLElement).className).toContain("max-[640px]:basis-full");
+    expect(screen.getByTestId("patterns-open-chart-page").className).toContain(
+      "max-[640px]:order-last",
+    );
+  });
 });

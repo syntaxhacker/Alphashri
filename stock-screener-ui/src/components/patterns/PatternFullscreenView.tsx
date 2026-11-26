@@ -190,7 +190,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
           aria-label="Open full chart page"
           title="Open full chart page"
           data-testid="patterns-open-chart-page"
-          className="mt-[2px] shrink-0 rounded-fin border border-fin-border px-1.5 py-0.5 text-ui-micro text-fin-text-muted hover:text-fin-text"
+          className="mt-[2px] shrink-0 rounded-fin border border-fin-border px-1.5 py-0.5 text-ui-micro text-fin-text-muted hover:text-fin-text max-[640px]:order-last"
         >
           Open full chart page
         </a>
@@ -260,11 +260,14 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
       opened={props.opened}
       onClose={props.onClose}
       withCloseButton
+      titleClassName="min-w-0 whitespace-normal overflow-visible"
       title={
         <Box
-          className="flex w-full min-w-0 items-center gap-1"
+          className="flex w-full min-w-0 items-center gap-1 max-[640px]:flex-wrap max-[640px]:items-start"
         >
-          <Box className="min-w-0 flex-1">{renderToolbar()}</Box>
+          <Box className="min-w-0 flex-1 max-[640px]:basis-full max-[640px]:min-w-full">
+            {renderToolbar()}
+          </Box>
           {renderStepper()}
           {renderRefreshButton()}
           {renderOpenChartPageLink()}
