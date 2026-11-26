@@ -1,19 +1,19 @@
 {
   "feature": "sector-single-page",
   "route": "/sector",
-  "head": "0c3533e1790e52a5207bc0ecf2623388c5846ba1",
+  "head": "bafeaac6e4126a9f76a364aed650e62efb5d427f",
   "viewports": [
     1600,
     390
   ],
   "sha256": {
-    "overview-1600.png": "e3f05a045c97e4ef09d89c8b74a0946340fcb1f45a51d56aa320514b658f8f01",
-    "rotation-1600.png": "51eec4716d9daf7aa13de0f2a16c453f11d1c9fb505c25078d4f2cdb5b217fa6",
-    "correlation-1600.png": "384b8b0890bafe90db4bccd7881c1f80433fa962e8234751af8df5f50bee1396",
+    "overview-1600.png": "5474f84ffef3e1f72f37638fb0e4529f40efc0ad814a8a55c9ea6a2c7a369bdc",
+    "rotation-1600.png": "90f1f84c1fd9ebae11f11f8fb4d5b2100dc0632a2cfcb092e93866322ffd5d58",
+    "correlation-1600.png": "fdaee9725bd94297381c8052cb514680da794941a004baa934e42c4310fe0ce1",
     "history-1600.png": "bdb6971470ab253056bc074c0620d45641cbf4469ee64b97b36763f8fb605787",
     "overview-390.png": "bb8214e248ebd0d7c9f9ffbfc0341f0347c6e80a61a56e3d70ac060194ab48b4",
-    "rotation-390.png": "7c050f3bfc4e3ce86db3cd57a1770404580afdf27537780583fba1cd8eb8477a",
-    "correlation-390.png": "7f8a59b30d6505c258249f7c8fd866a22a3c568249ba6cfba24ad06b336376f2",
+    "rotation-390.png": "f265b0a17d6bd6ee3fed49f5f5b57645e375846c632afe8cb9b080f303acdd99",
+    "correlation-390.png": "8c56aa4954086dd64cc770d24353924a965b9ce378e95abf77649d57e9dc911d",
     "history-390.png": "77d0c6a6d70f936ee51983f28d96828e29280371a40a5b37b1953139665cbfff"
   },
   "states": [
