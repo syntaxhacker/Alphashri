@@ -137,6 +137,13 @@ const FILTER_LABELS: Record<string, string> = {
   wick_pct_range: "Wick %",
 };
 
+// Select filters cannot be represented by the dict's scalar default alone.
+// Keep their allowed values so Edit renders a select, not a number stepper.
+const FILTER_META: Record<string, Pick<ProfileFilter, "type" | "options">> = {
+  direction: { type: "select", options: ["both", "bullish", "bearish"] },
+  trend: { type: "select", options: ["all", "bullish", "bearish", "strong_trend"] },
+};
+
 function humanizeFilterKey(key: string): string {
   return key
     .replace(/_/g, " ")
@@ -379,12 +386,16 @@ export function ScreenerConfigView(props: Props) {
       columns: screener.columns || [],
       filters: Array.isArray(screener.filters)
         ? screener.filters
-        : normalizeScreenerFilters(screener.filters).map((entry) => ({
-            key: entry.key,
-            label: labelForFilterKey(entry.key, screener.filters),
-            type: "number" as const,
-            default: entry.default as number | string,
-          })),
+        : normalizeScreenerFilters(screener.filters).map((entry) => {
+            const meta = FILTER_META[entry.key];
+            return {
+              key: entry.key,
+              label: labelForFilterKey(entry.key, screener.filters),
+              type: meta?.type ?? ("number" as const),
+              options: meta?.options,
+              default: entry.default as number | string,
+            };
+          }),
       defaultSortColumn: screener.default_sort?.column || "score",
       defaultSortDirection: screener.default_sort?.direction || "desc",
     });

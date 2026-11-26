@@ -168,6 +168,37 @@ describe("ScreenerConfigView", () => {
       });
       expect(mockLoadScreeners).toHaveBeenCalledWith(false);
     });
+
+    it("opens dict-shaped select filters as selects, not number inputs", async () => {
+      const options = [
+        {
+          id: "buyer_interest_enhanced",
+          label: "Buyer Interest+",
+          columns: ["symbol", "score"],
+          filters: { direction: "bullish" },
+        },
+      ] as unknown as ScreenerOption[];
+      renderWithProvider(
+        <ScreenerConfigView
+          screenerOptions={options}
+          activeScreener="buyer_interest_enhanced"
+          onScreenerChange={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByTestId("edit-screener-buyer_interest_enhanced"));
+      await waitFor(() => {
+        expect(screen.getByTestId("confirm-create-btn")).toBeInTheDocument();
+      });
+
+      const direction = screen.getByDisplayValue("bullish") as HTMLSelectElement;
+      expect(direction.tagName).toBe("SELECT");
+      expect(Array.from(direction.options).map((option) => option.value)).toEqual([
+        "both",
+        "bullish",
+        "bearish",
+      ]);
+      expect(document.querySelector('input[type="number"][aria-label="Direction"]')).toBeNull();
+    });
   });
 
   describe("delete modal", () => {
