@@ -632,6 +632,37 @@ describe("Menu — disclosure ARIA on the trigger", () => {
     expect(screen.getByTestId("dropdown")).toBeInTheDocument();
   });
 
+  // axe: nested-interactive. A component wrapper can return a generic span
+  // around a real button; the fall-back <button> used to wrap that subtree and
+  // leave two focusable controls nested inside each other.
+  test("a component-wrapped button keeps exactly one interactive trigger", () => {
+    const WrappedTrigger = () => (
+      <span className="inline-flex">
+        <button type="button" data-testid="wrapped-trigger">Open</button>
+      </span>
+    );
+    render(() => (
+      <Menu>
+        <Menu.Target data-testid="wrapped-anchor">
+          <WrappedTrigger />
+        </Menu.Target>
+        <Menu.Dropdown data-testid="dropdown">
+          <Menu.Item>Action</Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+    ));
+
+    const trigger = screen.getByTestId("wrapped-trigger");
+    expect(document.querySelectorAll("button")).toHaveLength(1);
+    expect(screen.getByTestId("wrapped-anchor").tagName).toBe("SPAN");
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    expect(screen.getByTestId("dropdown")).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+  });
+
   test("a disabled button child stays a single, non-nested control", () => {
     render(() => (
       <Menu>

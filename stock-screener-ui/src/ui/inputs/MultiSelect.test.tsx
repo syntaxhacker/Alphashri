@@ -287,6 +287,16 @@ describe("MultiSelect — keyboard cursor", () => {
     expect(listbox.id).toBeTruthy();
     expect(combo).toHaveAttribute("aria-controls", listbox.id);
   });
+
+  // axe: aria-allowed-attr. aria-multiselectable belongs to role=listbox; on the
+  // combobox <input> it is a disallowed attribute on every multi-select route.
+  test("only the listbox owns aria-multiselectable, never the combobox", async () => {
+    render(() => <SectorHarness />);
+    await openMenu();
+
+    expect(screen.getByRole("combobox")).not.toHaveAttribute("aria-multiselectable");
+    expect(screen.getByRole("listbox")).toHaveAttribute("aria-multiselectable", "true");
+  });
 });
 
 describe("MultiSelect — tag picker geometry", () => {

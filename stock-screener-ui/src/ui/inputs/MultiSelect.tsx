@@ -487,7 +487,6 @@ export function MultiSelect(props: UIMultiSelectProps) {
             aria-controls={listboxId()}
             aria-activedescendant={activeDescendant()}
             aria-haspopup="listbox"
-            aria-multiselectable="true"
             aria-invalid={isError()}
             aria-describedby={field.describedBy()}
             value={query()}
@@ -527,6 +526,7 @@ export function MultiSelect(props: UIMultiSelectProps) {
               ref={(el) => (listboxEl = el)}
               id={listboxId()}
               role="listbox"
+              aria-multiselectable="true"
               data-part="multiselect-listbox"
               className="fixed border border-fin-border rounded-[6px] bg-fin-surface text-fin-text max-h-60 overflow-y-auto outline-none shadow-md"
               style={{

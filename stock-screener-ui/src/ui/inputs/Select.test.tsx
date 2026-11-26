@@ -108,6 +108,16 @@ describe("Select — portalled listbox (searchable)", () => {
     expect(menu.classList.contains("absolute")).toBe(false);
   });
 
+  // A single-select combobox supported aria-multiselectable="false" nowhere:
+  // the attribute is only valid on the listbox role, so it was removed outright.
+  test("neither the combobox nor the single-select listbox carries aria-multiselectable", async () => {
+    render(() => <UniverseHarness />);
+    await openMenu();
+
+    expect(screen.getByRole("combobox")).not.toHaveAttribute("aria-multiselectable");
+    expect(screen.getByRole("listbox")).not.toHaveAttribute("aria-multiselectable");
+  });
+
   test("selecting an option calls onChange with its value (mousedown + click)", async () => {
     const onChange = vi.fn();
     render(() => <UniverseHarness onChange={onChange} />);
