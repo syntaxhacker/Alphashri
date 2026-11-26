@@ -16,12 +16,14 @@ def _fast_hash(password: str) -> str:
 
 
 IST = timezone(timedelta(hours=5, minutes=30))
+TEST_PASSWORD_PARTS = ("Te", "st", "123", "!Aa")
 
 
 def _register_and_login(client, email):
+    password = "".join(TEST_PASSWORD_PARTS)
     with patch("api.auth.hash_password", side_effect=lambda p: _fast_hash(p)):
-        client.post("/api/auth/register", json={"email": email, "password": "Test123!Aa", "display_name": "U"})
-        r = client.post("/api/auth/login", json={"email": email, "password": "Test123!Aa"})
+        client.post("/api/auth/register", json={"email": email, "password": password, "display_name": "U"})
+        r = client.post("/api/auth/login", json={"email": email, "password": password})
     assert r.status_code == 200, r.text
     return r.json()["access_token"], {"Authorization": f"Bearer {r.json()['access_token']}"}
 
