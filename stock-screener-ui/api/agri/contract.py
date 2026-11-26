@@ -37,9 +37,12 @@ class FiltersPayload(BaseModel):
     markets: list[str] = Field(default_factory=list)
     state_districts: dict[str, list[str]] = Field(default_factory=dict)
     district_markets: dict[str, list[str]] = Field(default_factory=dict)
+    source_id: str = "local"
+    dataset: Optional[str] = None
 
 
 class AppliedFilters(BaseModel):
+    source: str = "local"
     commodity: Optional[str] = None
     group: Optional[str] = None
     state: Optional[str] = None
@@ -117,10 +120,26 @@ class ComparisonSeries(BaseModel):
     points: list[ComparisonPoint] = Field(default_factory=list)
 
 
+class PriceSource(BaseModel):
+    id: str
+    label: str
+    dataset: Optional[str] = None
+    as_of: Optional[str] = None
+    rows: int = 0
+    status: str = "ready"
+
+
+class SourcesResponse(BaseModel):
+    sources: list[PriceSource]
+    default: str = "local"
+
+
 class PricesResponse(BaseModel):
     ok: bool
     as_of: Optional[str] = None
     freshness_days: Optional[int] = None
+    source_id: str = "local"
+    dataset: Optional[str] = None
     data_source: str
     filters: AppliedFilters
     kpis: Kpis
@@ -150,7 +169,9 @@ __all__ = [
     "GroupOption",
     "Kpis",
     "PricesResponse",
+    "PriceSource",
     "Quote",
     "SeriesPoint",
     "SnapshotRow",
+    "SourcesResponse",
 ]

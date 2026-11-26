@@ -50,12 +50,29 @@ export interface AgriFiltersResponse {
 
 export type AgriFiltersPayload = AgriFiltersResponse;
 
+/** One selectable data origin advertised by `GET /api/agri/sources`. */
+export interface AgriSource {
+  id: string;
+  label: string;
+  /** Null for the local cache; a `data-YYYY-MM` tag for releases. */
+  dataset: string | null;
+  as_of: string | null;
+  rows: number;
+  status: string;
+}
+
+export interface AgriSourcesResponse {
+  sources: AgriSource[];
+  default: string;
+}
+
 export interface AgriPricesParams {
   commodity?: string;
   group?: string;
   state?: string;
   district?: string;
   market?: string;
+  source?: string;
   range?: AgriRangeKey | string;
   from?: string;
   to?: string;
@@ -148,6 +165,10 @@ export interface AgriPricesResponse {
   as_of: string | null;
   freshness_days: number | null;
   data_source: string;
+  /** Selected origin (`local` or a release id); absent on older payloads. */
+  source_id?: string;
+  /** Release dataset tag behind the selected origin; absent on older payloads. */
+  dataset?: string | null;
   filters: AgriAppliedFilters;
   kpis: AgriKpis;
   series: AgriSeriesPoint[];

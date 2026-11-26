@@ -10,6 +10,8 @@ Paths:
 - Release tag: `data-YYYY-MM`
 - Local agri cache: `reports/agri/agri_prices.db`
 - Local sync: `scripts/sync_refresh_assets.py`
+- Release materializer: `scripts/materialize_agri_release.py`
+- Release snapshots: `reports/agri/releases/<data-YYYY-MM>/`
 - Ledger table: `agri_ingest_partitions`
 - Run log: `refresh_runs.json` (local)
 
@@ -324,6 +326,84 @@ sqlite3 reports/agri/agri_prices.db \
 
 If local Redis is absent, the SQLite DB is the source of truth. Restart the app
 when you have changed API code; `start.sh` does not run with `--reload`.
+
+---
+
+## 7A. Materialize a release snapshot (read-only source for `/agri`)
+
+The local cache stays the default source. A materialized snapshot is a separate,
+cumulative agri-only SQLite DB that a user can select with `?source=`. It is a
+local build artifact, never uploaded as a release asset.
+
+```bash
+# Dry run first: validate assets and count rows, write nothing.
+.venv/bin/python scripts/materialize_agri_release.py \
+  --release-tag data-2026-11 \
+  --out reports/agri/releases/data-2026-11 \
+  --from 2025-10-27 --dry-run
+
+# Real build (fails if the out directory already exists unless --force).
+.venv/bin/python scripts/materialize_agri_release.py \
+  --release-tag data-2026-11 \
+  --out reports/agri/releases/data-2026-11 \
+  --from 2025-10-27
+
+# Rebuild an existing snapshot (CLI/CI only; readers must be quiesced).
+.venv/bin/python scripts/materialize_agri_release.py \
+  --release-tag data-2026-11 \
+  --out reports/agri/releases/data-2026-11 \
+  --from 2025-10-27 --force
+```
+
+Flags: `--release-tag data-YYYY-MM` and `--from YYYY-MM-DD` and `--out` are
+required; `--cache-dir` (default `reports/refresh_assets`) reuses downloaded
+assets; `--repo` selects the GitHub repository; `--assets-dir` consumes a
+release-shaped local directory offline; `--dry-run` and `--force` behave as
+above. `GITHUB_TOKEN` / `GH_TOKEN` are read from the environment (never printed).
+
+Semantics — **do not confuse this with `sync_refresh_assets.py`**:
+
+1. Reuses the sync download/validation path: manifest kind/date/`rows`/
+   `commodities`/`sha256`, `status=complete`, per-date row validation.
+   `prepare_agri_rows` normalises, quarantines and dedupes before
+   `store.upsert_rows`. Partial days remain excluded.
+2. `--from` is the inclusive first date; selection runs **through the newest
+   asset in the tag**, pulling the intervening assets from earlier monthly
+   releases, so history and 1W/1M/6M anchors survive. A month-only snapshot is
+   not acceptable.
+3. Writes **only** `agri_prices.db` + `manifest.json` inside a staging directory,
+   then atomically replaces the out directory (manifest last). The main cache,
+   52W tables, Redis and `refresh_runs.json` are untouched. `--force` is required
+   to overwrite an existing directory. The DB uses rollback journal (no
+   WAL/SHM sidecars) so readers never write.
+4. Manifest: `{version:1, tag, status:"ready", as_of, rows, dates,
+   cumulative:true, built_at, source_range:{from,to}}`.
+
+Deploy order: build/verify the snapshot **before** deploying the API change; then
+`GET /api/agri/sources` must list `local` first and the new
+`release:<tag>` with its `as_of`, `rows` and `status:"ready"`. After API edits,
+`./start.sh restart` — `start.sh` has no reload. Verify both endpoints read the
+same dataset:
+
+```bash
+curl -s 'http://localhost:8765/api/agri/sources' | python3 -m json.tool
+curl -sG 'http://localhost:8765/api/agri/prices' \
+  --data-urlencode 'source=release:data-2026-11' \
+  --data-urlencode 'commodity=rice' --data-urlencode 'range=max' | python3 -m json.tool
+curl -sG 'http://localhost:8765/api/agri/filters' \
+  --data-urlencode 'source=release:data-2026-11' | python3 -m json.tool
+```
+
+A missing/unopenable snapshot is HTTP 400, never an empty success; an existing
+but empty snapshot reports `data_source: "empty"`. `data_source` stays row
+provenance; `source_id`/`dataset` identify the selected dataset.
+
+**Retention:** proposed cap **3 snapshots** (each roughly the agri portion of
+the ~907 MB cache — measure before setting a hard limit) plus `local`. Evict
+oldest tags via CLI/CI only, with readers quiesced: `rm -rf` is not a hot
+operation; keep the newest `as_of` values and log every eviction. Never delete a
+directory a request may have open, and never delete `reports/agri/agri_prices.db`
+or any other report artifact.
 
 ---
 
