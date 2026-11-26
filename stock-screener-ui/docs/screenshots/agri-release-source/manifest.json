@@ -1,0 +1,77 @@
+{
+  "feature": "agri-release-source",
+  "route": "/agri?source=release:data-2026-11",
+  "head": "ed07912ce6a7d67a781652e449b6b5768b2c5e49",
+  "viewports": [1600, 390],
+  "dimensions": {
+    "1600": { "width": 1600, "height": 1000 },
+    "390": { "width": 390, "height": 844 }
+  },
+  "notes": [
+    "The release source is a fixture: local and release prices are identical by fixture design. Provenance is shown by the source select and release badge, and asserted by the ?source URL plus source=release:data-2026-11 on both /api/agri/filters and /api/agri/prices requests."
+  ],
+  "sha256": {
+    "source-local-1600.png": "3c5bff1985c39d8acec5dbdff792cfdd9187c141c456fd99e58de43286d44e98",
+    "source-local-390.png": "a49a8f008b247753e8d9ed4d34e462f5f1bb80698c896ebc8c14d6df32e5995d",
+    "source-open-1600.png": "98b5e34e00aa4b1cd037e61397f519015a0f0636b39b5c9693f9a35f6851142b",
+    "source-open-390.png": "cb21f4e4086633f7bc632722c3151ec72640c46251d8af90a1c8908ae0b6f8dd",
+    "source-release-1600.png": "dd8d2abc0560dd74b2330e480db8aa4921e6ec17fa025e10d2d6e5ed5e1f3bd5",
+    "source-release-390.png": "d56370ca9f0ad036d78f5141719fc866865154a7491d455ac9b7a03dc61f6430",
+    "source-loading-1600.png": "3454af509fc6c7387778d38178c8d29b617d4cb9d1f9056eb3eb38d1bd36d30d",
+    "source-loading-390.png": "cc0603ddac443b9a288170b3be3fb8ffbd3e41e8366c600fdd77d16e1d7e477d",
+    "source-error-1600.png": "82b8e5ce9173bb15c1f5d5e88320bccf28a909215e3d9054d89e5c4cff87b75a",
+    "source-error-390.png": "49e94ada46496ade299491bd9c016191fd91bc4c94eb3909c7267c3e5e09e787",
+    "source-empty-1600.png": "07bbdd1346e74c515743e33e8c5031a0d87c9bb33634bac72e762b71fb5714cc",
+    "source-empty-390.png": "de4ae7bec811c18e9c295703c17d8aafd7c3f157acc50cfce56dcfa359479a59"
+  },
+  "states": [
+    {
+      "id": "source-local",
+      "files": {
+        "1600": "source-local-1600.png",
+        "390": "source-local-390.png"
+      },
+      "covers": "Default local source, select closed, no source param and no source badge; full data view."
+    },
+    {
+      "id": "source-release",
+      "files": {
+        "1600": "source-release-1600.png",
+        "390": "source-release-390.png"
+      },
+      "covers": "Release data-2026-11 selected and closed: full label at 1600, complete data-2026-11 tag at 390, full release badge at both."
+    },
+    {
+      "id": "source-open",
+      "files": {
+        "1600": "source-open-1600.png",
+        "390": "source-open-390.png"
+      },
+      "covers": "Native source dropdown open with release selected, listing Local cache and the release option."
+    },
+    {
+      "id": "source-loading",
+      "files": {
+        "1600": "source-loading-1600.png",
+        "390": "source-loading-390.png"
+      },
+      "covers": "Prices delayed 1.5s: filters render while the Mandi quotes skeleton and Loading mandi prices… state is visible."
+    },
+    {
+      "id": "source-error",
+      "files": {
+        "1600": "source-error-1600.png",
+        "390": "source-error-390.png"
+      },
+      "covers": "Prices 500: visible agri cache unavailable error alert with Retry, release badge still shown."
+    },
+    {
+      "id": "source-empty",
+      "files": {
+        "1600": "source-empty-1600.png",
+        "390": "source-empty-390.png"
+      },
+      "covers": "Honest ok:true empty payload (data_source empty, zero series/quotes) with chart and table empty-state copy."
+    }
+  ]
+}

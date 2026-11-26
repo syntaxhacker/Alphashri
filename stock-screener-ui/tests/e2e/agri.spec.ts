@@ -1,12 +1,15 @@
 import { test, expect, type Page } from "@playwright/test";
-import { mkdirSync, statSync } from "node:fs";
+import { mkdirSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 import {
   AGRI_GAP,
+  AGRI_SOURCE_LOCAL,
+  AGRI_SOURCE_RELEASE,
   agriPricesPayload,
   setupAgriMocks,
   type AgriMockHandle,
+  type AgriMockOptions,
 } from "./helpers/agriMocks";
 import {
   formatAgriPrice,
@@ -20,6 +23,9 @@ import {
 } from "../../src/pages/agri/agriEda";
 
 const REPORT_DIR = resolve(process.cwd(), "reports/agri/screenshots");
+const SOURCE_EVIDENCE_DIR = resolve(process.cwd(), "docs/screenshots/agri-release-source");
+const SOURCE_EVIDENCE = process.env.SCREENSHOT_EVIDENCE === "1";
+const RELEASE_LABEL = "Release data-2026-11";
 const MODES = [
   "band",
   "compare",
@@ -74,6 +80,14 @@ async function openAgri(page: Page, query = "") {
   await expect(page.getByTestId("agri-page")).toBeVisible();
   await expect(page.getByTestId("agri-chart")).toBeVisible();
   await expect(page.locator('[data-testid="agri-chart"] canvas')).toBeVisible();
+}
+
+function expectPngSize(file: string, width: number, height: number) {
+  const header = readFileSync(file).subarray(0, 24);
+  expect(header.subarray(12, 16).toString("ascii")).toBe("IHDR");
+  expect(header.readUInt32BE(16)).toBe(width);
+  expect(header.readUInt32BE(20)).toBe(height);
+  expect(statSync(file).size).toBeGreaterThan(8 * 1024);
 }
 
 async function expectEdaSummary(page: Page, params: Record<string, string> = {}) {
@@ -362,6 +376,58 @@ test.describe("Agri prices redesign", () => {
       range: "1m",
     });
   });
+
+  test("source selector round-trips a release through URL, requests and badge", async ({
+    page,
+  }) => {
+    await openAgri(page);
+
+    const sourceSelect = page.getByTestId("agri-source-select").locator("select");
+    await expect(sourceSelect).toHaveValue(AGRI_SOURCE_LOCAL);
+    await expect(page.getByTestId("agri-source-select").locator("option")).toHaveText([
+      "Local cache",
+      RELEASE_LABEL,
+    ]);
+    await expect(page.getByTestId("agri-source-badge")).toHaveCount(0);
+    expect(new URL(page.url()).searchParams.has("source")).toBe(false);
+    expect(handle.filtersRequests.length).toBeGreaterThan(0);
+    expect(handle.pricesCalls.length).toBeGreaterThan(0);
+    expect(handle.filtersRequests.every((call) => call.params.source === undefined)).toBe(true);
+    expect(handle.pricesCalls.every((call) => call.params.source === undefined)).toBe(true);
+
+    await selectValue(page, "agri-source-select", AGRI_SOURCE_RELEASE);
+
+    await expect(page).toHaveURL(/[?&]source=release(?:%3A|:)data-2026-11(?:&|$)/);
+    expect(new URL(page.url()).searchParams.get("source")).toBe(AGRI_SOURCE_RELEASE);
+    await expect.poll(() => handle.filtersRequests.at(-1)?.params.source).toBe(AGRI_SOURCE_RELEASE);
+    await expect.poll(() => handle.pricesCalls.at(-1)?.params.source).toBe(AGRI_SOURCE_RELEASE);
+    for (const call of [handle.filtersRequests.at(-1), handle.pricesCalls.at(-1)]) {
+      expect(call).toBeDefined();
+      expect(new URL(call!.url).searchParams.get("source")).toBe(AGRI_SOURCE_RELEASE);
+      expect(call!.url).toMatch(/source=release(?:%3A|:)data-2026-11(?:&|$)/);
+    }
+    await expect(page.getByTestId("agri-source-badge")).toHaveText(RELEASE_LABEL);
+    await expect(sourceSelect).toHaveValue(AGRI_SOURCE_RELEASE);
+
+    await page.goto(page.url());
+    await expect(page.getByTestId("agri-page")).toBeVisible();
+    await expect(page.getByTestId("agri-chart")).toBeVisible();
+    await expect(page.getByTestId("agri-source-select").locator("select")).toHaveValue(
+      AGRI_SOURCE_RELEASE,
+    );
+    await expect(page.getByTestId("agri-source-badge")).toHaveText(RELEASE_LABEL);
+    await expect.poll(() => handle.filtersRequests.at(-1)?.params.source).toBe(AGRI_SOURCE_RELEASE);
+    await expect.poll(() => handle.pricesCalls.at(-1)?.params.source).toBe(AGRI_SOURCE_RELEASE);
+
+    await selectValue(page, "agri-source-select", AGRI_SOURCE_LOCAL);
+    await expect(page).not.toHaveURL(/[?&]source=/);
+    await expect(page.getByTestId("agri-source-badge")).toHaveCount(0);
+    await expect(page.getByTestId("agri-source-select").locator("select")).toHaveValue(
+      AGRI_SOURCE_LOCAL,
+    );
+    await expect.poll(() => handle.filtersRequests.at(-1)?.params.source).toBeUndefined();
+    await expect.poll(() => handle.pricesCalls.at(-1)?.params.source).toBeUndefined();
+  });
 });
 
 for (const viewport of [
@@ -402,3 +468,124 @@ test("captures the mobile full-page state", async ({ page }) => {
   await page.screenshot({ path: file, fullPage: true });
   expect(statSync(file).size).toBeGreaterThan(40 * 1024);
 });
+
+const SOURCE_VIEWPORTS = [
+  { label: "1600", width: 1600, height: 1000 },
+  { label: "390", width: 390, height: 844 },
+] as const;
+
+type SourceViewport = (typeof SOURCE_VIEWPORTS)[number];
+
+async function captureSourceState(
+  page: Page,
+  viewport: SourceViewport,
+  state: string,
+  settle = true,
+) {
+  if (settle) {
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("agri-refreshing")).toHaveCount(0);
+  }
+  await page.mouse.move(0, 0);
+  const file = resolve(SOURCE_EVIDENCE_DIR, `source-${state}-${viewport.label}.png`);
+  await page.screenshot({ path: file, animations: "disabled", caret: "hide" });
+  expectPngSize(file, viewport.width, viewport.height);
+}
+
+for (const viewport of SOURCE_VIEWPORTS) {
+  test(`captures agri source selector states at ${viewport.label}`, async ({ page }) => {
+    test.skip(!SOURCE_EVIDENCE, "set SCREENSHOT_EVIDENCE=1 to write evidence captures");
+    mkdirSync(SOURCE_EVIDENCE_DIR, { recursive: true });
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await setupApiMocks(page);
+    await loginAsTestUser(page);
+    const handle = await setupAgriMocks(page);
+    await openAgri(page);
+    await expect(page.getByTestId("agri-quotes-table")).toBeVisible();
+
+    await captureSourceState(page, viewport, "local");
+
+    await selectValue(page, "agri-source-select", AGRI_SOURCE_RELEASE);
+    await expect.poll(() => handle.pricesCalls.at(-1)?.params.source).toBe(AGRI_SOURCE_RELEASE);
+    await expect.poll(() => handle.filtersRequests.at(-1)?.params.source).toBe(AGRI_SOURCE_RELEASE);
+
+    // Native <select> options are also the closed label: desktop keeps the full
+    // name, mobile shows the complete dataset tag. Badge/title stay full.
+    const closedLabel = viewport.label === "1600" ? RELEASE_LABEL : "data-2026-11";
+    await expect(page.getByTestId("agri-source-select").locator("option")).toHaveText([
+      "Local cache",
+      closedLabel,
+    ]);
+    await expect(page.getByTestId("agri-source-select").locator("option:checked")).toHaveText(
+      closedLabel,
+    );
+    await expect(page.getByTestId("agri-source-badge")).toHaveText(RELEASE_LABEL);
+    await expect(page.getByTestId("agri-source-badge")).toHaveAttribute("title", RELEASE_LABEL);
+
+    const select = page.getByTestId("agri-source-select").locator("select");
+    await expect(select).toHaveValue(AGRI_SOURCE_RELEASE);
+    await captureSourceState(page, viewport, "release");
+
+    await select.click();
+    await expect(select).toBeFocused();
+    await captureSourceState(page, viewport, "open");
+    await page.keyboard.press("Escape");
+  });
+}
+
+const SOURCE_STATES: Array<{
+  name: string;
+  options: AgriMockOptions;
+  settle: boolean;
+  ready: (page: Page) => Promise<void>;
+}> = [
+  {
+    name: "loading",
+    options: { pricesDelayMs: 1500 },
+    settle: false,
+    ready: async (page) => {
+      await expect(page.getByTestId("agri-loading-panel")).toBeVisible();
+      await expect(page.getByTestId("agri-loading")).toBeVisible();
+      await expect(page.getByTestId("agri-scan-group")).toBeVisible();
+      await expect(page.getByTestId("agri-source-badge")).toHaveText(RELEASE_LABEL);
+    },
+  },
+  {
+    name: "error",
+    options: { scenario: "error" },
+    settle: true,
+    ready: async (page) => {
+      await expect(page.getByTestId("agri-error")).toBeVisible();
+      await expect(page.getByTestId("agri-error-retry")).toBeVisible();
+      await expect(page.getByTestId("agri-source-badge")).toHaveText(RELEASE_LABEL);
+    },
+  },
+  {
+    name: "empty",
+    options: { scenario: "empty" },
+    settle: true,
+    ready: async (page) => {
+      await expect(page.getByTestId("agri-chart-empty")).toBeVisible();
+      await expect(page.getByTestId("agri-table-empty")).toBeVisible();
+      await expect(page.getByTestId("agri-error")).toHaveCount(0);
+      await expect(page.getByTestId("agri-data-source")).toHaveText("empty");
+      await expect(page.getByTestId("agri-source-badge")).toHaveText(RELEASE_LABEL);
+    },
+  },
+];
+
+for (const viewport of SOURCE_VIEWPORTS) {
+  for (const state of SOURCE_STATES) {
+    test(`captures agri ${state.name} state at ${viewport.label}`, async ({ page }) => {
+      test.skip(!SOURCE_EVIDENCE, "set SCREENSHOT_EVIDENCE=1 to write evidence captures");
+      mkdirSync(SOURCE_EVIDENCE_DIR, { recursive: true });
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await setupApiMocks(page);
+      await loginAsTestUser(page);
+      await setupAgriMocks(page, state.options);
+      await page.goto(`/agri?source=${encodeURIComponent(AGRI_SOURCE_RELEASE)}`);
+      await state.ready(page);
+      await captureSourceState(page, viewport, state.name, state.settle);
+    });
+  }
+}

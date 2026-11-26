@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildAgriPricesUrl, fetchAgriFilters, fetchAgriPrices } from "./agri";
+import {
+  buildAgriFiltersUrl,
+  buildAgriPricesUrl,
+  fetchAgriFilters,
+  fetchAgriPrices,
+  fetchAgriSources,
+} from "./agri";
 
 const fakeFetch = vi.fn();
 
@@ -25,7 +31,38 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("buildAgriFiltersUrl", () => {
+  it("sends only the source whitelist entry when a release is selected", () => {
+    const url = buildAgriFiltersUrl({ source: "release:data-2026-11" });
+    expect(url).toContain("/api/agri/filters?");
+    expect([...paramsOf(url).keys()]).toEqual(["source"]);
+    expect(paramsOf(url).get("source")).toBe("release:data-2026-11");
+  });
+
+  it("omits local and blank sources", () => {
+    expect(buildAgriFiltersUrl({ source: "local" })).toBe(
+      buildAgriFiltersUrl({ source: "   " }),
+    );
+    expect(buildAgriFiltersUrl({ source: "local" })).not.toContain("?");
+    expect([...paramsOf(buildAgriFiltersUrl({ source: "" })).keys()]).toEqual([]);
+  });
+});
+
 describe("buildAgriPricesUrl", () => {
+  it("sends a non-local source alongside the other filters", () => {
+    const params = paramsOf(
+      buildAgriPricesUrl({ commodity: "rice", source: "release:data-2026-11", range: "1m" }),
+    );
+    expect(params.get("source")).toBe("release:data-2026-11");
+    expect(params.get("commodity")).toBe("rice");
+    expect(params.get("range")).toBe("1m");
+  });
+
+  it("does not send a local or blank source", () => {
+    expect([...paramsOf(buildAgriPricesUrl({ source: "local" })).keys()]).toEqual([]);
+    expect([...paramsOf(buildAgriPricesUrl({ source: "  " })).keys()]).toEqual([]);
+  });
+
   it("sends every supported filter", () => {
     const url = buildAgriPricesUrl({
       commodity: "rice",
@@ -140,5 +177,56 @@ describe("fetchAgriFilters", () => {
   it("throws on an error response", async () => {
     fakeFetch.mockResolvedValueOnce(jsonResponse({ detail: "filters down" }, false, 500));
     await expect(fetchAgriFilters()).rejects.toThrow("filters down");
+  });
+
+  it("passes a selected source to the filters URL", async () => {
+    fakeFetch.mockResolvedValueOnce(jsonResponse({ ok: true }));
+    const controller = new AbortController();
+
+    await fetchAgriFilters(controller.signal, "release:data-2026-11");
+
+    expect(paramsOf(fakeFetch.mock.calls[0][0] as string).get("source")).toBe(
+      "release:data-2026-11",
+    );
+  });
+
+  it("accepts a source before the abort signal", async () => {
+    fakeFetch.mockResolvedValueOnce(jsonResponse({ ok: true }));
+    const controller = new AbortController();
+
+    await fetchAgriFilters("release:data-2026-11", controller.signal);
+
+    expect(paramsOf(fakeFetch.mock.calls[0][0] as string).get("source")).toBe(
+      "release:data-2026-11",
+    );
+    expect(fakeFetch.mock.calls[0][1]).toMatchObject({ signal: controller.signal });
+  });
+});
+
+describe("fetchAgriSources", () => {
+  const body = {
+    default: "local",
+    sources: [
+      { id: "local", label: "Local cache", dataset: "local", as_of: "2026-11-21", rows: 2328450, status: "available" },
+      { id: "release:data-2026-11", label: "Release data-2026-11", dataset: "data-2026-11", as_of: "2026-11-21", rows: 42, status: "available" },
+    ],
+  };
+
+  it("fetches and parses the source registry", async () => {
+    fakeFetch.mockResolvedValueOnce(jsonResponse(body));
+    const controller = new AbortController();
+
+    const result = await fetchAgriSources(controller.signal);
+
+    expect(fakeFetch.mock.calls[0][0]).toContain("/api/agri/sources");
+    expect(fakeFetch.mock.calls[0][1]).toMatchObject({ signal: controller.signal });
+    expect(result.sources.map((source) => source.id)).toEqual(["local", "release:data-2026-11"]);
+    expect(result.sources[1]).toMatchObject({ dataset: "data-2026-11", rows: 42 });
+    expect(result.default).toBe("local");
+  });
+
+  it("throws the server detail on a failed request", async () => {
+    fakeFetch.mockResolvedValueOnce(jsonResponse({ detail: "sources down" }, false, 503));
+    await expect(fetchAgriSources()).rejects.toThrow("sources down");
   });
 });

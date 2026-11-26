@@ -41,6 +41,31 @@ export const AGRI_FIXTURE = {
   district_markets: { "Maharashtra||Nashik": ["Lasalgaon"] },
 };
 
+export const AGRI_SOURCE_LOCAL = "local";
+export const AGRI_SOURCE_RELEASE = "release:data-2026-11";
+
+export const AGRI_SOURCES_FIXTURE = {
+  sources: [
+    {
+      id: AGRI_SOURCE_LOCAL,
+      label: "Local cache",
+      dataset: null,
+      as_of: AS_OF,
+      rows: API_TOTAL_ROWS,
+      status: "ready",
+    },
+    {
+      id: AGRI_SOURCE_RELEASE,
+      label: "Release data-2026-11",
+      dataset: "data-2026-11",
+      as_of: "2026-11-15",
+      rows: 12_410,
+      status: "ready",
+    },
+  ],
+  default: AGRI_SOURCE_LOCAL,
+};
+
 export type AgriScenario = "ok" | "empty" | "error" | "error-once";
 
 export interface AgriPricesCall {
@@ -50,8 +75,18 @@ export interface AgriPricesCall {
 
 export interface AgriMockHandle {
   pricesCalls: AgriPricesCall[];
+  /** Every filters request, with its decoded query params and full URL. */
+  filtersRequests: AgriPricesCall[];
   filtersCalls: number;
   setScenario(scenario: AgriScenario): void;
+}
+
+function paramsFromUrl(url: URL): Record<string, string> {
+  const params: Record<string, string> = {};
+  url.searchParams.forEach((value, key) => {
+    params[key] = value;
+  });
+  return params;
 }
 
 interface CommoditySeed {
@@ -288,6 +323,7 @@ export function agriPricesPayload(params: Record<string, string> = {}) {
 export function agriEmptyPayload(params: Record<string, string> = {}) {
   return {
     ...agriPricesPayload(params),
+    data_source: "empty",
     quotes_total: 0,
     partial: null,
     kpis: {
@@ -311,21 +347,39 @@ export function agriEmptyPayload(params: Record<string, string> = {}) {
   };
 }
 
+export interface AgriMockOptions {
+  scenario?: AgriScenario;
+  /** Slow only the prices response so the loading frame can be captured. */
+  pricesDelayMs?: number;
+}
+
 export async function setupAgriMocks(
   page: Page,
-  options: { scenario?: AgriScenario } = {},
+  options: AgriMockOptions = {},
 ): Promise<AgriMockHandle> {
   let scenario = options.scenario ?? "ok";
+  const pricesDelayMs = options.pricesDelayMs ?? 0;
   const handle: AgriMockHandle = {
     pricesCalls: [],
+    filtersRequests: [],
     filtersCalls: 0,
     setScenario(next) {
       scenario = next;
     },
   };
 
+  await page.route(apiRoute("agri/sources"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(AGRI_SOURCES_FIXTURE),
+    });
+  });
+
   await page.route(apiRoute("agri/filters"), async (route) => {
     handle.filtersCalls += 1;
+    const url = new URL(route.request().url());
+    handle.filtersRequests.push({ url: url.toString(), params: paramsFromUrl(url) });
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -335,11 +389,12 @@ export async function setupAgriMocks(
 
   await page.route(apiRoute("agri/prices"), async (route) => {
     const url = new URL(route.request().url());
-    const params: Record<string, string> = {};
-    url.searchParams.forEach((value, key) => {
-      params[key] = value;
-    });
+    const params = paramsFromUrl(url);
     handle.pricesCalls.push({ url: url.toString(), params });
+
+    if (pricesDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, pricesDelayMs));
+    }
 
     if (scenario === "error" || scenario === "error-once") {
       if (scenario === "error-once") scenario = "ok";

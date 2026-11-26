@@ -25,7 +25,7 @@ import { CompactPanel, CompactStat } from "@/components/common/compact";
 import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { EChart } from "@/components/common/EChart";
-import { fetchAgriFilters, fetchAgriPrices } from "@/api/agri";
+import { fetchAgriFilters, fetchAgriPrices, fetchAgriSources } from "@/api/agri";
 import type {
   AgriChartMode,
   AgriFiltersResponse,
@@ -33,6 +33,8 @@ import type {
   AgriPricesResponse,
   AgriRangeKey,
   AgriSnapshot,
+  AgriSource,
+  AgriSourcesResponse,
 } from "@/types/agri";
 import {
   AGRICULTURE_UNIT,
@@ -46,11 +48,14 @@ import {
   AGRI_MAX_COMPARE,
   AGRI_RANGE_KEYS,
   AGRI_RANGE_PRESETS,
+  AGRI_SOURCE_LOCAL,
   agriCommodity,
   agriCommodityLabel,
   agriDistrictKey,
   agriGroupLabel,
   agriRange,
+  agriSourceCompactLabel,
+  agriSourceLabel,
   formatAgriPrice,
   formatArrivals,
   formatChangePct,
@@ -157,6 +162,36 @@ function selectOptions(value: unknown): SelectOption[] {
   return options;
 }
 
+function normalizeSourceId(value: string | null | undefined): string {
+  return value?.trim() || AGRI_SOURCE_LOCAL;
+}
+
+/**
+ * `/sources` is optional discovery metadata. A partial payload must not turn
+ * into an empty select or an unusable URL value, so keep only rows with an id.
+ */
+function sourceListFrom(value: unknown): AgriSource[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const sources: AgriSource[] = [];
+  for (const item of value) {
+    const record = toRecord(item);
+    if (!record) continue;
+    const id = typeof record.id === "string" ? record.id.trim() : "";
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    sources.push({
+      id,
+      label: typeof record.label === "string" ? record.label : "",
+      dataset: typeof record.dataset === "string" ? record.dataset : null,
+      as_of: typeof record.as_of === "string" ? record.as_of : null,
+      rows: typeof record.rows === "number" && Number.isFinite(record.rows) ? record.rows : 0,
+      status: typeof record.status === "string" ? record.status : "",
+    });
+  }
+  return sources;
+}
+
 function toneForChange(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value) || value === 0) return "dimmed";
   return value > 0 ? "success" : "error";
@@ -204,6 +239,8 @@ export function AgriPage() {
   const resolvedMode = normalizeChartMode(initialMode);
   const legacyMode = initialMode !== "" && resolvedMode !== initialMode;
 
+  const [source, setSource] = createSignal(normalizeSourceId(paramValue(searchParams.source)));
+  const [sourcesData, setSourcesData] = createSignal<AgriSourcesResponse | null>(null);
   const [group, setGroup] = createSignal(paramValue(searchParams.group));
   const [commodity, setCommodity] = createSignal(initialCommodity);
   const [state, setState] = createSignal(paramValue(searchParams.state));
@@ -234,14 +271,42 @@ export function AgriPage() {
   const statCols = () => (isMobile() ? 2 : isMid() ? 4 : 8);
   const statCardClass = () => (isMobile() ? `${STAT_CARD} w-[176px] shrink-0` : STAT_CARD);
 
+  let activeSourcesController: AbortController | null = null;
+  function loadSources() {
+    activeSourcesController?.abort();
+    const controller = new AbortController();
+    activeSourcesController = controller;
+    fetchAgriSources(controller.signal)
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        const sources = sourceListFrom(data?.sources);
+        setSourcesData({ sources, default: normalizeSourceId(data?.default) });
+        // A stale/shared link may name an origin this deployment does not have.
+        if (source() !== AGRI_SOURCE_LOCAL && !sources.some((item) => item.id === source())) {
+          setSource(AGRI_SOURCE_LOCAL);
+        }
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setSourcesData({ sources: [], default: AGRI_SOURCE_LOCAL });
+        if (source() !== AGRI_SOURCE_LOCAL) setSource(AGRI_SOURCE_LOCAL);
+      });
+  }
+  onMount(loadSources);
+  onCleanup(() => activeSourcesController?.abort());
+
   let activeFilterController: AbortController | null = null;
   function loadFilters() {
     activeFilterController?.abort();
     const controller = new AbortController();
     activeFilterController = controller;
+    const selected = source();
     setFiltersLoading(true);
     setFiltersError(null);
-    fetchAgriFilters(controller.signal)
+    fetchAgriFilters(
+      controller.signal,
+      selected === AGRI_SOURCE_LOCAL ? undefined : selected,
+    )
       .then((data) => {
         if (controller.signal.aborted) return;
         setFiltersData(data);
@@ -256,7 +321,11 @@ export function AgriPage() {
       });
   }
 
-  onMount(loadFilters);
+  createEffect(() => {
+    const selected = source();
+    void selected;
+    loadFilters();
+  });
   onCleanup(() => activeFilterController?.abort());
 
   let activeController: AbortController | null = null;
@@ -294,6 +363,8 @@ export function AgriPage() {
       commodity: commodity(),
       range: range(),
     };
+    const selectedSource = source();
+    if (selectedSource !== AGRI_SOURCE_LOCAL) params.source = selectedSource;
     if (mode() === "compare") {
       // The active commodity is the anchor: the backend comparison series must
       // always contain it or the overlay silently drops the selected line.
@@ -324,10 +395,11 @@ export function AgriPage() {
       market: market(),
       range: range(),
       mode: mode(),
+      source: source(),
     };
     if (firstWrite) {
       firstWrite = false;
-      if (!legacyMode) return;
+      if (!legacyMode && paramValue(searchParams.source) === "") return;
     }
     // Solid Router's setSearchParams merges with Object.entries(), so it needs a
     // plain object — a URLSearchParams instance is silently ignored.
@@ -340,6 +412,8 @@ export function AgriPage() {
     if (nextState.range !== AGRI_DEFAULT_RANGE) next.range = nextState.range;
     if (nextState.mode !== AGRI_DEFAULT_CHART_MODE) next.mode = nextState.mode;
     else if (paramValue(searchParams.mode) !== "") next.mode = "";
+    if (nextState.source !== AGRI_SOURCE_LOCAL) next.source = nextState.source;
+    else if (paramValue(searchParams.source) !== "") next.source = "";
     if (new URLSearchParams(next).toString() === searchParams.toString()) return;
     setSearchParams(next, { replace: true });
   });
@@ -352,6 +426,35 @@ export function AgriPage() {
     () =>
       new Map(selectOptions(filtersData()?.groups).map((option) => [option.value, option.label])),
   );
+  const availableSources = createMemo(() => sourcesData()?.sources ?? []);
+  const sourceOptions = createMemo<SelectOption[]>(() => {
+    // A native select uses the option text as its closed label too: show the
+    // full name on wide screens, but only the complete dataset tag on mobile.
+    const compact = isMobile();
+    const labelFor = (id: string, label: string, dataset: string | null) =>
+      compact ? agriSourceCompactLabel(id, dataset) : agriSourceLabel(id, label);
+    const options: SelectOption[] = [
+      { value: AGRI_SOURCE_LOCAL, label: labelFor(AGRI_SOURCE_LOCAL, "Local cache", null) },
+      ...availableSources()
+        .filter((item) => item.id !== AGRI_SOURCE_LOCAL)
+        .map((item) => ({ value: item.id, label: labelFor(item.id, item.label, item.dataset) })),
+    ];
+    // Keep a URL-selected origin visible even if discovery has not landed yet.
+    const selected = source();
+    if (selected !== AGRI_SOURCE_LOCAL && !options.some((option) => option.value === selected)) {
+      const dataset = availableSources().find((item) => item.id === selected)?.dataset;
+      options.push({ value: selected, label: labelFor(selected, "", dataset ?? null) });
+    }
+    return options;
+  });
+  const sourceBadge = createMemo(() => {
+    const selected = source();
+    if (selected === AGRI_SOURCE_LOCAL) return "";
+    const meta = availableSources().find((item) => item.id === selected);
+    if (meta?.label?.trim()) return meta.label;
+    if (meta?.dataset?.trim()) return `Release ${meta.dataset.trim()}`;
+    return agriSourceLabel(selected);
+  });
 
   /** Labels prefer the backend registry; the static list is a fallback only. */
   function commodityLabel(key: string, fallback = "—"): string {
@@ -421,6 +524,12 @@ export function AgriPage() {
       ...names.map((name) => ({ value: name, label: name })),
     ];
   });
+
+  function changeSource(value: string | null) {
+    const next = normalizeSourceId(value);
+    if (next === source()) return;
+    setSource(next);
+  }
 
   function changeGroup(value: string | null) {
     const next = value ?? "";
@@ -668,6 +777,22 @@ export function AgriPage() {
           </Text>
           <Box className={CONTROL_CELL}>
             <Text c="dimmed" className={`${MICRO_LABEL} hidden sm:inline`}>
+              Source
+            </Text>
+            <Box className="w-[200px] max-sm:w-[132px]">
+              <Select
+                data={sourceOptions()}
+                value={source()}
+                onChange={changeSource}
+                size="sm"
+                style={{ width: "100%" }}
+                data-testid="agri-source-select"
+                aria-label="Source"
+              />
+            </Box>
+          </Box>
+          <Box className={CONTROL_CELL}>
+            <Text c="dimmed" className={`${MICRO_LABEL} hidden sm:inline`}>
               Commodity group
             </Text>
             <Box className="w-[104px] max-sm:w-[96px]">
@@ -811,6 +936,11 @@ export function AgriPage() {
               · {kpis()?.market_count ?? 0} mandis
             </Text>
           </Box>
+          <Show when={sourceBadge()}>
+            <Badge color="info" size="xs" data-testid="agri-source-badge" title={sourceBadge()}>
+              {sourceBadge()}
+            </Badge>
+          </Show>
           <Show when={dataSource() && dataSource() !== "db"}>
             <Badge color="warning" size="xs" data-testid="agri-data-source">
               {dataSource()}

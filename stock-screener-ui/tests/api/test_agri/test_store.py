@@ -65,6 +65,36 @@ def test_reader_is_read_only_and_missing_db_is_reported(temp_db: Path, tmp_path:
     assert store.open_reader(tmp_path / "absent.db") is None
 
 
+def test_snapshot_reader_never_creates_or_migrates(tmp_path: Path):
+    path = tmp_path / "snapshot.db"
+    empty = sqlite3.connect(path)
+    empty.execute("CREATE TABLE unrelated (x TEXT)")
+    empty.close()
+    before = path.read_bytes()
+    with pytest.raises(store.SnapshotError, match="no agri_mandi_prices table"):
+        store.open_snapshot_reader(path)
+    assert path.read_bytes() == before
+    assert not (tmp_path / "snapshot.db-wal").exists()
+    assert not (tmp_path / "snapshot.db-shm").exists()
+    assert store.open_snapshot_reader(tmp_path / "absent.db") is None
+
+
+def test_snapshot_reader_does_not_write_to_a_valid_snapshot(temp_db: Path):
+    before = temp_db.read_bytes()
+    conn = store.open_reader(temp_db, migrate=False)
+    assert conn is not None
+    try:
+        assert conn.execute("PRAGMA query_only").fetchone()[0] == 1
+        assert store.count_rows(conn) == 140
+        with pytest.raises(sqlite3.OperationalError):
+            conn.execute(f"INSERT INTO {store.TABLE} (date, commodity, commodity_key) VALUES ('2026-01-01', 'X', 'x')")
+        with pytest.raises(sqlite3.OperationalError):
+            conn.execute("CREATE INDEX unexpected ON agri_mandi_prices (date)")
+    finally:
+        conn.close()
+    assert temp_db.read_bytes() == before
+
+
 def test_schema_and_indexes_exist(db_conn):
     names = {row[0] for row in db_conn.execute("SELECT name FROM sqlite_master WHERE type IN ('table','index')")}
     assert store.TABLE in names

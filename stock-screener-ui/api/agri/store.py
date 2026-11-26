@@ -16,6 +16,12 @@ DEFAULT_DB_PATH: Path = ROOT / "reports" / "agri" / "agri_prices.db"
 
 TABLE: str = "agri_mandi_prices"
 LEDGER_TABLE: str = "agri_ingest_partitions"
+
+
+class SnapshotError(RuntimeError):
+    """A release snapshot is missing its schema and must not be migrated on read."""
+
+
 DISTRICT_KEY_SEPARATOR: str = "||"
 PARTITION_STATUSES: tuple[str, ...] = ("pending", "complete", "partial", "failed", "empty")
 COLUMNS: tuple[str, ...] = (
@@ -165,6 +171,7 @@ def _connect(path: Path, *, read_only: bool) -> sqlite3.Connection:
         # page cache serve it without copying every page into SQLite's small
         # per-connection cache. This is connection-local, never persisted.
         conn.execute("PRAGMA mmap_size=2147483648")
+        conn.execute("PRAGMA query_only=ON")
     conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
@@ -211,16 +218,40 @@ def _ensure_migrated(path: Path) -> None:
     _MIGRATED_PATHS.add(key)
 
 
-def open_reader(path: Optional[str | Path] = None) -> Optional[sqlite3.Connection]:
-    """Open the cache read-only. ``None`` means "no cache on disk"."""
+def open_reader(
+    path: Optional[str | Path] = None,
+    *,
+    migrate: bool = True,
+) -> Optional[sqlite3.Connection]:
+    """Open the cache read-only. ``None`` means "no cache on disk".
+
+    ``migrate=False`` is for release snapshots: it never opens a writer, and a
+    DB without the agri table is rejected instead of being created or migrated.
+    """
     target = _resolve(path)
     if str(target) != ":memory:" and not target.exists():
         return None
-    if str(target) != ":memory:":
+    if str(target) != ":memory:" and migrate:
         _ensure_migrated(target)
     conn = _connect(target, read_only=True)
-    conn.execute("SELECT 1 FROM sqlite_master LIMIT 1").fetchone()
+    try:
+        if not migrate:
+            table = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                (TABLE,),
+            ).fetchone()
+            if table is None:
+                raise SnapshotError(f"snapshot has no {TABLE} table")
+        conn.execute("SELECT 1 FROM sqlite_master LIMIT 1").fetchone()
+    except Exception:
+        conn.close()
+        raise
     return conn
+
+
+def open_snapshot_reader(path: Optional[str | Path] = None) -> Optional[sqlite3.Connection]:
+    """Read a release snapshot without migrations or any writes."""
+    return open_reader(path, migrate=False)
 
 
 _TEXT_DEFAULTS: dict[str, str] = {
@@ -633,6 +664,7 @@ __all__ = [
     "PARTITION_STATUSES",
     "ROOT",
     "SCHEMA_SQL",
+    "SnapshotError",
     "TABLE",
     "anchor_dates",
     "cache_identity",
@@ -649,6 +681,7 @@ __all__ = [
     "latest_date",
     "latest_date_per_key",
     "open_reader",
+    "open_snapshot_reader",
     "open_writer",
     "upsert_partition",
     "upsert_rows",

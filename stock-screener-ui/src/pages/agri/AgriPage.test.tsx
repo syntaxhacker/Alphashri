@@ -3,8 +3,12 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { createMemoryHistory, MemoryRouter, Route, useSearchParams } from "@solidjs/router";
-import type { AgriFiltersResponse, AgriPricesResponse } from "@/types/agri";
-import { fetchAgriFilters, fetchAgriPrices } from "@/api/agri";
+import type {
+  AgriFiltersResponse,
+  AgriPricesResponse,
+  AgriSourcesResponse,
+} from "@/types/agri";
+import { fetchAgriFilters, fetchAgriPrices, fetchAgriSources } from "@/api/agri";
 import { AGRI_COMMODITIES, AGRI_GROUPS, agriCommodity } from "@/config/agri";
 import { agriColumns } from "./agriColumns";
 import { AgriPage } from "./AgriPage";
@@ -14,6 +18,7 @@ const harness = vi.hoisted(() => ({ lastOption: undefined as Record<string, any>
 vi.mock("@/api/agri", () => ({
   fetchAgriFilters: vi.fn(),
   fetchAgriPrices: vi.fn(),
+  fetchAgriSources: vi.fn(),
 }));
 
 vi.mock("@/components/common/EChart", async () => {
@@ -72,6 +77,28 @@ const filtersPayload: AgriFiltersResponse = {
     "Karnataka||Kolar": ["Kolar"],
     "Delhi||New Delhi": ["New Delhi"],
   },
+};
+
+const sourcesPayload: AgriSourcesResponse = {
+  default: "local",
+  sources: [
+    {
+      id: "local",
+      label: "Local cache",
+      dataset: "local",
+      as_of: "2026-11-21",
+      rows: 2328450,
+      status: "available",
+    },
+    {
+      id: "release:data-2026-11",
+      label: "Release data-2026-11",
+      dataset: "data-2026-11",
+      as_of: "2026-11-21",
+      rows: 42,
+      status: "available",
+    },
+  ],
 };
 
 function pricesPayload(overrides: Partial<AgriPricesResponse> = {}): AgriPricesResponse {
@@ -191,6 +218,11 @@ const lastParams = () => {
   return calls[calls.length - 1]?.[0] as Record<string, unknown>;
 };
 
+const lastFilterSource = () => {
+  const calls = vi.mocked(fetchAgriFilters).mock.calls;
+  return calls[calls.length - 1]?.[1] as string | undefined;
+};
+
 async function settled() {
   await waitFor(() => expect(fetchAgriPrices).toHaveBeenCalled());
   await waitFor(() => expect(screen.queryByTestId("agri-loading")).not.toBeInTheDocument());
@@ -211,11 +243,15 @@ function selectEl(testId: string): HTMLSelectElement {
   return native as HTMLSelectElement;
 }
 
+const selectedLabel = (testId: string): string =>
+  selectEl(testId).selectedOptions[0]?.textContent?.trim() ?? "";
+
 beforeEach(() => {
   vi.clearAllMocks();
   harness.lastOption = undefined;
   vi.mocked(fetchAgriFilters).mockResolvedValue(filtersPayload);
   vi.mocked(fetchAgriPrices).mockResolvedValue(pricesPayload());
+  vi.mocked(fetchAgriSources).mockResolvedValue(sourcesPayload);
 });
 
 afterEach(() => {
@@ -303,6 +339,124 @@ describe("AgriPage initial load", () => {
       range: "1m",
     });
     expect(optionSeries().some((series) => series.type === "boxplot")).toBe(true);
+  });
+});
+
+describe("AgriPage source selection", () => {
+  it("defaults to local with no source in the URL or API requests", async () => {
+    renderPage();
+    await settled();
+
+    expect(selectEl("agri-source-select")).toHaveValue("local");
+    expect(screen.queryByTestId("agri-source-badge")).not.toBeInTheDocument();
+    expect(urlParams().source).toBeUndefined();
+    expect(lastParams().source).toBeUndefined();
+    expect(lastFilterSource()).toBeUndefined();
+    expect(
+      within(screen.getByTestId("agri-source-select")).getByRole("option", {
+        name: "Release data-2026-11",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("lists discovered sources and hydrates a release from the URL", async () => {
+    renderPage("/agri?source=release:data-2026-11");
+    await settled();
+
+    expect(selectEl("agri-source-select")).toHaveValue("release:data-2026-11");
+    expect(screen.getByTestId("agri-source-badge")).toHaveTextContent("Release data-2026-11");
+    expect(lastParams().source).toBe("release:data-2026-11");
+    expect(lastFilterSource()).toBe("release:data-2026-11");
+    expect(urlParams().source).toBe("release:data-2026-11");
+  });
+
+  it("shows the complete release label in a wide closed control at desktop width", async () => {
+    renderPage("/agri?source=release:data-2026-11");
+    await settled();
+
+    expect(selectedLabel("agri-source-select")).toBe("Release data-2026-11");
+    expect(selectedLabel("agri-source-select")).not.toMatch(/…|\.\.\./);
+    expect(screen.getByTestId("agri-source-select").parentElement).toHaveClass("w-[200px]");
+    expect(screen.getByTestId("agri-source-badge")).toHaveAttribute(
+      "title",
+      "Release data-2026-11",
+    );
+  });
+
+  it("shows the complete compact dataset tag when the control is narrow", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width: 640px"),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    renderPage("/agri?source=release:data-2026-11");
+    await settled();
+
+    expect(selectedLabel("agri-source-select")).toBe("data-2026-11");
+    expect(selectedLabel("agri-source-select")).not.toMatch(/…|\.\.\./);
+    expect(selectEl("agri-source-select")).toHaveValue("release:data-2026-11");
+    expect(screen.getByTestId("agri-source-select").parentElement).toHaveClass(
+      "max-sm:w-[132px]",
+    );
+    expect(screen.getByTestId("agri-source-badge")).toHaveTextContent("Release data-2026-11");
+  });
+
+  it("reloads filters and prices and writes the URL when a release is selected", async () => {
+    renderPage();
+    await settled();
+    const filterCalls = vi.mocked(fetchAgriFilters).mock.calls.length;
+    const priceCalls = vi.mocked(fetchAgriPrices).mock.calls.length;
+
+    fireEvent.input(selectEl("agri-source-select"), {
+      target: { value: "release:data-2026-11" },
+    });
+
+    await waitFor(() => expect(lastParams().source).toBe("release:data-2026-11"));
+    await waitFor(() => expect(lastFilterSource()).toBe("release:data-2026-11"));
+    await waitFor(() => expect(urlParams().source).toBe("release:data-2026-11"));
+    expect(vi.mocked(fetchAgriFilters).mock.calls.length).toBeGreaterThan(filterCalls);
+    expect(vi.mocked(fetchAgriPrices).mock.calls.length).toBeGreaterThan(priceCalls);
+    expect(screen.getByTestId("agri-source-badge")).toHaveTextContent("Release data-2026-11");
+    expect(selectEl("agri-source-select")).toHaveValue("release:data-2026-11");
+  });
+
+  it("drops the source from the URL and both requests when returning to local", async () => {
+    renderPage("/agri?source=release:data-2026-11");
+    await settled();
+
+    fireEvent.input(selectEl("agri-source-select"), { target: { value: "local" } });
+
+    await waitFor(() => expect(urlParams().source).toBeUndefined());
+    await waitFor(() => expect(lastParams().source).toBeUndefined());
+    await waitFor(() => expect(lastFilterSource()).toBeUndefined());
+    expect(screen.queryByTestId("agri-source-badge")).not.toBeInTheDocument();
+  });
+
+  it("falls back to local when /sources fails", async () => {
+    vi.mocked(fetchAgriSources).mockRejectedValueOnce(new Error("sources down"));
+    renderPage("/agri?source=release:data-2026-11");
+    await settled();
+
+    await waitFor(() => expect(selectEl("agri-source-select")).toHaveValue("local"));
+    await waitFor(() => expect(urlParams().source).toBeUndefined());
+    expect(screen.queryByTestId("agri-source-badge")).not.toBeInTheDocument();
+    expect(lastParams().source).toBeUndefined();
+    expect(
+      within(screen.getByTestId("agri-source-select")).queryByRole("option", {
+        name: "Release data-2026-11",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("falls back to local for a source this deployment does not advertise", async () => {
+    renderPage("/agri?source=release:data-2099-01");
+    await settled();
+
+    await waitFor(() => expect(selectEl("agri-source-select")).toHaveValue("local"));
+    await waitFor(() => expect(urlParams().source).toBeUndefined());
+    expect(screen.queryByTestId("agri-source-badge")).not.toBeInTheDocument();
+    expect(lastParams().source).toBeUndefined();
   });
 });
 

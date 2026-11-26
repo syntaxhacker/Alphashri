@@ -189,6 +189,10 @@ components:
         range:
           title: Range
           type: string
+        source:
+          default: local
+          title: Source
+          type: string
         state:
           anyOf:
           - type: string
@@ -1274,6 +1278,11 @@ components:
             $ref: '#/components/schemas/CommodityOption'
           title: Commodities
           type: array
+        dataset:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dataset
         district_markets:
           additionalProperties:
             items:
@@ -1304,6 +1313,10 @@ components:
         ok:
           title: Ok
           type: boolean
+        source_id:
+          default: local
+          title: Source Id
+          type: string
         state_districts:
           additionalProperties:
             items:
@@ -2226,6 +2239,37 @@ components:
       - legs
       title: PremiumTrackerResponse
       type: object
+    PriceSource:
+      properties:
+        as_of:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: As Of
+        dataset:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dataset
+        id:
+          title: Id
+          type: string
+        label:
+          title: Label
+          type: string
+        rows:
+          default: 0
+          title: Rows
+          type: integer
+        status:
+          default: ready
+          title: Status
+          type: string
+      required:
+      - id
+      - label
+      title: PriceSource
+      type: object
     PricesResponse:
       properties:
         as_of:
@@ -2241,6 +2285,11 @@ components:
         data_source:
           title: Data Source
           type: string
+        dataset:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dataset
         filters:
           $ref: '#/components/schemas/AppliedFilters'
         freshness_days:
@@ -2272,6 +2321,10 @@ components:
             $ref: '#/components/schemas/SnapshotRow'
           title: Snapshot
           type: array
+        source_id:
+          default: local
+          title: Source Id
+          type: string
         warnings:
           items:
             type: string
@@ -3483,6 +3536,21 @@ components:
       - label
       - group
       title: SnapshotRow
+      type: object
+    SourcesResponse:
+      properties:
+        default:
+          default: local
+          title: Default
+          type: string
+        sources:
+          items:
+            $ref: '#/components/schemas/PriceSource'
+          title: Sources
+          type: array
+      required:
+      - sources
+      title: SourcesResponse
       type: object
     StockMover:
       properties:
@@ -4900,8 +4968,18 @@ paths:
       - agri
   /api/agri/filters:
     get:
-      description: Commodity/group registries and the geographies present in the cache.
+      description: Commodity/group registries and the geographies present in the source.
       operationId: get_agri_filters_api_agri_filters_get
+      parameters:
+      - description: 'Source id: local | release:<tag>'
+        in: query
+        name: source
+        required: false
+        schema:
+          default: local
+          description: 'Source id: local | release:<tag>'
+          title: Source
+          type: string
       responses:
         '200':
           content:
@@ -4909,6 +4987,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/FiltersPayload'
           description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
       summary: Agri price filter options
       tags:
       - agri
@@ -4917,6 +5001,15 @@ paths:
       description: Snapshot, time series, mandi quotes, KPIs and up to five comparisons.
       operationId: get_agri_prices_api_agri_prices_get
       parameters:
+      - description: 'Source id: local | release:<tag>'
+        in: query
+        name: source
+        required: false
+        schema:
+          default: local
+          description: 'Source id: local | release:<tag>'
+          title: Source
+          type: string
       - description: Tracked commodity key
         in: query
         name: commodity
@@ -5031,6 +5124,20 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
       summary: Agri mandi price dashboard payload
+      tags:
+      - agri
+  /api/agri/sources:
+    get:
+      description: Local cache plus validated release snapshots; no network and no writes.
+      operationId: get_agri_sources_api_agri_sources_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourcesResponse'
+          description: Successful Response
+      summary: Agri price sources
       tags:
       - agri
   /api/auth/login:

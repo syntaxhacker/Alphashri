@@ -4,6 +4,8 @@ Read this before querying, quoting, packaging or syncing agri data. It describes
 the data that is **actually in this repo**, not an idealised feed. Background and
 source-selection rationale live in [`AGRI_PRICES.md`](./AGRI_PRICES.md); the
 operational refresh flow lives in [`RUNBOOK_REFRESH.md`](./RUNBOOK_REFRESH.md).
+The planned release-snapshot **Source** dropdown lives in
+[`AGRI_RELEASE_SOURCES.md`](./AGRI_RELEASE_SOURCES.md).
 
 Golden rule: this is a **read-only local cache**. Never write to or delete
 `reports/agri/agri_prices.db` by hand, never invent a price, MSP, arrival or OHLC
@@ -15,6 +17,7 @@ bar, and never present a partial day as complete.
 - **data.gov.in historical feed** — "Variety-wise Daily Market Prices Data of Commodity", resource `35985678-0d79-46b4-9ed6-6f13308a1d24`. Daily/backfill feed via `scripts/market/agri_collect.py` (needs `DATA_GOV_IN_API_KEY`; one arrival date at a time). Source tag `agmarknet_daily`. Source spellings resolve through `api/agri/registry.py`; unmatched names are skipped, not guessed.
 - **Current-day cross-check** — data.gov.in resource `9ef84268-d588-465a-a308-a864a43d0070` (42 rows observed 2026-11-22). Not used for history.
 - **Local cache** — `reports/agri/agri_prices.db`, table `agri_mandi_prices`, a local build artifact (not committed). Measured coverage: **2,328,450 rows, 391 distinct dates (2025-10-27 → 2026-11-21), 22 commodity keys**. The router opens it read-only; a missing cache is `data_source: "empty"`, never a successful empty load.
+- **Release snapshots** — `reports/agri/releases/<data-YYYY-MM>/{agri_prices.db,manifest.json}`, cumulative agri-only SQLite builds from validated release assets. They are selectable sources, not a replacement cache; the default is always `local`. See §12 and [`AGRI_RELEASE_SOURCES.md`](./AGRI_RELEASE_SOURCES.md) for the plan.
 
 Ingestion state lives in `agri_ingest_partitions` (keyed by `source`, `arrival_date`). For `agmarknet_daily`: **171 `complete` partitions** (2026-06-01 → 2026-11-21) and **3 `partial` partitions**.
 The CKAN seed has no daily ledger rows; its 217 dates were packaged separately from the verified local cache and uploaded as `data-2025-10` … `data-2026-05` release assets. GitHub release history now covers **388 daily assets** (2025-10-27 → 2026-11-21); the three partial daily partitions remain excluded.
@@ -44,7 +47,7 @@ Latest dates: the ledger's last `complete` daily partition is **2026-11-21**, bu
 - `GET /api/agri/prices` uses **per-key latest dates** (`latest_date_per_key`). With `?commodity=` its `as_of` is that key's own latest date; with no key it is the newest dated key (falling back to the global date). Each `snapshot` row carries its own `date` and `freshness_days`.
 - **Why a partial day must not advance every commodity:** if 2026-11-08 lacks `turmeric` and `jeera`, those keys stay at their own earlier latest date while other keys can sit on 11-08. Advancing all keys would fabricate a quote and a fake 1W/1M change. Snapshot, comparisons and freshness warnings all honour the per-key anchor.
 - Warnings appear when data is >7 days stale, a gap exceeds 7 days, a key trails `as_of` by >7 days, or arrivals/units are inconsistent. Ranges (`1m`…`max`) are anchored to `as_of`, never the wall clock.
-- The prices response is cached **in memory** for 60 s, keyed by query + DB file identity (including `-wal`) + IST date. A stale-looking answer after a sync is usually this cache or a pre-change server; verify with a real request and `./start.sh restart` after API edits.
+- The prices response is cached **in memory** for 60 s, keyed by source id + query + DB file identity (including `-wal`) + IST date. Two sources can never share a cached response. A stale-looking answer after a sync is usually this cache or a pre-change server; verify with a real request and `./start.sh restart` after API edits.
 
 ## 4. UI (`/agri`)
 
@@ -56,17 +59,26 @@ Latest dates: the ledger's last `complete` daily partition is **2026-11-21**, bu
 ## 5. HTTP API
 
 Discover the live contract at `http://localhost:8765/docs` or in `openapi.yaml`
-(`agri` tag). All three endpoints are GET and unauthenticated.
+(`agri` tag). All endpoints are GET and unauthenticated.
 
-**`GET /api/agri/filters`** — no parameters. Response: `ok`, `as_of`,
+**`GET /api/agri/sources`** — no parameters. Returns exactly
+`{"sources":[{"id","label","dataset","as_of","rows","status"}],"default":"local"}`.
+`local` is always first and always present. A release appears only when its
+manifest is `status: "ready"`, `version: 1`, `cumulative: true`, its tag matches
+its directory and its DB is a non-empty regular file inside that directory.
+The scan is local-only: no GitHub call and no writes.
+
+**`GET /api/agri/filters`** — optional `source`. Response: `ok`, `as_of`,
 `freshness_days`, `commodities` (`{key,label,group,unit}`), `groups`
 (`{key,label}`), `states`, `districts`, `markets` (plain names),
-`state_districts`, `district_markets`.
+`state_districts`, `district_markets`, plus `source_id` and `dataset` echoing
+the selected source.
 
 **`GET /api/agri/prices`** — real query names:
 
 | Param | Meaning |
 |---|---|
+| `source` | `local` (default) or `release:<data-YYYY-MM>`; see `/sources` |
 | `commodity` | tracked key, e.g. `rice`, `onion`, `arhar_tur` |
 | `group` | `cereals`, `pulses`, `vegetables`, `oilseeds`, `spices` |
 | `state`, `district`, `market` | **exact** names from `/filters` |
@@ -85,9 +97,11 @@ curl -sG 'http://localhost:8765/api/agri/prices' \
   --data-urlencode 'range=max' | python3 -m json.tool
 ```
 
-Response (`PricesResponse`): `ok`, `as_of`, `freshness_days`, `data_source`
-(`agmarknet_ckan` | `agmarknet_daily` | `mixed` | `empty`), `filters` (echo uses
-`date_from`/`date_to`, not `from`/`to`), `kpis` (`modal`, `min`, `max`, `unit`,
+Response (`PricesResponse`): `ok`, `as_of`, `freshness_days`, `source_id`,
+`dataset` (`null` for `local`), `data_source`
+(`agmarknet_ckan` | `agmarknet_daily` | `mixed` | `empty`; row provenance, **not**
+the selected source), `filters` (echo uses `date_from`/`date_to`, not `from`/`to`,
+and includes `source`), `kpis` (`modal`, `min`, `max`, `unit`,
 `chg_1w_pct`, `chg_1m_pct`, `chg_6m_pct`, `market_count`, `arrivals_qtl`,
 `arrivals_unit`, `msp`, `distance_to_msp_pct`), `series[]`, `snapshot[]`,
 `quotes[]`, `quotes_total`, `comparison[]`, `warnings[]`.
@@ -101,9 +115,12 @@ null`, and `<label> is N days behind <as_of> …; showing its own latest date`.
 Treat them as data, not decoration.
 
 Invalid input returns HTTP 400 (unknown commodity/group/range, non-ISO date,
-`from > to`, commodity outside group, >5 compare keys). A missing/empty cache
-returns HTTP 200 with `data_source: "empty"` and a warning — check the field
-before trusting the payload. `GET /api/agri/commodities` is the legacy option
+`from > to`, commodity outside group, >5 compare keys, unknown/unavailable
+`source`; raw filesystem paths are never accepted as a source id). A missing
+local cache returns HTTP 200 with `data_source: "empty"` and a warning; a
+missing or unopenable release snapshot returns HTTP 400 with an explicit detail,
+never a successful empty payload. An existing but empty snapshot returns HTTP
+200 with `data_source: "empty"`. `GET /api/agri/commodities` is the legacy option
 list.
 
 ## 6. SQLite (read-only)
@@ -228,6 +245,7 @@ modal price to compare it with a raw `Metric Tonnes` arrival.
 |---|---|
 | Missing commodity on a partial day | That key keeps its own latest date and `null` changes; 2026-08-02 lacks `jeera`, 2026-11-01 lacks `sunflower`, 2026-11-08 lacks `turmeric`/`jeera`. Do not advance it; re-pull the whole date. |
 | Unknown commodity/group/range, bad ISO date, `from > to`, >5 compare | HTTP 400 with the valid values in `detail`. Fix the request; don't substitute a nearest name. |
+| Unknown/unavailable `source` or a raw path as `source` | HTTP 400 listing valid source ids; use the ids from `/sources`. A broken snapshot is never silently served as empty. |
 | Empty day / missing cache | `no rows matched…` warning; missing cache gives `data_source: "empty"` with HTTP 200. Report it as unavailable, not as zero. |
 | Stale data | `freshness_days > 7`, per-key "N days behind" and gap warnings. Check the ledger and sync; don't present a stale quote as current. |
 | Stale in-memory response | 60 s prices cache keyed by DB identity + IST date; after a sync or code edit verify with a real request and restart the server if needed. |
@@ -304,3 +322,46 @@ candidate indexes are declared in `store.SCHEMA_SQL` with `CREATE INDEX IF NOT
 EXISTS`, so the next writer opening the cache would silently recreate them.
 Removing either one is a schema/code decision for the cache owner, not a
 maintenance action.
+
+## 12. Materialized release sources (snapshots)
+
+`scripts/materialize_agri_release.py` builds a **cumulative** snapshot from
+release assets: `--from` sets the first date, the tag fixes the last (its newest
+asset), and earlier monthly tags supply the intervening history — never just one
+month. Each tag gets its own directory:
+
+```text
+reports/agri/releases/data-2026-11/
+  agri_prices.db        # agri rows only, same schema as the local cache
+  manifest.json         # version, tag, status, as_of, rows, dates,
+                        # cumulative, built_at, source_range
+```
+
+The API never builds or downloads a snapshot. `api/agri/sources.py` scans
+`<releases-root>/*/manifest.json`, requires `version: 1`, `status: "ready"`,
+`cumulative: true`, a tag matching its directory, a non-empty `agri_prices.db`
+regular file inside that directory, and a non-future `as_of`. Any broken,
+partial or path-traversing entry is silently omitted from `/sources`; a direct
+`?source=` request for it is HTTP 400. The manifest's DB path is never trusted —
+it is derived from the validated tag. `AGRI_RELEASES_ROOT` overrides the scan
+root (tests/offline deploys).
+
+Snapshots open with `store.open_snapshot_reader()` (`mode=ro`,
+`query_only=ON`, `migrate=False`): **no migrations, no WAL/SHM sidecars, no
+writes**. A DB without the `agri_mandi_prices` table is an explicit failure, not
+an empty result. Snapshots are gitignored build artifacts like the main cache;
+the product cache is never modified by materialization. Pass `source` to both
+`/filters` and `/prices` so the two calls read the same dataset.
+
+```bash
+curl -s 'http://localhost:8765/api/agri/sources' | python3 -m json.tool
+curl -sG 'http://localhost:8765/api/agri/prices' \
+  --data-urlencode 'source=release:data-2026-11' \
+  --data-urlencode 'commodity=rice' --data-urlencode 'range=max' | python3 -m json.tool
+curl -sG 'http://localhost:8765/api/agri/filters' \
+  --data-urlencode 'source=release:data-2026-11' | python3 -m json.tool
+```
+
+Operator commands and retention live in
+[`RUNBOOK_REFRESH.md`](./RUNBOOK_REFRESH.md) §7A; the design and test plan live
+in [`AGRI_RELEASE_SOURCES.md`](./AGRI_RELEASE_SOURCES.md).
