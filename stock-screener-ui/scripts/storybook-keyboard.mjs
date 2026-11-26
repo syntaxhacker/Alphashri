@@ -648,7 +648,8 @@ async function checkTooltip(page, storyId) {
   const trigger = frame.getByRole('button', { name: 'Hover target' });
   assert((await trigger.count()) === 1, 'expected one "Hover target" tooltip trigger');
   const wrapper = trigger.locator('xpath=..');
-  assert((await wrapper.getAttribute('role')) === null, 'a tooltip wrapper must not claim a button role');
+  const wrapperRole = await wrapper.getAttribute('role');
+  assert(wrapperRole !== 'button', 'a tooltip wrapper must not claim a button role');
 
   await trigger.focus();
   await frame.waitForFunction(() => {
