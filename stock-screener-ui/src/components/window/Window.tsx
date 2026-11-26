@@ -11,6 +11,7 @@ import {
   RESIZE_DIRS,
   resizeRect,
   sameRect,
+  STACKED_WINDOW_HEIGHT,
   type CanvasSize,
   type MinSize,
   type Rect,
@@ -28,6 +29,8 @@ export interface WindowProps {
   context: Accessor<DockPanelContext>;
   focused: boolean;
   locked: boolean;
+  /** Narrow desks reflow to a scrollable one-column stack, not floating rects. */
+  stacked?: boolean;
   minSize?: MinSize;
   settingsSlot?: JSX.Element;
   onSettingsChange?: (id: string, patch: Record<string, unknown>) => void;
@@ -39,6 +42,12 @@ export interface WindowProps {
   onPopOut: (id: string) => void;
   onAnnounce?: (message: string) => void;
 }
+
+/** Optional host channel: a sparse panel can ask its frame to shrink to fit. */
+type SparseAwareApi = DockPanelApi & { onSparseChange?: (sparse: boolean) => void };
+
+/** Header + controls + a short ladder + an explicit sparse state. */
+const SPARSE_WINDOW_HEIGHT = 180;
 
 const HANDLE_CLASS: Record<ResizeDir, string> = {
   n: "absolute left-2 right-2 top-0 h-[3px] cursor-ns-resize touch-none",
@@ -81,11 +90,15 @@ export function Window(props: WindowProps) {
   // The bag lives on the window state, so it is reactive across a save echo, a
   // late hydration and a tab switch that swaps this window's identity in place.
   const settings = createMemo(() => props.state.settings ?? {});
-  const api: DockPanelApi = {
+  // A panel with only a handful of rows asks the frame to collapse; otherwise
+  // its fixed-height body would be ~700px of empty surface under one row.
+  const [sparseContent, setSparseContent] = createSignal(false);
+  const api: SparseAwareApi = {
     data,
     commands: spec()?.commands ?? {},
     settings,
     onSettingsChange: (patch) => props.onSettingsChange?.(props.state.id, patch),
+    onSparseChange: setSparseContent,
   };
 
   let gesture: {
@@ -158,7 +171,9 @@ export function Window(props: WindowProps) {
   };
 
   const begin = (mode: "move" | "resize", event: PointerEvent, dir = "") => {
-    if (props.locked || event.button !== 0) return;
+    // The stacked layout is owned by the flex column, not by saved rects; a
+    // drag there would move an invisible coordinate and snap back on release.
+    if (props.locked || props.stacked || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
@@ -179,7 +194,7 @@ export function Window(props: WindowProps) {
   onCleanup(detach);
 
   const onKeyDown = (event: KeyboardEvent) => {
-    if (props.locked) return;
+    if (props.locked || props.stacked) return;
     const target = event.target as HTMLElement | null;
     if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
     const dx = event.key === "ArrowRight" ? KEYBOARD_STEP
@@ -288,17 +303,33 @@ export function Window(props: WindowProps) {
       aria-label={props.state.title}
       tabindex="0"
       class={`flex flex-col overflow-hidden bg-fin-surface shadow-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-text ${
+        props.stacked ? "w-full shrink-0" : ""
+      } ${
         // The width change keeps "which window is active" readable without colour.
         props.focused ? "border-2 border-fin-primary" : "border border-fin-border"
       }`}
-      style={{
-        position: "absolute",
-        left: `${current().x}px`,
-        top: `${current().y}px`,
-        width: `${current().w}px`,
-        height: `${current().h}px`,
-        "z-index": String(props.state.z),
-      }}
+      style={
+        props.stacked
+          ? {
+              position: "relative",
+              width: "100%",
+              // A minimized or sparse pane collapses to its content; a full
+              // pane gets a definite height so the treemap can measure itself.
+              height:
+                props.state.minimized || sparseContent()
+                  ? "auto"
+                  : `${STACKED_WINDOW_HEIGHT}px`,
+              "z-index": String(props.state.z),
+            }
+          : {
+              position: "absolute",
+              left: `${current().x}px`,
+              top: `${current().y}px`,
+              width: `${current().w}px`,
+              height: `${sparseContent() ? Math.min(current().h, SPARSE_WINDOW_HEIGHT) : current().h}px`,
+              "z-index": String(props.state.z),
+            }
+      }
       oncapture:pointerdown={onCapturePointerDown}
       onClick={onControlClick}
       onKeyDown={onKeyDown}
@@ -306,7 +337,7 @@ export function Window(props: WindowProps) {
       <div
         data-testid={`window-title-${props.state.id}`}
         class={`flex h-7 shrink-0 items-center gap-1 border-b border-fin-border bg-fin-surface-alt px-2 ${
-          props.locked ? "cursor-default" : "cursor-move select-none touch-none"
+          props.locked || props.stacked ? "cursor-default" : "cursor-move select-none touch-none"
         }`}
         onPointerDown={(event) => begin("move", event)}
       >
@@ -342,7 +373,7 @@ export function Window(props: WindowProps) {
         </div>
       </Show>
 
-      <Show when={!props.locked}>
+      <Show when={!props.locked && !props.stacked}>
         <For each={RESIZE_DIRS}>
           {(dir) => (
             <div

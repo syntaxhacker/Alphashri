@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
 import type { Accessor } from "solid-js";
 import { Box, Button, Text, TextInput, ToolbarRow } from "@/ui";
 import { DEFAULT_RATE_LIMIT_RETRY_MS } from "@/state/optionsDock";
@@ -11,7 +11,7 @@ import {
 } from "@/api/optionsDock";
 import { OptionChainTable } from "../../options-dock/OptionChainTable";
 import { BrokerAuthNotice, isBrokerAuthKind } from "@/components/common/BrokerAuthNotice";
-import type { DockPanelContext, DockPanelSpec } from "../../dock/types";
+import type { DockPanelApi, DockPanelContext, DockPanelSpec } from "../../dock/types";
 import { ExpirySelect, useExpiryPicker } from "./expiryPicker";
 
 type ChainStatus = "loading" | "ready" | "empty" | "error";
@@ -98,7 +98,16 @@ export function releaseChain(flight: ChainFlight | null): void {
  * Symbol and expiry are owned here. The desk context is a seed, not a
  * dependency: /home no longer carries context inputs in its page toolbar.
  */
-function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
+/** The host frame exposes this optional channel; direct mounts simply omit it. */
+type SparseAwareApi = DockPanelApi & { onSparseChange?: (sparse: boolean) => void };
+
+/** A single-strike expiry should not render a 700px empty ladder. */
+const SPARSE_ROW_LIMIT = 3;
+
+function OptionsChainWindow(props: {
+  context: Accessor<DockPanelContext>;
+  onSparseChange?: (sparse: boolean) => void;
+}) {
   const [symbol, setSymbol] = createSignal(
     (props.context().symbol ?? "NIFTY").trim().toUpperCase() || "NIFTY",
   );
@@ -113,6 +122,14 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
   const [chainExpiry, setChainExpiry] = createSignal<string | null>(null);
   const [failure, setFailure] = createSignal<ChainFailure | null>(null);
   const [retryReady, setRetryReady] = createSignal(true);
+  const sparse = createMemo(
+    () => status() === "ready" && rows().length > 0 && rows().length <= SPARSE_ROW_LIMIT,
+  );
+  // Let the frame collapse to its content while the ladder is this thin. The
+  // note below replaces the old blank body instead of leaving one row floating
+  // in ~700px of empty panel.
+  createEffect(() => props.onSparseChange?.(sparse()));
+  onCleanup(() => props.onSparseChange?.(false));
 
   let requestId = 0;
   let heldFlight: ChainFlight | null = null;
@@ -211,7 +228,6 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
       <ToolbarRow
         data-testid="options-chain-controls"
         className="shrink-0 border-b border-fin-border px-2 py-1"
-        wrap={false}
       >
         <Text size="xs" fw={700}>
           CHAIN
@@ -305,7 +321,33 @@ function OptionsChainWindow(props: { context: Accessor<DockPanelContext> }) {
       </Show>
 
       <Show when={status() === "ready"}>
-        <OptionChainTable rows={rows()} spot={spot()} levels={levels()} expiry={chainExpiry()} />
+        <div
+          class="flex min-h-0 flex-col"
+          style={
+            sparse()
+              ? {
+                  flex: "0 0 auto",
+                  "max-height": `${Math.max(1, rows().length) * 20 + 28}px`,
+                }
+              : { flex: "1 1 0%" }
+          }
+        >
+          <OptionChainTable rows={rows()} spot={spot()} levels={levels()} expiry={chainExpiry()} />
+        </div>
+        <Show when={sparse()}>
+          <Box
+            data-testid="options-chain-sparse"
+            className="shrink-0 border-t border-fin-border px-2 py-1 text-ui-micro text-fin-text-muted"
+          >
+            <Text size="xs" fw={700}>
+              Sparse chain · {rows().length} strike{rows().length === 1 ? "" : "s"} listed
+            </Text>
+            <Text size="xs" c="dimmed">
+              Only {rows().length} strike{rows().length === 1 ? "" : "s"} for{" "}
+              {chainExpiry() ?? expiry() ?? "this expiry"}. The ladder fills as expiry approaches.
+            </Text>
+          </Box>
+        </Show>
       </Show>
     </Box>
   );
@@ -319,5 +361,10 @@ export const OPTIONS_CHAIN_PANEL: DockPanelSpec = {
   minWidth: 360,
   singleton: false,
   requires: [],
-  mount: (ctx: Accessor<DockPanelContext>) => <OptionsChainWindow context={ctx} />,
+  mount: (ctx: Accessor<DockPanelContext>, api: DockPanelApi) => (
+    <OptionsChainWindow
+      context={ctx}
+      onSparseChange={(api as SparseAwareApi).onSparseChange}
+    />
+  ),
 };

@@ -49,16 +49,21 @@ export function nearestExpiry(dates: string[], today = normalizedToday()): strin
   return upcoming[0] ?? dates[dates.length - 1] ?? "";
 }
 
+/**
+ * Compact, word-boundary-safe caption for the native expiry select. The old
+ * `2026-11-27 · 27 Nov 2026` label was clipped mid-word by a 168px control
+ * ("27 Nov 20…") in every desk window. The ISO value remains the option's
+ * value, so choosing/saving an expiry is unchanged.
+ */
 export function expiryLabel(date: string): string {
   const ms = Date.parse(`${date}T00:00:00Z`);
   if (!Number.isFinite(ms)) return date;
-  const friendly = new Intl.DateTimeFormat("en-GB", {
+  return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
-    year: "numeric",
+    year: "2-digit",
     timeZone: "UTC",
   }).format(new Date(ms));
-  return `${date} · ${friendly}`;
 }
 
 function startFlight(symbol: string): Flight {

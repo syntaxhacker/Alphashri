@@ -11,6 +11,20 @@ export const MIN_VISIBLE_X = 60;
 export const DEFAULT_MIN_SIZE: MinSize = { w: 240, h: 120 };
 export const DEFAULT_WINDOW_SIZE: MinSize = { w: 420, h: 260 };
 
+/**
+ * Below this desk-canvas width the floating desktop is unusable: two 240px
+ * windows cannot sit side by side and their panels clip their own controls.
+ * The desk switches to a single-column stack instead of scaling the desktop
+ * geometry down. The canvas (not the viewport) is the boundary because the app
+ * shell removes the sidebar at narrow widths.
+ */
+export const STACK_BREAKPOINT = 900;
+/** One stacked pane is tall enough for a readable heatmap/table, not a 700px void. */
+export const STACKED_WINDOW_HEIGHT = 520;
+
+export const isStackedCanvas = (canvas: CanvasSize): boolean =>
+  Number.isFinite(canvas.w) && canvas.w < STACK_BREAKPOINT;
+
 /** Fallback canvas used only when a caller passes an unusable size. */
 const DEFAULT_CANVAS_FALLBACK: CanvasSize = { w: 1280, h: 800 };
 /** A newly added window fills most of one column, not a 420px postage stamp. */
