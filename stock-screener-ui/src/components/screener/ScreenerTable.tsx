@@ -205,8 +205,11 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
                   testId={`symbol-link-${stock.symbol}`}
                   chartTestId={`symbol-chart-${stock.symbol}`}
                   // Symbol text navigates in-app; TradingView moves to the ↗ affordance.
+                  // At the default column width a second chart icon leaves the
+                  // text button zero-width and steals its click target.
                   inAppText
                   tvIcon
+                  showChart={false}
                   onTextClick={(sym) => props.onSymbolClick(sym)}
                   onPreview={(value: string) => {
                     props.onSymbolHover?.(value);

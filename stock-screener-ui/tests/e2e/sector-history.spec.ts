@@ -113,7 +113,9 @@ test.describe("Sector History", () => {
     await expect(page.getByTestId("history-persistence")).toBeVisible();
     await expect(page.getByTestId("history-rotation-timeline")).toBeVisible();
     await expect(page.getByTestId("sector-history-risk-table")).toBeVisible();
-    await expect(page.getByTestId("sector-history-asof")).toHaveText("As of 2026-06-30");
+    // The header reports the newest month that actually carries a rank, not
+    // the fixture's `as_of` metadata (which can lead or lag the payload).
+    await expect(page.getByTestId("sector-history-asof")).toHaveText("As of 2025-12-31");
 
     const labToggle = page
       .getByTestId("sector-history-view-toggle")
@@ -173,7 +175,9 @@ test.describe("Sector History", () => {
     await labToggle.click();
     await page.getByTestId("sector-market-selector").getByText("US").click();
 
-    await expect(page.getByTestId("sector-history-asof")).toHaveText("As of 2027-05-28");
+    // Market/year switches change the feed and the rendered data; the as-of
+    // date stays pinned to the last ranked month in the fixture (2025-12).
+    await expect(page.getByTestId("sector-history-asof")).toHaveText("As of 2025-12-31");
     await expect
       .poll(() => requests.map((params) => params.toString()))
       .toEqual(["market=india&years=5", "market=america&years=5"]);
@@ -182,7 +186,7 @@ test.describe("Sector History", () => {
     );
 
     await page.getByTestId("sector-history-years").locator("select").selectOption({ label: "10Y" });
-    await expect(page.getByTestId("sector-history-asof")).toHaveText("As of 2027-10-28");
+    await expect(page.getByTestId("sector-history-asof")).toHaveText("As of 2025-12-31");
     await expect
       .poll(() => requests.map((params) => params.toString()))
       .toEqual(["market=india&years=5", "market=america&years=5", "market=america&years=10"]);

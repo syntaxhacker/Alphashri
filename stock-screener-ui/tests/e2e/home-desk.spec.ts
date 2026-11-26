@@ -4,6 +4,7 @@ import {
   setupApiMocks,
   loginAsTestUser,
   setupHomeConfigMocks,
+  setupUserConfigMocks,
   type HomeConfigMockHandle,
 } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
@@ -132,6 +133,15 @@ const EXPECTED_PICKER_PANELS: ReadonlyArray<{ id: string; title: string }> = [
   { id: "options.analytics", title: "OPTIONS ANALYTICS" },
   { id: "options.chain", title: "OPTIONS CHAIN" },
   { id: "options.positioning", title: "OPTIONS POSITIONING" },
+  // User sections are first-class HOME window specs; the seven defaults ship
+  // with the section registry and are offered by the picker at every width.
+  { id: "section:52w-touch", title: "52W Touch" },
+  { id: "section:ema-cross", title: "EMA Cross" },
+  { id: "section:momentum-5m-rvol", title: "Momentum 5m + RVOL≥1.5" },
+  { id: "section:rvol-spike-2x", title: "RVOL Spike ×2" },
+  { id: "section:volume-surge-5m", title: "Volume Surge 5m" },
+  { id: "section:vwap-reclaim", title: "VWAP Reclaim" },
+  { id: "section:vwap-reject", title: "VWAP Reject" },
   { id: "patterns.results", title: "PATTERNS" },
   { id: "sector.correlation", title: "SECTOR CORRELATION" },
   { id: "sector.detail", title: "SECTOR DETAIL" },
@@ -451,6 +461,9 @@ test.describe("/home floating-window desk", () => {
     consoleErrors = collectConsoleErrors(page);
     await setupApiMocks(page);
     await loginAsTestUser(page);
+    // The HOME section registry reads user.sections on mount; without this the
+    // real endpoint 401s and the console guard fails in every desk test.
+    await setupUserConfigMocks(page);
     await setupNewsMocks(page);
     config = await setupHomeConfigMocks(page);
     seen = await mockHomeNetwork(page);

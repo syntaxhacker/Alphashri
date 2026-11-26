@@ -3,7 +3,7 @@
  *
  * Drives the real app routes with the existing mock/login harness at 1600x1000
  * and 390x844 and writes viewport screenshots under
- * `/workspaces/react/.agent-artifacts/ui-a-plus/states/`. No assertions gate a
+ * the writable UI artifact root (`states/`). No assertions gate a
  * capture: the job is to record what the UI actually renders in each state,
  * including an honest `not-applicable` row when a screen has no such state UI.
  *
@@ -30,8 +30,9 @@ import { setupHomePatternMocks } from "../mocks/homeDeskFixtures";
 import { setupPatternEvidenceMocks } from "../mocks/patternEvidence";
 import { setupScreenerEvidenceMocks } from "../mocks/screenerEvidence";
 import { setupNewsMocks } from "./helpers/newsHelpers";
+import { uiArtifactRoot } from "./helpers/artifactRoot";
 
-const ARTIFACT_ROOT = "/workspaces/react/.agent-artifacts/ui-a-plus/states";
+const ARTIFACT_ROOT = uiArtifactRoot("states");
 const MANIFEST_PATH = path.join(ARTIFACT_ROOT, "manifest.json");
 const HEAD = execFileSync("git", ["rev-parse", "--short", "HEAD"], {
   cwd: process.cwd(),
