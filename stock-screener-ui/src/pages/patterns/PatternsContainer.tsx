@@ -1,5 +1,5 @@
 import { createEffect, createSignal, onMount, onCleanup } from "solid-js";
-import { useLocation, useNavigate } from "@solidjs/router";
+import { useLocation, useSearchParams } from "@solidjs/router";
 import {
   subscribe,
   getChartPatternsState,
@@ -161,11 +161,6 @@ function normalizeSearch(search: string): string {
   return search.startsWith("?") ? search.slice(1) : search;
 }
 
-/** `merged` already carries its leading `?` (or is empty) — never add another. */
-export function patternUrlTarget(pathname: string, merged: string): string {
-  return merged ? pathname + merged : pathname;
-}
-
 export function PatternsContainer() {
   // ---- Store subscription (single source of truth) ---------------------
   const [snapshot, setSnapshot] = createSignal(getChartPatternsState());
@@ -198,7 +193,7 @@ export function PatternsContainer() {
   const [indexGroup, setIndexGroup] = createSignal<IndexGroup>("all");
   const [members, setMembers] = createSignal<string | null>(null);
 
-  const navigate = useNavigate();
+  const [, setSearchParams] = useSearchParams();
   const location = useLocation();
 
   let hydrated = false;
@@ -207,8 +202,6 @@ export function PatternsContainer() {
   let lastWritten = "";
   /** Search we just wrote; a stale URL must not be read back over a local edit. */
   let localWriteTarget: string | null = null;
-  /** Only the newest queued write may navigate; older targets must not land late. */
-  let writeToken = 0;
 
   const currentState = () => ({
     universe: universe(),
@@ -316,17 +309,10 @@ export function PatternsContainer() {
     // value we wrote; otherwise it re-applies the previous `hist` and the
     // applied filter is lost while the old param stays in the address bar.
     localWriteTarget = merged;
-    const target = patternUrlTarget(location.pathname, merged);
-    const token = ++writeToken;
-    // A single navigation path writes the exact merged query: removed keys
-    // such as `hist` are dropped instead of being merged back in. Deferring by
-    // one microtask lets this write be superseded by a newer edit (e.g. the
-    // second symbol in a multi-select) before any navigation commits.
-    queueMicrotask(() => {
-      if (token !== writeToken) return;
-      if (normalizeSearch(location.search) === normalizeSearch(lastWritten)) return;
-      navigate(target, { replace: true, scroll: false, resolve: false });
-    });
+    // `mergeSearchString` deletes keys whose value is null/empty, and the
+    // router composes consecutive writes via its pending target — that keeps
+    // both symbols of a multi-select and removes an obsolete `hist`.
+    setSearchParams(next, { replace: true });
   });
 
   createEffect(() => {

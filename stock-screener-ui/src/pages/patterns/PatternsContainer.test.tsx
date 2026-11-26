@@ -2,7 +2,7 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import { MemoryRouter, Route, createMemoryHistory } from "@solidjs/router";
+import { MemoryRouter, Route, createMemoryHistory, _mergeSearchString } from "@solidjs/router";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 
 const pagePropsCapture = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
@@ -57,7 +57,7 @@ import {
   loadCatalog,
   selectTimeframes,
 } from "@/state/chartPatterns";
-import { PatternsContainer, patternUrlTarget } from "./PatternsContainer";
+import { PatternsContainer } from "./PatternsContainer";
 
 const mockGetState = vi.mocked(getChartPatternsState);
 const mockLoadCatalog = vi.mocked(loadCatalog);
@@ -156,12 +156,14 @@ function renderContainer(initialEntry = "/patterns") {
 }
 
 describe("PatternsContainer", () => {
-  test("writing a URL without hist produces exactly one well-formed query string", () => {
-    expect(patternUrlTarget("/patterns", "?avgvol=150&universe=nifty500&view=grid")).toBe(
-      "/patterns?avgvol=150&universe=nifty500&view=grid",
-    );
-    expect(patternUrlTarget("/patterns", "?view=grid")).toBe("/patterns?view=grid");
-    expect(patternUrlTarget("/patterns", "")).toBe("/patterns");
+  test("setSearchParams' null-bearing write removes hist without double-encoding", () => {
+    const next: Record<string, string | null> = {
+      hist: null, avgvol: "150", universe: "nifty500", view: "grid",
+    };
+    const merged = _mergeSearchString("?hist=3", next);
+    expect(merged).toBe("?avgvol=150&universe=nifty500&view=grid");
+    expect(merged).not.toContain("??");
+    expect(merged).not.toContain("%3F");
   });
 
   afterEach(() => cleanup());
