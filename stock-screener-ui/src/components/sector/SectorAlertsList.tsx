@@ -4,7 +4,13 @@ import type { SectorAlert } from "./sectorUtils";
 import { formatPercentage } from "../../utils/ui-helpers";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 
-export function SectorAlertsList(props: { alerts: SectorAlert[] }) {
+export interface SectorAlertsListProps {
+  alerts: SectorAlert[];
+  /** Resolves an alert's sector to its lead symbol; absent → label stays inert text. */
+  onSectorClick?: (sector: string) => void;
+}
+
+export function SectorAlertsList(props: SectorAlertsListProps) {
   const alerts = () => props.alerts ?? [];
 
   return (
@@ -30,9 +36,26 @@ export function SectorAlertsList(props: { alerts: SectorAlert[] }) {
                 <Text c="dimmed" className="text-ui-micro tabular-nums font-mono">
                   {alert.timestamp}
                 </Text>
-                <Text truncate className="text-ui-micro">
-                  {alert.sector}
-                </Text>
+                <Show when={props.onSectorClick} fallback={
+                  <Text truncate className="text-ui-micro">
+                    {alert.sector}
+                  </Text>
+                }>
+                  <button
+                    type="button"
+                    data-testid={`sector-alert-symbol-${alert.sector}`}
+                    aria-label={`Open ${alert.sector} lead stock chart`}
+                    onClick={() => props.onSectorClick?.(alert.sector)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      props.onSectorClick?.(alert.sector);
+                    }}
+                    className="min-w-0 truncate bg-transparent p-0 text-left text-ui-micro text-fin-text hover:text-fin-primary focus-visible:underline focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-text"
+                  >
+                    {alert.sector}
+                  </button>
+                </Show>
                 <Box className="inline-flex items-center gap-1">
                   <Box className="size-[5px] rounded-full shrink-0" style={{ "background-color": color }} />
                   <Text className="text-ui-micro font-bold whitespace-nowrap font-mono tabular-nums" style={{ color }}>

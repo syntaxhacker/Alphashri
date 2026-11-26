@@ -21,7 +21,6 @@ interface RenderingTarget {
 
 export const ZONE_FILL_ALPHA = 0.08;
 export const ZONE_BORDER_ALPHA = 0.7;
-export const ZONE_BORDER_DASH: readonly number[] = [3, 3];
 
 /**
  * Draws S/R bands behind every series via a `drawBackground` renderer attached
@@ -103,7 +102,7 @@ export class ZoneBandPrimitive implements ISeriesPrimitive<Time> {
         ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
         ctx.strokeStyle = withAlpha(zone.color, ZONE_BORDER_ALPHA);
         ctx.lineWidth = 1;
-        ctx.setLineDash([...ZONE_BORDER_DASH]);
+        ctx.setLineDash([]);
         ctx.strokeRect(x0 + 0.5, y0 + 0.5, Math.max(0, x1 - x0 - 1), Math.max(0, y1 - y0 - 1));
       }
 

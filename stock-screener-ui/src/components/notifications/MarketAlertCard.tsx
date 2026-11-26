@@ -173,7 +173,18 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
       data-active={active() ? "1" : undefined}
       title={`${symbol()} · ${ALERT_KIND_LABEL[alert().kind]} · ${alert().title} — ${alert().detail}${alert().source ? ` (${alert().source})` : ""}`}
       onClick={clickable() ? () => (onSelect() ?? onOpen())?.(alert()) : undefined}
-      className="flex items-center gap-1 h-[20px] font-mono cursor-pointer"
+      tabIndex={clickable() && !alert().href ? 0 : undefined}
+      onKeyDown={
+        clickable() && !alert().href
+          ? (e: KeyboardEvent) => {
+              if (e.key !== "Enter" && e.key !== " ") return;
+              e.preventDefault();
+              e.stopPropagation();
+              (onSelect() ?? onOpen())?.(alert());
+            }
+          : undefined
+      }
+      className="flex items-center gap-1 h-[20px] font-mono cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-1px] focus-visible:outline-fin-primary"
       style={{
         "padding-left": "0px",
         "padding-right": "4px",
@@ -214,9 +225,26 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
           {sev().label}
         </Text>
       </Box>
-      <Box style={{ width: "92px", "flex-shrink": 0, overflow: "hidden" }}>
-        <Text size="xs" span fw={700} truncate>{symbol()}</Text>
-      </Box>
+      <Show
+        when={alert().href}
+        fallback={
+          <Box style={{ width: "92px", "flex-shrink": 0, overflow: "hidden" }}>
+            <Text size="xs" span fw={700} truncate>{symbol()}</Text>
+          </Box>
+        }
+      >
+        <a
+          href={alert()!.href}
+          data-testid="market-alert-link"
+          aria-label={`Open ${symbol()} — ${alert().title}`}
+          title={alert()!.href}
+          onClick={(e) => e.stopPropagation()}
+          class="inline-flex w-[92px] shrink-0 items-center overflow-hidden text-inherit no-underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary"
+          style={{ color: "inherit" }}
+        >
+          <Text size="xs" span fw={700} truncate>{symbol()}</Text>
+        </a>
+      </Show>
       <Box className="flex-1 min-w-0 overflow-hidden">
         <Text size="xs" span truncate>{alert().title}</Text>
       </Box>
@@ -285,7 +313,17 @@ export function MarketAlertCard(props: MarketAlertCardProps) {
       data-testid={`market-alert-${alert().kind}`}
       data-severity={alert().severity}
       onClick={clickable() ? () => onOpen()?.(alert()) : undefined}
-      className="flex gap-1 font-mono cursor-pointer"
+      tabIndex={clickable() && !alert().href ? 0 : undefined}
+      onKeyDown={
+        clickable() && !alert().href
+          ? (e: KeyboardEvent) => {
+              if (e.key !== "Enter" && e.key !== " ") return;
+              e.preventDefault();
+              onOpen()?.(alert());
+            }
+          : undefined
+      }
+      className="flex gap-1 font-mono cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-1px] focus-visible:outline-fin-primary"
       style={{
         "padding-top": compact() ? "4px" : "6px",
         "padding-bottom": compact() ? "4px" : "6px",
@@ -300,7 +338,28 @@ export function MarketAlertCard(props: MarketAlertCardProps) {
       <Box style={{ flex: 1, "min-width": "0px", display: "flex", "flex-direction": "column", gap: compact() ? 0 : "2px" }}>
         <Box style={{ display: "flex", "align-items": "center", gap: "4px", "min-width": "0px" }}>
           <Text size="xs" span c="dimmed">{ALERT_KIND_CODE[alert().kind]}</Text>
-          <Text size={compact() ? "xs" : "sm"} span fw={700} truncate>{symbol()}</Text>
+          <Show
+            when={alert().href}
+            fallback={
+              <Text size={compact() ? "xs" : "sm"} span fw={700} truncate>
+                {symbol()}
+              </Text>
+            }
+          >
+            <a
+              href={alert()!.href}
+              data-testid="market-alert-link"
+              aria-label={`Open ${symbol()} — ${alert().title}`}
+              title={alert()!.href}
+              onClick={(e) => e.stopPropagation()}
+              class="inline-flex items-center overflow-hidden text-inherit no-underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary"
+              style={{ color: "inherit" }}
+            >
+              <Text size={compact() ? "xs" : "sm"} span fw={700} truncate>
+                {symbol()}
+              </Text>
+            </a>
+          </Show>
           <Box component="span" data-testid="market-alert-severity" style={{ "flex-shrink": 0 }}>
             <Text
               size="xs"

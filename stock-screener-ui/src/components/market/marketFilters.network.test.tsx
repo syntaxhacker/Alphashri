@@ -17,7 +17,10 @@ vi.mock("@solidjs/router", async (importOriginal) => {
   return { ...actual, useNavigate: () => vi.fn() };
 });
 
-vi.mock("./useMarketSnapshotSolid", () => ({ useMarketSnapshotSolid: vi.fn() }));
+vi.mock("./useMarketSnapshotSolid", () => ({
+  useMarketSnapshotSolid: vi.fn(),
+  isLiveUniverse: () => true,
+}));
 vi.mock("../../api/screenerDashboard", () => ({ fetchScreenerDashboard: vi.fn() }));
 vi.mock("../../api/valueScan", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/valueScan")>();

@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@solidjs/testing-library";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
+import { UIProvider } from "@/ui";
 import { SectorTable, SECTOR_TABLE_MIN_WIDTH } from "./SectorTable";
+import { SymbolDockContext } from "../common/symbolDockContext";
 import type { SectorItem } from "../../types/sector";
 
 afterEach(() => {
@@ -89,10 +91,11 @@ describe("SectorTable rendering", () => {
     expect(screen.getByText("Neutral")).toBeInTheDocument();
   });
 
-  it("displays top movers text", () => {
+  it("renders each top mover as a focusable symbol button", () => {
     render(() => <SectorTable sectors={mockSectors} />);
-    expect(screen.getByText("TCS, INFY")).toBeInTheDocument();
-    expect(screen.getByText("HDFC")).toBeInTheDocument();
+    expect(screen.getByTestId("sector-top-mover-TCS").tagName).toBe("BUTTON");
+    expect(screen.getByTestId("sector-top-mover-INFY").tagName).toBe("BUTTON");
+    expect(screen.getByTestId("sector-top-mover-HDFC").tagName).toBe("BUTTON");
   });
 
   it("renders table headers", () => {
@@ -150,5 +153,38 @@ describe("SectorTable horizontal overflow", () => {
     expect(stickyRule).toContain('[data-testid="sector-table"] td:first-child');
     expect(stickyRule).toContain("position: sticky");
     expect(stickyRule).toContain("left: 0");
+  });
+});
+
+describe("SectorTable top mover clickability", () => {
+  it("opens the dock from a parsed top mover with no raw /chart anchor", () => {
+    const open = vi.fn();
+    const sectors: SectorItem[] = [
+      { ...mockSectors[0]!, top_movers: "RELIANCE(1.20%), ONGC(0.80%)" },
+    ];
+    render(() => (
+      <UIProvider>
+        <SymbolDockContext.Provider
+          value={{
+            open,
+            preview: vi.fn(),
+            endPreview: vi.fn(),
+            close: vi.fn(),
+            pinned: false,
+            setOutlet: vi.fn(),
+          }}
+        >
+          <SectorTable sectors={sectors} />
+        </SymbolDockContext.Provider>
+      </UIProvider>
+    ));
+
+    const button = screen.getByTestId("sector-top-mover-RELIANCE");
+    expect(button.tagName).toBe("BUTTON");
+    expect(document.querySelector('a[href="/chart/RELIANCE"]')).toBeNull();
+    expect(screen.getByText("(1.20%)")).toBeInTheDocument();
+
+    fireEvent.click(button);
+    expect(open).toHaveBeenCalledWith("RELIANCE", "chart", undefined);
   });
 });

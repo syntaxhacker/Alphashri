@@ -5,9 +5,18 @@ import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
 import { For } from "solid-js";
 import { IndexMoversModal } from "./IndexMoversModal";
 import { fetchIndexMovers, IndexMoversResponse } from "@/api/indexMovers";
+import { SymbolDockContext, type SymbolDockApi } from "@/components/common/symbolDockContext";
+
+const spies = vi.hoisted(() => ({ handleSymbolChange: vi.fn() }));
 
 vi.mock("@/api/indexMovers", () => ({
   fetchIndexMovers: vi.fn(),
+}));
+
+// The movers modal must never switch the report underlying, even if a future
+// edit reintroduces the store hook.
+vi.mock("./ReportContext", () => ({
+  useNiftyReport: () => ({ selection: { handleSymbolChange: spies.handleSymbolChange } }),
 }));
 
 vi.mock("@/components/common/TanStackTable", () => ({
@@ -55,8 +64,18 @@ const createMockResponse = (overrides: Partial<IndexMoversResponse> = {}): Index
 });
 
 describe("IndexMoversModal", () => {
+  const dockApi = (open: (symbol: string) => void): SymbolDockApi => ({
+    open,
+    preview: vi.fn(),
+    endPreview: vi.fn(),
+    close: vi.fn(),
+    pinned: false,
+    setOutlet: vi.fn(),
+  });
+
   beforeEach(() => {
     mockFetchIndexMovers.mockReset();
+    spies.handleSymbolChange.mockClear();
   });
 
   it("renders nothing when closed", () => {
@@ -202,11 +221,12 @@ describe("IndexMoversModal", () => {
       resolve(process.cwd(), "src/pages/report/IndexMoversModal.tsx"),
       "utf8",
     );
-    expect(source).toContain('class="font-mono text-ui-title');
+    expect(source).toContain("font-mono text-ui-title font-extrabold");
     expect(source).toContain('data-report-spacing="8"');
     expect(source).toContain("gap-2 flex-wrap mt-2 pt-2 border-t");
     expect(source).not.toContain("truncate");
     expect(source).not.toContain("text-ellipsis");
+    expect(source).not.toContain("handleSymbolChange");
 
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
     render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
@@ -233,5 +253,56 @@ describe("IndexMoversModal", () => {
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
 
     expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  describe("movers are real activation targets", () => {
+    it("the modal title opens the canonical index in the app-wide dock", async () => {
+      const open = vi.fn();
+      mockFetchIndexMovers.mockResolvedValue(createMockResponse({ index: "SENSEX" }));
+
+      render(() => (
+        <SymbolDockContext.Provider value={dockApi(open)}>
+          <IndexMoversModal open={true} onClose={vi.fn()} index="SENSEX" />
+        </SymbolDockContext.Provider>
+      ));
+      await waitFor(() => expect(screen.getByTestId("movers-index")).toBeInTheDocument());
+
+      const label = screen.getByTestId("movers-index");
+      expect(label.tagName).toBe("BUTTON");
+      // axe label-content-name-mismatch: visible text must be the accessible name.
+      expect(label).not.toHaveAttribute("aria-label");
+      expect(label).toHaveAccessibleName("MOVERS · SENSEX 30");
+      expect(label.className).toContain("focus-visible:outline-2");
+      fireEvent.click(label);
+      fireEvent.keyDown(label, { key: "Enter" });
+      expect(open).toHaveBeenCalledTimes(2);
+      expect(open).toHaveBeenCalledWith("SENSEX");
+      expect(spies.handleSymbolChange).not.toHaveBeenCalled();
+      expect(screen.getByTestId("panel-modal-title")).toHaveTextContent("MOVERS · SENSEX 30");
+    });
+
+    it("a mover symbol opens the app-wide dock with keyboard parity", async () => {
+      const onOpenSymbol = vi.fn();
+      mockFetchIndexMovers.mockResolvedValue(createMockResponse());
+
+      render(() => (
+        <IndexMoversModal
+          open={true}
+          onClose={vi.fn()}
+          index="NIFTY"
+          onOpenSymbol={onOpenSymbol}
+        />
+      ));
+      await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument());
+
+      const cell = screen.getByText("HDFCBANK") as HTMLElement;
+      expect(cell).toHaveAttribute("role", "button");
+      expect(cell).toHaveAttribute("tabindex", "0");
+      expect(cell).toHaveAccessibleName("Open HDFCBANK chart");
+      fireEvent.click(cell);
+      fireEvent.keyDown(cell, { key: " " });
+      expect(onOpenSymbol).toHaveBeenCalledWith("HDFCBANK");
+      expect(onOpenSymbol).toHaveBeenCalledTimes(2);
+    });
   });
 });

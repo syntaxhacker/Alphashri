@@ -13,13 +13,13 @@ import { TradeStatsGrid } from "@/components/common/TradeStatsGrid";
 import { ComponentIndex, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
 
 const meta: Meta = {
-  title: "Design System/Shared primitives",
+  title: "App/Shared widgets",
   tags: ["autodocs"],
   parameters: {
     docs: {
       description: {
         component:
-          "Family landing page for widgets shared across screen features: section headers, filter status, range input, sparklines, table states, broker notices and trade summaries. Their dedicated pages live under Design System/Components/App; this page shows them composed around one frozen screener toolbar.",
+          "Family landing page for widgets shared across screen features: section headers, filter status, range input, sparklines, table states, broker notices and trade summaries. Their dedicated pages live under App/Components; this page shows them composed around one frozen screener toolbar.",
       },
     },
   },
@@ -28,13 +28,13 @@ export default meta;
 type Story = StoryObj;
 
 const components: FamilyComponentRef[] = [
-  { id: "design-system-components-app-sectionheader--docs", name: "SectionHeader", note: "Title with badge and tone" },
-  { id: "design-system-components-app-filterstatusrow--docs", name: "FilterStatusRow", note: "Active chips and clear-all" },
-  { id: "design-system-components-app-rangeinput--docs", name: "RangeInput", note: "Two-ended numeric range" },
-  { id: "design-system-components-app-sparkline--docs", name: "Sparkline", note: "Inline trend sketch" },
-  { id: "design-system-components-app-valuesandstates--docs", name: "ValuesAndStates", note: "Live value and table state widgets" },
-  { id: "design-system-components-app-tradestatsgrid--docs", name: "TradeStatsGrid", note: "Trade summary metrics" },
-  { id: "design-system-components-app-states--docs", name: "States", note: "Empty, error and inline loading" },
+  { id: "app-components-sectionheader--docs", name: "SectionHeader", note: "Title with badge and tone" },
+  { id: "app-components-filterstatusrow--docs", name: "FilterStatusRow", note: "Active chips and clear-all" },
+  { id: "app-components-rangeinput--docs", name: "RangeInput", note: "Two-ended numeric range" },
+  { id: "app-components-sparkline--docs", name: "Sparkline", note: "Inline trend sketch" },
+  { id: "app-components-valuesandstates--docs", name: "ValuesAndStates", note: "Live value and table state widgets" },
+  { id: "app-components-tradestatsgrid--docs", name: "TradeStatsGrid", note: "Trade summary metrics" },
+  { id: "app-components-states--docs", name: "States", note: "Empty, error and inline loading" },
 ];
 
 const FILTER_LABELS = ["Large cap", "Positive", "NIFTY 500"];

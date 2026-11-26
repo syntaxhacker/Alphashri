@@ -1011,12 +1011,17 @@ test.describe("Chart Patterns page", () => {
     await page.locator('[data-testid="patterns-filter-history-1"]').click();
     await applyFilters(page);
 
+    // The URL sync writes the applied filters back after the modal closes.
+    // Wait for it before counting cards: with a stale `hist=3` still on the
+    // URL, the readback can restore the old history and keep all four cards.
+    await page.waitForURL((url) => !url.searchParams.has("hist"), { timeout: 15_000 });
+    await expect(page).not.toHaveURL(/hist/);
+
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(2);
     await expect(page.locator('[data-testid="patterns-card-DLF-consolidation"]')).toBeVisible();
     await expect(page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]')).toBeVisible();
     await expect(page.locator('[data-testid="patterns-card-DLF-ascending_triangle"]')).toBeHidden();
     await expect(page.locator('[data-testid="patterns-card-DLF-ascending_channel"]')).toBeHidden();
-    await expect(page).not.toHaveURL(/hist/);
   });
 
   test("status pills derive BREAKOUT / EXTENDED / ARMED from price vs the box", async ({ page }) => {
@@ -1171,20 +1176,18 @@ test.describe("Chart Patterns page", () => {
     await expect(rows.last()).toHaveAttribute("data-testid", "patterns-list-row-INFY-falling_wedge-703");
   });
 
-  test("a scan-scope switch keeps the open chart docked", async ({ page }) => {
+  test("a scan-scope switch closes the docked chart without reloading the page", async ({ page }) => {
     await expect(page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]')).toBeVisible();
     await page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]').click();
     // Desktop viewport opens the docked chart, not the modal.
     await expect(page.locator('[data-testid="patterns-chart-dock"]')).toBeVisible();
 
-    // Changing the scan scope never dismisses the docked chart here — the only
-    // thing that closes it is a workspace-tab change (PatternsPage's tab-change
-    // effect). The page and its results stay mounted, so this cannot pass on a
-    // reloaded/blank page.
+    // Scope identity changed, so the open hit belongs to the previous universe (the only close paths are scope/tab changes).
     await page.locator('[data-testid="patterns-universe-nifty50"]').click();
+    await expect(page.locator('[data-testid="patterns-chart-dock"]')).toBeHidden();
     await expect(page.locator('[data-testid="patterns-page"]')).toBeVisible();
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(3);
-    await expect(page.locator('[data-testid="patterns-chart-dock"]')).toBeVisible();
+    await expect(page).toHaveURL(/universe=nifty50/);
   });
 
   test("stats strip shows job progress while a scan is running", async ({ page }) => {

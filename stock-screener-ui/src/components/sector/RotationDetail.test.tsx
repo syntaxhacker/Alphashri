@@ -1,11 +1,15 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { UIProvider } from "@/ui";
 import { RotationDetail } from "./RotationDetail";
-import type { RotationRow } from "../../types/rotation";
+import { SymbolDockContext } from "../common/symbolDockContext";
+import type { RotationPeriod, RotationRow } from "../../types/rotation";
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+});
 
 const returns = {
   "1D": 1,
@@ -15,7 +19,11 @@ const returns = {
   "6M": 5,
   YTD: 6,
   "1Y": 7,
-};
+} as Record<RotationPeriod, number>;
+
+const flatReturns = Object.fromEntries(
+  (["1D", "1W", "1M", "3M", "6M", "YTD", "1Y"] as RotationPeriod[]).map((key) => [key, 1.2]),
+) as Record<RotationPeriod, number>;
 
 const rowWithMover = (symbol: string): RotationRow => ({
   id: "sector:technology",
@@ -37,6 +45,31 @@ const rowWithMover = (symbol: string): RotationRow => ({
   top_movers: [{ symbol, change: 2.4 }],
 });
 
+const row: RotationRow = {
+  id: "theme:defence",
+  name: "Defence",
+  kind: "theme",
+  slug: "defence",
+  category: "Industrials",
+  members: 25,
+  covered: 25,
+  returns: flatReturns,
+  rs_1m: 9.1,
+  rs_1w: 3.2,
+  rs_pct: 82,
+  mom_pct: 74,
+  rank: 1,
+  rank_delta: 4,
+  breadth: 72,
+  rel_volume: 1.8,
+  quadrant: "leading",
+  status: "booming",
+  top_movers: [
+    { symbol: "HAL", change: 2.4 },
+    { symbol: "BEL", change: 1.8 },
+  ],
+};
+
 describe("RotationDetail mover links", () => {
   test("renders a decorated mover as a bare ticker with a canonical in-app chart href", () => {
     render(() => (
@@ -55,5 +88,47 @@ describe("RotationDetail mover links", () => {
 
     const link = screen.getByRole("link", { name: "BRK.B" });
     expect(link).toHaveAttribute("href", "/chart/BRK.B");
+  });
+});
+
+function renderDetail(open: (...args: unknown[]) => void, market?: string) {
+  return render(() => (
+    <UIProvider>
+      <SymbolDockContext.Provider
+        value={{
+          open: open as never,
+          preview: vi.fn(),
+          endPreview: vi.fn(),
+          close: vi.fn(),
+          pinned: false,
+          setOutlet: vi.fn(),
+        }}
+      >
+        <RotationDetail row={row} onOpenMembers={vi.fn()} market={market} />
+      </SymbolDockContext.Provider>
+    </UIProvider>
+  ));
+}
+
+describe("RotationDetail mover clickability", () => {
+  test("movers are dock buttons, not raw /chart anchors", () => {
+    const open = vi.fn();
+    renderDetail(open);
+
+    const hal = screen.getByTestId("rotation-mover-HAL");
+    expect(hal.tagName).toBe("BUTTON");
+    expect(hal).toHaveAttribute("aria-label", "Open HAL chart");
+    expect(document.querySelector('a[href="/chart/HAL"]')).toBeNull();
+
+    fireEvent.click(hal);
+    expect(open).toHaveBeenCalledWith("HAL", "chart", undefined);
+  });
+
+  test("forwards a market tag so US movers use the US chart provider", () => {
+    const open = vi.fn();
+    renderDetail(open, "usa");
+
+    fireEvent.click(screen.getByTestId("rotation-mover-BEL"));
+    expect(open).toHaveBeenCalledWith("BEL", "chart", "usa");
   });
 });

@@ -204,9 +204,13 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
                   symbol={stock.symbol}
                   testId={`symbol-link-${stock.symbol}`}
                   chartTestId={`symbol-chart-${stock.symbol}`}
-                  // Symbol text navigates in-app; TradingView moves to the ↗ affordance.
+                  // Symbol text opens the in-app chart via the dock; TradingView
+                  // moves to the ↗ affordance. At the default column width a
+                  // second chart icon leaves the text button zero-width and
+                  // steals its click target, so no chart icon is rendered here.
                   inAppText
                   tvIcon
+                  showChart={false}
                   onTextClick={(sym) => props.onSymbolClick(sym)}
                   onPreview={(value: string) => {
                     props.onSymbolHover?.(value);
@@ -216,7 +220,6 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
                     props.onSymbolHover?.(null);
                     dock.endPreview();
                   }}
-                  onOpen={dock.open}
                   className="flex-1"
                 />
                 <CopyButton value={stock.symbol}>

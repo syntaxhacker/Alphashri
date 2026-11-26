@@ -23,16 +23,26 @@ test.describe("Sector Correlation & Rotation", () => {
     await expect(page.getByTestId("sector-section-correlation")).toHaveAttribute("tabindex", "-1");
   });
 
-  test("should navigate to the correlation section and display heatmap", async ({ page }) => {
+  test("should navigate to the correlation section and display the matrix", async ({ page }) => {
     await gotoSector(page);
     await gotoCorrelation(page);
 
-    const heatmap = page.locator('[data-testid="sector-correlation-heatmap"]');
+    const heatmap = page.getByTestId("sector-correlation-heatmap");
     await expect(heatmap).toBeVisible();
+    const board = heatmap.getByTestId("correlation-matrix-board");
+    await expect(board).toBeVisible();
+    await expect(board.locator("table")).toHaveCount(0);
+    await expect(board.locator("canvas")).toHaveCount(0);
 
-    // Heatmap is rendered via ECharts canvas; verify canvas is present
-    const canvas = heatmap.locator("canvas");
-    await expect(canvas).toBeVisible();
+    const headers = board.locator('[data-testid^="correlation-matrix-header-"]');
+    expect(await headers.count()).toBeGreaterThan(0);
+    await expect(headers.first()).toBeVisible();
+    const transform = await headers.first().evaluate((el) => getComputedStyle(el).transform);
+    expect(transform === "none" || transform === "matrix(1, 0, 0, 1, 0, 0)").toBe(true);
+
+    const diagonal = board.locator('[data-diagonal="true"]');
+    expect(await diagonal.count()).toBeGreaterThan(0);
+    await expect(diagonal.first()).toHaveText("1.0");
   });
 
   test("should display beta bar chart", async ({ page }) => {
@@ -45,23 +55,24 @@ test.describe("Sector Correlation & Rotation", () => {
     await expect(betaChart).toContainText("Benchmark");
   });
 
-  test("should display relative strength table with rankings", async ({ page }) => {
+  test("should display the relative-strength ranked board", async ({ page }) => {
     await gotoSector(page);
     await gotoCorrelation(page);
 
-    const table = page.locator('[data-testid="relative-strength-table"] table');
-    await expect(table).toBeVisible();
+    const board = page.getByTestId("relative-strength-table");
+    await expect(board).toBeVisible();
+    await expect(board.locator("table")).toHaveCount(0);
 
-    await expect(table.locator("th", { hasText: "Rank" })).toBeVisible();
-    await expect(table.locator("th", { hasText: "Sector" })).toBeVisible();
-    await expect(table.locator("th", { hasText: "5D RS" })).toBeVisible();
-    await expect(table.locator("th", { hasText: "1M RS" })).toBeVisible();
-    await expect(table.locator("th", { hasText: "3M RS" })).toBeVisible();
-    await expect(table.locator("th", { hasText: "Beta" })).toBeVisible();
-    await expect(table.locator("th", { hasText: "1M Change" })).toBeVisible();
+    const rows = board.locator('[data-testid^="correlation-rs-row-"]');
+    expect(await rows.count()).toBeGreaterThan(0);
+    const first = rows.first();
+    await expect(first).toBeVisible();
+    for (const label of ["5D", "1M", "3M", "Beta", "Δ1M"]) {
+      await expect(first).toContainText(label);
+    }
 
-    await expect(table).toContainText("NIFTY 50");
-    await expect(table).toContainText("NIFTY BANK");
+    await expect(board).toContainText("NIFTY 50");
+    await expect(board).toContainText("NIFTY BANK");
   });
 
   test("should display rotation timeline", async ({ page }) => {

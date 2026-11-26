@@ -11,9 +11,10 @@ import {
   setupNiftyReportMocks,
 } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
+import { uiArtifactRoot } from "./helpers/artifactRoot";
 
 const STAGE = process.env.REPORT_FIX_STAGE ?? "after";
-const ARTIFACTS = "/workspaces/react/.agent-artifacts/ui-a-plus/fixes";
+const ARTIFACTS = uiArtifactRoot("fixes");
 const STRIKES = [22_100, 22_200, 22_300, 22_400, 22_500];
 
 function tapeFixture() {

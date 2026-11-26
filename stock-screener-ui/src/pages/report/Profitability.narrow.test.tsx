@@ -1,10 +1,12 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { For } from "solid-js";
 import { UIProvider } from "@/ui";
 import { ProfitabilityPage } from "./Profitability";
+import { ProfitabilityWithDock } from "../../App";
+import { SymbolDockContext, type SymbolDockApi } from "@/components/common/symbolDockContext";
 import { fetchProfitability } from "../../api/profitability";
 
 vi.mock("../../api/profitability", () => ({ fetchProfitability: vi.fn() }));
@@ -14,7 +16,10 @@ vi.mock("@/components/common/TanStackTable", () => ({
     <div data-testid={props.dataTestId}>
       <For each={props.data}>
         {(row: any, i: () => number) => (
-          <div data-testid={props.getRowTestId ? props.getRowTestId(row, i()) : undefined}>
+          <div
+            data-testid={props.getRowTestId ? props.getRowTestId(row, i()) : undefined}
+            onClick={() => props.onRowClick?.(row)}
+          >
             {props.columns.map((col: any) =>
               col.cell ? (
                 <span>
@@ -61,6 +66,17 @@ function mount() {
       <ProfitabilityPage />
     </UIProvider>
   ));
+}
+
+function dockWith(open: (symbol: string) => void): SymbolDockApi {
+  return {
+    open,
+    preview: vi.fn(),
+    endPreview: vi.fn(),
+    close: vi.fn(),
+    pinned: false,
+    setOutlet: vi.fn(),
+  };
 }
 
 beforeEach(() => {
@@ -130,5 +146,47 @@ describe("profitability at 390", () => {
     expect(losing).toHaveTextContent("-₹1.4K");
     losing.click();
     await waitFor(() => expect(onOpenSymbol).toHaveBeenCalledWith("INFY"));
+  });
+});
+
+describe("/report/profit route wiring", () => {
+  function mountRoute(open: (symbol: string) => void) {
+    return render(() => (
+      <UIProvider>
+        <SymbolDockContext.Provider value={dockWith(open)}>
+          <ProfitabilityWithDock />
+        </SymbolDockContext.Provider>
+      </UIProvider>
+    ));
+  }
+
+  test("signal card click opens the app-wide dock for that symbol", async () => {
+    stubNarrow(true);
+    const open = vi.fn();
+    mountRoute(open);
+    const card = await screen.findByTestId("profitability-signal-card-INFY-1");
+    fireEvent.click(card);
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledWith("INFY");
+  });
+
+  test("signal card Enter/Space opens the dock (keyboard parity)", async () => {
+    stubNarrow(true);
+    const open = vi.fn();
+    mountRoute(open);
+    const card = await screen.findByTestId("profitability-signal-card-RELIANCE-0");
+    fireEvent.keyDown(card, { key: "Enter" });
+    fireEvent.keyDown(card, { key: " " });
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(open).toHaveBeenCalledWith("RELIANCE");
+  });
+
+  test("desktop signal row click opens the dock", async () => {
+    stubNarrow(false);
+    const open = vi.fn();
+    mountRoute(open);
+    const row = await screen.findByTestId("profitability-signal-row-INFY-1");
+    fireEvent.click(row);
+    expect(open).toHaveBeenCalledWith("INFY");
   });
 });

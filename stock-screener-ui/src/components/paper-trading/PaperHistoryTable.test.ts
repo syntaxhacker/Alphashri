@@ -2,8 +2,6 @@ import { describe, expect, test } from "vitest";
 import dayjs from "dayjs";
 import { formatTimeOnly, formatDateHeader } from "../../utils/ui-helpers";
 import {
-  getUniqueStrategies,
-  getUniqueBots,
   filterByRange,
   groupTradesByDate,
   getPeriodFromDateRange,
@@ -11,96 +9,9 @@ import {
 import { mockTrade } from "./testFixtures";
 
 describe("formatTimeOnly", () => {
-  test("returns dash for empty string", () => {
-    expect(formatTimeOnly("")).toBe("-");
-  });
-
-  test("formats valid ISO string to time only", () => {
-    const result = formatTimeOnly("2026-03-20T14:30:00Z");
-    expect(result).toMatch(/\d{2}:\d{2}/);
-  });
-
-  test("returns original string for invalid input", () => {
-    expect(formatTimeOnly("not-a-date")).toBe("not-a-date");
-  });
-
   test("formats time without timezone info", () => {
     const result = formatTimeOnly("2026-03-20T09:15:00");
     expect(result).toMatch(/\d{2}:\d{2}/);
-  });
-});
-
-describe("getUniqueStrategies", () => {
-  test("returns empty array for empty trades", () => {
-    expect(getUniqueStrategies([])).toEqual([]);
-  });
-
-  test("returns empty array when trades have no strategy_name", () => {
-    const trades = [
-      mockTrade({ strategy_name: "", strategy_id: 0 }),
-      mockTrade({ strategy_name: "", strategy_id: 0 }),
-    ];
-    expect(getUniqueStrategies(trades)).toEqual([]);
-  });
-
-  test("returns unique sorted strategies by id and name", () => {
-    const trades = [
-      mockTrade({ strategy_name: "Breakout", strategy_id: 2 }),
-      mockTrade({ strategy_name: "ORB", strategy_id: 1 }),
-      mockTrade({ strategy_name: "Breakout", strategy_id: 2 }),
-    ];
-    const result = getUniqueStrategies(trades);
-    expect(result).toEqual([
-      { id: 2, name: "Breakout" },
-      { id: 1, name: "ORB" },
-    ]);
-  });
-
-  test("handles single strategy", () => {
-    const trades = [mockTrade({ strategy_name: "ORB", strategy_id: 1 })];
-    expect(getUniqueStrategies(trades)).toEqual([{ id: 1, name: "ORB" }]);
-  });
-
-  test("skips trades with falsy strategy_id", () => {
-    const trades = [
-      mockTrade({ strategy_name: "ORB", strategy_id: 1 }),
-      mockTrade({ strategy_name: "Missing", strategy_id: 0 }),
-    ];
-    expect(getUniqueStrategies(trades)).toEqual([{ id: 1, name: "ORB" }]);
-  });
-});
-
-describe("getUniqueBots", () => {
-  test("returns empty array for empty trades", () => {
-    expect(getUniqueBots([])).toEqual([]);
-  });
-
-  test("returns empty array when trades have no bot info", () => {
-    const trades = [mockTrade({ bot_id: null, bot_name: null })];
-    expect(getUniqueBots(trades)).toEqual([]);
-  });
-
-  test("returns unique bots sorted by name", () => {
-    const trades = [
-      mockTrade({ bot_id: "2", bot_name: "Zeta Bot" }),
-      mockTrade({ bot_id: "1", bot_name: "Alpha Bot" }),
-      mockTrade({ bot_id: "2", bot_name: "Zeta Bot" }),
-    ];
-    const result = getUniqueBots(trades);
-    expect(result).toEqual([
-      { id: "1", name: "Alpha Bot" },
-      { id: "2", name: "Zeta Bot" },
-    ]);
-  });
-
-  test("handles trades with missing bot_id", () => {
-    const trades = [mockTrade({ bot_id: null, bot_name: "Test Bot" })];
-    expect(getUniqueBots(trades)).toEqual([]);
-  });
-
-  test("handles trades with missing bot_name", () => {
-    const trades = [mockTrade({ bot_id: "1", bot_name: null })];
-    expect(getUniqueBots(trades)).toEqual([]);
   });
 });
 

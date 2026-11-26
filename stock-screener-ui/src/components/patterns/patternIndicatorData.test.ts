@@ -267,6 +267,40 @@ describe("patternIndicatorData", () => {
     expect(later!.start).not.toBe(epochs[24]);
   });
 
+  it("carries a finite touch age through alignment without changing the band", () => {
+    const [withAge, withoutAge] = alignSRZones(
+      [
+        { ...zoneOn("2026-04-01", "2026-04-02"), bars_since_touch: 42 },
+        { ...zoneOn("2026-04-02", "2026-04-03"), bars_since_touch: Number.NaN },
+      ],
+      SORTED_EPOCHS,
+    );
+
+    expect(withAge).toEqual({
+      kind: "support",
+      top: 105,
+      bottom: 100,
+      start: toEpochSeconds("2026-04-01"),
+      end: toEpochSeconds("2026-04-02"),
+      touches: 1,
+      score: 0.5,
+      bars_since_touch: 42,
+      color: POSITIVE,
+      legendName: "Support",
+    });
+    expect(withoutAge).toEqual({
+      kind: "support",
+      top: 105,
+      bottom: 100,
+      start: toEpochSeconds("2026-04-02"),
+      end: toEpochSeconds("2026-04-03"),
+      touches: 1,
+      score: 0.5,
+      color: POSITIVE,
+      legendName: "Support",
+    });
+  });
+
   it("prefers exact intraday touch timestamps when supplied", () => {
     const bars = [...intradaySession("2026-04-01"), ...intradaySession("2026-04-02")];
     const epochs = bars.map((bar) => toEpochSeconds(bar.t));

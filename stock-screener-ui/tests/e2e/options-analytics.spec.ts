@@ -3,6 +3,7 @@ import {
   setupApiMocks,
   loginAsTestUser,
   setupOptionDockMocks,
+  setupFnoScreenerMocks,
   type OptionDockMocks,
 } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
@@ -106,15 +107,23 @@ async function enterWithDock(page: Page): Promise<{ dock: OptionDockMocks; analy
   await loginAsTestUser(page);
   await mockMarketSnapshot(page);
   await mockPatternLookup(page);
+  if (isNarrow(page)) await setupFnoScreenerMocks(page);
   const dock = await setupOptionDockMocks(page);
   // Registered last so this route wins over any app-shell catch-all.
   const analytics = await setupAnalyticsMocks(page);
   return { dock, analytics };
 }
 
+/** Narrow Market rows intentionally drop per-row affordances; the F&O table keeps them. */
+function isNarrow(page: Page): boolean {
+  return (page.viewportSize()?.width ?? 1280) < 900;
+}
+
 async function openDock(page: Page) {
-  await page.goto(SNAPSHOT_PATH);
-  await expect(page.getByTestId("market-row-RELIANCE")).toBeVisible({ timeout: 15000 });
+  const narrow = isNarrow(page);
+  await page.goto(narrow ? "/screener/fno" : SNAPSHOT_PATH);
+  const row = narrow ? "fno-row-RELIANCE" : "market-row-RELIANCE";
+  await expect(page.getByTestId(row)).toBeVisible({ timeout: 15000 });
   await page.getByTestId("symbol-options-RELIANCE").first().click();
   await expect(page.getByTestId("options-dock")).toBeVisible({ timeout: 15000 });
   await expect(page.getByTestId("options-chain-table")).toBeVisible();

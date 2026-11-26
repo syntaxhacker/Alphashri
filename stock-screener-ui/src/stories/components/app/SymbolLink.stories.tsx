@@ -17,7 +17,7 @@ type SymbolLinkArgs = {
 };
 
 const meta: Meta<SymbolLinkArgs> = {
-  title: "Design System/Components/App/SymbolLink",
+  title: "App/Components/SymbolLink",
   tags: ["autodocs"],
   parameters: {
     docs: {

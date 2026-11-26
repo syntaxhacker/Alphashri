@@ -822,3 +822,73 @@ describe("ChartView (US market)", () => {
     expect(screen.queryByTestId("chart-us-feed")).toBeNull();
   });
 });
+
+describe("ChartView fullscreen shortcut", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(fetchTimeframes).mockResolvedValue(TIMEFRAMES);
+    vi.mocked(fetchSymbolChart).mockResolvedValue(chartPayload());
+  });
+
+  const modal = () => screen.queryByTestId("patterns-fullscreen-modal");
+
+  async function renderLoadedPage() {
+    const rendered = renderPage();
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument(),
+    );
+    return rendered;
+  }
+
+  it("F toggles the page fullscreen chart in both directions", async () => {
+    await renderLoadedPage();
+    expect(modal()).toBeNull();
+
+    fireEvent.keyDown(document, { key: "f" });
+    expect(modal()).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "F" });
+    expect(modal()).toBeNull();
+  });
+
+  it("ignores modifiers, key repeats and typing targets", async () => {
+    await renderLoadedPage();
+
+    for (const init of [
+      { key: "f", ctrlKey: true },
+      { key: "f", metaKey: true },
+      { key: "f", altKey: true },
+      { key: "f", shiftKey: true },
+      { key: "f", repeat: true },
+      { key: "Escape" },
+    ]) {
+      fireEvent.keyDown(document, init);
+      expect(modal()).toBeNull();
+    }
+
+    for (const tag of ["input", "textarea", "select"]) {
+      const element = document.createElement(tag);
+      document.body.appendChild(element);
+      fireEvent.keyDown(element, { key: "f" });
+      expect(modal()).toBeNull();
+      element.remove();
+    }
+
+    const editable = document.createElement("div");
+    editable.contentEditable = "true";
+    document.body.appendChild(editable);
+    fireEvent.keyDown(editable, { key: "f" });
+    expect(modal()).toBeNull();
+    editable.remove();
+
+    // The ignored keystrokes did not consume the shortcut itself.
+    fireEvent.keyDown(document, { key: "f" });
+    expect(modal()).toBeInTheDocument();
+  });
+
+  it("removes the shortcut listener when the page unmounts", async () => {
+    const { unmount } = await renderLoadedPage();
+    unmount();
+    expect(() => fireEvent.keyDown(document, { key: "f" })).not.toThrow();
+  });
+});

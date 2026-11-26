@@ -33,7 +33,7 @@ type TradeStatsArgs = {
 };
 
 const meta: Meta<TradeStatsArgs> = {
-  title: "Design System/Components/App/TradeStatsGrid",
+  title: "App/Components/TradeStatsGrid",
   tags: ["autodocs"],
   parameters: {
     docs: {

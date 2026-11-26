@@ -15,7 +15,7 @@ type DatePickerArgs = {
 };
 
 const meta: Meta<DatePickerArgs> = {
-  title: "Design System/Components/App/TradingDatePicker",
+  title: "App/Components/TradingDatePicker",
   tags: ["autodocs"],
   parameters: {
     docs: {

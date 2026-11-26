@@ -536,11 +536,16 @@ test.describe.serial("Sector single-page evidence", () => {
           await expect(page.getByTestId("rotation-grid")).toBeVisible();
           await expect(page.getByTestId("rotation-empty")).toHaveCount(0);
         } else if (state === "correlation") {
-          await expect(
-            page.getByTestId("sector-correlation-heatmap").locator("canvas").first(),
-          ).toBeVisible();
+          const matrix = page
+            .getByTestId("sector-correlation-heatmap")
+            .getByTestId("correlation-matrix-board");
+          await expect(matrix).toBeVisible();
+          await expect(matrix.locator('[data-diagonal="true"]').first()).toBeVisible();
           expect(
-            await page.getByTestId("relative-strength-table").locator("tbody tr").count(),
+            await page
+              .getByTestId("relative-strength-table")
+              .locator('[data-testid^="correlation-rs-row-"]')
+              .count(),
           ).toBeGreaterThan(0);
         } else {
           await expect(page.getByTestId("sector-history-error-details")).toHaveCount(0);

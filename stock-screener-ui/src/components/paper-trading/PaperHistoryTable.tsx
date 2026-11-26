@@ -396,7 +396,12 @@ function TradeHistoryTable(props: {
       header: "Symbol",
       accessorKey: "symbol",
       meta: { align: "left" },
-      cell: ({ row }) => <ClickableSymbolSolid symbol={row.original.symbol} />,
+      cell: ({ row }) => (
+        <ClickableSymbolSolid
+          symbol={row.original.symbol}
+          onClick={() => handleSelect(row.original)}
+        />
+      ),
     },
     {
       id: "side",

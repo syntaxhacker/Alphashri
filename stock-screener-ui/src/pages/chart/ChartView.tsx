@@ -212,6 +212,18 @@ function readMetaString(raw: unknown): string | null {
   return typeof raw === "string" && raw ? raw : null;
 }
 
+/** Shortcuts stay out of the way while the user is typing. */
+function isTypingTarget(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null;
+  if (!element) return false;
+  return (
+    element.tagName === "INPUT" ||
+    element.tagName === "TEXTAREA" ||
+    element.tagName === "SELECT" ||
+    element.isContentEditable === true
+  );
+}
+
 function normalizeSource(raw: unknown): HitSource | null {
   if (typeof raw !== "string") return null;
   const value = raw.toLowerCase();
@@ -423,6 +435,19 @@ const ChartView = () => {
   const [timeframes, setTimeframes] = createSignal<TFSpec[]>(FALLBACK_TIMEFRAMES);
   const [catalogStatus, setCatalogStatus] = createSignal<TimeframeCatalogStatus>("loading");
   const [expanded, setExpanded] = createSignal(false);
+
+  // `F` toggles this page's fullscreen chart. The listener lives here, not in a
+  // global hook, so other routes keep their own keyboard semantics.
+  createEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key?.toLowerCase() !== "f") return;
+      if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      if (isTypingTarget(event.target)) return;
+      setExpanded((value) => !value);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    onCleanup(() => document.removeEventListener("keydown", onKeyDown));
+  });
 
   const symbol = () => params.symbol ?? "";
   const timeframe = createMemo(() => firstParam(searchParams.tf) || DEFAULT_TIMEFRAME);

@@ -1,11 +1,22 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createSignal } from "solid-js";
 import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
 import { AvailableBands, IndexMoversStrip, UnavailableBandsStrip } from "./IndexMoversStrip";
 import { fetchIndexMovers, IndexMoversResponse } from "@/api/indexMovers";
+import { SymbolDockContext, type SymbolDockApi } from "@/components/common/symbolDockContext";
+
+const spies = vi.hoisted(() => ({ handleSymbolChange: vi.fn() }));
 
 vi.mock("@/api/indexMovers", () => ({
   fetchIndexMovers: vi.fn(),
+}));
+
+// The movers strip must never switch the report underlying, even if a future
+// edit reintroduces the store hook.
+vi.mock("./ReportContext", () => ({
+  useNiftyReport: () => ({ selection: { handleSymbolChange: spies.handleSymbolChange } }),
 }));
 
 const mockFetchIndexMovers = vi.mocked(fetchIndexMovers);
@@ -32,8 +43,18 @@ const createMockResponse = (overrides: Partial<IndexMoversResponse> = {}): Index
 describe("IndexMoversStrip", () => {
   const onExpand = vi.fn();
 
+  const dockApi = (open: (symbol: string) => void): SymbolDockApi => ({
+    open,
+    preview: vi.fn(),
+    endPreview: vi.fn(),
+    close: vi.fn(),
+    pinned: false,
+    setOutlet: vi.fn(),
+  });
+
   beforeEach(() => {
     mockFetchIndexMovers.mockReset();
+    spies.handleSymbolChange.mockClear();
     onExpand.mockClear();
   });
 
@@ -328,6 +349,97 @@ describe("IndexMoversStrip", () => {
       unmount();
       await vi.advanceTimersByTimeAsync(30_000);
       expect(mockFetchIndexMovers).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("movers are real activation targets", () => {
+    it("never imports the report underlying switch", () => {
+      const source = readFileSync(
+        resolve(process.cwd(), "src/pages/report/IndexMoversStrip.tsx"),
+        "utf8",
+      );
+      expect(source).not.toContain("handleSymbolChange");
+      expect(source).not.toContain("useNiftyReport");
+    });
+
+    it("the index label opens the canonical index in the app-wide dock", async () => {
+      mockFetchIndexMovers.mockResolvedValue(createMockResponse());
+      const open = vi.fn();
+
+      render(() => (
+        <SymbolDockContext.Provider value={dockApi(open)}>
+          <IndexMoversStrip index="NIFTY" onExpand={onExpand} />
+        </SymbolDockContext.Provider>
+      ));
+      await waitFor(() => expect(screen.getByTestId("movers-index")).toBeInTheDocument());
+
+      const label = screen.getByTestId("movers-index");
+      expect(label.tagName).toBe("BUTTON");
+      // axe label-content-name-mismatch: visible text must be the accessible name.
+      expect(label).not.toHaveAttribute("aria-label");
+      expect(label).toHaveAccessibleName("MOVERS · NIFTY 50");
+      expect(label.className).toContain("focus-visible:outline-2");
+      fireEvent.click(label);
+      fireEvent.keyDown(label, { key: "Enter" });
+      fireEvent.keyDown(label, { key: " " });
+      expect(open).toHaveBeenCalledTimes(3);
+      expect(open).toHaveBeenCalledWith("NIFTY");
+      expect(spies.handleSymbolChange).not.toHaveBeenCalled();
+    });
+
+    it("SENSEX 30 opens SENSEX in the dock, not the report underlying", async () => {
+      mockFetchIndexMovers.mockResolvedValue(createMockResponse({ index: "SENSEX" }));
+      const open = vi.fn();
+
+      render(() => (
+        <SymbolDockContext.Provider value={dockApi(open)}>
+          <IndexMoversStrip index="SENSEX" onExpand={onExpand} />
+        </SymbolDockContext.Provider>
+      ));
+      await waitFor(() => expect(screen.getByTestId("movers-index")).toBeInTheDocument());
+
+      expect(screen.getByTestId("movers-index")).toHaveAccessibleName("MOVERS · SENSEX 30");
+      fireEvent.click(screen.getByTestId("movers-index"));
+      expect(open).toHaveBeenCalledWith("SENSEX");
+      expect(spies.handleSymbolChange).not.toHaveBeenCalled();
+    });
+
+    it("a constituent symbol is a focusable button that opens the chart dock", async () => {
+      mockFetchIndexMovers.mockResolvedValue(createMockResponse());
+      const onOpenSymbol = vi.fn();
+
+      render(() => (
+        <IndexMoversStrip
+          index="NIFTY"
+          onExpand={onExpand}
+          onOpenSymbol={onOpenSymbol}
+        />
+      ));
+      await waitFor(() => expect(screen.getByTestId("movers-symbol-HDFCBANK")).toBeInTheDocument());
+
+      const symbol = screen.getByTestId("movers-symbol-HDFCBANK");
+      expect(symbol.tagName).toBe("BUTTON");
+      expect(symbol).toHaveAccessibleName("Open HDFCBANK chart");
+      // Visible symbol is contained in the aria-label, so axe's name check passes.
+      expect(symbol).toHaveAttribute("aria-label", expect.stringContaining("HDFCBANK"));
+      expect(symbol.className).toContain("focus-visible:outline-2");
+      fireEvent.click(symbol);
+      fireEvent.keyDown(symbol, { key: "Enter" });
+      expect(onOpenSymbol).toHaveBeenCalledWith("HDFCBANK");
+      expect(onOpenSymbol).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps the 12px label / 13px value rhythm after making targets focusable", async () => {
+      mockFetchIndexMovers.mockResolvedValue(createMockResponse());
+      render(() => <IndexMoversStrip index="NIFTY" onExpand={onExpand} onOpenSymbol={vi.fn()} />);
+      await waitFor(() => expect(screen.getByText("HDFCBANK")).toBeInTheDocument());
+
+      const strip = screen.getByTestId("movers-strip");
+      const label = strip.querySelector('[data-report-text="label"]') as HTMLElement;
+      expect(label.className).toContain("text-ui-micro");
+      const values = strip.querySelectorAll('[data-report-text="value"]');
+      expect(values).toHaveLength(12);
+      for (const value of values) expect((value as HTMLElement).style.fontSize).toBe("13px");
     });
   });
 });

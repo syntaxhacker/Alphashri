@@ -13,7 +13,7 @@ type SectionHeaderArgs = {
 };
 
 const meta: Meta<SectionHeaderArgs> = {
-  title: "Design System/Components/App/SectionHeader",
+  title: "App/Components/SectionHeader",
   tags: ["autodocs"],
   parameters: {
     docs: {

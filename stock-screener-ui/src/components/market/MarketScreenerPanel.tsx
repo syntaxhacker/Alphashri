@@ -84,7 +84,7 @@ import { TanStackTable } from "../common/TanStackTable";
 import { FilterStatusRow } from "../common/FilterStatusRow";
 import { useTablePrefs } from "../common/useTablePrefs";
 import { ChartDockOutlet } from "../common/ChartDockOutlet";
-import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
+import { isLiveUniverse, useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { MarketBreadthStrip } from "./MarketBreadthStrip";
 import { useSymbolDock } from "../common/symbolDockContext";
 import { useMarketConfig, type MarketConfigValue } from "./useMarketConfig";
@@ -978,7 +978,19 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const showWarmingHint = () =>
     universe() === "all_equity" && warming() && isLoading() && error() === null && rows().length === 0;
 
+  // Some feature suites mock the snapshot module with only the hook; keep their
+  // feed-mode badge intact when the liveness helper is absent there.
+  const universeIsLive = () =>
+    typeof isLiveUniverse === "function" ? isLiveUniverse(universe()) : true;
+
   const modeBadge = createMemo(() => {
+    if (!universeIsLive()) {
+      return {
+        label: "Closed",
+        color: "default" as const,
+        hint: "Market closed · showing last snapshot",
+      };
+    }
     const mode = (updateMode() ?? "").toLowerCase();
     if (mode === "streaming") {
       return { label: "Live", color: "success" as const, hint: "Live streaming feed" };
@@ -1087,7 +1099,6 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
           size="xs"
           h={28}
           w={120}
-          searchable
           aria-label="Market universe"
           data-testid="market-universe-select"
         />

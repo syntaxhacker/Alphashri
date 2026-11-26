@@ -107,13 +107,15 @@ export function buildFnoColumns(
           <SymbolLink
             symbol={r.symbol}
             market="NSE"
-            showChart={false}
             showOptions
             showCopy
             size="xs"
             weight={600}
             testId={`fno-cell-symbol-${r.symbol}`}
             inAppText
+            // Text and chart icon share the dock-backed handler; the options
+            // icon below keeps its own `dock.open(symbol, "options")` path.
+            onOpen={onSymbolClick}
             onTextClick={(sym) => onSymbolClick?.(sym)}
           />
         );

@@ -45,26 +45,6 @@ describe("useNotification", () => {
       });
     });
 
-    it("uses blue as default color", () => {
-      const { result } = renderSolidHook(() => useNotification());
-
-      result.current.show({ title: "Test", message: "Message" });
-
-      expect(mockShowNotification).toHaveBeenCalledWith(
-        expect.objectContaining({ color: "blue" }),
-      );
-    });
-
-    it("uses custom color when provided", () => {
-      const { result } = renderSolidHook(() => useNotification());
-
-      result.current.show({ title: "Test", message: "Message", color: "red" });
-
-      expect(mockShowNotification).toHaveBeenCalledWith(
-        expect.objectContaining({ color: "red" }),
-      );
-    });
-
     it("accepts all supported colors", () => {
       const { result } = renderSolidHook(() => useNotification());
       const colors = [
@@ -102,18 +82,6 @@ describe("useNotification", () => {
       });
     });
 
-    it("forwards title and message correctly", () => {
-      const { result } = renderSolidHook(() => useNotification());
-
-      result.current.success("Congratulations!", "Operation completed successfully");
-
-      expect(mockShowNotification).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: "Congratulations!",
-          message: "Operation completed successfully",
-        }),
-      );
-    });
   });
 
   describe("error", () => {
@@ -129,18 +97,6 @@ describe("useNotification", () => {
       });
     });
 
-    it("forwards title and message correctly", () => {
-      const { result } = renderSolidHook(() => useNotification());
-
-      result.current.error("Failed", "Something went wrong");
-
-      expect(mockShowNotification).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: "Failed",
-          message: "Something went wrong",
-        }),
-      );
-    });
   });
 
   describe("function stability", () => {

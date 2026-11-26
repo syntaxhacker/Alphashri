@@ -99,7 +99,7 @@ function SignalCard(props: {
       data-testid={`profitability-signal-card-${row().symbol}-${props.index}`}
       role={props.onOpenSymbol ? "button" : undefined}
       tabIndex={props.onOpenSymbol ? 0 : undefined}
-      class="flex flex-col gap-2 rounded-fin border border-fin-border bg-fin-surface p-2"
+      class="flex flex-col gap-2 rounded-fin border border-fin-border bg-fin-surface p-2 focus-visible:outline-2 focus-visible:outline-fin-primary"
       onClick={props.onOpenSymbol ? open : undefined}
       onKeyDown={props.onOpenSymbol ? (e) => {
         if (e.key === "Enter" || e.key === " ") {

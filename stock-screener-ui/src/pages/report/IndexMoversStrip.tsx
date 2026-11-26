@@ -7,10 +7,13 @@ import {
   REPORT_FONT,
 } from "./reportTokens";
 import { fetchIndexMovers, IndexMoversResponse, IndexMoverRow } from "@/api/indexMovers";
+import { useSymbolDock } from "@/components/common/symbolDockContext";
 
 interface IndexMoversStripProps {
   index: "NIFTY" | "SENSEX";
   onExpand: () => void;
+  /** Constituent symbol → app-wide chart dock. */
+  onOpenSymbol?: (symbol: string) => void;
   /** Optional: in EOD/replay the band has no data: collapse it instead of reserving 24px; the mode banner declares the absence */
   liveOnly?: boolean;
   loading?: boolean;
@@ -151,12 +154,22 @@ const VALUE_FONT = REPORT_FONT.body;
 const ARROW_GAINER = "▲";
 const ARROW_LOSER = "▼";
 
-function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
+function MoverItem(props: {
+  row: IndexMoverRow;
+  isGainer: boolean;
+  onOpen?: (symbol: string) => void;
+}) {
   const row = () => props.row;
   const isGainer = () => props.isGainer;
   const arrow = () => (isGainer() ? ARROW_GAINER : ARROW_LOSER);
   const color = () => (isGainer() ? GAINER_COLOR : LOSER_COLOR);
   const signed = () => (isGainer() ? "+" : "");
+  const symbolStyle = () => ({
+    "font-size": `${VALUE_FONT}px`,
+    "font-variant-numeric": "tabular-nums",
+    color: color(),
+    "font-family": palette.MONO,
+  });
   return (
     <span
       class="inline-flex items-center gap-2 shrink-0 whitespace-nowrap"
@@ -170,21 +183,39 @@ function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
       >
         {arrow()}
       </Text>
-      <Text
-        span
-        size="xs"
-        fw={700}
-        data-report-text="value"
-        class="text-ui-body"
-        style={{
-          "font-size": `${VALUE_FONT}px`,
-          "font-variant-numeric": "tabular-nums",
-          color: color(),
-          "font-family": palette.MONO,
-        }}
+      <Show
+        when={props.onOpen}
+        fallback={
+          <Text
+            span
+            size="xs"
+            fw={700}
+            data-report-text="value"
+            class="text-ui-body"
+            style={symbolStyle()}
+          >
+            {row().symbol}
+          </Text>
+        }
       >
-        {row().symbol}
-      </Text>
+        <button
+          type="button"
+          data-testid={`movers-symbol-${row().symbol}`}
+          data-report-text="value"
+          aria-label={`Open ${row().symbol} chart`}
+          title={`Open ${row().symbol} chart`}
+          onClick={() => props.onOpen?.(row().symbol)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" && e.key !== " ") return;
+            e.preventDefault();
+            props.onOpen?.(row().symbol);
+          }}
+          class="text-ui-body cursor-pointer border-0 bg-transparent p-0 font-bold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary"
+          style={symbolStyle()}
+        >
+          {row().symbol}
+        </button>
+      </Show>
       <Text
         span
         size="xs"
@@ -206,11 +237,17 @@ function MoverItem(props: { row: IndexMoverRow; isGainer: boolean }) {
 
 /** Gain/loss section (left or right). The per-symbol arrow already carries
  *  the direction, so the section no longer repeats it as a label. */
-function MoverSection(props: { rows: IndexMoverRow[]; isGainer: boolean }) {
+function MoverSection(props: {
+  rows: IndexMoverRow[];
+  isGainer: boolean;
+  onOpen?: (symbol: string) => void;
+}) {
   return (
     <span class="flex items-center gap-2 min-w-0 shrink-0">
       <For each={props.rows}>
-        {(row) => <MoverItem row={row} isGainer={props.isGainer} />}
+        {(row) => (
+          <MoverItem row={row} isGainer={props.isGainer} onOpen={props.onOpen} />
+        )}
       </For>
     </span>
   );
@@ -225,6 +262,13 @@ function MoverSection(props: { rows: IndexMoverRow[]; isGainer: boolean }) {
 export function IndexMoversStrip(props: IndexMoversStripProps) {
   const index = () => props.index;
   const liveOnly = () => props.liveOnly ?? false;
+  const dock = useSymbolDock();
+  // Index names are symbol chips too: NIFTY 50 / SENSEX 30 open the canonical
+  // index chart in the app-wide dock, never the report's underlying Select.
+  const openIndex = (value: "NIFTY" | "SENSEX") =>
+    dock.open(value === "SENSEX" ? "SENSEX" : "NIFTY");
+  const openSymbol = (symbol: string) =>
+    (props.onOpenSymbol ?? ((s) => dock.open(s)))(symbol);
   const [data, setData] = createSignal<IndexMoversResponse | null>(null);
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
@@ -304,20 +348,25 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         class="inline-flex items-center gap-2 min-w-0 flex-auto overflow-hidden max-[700px]:flex-wrap max-[700px]:gap-y-1"
         style={{ "text-overflow": "ellipsis" }}
       >
-        <Text
-          span
-          size="xs"
-          fw={700}
-          c="dimmed"
+        <button
+          type="button"
+          data-testid="movers-index"
           data-report-text="label"
-          className="shrink-0 tracking-[0.08em] text-ui-micro"
+          title={`Open ${index()} index report`}
+          onClick={() => openIndex(index())}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" && e.key !== " ") return;
+            e.preventDefault();
+            openIndex(index());
+          }}
+          class="shrink-0 cursor-pointer border-0 bg-transparent p-0 font-bold tracking-[0.08em] text-ui-micro focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary"
           style={{ color: palette.TEXT_MUTED }}
         >
           MOVERS · {index()} {index() === "NIFTY" ? "50" : "30"}
-        </Text>
+        </button>
 
         {/* Gainers */}
-        <MoverSection rows={gainers()} isGainer={true} />
+        <MoverSection rows={gainers()} isGainer={true} onOpen={openSymbol} />
 
         {/* Separator — fixed 1px: a stretched flex item would push the
             losers past the strip edge. On a phone the groups wrap instead. */}
@@ -328,7 +377,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
         />
 
         {/* Losers */}
-        <MoverSection rows={losers()} isGainer={false} />
+        <MoverSection rows={losers()} isGainer={false} onOpen={openSymbol} />
       </span>
 
       {/* Right side: EXPAND button + stale badge */}

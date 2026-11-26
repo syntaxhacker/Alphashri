@@ -5,6 +5,7 @@ import {
   loginAsTestUser,
   setupApiMocks,
   setupOptionDockMocks,
+  setupFnoScreenerMocks,
 } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
 
@@ -459,11 +460,15 @@ async function enterDockWithPreview(page: Page): Promise<PaperMocks> {
   await setupApiMocks(page);
   await loginAsTestUser(page);
   await mockMarketAndPatterns(page);
+  const narrow = (page.viewportSize()?.width ?? 1280) < 900;
+  if (narrow) await setupFnoScreenerMocks(page);
   await setupOptionDockMocks(page, { marketState: "closed" });
   const paper = await mockOptionsPaper(page, replayResultRaw());
 
-  await page.goto(SNAPSHOT_PATH);
-  await expect(page.getByTestId("market-row-RELIANCE")).toBeVisible({ timeout: 15000 });
+  // Narrow Market rows drop per-row affordances; the F&O table keeps them.
+  await page.goto(narrow ? "/screener/fno" : SNAPSHOT_PATH);
+  const row = narrow ? "fno-row-RELIANCE" : "market-row-RELIANCE";
+  await expect(page.getByTestId(row)).toBeVisible({ timeout: 15000 });
   await page.getByTestId("symbol-options-RELIANCE").first().click();
   await expect(page.getByTestId("options-dock")).toBeVisible({ timeout: 15000 });
   await page.getByTestId("options-ce-1420").click();

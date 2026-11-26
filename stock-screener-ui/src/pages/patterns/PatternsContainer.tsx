@@ -1,5 +1,5 @@
 import { createEffect, createSignal, onMount, onCleanup } from "solid-js";
-import { useLocation, useSearchParams } from "@solidjs/router";
+import { useLocation, useNavigate } from "@solidjs/router";
 import {
   subscribe,
   getChartPatternsState,
@@ -193,13 +193,12 @@ export function PatternsContainer() {
   const [indexGroup, setIndexGroup] = createSignal<IndexGroup>("all");
   const [members, setMembers] = createSignal<string | null>(null);
 
-  const [, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const location = useLocation();
 
   let hydrated = false;
   let firstRun = true;
   let parsed: ParsedPatternParams | null = null;
-  let lastWritten = "";
 
   const currentState = () => ({
     universe: universe(),
@@ -213,6 +212,34 @@ export function PatternsContainer() {
     members: members(),
     filters: filters(),
   });
+
+  /** Adopt a parsed URL into the store, ignoring fields that already match. */
+  function applyUrlState(p: ParsedPatternParams): void {
+    if (p.universe && p.universe !== universe()) selectUniverse(p.universe);
+    if (p.timeframes) {
+      if (!filterValuesEqual(selectedTimeframes() ?? [timeframe()], p.timeframes)) {
+        selectTimeframes(p.timeframes);
+      }
+    } else if (p.timeframe && p.timeframe !== timeframe()) {
+      selectTimeframe(p.timeframe);
+    }
+    if ((p.lookback ?? null) !== (lookbackBars() ?? null)) setLookbackBars(p.lookback);
+    if (p.computeTrendlines != null && p.computeTrendlines !== (computeTrendlines() ?? true)) {
+      setComputeTrendlines(p.computeTrendlines);
+    }
+    if (p.tab != null && p.tab !== tab()) setTab(p.tab);
+    if (p.view != null && p.view !== view()) setView(p.view);
+    if (p.indexGroup != null && p.indexGroup !== indexGroup()) setIndexGroup(p.indexGroup);
+    if (p.members !== (members() ?? null)) setMembers(p.members);
+    const entries = Object.entries(p.filters);
+    if (entries.length > 0) {
+      const differs = entries.some(([key, value]) => {
+        const current = (filters() as unknown as Record<string, unknown>)[key];
+        return !filterValuesEqual(current, value);
+      });
+      if (differs) applyFilters(p.filters);
+    }
+  }
 
   createEffect(() => {
     // Mount-only: parse the incoming URL and adopt it into the store.
@@ -234,35 +261,13 @@ export function PatternsContainer() {
       return;
     }
     parsed = p;
-    if (p.universe && p.universe !== universe()) selectUniverse(p.universe);
-    const currentSelection = selectedTimeframes() ?? [timeframe()];
-    if (p.timeframes) {
-      if (!filterValuesEqual(currentSelection, p.timeframes)) {
-        selectTimeframes(p.timeframes);
-      }
-    } else if (p.timeframe && p.timeframe !== timeframe()) {
-      selectTimeframe(p.timeframe);
-    }
-    if (p.lookback != null && p.lookback !== lookbackBars()) setLookbackBars(p.lookback);
-    if (p.computeTrendlines != null && p.computeTrendlines !== computeTrendlines()) {
-      setComputeTrendlines(p.computeTrendlines);
-    }
-    if (p.tab != null && p.tab !== tab()) setTab(p.tab);
-    if (p.view != null && p.view !== view()) setView(p.view);
-    if (p.indexGroup != null && p.indexGroup !== indexGroup()) setIndexGroup(p.indexGroup);
-    if (p.members != null && p.members !== members()) setMembers(p.members);
-    const filtersDiffer = Object.entries(p.filters).some(([key, value]) => {
-      const current = (filters() as unknown as Record<string, unknown>)[key];
-      return !filterValuesEqual(current, value);
-    });
-    if (filtersDiffer) applyFilters(p.filters);
+    applyUrlState(p);
   });
 
   createEffect(() => {
     const state = currentState();
     if (firstRun) {
       firstRun = false;
-      lastWritten = mergeWithSearch(location.search, buildParamsObject(state));
       return;
     }
     if (!hydrated && parsed) {
@@ -300,49 +305,27 @@ export function PatternsContainer() {
 
     const next = buildParamsObject(state);
     const merged = mergeWithSearch(location.search, next);
-    lastWritten = merged;
     if (normalizeSearch(location.search) === normalizeSearch(merged)) return;
-    setSearchParams(next, { replace: true });
-  });
-
-  createEffect(() => {
-    const search = location.search;
-    if (!hydrated) return;
-    const merged = mergeWithSearch(search, buildParamsObject(currentState()));
-    if (merged === lastWritten) return;
-    if (!normalizeSearch(search)) return;
-    lastWritten = merged;
-
-    const p = parsePatternParams(new URLSearchParams(search));
-    if (p.universe && p.universe !== universe()) selectUniverse(p.universe);
-    if (p.timeframes) {
-      if (!filterValuesEqual(selectedTimeframes() ?? [timeframe()], p.timeframes)) {
-        selectTimeframes(p.timeframes);
-      }
-    } else if (p.timeframe && p.timeframe !== timeframe()) {
-      selectTimeframe(p.timeframe);
-    }
-    if ((p.lookback ?? null) !== (lookbackBars() ?? null)) {
-      setLookbackBars(p.lookback);
-    }
-    if (p.computeTrendlines != null && p.computeTrendlines !== (computeTrendlines() ?? true)) {
-      setComputeTrendlines(p.computeTrendlines);
-    }
-    if (p.tab != null && p.tab !== tab()) setTab(p.tab);
-    if (p.view != null && p.view !== view()) setView(p.view);
-    if (p.indexGroup != null && p.indexGroup !== indexGroup()) setIndexGroup(p.indexGroup);
-    if (p.members !== (members() ?? null)) setMembers(p.members);
-    const entries = Object.entries(p.filters);
-    if (entries.length > 0) {
-      const differs = entries.some(([key, value]) => {
-        const currentValue = (filters() as unknown as Record<string, unknown>)[key];
-        return !filterValuesEqual(currentValue, value);
-      });
-      if (differs) applyFilters(p.filters);
-    }
+    // `resolve: false` commits the query without re-resolving the route, so a
+    // locally filtered desk keeps its page state (open dock, modal draft).
+    const query = new URLSearchParams(normalizeSearch(merged)).toString();
+    navigate(location.pathname + (query ? "?" + query : ""), {
+      replace: true,
+      scroll: false,
+      resolve: false,
+    });
   });
 
   onMount(() => {
+    // Only real back/forward navigation adopts URL state. Our own writes must
+    // never read back into the store: that re-applied stale filters and reset
+    // the modal draft and the open chart dock.
+    const onPopState = () => {
+      if (!hydrated) return;
+      applyUrlState(parsePatternParams(new URLSearchParams(window.location.search)));
+    };
+    window.addEventListener("popstate", onPopState);
+    onCleanup(() => window.removeEventListener("popstate", onPopState));
     void loadCatalog();
   });
 

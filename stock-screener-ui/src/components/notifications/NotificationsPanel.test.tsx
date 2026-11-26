@@ -16,6 +16,20 @@ vi.mock("../../api/notifications", () => ({
   fetchSurges: vi.fn(),
 }));
 
+const dock = vi.hoisted(() => ({ open: vi.fn() }));
+
+vi.mock("../common/symbolDockContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../common/symbolDockContext")>()),
+  useSymbolDock: () => ({
+    open: dock.open,
+    preview: vi.fn(),
+    endPreview: vi.fn(),
+    close: vi.fn(),
+    setOutlet: vi.fn(),
+    pinned: false,
+  }),
+}));
+
 const mockedFetchSurges = vi.mocked(fetchSurges);
 
 function makeEvent(overrides: Partial<PriceSurgeEvent> = {}): PriceSurgeEvent {
@@ -184,5 +198,28 @@ describe("NotificationsPanel", () => {
     await screen.findByText(/Surge Alerts/);
     await fireEvent.click(screen.getByRole("dialog"));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens a surge card symbol through the dock on click and keyboard", async () => {
+    mockedFetchSurges.mockResolvedValueOnce({ total: 1, events: [makeEvent()] });
+    render(() => (<UIProvider>
+        <NotificationsPanel opened onClose={vi.fn()} />
+      </UIProvider>),
+    );
+
+    const symbol = await screen.findByTestId("surge-symbol-1");
+    expect(symbol.tagName).toBe("BUTTON");
+    expect(symbol).toHaveAttribute("aria-label", "Open RELIANCE chart");
+
+    await fireEvent.click(symbol);
+    expect(dock.open).toHaveBeenCalledWith("RELIANCE");
+
+    dock.open.mockClear();
+    await fireEvent.keyDown(symbol, { key: "Enter" });
+    expect(dock.open).toHaveBeenCalledWith("RELIANCE");
+
+    dock.open.mockClear();
+    await fireEvent.keyDown(symbol, { key: " " });
+    expect(dock.open).toHaveBeenCalledWith("RELIANCE");
   });
 });

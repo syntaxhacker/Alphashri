@@ -6,7 +6,7 @@ import { createMemo, createSignal, type JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import { MarketScreenerPanel, marketSortToSortEntry, sortEntryToMarketSort } from "./MarketScreenerPanel";
 import { valueScan } from "../../api/valueScan";
-import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
+import { isLiveUniverse, useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { fetchScreenerDashboard } from "../../api/screenerDashboard";
 import { getUserConfig, putUserConfig, deleteUserConfig } from "../../api/userConfigs";
 import * as marketFilters from "./marketFilters";
@@ -26,8 +26,13 @@ vi.mock("@solidjs/router", async (importOriginal) => {
   return { ...actual, useNavigate: () => routerMocks.navigate };
 });
 
+const marketMocks = vi.hoisted(() => ({
+  isLiveUniverse: vi.fn(() => true),
+}));
+
 vi.mock("./useMarketSnapshotSolid", () => ({
   useMarketSnapshotSolid: vi.fn(),
+  isLiveUniverse: marketMocks.isLiveUniverse,
 }));
 
 vi.mock("../../api/screenerDashboard", () => ({
@@ -60,6 +65,7 @@ const mockPutUserConfig = vi.mocked(putUserConfig);
 const mockDeleteUserConfig = vi.mocked(deleteUserConfig);
 
 const mockUseMarketSnapshot = vi.mocked(useMarketSnapshotSolid);
+const mockIsLiveUniverse = vi.mocked(isLiveUniverse);
 
 const mockLookupPatterns = vi.hoisted(() => vi.fn());
 vi.mock("../../api/patternLookup", () => ({
@@ -189,10 +195,28 @@ function r(jsx: () => JSX.Element) {
   return render(() => (<UIProvider>{jsx()}</UIProvider>));
 }
 
+// Shared mount fixture: the panel always renders inside render's root (so
+// onCleanup runs) and with the same mocked boundary. Tests that need a
+// different snapshot or saved config set the mock before calling this.
+type PanelProps = NonNullable<Parameters<typeof MarketScreenerPanel>[0]>;
+function renderPanel(props: Partial<PanelProps> = {}) {
+  return r(() => <MarketScreenerPanel {...props} />);
+}
+
+const universeSelect = () =>
+  screen.getByTestId("market-universe-select").querySelector("select") as HTMLSelectElement;
+
+function chooseUniverse(label: string) {
+  const select = universeSelect();
+  const option = Array.from(select.options).find((o) => o.textContent === label);
+  fireEvent.input(select, { target: { value: option?.value ?? label } });
+}
+
 afterEach(cleanup);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockIsLiveUniverse.mockReturnValue(true);
   // The panel reads `?wire=` once at setup; a leftover value would leak.
   window.history.replaceState({}, "", "/");
   mockUseMarketSnapshot.mockReturnValue(hookResult());
@@ -241,6 +265,62 @@ beforeEach(() => {
   mockDeleteUserConfig.mockResolvedValue({ scope: "market.filters", deleted: true });
 });
 
+describe("MarketScreenerPanel — universe dropdown", () => {
+  test("is a native select exposing all nine universes, including USA after picking Nifty 50", () => {
+    r(() => <MarketScreenerPanel />);
+    const field = screen.getByTestId("market-universe-select");
+    expect(field.querySelector("input")).toBeNull();
+    const select = universeSelect();
+    expect(select).toHaveAttribute("aria-label", "Market universe");
+    expect(Array.from(select.options, (option) => option.textContent)).toEqual([
+      "All NSE",
+      "Nifty 500",
+      "Nifty 50",
+      "NIFTY 100",
+      "NIFTY 200",
+      "Bank Nifty",
+      "Sensex",
+      "F&O",
+      "USA",
+    ]);
+
+    chooseUniverse("Nifty 50");
+    expect(select).toHaveValue("nifty50");
+    // The old searchable input kept its chosen label as the query, so a second
+    // open filtered the list down to Nifty 50 and USA disappeared.
+    expect(Array.from(select.options, (option) => option.textContent)).toContain("USA");
+    expect(mockUseMarketSnapshot.mock.calls.at(-1)?.[0]()).toBe("nifty50");
+  });
+});
+
+describe("MarketScreenerPanel — feed mode badge", () => {
+  test("a closed India universe reads Closed, never Live, even on a streaming snapshot", () => {
+    mockIsLiveUniverse.mockReturnValue(false);
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ updateMode: "streaming" }));
+    r(() => <MarketScreenerPanel />);
+
+    const badge = screen.getByTestId("market-mode-badge");
+    expect(badge).toHaveTextContent("Closed");
+    expect(badge).not.toHaveTextContent("Live");
+    // Tooltip names its wrapper with the hint; no hover needed.
+    expect(badge.parentElement).toHaveAttribute(
+      "aria-label",
+      "Market closed · showing last snapshot",
+    );
+    expect(mockIsLiveUniverse).toHaveBeenCalledWith("all_equity");
+  });
+
+  test("an open India universe with a streaming snapshot reads Live", () => {
+    mockIsLiveUniverse.mockReturnValue(true);
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ updateMode: "streaming" }));
+    r(() => <MarketScreenerPanel />);
+
+    const badge = screen.getByTestId("market-mode-badge");
+    expect(badge).toHaveTextContent("Live");
+    expect(badge).not.toHaveTextContent("Closed");
+  });
+});
+
 describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
   test("shows rows with a Stale badge while serving the cached snapshot", () => {
     mockUseMarketSnapshot.mockReturnValue(
@@ -276,9 +356,7 @@ describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
     );
     r(() => <MarketScreenerPanel />);
     expect(screen.getByTestId("market-warming-hint")).toBeInTheDocument();
-    const combo = screen.getByTestId("market-universe-select").querySelector('[role="combobox"]') as HTMLInputElement;
-    await fireEvent.focus(combo);
-    await fireEvent.mouseDown(await screen.findByRole("option", { name: "Nifty 500" }));
+    chooseUniverse("Nifty 500");
     expect(screen.queryByTestId("market-warming-hint")).not.toBeInTheDocument();
     expect(mockUseMarketSnapshot.mock.calls.at(-1)?.[0]()).toBe("nifty500");
   });
@@ -440,27 +518,25 @@ describe("MarketScreenerPanel — non-blocking filters", () => {
     return rows;
   }
 
-  test("chip + active-count update immediately; table data is deferred", async () => {
+  test("chips and active-count update immediately; non-filter interactions do not re-run the filter pipeline", async () => {
     const rows = buildBenchRows(496);
     mockUseMarketSnapshot.mockReturnValue(hookResult({ rows, total: rows.length }));
-    r(() => <MarketScreenerPanel />);
+    const filterSpy = vi.spyOn(marketFilters, "filterOnlyMarketRows");
+    renderPanel();
 
     expect(screen.getByTestId("market-grid")).toBeInTheDocument();
     expect(screen.getByTestId("market-result-count")).toHaveTextContent("496 / 496");
     // Zero active filters: the Indicator wrapper stays mounted (committed
     // @/ui contract), but the dot is absent.
     expect(screen.getByTestId("market-filter-count").querySelector(".absolute")).toBeNull();
+    const callsBefore = filterSpy.mock.calls.length;
+    expect(callsBefore).toBeGreaterThan(0);
 
-    const sma200 = screen.getByTestId("market-filter-above-sma200");
-    fireEvent.click(sma200);
+    fireEvent.click(screen.getByTestId("market-filter-above-sma200"));
 
     // Immediate path: chip and active-filter count reflect the click within the
-    // same synchronous render — no waiting for a transition. The result count
-    // is computed from the immediate filters too (filter-only, no sort), so it
-    // is honest with the chips on the same commit instead of lagging the
-    // deferred table by one transition. (RTL flushes pending scheduler work at
-    // the end of `act`, so this harness cannot observe the pre-commit frame —
-    // commit timing is asserted in the browser, not here.)
+    // same synchronous render. (RTL flushes pending scheduler work at the end of
+    // `act`, so commit timing is asserted in the browser, not here.)
     expect(screen.getByTestId("market-filter-chip-sma200")).toBeInTheDocument();
     const badge = screen.getByTestId("market-filter-count");
     expect(badge.querySelector(".absolute")).not.toBeNull();
@@ -469,29 +545,14 @@ describe("MarketScreenerPanel — non-blocking filters", () => {
     expect(screen.getByTestId("market-result-count")).toHaveTextContent("248 / 496");
     expect(screen.getByTestId("market-grid")).toBeInTheDocument();
 
-    // `filterOnlyMarketRows` is not re-invoked by further non-filter interaction:
-    // no synchronous 496-row filter pass blocks the UI. (The deferred render is
-    // committed by React's scheduler in the browser; happy-dom does not process
-    // that scheduler work, so the test covers the synchronous guarantee above.)
-    const filterSpy = vi.spyOn(marketFilters, "filterOnlyMarketRows");
+    // A non-filter interaction never re-invokes the 496-row filter pipeline.
+    // (The deferred render is committed by the scheduler in the browser;
+    // happy-dom does not process that work, so only the synchronous guarantee
+    // is asserted here.)
+    const callsAfterFilter = filterSpy.mock.calls.length;
     fireEvent.click(screen.getByTestId("market-rail-toggle"));
-    expect(filterSpy.mock.calls.length).toBe(0);
+    expect(filterSpy.mock.calls.length).toBe(callsAfterFilter);
     expect(screen.getByTestId("market-result-count")).toHaveTextContent("248 / 496");
-  });
-
-  test("non-filter interactions do not re-run the filter pipeline", () => {
-    const rows = buildBenchRows(496);
-    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows, total: rows.length }));
-    const filterSpy = vi.spyOn(marketFilters, "filterOnlyMarketRows");
-    r(() => <MarketScreenerPanel />);
-
-    const callsBefore = filterSpy.mock.calls.length;
-    expect(callsBefore).toBeGreaterThan(0);
-
-    fireEvent.click(screen.getByTestId("market-rail-toggle"));
-
-    expect(filterSpy.mock.calls.length).toBe(callsBefore);
-    expect(screen.getByTestId("market-result-count")).toHaveTextContent("496 / 496");
   });
 });
 
@@ -516,13 +577,15 @@ describe("MarketScreenerPanel — the table owns sorting, the map only sizes", (
       row("MPHASIS", { marketCapCr: 10_000, rsi: 80 }),
     ];
     mockUseMarketSnapshot.mockReturnValue(hookResult({ rows, total: rows.length }));
-    r(() => <MarketScreenerPanel />);
+    renderPanel();
     const toggle = screen.getByTestId("market-view-toggle");
     await fireEvent.click(within(toggle).getByText("Vis"));
 
     const metric = () =>
       (screen.getByTestId("market-map-metric").querySelector("select") as HTMLSelectElement).value;
     expect(metric()).toBe("change_pct");
+    // The map owns no sort control that could write back into the table.
+    expect(screen.queryByTestId("market-map-sort")).toBeNull();
 
     fireEvent.input(screen.getByTestId("market-map-metric").querySelector("select")!, {
       target: { value: "rsi" },
@@ -536,6 +599,14 @@ describe("MarketScreenerPanel — the table owns sorting, the map only sizes", (
       "aria-sort",
       "descending",
     );
+    expect(document.getElementById("paper-tanstack-header-day_change")).not.toHaveAttribute(
+      "aria-sort",
+      "ascending",
+    );
+    const order = Array.from(document.querySelectorAll('[data-testid^="market-row-"]')).map(
+      (el) => el.getAttribute("data-testid"),
+    );
+    expect(order[0]).toBe("market-row-RELIANCE");
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
   });
 });
@@ -811,11 +882,7 @@ describe("MarketScreenerPanel — symbol allowlist", () => {
   test("changing the universe clears the symbol allowlist", async () => {
     const onClear = vi.fn();
     r(() => <MarketScreenerPanel symbolAllowlist={["RELIANCE"]} onClearSymbolAllowlist={onClear} />);
-    const combo = screen.getByTestId("market-universe-select").querySelector(
-      '[role="combobox"]',
-    ) as HTMLInputElement;
-    await fireEvent.focus(combo);
-    await fireEvent.mouseDown(await screen.findByRole("option", { name: "Nifty 500" }));
+    chooseUniverse("Nifty 500");
     expect(onClear).toHaveBeenCalled();
   });
 
@@ -1045,7 +1112,11 @@ describe("MarketScreenerPanel — saved filters", () => {
     // A restored sector still hides the constant SECTOR column.
     expect(screen.queryByText("SECTOR")).toBeNull();
     expect(mockUseMarketSnapshot.mock.calls.at(-1)?.[0]()).toBe("nifty500");
-  });
+
+    // Reading a config is not an edit: no echoing PUT, no new revision.
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    expect(mockPutUserConfig).not.toHaveBeenCalled();
+  }, 10000);
 
   test("hydrates the layout from the saved view when the URL says nothing", async () => {
     withSaved(savedPayload({ view: "map" }));
@@ -1107,11 +1178,11 @@ describe("MarketScreenerPanel — saved filters", () => {
     expect(screen.getByTestId("market-filter-chip-sector:Energy")).toBeInTheDocument();
   });
 
-  test("a failed save shows the toolbar chip and leaves the table intact", async () => {
+  test("a failed save shows a toolbar error chip and leaves the table intact", async () => {
     mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: SAVED_ROWS, total: SAVED_ROWS.length }));
     mockPutUserConfig.mockRejectedValue(Object.assign(new Error("boom"), { status: 500 }));
 
-    r(() => <MarketScreenerPanel />);
+    renderPanel();
 
     const sectorSelect = screen.getByTestId("market-filter-sector");
     await fireEvent.focus(within(sectorSelect).getByRole("combobox"));
@@ -1122,38 +1193,13 @@ describe("MarketScreenerPanel — saved filters", () => {
     const chip = await screen.findByTestId("saved-config-error", {}, { timeout: 4000 });
     expect(chip).toHaveTextContent(/^Filters not saved/);
     expect(screen.getByTestId("saved-config-retry")).toBeInTheDocument();
+    const toolbar = screen.getByTestId("market-toolbar");
+    expect(toolbar).toContainElement(chip as HTMLElement);
+    expect(toolbar).toContainElement(screen.getByTestId("market-filter-count"));
     expect(screen.getByTestId("market-row-RELIANCE")).toBeInTheDocument();
     expect(screen.getByTestId("market-row-MPHASIS")).toBeInTheDocument();
     expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument();
     expect(screen.getByTestId("market-result-count")).toHaveTextContent("2 / 3");
-  }, 10000);
-
-  test("the failure chip lives in the toolbar next to the filter count", async () => {
-    mockPutUserConfig.mockRejectedValue(Object.assign(new Error("boom"), { status: 422 }));
-    r(() => <MarketScreenerPanel />);
-
-    const sma20 = screen.getByTestId("market-filter-above-sma20");
-    fireEvent.click(sma20);
-
-    const chip = await screen.findByTestId("saved-config-error", {}, { timeout: 4000 });
-    const toolbar = screen.getByTestId("market-toolbar");
-    expect(toolbar).toContainElement(chip as HTMLElement);
-    expect(toolbar).toContainElement(screen.getByTestId("market-filter-count"));
-    await waitFor(() => expect(screen.getByTestId("saved-config-retry")).toBeInTheDocument());
-  }, 10000);
-
-  test("applying a saved value never writes it straight back", async () => {
-    mockUseMarketSnapshot.mockReturnValue(hookResult({ rows: SAVED_ROWS, total: SAVED_ROWS.length }));
-    withSaved(savedPayload());
-
-    r(() => <MarketScreenerPanel />);
-    await waitFor(() =>
-      expect(screen.getByTestId("market-filter-chip-sector:IT")).toBeInTheDocument(),
-    );
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-
-    // Reading a config is not an edit: no echoing PUT, no new revision.
-    expect(mockPutUserConfig).not.toHaveBeenCalled();
   }, 10000);
 
   test("a reload restores what the previous mount saved", async () => {
@@ -1251,15 +1297,16 @@ describe("MarketScreenerPanel — saved filters", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
 
-    test("the saved universe survives even when the table sort mirror lands first", async () => {
+    test("saved universe, numeric bounds and SMA toggles survive the pre-hydration mirror write", async () => {
       await hydrateWithRace();
 
       // Fails on the buggy code: the mirror's pre-hydration write closes the
-      // latch, so nifty50 is discarded and the snapshot stays on all_equity.
+      // latch, so nifty50 and its persisted filters are discarded.
       expect(mockUseMarketSnapshot.mock.calls.at(-1)?.[0]()).toBe("nifty50");
-      expect(
-        within(screen.getByTestId("market-universe-select")).getByRole("combobox"),
-      ).toHaveValue("Nifty 50");
+      expect(universeSelect()).toHaveValue("nifty50");
+      expect(screen.getByTestId("market-filter-chip-rsi")).toHaveTextContent("RSI ≥ 60");
+      expect(screen.getByTestId("market-filter-chip-sma20")).toBeInTheDocument();
+      expect(screen.getByTestId("market-filter-count")).toHaveTextContent("2");
       await new Promise((resolve) => setTimeout(resolve, 1200));
       expect(
         mockPutUserConfig.mock.calls.some(
@@ -1269,16 +1316,6 @@ describe("MarketScreenerPanel — saved filters", () => {
         ),
       ).toBe(false);
     }, 10000);
-
-    test("numeric bounds and SMA toggles survive the same pre-hydration write", async () => {
-      await hydrateWithRace();
-
-      // Both are persisted fields; neither may be replaced by mount defaults
-      // just because the table's derived sort arrived before the GET did.
-      expect(screen.getByTestId("market-filter-chip-rsi")).toHaveTextContent("RSI ≥ 60");
-      expect(screen.getByTestId("market-filter-chip-sma20")).toBeInTheDocument();
-      expect(screen.getByTestId("market-filter-count")).toHaveTextContent("2");
-    });
   });
 
   test("a 401 disables the feature silently: no chip, defaults applied", async () => {
@@ -1403,23 +1440,6 @@ describe("MarketScreenerPanel — persisted table sort (table.market.grid)", () 
     expect(screen.queryByTestId("market-map-sort")).toBeNull();
     expect(screen.getByTestId("market-vis-toolbar").querySelectorAll("select")).toHaveLength(1);
     await fireEvent.click(within(toggle).getByText("Table"));
-  });
-
-  test("the map has no sort control that could write back into the table", async () => {
-    r(() => <MarketScreenerPanel />);
-    const toggle = screen.getByTestId("market-view-toggle");
-    await fireEvent.click(within(toggle).getByText("Vis"));
-    expect(screen.queryByTestId("market-map-sort")).toBeNull();
-
-    fireEvent.input(screen.getByTestId("market-map-metric").querySelector("select")!, {
-      target: { value: "rsi" },
-    });
-    await fireEvent.click(within(toggle).getByText("Table"));
-
-    // The table keeps its own persisted sort (mcap desc); the map's only
-    // dropdown sizes tiles and must not mutate table.market.grid.
-    expect(header("day_change")).not.toHaveAttribute("aria-sort", "ascending");
-    await waitFor(() => expect(rowOrder()[0]).toBe("market-row-BIGCAP"));
   });
 
   test("a header click persists the table sort", async () => {
@@ -1608,15 +1628,8 @@ describe("MarketScreenerPanel — universe-aware columns, rail and reset", () =>
   const mcapHeader = () =>
     document.getElementById("paper-tanstack-header-market_cap_cr")?.textContent ?? "";
 
-  async function selectUniverse(name: string) {
-    const combo = screen.getByTestId("market-universe-select").querySelector(
-      '[role="combobox"]',
-    ) as HTMLInputElement;
-    await fireEvent.focus(combo);
-    // `handleSelect` keeps the chosen label as the search query, so a second
-    // open is filtered down to just that option. Clear it before picking.
-    await fireEvent.input(combo, { target: { value: "" } });
-    await fireEvent.mouseDown(await screen.findByRole("option", { name }));
+  function selectUniverse(name: string) {
+    chooseUniverse(name);
   }
 
   function setNumber(testId: string, value: string) {
@@ -1828,13 +1841,8 @@ describe("MarketScreenerPanel — cap-tier counts follow the loaded rows", () =>
     row("SMALL", { exchange: "NASDAQ", currency: "USD", capTier: "small", marketCapCr: null, marketCapUsdB: 1 }),
   ];
 
-  async function selectUniverse(name: string) {
-    const combo = screen.getByTestId("market-universe-select").querySelector(
-      '[role="combobox"]',
-    ) as HTMLInputElement;
-    await fireEvent.focus(combo);
-    await fireEvent.input(combo, { target: { value: "" } });
-    await fireEvent.mouseDown(await screen.findByRole("option", { name }));
+  function selectUniverse(name: string) {
+    chooseUniverse(name);
   }
 
   const rail = () => within(screen.getByTestId("market-filter-rail"));
@@ -1959,23 +1967,15 @@ describe("MarketScreenerPanel — chart icon routes by exchange", () => {
     );
   });
 
-  test("a NASDAQ row navigates to the in-app chart with market=usa", () => {
-    r(() => <MarketScreenerPanel />);
+  test("US rows on NASDAQ, NYSE and AMEX all navigate to the in-app chart", () => {
+    renderPanel();
     fireEvent.click(screen.getByTestId("market-chart-AAPL"));
-    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/AAPL?market=usa");
-  });
-
-  test("NYSE and AMEX rows also use the US chart route", () => {
-    r(() => <MarketScreenerPanel />);
     fireEvent.click(screen.getByTestId("market-chart-MSFT"));
     fireEvent.click(screen.getByTestId("market-chart-BRK.B"));
-    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/MSFT?market=usa");
-    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/BRK.B?market=usa");
-  });
 
-  test("dots in a US symbol survive the chart URL unchanged", () => {
-    r(() => <MarketScreenerPanel />);
-    fireEvent.click(screen.getByTestId("market-chart-BRK.B"));
+    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/AAPL?market=usa");
+    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/MSFT?market=usa");
+    // Dots in a symbol survive unchanged.
     expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/BRK.B?market=usa");
     expect(routerMocks.navigate).not.toHaveBeenCalledWith("/chart/BRK-B?market=usa");
   });
@@ -2151,11 +2151,7 @@ describe("MarketScreenerPanel — embedded Value view", () => {
       ),
     );
 
-    const combo = screen.getByTestId("market-universe-select").querySelector(
-      '[role="combobox"]',
-    ) as HTMLInputElement;
-    await fireEvent.focus(combo);
-    await fireEvent.mouseDown(await screen.findByRole("option", { name: "USA" }));
+    chooseUniverse("USA");
 
     await waitFor(
       () =>
@@ -2208,36 +2204,14 @@ describe("MarketScreenerPanel — market snapshot gating in Value view", () => {
   const enabledForFirstCall = () =>
     mockUseMarketSnapshot.mock.calls[0]?.[1]?.enabled?.() as boolean | undefined;
 
-  test("Value view disables the market snapshot (zero market requests)", async () => {
-    r(() => <MarketScreenerPanel initialView="value" />);
+  test("Value view gates the market snapshot: off in Value, off after a universe switch, on at Table", async () => {
+    renderPanel({ initialView: "value" });
     await screen.findByTestId("value-panel", {}, { timeout: 3000 });
 
     expect(enabledForFirstCall()).toBe(false);
     expect(screen.getByTestId("market-value-region")).toBeInTheDocument();
-  });
 
-  test("switching Value → Table re-enables the market snapshot (one market request)", async () => {
-    r(() => <MarketScreenerPanel initialView="value" />);
-    await screen.findByTestId("value-panel", {}, { timeout: 3000 });
-    expect(enabledForFirstCall()).toBe(false);
-
-    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Table"));
-
-    expect(screen.getByTestId("market-search")).toBeInTheDocument();
-    expect(enabledForFirstCall()).toBe(true);
-  });
-
-  test("switching universe inside Value keeps the market snapshot disabled", async () => {
-    r(() => <MarketScreenerPanel initialView="value" />);
-    await screen.findByTestId("value-panel", {}, { timeout: 3000 });
-    expect(enabledForFirstCall()).toBe(false);
-
-    const combo = screen.getByTestId("market-universe-select").querySelector(
-      '[role="combobox"]',
-    ) as HTMLInputElement;
-    await fireEvent.focus(combo);
-    await fireEvent.mouseDown(await screen.findByRole("option", { name: "USA" }));
-
+    chooseUniverse("USA");
     await waitFor(() =>
       expect(mockValueScan).toHaveBeenCalledWith(
         expect.objectContaining({ market: "usa" }),
@@ -2245,6 +2219,10 @@ describe("MarketScreenerPanel — market snapshot gating in Value view", () => {
       ),
     );
     expect(enabledForFirstCall()).toBe(false);
+
+    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Table"));
+    expect(screen.getByTestId("market-search")).toBeInTheDocument();
+    expect(enabledForFirstCall()).toBe(true);
   });
 });
 
@@ -2379,22 +2357,10 @@ describe("MarketScreenerPanel — map sizing metric (colorBy wire field)", () =>
     await backToTable();
   });
 
-  test("changing the colour metric persists it in the saved market config", async () => {
-    r(() => <MarketScreenerPanel />);
-    await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
-
-    fireEvent.input(screen.getByTestId("market-map-metric").querySelector("select")!, {
-      target: { value: "rsi" },
-    });
-
-    await waitFor(() => expect(savedColorByIs("rsi")).toBe(true), { timeout: 4000 });
-    await backToTable();
-  }, 10000);
-
-  test("changing the colour metric never refetches the snapshot", async () => {
+  test("changing the colour metric persists it without refetching the snapshot", async () => {
     const refresh = vi.fn();
     mockUseMarketSnapshot.mockReturnValue(hookResult({ refresh }));
-    r(() => <MarketScreenerPanel />);
+    renderPanel();
 
     const snapshotOptions = mockUseMarketSnapshot.mock.calls[0]?.[1] as
       | { enabled?: () => boolean }
@@ -2403,10 +2369,11 @@ describe("MarketScreenerPanel — map sizing metric (colorBy wire field)", () =>
     const callsAfterHydration = mockUseMarketSnapshot.mock.calls.length;
 
     await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));
-    fireEvent.input(screen.getByTestId("market-map-metric").querySelector("select")!, {
-      target: { value: "relative_volume" },
-    });
+    const metric = screen.getByTestId("market-map-metric").querySelector("select")!;
+    fireEvent.input(metric, { target: { value: "rsi" } });
+    await waitFor(() => expect(savedColorByIs("rsi")).toBe(true), { timeout: 4000 });
 
+    fireEvent.input(metric, { target: { value: "relative_volume" } });
     // Wiring proof first: the choice must actually reach the panel (fails on
     // unwired code), otherwise a no-refetch assertion passes trivially.
     await waitFor(() => expect(savedColorByIs("relative_volume")).toBe(true), { timeout: 4000 });
@@ -2435,7 +2402,7 @@ describe("MarketScreenerPanel — one hoisted Size by control in Vis mode", () =
     await fireEvent.click(within(screen.getByTestId("market-vis-selector")).getByText(label));
   };
 
-  test("exactly one Size by control lives in the Vis toolbar and drives both renderers", async () => {
+  test("one Size by control in the Vis toolbar drives both renderers and survives a viz switch", async () => {
     await openVis();
     expect(screen.getAllByTestId("market-map-metric")).toHaveLength(1);
     expect(
@@ -2444,25 +2411,18 @@ describe("MarketScreenerPanel — one hoisted Size by control in Vis mode", () =
     expect(screen.getByTestId("market-map-toolbar").querySelectorAll("select")).toHaveLength(0);
 
     fireEvent.input(sizeSelect(), { target: { value: "rsi" } });
+    expect(sizeSelect().value).toBe("rsi");
     await waitFor(() => expect(lastOption()?.series?.[0]?.data?.[0]?.metricLabel).toBe("RSI"));
 
     await switchViz("Sector treemap");
     expect(screen.getByTestId("market-sector-map-view")).toBeInTheDocument();
     expect(screen.getAllByTestId("market-map-metric")).toHaveLength(1);
+    expect(sizeSelect().value).toBe("rsi");
     await waitFor(() =>
       expect(lastOption()?.series?.[0]?.data?.[0]?.children?.[0]?.metricLabel).toBe("RSI"),
     );
-  });
 
-  test("the selected size survives a viz switch", async () => {
-    await openVis();
     fireEvent.input(sizeSelect(), { target: { value: "market_cap" } });
-    expect(sizeSelect().value).toBe("market_cap");
-
-    await switchViz("Sector treemap");
-    expect(screen.getByTestId("market-sector-map-view")).toBeInTheDocument();
-    expect(sizeSelect().value).toBe("market_cap");
-
     await switchViz("Heatmap");
     expect(screen.getByTestId("market-map-view")).toBeInTheDocument();
     expect(sizeSelect().value).toBe("market_cap");
@@ -2582,11 +2542,7 @@ describe("MarketScreenerPanel — market breadth strip", () => {
     const breadth = screen.getByTestId("market-breadth");
     expect(breadth).toBeInTheDocument();
     const bandParent = breadth.parentElement;
-    const combo = screen.getByTestId("market-universe-select").querySelector(
-      '[role="combobox"]',
-    ) as HTMLInputElement;
-    await fireEvent.focus(combo);
-    await fireEvent.mouseDown(await screen.findByRole("option", { name: "USA" }));
+    chooseUniverse("USA");
     expect(screen.queryByTestId("market-breadth")).not.toBeInTheDocument();
     // The placeholder keeps the strip's Paper box (and the flex gap), so the
     // table top does not jump when the India-only breadth data disappears.

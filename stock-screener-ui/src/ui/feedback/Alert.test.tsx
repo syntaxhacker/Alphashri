@@ -39,6 +39,35 @@ describe("Alert", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  test("action sits beside the text block and leaves the close button working", () => {
+    const onClose = vi.fn();
+    render(() => (
+      <Alert
+        title="Connect your broker"
+        icon={<span>!</span>}
+        action={<a href="/settings">Open Settings</a>}
+        withCloseButton
+        onClose={onClose}
+        data-testid="al-action"
+      >
+        Reconnect to load data.
+      </Alert>));
+
+    const alert = screen.getByTestId("al-action");
+    expect(alert).toHaveAttribute("role", "alert");
+    expect(alert).toHaveClass("flex-wrap");
+    expect(alert.querySelector('[aria-hidden="true"]')).toHaveTextContent("!");
+
+    const action = screen.getByRole("link", { name: "Open Settings" });
+    expect(alert).toContainElement(action);
+    const textBlock = screen.getByText("Reconnect to load data.").parentElement;
+    expect(textBlock).not.toContainElement(action);
+    expect(action.parentElement?.previousElementSibling).toBe(textBlock);
+
+    fireEvent.click(screen.getByLabelText("Close"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   test("icon and title are optional", () => {
     render(() => <Alert data-testid="al3">plain</Alert>);
     expect(screen.getByTestId("al3").textContent).toBe("plain");

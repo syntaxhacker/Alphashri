@@ -6,6 +6,7 @@ import "@testing-library/jest-dom/vitest";
 import { ScreenerTable } from "./ScreenerTable";
 import { getColumnsForScreener } from "./columns";
 import { UIProvider } from "@/ui";
+import { SymbolDockContext, useSymbolDock } from "../common/symbolDockContext";
 import type { Stock } from "../../types";
 import type { ColumnDef } from "./columns";
 import type { SavedConfigTransport } from "../../state/savedConfig";
@@ -181,7 +182,7 @@ describe("ScreenerTable", () => {
     expect(defaultProps.onSymbolClick).toHaveBeenCalledWith("TCS");
   });
 
-  it("symbol body navigates in-app once; ↗ opens TradingView without navigating", async () => {
+  it("symbol text opens the in-app handler once; ↗ opens TradingView without calling it", async () => {
     render(() => (
       <UIProvider>
         <ScreenerTable {...defaultProps} />
@@ -190,6 +191,9 @@ describe("ScreenerTable", () => {
 
     const text = screen.getByTestId("symbol-link-RELIANCE");
     expect(text.tagName).toBe("BUTTON");
+    // The text is the only in-app affordance here: at the default symbol
+    // column width a second chart icon would steal its pointer target.
+    expect(screen.queryByTestId("symbol-chart-RELIANCE")).toBeNull();
     await fireEvent.click(text);
     expect(defaultProps.onSymbolClick).toHaveBeenCalledTimes(1);
     expect(defaultProps.onSymbolClick).toHaveBeenCalledWith("RELIANCE");
@@ -320,6 +324,70 @@ describe("ScreenerTable", () => {
     ));
     expect(screen.getByTestId("stock-row-RELIANCE")).toBeInTheDocument();
     expect(screen.queryByTestId("stock-row-TCS")).not.toBeInTheDocument();
+  });
+});
+
+describe("ScreenerTable dock activation", () => {
+  const dockOpen = vi.fn();
+  const dockValue = {
+    open: dockOpen,
+    close: vi.fn(),
+    preview: vi.fn(),
+    endPreview: vi.fn(),
+    pinned: false,
+    setOutlet: vi.fn(),
+  };
+
+  // The parent (useScreenerState) hands the dock's `open` to the table. Wiring
+  // it through the real context proves the text/row paths reach the app dock.
+  function DockHarness() {
+    const dock = useSymbolDock();
+    return <ScreenerTable {...defaultProps} onSymbolClick={dock.open} />;
+  }
+
+  const renderWithDock = () =>
+    render(() => (
+      <UIProvider>
+        <SymbolDockContext.Provider value={dockValue}>
+          <DockHarness />
+        </SymbolDockContext.Provider>
+      </UIProvider>
+    ));
+
+  beforeEach(() => {
+    dockOpen.mockClear();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("symbol text calls dock.open", async () => {
+    renderWithDock();
+
+    await fireEvent.click(screen.getByTestId("symbol-link-RELIANCE"));
+
+    expect(dockOpen).toHaveBeenCalledTimes(1);
+    expect(dockOpen).toHaveBeenCalledWith("RELIANCE");
+  });
+
+  it("row click and Enter/Space activation all call dock.open", async () => {
+    renderWithDock();
+    const row = screen.getByTestId("stock-row-TCS");
+    expect(row).toHaveAttribute("tabindex", "0");
+
+    await fireEvent.click(row);
+    expect(dockOpen).toHaveBeenCalledWith("TCS");
+
+    dockOpen.mockClear();
+    await fireEvent.keyDown(row, { key: "Enter" });
+    expect(dockOpen).toHaveBeenCalledTimes(1);
+    expect(dockOpen).toHaveBeenCalledWith("TCS");
+
+    dockOpen.mockClear();
+    await fireEvent.keyDown(row, { key: " " });
+    expect(dockOpen).toHaveBeenCalledTimes(1);
+    expect(dockOpen).toHaveBeenCalledWith("TCS");
   });
 });
 

@@ -3,6 +3,8 @@ import { Show, For } from "solid-js";
 import { NEGATIVE, POSITIVE, TEXT_MUTED } from "@/ui/palette";
 import { Box, Button, Text, typeSize } from "@/ui";
 import { IconUsers } from "../screener/icons";
+import { SymbolLink } from "../common/SymbolLink";
+import { useSymbolDock } from "../common/symbolDockContext";
 import type { RotationPeriod, RotationRow } from "../../types/rotation";
 import { formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
 import { ROTATION_STATUS_LABELS, ROTATION_STATUS_COLORS_PANEL } from "./rotationStatus";
@@ -11,7 +13,12 @@ import { chartHrefForSymbol } from "../common/symbolDockContext";
 
 const PERIODS: RotationPeriod[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y"];
 
-
+// Decorated feed symbols (NSE:RELIANCE, BRK.B) need a canonical chart href;
+// plain tickers render through the shared dock button.
+function needsCanonicalLink(symbol: string): boolean {
+  const raw = String(symbol ?? "").trim();
+  return displaySymbol(raw) !== raw || raw.includes(".");
+}
 
 function SectionLabel(props: { children: JSX.Element }) {
   return (
@@ -52,10 +59,17 @@ function Metric(props: {
 export interface RotationDetailProps {
   row: RotationRow | null;
   onOpenMembers: (row: RotationRow) => void;
+  market?: string;
+  onSymbolClick?: (symbol: string) => void;
 }
 
 export function RotationDetail(props: RotationDetailProps) {
   const row = () => props.row;
+  const dock = useSymbolDock();
+  const openSymbol = (symbol: string) =>
+    props.onSymbolClick
+      ? props.onSymbolClick(symbol)
+      : dock.open(symbol, "chart", props.market);
   const status = () => row() ? {
     label: ROTATION_STATUS_LABELS[row()!.status].long,
     color: ROTATION_STATUS_COLORS_PANEL[row()!.status],
@@ -182,15 +196,30 @@ export function RotationDetail(props: RotationDetailProps) {
                 <Box
                   className="flex min-w-0 items-center gap-1.5"
                 >
-                  <Box
-                    component="a"
-                    href={chartHrefForSymbol(mover.symbol)}
-                    className="min-w-0 text-fin-text no-underline hover:text-fin-primary hover:underline"
-                  >
-                    <Text truncate className="text-ui-micro font-semibold">
-                      {displaySymbol(mover.symbol)}
-                    </Text>
-                  </Box>
+                  {needsCanonicalLink(mover.symbol) ? (
+                    <Box
+                      component="a"
+                      href={chartHrefForSymbol(mover.symbol, props.market)}
+                      className="min-w-0 text-fin-text no-underline hover:text-fin-primary hover:underline"
+                    >
+                      <Text truncate className="text-ui-micro font-semibold">
+                        {displaySymbol(mover.symbol)}
+                      </Text>
+                    </Box>
+                  ) : (
+                    <SymbolLink
+                      symbol={mover.symbol}
+                      inAppText
+                      tvLink={false}
+                      showChart={false}
+                      showOptions={false}
+                      size="xs"
+                      weight={600}
+                      testId={`rotation-mover-${mover.symbol}`}
+                      onTextClick={(sym) => openSymbol(sym)}
+                      className="min-w-0 flex-1"
+                    />
+                  )}
                   <Box className="flex-1" />
                   <Text
                     c={getPnLTextColor(mover.change)}

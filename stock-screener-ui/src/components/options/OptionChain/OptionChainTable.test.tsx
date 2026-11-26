@@ -7,6 +7,7 @@ import { resolve } from "node:path";
 import { createSignal } from "solid-js";
 import * as palette from "@/ui/palette";
 import { OptionChainTable, findAtmIndex } from "./OptionChainTable";
+import { OptionChainPanel } from "./OptionChainPanel";
 import { CHAIN_COMPACT_QUERY } from "./chainStyles";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
@@ -22,6 +23,35 @@ vi.mock("@/ui", async () => {
   const { typeSize } = await import("@/ui/typography");
   return { ...mockSolidUi(), typeSize };
 });
+
+const dockMock = vi.hoisted(() => ({
+  open: vi.fn(),
+  close: vi.fn(),
+  preview: vi.fn(),
+  endPreview: vi.fn(),
+  setOutlet: vi.fn(),
+}));
+
+vi.mock("@/components/common/symbolDockContext", () => ({
+  useSymbolDock: () => ({
+    open: dockMock.open,
+    close: dockMock.close,
+    preview: dockMock.preview,
+    endPreview: dockMock.endPreview,
+    pinned: false,
+    setOutlet: dockMock.setOutlet,
+  }),
+}));
+
+vi.mock("./LiveSpotChart", () => ({
+  LiveSpotChart: () => <div data-testid="live-spot-chart-stub" />,
+}));
+vi.mock("./ChainSummary", () => ({
+  ChainSummary: () => <div data-testid="chain-summary-stub" />,
+}));
+vi.mock("./OIAnalysis", () => ({
+  OIAnalysis: () => <div data-testid="oi-analysis-stub" />,
+}));
 
 beforeEach(() => setupBrowserMocks());
 afterEach(() => {
@@ -719,6 +749,148 @@ describe("OptionChainTable", () => {
         expect(source.match(/#[0-9a-fA-F]{6}\b/g), `raw hex in ${rel}`).toBeNull();
         expect(source.match(/\brgba?\(/g), `raw rgb()/rgba() in ${rel}`).toBeNull();
       }
+    });
+  });
+
+  describe("row activation", () => {
+    const activationMatrix = () => [
+      {
+        strike: 24500,
+        ce: makeContract({
+          strike: 24500,
+          trading_symbol: "NIFTY2450024500CE",
+          market_data: { ltp: 100, oi: 50000, prev_oi: 45000, volume: 10000, bid_price: 99, ask_price: 101 },
+        }),
+        pe: makeContract({
+          strike: 24500,
+          type: "PE",
+          trading_symbol: "NIFTY2450024500PE",
+          market_data: { ltp: 60, oi: 40000, prev_oi: 38000, volume: 8000, bid_price: 59, ask_price: 61 },
+        }),
+      },
+    ];
+
+    it("makes each row a focusable button with a visible focus ring and no overriding label", () => {
+      render(() => <OptionChainTable {...defaultProps} strikeMatrix={activationMatrix()} />);
+      const row = screen.getByTestId("options-chain-row-24500");
+      expect(row).toHaveAttribute("role", "button");
+      expect(row).toHaveAttribute("tabindex", "0");
+      // The row's visible cells supply the accessible name; an overriding
+      // aria-label fails axe's label-content-name-mismatch on this row.
+      expect(row).not.toHaveAttribute("aria-label");
+      expect(row).toHaveClass("focus-visible:outline");
+      expect(row.className).toContain("focus-visible:outline-[var(--color-fin-primary)]");
+    });
+
+    it("clicking a CE value cell invokes onRowClick once with that contract", () => {
+      const onRowClick = vi.fn();
+      render(() => <OptionChainTable {...defaultProps} onRowClick={onRowClick} strikeMatrix={activationMatrix()} />);
+      fireEvent.click(screen.getByTitle("LTP ₹100.00"));
+      expect(onRowClick).toHaveBeenCalledTimes(1);
+      expect(onRowClick.mock.calls[0][0].trading_symbol).toBe("NIFTY2450024500CE");
+    });
+
+    it("clicking a PE value cell invokes onRowClick once with that contract", () => {
+      const onRowClick = vi.fn();
+      render(() => <OptionChainTable {...defaultProps} onRowClick={onRowClick} strikeMatrix={activationMatrix()} />);
+      fireEvent.click(screen.getByTitle("LTP ₹60.00"));
+      expect(onRowClick).toHaveBeenCalledTimes(1);
+      expect(onRowClick.mock.calls[0][0].instrument_type).toBe("PE");
+    });
+
+    it("clicking the strike cell invokes onRowClick without nesting a button", () => {
+      const onRowClick = vi.fn();
+      render(() => <OptionChainTable {...defaultProps} onRowClick={onRowClick} strikeMatrix={activationMatrix()} />);
+      const strikeCell = screen.getByTestId("strike-cell");
+      expect(strikeCell.querySelector("button")).toBeNull();
+      fireEvent.click(strikeCell);
+      expect(onRowClick).toHaveBeenCalledTimes(1);
+    });
+
+    it("Enter on a focused row invokes onRowClick", () => {
+      const onRowClick = vi.fn();
+      render(() => <OptionChainTable {...defaultProps} onRowClick={onRowClick} strikeMatrix={activationMatrix()} />);
+      fireEvent.keyDown(screen.getByTestId("options-chain-row-24500"), { key: "Enter" });
+      expect(onRowClick).toHaveBeenCalledTimes(1);
+      expect(onRowClick.mock.calls[0][0].trading_symbol).toBe("NIFTY2450024500CE");
+    });
+
+    it("Space on a focused row invokes onRowClick", () => {
+      const onRowClick = vi.fn();
+      render(() => <OptionChainTable {...defaultProps} onRowClick={onRowClick} strikeMatrix={activationMatrix()} />);
+      fireEvent.keyDown(screen.getByTestId("options-chain-row-24500"), { key: " " });
+      expect(onRowClick).toHaveBeenCalledTimes(1);
+      expect(onRowClick.mock.calls[0][0].trading_symbol).toBe("NIFTY2450024500CE");
+    });
+
+    it("ignores keys other than Enter and Space", () => {
+      const onRowClick = vi.fn();
+      render(() => <OptionChainTable {...defaultProps} onRowClick={onRowClick} strikeMatrix={activationMatrix()} />);
+      fireEvent.keyDown(screen.getByTestId("options-chain-row-24500"), { key: "ArrowDown" });
+      expect(onRowClick).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("OptionChainPanel dock wiring", () => {
+    const panelProps = {
+      selectedExpiry: "25MAY",
+      loading: false,
+      error: null as string | null,
+      filters: { optionType: "BOTH" as const, moneyness: "ALL" as const },
+      spotPrice: 24500,
+      refreshChain: vi.fn(),
+      strikeMatrix: [
+        {
+          strike: 24500,
+          ce: makeContract({
+            strike: 24500,
+            market_data: { ltp: 100, oi: 50000, prev_oi: 45000, volume: 10000, bid_price: 99, ask_price: 101 },
+          }),
+          pe: null,
+        },
+      ],
+      timestamp: "2026-11-26T10:00:00Z",
+      summary: null,
+    };
+
+    const renderPanel = (underlying: string) =>
+      render(() => <OptionChainPanel {...panelProps} selectedUnderlying={underlying} />);
+
+    it("opens the NIFTY options dock when a chain cell is clicked", () => {
+      renderPanel("NIFTY");
+      fireEvent.click(screen.getByTitle("LTP ₹100.00"));
+      expect(dockMock.open).toHaveBeenCalledWith("NIFTY", "options");
+    });
+
+    it("uses the selected underlying (BANKNIFTY), never a hardcoded NIFTY", () => {
+      renderPanel("BANKNIFTY");
+      fireEvent.click(screen.getByTitle("LTP ₹100.00"));
+      expect(dockMock.open).toHaveBeenCalledWith("BANKNIFTY", "options");
+      expect(dockMock.open).not.toHaveBeenCalledWith("NIFTY", "options");
+    });
+
+    it("opens SENSEX when that is the selected underlying", () => {
+      renderPanel("SENSEX");
+      fireEvent.click(screen.getByTitle("LTP ₹100.00"));
+      expect(dockMock.open).toHaveBeenCalledWith("SENSEX", "options");
+    });
+
+    it("Enter on a focused row opens the dock for the selected underlying", () => {
+      renderPanel("BANKNIFTY");
+      fireEvent.keyDown(screen.getByTestId("options-chain-row-24500"), { key: "Enter" });
+      expect(dockMock.open).toHaveBeenCalledWith("BANKNIFTY", "options");
+    });
+
+    it("Space on a focused row opens the dock for the selected underlying", () => {
+      renderPanel("SENSEX");
+      fireEvent.keyDown(screen.getByTestId("options-chain-row-24500"), { key: " " });
+      expect(dockMock.open).toHaveBeenCalledWith("SENSEX", "options");
+    });
+
+    it("replaces the old no-op: one cell click opens the dock exactly once", () => {
+      renderPanel("NIFTY");
+      fireEvent.click(screen.getByTitle("LTP ₹100.00"));
+      expect(dockMock.open).toHaveBeenCalledTimes(1);
     });
   });
 });

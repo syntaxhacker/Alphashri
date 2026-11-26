@@ -39,6 +39,8 @@ import { SectorHeatmapView } from "./SectorHeatmapView";
 import { SectorHeatmapControls } from "./SectorHeatmapContext";
 import { CompactToggle } from "./CompactToggle";
 import { SectorAlertsList } from "./SectorAlertsList";
+import { SymbolLink } from "../common/SymbolLink";
+import { useSymbolDock } from "../common/symbolDockContext";
 import type { ViewMode } from "./SectorHeatmapView";
 import {
   SECTOR_SECTIONS,
@@ -106,12 +108,29 @@ function writeDashboardView(view: DashboardView): void {
   window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
+// Decorated feed symbols (NSE:RELIANCE, BRK.B) need a canonical chart href;
+// plain tickers render through the shared dock button.
+function needsCanonicalLink(symbol: string): boolean {
+  const raw = String(symbol ?? "").trim();
+  return displaySymbol(raw) !== raw || raw.includes(".");
+}
+
 function AlertsAndMovers(props: {
   alerts: SectorAlert[];
   intervalMovers: InternalStockMover[];
   topStocks: StockMover[];
+  sectors: SectorItem[];
   market: "india" | "america";
+  onSymbolClick: (symbol: string) => void;
 }) {
+  const openSymbol = (symbol: string) => props.onSymbolClick(symbol);
+
+  const sectorSymbol = (sector: string): string | null => {
+    const top = props.sectors.find((item) => item.sector === sector)?.top_movers ?? "";
+    const withChange = top.match(/([A-Za-z0-9&._-]+)\(/);
+    return withChange?.[1] ?? (top.split(",")[0]?.trim() || null);
+  };
+
   return (
     <Stack
       spacing={0.5}
@@ -129,7 +148,13 @@ function AlertsAndMovers(props: {
         }
       >
         <ScrollArea className="max-h-[200px] min-h-0 overflow-auto">
-          <SectorAlertsList alerts={props.alerts} />
+          <SectorAlertsList
+            alerts={props.alerts}
+            onSectorClick={(sector) => {
+              const symbol = sectorSymbol(sector);
+              if (symbol) openSymbol(symbol);
+            }}
+          />
         </ScrollArea>
       </CompactPanel>
 
@@ -145,7 +170,11 @@ function AlertsAndMovers(props: {
         }
       >
         <ScrollArea className="max-h-[240px] min-h-0 overflow-auto">
-          <IntervalMoversTable movers={props.intervalMovers} />
+          <IntervalMoversTable
+            movers={props.intervalMovers}
+            market={props.market === "america" ? "usa" : "india"}
+            onSymbolClick={openSymbol}
+          />
         </ScrollArea>
       </CompactPanel>
 
@@ -172,18 +201,33 @@ function AlertsAndMovers(props: {
                   <Box
                     className="flex min-w-0 items-center gap-1.5 px-1 py-[2px]"
                   >
-                    <Box
-                      component="a"
-                      href={chartHrefForSymbol(
-                        stock.symbol,
-                        props.market === "america" ? "usa" : undefined,
-                      )}
-                      className="min-w-0 text-fin-text no-underline hover:text-fin-primary"
-                    >
-                      <Text truncate className="text-ui-micro font-semibold">
-                        {displaySymbol(stock.symbol)}
-                      </Text>
-                    </Box>
+                    {needsCanonicalLink(stock.symbol) ? (
+                      <Box
+                        component="a"
+                        href={chartHrefForSymbol(
+                          stock.symbol,
+                          props.market === "america" ? "usa" : undefined,
+                        )}
+                        className="min-w-0 text-fin-text no-underline hover:text-fin-primary"
+                      >
+                        <Text truncate className="text-ui-micro font-semibold">
+                          {displaySymbol(stock.symbol)}
+                        </Text>
+                      </Box>
+                    ) : (
+                      <SymbolLink
+                        symbol={stock.symbol}
+                        inAppText
+                        tvLink={false}
+                        showChart={false}
+                        showOptions={false}
+                        size="xs"
+                        weight={600}
+                        testId={`sector-top-stock-${stock.symbol}`}
+                        onTextClick={(sym) => openSymbol(sym)}
+                        className="min-w-0"
+                      />
+                    )}
                     <Box className="flex-1" />
                     <Text c={stock.change >= 0 ? "success" : "error"} className="text-ui-micro tabular-nums font-mono">
                       {formatPercentage(stock.change)}
@@ -314,7 +358,11 @@ function onSectorTableRegionKeyDown(event: KeyboardEvent) {
   event.preventDefault();
 }
 
-function SectorPerformancePanel(props: { sectors: SectorItem[] }) {
+function SectorPerformancePanel(props: {
+  sectors: SectorItem[];
+  market: "india" | "america";
+  onSymbolClick: (symbol: string) => void;
+}) {
   return (
     <Box
       className="flex flex-col overflow-hidden border border-fin-border rounded-[2px] min-w-0 min-h-[200px]"
@@ -358,7 +406,11 @@ function SectorPerformancePanel(props: { sectors: SectorItem[] }) {
         onKeyDown={onSectorTableRegionKeyDown}
         className="max-h-[520px] min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto overscroll-x-contain focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-text"
       >
-        <SectorTable sectors={props.sectors} />
+        <SectorTable
+          sectors={props.sectors}
+          market={props.market === "america" ? "usa" : "india"}
+          onSymbolClick={props.onSymbolClick}
+        />
       </Box>
     </Box>
   );
@@ -373,6 +425,7 @@ function DashboardContent(props: {
   heatmapMetric: string;
   dashboardView: DashboardView;
   market: "india" | "america";
+  onSymbolClick: (symbol: string) => void;
 }) {
   const data = () => props.data;
 
@@ -384,13 +437,19 @@ function DashboardContent(props: {
         <Box
           className="grid w-full min-w-0 gap-[2px] grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,2.4fr)_minmax(320px,1fr)]"
         >
-          <SectorPerformancePanel sectors={data().sectors} />
+          <SectorPerformancePanel
+            sectors={data().sectors}
+            market={props.market}
+            onSymbolClick={props.onSymbolClick}
+          />
           <Box className="min-w-0 flex flex-col">
             <AlertsAndMovers
               alerts={props.alerts}
               intervalMovers={props.intervalMovers}
               topStocks={data().top_stock_movers}
+              sectors={data().sectors}
               market={props.market}
+              onSymbolClick={props.onSymbolClick}
             />
           </Box>
         </Box>
@@ -424,17 +483,24 @@ function DashboardContent(props: {
               sectors={data().sectors}
               stocks={props.heatmapStocks}
               metric={props.heatmapMetric}
+              onSymbolClick={props.onSymbolClick}
             />
           </CompactPanel>
 
-          <SectorPerformancePanel sectors={data().sectors} />
+          <SectorPerformancePanel
+            sectors={data().sectors}
+            market={props.market}
+            onSymbolClick={props.onSymbolClick}
+          />
 
           <Box className="min-w-0 flex flex-col">
             <AlertsAndMovers
               alerts={props.alerts}
               intervalMovers={props.intervalMovers}
               topStocks={data().top_stock_movers}
+              sectors={data().sectors}
               market={props.market}
+              onSymbolClick={props.onSymbolClick}
             />
           </Box>
         </Box>
@@ -811,6 +877,7 @@ function DashboardSectionContent(props: {
   heatmapStocks: HeatmapStock[];
   heatmapMetric: string;
   dashboardView: DashboardView;
+  onSymbolClick: (symbol: string) => void;
 }) {
   return (
     <Show when={!props.loading} fallback={<LoadingPanel />}>
@@ -825,6 +892,7 @@ function DashboardSectionContent(props: {
             heatmapMetric={props.heatmapMetric}
             dashboardView={props.dashboardView}
             market={props.market}
+            onSymbolClick={props.onSymbolClick}
           />
         </Show>
       </Show>
@@ -943,6 +1011,10 @@ function useSectionNavigation(initial: SectorSectionId) {
 export function SectorPage() {
   const state = useSectorData();
   const nav = useSectionNavigation(normalizeSectionUrl());
+  const dock = useSymbolDock();
+  // The provider routes US listings itself when given the provider tag.
+  const openSymbol = (symbol: string) =>
+    dock.open(symbol, "chart", state.market() === "america" ? "usa" : "india");
 
   const [viewMode, setViewMode] = createSignal<ViewMode>("sector");
   const [dashboardView, setDashboardView] = createSignal<DashboardView>(readDashboardView());
@@ -1026,6 +1098,7 @@ export function SectorPage() {
             heatmapStocks={heatmapStocks()}
             heatmapMetric={heatmapMetric()}
             dashboardView={dashboardView()}
+            onSymbolClick={openSymbol}
           />
         </SectionShell>
 

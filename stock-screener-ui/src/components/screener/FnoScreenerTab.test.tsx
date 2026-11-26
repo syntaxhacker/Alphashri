@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, waitFor, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
+import { SymbolDockContext } from "../common/symbolDockContext";
 import { FnoScreenerTab } from "./FnoScreenerTab";
 import { buildFnoScreenerUrl, type FnoScreenerParams } from "../../api/fnoScreener";
 import * as palette from "@/ui/palette";
@@ -17,14 +18,15 @@ const lastPayoffOption = () =>
 
 const mockFetchFnoScreener = vi.hoisted(() => vi.fn());
 const routerMocks = vi.hoisted(() => ({ navigate: vi.fn() }));
+const dockMocks = vi.hoisted(() => ({ open: vi.fn(), close: vi.fn() }));
 
 vi.mock("../../api/fnoScreener", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/fnoScreener")>();
   return { ...actual, fetchFnoScreener: mockFetchFnoScreener };
 });
 
-// FnoScreenerTab now owns the in-app symbol navigation; keep the router mock
-// local to this suite so the tab renders without mounting a full Router.
+// The router mock keeps the tab renderable without a full Router and proves the
+// symbol actions never navigate to `/chart/:symbol` themselves.
 vi.mock("@solidjs/router", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, useNavigate: () => routerMocks.navigate };
@@ -217,7 +219,18 @@ const baseResponse = {
 const renderTab = () =>
   render(() => (
     <UIProvider>
-      <FnoScreenerTab />
+      <SymbolDockContext.Provider
+        value={{
+          open: dockMocks.open,
+          close: dockMocks.close,
+          preview: vi.fn(),
+          endPreview: vi.fn(),
+          pinned: false,
+          setOutlet: vi.fn(),
+        }}
+      >
+        <FnoScreenerTab />
+      </SymbolDockContext.Provider>
     </UIProvider>
   ));
 
@@ -250,7 +263,7 @@ describe("FnoScreenerTab", () => {
     expect(screen.getByTestId("fno-table")).toBeInTheDocument();
   });
 
-  it("clicking the symbol navigates once to the chart route without expanding the row", async () => {
+  it("clicking the symbol opens the dock once and never navigates to /chart/:symbol", async () => {
     renderTab();
     await waitFor(() => expect(screen.getByTestId("fno-cell-symbol-RELIANCE")).toBeInTheDocument());
 
@@ -258,10 +271,35 @@ describe("FnoScreenerTab", () => {
     expect(symbol.tagName).toBe("BUTTON");
     await fireEvent.click(symbol);
 
-    expect(routerMocks.navigate).toHaveBeenCalledTimes(1);
-    expect(routerMocks.navigate).toHaveBeenCalledWith("/chart/RELIANCE");
+    expect(dockMocks.open).toHaveBeenCalledTimes(1);
+    expect(dockMocks.open).toHaveBeenCalledWith("RELIANCE");
+    expect(routerMocks.navigate).not.toHaveBeenCalled();
     // The symbol click must not also fire a row-level detail action.
     expect(screen.queryByTestId("fno-row-detail")).not.toBeInTheDocument();
+  });
+
+  it("the chart icon opens the dock and never navigates to /chart/:symbol", async () => {
+    renderTab();
+    await waitFor(() => expect(screen.getByTestId("symbol-chart-RELIANCE")).toBeInTheDocument());
+
+    const chart = screen.getByTestId("symbol-chart-RELIANCE");
+    expect(chart.tagName).toBe("BUTTON");
+    await fireEvent.click(chart);
+
+    expect(dockMocks.open).toHaveBeenCalledTimes(1);
+    expect(dockMocks.open).toHaveBeenCalledWith("RELIANCE");
+    expect(routerMocks.navigate).not.toHaveBeenCalled();
+  });
+
+  it("the options action still opens the dock in options mode", async () => {
+    renderTab();
+    await waitFor(() => expect(screen.getByTestId("symbol-options-RELIANCE")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByTestId("symbol-options-RELIANCE"));
+
+    expect(dockMocks.open).toHaveBeenCalledTimes(1);
+    expect(dockMocks.open).toHaveBeenCalledWith("RELIANCE", "options");
+    expect(routerMocks.navigate).not.toHaveBeenCalled();
   });
 
   it("renders rows with formatted cells once data resolves", async () => {

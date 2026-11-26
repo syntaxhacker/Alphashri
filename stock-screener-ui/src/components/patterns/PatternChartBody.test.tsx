@@ -1157,4 +1157,110 @@ describe("PatternChartBody", () => {
       overflow: 0,
     });
   });
+
+  const SUMMARY_ZONES: SRZone[] = [
+    {
+      kind: "support",
+      top: 101,
+      bottom: 99,
+      start_date: "2026-09-01",
+      end_date: "2026-09-26",
+      touches: 3,
+      score: 0.9,
+    },
+    {
+      kind: "resistance",
+      top: 112,
+      bottom: 110,
+      start_date: "2026-09-01",
+      end_date: "2026-09-26",
+      touches: 2,
+      score: 0.8,
+    },
+    {
+      // Aligned but never displayed: one band per side keeps the canvas legible.
+      kind: "sr",
+      top: 999,
+      bottom: 998,
+      start_date: "2026-09-01",
+      end_date: "2026-09-26",
+      touches: 1,
+      score: 0.7,
+    },
+    {
+      kind: "support",
+      top: 777,
+      bottom: 776,
+      start_date: "2020-01-01",
+      end_date: "2020-01-31",
+      touches: 9,
+      score: 1,
+    },
+  ];
+
+  test("S/R summary describes the built, drawn bands rather than the raw payload", () => {
+    setChartIndicator("srZones", true);
+    render(() => (
+      <PatternChartBody
+        hit={HIT}
+        candles={CANDLES}
+        timeframe="1D"
+        srZones={SUMMARY_ZONES}
+      />
+    ));
+
+    const summary = screen.getByTestId("sr-zone-summary");
+    expect(summary).toHaveClass("sr-only");
+    const items = within(summary).getAllByRole("listitem").map((item) => item.textContent);
+    expect(items).toEqual([
+      "Support: ₹99.00 to ₹101.00, 3 touches",
+      "Resistance: ₹110.00 to ₹112.00, 2 touches",
+    ]);
+    expect(summary.textContent).not.toContain("999.00");
+    expect(summary.textContent).not.toContain("777.00");
+  });
+
+  test("hidden zones are absent from the summary and reappear with the pref", () => {
+    render(() => (
+      <PatternChartBody
+        hit={HIT}
+        candles={CANDLES}
+        timeframe="1D"
+        srZones={SUMMARY_ZONES}
+      />
+    ));
+    expect(screen.queryByTestId("sr-zone-summary")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("patterns-chart-indicators-trigger"));
+    fireEvent.click(screen.getByTestId("chart-indicator-srZones"));
+    expect(screen.getByTestId("sr-zone-summary")).toHaveTextContent(
+      "Support: ₹99.00 to ₹101.00, 3 touches",
+    );
+
+    fireEvent.click(screen.getByTestId("chart-indicator-srZones"));
+    expect(screen.queryByTestId("sr-zone-summary")).toBeNull();
+  });
+
+  test("summary stays out of layout: sr-only node inside the unchanged chart container", () => {
+    setChartIndicator("srZones", true);
+    render(() => (
+      <PatternChartBody
+        hit={HIT}
+        candles={CANDLES}
+        timeframe="1D"
+        srZones={SUMMARY_ZONES}
+      />
+    ));
+
+    const container = screen.getByTestId("patterns-chart-indicator-strip").parentElement;
+    expect(container).toHaveClass("h-[60vh]");
+    expect(container).toHaveClass("min-h-[360px]");
+    expect(container).toHaveClass("overflow-hidden");
+    expect(screen.getByTestId("patterns-chart-indicator-strip")).toHaveStyle({ height: "28px" });
+    const summary = screen.getByTestId("sr-zone-summary");
+    expect(summary).toBe(container!.querySelector(".sr-only"));
+    expect(summary.className).toBe("sr-only");
+    expect(summary.getAttribute("style")).toBeNull();
+    expect(screen.queryByText("Levels")).toBeNull();
+  });
 });

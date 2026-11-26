@@ -18,7 +18,7 @@ type SparklineArgs = {
 };
 
 const meta: Meta<SparklineArgs> = {
-  title: "Design System/Components/App/Sparkline",
+  title: "App/Components/Sparkline",
   tags: ["autodocs"],
   parameters: {
     docs: {

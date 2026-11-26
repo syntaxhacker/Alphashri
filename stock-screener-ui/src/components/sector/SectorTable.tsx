@@ -3,11 +3,15 @@ import { Text, Badge, Progress, Box } from "@/ui";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 import type { SectorItem } from "../../types/sector";
 import { TanStackTable } from "../common/TanStackTable";
+import { SymbolLink } from "../common/SymbolLink";
+import { useSymbolDock } from "../common/symbolDockContext";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 import { POSITIVE, NEGATIVE, TEXT_MUTED } from "@/ui/palette";
 
 interface SectorTableProps {
   sectors: SectorItem[];
+  market?: string;
+  onSymbolClick?: (symbol: string) => void;
 }
 
 /** Sum of the column sizes + slack, so A/D and later columns scroll instead of being clipped. */
@@ -43,14 +47,30 @@ function getMovementBar(pctChange: number) {
   );
 }
 
-function TopMoversCell(props: { text: string }) {
+function TopMoversCell(props: { text: string; onOpen?: (symbol: string) => void }) {
   const parts = () => Array.from(props.text.matchAll(/([A-Za-z0-9&._-]+)\(([+-]?\d+(?:\.\d+)?%)\)/g));
+  const plainSymbols = () =>
+    props.text.split(",").map((value) => value.trim()).filter(Boolean);
+
+  const link = (symbol: string) => (
+    <SymbolLink
+      symbol={symbol}
+      inAppText
+      tvLink={false}
+      showChart={false}
+      showOptions={false}
+      size="xs"
+      weight={600}
+      testId={`sector-top-mover-${symbol}`}
+      onTextClick={(sym) => props.onOpen?.(sym)}
+    />
+  );
 
   return (
     <Show when={parts().length > 0} fallback={
-      <Text size="xs" c="dimmed" lineClamp={1}>
-        {props.text}
-      </Text>
+      <Box className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
+        <For each={plainSymbols()}>{(symbol) => link(symbol)}</For>
+      </Box>
     }>
       <Box className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
         <For each={parts()}>
@@ -59,9 +79,7 @@ function TopMoversCell(props: { text: string }) {
             const raw = part[2];
             return (
               <Text span className="text-ui-micro font-mono tabular-nums">
-                <Box component="span" className="text-fin-text-muted">
-                  {symbol}
-                </Box>
+                {link(symbol)}
                 <Box component="span" style={{ color: getPnLTextColor(parseFloat(raw)) === "success" ? POSITIVE : NEGATIVE, "font-weight": 600 }}>
                   ({raw})
                 </Box>
@@ -75,6 +93,11 @@ function TopMoversCell(props: { text: string }) {
 }
 
 export function SectorTable(props: SectorTableProps) {
+  const dock = useSymbolDock();
+  const openSymbol = (symbol: string) =>
+    props.onSymbolClick
+      ? props.onSymbolClick(symbol)
+      : dock.open(symbol, "chart", props.market);
   const columns: TableColumnDef<SectorItem>[] = [
     {
       id: "sector",
@@ -153,7 +176,7 @@ export function SectorTable(props: SectorTableProps) {
       accessorKey: "top_movers",
       meta: { align: "left" },
       size: 260,
-      cell: ({ row }) => <TopMoversCell text={row.original.top_movers} />,
+      cell: ({ row }) => <TopMoversCell text={row.original.top_movers} onOpen={openSymbol} />,
     },
   ];
 

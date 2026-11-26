@@ -659,7 +659,15 @@ export function OptionChainTable(props: OptionChainTableProps) {
                   ref={(el: HTMLDivElement) => {
                     if (isATM()) atmRowRef = el;
                   }}
-                  className={isATM() ? "chain-row-atm" : undefined}
+                  className={`cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]${isATM() ? " chain-row-atm" : ""}`}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event: KeyboardEvent) => {
+                    if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") return;
+                    event.preventDefault();
+                    const contract = row().ce ?? row().pe;
+                    if (contract) props.onRowClick(contract);
+                  }}
                   data-atm={isATM() ? "true" : undefined}
                   data-ce-itm={ceITM() ? "true" : undefined}
                   data-pe-itm={peITM() ? "true" : undefined}
@@ -695,6 +703,10 @@ export function OptionChainTable(props: OptionChainTableProps) {
                         : undefined),
                     } as CSSProperties}
                     data-testid="strike-cell"
+                    onClick={() => {
+                      const contract = row().ce ?? row().pe;
+                      if (contract) props.onRowClick(contract);
+                    }}
                   >
                     <Text size="sm" fw={800}>
                       {strike()}

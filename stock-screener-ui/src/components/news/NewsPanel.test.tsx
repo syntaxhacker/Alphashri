@@ -3,12 +3,23 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import { MemoryRouter, createMemoryHistory } from "@solidjs/router";
+import { MemoryRouter, createMemoryHistory, useLocation } from "@solidjs/router";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
+import { SymbolDockContext, type SymbolDockApi } from "../common/symbolDockContext";
 import type { JSX } from "solid-js";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
+
+const dockOpen = vi.fn();
+const dockValue: SymbolDockApi = {
+  open: dockOpen,
+  preview: vi.fn(),
+  endPreview: vi.fn(),
+  close: vi.fn(),
+  setOutlet: vi.fn(),
+  pinned: false,
+};
 
 vi.mock("../../state/newsWebSocket", () => ({
   useNewsWebSocket: vi.fn(),
@@ -122,17 +133,25 @@ describe("NewsPanel2", () => {
 
   const renderComponent = () => {
     const history = createMemoryHistory();
+    const LocationProbe = () => {
+      const location = useLocation();
+      return <span data-testid="test-location">{location.pathname}{location.search}</span>;
+    };
     history.set({ value: "/", replace: true, scroll: false });
-    return render(() => (
+    const result = render(() => (
       <MemoryRouter
         history={history}
         root={() => (
           <UIProvider>
-            <NewsPanel2 />
+            <LocationProbe />
+            <SymbolDockContext.Provider value={dockValue}>
+              <NewsPanel2 />
+            </SymbolDockContext.Provider>
           </UIProvider>
         )}
       />
     ));
+    return { ...result, history };
   };
 
   it("renders the NEWS toggle as an icon-only button", () => {
@@ -340,5 +359,51 @@ describe("NewsPanel2", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("opens an in-app news symbol through the dock, not the chart route", async () => {
+    (fetchArticle as any).mockResolvedValueOnce({
+      ...mockNewsItems[0],
+      symbols: [{
+        name: "Reliance Industries",
+        code: "RELIANCE",
+        url: "",
+        trading_symbol: "RELIANCE",
+        instrument_key: "NSE_EQ|INE002A01018",
+      }],
+    });
+    renderComponent();
+    await fireEvent.click(screen.getByTestId("news-toggle-btn"));
+    await fireEvent.click(await screen.findByText("Test News 1"));
+
+    const badge = await screen.findByTestId("news-symbol-RELIANCE");
+    expect(badge.tagName).toBe("BUTTON");
+    await fireEvent.click(badge);
+
+    expect(dockOpen).toHaveBeenCalledWith("RELIANCE");
+    expect(screen.getByTestId("test-location")).toHaveTextContent("/");
+  });
+
+  it("routes a US news symbol to the documented chart query contract", async () => {
+    (fetchArticle as any).mockResolvedValueOnce({
+      ...mockNewsItems[0],
+      symbols: [{
+        name: "Apple",
+        code: "AAPL",
+        url: "",
+        trading_symbol: "AAPL",
+        instrument_key: "NASDAQ|AAPL",
+      }],
+    });
+    renderComponent();
+    await fireEvent.click(screen.getByTestId("news-toggle-btn"));
+    await fireEvent.click(await screen.findByText("Test News 1"));
+
+    await fireEvent.click(await screen.findByTestId("news-symbol-AAPL"));
+
+    expect(dockOpen).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByTestId("test-location")).toHaveTextContent("/chart/AAPL?market=usa");
+    });
   });
 });

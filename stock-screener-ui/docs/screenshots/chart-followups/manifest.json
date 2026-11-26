@@ -1,0 +1,31 @@
+{
+  "feature": "chart-followups",
+  "route": "/chart/POWERGRID",
+  "head": "440457ad7b657f19af2365b49bd8381f160b396d",
+  "viewports": [1600, 390],
+  "data": "Real POWERGRID 1D candles and backend-computed sr_zones (500 bars, last close 266.75) from the chart perf fixture; API routes mocked in Playwright.",
+  "sha256": {
+    "chart-followups-sr-1600.png": "03702f808c8243438c673e3ee71e18396d737cc6b5ff92a9d39ce7f386f5dd45",
+    "chart-followups-fullscreen-1600.png": "d5ed7009d53b6255f95d6ddc396b9460ffea924f678d7140da32449bd24c0fd0",
+    "chart-followups-sr-390.png": "8eaa9ad8378e5a7d3562a45856f56730be8596b72a3e2f7868cb3132be39b4a3",
+    "chart-followups-fullscreen-390.png": "870bdbb06b54022adc02138ab39f3b5765d95d43fcf1890456dfcfff17ef3aca"
+  },
+  "states": [
+    {
+      "id": "chart-loaded",
+      "files": {
+        "1600": "chart-followups-sr-1600.png",
+        "390": "chart-followups-sr-390.png"
+      },
+      "covers": "POWERGRID chart after reload: S/R preference persisted, one solid support and one resistance, age suffix at 1600 (`R 291.18 ×7 · 76b`, `S 243.92 ×3 · 21b`)."
+    },
+    {
+      "id": "fullscreen",
+      "files": {
+        "1600": "chart-followups-fullscreen-1600.png",
+        "390": "chart-followups-fullscreen-390.png"
+      },
+      "covers": "Fullscreen chart opened with the F shortcut; header shows the full title/timeframe and the Open full chart page link at both widths."
+    }
+  ]
+}

@@ -1,13 +1,15 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test } from "vitest";
-import { screen } from "@solidjs/testing-library";
+import { screen, within } from "@solidjs/testing-library";
 import { renderWithProviders } from "@/test-utils/renderWithProviders";
 import {
   BROKER_AUTH_ACTION,
   BROKER_AUTH_HREF,
   BROKER_AUTH_MESSAGE,
   BROKER_AUTH_MESSAGE_TESTID,
+  BROKER_AUTH_NOTICE_TESTID,
+  BROKER_AUTH_TITLE,
   BrokerAuthNotice,
   isBrokerAuthKind,
 } from "./BrokerAuthNotice";
@@ -23,21 +25,37 @@ describe("isBrokerAuthKind", () => {
 });
 
 describe("BrokerAuthNotice", () => {
-  test("renders the canonical message, a Settings link and the caller's connect testid", () => {
+  test("renders title, description and action inside one warning alert", () => {
     renderWithProviders(() => <BrokerAuthNotice connectTestId="chain-connect" />);
 
-    const message = screen.getByTestId(BROKER_AUTH_MESSAGE_TESTID);
-    expect(message).toHaveTextContent(BROKER_AUTH_MESSAGE);
-    expect(message).toHaveTextContent("Upstox connection required");
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveAttribute("data-testid", BROKER_AUTH_NOTICE_TESTID);
+    expect(alert).toHaveClass("flex-wrap");
+    expect(within(alert).getByText(BROKER_AUTH_TITLE)).toBeInTheDocument();
+    expect(alert.querySelector('[aria-hidden="true"]')).not.toBeNull();
 
-    const action = screen.getByTestId("chain-connect");
+    const message = within(alert).getByTestId(BROKER_AUTH_MESSAGE_TESTID);
+    expect(message.textContent).toBe(BROKER_AUTH_MESSAGE);
+
+    const action = within(alert).getByTestId("chain-connect");
     expect(action).toHaveAccessibleName(BROKER_AUTH_ACTION);
     expect(action).toHaveAttribute("href", BROKER_AUTH_HREF);
     expect(action).toHaveAttribute("href", "/settings");
 
-    // The same group carries both halves; a panel can render the copy without
-    // a second, independently authored action string.
-    expect(message.parentElement).toContainElement(action);
+    // The action is a flex sibling of the text block, never a second row
+    // authored inside the description.
+    const textBlock = message.parentElement?.parentElement;
+    expect(textBlock).not.toContainElement(action);
+    expect(action.parentElement?.previousElementSibling).toBe(textBlock);
+  });
+
+  test("has no input or row fallback and exactly one Settings link", () => {
+    renderWithProviders(() => <BrokerAuthNotice connectTestId="chain-connect" />);
+
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("row")).toHaveLength(0);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
 
   test("honours per-surface testids and the larger text size", () => {

@@ -115,6 +115,17 @@ describe("MarketAlertRow", () => {
     expect(onDismiss).toHaveBeenCalledWith("a1");
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
+
+  test("a payload href becomes a real link that does not trigger row onOpen", () => {
+    const onOpen = vi.fn();
+    r(<MarketAlertRow alert={alert({ href: "/report/index" })} onOpen={onOpen} />);
+    const link = screen.getByTestId("market-alert-link");
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("href", "/report/index");
+    expect(link.className).toContain("focus-visible:outline-2");
+    fireEvent.click(link);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
 });
 
 describe("canonical alert symbols", () => {
@@ -160,6 +171,37 @@ describe("MarketAlertCard", () => {
   test("metrics with no entries are omitted", () => {
     r(<MarketAlertCard alert={alert({ metrics: [] })} />);
     expect(screen.queryByText("ΔOI")).not.toBeInTheDocument();
+  });
+
+  test("a payload href renders a real focusable link and does not fire onOpen", () => {
+    const onOpen = vi.fn();
+    r(<MarketAlertCard alert={alert({ href: "/report/index" })} onOpen={onOpen} />);
+
+    const link = screen.getByTestId("market-alert-link");
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("href", "/report/index");
+    expect(link).toHaveAccessibleName("Open NIFTY — Call ΔOI burst — 22,600 CE");
+    expect(link.className).toContain("focus-visible:outline-2");
+
+    fireEvent.click(link);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  test("an alert without href renders no link and stays non-interactive", () => {
+    r(<MarketAlertCard alert={alert()} />);
+    expect(screen.queryByTestId("market-alert-link")).toBeNull();
+    expect(screen.getByTestId("market-alert-oi_burst")).not.toHaveAttribute("tabindex");
+  });
+
+  test("a clickable alert without href opens on Enter and Space", () => {
+    const onOpen = vi.fn();
+    r(<MarketAlertCard alert={alert()} onOpen={onOpen} />);
+    const card = screen.getByTestId("market-alert-oi_burst");
+    expect(card).toHaveAttribute("tabindex", "0");
+    fireEvent.keyDown(card, { key: "Enter" });
+    fireEvent.keyDown(card, { key: " " });
+    expect(onOpen).toHaveBeenCalledTimes(2);
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: "a1" }));
   });
 });
 

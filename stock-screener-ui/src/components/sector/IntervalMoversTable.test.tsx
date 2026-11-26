@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@solidjs/testing-library";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
+import { UIProvider } from "@/ui";
 import { IntervalMoversTable } from "./IntervalMoversTable";
+import { SymbolDockContext } from "../common/symbolDockContext";
 import type { InternalStockMover } from "./sectorUtils";
 
 afterEach(() => {
@@ -78,5 +80,63 @@ describe("IntervalMoversTable", () => {
     ];
     render(() => <IntervalMoversTable movers={movers} />);
     expect(screen.getByText("\u0394")).toBeInTheDocument();
+  });
+
+  it("opens the dock from the symbol button and keeps US market routing", () => {
+    const open = vi.fn();
+    const movers: InternalStockMover[] = [
+      { symbol: "AAPL", change: 3.0, prev_change: 2.0, delta: 1.0 },
+    ];
+    render(() => (
+      <UIProvider>
+        <SymbolDockContext.Provider
+          value={{
+            open,
+            preview: vi.fn(),
+            endPreview: vi.fn(),
+            close: vi.fn(),
+            pinned: false,
+            setOutlet: vi.fn(),
+          }}
+        >
+          <IntervalMoversTable movers={movers} market="usa" />
+        </SymbolDockContext.Provider>
+      </UIProvider>
+    ));
+
+    const button = screen.getByTestId("interval-mover-AAPL");
+    expect(button.tagName).toBe("BUTTON");
+    expect(document.querySelector('a[href="/chart/AAPL"]')).toBeNull();
+
+    fireEvent.click(button);
+    expect(open).toHaveBeenCalledWith("AAPL", "chart", "usa");
+  });
+
+  it("uses the host handler when one is supplied instead of the dock", () => {
+    const open = vi.fn();
+    const onSymbolClick = vi.fn();
+    const movers: InternalStockMover[] = [
+      { symbol: "TCS", change: 3.0, prev_change: 2.0, delta: 1.0 },
+    ];
+    render(() => (
+      <UIProvider>
+        <SymbolDockContext.Provider
+          value={{
+            open,
+            preview: vi.fn(),
+            endPreview: vi.fn(),
+            close: vi.fn(),
+            pinned: false,
+            setOutlet: vi.fn(),
+          }}
+        >
+          <IntervalMoversTable movers={movers} onSymbolClick={onSymbolClick} />
+        </SymbolDockContext.Provider>
+      </UIProvider>
+    ));
+
+    fireEvent.click(screen.getByTestId("interval-mover-TCS"));
+    expect(onSymbolClick).toHaveBeenCalledWith("TCS");
+    expect(open).not.toHaveBeenCalled();
   });
 });

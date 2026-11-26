@@ -34,6 +34,7 @@ export function Alert(props: UIAlertProps) {
   const [known, _rest] = splitProps(props, [
     "icon",
     "title",
+    "action",
     "withCloseButton",
     "onClose",
     "onClick",
@@ -86,7 +87,11 @@ export function Alert(props: UIAlertProps) {
       role="alert"
       data-testid={known["data-testid"]}
       id={known.id}
-      className={cn("flex items-start gap-3 p-3 text-sm leading-snug", br ? undefined : "rounded-fin", known.className)}
+      className={cn(
+        "flex flex-wrap items-start gap-3 p-3 text-sm leading-snug",
+        br ? undefined : "rounded-fin",
+        known.className,
+      )}
       style={{
         "border-radius": br,
         "background-color": bg,
@@ -101,12 +106,17 @@ export function Alert(props: UIAlertProps) {
       <Show when={known.icon != null}>
         <span className="shrink-0" aria-hidden="true">{known.icon}</span>
       </Show>
-      <div className="flex flex-col gap-1" style={{ flex: 1, "min-width": 0 }}>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
         <Show when={known.title != null}>
           <div className="font-semibold">{known.title}</div>
         </Show>
         <div>{known.children}</div>
       </div>
+      <Show when={known.action != null}>
+        <div className={cn("shrink-0", known.children != null ? "self-start" : "self-center")}>
+          {known.action}
+        </div>
+      </Show>
       <Show when={known.withCloseButton}>
         <button
           type="button"

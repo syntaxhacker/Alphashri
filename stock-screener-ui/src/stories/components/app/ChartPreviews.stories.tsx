@@ -72,7 +72,7 @@ type PreviewArgs = {
 };
 
 const meta: Meta<PreviewArgs> = {
-  title: "Design System/Components/App/ChartPreviews",
+  title: "App/Components/ChartPreviews",
   tags: ["autodocs"],
   parameters: {
     docs: {

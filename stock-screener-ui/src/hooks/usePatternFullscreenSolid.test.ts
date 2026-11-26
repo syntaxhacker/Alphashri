@@ -11,6 +11,14 @@ import type {
 } from "@/types/chartPatterns";
 import { fullscreenChartCacheKey, usePatternFullscreen } from "./usePatternFullscreenSolid";
 
+// The session gate must be deterministic — never let the wall clock decide
+// whether a quote poll is armed.
+const marketClock = vi.hoisted(() => ({
+  isMarketOpenNow: vi.fn(() => true),
+}));
+
+vi.mock("@/state/holidays", () => ({ isMarketOpenNow: marketClock.isMarketOpenNow }));
+
 vi.mock("@/api/chartPatterns", () => ({
   fetchPatternHit: vi.fn(),
   fetchSymbolChart: vi.fn(),
@@ -501,6 +509,7 @@ describe("usePatternFullscreen cleanup", () => {
 describe("usePatternFullscreen live quote polling (15s, fake timers)", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    marketClock.isMarketOpenNow.mockReturnValue(true);
     framePrice = 1000;
     vi.mocked(fetchPatternHit).mockResolvedValue(null as never);
     vi.mocked(fetchSymbolChart).mockImplementation(async () => chartPayload(framePrice));
@@ -514,6 +523,7 @@ describe("usePatternFullscreen live quote polling (15s, fake timers)", () => {
     hook = undefined;
     vi.useRealTimers();
     vi.clearAllMocks();
+    marketClock.isMarketOpenNow.mockReturnValue(true);
   });
 
   test("openFromSymbol fetches immediately, polls every 15s, stops on close", async () => {
@@ -617,6 +627,43 @@ describe("usePatternFullscreen live quote polling (15s, fake timers)", () => {
 
     api.closeFullscreen();
     await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetchQuotes).toHaveBeenCalledTimes(2);
+  });
+
+  test("closed market: no immediate quote fetch and no 15s interval", async () => {
+    marketClock.isMarketOpenNow.mockReturnValue(false);
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchQuotes).not.toHaveBeenCalled();
+    expect(api.fullscreen()?.livePrice).toBeNull();
+    expect(vi.getTimerCount()).toBe(0); // startLivePoll armed nothing
+
+    // A closed quote cannot change — well past one poll interval is still quiet.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchQuotes).not.toHaveBeenCalled();
+  });
+
+  test("closed market: card opens and timeframe changes stay quiet; reopening restores the poll", async () => {
+    marketClock.isMarketOpenNow.mockReturnValue(false);
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+
+    api.openFromCard(makeHit(7, "2026-11-13"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchQuotes).not.toHaveBeenCalled();
+
+    api.changeFullscreenTimeframe("1h");
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(fetchQuotes).not.toHaveBeenCalled();
+
+    marketClock.isMarketOpenNow.mockReturnValue(true);
+    api.openFromSymbol("KAYNES");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchQuotes).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(15_000);
     expect(fetchQuotes).toHaveBeenCalledTimes(2);
   });
 });
@@ -784,6 +831,7 @@ describe("usePatternFullscreen stored-first default (symbol dock)", () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    marketClock.isMarketOpenNow.mockReturnValue(true);
     vi.mocked(fetchPatternHit).mockResolvedValue(null as never);
     vi.mocked(fetchQuotes).mockResolvedValue([
       { symbol: "APLAPOLLO", close: 1000, change: 1 },

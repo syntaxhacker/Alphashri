@@ -68,6 +68,17 @@ test.describe("Market Ticker", () => {
     await expect(ticker).toContainText("Gold");
   });
 
+  test("index tape items open the app-wide dock", async ({ page }) => {
+    await page.goto("/");
+
+    const nifty = page.locator('[data-testid="ticker-nsei"]');
+    await expect(nifty).toBeVisible({ timeout: 10000 });
+    await nifty.click();
+
+    await expect(page.getByTestId("symbol-dock")).toBeVisible({ timeout: 15000 });
+    await expect(page).not.toHaveURL(/\/chart\//);
+  });
+
   test("should display positive changes in green", async ({ page }) => {
     await page.goto("/");
 

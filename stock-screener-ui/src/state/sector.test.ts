@@ -108,6 +108,18 @@ describe("sector store (hoisted out of SectorPage)", () => {
     });
   });
 
+  it("restores a captured frame after a synchronous remount", () => {
+    sector.resetSectorState();
+    const frame = { ...sector.getSectorState(), data: { sectors: [] } as never, loading: false };
+    sector.resetSectorState();
+    expect(sector.getSectorState().data).toBeNull();
+
+    sector.restoreSectorState(frame);
+
+    expect(sector.getSectorState().data).toBe(frame.data);
+    expect(sector.getSectorState().loading).toBe(false);
+  });
+
   it("treats an abort as a silent no-op", async () => {
     sector.resetSectorState();
     mockFetchSectorPerformance.mockRejectedValueOnce(new DOMException("Aborted", "AbortError"));

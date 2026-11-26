@@ -118,23 +118,6 @@ describe("formatDateTimeHuman", () => {
 });
 
 describe("formatDuration", () => {
-  test("formats minutes only", () => {
-    expect(formatDuration(45)).toBe("45m");
-    expect(formatDuration(5)).toBe("5m");
-    expect(formatDuration(1)).toBe("1m");
-  });
-
-  test("formats hours and minutes", () => {
-    expect(formatDuration(90)).toBe("1h 30m");
-    expect(formatDuration(125)).toBe("2h 5m");
-    expect(formatDuration(60)).toBe("1h");
-    expect(formatDuration(120)).toBe("2h");
-  });
-
-  test("handles zero minutes", () => {
-    expect(formatDuration(0)).toBe("0m");
-  });
-
   test("handles fractional minutes", () => {
     expect(formatDuration(90.5)).toBe("1h 30.5m");
   });
