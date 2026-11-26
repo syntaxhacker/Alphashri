@@ -154,6 +154,13 @@ const VALUE_FONT = REPORT_FONT.body;
 const ARROW_GAINER = "▲";
 const ARROW_LOSER = "▼";
 
+/** `toFixed` keeps a minus on values that round to zero; drop that sign. */
+function signedPct(value: number, forcePlus: boolean): string {
+  const rounded = value.toFixed(2);
+  if (rounded === "-0.00") return "0.00%";
+  return `${forcePlus && value > 0 ? "+" : ""}${rounded}%`;
+}
+
 function MoverItem(props: {
   row: IndexMoverRow;
   isGainer: boolean;
@@ -163,7 +170,6 @@ function MoverItem(props: {
   const isGainer = () => props.isGainer;
   const arrow = () => (isGainer() ? ARROW_GAINER : ARROW_LOSER);
   const color = () => (isGainer() ? GAINER_COLOR : LOSER_COLOR);
-  const signed = () => (isGainer() ? "+" : "");
   const symbolStyle = () => ({
     "font-size": `${VALUE_FONT}px`,
     "font-variant-numeric": "tabular-nums",
@@ -229,7 +235,7 @@ function MoverItem(props: {
           "font-family": palette.MONO,
         }}
       >
-        {signed()}{row().change_pct.toFixed(2)}%
+        {signedPct(row().change_pct, isGainer())}
       </Text>
     </span>
   );
@@ -328,7 +334,7 @@ export function IndexMoversStrip(props: IndexMoversStripProps) {
   const moversTitle = () => {
     const label = `MOVERS · ${index()} ${index() === "NIFTY" ? "50" : "30"}`;
     const format = (row: IndexMoverRow, isGainer: boolean) =>
-      `${isGainer ? ARROW_GAINER : ARROW_LOSER} ${row.symbol} ${isGainer ? "+" : ""}${row.change_pct.toFixed(2)}%`;
+      `${isGainer ? ARROW_GAINER : ARROW_LOSER} ${row.symbol} ${signedPct(row.change_pct, isGainer)}`;
     return [
       label,
       ...gainers().map((row) => format(row, true)),

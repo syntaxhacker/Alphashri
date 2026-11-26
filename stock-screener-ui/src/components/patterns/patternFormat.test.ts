@@ -76,6 +76,12 @@ describe("formatSignedPct1", () => {
     expect(formatSignedPct1(100)).toBe("+100.0%");
   });
 
+  test("a sub-precision move renders as zero, never −0.0%", () => {
+    expect(formatSignedPct1(-0.04)).toBe("+0.0%");
+    expect(formatSignedPct1(-0.0001)).toBe("+0.0%");
+    expect(formatSignedPct1(0.04)).toBe("+0.0%");
+  });
+
   test("renders an em dash for missing or non-finite values", () => {
     expect(formatSignedPct1(null)).toBe("—");
     expect(formatSignedPct1(undefined)).toBe("—");

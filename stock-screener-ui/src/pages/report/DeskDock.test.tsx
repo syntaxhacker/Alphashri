@@ -40,6 +40,24 @@ describe("desk dock help", () => {
     }
   });
 
+  test("titles explain the panel once, without the repeated 'opens' boilerplate", () => {
+    for (const help of Object.values(DOCK_HELP)) {
+      expect(help.title).not.toMatch(/The value shows|Opens the/i);
+      // Still a real explanation, not the label echoed back.
+      expect(help.title.length).toBeGreaterThan(30);
+    }
+  });
+
+  test("the keyboard hint lives in the bar, not again in the idle state", () => {
+    render(() => <DeskDock tabs={tabs()} active={null} onActiveChange={() => {}} />, {
+      wrapper: UIProvider,
+    });
+    const idle = screen.getByTestId("desk-dock-idle");
+    expect(idle).toHaveTextContent("Select a desk panel below");
+    expect(idle.textContent).not.toMatch(/ALT|ESC/);
+    expect(screen.getByTestId("desk-dock-hint")).toHaveTextContent("ALT+1..5 · ESC");
+  });
+
   test("each bar tab's accessible name contains its visible desktop text", () => {
     render(() => <DeskDock tabs={tabs()} active={null} onActiveChange={() => {}} />, {
       wrapper: UIProvider,

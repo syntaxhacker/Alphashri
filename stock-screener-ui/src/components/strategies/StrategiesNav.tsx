@@ -41,9 +41,6 @@ export function StrategiesNav(props: StrategiesNavProps & { children?: JSX.Eleme
             label: option.label,
           }))}
         />
-        <Text size="xs" c="dimmed" truncate className="ml-auto hidden lg:block">
-          Manage templates, variations, and performance in one place
-        </Text>
       </div>
       <div className="flex-1 min-h-0 overflow-auto py-1">{props.children}</div>
     </div>
