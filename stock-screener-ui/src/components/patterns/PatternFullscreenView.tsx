@@ -1,3 +1,4 @@
+import { Show } from "solid-js";
 import { ActionIcon, Box, Button, Modal, Text, Tooltip } from "@/ui";
 import {
   IconArrowsMaximize,
@@ -18,6 +19,7 @@ import type {
 } from "@/types/chartPatterns";
 import { PatternChartBody } from "./PatternChartBody";
 import { PatternChartToolbar } from "./PatternChartToolbar";
+import { chartHrefForSymbol } from "@/components/common/symbolDockContext";
 import type { ChartMarket } from "@/utils/chart/time";
 
 export interface PatternFullscreenViewProps {
@@ -177,6 +179,25 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
       </Tooltip>
     ) : null;
 
+  const openChartPageHref = () =>
+    !props.docked && props.symbol ? chartHrefForSymbol(props.symbol, props.market) : null;
+
+  const renderOpenChartPageLink = () => (
+    <Show when={openChartPageHref()}>
+      {(href) => (
+        <a
+          href={href()}
+          aria-label="Open full chart page"
+          title="Open full chart page"
+          data-testid="patterns-open-chart-page"
+          className="mt-[2px] shrink-0 rounded-fin border border-fin-border px-1.5 py-0.5 text-ui-micro text-fin-text-muted hover:text-fin-text"
+        >
+          Open full chart page
+        </a>
+      )}
+    </Show>
+  );
+
   if (props.docked ?? false) {
     return (
       <Box
@@ -246,6 +267,7 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
           <Box className="min-w-0 flex-1">{renderToolbar()}</Box>
           {renderStepper()}
           {renderRefreshButton()}
+          {renderOpenChartPageLink()}
         </Box>
       }
       fullScreen

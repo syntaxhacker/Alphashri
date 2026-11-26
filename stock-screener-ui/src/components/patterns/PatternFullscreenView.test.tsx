@@ -636,3 +636,66 @@ describe("PatternFullscreenView patterns list (single-select)", () => {
     ).toHaveLength(5);
   });
 });
+
+describe("PatternFullscreenView full-chart page link", () => {
+  afterEach(() => cleanup());
+
+  test("the modal header links to the chart route with an accessible name", () => {
+    render(() => (
+      <PatternFullscreenView opened onClose={vi.fn()} symbol="IRCON" hit={HIT} candles={[]} />
+    ));
+
+    const link = screen.getByRole("link", { name: "Open full chart page" });
+    expect(link).toHaveAttribute("href", "/chart/IRCON");
+    expect(screen.getByTestId("patterns-fullscreen-modal-title")).toContainElement(link);
+  });
+
+  test("chartHrefForSymbol tags a US symbol with the provider marker", () => {
+    render(() => (
+      <PatternFullscreenView
+        opened
+        onClose={vi.fn()}
+        symbol="AAPL"
+        market="usa"
+        hit={null}
+        candles={[]}
+      />
+    ));
+    expect(screen.getByRole("link", { name: "Open full chart page" })).toHaveAttribute(
+      "href",
+      "/chart/AAPL?market=usa",
+    );
+  });
+
+  test("the link appears only with a symbol and only on the modal, not the dock", () => {
+    render(() => <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
+    expect(screen.queryByRole("link", { name: "Open full chart page" })).toBeNull();
+    cleanup();
+
+    render(() => (
+      <PatternFullscreenView
+        opened
+        docked
+        onClose={vi.fn()}
+        symbol="IRCON"
+        hit={HIT}
+        candles={[]}
+      />
+    ));
+    expect(screen.queryByRole("link", { name: "Open full chart page" })).toBeNull();
+  });
+
+  test("Escape pressed on the link still bubbles to the modal's dismissal path", () => {
+    const onDocumentEscape = vi.fn();
+    document.addEventListener("keydown", onDocumentEscape);
+    render(() => (
+      <PatternFullscreenView opened onClose={vi.fn()} symbol="IRCON" hit={HIT} candles={[]} />
+    ));
+
+    const link = screen.getByTestId("patterns-open-chart-page");
+    expect(link).toHaveAttribute("aria-label", "Open full chart page");
+    fireEvent.keyDown(link, { key: "Escape" });
+    expect(onDocumentEscape).toHaveBeenCalledTimes(1);
+    document.removeEventListener("keydown", onDocumentEscape);
+  });
+});

@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { useContext } from "solid-js";
 import { Router } from "@solidjs/router";
 import { UIProvider } from "@/ui";
@@ -77,6 +77,15 @@ vi.mock("@/components/patterns/PatternFullscreenView", async () => {
         return (
           <div data-testid="patterns-fullscreen-modal">
             {props.symbol}
+            {props.symbol && !props.docked ? (
+              <a
+                data-testid="patterns-open-chart-page"
+                aria-label="Open full chart page"
+                href={chartHrefForSymbol(props.symbol)}
+              >
+                Open full chart page
+              </a>
+            ) : null}
             <button
               type="button"
               data-testid="patterns-fullscreen-modal-close"
@@ -1097,6 +1106,21 @@ describe("chart dock fullscreen", () => {
       expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument(),
     );
     await waitFor(() => expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("RELIANCE"));
+    expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
+  });
+
+  test("the maximized modal links to the full chart page and Escape still restores the dock", async () => {
+    await openChartDock();
+    await fireEvent.click(screen.getByTestId("patterns-chart-expand"));
+    const modal = await screen.findByTestId("patterns-fullscreen-modal");
+
+    const link = within(modal).getByRole("link", { name: "Open full chart page" });
+    expect(link).toHaveAttribute("href", "/chart/IRCON");
+
+    fireEvent.keyDown(link, { key: "Escape" });
+    await waitFor(() =>
+      expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument(),
+    );
     expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
   });
 });
