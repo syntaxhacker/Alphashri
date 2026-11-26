@@ -116,13 +116,15 @@ const tickerData = {
   error: null,
 };
 
-const expectedChange: Record<string, string> = {
-  nsei: "+150.00 (0.68%)",
-  nsebank: "-200.00 (-0.44%)",
-  gcf: "+10.00 (0.56%)",
-  sif: "+0.50 (2.00%)",
-  clf: "-0.29 (-0.35%)",
-  usdinrx: "-0.13 (-0.14%)",
+/** The rail shows only the signed percent (arrow + value); the full signed
+ *  absolute + percent lives in the element's `title` tooltip. */
+const expectedChange: Record<string, { visible: string; title: string }> = {
+  nsei: { visible: "▲+0.68%", title: "+150.00 (0.68%)" },
+  nsebank: { visible: "▼-0.44%", title: "-200.00 (-0.44%)" },
+  gcf: { visible: "▲+0.56%", title: "+10.00 (0.56%)" },
+  sif: { visible: "▲+2.00%", title: "+0.50 (2.00%)" },
+  clf: { visible: "▼-0.35%", title: "-0.29 (-0.35%)" },
+  usdinrx: { visible: "▼-0.14%", title: "-0.13 (-0.14%)" },
 };
 
 function mountChart(onTimeframeChange = vi.fn(), onSizeChange = vi.fn()) {
@@ -204,7 +206,7 @@ describe("Chart + ticker type floor — owned files", () => {
       );
     }
     const item = screen.getByTestId("ticker-nsei");
-    expect(fontSizeOf(within(item).getByText("Nifty 50"))).toBeGreaterThanOrEqual(FLOOR);
+    expect(fontSizeOf(within(item).getByText("NIFTY"))).toBeGreaterThanOrEqual(FLOOR);
     expect(fontSizeOf(screen.getByText("Market live"))).toBeGreaterThanOrEqual(FLOOR);
   });
 
@@ -237,9 +239,10 @@ describe("Chart + ticker type floor — owned files", () => {
         <MarketTicker />
       </UIProvider>
     ));
-    for (const [key, value] of Object.entries(expectedChange)) {
+    for (const [key, { visible, title }] of Object.entries(expectedChange)) {
       const change = await screen.findByTestId(`ticker-change-${key}`);
-      expect(change, `ticker-change-${key}`).toHaveTextContent(value);
+      expect(change, `ticker-change-${key} visible change`).toHaveTextContent(visible);
+      expect(change, `ticker-change-${key} tooltip`).toHaveAttribute("title", title);
     }
   });
 

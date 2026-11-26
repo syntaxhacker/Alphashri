@@ -8,6 +8,7 @@ import type { CanvasSize } from "../../components/window/layout";
 import type { WindowLayout, WindowState } from "../../components/window/types";
 import type { SavedConfigTransport } from "../../state/savedConfig";
 import { __resetCatalystStore } from "../../state/catalystStore";
+import { setMobileDrawerOpen } from "@/state/ui";
 import { fetchSectionScan, type SectionScanResult } from "../../api/sections";
 import { defaultSectionsConfig } from "../../state/sections/config";
 import { HomePage } from "./HomePage";
@@ -691,5 +692,49 @@ describe("HOME panel settings persistence", () => {
 
     fireEvent.click(screen.getByTestId("home-layout-tab-main"));
     await waitFor(() => expect(metric().value).toBe("rsi"));
+  });
+});
+
+describe("HOME bands yield to the open mobile drawer", () => {
+  const rect = (top: number, bottom: number, left: number, right: number): DOMRect => ({
+    top, bottom, left, right,
+    width: right - left, height: bottom - top, x: left, y: top,
+    toJSON: () => ({}),
+  }) as DOMRect;
+  const intersects = (a: DOMRect, b: DOMRect) =>
+    a.top < b.top + b.height && a.top + a.height > b.top &&
+    a.left < b.left + b.width && a.left + a.width > b.left;
+
+  // Measured on a real 390 fixture with the drawer open. The tape cannot be
+  // pushed below the catalyst band, so those bands must disappear instead.
+  const tape = rect(168.39, 224.39, 8, 168);
+  const toolbar = rect(60, 80, 16, 374);
+  const pulse = rect(88, 174, 16, 374);
+  const catalyst = rect(182, 542, 165, 320);
+
+  afterEach(() => setMobileDrawerOpen(false));
+
+  it("removes pulse + catalyst while the drawer is open and restores them on close", async () => {
+    const { transport } = makeTransport();
+    setMobileDrawerOpen(true);
+    mountHome(transport);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("home-pulse-bar")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("monitor-region-catalyst")).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("home-toolbar")).toBeInTheDocument();
+
+    // Only the toolbar has a rect while the drawer is open: no tape overlap.
+    expect(intersects(tape, toolbar)).toBe(false);
+    for (const band of [pulse, catalyst]) {
+      expect(intersects(tape, band)).toBe(true, "fixture rects must overlap before suppression");
+    }
+
+    setMobileDrawerOpen(false);
+    await waitFor(() => {
+      expect(screen.getByTestId("home-pulse-bar")).toBeInTheDocument();
+      expect(screen.getByTestId("monitor-region-catalyst")).toBeInTheDocument();
+    });
   });
 });

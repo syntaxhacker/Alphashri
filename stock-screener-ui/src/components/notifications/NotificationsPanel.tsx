@@ -4,6 +4,7 @@ import {
   ScrollArea, Loader, Center,
 } from "@/ui";
 import { IconTrendingDown, IconTrendingUp } from "../common/Icons";
+import { displaySymbol } from "@/config/tvSymbols";
 import { fetchSurges } from "../../api/notifications";
 import type { PriceSurgeEvent } from "../../types/notifications";
 import { formatTimeAgo } from "../../utils/ui-helpers";
@@ -156,7 +157,7 @@ function SurgeCard(props: { event: PriceSurgeEvent }) {
           <Show when={isUp()} fallback={<IconTrendingDown size={14} />}>
             <IconTrendingUp size={14} />
           </Show>
-          <Text size="sm" fw={600}>{props.event.symbol}</Text>
+          <Text size="sm" fw={600} title={props.event.symbol}>{displaySymbol(props.event.symbol)}</Text>
           <Text size="sm" c={color()} fw={600}>{sign()}{props.event.move_pct.toFixed(1)}%</Text>
         </Group>
         <Badge size="xs" variant="light" color="secondary">{props.event.screen_label}</Badge>

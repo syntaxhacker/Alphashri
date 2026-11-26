@@ -156,9 +156,11 @@ describe("MarketTicker", () => {
     );
 
     await waitFor(() => {
-      // change=150 formatted as "+150.00 (0.68%)"
+      // The compact tile shows the signed percent; the full "+150.00 (0.68%)"
+      // stays in the tooltip so no information is lost.
       const change = screen.getByTestId("ticker-change-nsei");
-      expect(change).toHaveTextContent("+150.00 (0.68%)");
+      expect(change).toHaveTextContent("+0.68%");
+      expect(change).toHaveAttribute("title", "+150.00 (0.68%)");
       expect(change).toHaveStyle({ color: palette.POSITIVE_COLOR });
       expect(change).toHaveTextContent("▲");
     });
@@ -176,14 +178,15 @@ describe("MarketTicker", () => {
     );
 
     await waitFor(() => {
-      // change=-200 formatted as "-200.00 (-0.44%)"
-      expect(screen.getByTestId("ticker-change-nsebank")).toHaveTextContent(
+      expect(screen.getByTestId("ticker-change-nsebank")).toHaveTextContent("-0.44%");
+      expect(screen.getByTestId("ticker-change-nsebank")).toHaveAttribute(
+        "title",
         "-200.00 (-0.44%)",
       );
     });
   });
 
-  it("keeps price and change in one grid row with no pill badge", async () => {
+  it("keeps label, price and change in one compact grid with no pill badge", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => mockTickerData,
@@ -197,13 +200,13 @@ describe("MarketTicker", () => {
     const item = await screen.findByTestId("ticker-nsei");
     const price = screen.getByTestId("ticker-price-nsei");
     const change = screen.getByTestId("ticker-change-nsei");
-    // One shared grid row: price and change are the only cells after the label.
     expect(item.contains(price)).toBe(true);
     expect(item.contains(change)).toBe(true);
     expect(item.children).toHaveLength(3);
     expect(item.style.display).toBe("grid");
-    // The old pill treatment is gone — the change is plain text in the grid row.
-    expect(change).toHaveTextContent(/[-+]\d+\.\d+ \(/);
+    expect(item.style.getPropertyValue("grid-template-rows")).toBe("auto auto auto");
+    // The old pill treatment is gone — the change is plain coloured text.
+    expect(change).toHaveTextContent(/[-+]\d+\.\d+%$/);
   });
 
   it("displays loading state with skeletons", () => {
@@ -234,7 +237,7 @@ describe("MarketTicker", () => {
     expect(screen.getByText("Market data unavailable")).toBeInTheDocument();
   });
 
-  it("displays custom labels for known symbols", async () => {
+  it("displays canonical index labels from the shared feed descriptor", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => mockTickerData,
@@ -246,8 +249,29 @@ describe("MarketTicker", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Nifty 50")).toBeInTheDocument();
-      expect(screen.getByText("Bank Nifty")).toBeInTheDocument();
+      expect(within(screen.getByTestId("ticker-nsei")).getByText("NIFTY")).toBeInTheDocument();
+      expect(within(screen.getByTestId("ticker-nsebank")).getByText("BANKNIFTY")).toBeInTheDocument();
+      expect(screen.queryByText("Nifty 50")).not.toBeInTheDocument();
+      expect(screen.queryByText("Bank Nifty")).not.toBeInTheDocument();
+    });
+  });
+
+  it("keeps the raw feed key as the item identity for API calls and test ids", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockTickerData,
+    });
+
+    render(() => (<UIProvider>
+        <MarketTicker />
+      </UIProvider>),
+    );
+
+    expect(await screen.findByTestId("ticker-nsei")).toBeInTheDocument();
+    expect(screen.getByTestId("ticker-nsebank")).toBeInTheDocument();
+    expect(Object.keys(mockTickerData.tickers)).toEqual(["^NSEI", "^NSEBANK"]);
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("market-ticker"), {
+      priority: "low",
     });
   });
 
@@ -387,7 +411,7 @@ describe("MarketTicker", () => {
     setIntervalSpy.mockRestore();
   });
 
-  it("renders every ticker at one uniform size so the columns align", async () => {
+  it("renders every ticker with one content-sized compact grid and no fixed change track", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -425,14 +449,15 @@ describe("MarketTicker", () => {
       expect(screen.getByTestId("ticker-gcf")).toBeInTheDocument();
     });
 
-    // One type scale for every item: 11px label and 11px tabular price.
+    // One type scale and one content-sized grid for every item: a fixed
+    // 128px change track made a single tile ~260px wide in a 148px rail.
     for (const testId of ["ticker-nsei", "ticker-gcf"]) {
       const item = screen.getByTestId(testId);
       expect(item.children).toHaveLength(3);
-      expect(item.style.getPropertyValue("grid-template-columns")).toBe(
-        "minmax(56px, auto) minmax(64px, 1fr) 128px",
-      );
-      expect(within(item).getByText(/Nifty 50|Gold/)).toHaveStyle({
+      expect(item.style.getPropertyValue("grid-template-columns")).toBe("max-content");
+      expect(item.style.getPropertyValue("grid-template-rows")).toBe("auto auto auto");
+      expect(item.style.getPropertyValue("grid-template-columns")).not.toContain("128px");
+      expect(within(item).getByText(/NIFTY|Gold/)).toHaveStyle({
         fontSize: "12px",
       });
     }
@@ -687,5 +712,183 @@ describe("MarketStatus — real IST session", () => {
     setClock("2026-11-16T11:41:00Z");
     render(() => (<UIProvider><MarketTicker /></UIProvider>));
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("MarketTicker — responsive rail fit (390px drawer / 1600px sidebar)", () => {
+  const tapeData = {
+    tickers: {
+      "^NSEI": {
+        symbol: "^NSEI", name: "NIFTY 50", price: 22000,
+        change: 150, change_percent: 0.68, is_positive: true,
+      },
+      "^NSEBANK": {
+        symbol: "^NSEBANK", name: "BANKNIFTY", price: 45000,
+        change: -200, change_percent: -0.44, is_positive: false,
+      },
+    },
+    last_updated: "2025-06-15T10:30:00Z",
+    loading: false,
+    error: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetHolidays();
+    setClock("2026-11-16T05:30:00Z"); // Monday 11:00 IST — open
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+    vi.mocked(fetchHolidays).mockResolvedValue([]);
+    localStorage.clear();
+    setupBrowserMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  const renderTape = async (mobile = false) => {
+    mockFetch.mockResolvedValue({ ok: true, json: async () => tapeData });
+    render(() => (<UIProvider><MarketTicker variant="tape" mobile={mobile} /></UIProvider>));
+    await screen.findByTestId("ticker-nsei");
+    await screen.findByTestId("ticker-nsebank");
+    return screen.getByTestId("market-ticker");
+  };
+
+  const setRailGeometry = (container: HTMLElement, clientWidth: number, scrollWidth = clientWidth * 3) => {
+    Object.defineProperty(container, "clientWidth", { configurable: true, value: clientWidth });
+    Object.defineProperty(container, "scrollWidth", { configurable: true, value: scrollWidth });
+  };
+
+  const rect = (top: number, bottom: number, left: number, right: number): DOMRect => ({
+    top, bottom, left, right,
+    width: right - left, height: bottom - top, x: left, y: top,
+    toJSON: () => ({}),
+  }) as DOMRect;
+
+  const intersects = (a: DOMRect, b: DOMRect) =>
+    a.top < b.top + b.height && a.top + a.height > b.top &&
+    a.left < b.left + b.width && a.left + a.width > b.left;
+
+  it("390: the tape band matches evidence and clears the toolbar", async () => {
+    await renderTape(true);
+    const spacer = screen.getByTestId("market-ticker-top-spacer");
+    expect(spacer).toHaveStyle({ height: "104px", "min-width": "0px" });
+    const frame = screen.getByTestId("market-ticker-frame");
+    expect(frame.contains(spacer)).toBe(false);
+    expect(frame).toHaveStyle({ "background-color": palette.BG });
+
+    // Measured on first drawer open: x8–168 y168.39–224.39. The pulse
+    // (y88–174) and catalyst band (y182–542) cannot be out-spaced, so Home
+    // removes them via the shared drawer-open signal (see HomePage.test).
+    const frameTop = 64.39 + Number.parseFloat(spacer.style.height);
+    const frameRect = rect(frameTop, frameTop + 56, 8, 168);
+    const toolbarRect = rect(60, 80, 16, 374);
+
+    expect(frameRect.top).toBeCloseTo(168.39);
+    expect(frameRect.bottom).toBeCloseTo(224.39);
+    expect(intersects(frameRect, toolbarRect)).toBe(false);
+    expect(frameRect.bottom).toBeLessThanOrEqual(844);
+  });
+
+  it("390: the tape is the only scroll owner and no numeric value is clipped", async () => {
+    const container = await renderTape(true);
+    const frame = screen.getByTestId("market-ticker-frame");
+    expect(frame).toHaveStyle({
+      width: "100%",
+      "min-width": "0px",
+      "box-sizing": "border-box",
+      "flex-shrink": "0",
+      overflow: "hidden",
+    });
+    expect(container).toHaveStyle({
+      "overflow-x": "auto",
+      "overflow-y": "hidden",
+      "flex-wrap": "nowrap",
+      "min-width": "0px",
+      "box-sizing": "border-box",
+      width: "100%",
+    });
+    expect(Number.parseFloat(container.style.paddingLeft || "0")).toBeLessThanOrEqual(2);
+    expect(Number.parseFloat(container.style.paddingRight || "0")).toBeLessThanOrEqual(2);
+    const nestedScrollOwners = Array.from(container.querySelectorAll<HTMLElement>("*")).filter(
+      (el) => /^(auto|scroll)$/.test(el.style.overflowX),
+    );
+    expect(nestedScrollOwners).toEqual([]);
+
+    for (const id of ["ticker-nsei", "ticker-nsebank"]) {
+      const item = screen.getByTestId(id);
+      expect(item.style.getPropertyValue("grid-template-columns")).toBe("max-content");
+      expect(item.style.getPropertyValue("grid-template-rows")).toBe("auto auto auto");
+      expect(item.style.getPropertyValue("grid-template-columns")).not.toContain("128px");
+    }
+    expect(within(screen.getByTestId("ticker-nsei")).getByText("NIFTY")).toBeInTheDocument();
+    expect(within(screen.getByTestId("ticker-nsebank")).getByText("BANKNIFTY")).toBeInTheDocument();
+    expect(screen.getByTestId("ticker-price-nsebank")).toHaveTextContent("45,000.00");
+    expect(screen.getByTestId("ticker-change-nsei").className).not.toContain("overflow-hidden");
+  });
+
+  it("390: an overflowing tape shows the cue on first open, before any resize", async () => {
+    const observed: Element[] = [];
+    class CapturingResizeObserver {
+      observe(el: Element) { observed.push(el); }
+      disconnect() {}
+    }
+    global.ResizeObserver = CapturingResizeObserver as any;
+
+    const container = await renderTape(true);
+    setRailGeometry(container, 124, 582);
+    // Deliberately no resize event: the drawer was hidden at mount.
+    expect(screen.getByTestId("market-ticker-scroll-cue")).toBeVisible();
+    expect(observed).toContain(container);
+  });
+
+  it("1600: NIFTY and BANKNIFTY both fit fully in the rail — no cut 'BA'", async () => {
+    const container = await renderTape(false);
+    const nifty = screen.getByTestId("ticker-nsei");
+    const bank = screen.getByTestId("ticker-nsebank");
+
+    // The compact tile puts label / price / change on their own rows so its
+    // width is the widest single field (~65px), not label+price (~136px).
+    expect(nifty.style.getPropertyValue("grid-template-rows")).toBe("auto auto auto");
+    expect(bank.style.getPropertyValue("grid-template-rows")).toBe("auto auto auto");
+    const tileWidth = Number.parseFloat(bank.style.width);
+    const gap = Number.parseFloat(container.style.gap || "0");
+    const padding =
+      Number.parseFloat(container.style.paddingLeft || "0") +
+      Number.parseFloat(container.style.paddingRight || "0");
+    expect(tileWidth).toBeGreaterThan(0);
+    expect(tileWidth).toBeLessThanOrEqual(72);
+
+    // 148px rail − 4px tape padding = 144px visible scroller. Two compact
+    // tiles + one gap must fit inside it, so the full BANKNIFTY label and
+    // price are on screen at first paint (not just reachable via the cue).
+    const CLIENT_WIDTH = 144;
+    expect(2 * tileWidth + gap + padding).toBeLessThanOrEqual(CLIENT_WIDTH);
+
+    // Content-sized fields: no internal clipping (scrollWidth <= clientWidth).
+    // At 12px a 9-character mono field is ~65px — inside the compact tile.
+    const price = screen.getByTestId("ticker-price-nsebank");
+    const change = screen.getByTestId("ticker-change-nsebank");
+    const contentWidth = (text: string) => text.length * 7.2;
+    for (const [el, text] of [[price, "45,000.00"], [change, "-0.44%"]] as const) {
+      expect(
+        el.style.whiteSpace === "nowrap" || el.classList.contains("whitespace-nowrap"),
+      ).toBe(true);
+      expect(el.style.overflow).not.toBe("hidden");
+      Object.defineProperty(el, "scrollWidth", { configurable: true, value: contentWidth(text) });
+      Object.defineProperty(el, "clientWidth", { configurable: true, value: tileWidth });
+      expect(el.scrollWidth).toBeLessThanOrEqual(el.clientWidth);
+    }
+
+    // Visible text is the full canonical label and the full price value.
+    expect(within(bank).getByText("BANKNIFTY")).toBeInTheDocument();
+    expect(price).toHaveTextContent("45,000.00");
+    expect(change).toHaveTextContent("-0.44%");
+    expect(change).toHaveAttribute("title", "-200.00 (-0.44%)");
+
+    // The tape is still the single scroll owner for the overflowing drawer.
+    setRailGeometry(container, 124, 582);
+    expect(screen.getByTestId("market-ticker-scroll-cue")).toBeVisible();
   });
 });

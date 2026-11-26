@@ -18,6 +18,7 @@ import { WindowManager } from "../../components/window/WindowManager";
 import type { WindowLayout, WindowState } from "../../components/window/types";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { useSectionsConfig } from "../../state/sections/config";
+import { mobileDrawerOpen } from "../../state/ui";
 import {
   createSavedConfigStore,
   registerSavedConfigScope,
@@ -402,7 +403,9 @@ export function HomePage(props: HomePageProps) {
         </Show>
       </ToolbarRow>
 
-      <Show when={!isDesk()}>
+      {/* The fixed mobile drawer overlaps these bands; remove them while it is
+          open so no rect can intersect the ticker, restore them on close. */}
+      <Show when={!isDesk() && !mobileDrawerOpen()}>
         <SessionPulseBar />
       </Show>
 
@@ -473,7 +476,7 @@ export function HomePage(props: HomePageProps) {
         </ToolbarRow>
       </Show>
 
-      <Show when={!isDesk()}>
+      <Show when={!isDesk() && !mobileDrawerOpen()}>
         <HomeMonitorView />
       </Show>
 

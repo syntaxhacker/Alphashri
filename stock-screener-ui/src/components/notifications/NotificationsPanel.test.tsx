@@ -53,6 +53,21 @@ describe("NotificationsPanel", () => {
     expect(mockedFetchSurges).toHaveBeenCalledWith(10, 0);
   });
 
+  it("renders canonical surge symbols without leaking exchange prefixes", async () => {
+    mockedFetchSurges.mockResolvedValueOnce({
+      total: 1,
+      events: [makeEvent({ id: 7, symbol: "NSE:RELIANCE" })],
+    });
+    render(() => (<UIProvider>
+        <NotificationsPanel opened onClose={vi.fn()} />
+      </UIProvider>),
+    );
+
+    const card = await screen.findByTestId("surge-card-7");
+    expect(card).toHaveTextContent("RELIANCE");
+    expect(card).not.toHaveTextContent("NSE:");
+  });
+
   it("acknowledges today's alerts when the first page loads", async () => {
     mockedFetchSurges.mockResolvedValueOnce({
       total: 7094,

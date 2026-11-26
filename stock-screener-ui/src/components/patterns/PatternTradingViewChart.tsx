@@ -478,7 +478,7 @@ function mergeVisibleMarkers(
   start: number,
   count: number,
 ): TVMarker[] {
-  const merged = new Array<TVMarker>(others.length + count);
+  const merged = Array.from({ length: others.length + count }) as TVMarker[];
   let i = 0;
   let j = 0;
   let k = 0;
@@ -888,7 +888,7 @@ export function PatternTradingViewChart(props: PatternTradingViewChartProps) {
     if (count === 0) {
       shown = cache.others;
     } else if (cache.others.length === 0) {
-      shown = new Array<TVMarker>(count);
+      shown = Array.from({ length: count }) as TVMarker[];
       for (let i = 0; i < count; i++) shown[i] = cache.crosses[start + i]!.marker;
     } else {
       shown = mergeVisibleMarkers(cache.others, cache.crosses, start, count);

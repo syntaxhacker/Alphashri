@@ -117,6 +117,29 @@ describe("MarketAlertRow", () => {
   });
 });
 
+describe("canonical alert symbols", () => {
+  test("row and card render displaySymbol while the alert payload keeps the raw symbol", () => {
+    const prefixed = alert({ symbol: "NSE:RELIANCE" });
+    const onOpen = vi.fn();
+    r(
+      <>
+        <MarketAlertRow alert={prefixed} onOpen={onOpen} />
+        <MarketAlertCard alert={prefixed} />
+      </>,
+    );
+    const rows = screen.getAllByTestId("market-alert-oi_burst");
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row).toHaveTextContent("RELIANCE");
+      expect(row).not.toHaveTextContent("NSE:");
+      expect(row.getAttribute("title") ?? "").not.toContain("NSE:");
+      expect(row.getAttribute("aria-label") ?? "").not.toContain("NSE:");
+    }
+    fireEvent.click(rows[0]);
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ symbol: "NSE:RELIANCE" }));
+  });
+});
+
 describe("MarketAlertCard", () => {
   test("shows detail, metrics and source (centre density)", () => {
     r(<MarketAlertCard alert={alert()} />);

@@ -1,9 +1,10 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, type JSX } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, type JSX } from "solid-js";
 import { usePolling } from "@/hooks/usePolling";
 import { Box, Text, Skeleton, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { subscribeToHolidays, isMarketOpenNow, getHolidayState } from "../../state/holidays";
+import { tickerLabelForFeedSymbol } from "@/config/tvSymbols";
 
 // Inlined from hooks/useMarketTickerEnabled (still on React); same v2 storage
 // key and on-by-default behaviour so existing profiles keep their setting.
@@ -45,25 +46,6 @@ const SESSION_CLOSED_DETAIL = "Closed at 15:30 IST · Opens 09:15 IST";
 
 const PRIORITY_ORDER = ["^NSEI", "^NSEBANK", "GC=F", "SI=F", "CL=F", "USDINR=X"];
 
-function getTickerLabel(symbol: string): string {
-  switch (symbol) {
-    case "^NSEBANK":
-      return "Bank Nifty";
-    case "^NSEI":
-      return "Nifty 50";
-    case "GC=F":
-      return "Gold";
-    case "SI=F":
-      return "Silver";
-    case "CL=F":
-      return "Crude Oil";
-    case "USDINR=X":
-      return "USD/INR";
-    default:
-      return symbol;
-  }
-}
-
 function sortTickersByPriority(tickers: Record<string, MarketTickerItem>): string[] {
   return Object.keys(tickers).sort((a, b) => {
     const aPriority = PRIORITY_ORDER.indexOf(a);
@@ -76,19 +58,35 @@ function formatLastUpdated(lastUpdated: string | null): string {
   return lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : "--";
 }
 
-const TICKER_HEIGHT = "22px";
+const TICKER_HEIGHT = "40px";
+const CUE_ROW_HEIGHT = "16px";
+/** The drawer is a fixed overlay over three opaque page bands at 390: the
+ *  toolbar (y60–80), the pulse bar (y88–136) and the catalyst header
+ *  (y150–165). Reserving 104px puts the opaque tape band at y168.39 — below
+ *  the catalyst header, so no page text can interleave with the ticker rows. */
+const DRAWER_TICKER_SPACER_HEIGHT = "104px";
 
-/** Every item is the same three-track grid, so label / price / change share a
- *  baseline and a column across the whole tape. The change track is a fixed
- *  128px so an 11px `+116.30 (0.46%)` / `−1234.56 (−12.34%)` plus its arrow
- *  fits without clipping and still lines up from item to item. */
+/** The tape only ever lives in the 148px desktop rail / 168px mobile drawer.
+ *  Stacking label / price / change in three rows makes tile width the widest
+ *  *single* field (~65px at 12px) instead of label+price (~136px). Two tiles
+ *  then fit the 144px rail scroller, so BANKNIFTY is fully on screen at first
+ *  paint instead of showing a cut "BA" at the rail boundary. The signed
+ *  absolute + percent change stays in the tooltip (see `title` below). */
+const TICKER_TILE_WIDTH = 68;
 const TICKER_GRID = {
   display: "grid",
-  "grid-template-columns": "minmax(56px, auto) minmax(64px, 1fr) 128px",
+  "grid-template-columns": "max-content",
+  "grid-template-rows": "auto auto auto",
   "align-items": "center",
-  "column-gap": "6px",
+  "column-gap": "0px",
+  "row-gap": "0px",
+  "width": `${TICKER_TILE_WIDTH}px`,
   "flex-shrink": "0",
+  "min-width": `${TICKER_TILE_WIDTH}px`,
 } as const;
+
+/** Fallback scroll step when a browser has not laid out the first tile yet. */
+const TILE_FALLBACK_WIDTH = TICKER_TILE_WIDTH;
 
 function createErrorState(error: unknown): MarketTickerData {
   return {
@@ -105,7 +103,7 @@ interface TickerItemProps {
 }
 
 function TickerItem(props: TickerItemProps) {
-  const label = () => getTickerLabel(props.symbol);
+  const label = () => tickerLabelForFeedSymbol(props.symbol);
   const price = () => Number(props.item.price ?? 0);
   const change = () => Number(props.item.change ?? 0);
   const changePercent = () => Number(props.item.change_percent ?? 0);
@@ -123,7 +121,7 @@ function TickerItem(props: TickerItemProps) {
         size="sm"
         fw={600}
         c="dimmed"
-        style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.1", "white-space": "nowrap" }}
+        style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.1", "white-space": "nowrap", "grid-row": "1", "grid-column": "1" }}
       >
         {label()}
       </Text>
@@ -138,6 +136,8 @@ function TickerItem(props: TickerItemProps) {
           "font-variant-numeric": "tabular-nums",
           "text-align": "right",
           "white-space": "nowrap",
+          "grid-row": "2",
+          "grid-column": "1",
         }}
       >
         {price().toLocaleString("en-IN", {
@@ -145,15 +145,20 @@ function TickerItem(props: TickerItemProps) {
           maximumFractionDigits: 2,
         })}
       </Text>
-      {/* Plain coloured change — no pill, no icon box. The arrow is an
-          inline glyph inside the fixed 128px track so the sign never shifts
-          the numerals. */}
+      {/* Compact signed percent on its own row: the full signed absolute +
+          percent stays in the tooltip, so the tile only needs ~45px for the
+          change and the rail fits two complete index tiles side by side. */}
       <Box
         component="span"
         data-testid={`ticker-change-${testId()}`}
         title={`${change() >= 0 ? "+" : ""}${change().toFixed(2)} (${changePercent().toFixed(2)}%)`}
-        className="flex items-center justify-end gap-[2px] min-w-0 overflow-hidden whitespace-nowrap font-mono"
-        style={{ color: tone(), "font-variant-numeric": "tabular-nums" }}
+        className="flex items-center justify-end gap-[2px] whitespace-nowrap font-mono"
+        style={{
+          color: tone(),
+          "font-variant-numeric": "tabular-nums",
+          "grid-row": "3",
+          "grid-column": "1",
+        }}
       >
         <Box component="span" aria-hidden className="text-ui-micro leading-none">
           {isPositive() ? "▲" : "▼"}
@@ -172,7 +177,7 @@ function TickerItem(props: TickerItemProps) {
           }}
         >
           {isPositive() ? "+" : ""}
-          {change().toFixed(2)} ({changePercent().toFixed(2)}%)
+          {changePercent().toFixed(2)}%
         </Text>
       </Box>
     </Box>
@@ -182,31 +187,119 @@ function TickerItem(props: TickerItemProps) {
 interface TickerContainerProps {
   children?: JSX.Element;
   title?: string;
+  itemCount: number;
 }
 
 function TickerContainer(props: TickerContainerProps) {
+  const [overflows, setOverflows] = createSignal(false);
+  let scroller: HTMLDivElement | undefined;
+
+  // The frame clips, the tape scrolls: one scroll owner, no sibling overlap.
+  const measure = () => {
+    if (!scroller) return;
+    // A hidden drawer has no laid-out width. Keep the item-count assumption
+    // until a resize/ResizeObserver tick can report real geometry.
+    if (!scroller.clientWidth) return;
+    setOverflows(scroller.scrollWidth > scroller.clientWidth + 1);
+  };
+
+  createEffect(on(() => props.itemCount, (count) => {
+    // The mobile drawer mounts hidden, so its first open fires no resize.
+    // Assume a cue until measured rather than showing an unreachable tile.
+    if (count > 1) setOverflows(true);
+    queueMicrotask(measure);
+  }));
+
+  onMount(() => {
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measure);
+    if (observer && scroller) observer.observe(scroller);
+    window.addEventListener("resize", measure);
+    onCleanup(() => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+    });
+  });
+
+  const scrollNext = () => {
+    const tile = scroller?.querySelector<HTMLElement>(".market-ticker-item");
+    scroller?.scrollBy({
+      left: tile?.offsetWidth || TILE_FALLBACK_WIDTH,
+      behavior: "smooth",
+    });
+  };
+
   return (
     <Box
-      data-testid="market-ticker"
-      id="market-ticker"
-      className="market-ticker"
-      title={props.title}
-      role="region"
-      aria-label="Market ticker"
-      tabIndex={0}
-      px="sm"
+      data-testid="market-ticker-frame"
+      className="market-ticker-frame flex flex-col w-full min-w-0"
       style={{
         display: "flex",
-        "align-items": "center",
-        gap: "10px",
-        height: TICKER_HEIGHT,
-        "overflow-x": "auto",
-        "overflow-y": "hidden",
-        "flex-wrap": "nowrap",
+        "flex-direction": "column",
+        width: "100%",
         "min-width": "0px",
+        "box-sizing": "border-box",
+        "flex-shrink": "0",
+        overflow: "hidden",
+        // The drawer is a fixed overlay over the Home page. An opaque tape
+        // band is the second half of the spacer: nothing behind it can bleed
+        // through the reserved rows while the drawer is open.
+        "background-color": palette.BG,
       }}
     >
-      {props.children}
+      <Box
+        ref={(el: HTMLDivElement) => { scroller = el; }}
+        data-testid="market-ticker"
+        id="market-ticker"
+        className="market-ticker"
+        title={props.title}
+        role="region"
+        aria-label="Market ticker"
+        tabIndex={0}
+        style={{
+          display: "flex",
+          "align-items": "center",
+          gap: "4px",
+          width: "100%",
+          height: TICKER_HEIGHT,
+          "overflow-x": "auto",
+          "overflow-y": "hidden",
+          "flex-wrap": "nowrap",
+          "min-width": "0px",
+          "box-sizing": "border-box",
+          "scrollbar-width": "none",
+          "padding-left": "2px",
+          "padding-right": "2px",
+        }}
+      >
+        {props.children}
+      </Box>
+      <Show when={overflows()}>
+        <Box
+          className="flex items-center justify-end w-full min-w-0"
+          style={{ height: CUE_ROW_HEIGHT, "flex-shrink": "0", "box-sizing": "border-box" }}
+        >
+          <button
+            type="button"
+            data-testid="market-ticker-scroll-cue"
+            aria-label="Scroll market ticker"
+            title="Scroll market ticker"
+            onClick={scrollNext}
+            className="flex items-center justify-center rounded-fin border border-fin-border text-ui-micro leading-none"
+            style={{
+              width: "16px",
+              height: CUE_ROW_HEIGHT,
+              "flex-shrink": "0",
+              "background-color": palette.SURFACE_ALT,
+              color: palette.TEXT_MUTED,
+            }}
+          >
+            <Box component="span" aria-hidden>
+              ›
+            </Box>
+          </button>
+        </Box>
+      </Show>
     </Box>
   );
 }
@@ -221,9 +314,12 @@ function TickerLoadingState() {
       style={{
         display: "flex",
         "align-items": "center",
-        gap: "10px",
+        gap: "6px",
         height: TICKER_HEIGHT,
         overflow: "hidden",
+        width: "100%",
+        "min-width": "0px",
+        "box-sizing": "border-box",
       }}
     >
       <For each={[1, 2, 3, 4, 5, 6]}>{() => <Skeleton w={88} h={14} visible />}</For>
@@ -238,7 +334,15 @@ function TickerErrorState() {
       id="market-ticker"
       className="market-ticker market-ticker-error"
       px="sm"
-      style={{ display: "flex", "align-items": "center", height: TICKER_HEIGHT }}
+      style={{
+        display: "flex",
+        "align-items": "center",
+        height: TICKER_HEIGHT,
+        width: "100%",
+        "min-width": "0px",
+        "box-sizing": "border-box",
+        overflow: "hidden",
+      }}
     >
       <Text size="sm" c="dimmed" style={{ "font-size": `${typeSize("micro")}px`, "line-height": "1.2" }}>
         Market data unavailable
@@ -375,6 +479,9 @@ interface MarketTickerProps {
    * so the page must not reserve a strip for it outside market hours.
    */
   variant?: "full" | "tape";
+  /** Inside the fixed mobile drawer: reserve a row above the tape so it never
+   *  shares a vertical band with the page toolbar behind the drawer. */
+  mobile?: boolean;
 }
 
 export function MarketTicker(props: MarketTickerProps) {
@@ -434,7 +541,18 @@ export function MarketTicker(props: MarketTickerProps) {
                 </Show>
               }
             >
-              <TickerContainer title={`Updated: ${formatLastUpdated(d().last_updated)}`}>
+              <Show when={props.mobile}>
+                <Box
+                  data-testid="market-ticker-top-spacer"
+                  aria-hidden="true"
+                  className="w-full flex-shrink-0"
+                  style={{ height: DRAWER_TICKER_SPACER_HEIGHT, "min-width": "0px" }}
+                />
+              </Show>
+              <TickerContainer
+                title={`Updated: ${formatLastUpdated(d().last_updated)}`}
+                itemCount={sortedSymbols().length}
+              >
                 <For each={sortedSymbols()}>{(symbol) => (
                   <TickerItem symbol={symbol} item={d().tickers[symbol]} />
                 )}</For>

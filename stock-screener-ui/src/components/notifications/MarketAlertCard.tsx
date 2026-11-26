@@ -1,5 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { ActionIcon, Box, Text } from "@/ui";
+import { displaySymbol } from "@/config/tvSymbols";
 import { IconX } from "../common/Icons";
 import * as palette from "@/ui/palette";
 
@@ -159,17 +160,18 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
   const onOpen = () => props.onOpen;
   const onDismiss = () => props.onDismiss;
   const sev = () => ALERT_SEVERITY[alert().severity];
+  const symbol = () => displaySymbol(alert().symbol);
   const clickable = () => typeof onOpen() === "function" || typeof onSelect() === "function";
   return (
     <Box
       role="alert"
       aria-live={alert().severity === "critical" ? "assertive" : "polite"}
       aria-atomic="true"
-      aria-label={`${ALERT_KIND_LABEL[alert().kind]} ${alert().severity} — ${alert().symbol}`}
+      aria-label={`${ALERT_KIND_LABEL[alert().kind]} ${alert().severity} — ${symbol()}`}
       data-testid={`market-alert-${alert().kind}`}
       data-severity={alert().severity}
       data-active={active() ? "1" : undefined}
-      title={`${alert().symbol} · ${ALERT_KIND_LABEL[alert().kind]} · ${alert().title} — ${alert().detail}${alert().source ? ` (${alert().source})` : ""}`}
+      title={`${symbol()} · ${ALERT_KIND_LABEL[alert().kind]} · ${alert().title} — ${alert().detail}${alert().source ? ` (${alert().source})` : ""}`}
       onClick={clickable() ? () => (onSelect() ?? onOpen())?.(alert()) : undefined}
       className="flex items-center gap-1 h-[20px] font-mono cursor-pointer"
       style={{
@@ -213,7 +215,7 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
         </Text>
       </Box>
       <Box style={{ width: "92px", "flex-shrink": 0, overflow: "hidden" }}>
-        <Text size="xs" span fw={700} truncate>{alert().symbol}</Text>
+        <Text size="xs" span fw={700} truncate>{symbol()}</Text>
       </Box>
       <Box className="flex-1 min-w-0 overflow-hidden">
         <Text size="xs" span truncate>{alert().title}</Text>
@@ -271,6 +273,7 @@ export function MarketAlertCard(props: MarketAlertCardProps) {
   const compact = () => density() === "compact";
   const onOpen = () => props.onOpen;
   const onDismiss = () => props.onDismiss;
+  const symbol = () => displaySymbol(alert().symbol);
   const clickable = () => typeof onOpen() === "function";
 
   return (
@@ -278,7 +281,7 @@ export function MarketAlertCard(props: MarketAlertCardProps) {
       role="alert"
       aria-live={alert().severity === "critical" ? "assertive" : "polite"}
       aria-atomic="true"
-      aria-label={`${ALERT_KIND_LABEL[alert().kind]} ${alert().severity} — ${alert().symbol}`}
+      aria-label={`${ALERT_KIND_LABEL[alert().kind]} ${alert().severity} — ${symbol()}`}
       data-testid={`market-alert-${alert().kind}`}
       data-severity={alert().severity}
       onClick={clickable() ? () => onOpen()?.(alert()) : undefined}
@@ -297,7 +300,7 @@ export function MarketAlertCard(props: MarketAlertCardProps) {
       <Box style={{ flex: 1, "min-width": "0px", display: "flex", "flex-direction": "column", gap: compact() ? 0 : "2px" }}>
         <Box style={{ display: "flex", "align-items": "center", gap: "4px", "min-width": "0px" }}>
           <Text size="xs" span c="dimmed">{ALERT_KIND_CODE[alert().kind]}</Text>
-          <Text size={compact() ? "xs" : "sm"} span fw={700} truncate>{alert().symbol}</Text>
+          <Text size={compact() ? "xs" : "sm"} span fw={700} truncate>{symbol()}</Text>
           <Box component="span" data-testid="market-alert-severity" style={{ "flex-shrink": 0 }}>
             <Text
               size="xs"
