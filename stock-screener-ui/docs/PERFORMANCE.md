@@ -1,7 +1,7 @@
 # Performance — index
 
-- **Last checked: 2026-11-25**
-- **Next check: 2026-12-02**
+- **Last checked: 2026-11-26**
+- **Next check: 2026-12-03**
 
 Short index only. The budgets and the enforcement rules live in
 [`AGENTS.md` → *Performance budgets and checks*](../AGENTS.md#performance-budgets-and-checks).
@@ -66,3 +66,42 @@ last-checked / next-check on every review.
   [`perf/chart_ui_budgets.json`](../perf/chart_ui_budgets.json) and are gated by
   `bun run perf:chart`; they are not averaged with the API or test-budget tables
   here.
+
+## 2026-11-26 backend/DB performance loop
+
+**Gate:** measurable backend/DB improvement, zero regressions, agri untouched,
+in-memory-only DB verification. **Certified result: PASS** — 233 integrated
+targeted tests green in CI-like collection order, benchmark contract 50 passed,
+migrations 44 validated, app running and healthy.
+
+**Baseline → final (cold, ms):** replay_configs 298.39 → **9.29**; chart
+232.64 → **58.48**; login 398.25 → 247.84; health 10.42 → 11.28 (noise).
+**Warm p95 final (ms):** health 0.67, login 237.76, profitability 1.73,
+market_snapshot 15.17, replay_configs 4.45, chart 58.35 — all PASS. Warm
+profitability/market_snapshot baselines were cache-dependent (7.70 / 52.96);
+final numbers also reflect a warm disk cache, so they are **not** claimed as
+code-caused. **Unit:** two cost-12 bcrypt fixtures 12.2s → 2.1–3.8s; targeted
+wall 12.2s → 3.25s on final confirmation. **DB in-memory synthetic:** movers
+lookup 4.06×, segment count 8.25×, live-stream symbol read ~7.7×, trade
+projection ~2.2× narrower read.
+
+**Lanes delivered:** route prebuild (`api_server_fastapi.py`); analytical
+cache-lag tolerance (`chart_patterns/candles.py`,
+`api/reports_api/profitability.py`); DB indexes/projections
+(`db/models/broker.py`, `db/models/replay_saved_config.py`, new migration
+`2026_11_26_1200-idxperf1a2b3c4d5e_add_query_covering_indexes.py`,
+`api/symbols.py`, `api/paper/live_stream.py`, `api/reports_api/movers.py`);
+trade projections (`api/strategy_performance.py`,
+`api/paper/dashboard_analytics.py`, `api/paper/analytics.py`,
+`api/paper/aggregated.py`); scoped fixture hashing (`tests/api/conftest.py`,
+two paper test files); benchmark/test harness (`scripts/perf/db_query_bench.py`,
+`tests/perf/test_db_query_bench.py`, new tests).
+
+**Caveats:** agri backend/caches/tests excluded throughout. Live
+`db/alphashri.db` hash drifted from the externally running uvicorn/WAL
+checkpoints — never opened, migrated, restored or written by this work; all
+verification was in-memory SQLite or read-only. A mixed-directory explicit-file
+pytest invocation hits a pytest 9.1.1 same-name fixture-shadowing quirk
+(`tests/conftest.py` `client` vs `tests/api/conftest.py` `client`); CI-like
+collection order passes 233/233. No budgets were lowered; no commits, pushes or
+PRs.
