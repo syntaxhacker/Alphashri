@@ -13,7 +13,7 @@ import { HomeMonitorView } from "../../components/home/HomeMonitorView";
 import { SessionPulseBar } from "../../components/home/SessionPulseBar";
 import type { DockPanelContext } from "../../components/dock/types";
 import type { CanvasSize } from "../../components/window/layout";
-import { fitAllToScreen } from "../../components/window/layout";
+import { fitAllToScreen, isStackedCanvas } from "../../components/window/layout";
 import { WindowManager } from "../../components/window/WindowManager";
 import type { WindowLayout, WindowState } from "../../components/window/types";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -203,6 +203,12 @@ export function HomePage(props: HomePageProps) {
     lastCanvas = { w: size.w, h: size.h };
     // Monitor renders a fixed grid, not a canvas: tracking is read-only here.
     if (!isDesk()) return;
+    /*
+     * Narrow desks reflow in the presentation layer (WindowManager stacks the
+     * frames), so their saved rects must stay untouched: rewriting them here
+     * would destroy the user's wide arrangement when the viewport grows back.
+     */
+    if (isStackedCanvas(size)) return;
     /*
      * Re-fit only when the canvas actually shrinks under an existing desk. A
      * first measure is deliberately excluded: the saved layout was authored

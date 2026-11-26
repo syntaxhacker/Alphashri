@@ -1,5 +1,6 @@
 import { Select, Text, Tooltip, typeSize } from "@/ui";
 import { LOOKBACK_OPTIONS } from "@/config/patterns";
+import { usePatternsNarrow } from "./narrowLayout";
 
 /** Re-exported so existing imports from this module keep working. */
 export { LOOKBACK_OPTIONS };
@@ -10,10 +11,13 @@ export interface LookbackSelectProps {
 }
 
 export function LookbackSelect(props: LookbackSelectProps) {
+  const narrow = usePatternsNarrow();
   const data = [
     { value: "auto", label: "Auto" },
     ...LOOKBACK_OPTIONS.map((n) => ({ value: String(n), label: String(n) })),
   ];
+  // Keep the full BARS label on phones: the toolbar wraps rather than letting
+  // the control collapse to an unidentifiable "B".
   return (
     <Tooltip label="Bars of history the detector reads before forming a pattern (Auto = preset default)">
       <Select
@@ -27,8 +31,9 @@ export function LookbackSelect(props: LookbackSelectProps) {
           const n = Number(v);
           if (Number.isFinite(n)) props.onChange(n);
         }}
-        w={122}
+        w={narrow() ? 128 : 122}
         size="xs"
+        aria-label="Bars history"
         leftSection={
           <Text
             size="xs"

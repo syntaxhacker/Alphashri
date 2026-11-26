@@ -1,6 +1,6 @@
 import type { ColumnDef } from "./index";
 import { formatPercentage, formatTimeAgo } from "../../../utils/ui-helpers";
-import { Tooltip } from "@/ui";
+import { Text, Tooltip } from "@/ui";
 import { BadgeCell, NumCell } from "@/components/common/tableCells";
 import { fixedOrZero, numCol, signedPercent, tonePositive } from "./columnHelpers";
 
@@ -23,6 +23,11 @@ export const sectorCol: ColumnDef = {
   label: "Sector",
   type: "string",
   sortable: true,
+  // Sized columns ellipsise; the title keeps the full value reachable.
+  format: (value: unknown) => {
+    const text = value == null || value === "" ? "-" : String(value);
+    return <Text span truncate title={text}>{text}</Text>;
+  },
 };
 
 export const dayChangeCol: ColumnDef = {

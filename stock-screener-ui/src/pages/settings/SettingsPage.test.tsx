@@ -163,6 +163,26 @@ describe("SettingsPage", () => {
     expect(screen.getByTestId("settings-page")).toBeInTheDocument();
   });
 
+  it("keeps controls in a readable column instead of pinning them across the viewport", () => {
+    mockGetBrokerStatus.mockResolvedValue({
+      connected: false,
+      broker: "upstox",
+      expires_in_hours: null,
+      expires_at: null,
+    });
+
+    renderSettings();
+
+    const column = screen.getByTestId("settings-form-column");
+    expect(column).toHaveClass("w-full", "max-w-[720px]");
+    expect(column).toContainElement(screen.getByTestId("connect-upstox-btn"));
+    expect(column).toContainElement(screen.getByTestId("refresh-broker-status-btn"));
+    expect(column).toContainElement(screen.getByTestId("market-ticker-toggle"));
+    expect(column).toContainElement(screen.getByTestId("density-control"));
+    // No fixed pixel width: the same column stacks naturally at 390px.
+    expect(column.className).not.toMatch(/(?:^|\s)w-\[\d+px\](?:\s|$)/);
+  });
+
   it("renders page title", async () => {
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
 

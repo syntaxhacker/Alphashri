@@ -66,6 +66,7 @@ function CorrelationHeader(props: { currentMarket: string; currentLookback: numb
         onChange={handleMarketChange}
         data={[{ value: "india", label: "India" }, { value: "america", label: "US" }]}
         data-testid="market-segment"
+        aria-label="Sector correlation market"
         className="h-[24px] text-ui-micro min-w-[84px]"
       />
       <Select
@@ -74,6 +75,7 @@ function CorrelationHeader(props: { currentMarket: string; currentLookback: numb
         onChange={handleLookbackChange}
         data={LOOKBACK_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
         data-testid="lookback-segment"
+        aria-label="Sector correlation lookback"
         className="h-[24px] text-ui-micro min-w-[64px]"
       />
       <Box className="flex-1" />

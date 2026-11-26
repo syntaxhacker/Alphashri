@@ -257,10 +257,44 @@ export function BacktestPage() {
           <Show
             when={hasResults()}
             fallback={
-              <Box className="h-full flex items-center justify-center" style={{ height: "100%", display: "flex", "align-items": "center", "justify-content": "center", "background-color": palette.BG }}>
-                <Text c="dimmed" size="sm">
-                  {state().isRunning ? "Running backtest…" : "Open Config, pick symbols and press Run to see the chart."}
-                </Text>
+              <Box
+                className="h-full min-h-0 w-full overflow-auto"
+                style={{ height: "100%", "min-height": 0, overflow: "auto", "background-color": palette.BG }}
+                data-testid="backtest-empty-state"
+              >
+                <Box
+                  className="mx-auto mt-6 max-w-md rounded-fin border border-fin-border bg-fin-surface p-4"
+                  style={{ "max-width": "420px", margin: "24px auto", padding: "16px", "border-radius": "6px" }}
+                >
+                  <Text size="sm" fw={700}>
+                    {state().isRunning ? "Running backtest…" : "Ready to backtest"}
+                  </Text>
+                  <Text size="xs" c="dimmed" mt={4}>
+                    {state().isRunning
+                      ? "The chart appears as soon as the run completes."
+                      : "Three quick steps before results appear here."}
+                  </Text>
+                  <Show when={!state().isRunning}>
+                    <ol
+                      className="mt-3 flex flex-col gap-2 m-0 p-0 list-none"
+                      data-testid="backtest-empty-steps"
+                      style={{ margin: "12px 0 0", padding: 0, display: "flex", "flex-direction": "column", gap: "8px", "list-style": "none" }}
+                    >
+                      <li className="flex items-center gap-2">
+                        <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-fin bg-fin-surface-alt text-ui-micro font-bold">1</span>
+                        <Text size="xs" span>Open Config</Text>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-fin bg-fin-surface-alt text-ui-micro font-bold">2</span>
+                        <Text size="xs" span>Pick symbols</Text>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-fin bg-fin-surface-alt text-ui-micro font-bold">3</span>
+                        <Text size="xs" span>Run</Text>
+                      </li>
+                    </ol>
+                  </Show>
+                </Box>
               </Box>
             }
           >

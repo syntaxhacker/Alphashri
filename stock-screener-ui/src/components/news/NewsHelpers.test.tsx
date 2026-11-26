@@ -3,7 +3,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import "@testing-library/jest-dom/vitest";
-import { NewsListContent } from "./NewsHelpers";
+import { NewsItemCard, NewsListContent } from "./NewsHelpers";
 import { TestWrapper } from "@/test-utils/renderWithProviders";
 import type { NewsItem } from "./news-types";
 
@@ -129,5 +129,32 @@ describe("NewsListContent source derivation", () => {
     expect(counter.calls).toBe(1);
     expect(screen.getByTestId("news-source-group-Economic Times")).toBeInTheDocument();
     expect(screen.queryByTestId("news-source-group-Reuters")).not.toBeInTheDocument();
+  });
+});
+
+describe("NewsItemCard headline", () => {
+  afterEach(() => cleanup());
+
+  it("clamps a long desk headline to two wrapping lines with an ellipsis", () => {
+    const headline = "Reliance Industries hits all-time high on strong Q3 results and guidance";
+    const { container } = render(
+      () => (
+        <NewsItemCard
+          item={{ ...sourceArticle("Moneycontrol"), headline }}
+          isUnread={false}
+          variant="desk"
+          onClick={() => {}}
+        />
+      ),
+      { wrapper: TestWrapper },
+    );
+
+    const headlineEl = container.querySelector(".news-item-headline") as HTMLElement;
+    expect(headlineEl).toBeInTheDocument();
+    const style = headlineEl.getAttribute("style") ?? "";
+    expect(style).toMatch(/-webkit-line-clamp:\s*2/);
+    expect(style).toContain("-webkit-box");
+    expect(style).not.toMatch(/white-space:\s*nowrap/);
+    expect(style).toMatch(/overflow-wrap:\s*anywhere/);
   });
 });

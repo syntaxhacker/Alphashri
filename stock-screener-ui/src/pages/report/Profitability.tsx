@@ -1,6 +1,7 @@
-import { createEffect, createSignal, onCleanup, Show } from "solid-js";
-import { Alert, Button, Select, Skeleton, Text, ToolbarRow } from "@/ui";
+import { createEffect, createMemo, createSignal, For, onCleanup, Show, type JSX } from "solid-js";
+import { Alert, Button, Select, Skeleton, Text, ToolbarRow, useMediaQuery } from "@/ui";
 import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
+import { CompactStat, CompactStatGrid } from "@/components/common/compact";
 import { NumCell, SymbolCell, TextCell } from "@/components/common/tableCells";
 import { fetchProfitability } from "../../api/profitability";
 import type {
@@ -9,6 +10,7 @@ import type {
   StrategyProfitRow,
 } from "../../types/profitability";
 import { formatCurrencyCompact, formatPercentage, formatTimeOnly } from "../../utils/ui-helpers";
+import { deriveProfitKpis, formatSignedMoney } from "./profitFormat";
 
 interface ProfitabilityPageProps {
   universe?: string;
@@ -37,11 +39,99 @@ function Money(props: { value: number; testId?: string }) {
       value={props.value}
       signed
       fw={700}
-      format={formatCurrencyCompact}
+      format={formatSignedMoney}
       testId={props.testId}
     />
   );
 }
+
+function Field(props: { label: string; value: JSX.Element }) {
+  return (
+    <div class="flex min-w-0 items-baseline justify-between gap-2">
+      <Text size="xs" c="dimmed" className="shrink-0">{props.label}</Text>
+      <span class="min-w-0 text-right">{props.value}</span>
+    </div>
+  );
+}
+
+function StrategyCard(props: { row: StrategyProfitRow }) {
+  const row = () => props.row;
+  return (
+    <div
+      data-testid={`profitability-strategy-card-${row().id}`}
+      class="flex flex-col gap-2 rounded-fin border border-fin-border bg-fin-surface p-2"
+    >
+      <div class="flex items-start justify-between gap-2">
+        <Text size="sm" fw={600} className="min-w-0 break-words">{row().label}</Text>
+        <div class="flex shrink-0 flex-col items-end">
+          <Text size="xs" c="dimmed">NET</Text>
+          <NumCell
+            value={row().net_pnl ?? 0}
+            signed
+            fw={700}
+            format={formatSignedMoney}
+            testId={`profit-card-net-${row().id}`}
+          />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-x-3 gap-y-1">
+        <Field label="Trades" value={<NumCell value={row().trades} />} />
+        <Field label="Win%" value={<NumCell value={(row().win_rate ?? 0) * 100} format={(v) => formatPercentage(v, 1, false)} />} />
+        <Field label="Exp/trade" value={<Money value={row().expectancy ?? 0} />} />
+        <Field label="PF" value={<NumCell value={row().profit_factor ?? 0} format={(v) => v.toFixed(2)} />} />
+        <Field label="MaxDD" value={<Money value={-(row().max_dd ?? 0)} />} />
+        <Field label="Hold(d)" value={<NumCell value={row().avg_hold_days ?? 0} format={(v) => v.toFixed(1)} />} />
+      </div>
+    </div>
+  );
+}
+
+function SignalCard(props: {
+  row: ProfitTopSignal;
+  index: number;
+  onOpenSymbol?: (symbol: string) => void;
+}) {
+  const row = () => props.row;
+  const open = () => props.onOpenSymbol?.(row().symbol);
+  return (
+    <div
+      data-testid={`profitability-signal-card-${row().symbol}-${props.index}`}
+      role={props.onOpenSymbol ? "button" : undefined}
+      tabIndex={props.onOpenSymbol ? 0 : undefined}
+      class="flex flex-col gap-2 rounded-fin border border-fin-border bg-fin-surface p-2"
+      onClick={props.onOpenSymbol ? open : undefined}
+      onKeyDown={props.onOpenSymbol ? (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          open();
+        }
+      } : undefined}
+    >
+      <div class="flex items-start justify-between gap-2">
+        <Text size="sm" fw={600} className="min-w-0 break-words">{row().symbol}</Text>
+        <div class="flex shrink-0 flex-col items-end">
+          <Text size="xs" c="dimmed">NET</Text>
+          <NumCell
+            value={row().net ?? 0}
+            signed
+            fw={700}
+            format={formatSignedMoney}
+            testId={`profit-card-net-${row().symbol}-${props.index}`}
+          />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-x-3 gap-y-1">
+        <Field label="Pattern" value={<Text size="xs" span>{row().strategy}</Text>} />
+        <Field label="Entry" value={<Text size="xs" span className="font-mono">{row().entry_date}</Text>} />
+        <Field label="In ₹" value={<NumCell value={row().entry} format={formatCurrencyCompact} />} />
+        <Field label="Out ₹" value={<NumCell value={row().exit} format={formatCurrencyCompact} />} />
+      </div>
+    </div>
+  );
+}
+
+const byNetDesc = <T extends { net_pnl?: number; net?: number }>(rows: readonly T[]): T[] =>
+  [...rows].sort((a, b) => (b.net_pnl ?? b.net ?? 0) - (a.net_pnl ?? a.net ?? 0));
 
 const STRATEGY_COLUMNS: TableColumnDef<StrategyProfitRow>[] = [
   {
@@ -177,6 +267,10 @@ export function ProfitabilityPage(props: ProfitabilityPageProps) {
   const [data, setData] = createSignal<ProfitabilityResponse | null>(null);
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
+  const isNarrow = useMediaQuery("(max-width: 899px)");
+  const kpis = createMemo(() => deriveProfitKpis(data()?.strategies ?? []));
+  const strategies = createMemo(() => byNetDesc(data()?.strategies ?? []));
+  const signals = createMemo(() => byNetDesc(data()?.top_signals ?? []));
 
   createEffect(() => {
     const prop = props.universe;
@@ -275,7 +369,7 @@ export function ProfitabilityPage(props: ProfitabilityPageProps) {
           Refresh
         </Button>
         <div class="flex-1 min-w-0" />
-        <Show when={data()?.as_of}>
+        <Show when={data()?.as_of && !isNarrow() ? data()?.as_of : undefined}>
           {(asOf) => (
             <Text size="xs" c="dimmed" truncate span data-testid="profitability-asof">
               as of {formatTimeOnly(asOf())}
@@ -284,6 +378,37 @@ export function ProfitabilityPage(props: ProfitabilityPageProps) {
           )}
         </Show>
       </ToolbarRow>
+
+      <div data-testid="profitability-kpi-rail" class="flex shrink-0 flex-col gap-1">
+        <Show when={isNarrow() && data()?.as_of ? data()?.as_of : undefined}>
+          {(asOf) => (
+            <Text size="xs" c="dimmed" span data-testid="profitability-asof-narrow">
+              as of {formatTimeOnly(asOf())}
+              {data()?.cached ? " (cached)" : null}
+            </Text>
+          )}
+        </Show>
+        <CompactStatGrid cols={3} data-testid="profitability-kpi-grid">
+          <CompactStat
+            testId="profit-kpi-net"
+            label="NET P&L"
+            value={<NumCell value={kpis().net} signed fw={700} format={formatSignedMoney} />}
+            dense
+          />
+          <CompactStat
+            testId="profit-kpi-pf"
+            label="PF"
+            value={<NumCell value={kpis().profitFactor} format={(v) => v.toFixed(2)} dash="—" />}
+            dense
+          />
+          <CompactStat
+            testId="profit-kpi-maxdd"
+            label="MAX DD"
+            value={<Money value={-kpis().maxDrawdown} />}
+            dense
+          />
+        </CompactStatGrid>
+      </div>
 
       <div
         data-testid="profitability-scroll-region"
@@ -321,31 +446,55 @@ export function ProfitabilityPage(props: ProfitabilityPageProps) {
                     Strategies by net P&amp;L
                   </Text>
                 </ToolbarRow>
-                <TanStackTable<StrategyProfitRow>
-                  data={data()?.strategies ?? []}
-                  columns={STRATEGY_COLUMNS}
-                  dataTestId="profitability-strategies"
-                  initialState={{ sorting: [{ id: "net_pnl", desc: true }] }}
-                  emptyMessage="No strategy data"
-                  dense
-                />
+                <Show
+                  when={isNarrow()}
+                  fallback={
+                    <TanStackTable<StrategyProfitRow>
+                      data={data()?.strategies ?? []}
+                      columns={STRATEGY_COLUMNS}
+                      dataTestId="profitability-strategies"
+                      initialState={{ sorting: [{ id: "net_pnl", desc: true }] }}
+                      emptyMessage="No strategy data"
+                      dense
+                    />
+                  }
+                >
+                  <div data-testid="profitability-strategy-cards" class="flex flex-col gap-2">
+                    <For each={strategies()}>
+                      {(row) => <StrategyCard row={row} />}
+                    </For>
+                  </div>
+                </Show>
                 <ToolbarRow gap={8} wrap={false}>
                   <Text size="sm" fw={700} span data-testid="profitability-signals-title">
                     Top signals
                   </Text>
                 </ToolbarRow>
-                <TanStackTable<ProfitTopSignal>
-                  data={data()?.top_signals ?? []}
-                  columns={SIGNAL_COLUMNS}
-                  dataTestId="profitability-signals"
-                  initialState={{ sorting: [{ id: "net", desc: true }] }}
-                  emptyMessage="No signals"
-                  dense
-                  onRowClick={
-                    props.onOpenSymbol ? (row) => props.onOpenSymbol?.(row.symbol) : undefined
+                <Show
+                  when={isNarrow()}
+                  fallback={
+                    <TanStackTable<ProfitTopSignal>
+                      data={data()?.top_signals ?? []}
+                      columns={SIGNAL_COLUMNS}
+                      dataTestId="profitability-signals"
+                      initialState={{ sorting: [{ id: "net", desc: true }] }}
+                      emptyMessage="No signals"
+                      dense
+                      onRowClick={
+                        props.onOpenSymbol ? (row) => props.onOpenSymbol?.(row.symbol) : undefined
+                      }
+                      getRowTestId={(row, index) => `profitability-signal-row-${row.symbol}-${index}`}
+                    />
                   }
-                  getRowTestId={(row, index) => `profitability-signal-row-${row.symbol}-${index}`}
-                />
+                >
+                  <div data-testid="profitability-signal-cards" class="flex flex-col gap-2">
+                    <For each={signals()}>
+                      {(row, index) => (
+                        <SignalCard row={row} index={index()} onOpenSymbol={props.onOpenSymbol} />
+                      )}
+                    </For>
+                  </div>
+                </Show>
               </Show>
             }
           >

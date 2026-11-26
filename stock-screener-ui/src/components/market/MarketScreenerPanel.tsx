@@ -54,6 +54,13 @@ import {
   type MarketSortKey,
 } from "./marketFilters";
 import { buildMarketColumns } from "./marketColumns";
+import {
+  applyMarketNarrowLayout,
+  MARKET_NARROW_PRIMARY_WIDTH,
+  MARKET_PRIMARY_IDS,
+  narrowMarketColumns,
+  useMarketNarrow,
+} from "./marketNarrowLayout";
 import { usePatternSummary } from "./usePatternSummary";
 import { alpha, PRIMARY } from "@/ui/palette";
 import { MarketFilterRail } from "./MarketFilterRail";
@@ -343,6 +350,8 @@ function SectionsView(props: {
   );
 }
 
+const NARROW_LOCKED_COLUMNS: string[] = [...MARKET_PRIMARY_IDS];
+
 const STALE_AFTER_MS = 15 * 60 * 1000;
 const STALE_CLOCK_MS = 30 * 1000;
 const UNIVERSE_OPTIONS = MARKET_UNIVERSES.map((o) => ({ value: o.value, label: o.label }));
@@ -432,9 +441,10 @@ function isSnapshotStale(asOf: string | null, nowMs: number): boolean {
 // but the 496-row grid must not re-reconcile until its `data` actually changes
 // (i.e. the deferred pass commits). Without this, the synchronous commit that
 // carries the chip/count text also re-renders every row.
-function MarketGrid(props: {
+export function MarketGrid(props: {
   data: MarketRow[];
   columns: ColumnDef<MarketRow>[];
+  narrow: boolean;
   hasActiveFilters: boolean;
   onResetFilters: () => void;
   onRowClick: (row: MarketRow) => void;
@@ -457,46 +467,78 @@ function MarketGrid(props: {
     return prefs().sorting.length > 0 ? prefs().sorting : DEFAULT_TABLE_SORTING;
   };
   return (
-    <TanStackTable
-      data={props.data}
-      columns={props.columns}
-      dataTestId="market-grid"
-      ariaLabel="Market screener results"
-      rowWindowSize={80}
-      fillContainer
-      dense
-      minTableWidth={1000}
-      enableSorting
-      stickyHeader
-      tableId="market.grid"
-      enableColumnControls
-      columnPrefs={{ order: prefs().order, hidden: prefs().hidden }}
-      onColumnPrefsChange={({ order, hidden }) => setColumnPrefs({ order, hidden })}
-      // SYMBOL identifies the row; hiding it would leave an anonymous row.
-      lockVisible={["symbol"]}
-      sorting={sorting()}
-      onSortingChange={setSorting}
-      onRowClick={props.onRowClick}
-      getRowStyle={props.getRowStyle}
-      getRowTestId={props.getRowTestId}
-      onVisibleRowsChange={props.onVisibleRowsChange}
-      onSortedRowsChange={props.onSortedRowsChange}
-      emptyMessage={
-        props.hasActiveFilters ? "No rows match the current filters" : "No market data"
-      }
-      emptyAction={
-        props.hasActiveFilters ? (
-          <Button
-            size="xs"
-            variant="subtle"
-            onClick={props.onResetFilters}
-            data-testid="market-empty-reset"
-          >
-            Reset filters
-          </Button>
-        ) : undefined
-      }
-    />
+    <Box
+      data-market-narrow={props.narrow ? "true" : undefined}
+      className="flex min-w-0 min-h-0 flex-1 flex-col"
+    >
+      <Show when={props.narrow}>
+        {/* The table scrolls under the identity column; pin it in both the
+            header and body so a row can always be named while scanning LTP. */}
+        <style>{`
+          [data-market-narrow="true"] th:first-of-type,
+          [data-market-narrow="true"] td:first-of-type {
+            position: sticky !important;
+            left: 0;
+          }
+          [data-market-narrow="true"] th:first-of-type {
+            z-index: 3;
+            background-color: var(--color-fin-surface-alt) !important;
+            box-shadow: 1px 0 0 0 var(--color-fin-border);
+          }
+          [data-market-narrow="true"] td:first-of-type {
+            z-index: 2;
+            background-color: var(--color-fin-surface) !important;
+            box-shadow: 1px 0 0 0 var(--color-fin-border);
+          }
+        `}</style>
+      </Show>
+      <TanStackTable
+        data={props.data}
+        columns={props.columns}
+        dataTestId="market-grid"
+        ariaLabel="Market screener results"
+        rowWindowSize={80}
+        fillContainer
+        dense
+        minTableWidth={props.narrow ? MARKET_NARROW_PRIMARY_WIDTH : 1000}
+        enableSorting
+        stickyHeader
+        tableId="market.grid"
+        enableColumnControls
+        // A saved wide order must not push NAME ahead of the narrow metrics,
+        // but an empty order still lets the default-hidden extras stay hidden.
+        columnPrefs={{
+          order: props.narrow ? [] : prefs().order,
+          hidden: prefs().hidden,
+        }}
+        onColumnPrefsChange={({ order, hidden }) => setColumnPrefs({ order, hidden })}
+        // SYMBOL identifies the row; the other three are the narrow reading
+        // order, so hiding one would leave the first screen unreadable.
+        lockVisible={props.narrow ? NARROW_LOCKED_COLUMNS : ["symbol"]}
+        sorting={sorting()}
+        onSortingChange={setSorting}
+        onRowClick={props.onRowClick}
+        getRowStyle={props.getRowStyle}
+        getRowTestId={props.getRowTestId}
+        onVisibleRowsChange={props.onVisibleRowsChange}
+        onSortedRowsChange={props.onSortedRowsChange}
+        emptyMessage={
+          props.hasActiveFilters ? "No rows match the current filters" : "No market data"
+        }
+        emptyAction={
+          props.hasActiveFilters ? (
+            <Button
+              size="xs"
+              variant="subtle"
+              onClick={props.onResetFilters}
+              data-testid="market-empty-reset"
+            >
+              Reset filters
+            </Button>
+          ) : undefined
+        }
+      />
+    </Box>
   );
 }
 
@@ -669,6 +711,8 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   };
   const isNarrow = useMediaQuery("(max-width: 1023px)");
   const isWide = useMediaQuery("(min-width: 1400px)");
+  // Sub-900 results lead with the four metrics a row cannot be read without.
+  const narrow = useMarketNarrow();
   // The Vis toolbar shares the treemap's narrow threshold: below it the helper
   // label is dropped and controls wrap into their own rows instead of colliding.
   const visToolbarCompact = useMediaQuery(`(max-width: ${NARROW_TREEMAP_MAX_WIDTH - 1}px)`);
@@ -777,7 +821,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   // the visible rows even though the column set had not changed.
   const hideSector = createMemo(() => filters().sectors.length > 0);
   const columns = createMemo(() => {
-    return buildMarketColumns({
+    const built = buildMarketColumns({
       onSymbolOpen: selectAndOpen,
       onChartOpen: openChart,
       // A pinned sector makes the column constant; it carries no information.
@@ -787,7 +831,9 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
       patternsFor: (symbol) => patterns.summary().get(symbol),
       // Drives the MCAP header's unit; cells still read each row's own currency.
       universe: universe(),
+      narrow: narrow(),
     });
+    return applyMarketNarrowLayout(narrowMarketColumns(built, narrow()), narrow());
   });
   const stale = createMemo(() => cachedStale() || isSnapshotStale(asOf(), nowMs()));
   const staleHint = () => {
@@ -1409,6 +1455,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                     <MarketGrid
                       data={filteredRows()}
                       columns={columns()}
+                      narrow={narrow()}
                       hasActiveFilters={hasActiveFilters()}
                       onResetFilters={resetFilters}
                       onRowClick={handleRowClick}

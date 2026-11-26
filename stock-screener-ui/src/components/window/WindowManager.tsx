@@ -5,6 +5,7 @@ import type { DockPanelContext, DockPanelSpec } from "../dock/types";
 import {
   DEFAULT_WINDOW_SIZE,
   fitAllToScreen,
+  isStackedCanvas,
   maximize,
   raiseToFront,
   restore,
@@ -47,6 +48,9 @@ export function WindowManager(props: WindowManagerProps) {
     const size = rawCanvas();
     return prev && prev.w === size.w && prev.h === size.h ? prev : size;
   }, rawCanvas());
+  // Narrow desks do not shrink the desktop geometry: the frames become a
+  // scrollable, single-column stack and each panel gets the full canvas width.
+  const stacked = createMemo(() => isStackedCanvas(canvas()));
   // One stable accessor for all panels, even if the host swaps its own later.
   const context: Accessor<DockPanelContext> = () => props.context();
   const [focusedId, setFocusedId] = createSignal<string | null>(null);
@@ -171,7 +175,12 @@ export function WindowManager(props: WindowManagerProps) {
         ref={(element) => (canvasEl = element)}
         data-testid="window-manager-canvas"
         data-locked={locked()}
-        class="relative min-h-0 w-full flex-1 overflow-hidden"
+        data-stacked={stacked() || undefined}
+        class={
+          stacked()
+            ? "flex min-h-0 w-full flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden p-2"
+            : "relative min-h-0 w-full flex-1 overflow-hidden"
+        }
       >
         <Index each={props.layout.windows}>
           {(win) => {
@@ -190,6 +199,7 @@ export function WindowManager(props: WindowManagerProps) {
                 context={context}
                 focused={focused()}
                 locked={locked()}
+                stacked={stacked()}
                 settingsSlot={slot()}
                 onSettingsChange={updateSettings}
                 onFocus={focus}

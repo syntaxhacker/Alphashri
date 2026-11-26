@@ -1,7 +1,9 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Box, Divider, Text } from "@/ui";
+import { cn } from "@/ui/cn";
 import type { JobDTO, PatternSummary } from "@/types/chartPatterns";
 import { formatAgeLong, formatNumberIN } from "@/utils/ui-helpers";
+import { usePatternsNarrow } from "./narrowLayout";
 
 export interface ScanStatsProps {
   summary: PatternSummary | null;
@@ -62,6 +64,7 @@ function buildCells(summary: PatternSummary | null, job?: JobDTO | null): StatCe
 }
 
 export function ScanStats(props: ScanStatsProps) {
+  const narrow = usePatternsNarrow();
   // `relativeAge` derives from `Date.now()`, so without a tick it freezes until
   // the next store update. Re-render every 60s to keep "x min ago" fresh.
   const [tick, setTick] = createSignal(0);
@@ -79,11 +82,19 @@ export function ScanStats(props: ScanStatsProps) {
     !!props.onSelect && (key === "confirmed" || key === "bull_bear");
 
   return (
-    <Box data-testid="patterns-stats" className="flex h-[30px] min-w-0 items-center gap-0 overflow-x-auto">
+    <Box
+      data-testid="patterns-stats"
+      className={cn(
+        "flex min-w-0 items-center gap-0",
+        // Wrapping keeps the as-of/last-candle stats legible on a phone instead
+        // of parking them past the end of a clipped strip.
+        narrow() ? "h-auto flex-wrap gap-x-3 gap-y-1 py-1" : "h-[30px] overflow-x-auto",
+      )}
+    >
       <For each={cells()}>
         {(cell, index) => (
           <Box className="flex shrink-0 items-baseline">
-            <Show when={index() > 0}>
+            <Show when={index() > 0 && !narrow()}>
               <Divider orientation="vertical" style={{ height: "12px" }} className="mx-2 self-center" />
             </Show>
             <Box

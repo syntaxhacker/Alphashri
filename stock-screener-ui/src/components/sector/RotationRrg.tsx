@@ -1,5 +1,6 @@
 import { For, Show, createMemo } from "solid-js";
 import { Box, Text, Tooltip } from "@/ui";
+import { useMediaQuery } from "@/ui/hooks";
 import { BG_COLOR, CREAM, ROTATION_IMPROVING, ROTATION_LAGGING, ROTATION_LEADING, ROTATION_WEAKENING, TEXT, TEXT_MUTED } from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import { formatPercentage } from "@/utils/ui-helpers";
@@ -11,6 +12,12 @@ const QUADRANT_COLORS: Record<RotationQuadrant, string> = {
   weakening: ROTATION_WEAKENING,
   lagging: ROTATION_LAGGING,
 };
+
+/** A group with an unknown quadrant must not crash the RRG paint path. */
+function safeTint(color: string | null | undefined, opacity: number): string {
+  const token = typeof color === "string" && color.length > 0 ? color : TEXT_MUTED;
+  return withAlpha(token, opacity);
+}
 
 const QUADRANT_LABELS: Record<RotationQuadrant, string> = {
   leading: "LEADING",
@@ -40,8 +47,8 @@ function extremity(row: RotationRow): number {
   return Math.abs(row.rs_pct - 50) + Math.abs(row.mom_pct - 50);
 }
 
-function shortName(name: string): string {
-  return name.length > 22 ? `${name.slice(0, 21)}…` : name;
+function shortName(name: string, max = 22): string {
+  return name.length > max ? `${name.slice(0, max - 1)}…` : name;
 }
 
 /** Dot radius grows with the group's member count (4–9px). */
@@ -69,6 +76,7 @@ export interface RotationRrgProps {
 }
 
 export function RotationRrg(props: RotationRrgProps) {
+  const compact = useMediaQuery("(max-width: 640px)", undefined, { noSsr: true });
   const rows = () => props.rows;
   const selectedId = () => props.selectedId;
   const xDomain = createMemo(() => domainOf(rows().map((r) => r.rs_pct)));
@@ -83,10 +91,12 @@ export function RotationRrg(props: RotationRrgProps) {
     const ids = new Set<string>();
     const sorted = [...rows()].sort((a, b) => extremity(b) - extremity(a));
     for (const row of sorted) {
-      if (ids.size >= MAX_LABELS && row.id !== selectedId()) continue;
+      if (ids.size >= (compact() ? 5 : MAX_LABELS) && row.id !== selectedId()) continue;
       const px = scale(row.rs_pct, xDomain());
       const py = scale(row.mom_pct, yDomain());
-      const collides = placed.some((p) => Math.abs(p.x - px) < 8 && Math.abs(p.y - py) < 7);
+      const minDx = compact() ? 26 : 14;
+      const minDy = compact() ? 13 : 10;
+      const collides = placed.some((p) => Math.abs(p.x - px) < minDx && Math.abs(p.y - py) < minDy);
       if (collides && row.id !== selectedId()) continue;
       placed.push({ x: px, y: py });
       ids.add(row.id);
@@ -150,18 +160,22 @@ export function RotationRrg(props: RotationRrgProps) {
                       top: `${top}%`,
                       width: `${w}%`,
                       height: `${h}%`,
-                      "background-color": withAlpha(color, 0.055),
+                      "background-color": safeTint(color, 0.055),
                     }}
                   >
                     <Box
                       component="span"
                       className="absolute font-bold tracking-[0.6px] whitespace-nowrap text-ui-micro"
                       style={{
-                        top: topSide ? "5px" : "auto",
-                        bottom: topSide ? "auto" : "5px",
-                        left: leftSide ? "6px" : "auto",
-                        right: leftSide ? "auto" : "6px",
-                        color: withAlpha(color, 0.95),
+                        // Both rows hug the 50/50 crosshair, never the outer
+                        // axis where the month and benchmark ticks live.
+                        top: topSide ? "auto" : "4px",
+                        bottom: topSide ? "4px" : "auto",
+                        left: leftSide ? "12px" : "auto",
+                        right: leftSide ? "auto" : "12px",
+                        // The tint is the area, never the ink: saturated
+                        // quadrant colours fail 4.5:1 on the tinted fill.
+                        color: TEXT,
                       }}
                     >
                       {QUADRANT_LABELS[key]}
@@ -287,10 +301,10 @@ export function RotationRrg(props: RotationRrgProps) {
                             height: `${r * 2}px`,
                             border: selected
                               ? `1.5px solid ${CREAM}`
-                              : `1px solid ${withAlpha(color, 0.9)}`,
-                            "background-color": withAlpha(color, selected ? 1 : 0.9),
+                              : `1px solid ${safeTint(color, 0.9)}`,
+                            "background-color": safeTint(color, selected ? 1 : 0.9),
                             "box-shadow": selected
-                              ? `0 0 0 3px ${withAlpha(color, 0.25)}`
+                              ? `0 0 0 3px ${safeTint(color, 0.25)}`
                               : "none",
                           }}
                         />
@@ -298,24 +312,24 @@ export function RotationRrg(props: RotationRrgProps) {
                     </Box>
                     <Show when={labelledIds().has(row.id)}>
                       <Box
-                        className="absolute pointer-events-none max-w-[132px] px-[2px] rounded-[0.5px]"
+                        className="absolute pointer-events-none max-w-[110px] sm:max-w-[132px] px-[4px] py-[1px] rounded-[0.5px]"
                         style={{
                           left: `${px}%`,
                           ...(below
-                            ? { top: `calc(${100 - py}% + ${r + 5}px)` }
-                            : { bottom: `calc(${py}% + ${r + 5}px)` }),
+                            ? { top: `calc(${100 - py}% + ${r + 8}px)` }
+                            : { bottom: `calc(${py}% + ${r + 8}px)` }),
                           transform: anchor,
                           "z-index": selected ? 5 : 2,
                           "background-color": selected
                             ? "background.paper"
-                            : withAlpha(BG_COLOR, 0.38),
+                            : safeTint(BG_COLOR, 0.38),
                         }}
                       >
                         <Text
                           className="text-ui-micro leading-[1.2] whitespace-nowrap overflow-hidden text-ellipsis"
                           style={{ "font-weight": selected ? 700 : 500, color: selected ? TEXT : TEXT_MUTED }}
                         >
-                          {shortName(row.name)}
+                          {shortName(row.name, compact() ? 12 : 22)}
                         </Text>
                       </Box>
                     </Show>
@@ -331,6 +345,30 @@ export function RotationRrg(props: RotationRrgProps) {
           </Show>
         </Box>
       </Box>
+
+      <Show when={rows().length > 0}>
+        <Box
+          data-testid="rotation-rrg-legend"
+          className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-2 pb-1 sm:hidden"
+        >
+          <For each={rows()}>
+            {(row) => (
+              <Box
+                data-testid={`rrg-legend-${row.id}`}
+                className="inline-flex min-w-0 items-center gap-1"
+              >
+                <Box
+                  className="size-[6px] shrink-0 rounded-full"
+                  style={{ "background-color": QUADRANT_COLORS[row.quadrant] ?? TEXT_MUTED }}
+                />
+                <Text className="text-ui-micro text-fin-text-muted">
+                  {shortName(row.name, 12)}
+                </Text>
+              </Box>
+            )}
+          </For>
+        </Box>
+      </Show>
 
       <Box
         className="flex items-center justify-between gap-2 px-2 pb-[6px] min-w-0"

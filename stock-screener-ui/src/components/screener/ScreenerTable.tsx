@@ -1,4 +1,4 @@
-import { createMemo, Show, type JSX } from "solid-js";
+import { createMemo, createSignal, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { Checkbox, ActionIcon, CopyButton, Tooltip, Badge, Group, Text, Box, Stack } from "@/ui";
 import { IconCopy, IconCheck } from "./icons";
 import { TanStackTable, type TableColumnDef } from "../common/TanStackTable";
@@ -10,6 +10,7 @@ import type { Stock } from "../../types";
 import { selectedSymbols, toggleSymbolSelection, clearSelectedSymbols, setSelectedSymbols, subscribeToSelection } from "../../state";
 import { useStoreSnapshot } from "../../hooks/useStoreSubscription";
 import { getValueColor, getScoreColor, formatNumber } from "../../utils/ui-helpers";
+import { narrowLabel, narrowMetricColumns, screenerColumnWidths, useScreenerNarrow } from "./narrowLayout";
 
 interface ScreenerTableProps {
   stocks: Stock[];
@@ -57,6 +58,30 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
     () => visibleSymbols().length > 0 && visibleSymbols().every((symbol) => selectedSymbolSet().has(symbol)),
   );
   const dock = useSymbolDock();
+  const narrow = useScreenerNarrow();
+
+  let scrollWrapperEl: HTMLDivElement | undefined;
+  const [availableWidth, setAvailableWidth] = createSignal(0);
+  onMount(() => {
+    const measure = () => setAvailableWidth(scrollWrapperEl?.clientWidth ?? 0);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    if (scrollWrapperEl) observer.observe(scrollWrapperEl);
+    onCleanup(() => observer.disconnect());
+  });
+
+  // Narrow keeps identity + primary metrics only; wide keeps every column but
+  // sizes them to the panel so the trailing SECTOR column cannot spill right.
+  const activeColumns = createMemo(() =>
+    narrow() ? narrowMetricColumns(props.columns) : props.columns,
+  );
+  const columnWidths = createMemo(() =>
+    screenerColumnWidths(activeColumns(), availableWidth() || (narrow() ? 358 : 1200), narrow()),
+  );
+  const tableMinWidth = createMemo(
+    () => [...columnWidths().values()].reduce((sum, width) => sum + width, 0),
+  );
 
   const handleSelectAll = () => {
     if (allVisibleSelected()) {
@@ -68,9 +93,6 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
 
   const testId = () => props.testId ?? "screener-table";
   const containerTestId = () => (testId() === "screener-table" ? undefined : testId());
-  // Every column keeps a scannable width; at 390px the extra width becomes a
-  // horizontal scroll instead of clipped numbers (selection stays first/left).
-  const scrollMinWidth = createMemo(() => Math.max(720, (props.columns.length + 1) * 112));
 
   const tanStackColumns = createMemo<TableColumnDef<Stock>[]>(() => {
     const cols: TableColumnDef<Stock>[] = [
@@ -90,6 +112,7 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
           </Box>
         ),
         enableSorting: false,
+        size: columnWidths().get("selection"),
         meta: { align: "center" },
         cell: ({ row }) => (
           <Box onClick={(e: MouseEvent) => e.stopPropagation()} className="flex justify-center">
@@ -107,7 +130,7 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
       },
     ];
 
-    for (const col of props.columns) {
+    for (const col of activeColumns()) {
       cols.push({
         id: col.key,
         header: () => {
@@ -115,7 +138,7 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
           return (
             <Group gap={1} wrap="nowrap" align="center">
               <Text fw={700} size="xs">
-                {col.label}
+                {narrow() ? narrowLabel(col) : col.label}
               </Text>
               <Show when={isSymbolColumn && visibleSymbols().length > 0}>
                 <CopyButton value={allSymbols()}>
@@ -141,6 +164,7 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
         },
         accessorKey: col.key as keyof Stock,
         enableSorting: col.sortable ?? true,
+        size: columnWidths().get(col.key),
         meta: {
           align:
             col.align ??
@@ -260,51 +284,74 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
     return cols;
   });
 
-    return (
-      <Box
-        data-testid={containerTestId()}
-        className="flex h-full min-h-0 w-full flex-1 flex-col rounded-sm"
-      >
-        <Stack spacing={0} className="flex min-h-0 w-full flex-1 flex-col">
+  return (
+    <Box
+      data-testid={containerTestId()}
+      data-screener-narrow={narrow() ? "true" : undefined}
+      className="flex h-full min-h-0 w-full flex-1 flex-col rounded-sm"
+    >
+      <Show when={narrow()}>
+        {/* Narrow rows keep their identity pinned even if a profile's width
+            estimate is off and the table still scrolls a few pixels. */}
+        <style>{`
+          [data-screener-narrow="true"] .paper-tanstack-cell,
+          [data-screener-narrow="true"] .paper-tanstack-header-cell {
+            padding: 2px 4px !important;
+            font-size: 11px !important;
+            letter-spacing: 0.02em !important;
+          }
+          [data-screener-narrow="true"] th:nth-child(2),
+          [data-screener-narrow="true"] td:nth-child(2) {
+            position: sticky !important;
+            left: 0;
+            z-index: 2;
+            background-color: var(--color-fin-surface-alt);
+          }
+        `}</style>
+      </Show>
+      <Stack spacing={0} className="flex min-h-0 w-full flex-1 flex-col">
+        {/* Kept in the DOM for existing selectors; the narrow layout no longer
+            scrolls sideways, so a detached cue would only waste a row. */}
+        <Box
+          className="hidden"
+          data-testid="screener-table-scroll-cue"
+        >
+          <Text size="sm" className="text-fin-text-muted">
+            Scroll sideways →
+          </Text>
+        </Box>
+        <Box
+          ref={(el: HTMLDivElement) => { scrollWrapperEl = el; }}
+          className="flex min-h-0 w-full flex-1 flex-col overflow-x-auto overflow-y-hidden overscroll-x-contain focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
+          data-testid="screener-table-scroll-wrapper"
+          data-scroll="horizontal"
+          role="region"
+          aria-label="Screener results table, scroll sideways for all columns"
+          tabIndex={0}
+          onKeyDown={onScreenerTableRegionKeyDown}
+        >
           <Box
-            className="flex w-full shrink-0 items-center justify-end px-3 py-1 sm:hidden"
-            data-testid="screener-table-scroll-cue"
+            className="flex min-h-0 w-full flex-1 flex-col"
+            style={{ "min-width": `${Math.max(narrow() ? 0 : 720, tableMinWidth())}px` }}
           >
-            <Text size="sm" className="text-fin-text-muted">
-              Scroll sideways →
-            </Text>
+            <TanStackTable<Stock>
+              data={props.stocks}
+              columns={tanStackColumns()}
+              dataTestId="screener-table"
+              enableSorting
+              sorting={prefs().sorting}
+              onSortingChange={setSorting}
+              stickyHeader
+              fillContainer
+              className="w-full min-w-0"
+              minTableWidth={tableMinWidth()}
+              getRowTestId={(row) => `stock-row-${row.symbol}`}
+              onRowClick={(row) => props.onSymbolClick(row.symbol)}
+              rowWindowSize={props.stocks.length > 120 ? 80 : undefined}
+            />
           </Box>
-          <Box
-            className="flex min-h-0 w-full flex-1 flex-col overflow-x-auto overflow-y-hidden overscroll-x-contain focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
-            data-testid="screener-table-scroll-wrapper"
-            data-scroll="horizontal"
-            role="region"
-            aria-label="Screener results table, scroll sideways for all columns"
-            tabIndex={0}
-            onKeyDown={onScreenerTableRegionKeyDown}
-          >
-            <Box
-              className="flex min-h-0 w-full flex-1 flex-col"
-              style={{ "min-width": `${scrollMinWidth()}px` }}
-            >
-              <TanStackTable<Stock>
-                data={props.stocks}
-                columns={tanStackColumns()}
-                dataTestId="screener-table"
-                enableSorting
-                sorting={prefs().sorting}
-                onSortingChange={setSorting}
-                stickyHeader
-                fillContainer
-                className="w-full min-w-0"
-                minTableWidth={scrollMinWidth()}
-                getRowTestId={(row) => `stock-row-${row.symbol}`}
-                onRowClick={(row) => props.onSymbolClick(row.symbol)}
-                rowWindowSize={props.stocks.length > 120 ? 80 : undefined}
-              />
-            </Box>
-          </Box>
-        </Stack>
-      </Box>
+        </Box>
+      </Stack>
+    </Box>
   );
 }

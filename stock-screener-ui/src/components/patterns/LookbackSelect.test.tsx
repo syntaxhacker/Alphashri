@@ -23,6 +23,22 @@ describe("LookbackSelect", () => {
     }
   });
 
+  test("keeps a full-width BARS control on a phone", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width"),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    try {
+      render(() => <LookbackSelect value={null} onChange={vi.fn()} />);
+      const root = screen.getByTestId("patterns-lookback-select");
+      expect(root.getAttribute("style")).toContain("128px");
+      expect(within(root).getByRole("combobox")).toHaveAttribute("aria-label", "Bars history");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   test("selecting 250 calls onChange(250)", async () => {
     const onChange = vi.fn();
     render(() => <LookbackSelect value={null} onChange={onChange} />);

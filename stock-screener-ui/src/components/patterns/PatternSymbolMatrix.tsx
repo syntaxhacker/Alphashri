@@ -361,7 +361,14 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
       ...tfColumns,
       {
         id: "score",
-        header: "Score",
+        header: () => (
+          <abbr
+            title="Pattern-fit confidence (geometry fit, R², volume) — not breakout conviction."
+            className="cursor-help no-underline"
+          >
+            Score
+          </abbr>
+        ),
         accessorFn: (row) => row.best?.confidence ?? null,
         size: 66,
         meta: { align: "right" },
@@ -371,7 +378,14 @@ export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
       },
       {
         id: "pos",
-        header: "Pos %",
+        header: () => (
+          <abbr
+            title="Position within the pattern's price range, 0% at the low and 100% at the high."
+            className="cursor-help no-underline"
+          >
+            Pos %
+          </abbr>
+        ),
         accessorFn: (row) => row.best?.range_pos ?? null,
         size: 64,
         meta: { align: "right" },

@@ -156,9 +156,13 @@ describe("Tooltip a11y contracts", () => {
     await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
   });
 
-  test("keeps the aria-label fallback when the child has no accessible name", () => {
+  test("names the wrapper through a valid role instead of a role-less span", () => {
     const { wrapper } = setup();
+    // axe: aria-prohibited-attr. A generic <span> cannot own an aria-label;
+    // the label survives only on a role that permits author naming.
+    expect(wrapper()).toHaveAttribute("role", "group");
     expect(wrapper()).toHaveAttribute("aria-label", "Helpful hint");
+    expect(screen.getByRole("button", { name: "Trigger" })).toBeInTheDocument();
   });
 
   test("does not duplicate an aria-label already on the child", () => {
@@ -168,8 +172,26 @@ describe("Tooltip a11y contracts", () => {
       </Tooltip>
     ));
 
-    expect(screen.getByTestId("named-wrapper")).not.toHaveAttribute("aria-label");
+    const wrapper = screen.getByTestId("named-wrapper");
+    expect(wrapper).not.toHaveAttribute("aria-label");
+    expect(wrapper).not.toHaveAttribute("role");
     expect(screen.getByRole("button", { name: "Custom name" })).toBeInTheDocument();
+  });
+
+  test("never leaves aria-label on a role-less span", () => {
+    const named = setup();
+    expect(named.wrapper().hasAttribute("aria-label")).toBe(true);
+    expect(named.wrapper().getAttribute("role")).not.toBeNull();
+
+    render(() => (
+      <Tooltip label="Helpful hint" data-testid="plain-name">
+        <button type="button" aria-label="Custom name">Trigger</button>
+      </Tooltip>
+    ));
+    const plain = screen.getByTestId("plain-name-wrapper");
+    expect(plain.tagName).toBe("SPAN");
+    expect(plain).not.toHaveAttribute("aria-label");
+    expect(plain).not.toHaveAttribute("role");
   });
 
   test("does not duplicate an aria-labelledby already on the child", () => {
@@ -201,11 +223,10 @@ describe("Tooltip a11y contracts", () => {
 });
 
 describe("Tooltip opt-in tab stop", () => {
-  test("does not add a tab stop or wrapper role by default", () => {
+  test("does not add a tab stop by default", () => {
     const { wrapper, trigger } = setup();
 
     expect(wrapper()).not.toHaveAttribute("tabindex");
-    expect(wrapper()).not.toHaveAttribute("role");
     // Only the real button is in the tab order — no duplicate stop around it.
     expect(screen.getAllByRole("button")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Trigger" })).toBe(trigger());
@@ -215,7 +236,7 @@ describe("Tooltip opt-in tab stop", () => {
     const { wrapper } = setupPlain();
 
     expect(wrapper()).toHaveAttribute("tabindex", "0");
-    expect(wrapper()).not.toHaveAttribute("role");
+    expect(wrapper()).toHaveAttribute("role", "group");
   });
 
   test("never exposes a false button role on a focusable wrapper", () => {
@@ -223,12 +244,13 @@ describe("Tooltip opt-in tab stop", () => {
 
     expect(screen.queryByRole("button", { name: "Helpful hint" })).toBeNull();
     expect(screen.queryAllByRole("button")).toHaveLength(0);
-    expect(wrapper()).not.toHaveAttribute("role");
+    expect(wrapper().getAttribute("role")).toBe("group");
   });
 
   test("names the focusable wrapper and gives it a visible focus ring", () => {
     const { wrapper } = setupPlain();
 
+    expect(wrapper()).toHaveAttribute("role", "group");
     expect(wrapper()).toHaveAttribute("aria-label", "Helpful hint");
     expect(wrapper().className).toContain("focus:ring-fin-text");
     expect(wrapper().className).toContain("focus-visible:ring-2");

@@ -210,12 +210,14 @@ describe("GroupPerformancePanel", () => {
     expect(screen.getByTestId("group-performance-error")).toHaveTextContent("boom");
   });
 
-  it("shows an empty state when there are no groups", async () => {
+  it("folds an empty rail to a compact toggle and exposes the empty state on expand", async () => {
     mockFetchSectorGroups.mockResolvedValue(payload([]));
     renderWithProvider(<GroupPerformancePanel />);
     await waitFor(() => {
-      expect(screen.getByTestId("group-performance-empty")).toBeInTheDocument();
+      expect(screen.getByTestId("group-performance-panel")).toHaveAttribute("data-collapsed", "true");
     });
+    fireEvent.click(screen.getByTestId("group-performance-toggle"));
+    expect(screen.getByTestId("group-performance-empty")).toBeInTheDocument();
   });
 
   it("renders a dash and a zero-width bar for a non-finite change", async () => {

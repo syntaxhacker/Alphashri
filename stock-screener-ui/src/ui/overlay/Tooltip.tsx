@@ -64,6 +64,9 @@ export function Tooltip(props: TooltipProps) {
     "style",
     "id",
     "data-testid",
+    // Swallowed: a generic wrapper may only be named through a valid role.
+    "role",
+    "aria-label",
     "onMouseEnter",
     "onMouseLeave",
     "onFocus",
@@ -159,10 +162,11 @@ export function Tooltip(props: TooltipProps) {
 
   if (known.disabled) return <>{known.children}</>;
 
-  // A string label stays the wrapper's accessible-name fallback; while open,
-  // the same copy is also exposed as the tooltip description via aria-describedby.
-  // A child that already carries its own accessible name keeps it, so the name
-  // is never announced twice.
+  // A string label is only ever placed on a wrapper that has a role which
+  // permits naming. A bare <span> cannot carry aria-label (axe:
+  // aria-prohibited-attr), and a child that already carries its own accessible
+  // name keeps it so the name is never announced twice. While open, the same
+  // copy is also exposed as the tooltip description via aria-describedby.
   const childEl = known.children as any;
   const childProps = childEl != null && typeof childEl === "object" && "props" in childEl
     ? (childEl.props as { "aria-label"?: string; "aria-labelledby"?: string })
@@ -184,7 +188,7 @@ export function Tooltip(props: TooltipProps) {
             el.hasAttribute("title"))),
     );
   });
-  const ariaLabel = () =>
+  const wrapperLabel = () =>
     typeof known.label === "string" && !childHasName() ? known.label : undefined;
 
   /**
@@ -260,7 +264,8 @@ export function Tooltip(props: TooltipProps) {
       }}
       id={known.id}
       data-testid={known["data-testid"] ? `${known["data-testid"]}-wrapper` : undefined}
-      aria-label={ariaLabel()}
+      role={wrapperLabel() ? "group" : undefined}
+      aria-label={wrapperLabel()}
       className={cn("inline-flex relative", focusRingClass(), known.className)}
       style={known.style}
       onMouseEnter={(e) => {

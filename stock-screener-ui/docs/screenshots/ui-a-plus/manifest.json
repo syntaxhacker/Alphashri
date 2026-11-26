@@ -1,0 +1,596 @@
+{
+  "feature": "ui-a-plus",
+  "route": "/",
+  "head": "68eef22c0a336736e8adb440257f656c36d1157f",
+  "viewports": [
+    1600,
+    390
+  ],
+  "states": [
+    {
+      "id": "home",
+      "covers": "Window-manager desk with the NIFTY options chain and market heatmap.",
+      "files": {
+        "390": "home-390.png",
+        "1600": "home-1600.png"
+      }
+    },
+    {
+      "id": "screener",
+      "covers": "Market screener with breadth strip, filter sidebar and dense results table.",
+      "files": {
+        "390": "screener-390.png",
+        "1600": "screener-1600.png"
+      }
+    },
+    {
+      "id": "news",
+      "covers": "Market-intelligence reading desk: three sourced stories grouped by outlet with sentiment scores and an unselected reader pane.",
+      "files": {
+        "390": "news-390.png",
+        "1600": "news-1600.png"
+      },
+      "stateNote": "Replaced with the settled capture from .agent-artifacts/ui-a-plus/captures/news-{1600,390}.png: 3 stories across 3 sources (MONEYCONTROL 8/10 BULLISH, ECONOMICTIMES 7/10 BEARISH, LIVEMINT 5/10 NEUTRAL)."
+    },
+    {
+      "id": "backtest",
+      "covers": "Backtest workspace with config rail and three-step empty results state.",
+      "files": {
+        "390": "backtest-390.png",
+        "1600": "backtest-1600.png"
+      }
+    },
+    {
+      "id": "paper",
+      "covers": "Paper-trading positions grouped by bot with watchlist scan panel.",
+      "files": {
+        "390": "paper-390.png",
+        "1600": "paper-1600.png"
+      }
+    },
+    {
+      "id": "strategy-runner",
+      "covers": "Side-by-side strategy comparison runner in its empty state.",
+      "files": {
+        "390": "strategy-runner-390.png",
+        "1600": "strategy-runner-1600.png"
+      }
+    },
+    {
+      "id": "sector",
+      "covers": "Sector dashboard overview: top sector, breadth, MOVE table, alerts, movers and gainers; 1600 is the route capture, 390 is the canonical overview capture.",
+      "files": {
+        "390": "sector-390.png",
+        "1600": "sector-1600.png"
+      },
+      "stateNote": "sector-390.png replaced with a byte copy of canonical docs/screenshots/sector-single-page/overview-390.png; sector-1600.png retained because canonical overview-1600.png still matches its manifest hash."
+    },
+    {
+      "id": "patterns",
+      "covers": "Chart-pattern scan results with scores and bullish/bearish pattern chips.",
+      "files": {
+        "390": "patterns-390.png",
+        "1600": "patterns-1600.png"
+      }
+    },
+    {
+      "id": "strategies",
+      "covers": "Strategy tree and performance management table with editable risk fields.",
+      "files": {
+        "390": "strategies-390.png",
+        "1600": "strategies-1600.png"
+      }
+    },
+    {
+      "id": "bots",
+      "covers": "Configured bots with live status, strategy chips and execution controls.",
+      "files": {
+        "390": "bots-390.png",
+        "1600": "bots-1600.png"
+      }
+    },
+    {
+      "id": "report-index",
+      "covers": "NIFTY index report desk with candle reconstruction, OI ladder, OI heatmap and walls (NEAR CW 22,450 / PW 22,350); chain header shows CE SIG IBEAR \u00b7 PE SIG IBULL.",
+      "files": {
+        "390": "report-index-390.png",
+        "1600": "report-index-1600.png"
+      },
+      "stateNote": "Replaced with byte copies of the canonical docs/screenshots/app/report-{1600,390}.png captures."
+    },
+    {
+      "id": "report-profit",
+      "covers": "Pattern-profitability report with summary strip and per-strategy table.",
+      "files": {
+        "390": "report-profit-390.png",
+        "1600": "report-profit-1600.png"
+      }
+    },
+    {
+      "id": "settings",
+      "covers": "Broker connections and display preferences.",
+      "files": {
+        "390": "settings-390.png",
+        "1600": "settings-1600.png"
+      }
+    },
+    {
+      "id": "admin",
+      "covers": "Honest access-denied screen for the non-admin QA user.",
+      "files": {
+        "390": "admin-390.png",
+        "1600": "admin-1600.png"
+      }
+    },
+    {
+      "id": "chart-RELIANCE",
+      "covers": "RELIANCE 1D candlestick chart with volume and pattern rail.",
+      "files": {
+        "390": "chart-RELIANCE-390.png",
+        "1600": "chart-RELIANCE-1600.png"
+      }
+    },
+    {
+      "id": "state-home-loading",
+      "covers": "Market heatmap skeleton while the snapshot request is delayed.",
+      "route": "/home",
+      "files": {
+        "390": "state-home-loading-390.png",
+        "1600": "state-home-loading-1600.png"
+      },
+      "state": "loading",
+      "screen": "home",
+      "stateConfirmed": true,
+      "stateNote": "Honest loading text confirmed in both viewports: market-heatmap-loading skeleton."
+    },
+    {
+      "id": "state-home-error",
+      "covers": "Market heatmap error with Retry after a forced HTTP 500.",
+      "route": "/home",
+      "files": {
+        "390": "state-home-error-390.png",
+        "1600": "state-home-error-1600.png"
+      },
+      "state": "error",
+      "screen": "home"
+    },
+    {
+      "id": "state-home-empty",
+      "covers": "Market heatmap empty state with a zero-row snapshot payload.",
+      "route": "/home",
+      "files": {
+        "390": "state-home-empty-390.png",
+        "1600": "state-home-empty-1600.png"
+      },
+      "state": "empty",
+      "screen": "home"
+    },
+    {
+      "id": "state-patterns-loading",
+      "covers": "Pattern scan skeleton grid while results are pending.",
+      "route": "/patterns?avgvol=150&universe=nifty50&family=reversal",
+      "files": {
+        "390": "state-patterns-loading-390.png",
+        "1600": "state-patterns-loading-1600.png"
+      },
+      "state": "loading",
+      "screen": "patterns"
+    },
+    {
+      "id": "state-patterns-error",
+      "covers": "Pattern scan error alert after a forced failure.",
+      "route": "/patterns?family=reversal",
+      "files": {
+        "390": "state-patterns-error-390.png",
+        "1600": "state-patterns-error-1600.png"
+      },
+      "state": "error",
+      "screen": "patterns"
+    },
+    {
+      "id": "state-patterns-empty",
+      "covers": "Pattern scan empty state with relax-filter chips.",
+      "route": "/patterns?family=reversal",
+      "files": {
+        "390": "state-patterns-empty-390.png",
+        "1600": "state-patterns-empty-1600.png"
+      },
+      "state": "empty",
+      "screen": "patterns"
+    },
+    {
+      "id": "state-report-index-loading",
+      "covers": "NIFTY report loading indicator before the snapshot arrives.",
+      "route": "/report/index",
+      "files": {
+        "390": "state-report-index-loading-390.png",
+        "1600": "state-report-index-loading-1600.png"
+      },
+      "state": "loading",
+      "screen": "report-index"
+    },
+    {
+      "id": "state-report-index-error",
+      "covers": "Page-level ErrorAlert with Retry after a forced failure.",
+      "route": "/report/index",
+      "files": {
+        "390": "state-report-index-error-390.png",
+        "1600": "state-report-index-error-1600.png"
+      },
+      "state": "error",
+      "screen": "report-index"
+    },
+    {
+      "id": "state-report-index-empty",
+      "covers": "Empty chain window and report content with empty collections.",
+      "route": "/report/index",
+      "files": {
+        "390": "state-report-index-empty-390.png",
+        "1600": "state-report-index-empty-1600.png"
+      },
+      "state": "empty",
+      "screen": "report-index"
+    },
+    {
+      "id": "state-screener-loading",
+      "covers": "Screener loading skeleton while the market scan is pending.",
+      "route": "/screener",
+      "files": {
+        "390": "state-screener-loading-390.png",
+        "1600": "state-screener-loading-1600.png"
+      },
+      "state": "loading",
+      "screen": "screener",
+      "stateConfirmed": true,
+      "stateNote": "Honest loading text confirmed in both viewports: screener-loading skeleton."
+    },
+    {
+      "id": "state-screener-error",
+      "covers": "Screener error container with Retry after a forced failure.",
+      "route": "/screener",
+      "files": {
+        "390": "state-screener-error-390.png",
+        "1600": "state-screener-error-1600.png"
+      },
+      "state": "error",
+      "screen": "screener"
+    },
+    {
+      "id": "state-screener-empty",
+      "covers": "Screener empty state for an empty result set.",
+      "route": "/screener",
+      "files": {
+        "390": "state-screener-empty-390.png",
+        "1600": "state-screener-empty-1600.png"
+      },
+      "state": "empty",
+      "screen": "screener"
+    },
+    {
+      "id": "state-sector-loading",
+      "covers": "Sector LoadingPanel while overview data is pending.",
+      "route": "/sector",
+      "files": {
+        "390": "state-sector-loading-390.png",
+        "1600": "state-sector-loading-1600.png"
+      },
+      "state": "loading",
+      "screen": "sector"
+    },
+    {
+      "id": "state-sector-error",
+      "covers": "Sector ErrorPanel with Retry after a forced failure.",
+      "route": "/sector",
+      "files": {
+        "390": "state-sector-error-390.png",
+        "1600": "state-sector-error-1600.png"
+      },
+      "state": "error",
+      "screen": "sector"
+    },
+    {
+      "id": "state-sector-empty",
+      "covers": "Sector EmptyPanel for an empty sector payload.",
+      "route": "/sector",
+      "files": {
+        "390": "state-sector-empty-390.png",
+        "1600": "state-sector-empty-1600.png"
+      },
+      "state": "empty",
+      "screen": "sector"
+    }
+  ],
+  "sha256": {
+    "admin-1600.png": "0359e3ef6746f4df6d4f27df0bb6e8a14ebd2d2a69f3dba4c695087803902c14",
+    "admin-390.png": "3e6c23a6aee25d31abfed10c70c43a9c420670ee98ae2ca902071c684e563f0f",
+    "backtest-1600.png": "b2040f57d1f826e1ca8bed443bb06da4fd7eef148354a2512084553c2bbe41c2",
+    "backtest-390.png": "e0e85667cab40556159b5c7579ce0cf46a6aa645aa281279a2a7ae847902d088",
+    "bots-1600.png": "f4f7428e95c306fdd0d5c41435d3554138d33d24382027bcf26227a9c98ca4a9",
+    "bots-390.png": "7e9d81b83b7c553f1136cb1153a0594820cd12928444d8f59d5ed9539d6e36de",
+    "chart-RELIANCE-1600.png": "f17645dd67157dab18f0e461aa8da1b3d203b76a223aa552185646f6e8ac718e",
+    "chart-RELIANCE-390.png": "5638d2192d111a7bab68e6946b229f08f60620adfc61b2896d4a5312dfbd4a69",
+    "home-1600.png": "9676ac16846dd8b5a52581ab475f995d5fee3d9f20943b4e2e341f93a7d87014",
+    "home-390.png": "ab362a8371f03f776159ede79e6ac1aff43395619d3fac4f945edb5f467d6879",
+    "news-1600.png": "3a8216b2e575bcf24436d28dc31f64cfb3011a6eb03d792708cdc949c3dfa52a",
+    "news-390.png": "cab5a52ac6211ce2a5ce54526706c42bf063515e1f388349ed72b8e7091799ce",
+    "paper-1600.png": "ec99de5e0c58f3ff2f3cb43ca63f14b8ab281f7f19eab393dbea320fee7187c0",
+    "paper-390.png": "0075bf9461e95b2676cbaaf8ff0eb106f3dda9b641cc5b83cf9499986f0f0911",
+    "patterns-1600.png": "ff2bb377690c98db5276da82341c1eda11d211cfded9b257b4aadef2887b5c83",
+    "patterns-390.png": "fd17446bbb14969a27b0cd80b3e0296668bfe83efe27dc49ece33753ff2e3570",
+    "report-index-1600.png": "6e4fe4e28c5a731f3a103eb760bf55c7296b0ea129014c715b5a0c966999a367",
+    "report-index-390.png": "32124c8b42dc27dde70ddf42966b39633ec16f15dfdc14be2284423d5d6dad51",
+    "report-profit-1600.png": "c6b4b69e9d1b18e02ab7d19736e6bc866b00c5b13961001dd4bca196f544f374",
+    "report-profit-390.png": "96441c2d2ec5f4482015f6f7dc64fa5be0b47105ab50be8e6f34e1f4daaa8f81",
+    "screener-1600.png": "50cb6c46bf6eb50d0163de1aa9d026fb6bc5d14d1b0cdea33c2e0c8e6fd22834",
+    "screener-390.png": "7b766b43a904e79717f78246c973b10e76be9ef4f2a8bc96ebb0dffddd01f34a",
+    "sector-1600.png": "9e5bfc6380aaacdb05cd3668f524284b4eba01614da92ac52f942107c60ea523",
+    "sector-390.png": "bb8214e248ebd0d7c9f9ffbfc0341f0347c6e80a61a56e3d70ac060194ab48b4",
+    "settings-1600.png": "29d07a60ffba8e43331368617c54a66e2d34ee15b53712a5172bf4d2daf141cf",
+    "settings-390.png": "f2f81184bac53d7c7031612a0d8f39852ce6d17b5f5bd19c046a8b3e2938c1c1",
+    "state-home-empty-1600.png": "4b488472add3d3be0af774eb376237d4b4135d86c3eca9ebeaa84050bd857f28",
+    "state-home-empty-390.png": "4233f7c2b0e19c4778aca154a7e261debb7588c77603440e9c1188135316a67f",
+    "state-home-error-1600.png": "a4d48f9e249799e036efd728bb30310b5659a60e0ad0d48e86326294945ba592",
+    "state-home-error-390.png": "d0f91344ad5ae9d1a02b00aa1ab29db3fa4e5ec75a287f3450f60d9013a7c200",
+    "state-home-loading-1600.png": "371f339f33a724a4e9cf30d6902f4383d6364e0e90239216765409d257d36342",
+    "state-home-loading-390.png": "ff2b00d7fc87a9615a3b9e55aa40bda86a593819d7669a610c6e1abe3ef24f65",
+    "state-patterns-empty-1600.png": "dd421decbedd92ae88ae90e77d8d8bc8fd1f031fb5f9f078ad74cd82b8917065",
+    "state-patterns-empty-390.png": "796767516fe18f37faf7ad8736ca947523806dfa7937ad128d09b19b14e4d157",
+    "state-patterns-error-1600.png": "d4c51db6df47c545852c8bedce69032f7c6f354fa1e515759bcbf485ca622169",
+    "state-patterns-error-390.png": "78a479b628fd79ba80196fbd8c8c6e846cbf3657a05f78b74f010aefd55fb693",
+    "state-patterns-loading-1600.png": "c0571c40405e13b7db3b079089bfc1b8eb3d15e185f9a5b4733a489832b67033",
+    "state-patterns-loading-390.png": "4425e4cdaaa87e6b90e52c424aec09a44ae84a153375984576c134669908125a",
+    "state-report-index-empty-1600.png": "ee1f22acf86edcf62a455e7f47aff0752d2e6a0c64d8eea4fc9d71387ce5aa01",
+    "state-report-index-empty-390.png": "26e42eb8643ff3b4d14af42bbe14fbdcd148b54ce887b2dea081e548a500f38f",
+    "state-report-index-error-1600.png": "714fe45bd826565a6b8c52591e4e39cb76eaa50188ee955a0e7fd5455b2caf47",
+    "state-report-index-error-390.png": "e4b816f77f67a9a39aa71615ac39d3c5704cccdf7db772853f7b1cff977841ef",
+    "state-report-index-loading-1600.png": "92fd5d91ece883813e8e8199e26b8d036b759c8fd09af843b818d1b3234c67b5",
+    "state-report-index-loading-390.png": "9c49057b5e2761d3ff5e1895138de10d9bb7f643287d1fed9599b6fad681f30e",
+    "state-screener-empty-1600.png": "5cb6499bc7ca4928019aabd0dafec6ad406b196b3240e9895dd10ffa5509218b",
+    "state-screener-empty-390.png": "e8883c098d53eecefc4a42ebd63fdb479d47cce026a4fa60267a2b9fdae17a88",
+    "state-screener-error-1600.png": "783977b4d64d9bc493b86edad29d359d2e0ae1c2d5522e0b4576deadeb7b0039",
+    "state-screener-error-390.png": "9eb3273eae628dfe33fcfaaf545cb32d614e9f30e90432b32fae4f4aa37f80e8",
+    "state-screener-loading-1600.png": "caaa8370804ebf814d714467d5488b3cce843c5a0d80d11d3be2fabeeb049def",
+    "state-screener-loading-390.png": "b2e6cc1ae2c8c4ebc9c539992854e35418d72ff8b3dc8be721ea26e8b23397ae",
+    "state-sector-empty-1600.png": "e883e8e5c867e6ca312efafc46d9317411af5e523bc2e8de0798dc1aac93c401",
+    "state-sector-empty-390.png": "4b859f0ea4302b8e1f1897044ecfb73562b4e618bdc7e5c6da2c3233d2c6ac43",
+    "state-sector-error-1600.png": "c0607587aac6b1d5537a4e910a8adda255f8cfa99f0d3b527af87987f6e754cd",
+    "state-sector-error-390.png": "0b0b3eec3c4ee91f5594802063cccef0716e1766bb362151bcd6d67bff47e599",
+    "state-sector-loading-1600.png": "86e6a9142aa112131f88c81280222e09dc23f1a8012fb852245b34069f8b2571",
+    "state-sector-loading-390.png": "7f82ab92d6b9a0046dedb550e2b08fadce8b2f8c89341fd10e696bd517cc7e5d",
+    "strategies-1600.png": "2a0f433ed0afef3498bb5be7d397f4726202305cfe82a7025e9a447568e82b93",
+    "strategies-390.png": "9b0b3d5590d72c26210923c2dfd469d787a5b3095ac58500987a292a9d6e2b77",
+    "strategy-runner-1600.png": "45a2e6668e7c26b83fbc5b54999ec8663ca5afa955d10a202a66936408da677e",
+    "strategy-runner-390.png": "b05d7770910811633c474137048c579ed686d3bacf04fce789db75dea9453b15"
+  },
+  "sector_sections": [
+    {
+      "path": "docs/screenshots/sector-single-page/overview-1600.png",
+      "rel": "../sector-single-page/overview-1600.png",
+      "width": 1600
+    },
+    {
+      "path": "docs/screenshots/sector-single-page/rotation-1600.png",
+      "rel": "../sector-single-page/rotation-1600.png",
+      "width": 1600
+    },
+    {
+      "path": "docs/screenshots/sector-single-page/correlation-1600.png",
+      "rel": "../sector-single-page/correlation-1600.png",
+      "width": 1600
+    },
+    {
+      "path": "docs/screenshots/sector-single-page/history-1600.png",
+      "rel": "../sector-single-page/history-1600.png",
+      "width": 1600
+    },
+    {
+      "path": "docs/screenshots/sector-single-page/overview-390.png",
+      "rel": "../sector-single-page/overview-390.png",
+      "width": 390
+    },
+    {
+      "path": "docs/screenshots/sector-single-page/rotation-390.png",
+      "rel": "../sector-single-page/rotation-390.png",
+      "width": 390
+    },
+    {
+      "path": "docs/screenshots/sector-single-page/correlation-390.png",
+      "rel": "../sector-single-page/correlation-390.png",
+      "width": 390
+    },
+    {
+      "path": "docs/screenshots/sector-single-page/history-390.png",
+      "rel": "../sector-single-page/history-390.png",
+      "width": 390
+    }
+  ],
+  "canonical_app": [
+    {
+      "path": "docs/screenshots/app/home-1600.png",
+      "rel": "../app/home-1600.png",
+      "width": 1600
+    },
+    {
+      "path": "docs/screenshots/app/report-1600.png",
+      "rel": "../app/report-1600.png",
+      "width": 1600
+    },
+    {
+      "path": "docs/screenshots/app/sector-1600.png",
+      "rel": "../app/sector-1600.png",
+      "width": 1600
+    },
+    {
+      "path": "docs/screenshots/app/home-390.png",
+      "rel": "../app/home-390.png",
+      "width": 390
+    },
+    {
+      "path": "docs/screenshots/app/report-390.png",
+      "rel": "../app/report-390.png",
+      "width": 390
+    },
+    {
+      "path": "docs/screenshots/app/sector-390.png",
+      "rel": "../app/sector-390.png",
+      "width": 390
+    }
+  ],
+  "screens": [
+    {
+      "slug": "home",
+      "route": "/home",
+      "files": {
+        "390": "home-390.png",
+        "1600": "home-1600.png"
+      },
+      "states": [
+        "loading",
+        "error",
+        "empty"
+      ]
+    },
+    {
+      "slug": "screener",
+      "route": "/screener",
+      "files": {
+        "390": "screener-390.png",
+        "1600": "screener-1600.png"
+      },
+      "states": [
+        "loading",
+        "error",
+        "empty"
+      ]
+    },
+    {
+      "slug": "news",
+      "route": "/news",
+      "files": {
+        "390": "news-390.png",
+        "1600": "news-1600.png"
+      },
+      "states": []
+    },
+    {
+      "slug": "backtest",
+      "route": "/backtest",
+      "files": {
+        "390": "backtest-390.png",
+        "1600": "backtest-1600.png"
+      },
+      "states": []
+    },
+    {
+      "slug": "paper",
+      "route": "/paper",
+      "files": {
+        "390": "paper-390.png",
+        "1600": "paper-1600.png"
+      },
+      "states": []
+    },
+    {
+      "slug": "strategy-runner",
+      "route": "/strategy-runner",
+      "files": {
+        "390": "strategy-runner-390.png",
+        "1600": "strategy-runner-1600.png"
+      },
+      "states": []
+    },
+    {
+      "slug": "sector",
+      "route": "/sector",
+      "files": {
+        "390": "sector-390.png",
+        "1600": "sector-1600.png"
+      },
+      "states": [
+        "loading",
+        "error",
+        "empty"
+      ]
+    },
+    {
+      "slug": "patterns",
+      "route": "/patterns",
+      "files": {
+        "390": "patterns-390.png",
+        "1600": "patterns-1600.png"
+      },
+      "states": [
+        "loading",
+        "error",
+        "empty"
+      ]
+    },
+    {
+      "slug": "strategies",
+      "route": "/strategies",
+      "files": {
+        "390": "strategies-390.png",
+        "1600": "strategies-1600.png"
+      },
+      "states": []
+    },
+    {
+      "slug": "bots",
+      "route": "/bots",
+      "files": {
+        "390": "bots-390.png",
+        "1600": "bots-1600.png"
+      },
+      "states": []
+    },
+    {
+      "slug": "report-index",
+      "route": "/report/index",
+      "files": {
+        "390": "report-index-390.png",
+        "1600": "report-index-1600.png"
+      },
+      "states": [
+        "loading",
+        "error",
+        "empty"
+      ]
+    },
+    {
+      "slug": "report-profit",
+      "route": "/report/profit",
+      "files": {
+        "390": "report-profit-390.png",
+        "1600": "report-profit-1600.png"
+      },
+      "states": []
+    },
+    {
+      "slug": "settings",
+      "route": "/settings",
+      "files": {
+        "390": "settings-390.png",
+        "1600": "settings-1600.png"
+      },
+      "states": []
+    },
+    {
+      "slug": "admin",
+      "route": "/admin",
+      "files": {
+        "390": "admin-390.png",
+        "1600": "admin-1600.png"
+      },
+      "states": []
+    },
+    {
+      "slug": "chart-RELIANCE",
+      "route": "/chart/RELIANCE",
+      "files": {
+        "390": "chart-RELIANCE-390.png",
+        "1600": "chart-RELIANCE-1600.png"
+      },
+      "states": []
+    }
+  ]
+}

@@ -214,4 +214,15 @@ describe("BacktestConfig", () => {
     document.dispatchEvent(event);
     expect(onRun).not.toHaveBeenCalled();
   });
+
+  it("wraps the action footer and gives Run full width at narrow viewports", () => {
+    render(() => <BacktestConfig {...defaultProps({ selectedSymbols: ["TCS"] })} />, {
+      wrapper: Wrapper,
+    });
+    const run = screen.getByTestId("run-backtest-btn");
+    const footer = run.parentElement;
+    expect(footer).toHaveClass("min-w-0", "flex-wrap", "justify-start");
+    expect(footer).toHaveClass("max-w-[calc(100vw-12px)]", "sm:max-w-none", "sm:justify-end");
+    expect(run).toHaveClass("w-full", "sm:w-auto");
+  });
 });

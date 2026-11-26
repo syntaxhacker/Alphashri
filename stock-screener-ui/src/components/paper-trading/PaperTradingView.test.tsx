@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, within } from "@solidjs/testing-library";
+import { render, screen, fireEvent, cleanup, within, waitFor } from "@solidjs/testing-library";
 
 const mockStateStore: any = {
   currentView: "live",
@@ -129,6 +129,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
 });
 
 function r() {
@@ -268,6 +269,62 @@ describe("PaperTradingView", () => {
       const { unmount } = render(() => <PaperTradingView />);
       unmount();
       expect(stopLiveAutoRefresh).toHaveBeenCalled();
+    });
+  });
+
+  describe("390px header", () => {
+    async function stubWidth(width: number) {
+      vi.stubGlobal("matchMedia", ((query: string) => {
+        const max = /max-width:\s*(\d+)px/.exec(query);
+        const matches = max ? width <= Number(max[1]) : false;
+        return {
+          matches,
+          media: query,
+          onchange: null,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        } as unknown as MediaQueryList;
+      }) as unknown as typeof window.matchMedia);
+      const { fetchBotSummaries } = await import("../../api/botControlApi");
+      vi.mocked(fetchBotSummaries).mockResolvedValue([{
+        id: "bot-1",
+        name: "Test Bot",
+        running: false,
+        pid: null,
+        is_active: true,
+        live_trading: false,
+        status: "stopped",
+        position_count: 0,
+        strategies: [],
+      }]);
+    }
+
+    test("puts tabs and bot controls on separate rows", async () => {
+      await stubWidth(390);
+      r();
+      const header = screen.getByTestId("paper-header");
+      expect(header).toHaveClass("flex-col");
+      const tabsRow = document.querySelector(".paper-header-tabs-row")!;
+      const controlsRow = document.querySelector(".paper-header-controls-row")!;
+      expect(tabsRow).toBeInTheDocument();
+      expect(controlsRow).toBeInTheDocument();
+      expect(tabsRow.querySelector('[data-testid="paper-trading-tabs"]')).toBeInTheDocument();
+      expect(controlsRow.querySelector('[data-testid="paper-filters"]')).toBeInTheDocument();
+      expect(tabsRow.contains(controlsRow)).toBe(false);
+      await waitFor(() => expect(screen.getByTestId("bot-selector")).toBeInTheDocument());
+    });
+
+    test("keeps the single clipped row on desktop", async () => {
+      await stubWidth(1600);
+      r();
+      const header = screen.getByTestId("paper-header");
+      expect(header).not.toHaveClass("flex-col");
+      expect(document.querySelector(".paper-header-tabs-row")).toBeNull();
+      expect(header.querySelector('[data-testid="paper-trading-tabs"]')).toBeInTheDocument();
+      expect(header.querySelector('[data-testid="paper-filters"]')).toBeInTheDocument();
     });
   });
 });

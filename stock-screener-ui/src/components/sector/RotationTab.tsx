@@ -218,13 +218,12 @@ export function RotationTab(props: { market: "india" | "america" }) {
     >
       <ToolbarRow
         gap={8}
-        wrap={false}
         data-testid="rotation-toolbar"
-        className="overflow-x-auto overflow-y-hidden"
+        className="flex-wrap"
         style={{
-          padding: "0 10px",
+          padding: "4px 10px",
           "min-height": "34px",
-          height: "34px",
+          "row-gap": "4px",
           "border-bottom": "1px solid var(--color-fin-border)",
           "flex-shrink": 0,
         }}
@@ -285,7 +284,7 @@ export function RotationTab(props: { market: "india" | "america" }) {
         {(regimeAcc) => (
           <Box
             data-testid="rotation-regime"
-            className="flex items-center gap-2 px-2 h-[26px] shrink-0 border-b border-fin-border overflow-hidden whitespace-nowrap"
+            className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-2 min-h-[26px] shrink-0 border-b border-fin-border"
           >
             <Box className="flex items-center gap-1 min-w-0">
               <StripLabel>{regimeAcc().benchmark}</StripLabel>
@@ -412,6 +411,7 @@ export function RotationTab(props: { market: "india" | "america" }) {
               scrollable
               flush
               padded={false}
+              style={{ "min-height": "300px" }}
               className="min-h-[300px] lg:min-h-0"
               title={
                 <Text className="text-ui-micro font-bold uppercase tracking-[0.5px] text-fin-text-muted">

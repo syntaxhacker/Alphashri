@@ -1,4 +1,6 @@
+import { Show } from "solid-js";
 import { Box, Tabs, Text, ToolbarRow, typeStyle } from "@/ui";
+import { useAuth } from "../components/auth/AuthProvider";
 import { PatternImageManager } from "../components/patterns/PatternImageManager";
 import { LLMStatsPanel } from "./admin/LLMStatsPanel";
 import { Admin52wRangePanel } from "./admin/Admin52wRangePanel";
@@ -9,77 +11,105 @@ import { AdminPatternTimeframesPanel } from "./admin/AdminPatternTimeframesPanel
 const PANEL_CLASS = "min-w-0 min-h-0 flex-1 overflow-hidden flex flex-col";
 const PANEL_BODY_CLASS = "flex min-h-0 flex-1 flex-col overflow-hidden px-1 pb-1";
 
+function AdminDenied() {
+  return (
+    <Box
+      data-testid="admin-denied"
+      className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center"
+    >
+      <Text size="sm" fw={700}>
+        Access denied — admin only
+      </Text>
+      <Text size="xs" c="dimmed">
+        Your account does not have permission to view the admin console.
+      </Text>
+      <a
+        href="/home"
+        data-testid="admin-denied-home-link"
+        className="mt-2 text-fin-primary underline underline-offset-2"
+      >
+        Back to dashboard
+      </a>
+    </Box>
+  );
+}
+
 export default function AdminPage() {
+  const auth = useAuth();
+  const isAdmin = () => auth.user?.is_admin === true;
+
   return (
     <Box data-testid="admin-page" className="flex h-full min-h-0 flex-col overflow-hidden">
-      <Tabs defaultValue="llm" className="flex min-h-0 flex-1 flex-col">
-        <ToolbarRow
-          gap={8}
-          wrap={false}
-          className="shrink-0 border-b border-fin-border px-1"
-          style={{ "min-height": "32px", "align-items": "flex-end" }}
-        >
-          <Text
-            size="xs"
-            fw={700}
-            c="dimmed"
-            tt="uppercase"
-            style={{
-              ...typeStyle("micro"),
-              "letter-spacing": "0.6px",
-              "text-transform": "uppercase",
-              "padding-bottom": "7px",
-            }}
+      <Show when={isAdmin()} fallback={<AdminDenied />}>
+        <Tabs defaultValue="llm" className="flex min-h-0 flex-1 flex-col">
+          <ToolbarRow
+            gap={8}
+            wrap={false}
+            className="shrink-0 border-b border-fin-border px-1"
+            style={{ "min-height": "32px", "align-items": "flex-end" }}
           >
-            Admin
-          </Text>
-          <Box
-            className="min-w-0 flex-1 overflow-x-auto"
-            role="region"
-            aria-label="Admin tabs"
-            tabIndex={0}
-          >
-            <Tabs.List data-testid="admin-tabs">
-              <Tabs.Tab value="llm">LLM stats</Tabs.Tab>
-              <Tabs.Tab value="52w" data-testid="admin-tab-52w">
-                52W range batch
-              </Tabs.Tab>
-              <Tabs.Tab value="news-queue" data-testid="admin-tab-news-queue">
-                News Queue
-              </Tabs.Tab>
-              <Tabs.Tab value="pattern-timeframes" data-testid="admin-tab-pattern-timeframes">
-                Pattern timeframes
-              </Tabs.Tab>
-              <Tabs.Tab value="pattern-images" data-testid="admin-tab-pattern-images">
-                Pattern images
-              </Tabs.Tab>
-            </Tabs.List>
-          </Box>
-        </ToolbarRow>
-        <Tabs.Panel value="llm" className={PANEL_CLASS}>
-          <Box className={PANEL_BODY_CLASS}>
-            <LLMStatsPanel />
-          </Box>
-        </Tabs.Panel>
-        <Tabs.Panel value="52w" className={PANEL_CLASS}>
-          <Box className={PANEL_BODY_CLASS}>
-            <Admin52wRangePanel />
-          </Box>
-        </Tabs.Panel>
-        <Tabs.Panel value="news-queue" className={PANEL_CLASS}>
-          <Box className={PANEL_BODY_CLASS}>
-            <NewsQueuePanel />
-          </Box>
-        </Tabs.Panel>
-        <Tabs.Panel value="pattern-timeframes" className={PANEL_CLASS}>
-          <AdminPatternTimeframesPanel />
-        </Tabs.Panel>
-        <Tabs.Panel value="pattern-images" className={PANEL_CLASS}>
-          <Box className="min-h-0 flex-1 overflow-auto px-1 pb-1">
-            <PatternImageManager />
-          </Box>
-        </Tabs.Panel>
-      </Tabs>
+            <Text
+              size="xs"
+              fw={700}
+              c="dimmed"
+              tt="uppercase"
+              style={{
+                ...typeStyle("micro"),
+                "letter-spacing": "0.6px",
+                "text-transform": "uppercase",
+                "padding-bottom": "7px",
+              }}
+            >
+              Admin
+            </Text>
+            <Box
+              className="min-w-0 flex-1 overflow-x-auto"
+              role="region"
+              aria-label="Admin tabs"
+              tabIndex={0}
+            >
+              <Tabs.List data-testid="admin-tabs">
+                <Tabs.Tab value="llm">LLM stats</Tabs.Tab>
+                <Tabs.Tab value="52w" data-testid="admin-tab-52w">
+                  52W range batch
+                </Tabs.Tab>
+                <Tabs.Tab value="news-queue" data-testid="admin-tab-news-queue">
+                  News Queue
+                </Tabs.Tab>
+                <Tabs.Tab value="pattern-timeframes" data-testid="admin-tab-pattern-timeframes">
+                  Pattern timeframes
+                </Tabs.Tab>
+                <Tabs.Tab value="pattern-images" data-testid="admin-tab-pattern-images">
+                  Pattern images
+                </Tabs.Tab>
+              </Tabs.List>
+            </Box>
+          </ToolbarRow>
+          <Tabs.Panel value="llm" className={PANEL_CLASS}>
+            <Box className={PANEL_BODY_CLASS}>
+              <LLMStatsPanel />
+            </Box>
+          </Tabs.Panel>
+          <Tabs.Panel value="52w" className={PANEL_CLASS}>
+            <Box className={PANEL_BODY_CLASS}>
+              <Admin52wRangePanel />
+            </Box>
+          </Tabs.Panel>
+          <Tabs.Panel value="news-queue" className={PANEL_CLASS}>
+            <Box className={PANEL_BODY_CLASS}>
+              <NewsQueuePanel />
+            </Box>
+          </Tabs.Panel>
+          <Tabs.Panel value="pattern-timeframes" className={PANEL_CLASS}>
+            <AdminPatternTimeframesPanel />
+          </Tabs.Panel>
+          <Tabs.Panel value="pattern-images" className={PANEL_CLASS}>
+            <Box className="min-h-0 flex-1 overflow-auto px-1 pb-1">
+              <PatternImageManager />
+            </Box>
+          </Tabs.Panel>
+        </Tabs>
+      </Show>
     </Box>
   );
 }

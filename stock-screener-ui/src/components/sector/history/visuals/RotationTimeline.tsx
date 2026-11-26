@@ -383,7 +383,10 @@ export function RotationTimeline(props: RotationTimelineProps) {
             aria-label="Rotation timeline chart. Scroll sideways for all months."
             class="min-w-0 flex-1 overflow-x-auto focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-primary"
           >
-            <div style={{ "min-width": `${CHART_MIN_WIDTH}px` }}>
+            <div
+              class="min-w-0 overflow-hidden"
+              style={{ "min-width": `${CHART_MIN_WIDTH}px`, height: `${chartHeight()}px` }}
+            >
               <EChart
                 option={option()}
                 data-testid="history-rotation-timeline"
@@ -392,6 +395,8 @@ export function RotationTimeline(props: RotationTimelineProps) {
                   flex: "none",
                   width: "100%",
                   "min-height": "0px",
+                  position: "relative",
+                  overflow: "hidden",
                 }}
               />
             </div>

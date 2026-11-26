@@ -421,9 +421,13 @@ export function ScreenerPage(props: ScreenerPageProps) {
                 class="min-w-0 min-h-0 flex-1 flex-row gap-1 overflow-hidden"
                 style={{ display: "flex", flex: 1 }}
               >
-                <Suspense fallback={<Box className="p-1"><Skeleton h={24} /></Box>}>
-                  <GroupPerformancePanel />
-                </Suspense>
+                {/* Below 900px the results own the whole row; the rail stays
+                    mounted (and keeps its testids) but is visually removed. */}
+                <Box className="flex max-[899px]:hidden">
+                  <Suspense fallback={<Box className="p-1"><Skeleton h={24} /></Box>}>
+                    <GroupPerformancePanel />
+                  </Suspense>
+                </Box>
                 <Paper
                   radius={2}
                   flex={1}

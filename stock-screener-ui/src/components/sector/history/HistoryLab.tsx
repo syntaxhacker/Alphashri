@@ -43,7 +43,7 @@ export function HistoryPanel(props: {
           </Text>
         </Box>
       </Box>
-      <Box className="min-w-0 p-2">{props.children}</Box>
+      <Box className="min-w-0 overflow-hidden p-2">{props.children}</Box>
     </CompactPanel>
   );
 }

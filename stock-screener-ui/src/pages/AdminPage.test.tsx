@@ -5,6 +5,14 @@ import "@testing-library/jest-dom/vitest";
 import AdminPage from "./AdminPage";
 import { setupBrowserMocks } from "../test-utils/setupBrowser";
 
+const { mockAuth } = vi.hoisted(() => ({
+  mockAuth: { user: null as { id: number; email: string; is_admin?: boolean } | null },
+}));
+
+vi.mock("../components/auth/AuthProvider", () => ({
+  useAuth: () => ({ user: mockAuth.user }),
+}));
+
 // The @/ui Box/Flex/... stubs from src/pages/solidTestStubs.tsx render as
 // intrinsic elements; page tests exercise page wiring, not the theme runtime.
 // Minimal faithful Tabs mock with the compound API
@@ -78,6 +86,7 @@ describe("AdminPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupBrowserMocks();
+    mockAuth.user = { id: 1, email: "admin@test.com", is_admin: true };
   });
 
   afterEach(() => {
@@ -126,5 +135,37 @@ describe("AdminPage", () => {
     render(() => <AdminPage />);
     expect(screen.getByText("Admin")).toBeInTheDocument();
     expect(screen.queryByText(/LLM telemetry/)).not.toBeInTheDocument();
+  });
+
+  it("shows the full console to an admin", () => {
+    render(() => <AdminPage />);
+    expect(screen.getByTestId("admin-tabs")).toBeInTheDocument();
+    expect(screen.getByTestId("llm-stats-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("admin-denied")).not.toBeInTheDocument();
+  });
+
+  it("denies a non-admin with no admin controls and a link back", () => {
+    mockAuth.user = { id: 2, email: "user@test.com", is_admin: false };
+
+    render(() => <AdminPage />);
+
+    expect(screen.getByTestId("admin-denied")).toHaveTextContent("Access denied — admin only");
+    expect(screen.getByRole("link", { name: /back to dashboard/i })).toHaveAttribute(
+      "href",
+      "/home",
+    );
+    expect(screen.queryByTestId("admin-tabs")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("llm-stats-panel")).not.toBeInTheDocument();
+    expect(screen.queryByText("52W range batch")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /refresh/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /clear logs/i })).not.toBeInTheDocument();
+  });
+
+  it("denies when the user flag is missing", () => {
+    mockAuth.user = { id: 3, email: "legacy@test.com" };
+
+    render(() => <AdminPage />);
+    expect(screen.getByTestId("admin-denied")).toBeInTheDocument();
+    expect(screen.queryByTestId("admin-tabs")).not.toBeInTheDocument();
   });
 });

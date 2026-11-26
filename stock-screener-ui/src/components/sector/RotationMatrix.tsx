@@ -1,15 +1,23 @@
-import { NEGATIVE, POSITIVE } from "@/ui/palette";
+import { NEGATIVE, POSITIVE, SURFACE } from "@/ui/palette";
 import { Box, Text } from "@/ui";
 import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
 import { withAlpha } from "@/utils/color";
-import { formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
+import { compositeOver, pickTextColor } from "@/utils/contrast";
+import { formatPercentage } from "@/utils/ui-helpers";
 import type { RotationPeriod, RotationRow } from "@/types/rotation";
 
 const PERIODS: RotationPeriod[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y"];
 
-function heatBackground(value: number): string {
-  const intensity = Math.min(Math.abs(value) / 12, 1) * 0.2;
-  return withAlpha(value >= 0 ? POSITIVE : NEGATIVE, intensity);
+function heatCell(value: number | null | undefined): { fill: string; text: string } {
+  const safe = typeof value === "number" && Number.isFinite(value) ? value : 0;
+  const intensity = Math.min(Math.abs(safe) / 12, 1) * 0.2;
+  const tint = safe >= 0 ? POSITIVE : NEGATIVE;
+  return {
+    fill: withAlpha(tint, intensity),
+    // The token is translucent; contrast must be judged against the composited
+    // fill, not the raw tint, or the dark-tinted cells fail 4.5:1.
+    text: pickTextColor(compositeOver(tint, SURFACE, intensity)),
+  };
 }
 
 export interface RotationMatrixProps {
@@ -40,13 +48,14 @@ export function RotationMatrix(props: RotationMatrixProps) {
       meta: { align: "right" },
       cell: ({ row }) => {
         const value = row.original.returns[period];
+        const cell = heatCell(value);
         return (
           <Box
             className="flex items-center justify-end min-h-[14px] px-[2px] rounded-[0.5px]"
-            style={{ "background-color": heatBackground(value) }}
+            style={{ "background-color": cell.fill }}
           >
             <Text
-              c={getPnLTextColor(value)}
+              style={{ color: cell.text }}
               className="font-mono text-ui-micro font-semibold tabular-nums leading-none"
             >
               {formatPercentage(value, 1, true)}

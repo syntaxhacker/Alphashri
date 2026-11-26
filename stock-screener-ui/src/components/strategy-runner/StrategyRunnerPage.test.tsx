@@ -43,4 +43,25 @@ describe("StrategyRunnerPage viewport shell", () => {
     const tabs = screen.getByTestId("sr-tabs");
     expect(tabs).toHaveClass("flex", "min-h-0", "flex-1", "flex-col", "overflow-hidden");
   });
+
+  it("ellipsizes the title and subtitle so the header never clips at 390", () => {
+    render(() => (
+      <UIProvider>
+        <StrategyRunnerPage />
+      </UIProvider>
+    ));
+
+    const header = screen.getByTestId("sr-header");
+    expect(header).toHaveClass("flex-nowrap");
+
+    const title = screen.getByTestId("sr-title");
+    expect(title).toHaveClass("min-w-0");
+    expect(title.style.textOverflow).toBe("ellipsis");
+    expect(title.style.whiteSpace).toBe("nowrap");
+
+    const subtitle = screen.getByTestId("sr-subtitle");
+    expect(subtitle).toHaveClass("min-w-0", "flex-1", "whitespace-normal", "break-words");
+    expect(subtitle).toHaveClass("sm:truncate", "sm:whitespace-nowrap");
+    expect(subtitle.style.whiteSpace).toBe("");
+  });
 });

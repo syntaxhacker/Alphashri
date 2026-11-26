@@ -201,3 +201,17 @@ describe("BacktestPage trade-history sort persistence", () => {
     expect(prefsMock.sortingCalls).toHaveLength(0);
   });
 });
+
+describe("BacktestPage pre-run empty state", () => {
+  it("shows a purposeful three-step panel instead of a blank canvas", () => {
+    mountPage();
+    const empty = screen.getByTestId("backtest-empty-state");
+    expect(empty).toHaveTextContent("Ready to backtest");
+
+    const steps = screen.getByTestId("backtest-empty-steps");
+    expect(steps).toHaveTextContent("Open Config");
+    expect(steps).toHaveTextContent("Pick symbols");
+    expect(steps).toHaveTextContent("Run");
+    expect(empty).not.toHaveTextContent("Open Config, pick symbols and press Run to see the chart.");
+  });
+});

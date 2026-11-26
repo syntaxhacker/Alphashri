@@ -46,6 +46,36 @@ export function yearOf(month: string): string {
   return /^\d{4}/.test(month) ? month.slice(0, 4) : "";
 }
 
+/** Newest month that actually carries a rank, not a metadata `as_of` that can lag the payload. */
+export function latestRankMonth(
+  months: string[],
+  series: Array<{ is_benchmark?: boolean; ranks?: (number | null)[] }>,
+): string {
+  for (let index = months.length - 1; index >= 0; index -= 1) {
+    if (
+      series.some(
+        (item) =>
+          !item.is_benchmark &&
+          typeof item.ranks?.[index] === "number" &&
+          Number.isFinite(item.ranks[index]),
+      )
+    ) {
+      return months[index];
+    }
+  }
+  return months[months.length - 1] ?? "";
+}
+
+export function monthEnd(month: string): string {
+  const match = /^(\d{4})-(\d{2})/.exec(month);
+  if (!match) return "";
+  const year = Number(match[1]);
+  const monthNumber = Number(match[2]);
+  if (monthNumber < 1 || monthNumber > 12) return "";
+  const day = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  return `${year}-${String(monthNumber).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 export function truncate(text: string, max: number): string {
   if (max < 2 || text.length <= max) return text;
   return `${text.slice(0, max - 1)}…`;

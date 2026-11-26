@@ -112,6 +112,8 @@ export interface MarketColumnHandlers {
   patternsFor?: (symbol: string) => PatternSummaryItem | undefined;
   /** Drives the MCAP header unit; cells still read each row's own currency. */
   universe?: MarketUniverse;
+  /** Narrow tables give the whole symbol cell to the symbol, not its affordances. */
+  narrow?: boolean;
 }
 
 type PatternTone = "bullish" | "bearish" | "mixed";
@@ -255,14 +257,16 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
             <SymbolLink
               symbol={r.symbol}
               market={r.exchange ?? "NSE"}
-              showOptions={Boolean(r.fno) && !r.etf && hasIndianOptionsChain(r.exchange)}
               testId={`market-symbol-${r.symbol}`}
               chartTestId={`market-chart-${r.symbol}`}
               size="xs"
               weight={600}
               className={SYMBOL_LINK_CLASS}
               inAppText
-              tvIcon
+              tvLink={!handlers.narrow}
+              tvIcon={!handlers.narrow}
+              showChart={!handlers.narrow}
+              showOptions={!handlers.narrow && Boolean(r.fno) && !r.etf && hasIndianOptionsChain(r.exchange)}
               onTextClick={(sym) => handlers.onSymbolOpen?.(sym)}
               // Only override the chart icon when the host supplied a destination;
               // otherwise SymbolLink falls back to the app-wide dock.

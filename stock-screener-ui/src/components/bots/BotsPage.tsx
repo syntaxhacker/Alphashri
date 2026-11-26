@@ -1,7 +1,7 @@
 import { Show, Switch, Match, createEffect, createMemo, onMount } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import * as palette from "@/ui/palette";
-import { Box, Tabs, Button, Stack, Group, Text, Badge, ToolbarRow } from "@/ui";
+import { Box, Tabs, Button, Stack, Group, Text, Badge, ToolbarRow, useMediaQuery } from "@/ui";
 import { useBotsState, useCurrentView } from "./useBotsState";
 
 import { IconRobot, IconChartLine, IconPlus, IconPlayerPlay, IconPlayerStop, IconChartBar } from "../common/Icons";
@@ -33,6 +33,8 @@ import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
 import { BotSummaryCell, BotActionButtons, getBotIndicatorColor } from "./BotHelpers";
 import { StatusBadge } from "../common/BadgeComponents";
 import { StrategyPerformance } from "./StrategyPerformance";
+import { BotNarrowCards } from "./BotNarrowCards";
+import { formatBotCapitalPct, formatBotMaxPositions } from "./botFormat";
 
 function useViewChangeHandler() {
   return (view: string | null) => {
@@ -139,6 +141,7 @@ function BotsTable(props: {
   onDelete: (botId: string) => Promise<void>;
 }) {
   const state = useBotsState();
+  const narrow = useMediaQuery("(max-width: 899px)");
 
   const columns = createMemo<ColumnDef<BotConfig>[]>(() => [
     {
@@ -196,14 +199,14 @@ function BotsTable(props: {
       header: "Max Positions",
       accessorKey: "max_total_positions",
       meta: { align: "right" },
-      cell: (info) => <Box className="flex items-center justify-end"><Text ta="right">{String(info.row.original.max_total_positions)}</Text></Box>,
+      cell: (info) => <Box className="flex items-center justify-end"><Text ta="right">{formatBotMaxPositions(info.row.original.max_total_positions)}</Text></Box>,
     },
     {
       id: "max_total_capital_pct",
       header: "Max Capital",
       accessorKey: "max_total_capital_pct",
       meta: { align: "right" },
-      cell: (info) => <Box className="flex items-center justify-end"><Text ta="right">{`${(info.row.original.max_total_capital_pct * 100).toFixed(0)}%`}</Text></Box>,
+      cell: (info) => <Box className="flex items-center justify-end"><Text ta="right">{formatBotCapitalPct(info.row.original.max_total_capital_pct)}</Text></Box>,
     },
     {
       id: "actions",
@@ -245,20 +248,34 @@ function BotsTable(props: {
           <Badge size="sm" variant="light" color="info">{state().bots.length}</Badge>
           <Badge size="sm" variant="dot" color="success">{state().bots.filter((b) => b.running).length} running</Badge>
         </ToolbarRow>
-        {/* The card already draws the section border — `bare` keeps the table
-            from nesting a second one, and it fills the card body. */}
-        <TanStackTable
-          data={state().bots}
-          columns={columns()}
-          dataTestId="bots-table"
-          bare
-          fillContainer
-          getRowTestId={(row) => `bot-row-${row.id}`}
-          getRowClassName={() => "bot-row"}
-          getRowStyle={(row) => ({
-            backgroundColor: state().selectedBot?.id === row.id ? "rgba(88 166 255 / 0.15)" : undefined,
-          })}
-        />
+        <Show
+          when={!narrow()}
+          fallback={
+            <BotNarrowCards
+              bots={state().bots}
+              onViewStatus={props.onViewStatus}
+              onStart={props.onStart}
+              onStop={props.onStop}
+              onEdit={props.onEdit}
+              onDelete={props.onDelete}
+            />
+          }
+        >
+          {/* The card already draws the section border — `bare` keeps the table
+              from nesting a second one, and it fills the card body. */}
+          <TanStackTable
+            data={state().bots}
+            columns={columns()}
+            dataTestId="bots-table"
+            bare
+            fillContainer
+            getRowTestId={(row) => `bot-row-${row.id}`}
+            getRowClassName={() => "bot-row"}
+            getRowStyle={(row) => ({
+              backgroundColor: state().selectedBot?.id === row.id ? "rgba(88 166 255 / 0.15)" : undefined,
+            })}
+          />
+        </Show>
       </Box>
     </Show>
   );
@@ -343,6 +360,7 @@ function BotsConfigModal() {
 export function BotsPage() {
   const state = useBotsState();
   const currentView = useCurrentView();
+  const narrow = useMediaQuery("(max-width: 899px)");
   const [searchParams, setSearchParams] = useSearchParams<{ tab?: string }>();
 
   onMount(() => {
@@ -400,8 +418,9 @@ export function BotsPage() {
               }
             }}
             disabled={!state().bots.some((b) => !b.running)}
+            aria-label="Start all stopped bots"
           >
-            Start All ({state().bots.filter((b) => !b.running).length})
+            <Show when={!narrow()}>Start All ({state().bots.filter((b) => !b.running).length})</Show>
           </Button>
           <Button
             variant="filled"
@@ -416,8 +435,9 @@ export function BotsPage() {
               }
             }}
             disabled={!state().bots.some((b) => b.running)}
+            aria-label="Stop all running bots"
           >
-            Stop All ({state().bots.filter((b) => b.running).length})
+            <Show when={!narrow()}>Stop All ({state().bots.filter((b) => b.running).length})</Show>
           </Button>
           <Button
             variant="filled"
@@ -425,8 +445,9 @@ export function BotsPage() {
             leftSection={<IconPlus size={16} />}
             onClick={openCreateModal}
             data-testid="create-bot-btn"
+            aria-label="New Bot"
           >
-            New Bot
+            <Show when={!narrow()}>New Bot</Show>
           </Button>
         </Box>
       </ToolbarRow>

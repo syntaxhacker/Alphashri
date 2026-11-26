@@ -178,9 +178,12 @@ export function PatternListView(props: PatternListViewProps) {
     {
       id: "confidence",
       header: () => (
-        <span title="Pattern-fit confidence (geometry fit, R², volume) — not breakout conviction.">
+        <abbr
+          title="Pattern-fit confidence (geometry fit, R², volume) — not breakout conviction."
+          className="cursor-help no-underline"
+        >
           Score
-        </span>
+        </abbr>
       ),
       accessorKey: "confidence",
       size: 70,
@@ -237,7 +240,14 @@ export function PatternListView(props: PatternListViewProps) {
     },
     {
       id: "range_pos",
-      header: "Pos %",
+      header: () => (
+        <abbr
+          title="Position within the pattern's price range, 0% at the low and 100% at the high."
+          className="cursor-help no-underline"
+        >
+          Pos %
+        </abbr>
+      ),
       accessorKey: "range_pos",
       size: 70,
       meta: { align: "right" },

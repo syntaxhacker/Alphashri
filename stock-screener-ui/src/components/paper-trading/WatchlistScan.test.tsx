@@ -19,6 +19,7 @@ import type { PaperBotSnapshot } from "../../types/paperTrading";
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 function r(component: (() => JSX.Element) | JSX.Element) {
@@ -887,6 +888,40 @@ describe("WatchlistScan2", () => {
         />,
       );
       expect(row("UNKNWN")).toBeInTheDocument();
+    });
+  });
+
+  describe("390px watchlist", () => {
+    beforeEach(() => {
+      vi.stubGlobal("matchMedia", ((query: string) => ({
+        matches: /max-width:\s*599px/.test(query),
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })) as unknown as typeof window.matchMedia);
+    });
+
+    test("uses stacked cards instead of the desktop table", () => {
+      r(() => <WatchlistScan2 snapshot={createMockSnapshot()} selectedSymbol={null} />);
+      expect(screen.getByTestId("watchlist-narrow-cards")).toBeInTheDocument();
+      expect(screen.queryByTestId("watchlist-scan-table")).toBeNull();
+      const reliance = screen.getByTestId("watchlist-narrow-row-RELIANCE");
+      expect(reliance).toHaveTextContent("RELIANCE");
+      expect(reliance).toHaveTextContent("Price");
+      expect(reliance).toHaveTextContent("Near");
+      expect(reliance).toHaveTextContent("Strategy");
+      expect(reliance).toHaveTextContent("ORB Strategy");
+      expect(reliance).toHaveTextContent("ORB breakout above 2525");
+    });
+
+    test("cards emit no synthetic scroll cues", () => {
+      const { container } = r(() => <WatchlistScan2 snapshot={createMockSnapshot()} selectedSymbol={null} />);
+      expect(container.querySelector('[data-testid$="-scroll-hint"]')).toBeNull();
+      expect(container.textContent).not.toContain("Scroll →");
     });
   });
 });

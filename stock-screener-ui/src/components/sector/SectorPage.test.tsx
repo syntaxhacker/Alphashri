@@ -1,13 +1,15 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
+import { render, screen, cleanup, waitFor, fireEvent, within } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { SectorPage } from "./SectorPage";
+import { SECTOR_SECTIONS } from "./SectorSectionNav";
 import type { SectorItem } from "../../types/sector";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
-const { mockFetchSectorPerformance } = vi.hoisted(() => ({
+const { mockFetchSectorPerformance, scrollIntoViewMock } = vi.hoisted(() => ({
   mockFetchSectorPerformance: vi.fn(),
+  scrollIntoViewMock: vi.fn(),
 }));
 
 vi.mock("../../api/sector", () => ({
@@ -18,6 +20,10 @@ vi.mock("./RotationTab", () => ({
   RotationTab: ({ market }: { market: string }) => (
     <div data-testid="rotation-tab">RotationTab {market}</div>
   ),
+}));
+
+vi.mock("./SectorCorrelationTab", () => ({
+  SectorCorrelationTab: () => <div data-testid="sector-correlation-tab">SectorCorrelationTab</div>,
 }));
 
 vi.mock("./history/SectorHistoryTab", () => ({
@@ -57,10 +63,33 @@ const mockResponse = {
   last_updated: new Date().toISOString(),
 };
 
+class IntersectionObserverStub {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+  takeRecords = vi.fn(() => []);
+  constructor(_callback: IntersectionObserverCallback, _options?: IntersectionObserverInit) {}
+}
+
 describe("SectorPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupBrowserMocks();
+    Object.defineProperty(window, "IntersectionObserver", {
+      configurable: true,
+      writable: true,
+      value: IntersectionObserverStub,
+    });
+    Object.defineProperty(globalThis, "IntersectionObserver", {
+      configurable: true,
+      writable: true,
+      value: IntersectionObserverStub,
+    });
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      writable: true,
+      value: scrollIntoViewMock,
+    });
     window.history.replaceState({}, "", "/");
   });
 
@@ -116,11 +145,10 @@ describe("SectorPage", () => {
     render(() => <SectorPage />);
     const name = (await screen.findByTestId("sector-top-summary-name")) as HTMLElement;
     expect(name).toHaveTextContent("Technology");
-    // Native tooltip carries the full value even if a narrow parent clips it.
     expect(name).toHaveAttribute("title", "Technology");
-    // CSS ellipsis would cut a single word into "Techno…"; the name must wrap instead.
-    expect(name.style.textOverflow).not.toBe("ellipsis");
-    expect(name.style.whiteSpace).not.toBe("nowrap");
+    expect(name).toHaveClass("w-full");
+    expect(name).toHaveClass("whitespace-nowrap");
+    expect(name.className).not.toMatch(/\btruncate\b/);
   });
 
   it("renders Top Sector card with avg change value", async () => {
@@ -162,6 +190,28 @@ describe("SectorPage", () => {
     expect(screen.getByText("70 DOWN")).toBeInTheDocument();
   });
 
+  it("keeps all three summary groups readable without clipping at 390", async () => {
+    mockFetchSectorPerformance.mockResolvedValue(mockResponse);
+    render(() => <SectorPage />);
+    const strip = await screen.findByTestId("sector-summary-strip");
+    expect(strip).toHaveClass("flex-wrap");
+    expect(strip.className).not.toMatch(/\boverflow-hidden\b/);
+    for (const label of ["Top Sector", "Market Breadth", "Weakest Sector"]) {
+      expect(within(strip).getByText(label)).toBeVisible();
+      expect(within(strip).getByText(label).className).not.toMatch(/\bhidden\b/);
+    }
+    const bar = screen.getByTestId("sector-context-bar");
+    expect(bar.className).not.toMatch(/\boverflow-hidden\b/);
+  });
+
+  it("keeps Refresh in the header without a fixed-height clip", async () => {
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    render(() => <SectorPage />);
+    const header = screen.getByTestId("sector-header");
+    expect(header.className).not.toMatch(/\boverflow-hidden\b/);
+    expect(within(header).getByTestId("sector-refresh-btn")).toHaveClass("shrink-0");
+  });
+
   it("renders page title and description", () => {
     mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
     render(() => <SectorPage />);
@@ -196,20 +246,57 @@ describe("SectorPage", () => {
     });
   });
 
-  it("makes every dashboard side-panel scroll area fill its card", async () => {
+  it("fetches sector performance once on mount and not on section navigation", async () => {
+    mockFetchSectorPerformance.mockResolvedValue(mockResponse);
+    render(() => <SectorPage />);
+    await waitFor(() => expect(screen.getByText("Sector Performance")).toBeInTheDocument());
+    expect(mockFetchSectorPerformance).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByTestId("sector-nav-rotation"));
+    await waitFor(() => expect(screen.getByTestId("rotation-tab")).toBeInTheDocument());
+    expect(mockFetchSectorPerformance).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts the in-flight request when the market selector changes", async () => {
+    const signals: AbortSignal[] = [];
+    mockFetchSectorPerformance.mockImplementation((_market: string, signal: AbortSignal) => {
+      signals.push(signal);
+      return new Promise(() => {});
+    });
+    render(() => <SectorPage />);
+    await waitFor(() => expect(signals).toHaveLength(1));
+
+    const selector = screen.getByTestId("sector-market-selector");
+    fireEvent.click(within(selector).getByRole("button", { name: "US" }));
+
+    await waitFor(() => expect(signals).toHaveLength(2));
+    expect(signals[0].aborted).toBe(true);
+    expect(mockFetchSectorPerformance.mock.calls.map((call) => call[0])).toEqual(["india", "america"]);
+  });
+
+  it("collapses sparse side-panel bodies instead of leaving large blank cards", async () => {
     mockFetchSectorPerformance.mockResolvedValue(mockResponse);
     render(() => <SectorPage />);
     await waitFor(() => expect(screen.getByText("Sector Performance")).toBeInTheDocument());
 
     for (const cardId of ["sector-alerts-card", "sector-interval-movers-card", "sector-top-stocks-card"]) {
       const card = screen.getByTestId(cardId);
+      expect(card.className).not.toMatch(/\bh-full\b/);
       const scroller = card.querySelector<HTMLElement>(".overflow-auto");
       expect(scroller, `${cardId} has no scroll area`).not.toBeNull();
       expect(scroller).toHaveClass("min-h-0");
-      expect(scroller).toHaveClass("flex-1");
-      // `flex` is not a ScrollArea prop; it must never leak to the DOM as an attribute.
+      expect(scroller!.className).toMatch(/max-h-\[/);
       expect(scroller).not.toHaveAttribute("flex");
     }
+  });
+
+  it("shows the MOVE scale so the bars have a readable range", async () => {
+    mockFetchSectorPerformance.mockResolvedValue(mockResponse);
+    render(() => <SectorPage />);
+    await waitFor(() => expect(screen.getByText("Sector Performance")).toBeInTheDocument());
+    const scale = screen.getByTestId("sector-move-scale");
+    expect(scale).toHaveTextContent("MOVE −3% · 0 · +3%");
+    expect(scale.className).not.toMatch(/\bhidden\b|sm:inline/);
   });
 
   it("switches between the dense table view and the visual heatmap view", async () => {
@@ -228,58 +315,126 @@ describe("SectorPage", () => {
     });
   });
 
-  it("renders tabs: Live Dashboard, Sector Correlation, Rotation, History", () => {
+  it("stacks four sections in order with no tab bar", () => {
     mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
     render(() => <SectorPage />);
-    expect(screen.getByText("Live Dashboard")).toBeInTheDocument();
-    expect(screen.getByText("Sector Correlation")).toBeInTheDocument();
-    expect(screen.getByText("Rotation")).toBeInTheDocument();
-    expect(screen.getByText("History")).toBeInTheDocument();
-  });
 
-  it("keeps the tab strip scrollable with one-line labels and an overflow cue", () => {
-    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
-    render(() => <SectorPage />);
-    const strip = screen.getByTestId("sector-tabs-list");
-    expect(strip).toHaveClass("overflow-x-auto");
-    expect(strip).toHaveClass("flex-nowrap");
-    for (const label of ["Live Dashboard", "Sector Correlation", "Rotation", "History"]) {
-      const tab = screen.getByText(label).closest('[role="tab"]');
-      expect(tab).toHaveClass("whitespace-nowrap");
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+    expect(screen.queryByText("Live Dashboard")).not.toBeInTheDocument();
+    const sections = Array.from(document.querySelectorAll("[data-section]")).map((node) =>
+      node.getAttribute("data-section"),
+    );
+    expect(sections).toEqual(SECTOR_SECTIONS.map((section) => section.id));
+    for (const section of SECTOR_SECTIONS) {
+      const wrapper = screen.getByTestId(`sector-section-${section.id}`);
+      expect(wrapper).toHaveAttribute("tabindex", "-1");
+      expect(wrapper).toHaveAttribute("aria-label", section.label);
     }
-    const cue = screen.getByTestId("sector-tabs-overflow-cue");
-    expect(cue).toHaveTextContent("→");
-    expect(cue).toHaveClass("lg:hidden");
   });
 
-  it("reaches and selects off-screen tabs with arrow keys inside the scroll strip", async () => {
-    window.history.replaceState({}, "", "/sector");
+  it("renders a single horizontally scrolling anchor rail under the toolbar", () => {
     mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
     render(() => <SectorPage />);
-    const dashboardTab = screen.getByText("Live Dashboard").closest('[role="tab"]')!;
-    fireEvent.keyDown(dashboardTab, { key: "ArrowRight" });
-    await waitFor(() => {
-      expect(screen.getByText("Sector Correlation").closest('[role="tab"]')).toHaveAttribute("aria-selected", "true");
-    });
-    expect(window.location.search).toContain("tab=correlation");
 
-    // A second hop reaches Rotation, a third reaches History — the tab clipped at 390.
-    const correlationTab = screen.getByText("Sector Correlation").closest('[role="tab"]')!;
-    fireEvent.keyDown(correlationTab, { key: "ArrowRight" });
-    await waitFor(() => {
-      expect(screen.getByText("Rotation").closest('[role="tab"]')).toHaveAttribute("aria-selected", "true");
-    });
-    expect(window.location.search).toContain("tab=rotation");
+    const nav = screen.getByRole("navigation", { name: "Sector sections" });
+    expect(nav).toHaveAttribute("data-testid", "sector-section-nav");
+    expect(nav).toHaveClass("overflow-x-auto");
+    expect(nav).toHaveClass("flex-nowrap");
+    expect(nav).toHaveClass("sticky");
+    for (const section of SECTOR_SECTIONS) {
+      const link = screen.getByTestId(`sector-nav-${section.id}`);
+      expect(link).toHaveAttribute("href", `#${section.id}`);
+      expect(link).toHaveTextContent(section.label);
+      expect(link.tagName).toBe("A");
+    }
+  });
 
-    const rotationTab = screen.getByText("Rotation").closest('[role="tab"]')!;
-    fireEvent.keyDown(rotationTab, { key: "ArrowRight" });
-    await waitFor(() => {
-      expect(screen.getByText("History").closest('[role="tab"]')).toHaveAttribute(
-        "aria-selected",
-        "true",
-      );
-    });
-    expect(window.location.search).toContain("tab=history");
+  it("force-mounts the anchor target, scrolls, writes the hash and focuses the section", async () => {
+    window.history.replaceState({}, "", "/sector?market=america");
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    render(() => <SectorPage />);
+
+    expect(screen.queryByTestId("rotation-tab")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sector-section-rotation-skeleton")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("sector-nav-rotation"));
+
+    expect(scrollIntoViewMock).toHaveBeenCalled();
+    expect(screen.getByTestId("rotation-tab")).toBeInTheDocument();
+    expect(window.location.hash).toBe("#rotation");
+    expect(window.location.search).toContain("market=america");
+    expect(window.location.search).not.toContain("tab=");
+    expect(document.activeElement).toBe(screen.getByTestId("sector-section-rotation"));
+  });
+
+  it("falls back to scrolling the nested page when scrollIntoView is a no-op", () => {
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    render(() => <SectorPage />);
+
+    const root = screen.getByTestId("sector-tab-content") as HTMLElement & { scrollTo: () => void };
+    const target = screen.getByTestId("sector-section-rotation");
+    const scrollTo = vi.fn();
+    root.scrollTo = scrollTo;
+    vi.spyOn(root, "getBoundingClientRect").mockReturnValue({ top: 0 } as DOMRect);
+    vi.spyOn(target, "getBoundingClientRect").mockReturnValue({ top: 200 } as DOMRect);
+
+    fireEvent.click(screen.getByTestId("sector-nav-rotation"));
+
+    expect(scrollIntoViewMock).toHaveBeenCalledWith({ behavior: "auto", block: "start" });
+    expect(scrollTo).toHaveBeenCalledWith({ top: 152, behavior: "auto" });
+  });
+
+  it("mounts the remaining sections after the first user scroll", async () => {
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    render(() => <SectorPage />);
+
+    expect(screen.queryByTestId("rotation-tab")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("sector-correlation-tab")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("sector-history-tab")).not.toBeInTheDocument();
+
+    fireEvent.scroll(screen.getByTestId("sector-tab-content"));
+
+    expect(screen.getByTestId("rotation-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("sector-correlation-tab")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("sector-history-tab")).toBeInTheDocument());
+  });
+
+  it("maps a legacy ?tab=rotation link to #rotation and removes the query param", () => {
+    window.history.replaceState({}, "", "/sector?tab=rotation&market=america");
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    render(() => <SectorPage />);
+
+    expect(window.location.hash).toBe("#rotation");
+    expect(window.location.search).toContain("market=america");
+    expect(window.location.search).not.toContain("tab=");
+    expect(screen.getByTestId("rotation-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("sector-nav-rotation")).toHaveAttribute("aria-current", "location");
+  });
+
+  it("maps legacy dashboard and unknown tab values to #overview", () => {
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    window.history.replaceState({}, "", "/?tab=dashboard");
+    render(() => <SectorPage />);
+    expect(window.location.hash).toBe("#overview");
+    expect(window.location.search).not.toContain("tab=");
+    cleanup();
+
+    window.history.replaceState({}, "", "/?tab=nonsense");
+    render(() => <SectorPage />);
+    expect(window.location.hash).toBe("#overview");
+    expect(window.location.search).not.toContain("tab=");
+    expect(screen.getByTestId("sector-nav-overview")).toHaveAttribute("aria-current", "location");
+  });
+
+  it("deep-links a history hash and force-mounts the lazy chunk", () => {
+    window.history.replaceState({}, "", "/sector#history");
+    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
+    render(() => <SectorPage />);
+
+    expect(screen.getByTestId("sector-history-tab")).toBeInTheDocument();
+    expect(screen.getByText("SectorHistoryTab india")).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByTestId("sector-section-history"));
   });
 
   it("makes the focusable region the sole horizontal scroller with a sideways cue", async () => {
@@ -292,16 +447,11 @@ describe("SectorPage", () => {
     expect(region).toHaveAttribute("tabindex", "0");
     expect(region).toHaveAttribute("data-scroll", "horizontal");
     expect(region).toHaveClass("overflow-x-auto");
-    expect(region).toHaveClass("overflow-y-auto");
-    // The shared table's own scrollport is switched off, so there is no
-    // nested overflow:auto competing with the focused region.
     const scrollStyle = screen.getByTestId("sector-table-scroll-style").textContent ?? "";
     expect(scrollStyle).toContain('[data-testid="sector-table-container"] .paper-tanstack-container');
-    expect(scrollStyle).toContain('[data-testid="sector-table-container"] .paper-tanstack-scroll');
     expect(scrollStyle).toContain("overflow: visible");
     const cue = screen.getByTestId("sector-table-scroll-cue");
     expect(cue).toHaveTextContent("Scroll sideways");
-    expect(cue).toHaveClass("lg:hidden");
   });
 
   it("scrolls the focused table region itself with arrow keys", async () => {
@@ -316,7 +466,7 @@ describe("SectorPage", () => {
     expect(region.scrollLeft).toBe(10);
   });
 
-  it("keeps the route root and tab host bounded so #app-main never scrolls", () => {
+  it("scrolling the page instead of #app-main, with no nested vertical clip", () => {
     mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
     render(() => <SectorPage />);
 
@@ -324,32 +474,12 @@ describe("SectorPage", () => {
     for (const cls of ["h-full", "min-h-0", "flex", "flex-col", "overflow-hidden"]) {
       expect(root).toHaveClass(cls);
     }
-
-    // The page-level `overflow-auto` box is gone: each tab owns its scroll.
-    const page = document.getElementById("sector-page") as HTMLElement;
+    const page = screen.getByTestId("sector-tab-content");
     expect(page).toHaveClass("flex-1");
     expect(page).toHaveClass("min-h-0");
-    expect(page).toHaveClass("overflow-hidden");
-    expect(page.className).not.toMatch(/\boverflow-auto\b/);
-
-    const host = screen.getByTestId("sector-tab-content");
-    expect(host).toHaveClass("flex-1");
-    expect(host).toHaveClass("min-h-0");
-    expect(host).toHaveClass("flex-col");
-    expect(host).toHaveClass("overflow-hidden");
-  });
-
-  it("gives the History tab a bounded host instead of a page-level scroller", () => {
-    window.history.replaceState({}, "", "/?tab=history");
-    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
-    render(() => <SectorPage />);
-
-    const host = screen.getByTestId("sector-tab-content");
-    expect(host).toHaveClass("flex-1");
-    expect(host).toHaveClass("min-h-0");
-    expect(host).toHaveClass("overflow-hidden");
-    // The lazy fallback must fill the same bounded area, not define its own page height.
-    expect(host).toContainElement(screen.getByTestId("sector-history-tab"));
+    expect(page).toHaveClass("overflow-y-auto");
+    expect(page).toHaveClass("overflow-x-hidden");
+    expect(page.className).not.toMatch(/\boverflow-hidden\b/);
   });
 
   it("does not render the legacy Historical Cycles tab", () => {
@@ -358,35 +488,5 @@ describe("SectorPage", () => {
     expect(screen.queryByText("Historical Cycles")).not.toBeInTheDocument();
     expect(screen.queryByTestId("sector-analysis-frame")).not.toBeInTheDocument();
     expect(screen.queryByTestId("sector-iframe")).not.toBeInTheDocument();
-  });
-
-  it("renders RotationTab when ?tab=rotation and does not poll sector data", () => {
-    window.history.replaceState({}, "", "/?tab=rotation");
-    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
-    render(() => <SectorPage />);
-    expect(screen.getByTestId("rotation-tab")).toBeInTheDocument();
-    expect(screen.getByText("RotationTab india")).toBeInTheDocument();
-    expect(mockFetchSectorPerformance).not.toHaveBeenCalled();
-  });
-
-  it("renders SectorHistoryTab when ?tab=history and does not poll sector data", () => {
-    window.history.replaceState({}, "", "/?tab=history");
-    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
-    render(() => <SectorPage />);
-    expect(screen.getByTestId("sector-history-tab")).toBeInTheDocument();
-    expect(screen.getByText("SectorHistoryTab india")).toBeInTheDocument();
-    expect(mockFetchSectorPerformance).not.toHaveBeenCalled();
-  });
-
-  it("syncs the active tab to ?tab= while preserving other params", async () => {
-    window.history.replaceState({}, "", "/sector?market=america");
-    mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
-    render(() => <SectorPage />);
-    fireEvent.click(screen.getByText("Rotation"));
-    await waitFor(() => {
-      expect(screen.getByTestId("rotation-tab")).toBeInTheDocument();
-    });
-    expect(window.location.search).toContain("tab=rotation");
-    expect(window.location.search).toContain("market=america");
   });
 });

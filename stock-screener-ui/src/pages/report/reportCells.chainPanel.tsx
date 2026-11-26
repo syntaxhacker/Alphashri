@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { Box, Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -7,6 +7,7 @@ import { CompactPanel } from "@/components/common/compact";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 import type { NiftyStrike } from "@/types/niftyReport";
+import { sentimentCode, sentimentLabel, sentimentSign } from "./optionSentiment";
 import {
   OI_CHAIN_HEADER_HEIGHT,
   OI_CHAIN_MAX_HEIGHT,
@@ -225,6 +226,35 @@ export interface NiftyOiChainProps {
 }
 
 export function NiftyOiChain(props: NiftyOiChainProps) {
+  // Phone keeps only the ATM pair, so the first row is the row the eye is on.
+  // Its two SIG values get a one-line readout beside the header key; the
+  // columns themselves stay untouched and horizontal scroll stays optional.
+  const mobileSig = createMemo(() => {
+    const row = props.strikes[0];
+    if (!row) return null;
+    const read = (value: string | null | undefined, side: "CE" | "PE") => {
+      const raw = String(value ?? "").trim();
+      const code = sentimentCode(raw);
+      // Free-text payloads ("Bullish"/"Bearish") are outside the LB/SB/SC/LU
+      // registry; resolve their direction the same way the SIG badge does.
+      const direction = code
+        ? sentimentSign(raw, side)
+        : /bull/i.test(raw)
+          ? 1
+          : /bear/i.test(raw)
+            ? -1
+            : 0;
+      const short = code || (direction > 0 ? "BULL" : direction < 0 ? "BEAR" : "—");
+      const tone =
+        direction === 0 ? palette.TEXT_MUTED : direction > 0 ? palette.POSITIVE : palette.NEGATIVE;
+      return {
+        short,
+        tone,
+        title: `${sentimentLabel(raw) || "No sentiment reported"} (${side})`,
+      };
+    };
+    return { ce: read(row.ce.sentiment, "CE"), pe: read(row.pe.sentiment, "PE") };
+  });
   const focusOf = (row: NiftyStrike): boolean => {
     const strikeColumn = props.columns.find((c) => c.id === "strike") as
       | (TableColumnDef<NiftyStrike> & { chainRowFocus?: (row: NiftyStrike) => boolean })
@@ -276,6 +306,26 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
       testId={props.panelTestId}
       action={
         <Box className="flex items-center gap-1">
+          {/* The SIG badge leading bar means bullish/bearish, but its colour
+              had no key. Name both colours in the header the badges sit under. */}
+          <span
+            data-testid="nifty-chain-signal-key"
+            class="inline-flex items-center gap-1 whitespace-nowrap text-ui-micro"
+            title="CE/PE SIG colour key — green bar: bullish · red bar: bearish"
+          >
+            <span
+              aria-hidden="true"
+              class="inline-block w-[3px] h-[11px] shrink-0 rounded-[1px]"
+              style={{ "background-color": palette.POSITIVE }}
+            />
+            <span>BULL</span>
+            <span
+              aria-hidden="true"
+              class="inline-block w-[3px] h-[11px] shrink-0 rounded-[1px] ml-1"
+              style={{ "background-color": palette.NEGATIVE }}
+            />
+            <span>BEAR</span>
+          </span>
           <Text
             data-testid="nifty-chain-scroll-cue"
             aria-hidden="true"
@@ -302,6 +352,42 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
       className={OI_CHAIN_PANEL_CLASS}
       style={OI_CHAIN_PANEL_STYLE}
     >
+      <Show when={mobileSig()}>
+        {(sig) => (
+          <Box
+            data-testid="nifty-chain-mobile-sig"
+            class="hidden max-[600px]:flex shrink-0 items-center gap-3 px-2 h-[16px] min-h-[16px] whitespace-nowrap text-ui-micro leading-none"
+            style={{
+              "background-color": palette.TERM_HEADER,
+              "border-bottom": `1px solid ${palette.TERM_BORDER}`,
+            }}
+          >
+            <span class="inline-flex items-center gap-1">
+              <span class="text-fin-text-muted">CE SIG</span>
+              <span
+                aria-hidden="true"
+                class="inline-block w-[2px] h-[9px] shrink-0 rounded-[1px]"
+                style={{ "background-color": sig().ce.tone }}
+              />
+              <span style={{ color: sig().ce.tone, "font-weight": 800 }} title={sig().ce.title}>
+                {sig().ce.short}
+              </span>
+            </span>
+            <span aria-hidden="true" style={{ color: palette.TEXT_MUTED }}>·</span>
+            <span class="inline-flex items-center gap-1">
+              <span class="text-fin-text-muted">PE SIG</span>
+              <span
+                aria-hidden="true"
+                class="inline-block w-[2px] h-[9px] shrink-0 rounded-[1px]"
+                style={{ "background-color": sig().pe.tone }}
+              />
+              <span style={{ color: sig().pe.tone, "font-weight": 800 }} title={sig().pe.title}>
+                {sig().pe.short}
+              </span>
+            </span>
+          </Box>
+        )}
+      </Show>
       <Box
         ref={attachWrap}
         data-testid={props.wrapTestId}

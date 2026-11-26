@@ -1,7 +1,8 @@
-import { createMemo } from "solid-js";
-import { Badge, Text, Progress, Tooltip, Button } from "@/ui";
+import { createMemo, Show } from "solid-js";
+import { Badge, Text, Progress, Tooltip, Button, useMediaQuery } from "@/ui";
 import { IconX } from "@/components/common/Icons";
 import { PositionsTableBody } from "./PositionsHelpers";
+import { PositionNarrowCards } from "./PositionNarrowCards";
 import type { PaperPosition } from "../../types/paperTrading";
 import { formatSignedPnl, getPnLTextColor } from "../../utils/ui-helpers";
 
@@ -28,6 +29,7 @@ function calcSummary(positions: PaperPosition[]) {
 }
 
 export function StrategyCard(props: StrategyCardProps) {
+  const narrow = useMediaQuery("(max-width: 599px)");
   const summary = createMemo(() => calcSummary(props.positions));
   const capacityPct = () => Math.min(100, (summary().count / props.maxCapacity) * 100);
 
@@ -66,7 +68,18 @@ export function StrategyCard(props: StrategyCardProps) {
           </Button>
         </Tooltip>
       </div>
-      <PositionsTableBody positions={props.positions} onSelect={props.onSelectSymbol} onClose={props.onClosePosition} />
+      <Show
+        when={!narrow()}
+        fallback={
+          <PositionNarrowCards
+            positions={props.positions}
+            onSelect={props.onSelectSymbol}
+            onClose={props.onClosePosition}
+          />
+        }
+      >
+        <PositionsTableBody positions={props.positions} onSelect={props.onSelectSymbol} onClose={props.onClosePosition} />
+      </Show>
     </div>
   );
 }

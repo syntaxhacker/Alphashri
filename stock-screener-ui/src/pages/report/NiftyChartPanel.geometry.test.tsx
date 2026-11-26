@@ -18,7 +18,12 @@ import {
   levelsWithinScale,
   mergeCollidingLabels,
 } from "./NiftyChartPanel";
-import { TIME_AXIS_LABEL_GUTTER_PX } from "./NiftyChartPanel.constants";
+import {
+  leftTimeGutterPx,
+  MOBILE_LEFT_PAD_PX,
+  MOBILE_LEFT_TIME_GUTTER_PX,
+  TIME_AXIS_LABEL_GUTTER_PX,
+} from "./NiftyChartPanel.constants";
 import type { NiftyGex, NiftyReport } from "@/types/niftyReport";
 import { verdictMarkLines } from "./niftyVerdictLevels";
 
@@ -847,15 +852,40 @@ describe("NiftyChartPanel — full HH:MM edge ticks", () => {
     const { ticks } = await measure(1600, false);
     expect(screen.getByTestId("chart-time-first-label")).toHaveTextContent(FIRST);
     expect(screen.getByTestId("chart-time-last-label")).toHaveTextContent(LAST);
+    expect(leftTimeGutterPx(false)).toBe(TIME_AXIS_LABEL_GUTTER_PX);
     expect(ticks.firstGap).toBeGreaterThanOrEqual(TIME_AXIS_LABEL_GUTTER_PX);
     expect(ticks.lastGap).toBeGreaterThanOrEqual(TIME_AXIS_LABEL_GUTTER_PX);
+    expect(
+      (screen.getByTestId("nifty-chart-wrap") as HTMLElement).style.paddingLeft,
+    ).toBe("");
   });
 
-  test("390 monitor reserves a full HH:MM gutter on both time-axis edges", async () => {
+  test("390 monitor reserves a full HH:MM gutter plus a 12px plot inset", async () => {
     const { ticks } = await measure(390, true);
     expect(screen.getByTestId("chart-time-first-label")).toHaveTextContent(FIRST);
     expect(screen.getByTestId("chart-time-last-label")).toHaveTextContent(LAST);
-    expect(ticks.firstGap).toBeGreaterThanOrEqual(TIME_AXIS_LABEL_GUTTER_PX);
-    expect(ticks.lastGap).toBeGreaterThanOrEqual(TIME_AXIS_LABEL_GUTTER_PX);
+    // The first tick used to lose its leading `0` and the first candle touched
+    // the card edge: reserve 24 + 12 inside the scale and 12px outside it.
+    expect(MOBILE_LEFT_PAD_PX).toBe(12);
+    expect(MOBILE_LEFT_TIME_GUTTER_PX).toBe(36);
+    expect(leftTimeGutterPx(true)).toBe(MOBILE_LEFT_TIME_GUTTER_PX);
+    expect(ticks.firstGap).toBeGreaterThanOrEqual(MOBILE_LEFT_TIME_GUTTER_PX);
+    expect(ticks.lastGap).toBeGreaterThanOrEqual(MOBILE_LEFT_TIME_GUTTER_PX);
+    const wrap = screen.getByTestId("nifty-chart-wrap");
+    expect(wrap).toHaveStyle({ "padding-left": `${MOBILE_LEFT_PAD_PX}px` });
+    expect(wrap).toHaveAttribute("data-mobile-left-gutter", String(MOBILE_LEFT_PAD_PX));
+    expect(wrap).toHaveAttribute("data-left-time-gutter", String(MOBILE_LEFT_TIME_GUTTER_PX));
+    const firstTick = screen.getByTestId("nifty-chart-first-time-tick");
+    expect(firstTick).toHaveTextContent(FIRST);
+    expect(firstTick.style.left).toBe(
+      `${MOBILE_LEFT_PAD_PX + MOBILE_LEFT_TIME_GUTTER_PX - 18}px`,
+    );
+    // The LAST DATA caption must not inherit the cutoff rule's shift: that
+    // pushed the first three glyphs off the 390px plot ("AS" fragment).
+    const boundary = screen.getByTestId("nifty-chart-last-data-boundary");
+    expect(boundary.style.transform).toBe("");
+    expect(
+      (screen.getByTestId("nifty-chart-cutoff-line") as HTMLElement).style.right,
+    ).toBe("var(--chart-time-label-gutter)");
   });
 });

@@ -219,6 +219,25 @@ describe("SectorHistoryTab", () => {
     expect(screen.queryByTestId("sector-history-empty")).not.toBeInTheDocument();
   });
 
+  test("derives As of from the newest ranked month, not a stale metadata value", async () => {
+    const months = Array.from({ length: 12 }, (_, index) => `2025-${String(index + 1).padStart(2, "0")}`);
+    const ranks = months.map((_, index) => (index % 3) + 1);
+    mockFetchSectorHistory.mockResolvedValue(
+      response({
+        months,
+        as_of: "2026-06-30",
+        series: [
+          { name: "Technology", is_benchmark: false, monthly_returns: ranks, ranks },
+          { name: "Banking", is_benchmark: false, monthly_returns: ranks, ranks: [...ranks].reverse() },
+        ],
+        universe: ["Technology", "Banking"],
+      }),
+    );
+    renderTab();
+
+    expect(await screen.findByTestId("sector-history-asof")).toHaveTextContent("As of 2025-12-31");
+  });
+
   test("renders the header, charts, risk table and disclaimer on success", async () => {
     mockFetchSectorHistory.mockResolvedValue(response());
     renderTab();

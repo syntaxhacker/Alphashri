@@ -10,6 +10,7 @@ import { HistoryHeader, type HistoryView } from "./HistoryHeader";
 import { HistoryEmptyState, HistoryErrorState, HistoryLoadingState } from "./HistoryStates";
 import { HistoryOverview } from "./HistoryOverview";
 import { HistoryLab } from "./HistoryLab";
+import { latestRankMonth, monthEnd } from "./visuals/shared";
 
 const HISTORY_YEARS = [3, 5, 10] as const;
 
@@ -74,10 +75,7 @@ export function SectorHistoryTab(props: { market: SectorHistoryMarket }) {
     () => `${props.market}:${years()}:${months().length}:${months().at(-1) ?? ""}`,
   );
 
-  const asOf = createMemo(() => {
-    const value = data()?.as_of;
-    return typeof value === "string" ? value : "";
-  });
+  const asOf = createMemo(() => monthEnd(latestRankMonth(months(), series())));
 
   const cached = createMemo(() => {
     const value = data()?.cached;

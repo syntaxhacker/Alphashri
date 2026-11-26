@@ -327,6 +327,31 @@ describe("market.heatmap window panel", () => {
     expect(screen.getByTestId("market-heatmap-encoding")).toHaveTextContent("4 of 4");
   });
 
+  it("(ctx-b2) an all-flat snapshot shows an explicit state, never 'N of N' over tiles", async () => {
+    ctl.setRows([row("RELIANCE", 0), row("TCS", 0)]);
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByTestId("market-heatmap-no-spread")).toBeInTheDocument());
+    expect(screen.getByTestId("market-heatmap-no-spread")).toHaveTextContent("No heatmap spread today");
+    expect(screen.queryByTestId("market-map-view")).not.toBeInTheDocument();
+    expect(screen.getByTestId("market-heatmap-count")).toHaveTextContent("0 tiles");
+    expect(screen.getByTestId("heatmap-filter-count")).toHaveTextContent("0 of 2 tiles");
+  });
+
+  it("(ctx-b3) zero day-change rows keep a tile and a finite flex area", async () => {
+    ctl.setRows([row("RELIANCE", 0), row("TCS", 1.2)]);
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByTestId("market-heatmap-immediate-tiles")).toBeInTheDocument());
+    const flat = screen.getByTestId("market-heatmap-tile-RELIANCE") as HTMLElement;
+    const moving = screen.getByTestId("market-heatmap-tile-TCS") as HTMLElement;
+    expect(flat).toBeInTheDocument();
+    expect(moving).toBeInTheDocument();
+    expect(Number.parseFloat(flat.style.flexGrow)).toBeGreaterThan(0);
+    expect(Number.parseFloat(flat.style.flexGrow)).toBeLessThan(Number.parseFloat(moving.style.flexGrow));
+    expect(screen.getByTestId("heatmap-filter-count")).toHaveTextContent("2 of 2");
+  });
+
   it("(ctx-c) the encoding subtitle names the single shared metric and follows a size change", async () => {
     ctl.setRows([row("RELIANCE", 1)]);
     renderPanel();

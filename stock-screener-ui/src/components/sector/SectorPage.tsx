@@ -7,18 +7,17 @@ import {
   createSignal,
   lazy,
   onCleanup,
+  onMount,
   type Accessor,
+  type JSX,
   type Setter,
 } from "solid-js";
-import { Box, Group, Text, Button, Stack, Tabs, Loader, ScrollArea, ToolbarRow } from "@/ui";
+import { Box, Group, Text, Button, Stack, Loader, ScrollArea, ToolbarRow } from "@/ui";
 import {
-  IconChartBar,
-  IconArrowsExchange,
   IconRefresh,
   IconBellRinging,
   IconTrendingUp,
   IconClock,
-  IconNetwork,
 } from "../screener/icons";
 import { SectorTable } from "./SectorTable";
 import { IntervalMoversTable } from "./IntervalMoversTable";
@@ -38,36 +37,58 @@ import { SectorHeatmapView } from "./SectorHeatmapView";
 import { SectorHeatmapControls } from "./SectorHeatmapContext";
 import { CompactToggle } from "./CompactToggle";
 import { SectorAlertsList } from "./SectorAlertsList";
-import { IconHistory } from "../common/Icons";
 import type { ViewMode } from "./SectorHeatmapView";
+import {
+  SECTOR_SECTIONS,
+  SectorSectionNav,
+  isSectorSectionId,
+  type SectorSectionId,
+} from "./SectorSectionNav";
 
-const SECTOR_TABS = ["dashboard", "correlation", "rotation", "history"] as const;
-
-// History pulls in the chart/lab chunk only when that tab is opened.
+// History pulls in the chart/lab chunk only when its section approaches.
 const SectorHistoryTab = lazy(() =>
   import("./history/SectorHistoryTab").then((module) => ({ default: module.SectorHistoryTab })),
 );
 
-type SectorTab = (typeof SECTOR_TABS)[number];
 type DashboardView = "table" | "visual";
 
-function isSectorTab(value: string | null): value is SectorTab {
-  return value !== null && (SECTOR_TABS as readonly string[]).includes(value);
-}
+const LEGACY_TAB_SECTION: Record<string, SectorSectionId> = {
+  dashboard: "overview",
+  correlation: "correlation",
+  rotation: "rotation",
+  history: "history",
+};
 
-/** Read `?tab=` without pulling in the router (tests render the page bare). */
-function readTabFromUrl(): SectorTab {
-  if (typeof window === "undefined") return "dashboard";
-  const tab = new URLSearchParams(window.location.search).get("tab");
-  return isSectorTab(tab) ? tab : "dashboard";
-}
+const SECTION_LABEL: Record<SectorSectionId, string> = {
+  overview: "Overview",
+  rotation: "Rotation",
+  correlation: "Correlation",
+  history: "History",
+};
 
-/** Write `?tab=` while preserving every other query param and the hash. */
-function writeTabToUrl(tab: SectorTab): void {
-  if (typeof window === "undefined") return;
+/** One migration point for old `?tab=` links and unknown hashes. */
+function normalizeSectionUrl(): SectorSectionId {
+  if (typeof window === "undefined") return "overview";
   const url = new URL(window.location.href);
-  url.searchParams.set("tab", tab);
-  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  const legacyTab = url.searchParams.get("tab");
+  let section: SectorSectionId | null = null;
+  if (legacyTab !== null) {
+    section = LEGACY_TAB_SECTION[legacyTab] ?? "overview";
+    url.searchParams.delete("tab");
+  } else {
+    const hash = url.hash.replace(/^#/, "");
+    section = isSectorSectionId(hash) ? hash : null;
+  }
+  if (!section) section = "overview";
+  url.hash = section;
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  return section;
+}
+
+function sectionFromHash(): SectorSectionId {
+  if (typeof window === "undefined") return "overview";
+  const hash = window.location.hash.replace(/^#/, "");
+  return isSectorSectionId(hash) ? hash : "overview";
 }
 
 function readDashboardView(): DashboardView {
@@ -90,13 +111,13 @@ function AlertsAndMovers(props: {
 }) {
   return (
     <Stack
-      spacing={0.25}
-      className="flex h-full min-h-0 flex-1 items-stretch overflow-hidden"
+      spacing={0.5}
+      className="flex w-full min-w-0 items-stretch"
     >
       <CompactPanel
         id="sector-alerts-card"
         data-testid="sector-alerts-card"
-        className="flex min-h-0 flex-none flex-col"
+        className="flex min-w-0 flex-col"
         title={
           <Box className="flex items-center justify-between gap-2">
             <Text fw={600} className="text-ui-micro">Real-time Alerts</Text>
@@ -104,7 +125,7 @@ function AlertsAndMovers(props: {
           </Box>
         }
       >
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea className="max-h-[200px] min-h-0 overflow-auto">
           <SectorAlertsList alerts={props.alerts} />
         </ScrollArea>
       </CompactPanel>
@@ -112,7 +133,7 @@ function AlertsAndMovers(props: {
       <CompactPanel
         id="sector-interval-movers-card"
         data-testid="sector-interval-movers-card"
-        className="flex min-h-0 flex-none flex-col"
+        className="flex min-w-0 flex-col"
         title={
           <Box className="flex items-center justify-between gap-2">
             <Text fw={600} className="text-ui-micro">Interval Movers</Text>
@@ -120,7 +141,7 @@ function AlertsAndMovers(props: {
           </Box>
         }
       >
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea className="max-h-[240px] min-h-0 overflow-auto">
           <IntervalMoversTable movers={props.intervalMovers} />
         </ScrollArea>
       </CompactPanel>
@@ -128,7 +149,7 @@ function AlertsAndMovers(props: {
       <CompactPanel
         id="sector-top-stocks-card"
         data-testid="sector-top-stocks-card"
-        className="flex min-h-0 flex-1 flex-col"
+        className="flex min-w-0 flex-col"
         title={
           <Box className="flex items-center justify-between gap-2">
             <Text fw={600} className="text-ui-micro">Top Gainers</Text>
@@ -136,7 +157,7 @@ function AlertsAndMovers(props: {
           </Box>
         }
       >
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea className="max-h-[240px] min-h-0 overflow-auto">
           <Show when={props.topStocks.length > 0} fallback={
             <Box className="flex items-center justify-center p-1">
               <Text size="xs" c="dimmed">No movers</Text>
@@ -184,10 +205,8 @@ function LoadingPanel() {
         </Group>
       }
       description="Loading live sector breadth and movers."
-      className="flex min-h-[200px] flex-1 flex-col"
-    >
-      <Box flex={1} className="min-h-0" />
-    </CompactPanel>
+      className="flex min-h-[140px] flex-col"
+    />
   );
 }
 
@@ -196,23 +215,23 @@ function ErrorPanel(props: { error: string; onRetry: () => void }) {
     <CompactPanel
       title="Error"
       description={props.error}
-      className="flex min-h-0 flex-1 flex-col"
+      className="flex min-h-0 flex-col"
       action={
         <Button variant="filled" color="error" size="sm" onClick={props.onRetry}>
           Retry
         </Button>
       }
-    >
-      <Box flex={1} />
-    </CompactPanel>
+    />
   );
 }
 
 function EmptyPanel() {
   return (
-    <CompactPanel title="No sector data" description="No sector data available for this market." className="flex min-h-0 flex-1 flex-col">
-      <Box flex={1} />
-    </CompactPanel>
+    <CompactPanel
+      title="No sector data"
+      description="No sector data available for this market."
+      className="flex min-h-0 flex-col"
+    />
   );
 }
 
@@ -222,10 +241,60 @@ function HistoryTabFallback() {
       data-testid="sector-history-lazy-fallback"
       role="status"
       aria-label="Loading sector history"
-      className="flex flex-1 min-h-0 items-center justify-center"
+      className="flex min-h-[160px] w-full items-center justify-center"
     >
       <Loader size="sm" />
     </Box>
+  );
+}
+
+function SectionSkeleton(props: { id: SectorSectionId }) {
+  return (
+    <Box
+      data-testid={props.id === "history" ? "sector-history-lazy-fallback" : `sector-section-${props.id}-skeleton`}
+      role="status"
+      aria-label={`Loading ${SECTION_LABEL[props.id]} section`}
+      className="flex min-h-[160px] w-full items-center justify-center gap-2 p-2"
+    >
+      <Loader size="sm" />
+      <Text c="dimmed" className="text-ui-micro">
+        Loading {SECTION_LABEL[props.id]}…
+      </Text>
+    </Box>
+  );
+}
+
+function SectionShell(props: {
+  id: SectorSectionId;
+  mounted: boolean;
+  contentClass?: string;
+  children: JSX.Element;
+}) {
+  const number = () =>
+    String(SECTOR_SECTIONS.findIndex((section) => section.id === props.id) + 1).padStart(2, "0");
+
+  return (
+    <section
+      id={props.id}
+      data-testid={`sector-section-${props.id}`}
+      data-section={props.id}
+      tabIndex={-1}
+      aria-label={SECTION_LABEL[props.id]}
+      className="w-full min-w-0 shrink-0 border-t border-fin-border focus:outline-none"
+      style={{ "scroll-margin-top": "48px" }}
+    >
+      <Box component="header" className="flex h-6 items-center gap-2 border-b border-fin-border px-2">
+        <Text c="dimmed" className="text-ui-micro font-mono tabular-nums">
+          {number()}
+        </Text>
+        <Text fw={700} className="text-ui-micro">
+          {SECTION_LABEL[props.id]}
+        </Text>
+      </Box>
+      <Show when={props.mounted} fallback={<SectionSkeleton id={props.id} />}>
+        <Box className={props.contentClass ?? ""}>{props.children}</Box>
+      </Show>
+    </section>
   );
 }
 
@@ -242,10 +311,18 @@ function onSectorTableRegionKeyDown(event: KeyboardEvent) {
 function SectorPerformancePanel(props: { sectors: SectorItem[] }) {
   return (
     <Box
-      className="flex flex-col overflow-hidden border border-fin-border rounded-[2px] min-w-0 min-h-0"
+      className="flex flex-col overflow-hidden border border-fin-border rounded-[2px] min-w-0 min-h-[200px]"
     >
-      <Box className="flex h-6 shrink-0 items-center justify-between gap-2 border-b border-fin-border px-2">
+      <Box className="flex min-h-6 shrink-0 items-center justify-between gap-2 border-b border-fin-border px-2 py-0.5">
         <Text fw={600} className="text-ui-micro">Sector Performance</Text>
+        <Text
+          data-testid="sector-move-scale"
+          title="MOVE bars map −3% to +3%; values outside the range are capped"
+          c="dimmed"
+          className="text-ui-micro font-mono tabular-nums whitespace-nowrap shrink-0"
+        >
+          MOVE −3% · 0 · +3%
+        </Text>
         <Text
           data-testid="sector-table-scroll-cue"
           title="Scroll sideways to see every column"
@@ -273,7 +350,7 @@ function SectorPerformancePanel(props: { sectors: SectorItem[] }) {
         aria-label="Sector performance table, scroll sideways for all columns"
         tabIndex={0}
         onKeyDown={onSectorTableRegionKeyDown}
-        className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto overscroll-x-contain focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-text"
+        className="max-h-[520px] min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto overscroll-x-contain focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-text"
       >
         <SectorTable sectors={props.sectors} />
       </Box>
@@ -294,29 +371,28 @@ function DashboardContent(props: {
 
   return (
     <Box
-      className="flex-1 min-h-0 overflow-y-auto lg:overflow-y-hidden flex flex-col gap-[2px] p-[2px]"
+      className="flex w-full min-w-0 flex-col gap-[2px] p-[2px]"
     >
       <Show when={props.dashboardView === "visual"} fallback={
         <Box
-          className="flex-1 min-h-0 grid gap-[2px] grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,2.4fr)_minmax(320px,1fr)] grid-rows-[auto_auto] lg:grid-rows-[minmax(0,1fr)]"
+          className="grid w-full min-w-0 gap-[2px] grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,2.4fr)_minmax(320px,1fr)]"
         >
           <SectorPerformancePanel sectors={data().sectors} />
-          <Box
-            className="min-h-[360px] lg:min-h-0 min-w-0 flex flex-col"
-          >
+          <Box className="min-w-0 flex flex-col">
             <AlertsAndMovers alerts={props.alerts} intervalMovers={props.intervalMovers} topStocks={data().top_stock_movers} />
           </Box>
         </Box>
       }>
         <Box
-          className="flex-1 min-h-0 grid gap-[2px] grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,2.4fr)_minmax(320px,1fr)] grid-rows-[auto_auto_auto] lg:grid-rows-[minmax(0,1.2fr)_minmax(0,0.8fr)]"
+          className="grid w-full min-w-0 gap-[2px] grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,2.4fr)_minmax(320px,1fr)]"
         >
           <CompactPanel
             id="sector-heatmap-panel"
             data-testid="sector-heatmap-panel"
             padded={false}
             scrollable
-            className="min-h-[300px] lg:min-h-0 flex flex-col"
+            style={{ "min-height": "320px" }}
+            className="flex flex-col"
             title={
               <Box className="flex items-center justify-between gap-2">
                 <Text fw={600} className="text-ui-micro">Market Heatmap</Text>
@@ -341,9 +417,7 @@ function DashboardContent(props: {
 
           <SectorPerformancePanel sectors={data().sectors} />
 
-          <Box
-            className="min-h-[360px] lg:min-h-0 min-w-0 flex flex-col"
-          >
+          <Box className="min-w-0 flex flex-col">
             <AlertsAndMovers alerts={props.alerts} intervalMovers={props.intervalMovers} topStocks={data().top_stock_movers} />
           </Box>
         </Box>
@@ -386,8 +460,6 @@ interface SectorState {
   setError: Setter<string | null>;
   market: Accessor<"india" | "america">;
   setMarket: Setter<"india" | "america">;
-  activeTab: Accessor<SectorTab>;
-  setActiveTab: (tab: string | null) => void;
   alerts: Accessor<SectorAlert[]>;
   setAlerts: Setter<SectorAlert[]>;
   intervalMovers: Accessor<InternalStockMover[]>;
@@ -402,18 +474,11 @@ function useSectorState(): SectorState {
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
   const [market, setMarket] = createSignal<"india" | "america">("india");
-  const [activeTabState, setActiveTabState] = createSignal<SectorTab>(readTabFromUrl());
   const [alerts, setAlerts] = createSignal<SectorAlert[]>([]);
   const [intervalMovers, setIntervalMovers] = createSignal<InternalStockMover[]>([]);
   const prevSectorData: Record<string, number> = {};
   const prevStockData: Record<string, number> = {};
   const requestAbort = { current: null as AbortController | null };
-
-  const setActiveTab = (next: string | null) => {
-    if (!isSectorTab(next)) return;
-    setActiveTabState(next);
-    writeTabToUrl(next);
-  };
 
   return {
     data,
@@ -424,8 +489,6 @@ function useSectorState(): SectorState {
     setError,
     market,
     setMarket,
-    activeTab: activeTabState,
-    setActiveTab,
     alerts,
     setAlerts,
     intervalMovers,
@@ -490,16 +553,10 @@ function useSectorPolling(
   state: SectorState,
   loadData: (mkt: string, isInitial?: boolean, force?: boolean) => Promise<boolean>,
 ) {
-  const { activeTab, market, setLoading, requestAbort } = state;
+  const { market, requestAbort } = state;
 
   createEffect(() => {
-    const currentTab = activeTab();
     const currentMarket = market();
-    if (currentTab !== "dashboard") {
-      setLoading(false);
-      return;
-    }
-
     let cancelled = false;
     let fastPollCount = 0;
     const liveTimeout = { current: null as ReturnType<typeof setTimeout> | null };
@@ -543,9 +600,6 @@ function SectorPageHeader(props: {
   setMarket: (m: "india" | "america") => void;
   loading: boolean;
   onRefresh: () => void;
-  showRefresh: boolean;
-  activeTab: SectorTab;
-  setActiveTab: (tab: string | null) => void;
 }) {
   // Only the subscription's lifetime matters here: the header reads holiday
   // state through isMarketOpenNow(), so it needs a subscription, not a snapshot.
@@ -554,10 +608,13 @@ function SectorPageHeader(props: {
   return (
     <ToolbarRow
       gap={8}
-      wrap={false}
-      clip
       data-testid="sector-header"
-      style={{ padding: "0 12px", "min-height": "36px", height: "36px", "border-bottom": "1px solid var(--color-fin-border)", "flex-shrink": "0" }}
+      style={{
+        padding: "4px 12px",
+        "min-height": "36px",
+        "border-bottom": "1px solid var(--color-fin-border)",
+        "flex-shrink": "0",
+      }}
     >
       <Text fw={700} className="text-ui-micro whitespace-nowrap">
         Sector Dashboard
@@ -586,80 +643,42 @@ function SectorPageHeader(props: {
         ]}
         onChange={(v) => props.setMarket(v as "india" | "america")}
       />
-      <Box
-        data-testid="sector-tabs-region"
-        className="relative flex min-w-0 flex-1 items-center lg:flex-initial"
-      >
-        <Tabs value={props.activeTab} onChange={props.setActiveTab} className="min-h-0 min-w-0 flex-1">
-          {/* The band already draws the section rule; a second bordered pill inside it is the nested-box anti-pattern.
-              The strip itself is the scroll container so arrow-key focus stays inside the tablist. */}
-          <Tabs.List
-            data-testid="sector-tabs-list"
-            className="sector-tabs-strip flex-nowrap gap-1 overflow-x-auto whitespace-nowrap"
-            style={{ border: "0", background: "transparent", padding: "0", "min-height": "0" }}
-          >
-            <Tabs.Tab value="dashboard" className="shrink-0 whitespace-nowrap text-ui-micro" icon={<IconChartBar size={12} />}>
-              Live Dashboard
-            </Tabs.Tab>
-            <Tabs.Tab value="correlation" className="shrink-0 whitespace-nowrap text-ui-micro" icon={<IconNetwork size={12} />}>
-              Sector Correlation
-            </Tabs.Tab>
-            <Tabs.Tab value="rotation" className="shrink-0 whitespace-nowrap text-ui-micro" icon={<IconArrowsExchange size={12} />}>
-              Rotation
-            </Tabs.Tab>
-            <Tabs.Tab
-              value="history"
-              className="shrink-0 whitespace-nowrap text-ui-micro"
-              icon={<IconHistory size={12} />}
-            >
-              History
-            </Tabs.Tab>
-          </Tabs.List>
-        </Tabs>
-        <Box
-          data-testid="sector-tabs-overflow-cue"
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 flex items-center bg-gradient-to-l from-fin-surface via-fin-surface to-transparent pl-4 pr-1 text-fin-primary lg:hidden"
-        >
-          <Text fw={700} className="text-ui-micro">→</Text>
-        </Box>
-      </Box>
-      <Box className="hidden flex-1 lg:block" />
-      <Show when={props.showRefresh}>
-        {/* @/ui Button reads `disabled`/`loading` once at construction, so the
-            button is rebuilt whenever the loading flag flips. */}
-        <Show when={props.loading} keyed>
-          {(_loading) => (
-            <Button
-              variant="light"
-              color="secondary"
-              size="xs"
-              leftSection={<IconRefresh size={12} />}
-              onClick={props.onRefresh}
-              loading={true}
-              disabled={true}
-              title={!marketOpen() ? "Market is closed" : undefined}
-              data-testid="sector-refresh-btn"
-            >
-              Refresh
-            </Button>
-          )}
-        </Show>
-        <Show when={!props.loading}>
+      <Box className="min-w-4 flex-1" />
+      {/* @/ui Button reads `disabled`/`loading` once at construction, so the
+          button is rebuilt whenever the loading flag flips. */}
+      <Show when={props.loading} keyed>
+        {(_loading) => (
           <Button
             variant="light"
             color="secondary"
             size="xs"
             leftSection={<IconRefresh size={12} />}
             onClick={props.onRefresh}
-            loading={false}
-            disabled={!marketOpen()}
+            loading={true}
+            disabled={true}
             title={!marketOpen() ? "Market is closed" : undefined}
+            className="shrink-0"
             data-testid="sector-refresh-btn"
           >
             Refresh
           </Button>
-        </Show>
+        )}
+      </Show>
+      <Show when={!props.loading}>
+        <Button
+          variant="light"
+          color="secondary"
+          size="xs"
+          leftSection={<IconRefresh size={12} />}
+          onClick={props.onRefresh}
+          loading={false}
+          disabled={!marketOpen()}
+          title={!marketOpen() ? "Market is closed" : undefined}
+          className="shrink-0"
+          data-testid="sector-refresh-btn"
+        >
+          Refresh
+        </Button>
       </Show>
     </ToolbarRow>
   );
@@ -687,14 +706,12 @@ function SectorContextBar(props: {
   return (
     <ToolbarRow
       gap={8}
-      wrap={false}
-      clip
       data-testid="sector-context-bar"
-      style={{ padding: "0 12px", "min-height": "28px", height: "28px", "border-bottom": "1px solid var(--color-fin-border)", "flex-shrink": "0" }}
+      style={{ padding: "4px 12px", "min-height": "28px", "border-bottom": "1px solid var(--color-fin-border)", "flex-shrink": "0" }}
     >
       <Show when={top() && bottom()}>
-        <Box data-testid="sector-summary-strip" className="flex min-w-0 shrink items-center gap-3 overflow-hidden">
-          <Box className="flex min-w-0 items-baseline gap-1">
+        <Box data-testid="sector-summary-strip" className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+          <Box className="flex min-w-0 flex-wrap items-baseline gap-x-1">
             <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-ui-micro tracking-[0.3px] whitespace-nowrap">
               Top Sector
             </Text>
@@ -704,7 +721,7 @@ function SectorContextBar(props: {
             <Text
               fw={700}
               c="success"
-              className="text-ui-micro min-w-0 break-words"
+              className="text-ui-micro min-w-0 w-full whitespace-nowrap sm:w-auto sm:whitespace-normal"
               title={top()!.sector}
               data-testid="sector-top-summary-name"
             >
@@ -714,7 +731,7 @@ function SectorContextBar(props: {
               Avg Change: {formatPercentage(top()!.avg_change)}
             </Text>
           </Box>
-          <Box className="hidden items-baseline gap-[6px] lg:flex">
+          <Box className="flex flex-wrap items-baseline gap-x-[6px]">
             <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-ui-micro tracking-[0.3px] whitespace-nowrap">
               Market Breadth
             </Text>
@@ -725,11 +742,11 @@ function SectorContextBar(props: {
               {declines()} DOWN
             </Text>
           </Box>
-          <Box className="hidden min-w-0 items-baseline gap-1 xl:flex">
+          <Box className="flex min-w-0 flex-wrap items-baseline gap-x-1">
             <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-ui-micro tracking-[0.3px] whitespace-nowrap">
               Weakest Sector
             </Text>
-            <Text fw={700} c="error" truncate className="text-ui-micro" title={bottom()!.sector}>
+            <Text fw={700} c="error" className="text-ui-micro min-w-0 break-words" title={bottom()!.sector}>
               {bottom()!.sector}
             </Text>
             <Text c="dimmed" className="text-ui-micro font-mono tabular-nums whitespace-nowrap">
@@ -765,8 +782,7 @@ function SectorContextBar(props: {
   );
 }
 
-function SectorTabContent(props: {
-  activeTab: SectorTab;
+function DashboardSectionContent(props: {
   data: SectorResponse | null;
   loading: boolean;
   error: string | null;
@@ -780,49 +796,135 @@ function SectorTabContent(props: {
   dashboardView: DashboardView;
 }) {
   return (
-    <Box
-      data-testid="sector-tab-content"
-      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-    >
-      <Show
-        when={props.activeTab !== "dashboard"}
-        fallback={
-          <Show when={!props.loading} fallback={<LoadingPanel />}>
-            <Show when={!props.error} fallback={<ErrorPanel error={props.error ?? ""} onRetry={() => props.loadData(props.market)} />}>
-              <Show when={props.data && props.data.sectors.length > 0} fallback={<EmptyPanel />}>
-                <DashboardContent
-                  data={props.data!}
-                  alerts={props.alerts}
-                  intervalMovers={props.intervalMovers}
-                  viewMode={props.viewMode}
-                  heatmapStocks={props.heatmapStocks}
-                  heatmapMetric={props.heatmapMetric}
-                  dashboardView={props.dashboardView}
-                />
-              </Show>
-            </Show>
-          </Show>
-        }
-      >
-        <Show
-          when={props.activeTab === "rotation"}
-          fallback={
-            <Show when={props.activeTab === "history"} fallback={<SectorCorrelationTab />}>
-              <Suspense fallback={<HistoryTabFallback />}>
-                <SectorHistoryTab market={props.market} />
-              </Suspense>
-            </Show>
-          }
-        >
-          <RotationTab market={props.market} />
+    <Show when={!props.loading} fallback={<LoadingPanel />}>
+      <Show when={!props.error} fallback={<ErrorPanel error={props.error ?? ""} onRetry={() => props.loadData(props.market)} />}>
+        <Show when={props.data && props.data.sectors.length > 0} fallback={<EmptyPanel />}>
+          <DashboardContent
+            data={props.data!}
+            alerts={props.alerts}
+            intervalMovers={props.intervalMovers}
+            viewMode={props.viewMode}
+            heatmapStocks={props.heatmapStocks}
+            heatmapMetric={props.heatmapMetric}
+            dashboardView={props.dashboardView}
+          />
         </Show>
       </Show>
-    </Box>
+    </Show>
   );
+}
+
+function useSectionNavigation(initial: SectorSectionId) {
+  const [active, setActive] = createSignal<SectorSectionId>(initial);
+  const [mounted, setMounted] = createSignal<Record<SectorSectionId, boolean>>({
+    overview: true,
+    rotation: initial === "rotation",
+    correlation: initial === "correlation",
+    history: initial === "history",
+  });
+  const scrollRoot = { current: null as HTMLElement | null };
+
+  const forceMount = (id: SectorSectionId) =>
+    setMounted((prev) => (prev[id] ? prev : { ...prev, [id]: true }));
+
+  const focusSection = (id: SectorSectionId) => {
+    const target = document.getElementById(id);
+    if (!target) return;
+    // Instant, not smooth: a capture or a keyboard user must land on the
+    // section before the next paint, and the fallback covers nested scrollports
+    // whose smooth animation can be interrupted by a focus change.
+    target.scrollIntoView?.({ behavior: "auto", block: "start" });
+    const root = scrollRoot.current;
+    if (root) {
+      const offset = target.getBoundingClientRect().top - root.getBoundingClientRect().top;
+      if (Math.abs(offset - 48) > 4) {
+        root.scrollTo?.({ top: root.scrollTop + offset - 48, behavior: "auto" });
+      }
+    }
+    target.focus({ preventScroll: true });
+  };
+
+  const goTo = (id: SectorSectionId, push = true) => {
+    forceMount(id);
+    setActive(id);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.hash = id;
+      const target = `${url.pathname}${url.search}${url.hash}`;
+      if (push) window.history.pushState(window.history.state, "", target);
+      else window.history.replaceState(window.history.state, "", target);
+    }
+    focusSection(id);
+  };
+
+  onMount(() => {
+    const root = scrollRoot.current;
+    const onScroll = () => {
+      for (const section of SECTOR_SECTIONS) forceMount(section.id);
+    };
+    const scroller = root ?? window;
+    scroller.addEventListener("scroll", onScroll, { once: true, passive: true });
+
+    const syncActive = () => {
+      const atEnd =
+        !!root && root.scrollTop + root.clientHeight >= root.scrollHeight - 4;
+      if (atEnd) {
+        setActive(SECTOR_SECTIONS[SECTOR_SECTIONS.length - 1].id);
+        return;
+      }
+      const edge = (root?.getBoundingClientRect().top ?? 0) + 56;
+      let current: SectorSectionId = "overview";
+      for (const section of SECTOR_SECTIONS) {
+        const node = document.getElementById(section.id);
+        if (node && node.getBoundingClientRect().top <= edge) current = section.id;
+      }
+      setActive(current);
+    };
+    scroller.addEventListener("scroll", syncActive, { passive: true });
+
+    let observer: IntersectionObserver | undefined;
+    if (root && typeof IntersectionObserver !== "undefined") {
+      observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            const id = (entry.target as HTMLElement).dataset.section as SectorSectionId | undefined;
+            if (id) forceMount(id);
+          }
+        },
+        { root, rootMargin: "600px 0px" },
+      );
+      for (const section of SECTOR_SECTIONS) {
+        const node = document.getElementById(section.id);
+        if (node) observer.observe(node);
+      }
+    }
+
+    const syncFromUrl = () => {
+      const id = sectionFromHash();
+      setActive(id);
+      forceMount(id);
+      focusSection(id);
+    };
+    window.addEventListener("hashchange", syncFromUrl);
+    window.addEventListener("popstate", syncFromUrl);
+    if (initial !== "overview") focusSection(initial);
+
+    onCleanup(() => {
+      scroller.removeEventListener("scroll", onScroll);
+      scroller.removeEventListener("scroll", syncActive);
+      observer?.disconnect();
+      window.removeEventListener("hashchange", syncFromUrl);
+      window.removeEventListener("popstate", syncFromUrl);
+    });
+  });
+
+  return { active, mounted, goTo, scrollRoot };
 }
 
 export function SectorPage() {
   const state = useSectorData();
+  const nav = useSectionNavigation(normalizeSectionUrl());
 
   const [viewMode, setViewMode] = createSignal<ViewMode>("sector");
   const [dashboardView, setDashboardView] = createSignal<DashboardView>(readDashboardView());
@@ -861,51 +963,79 @@ export function SectorPage() {
       data-testid="sector-analysis-view"
       className="w-full h-full min-h-0 flex flex-col p-0 gap-0 overflow-hidden"
     >
-      <SectorPageHeader
-        market={state.market()}
-        setMarket={state.setMarket}
-        loading={state.loading()}
-        onRefresh={() => state.loadData(state.market(), false, true)}
-        showRefresh={state.activeTab() === "dashboard"}
-        activeTab={state.activeTab()}
-        setActiveTab={state.setActiveTab}
-      />
-      <Show when={state.activeTab() === "dashboard" && state.data()}>
-        <SectorContextBar
-          data={state.data()}
-          dashboardView={dashboardView()}
-          onDashboardViewChange={(view) => {
-            setDashboardView(view);
-            writeDashboardView(view);
-          }}
-          viewMode={viewMode()}
-          onViewModeChange={setViewMode}
-          heatmapMetric={heatmapMetric()}
-          onHeatmapMetricChange={setHeatmapMetric}
-          stockSectorFilter={stockSectorFilter()}
-          onStockSectorFilterChange={setStockSectorFilter}
-          sectorOptions={sectorOptions()}
-          heatmapLoading={heatmapLoading()}
-        />
-      </Show>
       <Box
         id="sector-page"
-        className="flex-1 min-h-0 w-full flex flex-col overflow-hidden"
+        data-testid="sector-tab-content"
+        ref={(element: HTMLElement) => { nav.scrollRoot.current = element; }}
+        className="flex-1 min-h-0 w-full flex flex-col overflow-y-auto overflow-x-hidden"
       >
-        <SectorTabContent
-          activeTab={state.activeTab()}
-          data={state.data()}
-          loading={state.loading()}
-          error={state.error()}
+        <SectorPageHeader
           market={state.market()}
-          alerts={state.alerts()}
-          intervalMovers={state.intervalMovers()}
-          loadData={state.loadData}
-          viewMode={viewMode()}
-          heatmapStocks={heatmapStocks()}
-          heatmapMetric={heatmapMetric()}
-          dashboardView={dashboardView()}
+          setMarket={state.setMarket}
+          loading={state.loading()}
+          onRefresh={() => state.loadData(state.market(), false, true)}
         />
+        <SectorSectionNav active={nav.active()} onNavigate={(id) => nav.goTo(id)} />
+
+        <SectionShell id="overview" mounted={true}>
+          <Show when={state.data()}>
+            <SectorContextBar
+              data={state.data()}
+              dashboardView={dashboardView()}
+              onDashboardViewChange={(view) => {
+                setDashboardView(view);
+                writeDashboardView(view);
+              }}
+              viewMode={viewMode()}
+              onViewModeChange={setViewMode}
+              heatmapMetric={heatmapMetric()}
+              onHeatmapMetricChange={setHeatmapMetric}
+              stockSectorFilter={stockSectorFilter()}
+              onStockSectorFilterChange={setStockSectorFilter}
+              sectorOptions={sectorOptions()}
+              heatmapLoading={heatmapLoading()}
+            />
+          </Show>
+          <DashboardSectionContent
+            data={state.data()}
+            loading={state.loading()}
+            error={state.error()}
+            market={state.market()}
+            alerts={state.alerts()}
+            intervalMovers={state.intervalMovers()}
+            loadData={state.loadData}
+            viewMode={viewMode()}
+            heatmapStocks={heatmapStocks()}
+            heatmapMetric={heatmapMetric()}
+            dashboardView={dashboardView()}
+          />
+        </SectionShell>
+
+        <SectionShell
+          id="rotation"
+          mounted={nav.mounted().rotation}
+          contentClass="h-[900px] lg:h-[720px] overflow-hidden"
+        >
+          <RotationTab market={state.market()} />
+        </SectionShell>
+
+        <SectionShell
+          id="correlation"
+          mounted={nav.mounted().correlation}
+          contentClass="h-[1100px] lg:h-[900px] overflow-hidden"
+        >
+          <SectorCorrelationTab />
+        </SectionShell>
+
+        <SectionShell
+          id="history"
+          mounted={nav.mounted().history}
+          contentClass="h-[1050px] lg:h-[880px] overflow-hidden"
+        >
+          <Suspense fallback={<HistoryTabFallback />}>
+            <SectorHistoryTab market={state.market()} />
+          </Suspense>
+        </SectionShell>
       </Box>
     </Box>
   );

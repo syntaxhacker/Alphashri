@@ -1,4 +1,4 @@
-import { Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, type Accessor } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, type Accessor } from "solid-js";
 import { ActionIcon, Box, Button, Select, Text, ToolbarRow } from "@/ui";
 import type { CurrencyCode } from "@/config/currency";
 import { MARKET_UNIVERSE_DESCRIPTORS, marketUniverseDescriptor } from "@/config/marketUniverses";
@@ -10,9 +10,15 @@ import {
   DEFAULT_MARKET_SIZE_METRIC,
   isMarketSizeMetric,
   MARKET_COLOR_SCALE_NOTE,
+  marketColorDomain,
   marketMetricOptions,
+  marketTileColor,
+  marketTileTextColor,
+  marketTreemapMetrics,
+  toTreemapRow,
   type MarketSizeMetric,
 } from "../../market/marketTreemap";
+import { getRawMetricValue } from "@/components/heatmap/heatmapUtils";
 import type { UseMarketSnapshotResult } from "../../market/useMarketSnapshotSolid";
 import {
   acquireMarketSnapshot,
@@ -37,6 +43,20 @@ const UNIVERSE_OPTIONS = MARKET_UNIVERSE_DESCRIPTORS.map(({ value, label }) => (
 const UNIVERSE_VALUES = new Set<string>(MARKET_UNIVERSE_DESCRIPTORS.map((d) => d.value));
 // The subtitle borrows the legend's own direction phrase so the two cannot drift.
 const LEGEND_DIRECTION = MARKET_COLOR_SCALE_NOTE.split(" · ")[0] ?? MARKET_COLOR_SCALE_NOTE;
+
+/** A value this small is a genuine flat day, not a tile with a spread. */
+const FLAT_EPSILON = 1e-9;
+/** A real zero gets 1% of the smallest moving tile, matching the shared builder. */
+const ZERO_TILE_AREA_RATIO = 0.01;
+
+interface ImmediateTile {
+  symbol: string;
+  name: string;
+  weight: number;
+  fill: string;
+  ink: string;
+  detail: string;
+}
 
 function readUniverse(data: Record<string, unknown> | undefined): MarketUniverse {
   return (data?.universe ?? HEATMAP_UNIVERSE) as MarketUniverse;
@@ -209,6 +229,88 @@ function MarketHeatmapPanel(props: {
   const metricOptions = createMemo(() => marketMetricOptions(currency()));
   const labelFor = (metric: MarketSizeMetric) =>
     metricOptions().find((option) => option.value === metric)?.label ?? metric;
+
+  /**
+   * Synchronous tiles for the window desk. ECharts is lazy-loaded, so a fresh
+   * panel (or a slow module fetch) used to show the count with an empty body
+   * for seconds. These tiles use the same metric/domain/zero-area rules as the
+   * shared builder and are removed only once a real canvas has painted.
+   */
+  const immediateTiles = createMemo<{ tiles: ImmediateTile[]; flat: boolean }>(() => {
+    const metric = sizeBy();
+    const fmt = marketTreemapMetrics(currency()).find((m) => m.value === metric)?.fmt;
+    const valid: Array<{ row: ReturnType<typeof toTreemapRow>; value: number }> = [];
+    for (const row of filteredRows()) {
+      const converted = toTreemapRow(row, currency());
+      const value = getRawMetricValue(converted, metric);
+      if (value !== null && Number.isFinite(value)) valid.push({ row: converted, value });
+    }
+    if (valid.length === 0) return { tiles: [], flat: false };
+    const flat = valid.every((entry) => Math.abs(entry.value) <= FLAT_EPSILON);
+    const domain = marketColorDomain(valid.map((entry) => entry.row), metric);
+    const moving = valid
+      .map((entry) => Math.abs(entry.value))
+      .filter((value) => value > FLAT_EPSILON);
+    const smallest = moving.length > 0 ? Math.min(...moving) : 0;
+    const zeroArea = smallest > 0 ? smallest * ZERO_TILE_AREA_RATIO : 1;
+    const tiles = valid
+      .map(({ row, value }) => ({
+        symbol: row.symbol,
+        name: row.name,
+        weight: Math.abs(value) > FLAT_EPSILON ? Math.abs(value) : zeroArea,
+        fill: marketTileColor(metric, value, domain.min, domain.max),
+        ink: marketTileTextColor(metric, value, domain.min, domain.max),
+        detail: fmt ? fmt(value) : String(value),
+      }))
+      .sort((a, b) => b.weight - a.weight);
+    return { tiles, flat };
+  });
+  // Every listed value is flat: there is no area/color signal to paint. Say so
+  // instead of claiming "N of N" above an empty chart.
+  const noSpread = createMemo(() => {
+    const { tiles, flat } = immediateTiles();
+    return filteredRows().length > 0 && (tiles.length === 0 || flat);
+  });
+
+  const [chartReady, setChartReady] = createSignal(false);
+  let mapObserver: MutationObserver | undefined;
+  let mapResizeObserver: ResizeObserver | undefined;
+  let readyFrame = 0;
+  const watchMap = (el: HTMLDivElement) => {
+    mapObserver?.disconnect();
+    mapResizeObserver?.disconnect();
+    if (readyFrame) cancelAnimationFrame(readyFrame);
+    readyFrame = 0;
+    const check = () => {
+      const canvas = el.querySelector("canvas");
+      if (!canvas || readyFrame || canvas.getBoundingClientRect().width <= 0) return;
+      // setOption runs in the same task as init; two frames guarantee paint.
+      readyFrame = requestAnimationFrame(() => {
+        readyFrame = requestAnimationFrame(() => {
+          readyFrame = 0;
+          setChartReady(true);
+        });
+      });
+    };
+    if (typeof MutationObserver !== "undefined") {
+      mapObserver = new MutationObserver(check);
+      mapObserver.observe(el, { childList: true, subtree: true });
+    }
+    if (typeof ResizeObserver !== "undefined") {
+      mapResizeObserver = new ResizeObserver(check);
+      mapResizeObserver.observe(el);
+    }
+    check();
+  };
+  createEffect(() => {
+    if (filteredRows().length === 0 || noSpread()) setChartReady(false);
+  });
+  onCleanup(() => {
+    mapObserver?.disconnect();
+    mapResizeObserver?.disconnect();
+    if (readyFrame) cancelAnimationFrame(readyFrame);
+  });
+
   const staleLabel = () => {
     const age = snapshot.ageSec();
     if (age == null) return "Stale data";
@@ -235,9 +337,7 @@ function MarketHeatmapPanel(props: {
       <Box className="flex-shrink-0 border-b border-fin-border" data-testid="market-heatmap-context">
         <ToolbarRow
           gap={8}
-          wrap={false}
-          clip
-          className="px-2 h-8"
+          className="min-h-8 px-2 py-1"
           data-testid="market-heatmap-context-row"
         >
           <Select
@@ -267,27 +367,35 @@ function MarketHeatmapPanel(props: {
             universe={universe()}
             onChange={patchFilters}
           />
-          <Box className="flex-1 min-w-0" />
-          <Text size="xs" c="dimmed" className="whitespace-nowrap" data-testid="market-heatmap-count">
-            {formatCount(filteredRows().length)} stocks · {formatCount(etfCount())}{" "}
-            {etfCount() === 1 ? "ETF" : "ETFs"}
-          </Text>
-          <ActionIcon
-            size="xs"
-            variant="subtle"
-            aria-label="Refresh market snapshot"
-            title="Refresh market snapshot"
-            data-testid="market-heatmap-refresh"
-            onClick={() => snapshot.refresh(true)}
-          >
-            <span aria-hidden="true">⟳</span>
-          </ActionIcon>
+          {/* Kept as one unit: a greedy flex spacer pushed the count and
+              refresh onto separate rows when the toolbar wraps on narrow. */}
+          <Box className="ml-auto flex items-center gap-2">
+            <Text size="xs" c="dimmed" className="whitespace-nowrap" data-testid="market-heatmap-count">
+              {noSpread()
+                ? "No spread · 0 tiles"
+                : `${formatCount(immediateTiles().tiles.length)} stocks · ${formatCount(etfCount())} ${
+                    etfCount() === 1 ? "ETF" : "ETFs"
+                  }`}
+            </Text>
+            <ActionIcon
+              size="xs"
+              variant="subtle"
+              aria-label="Refresh market snapshot"
+              title="Refresh market snapshot"
+              data-testid="market-heatmap-refresh"
+              onClick={() => snapshot.refresh(true)}
+            >
+              <span aria-hidden="true">⟳</span>
+            </ActionIcon>
+          </Box>
         </ToolbarRow>
         <Box className="px-2 pb-1" data-testid="market-heatmap-encoding-row">
-          <Text size="xs" c="dimmed" className="truncate" data-testid="market-heatmap-encoding">
+          <Text size="xs" c="dimmed" className="leading-tight" data-testid="market-heatmap-encoding">
             {"Size & Colour = "}{labelFor(sizeBy())} ({LEGEND_DIRECTION}) ·{" "}
             <span data-testid="heatmap-filter-count">
-              {formatCount(filteredRows().length)} of {formatCount(total())}
+              {noSpread()
+                ? `0 of ${formatCount(total())} tiles`
+                : `${formatCount(immediateTiles().tiles.length)} of ${formatCount(total())}`}
             </span>
           </Text>
           <Show when={snapshot.stale() || !!snapshot.error()}>
@@ -333,14 +441,72 @@ function MarketHeatmapPanel(props: {
                     </Box>
                   }
                 >
-                  <MarketMapView
-                    rows={filteredRows()}
-                    currency={currency()}
-                    sizeBy={sizeBy()}
-                    onSizeByChange={(value) => chooseSizeMetric(value)}
-                    showSizeControl={false}
-                    onSymbolClick={(symbol) => dock.open(symbol)}
-                  />
+                  <Show
+                    when={!noSpread()}
+                    fallback={
+                      <Box
+                        data-testid="market-heatmap-no-spread"
+                        className="flex h-full min-h-0 flex-col items-center justify-center gap-1 p-2 text-center"
+                      >
+                        <Text size="xs" fw={700}>No heatmap spread today</Text>
+                        <Text size="xs" c="dimmed">
+                          All {formatCount(filteredRows().length)} stocks are flat on{" "}
+                          {labelFor(sizeBy()).toLowerCase()}. Tiles appear when values move.
+                        </Text>
+                      </Box>
+                    }
+                  >
+                    <Box className="relative flex min-h-0 flex-1 flex-col">
+                      {/* The shared map lazy-loads ECharts. Until its canvas has
+                          actually painted, paint the same stocks synchronously
+                          so the count above never sits over a blank body. */}
+                      <Show when={!chartReady()}>
+                        <Box
+                          data-testid="market-heatmap-immediate-tiles"
+                          className="absolute inset-0 z-10 flex flex-wrap content-stretch gap-[2px] overflow-hidden bg-fin-surface p-2"
+                          style={{ "pointer-events": "none" }}
+                        >
+                          <For each={immediateTiles().tiles}>
+                            {(tile) => (
+                              <div
+                                data-testid={`market-heatmap-tile-${tile.symbol}`}
+                                class="flex min-w-[28px] grow basis-[64px] flex-col items-center justify-center gap-0.5 overflow-hidden rounded-[2px] px-1 py-2 text-center"
+                                style={{
+                                  "flex-grow": String(tile.weight),
+                                  "background-color": tile.fill,
+                                  color: tile.ink,
+                                }}
+                                title={`${tile.name} · ${tile.detail}`}
+                              >
+                                <span class="w-full truncate text-ui-micro font-bold leading-tight">
+                                  {tile.symbol}
+                                </span>
+                                <span class="w-full truncate text-ui-micro leading-tight">
+                                  {tile.detail}
+                                </span>
+                              </div>
+                            )}
+                          </For>
+                        </Box>
+                      </Show>
+                      {/* The map's own legend is built with nowrap labels; in a
+                          narrow pane those clipped mid-sentence. Let the shared
+                          view keep its markup while the desk wrapper wraps them. */}
+                      <div
+                        ref={watchMap}
+                        class="flex min-h-0 flex-1 flex-col [&_[data-testid='market-map-legend']]:h-auto! [&_[data-testid='market-map-legend']]:flex-wrap! [&_[data-testid='market-map-color-direction']]:whitespace-normal! [&_[data-testid='market-map-size-note']]:whitespace-normal!"
+                      >
+                        <MarketMapView
+                          rows={filteredRows()}
+                          currency={currency()}
+                          sizeBy={sizeBy()}
+                          onSizeByChange={(value) => chooseSizeMetric(value)}
+                          showSizeControl={false}
+                          onSymbolClick={(symbol) => dock.open(symbol)}
+                        />
+                      </div>
+                    </Box>
+                  </Show>
                 </Show>
               }
             >

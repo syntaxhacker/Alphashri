@@ -79,7 +79,11 @@ export {
   CHART_ROW_CHROME,
   CHART_TF_MINUTES,
   FILL_MAX_HEIGHT,
+  leftTimeGutterPx,
   MOBILE_CHART_TARGET,
+  MOBILE_LEFT_PAD_PX,
+  MOBILE_LEFT_TIME_GUTTER_PX,
+  TIME_AXIS_LABEL_GUTTER_PX,
   type ChartSize,
   type ChartTimeframe,
 } from "./NiftyChartPanel.constants";

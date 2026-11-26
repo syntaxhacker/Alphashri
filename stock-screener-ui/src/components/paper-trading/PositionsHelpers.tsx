@@ -23,6 +23,7 @@ import {
 } from "../../utils/ui-helpers";
 import { POSITIVE, NEGATIVE, WARNING, BG, BORDER } from "@/ui/palette";
 import { withAlpha } from "../../utils/color";
+import { getPositionRowId } from "./positionId";
 export function nearBreakoutPct(item: PaperScanItem): number {
   const price = item.price;
   const orHigh = item.or_high;
@@ -122,13 +123,8 @@ function PnLDisplay(props: { pnl: number; pnlPct: number; flashKey: string }) {
   );
 }
 
-function sanitizeTestIdValue(value: string | number): string {
-  return String(value).replace(/[^a-zA-Z0-9_-]/g, "-");
-}
-
-function getCompositeRowId(pos: PaperPosition): string {
-  const strat = pos.strategy_id ?? pos.id ?? 0;
-  return `${sanitizeTestIdValue(strat)}-${sanitizeTestIdValue(pos.symbol)}`;
+export function getCompositeRowId(pos: PaperPosition): string {
+  return getPositionRowId(pos);
 }
 
 function calcRowBg(current: number, entry: number, sl: number, tp: number): string {

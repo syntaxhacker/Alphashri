@@ -626,7 +626,6 @@ function SearchableSelect(props: {
               aria-expanded={open()}
               aria-haspopup="listbox"
               aria-controls={listboxId}
-              aria-multiselectable="false"
               aria-invalid={props.isError}
               aria-describedby={props.describedBy}
               value={displayValue()}

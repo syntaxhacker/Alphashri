@@ -331,6 +331,30 @@ describe("NiftyOiHeatmap render", () => {
     expect(ce.querySelector(".text-ui-body")?.textContent).toMatch(/[\d,]+/);
   });
 
+  test("the spot line is named in the visible header, not only behind KEY", () => {
+    r(() => <NiftyOiHeatmap {...{ rows: twoBuckets, bucketMin: 5, widthPts: 500 }} />);
+    const key = screen.getByTestId("nifty-heatmap-spot-key");
+    expect(key).toHaveTextContent("SPOT");
+    expect(key).toHaveAttribute("title", expect.stringContaining("white line"));
+    expect(screen.getByTestId("nifty-heatmap-spot-key-swatch")).toHaveStyle({
+      backgroundColor: HEATMAP_SPOT,
+    });
+  });
+
+  test("CE and PE walls travel as one labelled unit, never an orphan wrap", () => {
+    r(() => <NiftyOiHeatmap {...{ rows: READ_ROWS, bucketMin: 5, widthPts: 500 }} />);
+    const walls = screen.getByTestId("nifty-heatmap-read-walls");
+    const ce = screen.getByTestId("nifty-heatmap-read-ce");
+    const pe = screen.getByTestId("nifty-heatmap-read-pe");
+    expect(walls).toContainElement(ce);
+    expect(walls).toContainElement(pe);
+    expect(walls.className).toContain("whitespace-nowrap");
+    expect(ce).toHaveTextContent("CE");
+    expect(pe).toHaveTextContent("PE");
+    expect(ce.textContent).toMatch(/CE\s*[\d,]+/);
+    expect(pe.textContent).toMatch(/PE\s*[\d,]+/);
+  });
+
   test("legend swatches are solid colour marks, not glyphs", () => {
     r(() => <NiftyOiHeatmap {...{ rows: twoBuckets, bucketMin: 5, widthPts: 500 }} />);
     const ce = screen.getByTestId("nifty-heatmap-legend-ce-swatch");

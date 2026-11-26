@@ -30,8 +30,15 @@ function getMovementBar(pctChange: number) {
   const { capped, color } = getMovementBarValue(pctChange);
 
   return (
-    <Box className="flex w-[70px] items-center justify-center">
+    <Box className="flex w-[70px] flex-col items-center justify-center gap-0.5">
       <Progress value={capped} color={color} size="sm" radius="xl" />
+      <Text
+        data-testid="sector-move-delta"
+        className="text-ui-micro font-mono tabular-nums"
+        style={{ color: color === "success" ? POSITIVE : NEGATIVE }}
+      >
+        Δ {pctChange >= 0 ? "+" : ""}{pctChange.toFixed(2)}%
+      </Text>
     </Box>
   );
 }

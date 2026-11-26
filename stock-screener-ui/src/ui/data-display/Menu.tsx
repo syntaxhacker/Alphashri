@@ -39,6 +39,17 @@ function useMenuContext() {
 const DEFAULT_SHADOW = palette.DIALOG_SHADOW;
 
 const INTRINSICALLY_FOCUSABLE = new Set(["BUTTON", "INPUT", "SELECT", "TEXTAREA"]);
+// A component wrapper (Button, ActionIcon, Tooltip, a caller's <span>) can put
+// the real control below the top-level node. A fallback <button> around that
+// subtree would nest interactive controls, so look through it as well.
+const FOCUSABLE_SELECTOR = 'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])';
+
+function isInteractive(node: HTMLElement): boolean {
+  if (INTRINSICALLY_FOCUSABLE.has(node.tagName)) return true;
+  if (node.tagName === "A" && node.hasAttribute("href")) return true;
+  const tabIndex = node.getAttribute("tabindex");
+  return tabIndex !== null && tabIndex !== "-1";
+}
 
 /**
  * An interactive child already owns (or intentionally opts out of) the tab
@@ -47,10 +58,8 @@ const INTRINSICALLY_FOCUSABLE = new Set(["BUTTON", "INPUT", "SELECT", "TEXTAREA"
  */
 function interactiveChildElement(node: unknown): HTMLElement | undefined {
   if (typeof HTMLElement === "undefined" || !(node instanceof HTMLElement)) return undefined;
-  if (INTRINSICALLY_FOCUSABLE.has(node.tagName)) return node;
-  if (node.tagName === "A" && node.hasAttribute("href")) return node;
-  const tabIndex = node.getAttribute("tabindex");
-  return tabIndex !== null && tabIndex !== "-1" ? node : undefined;
+  if (isInteractive(node)) return node;
+  return node.querySelector<HTMLElement>(FOCUSABLE_SELECTOR) ?? undefined;
 }
 
 /** Viewport gutter the dropdown may never cross. */

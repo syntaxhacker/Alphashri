@@ -63,6 +63,10 @@ function evidenceTape() {
 function evidenceReport() {
   return {
     ...mockNiftyReport,
+    wallsNear: {
+      calls: [{ strike: 22_450, oi: 4_200 }],
+      puts: [{ strike: 22_350, oi: 4_800 }],
+    },
     strikes: mockNiftyReport.strikes.map((strike, i) => {
       const ceChange = [220, -160, 310, -240, 140][i] ?? 0;
       const peChange = [-90, 180, -220, 260, -130][i] ?? 0;
@@ -84,6 +88,47 @@ function evidenceReport() {
         },
       };
     }),
+  };
+}
+
+function evidenceWalls() {
+  return {
+    symbol: "NIFTY",
+    date: "2026-10-12",
+    expiry: "2026-10-14",
+    dte: 2,
+    spot: 22_363.35,
+    max_pain: 22_400,
+    max_pain_drift: 0,
+    atm: 22_400,
+    net_gex: null,
+    flip: 22_350,
+    gex_degraded: false,
+    pin_distance_pts: 36.65,
+    pin_distance_pct: 0.16,
+    state: "QUIET",
+    expiry_day: false,
+    alert_eligible: false,
+    alert: null,
+    reasons: [],
+    call_wall: { strike: 22_500, oi: 5_000 },
+    put_wall: { strike: 22_200, oi: 6_000 },
+    tracked_call_erosion_30m: null,
+    tracked_call_erosion_5m: null,
+    tracked_put_build_30m: null,
+    near: true,
+    cross: false,
+    calls: [{ strike: 22_500, oi: 5_000, oi_open: 4_800, new_oi: 200, new_oi_pct: 0.04, distance_pct: 0.61 }],
+    puts: [{ strike: 22_200, oi: 6_000, oi_open: 6_100, new_oi: -100, new_oi_pct: -0.02, distance_pct: -0.73 }],
+    events: [],
+    history: [
+      { t: "2026-10-12T09:59:00+05:30", spot: 22_360, max_pain: 22_400, call_oi: 4_800, put_oi: 6_100 },
+      { t: "2026-10-12T10:00:00+05:30", spot: 22_363.35, max_pain: 22_400, call_oi: 5_000, put_oi: 6_000 },
+    ],
+    freshness: { last_t: "2026-10-12T10:00:00+05:30", age_sec: 60, stale: false, rows: 46, gaps: [] },
+    window_min: 60,
+    top: 3,
+    read: "call wall 22,500 · put wall 22,200",
   };
 }
 
@@ -120,6 +165,13 @@ const ROUTES: readonly EvidenceRoute[] = [
           status: 200,
           contentType: "application/json",
           body: JSON.stringify(evidenceReport()),
+        }),
+      );
+      await page.route(apiRoute("reports/options/NIFTY/walls"), (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(evidenceWalls()),
         }),
       );
     },

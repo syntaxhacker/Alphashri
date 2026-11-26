@@ -169,6 +169,7 @@ describe("BotsPage", () => {
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
     delete (window as unknown as { confirm?: () => boolean }).confirm;
   });
 
@@ -406,5 +407,94 @@ describe("BotsPage", () => {
       await fireEvent.click(closeBtn);
       expect(mockClearError).toHaveBeenCalled();
     }
+  });
+});
+
+/** `useMediaQuery` resolves each query against this width at mount time. */
+function stubWidth(width: number) {
+  vi.stubGlobal("matchMedia", ((query: string) => {
+    const max = /max-width:\s*(\d+)px/.exec(query);
+    const min = /min-width:\s*(\d+)px/.exec(query);
+    const matches = max ? width <= Number(max[1]) : min ? width >= Number(min[1]) : false;
+    return {
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    } as unknown as MediaQueryList;
+  }) as typeof window.matchMedia);
+}
+
+describe("BotsPage — missing limits and 390px layout", () => {
+  const missingLimits = () => ({
+    ...createBot(),
+    max_total_positions: undefined,
+    max_total_capital_pct: Number.NaN,
+  });
+
+  function renderBots(botOverrides: Record<string, any> = missingLimits()) {
+    const state = baseState();
+    state.bots = [createBot(botOverrides)];
+    mockGetBotsState.mockReturnValue(state);
+    return renderWithProviders(() => <BotsPage />);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetCurrentView.mockReturnValue("list");
+  });
+
+  it("renders dashes, never undefined or NaN%, for missing limits in the table", () => {
+    const { container } = renderBots();
+    const table = container.querySelector('[data-testid="bots-table"]')!;
+    expect(table).toBeInTheDocument();
+    expect(table.textContent).toContain("—");
+    expect(table.textContent).not.toContain("undefined");
+    expect(table.textContent).not.toContain("NaN%");
+  });
+
+  it("keeps finite limits formatted as a count and a whole percent", () => {
+    const { container } = renderBots({ max_total_positions: 5, max_total_capital_pct: 0.5 });
+    expect(container.querySelector('[data-testid="bots-table"]')!.textContent).toContain("50%");
+    expect(container.textContent).toContain("5");
+  });
+
+  it("uses card rows with every column visible below 900px", () => {
+    stubWidth(390);
+    const { container } = renderBots();
+    expect(screen.getByTestId("bots-narrow-cards")).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="bots-table"]')).toBeNull();
+    const card = screen.getByTestId("bot-row-bot-1");
+    for (const label of ["Strategies", "Max positions", "Max capital", "Actions"]) {
+      expect(card.textContent).toContain(label);
+    }
+    expect(card.textContent).toContain("Test Bot");
+    expect(card.textContent).toContain("STOPPED");
+    expect(screen.getByTestId("bot-max-positions-bot-1")).toHaveTextContent("—");
+    expect(screen.getByTestId("bot-max-capital-bot-1")).toHaveTextContent("—");
+    for (const testId of [
+      "view-bot-status-btn-bot-1",
+      "start-bot-btn-bot-1",
+      "edit-bot-btn-bot-1",
+      "delete-bot-btn-bot-1",
+    ]) {
+      expect(card.querySelector(`[data-testid="${testId}"]`)).toBeInTheDocument();
+    }
+    expect(container.textContent).not.toContain("undefined");
+    expect(container.textContent).not.toContain("NaN%");
+  });
+
+  it("fits the New action as an icon-only button at 390px", async () => {
+    stubWidth(390);
+    renderBots();
+    const button = screen.getByTestId("create-bot-btn");
+    expect(button).toHaveAttribute("aria-label", "New Bot");
+    expect(button.textContent).toBe("");
+    await fireEvent.click(button);
+    expect(mockOpenCreateModal).toHaveBeenCalled();
   });
 });

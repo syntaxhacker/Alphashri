@@ -2,7 +2,9 @@ import { Show } from "solid-js";
 import { Box, Loader, Text } from "@/ui";
 import { PatternGrid } from "@/components/patterns/PatternGrid";
 import { PatternListView } from "@/components/patterns/PatternListView";
+import { PatternNarrowResults } from "@/components/patterns/PatternNarrowResults";
 import { PatternSymbolMatrix } from "@/components/patterns/PatternSymbolMatrix";
+import { usePatternsNarrow } from "@/components/patterns/narrowLayout";
 import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenView";
 import type { PatternsPageModel } from "./usePatternsPage";
 
@@ -41,10 +43,20 @@ export type ResultsViewModel = Pick<
 /** Result grid (matrix/list/grid) plus the docked chart rail. */
 export function ResultsView(props: { model: ResultsViewModel }) {
   const m = props.model;
+  const narrow = usePatternsNarrow();
+  // The matrix is symbol-keyed, so each row contributes its best hit to the
+  // phone list; the list/grid views already carry one hit per row/card.
+  const narrowHits = () =>
+    m.view() === "matrix"
+      ? m.filteredMatrixRows().flatMap((row) => (row.best ? [row.best] : []))
+      : m.filteredLatest();
   return (
     <Box className="flex flex-1 min-h-0 h-0 min-w-0 items-stretch gap-2 overflow-hidden">
       <Box className="relative flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden">
-        {m.view() === "matrix" ? (
+        <Show
+          when={narrow()}
+          fallback={
+            m.view() === "matrix" ? (
           <PatternSymbolMatrix
             rows={m.filteredMatrixRows()}
             timeframes={m.matrixVisibleTimeframes()}
@@ -89,7 +101,11 @@ export function ResultsView(props: { model: ResultsViewModel }) {
               onSymbolOpen={m.openSymbolPinned}
             />
           </div>
-        )}
+            )
+          }
+        >
+          <PatternNarrowResults hits={narrowHits()} onSelect={m.openChartHit} />
+        </Show>
         <Show when={m.showRefresh()}>
           <Box
             data-testid="patterns-refreshing"

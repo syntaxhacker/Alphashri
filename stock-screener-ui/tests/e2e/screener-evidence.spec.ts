@@ -6,8 +6,8 @@
  * `../mocks/screenerEvidence.ts` — not a Storybook substitute. Screenshots are
  * written only when SCREENSHOT_EVIDENCE=1 so normal runs leave the tree clean.
  *
- * The 390 arm refuses to capture when the sideways-scroll cue is missing: a
- * clipped table with no scroll affordance would be a misleading evidence image.
+ * The 390 arm refuses to capture when the results do not fit the viewport: a
+ * clipped table would be a misleading evidence image.
  */
 import { test, expect } from "@playwright/test";
 import { loginAsTestUser, setupApiMocks } from "../mocks/apiResponses";
@@ -37,24 +37,35 @@ for (const [width, height] of [
     await page.waitForSelector(TABLE_ROWS, { timeout: 20000 });
     await expect(page.locator(TABLE_ROWS).first()).toBeVisible();
 
-    // GROUPS and the table must both be real, not error shells.
-    await expect(page.getByTestId("group-performance-panel")).toBeVisible();
+    // The table must be real, not an error shell.
     await expect(page.getByTestId("group-performance-error")).toHaveCount(0);
     await expect(page.getByTestId("screener-error-container")).toHaveCount(0);
     expect(consoleErrors.filter((text) => text.includes("Failed to fetch"))).toEqual([]);
 
-    if (width === 390) {
-      // Below `sm` the table scrolls sideways; the cue is the only affordance.
-      // Missing cue => fail before writing the PNG rather than commit a clipped,
-      // misleading 390 capture.
-      // The approaching/touched panels each mount their own table cue; either
-      // one visible proves the 390 scroll affordance rendered.
-      await expect(page.getByTestId("screener-table-scroll-cue").first()).toBeVisible();
+    if (width === 1600) {
+      await expect(page.getByTestId("group-performance-panel")).toBeVisible();
+    } else {
+      // Below 900 the GROUPS rail is visually removed and the results own the
+      // row: symbol + primary metrics must be readable without a sideways hunt.
+      const layout = await page.evaluate(() => ({
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        panel: document.querySelector('[data-testid="screener-panel"]')?.getBoundingClientRect().width ?? 0,
+        headers: [...document.querySelectorAll('[data-testid="screener-table"] thead th')]
+          .filter((th) => {
+            const r = th.getBoundingClientRect();
+            return r.x >= 0 && r.right <= window.innerWidth + 1;
+          })
+          .map((th) => th.id.replace("paper-tanstack-header-", "")),
+      }));
+      expect(layout.overflow).toBeLessThanOrEqual(0);
+      expect(layout.panel).toBeGreaterThan(350);
+      expect(layout.headers).toContain("symbol");
+      expect(layout.headers).toContain("sector");
     }
 
     await page.waitForLoadState("networkidle");
     await page.screenshot({
-      path: `docs/screenshots/app/screener-${width}.png`,
+      path: `${process.env.SCREENER_EVIDENCE_DIR ?? "docs/screenshots/app"}/screener-${width}.png`,
       fullPage: true,
     });
   });

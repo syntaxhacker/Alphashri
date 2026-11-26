@@ -110,9 +110,6 @@ export function StrategyRunnerConfig(props: Props) {
 
           <Group gap="xs" align="flex-start">
             <Box>
-              <Text size="xs" fw={500} mb={2}>
-                From
-              </Text>
               <TradingDatePicker
                 w={140}
                 maxDate={maxDate}
@@ -122,9 +119,6 @@ export function StrategyRunnerConfig(props: Props) {
               />
             </Box>
             <Box>
-              <Text size="xs" fw={500} mb={2}>
-                To
-              </Text>
               <TradingDatePicker
                 w={140}
                 maxDate={maxDate}

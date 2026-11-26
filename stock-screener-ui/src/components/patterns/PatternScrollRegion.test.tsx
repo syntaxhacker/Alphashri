@@ -36,14 +36,31 @@ describe("PatternScrollRegion", () => {
     expect(region.className).toContain("overflow-x-auto");
   });
 
-  test("shows the narrow-only Scroll sideways cue outside the scrollport", () => {
+  test("attaches the narrow-only cue to the container's top, outside the scrollport", () => {
     renderRegion();
     const cue = screen.getByTestId("test-scroll-cue");
     expect(cue).toHaveTextContent("Scroll sideways →");
     expect(cue.className).toContain("md:hidden");
     // Visible at the 390px breakpoint: hidden is applied only from md upward.
     expect(cue.className).toContain("flex");
-    expect(screen.getByTestId("test-scroll-region")).not.toContainElement(cue);
+    const region = screen.getByTestId("test-scroll-region");
+    expect(region).not.toContainElement(cue);
+    expect(region.previousElementSibling).toBe(cue);
+  });
+
+  test("omits the cue when the content does not scroll sideways", () => {
+    render(() => (
+      <PatternScrollRegion
+        testId="test-scroll-region"
+        cueTestId="test-scroll-cue"
+        ariaLabel="Test results"
+        showCue={false}
+      >
+        <div class="paper-tanstack-scroll" />
+      </PatternScrollRegion>
+    ));
+    expect(screen.queryByTestId("test-scroll-cue")).toBeNull();
+    expect(screen.getByTestId("test-scroll-region")).toBeInTheDocument();
   });
 
   test("pins the first header and identifier cell when asked", () => {
