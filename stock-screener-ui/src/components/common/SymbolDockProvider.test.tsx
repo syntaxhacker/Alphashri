@@ -69,8 +69,8 @@ vi.mock("@/components/patterns/PatternFullscreenView", async () => {
         const onKeyDown = (event: KeyboardEvent) => {
           if (event.key === "Escape") props.onClose?.();
         };
-        document.addEventListener("keydown", onKeyDown);
-        onCleanup(() => document.removeEventListener("keydown", onKeyDown));
+        document.addEventListener("keydown", onKeyDown, true);
+        onCleanup(() => document.removeEventListener("keydown", onKeyDown, true));
       });
 
       if (!props.docked) {
@@ -1027,6 +1027,10 @@ describe("chart dock fullscreen", () => {
     );
     expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-chart-dock")).toBeInTheDocument();
+
+    // The restore path must not leak a suppressed Escape into the next gesture.
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument());
   });
 
   test("Escape from the modal restores the dock instead of closing it", async () => {
@@ -1041,6 +1045,25 @@ describe("chart dock fullscreen", () => {
     );
     expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-chart-expand")).toBeInTheDocument();
+  });
+
+  test("the Escape that restores the dock does not also close the dock", async () => {
+    await openChartDock();
+    await fireEvent.click(screen.getByTestId("patterns-chart-expand"));
+    const modal = await screen.findByTestId("patterns-fullscreen-modal");
+
+    // Target a node inside the document so the Modal's capture listener runs
+    // before the provider's bubble listener is reattached mid-dispatch.
+    fireEvent.keyDown(modal, { key: "Escape" });
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
+
+    // A later Escape is a new gesture and still closes the dock.
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument());
   });
 
   test("opening another symbol resets the maximized state", async () => {

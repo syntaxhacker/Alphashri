@@ -87,6 +87,18 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
   const [optionsSymbol, setOptionsSymbol] = createSignal<string | null>(null);
   const [maximized, setMaximized] = createSignal(false);
 
+  // The Modal restores the dock while its Escape is still dispatching, and the
+  // provider reattaches the dock listener in that same tick. Mark that one
+  // event so the reattached listener cannot close the dock a second time.
+  let suppressDockEscape = false;
+  const restoreDock = () => {
+    suppressDockEscape = true;
+    setMaximized(false);
+    queueMicrotask(() => {
+      suppressDockEscape = false;
+    });
+  };
+
   const preview = (symbol: string, market?: string) => {
     if (!isDesktop()) return;
     // US symbols have no NSE chart data — never open the NSE dock for them.
@@ -244,6 +256,10 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
    */
   const onDockKeydown = (event: KeyboardEvent) => {
     if (event.key !== "Escape") return;
+    if (suppressDockEscape) {
+      suppressDockEscape = false;
+      return;
+    }
     if (mode() === "options") return;
     const target = event.target as HTMLElement | null;
     if (
@@ -375,7 +391,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
               onSelectHit={selectFullscreenHit}
               onTimeframeChange={changeFullscreenTimeframe}
               onRefresh={refreshSymbolChart}
-              onClose={() => setMaximized(false)}
+              onClose={restoreDock}
               onLive={() => undefined}
             />
           </Suspense>
