@@ -230,10 +230,13 @@ jobs:
       - name: Verify Storybook keyboard walkthrough
         run: cd stock-screener-ui && node scripts/storybook-keyboard.mjs
   frontend-unit-changed:
-    name: Frontend Unit Tests (changed)
+    name: Frontend Unit Tests (changed files)
     if: github.event_name == 'pull_request' && github.base_ref == 'develop'
     runs-on: ubuntu-24.04
-    # --changed on develop stays fast; the full suite is sharded in the sibling job.
+    # Tradeoff: feature PRs gate only changed test files, not the transitive
+    # changed-dependency closure that made a small shared-module edit run the
+    # whole suite. The full 4-shard suite runs on PR-to-main/nightly, so the
+    # release gate stays complete.
     timeout-minutes: 15
     env:
       # Which wall-time budget applies to the summary produced below.
@@ -246,43 +249,37 @@ jobs:
         with:
           bun-version: '1.2.5'
       - run: cd stock-screener-ui && bun install --frozen-lockfile
-      - name: Run changed unit tests (PR to develop only)
+      - name: Run changed frontend test files (PR to develop only)
         if: github.event_name == 'pull_request' && github.base_ref == 'develop'
         run: |
           cd stock-screener-ui
           mkdir -p perf
-          # A clean checkout has no working-tree changes; pass the PR base so
-          # vitest diffs base...HEAD instead of finding zero changed files.
-          bun x vitest run --changed="${{ github.event.pull_request.base.sha }}" \
-            --reporter=verbose --reporter=json \
+          BASE="${{ github.event.pull_request.base.sha }}"
+          mapfile -t FILES < <(git diff --relative --name-only "$BASE...HEAD" -- 'src' | grep -E '\.(test|spec)\.(ts|tsx)$' || true)
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "no changed frontend test files; full unit suite runs on PR-to-main/nightly"
+            exit 0
+          fi
+          bun x vitest run "${FILES[@]}" --reporter=verbose --reporter=json \
             --outputFile.json=perf/vitest-timings.json --dir src --exclude 'tests/e2e/**'
-      - name: Guard against empty changed run (PR to develop only)
+      - name: Guard changed frontend test files run (PR to develop only)
         if: ${{ always() && github.event_name == 'pull_request' && github.base_ref == 'develop' }}
         run: |
           cd stock-screener-ui
           BASE="${{ github.event.pull_request.base.sha }}"
-          # --changed exits 0 with zero tests on a clean checkout, so trust the
-          # JSON report, not the exit code.
+          mapfile -t FILES < <(git diff --relative --name-only "$BASE...HEAD" -- 'src' | grep -E '\.(test|spec)\.(ts|tsx)$' || true)
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "no changed frontend test files; guard passed"
+            exit 0
+          fi
           TESTS=$(python3 -c 'import json; print(json.load(open("perf/vitest-timings.json")).get("numTotalTests", 0))' 2>/dev/null || echo 0)
-          if [ "$TESTS" -gt 0 ]; then
-            echo "changed run executed $TESTS tests (base $BASE)"
-            exit 0
-          fi
-          # Zero tests are legitimate only when the PR touches no frontend source/test files.
-          if git diff --quiet "$BASE...HEAD" -- src vitest.config.ts vite.config.ts package.json bun.lock; then
-            echo "changed run found 0 tests and PR has no frontend source/test changes (base $BASE)"
-            exit 0
-          else
-            RC=$?
-          fi
-          if [ "$RC" -gt 1 ]; then
-            echo "::error::could not diff PR base $BASE (git exit $RC)"
+          if [ "$TESTS" -eq 0 ]; then
+            echo "::error::changed test files ran 0 tests although test files changed (base $BASE)"
+            echo "Changed frontend test files:"
+            printf '%s\n' "${FILES[@]}"
             exit 1
           fi
-          echo "::error::vitest --changed ran 0 tests although the PR changes frontend sources/tests (base $BASE)"
-          echo "Frontend paths changed in this PR:"
-          git diff --name-only "$BASE...HEAD" -- src vitest.config.ts vite.config.ts package.json bun.lock || true
-          exit 1
+          echo "changed frontend test files run executed $TESTS tests (base $BASE)"
       - name: Summarize vitest timings
         if: always()
         run: |
