@@ -113,8 +113,21 @@ export function StrategyRunnerPage() {
         data-testid="sr-header"
         style={{ flex: "0 0 auto", height: `${palette.FIN_HEADER_H}px`, padding: `0 ${palette.FIN_OUTER_PAD}px`, "border-bottom": "1px solid var(--color-fin-border)" }}
       >
-        <Title order={2} size="lg">Strategy Runner</Title>
-        <Text size="sm" c="dimmed" style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}>
+        <Title
+          order={2}
+          size="lg"
+          className="min-w-0"
+          style={{ "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }}
+          data-testid="sr-title"
+        >
+          Strategy Runner
+        </Title>
+        <Text
+          size="sm"
+          c="dimmed"
+          className="min-w-0 flex-1 whitespace-normal break-words sm:truncate sm:whitespace-nowrap"
+          data-testid="sr-subtitle"
+        >
           Compare bot strategies side by side
           {config().bot_uuids.length > 0 || config().symbols.length > 0
             ? ` · ${config().bot_uuids.length} bot${config().bot_uuids.length === 1 ? "" : "s"} · ${config().symbols.length} symbol${config().symbols.length === 1 ? "" : "s"}`

@@ -194,10 +194,14 @@ export function BacktestConfig(props: BacktestConfigProps) {
         </Box>
       </Field>
 
-      <Box className="flex justify-end gap-2" style={{ "grid-column": "1 / -1", display: "flex", "justify-content": "flex-end", gap: "4px" }}>
+      <Box
+        className="col-span-2 flex min-w-0 flex-wrap items-center justify-start gap-1.5 max-w-[calc(100vw-12px)] sm:max-w-none sm:justify-end"
+        style={{ "grid-column": "1 / -1" }}
+      >
         <Button
           variant="filled"
           size="sm"
+          className="w-full sm:w-auto"
           onClick={props.onRun}
           disabled={props.isRunning || props.selectedSymbols.length === 0}
           loading={props.isRunning}
