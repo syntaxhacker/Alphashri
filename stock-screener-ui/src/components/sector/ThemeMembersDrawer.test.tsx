@@ -4,9 +4,11 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { ThemeMembersDrawer } from "./ThemeMembersDrawer";
+import { SymbolDockContext } from "../common/symbolDockContext";
 
-const { mockFetchThemeDetail } = vi.hoisted(() => ({
+const { mockFetchThemeDetail, dockOpen } = vi.hoisted(() => ({
   mockFetchThemeDetail: vi.fn(),
+  dockOpen: vi.fn(),
 }));
 
 vi.mock("../../api/rotation", () => ({
@@ -14,20 +16,33 @@ vi.mock("../../api/rotation", () => ({
 }));
 
 function renderDrawer() {
-  return render(() =>
-    <ThemeMembersDrawer
-      open
-      slug="defence"
-      name="Defence"
-      onClose={vi.fn()}
-    />,
-    { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> },
-  );
+  return render(() => (
+    <UIProvider>
+      <SymbolDockContext.Provider
+        value={{
+          open: dockOpen,
+          preview: vi.fn(),
+          endPreview: vi.fn(),
+          close: vi.fn(),
+          pinned: false,
+          setOutlet: vi.fn(),
+        }}
+      >
+        <ThemeMembersDrawer
+          open
+          slug="defence"
+          name="Defence"
+          onClose={vi.fn()}
+        />
+      </SymbolDockContext.Provider>
+    </UIProvider>
+  ));
 }
 
 describe("ThemeMembersDrawer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    dockOpen.mockClear();
     mockFetchThemeDetail.mockResolvedValue({
       theme: {
         slug: "defence",
@@ -56,6 +71,16 @@ describe("ThemeMembersDrawer", () => {
       "https://www.tradingview.com/chart/?symbol=NSE%3AHAL",
     );
     expect(screen.getByTestId("theme-member-chart-BEL")).toHaveAttribute("href", "/chart/BEL");
+  });
+
+  test("chart affordance opens the dock instead of navigating to /chart/:symbol", async () => {
+    renderDrawer();
+    const anchor = await screen.findByTestId("theme-member-chart-BEL");
+
+    // False means the default anchor navigation was cancelled.
+    expect(fireEvent.click(anchor)).toBe(false);
+    expect(dockOpen).toHaveBeenCalledTimes(1);
+    expect(dockOpen).toHaveBeenCalledWith("BEL");
   });
 
   test("filters the members", async () => {

@@ -1,6 +1,6 @@
-import { createEffect, createMemo, onCleanup } from "solid-js";
+import { For, Show, createEffect, createMemo, onCleanup } from "solid-js";
 import type * as ECharts from "echarts";
-import { Box, useColorScheme, typeSize } from "@/ui";
+import { Box, Text, useColorScheme, typeSize } from "@/ui";
 import { loadEcharts } from "@/utils/loadEcharts";
 import type { SectorItem } from "../../types/sector";
 import type { HeatmapStock } from "../../api/heatmap";
@@ -172,6 +172,26 @@ export function SectorHeatmapView(props: SectorHeatmapViewProps) {
     );
   });
 
+  // The canvas itself cannot take focus. A compact, keyboard-operable symbol
+  // rail exposes the same chart action; keep it bounded so a 500-row snapshot
+  // does not mount 500 buttons on every poll.
+  const railSymbols = createMemo(() => {
+    if (props.viewMode !== "stock") return [];
+    const seen = new Set<string>();
+    return [...props.stocks]
+      .sort((a, b) => Math.abs(b.change_pct ?? 0) - Math.abs(a.change_pct ?? 0))
+      .map((stock) => stock.symbol)
+      .filter((symbol) => {
+        const key = String(symbol ?? "").trim().toUpperCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 40);
+  });
+
+  const activate = (symbol: string) => props.onSymbolClick?.(symbol);
+
   async function applyOption(next: ReturnType<typeof option>) {
     const lib = await loadEcharts();
     if (disposed || !chartEl || !lib) return;
@@ -180,7 +200,7 @@ export function SectorHeatmapView(props: SectorHeatmapViewProps) {
       chart.on("click", (params: unknown) => {
         const p = params as { name?: string };
         if (props.onSymbolClick && props.viewMode === "stock" && p?.name) {
-          props.onSymbolClick(p.name);
+          activate(p.name);
         }
       });
     }
@@ -207,9 +227,39 @@ export function SectorHeatmapView(props: SectorHeatmapViewProps) {
   return (
     <Box
       data-testid="sector-heatmap-view"
-      className="flex min-h-0 w-full flex-1 overflow-hidden"
+      className="flex min-h-0 w-full flex-1 flex-col overflow-hidden"
       style={{ height: "100%" }}
     >
+      <Show when={props.onSymbolClick && railSymbols().length > 0}>
+        <Box
+          data-testid="sector-heatmap-symbol-rail"
+          role="group"
+          aria-label="Stock tiles: choose a symbol to open its chart"
+          className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-fin-border px-2 py-1"
+        >
+          <Text c="dimmed" className="text-ui-micro whitespace-nowrap">Symbols</Text>
+          <For each={railSymbols()}>
+            {(symbol) => (
+              <button
+                type="button"
+                data-testid={`sector-heatmap-symbol-${symbol}`}
+                aria-label={`Open ${symbol} chart`}
+                onClick={() => activate(symbol)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  // Native buttons also fire click on these keys; preventing
+                  // the default keeps the dock from opening twice.
+                  event.preventDefault();
+                  activate(symbol);
+                }}
+                className="shrink-0 rounded-fin border border-fin-border bg-transparent px-1.5 py-0.5 text-ui-micro text-fin-text hover:text-fin-primary focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-text"
+              >
+                {symbol}
+              </button>
+            )}
+          </For>
+        </Box>
+      </Show>
       <Box className="flex min-h-0 w-full flex-1" data-testid="sector-heatmap-chart">
         <div ref={(el) => (chartEl = el)} class="h-full w-full" style={{ "min-width": 0 }} />
       </Box>
