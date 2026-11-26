@@ -7,9 +7,10 @@ import type { RotationPeriod, RotationRow } from "@/types/rotation";
 
 const PERIODS: RotationPeriod[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y"];
 
-function heatBackground(value: number): string {
-  const intensity = Math.min(Math.abs(value) / 12, 1) * 0.2;
-  return withAlpha(value >= 0 ? POSITIVE : NEGATIVE, intensity);
+function heatBackground(value: number | null | undefined): string {
+  const safe = typeof value === "number" && Number.isFinite(value) ? value : 0;
+  const intensity = Math.min(Math.abs(safe) / 12, 1) * 0.2;
+  return withAlpha(safe >= 0 ? POSITIVE : NEGATIVE, intensity);
 }
 
 export interface RotationMatrixProps {

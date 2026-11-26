@@ -117,6 +117,12 @@ describe("SectorTable rendering", () => {
     expect(progressBars.length).toBe(2);
   });
 
+  it("labels each MOVE bar with its signed delta", () => {
+    render(() => <SectorTable sectors={mockSectors} />);
+    const deltas = screen.getAllByTestId("sector-move-delta");
+    expect(deltas.map((node) => node.textContent)).toEqual(["Δ +2.50%", "Δ -1.00%"]);
+  });
+
   it("renders A/D ratio with positive sector green color and negative red", () => {
     render(() => <SectorTable sectors={mockSectors} />);
     expect(screen.getByText("30 : 20")).toBeInTheDocument();

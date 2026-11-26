@@ -8,7 +8,7 @@ import { RANK_STOPS, CHART_CURRENT, rankColor } from "./chartPalette";
 import { labelWidthFor } from "./matrices/labelWidth";
 import { MatrixFrame } from "./matrices/MatrixFrame";
 import { useRovingGrid } from "./matrices/useRovingGrid";
-import { SVG_TEXT, monthIndex, monthName, yearOf } from "./shared";
+import { SVG_TEXT, latestRankMonth, monthIndex, monthName, yearOf } from "./shared";
 
 const CELL_W = 20;
 /** A desktop 3Y board has room to breathe; narrow and longer lookbacks stay dense. */
@@ -414,9 +414,9 @@ export function SectorRankHeatmap(props: SectorRankHeatmapProps) {
 export function SectorRankSummary(props: SectorRankSummaryProps) {
   const summary = createMemo(() => {
     const sectors = props.series.filter((item) => !item.is_benchmark);
-    const latestIndex = props.months.length - 1;
+    const latestMonth = latestRankMonth(props.months, props.series);
+    const latestIndex = props.months.indexOf(latestMonth);
     const latest = latestRanks(sectors, latestIndex);
-    const latestMonth = latestIndex >= 0 ? props.months[latestIndex] : "";
     const month = latestMonth ? `${monthName(monthIndex(latestMonth))} ${yearOf(latestMonth)}` : "";
     return {
       hasData: sectors.length > 0 && props.months.length > 0,

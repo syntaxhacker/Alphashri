@@ -183,7 +183,7 @@ describe("SectorHistoryTab composed render", () => {
       ),
     );
     await waitFor(() =>
-      expect(screen.getByTestId("sector-history-asof")).toHaveTextContent("2027-10-28"),
+      expect(screen.getByTestId("sector-history-asof")).toHaveTextContent("2025-12-31"),
     );
     expect(labTitle("sector-history-lab-sankey-panel")).toBeVisible();
   });

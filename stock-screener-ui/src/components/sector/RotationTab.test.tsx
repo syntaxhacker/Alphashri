@@ -131,6 +131,17 @@ describe("RotationTab", () => {
     await waitFor(() => expect(screen.getByTestId("rotation-detail")).toHaveTextContent("Technology"));
   });
 
+  test("wraps controls and gives the RRG panel a real mobile height", async () => {
+    renderTab();
+    await screen.findByTestId("rotation-board-table");
+
+    const toolbar = screen.getByTestId("rotation-toolbar");
+    expect(toolbar).toHaveClass("flex-wrap");
+    expect(toolbar.className).not.toMatch(/\boverflow-hidden\b/);
+    expect(screen.getByTestId("rotation-regime")).toHaveClass("flex-wrap");
+    expect(screen.getByTestId("rotation-rrg-panel")).toHaveStyle({ "min-height": "300px" });
+  });
+
   test("shows an error state when the overview request fails", async () => {
     mockFetchRotationOverview.mockRejectedValue(new Error("rotation down"));
     renderTab();
