@@ -40,11 +40,14 @@ test.describe("Screener - Data Display", () => {
     const symbol = (await firstSymbol.textContent())?.trim() ?? "";
     expect(symbol.length).toBeGreaterThan(0);
 
-    // Clicking the symbol body navigates in-app to that symbol's chart view.
+    // Clicking the symbol body pins that symbol in the app-wide dock without
+    // leaving the screener.
     await firstSymbol.click();
-    await expect(page).toHaveURL(/\/chart\//);
-    await expect(page.getByTestId("chart-view")).toBeVisible();
-    await expect(page.getByTestId("chart-title")).toContainText(symbol);
+    await expect(page.getByTestId("symbol-dock")).toBeVisible({ timeout: 15000 });
+    await expect(page).toHaveURL(/\/screener\//);
+    await expect(page).not.toHaveURL(/\/chart\//);
+    await expect(page.locator('[data-testid="symbol-dock"][data-mode="options"]')).toHaveCount(0);
+    expect(symbol.length).toBeGreaterThan(0);
   });
   test("should display approaching and touched sections", async ({ page }) => {
     await openScreenerTable(page);
