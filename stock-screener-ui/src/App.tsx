@@ -1,5 +1,5 @@
 import { Show, Suspense, createEffect, createSignal, lazy, type JSX } from "solid-js";
-import { Center, Loader } from "@/ui";
+import { Center, Loader, Notifications } from "@/ui";
 import { Navigate, Route, Router, useLocation } from "@solidjs/router";
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
 import { LoginForm, RegisterForm } from "./components/auth/LoginForm";
@@ -78,17 +78,22 @@ function AuthScreen() {
  * matched route, supplied by the router.
  */
 function Shell(props: { children?: JSX.Element }) {
+  // The toast host and the chrome (ticker, notification panel) sit above the
+  // routed page, so they must be inside SymbolDockProvider too. Otherwise
+  // their symbol controls resolve the inert default context and do nothing.
   return (
-    <AppLayout>
-      <PreviewChartProvider>
-        <SymbolDockProvider>
-          <Suspense fallback={<Center><Loader /></Center>}>
-            <ErrorBoundary label="Page">{props.children}</ErrorBoundary>
-          </Suspense>
-        </SymbolDockProvider>
-      </PreviewChartProvider>
-      <NotificationContainer />
-    </AppLayout>
+    <PreviewChartProvider>
+      <SymbolDockProvider>
+        <Notifications>
+          <AppLayout>
+            <Suspense fallback={<Center><Loader /></Center>}>
+              <ErrorBoundary label="Page">{props.children}</ErrorBoundary>
+            </Suspense>
+            <NotificationContainer />
+          </AppLayout>
+        </Notifications>
+      </SymbolDockProvider>
+    </PreviewChartProvider>
   );
 }
 

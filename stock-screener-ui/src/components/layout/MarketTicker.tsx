@@ -3,6 +3,7 @@ import { usePolling } from "@/hooks/usePolling";
 import { Box, Text, Skeleton, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { useSymbolDock } from "../common/symbolDockContext";
 import { subscribeToHolidays, isMarketOpenNow, getHolidayState } from "../../state/holidays";
 
 // Inlined from hooks/useMarketTickerEnabled (still on React); same v2 storage
@@ -44,6 +45,16 @@ const MARKET_STATUS_RECHECK_MS = 60000;
 const SESSION_CLOSED_DETAIL = "Closed at 15:30 IST · Opens 09:15 IST";
 
 const PRIORITY_ORDER = ["^NSEI", "^NSEBANK", "GC=F", "SI=F", "CL=F", "USDINR=X"];
+
+/**
+ * Indian indices in the tape map to the chart ids the app-wide dock knows.
+ * Every other row is an external quote (commodity / forex) with no app
+ * instrument behind it, so it stays a plain, non-interactive tape cell.
+ */
+const CHART_INDEX_IDS: Record<string, string> = {
+  "^NSEI": "NIFTY",
+  "^NSEBANK": "BANKNIFTY",
+};
 
 function getTickerLabel(symbol: string): string {
   switch (symbol) {
@@ -105,6 +116,7 @@ interface TickerItemProps {
 }
 
 function TickerItem(props: TickerItemProps) {
+  const dock = useSymbolDock();
   const label = () => getTickerLabel(props.symbol);
   const price = () => Number(props.item.price ?? 0);
   const change = () => Number(props.item.change ?? 0);
@@ -112,11 +124,33 @@ function TickerItem(props: TickerItemProps) {
   const isPositive = () => change() >= 0;
   const tone = () => (isPositive() ? palette.POSITIVE : palette.NEGATIVE);
   const testId = () => props.symbol.replace(/[\^=]/g, "").toLowerCase();
+  const chartId = () => CHART_INDEX_IDS[props.symbol];
+  const isIndex = () => chartId() != null;
+
+  // The provider owns the desktop/narrow split: `open` pins the desktop dock
+  // and navigates to the chart route below 1200px or for a US market.
+  const activate = () => {
+    const id = chartId();
+    if (id) dock.open(id);
+  };
 
   return (
     <Box
-      style={TICKER_GRID}
-      className="market-ticker-item"
+      component={isIndex() ? "button" : "div"}
+      type={isIndex() ? "button" : undefined}
+      onClick={isIndex() ? activate : undefined}
+      onKeyDown={
+        isIndex()
+          ? (event: KeyboardEvent) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                activate();
+              }
+            }
+          : undefined
+      }
+      style={{ ...TICKER_GRID, border: "none", background: "transparent", padding: 0, color: "inherit", "text-align": "left", cursor: isIndex() ? "pointer" : "default" }}
+      className={`market-ticker-item ${isIndex() ? "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]" : ""}`}
       data-testid={`ticker-${testId()}`}
     >
       <Text

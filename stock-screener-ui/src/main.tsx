@@ -6,7 +6,6 @@ import "./style.css";
 import "solid-notifications/index.css";
 import * as Sentry from "@sentry/solid";
 import { render } from "solid-js/web";
-import { Notifications } from "@/ui";
 import App from "./App";
 
 if (import.meta.env.VITE_SENTRY_DSN) {
@@ -36,9 +35,5 @@ if (!root) {
 }
 
 // The router is mounted inside `App` because `AppLayout` reads `useLocation()`.
-// `Notifications` is the toast host (was notistack's SnackbarProvider).
-render(() => (
-  <Notifications>
-    <App />
-  </Notifications>
-), root);
+// The toast host lives in `Shell` so its controls can reach SymbolDockProvider.
+render(() => <App />, root);

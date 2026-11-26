@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@solidjs/testing-library";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import "@testing-library/jest-dom/vitest";
-import { NewsItemCard, NewsListContent } from "./NewsHelpers";
+import { ArticleSymbols, NewsItemCard, NewsListContent } from "./NewsHelpers";
 import { TestWrapper } from "@/test-utils/renderWithProviders";
-import type { NewsItem } from "./news-types";
+import type { NewsItem, NewsSymbol } from "./news-types";
 
 const SOURCES = ["Reuters", "Bloomberg", "Moneycontrol", "Economic Times", "Mint", "CNBC"];
 
@@ -129,6 +129,43 @@ describe("NewsListContent source derivation", () => {
     expect(counter.calls).toBe(1);
     expect(screen.getByTestId("news-source-group-Economic Times")).toBeInTheDocument();
     expect(screen.queryByTestId("news-source-group-Reuters")).not.toBeInTheDocument();
+  });
+});
+
+describe("ArticleSymbols", () => {
+  afterEach(() => cleanup());
+
+  const symbol: NewsSymbol = {
+    name: "Reliance Industries",
+    code: "RELIANCE",
+    url: "https://example.com/reliance",
+    trading_symbol: "RELIANCE",
+    instrument_key: "NSE_EQ|INE002A01018",
+  };
+
+  it("renders a focusable button that activates with click and Enter/Space", async () => {
+    const onSymbolClick = vi.fn();
+    render(
+      () => <ArticleSymbols symbols={[symbol]} onSymbolClick={onSymbolClick} />,
+      { wrapper: TestWrapper },
+    );
+
+    const badge = screen.getByTestId("news-symbol-RELIANCE");
+    expect(badge.tagName).toBe("BUTTON");
+    expect(badge).not.toHaveAttribute("aria-label");
+    expect(badge).toHaveAccessibleName(/Reliance Industries/);
+    expect(badge.className).toContain("focus-visible:outline");
+
+    await fireEvent.click(badge);
+    expect(onSymbolClick).toHaveBeenCalledWith(symbol);
+
+    onSymbolClick.mockClear();
+    await fireEvent.keyDown(badge, { key: "Enter" });
+    expect(onSymbolClick).toHaveBeenCalledWith(symbol);
+
+    onSymbolClick.mockClear();
+    await fireEvent.keyDown(badge, { key: " " });
+    expect(onSymbolClick).toHaveBeenCalledWith(symbol);
   });
 });
 
