@@ -103,6 +103,21 @@ export function applyChartPlotMargin(chart: IChartApi): void {
  */
 export const TIME_AXIS_LABEL_GUTTER_PX = 24;
 
+/**
+ * Phone plot inset. The engine centres the first tick on the first bar, and
+ * the wrap previously gave it only 6px; the leading `0` of `09:15` was cut and
+ * the first candle sat on the card edge. Reserve the same extra 12px inside
+ * the time scale and outside it as CSS padding, so both the label and the
+ * candle body have room at 390 without changing the right cutoff contract.
+ */
+export const MOBILE_LEFT_PAD_PX = 12;
+export const MOBILE_LEFT_TIME_GUTTER_PX = TIME_AXIS_LABEL_GUTTER_PX + MOBILE_LEFT_PAD_PX;
+
+/** The phone/narrow plot needs the wider first-bar gutter; desktop keeps 24px. */
+export function leftTimeGutterPx(compact: boolean): number {
+  return compact ? MOBILE_LEFT_TIME_GUTTER_PX : TIME_AXIS_LABEL_GUTTER_PX;
+}
+
 type TimeScale = ReturnType<IChartApi["timeScale"]>;
 
 /** Pixel spacing from the engine's own coordinate mapping, with a safe floor
@@ -142,14 +157,21 @@ export function useGutteredChartRange(
     const pin = () => {
       if (getChart() !== chart) return;
       const scale = chart.timeScale();
+      const spacing = barSpacingPx(scale);
+      const leftLogical = getLeftGutter() / spacing;
+      // `setVisibleLogicalRange` is the engine's last word: an offset applied
+      // just before it is overwritten. Put the matching blank bars into the
+      // range itself, or the last tick is painted against the price axis and
+      // loses its trailing glyph.
+      const rightLogical = getLeftGutter() / spacing;
       scale.applyOptions({
         rightOffset: 0,
         rightOffsetPixels: getRightOffset() + getLeftGutter(),
       });
       if (typeof scale.setVisibleLogicalRange === "function") {
         scale.setVisibleLogicalRange({
-          from: -getLeftGutter() / barSpacingPx(scale),
-          to: count - 1,
+          from: -leftLogical,
+          to: count - 1 + rightLogical,
         });
       }
     };

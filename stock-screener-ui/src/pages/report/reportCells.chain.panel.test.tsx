@@ -54,6 +54,17 @@ describe("option-chain keyboard scroller", () => {
     expect(screen.getByTestId("nifty-oi-table")).toBeInTheDocument();
   });
 
+  test("SIG bar colours are keyed in the panel header", () => {
+    mount();
+    const key = screen.getByTestId("nifty-chain-signal-key");
+    expect(key).toHaveTextContent("BULL");
+    expect(key).toHaveTextContent("BEAR");
+    const swatches = key.querySelectorAll("span[aria-hidden]");
+    expect(swatches).toHaveLength(2);
+    expect(swatches[0]).toHaveStyle({ backgroundColor: palette.POSITIVE });
+    expect(swatches[1]).toHaveStyle({ backgroundColor: palette.NEGATIVE });
+  });
+
   test("arrow keys scroll the focused region by 80px and other keys are left alone", () => {
     mount();
     const wrap = screen.getByTestId("nifty-oi-wrap") as HTMLElement;

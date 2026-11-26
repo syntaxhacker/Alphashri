@@ -5,6 +5,8 @@ import { createSignal } from "solid-js";
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 import { UIProvider } from "@/ui";
 import { chainRow, reportWith } from "./reportCells.fixtures";
+import { chainAt } from "./reportTestFixtures";
+import type { HeatmapTapeRow } from "./niftyOiHeatmap";
 
 const env = vi.hoisted(() => ({ mobile: true }));
 
@@ -15,6 +17,7 @@ const [report] = createSignal(
   }),
 );
 const [sideTab] = createSignal("chain");
+const [tapeRows, setTapeRows] = createSignal<HeatmapTapeRow[]>([]);
 
 const mockStore = {
   data: {
@@ -28,7 +31,7 @@ const mockStore = {
     tape: () => [],
     oiPoints: () => [],
     flipAt: () => null,
-    tapeRows: () => [],
+    tapeRows: () => tapeRows(),
     metrics: () => null,
     intradayStart: () => null,
   },
@@ -91,7 +94,10 @@ afterAll(() => {
     value: realMatchMedia,
   });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  setTapeRows([]);
+});
 
 function mount() {
   return render(() => (
@@ -126,6 +132,33 @@ describe("ReportWorkspace — 390 chain rail and dock footer", () => {
     expect(wrap).toHaveAttribute("data-chain-v-scroll", "1");
     expect(wrap.className).toContain("max-[600px]:max-h-full!");
     expect(screen.getByTestId("nifty-chain-scroll-cue")).toHaveTextContent("⇄");
+  });
+
+  test("the collapsed phone heatmap names the CE/PE OI walls from the tape", () => {
+    env.mobile = true;
+    const strikes = [24_900, 25_000, 25_100];
+    setTapeRows([
+      {
+        t: "2026-10-12T09:15:00+05:30",
+        spot: 25_000,
+        max_pain: 25_000,
+        chain: chainAt(strikes, 1_000, 1_000),
+      },
+      {
+        t: "2026-10-12T09:16:00+05:30",
+        spot: 25_010,
+        max_pain: 25_000,
+        chain: {
+          ...chainAt(strikes, 1_000, 1_000),
+          "25100": [10, 12, 5_000, 1_000, 1, 1],
+          "24900": [10, 12, 1_000, 5_000, 1, 1],
+        },
+      },
+    ]);
+    mount();
+    expect(screen.getByTestId("nifty-mobile-walls-read")).toHaveTextContent(
+      /CE 25,100 · PE 24,900/,
+    );
   });
 
   test("the pinned DESK BAY bar scrolls horizontally with a right-edge fade and chevron", () => {

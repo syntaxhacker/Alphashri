@@ -276,6 +276,26 @@ export function NiftyOiChain(props: NiftyOiChainProps) {
       testId={props.panelTestId}
       action={
         <Box className="flex items-center gap-1">
+          {/* The SIG badge leading bar means bullish/bearish, but its colour
+              had no key. Name both colours in the header the badges sit under. */}
+          <span
+            data-testid="nifty-chain-signal-key"
+            class="inline-flex items-center gap-1 whitespace-nowrap text-ui-micro"
+            title="CE/PE SIG colour key — green bar: bullish · red bar: bearish"
+          >
+            <span
+              aria-hidden="true"
+              class="inline-block w-[3px] h-[11px] shrink-0 rounded-[1px]"
+              style={{ "background-color": palette.POSITIVE }}
+            />
+            <span>BULL</span>
+            <span
+              aria-hidden="true"
+              class="inline-block w-[3px] h-[11px] shrink-0 rounded-[1px] ml-1"
+              style={{ "background-color": palette.NEGATIVE }}
+            />
+            <span>BEAR</span>
+          </span>
           <Text
             data-testid="nifty-chain-scroll-cue"
             aria-hidden="true"

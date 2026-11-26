@@ -3,6 +3,7 @@ import type { JSX } from "solid-js";
 
 import { ActionIcon, Box, Button, Text, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
+import { formatNumberIN } from "@/utils/ui-helpers";
 import type { NiftyStrike } from "@/types/niftyReport";
 
 import { BreadthStrip } from "./BreadthStrip";
@@ -12,6 +13,7 @@ import { NiftyWallsCard } from "./NiftyWallsCard";
 import { useNiftyReport } from "./ReportContext";
 import type { HeatMetric } from "./niftyReportStore";
 import { NiftyOiChain, getNiftyOiColumns } from "./reportCells";
+import { buildOiHeatmap, readHeatmap } from "./niftyOiHeatmap";
 import { LiveTapeDisclosure } from "./reportBits";
 import { REPORT_FONT, REPORT_GUTTER } from "./reportTokens";
 
@@ -167,6 +169,7 @@ function MobileHeatmapSummary(props: {
   metric: HeatMetric;
   onMetric: (metric: HeatMetric) => void;
   onOpenFull: () => void;
+  wallsRead: string | null;
 }) {
   return (
     <LiveTapeDisclosure
@@ -175,7 +178,7 @@ function MobileHeatmapSummary(props: {
       testId="nifty-heatmap-mobile-disclosure"
       label="OI HEATMAP"
       openHint="hide"
-      closedHint="tap for view options"
+      closedHint={props.wallsRead ?? "tap for view options"}
     >
       <Box
         data-testid="nifty-heatmap-metric-toggle"
@@ -265,6 +268,25 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
   const chartSize = () => store.ui.chartSize();
   const heatMetric = () => store.ui.heatMetric();
   const mobileHeatmap = () => isDesk() && isMobile() && sideTab() === "heatmap";
+  // The phone keeps the chain as the default side tab, which used to hide the
+  // OI-read CE/PE walls entirely. Carry the same read into the collapsed
+  // heatmap summary so the labelled pair is visible without another tab.
+  const heatWallsRead = createMemo(() => {
+    const rows = store.data.tapeRows();
+    if (rows.length === 0) return null;
+    const read = readHeatmap(
+      buildOiHeatmap(rows, {
+        bucketMin: 1,
+        widthPts: store.data.metrics()?.heatmapWidthPts ?? 250,
+        startTime: store.data.intradayStart(),
+        metric: heatMetric(),
+      }),
+    );
+    const parts: string[] = [];
+    if (read.ceStrike !== null) parts.push(`CE ${formatNumberIN(read.ceStrike)}`);
+    if (read.peStrike !== null) parts.push(`PE ${formatNumberIN(read.peStrike)}`);
+    return parts.length > 0 ? parts.join(" · ") : null;
+  });
   // Wide desk: the side column is tall enough for two panels. The chain hugs its
   // rows and the heatmap fills the rest, so the column never ends in dead black.
   // The HEATMAP tab still hides the chain, keeping the two tabs distinct.
@@ -508,6 +530,18 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
               >
                 HEATMAP
               </Button>
+              <Show when={heatWallsRead()}>
+                {(read) => (
+                  <Text
+                    data-testid="nifty-mobile-walls-read"
+                    title="Strongest CE / PE OI builds on this tape"
+                    class="ml-auto hidden max-[600px]:inline min-w-0 truncate whitespace-nowrap text-ui-micro tabular-nums"
+                    style={{ color: palette.TEXT_MUTED }}
+                  >
+                    {read()}
+                  </Text>
+                )}
+              </Show>
             </Box>
           </Show>
 
@@ -544,6 +578,7 @@ export function ReportWorkspace(props: { secondaryTabs?: DeskDockTab[] }) {
                     metric={heatMetric()}
                     onMetric={(m) => store.ui.setHeatMetric(m)}
                     onOpenFull={() => store.ui.setHeatExpand(true)}
+                    wallsRead={heatWallsRead()}
                   />
                 }
               >

@@ -14,8 +14,8 @@ import type { ReplayCandle } from "@/types/replay";
 import type { ChartSource } from "./niftyReportStore";
 import {
   applyChartPlotMargin, CHART_CUTOFF_RIGHT, CHART_PLOT_MARGIN,
-  FILL_MAX_HEIGHT, FILL_MIN_HEIGHT, MOBILE_CHART_TARGET,
-  TIME_AXIS_LABEL_GUTTER_PX, useGutteredChartRange, type ChartTimeframe,
+  FILL_MAX_HEIGHT, FILL_MIN_HEIGHT, leftTimeGutterPx, MOBILE_CHART_TARGET,
+  MOBILE_LEFT_PAD_PX, useGutteredChartRange, type ChartTimeframe,
 } from "./NiftyChartPanel.constants";
 import { computePatternStripTitle, type ScanBadge } from "./NiftyChartPanel.annotations";
 import { phoneViewport } from "./NiftyChartPanel.range";
@@ -107,6 +107,8 @@ export function ChartBody(props: ChartBodyProps) {
       ? `${props.lastDataBoundary} — no candles at this playhead. Showing option-chain levels only.`
       : "Showing option-chain levels only.";
   const cutoffRight = () => axisGeometry().gutter + axisGeometry().axis + axisGeometry().lane;
+  const leftGutter = () => leftTimeGutterPx(phone() || narrowContainer());
+  const leftPad = () => (narrowContainer() ? 0 : MOBILE_LEFT_PAD_PX);
   const edgePadding = () => {
     const base = { "padding-right": phone() ? `${MOBILE_EDGE_GUTTER}px` : `${CHART_PLOT_MARGIN.edgeGutter}px` };
     return narrowContainer() ? { "padding-right": `${NARROW_EDGE_GUTTER}px` } : base;
@@ -128,7 +130,7 @@ export function ChartBody(props: ChartBodyProps) {
 
   useGutteredChartRange(
     () => chartRef, () => props.chartCandles.length, cutoffRight,
-    () => { chartVersion(); phone(); narrowContainer(); }, () => TIME_AXIS_LABEL_GUTTER_PX,
+    () => { chartVersion(); phone(); narrowContainer(); }, leftGutter,
   );
 
   // TradingViewChart re-enables the volume tag whenever the candle series
@@ -186,15 +188,17 @@ export function ChartBody(props: ChartBodyProps) {
           data-pattern-source={props.patternSourceState} data-pattern-overlays={props.patternOverlayCount}
           data-cutoff-right={CHART_CUTOFF_RIGHT} data-cutoff-lane={CHART_PLOT_MARGIN.dataCutoffLane}
           data-axis-gutter={CHART_PLOT_MARGIN.edgeGutter} data-mobile-axis-gutter={MOBILE_AXIS_MIN_WIDTH}
-          data-mobile-cutoff-lane={MOBILE_CUTOFF_LANE} data-mobile-left-gutter={phone() ? "6" : "0"}
+          data-mobile-cutoff-lane={MOBILE_CUTOFF_LANE}
+          data-mobile-left-gutter={phone() ? String(MOBILE_LEFT_PAD_PX) : "0"}
+          data-left-time-gutter={leftGutter()}
           data-hide-last-value-tag={phone() ? "1" : "0"}
           class="w-full max-w-full min-w-0 shrink-0 overflow-hidden flex-1 min-h-0"
           style={{
             position: "relative",
-            "padding-left": phone() ? "6px" : undefined,
+            "padding-left": phone() ? `${MOBILE_LEFT_PAD_PX}px` : undefined,
             ...edgePadding(),
             ["--chart-cutoff-right"]: `${cutoffRight()}px`,
-            ["--chart-time-label-gutter"]: `${TIME_AXIS_LABEL_GUTTER_PX}px`,
+            ["--chart-time-label-gutter"]: `${leftGutter()}px`,
             ...(props.chartHeight == null ? undefined : { height: `${props.chartHeight}px` }),
             display: hasPinnedCandles() ? "flex" : "none",
             flex: props.chartHeight == null ? "1" : undefined,
@@ -216,6 +220,27 @@ export function ChartBody(props: ChartBodyProps) {
             onChartReady={chartReady}
           />
           <ChartOverlayLegend lines={overlaySeries()} compact={narrowContainer() || phone()} />
+          {/* On a phone the engine's UTC-anchored tick grid starts at 09:30,
+              so the session-open label is never emitted even after the first
+              bar is inset. Print the real first-bar time at its plot position
+              instead of leaving the left edge unlabelled. */}
+          <Show when={phone() || narrowContainer()}>
+            <span
+              data-testid="nifty-chart-first-time-tick"
+              class="pointer-events-none absolute whitespace-nowrap text-ui-micro tabular-nums"
+              style={{
+                bottom: "0px",
+                left: `${leftPad() + leftGutter() - 18}px`,
+                color: palette.TEXT_MUTED,
+                "font-family": palette.MONO,
+                "font-size": `${REPORT_FONT.micro}px`,
+                "line-height": "16px",
+              }}
+              title="First candle of the session"
+            >
+              {props.chartCandles[0] ? formatTimeOnly(props.chartCandles[0].time) : ""}
+            </span>
+          </Show>
           <Show when={hasPinnedCandles() && props.lastDataBoundary}>
             {(boundary) => (
               <div
@@ -225,17 +250,34 @@ export function ChartBody(props: ChartBodyProps) {
                 style={{
                   top: "0px", bottom: "0px", left: "0px",
                   right: "var(--chart-cutoff-right)",
-                  // The engine shifts the last bar left by the label gutter;
-                  // keep the dashed cutoff on that bar, not the old edge.
-                  transform: "translateX(calc(-1 * var(--chart-time-label-gutter)))",
-                  "border-right": `1px dashed ${palette.BORDER}`,
+                  // The engine's overlay canvas paints at z-index 3; without a
+                  // stacking context the caption is covered by the CW badge.
+                  "z-index": 4,
                 }}
               >
+                {/* Move only the rule to the last bar. Translating this whole
+                    box used to push the "LAST DATA …" caption off the left
+                    edge at 390, leaving a clipped "AS" fragment. */}
+                <span
+                  data-testid="nifty-chart-cutoff-line"
+                  aria-hidden="true"
+                  class="pointer-events-none absolute"
+                  style={{
+                    top: "0px", bottom: "0px",
+                    right: "var(--chart-time-label-gutter)",
+                    "border-right": `1px dashed ${palette.BORDER}`,
+                  }}
+                />
                 <span
                   class="absolute whitespace-nowrap"
                   style={{
-                    top: "4px",
-                    right: phone() ? `${MOBILE_CUTOFF_LABEL_GAP}px` : "4px",
+                    // On a phone the top row is owned by CW/MP badges and the
+                    // bottom row by PW badges; park the caption between them
+                    // and the ticks instead of covering either level.
+                    top: phone() ? undefined : "4px",
+                    bottom: phone() ? "50px" : undefined,
+                    left: phone() ? `${MOBILE_LEFT_PAD_PX}px` : undefined,
+                    right: phone() ? undefined : "4px",
                     "max-width": "100%",
                     padding: "1px 4px",
                     "font-family": palette.MONO,

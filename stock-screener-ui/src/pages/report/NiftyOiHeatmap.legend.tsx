@@ -167,6 +167,21 @@ export function HeatmapLegend(props: HeatmapLegendProps) {
       >
         {props.windowLabel}
       </span>
+      {/* The full key lives behind KEY, but the spot line is read against the
+          plot continuously — name it in the header instead of hiding it. */}
+      <span
+        data-testid="nifty-heatmap-spot-key"
+        class="inline-flex shrink-0 items-center gap-1 whitespace-nowrap"
+        title="Solid white line — NIFTY spot through the session"
+      >
+        <span
+          data-testid="nifty-heatmap-spot-key-swatch"
+          aria-hidden="true"
+          class="inline-block w-3 h-0.5 shrink-0"
+          style={{ "background-color": HEATMAP_SPOT }}
+        />
+        <span>SPOT</span>
+      </span>
       <span
         data-testid="nifty-heatmap-ramp"
         class="flex-1 min-w-0 flex items-center gap-1"
@@ -273,22 +288,33 @@ export function HeatmapReadout(props: HeatmapReadoutProps) {
           </span>
         )}
       </Show>
-      <Show when={props.read.ceStrike !== null}>
+      {/* One flex item for both walls: the old independent items let PE wrap
+          alone under the spot read, so the label lost its CE sibling. A shared
+          wrapper moves the pair together and keeps each label glued to its
+          value at every width. */}
+      <Show when={props.read.ceStrike !== null || props.read.peStrike !== null}>
         <span
-          data-testid="nifty-heatmap-read-ce"
-          class="shrink-0 whitespace-nowrap"
-          title="Strongest call-side ΔOI build on this tape"
+          data-testid="nifty-heatmap-read-walls"
+          class="inline-flex shrink-0 items-center gap-x-3 whitespace-nowrap"
         >
-          <span class="text-ui-micro text-fin-text-muted">CE</span> <span class="text-ui-body">{formatNumberIN(props.read.ceStrike as number)}</span>
-        </span>
-      </Show>
-      <Show when={props.read.peStrike !== null}>
-        <span
-          data-testid="nifty-heatmap-read-pe"
-          class="shrink-0 whitespace-nowrap"
-          title="Strongest put-side ΔOI build on this tape"
-        >
-          <span class="text-ui-micro text-fin-text-muted">PE</span> <span class="text-ui-body">{formatNumberIN(props.read.peStrike as number)}</span>
+          <Show when={props.read.ceStrike !== null}>
+            <span
+              data-testid="nifty-heatmap-read-ce"
+              class="shrink-0 whitespace-nowrap"
+              title="Strongest call-side ΔOI build on this tape"
+            >
+              <span class="text-ui-micro text-fin-text-muted">CE</span> <span class="text-ui-body">{formatNumberIN(props.read.ceStrike as number)}</span>
+            </span>
+          </Show>
+          <Show when={props.read.peStrike !== null}>
+            <span
+              data-testid="nifty-heatmap-read-pe"
+              class="shrink-0 whitespace-nowrap"
+              title="Strongest put-side ΔOI build on this tape"
+            >
+              <span class="text-ui-micro text-fin-text-muted">PE</span> <span class="text-ui-body">{formatNumberIN(props.read.peStrike as number)}</span>
+            </span>
+          </Show>
         </span>
       </Show>
       <span class="sr-only">{props.readText || props.readFallback}</span>
