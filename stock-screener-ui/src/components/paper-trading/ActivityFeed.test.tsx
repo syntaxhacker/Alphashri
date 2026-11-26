@@ -57,6 +57,17 @@ describe("ActivityFeed", () => {
     expect(screen.getAllByText(/52W Target Swing/i).length).toBeGreaterThan(0);
   });
 
+  it("renders an option contract as one canonical label with the raw value in the tooltip", () => {
+    paperTradingState.setActivityEvents([{
+      ...entryEvent,
+      symbol: "NIFTY26OCT23000PE",
+    } as any]);
+    render(() => <ActivityFeed />);
+    const cell = screen.getByText("NIFTY 23000 PE");
+    expect(cell).toHaveAttribute("title", "NIFTY26OCT23000PE");
+    expect(screen.queryByText("NIFTY26OCT23000PE")).not.toBeInTheDocument();
+  });
+
   test("shows loading spinner when activityLoading is true and no events", () => {
     paperTradingState.setActivityLoading(true);
     render(() => <ActivityFeed />);

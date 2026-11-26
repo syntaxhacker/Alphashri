@@ -1,4 +1,6 @@
 import { Text } from "@/ui";
+import { chartHrefForSymbol } from "@/components/common/symbolDockContext";
+import { displayOptionSymbol, resolveUnderlyingSymbol } from "./optionTradeUtils";
 
 interface ClickableSymbolSolidProps {
   symbol: string;
@@ -11,21 +13,23 @@ interface ClickableSymbolSolidProps {
 
 /**
  * Solid-native stand-in for the React ClickableSymbol/SymbolLink pair.
- * Renders the symbol as a button (hover preview is a React-context feature
- * and has no Solid equivalent yet — preview is a no-op here). When no
- * onClick is supplied, a full-page navigation to /chart/<symbol> is used so
- * the app works before the Solid router lands.
+ * Renders a canonical label (option contracts collapse to one form) while the
+ * raw symbol stays in the click payload and the tooltip. With no onClick the
+ * chart route is built by the shared helper so feed decoration never reaches
+ * the URL.
  */
 export function ClickableSymbolSolid(props: ClickableSymbolSolidProps) {
   const testIdValue = () => props.testId ?? `symbol-link-${props.symbol}`;
   const stop = () => props.stopPropagation ?? true;
+  const label = () => displayOptionSymbol(props.symbol);
+  const chartHref = () => chartHrefForSymbol(resolveUnderlyingSymbol(props.symbol));
 
   const handleClick = (e: MouseEvent) => {
     if (stop()) e.stopPropagation();
     if (props.onClick) {
       props.onClick(props.symbol);
     } else if (typeof window !== "undefined") {
-      window.location.assign(`/chart/${props.symbol}`);
+      window.location.assign(chartHref());
     }
   };
 
@@ -35,10 +39,11 @@ export function ClickableSymbolSolid(props: ClickableSymbolSolidProps) {
       class="symbol-link font-semibold text-sky-400 hover:underline focus:outline-none"
       data-testid={testIdValue()}
       onClick={handleClick}
-      aria-label={`Open chart for ${props.symbol}`}
+      title={props.symbol}
+      aria-label={`Open chart for ${label()}`}
     >
       <Text span fw={props.fw ?? 600} size={props.size ?? "sm"} style={{ color: "inherit" }}>
-        {props.symbol}
+        {label()}
       </Text>
     </button>
   );

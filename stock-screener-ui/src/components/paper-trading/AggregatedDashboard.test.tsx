@@ -176,6 +176,19 @@ describe("AggregatedDashboard", () => {
     expect(screen.getAllByTestId("mock-echarts").length).toBeGreaterThanOrEqual(5);
   });
 
+  it("renders option symbols in canonical form in both trade and symbol tables", () => {
+    const data = mockDashboardData({
+      biggest_winners: [{ ...mockDashboardData().biggest_winners[0], symbol: "NIFTY26OCT23000PE" }],
+      symbol_performance: [{ symbol: "NIFTY26OCT23000PE", total_net_pnl: 4250, total_trades: 1, win_rate: 100 }],
+    });
+    paperTradingState.setDashboardAnalyticsData(data);
+    render(() => <AggregatedDashboard />);
+    const labels = screen.getAllByText("NIFTY 23000 PE");
+    expect(labels.length).toBeGreaterThanOrEqual(2);
+    for (const label of labels) expect(label).toHaveAttribute("title", "NIFTY26OCT23000PE");
+    expect(screen.queryByText("NIFTY26OCT23000PE")).not.toBeInTheDocument();
+  });
+
   it("uses available bots in the bot filter and fetches selected bot analytics", async () => {
     paperTradingState.setAvailableBots([
       { id: "bot-1", name: "ORB Bot", strategies: [], is_active: true, live_trading: false },

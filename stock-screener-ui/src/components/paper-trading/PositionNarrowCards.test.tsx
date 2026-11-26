@@ -39,6 +39,19 @@ describe("PositionNarrowCards", () => {
     expect(container.querySelector('[data-testid$="-scroll-hint"]')).toBeNull();
   });
 
+  it("renders an option contract in canonical form and keeps the raw close payload", () => {
+    const onClose = vi.fn();
+    const pos = mockPosition({ symbol: "NIFTY26OCT23000PE", current_price: 150 });
+    mount(() => (
+      <PositionNarrowCards positions={[pos]} onClose={onClose} />
+    ));
+    const link = screen.getByTestId("symbol-link-1-NIFTY26OCT23000PE");
+    expect(link).toHaveTextContent("NIFTY 23000 PE");
+    expect(link).toHaveAttribute("title", "NIFTY26OCT23000PE");
+    fireEvent.click(screen.getByLabelText("Close position NIFTY 23000 PE"));
+    expect(onClose).toHaveBeenCalledWith("NIFTY26OCT23000PE", 150);
+  });
+
   it("renders missing numbers as dashes, never NaN", () => {
     const { container } = mount(() => (
       <PositionNarrowCards positions={[mockPosition({

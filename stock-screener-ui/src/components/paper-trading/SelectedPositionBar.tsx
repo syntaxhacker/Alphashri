@@ -3,6 +3,7 @@ import { Text, Button, Tooltip } from "@/ui";
 import { IconX } from "@/components/common/Icons";
 import type { PaperPosition } from "../../types/paperTrading";
 import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";
+import { displayOptionSymbol } from "./optionTradeUtils";
 import { alpha } from "@/ui/alpha";
 import * as palette from "@/ui/palette";
 
@@ -29,8 +30,8 @@ export function SelectedPositionBar(props: SelectedPositionBarProps) {
         return (
           <div class="paper-selected-bar flex items-center justify-between flex-wrap gap-2 px-2 py-1 border-t border-fin-border rounded-b-fin" id={`paper-selected-bar-${pos().symbol}`} style={{ "background-color": bgTint() }}>
             <div class="paper-selected-bar-main flex items-center gap-4 flex-wrap">
-              <Text className="paper-selected-bar-symbol font-mono tabular-nums" id={`paper-selected-bar-symbol-${pos().symbol}`} size="sm" fw={600}>
-                {pos().symbol}
+              <Text className="paper-selected-bar-symbol font-mono tabular-nums" id={`paper-selected-bar-symbol-${pos().symbol}`} size="sm" fw={600} title={pos().symbol}>
+                {displayOptionSymbol(pos().symbol)}
               </Text>
               <div class="paper-selected-bar-side flex items-center px-2 py-1 rounded-[1px]" style={{ "background-color": alpha(pos().side === "BUY" ? palette.POSITIVE : palette.NEGATIVE, 0.08) }}>
                 <Text className="paper-selected-bar-side-text" size="xs" fw={600} c={sideColor()}>

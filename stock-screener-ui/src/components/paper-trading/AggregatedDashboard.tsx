@@ -23,6 +23,7 @@ import {
 } from "../../config/colors";
 import { withAlpha } from "../../utils/color";
 import { TanStackTable, type TableColumnDef } from "./TanStackTable";
+import { displayOptionSymbol } from "./optionTradeUtils";
 import { EChartSolid } from "./EChartSolid";
 import type {
   PaperDashboardAnalyticsData,
@@ -273,7 +274,7 @@ function TradesTable(props: { title: string; trades: PaperDashboardTradeItem[] }
   const isWinners = () => props.title.toLowerCase().includes("win");
   const accentColor = () => isWinners() ? "success" as const : "error" as const;
   const columns: TableColumnDef<PaperDashboardTradeItem>[] = [
-    { id: "symbol", header: "Symbol", accessorKey: "symbol", meta: { align: "left" }, cell: ({ row }) => <Text fw={700} size="sm">{row.original.symbol}</Text> },
+    { id: "symbol", header: "Symbol", accessorKey: "symbol", meta: { align: "left" }, cell: ({ row }) => <Text fw={700} size="sm" title={row.original.symbol}>{displayOptionSymbol(row.original.symbol)}</Text> },
     { id: "bot", header: "Bot", accessorKey: "bot_name", meta: { align: "left" } },
     { id: "strategy", header: "Strategy", accessorKey: "strategy_name", meta: { align: "left" } },
     { id: "exit", header: "Exit Reason", accessorKey: "exit_reason", meta: { align: "center" }, cell: ({ row }) => <Badge size="xs" variant="light">{row.original.exit_reason || "UNKNOWN"}</Badge> },
@@ -289,7 +290,7 @@ function TradesTable(props: { title: string; trades: PaperDashboardTradeItem[] }
 
 function SymbolPanel(props: { data: PaperDashboardAnalyticsData }) {
   const columns: TableColumnDef<PaperDashboardSymbolPerformance>[] = [
-    { id: "symbol", header: "Symbol", accessorKey: "symbol", meta: { align: "left" }, cell: ({ row }) => <Text fw={700} size="sm">{row.original.symbol}</Text> },
+    { id: "symbol", header: "Symbol", accessorKey: "symbol", meta: { align: "left" }, cell: ({ row }) => <Text fw={700} size="sm" title={row.original.symbol}>{displayOptionSymbol(row.original.symbol)}</Text> },
     { id: "trades", header: "Trades", accessorKey: "total_trades", meta: { align: "right" } },
     { id: "winrate", header: "Win%", accessorKey: "win_rate", meta: { align: "right" }, cell: ({ row }) => pct(row.original.win_rate) },
     { id: "pnl", header: "Net P&L", accessorKey: "total_net_pnl", meta: { align: "right" }, cell: ({ row }) => <PnlValue value={row.original.total_net_pnl} /> },
