@@ -1,0 +1,286 @@
+{
+  "generated_at": "2026-11-26",
+  "source_run": "45793787163",
+  "files": {
+    "tests/e2e/agri.spec.ts": {
+      "seconds": 53.4,
+      "tests": 20
+    },
+    "tests/e2e/all-strategies-backtest.spec.ts": {
+      "seconds": 108.4,
+      "tests": 27
+    },
+    "tests/e2e/all-strategies-chart-preview.spec.ts": {
+      "seconds": 50.7,
+      "tests": 23
+    },
+    "tests/e2e/all-strategies-multi-signal-types.spec.ts": {
+      "seconds": 34.5,
+      "tests": 12
+    },
+    "tests/e2e/all-strategies-paper-chart.spec.ts": {
+      "seconds": 57.7,
+      "tests": 17
+    },
+    "tests/e2e/all-strategies-replay-chart.spec.ts": {
+      "seconds": 63.7,
+      "tests": 23
+    },
+    "tests/e2e/aplapollo-pattern-cross-surface.spec.ts": {
+      "seconds": 9.5,
+      "tests": 2
+    },
+    "tests/e2e/app-a11y-matrix.spec.ts": {
+      "seconds": 136.7,
+      "tests": 22
+    },
+    "tests/e2e/app.spec.ts": {
+      "seconds": 9.0,
+      "tests": 4
+    },
+    "tests/e2e/auth.spec.ts": {
+      "seconds": 16.3,
+      "tests": 10
+    },
+    "tests/e2e/backtest-features.spec.ts": {
+      "seconds": 198.6,
+      "tests": 33
+    },
+    "tests/e2e/backtest-url-params.spec.ts": {
+      "seconds": 13.7,
+      "tests": 7
+    },
+    "tests/e2e/backtest.spec.ts": {
+      "seconds": 35.7,
+      "tests": 11
+    },
+    "tests/e2e/bots.spec.ts": {
+      "seconds": 269.9,
+      "tests": 22
+    },
+    "tests/e2e/buyer-interest.spec.ts": {
+      "seconds": 5.1,
+      "tests": 3
+    },
+    "tests/e2e/chart-us.spec.ts": {
+      "seconds": 16.3,
+      "tests": 6
+    },
+    "tests/e2e/controls.spec.ts": {
+      "seconds": 11.4,
+      "tests": 5
+    },
+    "tests/e2e/correlation.spec.ts": {
+      "seconds": 11.4,
+      "tests": 6
+    },
+    "tests/e2e/fno-options.spec.ts": {
+      "seconds": 22.5,
+      "tests": 4
+    },
+    "tests/e2e/home-desk.spec.ts": {
+      "seconds": 86.3,
+      "tests": 21
+    },
+    "tests/e2e/layout.spec.ts": {
+      "seconds": 42.1,
+      "tests": 19
+    },
+    "tests/e2e/live-prices.spec.ts": {
+      "seconds": 5.6,
+      "tests": 2
+    },
+    "tests/e2e/market-screener.spec.ts": {
+      "seconds": 38.2,
+      "tests": 15
+    },
+    "tests/e2e/market-sections.spec.ts": {
+      "seconds": 18.4,
+      "tests": 6
+    },
+    "tests/e2e/market-ticker.spec.ts": {
+      "seconds": 7.2,
+      "tests": 6
+    },
+    "tests/e2e/market-value-view.spec.ts": {
+      "seconds": 24.2,
+      "tests": 12
+    },
+    "tests/e2e/movers-view.spec.ts": {
+      "seconds": 4.3,
+      "tests": 3
+    },
+    "tests/e2e/multi-strategy-signal-types.spec.ts": {
+      "seconds": 270.0,
+      "tests": 20
+    },
+    "tests/e2e/multi-strategy-watchlist.spec.ts": {
+      "seconds": 7.7,
+      "tests": 4
+    },
+    "tests/e2e/multi-strategy.spec.ts": {
+      "seconds": 10.7,
+      "tests": 5
+    },
+    "tests/e2e/navigation-v2.spec.ts": {
+      "seconds": 54.9,
+      "tests": 25
+    },
+    "tests/e2e/news.spec.ts": {
+      "seconds": 51.9,
+      "tests": 30
+    },
+    "tests/e2e/nifty-report.spec.ts": {
+      "seconds": 15.9,
+      "tests": 4
+    },
+    "tests/e2e/nifty-tape.spec.ts": {
+      "seconds": 25.7,
+      "tests": 4
+    },
+    "tests/e2e/notifications.spec.ts": {
+      "seconds": 3.1,
+      "tests": 2
+    },
+    "tests/e2e/options-analytics.spec.ts": {
+      "seconds": 27.7,
+      "tests": 6
+    },
+    "tests/e2e/options-dashboard.spec.ts": {
+      "seconds": 14.9,
+      "tests": 6
+    },
+    "tests/e2e/options-dock.spec.ts": {
+      "seconds": 63.2,
+      "tests": 20
+    },
+    "tests/e2e/options-paper-dock.spec.ts": {
+      "seconds": 17.0,
+      "tests": 5
+    },
+    "tests/e2e/options-paper-multileg.spec.ts": {
+      "seconds": 24.4,
+      "tests": 5
+    },
+    "tests/e2e/options-paper-visual.spec.ts": {
+      "seconds": 53.8,
+      "tests": 18
+    },
+    "tests/e2e/options.spec.ts": {
+      "seconds": 19.3,
+      "tests": 9
+    },
+    "tests/e2e/paper-chart-intraday.spec.ts": {
+      "seconds": 5.7,
+      "tests": 2
+    },
+    "tests/e2e/paper-trading.spec.ts": {
+      "seconds": 159.1,
+      "tests": 53
+    },
+    "tests/e2e/patterns-freshness.spec.ts": {
+      "seconds": 10.8,
+      "tests": 4
+    },
+    "tests/e2e/patterns.spec.ts": {
+      "seconds": 196.7,
+      "tests": 33
+    },
+    "tests/e2e/pressure-desk.spec.ts": {
+      "seconds": 5.0,
+      "tests": 1
+    },
+    "tests/e2e/report-detail.spec.ts": {
+      "seconds": 7.3,
+      "tests": 2
+    },
+    "tests/e2e/report-strip-overlap.spec.ts": {
+      "seconds": 19.4,
+      "tests": 4
+    },
+    "tests/e2e/report-window-tabs.spec.ts": {
+      "seconds": 9.6,
+      "tests": 3
+    },
+    "tests/e2e/route-smoke.spec.ts": {
+      "seconds": 10.6,
+      "tests": 6
+    },
+    "tests/e2e/saved-configs.spec.ts": {
+      "seconds": 18.5,
+      "tests": 5
+    },
+    "tests/e2e/screener-inline-band.spec.ts": {
+      "seconds": 5.2,
+      "tests": 2
+    },
+    "tests/e2e/screener-interactions.spec.ts": {
+      "seconds": 7.2,
+      "tests": 4
+    },
+    "tests/e2e/screener-layout-fix.spec.ts": {
+      "seconds": 6.0,
+      "tests": 3
+    },
+    "tests/e2e/screener-section-labels.spec.ts": {
+      "seconds": 8.1,
+      "tests": 4
+    },
+    "tests/e2e/screener-url-params.spec.ts": {
+      "seconds": 8.1,
+      "tests": 4
+    },
+    "tests/e2e/screener.spec.ts": {
+      "seconds": 25.9,
+      "tests": 14
+    },
+    "tests/e2e/scroll-containment.spec.ts": {
+      "seconds": 177.0,
+      "tests": 56
+    },
+    "tests/e2e/sector-correlation.spec.ts": {
+      "seconds": 29.9,
+      "tests": 8
+    },
+    "tests/e2e/sector-history.spec.ts": {
+      "seconds": 22.0,
+      "tests": 5
+    },
+    "tests/e2e/sector.spec.ts": {
+      "seconds": 63.1,
+      "tests": 23
+    },
+    "tests/e2e/sorting.spec.ts": {
+      "seconds": 17.0,
+      "tests": 7
+    },
+    "tests/e2e/strategies-v2.spec.ts": {
+      "seconds": 25.6,
+      "tests": 16
+    },
+    "tests/e2e/theme-toggle.spec.ts": {
+      "seconds": 4.9,
+      "tests": 1
+    },
+    "tests/e2e/trade-history.spec.ts": {
+      "seconds": 55.5,
+      "tests": 24
+    },
+    "tests/e2e/ui-a-plus-matrix.spec.ts": {
+      "seconds": 101.9,
+      "tests": 30
+    },
+    "tests/e2e/ui-a-plus-states.spec.ts": {
+      "seconds": 119.2,
+      "tests": 30
+    },
+    "tests/e2e/zz-premium-shot.spec.ts": {
+      "seconds": 1.8,
+      "tests": 1
+    },
+    "tests/e2e/zz-premium-v2.spec.ts": {
+      "seconds": 1.8,
+      "tests": 1
+    }
+  }
+}

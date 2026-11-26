@@ -77,7 +77,7 @@ Everything below in this file describes the work; it does not grant the main age
 1. Branch from the latest `develop`; never commit on `develop`/`main`.
 2. Pre-PR gate: `bun run lint`, `bun run build`, `bun run typecheck`, targeted unit + E2E for the touched areas, the unconditional filesystem-scanning guards, and the test/perf/evidence audits in `## Integration & audit gates` when the change is a data path or UI work.
 3. `git push -u origin <branch>`, then `gh pr create --base develop`. The body lists areas changed, behaviour changes (auth, migrations), verification commands/counts, and a test plan.
-4. Wait for checks. PR-to-`develop` runs **E2E Smoke (22)** + frontend unit/lint + the **662-test Python fast tier across 12 shards** (`unit and not slow`) + GitGuardian; **E2E Full (20 shards) never runs on PR-to-develop**. Push to `main` / the 02:00 nightly schedule instead run the full **8,987-test exclusion sweep** (`not (slow or slow_testcontainers or integration or contract or e2e or testcontainers or postgres)`) across the same 12 shards — that is the debt alarm, not a PR gate (the full suite carries a known ~230-failure debt and is not a gate until green). Full E2E is deliberately main-only: it runs on push to `main`, on PR-to-`main`, and on the 02:00 nightly schedule, because 20 shards is slow and the smoke set is the accepted gate for feature branches. There is **no `workflow_dispatch` trigger** in `test.yml`, so a branch cannot request the full suite — treat smoke plus the touched test files as the gate, and let the release PR to `main` run the rest.
+4. Wait for checks. PR-to-`develop` runs **E2E Smoke (22)** + frontend unit/lint + the **662-test Python fast tier across 6 shards** (`unit and not slow`) + GitGuardian; **E2E Full (16 shards) never runs on PR-to-develop**. Push to `main` / the 02:00 nightly schedule instead run the full **8,987-test exclusion sweep** (`not (slow or slow_testcontainers or integration or contract or e2e or testcontainers or postgres)`) across the same 6 shards — that is the debt alarm, not a PR gate (the full suite carries a known ~230-failure debt and is not a gate until green). Full E2E is deliberately main-only: it runs on push to `main`, on PR-to-`main`, and on the 02:00 nightly schedule, because 16 shards are slow and the smoke set is the accepted gate for feature branches. There is **no `workflow_dispatch` trigger** in `test.yml`, so a branch cannot request the full suite — treat smoke plus the touched test files as the gate, and let the release PR to `main` run the rest.
 5. **UI evidence and visual gate.** For user-visible UI changes, the implementer captures **1600×1000** and **390×844** screenshots for every changed mode/selector and loaded/loading/error/empty state, commits them under `docs/screenshots/<feature>/` with a manifest, and embeds the raw URLs in the PR body. An independent verifier grades the actual PNGs + running UI; the main agent records A+ as approver and is the sole git actor. **No `git commit`, `git push`, or PR before A+**; only A+ ships and a user rejection voids it. Superseded evidence is removed in the same commit, with PR body/comments naming only current files and the 200/404/folder-match checks passing. Capture/naming/manifest/replacement **and PR-body raw-URL table format**: `docs/SCREENSHOT_EVIDENCE.md`; gate: `UI_RULES.md` §7; evidence data authenticity: [`UI_RULES.md` §7.7](./UI_RULES.md#77-evidence-data-authenticity).
 6. Merge with `gh pr merge <n> --merge` (preserves commit messages/measurements; do not squash a multi-commit bundle unless the user asks). Never `--admin`/bypass.
 7. `git switch develop && git pull --ff-only`; verify the merge commit and that the key files/fields actually landed.
@@ -85,7 +85,7 @@ Everything below in this file describes the work; it does not grant the main age
 9. One PR per branch. If a branch contains multiple independent features, ask whether to split; a single bundle PR is allowed only when the user explicitly says so, and its body must say that it is a bundle.
 
 **Release (develop → main; convention `v0.1.0`, `v0.2.0`):**
-1. Open a PR `develop` → `main`. PR-to-`main` runs the **full E2E suite (20 shards)** — wait for it, not just smoke.
+1. Open a PR `develop` → `main`. PR-to-`main` runs the **full E2E suite (16 shards)** — wait for it, not just smoke.
 2. Merge with `gh pr merge <n> --merge` (keep the release merge commit).
 3. Tag the `main` merge commit (annotated, matching the existing style):
    `git switch main && git pull --ff-only`
@@ -590,14 +590,15 @@ GitHub Actions may be used for scheduled batch compute, but it cannot write to a
 - **E2E tests**: Never run the full E2E suite (`npx playwright test` without file filter) — it takes >10min. Only run spec files that failed in CI. Use `--workers=4` (runner has 4 vCPU) and `--output=/tmp/...` to avoid clobbering. Verify locally before pushing.
 
 ### CI E2E architecture (learnings — 2026-09)
-- **20 shards max.** GitHub Free allows **20 concurrent jobs**; the repo is public so `ubuntu-latest` = 4 vCPU/16 GB. More shards than 20 just queue. `--shard=N/20`, `workers: 4`.
+- **20 shards max.** GitHub Free allows **20 concurrent jobs**; the repo is public so `ubuntu-latest` = 4 vCPU/16 GB. More shards than 20 just queue. `workers: 4`.
+- 16 shards use a measured file-duration planner (`scripts/ci/plan_e2e_shard.py` + `perf/e2e-file-durations.json`), so shard test time is balanced; the 20-job GitHub cap still applies.
 - **No `waitForTimeout`.** Use web-first assertions (`expect(...).toBeVisible()`), `expect.poll(...)`, `page.waitForResponse/Function`. Fixed sleeps are the #1 source of slowness and flakes.
 - **No pixel screenshot tests.** `toHaveScreenshot` was removed (env-sensitive, redundant with DOM assertions). Storybook **does** exist (see "Storybook / design-system catalog" above) — use it for primitive-level visual review; wire a visual-diff tool only if automated diffing is actually needed. PR screenshots still come from the real app at **1600 and 390** (rule 5 of the PR cycle), not from Storybook alone.
 - **No `globalSetup`.** `playwright.setup.ts` was deleted — it launched a browser to write a `storageState` file nothing read. Auth is seeded per-page via `loginAsTestUser` (`addInitScript`).
 - **Backend in CI**: set `CI_MODE=1` so `api_server_fastapi` skips news/Redis/background tasks and creates the SQLite schema from models (`SKIP_ALEMBIC=1` leaves it empty otherwise).
 - **Readiness probe**: `/health` also supports `HEAD`; wait with `wait-on http-get://127.0.0.1:8765/api/health` (plain `http://` uses HEAD).
 - **`setup-uv` cache requires a lockfile**: the repo has no `uv.lock`, so `enable-cache: true` **fails** unless you set `cache-dependency-glob: "**/requirements.txt"`.
-- **Unit jobs don't gate E2E**: E2E runs in parallel (no `needs`). `vitest --changed` only on PR-to-`develop`; full suite on push / PR-to-`main`.
+- **Unit jobs don't gate E2E**: E2E runs in parallel (no `needs`). `vitest --changed` only on PR-to-`develop`; full suite on push / PR-to-`main`. Full builds run 4 Vitest `--shard=N/4` jobs; PR-to-develop keeps the single changed-only job.
 - **Dedupe push vs PR**: workflow `concurrency.group = ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}` cancels the duplicate run for the same branch.
 
 ### Running Targeted Tests (Fast)
@@ -611,8 +612,8 @@ source .venv/bin/activate && python -m pytest tests/test_correlation.py -v  # ba
 **Do NOT run the full suite locally** (~8,987 backend in the full exclusion sweep / ~6,500 frontend
 cases, 8 cores, >15 min backend). It starves the API/tape writer during market hours and the
 feedback is too slow to be useful — which is how tests stop being run at all. Local = the touched
-files only (or `npx vitest run --changed`). The full pass belongs to CI (Python 12 shards × 4
-workers; E2E 20 shards × 4 workers). Run it locally only for a `develop → main` release check.
+files only (or `npx vitest run --changed`). The full pass belongs to CI (Python 6 shards × 4
+workers; E2E 16 shards × 4 workers). Run it locally only for a `develop → main` release check.
 
 **Scope the test run to the change, not to the suite.** "Verify" does not mean "run everything":
 
@@ -677,7 +678,7 @@ If a push shows no progress for >30s and an `askpass.sh` child exists, kill it; 
 
 | Surface | Budget |
 |---|---|
-| Backend PR fast tier (662 tests, `-m "unit and not slow"`, 12 shards × `-n 4`) | **< 5 min** wall per shard |
+| Backend PR fast tier (662 tests, `-m "unit and not slow"`, 6 shards × `-n 4`) | **< 5 min** wall per shard |
 | Backend full exclusion sweep (8,987 tests, push / nightly) | **< 20 min** wall per shard |
 | Backend per-test fixture setup | **p95 < 50 ms** |
 | Backend test collection (`pytest --collect-only -q`) | **< 30 s** |
