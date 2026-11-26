@@ -4,7 +4,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import { MarketAlertRow } from "@/components/notifications/MarketAlertCard";
+import { MarketAlertRow, MarketAlertStack } from "@/components/notifications/MarketAlertCard";
 import type { OiBurst, OiSignal } from "./niftyOiBursts";
 import {
   burstToAlert,
@@ -181,6 +181,56 @@ describe("critical prominence helpers", () => {
     const a = { ...alert("z-99", "critical"), title: "→ BUY PE 22,700 · qty 130" };
     expect(criticalBannerText(undefined, a)).toContain("BUY PE 22,700");
   });
+
+  test("a backend-suppressed burst prints evidence only, never a fuel or plan claim", () => {
+    const b: OiBurst = {
+      id: "x", side: "put", t: "2026-11-26T12:05:00+05:30",
+      delta: -2_400_000, baseline: 100_000, score: 14.2, severity: "critical",
+      cumDoi: -2_400_000, spot: 24_310, tickVol: 900_000,
+      fuel_state: "fresh_sellers",
+      plan_suppressed: true,
+    };
+    const signal: OiSignal = {
+      leg: "PE", strike: 24_300, entry: 210, sl: 157.5, target: 315,
+      qty: 130, lots: 2, basis: "backend plan — must not be shown",
+    };
+    const text = criticalBannerText(b, burstToAlert(b, signal));
+    expect(text).toContain("OI SHIFT · unconfirmed — spot/premium did not confirm");
+    for (const leaked of [
+      "CRITICAL PUT", "WRITERS ADDING", "SHORTS COVERING", "BUYERS ADDING",
+      "LONGS EXITING", "BUY PE", "BUY CE", "entry ", "SL ", "TGT ", "backend plan",
+    ]) {
+      expect(text).not.toContain(leaked);
+    }
+    expect(text).toContain("-2.40M");
+    expect(text).toContain("24,310");
+  });
+
+  test("flow 'unconfirmed' with a backend fuel_state is still evidence-only", () => {
+    const b: OiBurst = {
+      id: "x", side: "put", t: "2026-11-26T12:05:00+05:30",
+      delta: -2_400_000, baseline: 100_000, score: 14.2, severity: "critical",
+      cumDoi: -2_400_000, spot: 24_310, tickVol: 900_000,
+      flow: "unconfirmed", fuel_state: "fresh_sellers",
+    };
+    const text = criticalBannerText(b, burstToAlert(b, null));
+    expect(text).toContain("OI SHIFT · unconfirmed — spot/premium did not confirm");
+    expect(text).not.toContain("WRITERS ADDING");
+    expect(text).not.toContain("CRITICAL PUT");
+  });
+
+  test("a confirmed burst keeps its directional fuel claim in the banner", () => {
+    const b: OiBurst = {
+      id: "x", side: "put", t: "2026-11-26T12:05:00+05:30",
+      delta: -2_400_000, baseline: 100_000, score: 14.2, severity: "critical",
+      cumDoi: -2_400_000, spot: 24_310, tickVol: 900_000,
+      fuel_state: "fresh_sellers",
+    };
+    const text = criticalBannerText(b, burstToAlert(b, null));
+    expect(text).toContain("CRITICAL PUT WRITERS ADDING");
+    expect(text).toContain("-2.40M");
+    expect(text).toContain("24,310");
+  });
 });
 
 /**
@@ -337,7 +387,7 @@ describe("2026-10-22 fuel-state alerts", () => {
     expect(a.detail).toContain("shorts buying back");
   });
 
-  test("a backend-suppressed burst renders NO TRADE and is not actionable", () => {
+  test("a backend-suppressed burst renders an unconfirmed OI shift, not a plan", () => {
     const burst: OiBurst = {
       id: "b2", side: "call", t: "2026-10-22T11:13:00+05:30",
       delta: -162_500, baseline: 20_000, score: 8.1, severity: "critical",
@@ -348,7 +398,7 @@ describe("2026-10-22 fuel-state alerts", () => {
     // The client must not re-derive a plan the backend withheld.
     expect(deriveOiSignal(burst, chain, 22_779.6, {})).toBeNull();
     const a = burstToAlert(burst, null);
-    expect(a.title).toContain("NO TRADE");
+    expect(a.title).toContain("OI SHIFT · unconfirmed");
     expect((a as { actionable?: boolean }).actionable).toBe(false);
   });
 
@@ -507,5 +557,105 @@ describe("strike-wall events", () => {
     expect(a.severity).toBe("critical");
     expect(a.title).toBe("TAPE STALE 3m");
     expect(a.detail).toContain("No new tape row");
+  });
+});
+
+describe("unconfirmed OI shifts are never trade plans", () => {
+  afterEach(() => cleanup());
+
+  const base = (over: Partial<OiBurst> = {}): OiBurst => ({
+    id: "unconfirmed-1",
+    side: "call",
+    t: "2026-11-26T12:05:00+05:30",
+    delta: -2_400_000,
+    baseline: 100_000,
+    score: 14.2,
+    severity: "critical",
+    cumDoi: -2_400_000,
+    spot: 24_310,
+    tickVol: 900_000,
+    ...over,
+  });
+  const supplied: OiSignal = {
+    leg: "CE", strike: 24_300, entry: 210, sl: 157.5, target: 315,
+    qty: 65, lots: 1, basis: "backend plan — must not be shown",
+  };
+  const planMetric = (a: ReturnType<typeof burstToAlert>) =>
+    a.metrics?.find((m) => ["ENTRY", "SL", "TGT", "QTY"].includes(m.label));
+
+  test("plan_suppressed beats even a supplied backend plan", () => {
+    const a = burstToAlert(base({ plan_suppressed: true }), supplied);
+    expect(a.title).toBe("OI SHIFT · unconfirmed");
+    expect(a.title).not.toContain("BUY");
+    expect(a.detail).not.toContain("backend plan");
+    expect(planMetric(a)).toBeUndefined();
+    expect(a.metrics?.find((m) => m.label === "ΔOI")?.value).toBe("-2.40M");
+    expect(a.metrics?.find((m) => m.label === "SPOT")?.value).toBe("24,310");
+    expect(a.severity).toBe("critical");
+    expect(a.actionable).toBe(false);
+  });
+
+  test("flow: 'unconfirmed' names same-strike and spot evidence in text and metrics", () => {
+    const a = burstToAlert(base({
+      flow: "unconfirmed",
+      confirmation: {
+        same_strike: false,
+        strike_oi_delta: -30_000,
+        strike_premium_change: -4.25,
+        spot_change: -18.4,
+        reasons: ["premium moved at a different strike", "spot did not follow"],
+      },
+    }), supplied);
+
+    expect(a.title).toContain("OI SHIFT · unconfirmed");
+    expect(a.detail).toContain("no same-strike agreement");
+    expect(a.detail).toContain("strike OI -30.0K");
+    expect(a.detail).toContain("strike premium -4.25");
+    expect(a.detail).toContain("spot -18.4 pts");
+    expect(a.detail).toContain("premium moved at a different strike");
+    expect(a.detail).toContain("spot did not follow");
+    expect(a.metrics?.find((m) => m.label === "SAME STRIKE")?.value).toBe("no");
+    expect(a.metrics?.find((m) => m.label === "STRIKE ΔOI")?.value).toBe("-30.0K");
+    expect(a.metrics?.find((m) => m.label === "STRIKE Δ₹")?.value).toBe("-4.25");
+    expect(a.metrics?.find((m) => m.label === "SPOT Δ")?.value).toBe("-18.4");
+    expect(a.metrics?.find((m) => m.label === "REASON")?.value).toBe("premium moved at a different strike");
+    expect(planMetric(a)).toBeUndefined();
+    expect(a.actionable).toBe(false);
+  });
+
+  test("a withheld burst makes no directional fuel claim", () => {
+    const a = burstToAlert(base({ flow: "unconfirmed", fuel_state: "fresh_sellers" }), null);
+    for (const claim of ["writers adding", "shorts covering", "buyers adding", "longs exiting", "BUY CE", "BUY PE"]) {
+      expect(a.detail).not.toContain(claim);
+      expect(a.title).not.toContain(claim);
+    }
+    expect(a.detail).toContain("No trade");
+    expect(a.actionable).toBe(false);
+  });
+
+  test("severity rail and row layout stay unchanged for an unconfirmed alert", () => {
+    const a = burstToAlert(base({ severity: "watch", flow: "unconfirmed" }), null);
+    render(() => (
+      <UIProvider>
+        <MarketAlertRow alert={a} />
+      </UIProvider>
+    ));
+    const row = screen.getByTestId("market-alert-oi_burst");
+    expect(row).toHaveAttribute("data-severity", "watch");
+    expect(row).toHaveTextContent("OI SHIFT · unconfirmed");
+  });
+
+  test("the toast stack prints evidence only — never a BUY CE/PE instruction", () => {
+    const a = burstToAlert(base({ flow: "unconfirmed" }), supplied);
+    render(() => (
+      <UIProvider>
+        <MarketAlertStack alerts={[a]} />
+      </UIProvider>
+    ));
+    const stack = screen.getByTestId("market-alert-stack");
+    expect(stack).toHaveTextContent("OI SHIFT · unconfirmed");
+    expect(stack).not.toHaveTextContent("BUY CE");
+    expect(stack).not.toHaveTextContent("BUY PE");
+    expect(stack).not.toHaveTextContent("backend plan");
   });
 });

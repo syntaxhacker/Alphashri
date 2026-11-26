@@ -3,6 +3,7 @@ import { describe, expect, test, vi, afterEach } from "vitest";
 import { renderHook, cleanup } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import type { NiftyStrike, NiftyTapeRow } from "@/types/niftyReport";
+import type { MarketAlert } from "@/components/notifications/MarketAlertCard";
 import { detectOiBursts, burstToAlert } from "./niftyOiBursts";
 import type { OiBurst, OiSignal } from "./niftyOiBursts";
 import { useNiftyOiAlerts } from "./useNiftyOiAlerts";
@@ -593,5 +594,69 @@ describe("useNiftyOiAlerts reactive dependencies", () => {
     setBursts(HISTORY_PLUS);
     await vi.advanceTimersByTimeAsync(0);
     expect(burstsReads).toBeGreaterThan(primedReads);
+  });
+});
+
+describe("useNiftyOiAlerts withheld plans", () => {
+  /** The harness chain + spot WOULD price a plan — a derived BUY is observable. */
+  const withheld = (over: Partial<OiBurst> = {}): OiBurst => ({
+    ...FRESH,
+    id: "withheld-1",
+    side: "call",
+    delta: -1_480_000,
+    severity: "critical",
+    ...over,
+  });
+  const planMetric = (a: MarketAlert) =>
+    a.metrics?.some((m) => ["ENTRY", "SL", "TGT", "QTY"].includes(m.label)) ?? false;
+
+  test("flow: 'unconfirmed' shows no derived plan even with a priceable chain", () => {
+    const { result, setters } = renderEmptyAlerts();
+    setters.setBursts([withheld({ flow: "unconfirmed" })]);
+
+    expect(result.trail()).toHaveLength(1);
+    const a = result.trail()[0];
+    expect(a.title).toContain("OI SHIFT · unconfirmed");
+    expect(a.title).not.toContain("BUY");
+    expect(planMetric(a)).toBe(false);
+    expect(a.actionable).toBe(false);
+  });
+
+  test("plan_suppressed drops a backend plan instead of re-deriving one", () => {
+    const { result, setters } = renderEmptyAlerts();
+    const supplied: OiSignal = {
+      leg: "CE", strike: 22_700, entry: 185, sl: 138.75, target: 277.5,
+      qty: 65, lots: 1, basis: "backend plan — must be withheld",
+    };
+    setters.setBursts([withheld({ plan_suppressed: true, signal: supplied })]);
+
+    const a = result.trail()[0];
+    expect(a.title).toContain("OI SHIFT · unconfirmed");
+    expect(a.title).not.toContain("BUY CE");
+    expect(planMetric(a)).toBe(false);
+    expect(a.detail).not.toContain("backend plan");
+    expect(a.actionable).toBe(false);
+    expect(result.banners()).toHaveLength(0);
+  });
+
+  test("an unlabelled legacy burst still carries a derived plan", () => {
+    const { result, setters } = renderEmptyAlerts();
+    setters.setBursts([withheld()]);
+
+    const a = result.trail()[0];
+    expect(a.title).toContain("BUY");
+    expect(a.metrics?.find((m) => m.label === "ENTRY")).toBeDefined();
+    expect(a.actionable).not.toBe(false);
+  });
+
+  test("withheld criticals never chirp or flash the tab title", () => {
+    vi.mocked(playAlertSound).mockClear();
+    vi.mocked(flashAlertTitle).mockClear();
+    const { result, setters } = renderEmptyAlerts();
+    setters.setBursts([withheld({ flow: "unconfirmed", severity: "critical" })]);
+
+    expect(playAlertSound).not.toHaveBeenCalledWith("critical");
+    expect(flashAlertTitle).not.toHaveBeenCalled();
+    expect(result.banners()).toHaveLength(0);
   });
 });
