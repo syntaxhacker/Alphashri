@@ -314,9 +314,12 @@ function SectionsView(props: {
             </Paper>
           }
         >
+          {/* Bounded rows make each section table the only scrollport. An
+              overflow-y-auto grid here competes with the table's wheel and
+              stalls scrolling on the first data load. */}
           <Box
             data-testid="market-sections-grid"
-            className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-2 overflow-y-auto"
+            className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 auto-rows-[minmax(0,1fr)] gap-2 overflow-hidden"
           >
             <For each={activeSections()}>
               {(section) => (
@@ -1213,6 +1216,9 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
           data={SECTION_TABS}
           size="xs"
           data-testid="market-view-toggle"
+          scrollable
+          scrollLabel="Scroll tabs"
+          scrollTestId="market-view-scroll"
         />
         <Show when={showMarketChrome()}>
           <Button

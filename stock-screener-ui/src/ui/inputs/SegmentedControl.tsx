@@ -1,7 +1,18 @@
-import { createMemo, createSignal, For, splitProps } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+  splitProps,
+} from "solid-js";
 import { cn } from "../cn";
+import { alpha, SURFACE } from "../palette";
 import { typeSize, type TypeRole } from "../typography";
 import type { UISegmentedControlProps } from "../types";
+import { IconChevronRight } from "@/components/common/Icons";
 
 /**
  * SegmentedControl = a view switch, not a filter row. One shared bordered
@@ -12,6 +23,17 @@ import type { UISegmentedControlProps } from "../types";
 type NormalizedItem = { value: string; label: string; disabled?: boolean };
 
 type SegBox = { item: number; fontRole: TypeRole; px: number };
+
+/** Opt-in scroll mode: a narrow track scrolls instead of clipping its labels. */
+export interface SegmentedControlScrollProps {
+  scrollable?: boolean;
+  scrollLabel?: string;
+  scrollTestId?: string;
+}
+
+export const SEGMENTED_SCROLL_LABEL = "Scroll tabs";
+export const SEGMENTED_SCROLL_TESTID_SUFFIX = "scroll-affordance";
+export const SEGMENTED_SCROLL_STEP_PX = 120;
 
 // Labels read at 1x in dense toolbars; 9–10px was below the legibility floor.
 const SEG_BOX: Record<string, SegBox> = {
@@ -34,7 +56,22 @@ function normalize(data: UISegmentedControlProps["data"]): NormalizedItem[] {
   return (data ?? []).map((item) => (typeof item === "string" ? { value: item, label: item } : item));
 }
 
-export function SegmentedControl(props: UISegmentedControlProps) {
+/**
+ * Same one-pixel-tolerance read as the filter-chip affordance: sub-pixel
+ * rounding at the seam must not flicker the cue on and off.
+ */
+export function shouldShowSegmentedScrollCue(
+  scrollWidth: number,
+  clientWidth: number,
+  scrollLeft: number,
+): boolean {
+  if (clientWidth <= 0) return false;
+  const overflows = scrollWidth > clientWidth + 1;
+  const atEnd = scrollLeft + clientWidth >= scrollWidth - 1;
+  return overflows && !atEnd;
+}
+
+export function SegmentedControl(props: UISegmentedControlProps & SegmentedControlScrollProps) {
   const [known, rest] = splitProps(props, [
     "value",
     "defaultValue",
@@ -48,6 +85,9 @@ export function SegmentedControl(props: UISegmentedControlProps) {
     "style",
     "id",
     "data-testid",
+    "scrollable",
+    "scrollLabel",
+    "scrollTestId",
   ]);
 
   const isControlled = createMemo(() => known.value !== undefined);
@@ -61,6 +101,55 @@ export function SegmentedControl(props: UISegmentedControlProps) {
     known.onChange?.(v);
   };
 
+  let trackEl: HTMLDivElement | undefined;
+  const [showCue, setShowCue] = createSignal(false);
+
+  const measure = () => {
+    if (!known.scrollable || !trackEl) return;
+    setShowCue(
+      shouldShowSegmentedScrollCue(trackEl.scrollWidth, trackEl.clientWidth, trackEl.scrollLeft),
+    );
+  };
+
+  const scrollRight = () => {
+    if (!trackEl) return;
+    trackEl.scrollLeft = Math.min(
+      trackEl.scrollLeft + SEGMENTED_SCROLL_STEP_PX,
+      trackEl.scrollWidth,
+    );
+    measure();
+  };
+
+  onMount(() => {
+    if (!known.scrollable) return;
+    measure();
+    window.addEventListener("resize", measure);
+    trackEl?.addEventListener("scroll", measure);
+    // ResizeObserver sees viewport changes; a MutationObserver catches a changed
+    // item list. Both are optional so partial DOM APIs cannot break the mount.
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined" && trackEl ? new ResizeObserver(measure) : undefined;
+    resizeObserver?.observe(trackEl!);
+    const mutationObserver =
+      typeof MutationObserver !== "undefined" && trackEl
+        ? new MutationObserver(measure)
+        : undefined;
+    mutationObserver?.observe(trackEl!, { childList: true, subtree: true });
+
+    onCleanup(() => {
+      window.removeEventListener("resize", measure);
+      trackEl?.removeEventListener("scroll", measure);
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+    });
+  });
+
+  createEffect(() => {
+    if (!known.scrollable) return;
+    void known.data;
+    queueMicrotask(measure);
+  });
+
   // Tokens, not palette hexes: the rail has to follow the light scheme like the
   // Tailwind-painted item classes beside it do.
   const trackStyle = createMemo<Record<string, string>>(() => ({
@@ -71,6 +160,7 @@ export function SegmentedControl(props: UISegmentedControlProps) {
     "border-color": "var(--color-fin-border)",
     "background-color": "var(--color-fin-surface)",
     padding: `${TRACK_PAD}px`,
+    ...(known.scrollable ? { "scrollbar-width": "none" } : {}),
   }));
 
   const itemStyle = createMemo<Record<string, string>>(() => ({
@@ -84,11 +174,35 @@ export function SegmentedControl(props: UISegmentedControlProps) {
   }));
 
   const rootClass = createMemo(() =>
-    cn("inline-flex items-stretch gap-0 overflow-hidden", known.fullWidth ? "w-full" : "", known.className),
+    cn(
+      "inline-flex items-stretch gap-0",
+      known.scrollable
+        ? "min-w-0 w-full overflow-x-auto whitespace-nowrap"
+        : "overflow-hidden",
+      known.fullWidth || known.scrollable ? "w-full" : "",
+      known.className,
+    ),
   );
 
-  return (
-    <div role="group" id={known.id} data-testid={known["data-testid"]} className={rootClass()} style={{ ...trackStyle(), ...known.style }} {...rest}>
+  const cueLabel = createMemo(
+    () => known.scrollLabel ?? SEGMENTED_SCROLL_LABEL,
+  );
+  const cueTestId = createMemo(
+    () =>
+      known.scrollTestId ??
+      `${known["data-testid"] ?? "segmented"}${SEGMENTED_SCROLL_TESTID_SUFFIX}`,
+  );
+
+  const track = () => (
+    <div
+      ref={(el) => (trackEl = el)}
+      role="group"
+      id={known.id}
+      data-testid={known["data-testid"]}
+      className={rootClass()}
+      style={{ ...trackStyle(), ...known.style }}
+      {...rest}
+    >
       <For each={items()}>{(item) => (
         <button
           type="button"
@@ -101,6 +215,7 @@ export function SegmentedControl(props: UISegmentedControlProps) {
           }}
           className={cn(
             "flex-1 inline-flex items-center justify-center cursor-pointer select-none whitespace-nowrap transition-colors",
+            known.scrollable && "min-w-max",
             current() === item.value
               ? "bg-fin-surface-alt text-fin-text"
               : "bg-transparent text-fin-text-muted hover:text-fin-text",
@@ -113,5 +228,32 @@ export function SegmentedControl(props: UISegmentedControlProps) {
         </button>
       )}</For>
     </div>
+  );
+
+  return (
+    <Show when={known.scrollable} fallback={track()}>
+      <div className="relative inline-flex min-w-0">
+        {track()}
+        <Show when={showCue()}>
+          <div
+            className="pointer-events-none absolute inset-y-0 right-0 flex w-8 items-center justify-end rounded-sm"
+            style={{ background: `linear-gradient(to right, ${alpha(SURFACE, 0)}, ${SURFACE})` }}
+          >
+            <button
+              type="button"
+              aria-label={cueLabel()}
+              data-testid={cueTestId()}
+              // The item buttons already own the tab stops; the cue stays out
+              // of the tab order so scrolling adds no second stop.
+              tabIndex={-1}
+              className="pointer-events-auto flex h-5 w-5 items-center justify-center rounded-sm text-fin-text hover:text-fin-primary"
+              onClick={scrollRight}
+            >
+              <IconChevronRight size={14} />
+            </button>
+          </div>
+        </Show>
+      </div>
+    </Show>
   );
 }

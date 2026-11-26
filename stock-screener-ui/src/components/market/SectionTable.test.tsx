@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { SectionTable, type SectionScanRow } from "./SectionTable";
+import * as palette from "@/ui/palette";
 import type { SectionDefinition } from "../../state/sections/types";
 
 afterEach(() => cleanup());
@@ -217,5 +218,113 @@ describe("SectionTable — actionable symbol rows", () => {
 
     fireEvent.click(cell);
     fireEvent.keyDown(cell, { key: "Enter" });
+  });
+
+  it("renders a bare ticker and opens that ticker for a decorated feed symbol", () => {
+    const onOpenSymbol = vi.fn();
+    const decorated: SectionScanRow[] = [
+      { symbol: "NSE:RELIANCE", name: "Reliance Industries", fields: {}, signals: {} },
+    ];
+    render(() => <SectionTable section={def()} rows={decorated} onOpenSymbol={onOpenSymbol} />);
+
+    const cell = within(panel()).getByTestId("section-symbol-NSE:RELIANCE");
+    expect(cell).toHaveTextContent("RELIANCE");
+    expect(cell).not.toHaveTextContent("NSE:");
+    fireEvent.click(cell);
+    expect(onOpenSymbol).toHaveBeenCalledWith("RELIANCE");
+  });
+
+  it("strips a Yahoo suffix from a rendered symbol label", () => {
+    const decorated: SectionScanRow[] = [
+      { symbol: "INFY.NS", name: "Infosys", fields: {}, signals: {} },
+    ];
+    render(() => <SectionTable section={def()} rows={decorated} />);
+
+    const cell = within(panel()).getByTestId("section-symbol-INFY.NS");
+    expect(cell).toHaveTextContent("INFY");
+    expect(cell).not.toHaveTextContent(".NS");
+  });
+});
+
+describe("SectionTable — 390px right-edge wash", () => {
+  const VIEWPORT_W = 390;
+  const TABLE_MIN_W = 640;
+  const FADE_W = 24;
+  const CUE_LANE_PX = 16;
+  const fadeId = "section-table-edge-fade-momentum-5m";
+  const scrollOwnerClasses = /(?:^|\s)overflow-(?:y-)?(?:auto|scroll)(?:\s|$)/;
+
+  /** A real 390px scrollport: the six columns need 640px, so LTP can clip. */
+  const narrowViewport = () => {
+    render(() => <SectionTable section={def()} rows={rows} />);
+    const viewport = panel().querySelector<HTMLElement>(".paper-tanstack-scroll")!;
+    Object.defineProperty(viewport, "scrollWidth", { configurable: true, value: TABLE_MIN_W });
+    Object.defineProperty(viewport, "clientWidth", { configurable: true, value: VIEWPORT_W });
+    return viewport;
+  };
+
+  const widths = () =>
+    Array.from(panel().querySelectorAll<HTMLElement>("thead th")).map((th) =>
+      Number.parseFloat(th.style.width),
+    );
+
+  it("masks the scrollport's right edge at rest without muting the single scroll cue", () => {
+    const viewport = narrowViewport();
+    fireEvent.scroll(viewport); // scrollLeft 0 => still at the left edge
+
+    const fade = within(panel()).getByTestId(fadeId);
+    expect(panel()).toHaveAttribute("data-edge-fade", "right");
+    expect(fade).toHaveAttribute("aria-hidden", "true");
+    expect(fade.className).toContain("pointer-events-none");
+    expect(fade.style.pointerEvents).toBe("none");
+    expect(fade.style.width).toBe(`${FADE_W}px`);
+    expect(fade.style.top).toBe(`${CUE_LANE_PX}px`);
+    // Token-derived wash, never a new hex; opaque at the very edge.
+    expect(fade.getAttribute("style") ?? "").toContain("linear-gradient(to right");
+    expect(fade.getAttribute("style") ?? "").toContain(palette.SURFACE);
+  });
+
+  it("shows no half-digit at rest: LTP clears the wash lane and cells ellipsize", () => {
+    const viewport = narrowViewport();
+    fireEvent.scroll(viewport);
+
+    const [symbolW, nameW, ltpW] = widths();
+    // Narrowed leading columns keep LTP's right edge left of the wash lane even
+    // after fixed-layout scaling to the 640px minimum table width.
+    expect(symbolW).toBeLessThanOrEqual(96);
+    expect(nameW).toBeLessThanOrEqual(120);
+    const sum = widths().reduce((total, w) => total + w, 0);
+    const ltpRightEdge = (symbolW + nameW + ltpW) * (TABLE_MIN_W / sum);
+    expect(ltpRightEdge).toBeLessThan(VIEWPORT_W - FADE_W);
+
+    const ltp = within(panel()).getByTestId("section-close-RELIANCE");
+    expect(ltp).toHaveTextContent("2981.50");
+    const cell = ltp.closest("td")!;
+    expect(cell.style.overflow).toBe("hidden");
+    expect(cell.style.textOverflow).toBe("ellipsis");
+  });
+
+  it("keeps the full LTP value reachable and drops the wash at the scroll end", () => {
+    const viewport = narrowViewport();
+    fireEvent.scroll(viewport);
+    expect(within(panel()).getByTestId(fadeId)).toBeInTheDocument();
+
+    viewport.scrollLeft = TABLE_MIN_W - VIEWPORT_W;
+    fireEvent.scroll(viewport);
+
+    expect(panel()).not.toHaveAttribute("data-edge-fade");
+    expect(screen.queryByTestId(fadeId)).toBeNull();
+    expect(within(panel()).getByTestId("section-close-RELIANCE")).toHaveTextContent("2981.50");
+  });
+
+  it("adds no second scroll owner — only the table scrollport scrolls", () => {
+    const viewport = narrowViewport();
+    fireEvent.scroll(viewport);
+
+    const owners = Array.from(panel().querySelectorAll<HTMLElement>("*")).filter((el) =>
+      scrollOwnerClasses.test(el.className),
+    );
+    expect(owners).toEqual([viewport]);
+    expect(within(panel()).getByTestId(fadeId).className).not.toMatch(scrollOwnerClasses);
   });
 });
