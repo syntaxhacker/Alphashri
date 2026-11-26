@@ -79,10 +79,14 @@ Run `bun run audit:evidence`; it must pass. It validates the manifest schema, ex
 
 ## Attach
 
-Embed the current images in the PR body or a PR comment with raw GitHub URLs:
+**Every user-visible PR body embeds raw image URLs — not just a folder path — for every changed screen, mode/selector and state at 1600×1000 and 390×844.** Use this exact table format, with inline images labelled by screen/state:
 
 ```md
-![Sector history India 3y rotation 1600](https://raw.githubusercontent.com/<org>/<repo>/<branch>/stock-screener-ui/docs/screenshots/sector-history/sector-history-india-3y-rotation-1600.png)
+| 390 | 1600 |
+| --- | --- |
+| ![Home 390×844](https://raw.githubusercontent.com/<owner>/<repo>/<full-sha>/stock-screener-ui/docs/screenshots/ui-a-plus/home-390.png) | ![Home 1600×1000](https://raw.githubusercontent.com/<owner>/<repo>/<full-sha>/stock-screener-ui/docs/screenshots/ui-a-plus/home-1600.png) |
 ```
 
-List each screenshot with its viewport and state. Verdict format and the pass/fail gate: `UI_RULES.md` §7.
+- One row per changed screen (all 15 primary routes when the change is global — see [`ui-a-plus/README.md`](./screenshots/ui-a-plus/README.md)); add rows for loading/error/empty states and sector sections where applicable.
+- Pin every URL to the **final source SHA** (full 40 chars), never a branch or `HEAD`. State the manifest `head`, `sha256` coverage and `audit:evidence` result in the body; if the PR head is one commit after the manifest head with no pixel change, note that explicitly. A visual change after capture voids the evidence.
+- Verdict format and the pass/fail gate: [`UI_RULES.md` §7](../UI_RULES.md#7-visual-review-gate-independent-verifier--approver).

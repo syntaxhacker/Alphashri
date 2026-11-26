@@ -173,7 +173,9 @@ export function RotationRrg(props: RotationRrgProps) {
                         bottom: topSide ? "4px" : "auto",
                         left: leftSide ? "12px" : "auto",
                         right: leftSide ? "auto" : "12px",
-                        color: safeTint(color, 0.95),
+                        // The tint is the area, never the ink: saturated
+                        // quadrant colours fail 4.5:1 on the tinted fill.
+                        color: TEXT,
                       }}
                     >
                       {QUADRANT_LABELS[key]}

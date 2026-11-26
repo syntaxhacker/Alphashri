@@ -179,6 +179,5 @@ Required before regrade: <numbered list of every defect and suggestion; "none" o
 ### 7.7 Evidence data authenticity
 
 - **Real data only.** Evidence/PR/review screenshots must show real market symbols and values — `RELIANCE`/`POWERGRID` or the relevant real index (`NIFTY` for the Index Report). Never put `MOCK1`/`MOCK2`, dummy names or fabricated prices in user-facing evidence; E2E mocks (`tests/mocks/apiResponses.ts`) are for interaction tests only. Label index-specific screens by the real index (`NIFTY`), not a dummy label.
-- **Viewport captures.** Every capture is a viewport screenshot at **1600×1000** and **390×844** (not full-page), covering every changed mode/selector option plus loaded/loading/error/empty. Read each PNG back before attaching; reject clipped labels and blank canvases.
-- **PR body.** Embed the raw image URLs as inline `![label](https://raw.githubusercontent.com/<owner>/<repo>/<full-sha>/stock-screener-ui/docs/screenshots/…png)` images in a `| 390 | 1600 |` table, pinned to the final source SHA — never a branch or just a folder link. No A+ claim without the independent verifier (§7.1).
+- **Viewport captures.** Every capture is a viewport screenshot at **1600×1000** and **390×844** (not full-page), covering every changed mode/selector option plus loaded/loading/error/empty. Read each PNG back before attaching; reject clipped labels and blank canvases. No A+ claim without the independent verifier (§7.1).
 
