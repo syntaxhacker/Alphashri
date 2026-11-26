@@ -301,10 +301,8 @@ for (const vp of VIEWPORTS) {
         await page.goto("/screener");
         await page.waitForSelector('[data-testid="market-screener"]', { timeout: 15000 });
 
-        const combo = page.locator('[data-testid="market-universe-select"] [role="combobox"]');
-        await combo.click();
-        await combo.fill("");
-        await page.getByRole("option", { name: "USA", exact: true }).click();
+        const combo = page.locator('[data-testid="market-universe-select"] select');
+        await combo.selectOption({ label: "USA" });
         await expect(page.locator('[data-testid="market-row-AAPL"]')).toBeVisible({ timeout: 15000 });
         await expect(page.locator('[data-testid="market-chart-AAPL"]')).toHaveCount(0);
 
@@ -313,10 +311,8 @@ for (const vp of VIEWPORTS) {
         await page.goto("/screener");
         await page.waitForSelector('[data-testid="market-screener"]', { timeout: 15000 });
 
-        const combo = page.locator('[data-testid="market-universe-select"] [role="combobox"]');
-        await combo.click();
-        await combo.fill("");
-        await page.getByRole("option", { name: "USA", exact: true }).click();
+        const combo = page.locator('[data-testid="market-universe-select"] select');
+        await combo.selectOption({ label: "USA" });
         await expect(page.locator('[data-testid="market-row-AAPL"]')).toBeVisible({ timeout: 15000 });
 
         await page.locator('[data-testid="market-chart-AAPL"]').click();

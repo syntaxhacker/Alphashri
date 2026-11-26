@@ -7,6 +7,7 @@ import type { MarketSnapshot, MarketUniverse } from "../../types/marketScreener"
 import {
   isLiveUniverse,
   useMarketSnapshotSolid,
+  MARKET_CLOSED_POLL_MS,
   MARKET_LIVE_POLL_MS,
   type UseMarketSnapshotResult,
 } from "./useMarketSnapshotSolid";
@@ -218,23 +219,48 @@ describe("useMarketSnapshotSolid — live auto-refresh", () => {
     expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(1);
   });
 
-  test("closed market: one refresh per 60s server TTL, never a 5s poll", async () => {
+  test("closed market: the re-check never fetches, even across 5 minutes", async () => {
     vi.useFakeTimers();
     clock.isMarketOpenNow.mockReturnValue(false);
     mount();
     await flush();
     expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(1); // mount snapshot
+    const checksAtMount = clock.isMarketOpenNow.mock.calls.length;
 
     // Two live-cadence windows: no request leaves while the session is closed.
     await vi.advanceTimersByTimeAsync(MARKET_LIVE_POLL_MS * 2);
     expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(1);
 
-    // Just before the 60s cache TTL: still only the mount snapshot.
-    await vi.advanceTimersByTimeAsync(60_000 - MARKET_LIVE_POLL_MS * 2 - 1);
+    // At the re-check boundary the clock is read again, but the snapshot is
+    // not: a closed session's cached print cannot have changed.
+    await vi.advanceTimersByTimeAsync(MARKET_CLOSED_POLL_MS - MARKET_LIVE_POLL_MS * 2);
+    expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(1);
+    expect(clock.isMarketOpenNow.mock.calls.length).toBeGreaterThan(checksAtMount);
+
+    // Five closed windows later the count is still one.
+    await vi.advanceTimersByTimeAsync(MARKET_CLOSED_POLL_MS * 4);
+    expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  test("reopening: re-check only re-arms, polling resumes at MARKET_LIVE_POLL_MS", async () => {
+    vi.useFakeTimers();
+    clock.isMarketOpenNow.mockReturnValue(false);
+    mount();
+    await flush();
     expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(1);
 
-    // At the TTL the snapshot is refreshed once, then the next tick is another
-    // minute away. This is the closed cadence; live stays at 5s.
+    // Stay closed right up to the re-check boundary.
+    await vi.advanceTimersByTimeAsync(MARKET_CLOSED_POLL_MS - 1);
+    expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(1);
+
+    // The session reopens before the re-check fires. The re-check must not
+    // fetch; its re-arm adopts the 5s cadence instead.
+    clock.isMarketOpenNow.mockReturnValue(true);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(MARKET_LIVE_POLL_MS - 1);
+    expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1);
     expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(2);
   });
@@ -276,12 +302,12 @@ describe("useMarketSnapshotSolid — live auto-refresh", () => {
     expect(clock.isUsMarketOpen).toHaveBeenCalled();
 
     clock.isUsMarketOpen.mockReturnValue(true);
-    // The closed-cadence timer detects the reopening; from there polling is
-    // live again at 5s. Advance only the remainder of the 60s window.
-    await vi.advanceTimersByTimeAsync(60_000 - MARKET_LIVE_POLL_MS * 3);
-    expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(4);
+    // The session re-check detects the reopening without fetching: it only
+    // re-arms. The first live fetch is another MARKET_LIVE_POLL_MS away.
+    await vi.advanceTimersByTimeAsync(MARKET_CLOSED_POLL_MS - MARKET_LIVE_POLL_MS * 3);
+    expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(3);
     await vi.advanceTimersByTimeAsync(MARKET_LIVE_POLL_MS);
-    expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(5);
+    expect(api.fetchMarketSnapshot).toHaveBeenCalledTimes(4);
   });
 
   test("isLiveUniverse routes US to the ET clock and everything else to IST", () => {

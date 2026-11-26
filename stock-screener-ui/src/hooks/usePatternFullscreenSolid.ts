@@ -18,6 +18,7 @@ import type {
 } from "@/types/chartPatterns";
 import { fetchPatternHit, fetchSymbolChart } from "@/api/chartPatterns";
 import { fetchQuotes } from "@/api/marketScreener";
+import { isMarketOpenNow } from "@/state/holidays";
 import {
   newestHit,
   sortHitsNewest,
@@ -219,6 +220,10 @@ export function usePatternFullscreen({
 
   const startLivePoll = (symbol: string, token: number) => {
     stopLivePoll();
+    // These charts are NSE cash symbols, so the holiday-aware IST clock is the
+    // gate — there is no US session branch here. A closed market cannot change
+    // its quote, so neither the immediate fetch nor the interval has work to do.
+    if (!isMarketOpenNow()) return;
     liveController = new AbortController();
     const signal = liveController.signal;
     liveTimer = setInterval(() => {
@@ -632,7 +637,8 @@ export function usePatternFullscreen({
       fromDate: replay?.fromDate ?? undefined,
       refresh,
     }, true);
-    // Live frames poll the quote every 15s; historical (as-of) frames never do.
+    // Historical (as-of) frames never poll; live frames poll at 15s only while
+    // the NSE cash session is open.
     if (replay?.asOf == null) {
       startLivePoll(symbol, token);
     }
@@ -715,7 +721,7 @@ export function usePatternFullscreen({
       asOf,
       fromDate,
     });
-    // The reload for the new timeframe repopulates the quote via its poll.
+    // The reload repopulates the quote via its poll when the session is open.
     if (asOf == null) startLivePoll(symbol, token);
   };
 
@@ -745,7 +751,8 @@ export function usePatternFullscreen({
     })
       .then((chart) => applySymbolChart(chart, symbol, tf, token, { asOf, fromDate }))
       .catch(() => applySymbolChartError(symbol, tf, token, { asOf, fromDate }));
-    // Returning to live restarts the quote fetch/poll; historical frames never poll.
+    // Returning to live restarts the quote fetch/poll when the session is open;
+    // historical frames never poll.
     if (asOf == null) startLivePoll(symbol, token);
   };
 

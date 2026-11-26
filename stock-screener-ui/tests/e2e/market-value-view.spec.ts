@@ -95,12 +95,9 @@ async function openMarket(page: Page, query = "") {
   await expect(page.getByTestId("market-screener")).toBeVisible({ timeout: 20000 });
 }
 
-/** The universe Select is searchable: clear the previous label before choosing. */
+/** The universe control is a native <select>; Playwright picks by option label. */
 async function pickUniverse(page: Page, label: string) {
-  const combo = page.locator('[data-testid="market-universe-select"] [role="combobox"]');
-  await combo.click();
-  await combo.fill("");
-  await page.getByRole("option", { name: label, exact: true }).click();
+  await page.getByTestId("market-universe-select").locator("select").selectOption({ label });
 }
 
 async function chooseView(page: Page, label: "Table" | "Deep Value") {
@@ -177,10 +174,10 @@ for (const vp of [
     }) => {
       await openMarket(page);
       await expect(page.locator('[data-testid^="market-row-"]').first()).toBeVisible();
-      const combo = page.locator('[data-testid="market-universe-select"] [role="combobox"]');
+      const combo = page.getByTestId("market-universe-select").locator("select");
 
       await pickUniverse(page, "USA");
-      await expect(combo).toHaveValue("USA");
+      await expect(combo.locator("option:checked")).toHaveText("USA");
 
       const usaScan = page.waitForResponse(valueScanResponse("usa"), { timeout: 20000 });
       await chooseView(page, "Deep Value");
@@ -192,7 +189,7 @@ for (const vp of [
       await pickUniverse(page, "All NSE");
       const indiaRes = await indiaScan;
       expect((await indiaRes.json()).market).toBe("india");
-      await expect(combo).toHaveValue("All NSE");
+      await expect(combo.locator("option:checked")).toHaveText("All NSE");
       await expect(page.getByTestId("market-value-region")).toBeVisible();
     });
 

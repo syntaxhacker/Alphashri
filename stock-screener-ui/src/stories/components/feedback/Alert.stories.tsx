@@ -158,3 +158,38 @@ export const Dismissible: Story = {
       );
     }),
 };
+
+export const WithAction: Story = {
+  render: () =>
+    solidStory(() => (
+      <Catalog title="Alert — action" note="An optional action control sits beside the copy as a flex sibling — never inside the text block — and the close button stays independent.">
+        <Section title="Action slot" note="The body grows to fill the alert, so the action stays on the same row at normal widths and may wrap below on a narrow container.">
+          <SpecimenGrid min={340}>
+            <Specimen fill label="action + close">
+              <Alert
+                color="warning"
+                variant="light"
+                title="Upstox connection required"
+                icon={<span aria-hidden="true">!</span>}
+                action={<Button size="xs" variant="outline">Open Settings</Button>}
+                withCloseButton
+                onClose={() => {}}
+              >
+                Reconnect in Settings to load live options data.
+              </Alert>
+            </Specimen>
+            <Specimen fill label="action, no close">
+              <Alert
+                color="info"
+                variant="light"
+                title="Feed paused"
+                action={<Button size="xs" variant="subtle">Retry</Button>}
+              >
+                The last snapshot is still shown.
+              </Alert>
+            </Specimen>
+          </SpecimenGrid>
+        </Section>
+      </Catalog>
+    )),
+};

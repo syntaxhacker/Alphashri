@@ -19,8 +19,9 @@ import { collectConsoleErrors } from "./helpers/flowsB";
  * with a null market cap. They sort last in the default mcap_desc grid and only
  * the ETF tier selects them.
  *
- * `update_mode` is "streaming" so the mode badge renders "Live". The screener
- * mounts at "/", so tests navigate to "/?tab=market".
+ * `update_mode` is "streaming"; the Live-badge test pins the India session open
+ * so the badge does not depend on the wall clock. The screener mounts at "/",
+ * so tests navigate to "/?tab=market".
  */
 const SNAPSHOT_PATH = "/?tab=market";
 
@@ -398,6 +399,9 @@ test.describe("Market Screener tab", () => {
   });
 
   test("mode badge shows Live when update_mode is streaming", async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+    });
     await openMarketTab(page);
 
     await expect(page.locator('[data-testid="market-mode-badge"]')).toHaveText(/live/i);
@@ -522,12 +526,9 @@ async function openMarketTabWithUniverses(page: Page) {
   return { urls };
 }
 
-/** The searchable Select keeps the chosen label as its query — clear it before picking again. */
+/** The universe control is a native <select>; Playwright picks by option label. */
 async function pickUniverse(page: Page, label: string) {
-  const combo = page.locator('[data-testid="market-universe-select"] [role="combobox"]');
-  await combo.click();
-  await combo.fill("");
-  await page.getByRole("option", { name: label, exact: true }).click();
+  await page.getByTestId("market-universe-select").locator("select").selectOption({ label });
 }
 
 test.describe("Market Screener — USA universe (USD)", () => {
@@ -548,12 +549,12 @@ test.describe("Market Screener — USA universe (USD)", () => {
     await page.setViewportSize({ width: 1600, height: 900 });
     const { urls } = await openMarketTabWithUniverses(page);
 
-    const combo = page.locator('[data-testid="market-universe-select"] [role="combobox"]');
+    const combo = page.getByTestId("market-universe-select").locator("select");
     const mcapHeader = page.locator('[id="paper-tanstack-header-market_cap_cr"]');
     const chips = page.locator('[data-testid="market-active-chips"]');
 
     // Baseline: India universe, zero filters.
-    await expect(combo).toHaveValue("All NSE");
+    await expect(combo.locator("option:checked")).toHaveText("All NSE");
     await expect(mcapHeader).toContainText("MCAP ₹Cr");
     await expect(page.locator('[data-testid="market-close-RELIANCE"]')).toHaveText(/^₹/);
     await expect(chips).toBeVisible();
@@ -564,7 +565,7 @@ test.describe("Market Screener — USA universe (USD)", () => {
     // Choose USA from the universe dropdown.
     await pickUniverse(page, "USA");
 
-    await expect(combo).toHaveValue("USA");
+    await expect(combo.locator("option:checked")).toHaveText("USA");
     await expect
       .poll(() => urls.some((u) => new URL(u).searchParams.get("universe") === "us"))
       .toBe(true);
@@ -592,7 +593,7 @@ test.describe("Market Screener — USA universe (USD)", () => {
     // Switch back: US-only filters are dropped, ₹ formatting returns.
     await pickUniverse(page, "All NSE");
 
-    await expect(combo).toHaveValue("All NSE");
+    await expect(combo.locator("option:checked")).toHaveText("All NSE");
     await expect(page.locator('[data-testid="market-row-RELIANCE"]')).toBeVisible();
     await expect(mcapHeader).toContainText("MCAP ₹Cr");
     await expect(page.locator('[data-testid="market-close-RELIANCE"]')).toHaveText(/^₹/);
@@ -615,9 +616,9 @@ test.describe("Market Screener — USA universe (USD)", () => {
    */
   test("US cap-tier chip label uses $B bounds, not ₹/Cr", async ({ page }) => {
     await openMarketTabWithUniverses(page);
-    const combo = page.locator('[data-testid="market-universe-select"] [role="combobox"]');
+    const combo = page.getByTestId("market-universe-select").locator("select");
     await pickUniverse(page, "USA");
-    await expect(combo).toHaveValue("USA");
+    await expect(combo.locator("option:checked")).toHaveText("USA");
 
     await page.locator('[data-testid="market-cap-large"]').click();
     const capChip = page.locator('[data-testid="market-filter-chip-capTier:large"]');
@@ -638,7 +639,7 @@ test.describe("Market Screener — USA universe (USD)", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const { urls } = await openMarketTabWithUniverses(page);
 
-    const combo = page.locator('[data-testid="market-universe-select"] [role="combobox"]');
+    const combo = page.getByTestId("market-universe-select").locator("select");
     const mcapHeader = page.locator('[id="paper-tanstack-header-market_cap_cr"]');
     const chips = page.locator('[data-testid="market-active-chips"]');
     const railToggle = page.locator('[data-testid="market-rail-toggle"]');
@@ -654,7 +655,7 @@ test.describe("Market Screener — USA universe (USD)", () => {
     await railCollapse.click();
     await expect(drawer).toHaveCount(0);
 
-    await expect(combo).toHaveValue("All NSE");
+    await expect(combo.locator("option:checked")).toHaveText("All NSE");
     await expect(mcapHeader).toContainText("MCAP ₹Cr");
     const baseline = await measureLayout(page);
     expect(baseline.chipsHeight).toBe(24);
@@ -662,7 +663,7 @@ test.describe("Market Screener — USA universe (USD)", () => {
 
     // 2. Pick USA from the toolbar (drawer closed — it is a fixed overlay).
     await pickUniverse(page, "USA");
-    await expect(combo).toHaveValue("USA");
+    await expect(combo.locator("option:checked")).toHaveText("USA");
     await expect
       .poll(() => urls.some((u) => new URL(u).searchParams.get("universe") === "us"))
       .toBe(true);
@@ -714,7 +715,7 @@ test.describe("Market Screener — USA universe (USD)", () => {
 
     // 6. Switch back: US-only filters are dropped, ₹ formatting returns.
     await pickUniverse(page, "All NSE");
-    await expect(combo).toHaveValue("All NSE");
+    await expect(combo.locator("option:checked")).toHaveText("All NSE");
     await expect(page.locator('[data-testid="market-row-RELIANCE"]')).toBeVisible();
     await expect(mcapHeader).toContainText("MCAP ₹Cr");
     await expect(page.locator('[data-testid="market-close-RELIANCE"]')).toHaveText(/^₹/);
