@@ -20,7 +20,15 @@ def get_strategy_performance(
     cutoff = datetime.now(config.IST) - timedelta(days=days)
 
     with SessionLocal() as db:
-        trades = db.query(Trade).filter(
+        # Only the five columns the per-strategy rollup reads; the full trade
+        # row (notes, prices, costs metadata, ...) is not needed here.
+        trades = db.query(
+            Trade.strategy_id,
+            Trade.strategy_name,
+            Trade.net_pnl,
+            Trade.pnl,
+            Trade.costs,
+        ).filter(
             Trade.user_id == user_id,
             Trade.is_test == False,
             Trade.exit_time.isnot(None),

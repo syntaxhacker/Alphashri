@@ -60,7 +60,11 @@ def get_aggregated_dashboard(user: "User" = Depends(get_current_user)):
         # Batch-load today's trades for all bots
         today_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
         today_end = today_start.replace(hour=23, minute=59, second=59)
-        all_trades = db.query(TradeModel).filter(
+        # Only strategy_id and net_pnl feed the per-bot daily P&L rollup.
+        all_trades = db.query(
+            TradeModel.strategy_id,
+            TradeModel.net_pnl,
+        ).filter(
             TradeModel.user_id == user_id,
             TradeModel.is_test == False,
             TradeModel.exit_time >= today_start,
