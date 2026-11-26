@@ -33,6 +33,13 @@ const US_TIMEFRAMES = ["1D", "1m", "5m", "15m", "1h"] as const;
 /** Quick-switch timeframes offered when the current frame has no patterns. */
 const EMPTY_STATE_TIMEFRAMES = ["1D", "1W", "1h", "15m"];
 
+/** Canonical frames offered when a timeframe returns no candles at all. */
+const NO_CANDLE_TIMEFRAMES = [
+  { id: "1D", label: "1D" },
+  { id: "1W", label: "1W" },
+  { id: "1h", label: "1H" },
+] as const;
+
 interface ChartMessageProps {
   testId: string;
   title: string;
@@ -99,7 +106,7 @@ function NoPatternsPanel(props: {
   return (
     <div
       data-testid="chart-no-patterns"
-      class="flex h-full min-w-0 flex-col gap-3 p-2"
+      class="flex h-full min-w-0 flex-col gap-3 rounded-fin border border-fin-border bg-fin-surface p-3"
     >
       <Text size="sm" fw={600}>
         No patterns detected
@@ -113,7 +120,7 @@ function NoPatternsPanel(props: {
             {(id) => (
               <Button
                 size="xs"
-                variant="subtle"
+                variant="outline"
                 onClick={() => props.onChange(id)}
                 data-testid={`chart-empty-timeframe-${id}`}
               >
@@ -123,6 +130,66 @@ function NoPatternsPanel(props: {
           </For>
         </ToolbarRow>
       </Show>
+    </div>
+  );
+}
+
+/**
+ * Zero-candle frames get a complete empty state: a label alone tells the user
+ * nothing about why the chart is gone or what to do next. The card stays
+ * compact and centered on wide screens and stacks inside the chart area on
+ * narrow ones; the chart/indicator strip is not mounted in this branch.
+ */
+function NoCandlesPanel(props: {
+  symbol: string;
+  timeframe: string;
+  note: string | null;
+  onTimeframeChange: (timeframe: string) => void;
+  onRetry: () => void;
+}) {
+  const reason = () =>
+    props.note?.trim() ||
+    `No ${props.timeframe} bars were returned for ${props.symbol} in this session. Try another timeframe or retry.`;
+
+  return (
+    <div
+      data-testid="chart-empty"
+      class="flex w-full min-h-0 flex-1 items-center justify-center p-4"
+    >
+      <div
+        data-testid="chart-no-candles"
+        class="flex w-full max-w-[520px] flex-col items-center gap-3 rounded-fin border border-fin-border bg-fin-surface px-4 py-5 text-center"
+      >
+        <Text size="sm" fw={700} data-testid="chart-no-candles-title">
+          {`No ${props.timeframe} candles for this session`}
+        </Text>
+        <Text size="xs" c="dimmed" data-testid="chart-no-candles-reason">
+          {reason()}
+        </Text>
+        <ToolbarRow gap={8} justify="center" wrap>
+          <For each={NO_CANDLE_TIMEFRAMES}>
+            {(tf) => (
+              <Button
+                size="xs"
+                variant="outline"
+                disabled={tf.id === props.timeframe}
+                onClick={() => props.onTimeframeChange(tf.id)}
+                data-testid={`chart-empty-timeframe-${tf.id}`}
+              >
+                {tf.label}
+              </Button>
+            )}
+          </For>
+          <Button
+            size="xs"
+            variant="light"
+            onClick={props.onRetry}
+            data-testid="chart-retry-btn"
+          >
+            Retry
+          </Button>
+        </ToolbarRow>
+      </div>
     </div>
   );
 }
@@ -568,12 +635,12 @@ const ChartView = () => {
             </Center>
           </Match>
           <Match when={showEmpty()}>
-            <ChartMessage
-              testId="chart-empty"
-              title={`No chart data for ${symbol().toUpperCase()}`}
-              detail={chart.state().note ?? `No candles returned for ${timeframe()}. Try another timeframe.`}
-              actionLabel="Retry"
-              onAction={chart.reload}
+            <NoCandlesPanel
+              symbol={symbol().toUpperCase()}
+              timeframe={timeframe()}
+              note={chart.state().note}
+              onTimeframeChange={setTimeframe}
+              onRetry={chart.reload}
             />
           </Match>
           <Match when={true}>

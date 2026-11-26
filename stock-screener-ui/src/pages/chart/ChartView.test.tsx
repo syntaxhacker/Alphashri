@@ -377,11 +377,18 @@ describe("ChartView (pattern workspace)", () => {
     expect(screen.queryByTestId("chart-pattern-source")).toBeNull();
   });
 
-  it("shows the empty state when no timeframe has patterns", async () => {
+  it("shows the empty state when no timeframe has patterns, keeping the chart mounted", async () => {
     vi.mocked(fetchSymbolChart).mockResolvedValue(chartPayload({ hits: [] }));
     renderPage();
     await waitFor(() => expect(screen.getByTestId("chart-no-patterns")).toBeInTheDocument());
+    expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-fullscreen-panel")).toBeNull();
+    expect(screen.queryByTestId("chart-no-candles")).toBeNull();
+    // The quick-switch is a visible outlined button, never a bare text label.
+    const quickSwitch = screen.getByTestId("chart-empty-timeframe-1W");
+    expect(quickSwitch.tagName).toBe("BUTTON");
+    expect(quickSwitch).toHaveClass("border");
+    expect(quickSwitch).not.toHaveClass("border-transparent");
   });
 
   it("offers an alternative timeframe from the empty state", async () => {
@@ -398,12 +405,91 @@ describe("ChartView (pattern workspace)", () => {
     );
   });
 
-  it("shows the no-data state when no candles come back", async () => {
+  it("shows a complete no-candle empty-state card when the timeframe has no candles", async () => {
     vi.mocked(fetchSymbolChart).mockResolvedValue(
       chartPayload({ candles: [], hits: [] }),
     );
     renderPage();
-    await waitFor(() => expect(screen.getByTestId("chart-empty")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("chart-no-candles")).toBeInTheDocument());
+    expect(screen.getByTestId("chart-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("chart-no-candles-title")).toHaveTextContent(
+      "No 1D candles for this session",
+    );
+    expect(screen.getByTestId("chart-no-candles-reason")).toHaveTextContent(
+      "No 1D bars were returned for TEST in this session",
+    );
+    expect(screen.queryByTestId("patterns-fullscreen-body")).toBeNull();
+    expect(screen.queryByTestId("chart-no-patterns")).toBeNull();
+  });
+
+  it("uses the active timeframe and the endpoint note in the zero-candle panel", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      chartPayload({ candles: [], hits: [], note: "No session data for 15m" } as ChartPayload),
+    );
+    renderPage("/chart/TEST?tf=15m");
+    await waitFor(() => expect(screen.getByTestId("chart-no-candles")).toBeInTheDocument());
+    expect(screen.getByTestId("chart-no-candles-title")).toHaveTextContent(
+      "No 15m candles for this session",
+    );
+    expect(screen.getByTestId("chart-no-candles-reason")).toHaveTextContent(
+      "No session data for 15m",
+    );
+  });
+
+  it("offers 1D/1W/1H quick switches from a zero-candle timeframe", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      chartPayload({ candles: [], hits: [] }),
+    );
+    renderPage("/chart/TEST?tf=15m");
+    await waitFor(() => expect(screen.getByTestId("chart-no-candles")).toBeInTheDocument());
+
+    const labels = ["1D", "1W", "1H"];
+    for (const id of ["1D", "1W", "1h"]) {
+      const button = screen.getByTestId(`chart-empty-timeframe-${id}`);
+      expect(button).toHaveTextContent(labels[["1D", "1W", "1h"].indexOf(id)]);
+      expect(button).toBeEnabled();
+    }
+
+    fireEvent.click(screen.getByTestId("chart-empty-timeframe-1W"));
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "1W", expect.any(Object)),
+    );
+  });
+
+  it("switches to 1D and 1H from the zero-candle empty state", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      chartPayload({ candles: [], hits: [] }),
+    );
+    const { history } = renderPage("/chart/TEST?tf=15m");
+    await waitFor(() => expect(screen.getByTestId("chart-no-candles")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("chart-empty-timeframe-1D"));
+    await waitFor(() => expect(history.get()).toContain("tf=1D"));
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "1D", expect.any(Object)),
+    );
+
+    await waitFor(() => expect(screen.getByTestId("chart-no-candles")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("chart-empty-timeframe-1h"));
+    await waitFor(() => expect(history.get()).toContain("tf=1h"));
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "1h", expect.any(Object)),
+    );
+  });
+
+  it("retries the active timeframe from the zero-candle empty state", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      chartPayload({ candles: [], hits: [] }),
+    );
+    renderPage("/chart/TEST?tf=15m");
+    await waitFor(() => expect(screen.getByTestId("chart-no-candles")).toBeInTheDocument());
+    vi.mocked(fetchSymbolChart).mockClear();
+
+    fireEvent.click(screen.getByTestId("chart-retry-btn"));
+
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "15m", expect.any(Object)),
+    );
   });
 
   it("shows the error state and retries the fetch", async () => {
