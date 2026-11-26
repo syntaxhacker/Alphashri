@@ -161,6 +161,11 @@ function normalizeSearch(search: string): string {
   return search.startsWith("?") ? search.slice(1) : search;
 }
 
+/** `merged` already carries its leading `?` (or is empty) — never add another. */
+export function patternUrlTarget(pathname: string, merged: string): string {
+  return merged ? pathname + merged : pathname;
+}
+
 export function PatternsContainer() {
   // ---- Store subscription (single source of truth) ---------------------
   const [snapshot, setSnapshot] = createSignal(getChartPatternsState());
@@ -311,7 +316,7 @@ export function PatternsContainer() {
     // value we wrote; otherwise it re-applies the previous `hist` and the
     // applied filter is lost while the old param stays in the address bar.
     localWriteTarget = merged;
-    const target = location.pathname + (merged ? `?${merged}` : "");
+    const target = patternUrlTarget(location.pathname, merged);
     const token = ++writeToken;
     // A single navigation path writes the exact merged query: removed keys
     // such as `hist` are dropped instead of being merged back in. Deferring by

@@ -57,7 +57,7 @@ import {
   loadCatalog,
   selectTimeframes,
 } from "@/state/chartPatterns";
-import { PatternsContainer } from "./PatternsContainer";
+import { PatternsContainer, patternUrlTarget } from "./PatternsContainer";
 
 const mockGetState = vi.mocked(getChartPatternsState);
 const mockLoadCatalog = vi.mocked(loadCatalog);
@@ -156,6 +156,14 @@ function renderContainer(initialEntry = "/patterns") {
 }
 
 describe("PatternsContainer", () => {
+  test("writing a URL without hist produces exactly one well-formed query string", () => {
+    expect(patternUrlTarget("/patterns", "?avgvol=150&universe=nifty500&view=grid")).toBe(
+      "/patterns?avgvol=150&universe=nifty500&view=grid",
+    );
+    expect(patternUrlTarget("/patterns", "?view=grid")).toBe("/patterns?view=grid");
+    expect(patternUrlTarget("/patterns", "")).toBe("/patterns");
+  });
+
   afterEach(() => cleanup());
 
   beforeEach(() => {
