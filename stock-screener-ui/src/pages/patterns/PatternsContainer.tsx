@@ -202,6 +202,11 @@ export function PatternsContainer() {
   let lastWritten = "";
   /** Search we just wrote; a stale URL must not be read back over a local edit. */
   let localWriteTarget: string | null = null;
+  /** Trailing debounce: a burst of filter edits gets one URL commit. */
+  let writeTimer: ReturnType<typeof setTimeout> | null = null;
+  onCleanup(() => {
+    if (writeTimer != null) clearTimeout(writeTimer);
+  });
 
   const currentState = () => ({
     universe: universe(),
@@ -309,10 +314,15 @@ export function PatternsContainer() {
     // value we wrote; otherwise it re-applies the previous `hist` and the
     // applied filter is lost while the old param stays in the address bar.
     localWriteTarget = merged;
-    // `mergeSearchString` deletes keys whose value is null/empty, and the
-    // router composes consecutive writes via its pending target — that keeps
-    // both symbols of a multi-select and removes an obsolete `hist`.
-    setSearchParams(next, { replace: true });
+    // The store already has the edit. Only the URL is debounced: consecutive
+    // picks in a multi-select must not navigate (and remount the rail) between
+    // writes, or the first symbol is lost before the second is staged.
+    if (writeTimer != null) clearTimeout(writeTimer);
+    writeTimer = setTimeout(() => {
+      writeTimer = null;
+      if (normalizeSearch(location.search) === normalizeSearch(lastWritten)) return;
+      setSearchParams(next, { replace: true });
+    }, 600);
   });
 
   createEffect(() => {
