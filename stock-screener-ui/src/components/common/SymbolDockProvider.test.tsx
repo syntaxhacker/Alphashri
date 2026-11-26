@@ -1013,6 +1013,15 @@ describe("chart dock fullscreen", () => {
     expect(expand).toHaveAttribute("title", "Expand to full screen");
   });
 
+  test("the maximized modal wrapper sits above the sticky app header", () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "src/components/common/SymbolDockProvider.tsx"),
+      "utf8",
+    );
+    expect(source).toContain('<Box className="fixed inset-0 z-[1300]">');
+    expect(source).not.toContain('<Box className="fixed inset-0 z-[1200]">');
+  });
+
   test("clicking expand opens the fullscreen modal with the same chart frame", async () => {
     await openChartDock();
 

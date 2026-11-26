@@ -465,3 +465,16 @@ describe("Modal title layout", () => {
     expect(backdrop(container)).not.toHaveAttribute("titleClassName");
   });
 });
+
+describe("Modal stacking", () => {
+  test("the overlay sits above the sticky app header at z-[1299]", () => {
+    const { container } = render(() => (
+      <Modal opened onClose={() => {}} title="Details">
+        body
+      </Modal>
+    ));
+
+    expect(backdrop(container)).toHaveClass("z-[1300]");
+    expect(backdrop(container)).not.toHaveClass("z-50");
+  });
+});

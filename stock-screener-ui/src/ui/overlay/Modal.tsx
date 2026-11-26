@@ -237,7 +237,7 @@ export function Modal(props: ModalProps) {
         ref={(el) => (dialogRef = el)}
         id={known.id}
         data-testid={testId}
-        className={cn("fixed inset-0 z-50 flex items-center justify-center", known.className)}
+        className={cn("fixed inset-0 z-[1300] flex items-center justify-center", known.className)}
         style={overlayStyle}
         onClick={handleBackdropClick}
         role="dialog"
