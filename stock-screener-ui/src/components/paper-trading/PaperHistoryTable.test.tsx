@@ -80,6 +80,18 @@ vi.mock("../common/PreviewChartProvider", () => ({
   })),
 }));
 
+const dockMock = vi.hoisted(() => ({
+  open: vi.fn(),
+  close: vi.fn(),
+  preview: vi.fn(),
+  endPreview: vi.fn(),
+  setOutlet: vi.fn(),
+}));
+
+vi.mock("@/components/common/symbolDockContext", () => ({
+  useSymbolDock: () => ({ ...dockMock, pinned: false }),
+}));
+
 vi.mock("@solidjs/router", () => ({
   useNavigate: vi.fn(() => vi.fn()),
 }));
@@ -350,6 +362,36 @@ describe("PaperHistoryTable", () => {
       ];
       r();
       await fireEvent.click(screen.getByTestId("trade-row-opt-2"));
+      await vi.waitFor(() => {
+        expect(mocks.mockFetchPaperChart).toHaveBeenCalled();
+      });
+      expect(mocks.mockFetchPaperChart.mock.calls[0][0]).toBe("RELIANCE");
+    });
+
+    test("clicking the symbol cell resolves the underlying like the row and never opens the dock with a raw contract", async () => {
+      const symbol = "NIFTY 2026-10-19 22900CE";
+      mockStateStore.trades = [
+        mockTrade({ trade_id: "opt-sym-1", symbol, source: "options_paper" }),
+      ];
+      r();
+      await fireEvent.click(screen.getByTestId(`symbol-link-${symbol}`));
+      await vi.waitFor(() => {
+        expect(mocks.mockFetchPaperChart).toHaveBeenCalled();
+      });
+      expect(mocks.mockFetchPaperChart.mock.calls[0][0]).toBe("NIFTY");
+      const { setSelectedSymbol } = await import("../../state/paperTrading");
+      expect(setSelectedSymbol).toHaveBeenCalledWith("NIFTY");
+      expect(dockMock.open).not.toHaveBeenCalled();
+      expect(dockMock.open).not.toHaveBeenCalledWith(symbol);
+    });
+
+    test("clicking the symbol cell of a compact option trade resolves the underlying", async () => {
+      const symbol = "RELIANCE26OCT3000CE";
+      mockStateStore.trades = [
+        mockTrade({ trade_id: "opt-sym-2", symbol, source: "options_paper" }),
+      ];
+      r();
+      await fireEvent.click(screen.getByTestId(`symbol-link-${symbol}`));
       await vi.waitFor(() => {
         expect(mocks.mockFetchPaperChart).toHaveBeenCalled();
       });

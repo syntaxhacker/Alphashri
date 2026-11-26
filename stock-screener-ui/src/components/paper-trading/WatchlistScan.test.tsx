@@ -47,6 +47,18 @@ vi.mock("../common/PreviewChartProvider", () => ({
   })),
 }));
 
+const dockMock = vi.hoisted(() => ({
+  open: vi.fn(),
+  close: vi.fn(),
+  preview: vi.fn(),
+  endPreview: vi.fn(),
+  setOutlet: vi.fn(),
+}));
+
+vi.mock("@/components/common/symbolDockContext", () => ({
+  useSymbolDock: () => ({ ...dockMock, pinned: false }),
+}));
+
 vi.mock("@solidjs/router", () => ({
   useNavigate: vi.fn(() => vi.fn()),
   useLocation: vi.fn(() => ({ pathname: "/" })),
@@ -459,6 +471,27 @@ describe("WatchlistScan2", () => {
       await fireEvent.click(row("INFY"));
       const { setSelectedSymbol } = await import("../../state/paperTrading");
       expect(setSelectedSymbol).toHaveBeenCalledWith("INFY");
+    });
+
+    test("clicking the symbol cell runs the same handler as the row", async () => {
+      const snap = createMockSnapshot();
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      await fireEvent.click(screen.getByTestId("symbol-link-RELIANCE"));
+      const { setSelectedSymbol, setSelectedTradeId } = await import("../../state/paperTrading");
+      const { fetchPaperChart } = await import("../../api/paperTrading");
+      expect(setSelectedSymbol).toHaveBeenCalledWith("RELIANCE");
+      expect(setSelectedTradeId).toHaveBeenCalledWith(null, undefined, 1);
+      expect(fetchPaperChart).toHaveBeenCalledWith("RELIANCE", undefined, "5min", 1);
+      expect(dockMock.open).not.toHaveBeenCalled();
+    });
+
+    test("symbol cell is a native button with a visible focus ring", () => {
+      const snap = createMockSnapshot();
+      r(() => <WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
+      const cell = screen.getByTestId("symbol-link-RELIANCE");
+      expect(cell.tagName).toBe("BUTTON");
+      expect(cell.className).toContain("focus-visible:outline");
+      expect(cell.className).not.toContain("focus:outline-none");
     });
 
     test("selected row has highlighted background", () => {

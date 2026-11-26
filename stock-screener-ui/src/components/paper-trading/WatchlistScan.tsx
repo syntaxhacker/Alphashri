@@ -137,7 +137,10 @@ export function WatchlistScan2(props: WatchlistScan2Props) {
         const row = info.row.original;
         return (
           <Group gap="xs" wrap="nowrap" className="gap-1">
-            <ClickableSymbolSolid symbol={row.symbol} />
+            <ClickableSymbolSolid
+              symbol={row.symbol}
+              onClick={() => void handleSelectSymbol(row)}
+            />
             <Show when={row.source === "custom"}>
               <Badge size="xs" variant="light" color="secondary">Custom</Badge>
             </Show>

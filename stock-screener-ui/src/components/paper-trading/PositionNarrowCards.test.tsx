@@ -67,7 +67,10 @@ describe("PositionNarrowCards", () => {
         onClose={onClose}
       />
     ));
-    await fireEvent.click(screen.getByTestId("symbol-link-1-TCS"));
+    const symbolButton = screen.getByTestId("symbol-link-1-TCS");
+    expect(symbolButton.className).toContain("focus-visible:outline");
+    expect(symbolButton.className).not.toContain("focus:outline-none");
+    await fireEvent.click(symbolButton);
     expect(onSelect).toHaveBeenCalledWith(
       "TCS", "ord-1", "ORB Strategy", undefined, 1, "2026-03-20T09:30:00Z",
     );
