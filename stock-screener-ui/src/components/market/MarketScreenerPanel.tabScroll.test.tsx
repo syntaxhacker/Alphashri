@@ -36,20 +36,25 @@ vi.mock("../common/symbolDockContext", async (importOriginal) => {
   };
 });
 
-vi.mock("./useMarketSnapshotSolid", () => ({
-  useMarketSnapshotSolid: () => ({
-    rows: () => [],
-    total: () => 0,
-    updateMode: () => "streaming",
-    asOf: () => null,
-    isLoading: () => false,
-    error: () => null,
-    refresh: vi.fn(),
-    stale: () => false,
-    ageSec: () => null,
-    warming: () => false,
-  }),
-}));
+vi.mock("./useMarketSnapshotSolid", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    useMarketSnapshotSolid: () => ({
+      rows: () => [],
+      total: () => 0,
+      updateMode: () => "streaming",
+      asOf: () => null,
+      isLoading: () => false,
+      error: () => null,
+      refresh: vi.fn(),
+      stale: () => false,
+      ageSec: () => null,
+      warming: () => false,
+    }),
+    isLiveUniverse: () => true,
+  };
+});
 
 vi.mock("./usePatternSummary", () => ({
   usePatternSummary: () => ({ summary: () => new Map(), loading: () => false }),
