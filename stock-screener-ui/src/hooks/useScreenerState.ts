@@ -1,5 +1,6 @@
 import { createEffect, createMemo } from "solid-js";
-import { useNavigate, useSearchParams } from "@solidjs/router";
+import { useSearchParams } from "@solidjs/router";
+import { useSymbolDock } from "../components/common/symbolDockContext";
 import * as state from "../state";
 import { subscribe } from "../state";
 import { fetchData, setupAutoRefresh, loadScreeners } from "../api";
@@ -33,8 +34,8 @@ function fetchScreener(provider: string | undefined, mode: string | undefined, s
  * { isLoading } = s`.
  */
 export function useScreenerState(initialScreener?: string) {
-  const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
+  const dock = useSymbolDock();
 
   // `state.*` are plain module `let`s reassigned by their setters, so a read
   // captures nothing reactive on its own. Reading the subscription counter
@@ -117,8 +118,10 @@ export function useScreenerState(initialScreener?: string) {
     state.setActiveScreener(screenerId);
   };
 
+  // In-app symbols open the app-wide dock. US routing stays in the provider,
+  // which adds `?market=usa` when the caller tags the symbol with a US market.
   const onSymbolClick = (symbol: string) => {
-    navigate(`/chart/${symbol}`);
+    dock.open(symbol);
   };
 
   const onSymbolHover = (_symbol: string | null) => {};
