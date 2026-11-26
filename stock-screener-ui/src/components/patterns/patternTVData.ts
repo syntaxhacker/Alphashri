@@ -100,6 +100,7 @@ export interface TVRect {
   end: number;
   touches: number;
   score: number;
+  bars_since_touch?: number;
   color: string;
   legendName: string;
 }
@@ -400,6 +401,9 @@ export function buildPatternTVData({
       end: zone.end,
       touches: zone.touches,
       score: zone.score,
+      ...(zone.bars_since_touch !== undefined
+        ? { bars_since_touch: zone.bars_since_touch }
+        : {}),
       color: zone.color,
       legendName: zone.legendName,
     })),
@@ -409,17 +413,34 @@ export function buildPatternTVData({
   return { candles: tvCandles, volume, levels, lines, indicatorLines, markers, zones };
 }
 
+/** Below this age a level is recent enough that printing its age adds noise. */
+export const SR_ZONE_AGE_LABEL_MIN_BARS = 20;
+
 /**
  * On-canvas band label (`S 2,480 ×3`, `R 2,560 ×2`, `S/R testing`). The
  * compact form (`S 2,480`) drops the touch count for narrow charts; callers
- * pick it when the full pill would cover too much of the plot.
+ * pick it when the full pill would cover too much of the plot. Old levels add
+ * a short `· 42b` suffix to the full label only, so the compact and fallback
+ * forms keep their existing width.
  */
 export function srZoneLabel(
-  zone: Pick<TVRect, "kind" | "touches">,
+  zone: Pick<TVRect, "kind" | "touches" | "bars_since_touch">,
   formattedTop: string,
   compact = false,
 ): string {
   if (zone.kind === "sr") return "S/R testing";
   const prefix = zone.kind === "support" ? "S" : "R";
-  return compact ? `${prefix} ${formattedTop}` : `${prefix} ${formattedTop} ×${zone.touches}`;
+  const base = compact
+    ? `${prefix} ${formattedTop}`
+    : `${prefix} ${formattedTop} ×${zone.touches}`;
+  const age = zone.bars_since_touch;
+  if (
+    compact ||
+    typeof age !== "number" ||
+    !Number.isFinite(age) ||
+    age < SR_ZONE_AGE_LABEL_MIN_BARS
+  ) {
+    return base;
+  }
+  return `${base} · ${Math.floor(age)}b`;
 }

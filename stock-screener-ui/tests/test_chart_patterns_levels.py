@@ -64,11 +64,32 @@ def test_two_touches_form_support_and_resistance():
         assert zone["touches"] == 2
         assert set(zone) == {
             "kind", "top", "bottom", "start_date", "end_date", "touches", "score",
+            "bars_since_touch", "last_touch_date",
         }
         assert math.isfinite(zone["score"]) and math.isfinite(zone["top"])
         assert zone["start_date"] <= zone["end_date"]
     # Deterministic scoring/order on repeated calls.
     assert levels.compute_sr_zones(_wire(closes), timeframe="1D") == zones
+
+
+def test_public_zones_expose_touch_age_and_last_touch_date():
+    # Order-2 pivots on this frame: lows at bars 2/6, highs at bars 4/8, so the
+    # last touches are knowable without reading the zone's own timestamps.
+    closes = [110, 110, 100, 105, 120, 110, 100, 105, 120, 110, 110, 110]
+    n = len(closes)
+    zones = levels.compute_sr_zones(_wire(closes), timeframe="1D")
+    by_kind = {zone["kind"]: zone for zone in zones}
+    expected = {"support": (6, "2026-01-07"), "resistance": (8, "2026-01-09")}
+    assert set(by_kind) == set(expected)
+    for kind, (last_touch, last_date) in expected.items():
+        zone = by_kind[kind]
+        assert "bars_since_touch" in zone
+        assert isinstance(zone["bars_since_touch"], int)
+        assert zone["bars_since_touch"] >= 0
+        assert zone["bars_since_touch"] == n - 1 - last_touch
+        assert zone["last_touch_date"] == last_date
+        assert zone["last_touch_date"] == zone["end_date"]
+        assert "_bars_since" not in zone
 
 
 def test_intraday_zones_carry_exact_touch_timestamps():
@@ -117,6 +138,7 @@ def test_daily_weekly_monthly_zones_keep_date_only_shape():
             assert "end_time" not in zone
             assert set(zone) == {
                 "kind", "top", "bottom", "start_date", "end_date", "touches", "score",
+                "bars_since_touch", "last_touch_date",
             }
 
 
@@ -234,7 +256,7 @@ def test_wire_candles_and_frame_inputs_agree_and_stay_json_safe():
     assert from_frame == from_wire
     for zone in from_wire:
         assert all(
-            math.isfinite(zone[key]) for key in ("top", "bottom", "score")
+            math.isfinite(zone[key]) for key in ("top", "bottom", "score", "bars_since_touch")
         )
         assert zone["end_date"] <= wire[-1]["t"]
 

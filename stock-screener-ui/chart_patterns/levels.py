@@ -434,7 +434,11 @@ def _select_zones(zones: list[dict]) -> list[dict]:
         key=lambda zone: (-zone["score"], zone["kind"], -zone["top"], -zone["bottom"])
     )
     for zone in selected:
-        zone.pop("_bars_since", None)
+        # Keep the ranking key internal, but expose the age so labels can admit
+        # how old a level is instead of implying a recent touch.
+        zone["bars_since_touch"] = int(zone.pop("_bars_since", 0))
+        if "end_date" in zone:
+            zone["last_touch_date"] = zone["end_date"]
     return selected
 
 
