@@ -88,15 +88,16 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
   const [maximized, setMaximized] = createSignal(false);
 
   // The Modal restores the dock while its Escape is still dispatching, and the
-  // provider reattaches the dock listener in that same tick. Mark that one
-  // event so the reattached listener cannot close the dock a second time.
+  // provider reattaches the dock listener in that same tick. Chromium drains
+  // microtasks between listeners, so only a macrotask keeps the flag armed
+  // until the dock's bubble listener has seen the event.
   let suppressDockEscape = false;
   const restoreDock = () => {
     suppressDockEscape = true;
     setMaximized(false);
-    queueMicrotask(() => {
+    window.setTimeout(() => {
       suppressDockEscape = false;
-    });
+    }, 0);
   };
 
   const preview = (symbol: string, market?: string) => {

@@ -1029,6 +1029,7 @@ describe("chart dock fullscreen", () => {
     expect(screen.getByTestId("patterns-chart-dock")).toBeInTheDocument();
 
     // The restore path must not leak a suppressed Escape into the next gesture.
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument());
   });
@@ -1062,6 +1063,25 @@ describe("chart dock fullscreen", () => {
     expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
 
     // A later Escape is a new gesture and still closes the dock.
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument());
+  });
+
+  test("restore suppression survives a microtask boundary", async () => {
+    await openChartDock();
+    await fireEvent.click(screen.getByTestId("patterns-chart-expand"));
+    await screen.findByTestId("patterns-fullscreen-modal");
+
+    // Restore via X so no keydown consumes the flag during dispatch.
+    fireEvent.click(screen.getByTestId("patterns-fullscreen-modal-close"));
+    expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument();
+
+    await Promise.resolve();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
+
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(screen.queryByTestId("symbol-dock")).not.toBeInTheDocument());
   });
