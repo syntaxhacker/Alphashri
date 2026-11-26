@@ -52,7 +52,7 @@ export function buildAgriDispersionOption(
     })
     .slice(0, MAX_MARKETS)
     .reverse();
-  const labels = rows.map((row) => row.market);
+  const labels = rows.map((row) => row.label || row.market);
   const floor = rows.map((row) => {
     const min = row.min ?? row.modal;
     return min != null && row.modal != null ? Math.min(min, row.modal) : null;
@@ -146,17 +146,22 @@ export function buildAgriDispersionOption(
         type: "bar",
         stack: STACK,
         data: span,
-        barMaxWidth: compact ? 6 : 9,
-        itemStyle: { color: alpha(AGRI_ACCENT, 0.22) },
-        emphasis: { itemStyle: { color: alpha(AGRI_ACCENT, 0.4) } },
+        barMaxWidth: compact ? 10 : 14,
+        // A visible rail + stronger fill keeps the range legible behind the dot.
+        itemStyle: {
+          color: alpha(AGRI_ACCENT, 0.34),
+          borderColor: alpha(AGRI_ACCENT, 0.85),
+          borderWidth: 1,
+        },
+        emphasis: { itemStyle: { color: alpha(AGRI_ACCENT, 0.5) } },
         z: 2,
       },
       {
         name: "Modal",
         type: "scatter",
         data: modals,
-        symbolSize: compact ? 6 : 8,
-        itemStyle: { color: AGRI_ACCENT },
+        symbolSize: compact ? 7 : 9,
+        itemStyle: { color: AGRI_ACCENT, borderColor: t.text, borderWidth: 1 },
         z: 5,
       },
       {

@@ -682,19 +682,31 @@ export function AgriPage() {
   });
   const canDraw = createMemo(() => Object.keys(chartOption()).length > 0);
 
-  /** One tracked set feeds the hero context, rank board, seasonality and grid. */
-  const analyticsSeries = createMemo<AgriAnalyticsSeries[]>(() => [
-    {
+  /** One tracked set feeds the hero context, rank board, seasonality and grid.
+   *  The backend may echo the active commodity inside `comparison`, so the
+   *  selected key is inserted first and every later duplicate is dropped. */
+  const analyticsSeries = createMemo<AgriAnalyticsSeries[]>(() => {
+    const rows: AgriAnalyticsSeries[] = [];
+    const seen = new Set<string>();
+    const add = (row: AgriAnalyticsSeries) => {
+      if (!row.key || seen.has(row.key)) return;
+      seen.add(row.key);
+      rows.push(row);
+    };
+    add({
       key: commodity(),
       label: commodityLabel(commodity(), commodity()),
       points: chartSeries().map((point) => ({ date: point.date, modal: point.modal })),
-    },
-    ...comparison().map((entry) => ({
-      key: entry.key,
-      label: entry.label,
-      points: entry.points.map((point) => ({ date: point.date, modal: point.modal })),
-    })),
-  ]);
+    });
+    for (const entry of comparison()) {
+      add({
+        key: entry.key,
+        label: entry.label,
+        points: entry.points.map((point) => ({ date: point.date, modal: point.modal })),
+      });
+    }
+    return rows;
+  });
   const heroOption = createMemo(() =>
     buildAgriHeroOption({
       title: commodityLabel(commodity(), commodity()),

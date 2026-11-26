@@ -1187,6 +1187,48 @@ describe("AgriPage redesign grammar", () => {
     expect(screen.getByTestId("agri-season-panel")).toHaveTextContent("n≥");
   });
 
+  it("dedupes the active commodity when comparison echoes it", async () => {
+    vi.mocked(fetchAgriPrices).mockResolvedValue(
+      pricesPayload({
+        comparison: [
+          {
+            key: "onion",
+            label: "Onion",
+            points: [
+              { date: "2026-10-17", modal: 2100 },
+              { date: "2026-11-17", modal: 2150 },
+            ],
+          },
+          {
+            key: "wheat",
+            label: "Wheat",
+            points: [
+              { date: "2026-10-17", modal: 2400 },
+              { date: "2026-11-17", modal: 2450 },
+            ],
+          },
+          {
+            key: "tomato",
+            label: "Tomato",
+            points: [
+              { date: "2026-10-17", modal: 1850 },
+              { date: "2026-11-17", modal: 1800 },
+            ],
+          },
+        ],
+      }),
+    );
+    renderPage();
+    await settled();
+
+    const seasonRows = (optionFor("agri-season-chart").yAxis as Array<{ data: string[] }>)[0].data;
+    expect(seasonRows).toEqual(["Onion", "Wheat", "Tomato"]);
+    expect(new Set(seasonRows).size).toBe(3);
+    expect((optionFor("agri-rank-chart").series as unknown[]).length).toBe(3);
+    // Hero focus + two context lines, never the selected line twice.
+    expect((optionFor().series as unknown[]).length).toBe(3);
+  });
+
   it("draws a sorted min–modal–max dot plot with a separated outlier series", async () => {
     renderPage();
     await settled();

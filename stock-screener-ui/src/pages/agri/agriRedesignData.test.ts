@@ -1,6 +1,12 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { buildDispersionRows, buildRankBoard, buildSeasonRows, buildSparkRows } from "./agriRedesignData";
+import {
+  buildDispersionRows,
+  buildRankBoard,
+  buildSeasonRows,
+  buildSparkRows,
+  shortMarketLabel,
+} from "./agriRedesignData";
 import type { AgriQuote, AgriSnapshot } from "@/types/agri";
 
 describe("buildRankBoard", () => {
@@ -68,12 +74,31 @@ describe("buildSeasonRows", () => {
     expect(rows[0].minYears).toBe(2);
   });
 
+  it("dedupes a commodity echoed by the comparison payload", () => {
+    const rows = buildSeasonRows([
+      { key: "onion", label: "Onion", points: [{ date: "2025-01-15", modal: 100 }] },
+      { key: "onion", label: "Onion", points: [{ date: "2026-01-15", modal: 200 }] },
+      { key: "wheat", label: "Wheat", points: [{ date: "2025-02-15", modal: 80 }] },
+    ]);
+    expect(rows.map((row) => row.key)).toEqual(["onion", "wheat"]);
+    expect(rows[0].cells[0].avg).toBe(100);
+  });
+
   it("keeps a one-year series visible with its n, without inventing a cycle", () => {
     const rows = buildSeasonRows([
       { key: "a", label: "A", points: [{ date: "2026-01-15", modal: 100 }] },
     ]);
     expect(rows[0].minYears).toBe(1);
     expect(rows[0].cells[0].count).toBe(1);
+  });
+});
+
+describe("shortMarketLabel", () => {
+  it("drops committee suffixes and keeps an axis-safe label", () => {
+    expect(shortMarketLabel("Vadakkencherry APMC")).toBe("Vadakkencherry");
+    expect(shortMarketLabel("Aralamoodu Market")).toBe("Aralamoodu");
+    expect(shortMarketLabel("A very long market name")).toHaveLength(16);
+    expect(shortMarketLabel("")).toBe("");
   });
 });
 

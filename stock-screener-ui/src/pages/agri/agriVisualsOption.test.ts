@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { AGRI_ACCENT, AGRI_SEASON_STOPS } from "@/ui/palette";
+import { AGRI_ACCENT, AGRI_SEASON_STOPS, alpha } from "@/ui/palette";
 import { buildAgriHeroOption } from "./agriHeroOption";
 import { buildAgriRankOption } from "./agriRankOption";
 import { buildAgriSeasonalityOption } from "./agriSeasonalityOption";
@@ -153,6 +153,9 @@ describe("dispersion option", () => {
     expect(option.yAxis[0].data).toEqual(["A", "B", "C", "D", "E"]);
     expect(option.title).toBeUndefined();
     expect(option.legend).toBeUndefined();
+    expect(option.series[1].barMaxWidth).toBeGreaterThanOrEqual(10);
+    expect(option.series[1].itemStyle.color).toBe(alpha(AGRI_ACCENT, 0.34));
+    expect(option.series[1].itemStyle.borderWidth).toBeGreaterThanOrEqual(1);
     expect(option.xAxis[0].splitNumber).toBeLessThanOrEqual(5);
     expect(option.xAxis[0].axisLabel.formatter(2_300_000_000)).toMatch(/^₹[\d.]+Cr$/);
     expect(option.series[3].data).toHaveLength(1);

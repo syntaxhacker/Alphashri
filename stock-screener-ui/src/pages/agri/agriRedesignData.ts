@@ -44,6 +44,8 @@ export interface AgriSeasonRow {
 
 export interface AgriDispersionRow {
   market: string;
+  /** Shortened axis label; `market` stays intact for the tooltip. */
+  label: string;
   date: string;
   min: number | null;
   modal: number | null;
@@ -76,6 +78,20 @@ function pointsOf(series: AgriAnalyticsSeries | null | undefined): Array<{ date:
   return Array.isArray(series?.points) ? [...(series?.points ?? [])] : [];
 }
 
+/** One row per commodity key, first occurrence wins. */
+function uniqueSeries(
+  inputs: readonly AgriAnalyticsSeries[] | null | undefined,
+): AgriAnalyticsSeries[] {
+  const seen = new Set<string>();
+  const rows: AgriAnalyticsSeries[] = [];
+  for (const item of Array.isArray(inputs) ? inputs : []) {
+    if (!item || typeof item.key !== "string" || seen.has(item.key)) continue;
+    seen.add(item.key);
+    rows.push(item);
+  }
+  return rows;
+}
+
 /**
  * Monthly price-rank board. Ranks are recomputed inside each month from the
  * commodities that actually have a finite modal that month, so a missing
@@ -84,9 +100,7 @@ function pointsOf(series: AgriAnalyticsSeries | null | undefined): Array<{ date:
 export function buildRankBoard(
   inputs: readonly AgriAnalyticsSeries[] | null | undefined,
 ): AgriRankSeries[] {
-  const series = (Array.isArray(inputs) ? inputs : []).filter(
-    (item): item is AgriAnalyticsSeries => !!item && typeof item.key === "string",
-  );
+  const series = uniqueSeries(inputs);
   if (series.length === 0) return [];
 
   const byKey = new Map<string, Map<string, { sum: number; n: number }>>();
@@ -158,9 +172,7 @@ export function buildRankBoard(
 export function buildSeasonRows(
   inputs: readonly AgriAnalyticsSeries[] | null | undefined,
 ): AgriSeasonRow[] {
-  const series = (Array.isArray(inputs) ? inputs : []).filter(
-    (item): item is AgriAnalyticsSeries => !!item && typeof item.key === "string",
-  );
+  const series = uniqueSeries(inputs);
   const rows: AgriSeasonRow[] = [];
   for (const item of series) {
     const result = seasonality(
@@ -194,6 +206,19 @@ export function buildSeasonRows(
   return rows;
 }
 
+/** Axis-safe mandi name: drop committee suffixes and cap at 16 characters. */
+export function shortMarketLabel(value: string): string {
+  const raw = (typeof value === "string" ? value : "").trim();
+  const stripped = raw
+    .replace(/\bAPMC\b/gi, "")
+    .replace(/\bMarket\b/gi, "")
+    .replace(/\bMandi\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const text = stripped || raw;
+  return text.length > 16 ? `${text.slice(0, 15).trimEnd()}…` : text;
+}
+
 /**
  * One row per mandi at the newest date present in the quote page. Duplicate
  * variety/grade rows for a market collapse to the last one; a 1.5×IQR fence
@@ -212,6 +237,7 @@ export function buildDispersionRows(
     if (quote.date !== latest) continue;
     byMarket.set(quote.market, {
       market: quote.market,
+      label: shortMarketLabel(quote.market),
       date: quote.date,
       min: finite(quote.min),
       modal: finite(quote.modal),
