@@ -214,6 +214,72 @@ def test_daily_future_session_rejected(cache_dir, monkeypatch):
     assert candles_mod._read_cached(path, True, is_daily=True) is None
 
 
+def test_daily_two_session_lag_default_rejected_tolerance_accepts(cache_dir, monkeypatch):
+    """Chart default rejects a two-session-lag frame; analytical callers opt in."""
+    df = _make_df(120)
+    path = cache_dir / "1D" / "EEE.pkl"
+    # Fri 2026-10-02 -> Tue 2026-10-06 is two completed sessions (Fri, Mon).
+    _write_entry(path, df, time.time(), "2026-10-02")
+    _closed_market(monkeypatch)
+    monkeypatch.setattr("trading.utils.is_trading_holiday", lambda d: False)
+    monkeypatch.setattr(
+        candles_mod, "_last_completed_session", lambda now=None: date(2026, 10, 6)
+    )
+    assert candles_mod._read_cached(path, True, is_daily=True) is None
+    got = candles_mod._read_cached(path, True, is_daily=True, max_lag_sessions=2)
+    assert got is not None and got.equals(df)
+
+
+def test_fetch_for_timeframe_default_rejects_two_session_lag(cache_dir, monkeypatch):
+    """The chart/replay default must still refetch a two-session-lag daily frame."""
+    stale = _make_df(120)
+    path = candles_mod._cache_path("1D", "FFF")
+    _write_entry(path, stale, time.time(), "2026-10-02")
+    fresh = _make_df(120) + 50.0
+    _closed_market(monkeypatch)
+    monkeypatch.setattr("trading.utils.is_trading_holiday", lambda d: False)
+    monkeypatch.setattr(
+        candles_mod, "_last_completed_session", lambda now=None: date(2026, 10, 6)
+    )
+    calls: list = []
+    monkeypatch.setattr(
+        md, "fetch_candles_for_timeframe",
+        lambda *a, **k: (calls.append(a), fresh)[1],
+    )
+    prov: dict = {}
+    out = candles_mod.fetch_for_timeframe("FFF", "1D", provenance=prov)
+    assert calls and prov["from_cache"] is False
+    assert not out.equals(stale)
+
+
+def test_fetch_for_timeframe_analytical_tolerance_uses_cache_no_fetch(cache_dir, monkeypatch):
+    """A wider bounded tolerance serves the stored frame without any fetch."""
+    df = _make_df(120)
+    path = candles_mod._cache_path("1D", "GGG")
+    _write_entry(path, df, time.time(), "2026-10-02")
+    _closed_market(monkeypatch)
+    monkeypatch.setattr("trading.utils.is_trading_holiday", lambda d: False)
+    monkeypatch.setattr(
+        candles_mod, "_last_completed_session", lambda now=None: date(2026, 10, 6)
+    )
+    calls: list = []
+
+    def _fetch(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise AssertionError("analytical cache hit must not call the feed")
+
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe", _fetch)
+    prov: dict = {}
+    out = candles_mod.fetch_for_timeframe(
+        "GGG", "1D", max_lag_sessions=5, provenance=prov
+    )
+    assert out is not None and out.equals(df)
+    assert calls == []
+    assert prov["from_cache"] is True and prov["session_pin"] == "2026-10-02"
+    # Staleness stays visible to callers; no bars are fabricated by the tolerance.
+    assert prov["session_stale"] is True
+
+
 
 
 def test_resample_ohlcv_weekly_and_monthly():

@@ -53,6 +53,11 @@ TODAY_TTL_SECONDS = 300
 #: never cached — each still propagates to its own caller.
 EMPTY_RESULT_TTL_SECONDS = 90.0
 _EMPTY_CACHE_MAX = 512
+#: Default tolerance for completed 1D cache entries: the exact current
+#: behaviour (a frame may end on the last completed session or one before it).
+#: Analytical callers may pass a wider *bounded* tolerance explicitly; charts,
+#: scans and replay must keep this default so they never serve an old frame.
+DEFAULT_MAX_LAG_SESSIONS = 1
 
 def _attr(spec: Any, name: str, default=None):
     if spec is None:
@@ -271,8 +276,16 @@ def _cache_path(tf_id: str, symbol: str, as_of_date: Optional[str] = None,
 
 
 def _read_cached(
-    path: Path, is_today: bool, is_daily: bool = False
+    path: Path,
+    is_today: bool,
+    is_daily: bool = False,
+    max_lag_sessions: int = DEFAULT_MAX_LAG_SESSIONS,
 ) -> Optional[pd.DataFrame]:
+    """Read a disk entry, tolerating at most ``max_lag_sessions`` for 1D.
+
+    Callers that need current bars keep the default; bounded analytical
+    tolerances are opt-in so a lagging feed does not force a refetch storm.
+    """
     if not path.exists():
         return None
     try:
@@ -292,7 +305,8 @@ def _read_cached(
                     # The old rule tolerated 3 *calendar* days, which cannot
                     # distinguish a weekend bridge from two genuinely missing
                     # sessions (a Monday frame served on Thursday). Count
-                    # sessions instead: a 2+ session-old frame is stale.
+                    # sessions instead; the threshold is caller-controlled but
+                    # bounded so an unbounded frame can never be served.
                     meta_session = meta.get("session")
                     if meta_session != session:
                         try:
@@ -313,7 +327,7 @@ def _read_cached(
                             if prev is None or prev >= cursor:
                                 return None
                             cursor = prev
-                        if lag_sessions > 1:
+                        if lag_sessions > max(0, int(max_lag_sessions)):
                             return None
                 else:
                     from trading import utils as trading_utils
@@ -783,6 +797,7 @@ def fetch_for_timeframe(
     force_refresh: bool = False,
     provenance: Optional[dict] = None,
     partial_bar: Optional[pd.DataFrame] = None,
+    max_lag_sessions: int = DEFAULT_MAX_LAG_SESSIONS,
 ) -> Optional[pd.DataFrame]:
     """Fetch candles for a symbol at a registered timeframe id.
 
@@ -804,6 +819,11 @@ def fetch_for_timeframe(
     from the 1-minute tape). Those bars are ordinary completed-session data
     — immutable once the session closes — so caching them in the default
     entry is safe. Only the in-progress session stays out of the cache:
+
+    ``max_lag_sessions`` widens the completed-session tolerance of a 1D cache
+    hit. It exists for analytical readers that do not need the latest tape;
+    callers that draw charts or trade keep the default. A cache hit is always
+    returned as stored — no bars are synthesized from the wider tolerance.
 
     With ``include_partial_today=True`` on ``"1D"`` (used by the symbol
     chart), today's in-progress daily bar — aggregated from the 1-minute tape
@@ -862,7 +882,8 @@ def fetch_for_timeframe(
     is_today = _is_today(to_date)
     cache_path = _cache_path(tf_id, symbol, as_of_part if as_of_part else None, variant=variant)
     cached = None if force_refresh else _read_cached(
-        cache_path, is_today, is_daily=(tf_id == "1D")
+        cache_path, is_today, is_daily=(tf_id == "1D"),
+        max_lag_sessions=max_lag_sessions,
     )
     if provenance is not None:
         try:
