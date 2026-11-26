@@ -32,11 +32,16 @@ function stopFor(pct: number): string {
   return AGRI_SEASON_STOPS[low === high ? low : high];
 }
 
-/** Compact in-cell ink; the unit lives in the panel header and tooltip. */
-function labelFor(pct: number): string {
+/** Plain number for tooltips; the cell label carries the percent unit. */
+function valueFor(pct: number): string {
   const rounded = Math.round(pct);
   if (rounded === 0) return "0";
   return `${rounded > 0 ? "+" : ""}${rounded}`;
+}
+
+function cellLabel(pct: number): string {
+  const plain = valueFor(pct);
+  return plain === "0" ? "0%" : `${plain}%`;
 }
 
 /**
@@ -65,9 +70,14 @@ export function buildAgriSeasonalityOption(
   rows.forEach((row, rowIndex) => {
     for (const cell of row.cells) {
       const fill = stopFor(cell.pct);
+      const actual = Math.round(cell.pct * 10) / 10;
+      // Dimension 2 is the honest value shown in the label/tooltip; dimension
+      // 3 is clamped for visualMap only. Without this a series whose monthly
+      // deviations exceed the 20% scale (Onion) silently loses every cell.
+      const clamped = Math.max(-SCALE_LIMIT, Math.min(SCALE_LIMIT, actual));
       data.push({
-        value: [cell.month - 1, rowIndex, Math.round(cell.pct * 10) / 10],
-        label: { color: pickTextColor(fill), formatter: labelFor(cell.pct) },
+        value: [cell.month - 1, rowIndex, actual, clamped],
+        label: { color: pickTextColor(fill), formatter: cellLabel(cell.pct) },
       });
     }
   });
@@ -84,22 +94,26 @@ export function buildAgriSeasonalityOption(
     if (!row || !cell) return "";
     return tooltipShell(`${row.label} · ${MONTHS[month - 1] ?? month}`, [
       field("Modal", formatAgriValue(cell.avg, unit)),
-      field("vs own average", `${labelFor(cell.pct)}%`),
+      field("vs own average", `${valueFor(cell.pct)}%`),
       field("Observations", String(cell.count)),
       field("Distinct years", String(cell.years)),
     ]);
   };
 
+  const base = baseOption(t, "", [], tooltip);
   return {
-    ...baseOption(t, "", [], tooltip),
+    ...base,
     title: undefined,
     legend: undefined,
+    // A heatmap cell is a single item: an axis trigger would read the first
+    // row in the hovered month and mislabel Tomato/Wheat as Onion.
+    tooltip: { ...(base.tooltip as Record<string, unknown>), trigger: "item" },
     grid: [
       {
-        left: compact ? 60 : 88,
-        right: compact ? 8 : 16,
+        left: compact ? 52 : 84,
+        right: compact ? 8 : 14,
         top: 8,
-        bottom: 52,
+        bottom: 58,
         containLabel: true,
       },
     ],
@@ -113,8 +127,10 @@ export function buildAgriSeasonalityOption(
         axisLabel: {
           color: t.muted,
           fontSize: typeSize("micro"),
-          interval: 0,
-          width: compact ? 20 : 28,
+          // Twelve three-letter months merge into one run at 390; keep every
+          // cell but label alternate months so the ticks stay scannable.
+          interval: compact ? 1 : 0,
+          width: compact ? 26 : 28,
           overflow: "break",
           lineHeight: 12,
         },
@@ -135,19 +151,22 @@ export function buildAgriSeasonalityOption(
       {
         min: -SCALE_LIMIT,
         max: SCALE_LIMIT,
-        dimension: 2,
+        dimension: 3,
         calculable: false,
         orient: "horizontal",
         left: "center",
-        bottom: 2,
+        bottom: 4,
         splitNumber: 3,
         precision: 0,
-        itemWidth: compact ? 48 : 72,
+        itemWidth: compact ? 54 : 80,
         itemHeight: 8,
-        textGap: 4,
-        text: ["+", "−"],
+        textGap: 6,
+        text: [`+${SCALE_LIMIT}%`, `−${SCALE_LIMIT}%`],
         textStyle: { color: t.muted, fontSize: typeSize("micro") },
         inRange: { color: [...AGRI_SEASON_STOPS] },
+        // Defensive: the clamped dimension should never hit this, but a
+        // future caller passing an unclamped value must not paint nothing.
+        outOfRange: { color: [AGRI_SEASON_STOPS[0], AGRI_SEASON_STOPS[6]] },
       },
     ],
     series: [
@@ -161,7 +180,7 @@ export function buildAgriSeasonalityOption(
           fontWeight: 700,
           formatter: (param: { value?: unknown }) => {
             const value = Array.isArray(param?.value) ? param.value[2] : null;
-            return typeof value === "number" ? labelFor(value) : "";
+            return typeof value === "number" ? cellLabel(value) : "";
           },
         },
         labelLayout: { hideOverlap: true },

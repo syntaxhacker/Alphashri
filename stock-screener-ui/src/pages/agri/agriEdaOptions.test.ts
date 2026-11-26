@@ -362,8 +362,9 @@ describe("buildHeatmapOption", () => {
     expect(visualMap.inRange.color).toEqual([...palette.VIRIDIS_STOPS]);
     expect(visualMap.text).toEqual(["Row high", "Row low"]);
     expect(visualMap.textStyle.fontSize).toBe(typeSize("micro"));
-    // A horizontal bar reads length first, then thickness.
-    expect(visualMap.itemWidth).toBeGreaterThan(visualMap.itemHeight);
+    // ECharts rotates the horizontal visualMap group 90°, so the pre-rotation
+    // itemHeight is the on-screen bar length and itemWidth is its thickness.
+    expect(visualMap.itemHeight).toBeGreaterThan(visualMap.itemWidth);
   });
 
   it("pairs both heatmap series with a visualMap so ECharts emits no warning", () => {

@@ -51,8 +51,8 @@ function SparkCell(props: { row: AgriSparkRow; selected: boolean; onSelect: (key
       data-selected={props.selected ? "true" : "false"}
       data-key={props.row.key}
       aria-pressed={props.selected ? "true" : "false"}
-      aria-label={`Select ${props.row.label}`}
       title={title()}
+      style={props.selected ? { "border-color": AGRI_ACCENT } : undefined}
       onClick={() => props.onSelect(props.row.key)}
       onKeyDown={(event: KeyboardEvent) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -67,6 +67,9 @@ function SparkCell(props: { row: AgriSparkRow; selected: boolean; onSelect: (key
         props.selected ? "border-fin-primary bg-fin-surface-alt" : "border-fin-border bg-fin-surface",
       ].join(" ")}
     >
+      {/* Keep the action in the name while leaving the visible label, price and
+          change as one contiguous run (axe label-content-name-mismatch). */}
+      <span className="sr-only">Select </span>
       <Text size="xs" fw={700} truncate className="min-w-0 w-full" title={props.row.label}>
         {props.row.label}
       </Text>
@@ -101,12 +104,15 @@ function SparkCell(props: { row: AgriSparkRow; selected: boolean; onSelect: (key
           />
         </Show>
       </svg>
-      <Box className="flex min-w-0 w-full items-baseline justify-between gap-1">
-        <Text className="font-mono tabular-nums text-ui-micro" title="Latest modal ₹/quintal">
+      <Box className="flex min-w-0 w-full flex-col gap-0.5">
+        <Text
+          className="w-full truncate font-mono tabular-nums text-ui-micro"
+          title="Latest modal ₹/quintal"
+        >
           {formatAgriPrice(props.row.modal)}
         </Text>
         <Text
-          className="font-mono tabular-nums text-ui-micro shrink-0"
+          className="w-full truncate font-mono tabular-nums text-ui-micro"
           style={{ color: changeColour() }}
           title="Change vs. the prior month (1M)"
         >
@@ -124,7 +130,7 @@ export function AgriSparkGrid(props: AgriSparkGridProps) {
   return (
     <Box
       data-testid={testId()}
-      className={["grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5", props.className]
+      className={["grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4", props.className]
         .filter(Boolean)
         .join(" ")}
     >

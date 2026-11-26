@@ -1,5 +1,6 @@
 import { Show, createMemo } from "solid-js";
 import { Badge, Box, Text } from "@/ui";
+import { AGRI_CONTEXT, AGRI_DOWN, AGRI_UP } from "@/ui/palette";
 import { CompactPanel } from "@/components/common/compact";
 import { ErrorAlert } from "@/components/common/states";
 import { Sparkline } from "@/components/common/Sparkline";
@@ -114,14 +115,14 @@ function valueOf(row: AgriFluctuationMatrixRow, period: MatrixPeriod): number | 
 
 function changeColour(value: number | null): string {
   if (value == null || value === 0) return "var(--color-fin-text-muted)";
-  return value > 0 ? "var(--color-fin-positive)" : "var(--color-fin-negative)";
+  return value > 0 ? AGRI_UP : AGRI_DOWN;
 }
 
-function coverageTone(value: number | null): "success" | "warning" | "error" | "dimmed" {
-  if (value == null) return "dimmed";
-  if (value >= 80) return "success";
-  if (value >= 50) return "warning";
-  return "error";
+function coverageTone(value: number | null): string {
+  if (value == null) return AGRI_CONTEXT;
+  if (value >= 80) return AGRI_UP;
+  if (value >= 50) return AGRI_CONTEXT;
+  return AGRI_DOWN;
 }
 
 function tierOf(row: AgriFluctuationMatrixRow): AgriCoverageTier | null {

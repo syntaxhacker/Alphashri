@@ -61,6 +61,30 @@ describe("hero option", () => {
     expect(option.legend).toBeUndefined();
   });
 
+  it("scales to the drawn modal instead of the undrawn daily min–max band", () => {
+    const option = buildAgriHeroOption({
+      ...heroInput(),
+      // A 13,000 daily max used to force an 18k axis around a ~120 modal.
+      series: [
+        { date: "2026-11-10", modal: 100, min: 99, max: 13_000, arrivals_qtl: null, market_count: 4 },
+        { date: "2026-11-17", modal: 120, min: 118, max: 13_400, arrivals_qtl: null, market_count: 5 },
+      ],
+    }) as Record<string, any>;
+    const axis = (option.yAxis as Array<{ max?: number }>)[0];
+    expect(axis.max).toBeLessThan(400);
+    expect(axis.max).toBeGreaterThan(120);
+  });
+
+  it("direct-labels the context series and formats tooltip dates", () => {
+    const option = buildAgriHeroOption(heroInput()) as Record<string, any>;
+    expect(option.series).toHaveLength(2);
+    expect(option.series[1].endLabel.show).toBe(true);
+    expect(option.series[1].endLabel.formatter).toBe("Wheat");
+    const tooltip = option.tooltip.formatter as (params: unknown) => string;
+    expect(tooltip([{ dataIndex: 1 }])).toContain("17 Nov");
+    expect(tooltip([{ dataIndex: 1 }])).not.toContain("2026-11-17");
+  });
+
   it("keeps the tooltip unit-aware and null-safe", () => {
     const option = buildAgriHeroOption(heroInput()) as Record<string, any>;
     const tooltip = option.tooltip.formatter as (params: unknown) => string;
@@ -122,13 +146,82 @@ describe("seasonality option", () => {
     expect(option.xAxis[0].data).toHaveLength(12);
     expect(option.xAxis[0].axisLabel.width).toBeLessThanOrEqual(28);
     const formatter = (option.series[0].label as { formatter: (p: { value: number[] }) => string }).formatter;
-    expect(formatter({ value: [0, 0, 10.4] })).toBe("+10");
+    expect(formatter({ value: [0, 0, 10.4] })).toBe("+10%");
     const tooltip = option.tooltip.formatter as (params: unknown) => string;
     expect(tooltip([{ value: [0, 0, 10] }])).toContain("Observations");
   });
 
   it("returns {} with no monthly cells", () => {
     expect(buildAgriSeasonalityOption({ rows: [], unit: "₹/quintal", isDark: true })).toEqual({});
+  });
+
+  it("labels alternate months on the compact board so ticks do not merge", () => {
+    const compact = buildAgriSeasonalityOption({
+      rows: seasonRows(),
+      unit: "₹/quintal",
+      isDark: true,
+      compact: true,
+    }) as Record<string, any>;
+    expect(compact.xAxis[0].axisLabel.interval).toBe(1);
+    expect(compact.xAxis[0].axisLabel.width).toBeLessThanOrEqual(26);
+  });
+
+  it("paints every row's full cell set even when deviations exceed the colour scale", () => {
+    const rows = ["Onion", "Tomato", "Wheat"].map((label, rowIndex) => ({
+      key: label.toLowerCase(),
+      label,
+      hitRate: 0.5,
+      minYears: 1,
+      cells: Array.from({ length: 12 }, (_, index) => ({
+        month: index + 1,
+        avg: 100 + index * 10,
+        // Onion-like series run far past the ±20% colour scale.
+        pct: rowIndex === 0 ? 60 + index : index - 6,
+        years: 1,
+        count: 4,
+      })),
+    }));
+    const option = buildAgriSeasonalityOption({
+      rows,
+      unit: "₹/quintal",
+      isDark: true,
+    }) as Record<string, any>;
+    expect(option.series[0].data).toHaveLength(36);
+    expect(option.visualMap[0].dimension).toBe(3);
+    // Every data row keeps its honest value in dimension 2 and a clamped
+    // colour value in dimension 3.
+    for (const datum of option.series[0].data) {
+      expect(datum.value).toHaveLength(4);
+      expect(Math.abs(datum.value[3])).toBeLessThanOrEqual(20);
+    }
+  });
+
+  it("reads the hovered row for all three commodities, not the first axis row", () => {
+    const rows = ["Onion", "Tomato", "Wheat"].map((label) => ({
+      key: label.toLowerCase(),
+      label,
+      hitRate: 0.5,
+      minYears: 1,
+      cells: Array.from({ length: 12 }, (_, index) => ({
+        month: index + 1,
+        avg: 100 + index,
+        pct: index,
+        years: 1,
+        count: 3,
+      })),
+    }));
+    const option = buildAgriSeasonalityOption({
+      rows,
+      unit: "₹/quintal",
+      isDark: true,
+    }) as Record<string, any>;
+    expect(option.tooltip.trigger).toBe("item");
+    const tooltip = option.tooltip.formatter as (params: unknown) => string;
+    for (const [rowIndex, label] of ["Onion", "Tomato", "Wheat"].entries()) {
+      const html = tooltip([{ value: [4, rowIndex, 4, 4] }]);
+      expect(html).toContain(label);
+      expect(html).toContain("May");
+    }
   });
 });
 
@@ -160,6 +253,10 @@ describe("dispersion option", () => {
     expect(option.xAxis[0].axisLabel.formatter(2_300_000_000)).toMatch(/^₹[\d.]+Cr$/);
     expect(option.series[3].data).toHaveLength(1);
     expect((option.xAxis[0] as { min: number }).min).toBeGreaterThanOrEqual(0);
+    // The modal dot must stay visible when a mandi is also an outlier.
+    expect(option.series[2].z).toBeGreaterThan(option.series[3].z);
+    expect(option.series[3].label.show).toBe(false);
+    expect(option.xAxis[0].interval).toBeGreaterThan(0);
     const tooltip = option.tooltip.formatter as (params: unknown) => string;
     expect(tooltip([{ dataIndex: 4 }])).toContain("outlier");
   });

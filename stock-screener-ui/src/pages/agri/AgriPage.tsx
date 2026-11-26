@@ -21,7 +21,7 @@ import {
   typeStyle,
 } from "@/ui";
 import * as palette from "@/ui/palette";
-import { CompactPanel, CompactStat } from "@/components/common/compact";
+import { CompactPanel } from "@/components/common/compact";
 import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { EChart } from "@/components/common/EChart";
@@ -32,7 +32,6 @@ import type {
   AgriPricesParams,
   AgriPricesResponse,
   AgriRangeKey,
-  AgriSnapshot,
   AgriSource,
   AgriSourcesResponse,
 } from "@/types/agri";
@@ -65,15 +64,16 @@ import { buildEdaOption } from "./agriEdaOptions";
 import { buildAgriHeroOption } from "./agriHeroOption";
 import { buildAgriRankOption } from "./agriRankOption";
 import { buildAgriSeasonalityOption } from "./agriSeasonalityOption";
-import { buildAgriDispersionOption } from "./agriDispersionOption";
+import { AGRI_DISPERSION_MARKETS, buildAgriDispersionOption } from "./agriDispersionOption";
 import {
   buildDispersionRows,
   buildRankBoard,
   buildSeasonRows,
   buildSparkRows,
+  summariseDispersion,
   type AgriAnalyticsSeries,
 } from "./agriRedesignData";
-import { monthlyBox, monthlyHeatmap, seasonality, summariseEda, supplyDemand } from "./agriEda";
+import { monthlyBox, monthlyHeatmap, seasonality, supplyDemand } from "./agriEda";
 import { agriRangeStart, formatAgriSessionDate } from "./agriDates";
 import { AGRI_QUOTE_DEFAULT_SORT, agriColumns, type AgriTableViewRow } from "./agriColumns";
 import { AgriGroupOverview } from "./AgriGroupOverview";
@@ -82,31 +82,16 @@ import { AgriSparkGrid } from "./AgriSparkGrid";
 import { buildAgriGroupSummaries } from "./agriGroupSummary";
 
 type SelectOption = { value: string; label: string; group?: string };
-type Mover = { key: string; label: string; change: number };
 type WarningKind = "gap" | "coverage" | "data";
 
 const MICRO_LABEL =
   "text-ui-micro font-bold uppercase tracking-[0.08em] text-fin-text-muted whitespace-nowrap";
 const SECTION_LABEL = "text-ui-micro font-bold uppercase tracking-[0.08em] text-fin-primary";
 const SECTION_HINT = "text-ui-micro text-fin-text-muted";
-const STAT_CARD = "h-full p-2 [&>div]:!h-auto";
 const SEGMENT_TRACK =
   "inline-flex items-center gap-0.5 rounded-[6px] border border-fin-border bg-fin-surface p-[2px]";
 const CONTROL_CELL = "flex flex-nowrap items-center min-w-0";
-const MONTH_ABBR = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
+
 
 function paramValue(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
@@ -120,16 +105,14 @@ function normalizeChartMode(value: string): AgriChartMode | "" {
   return AGRI_CHART_MODES.some((item) => item.key === value) ? (value as AgriChartMode) : "";
 }
 
-function monthAbbr(month: number | null): string {
-  return month == null ? "—" : (MONTH_ABBR[month - 1] ?? "—");
+function directionInk(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value) || value === 0) return palette.AGRI_CONTEXT;
+  return value > 0 ? palette.AGRI_UP : palette.AGRI_DOWN;
 }
 
-function formatEdaPct(value: number | null): string {
-  return value == null || !Number.isFinite(value) ? "—" : `${value.toFixed(1)}%`;
-}
-
-function formatCorrelation(value: number | null): string {
-  return value == null || !Number.isFinite(value) ? "—" : value.toFixed(2);
+function directionMark(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value) || value === 0) return "·";
+  return value > 0 ? "▲" : "▼";
 }
 
 /**
@@ -204,37 +187,20 @@ function sourceListFrom(value: unknown): AgriSource[] {
   return sources;
 }
 
-function toneForChange(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value) || value === 0) return "dimmed";
-  return value > 0 ? "success" : "error";
-}
-
-/** Two gainers and two losers from the snapshot's 1-month change, no API work. */
-function moversFromSnapshot(
-  snapshot: AgriSnapshot[],
-): { gainers: Mover[]; losers: Mover[] } | null {
-  const ranked = snapshot
-    .filter((row) => typeof row.chg_1m_pct === "number" && Number.isFinite(row.chg_1m_pct))
-    .map((row) => ({
-      key: row.key,
-      label: row.label || agriCommodityLabel(row.key, row.key),
-      change: row.chg_1m_pct as number,
-    }))
-    .sort((a, b) => b.change - a.change);
-  const seen = new Set<string>();
-  const pick = (rows: Mover[]): Mover[] => {
-    const out: Mover[] = [];
-    for (const row of rows) {
-      if (seen.has(row.key) || row.change === 0) continue;
-      seen.add(row.key);
-      out.push(row);
-      if (out.length === 2) break;
-    }
-    return out;
-  };
-  const gainers = pick(ranked);
-  const losers = pick([...ranked].reverse());
-  return gainers.length > 0 && losers.length > 0 ? { gainers, losers } : null;
+/** Backend warnings are prose written for logs; keep the meaning, drop the
+ *  field names and null jargon, and leave the raw detail available. */
+function humaniseWarning(value: string, kind: WarningKind): string {
+  if (kind === "gap") return value.replace(/^data has an? /i, "History has a ");
+  if (/arrivals are missing for/i.test(value)) {
+    return value.replace(/arrivals are missing for/i, "Arrivals missing for");
+  }
+  if (/MSP not verified/i.test(value)) {
+    const commodity = /for ([^;]+)/i.exec(value)?.[1]?.trim();
+    return commodity
+      ? `MSP is not notified for ${commodity}; distance to MSP is unavailable`
+      : "MSP is not notified; distance to MSP is unavailable";
+  }
+  return value.replace(/_/g, " ");
 }
 
 export function AgriPage() {
@@ -279,9 +245,6 @@ export function AgriPage() {
   const [retryToken, setRetryToken] = createSignal(0);
 
   const isMobile = useMediaQuery("(max-width: 640px)");
-  const isMid = useMediaQuery("(max-width: 1180px)");
-  const statCols = () => (isMobile() ? 2 : isMid() ? 4 : 8);
-  const statCardClass = () => (isMobile() ? `${STAT_CARD} w-[176px] shrink-0` : STAT_CARD);
 
   let activeSourcesController: AbortController | null = null;
   function loadSources() {
@@ -418,6 +381,7 @@ export function AgriPage() {
     if (nextState.district) next.district = nextState.district;
     if (nextState.market) next.market = nextState.market;
     if (nextState.range !== AGRI_DEFAULT_RANGE) next.range = nextState.range;
+    else if (paramValue(searchParams.range) !== "") next.range = "";
     if (nextState.mode !== AGRI_DEFAULT_CHART_MODE) next.mode = nextState.mode;
     else if (paramValue(searchParams.mode) !== "") next.mode = "";
     if (nextState.source !== AGRI_SOURCE_LOCAL) next.source = nextState.source;
@@ -593,18 +557,13 @@ export function AgriPage() {
   const series = createMemo(() => prices()?.series ?? []);
   const comparison = createMemo(() => prices()?.comparison ?? []);
   const snapshot = createMemo(() => prices()?.snapshot ?? []);
-  const movers = createMemo(() => moversFromSnapshot(snapshot()));
   const groupSummaries = createMemo(() => buildAgriGroupSummaries(snapshot()));
 
   const freshness = createMemo(() => {
     const days = freshnessDays();
     const tone = days == null || days > 7 ? "error" : days <= 1 ? "success" : "warning";
-    const colour =
-      tone === "success"
-        ? palette.POSITIVE
-        : tone === "warning"
-          ? palette.WARNING
-          : palette.NEGATIVE;
+    // Status ink stays on the agri ramp: cool = healthy, warm = attention.
+    const colour = tone === "success" ? palette.AGRI_UP : palette.AGRI_DOWN;
     const stale =
       days == null
         ? "never collected"
@@ -635,21 +594,57 @@ export function AgriPage() {
     const minimum = Math.min(...months.map((month) => month.years));
     return `${months.length} month${months.length === 1 ? "" : "s"} observed · at least ${minimum} year${minimum === 1 ? "" : "s"} per month · need 2+`;
   });
-  const edaSummary = createMemo(() => summariseEda(series()));
-  const edaRows = createMemo(() =>
-    monthlyHeatmap([
+  /** Facts that used to be six summary cards, folded into the hero caption. */
+  const windowFacts = createMemo(() => {
+    const points = chartSeries()
+      .map((point) => point.modal)
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    const trend =
+      points.length > 1 && points[0] > 0
+        ? ((points[points.length - 1] - points[0]) / points[0]) * 100
+        : null;
+    let cv: number | null = null;
+    if (points.length > 0) {
+      const mean = points.reduce((sum, value) => sum + value, 0) / points.length;
+      const variance =
+        points.reduce((sum, value) => sum + (value - mean) ** 2, 0) / points.length;
+      cv = mean > 0 ? Math.sqrt(variance) / mean * 100 : null;
+    }
+    const months = edaSeasonality();
+    let best: number | null = null;
+    let worst: number | null = null;
+    for (const month of months) {
+      if (best == null || month.avg > (months.find((item) => item.month === best)?.avg ?? -Infinity)) {
+        best = month.month;
+      }
+      if (worst == null || month.avg < (months.find((item) => item.month === worst)?.avg ?? Infinity)) {
+        worst = month.month;
+      }
+    }
+    return { trend, cv, best, worst, sessions: points.length };
+  });
+  const edaRows = createMemo(() => {
+    // The backend echoes the active commodity in `comparison`; dedupe here so
+    // the heatmap never shows two Onion rows.
+    const seen = new Set<string>([commodity()]);
+    const rows = [
       {
         key: commodity(),
         label: commodityLabel(commodity(), commodity()),
         points: chartSeries().map((point) => ({ date: point.date, modal: point.modal })),
       },
-      ...comparison().map((entry) => ({
+    ];
+    for (const entry of comparison()) {
+      if (seen.has(entry.key)) continue;
+      seen.add(entry.key);
+      rows.push({
         key: entry.key,
         label: entry.label,
         points: entry.points.map((point) => ({ date: point.date, modal: point.modal })),
-      })),
-    ]),
-  );
+      });
+    }
+    return monthlyHeatmap(rows);
+  });
   const edaInput = createMemo(() => ({
     boxes: edaBoxes(),
     scatter: edaScatter(),
@@ -739,6 +734,28 @@ export function AgriPage() {
       compact: isMobile(),
     }),
   );
+  const seasonProfileNote = createMemo(() => {
+    const rows = seasonRows();
+    if (rows.length === 0) {
+      return "Deviation from each commodity's own observed-month average";
+    }
+    const years = rows
+      .map((row) => row.minYears)
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    const minimum = years.length > 0 ? Math.min(...years) : null;
+    const sample = rows
+      .slice(0, 2)
+      .map(
+        (row) =>
+          `${row.label}: ${row.hitRate == null ? "—" : `${Math.round(row.hitRate * 100)}% above`} · ${row.minYears ?? "—"}y`,
+      )
+      .join(" · ");
+    const honesty =
+      minimum != null && minimum >= 2
+        ? "month-of-year deviation"
+        : "single-year month profile, not a seasonal signal";
+    return `${sample} · ${honesty}`;
+  });
   const sparkRows = createMemo(() =>
     buildSparkRows(snapshot(), comparison(), (key, fallback) => commodityLabel(key, fallback)),
   );
@@ -767,8 +784,16 @@ export function AgriPage() {
         : `${shown} quote${shown === 1 ? "" : "s"} shown`;
     return `${count} · API page, not the full mandi universe`;
   });
+  const dispersionSummary = createMemo(() =>
+    summariseDispersion(dispersionRows(), AGRI_DISPERSION_MARKETS),
+  );
   const classifiedWarnings = createMemo(() =>
-    warnings().map((text) => ({ text, kind: warningKind(text) })),
+    warnings().map((text, index) => ({
+      id: `warning-${index}`,
+      text,
+      friendly: humaniseWarning(text, warningKind(text)),
+      kind: warningKind(text),
+    })),
   );
   const gapWarnings = createMemo(() =>
     classifiedWarnings().filter((warning) => warning.kind === "gap"),
@@ -846,6 +871,129 @@ export function AgriPage() {
     asOf()
       ? `No mandi prices recorded for this selection as of ${formatAgriSessionDate(asOf())}.`
       : "No mandi prices have been collected yet.";
+
+  const heroCaption = createMemo(() => {
+    const facts = windowFacts();
+    const rangeLabel = agriRange(range())?.label ?? range();
+    if (mode() === "band" && asOf()) {
+      const trend = facts.trend == null ? "" : ` ${formatChangePct(facts.trend)} window`;
+      const cv = facts.cv == null ? "—" : `${facts.cv.toFixed(1)}%`;
+      return `How to read: bold = modal ₹/quintal · thin = tracked commodities · ${rangeLabel}${trend} · modal CV ${cv} · as of ${formatAgriSessionDate(asOf())}`;
+    }
+    const start = asOf()
+      ? formatAgriSessionDate(agriRangeStart(asOf(), agriRange(range())?.days ?? null))
+      : null;
+    return `${rangeLabel} · ${series().length} sessions · ₹/quintal${start ? ` · from ${start}` : ""}`;
+  });
+
+  const changeCells = () =>
+    [
+      ["1 week", kpis()?.chg_1w_pct, "agri-kpi-chg1w"],
+      ["1 month", kpis()?.chg_1m_pct, "agri-kpi-chg1m"],
+      ["6 months", kpis()?.chg_6m_pct, "agri-kpi-chg6m"],
+    ] as const;
+
+  const headlineStrip = () => (
+    <Box className="shrink-0 px-1" data-testid="agri-headline">
+      <ToolbarRow gap={8} className="shrink-0" data-testid="agri-kpi-head">
+        <Text fw={700} className={SECTION_LABEL}>
+          Mandi snapshot
+        </Text>
+        <Text c="dimmed" className={SECTION_HINT}>
+          ₹/quintal · change vs. prior period
+          {asOf() ? ` · ${formatAgriSessionDate(asOf())}` : ""}
+        </Text>
+      </ToolbarRow>
+      <Box
+        data-testid="agri-kpis"
+        className="flex flex-wrap items-stretch gap-x-4 gap-y-1 rounded-[4px] border border-fin-border bg-fin-surface px-2 py-1"
+      >
+        <Box className="flex min-w-[132px] flex-col" data-testid="agri-kpi-modal">
+          <Text c="dimmed" className={MICRO_LABEL}>
+            Modal price
+          </Text>
+          <Text
+            fw={700}
+            style={{ ...typeStyle("display"), color: palette.AGRI_ACCENT }}
+            className="font-mono tabular-nums"
+          >
+            {formatAgriPrice(kpis()?.modal)}
+          </Text>
+          <Text c="dimmed" style={typeStyle("micro")}>
+            ₹/quintal{asOf() ? ` · ${formatAgriSessionDate(asOf())}` : ""}
+          </Text>
+        </Box>
+        <For each={changeCells()}>
+          {([label, value, testId]) => (
+            <Box
+              className="flex min-w-[78px] flex-col"
+              data-testid={testId}
+              title={`${label} price change`}
+            >
+              <Text c="dimmed" className={MICRO_LABEL}>
+                {label}
+              </Text>
+              <Text
+                fw={700}
+                style={{ ...typeStyle("body"), color: directionInk(value) }}
+                className="font-mono tabular-nums whitespace-nowrap"
+              >
+                {directionMark(value)} {formatChangePct(value)}
+              </Text>
+            </Box>
+          )}
+        </For>
+        <Box className="flex min-w-[112px] flex-col" data-testid="agri-kpi-range">
+          <Text c="dimmed" className={MICRO_LABEL}>
+            Min – max
+          </Text>
+          <Text fw={700} className="font-mono tabular-nums text-ui-body whitespace-nowrap">
+            {formatAgriPrice(kpis()?.min)}–{formatAgriPrice(kpis()?.max)}
+          </Text>
+          <Text c="dimmed" style={typeStyle("micro")}>
+            ₹/quintal
+          </Text>
+        </Box>
+        <Box className="flex min-w-[64px] flex-col" data-testid="agri-kpi-markets">
+          <Text c="dimmed" className={MICRO_LABEL}>
+            Mandis
+          </Text>
+          <Text fw={700} className="font-mono tabular-nums text-ui-body">
+            {String(kpis()?.market_count ?? 0)}
+          </Text>
+          <Text c="dimmed" style={typeStyle("micro")}>
+            in this page
+          </Text>
+        </Box>
+        <Show when={kpis()?.arrivals_qtl != null}>
+          <Box className="flex min-w-[88px] flex-col" data-testid="agri-kpi-arrivals">
+            <Text c="dimmed" className={MICRO_LABEL}>
+              Arrivals
+            </Text>
+            <Text fw={700} className="font-mono tabular-nums text-ui-body whitespace-nowrap">
+              {formatArrivals(kpis()?.arrivals_qtl)}
+            </Text>
+            <Text c="dimmed" style={typeStyle("micro")}>
+              quintals
+            </Text>
+          </Box>
+        </Show>
+        <Show when={kpis()?.msp != null}>
+          <Box className="flex min-w-[92px] flex-col" data-testid="agri-kpi-msp">
+            <Text c="dimmed" className={MICRO_LABEL}>
+              MSP
+            </Text>
+            <Text fw={700} className="font-mono tabular-nums text-ui-body whitespace-nowrap">
+              {formatAgriPrice(kpis()?.msp)}
+            </Text>
+            <Text c="dimmed" style={typeStyle("micro")}>
+              {formatChangePct(kpis()?.distance_to_msp_pct)} vs MSP
+            </Text>
+          </Box>
+        </Show>
+      </Box>
+    </Box>
+  );
 
   return (
     <Box
@@ -1023,17 +1171,22 @@ export function AgriPage() {
             </Text>
           </Box>
           <Show when={sourceBadge()}>
-            <Badge color="info" size="xs" data-testid="agri-source-badge" title={sourceBadge()}>
+            <Badge
+              color={palette.AGRI_CONTEXT}
+              size="xs"
+              data-testid="agri-source-badge"
+              title={sourceBadge()}
+            >
               {sourceBadge()}
             </Badge>
           </Show>
           <Show when={dataSource() && dataSource() !== "db"}>
-            <Badge color="warning" size="xs" data-testid="agri-data-source">
+            <Badge color={palette.AGRI_OUTLIER} size="xs" data-testid="agri-data-source">
               {dataSource()}
             </Badge>
           </Show>
           <Show when={pricesLoading() && prices()}>
-            <Badge color="info" size="xs" data-testid="agri-refreshing">
+            <Badge color={palette.AGRI_ACCENT} size="xs" data-testid="agri-refreshing">
               Refreshing…
             </Badge>
           </Show>
@@ -1055,28 +1208,40 @@ export function AgriPage() {
           className="shrink-0 rounded-[6px] border border-fin-border bg-fin-surface px-2 py-1"
           data-testid="agri-warnings"
         >
-          <For each={classifiedWarnings()}>
-            {(warning) => (
-              <Text
-                size="xs"
-                c="dimmed"
-                className="block break-words"
-                style={typeStyle("micro")}
-                data-testid={
-                  warning.kind === "gap"
-                    ? "agri-gap-warning"
-                    : warning.kind === "coverage"
-                      ? "agri-coverage-warning"
-                      : "agri-warning"
-                }
-              >
-                <span style={{ "font-weight": 700, "text-transform": "uppercase" }}>
-                  {warning.kind}
-                </span>{" "}
-                {warning.text}
-              </Text>
-            )}
-          </For>
+          <details className="group">
+            <summary
+              className="cursor-pointer select-none text-ui-micro font-bold uppercase tracking-[0.08em] text-fin-text-muted"
+              style={typeStyle("micro")}
+            >
+              Data quality · {warnings().length} note{warnings().length === 1 ? "" : "s"} ·
+              tap to read
+            </summary>
+            <Box className="mt-1 flex flex-col gap-0.5">
+              <For each={classifiedWarnings()}>
+                {(warning) => (
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                    className="block break-words"
+                    style={typeStyle("micro")}
+                    data-testid={
+                      warning.kind === "gap"
+                        ? "agri-gap-warning"
+                        : warning.kind === "coverage"
+                          ? "agri-coverage-warning"
+                          : "agri-warning"
+                    }
+                  >
+                    <span style={{ "font-weight": 700, "text-transform": "uppercase" }}>
+                      {warning.kind}
+                    </span>{" "}
+                    {warning.friendly}
+                    <span className="sr-only"> (source: {warning.text})</span>
+                  </Text>
+                )}
+              </For>
+            </Box>
+          </details>
           <Show when={gapWarnings().length === 0 && coverageWarnings().length === 0}>
             <Text size="xs" c="dimmed" className="block break-words" style={typeStyle("micro")}>
               {series().length} sessions · {kpis()?.market_count ?? 0} mandis reporting
@@ -1085,125 +1250,7 @@ export function AgriPage() {
         </Box>
       </Show>
 
-      <ToolbarRow gap={8} className="shrink-0 px-1" data-testid="agri-kpi-head">
-        <Text fw={700} className={SECTION_LABEL}>
-          Market snapshot
-        </Text>
-        <Text c="dimmed" className={SECTION_HINT}>
-          Prices ₹/quintal · arrivals qtl · change vs. prior period
-        </Text>
-      </ToolbarRow>
-      <Box
-        data-testid="agri-kpis"
-        className={
-          isMobile() ? "flex shrink-0 gap-2 overflow-x-auto px-1 pb-1" : "grid shrink-0 gap-2 px-1"
-        }
-        style={
-          isMobile()
-            ? undefined
-            : { "grid-template-columns": `repeat(${statCols()}, minmax(0, 1fr))` }
-        }
-      >
-        <CompactStat
-          label="Modal price"
-          value={formatAgriPrice(kpis()?.modal)}
-          hint={asOf() ? `${formatAgriSessionDate(asOf())} · ₹/quintal` : "₹/quintal"}
-          className={statCardClass()}
-          data-testid="agri-kpi-modal"
-        />
-        <CompactStat
-          label="1 week"
-          value={formatChangePct(kpis()?.chg_1w_pct)}
-          tone={toneForChange(kpis()?.chg_1w_pct)}
-          hint="price change"
-          className={statCardClass()}
-          data-testid="agri-kpi-chg1w"
-        />
-        <CompactStat
-          label="1 month"
-          value={formatChangePct(kpis()?.chg_1m_pct)}
-          tone={toneForChange(kpis()?.chg_1m_pct)}
-          hint="price change"
-          className={statCardClass()}
-          data-testid="agri-kpi-chg1m"
-        />
-        <CompactStat
-          label="6 months"
-          value={formatChangePct(kpis()?.chg_6m_pct)}
-          tone={toneForChange(kpis()?.chg_6m_pct)}
-          hint="price change"
-          className={statCardClass()}
-          data-testid="agri-kpi-chg6m"
-        />
-        <CompactStat
-          label="Min – max"
-          value={`${formatAgriPrice(kpis()?.min)}–${formatAgriPrice(kpis()?.max)}`}
-          hint="₹/quintal"
-          className={statCardClass()}
-          data-testid="agri-kpi-range"
-        />
-        <CompactStat
-          label="Mandis reporting"
-          value={String(kpis()?.market_count ?? 0)}
-          hint="markets in this API page"
-          className={statCardClass()}
-          data-testid="agri-kpi-markets"
-        />
-        <CompactStat
-          label="Arrivals"
-          value={formatArrivals(kpis()?.arrivals_qtl)}
-          hint="quintals"
-          className={statCardClass()}
-          data-testid="agri-kpi-arrivals"
-        />
-        <CompactStat
-          label="MSP"
-          value={formatAgriPrice(kpis()?.msp)}
-          tone={kpis()?.msp == null ? "dimmed" : undefined}
-          hint={
-            kpis()?.msp == null
-              ? "No MSP notified"
-              : `${formatChangePct(kpis()?.distance_to_msp_pct)} vs MSP · ₹/quintal`
-          }
-          className={statCardClass()}
-          data-testid="agri-kpi-msp"
-        />
-      </Box>
-
-      <Show when={movers()}>
-        {(data) => (
-          <ToolbarRow
-            gap={4}
-            wrap={false}
-            className="shrink-0 overflow-x-auto px-1"
-            data-testid="agri-movers"
-          >
-            <Text fw={700} className={MICRO_LABEL}>
-              Top movers · 1M
-            </Text>
-            <For each={data().gainers}>
-              {(mover) => (
-                <Text
-                  size="xs"
-                  c="success"
-                  className="whitespace-nowrap"
-                  style={typeStyle("micro")}
-                >
-                  ▲ {mover.label} {formatChangePct(mover.change)}
-                </Text>
-              )}
-            </For>
-            <Box className="mx-1 h-3 w-px shrink-0 bg-fin-border" aria-hidden="true" />
-            <For each={data().losers}>
-              {(mover) => (
-                <Text size="xs" c="error" className="whitespace-nowrap" style={typeStyle("micro")}>
-                  ▼ {mover.label} {formatChangePct(mover.change)}
-                </Text>
-              )}
-            </For>
-          </ToolbarRow>
-        )}
-      </Show>
+      <Show when={!isMobile()}>{headlineStrip()}</Show>
 
       <Show when={filtersError()}>
         <ErrorAlert
@@ -1241,7 +1288,7 @@ export function AgriPage() {
           aria-label="Agri workspace"
           tabIndex={0}
           aria-busy={pricesLoading() ? "true" : undefined}
-          className="flex min-h-0 flex-1 shrink-0 flex-col gap-2 overflow-visible"
+          className="flex min-h-0 shrink-0 flex-col gap-2 overflow-visible"
         >
           <ToolbarRow gap={8} className="shrink-0 px-1" data-testid="agri-eda-head">
             <Text fw={700} className={SECTION_LABEL}>
@@ -1289,83 +1336,24 @@ export function AgriPage() {
               </Button>
             </Box>
           </ToolbarRow>
-          <Box
-            className={
-              isMobile()
-                ? "flex shrink-0 gap-2 overflow-x-auto px-1 pb-1"
-                : "grid shrink-0 grid-cols-2 gap-2 px-1 md:grid-cols-3 xl:grid-cols-6"
-            }
-            data-testid="agri-eda-summary"
-          >
-            <CompactStat
-              label="Window trend"
-              value={formatChangePct(edaSummary().trendPct)}
-              tone={toneForChange(edaSummary().trendPct)}
-              hint="first → last modal"
-              className={statCardClass()}
-              data-testid="agri-eda-trend"
-            />
-            <CompactStat
-              label="Price dispersion"
-              value={formatEdaPct(edaSummary().volatilityPct)}
-              hint="modal level CV · not returns"
-              className={statCardClass()}
-              data-testid="agri-eda-volatility"
-            />
-            <CompactStat
-              label="Best month"
-              value={monthAbbr(edaSummary().bestMonth)}
-              hint="highest average modal"
-              className={statCardClass()}
-              data-testid="agri-eda-best"
-            />
-            <CompactStat
-              label="Worst month"
-              value={monthAbbr(edaSummary().worstMonth)}
-              hint="lowest average modal"
-              className={statCardClass()}
-              data-testid="agri-eda-worst"
-            />
-            <CompactStat
-              label="Arrivals corr."
-              value={formatCorrelation(edaSummary().arrivalsCorrelation)}
-              hint="Pearson r · not causality"
-              className={statCardClass()}
-              data-testid="agri-eda-correlation"
-            />
-            <CompactStat
-              label="Outliers"
-              value={series().length === 0 ? "—" : String(edaSummary().outlierCount)}
-              tone={edaSummary().outlierCount > 0 ? "warning" : undefined}
-              hint="outside 1.5×IQR fence"
-              className={statCardClass()}
-              data-testid="agri-eda-outliers"
-            />
-          </Box>
           <Show
             when={pageView() === "overview"}
             fallback={
               <Show
                 when={pageView() === "groups"}
                 fallback={
-                  <Box
-                    className="flex min-h-0 flex-1 flex-col gap-2"
-                    data-testid="agri-data-view"
-                  >
+                  <Box className="flex shrink-0 flex-col gap-2" data-testid="agri-data-view">
                     <CompactPanel
                       testId="agri-table-panel"
                       className="flex min-h-0 flex-col"
                       scrollable
                       style={{
-                        flex: isMobile() ? "0 0 320px" : "1 1 0%",
-                        "min-height": isMobile() ? "320px" : "240px",
+                        height: isMobile() ? "360px" : "460px",
+                        "min-height": isMobile() ? "360px" : "460px",
+                        flex: "0 0 auto",
                       }}
                       title="Latest mandi quotes · Data"
-                      description={
-                        quotes().length > 0
-                          ? `${quoteScope()} · ${formatAgriSessionDate(asOf())}`
-                          : `${tableRows().length} snapshot rows · ${formatAgriSessionDate(asOf())} · not a mandi universe`
-                      }
+                      description={`₹/quintal · as of ${formatAgriSessionDate(asOf())}`}
                     >
                       <Show
                         when={tableRows().length > 0}
@@ -1386,7 +1374,10 @@ export function AgriPage() {
                             stickyHeader
                             fillContainer
                             bare
-                            rowWindowSize={80}
+                            // The API page is capped at 100 quotes; render the
+                            // whole page so the table's own window counter does
+                            // not become a second rendered/total statement.
+                            rowWindowSize={160}
                             minTableWidth={1168}
                             initialSorting={AGRI_QUOTE_DEFAULT_SORT}
                             onRowClick={(row) => {
@@ -1404,16 +1395,6 @@ export function AgriPage() {
                           >
                             Sorted by modal price (high → low) · {quoteScope()}
                           </Text>
-                          <Show when={isMobile()}>
-                            <Text
-                              size="xs"
-                              c="dimmed"
-                              className="shrink-0 px-2 pb-1 text-ui-micro"
-                              data-testid="agri-table-scroll-hint"
-                            >
-                              Swipe left / right to see all columns →
-                            </Text>
-                          </Show>
                         </Box>
                       </Show>
                     </CompactPanel>
@@ -1421,7 +1402,7 @@ export function AgriPage() {
                 }
               >
                 <Box
-                  className="flex min-h-0 flex-1 flex-col gap-2"
+                  className="flex shrink-0 flex-col gap-2"
                   data-testid="agri-groups-view"
                 >
                   <AgriGroupOverview
@@ -1453,28 +1434,21 @@ export function AgriPage() {
               data-testid="agri-overview-grid"
               className={
                 isMobile()
-                  ? "flex min-h-0 flex-1 flex-col gap-2"
-                  : "grid min-h-0 flex-1 grid-cols-12 grid-rows-[minmax(320px,1.1fr)_minmax(280px,1fr)] gap-2"
+                  ? "flex shrink-0 flex-col gap-2"
+                  : "grid shrink-0 grid-cols-12 gap-2"
               }
             >
               <CompactPanel
                 testId="agri-chart-panel"
                 className="col-span-12 flex min-h-0 flex-col lg:col-span-8"
                 scrollable
-                style={{
-                  flex: isMobile() ? "0 0 360px" : "1 1 0%",
-                  "min-height": isMobile() ? "360px" : "0px",
-                }}
+                style={{ "min-height": "460px", flex: "0 0 auto" }}
                 title={`Price focus — ${commodityLabel(commodity(), commodity())}`}
-                description={
-                  mode() === "band" && asOf()
-                    ? `How to read: bold = modal ₹/quintal · thin = tracked commodities · latest as of ${formatAgriSessionDate(asOf())}`
-                    : `${agriRange(range())?.label ?? range()} · ${series().length} sessions · ₹/quintal${asOf() ? ` · from ${formatAgriSessionDate(agriRangeStart(asOf(), agriRange(range())?.days ?? null))}` : ""}`
-                }
+                description={heroCaption()}
               >
               <ToolbarRow gap={8} className="shrink-0 px-1 pb-1" data-testid="agri-mode-row">
                 <Text c="dimmed" className={MICRO_LABEL}>
-                  View
+                  Chart
                 </Text>
                 <Show
                   when={isMobile()}
@@ -1628,13 +1602,15 @@ export function AgriPage() {
               </Show>
             </CompactPanel>
 
+            <Show when={isMobile()}>{headlineStrip()}</Show>
+
             <CompactPanel
               testId="agri-spark-panel"
-              className="col-span-12 flex min-h-0 flex-col lg:col-span-4 lg:row-span-2"
+              className="col-span-12 flex min-h-0 flex-col lg:col-span-4"
               scrollable
               style={{
-                flex: isMobile() ? "0 0 auto" : "1 1 0%",
-                "min-height": isMobile() ? "260px" : "0px",
+                "min-height": isMobile() ? "0px" : "620px",
+                flex: "0 0 auto",
               }}
               title="Commodity universe"
               description="Click or press Enter / Space to focus the price chart"
@@ -1662,10 +1638,7 @@ export function AgriPage() {
               testId="agri-rank-panel"
               className="col-span-12 flex min-h-0 flex-col md:col-span-6 lg:col-span-4"
               scrollable
-              style={{
-                flex: isMobile() ? "0 0 280px" : "1 1 0%",
-                "min-height": isMobile() ? "280px" : "0px",
-              }}
+              style={{ "min-height": "380px", flex: "0 0 auto" }}
               title="Rank movement · monthly"
               description="1 = highest modal among commodities priced that month · gaps are not last place"
             >
@@ -1681,8 +1654,8 @@ export function AgriPage() {
                 }
               >
                 <Box
-                  className="flex min-h-[240px] flex-1"
-                  style={{ "min-height": "240px", flex: "1 1 0%" }}
+                  className="flex min-h-[280px] flex-1"
+                  style={{ "min-height": "280px", flex: "1 1 0%" }}
                   data-testid="agri-rank-region"
                 >
                   <EChart option={rankOption()} data-testid="agri-rank-chart" />
@@ -1694,22 +1667,9 @@ export function AgriPage() {
               testId="agri-season-panel"
               className="col-span-12 flex min-h-0 flex-col md:col-span-6 lg:col-span-4"
               scrollable
-              style={{
-                flex: isMobile() ? "0 0 300px" : "1 1 0%",
-                "min-height": isMobile() ? "300px" : "0px",
-              }}
-              title="Seasonality · commodity × month"
-              description={
-                seasonRows().length > 0
-                  ? seasonRows()
-                      .slice(0, 2)
-                      .map(
-                        (row) =>
-                          `${row.label}: ${row.hitRate == null ? "—" : `${Math.round(row.hitRate * 100)}% above`} · n≥${row.minYears ?? "—"}`,
-                      )
-                      .join(" · ")
-                  : "Deviation from each commodity's own observed-month average"
-              }
+              style={{ "min-height": "420px", flex: "0 0 auto" }}
+              title="Month profile · commodity × month"
+              description={seasonProfileNote()}
             >
               <Show
                 when={Object.keys(seasonOption()).length > 0}
@@ -1723,8 +1683,8 @@ export function AgriPage() {
                 }
               >
                 <Box
-                  className="flex min-h-[280px] flex-1"
-                  style={{ "min-height": "280px", flex: "1 1 0%" }}
+                  className="flex min-h-[320px] flex-1"
+                  style={{ "min-height": "320px", flex: "1 1 0%" }}
                   data-testid="agri-season-region"
                 >
                   <EChart option={seasonOption()} data-testid="agri-season-chart" />
@@ -1734,14 +1694,15 @@ export function AgriPage() {
 
             <CompactPanel
               testId="agri-dispersion-panel"
-              className="col-span-12 flex min-h-0 flex-col md:col-span-6 lg:col-span-4"
+              className="col-span-12 flex min-h-0 flex-col md:col-span-12 lg:col-span-4"
               scrollable
-              style={{
-                flex: isMobile() ? "0 0 300px" : "1 1 0%",
-                "min-height": isMobile() ? "300px" : "0px",
-              }}
+              style={{ "min-height": "400px", flex: "0 0 auto" }}
               title="Mandi dispersion"
-              description="Top 8 mandis · dot = modal ₹/quintal · bar = min–max · violet = outside 1.5×IQR"
+              description={
+                dispersionSummary().markets > 0
+                  ? `${dispersionSummary().shown} highest-priced of ${dispersionSummary().markets} mandis (${quotes().length}-quote page) · IQR ${formatAgriPrice(dispersionSummary().q1)}–${formatAgriPrice(dispersionSummary().q3)} · dot = modal · bar = min–max · violet halo = outside 1.5×IQR`
+                  : "Dot = modal · bar = min–max · violet halo = outside 1.5×IQR"
+              }
             >
               <Show
                 when={Object.keys(dispersionOption()).length > 0}
@@ -1755,8 +1716,8 @@ export function AgriPage() {
                 }
               >
                 <Box
-                  className="flex min-h-[260px] flex-1"
-                  style={{ "min-height": "260px", flex: "1 1 0%" }}
+                  className="flex min-h-[300px] flex-1"
+                  style={{ "min-height": "300px", flex: "1 1 0%" }}
                   data-testid="agri-dispersion-region"
                 >
                   <EChart option={dispersionOption()} data-testid="agri-dispersion-chart" />
@@ -1765,6 +1726,7 @@ export function AgriPage() {
             </CompactPanel>
             </Box>
           </Show>
+          <Show when={isMobile() && pageView() !== "overview"}>{headlineStrip()}</Show>
         </Box>
       </Show>
     </Box>

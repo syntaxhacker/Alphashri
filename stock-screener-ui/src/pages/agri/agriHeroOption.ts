@@ -15,7 +15,7 @@ import {
   valueAxis,
   type OptionFragment,
 } from "./agriChartTheme";
-import { robustBandBounds, type AgriChartSeriesPoint } from "./agriChartOption";
+import type { AgriChartSeriesPoint } from "./agriChartOption";
 
 export interface AgriHeroContext {
   key: string;
@@ -82,7 +82,6 @@ export function buildAgriHeroOption(input: AgriHeroInput | null | undefined): Op
   if (rows.every((row) => finite(row.modal) == null)) return {};
 
   const dates = rows.map((row) => (row.gap ? "" : formatAgriDateLabel(row.date)));
-  const bounds = robustBandBounds(rows.filter((row) => !row.gap));
   const lastIndex = rows.reduce(
     (found, row, index) => (finite(row.modal) != null ? index : found),
     -1,
@@ -110,6 +109,29 @@ export function buildAgriHeroOption(input: AgriHeroInput | null | undefined): Op
     })
     .filter((entry) => entry.data.some((value) => value != null));
 
+  // Scale to what the hero actually draws. The old band bounds pulled the
+  // daily min/max edges into a view that never drew the band, pushing the
+  // modal (₹5.3k) into the bottom third of an 18k axis.
+  const drawn: number[] = [];
+  for (const row of rows) {
+    const value = finite(row.modal);
+    if (value != null) drawn.push(value);
+  }
+  for (const entry of contextSeries) {
+    for (const value of entry.data) {
+      if (typeof value === "number" && Number.isFinite(value)) drawn.push(value);
+    }
+  }
+  let yMin: number | undefined;
+  let yMax: number | undefined;
+  if (drawn.length > 0) {
+    const low = Math.min(...drawn);
+    const high = Math.max(...drawn);
+    const pad = Math.max((high - low) * 0.08, 1);
+    yMin = Math.max(0, low - pad);
+    yMax = high + pad;
+  }
+
   const tooltip = (params: unknown): string => {
     const list = asParams(params);
     if (list.length === 0) return "";
@@ -133,7 +155,7 @@ export function buildAgriHeroOption(input: AgriHeroInput | null | undefined): Op
       }
       fields.push(field(name, formatAgriValue(value, unit)));
     }
-    return tooltipShell(row.date, fields);
+    return tooltipShell(formatAgriDateLabel(row.date), fields);
   };
 
   const focus: OptionFragment = {
@@ -200,7 +222,13 @@ export function buildAgriHeroOption(input: AgriHeroInput | null | undefined): Op
       },
     ],
     xAxis: [categoryAxis(dates, t, 0, true)],
-    yAxis: [{ ...valueAxis(t, 0), ...(bounds || undefined) }],
+    yAxis: [
+      {
+        ...valueAxis(t, 0),
+        ...(yMin != null ? { min: yMin } : {}),
+        ...(yMax != null ? { max: yMax } : {}),
+      },
+    ],
     dataZoom: makeDataZoom(t, [0]),
     series: [
       focus,
@@ -211,8 +239,20 @@ export function buildAgriHeroOption(input: AgriHeroInput | null | undefined): Op
         showSymbol: false,
         symbol: "none",
         connectNulls: false,
-        lineStyle: { color: alpha(AGRI_CONTEXT, index === 0 ? 0.75 : 0.45), width: 1 },
+        lineStyle: { color: alpha(AGRI_CONTEXT, index === 0 ? 0.9 : 0.6), width: 1 },
         itemStyle: { color: AGRI_CONTEXT },
+        // Direct-label the context series instead of relying on a legend the
+        // hero does not carry.
+        endLabel: {
+          show: true,
+          formatter: entry.label,
+          color: t.muted,
+          fontSize: typeSize("micro"),
+          distance: 6,
+          overflow: "truncate",
+          width: compact ? 60 : 84,
+        },
+        labelLayout: { moveOverlap: "shiftY" },
         z: 2,
       })),
     ],

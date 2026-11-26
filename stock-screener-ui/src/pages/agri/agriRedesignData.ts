@@ -62,6 +62,17 @@ export interface AgriSparkRow {
   points: number[];
 }
 
+export interface AgriDispersionSummary {
+  /** Distinct mandis in the quote page. */
+  markets: number;
+  /** Mandis drawn in the panel. */
+  shown: number;
+  median: number | null;
+  q1: number | null;
+  q3: number | null;
+  outliers: number;
+}
+
 const MAX_SPARK_POINTS = 40;
 const IQR_FENCE = 1.5;
 const MAX_RANK_MONTHS = 24;
@@ -267,6 +278,29 @@ export function buildDispersionRows(
     return a.modal - b.modal || a.market.localeCompare(b.market);
   });
   return result;
+}
+
+/** Population context for the dispersion panel: how many mandis exist and
+ *  where the middle of the quote page sits, so "top 8 all outliers" is not
+ *  mistaken for the whole mandi universe. */
+export function summariseDispersion(
+  rows: readonly AgriDispersionRow[] | null | undefined,
+  shown: number,
+): AgriDispersionSummary {
+  const source = Array.isArray(rows) ? rows : [];
+  const modals = source
+    .map((row) => finite(row?.modal))
+    .filter((value): value is number => value != null)
+    .sort((a, b) => a - b);
+  const at = (p: number) => (modals.length > 0 ? quantile(modals, p) : null);
+  return {
+    markets: source.length,
+    shown: Math.max(0, Math.min(shown, source.length)),
+    median: at(0.5),
+    q1: at(0.25),
+    q3: at(0.75),
+    outliers: source.filter((row) => row?.outlier).length,
+  };
 }
 
 /**

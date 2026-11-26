@@ -117,7 +117,9 @@ export function buildHeatmapOption(input: EdaHeatmapInput | null | undefined): O
         left: 56,
         right: 24,
         top: CHART_LAYOUT.gridTopWithSubtext,
-        bottom: CHART_LAYOUT.gridBottomHeatmap,
+        // Keep the horizontal visualMap clear of the month labels; sharing a
+        // line made "Row low / Row high" collide with the last x tick.
+        bottom: CHART_LAYOUT.gridBottomHeatmap + 28,
         containLabel: true,
       },
     ],
@@ -130,9 +132,10 @@ export function buildHeatmapOption(input: EdaHeatmapInput | null | undefined): O
         orient: "horizontal",
         left: "center",
         bottom: 6,
-        // For a horizontal bar itemWidth is its length, itemHeight its thickness.
-        itemWidth: 120,
-        itemHeight: 12,
+        // ECharts rotates the horizontal visualMap group, so these are the
+        // pre-rotation axes: itemHeight becomes the bar length on screen.
+        itemWidth: 12,
+        itemHeight: 120,
         text: ["Row high", "Row low"],
         textStyle: { color: t.muted, fontSize: CHART_LAYOUT.font },
         inRange: { color: [...VIRIDIS_STOPS] },

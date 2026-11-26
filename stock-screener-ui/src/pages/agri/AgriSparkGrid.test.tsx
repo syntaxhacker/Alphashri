@@ -24,6 +24,12 @@ describe("AgriSparkGrid", () => {
     expect(screen.getByTestId("agri-spark-wheat")).toHaveTextContent("+2.1%");
     expect(onion).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("agri-spark-wheat")).toHaveAttribute("aria-pressed", "false");
+    // The accessible name must carry the visible price/change, otherwise
+    // speech input cannot target what the user reads (axe serious).
+    expect(onion).not.toHaveAttribute("aria-label");
+    expect(
+      screen.getByRole("button", { name: /Select Onion.*₹2,150.*-3\.4%/ }),
+    ).toBe(onion);
   });
 
   it("selects on click, Enter and Space", () => {

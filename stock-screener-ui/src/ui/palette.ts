@@ -228,7 +228,9 @@ export const AGRI_SEASON_STOPS = [
   "#224A70",
   "#2B5C8A",
   "#316A9C",
-  "#242A33",
+  // The neutral stop must stay visible against the panel: the old #242A33
+  // sat at 1.25:1, so near-average cells looked unpainted.
+  "#62676F",
   "#805C22",
   "#A87628",
   "#C99233",

@@ -6,6 +6,7 @@ import {
   buildSeasonRows,
   buildSparkRows,
   shortMarketLabel,
+  summariseDispersion,
 } from "./agriRedesignData";
 import type { AgriQuote, AgriSnapshot } from "@/types/agri";
 
@@ -129,6 +130,21 @@ describe("buildDispersionRows", () => {
     expect(rows[0].date).toBe("2026-11-17");
     expect(rows[4].outlier).toBe(true);
     expect(rows.slice(0, 4).every((row) => !row.outlier)).toBe(true);
+  });
+
+  it("reports the drawn/population denominator and middle of the quote page", () => {
+    const rows = buildDispersionRows([
+      quote("A", 100),
+      quote("B", 110),
+      quote("C", 120),
+      quote("D", 130),
+      quote("E", 1000),
+    ]);
+    const summary = summariseDispersion(rows, 8);
+    expect(summary.markets).toBe(5);
+    expect(summary.shown).toBe(5);
+    expect(summary.median).toBe(120);
+    expect(summary.outliers).toBe(1);
   });
 
   it("does not flag outliers from a sample too small for a fence", () => {

@@ -283,16 +283,16 @@ const openDataView = () => fireEvent.click(screen.getByTestId("agri-view-data"))
 
 const CHART_REGION_HEIGHTS = [
   ["agri-chart-region", "280px"],
-  ["agri-rank-region", "240px"],
-  ["agri-season-region", "280px"],
-  ["agri-dispersion-region", "260px"],
+  ["agri-rank-region", "280px"],
+  ["agri-season-region", "320px"],
+  ["agri-dispersion-region", "300px"],
 ] as const;
 
 const CHART_PANEL_HEIGHTS = [
-  ["agri-chart-panel", "360px"],
-  ["agri-rank-panel", "280px"],
-  ["agri-season-panel", "300px"],
-  ["agri-dispersion-panel", "300px"],
+  ["agri-chart-panel", "460px"],
+  ["agri-rank-panel", "380px"],
+  ["agri-season-panel", "420px"],
+  ["agri-dispersion-panel", "400px"],
 ] as const;
 
 /** ECharts measures its container at mount; a flex-only parent can read 0px. */
@@ -358,7 +358,7 @@ describe("AgriPage initial load — visuals first", () => {
     expect(screen.getByTestId("agri-range-group")).toBeInTheDocument();
     expect(screen.getByTestId("agri-geo-group")).toBeInTheDocument();
     expect(screen.getByTestId("agri-kpi-head")).toHaveTextContent(
-      "Prices ₹/quintal · arrivals qtl",
+      "₹/quintal · change vs. prior period",
     );
   });
 
@@ -555,6 +555,16 @@ describe("AgriPage filters", () => {
 
     fireEvent.click(screen.getByTestId("agri-range-1m"));
     await waitFor(() => expect(lastParams().range).toBe("1m"));
+  });
+
+  it("clears the range parameter when returning to the default window", async () => {
+    renderPage("/agri?range=max");
+    await settled();
+    expect(lastParams().range).toBe("max");
+
+    fireEvent.click(screen.getByTestId("agri-range-6m"));
+    await waitFor(() => expect(lastParams().range).toBe("6m"));
+    await waitFor(() => expect(urlParams().range).toBeUndefined());
   });
 
   it("cascades state → district → market from the geography maps", async () => {
@@ -785,29 +795,29 @@ describe("AgriPage legacy mode URLs", () => {
   });
 });
 
-describe("AgriPage EDA summary", () => {
-  it("summarises trend, volatility, months, correlation and outliers from the active series", async () => {
+describe("AgriPage KPI and EDA consolidation", () => {
+  it("removes the six-card EDA summary and folds trend / volatility into the hero caption", async () => {
     renderPage();
     await settled();
 
-    const summary = screen.getByTestId("agri-eda-summary");
-    expect(within(summary).getByTestId("agri-eda-trend")).toHaveTextContent("+1.2%");
-    expect(within(summary).getByTestId("agri-eda-volatility")).toHaveTextContent("0.6%");
-    expect(within(summary).getByTestId("agri-eda-best")).toHaveTextContent("Nov");
-    expect(within(summary).getByTestId("agri-eda-worst")).toHaveTextContent("Nov");
-    expect(within(summary).getByTestId("agri-eda-correlation")).toHaveTextContent("1.00");
-    expect(within(summary).getByTestId("agri-eda-outliers")).toHaveTextContent("0");
+    expect(screen.queryByTestId("agri-eda-summary")).not.toBeInTheDocument();
+    for (const key of ["trend", "volatility", "best", "worst", "correlation", "outliers"]) {
+      expect(screen.queryByTestId(`agri-eda-${key}`)).not.toBeInTheDocument();
+    }
+    const hero = screen.getByTestId("agri-chart-panel");
+    expect(hero).toHaveTextContent("+1.2% window");
+    expect(hero).toHaveTextContent("modal CV 0.6%");
+    expect(hero).toHaveTextContent("How to read: bold = modal ₹/quintal");
   });
 
-  it("renders — when the summary inputs cannot be computed", async () => {
+  it("keeps the EDA wall removed when the series is empty", async () => {
     vi.mocked(fetchAgriPrices).mockResolvedValueOnce(pricesPayload({ series: [] }));
     renderPage();
     await settled();
 
-    const summary = screen.getByTestId("agri-eda-summary");
-    for (const key of ["trend", "volatility", "best", "worst", "correlation", "outliers"]) {
-      expect(within(summary).getByTestId(`agri-eda-${key}`)).toHaveTextContent("—");
-    }
+    expect(screen.queryByTestId("agri-eda-summary")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("agri-eda-trend")).not.toBeInTheDocument();
+    expect(screen.getByTestId("agri-chart-empty")).toBeInTheDocument();
   });
 });
 
@@ -1043,16 +1053,18 @@ describe("AgriPage data states", () => {
     expect(within(context).getByTestId("agri-refresh")).toBeInTheDocument();
   });
 
-  it("derives a top-movers strip from the snapshot's 1m change", async () => {
+  it("replaces the plain-text top-movers line with one visual headline strip", async () => {
     renderPage();
     await settled();
 
-    const movers = screen.getByTestId("agri-movers");
-    expect(movers).toHaveTextContent("Wheat +2.1%");
-    expect(movers).toHaveTextContent("Tomato -5.6%");
+    expect(screen.queryByTestId("agri-movers")).not.toBeInTheDocument();
+    const headline = screen.getByTestId("agri-headline");
+    expect(within(headline).getByTestId("agri-kpi-modal")).toHaveTextContent("₹2,150");
+    expect(within(headline).getByTestId("agri-kpi-chg1w")).toHaveTextContent("▲ +1.2%");
+    expect(within(headline).getByTestId("agri-kpi-chg1m")).toHaveTextContent("▼ -3.4%");
   });
 
-  it("omits the top-movers strip when the snapshot has no usable 1m changes", async () => {
+  it("keeps the headline when the snapshot has no usable 1m changes", async () => {
     vi.mocked(fetchAgriPrices).mockResolvedValueOnce(
       pricesPayload({
         snapshot: [
@@ -1075,6 +1087,7 @@ describe("AgriPage data states", () => {
     renderPage();
     await settled();
     expect(screen.queryByTestId("agri-movers")).not.toBeInTheDocument();
+    expect(screen.getByTestId("agri-headline")).toBeInTheDocument();
   });
 });
 
@@ -1184,7 +1197,9 @@ describe("AgriPage redesign grammar", () => {
     expect(xAxis.data).toHaveLength(12);
     expect(xAxis.axisLabel.width).toBeLessThanOrEqual(28);
     expect(((option.series as Array<{ label?: { show?: boolean } }>)[0].label)?.show).toBe(true);
-    expect(screen.getByTestId("agri-season-panel")).toHaveTextContent("n≥");
+    const season = screen.getByTestId("agri-season-panel");
+    expect(season).toHaveTextContent("single-year month profile");
+    expect(season).toHaveTextContent("1y");
   });
 
   it("dedupes the active commodity when comparison echoes it", async () => {
@@ -1282,9 +1297,11 @@ describe("AgriPage redesign grammar", () => {
     expect(screen.getByTestId("agri-body")).toHaveClass("overflow-visible", "shrink-0");
     expect(screen.getByTestId("agri-body")).not.toHaveClass("overflow-y-auto", "overflow-hidden");
     expect(screen.getByTestId("agri-body")).not.toHaveAttribute("aria-busy", "true");
-    expect(screen.getByTestId("agri-overview-grid")).toHaveClass(
-      "grid-rows-[minmax(320px,1.1fr)_minmax(280px,1fr)]",
-    );
+    const grid = screen.getByTestId("agri-overview-grid");
+    expect(grid).toHaveClass("grid", "shrink-0", "grid-cols-12");
+    // A fixed two-row template once squeezed the third-row dispersion panel
+    // to 2px inside overflow:hidden. Auto rows keep every panel reachable.
+    expect(grid.className).not.toContain("grid-rows-[");
     expectChartRegionsSized();
   });
 });
@@ -1310,16 +1327,27 @@ describe("AgriPage layout", () => {
     expect(screen.getByTestId("agri-data-view")).toBeInTheDocument();
     expect(screen.getByTestId("agri-quotes-table")).toBeInTheDocument();
     expect(screen.queryByTestId("agri-overview-grid")).not.toBeInTheDocument();
+    // A scrollable table panel needs a fixed height or the virtual rows grow
+    // the panel past the viewport and push its scope footer out of reach.
+    expect(screen.getByTestId("agri-table-panel")).toHaveStyle({
+      height: "460px",
+      flex: "0 0 auto",
+    });
+    expect(screen.getByTestId("agri-table-scope")).toBeInTheDocument();
   });
 
-  it("gives both stat grids 8px gaps and stretchable, padded cards", async () => {
+  it("renders one compact headline strip instead of a wall of stat cards", async () => {
     renderPage();
     await settled();
 
-    expect(screen.getByTestId("agri-kpis")).toHaveClass("gap-2");
-    expect(screen.getByTestId("agri-eda-summary")).toHaveClass("gap-2");
-    expect(screen.getByTestId("agri-kpi-modal")).toHaveClass("h-full", "p-2");
-    expect(screen.getByTestId("agri-eda-trend")).toHaveClass("h-full", "p-2");
+    const headline = screen.getByTestId("agri-kpis");
+    expect(headline).toHaveClass("flex", "flex-wrap");
+    expect(headline).not.toHaveClass("overflow-x-auto");
+    expect(screen.queryByTestId("agri-eda-summary")).not.toBeInTheDocument();
+    for (const id of ["agri-kpi-chg1w", "agri-kpi-chg1m", "agri-kpi-chg6m"]) {
+      expect(within(headline).getByTestId(id), id).toBeInTheDocument();
+    }
+    expect(screen.getByTestId("agri-kpi-modal")).toHaveTextContent("₹2,150");
   });
 
   it("stacks the panels with reserved heights and no page-level horizontal scroll at 390", async () => {
@@ -1338,9 +1366,9 @@ describe("AgriPage layout", () => {
     expect(screen.getByTestId("agri-body")).toHaveClass("overflow-visible");
     expect(screen.getByTestId("agri-body")).not.toHaveClass("overflow-y-auto");
     expect(screen.getByTestId("agri-chart-region")).toHaveClass("min-h-[280px]");
-    expect(screen.getByTestId("agri-rank-region")).toHaveClass("min-h-[240px]");
-    expect(screen.getByTestId("agri-season-region")).toHaveClass("min-h-[280px]");
-    expect(screen.getByTestId("agri-dispersion-region")).toHaveClass("min-h-[260px]");
+    expect(screen.getByTestId("agri-rank-region")).toHaveClass("min-h-[280px]");
+    expect(screen.getByTestId("agri-season-region")).toHaveClass("min-h-[320px]");
+    expect(screen.getByTestId("agri-dispersion-region")).toHaveClass("min-h-[300px]");
     for (const [id, height] of CHART_PANEL_HEIGHTS) {
       expect(screen.getByTestId(id), id).toHaveStyle({ "min-height": height });
     }

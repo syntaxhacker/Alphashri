@@ -24,7 +24,20 @@ export interface AgriDispersionInput {
 const DEFAULT_UNIT = "₹/quintal";
 const STACK = "agri-mandi-range";
 /** A dense mandi list unreadably clips labels; the tooltip keeps every row. */
-const MAX_MARKETS = 8;
+export const AGRI_DISPERSION_MARKETS = 8;
+
+function niceAxis(min: number, max: number, targetTicks: number): { min: number; max: number; interval: number } {
+  const span = Math.max(max - min, 1);
+  const raw = span / Math.max(1, targetTicks - 1);
+  const magnitude = 10 ** Math.floor(Math.log10(raw));
+  const normalized = raw / magnitude;
+  const step = (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) * magnitude;
+  return {
+    min: Math.max(0, Math.floor(min / step) * step),
+    max: Math.ceil(max / step) * step,
+    interval: step,
+  };
+}
 
 /**
  * Sorted min–modal–max dot plot for the selected commodity's mandis. A pale
@@ -50,7 +63,7 @@ export function buildAgriDispersionOption(
       const right = b.modal ?? Number.NEGATIVE_INFINITY;
       return right === left ? 0 : right > left ? 1 : -1;
     })
-    .slice(0, MAX_MARKETS)
+    .slice(0, AGRI_DISPERSION_MARKETS)
     .reverse();
   const labels = rows.map((row) => row.label || row.market);
   const floor = rows.map((row) => {
@@ -70,6 +83,7 @@ export function buildAgriDispersionOption(
   const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
   const maxPrice = prices.length > 0 ? Math.max(...prices) : 1;
   const pad = Math.max((maxPrice - minPrice) * 0.08, 1);
+  const axis = niceAxis(Math.max(0, minPrice - pad), maxPrice + pad, compact ? 3 : 5);
 
   const tooltip = (params: unknown): string => {
     const list = asParams(params);
@@ -102,15 +116,17 @@ export function buildAgriDispersionOption(
     xAxis: [
       {
         type: "value",
-        min: Math.max(0, minPrice - pad),
-        max: maxPrice + pad,
-        splitNumber: 4,
+        min: axis.min,
+        max: axis.max,
+        interval: axis.interval,
+        splitNumber: compact ? 3 : 5,
         axisLine: { show: false },
         axisTick: { show: false },
         axisLabel: {
           color: t.muted,
           fontSize: typeSize("micro"),
           formatter: (value: number) => compactPriceTick(value),
+          hideOverlap: true,
         },
         splitLine: { lineStyle: { color: t.split, type: "dashed" } },
       },
@@ -162,25 +178,19 @@ export function buildAgriDispersionOption(
         data: modals,
         symbolSize: compact ? 7 : 9,
         itemStyle: { color: AGRI_ACCENT, borderColor: t.text, borderWidth: 1 },
-        z: 5,
+        z: 6,
       },
       {
         name: "Outlier",
         type: "scatter",
         data: outliers,
-        symbolSize: compact ? 8 : 10,
-        itemStyle: { color: AGRI_OUTLIER },
-        label: {
-          show: !compact,
-          position: "right",
-          color: AGRI_OUTLIER,
-          fontSize: typeSize("micro"),
-          formatter: (param: { value?: unknown }) =>
-            Array.isArray(param?.value) && typeof param.value[0] === "number"
-              ? formatAgriValue(param.value[0], unit)
-              : "",
-        },
-        z: 6,
+        // A halo behind the modal dot: drawing the outlier on top hid every
+        // modal (the top-priced mandis are often all outside the fence).
+        symbolSize: compact ? 13 : 16,
+        itemStyle: { color: alpha(AGRI_OUTLIER, 0.85) },
+        silent: true,
+        label: { show: false },
+        z: 4,
       },
     ],
   };
