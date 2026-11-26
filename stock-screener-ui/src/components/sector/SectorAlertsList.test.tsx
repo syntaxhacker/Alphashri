@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@solidjs/testing-library";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { SectorAlertsList } from "./SectorAlertsList";
 
@@ -66,5 +66,32 @@ describe("SectorAlertsList", () => {
     render(() => <SectorAlertsList alerts={alerts} />);
     expect(screen.getByText("DROPPING (-0.80%)")).toBeInTheDocument();
     expect(screen.getByText(/DROPPING/)).toBeInTheDocument();
+  });
+
+  it("turns the sector label into a real button with Enter/Space activation", () => {
+    const onSectorClick = vi.fn();
+    const alerts = [
+      { timestamp: "10:30:00", sector: "IT", direction: "SURGING" as const, delta: 1.5 },
+    ];
+    render(() => <SectorAlertsList alerts={alerts} onSectorClick={onSectorClick} />);
+
+    const button = screen.getByTestId("sector-alert-symbol-IT");
+    expect(button.tagName).toBe("BUTTON");
+    expect(button).toHaveAttribute("aria-label", "Open IT lead stock chart");
+
+    fireEvent.click(button);
+    expect(onSectorClick).toHaveBeenCalledWith("IT");
+    fireEvent.keyDown(button, { key: "Enter" });
+    expect(onSectorClick).toHaveBeenCalledTimes(2);
+    fireEvent.keyDown(button, { key: " " });
+    expect(onSectorClick).toHaveBeenCalledTimes(3);
+  });
+
+  it("leaves the label inert when no sector handler is supplied", () => {
+    const alerts = [
+      { timestamp: "10:30:00", sector: "IT", direction: "SURGING" as const, delta: 1.5 },
+    ];
+    render(() => <SectorAlertsList alerts={alerts} />);
+    expect(screen.queryByTestId("sector-alert-symbol-IT")).not.toBeInTheDocument();
   });
 });

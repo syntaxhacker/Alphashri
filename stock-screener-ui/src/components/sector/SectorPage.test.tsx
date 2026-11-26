@@ -6,10 +6,12 @@ import { SectorPage } from "./SectorPage";
 import { SECTOR_SECTIONS } from "./SectorSectionNav";
 import type { SectorItem } from "../../types/sector";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
+import { SymbolDockContext } from "../common/symbolDockContext";
 
-const { mockFetchSectorPerformance, scrollIntoViewMock } = vi.hoisted(() => ({
+const { mockFetchSectorPerformance, scrollIntoViewMock, dockOpen } = vi.hoisted(() => ({
   mockFetchSectorPerformance: vi.fn(),
   scrollIntoViewMock: vi.fn(),
+  dockOpen: vi.fn(),
 }));
 
 vi.mock("../../api/sector", () => ({
@@ -47,8 +49,25 @@ vi.mock("./SectorHelpers", async (importOriginal) => {
   return actual;
 });
 
+// The real view paints to a canvas; this DOM double exposes one tile whose
+// activation mirrors the component's keyboard proxy so page wiring is testable.
 vi.mock("./SectorHeatmapView", () => ({
-  SectorHeatmapView: () => <div data-testid="sector-heatmap-view">SectorHeatmapView</div>,
+  SectorHeatmapView: (props: { onSymbolClick?: (symbol: string) => void }) => (
+    <div data-testid="sector-heatmap-view">
+      <button
+        type="button"
+        data-testid="sector-heatmap-tile"
+        onClick={() => props.onSymbolClick?.("RELIANCE")}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          props.onSymbolClick?.("RELIANCE");
+        }}
+      >
+        Open RELIANCE chart
+      </button>
+    </div>
+  ),
 }));
 
 const mockSectors: SectorItem[] = [
@@ -63,6 +82,23 @@ const mockResponse = {
   last_updated: new Date().toISOString(),
 };
 
+function renderWithDock() {
+  return render(() => (
+    <SymbolDockContext.Provider
+      value={{
+        open: dockOpen,
+        preview: vi.fn(),
+        endPreview: vi.fn(),
+        close: vi.fn(),
+        pinned: false,
+        setOutlet: vi.fn(),
+      }}
+    >
+      <SectorPage />
+    </SymbolDockContext.Provider>
+  ));
+}
+
 class IntersectionObserverStub {
   observe = vi.fn();
   unobserve = vi.fn();
@@ -74,6 +110,7 @@ class IntersectionObserverStub {
 describe("SectorPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    dockOpen.mockClear();
     setupBrowserMocks();
     Object.defineProperty(window, "IntersectionObserver", {
       configurable: true,
@@ -313,6 +350,38 @@ describe("SectorPage", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("sector-heatmap-view")).not.toBeInTheDocument();
     });
+  });
+
+  it("opens the app-wide dock from a visual heatmap tile by click and Enter", async () => {
+    mockFetchSectorPerformance.mockResolvedValue(mockResponse);
+    renderWithDock();
+    await waitFor(() => expect(screen.getByText("Sector Performance")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText("Visual"));
+    const tile = await screen.findByTestId("sector-heatmap-tile");
+
+    fireEvent.click(tile);
+    expect(dockOpen).toHaveBeenCalledWith("RELIANCE", "chart", "india");
+
+    fireEvent.keyDown(tile, { key: "Enter" });
+    expect(dockOpen).toHaveBeenCalledTimes(2);
+    expect(dockOpen).toHaveBeenLastCalledWith("RELIANCE", "chart", "india");
+  });
+
+  it("renders Top Gainers as dock buttons, not raw /chart anchors", async () => {
+    mockFetchSectorPerformance.mockResolvedValue({
+      ...mockResponse,
+      top_stock_movers: [{ symbol: "RELIANCE", change: 1.2 }],
+    });
+    renderWithDock();
+    await waitFor(() => expect(screen.getByText("Sector Performance")).toBeInTheDocument());
+
+    const button = screen.getByTestId("sector-top-stock-RELIANCE");
+    expect(button.tagName).toBe("BUTTON");
+    expect(document.querySelector('a[href="/chart/RELIANCE"]')).toBeNull();
+
+    fireEvent.click(button);
+    expect(dockOpen).toHaveBeenCalledWith("RELIANCE", "chart", "india");
   });
 
   it("stacks four sections in order with no tab bar", () => {
