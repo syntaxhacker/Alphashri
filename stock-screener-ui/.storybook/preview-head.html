@@ -2,3 +2,16 @@
 <style>
   html, body { background: #000000; color: #E8E8E8; margin: 0; }
 </style>
+<!-- Storybook's built-in preparing-story/docs layers hardcode white; match the app canvas so a story switch never flashes. -->
+<style>
+  .sb-preparing-story,
+  .sb-preparing-docs,
+  .sb-preparing-story .sb-previewBlock,
+  .sb-preparing-docs .sb-previewBlock,
+  .sb-previewBlock {
+    background-color: #000000 !important;
+  }
+  .sb-loader {
+    border-top-color: #E8E8E8;
+  }
+</style>
