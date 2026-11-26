@@ -158,6 +158,32 @@ function dedupeByTime(points: TVLinePoint[]): TVLinePoint[] {
   return [...byTime.values()].sort(byTimeAsc);
 }
 
+/**
+ * One band per side keeps the price area legible. Zones arrive in score order,
+ * so the first aligned zone of each kind is the strongest one. An `sr` zone
+ * marks price inside a band rather than a side, so it stands in only when no
+ * sided zone survived alignment. Stretching the right edge to the last drawn
+ * bar lets an old touch still reach the current price area; the first touch
+ * stays the band's start.
+ */
+export function selectDisplaySRZones(
+  zones: readonly TVRect[],
+  lastEpoch: number,
+): TVRect[] {
+  let support: TVRect | undefined;
+  let resistance: TVRect | undefined;
+  let sr: TVRect | undefined;
+  for (const zone of zones) {
+    if (zone.kind === "support" && !support) support = zone;
+    else if (zone.kind === "resistance" && !resistance) resistance = zone;
+    else if (zone.kind === "sr" && !sr) sr = zone;
+  }
+
+  const shown = [support, resistance].filter((zone): zone is TVRect => zone != null);
+  if (shown.length === 0 && sr) shown.push(sr);
+  return shown.map((zone) => ({ ...zone, end: lastEpoch }));
+}
+
 export function buildPatternTVData({
   candles,
   hit,
@@ -365,17 +391,20 @@ export function buildPatternTVData({
     };
   });
 
-  const zones: TVRect[] = alignSRZones(srZones, sortedEpochs, timeZone).map((zone) => ({
-    kind: zone.kind,
-    top: zone.top,
-    bottom: zone.bottom,
-    start: zone.start,
-    end: zone.end,
-    touches: zone.touches,
-    score: zone.score,
-    color: zone.color,
-    legendName: zone.legendName,
-  }));
+  const zones: TVRect[] = selectDisplaySRZones(
+    alignSRZones(srZones, sortedEpochs, timeZone).map((zone) => ({
+      kind: zone.kind,
+      top: zone.top,
+      bottom: zone.bottom,
+      start: zone.start,
+      end: zone.end,
+      touches: zone.touches,
+      score: zone.score,
+      color: zone.color,
+      legendName: zone.legendName,
+    })),
+    sortedEpochs[sortedEpochs.length - 1]!,
+  );
 
   return { candles: tvCandles, volume, levels, lines, indicatorLines, markers, zones };
 }

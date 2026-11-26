@@ -85,6 +85,20 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
 
   const [mode, setMode] = createSignal<SymbolDockMode>("chart");
   const [optionsSymbol, setOptionsSymbol] = createSignal<string | null>(null);
+  const [maximized, setMaximized] = createSignal(false);
+
+  // The Modal restores the dock while its Escape is still dispatching, and the
+  // provider reattaches the dock listener in that same tick. Chromium drains
+  // microtasks between listeners, so only a macrotask keeps the flag armed
+  // until the dock's bubble listener has seen the event.
+  let suppressDockEscape = false;
+  const restoreDock = () => {
+    suppressDockEscape = true;
+    setMaximized(false);
+    window.setTimeout(() => {
+      suppressDockEscape = false;
+    }, 0);
+  };
 
   const preview = (symbol: string, market?: string) => {
     if (!isDesktop()) return;
@@ -128,6 +142,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
 
   const open = (symbol: string, nextMode: SymbolDockMode = "chart", market?: string) => {
     clearTimers();
+    setMaximized(false);
     if (isUsMarket(market)) {
       // US listings have no NSE chart/options data. Route to the US chart
       // provider at every width instead of leaving an NSE dock over the page.
@@ -161,6 +176,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
 
   const close = () => {
     clearTimers();
+    setMaximized(false);
     if (mode() === "options") {
       closeOptionsDock();
       setOptionsSymbol(null);
@@ -192,6 +208,19 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
     return isDesktop() && Boolean(fullscreen());
   };
 
+  // Hover previews and background refreshes can dismiss or replace the chart
+  // without going through open()/close(); a new dock must never inherit a
+  // modal left over from the previous frame.
+  let dockKey: string | null = null;
+  createEffect(() => {
+    const key = showDock()
+      ? `${mode()}:${mode() === "options" ? optionsSymbol() : fullscreen()?.symbol ?? ""}`
+      : null;
+    if (key === dockKey) return;
+    dockKey = key;
+    setMaximized(false);
+  });
+
   // The inline outlet is a flex item with `basis-[38%]`. Solid's Portal leaves
   // its unclassed wrapper <div> in the outlet after the dock closes, so `:empty`
   // never matches and the table cannot reclaim the width. Mirror the open state
@@ -215,9 +244,10 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
   /**
    * Escape dismisses an open chart dock.
    *
-   * `PatternFullscreenView` is always `docked` here, so its Modal Escape path is
-   * unreachable; this listener is the chart dock's only Escape gesture. It is
-   * attached only while the dock is open and removed on cleanup.
+   * The rail renders `PatternFullscreenView` docked, so its Modal Escape path is
+   * unreachable there; this listener is the dock's only Escape gesture. While
+   * maximized the Modal owns Escape and its own handler restores the dock, so
+   * this listener is detached — one Escape can never close both layers.
    *
    * The options panel owns Escape itself (restore when maximized, close
    * otherwise), so this provider never closes in options mode — that avoids
@@ -227,6 +257,10 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
    */
   const onDockKeydown = (event: KeyboardEvent) => {
     if (event.key !== "Escape") return;
+    if (suppressDockEscape) {
+      suppressDockEscape = false;
+      return;
+    }
     if (mode() === "options") return;
     const target = event.target as HTMLElement | null;
     if (
@@ -242,7 +276,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
   };
 
   createEffect(() => {
-    const open = showDock();
+    const open = showDock() && !maximized();
     if (open) {
       document.addEventListener("keydown", onDockKeydown);
     } else {
@@ -268,6 +302,7 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
             onTimeframeChange={changeFullscreenTimeframe}
             onRefresh={refreshSymbolChart}
             onClose={close}
+            onMaximize={() => setMaximized(true)}
             onLive={() => undefined}
           />
         </Box>
@@ -341,6 +376,28 @@ export function SymbolDockProvider(props: { children?: JSX.Element }) {
           </Portal>
         </Show>
       </Show>
+      <Show when={maximized() && showDock() && mode() === "chart"}>
+        {/* The rail is z-[1100]; the Modal's own z-50 would sit behind it. */}
+        <Box className="fixed inset-0 z-[1200]">
+          <Suspense
+            fallback={
+              <Box className="absolute inset-0 flex items-center justify-center">
+                <Loader size="sm" />
+              </Box>
+            }
+          >
+            <ChartPanel
+              state={fullscreen()!}
+              docked={false}
+              onSelectHit={selectFullscreenHit}
+              onTimeframeChange={changeFullscreenTimeframe}
+              onRefresh={refreshSymbolChart}
+              onClose={restoreDock}
+              onLive={() => undefined}
+            />
+          </Suspense>
+        </Box>
+      </Show>
     </SymbolDockContext.Provider>
   );
 }
@@ -352,6 +409,7 @@ function DockContent(props: {
   onTimeframeChange: (tf: string) => void;
   onRefresh: () => void;
   onClose: () => void;
+  onMaximize: () => void;
   onLive: () => void;
 }) {
   /**
@@ -422,34 +480,60 @@ function DockContent(props: {
             </Box>
           }
         >
-          <PatternFullscreenView
-            opened
+          <ChartPanel
+            state={props.state}
             docked
-            symbol={props.state.symbol ?? null}
-            hit={props.state.hit ?? null}
-            hits={props.state.hits ?? []}
             onSelectHit={props.onSelectHit}
-            candles={props.state.candles ?? []}
-            trendLines={props.state.trendLines ?? []}
-            trendlinesView="both"
-            indicators={props.state.indicators}
-            srZones={props.state.srZones}
-            timeframe={props.state.timeframe}
-            timeframes={FALLBACK_TIMEFRAMES}
             onTimeframeChange={props.onTimeframeChange}
             onRefresh={props.onRefresh}
-            loading={props.state.loading ?? false}
-            asOf={props.state.asOf ?? null}
-            fromDate={props.state.fromDate ?? null}
-            chartError={props.state.chartError ?? null}
-            chartNote={props.state.chartNote ?? null}
-            livePrice={props.state.livePrice ?? null}
-            liveChange={props.state.liveChange ?? null}
             onClose={props.onClose}
+            onMaximize={props.onMaximize}
             onLive={props.onLive}
           />
         </Suspense>
       </ErrorBoundary>
     </Box>
+  );
+}
+
+/** Both the rail and the maximized modal must read the same live chart frame. */
+function ChartPanel(props: {
+  state: FullscreenChartState;
+  docked: boolean;
+  onSelectHit: (hit: PatternHitDTO) => void;
+  onTimeframeChange: (tf: string) => void;
+  onRefresh: () => void;
+  onClose: () => void;
+  onLive: () => void;
+  onMaximize?: () => void;
+}) {
+  return (
+    <PatternFullscreenView
+      opened
+      docked={props.docked}
+      symbol={props.state.symbol ?? null}
+      hit={props.state.hit ?? null}
+      hits={props.state.hits ?? []}
+      onSelectHit={props.onSelectHit}
+      candles={props.state.candles ?? []}
+      trendLines={props.state.trendLines ?? []}
+      trendlinesView="both"
+      indicators={props.state.indicators}
+      srZones={props.state.srZones}
+      timeframe={props.state.timeframe}
+      timeframes={FALLBACK_TIMEFRAMES}
+      onTimeframeChange={props.onTimeframeChange}
+      onRefresh={props.onRefresh}
+      loading={props.state.loading ?? false}
+      asOf={props.state.asOf ?? null}
+      fromDate={props.state.fromDate ?? null}
+      chartError={props.state.chartError ?? null}
+      chartNote={props.state.chartNote ?? null}
+      livePrice={props.state.livePrice ?? null}
+      liveChange={props.state.liveChange ?? null}
+      onMaximize={props.onMaximize}
+      onClose={props.onClose}
+      onLive={props.onLive}
+    />
   );
 }

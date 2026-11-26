@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NEGATIVE, POSITIVE } from "@/ui/palette";
+import { NEGATIVE, POSITIVE, WARNING } from "@/ui/palette";
 import type {
   ChartCandle,
   ChartIndicators,
@@ -8,7 +8,7 @@ import type {
   TrendLine,
 } from "@/types/chartPatterns";
 import { buildPatternTVData, PATTERN_TV_COLORS, srZoneLabel, toTVTime } from "./patternTVData";
-import { TZ_US } from "@/utils/chart/time";
+import { TZ_US, toEpochSeconds } from "@/utils/chart/time";
 import { INDICATOR_SERIES_META } from "./patternIndicatorData";
 import { makeIRCONHit, makeTrendLine } from "./patternTestFixtures";
 
@@ -433,7 +433,7 @@ describe("buildPatternTVData indicator overlays", () => {
         top: 101,
         bottom: 99,
         start: toTVTime("2026-04-02"),
-        end: toTVTime("2026-04-04"),
+        end: toTVTime("2026-04-05"),
         touches: 3,
         score: 0.72,
         color: POSITIVE,
@@ -444,7 +444,7 @@ describe("buildPatternTVData indicator overlays", () => {
         top: 120,
         bottom: 110,
         start: toTVTime("2026-04-01"),
-        end: toTVTime("2026-04-03"),
+        end: toTVTime("2026-04-05"),
         touches: 2,
         score: 0.55,
         color: NEGATIVE,
@@ -574,5 +574,151 @@ describe("buildPatternTVData indicator overlays", () => {
     });
 
     expect(out.markers.map((marker) => marker.time)).toEqual([toTVTime("2026-04-04")]);
+  });
+});
+
+const LAST_CANDLE_TIME = toTVTime("2026-04-05");
+
+function srZone(overrides: Partial<SRZone> = {}): SRZone {
+  return {
+    kind: "support",
+    top: 102,
+    bottom: 99,
+    start_date: "2026-04-02",
+    end_date: "2026-04-04",
+    touches: 3,
+    score: 0.5,
+    ...overrides,
+  };
+}
+
+describe("buildPatternTVData zone display selection", () => {
+  it("keeps one support and one resistance, picks the higher score, and ends both at the last candle", () => {
+    // Zones arrive score-descending per side; a lower-ranked same-kind zone must not draw.
+    const out = buildPatternTVData({
+      candles: CANDLES,
+      hit: null,
+      srZones: [
+        srZone({
+          kind: "resistance",
+          top: 130,
+          bottom: 128,
+          start_date: "2026-04-01",
+          end_date: "2026-04-02",
+          touches: 4,
+          score: 0.9,
+        }),
+        srZone({ score: 0.8 }),
+        srZone({
+          top: 98,
+          bottom: 95,
+          start_date: "2026-04-03",
+          end_date: "2026-04-04",
+          touches: 2,
+          score: 0.4,
+        }),
+        srZone({
+          kind: "resistance",
+          top: 140,
+          bottom: 138,
+          start_date: "2026-04-03",
+          end_date: "2026-04-04",
+          touches: 1,
+          score: 0.3,
+        }),
+      ],
+    });
+
+    expect(out.zones).toEqual([
+      {
+        kind: "support",
+        top: 102,
+        bottom: 99,
+        start: toTVTime("2026-04-02"),
+        end: LAST_CANDLE_TIME,
+        touches: 3,
+        score: 0.8,
+        color: POSITIVE,
+        legendName: "Support",
+      },
+      {
+        kind: "resistance",
+        top: 130,
+        bottom: 128,
+        start: toTVTime("2026-04-01"),
+        end: LAST_CANDLE_TIME,
+        touches: 4,
+        score: 0.9,
+        color: NEGATIVE,
+        legendName: "Resistance",
+      },
+    ]);
+  });
+
+  it("falls back to the top sr zone when no sided zone survives alignment", () => {
+    const out = buildPatternTVData({
+      candles: CANDLES,
+      hit: null,
+      srZones: [
+        srZone({
+          kind: "sr",
+          top: 106,
+          bottom: 104,
+          start_date: "2026-04-01",
+          end_date: "2026-04-02",
+          touches: 4,
+          score: 0.6,
+        }),
+      ],
+    });
+
+    expect(out.zones).toEqual([
+      {
+        kind: "sr",
+        top: 106,
+        bottom: 104,
+        start: toTVTime("2026-04-01"),
+        end: LAST_CANDLE_TIME,
+        touches: 4,
+        score: 0.6,
+        color: WARNING,
+        legendName: "S/R",
+      },
+    ]);
+  });
+
+  it("does not add an sr band when a support is already shown", () => {
+    const out = buildPatternTVData({
+      candles: CANDLES,
+      hit: null,
+      srZones: [
+        srZone({ score: 0.8 }),
+        srZone({
+          kind: "sr",
+          top: 106,
+          bottom: 104,
+          start_date: "2026-04-01",
+          end_date: "2026-04-03",
+          touches: 5,
+          score: 0.95,
+        }),
+      ],
+    });
+
+    expect(out.zones.map((zone) => zone.kind)).toEqual(["support"]);
+    expect(out.zones).toHaveLength(1);
+  });
+
+  it("ends the band on a partial last candle while keeping its first-touch start", () => {
+    const last = CANDLES[CANDLES.length - 1]!;
+    const out = buildPatternTVData({
+      candles: [...CANDLES.slice(0, -1), { ...last, is_partial: true }],
+      hit: null,
+      srZones: [srZone({ start_date: "2026-04-02", end_date: "2026-04-03" })],
+    });
+
+    expect(out.zones).toHaveLength(1);
+    expect(out.zones[0]?.start).toBe(toTVTime("2026-04-02"));
+    expect(out.zones[0]?.end).toBe(toEpochSeconds(last.t));
   });
 });

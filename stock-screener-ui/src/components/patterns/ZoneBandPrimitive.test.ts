@@ -1,12 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { POSITIVE } from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
-import {
-  ZONE_BORDER_ALPHA,
-  ZONE_BORDER_DASH,
-  ZONE_FILL_ALPHA,
-  ZoneBandPrimitive,
-} from "./ZoneBandPrimitive";
+import { ZONE_BORDER_ALPHA, ZONE_FILL_ALPHA, ZoneBandPrimitive } from "./ZoneBandPrimitive";
 import type { TVRect } from "./patternTVData";
 
 interface FillCall {
@@ -99,7 +94,7 @@ function draw(primitive: ZoneBandPrimitive, target: unknown): void {
 }
 
 describe("ZoneBandPrimitive", () => {
-  it("draws a band in the background with the fill/border alpha and dash", () => {
+  it("draws a band in the background with the fill/border alpha and a solid border", () => {
     const primitive = new ZoneBandPrimitive([zone()]);
     const { times, prices } = attach(primitive);
     times.set(100, 50);
@@ -126,7 +121,8 @@ describe("ZoneBandPrimitive", () => {
       },
     ]);
     expect(state.lineWidth).toBe(1);
-    expect(ctx.setLineDash).toHaveBeenCalledWith([...ZONE_BORDER_DASH]);
+    expect(ctx.setLineDash).toHaveBeenCalledWith([]);
+    expect(ctx.setLineDash).not.toHaveBeenCalledWith([3, 3]);
     expect(ctx.restore).toHaveBeenCalledTimes(1);
   });
 
