@@ -79,10 +79,27 @@ def _load_instruments():
 
     try:
         db = SessionLocal()
-        instruments = db.query(Instrument).filter(
-            Instrument.segment == 'NSE_EQ'
-        ).all()
-        _instruments_cache = [i.to_dict() for i in instruments]
+        # Only search_symbols consumes this cache; it reads these four keys.
+        # Projecting them keeps the cold-start load off the wide instrument row.
+        instruments = (
+            db.query(
+                Instrument.trading_symbol,
+                Instrument.name,
+                Instrument.isin,
+                Instrument.segment,
+            )
+            .filter(Instrument.segment == 'NSE_EQ')
+            .all()
+        )
+        _instruments_cache = [
+            {
+                "trading_symbol": symbol,
+                "name": name,
+                "isin": isin,
+                "segment": segment,
+            }
+            for symbol, name, isin, segment in instruments
+        ]
         _instruments_loaded = True
         db.close()
         if _instruments_cache:

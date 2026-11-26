@@ -1,4 +1,9 @@
 """Tests for GET /api/reports/profitability (synthetic frames, mocked universe/candles)."""
+import json
+import pickle
+import time
+from datetime import date
+
 import pandas as pd
 import pytest
 from fastapi import FastAPI
@@ -191,6 +196,56 @@ def test_compute_report_formats_dates_only_for_signal_bars(monkeypatch):
     labels = {f"2026-09-{i + 1:02d}" for i in range(120)}
     assert payload["top_signals"]
     assert all(sig["entry_date"] in labels for sig in payload["top_signals"])
+
+
+def test_compute_report_uses_lagging_daily_cache_without_fetch(monkeypatch, tmp_path):
+    """Profitability tolerates a two-session-lag 1D cache when charts would not.
+
+    The cold path used to reject the frame and fan out 60 live Upstox fetches;
+    this synthetic cache hit must feed the report with zero feed calls.
+    """
+    import chart_patterns.candles as candles
+    import chart_patterns.universes as univ
+    import market_data.market_data as md
+
+    frame = _trend(120)
+    assert {"open", "high", "low", "close", "volume"} <= set(frame.columns)
+    monkeypatch.setattr(candles, "CACHE_DIR", tmp_path)
+    path = candles._cache_path("1D", "AAA")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as f:
+        pickle.dump(frame, f)
+    # Fri 2026-10-02 against last completed Tue 2026-10-06 = two sessions.
+    with open(path.with_suffix(".meta"), "w") as f:
+        json.dump({"ts": time.time(), "session": "2026-10-02"}, f)
+
+    monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: False)
+    monkeypatch.setattr("trading.utils.is_trading_holiday", lambda d: False)
+    monkeypatch.setattr(
+        candles, "_last_completed_session", lambda now=None: date(2026, 10, 6)
+    )
+    fetch_calls: list = []
+
+    def _no_fetch(*args, **kwargs):
+        fetch_calls.append((args, kwargs))
+        return None
+
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe", _no_fetch)
+    monkeypatch.setattr(univ, "get_universe", lambda u: ["AAA"])
+    monkeypatch.setattr(pb, "EXPERIMENT_FILES", [])
+    pb.clear_cache()
+
+    payload = pb.compute_report(4, "nifty500")
+
+    assert fetch_calls == []
+    assert sum(row["trades"] for row in payload["strategies"]) > 0
+    for row in payload["strategies"]:
+        assert {
+            "id", "label", "trades", "win_rate", "net_pnl", "expectancy",
+            "profit_factor", "max_dd", "avg_hold_days",
+        } <= set(row)
+    for sig in payload["top_signals"]:
+        assert {"symbol", "strategy", "entry_date", "entry", "exit", "net"} <= set(sig)
 
 
 def test_ema_cross_series_matches_pandas_adjust_false():

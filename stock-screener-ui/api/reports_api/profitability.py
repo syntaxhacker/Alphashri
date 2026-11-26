@@ -53,6 +53,11 @@ STRATEGIES: dict[str, dict[str, Any]] = {
 TRADE_NOTIONAL = 100_000.0
 MAX_SYMBOLS = 60
 MAX_WORKERS = 8
+#: The report reads a fixed ``weeks * 5`` daily window and never touches today's
+#: tape, so it may use a daily cache that lags by up to one trading week while
+#: waiting on the upstream feed. Bounded: a frame older than that is genuinely
+#: stale and must be refetched. Charts and replay keep the candles default (1).
+ANALYTICAL_MAX_LAG_SESSIONS = 5
 CACHE_TTL_SECONDS = 600
 WEEKS_DEFAULT = 4
 WEEKS_MAX = 12
@@ -381,7 +386,7 @@ def _scan_symbol(symbol: str, window_bars: int) -> list[dict]:
         from chart_patterns.candles import fetch_for_timeframe
 
         sym = str(symbol).upper()
-        df = fetch_for_timeframe(sym, "1D")
+        df = fetch_for_timeframe(sym, "1D", max_lag_sessions=ANALYTICAL_MAX_LAG_SESSIONS)
         lists = _frame_to_lists(df)
         if lists is None:
             return []

@@ -334,6 +334,7 @@ def auth_headers(client: TestClient, db: Session, test_password: str) -> dict:
     to access protected endpoints.
     """
     import random
+    from unittest.mock import patch
     unique_id = random.randint(10000, 99999)
     user_data = {
         "email": f"authtest{unique_id}@example.com",
@@ -341,12 +342,13 @@ def auth_headers(client: TestClient, db: Session, test_password: str) -> dict:
         "display_name": f"Auth Test User {unique_id}"
     }
 
-    client.post("/api/auth/register", json=user_data)
+    with patch("api.auth.hash_password", side_effect=lambda p: _fixture_hash(p)):
+        client.post("/api/auth/register", json=user_data)
 
-    response = client.post("/api/auth/login", json={
-        "email": user_data["email"],
-        "password": user_data["password"]
-    })
+        response = client.post("/api/auth/login", json={
+            "email": user_data["email"],
+            "password": user_data["password"]
+        })
     data = response.json()
     token = data["access_token"]
     return {"Authorization": f"Bearer {token}"}

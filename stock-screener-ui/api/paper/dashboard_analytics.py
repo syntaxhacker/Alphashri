@@ -46,6 +46,8 @@ def _period_bounds(preset: str, from_date: Optional[str], to_date: Optional[str]
     if preset_key == "YTD":
         return end.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0), end
     if preset_key == "ALL":
+        # ALL is intentionally unbounded below: it is the only way to see a
+        # bot's entire history. The trade read stays narrow via a projection.
         return None, end
     return end - timedelta(days=30), end
 
@@ -124,15 +126,16 @@ def _summary_for_trades(trades: list) -> dict:
     }
 
 
-def _trade_item(t) -> dict:
+def _trade_item(t, bot_lookup: dict) -> dict:
     hold = None
     if t.entry_time and t.exit_time:
         hold = int((t.exit_time - t.entry_time).total_seconds() / 60)
+    bot = bot_lookup.get(t.bot_id)
     return {
         "trade_id": f"TRADE-{t.id:06d}",
         "symbol": t.symbol,
-        "bot_id": str(t.bot.uuid) if t.bot else None,
-        "bot_name": t.bot.name if t.bot else "Default",
+        "bot_id": str(bot.uuid) if bot else None,
+        "bot_name": bot.name if bot else "Default",
         "strategy_id": t.strategy_id,
         "strategy_name": t.strategy_name or "",
         "side": t.side,
@@ -158,7 +161,24 @@ def get_dashboard_analytics(
     start, end = _period_bounds(preset, from_date, to_date)
 
     with SessionLocal() as db:
-        query = db.query(TradeModel).filter(
+        # Aggregate every ranking/curve from one narrow row shape. Bot names
+        # come from the user-scoped `bot_lookup` below, so no `t.bot` lazy load
+        # (and no full-row fetch) is needed per trade.
+        query = db.query(
+            TradeModel.id,
+            TradeModel.bot_id,
+            TradeModel.strategy_id,
+            TradeModel.strategy_name,
+            TradeModel.symbol,
+            TradeModel.side,
+            TradeModel.entry_time,
+            TradeModel.exit_time,
+            TradeModel.pnl,
+            TradeModel.pnl_pct,
+            TradeModel.costs,
+            TradeModel.net_pnl,
+            TradeModel.exit_reason,
+        ).filter(
             TradeModel.user_id == user_id,
             TradeModel.is_test == False,
             TradeModel.exit_time.isnot(None),
@@ -206,7 +226,8 @@ def get_dashboard_analytics(
         by_symbol: dict[str, list] = defaultdict(list)
         exit_reasons: dict[str, int] = defaultdict(int)
         for t in trades:
-            bot_key = str(t.bot.uuid) if t.bot else "default"
+            bot = bot_lookup.get(t.bot_id)
+            bot_key = str(bot.uuid) if bot else "default"
             by_bot[bot_key].append(t)
             by_strategy[(bot_key, t.strategy_id or 0, t.strategy_name or "Unknown")].append(t)
             by_symbol[t.symbol].append(t)
@@ -279,8 +300,8 @@ def get_dashboard_analytics(
             "daily_pnl": sorted(daily.values(), key=lambda p: p["date"]),
             "equity_curve": equity_curve,
             "drawdown": drawdown,
-            "biggest_winners": [_trade_item(t) for t in winners if float(t.net_pnl or 0) > 0],
-            "biggest_losers": [_trade_item(t) for t in losers if float(t.net_pnl or 0) < 0],
+            "biggest_winners": [_trade_item(t, bot_lookup) for t in winners if float(t.net_pnl or 0) > 0],
+            "biggest_losers": [_trade_item(t, bot_lookup) for t in losers if float(t.net_pnl or 0) < 0],
             "symbol_performance": symbol_performance[:20],
             "exit_reasons": [
                 {"reason": reason, "count": count, "pct": round(count / total_exits * 100, 2)}
