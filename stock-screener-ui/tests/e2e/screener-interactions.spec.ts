@@ -42,7 +42,8 @@ test.describe("Screener - Interactions", () => {
     await firstRow.locator("td").nth(2).click();
 
     await expect(page.getByTestId("symbol-dock")).toBeVisible({ timeout: 15000 });
-    await expect(page).toHaveURL(/\/\?tab=screener/);
+    await expect(page).toHaveURL(/\/screener\//);
+    await expect(page).not.toHaveURL(/\/chart\//);
   });
 
   test("should display side panel with screener info", async ({ page }) => {

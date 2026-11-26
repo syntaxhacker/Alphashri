@@ -44,7 +44,8 @@ test.describe("Screener - Data Display", () => {
     // leaving the screener.
     await firstSymbol.click();
     await expect(page.getByTestId("symbol-dock")).toBeVisible({ timeout: 15000 });
-    await expect(page).toHaveURL(/\/\?tab=screener/);
+    await expect(page).toHaveURL(/\/screener\//);
+    await expect(page).not.toHaveURL(/\/chart\//);
     await expect(page.locator('[data-testid="symbol-dock"][data-mode="options"]')).toHaveCount(0);
     expect(symbol.length).toBeGreaterThan(0);
   });
