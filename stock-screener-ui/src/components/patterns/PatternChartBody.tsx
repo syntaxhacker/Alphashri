@@ -36,6 +36,7 @@ import { SymbolTvLink } from "./SymbolTvLink";
 import { FullscreenPatternList, fullscreenHitKey } from "./FullscreenPatternList";
 import { KeyPointLegend } from "./KeyPointLegend";
 import { PivotList } from "./PatternPivotList";
+import { SRZoneSummary } from "./SRZoneSummary";
 import { QualityBadge } from "./QualityBadge";
 import { StatusBadge } from "./StatusBadge";
 import { displayStatusForHit } from "./patternDisplayStatus";
@@ -624,6 +625,11 @@ function FullscreenTV(props: {
     }
     return next;
   });
+  // Same filter the chart applies to `data().zones`, so the text summary never
+  // announces a band that is hidden by a legend toggle or indicator pref.
+  const visibleZones = createMemo(() =>
+    data().zones.filter((zone) => !canvasHidden().has(zone.legendName)),
+  );
 
   // DOM chip rail: the lightweight-charts end tags are drawn on canvas and can
   // collide/clip, so active lines also get a stable text label inside the strip.
@@ -712,6 +718,7 @@ function FullscreenTV(props: {
           compact={compactMenu()}
         />
       </Box>
+      <SRZoneSummary zones={visibleZones()} market={props.market} />
       <Box className="flex min-h-0 flex-1">
         <PatternTradingViewChart
           hit={props.hit}
