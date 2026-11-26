@@ -1,7 +1,7 @@
 {
   "feature": "sector-history",
   "route": "/sector?tab=history",
-  "head": "ed07912ce6a7d67a781652e449b6b5768b2c5e49",
+  "head": "7129412bbb0a3a85815563147f291bb46dcab06a",
   "viewports": [
     1600,
     390
