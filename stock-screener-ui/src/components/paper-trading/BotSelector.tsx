@@ -1,5 +1,5 @@
 import { createSignal, createMemo, Show } from "solid-js";
-import { ToolbarRow, Select, Button, Tooltip, Text } from "@/ui";
+import { Box, ToolbarRow, Select, Button, Tooltip, Text, useMediaQuery } from "@/ui";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@/components/common/Icons";
 import type { BotSummary } from "../../types/paperTrading";
 import { isMarketOpenNow, subscribeToHolidays, getHolidayState } from "../../state/holidays";
@@ -20,6 +20,7 @@ function getBotLabel(bot: BotSummary): string {
 }
 
 export function BotSelector(props: BotSelectorProps) {
+  const narrow = useMediaQuery("(max-width: 599px)");
   const holidaySnap = useStoreSnapshot(subscribeToHolidays, getHolidayState);
   const [refreshing, setRefreshing] = createSignal(false);
 
@@ -58,29 +59,37 @@ export function BotSelector(props: BotSelectorProps) {
 
   return (
     <Show when={props.bots.length > 0}>
-      <ToolbarRow gap={8} wrap={false} data-testid="bot-selector">
-        <Text size="sm" c="dimmed" fw={500}>
-          Bot:
-        </Text>
-        <Select
-          size="xs"
-          data={options()}
-          value={props.selectedBotId}
-          onChange={(val) => val && props.onSelectBot(val)}
-          w={280}
-          placeholder="Select bot"
-          data-testid="bot-select"
-        />
+      <ToolbarRow gap={narrow() ? 4 : 8} wrap={false} data-testid="bot-selector" className={narrow() ? "w-full min-w-0" : undefined}>
+        <Box class={narrow() ? "hidden" : undefined}>
+          <Text size="sm" c="dimmed" fw={500}>
+            Bot:
+          </Text>
+        </Box>
+        <Box class={narrow() ? "min-w-0 flex-1" : undefined}>
+          <Select
+            size="xs"
+            data={options()}
+            value={props.selectedBotId}
+            onChange={(val) => val && props.onSelectBot(val)}
+            w={narrow() ? "100%" : 280}
+            placeholder="Select bot"
+            data-testid="bot-select"
+          />
+        </Box>
         <Tooltip label={running() ? "Running" : "Stopped"}>
           <div
             class="size-2 rounded-full shrink-0"
             data-testid="bot-status-dot"
+            role="img"
+            aria-label={running() ? "Bot running" : "Bot stopped"}
             style={{ background: dotBackground() }}
           />
         </Tooltip>
-        <Text size="xs" c="dimmed" data-testid="bot-status">
-          {running() ? "Running" : "Stopped"}
-        </Text>
+        <Box class={narrow() ? "hidden" : undefined}>
+          <Text size="xs" c="dimmed" data-testid="bot-status">
+            {running() ? "Running" : "Stopped"}
+          </Text>
+        </Box>
         <Tooltip label="Refresh">
           <Button
             size="xs"
@@ -90,8 +99,9 @@ export function BotSelector(props: BotSelectorProps) {
             loading={refreshing()}
             disabled={!props.selectedBotId}
             data-testid="refresh-btn"
+            aria-label="Refresh"
           >
-            Refresh
+            <Show when={!narrow()}>Refresh</Show>
           </Button>
         </Tooltip>
         <Show
@@ -116,8 +126,9 @@ export function BotSelector(props: BotSelectorProps) {
                       leftSection={<IconPlayerPlay size={14} />}
                       disabled
                       data-testid="start-bot-btn"
+                      aria-label="Start bot"
                     >
-                      Start
+                      <Show when={!narrow()}>Start</Show>
                     </Button>
                   }
                 >
@@ -128,8 +139,9 @@ export function BotSelector(props: BotSelectorProps) {
                     leftSection={<IconPlayerPlay size={14} />}
                     onClick={() => props.onToggleBot()}
                     data-testid="start-bot-btn"
+                    aria-label="Start bot"
                   >
-                    Start
+                    <Show when={!narrow()}>Start</Show>
                   </Button>
                 </Show>
               </span>
@@ -143,8 +155,9 @@ export function BotSelector(props: BotSelectorProps) {
             leftSection={<IconPlayerStop size={14} />}
             onClick={() => props.onToggleBot()}
             data-testid="stop-bot-btn"
+            aria-label="Stop bot"
           >
-            Stop
+            <Show when={!narrow()}>Stop</Show>
           </Button>
         </Show>
       </ToolbarRow>

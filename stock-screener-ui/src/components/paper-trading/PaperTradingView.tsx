@@ -1,6 +1,6 @@
 import { createSignal, createMemo, createEffect, onCleanup, onMount, Show, Match, Switch } from "solid-js";
 import { useStoreSnapshot } from "./storeSnapshot";
-import { Alert, ScrollArea, Stack, ToolbarRow, Card } from "@/ui";
+import { Alert, Box, ScrollArea, Stack, ToolbarRow, Card, useMediaQuery } from "@/ui";
 import {
   getPaperTradingState,
   subscribe,
@@ -289,35 +289,61 @@ function HeaderSection(props: {
   filters: ViewModel["filters"];
   handleBotSelect: (botId: string) => Promise<void>;
 }) {
-  return (
-    <ToolbarRow
-      id="paper-header"
-      data-testid="paper-header"
-      gap={8}
-      wrap={false}
-      clip
-      className="paper-header-section [flex:0_0_auto] mb-1 shrink-0"
-      style={{
-        "padding-left": "12px",
-        "padding-right": "12px",
-        "flex-shrink": 0,
-      }}
+  const narrow = useMediaQuery("(max-width: 599px)");
+
+  const filters = () => (
+    <div
+      id="paper-filters-wrap"
+      data-testid="paper-filters"
+      class={narrow() ? "flex w-full min-w-0 items-center" : "ml-auto flex items-center"}
     >
-      <PaperTradingTabs state={props.state} onViewChange={props.actions.handleViewChange} />
-      <div
-        id="paper-filters-wrap"
-        data-testid="paper-filters"
-        class="ml-auto flex items-center"
+      <FiltersBar
+        activeBotId={props.activeBotId}
+        bots={props.botSummaries}
+        state={props.state}
+        actions={{ ...props.actions, handleBotSelect: props.handleBotSelect }}
+        filters={props.filters}
+      />
+    </div>
+  );
+
+  return (
+    <Show
+      when={narrow()}
+      fallback={
+        <ToolbarRow
+          id="paper-header"
+          data-testid="paper-header"
+          gap={8}
+          wrap={false}
+          clip
+          className="paper-header-section [flex:0_0_auto] mb-1 shrink-0"
+          style={{
+            "padding-left": "12px",
+            "padding-right": "12px",
+            "flex-shrink": 0,
+          }}
+        >
+          <PaperTradingTabs state={props.state} onViewChange={props.actions.handleViewChange} />
+          {filters()}
+        </ToolbarRow>
+      }
+    >
+      {/* Tabs own the first row; controls own the second. A single clipped
+          row put the bot select on top of the active tab at 390px. */}
+      <Box
+        id="paper-header"
+        data-testid="paper-header"
+        class="paper-header-section [flex:0_0_auto] mb-1 flex shrink-0 flex-col gap-1 px-3"
       >
-        <FiltersBar
-          activeBotId={props.activeBotId}
-          bots={props.botSummaries}
-          state={props.state}
-          actions={{ ...props.actions, handleBotSelect: props.handleBotSelect }}
-          filters={props.filters}
-        />
-      </div>
-    </ToolbarRow>
+        <Box class="paper-header-tabs-row w-full min-w-0 overflow-x-auto">
+          <PaperTradingTabs state={props.state} onViewChange={props.actions.handleViewChange} />
+        </Box>
+        <Box class="paper-header-controls-row flex w-full min-w-0 items-center overflow-x-auto">
+          {filters()}
+        </Box>
+      </Box>
+    </Show>
   );
 }
 

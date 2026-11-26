@@ -1,6 +1,6 @@
 import { createSignal, createMemo, Show } from "solid-js";
 import { alpha } from "@/ui/alpha";
-import { ActionIcon, Badge, Checkbox, MultiSelect, ScrollArea, SegmentedControl, Text, TextInput, ToolbarRow, Tooltip, Group, Stack } from "@/ui";
+import { ActionIcon, Badge, Box, Checkbox, MultiSelect, ScrollArea, SegmentedControl, Text, TextInput, ToolbarRow, Tooltip, Group, Stack, useMediaQuery } from "@/ui";
 import type { TableColumnDef } from "./TanStackTable";
 import { IconRefresh, IconSparkles } from "@/components/common/Icons";
 import { TanStackTable } from "./TanStackTable";
@@ -11,6 +11,7 @@ import { fetchPaperChart } from "../../api/paperTrading";
 import { formatTimeAgo } from "../../utils/ui-helpers";
 import type { PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
 import { nearBreakoutPct } from "./PositionsHelpers";
+import { WatchlistNarrowCards } from "./WatchlistNarrowCards";
 import * as palette from "@/ui/palette";
 interface WatchlistScan2Props {
   snapshot: PaperBotSnapshot | null;
@@ -46,6 +47,7 @@ interface ScanRow extends PaperScanItem {
 }
 
 export function WatchlistScan2(props: WatchlistScan2Props) {
+  const narrow = useMediaQuery("(max-width: 599px)");
   const [statusFilter, setStatusFilter] = createSignal<"all" | "signal" | "watching" | "rejected">("all");
   const [strategyFilter, setStrategyFilter] = createSignal<string[]>([]);
   const [symbolQuery, setSymbolQuery] = createSignal("");
@@ -321,33 +323,46 @@ export function WatchlistScan2(props: WatchlistScan2Props) {
           />
         </ToolbarRow>
 
-        <ScrollArea className="flex-1" style={{ flex: 1 }}>
-          <TanStackTable<ScanRow>
-            data={visibleItems()}
-            columns={columns()}
-            dataTestId="watchlist-scan-table"
-            enableSorting={false}
-            emptyMessage={emptyMessage()}
-            onRowClick={(row) => handleSelectSymbol(row)}
-            getRowStyle={(row) => {
-              const isSelected = row.symbol === props.selectedSymbol;
-              const isNew = isNewSignal(row, props.snapshot?.timestamp ?? null);
-              return {
-                cursor: "pointer",
-                backgroundColor: isSelected
-                  ? alpha(palette.PRIMARY, 0.08)
-                  : isNew
-                    ? alpha(palette.POSITIVE, 0.08)
-                    : undefined,
-                borderLeftWidth: "3px",
-                borderLeftStyle: "solid",
-                borderLeftColor: STATUS_BORDER_COLOR[row.status] ?? STATUS_BORDER_COLOR.skipped,
-              };
-            }}
-            getRowTestId={(row) => `scan-row-${row.symbol}`}
-            dense
-          />
-        </ScrollArea>
+        <Show
+          when={!narrow()}
+          fallback={
+            <Box class="min-h-0 min-w-0 flex-1 overflow-y-auto">
+              <WatchlistNarrowCards
+                items={visibleItems()}
+                selectedSymbol={props.selectedSymbol}
+                onSelect={handleSelectSymbol}
+              />
+            </Box>
+          }
+        >
+          <ScrollArea className="flex-1" style={{ flex: 1 }}>
+            <TanStackTable<ScanRow>
+              data={visibleItems()}
+              columns={columns()}
+              dataTestId="watchlist-scan-table"
+              enableSorting={false}
+              emptyMessage={emptyMessage()}
+              onRowClick={(row) => handleSelectSymbol(row)}
+              getRowStyle={(row) => {
+                const isSelected = row.symbol === props.selectedSymbol;
+                const isNew = isNewSignal(row, props.snapshot?.timestamp ?? null);
+                return {
+                  cursor: "pointer",
+                  backgroundColor: isSelected
+                    ? alpha(palette.PRIMARY, 0.08)
+                    : isNew
+                      ? alpha(palette.POSITIVE, 0.08)
+                      : undefined,
+                  borderLeftWidth: "3px",
+                  borderLeftStyle: "solid",
+                  borderLeftColor: STATUS_BORDER_COLOR[row.status] ?? STATUS_BORDER_COLOR.skipped,
+                };
+              }}
+              getRowTestId={(row) => `scan-row-${row.symbol}`}
+              dense
+            />
+          </ScrollArea>
+        </Show>
 
         <Group justify="space-between" className="px-2 py-1">
           <Group gap="xs" className="gap-1">

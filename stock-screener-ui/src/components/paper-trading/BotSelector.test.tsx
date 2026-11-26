@@ -100,6 +100,7 @@ afterEach(() => {
   holidayListeners.clear();
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("BotSelector", () => {
@@ -568,5 +569,53 @@ describe("BotSelector — session guard with fixed timestamps", () => {
     renderStopped();
     expect(screen.getByTestId("start-bot-btn")).not.toBeDisabled();
     delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+  });
+});
+
+describe("BotSelector at 390px", () => {
+  beforeEach(() => {
+    vi.stubGlobal("matchMedia", ((query: string) => ({
+      matches: /max-width:\s*599px/.test(query),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })) as unknown as typeof window.matchMedia);
+  });
+
+  const renderNarrow = (bots = [stoppedBot]) => render(() => (
+    <BotSelector
+      bots={bots}
+      selectedBotId={bots[0]?.id ?? null}
+      onSelectBot={vi.fn()}
+      onToggleBot={vi.fn()}
+      onRefresh={vi.fn()}
+    />
+  ));
+
+  test("keeps every testid while making controls compact", () => {
+    renderNarrow();
+    const selector = screen.getByTestId("bot-selector");
+    expect(selector).toHaveClass("w-full", "min-w-0");
+    for (const id of ["bot-select", "bot-status-dot", "bot-status", "refresh-btn", "start-bot-btn"]) {
+      expect(screen.getByTestId(id)).toBeInTheDocument();
+    }
+    expect(screen.getByTestId("refresh-btn")).toHaveAttribute("aria-label", "Refresh");
+    expect(screen.getByTestId("refresh-btn").textContent).toBe("");
+    expect(screen.getByTestId("start-bot-btn")).toHaveAttribute("aria-label", "Start bot");
+    expect(screen.getByTestId("start-bot-btn").textContent).toBe("");
+    expect(screen.getByTestId("bot-status-dot")).toHaveAttribute("aria-label", "Bot stopped");
+  });
+
+  test("uses a flexible select and an icon-only stop control when running", () => {
+    renderNarrow([runningBot]);
+    expect(screen.getByTestId("bot-select").parentElement).toHaveClass("min-w-0", "flex-1");
+    const stop = screen.getByTestId("stop-bot-btn");
+    expect(stop).toHaveAttribute("aria-label", "Stop bot");
+    expect(stop.textContent).toBe("");
+    expect(screen.queryByTestId("start-bot-btn")).toBeNull();
   });
 });
