@@ -282,10 +282,17 @@ const selectedLabel = (testId: string): string =>
 const openDataView = () => fireEvent.click(screen.getByTestId("agri-view-data"));
 
 const CHART_REGION_HEIGHTS = [
-  ["agri-chart-region", "240px"],
-  ["agri-rank-region", "200px"],
-  ["agri-season-region", "200px"],
-  ["agri-dispersion-region", "220px"],
+  ["agri-chart-region", "280px"],
+  ["agri-rank-region", "240px"],
+  ["agri-season-region", "280px"],
+  ["agri-dispersion-region", "260px"],
+] as const;
+
+const CHART_PANEL_HEIGHTS = [
+  ["agri-chart-panel", "360px"],
+  ["agri-rank-panel", "280px"],
+  ["agri-season-panel", "300px"],
+  ["agri-dispersion-panel", "300px"],
 ] as const;
 
 /** ECharts measures its container at mount; a flex-only parent can read 0px. */
@@ -372,6 +379,10 @@ describe("AgriPage initial load — visuals first", () => {
     for (const id of ["agri-chart", "agri-rank-chart", "agri-season-chart", "agri-dispersion-chart"]) {
       expect(screen.getByTestId(id), id).toBeInTheDocument();
     }
+    expect(screen.getByTestId("agri-chart-panel")).toHaveTextContent(
+      "How to read: bold = modal ₹/quintal",
+    );
+    expect(screen.getByTestId("agri-page").textContent?.match(/How to read/g) ?? []).toHaveLength(1);
     expect(screen.queryByTestId("agri-quotes-table")).not.toBeInTheDocument();
     expect(screen.queryByTestId("agri-table-panel")).not.toBeInTheDocument();
   });
@@ -603,7 +614,7 @@ describe("AgriPage chart modes", () => {
   it("keeps the band option for band and routes compare through the existing builder", async () => {
     renderPage();
     await settled();
-    expect(String((optionFor().title as { text: string }).text)).toContain("Onion");
+    expect(optionFor().title).toBeUndefined();
     expect(
       (optionFor().series as Array<{ endLabel?: { show?: boolean } }>)[0].endLabel?.show,
     ).toBe(true);
@@ -1130,7 +1141,9 @@ describe("AgriPage redesign grammar", () => {
     await settled();
 
     const option = optionFor();
-    expect(String((option.title as { subtext?: string }).subtext)).toContain("How to read");
+    expect(option.title).toBeUndefined();
+    expect(option.legend).toBeUndefined();
+    expect(screen.getByTestId("agri-chart-panel")).toHaveTextContent("How to read:");
     expect(((option.series as Array<{ endLabel?: { show?: boolean } }>)[0].endLabel)?.show).toBe(true);
     const markLine = (option.series as Array<{ markLine?: { data: Array<{ label: { formatter: string } }> } }>)[0].markLine;
     expect(markLine?.data[0].label.formatter).toContain("as of");
@@ -1143,8 +1156,14 @@ describe("AgriPage redesign grammar", () => {
     await settled();
 
     const option = optionFor("agri-rank-chart");
+    expect(option.title).toBeUndefined();
+    expect(option.legend).toBeUndefined();
     const axis = (option.yAxis as Array<{ inverse?: boolean }>)[0];
     expect(axis.inverse).toBe(true);
+    const xAxis = (option.xAxis as Array<{ data: string[]; axisLabel: { interval: number } }>)[0];
+    expect(xAxis.data.length).toBeLessThanOrEqual(24);
+    const visibleTicks = Math.floor((xAxis.data.length - 1) / (xAxis.axisLabel.interval + 1)) + 1;
+    expect(visibleTicks).toBeLessThanOrEqual(4);
     expect((option.series as unknown[]).length).toBeGreaterThanOrEqual(2);
     for (const series of option.series as Array<{ endLabel?: { show?: boolean } }>) {
       expect(series.endLabel?.show).toBe(true);
@@ -1156,10 +1175,15 @@ describe("AgriPage redesign grammar", () => {
     await settled();
 
     const option = optionFor("agri-season-chart");
-    const visualMap = (option.visualMap as Array<{ inRange: { color: string[] } }>)[0];
+    expect(option.title).toBeUndefined();
+    expect(option.legend).toBeUndefined();
+    const visualMap = (option.visualMap as Array<{ inRange: { color: string[] }; splitNumber: number }>)[0];
     expect(visualMap.inRange.color).toEqual([...AGRI_SEASON_STOPS]);
+    expect(visualMap.splitNumber).toBeLessThanOrEqual(3);
+    const xAxis = (option.xAxis as Array<{ data: string[]; axisLabel: { width: number } }>)[0];
+    expect(xAxis.data).toHaveLength(12);
+    expect(xAxis.axisLabel.width).toBeLessThanOrEqual(28);
     expect(((option.series as Array<{ label?: { show?: boolean } }>)[0].label)?.show).toBe(true);
-    expect(String((option.title as { subtext?: string }).subtext)).toContain("above");
     expect(screen.getByTestId("agri-season-panel")).toHaveTextContent("n≥");
   });
 
@@ -1168,13 +1192,20 @@ describe("AgriPage redesign grammar", () => {
     await settled();
 
     const option = optionFor("agri-dispersion-chart");
+    expect(option.title).toBeUndefined();
+    expect(option.legend).toBeUndefined();
     expect((option.series as Array<{ name: string }>).map((series) => series.name)).toEqual([
       "Floor",
       "Min–max",
       "Modal",
       "Outlier",
     ]);
-    expect((option.yAxis as Array<{ data: string[] }>)[0].data).toEqual(["Kolar", "Lasalgaon"]);
+    const xAxis = (option.xAxis as Array<{ splitNumber: number; axisLabel: { formatter: (v: number) => string } }>)[0];
+    expect(xAxis.splitNumber).toBeLessThanOrEqual(5);
+    expect(xAxis.axisLabel.formatter(2_300_000_000)).toMatch(/^₹[\d.]+Cr$/);
+    const markets = (option.yAxis as Array<{ data: string[] }>)[0].data;
+    expect(markets).toEqual(["Lasalgaon", "Kolar"]);
+    expect(markets.length).toBeLessThanOrEqual(8);
   });
 
   it("selects the hero from the universe grid by click, Enter and Space", async () => {
@@ -1202,6 +1233,9 @@ describe("AgriPage redesign grammar", () => {
     expect(screen.getByTestId("agri-toolbar")).toHaveClass("sticky", "shrink-0");
     expect(screen.getByTestId("agri-page")).toHaveClass("overflow-hidden", "min-h-0");
     expect(screen.getByTestId("agri-body")).not.toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTestId("agri-overview-grid")).toHaveClass(
+      "grid-rows-[minmax(320px,1.1fr)_minmax(280px,1fr)]",
+    );
     expectChartRegionsSized();
   });
 });
@@ -1252,10 +1286,13 @@ describe("AgriPage layout", () => {
     expect(screen.getByTestId("agri-overview-grid")).toHaveClass("flex", "flex-col");
     expect(screen.getByTestId("agri-overview-grid")).not.toHaveClass("grid");
     expect(screen.getByTestId("agri-body")).toHaveClass("overflow-y-auto");
-    expect(screen.getByTestId("agri-chart-region")).toHaveClass("min-h-[240px]");
-    expect(screen.getByTestId("agri-rank-region")).toHaveClass("min-h-[200px]");
-    expect(screen.getByTestId("agri-season-region")).toHaveClass("min-h-[200px]");
-    expect(screen.getByTestId("agri-dispersion-region")).toHaveClass("min-h-[220px]");
+    expect(screen.getByTestId("agri-chart-region")).toHaveClass("min-h-[280px]");
+    expect(screen.getByTestId("agri-rank-region")).toHaveClass("min-h-[240px]");
+    expect(screen.getByTestId("agri-season-region")).toHaveClass("min-h-[280px]");
+    expect(screen.getByTestId("agri-dispersion-region")).toHaveClass("min-h-[260px]");
+    for (const [id, height] of CHART_PANEL_HEIGHTS) {
+      expect(screen.getByTestId(id), id).toHaveStyle({ "min-height": height });
+    }
     expectChartRegionsSized();
     expect(screen.getByTestId("agri-page")).toHaveClass("overflow-hidden", "min-h-0");
     expect(screen.getByTestId("agri-refresh")).toBeInTheDocument();

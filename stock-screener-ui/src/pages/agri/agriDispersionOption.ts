@@ -4,6 +4,7 @@ import {
   asParams,
   baseOption,
   CHART_LAYOUT,
+  compactPriceTick,
   escapeHtml,
   field,
   formatAgriValue,
@@ -22,6 +23,8 @@ export interface AgriDispersionInput {
 
 const DEFAULT_UNIT = "₹/quintal";
 const STACK = "agri-mandi-range";
+/** A dense mandi list unreadably clips labels; the tooltip keeps every row. */
+const MAX_MARKETS = 8;
 
 /**
  * Sorted min–modal–max dot plot for the selected commodity's mandis. A pale
@@ -39,9 +42,16 @@ export function buildAgriDispersionOption(
   const t = themeTokens(input.isDark !== false);
   const unit = input.unit?.trim() || DEFAULT_UNIT;
   const compact = input.compact === true;
-  // ECharts draws category axis 0 at the bottom; reverse so the dearest
-  // mandi reads first at the top of the panel.
-  const rows = [...source].reverse();
+  // Keep the dearest mandis (including high outliers) and reverse for display:
+  // ECharts draws category axis 0 at the bottom.
+  const rows = [...source]
+    .sort((a, b) => {
+      const left = a.modal ?? Number.NEGATIVE_INFINITY;
+      const right = b.modal ?? Number.NEGATIVE_INFINITY;
+      return right === left ? 0 : right > left ? 1 : -1;
+    })
+    .slice(0, MAX_MARKETS)
+    .reverse();
   const labels = rows.map((row) => row.market);
   const floor = rows.map((row) => {
     const min = row.min ?? row.modal;
@@ -77,20 +87,15 @@ export function buildAgriDispersionOption(
   };
 
   return {
-    ...baseOption(
-      t,
-      `Mandi price spread · ${unit}`,
-      [],
-      tooltip,
-      "Dot = modal · bar = min–max · violet dot = outside 1.5×IQR",
-    ),
-    legend: { show: false },
+    ...baseOption(t, "", [], tooltip),
+    title: undefined,
+    legend: undefined,
     grid: [
       {
-        left: compact ? 92 : 120,
-        right: compact ? 44 : 72,
-        top: CHART_LAYOUT.gridTopWithSubtext,
-        bottom: CHART_LAYOUT.gridBottom,
+        left: compact ? 96 : 124,
+        right: compact ? 52 : 76,
+        top: 12,
+        bottom: CHART_LAYOUT.gridBottom - 28,
         containLabel: true,
       },
     ],
@@ -99,9 +104,14 @@ export function buildAgriDispersionOption(
         type: "value",
         min: Math.max(0, minPrice - pad),
         max: maxPrice + pad,
+        splitNumber: 4,
         axisLine: { show: false },
         axisTick: { show: false },
-        axisLabel: { color: t.muted, fontSize: typeSize("micro") },
+        axisLabel: {
+          color: t.muted,
+          fontSize: typeSize("micro"),
+          formatter: (value: number) => compactPriceTick(value),
+        },
         splitLine: { lineStyle: { color: t.split, type: "dashed" } },
       },
     ],
@@ -114,7 +124,7 @@ export function buildAgriDispersionOption(
         axisLabel: {
           color: t.muted,
           fontSize: typeSize("micro"),
-          width: compact ? 84 : 112,
+          width: compact ? 88 : 116,
           overflow: "truncate",
         },
         splitLine: { show: false },

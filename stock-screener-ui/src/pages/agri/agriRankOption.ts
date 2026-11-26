@@ -40,6 +40,10 @@ export function buildAgriRankOption(input: AgriRankInput | null | undefined): Op
   const selected = input.selected;
   const hasSelected = rows.some((row) => row.key === selected);
 
+  // Four or fewer visible month ticks on a small board; the rest stay in the
+  // tooltip so the direct-label rail never collides with axis text.
+  const tickStep = Math.max(0, Math.ceil(months.length / 4) - 1);
+
   const tooltip = (params: unknown): string => {
     const list = asParams(params);
     const index = list.find((param) => Number.isInteger(param.dataIndex))?.dataIndex ?? 0;
@@ -58,24 +62,29 @@ export function buildAgriRankOption(input: AgriRankInput | null | undefined): Op
   };
 
   return {
-    ...baseOption(
-      t,
-      "Monthly price rank · 1 = highest modal",
-      [],
-      tooltip,
-      "Each line is one commodity's rank inside months where it has a price; gaps are not last place",
-    ),
-    legend: { show: false },
+    ...baseOption(t, "", [], tooltip),
+    title: undefined,
+    legend: undefined,
     grid: [
       {
-        left: compact ? 28 : 40,
-        right: compact ? 64 : 92,
-        top: CHART_LAYOUT.gridTopWithSubtext,
-        bottom: CHART_LAYOUT.gridBottom,
+        left: compact ? 32 : 44,
+        right: compact ? 72 : 96,
+        top: 12,
+        bottom: CHART_LAYOUT.gridBottom - 24,
         containLabel: true,
       },
     ],
-    xAxis: [categoryAxis(months.map(monthLabel), t, 0, true)],
+    xAxis: [
+      {
+        ...categoryAxis(months.map(monthLabel), t, 0, true),
+        axisLabel: {
+          color: t.muted,
+          fontSize: typeSize("micro"),
+          interval: tickStep,
+          hideOverlap: true,
+        },
+      },
+    ],
     yAxis: [
       {
         type: "value",
@@ -117,6 +126,8 @@ export function buildAgriRankOption(input: AgriRankInput | null | undefined): Op
           fontSize: typeSize("micro"),
           fontWeight: isSelected ? 700 : 400,
           distance: 6,
+          overflow: "truncate",
+          width: compact ? 64 : 88,
         },
       };
     }),

@@ -5,7 +5,6 @@ import {
   asParams,
   baseOption,
   categoryAxis,
-  CHART_LAYOUT,
   field,
   formatAgriValue,
   themeTokens,
@@ -33,10 +32,11 @@ function stopFor(pct: number): string {
   return AGRI_SEASON_STOPS[low === high ? low : high];
 }
 
+/** Compact in-cell ink; the unit lives in the panel header and tooltip. */
 function labelFor(pct: number): string {
   const rounded = Math.round(pct);
-  if (rounded === 0) return "0%";
-  return `${rounded > 0 ? "+" : ""}${rounded}%`;
+  if (rounded === 0) return "0";
+  return `${rounded > 0 ? "+" : ""}${rounded}`;
 }
 
 /**
@@ -73,12 +73,6 @@ export function buildAgriSeasonalityOption(
   });
   if (data.length === 0) return {};
 
-  const first = rows[0];
-  const annotation =
-    first.hitRate != null
-      ? `${Math.round(first.hitRate * 100)}% of ${first.label}'s months above its own average · n ≥ ${first.minYears ?? "—"} year${first.minYears === 1 ? "" : "s"}`
-      : "Deviation from each commodity's own observed-month average";
-
   const tooltip = (params: unknown): string => {
     const param = asParams(params)[0];
     const value = Array.isArray(param?.value) ? param.value : [];
@@ -90,33 +84,42 @@ export function buildAgriSeasonalityOption(
     if (!row || !cell) return "";
     return tooltipShell(`${row.label} · ${MONTHS[month - 1] ?? month}`, [
       field("Modal", formatAgriValue(cell.avg, unit)),
-      field("vs own average", labelFor(cell.pct)),
+      field("vs own average", `${labelFor(cell.pct)}%`),
       field("Observations", String(cell.count)),
       field("Distinct years", String(cell.years)),
     ]);
   };
 
   return {
-    ...baseOption(
-      t,
-      `Seasonality · deviation from own average · ${unit}`,
-      [],
-      tooltip,
-      `${annotation} · blue below / amber above`,
-    ),
-    legend: { show: false },
+    ...baseOption(t, "", [], tooltip),
+    title: undefined,
+    legend: undefined,
     grid: [
       {
-        left: compact ? 56 : 88,
+        left: compact ? 60 : 88,
         right: compact ? 8 : 16,
-        top: CHART_LAYOUT.gridTopWithSubtext,
-        bottom: CHART_LAYOUT.gridBottomHeatmap,
+        top: 8,
+        bottom: 52,
         containLabel: true,
       },
     ],
     // ECharts heatmap requires category axes with boundaryGap on both sides;
     // categoryAxis() defaults grid 0 to false for line series.
-    xAxis: [{ ...categoryAxis(MONTHS, t, 0, true), boundaryGap: true }],
+    xAxis: [
+      {
+        ...categoryAxis(MONTHS, t, 0, true),
+        boundaryGap: true,
+        // Three-letter months, wrapped rather than overlapping in narrow cells.
+        axisLabel: {
+          color: t.muted,
+          fontSize: typeSize("micro"),
+          interval: 0,
+          width: compact ? 20 : 28,
+          overflow: "break",
+          lineHeight: 12,
+        },
+      },
+    ],
     yAxis: [
       {
         type: "category",
@@ -136,10 +139,13 @@ export function buildAgriSeasonalityOption(
         calculable: false,
         orient: "horizontal",
         left: "center",
-        bottom: 4,
-        itemWidth: compact ? 56 : 90,
+        bottom: 2,
+        splitNumber: 3,
+        precision: 0,
+        itemWidth: compact ? 48 : 72,
         itemHeight: 8,
-        text: ["above", "below"],
+        textGap: 4,
+        text: ["+", "−"],
         textStyle: { color: t.muted, fontSize: typeSize("micro") },
         inRange: { color: [...AGRI_SEASON_STOPS] },
       },
@@ -158,6 +164,7 @@ export function buildAgriSeasonalityOption(
             return typeof value === "number" ? labelFor(value) : "";
           },
         },
+        labelLayout: { hideOverlap: true },
         itemStyle: { borderColor: BORDER, borderWidth: 1 },
         emphasis: { itemStyle: { borderColor: t.text, borderWidth: 2 } },
       },

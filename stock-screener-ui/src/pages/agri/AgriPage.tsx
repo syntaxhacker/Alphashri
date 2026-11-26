@@ -1440,7 +1440,7 @@ export function AgriPage() {
               className={
                 isMobile()
                   ? "flex min-h-0 flex-1 flex-col gap-2"
-                  : "grid min-h-0 flex-1 grid-cols-12 grid-rows-2 gap-2"
+                  : "grid min-h-0 flex-1 grid-cols-12 grid-rows-[minmax(320px,1.1fr)_minmax(280px,1fr)] gap-2"
               }
             >
               <CompactPanel
@@ -1448,8 +1448,8 @@ export function AgriPage() {
                 className="col-span-12 flex min-h-0 flex-col lg:col-span-8"
                 scrollable
                 style={{
-                  flex: isMobile() ? "0 0 320px" : "1 1 0%",
-                  "min-height": isMobile() ? "320px" : "0px",
+                  flex: isMobile() ? "0 0 360px" : "1 1 0%",
+                  "min-height": isMobile() ? "360px" : "0px",
                 }}
                 title={`Price focus — ${commodityLabel(commodity(), commodity())}`}
                 description={
@@ -1601,8 +1601,8 @@ export function AgriPage() {
                   }
                 >
                   <Box
-                    className="flex min-h-[240px] flex-1"
-                    style={{ "min-height": "240px", flex: "1 1 0%" }}
+                    className="flex min-h-[280px] flex-1"
+                    style={{ "min-height": "280px", flex: "1 1 0%" }}
                     data-testid="agri-chart-region"
                   >
                     <EChart
@@ -1649,8 +1649,8 @@ export function AgriPage() {
               className="col-span-12 flex min-h-0 flex-col md:col-span-6 lg:col-span-4"
               scrollable
               style={{
-                flex: isMobile() ? "0 0 240px" : "1 1 0%",
-                "min-height": isMobile() ? "240px" : "0px",
+                flex: isMobile() ? "0 0 280px" : "1 1 0%",
+                "min-height": isMobile() ? "280px" : "0px",
               }}
               title="Rank movement · monthly"
               description="1 = highest modal among commodities priced that month · gaps are not last place"
@@ -1667,8 +1667,8 @@ export function AgriPage() {
                 }
               >
                 <Box
-                  className="flex min-h-[200px] flex-1"
-                  style={{ "min-height": "200px", flex: "1 1 0%" }}
+                  className="flex min-h-[240px] flex-1"
+                  style={{ "min-height": "240px", flex: "1 1 0%" }}
                   data-testid="agri-rank-region"
                 >
                   <EChart option={rankOption()} data-testid="agri-rank-chart" />
@@ -1681,8 +1681,8 @@ export function AgriPage() {
               className="col-span-12 flex min-h-0 flex-col md:col-span-6 lg:col-span-4"
               scrollable
               style={{
-                flex: isMobile() ? "0 0 240px" : "1 1 0%",
-                "min-height": isMobile() ? "240px" : "0px",
+                flex: isMobile() ? "0 0 300px" : "1 1 0%",
+                "min-height": isMobile() ? "300px" : "0px",
               }}
               title="Seasonality · commodity × month"
               description={
@@ -1709,8 +1709,8 @@ export function AgriPage() {
                 }
               >
                 <Box
-                  className="flex min-h-[200px] flex-1"
-                  style={{ "min-height": "200px", flex: "1 1 0%" }}
+                  className="flex min-h-[280px] flex-1"
+                  style={{ "min-height": "280px", flex: "1 1 0%" }}
                   data-testid="agri-season-region"
                 >
                   <EChart option={seasonOption()} data-testid="agri-season-chart" />
@@ -1723,11 +1723,11 @@ export function AgriPage() {
               className="col-span-12 flex min-h-0 flex-col md:col-span-6 lg:col-span-4"
               scrollable
               style={{
-                flex: isMobile() ? "0 0 240px" : "1 1 0%",
-                "min-height": isMobile() ? "240px" : "0px",
+                flex: isMobile() ? "0 0 300px" : "1 1 0%",
+                "min-height": isMobile() ? "300px" : "0px",
               }}
               title="Mandi dispersion"
-              description="Dot = modal ₹/quintal · bar = min–max · violet = outside 1.5×IQR"
+              description="Top 8 mandis · dot = modal ₹/quintal · bar = min–max · violet = outside 1.5×IQR"
             >
               <Show
                 when={Object.keys(dispersionOption()).length > 0}
@@ -1741,8 +1741,8 @@ export function AgriPage() {
                 }
               >
                 <Box
-                  className="flex min-h-[220px] flex-1"
-                  style={{ "min-height": "220px", flex: "1 1 0%" }}
+                  className="flex min-h-[260px] flex-1"
+                  style={{ "min-height": "260px", flex: "1 1 0%" }}
                   data-testid="agri-dispersion-region"
                 >
                   <EChart option={dispersionOption()} data-testid="agri-dispersion-chart" />

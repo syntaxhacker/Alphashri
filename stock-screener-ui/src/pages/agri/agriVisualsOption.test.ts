@@ -56,8 +56,9 @@ describe("hero option", () => {
     expect(option.series[0].endLabel.formatter).toContain("120");
     expect((option.series[0].lineStyle as { color: string }).color).toBe(AGRI_ACCENT);
     expect(option.series[0].markLine.data[0].label.formatter).toContain("as of");
-    expect((option.title as { subtext: string }).subtext).toContain("How to read");
-    expect((option.title as { text: string }).text).toContain("as of 2026-11-17");
+    // The panel header owns the only title and the only "How to read" line.
+    expect(option.title).toBeUndefined();
+    expect(option.legend).toBeUndefined();
   });
 
   it("keeps the tooltip unit-aware and null-safe", () => {
@@ -87,7 +88,12 @@ describe("rank bump option", () => {
     expect(option.series).toHaveLength(2);
     expect(option.series.every((series: { endLabel: { show: boolean } }) => series.endLabel.show)).toBe(true);
     expect((option.series[0].lineStyle as { color: string }).color).toBe(AGRI_ACCENT);
-    expect((option.legend as { show: boolean }).show).toBe(false);
+    expect(option.title).toBeUndefined();
+    expect(option.legend).toBeUndefined();
+    const xAxis = option.xAxis[0];
+    const visibleTicks =
+      Math.floor((xAxis.data.length - 1) / (xAxis.axisLabel.interval + 1)) + 1;
+    expect(visibleTicks).toBeLessThanOrEqual(4);
   });
 
   it("needs at least two months and two commodities", () => {
@@ -110,7 +116,13 @@ describe("seasonality option", () => {
     expect(option.xAxis[0].boundaryGap).toBe(true);
     expect(option.yAxis[0].boundaryGap).toBe(true);
     expect((option.series[0].label as { show: boolean }).show).toBe(true);
-    expect((option.title as { subtext: string }).subtext).toContain("n ≥ 2");
+    expect(option.title).toBeUndefined();
+    expect(option.legend).toBeUndefined();
+    expect(option.visualMap[0].splitNumber).toBeLessThanOrEqual(3);
+    expect(option.xAxis[0].data).toHaveLength(12);
+    expect(option.xAxis[0].axisLabel.width).toBeLessThanOrEqual(28);
+    const formatter = (option.series[0].label as { formatter: (p: { value: number[] }) => string }).formatter;
+    expect(formatter({ value: [0, 0, 10.4] })).toBe("+10");
     const tooltip = option.tooltip.formatter as (params: unknown) => string;
     expect(tooltip([{ value: [0, 0, 10] }])).toContain("Observations");
   });
@@ -138,11 +150,36 @@ describe("dispersion option", () => {
       "Modal",
       "Outlier",
     ]);
-    expect(option.yAxis[0].data).toEqual(["E", "D", "C", "B", "A"]);
+    expect(option.yAxis[0].data).toEqual(["A", "B", "C", "D", "E"]);
+    expect(option.title).toBeUndefined();
+    expect(option.legend).toBeUndefined();
+    expect(option.xAxis[0].splitNumber).toBeLessThanOrEqual(5);
+    expect(option.xAxis[0].axisLabel.formatter(2_300_000_000)).toMatch(/^₹[\d.]+Cr$/);
     expect(option.series[3].data).toHaveLength(1);
     expect((option.xAxis[0] as { min: number }).min).toBeGreaterThanOrEqual(0);
     const tooltip = option.tooltip.formatter as (params: unknown) => string;
-    expect(tooltip([{ dataIndex: 0 }])).toContain("outlier");
+    expect(tooltip([{ dataIndex: 4 }])).toContain("outlier");
+  });
+
+  it("keeps only the top eight mandis on the plot", () => {
+    const many = Array.from({ length: 12 }, (_, index) => ({
+      date: "2026-11-17",
+      state: "MH",
+      district: "Nashik",
+      market: `M${index}`,
+      variety: "Onion",
+      grade: "A",
+      min: 90 + index * 10,
+      max: 110 + index * 10,
+      modal: 100 + index * 10,
+      arrivals_qtl: 10,
+    }));
+    const option = buildAgriDispersionOption({
+      rows: buildDispersionRows(many),
+      unit: "₹/quintal",
+      isDark: true,
+    }) as Record<string, any>;
+    expect(option.yAxis[0].data).toHaveLength(8);
   });
 
   it("returns {} without a modal price", () => {

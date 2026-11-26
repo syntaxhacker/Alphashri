@@ -90,10 +90,9 @@ export function buildAgriHeroOption(input: AgriHeroInput | null | undefined): Op
   const lastRow = lastIndex >= 0 ? rows[lastIndex] : null;
   const lastValue = lastRow ? finite(lastRow.modal) : null;
   const compact = input.compact === true;
+  // The panel header owns the title and the single "How to read" line; the
+  // canvas carries only data ink and the direct latest/as-of annotations.
   const title = input.title?.trim() || "Modal price";
-  const howToRead =
-    `How to read: bold = this commodity's modal (${unit}); thin = tracked commodities; ` +
-    `marker = latest observation`;
 
   const contextSeries = (Array.isArray(input.comparison) ? input.comparison : [])
     .filter((entry) => entry && typeof entry.key === "string" && Array.isArray(entry.points))
@@ -188,19 +187,15 @@ export function buildAgriHeroOption(input: AgriHeroInput | null | undefined): Op
   };
 
   return {
-    ...baseOption(
-      t,
-      `${title}${asOf ? ` · as of ${asOf}` : ""}`,
-      [title, ...contextSeries.map((entry) => entry.label)],
-      tooltip,
-      howToRead,
-    ),
+    ...baseOption(t, "", [], tooltip),
+    title: undefined,
+    legend: undefined,
     grid: [
       {
         left: compact ? 44 : 56,
         right: compact ? 76 : 104,
-        top: CHART_LAYOUT.gridTopWithSubtext,
-        bottom: CHART_LAYOUT.gridBottomWithZoom,
+        top: 12,
+        bottom: CHART_LAYOUT.gridBottomWithZoom - 24,
         containLabel: true,
       },
     ],

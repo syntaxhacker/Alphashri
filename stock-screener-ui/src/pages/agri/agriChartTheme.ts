@@ -102,6 +102,16 @@ export function compactAxisLabel(value: number): string {
   return NUMBER_FMT.format(value);
 }
 
+/** Rupee axis ticks: ₹2.3k / ₹6.0L / ₹2.3Cr, never raw crore-scale digits. */
+export function compactPriceTick(value: number): string {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (abs >= 1e7) return `${sign}₹${COMPACT_FMT.format(abs / 1e7)}Cr`;
+  if (abs >= 1e5) return `${sign}₹${COMPACT_FMT.format(abs / 1e5)}L`;
+  if (abs >= 1e3) return `${sign}₹${COMPACT_FMT.format(abs / 1e3)}k`;
+  return `${sign}₹${NUMBER_FMT.format(abs)}`;
+}
+
 export function formatIndexLevel(value: number): string {
   return INDEX_FMT.format(value);
 }
