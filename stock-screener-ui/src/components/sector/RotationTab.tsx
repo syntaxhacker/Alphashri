@@ -404,15 +404,14 @@ export function RotationTab(props: { market: "india" | "america" }) {
         <Match when={true}>
           <Box
             data-testid="rotation-grid"
-            className="flex-1 min-h-0 grid gap-[2px] p-[2px] overflow-x-hidden overflow-y-auto lg:overflow-hidden grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] grid-rows-[auto_auto_auto_auto] lg:grid-rows-[minmax(0,1.18fr)_minmax(0,0.82fr)]"
+            className="flex-1 min-h-0 min-w-0 grid gap-[2px] p-[2px] overflow-x-hidden overflow-y-auto lg:overflow-hidden grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1.05fr)_minmax(0,0.95fr)]"
           >
             <CompactPanel
               testId="rotation-rrg-panel"
               scrollable
               flush
               padded={false}
-              style={{ "min-height": "300px" }}
-              className="min-h-[300px] lg:min-h-0"
+              className="min-h-0"
               title={
                 <Text className="text-ui-micro font-bold uppercase tracking-[0.5px] text-fin-text-muted">
                   Relative rotation
@@ -424,18 +423,23 @@ export function RotationTab(props: { market: "india" | "america" }) {
                 </Text>
               }
             >
-              <RotationRrg
-                rows={visible()}
-                selectedId={selectedRowId()}
-                onSelect={setSelectedId}
-              />
+              <Box
+                data-testid="rotation-rrg-body"
+                className="flex min-h-[300px] w-full min-w-0 flex-1 flex-col lg:min-h-0"
+              >
+                <RotationRrg
+                  rows={visible()}
+                  selectedId={selectedRowId()}
+                  onSelect={setSelectedId}
+                />
+              </Box>
             </CompactPanel>
             <CompactPanel
               testId="rotation-matrix-panel"
               scrollable
               flush
               padded={false}
-              className="min-h-[260px] lg:min-h-0"
+              className="min-h-0"
               title={
                 <Text className="text-ui-micro font-bold uppercase tracking-[0.5px] text-fin-text-muted">
                   Multi-period
@@ -454,7 +458,7 @@ export function RotationTab(props: { market: "india" | "america" }) {
               scrollable
               flush
               padded={false}
-              className="min-h-[320px] lg:min-h-0"
+              className="min-h-0"
               title={
                 <Text className="text-ui-micro font-bold uppercase tracking-[0.5px] text-fin-text-muted">
                   Rotation board
@@ -474,9 +478,14 @@ export function RotationTab(props: { market: "india" | "america" }) {
               scrollable
               flush
               padded={false}
-              className="min-h-[200px] lg:min-h-0"
+              className="min-h-0"
             >
-              <RotationDetail row={selectedRow()} onOpenMembers={(row) => setMembersRow(row)} />
+              <Box
+                data-testid="rotation-detail-body"
+                className="flex min-h-[200px] w-full min-w-0 flex-1 flex-col lg:min-h-0"
+              >
+                <RotationDetail row={selectedRow()} onOpenMembers={(row) => setMembersRow(row)} />
+              </Box>
             </CompactPanel>
           </Box>
         </Match>
