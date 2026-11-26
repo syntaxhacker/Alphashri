@@ -48,34 +48,81 @@ vi.mock("@/hooks/usePatternFullscreenSolid", async (importOriginal) => {
   };
 });
 
-vi.mock("@/components/patterns/PatternFullscreenView", () => ({
-  PatternFullscreenView: (props: {
-    symbol: string | null;
-    loading?: boolean;
-    onRefresh?: () => void;
-    indicators?: unknown;
-    srZones?: unknown[];
-  }) => (
-    <div
-      data-testid="patterns-chart-dock"
-      data-loading={String(Boolean(props.loading))}
-      data-indicators={String(Boolean(props.indicators))}
-      data-sr-zones={String(props.srZones?.length ?? 0)}
-    >
-      {props.symbol}
-      {props.onRefresh ? (
-        <button
-          type="button"
-          data-testid="patterns-dock-refresh"
-          aria-label="Refresh pattern data"
-          onClick={props.onRefresh}
+vi.mock("@/components/patterns/PatternFullscreenView", async () => {
+  const { createEffect, onCleanup } = await import("solid-js");
+  return {
+    PatternFullscreenView: (props: {
+      docked?: boolean;
+      opened: boolean;
+      symbol: string | null;
+      loading?: boolean;
+      onMaximize?: () => void;
+      onClose?: () => void;
+      onRefresh?: () => void;
+      indicators?: unknown;
+      srZones?: unknown[];
+    }) => {
+      // The real Modal owns Escape while open; mirror that so the tests can
+      // assert the dock's own listener stays out of the way.
+      createEffect(() => {
+        if (props.docked || !props.opened) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+          if (event.key === "Escape") props.onClose?.();
+        };
+        document.addEventListener("keydown", onKeyDown);
+        onCleanup(() => document.removeEventListener("keydown", onKeyDown));
+      });
+
+      if (!props.docked) {
+        return (
+          <div data-testid="patterns-fullscreen-modal">
+            {props.symbol}
+            <button
+              type="button"
+              data-testid="patterns-fullscreen-modal-close"
+              aria-label="close"
+              onClick={() => props.onClose?.()}
+            >
+              close
+            </button>
+          </div>
+        );
+      }
+
+      return (
+        <div
+          data-testid="patterns-chart-dock"
+          data-loading={String(Boolean(props.loading))}
+          data-indicators={String(Boolean(props.indicators))}
+          data-sr-zones={String(props.srZones?.length ?? 0)}
         >
-          refresh
-        </button>
-      ) : null}
-    </div>
-  ),
-}));
+          {props.symbol}
+          {props.onMaximize ? (
+            <button
+              type="button"
+              data-testid="patterns-chart-expand"
+              title="Expand to full screen"
+              aria-label="Expand chart"
+              onClick={props.onMaximize}
+            >
+              expand
+            </button>
+          ) : null}
+          {props.onRefresh ? (
+            <button
+              type="button"
+              data-testid="patterns-dock-refresh"
+              aria-label="Refresh pattern data"
+              onClick={props.onRefresh}
+            >
+              refresh
+            </button>
+          ) : null}
+        </div>
+      );
+    },
+  };
+});
 
 vi.mock("@/components/options-dock/OptionsDockPanel", () => ({
   OptionsDockPanel: () => <div data-testid="options-dock-panel" />,
@@ -917,6 +964,96 @@ describe("Escape dismiss", () => {
     expect(document.activeElement).toBe(input);
 
     fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
+  });
+});
+
+describe("chart dock fullscreen", () => {
+  beforeEach(() => {
+    __resetFullscreen();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1200px"),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  async function openChartDock() {
+    mockedFetchSymbolChart.mockResolvedValue(FRESH_CHART);
+    renderDock();
+    await fireEvent.click(screen.getByTestId("open-ircon"));
+    await waitFor(() => expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("IRCON"));
+  }
+
+  test("the chart dock renders the expand control", async () => {
+    await openChartDock();
+
+    const expand = screen.getByTestId("patterns-chart-expand");
+    expect(expand).toBeInTheDocument();
+    expect(expand).toHaveAttribute("title", "Expand to full screen");
+  });
+
+  test("clicking expand opens the fullscreen modal with the same chart frame", async () => {
+    await openChartDock();
+
+    await fireEvent.click(screen.getByTestId("patterns-chart-expand"));
+
+    const modal = await screen.findByTestId("patterns-fullscreen-modal");
+    expect(modal).toHaveTextContent("IRCON");
+    // Maximizing must not dismiss the rail behind the modal.
+    expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
+  });
+
+  test("closing the modal leaves the dock open", async () => {
+    await openChartDock();
+    await fireEvent.click(screen.getByTestId("patterns-chart-expand"));
+    await screen.findByTestId("patterns-fullscreen-modal");
+
+    await fireEvent.click(screen.getByTestId("patterns-fullscreen-modal-close"));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-chart-dock")).toBeInTheDocument();
+  });
+
+  test("Escape from the modal restores the dock instead of closing it", async () => {
+    await openChartDock();
+    await fireEvent.click(screen.getByTestId("patterns-chart-expand"));
+    await screen.findByTestId("patterns-fullscreen-modal");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-chart-expand")).toBeInTheDocument();
+  });
+
+  test("opening another symbol resets the maximized state", async () => {
+    await openChartDock();
+    await fireEvent.click(screen.getByTestId("patterns-chart-expand"));
+    await screen.findByTestId("patterns-fullscreen-modal");
+
+    await fireEvent.click(screen.getByTestId("open-reliance"));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(screen.getByTestId("patterns-chart-dock")).toHaveTextContent("RELIANCE"));
     expect(screen.getByTestId("symbol-dock")).toBeInTheDocument();
   });
 });
