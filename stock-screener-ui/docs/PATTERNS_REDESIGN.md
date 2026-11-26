@@ -39,7 +39,7 @@ BEFORE  chrome 132px, 5 hairlines, no grouping
 ┬ Scan ═╤ Watch ─ SCANNED 50 · PATTERNS 49 · IN VIEW 49 · CONFIRMED 18 · ▲35/▼11 · candle · scan 5h ┬ 31
 ├ SCOPE (All NSE)(NSE F&O)(Indices)[NIFTY 50](100)(200)(500)(Custom) [CACHED·17M][Force][▶Scan]      ┤ 26
 ├ ◯ Scanning ████░░░ 53% ─────────────────────────────────────── starting…                            ┤ 34
-├ ⌕symbol │ 1D▾ │ Bars▾ ⎯ ▮replay ▮TLS/TLR ⎯ ⌕results │ Matrix│List│Grid │ ⚙Filters │ ⋮              ┤ 30
+├ ⌕symbol │ 1D▾ │ Bars▾ ⎯ ▮replay          ⎯ ⌕results │ Matrix│List│Grid │ ⚙Filters │ ⋮              ┤ 30
 └ SYMBOL  PATTERN  SCORE BO DIR STATUS Q 52W% … ─────────────────────────────────────────────────────┘ 132
 
 AFTER  chrome 116px, 2 groups, breathing room
@@ -51,7 +51,7 @@ AFTER  chrome 116px, 2 groups, breathing room
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
 │  [ All NSE · 2,757 ▾ ]  [ NIFTY 50 ]  [ ▾ 7 more ]        ⓘ stale 17m        [ ⚙ Filters 3 ]│ 48
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
-│  ⌕ Search symbol           1D ▾        Bars Auto ▾      ▮ Replay   ▮ TLS/TLR                │ 48
+│  ⌕ Search symbol           1D ▾        Bars Auto ▾      ▮ Replay                          │ 48
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
 │  SYMBOL          PATTERN            SCORE   BO   DIR   STATUS       52W%    CHG%     TRIGGER │ 36
 │  TATASTEEL  F&O  Falling Wedge       93.9         ● CONFIRMED      16.2%  −0.68%       —     │ 32
@@ -175,7 +175,7 @@ which are free; never from blur, shadow or animation on a scroll path.
 5 group into cards (p-3)      M low   replaces hairline-per-row
 6 filter sheet, one commit    M med   two models → one
 7 load more in footer         M low   232 rows unreachable
-8 ⓘ on 7 terms                S low   SCORE BO Q 52W% TLS/TLR Indices Bars
+8 ⓘ on 6 terms                S low   SCORE BO Q 52W% Indices Bars
 ```
 
 ## Never change

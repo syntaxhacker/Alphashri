@@ -14,8 +14,6 @@ import type {
   PatternOverlay,
   SRZone,
   TFSpec,
-  TrendLine,
-  TrendlinesView,
 } from "@/types/chartPatterns";
 import { PatternChartBody } from "./PatternChartBody";
 import { PatternChartToolbar } from "./PatternChartToolbar";
@@ -45,12 +43,6 @@ export interface PatternFullscreenViewProps {
    * active pattern is drawn (no dashed siblings).
    */
   overlays?: PatternOverlay[];
-  /**
-   * Standalone support/resistance lines from the symbol-chart payload. Falls
-   * back to the hit's own `trend_lines` when absent/empty.
-   */
-  trendLines?: TrendLine[];
-  trendlinesView?: TrendlinesView;
   /** Indicator series from the chart payload, forwarded to the body/menu. */
   indicators?: ChartIndicators | null;
   /** Historical reaction zones from the chart payload. */
@@ -107,8 +99,6 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
       hits={props.hits}
       onSelectHit={props.onSelectHit}
       overlays={props.overlays}
-      trendLines={props.trendLines}
-      trendlinesView={props.trendlinesView ?? "both"}
       timeframe={props.timeframe ?? null}
       indicators={props.indicators ?? null}
       srZones={props.srZones ?? []}

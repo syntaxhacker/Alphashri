@@ -2,7 +2,7 @@ import { createMemo, Show } from "solid-js";
 import { Badge, Box, Card, Text, Tooltip, typeSize } from "@/ui";
 import { IconArrowsMaximize } from "@/ui/icons";
 import { formatPercentage } from "@/utils/ui-helpers";
-import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
+import type { PatternHitDTO } from "@/types/chartPatterns";
 import { QUALITY_INFO } from "@/config/patternCatalog";
 import { SymbolLink } from "@/components/common/SymbolLink";
 import { hasIndexMembers } from "@/config/indexGroups";
@@ -27,7 +27,6 @@ export interface PatternCardProps {
   onClick?: (hit: PatternHitDTO) => void;
   onExpand?: (hit: PatternHitDTO) => void;
   onShowMembers?: (symbol: string) => void;
-  trendlinesView?: TrendlinesView;
   onSymbolPreview?: (symbol: string) => void;
   onSymbolPreviewEnd?: (symbol: string) => void;
   onSymbolOpen?: (symbol: string) => void;
@@ -63,7 +62,6 @@ function Metric(props: { label: string; value: string }) {
 export function PatternCard(props: PatternCardProps) {
   const hit = () => props.hit;
   const selected = () => props.selected ?? false;
-  const trendlinesView = () => props.trendlinesView ?? "both";
 
   const lastPrice = createMemo(() => hitLastPrice(hit()));
   const changePct = createMemo(() => hitChangePct(hit()));
@@ -232,7 +230,7 @@ export function PatternCard(props: PatternCardProps) {
         </Box>
 
         <Box className="relative min-w-0 flex-1 overflow-hidden bg-fin-bg">
-          <PatternMiniChart hit={hit()} trendlinesView={trendlinesView()} />
+          <PatternMiniChart hit={hit()} />
           <Box
             className="absolute right-[2px] top-[2px] z-[1] flex items-center gap-[2px]"
           >

@@ -141,15 +141,14 @@ count from the glyph since the chip column already enumerates the hits.
 
 ---
 
-### F10 · Three unexplained abbreviations in one toolbar row: TLS/TLR, IDX, Bars
+### F10 · Two unexplained abbreviations in one toolbar row: IDX, Bars
 
-**Cost.** `TLS/TLR` is a switch whose meaning lives in a tooltip only (`PatternsPage.tsx:741–751`);
-`IDX` is the leftSection of an All/Big/Other select (`:796`) that does not say "index group"; `Bars`
-is a lookback count with no statement that a bar is timeframe-dependent. The rail then repeats
-TLS/TLR as "Support only / Resistance only", so the abbreviation is defined *somewhere else*.
+**Cost.** `IDX` is the leftSection of an All/Big/Other select (`PatternsPage.tsx:796`) that does not
+say "index group"; `Bars` is a lookback count with no statement that a bar is timeframe-dependent.
 
-**Fix.** Rename the switch to "S/R lines" (full words), the group select to "Group", and give Bars a
-tooltip that names the current bar size; keep TLS/TLR only as the tooltip's expansion.
+**Fix.** Rename the group select to "Group" and give Bars a tooltip that names the current bar size.
+The standalone support/resistance line switch was removed in Option B; pattern-boundary lines are
+unchanged.
 
 ---
 
@@ -421,7 +420,7 @@ in all four places.
 ### F32 · Dense tables carry no column-meaning affordance
 
 **Cost.** Abbreviations that are never expanded in-place: `POP %`, `OTM %`, `COST`, `CALL`
-(a strike string like "1230 CE"), `+2% est.`, `Vol ×`, `vol_adj`, `TLS/TLR`, `S1`/`R1` in pivots.
+(a strike string like "1230 CE"), `+2% est.`, `Vol ×`, `vol_adj`, `S1`/`R1` in pivots.
 `DTE` is the only one explained (in the expiry option label). Hover titles exist on a minority of
 headers; there is no shared convention.
 

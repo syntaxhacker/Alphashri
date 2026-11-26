@@ -8,7 +8,6 @@ import type {
   PatternFilters,
   PatternHitDTO,
   PatternSummary,
-  TrendlinesView,
 } from "@/types/chartPatterns";
 import {
   PATTERN_FAMILIES,
@@ -27,6 +26,51 @@ import { cn } from "@/ui/cn";
 const FAMILY_ORDER = ["reversal", "continuation", "curve_cup"];
 const FORMED_PRESETS = [1, 3, 5, 10, 20, 30, 60];
 const BASE_LENGTH_PRESETS = [30, 60, 90, 120, 180];
+
+/**
+ * Panel-column contract. The grid below uses `@2xl`/`@4xl` container variants
+ * (Tailwind 42rem/56rem) and `minmax()` tracks with these same floors. Keeping
+ * the numbers here lets the modal size itself from the three-column minimum
+ * instead of guessing: a 576px `xl` modal starved the last column to a 29px
+ * fragment, hiding Freshness/Structure/52W-gap/Advanced entirely.
+ */
+export const FILTER_RAIL_MIN_TRACK_PX = [220, 320, 320] as const;
+export const FILTER_RAIL_GAP_PX = 8;
+export const FILTER_RAIL_TWO_COL_MIN_PX = 672;
+export const FILTER_RAIL_THREE_COL_MIN_PX = 896;
+const TRACK_WEIGHTS = [0.78, 1.4, 1.2] as const;
+
+export function filterRailColumnCount(containerWidthPx: number): 1 | 2 | 3 {
+  if (containerWidthPx >= FILTER_RAIL_THREE_COL_MIN_PX) return 3;
+  if (containerWidthPx >= FILTER_RAIL_TWO_COL_MIN_PX) return 2;
+  return 1;
+}
+
+/** Resulting track widths of the `minmax()` grid at a given container width. */
+export function filterRailTrackWidths(containerWidthPx: number): number[] {
+  const count = filterRailColumnCount(containerWidthPx);
+  const usable = Math.max(0, containerWidthPx - FILTER_RAIL_GAP_PX * (count - 1));
+  const weights = TRACK_WEIGHTS.slice(0, count);
+  const mins = FILTER_RAIL_MIN_TRACK_PX.slice(0, count);
+  const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
+  const scaled = weights.map((weight) => (usable * weight) / weightSum);
+  const pinned = scaled
+    .map((width, index) => (width < mins[index] ? index : -1))
+    .filter((index) => index >= 0);
+  if (pinned.length === 0) return scaled;
+  const leftover = Math.max(0, usable - pinned.reduce((sum, index) => sum + mins[index], 0));
+  const leftoverWeight = weights.reduce(
+    (sum, weight, index) => (pinned.includes(index) ? sum : sum + weight),
+    0,
+  );
+  return scaled.map((_, index) =>
+    pinned.includes(index)
+      ? mins[index]
+      : leftoverWeight > 0
+        ? (leftover * weights[index]) / leftoverWeight
+        : 0,
+  );
+}
 
 export interface PatternFilterRailProps {
   patterns: PatternDef[];
@@ -121,8 +165,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
     props.filters.min_rel_volume != null ||
     props.filters.min_volume_m != null ||
     (props.filters.min_avg_volume_10d != null &&
-      props.filters.min_avg_volume_10d !== DEFAULT_PATTERN_FILTERS.min_avg_volume_10d) ||
-    (props.filters.trendlines ?? "both") !== "both";
+      props.filters.min_avg_volume_10d !== DEFAULT_PATTERN_FILTERS.min_avg_volume_10d);
   const [advancedOpen, setAdvancedOpen] = createSignal(advancedActive());
   const [hideZero, setHideZero] = createSignal(false);
   // One pass over the props.results feeds both family and pattern counters; the old
@@ -744,25 +787,6 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
     </Section>
   );
 
-  // View-only overlay toggle: controls which standalone support/resistance
-  // lines are drawn on the card/fullscreen charts. Never sent to the API.
-  const trendlinesSection = (
-    <Section title="Trendlines">
-      <Select
-        data={[
-          { value: "both", label: "Both" },
-          { value: "support", label: "TLS only" },
-          { value: "resistance", label: "TLR only" },
-          { value: "none", label: "None" },
-        ]}
-        value={props.filters.trendlines ?? "both"}
-        onChange={(v) => props.setFilter("trendlines", (v ?? "both") as TrendlinesView)}
-        size="xs"
-        data-testid="patterns-filter-trendlines"
-      />
-    </Section>
-  );
-
   const volumeSection = (
     <Box className="flex items-center justify-between gap-2">
       <Switch
@@ -823,32 +847,39 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
         {replaySection}
         {volumeSection}
       </Box>
-      <Divider />
-      <Box className="flex min-w-0 flex-col gap-1">
-        {trendlinesSection}
-      </Box>
     </>
   );
 
   if (panel()) {
     return (
       <CompactPanel flush testId="patterns-filter-rail">
-        <Box
-          className="grid grid-cols-1 items-start gap-2 lg:grid-cols-[minmax(220px,0.78fr)_minmax(320px,1.4fr)_minmax(320px,1.2fr)]"
-        >
-          <Box className="flex min-w-0 flex-col gap-1.5">
-            {presetsSection}
-            {familySection}
-            {directionSection}
-            {statusSection}
-            {qualitySection}
-            {sortSection}
-            {historySection}
-          </Box>
-          <Box className="flex min-w-0 flex-col gap-1.5">
-            {patternsSection}
-          </Box>
-          <Box className="flex min-w-0 flex-col gap-1.5">
+        <Box className="@container">
+          <Box
+            data-testid="patterns-filter-rail-grid"
+            className="grid grid-cols-1 items-start gap-2 @2xl:grid-cols-2 @4xl:grid-cols-[minmax(220px,0.78fr)_minmax(320px,1.4fr)_minmax(320px,1.2fr)]"
+          >
+            <Box
+              data-testid="patterns-filter-rail-column-1"
+              className="flex min-w-0 flex-col gap-1.5"
+            >
+              {presetsSection}
+              {familySection}
+              {directionSection}
+              {statusSection}
+              {qualitySection}
+              {sortSection}
+              {historySection}
+            </Box>
+            <Box
+              data-testid="patterns-filter-rail-column-2"
+              className="flex min-w-0 flex-col gap-1.5"
+            >
+              {patternsSection}
+            </Box>
+            <Box
+              data-testid="patterns-filter-rail-column-3"
+              className="flex min-w-0 flex-col gap-1.5 @2xl:col-span-2 @4xl:col-span-1"
+            >
             <Section title="Freshness">
               <Box
                 className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-1"
@@ -899,7 +930,7 @@ export function PatternFilterRail(props: PatternFilterRailProps) {
                 {avgVolume10dField}
               </Box>
             </Section>
-            <Section title="Display">{trendlinesSection}</Section>
+            </Box>
             </Box>
           </Box>
         </Box>
