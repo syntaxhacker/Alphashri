@@ -37,7 +37,7 @@ import { AUTO_REFRESH_INTERVALS } from "./NewsLocalStorage";
 import { normalizeSourceName } from "./news-constants";
 import { formatTimeAgo } from "../../utils/ui-helpers";
 
-function ArticleSymbols(props: { symbols: NewsSymbol[]; onSymbolClick: (s: NewsSymbol) => void }) {
+export function ArticleSymbols(props: { symbols: NewsSymbol[]; onSymbolClick: (s: NewsSymbol) => void }) {
   return (
     <Show when={props.symbols && props.symbols.length > 0}>
       <Box data-testid="news-article-symbols">
@@ -54,18 +54,30 @@ function ArticleSymbols(props: { symbols: NewsSymbol[]; onSymbolClick: (s: NewsS
                     : `Open ${symbol.code} on Moneycontrol`
                 }
               >
-                <Badge
-                  variant="light"
-                  color={symbol.instrument_key ? "primary" : "secondary"}
+                <Box
+                  component="button"
+                  type="button"
                   onClick={() => props.onSymbolClick(symbol)}
+                  onKeyDown={(event: KeyboardEvent) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      props.onSymbolClick(symbol);
+                    }
+                  }}
                   data-testid={`news-symbol-${symbol.code}`}
-                  style={{ cursor: "pointer" }}
+                  className="cursor-pointer border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
                 >
-                  {symbol.name || symbol.code}
-                  <Show when={symbol.instrument_key}>
-                    <IconChartLine size={12} style={{ "margin-left": "4px" }} />
-                  </Show>
-                </Badge>
+                  <Badge
+                    variant="light"
+                    color={symbol.instrument_key ? "primary" : "secondary"}
+                    style={{ cursor: "pointer" }}
+                  >
+                    {symbol.name || symbol.code}
+                    <Show when={symbol.instrument_key}>
+                      <IconChartLine size={12} style={{ "margin-left": "4px" }} />
+                    </Show>
+                  </Badge>
+                </Box>
               </Tooltip>
             )}
           </For>

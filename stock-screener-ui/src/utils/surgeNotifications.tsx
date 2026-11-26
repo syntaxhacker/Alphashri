@@ -1,6 +1,8 @@
+import type { JSX } from "solid-js";
 import { showToast } from "solid-notifications";
 import type { ScreenerData } from "../types";
 import { recordSurge } from "../api/notifications";
+import { useSymbolDock } from "../components/common/symbolDockContext";
 
 const SURGE_COOLDOWN_MS = 5 * 60 * 1000;
 const notifiedSymbols = new Map<string, number>();
@@ -37,20 +39,31 @@ const DEFAULT_CONFIG: SurgeConfig = {
   threshold: 5,
 };
 
-if (typeof document !== "undefined" && !document.querySelector("[data-surge-init]")) {
-  document.addEventListener("click", (e) => {
-    const el = (e.target as HTMLElement).closest("[data-surge-symbol]");
-    if (el) {
-      const symbol = el.getAttribute("data-surge-symbol");
-      if (symbol) {
-        window.location.href = `/chart/${symbol}`;
-      }
-    }
-  });
-  const style = document.createElement("style");
-  style.textContent = "[data-surge-symbol]:not(:has([data-close-button]:hover)) { cursor: pointer; }";
-  style.setAttribute("data-surge-init", "");
-  document.head.appendChild(style);
+/**
+ * A toast is a real control, not a decorated div: it is tabbable, named by its
+ * visible text, and activates on mouse, Enter and Space through the same dock
+ * contract the rest of the app uses. No document-level click delegation and
+ * no `window.location` reload — the dock handles desktop/narrow routing.
+ */
+function SurgeToastAction(props: { symbol: string; children: JSX.Element }) {
+  const dock = useSymbolDock();
+  const activate = () => dock.open(props.symbol);
+  return (
+    <button
+      type="button"
+      data-surge-symbol={props.symbol}
+      onClick={activate}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          activate();
+        }
+      }}
+      className="cursor-pointer border-0 bg-transparent p-0 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
+    >
+      {props.children}
+    </button>
+  );
 }
 
 function isSurge(value: number | undefined, threshold: number): boolean {
@@ -91,13 +104,11 @@ export function checkPriceSurges(
     const dir = moveValue > 0 ? "\u{1F680}" : "\u{1F4C9}";
     const priceStr = stock.upstox_price != null ? ` | \u20B9${stock.upstox_price}` : "";
 
-    // The global click listener above picks up `[data-surge-symbol]`, so the
-    // toast content carries it and clicking it opens the chart.
     showToast(
-      <div data-surge-symbol={stock.symbol} style={{ cursor: "pointer" }}>
+      <SurgeToastAction symbol={stock.symbol}>
         <div>{`${dir} ${stock.symbol} ${signed}`}</div>
         <div>{`${screenLabel} | ${moveLabel}${priceStr}`}</div>
-      </div>,
+      </SurgeToastAction>,
       {
         type: moveValue > 0 ? "success" : "error",
         duration: 8000,

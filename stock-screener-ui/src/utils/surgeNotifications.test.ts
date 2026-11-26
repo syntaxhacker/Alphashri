@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render } from "solid-js/web";
+import { fireEvent } from "@solidjs/testing-library";
 import type { ScreenerData, Stock } from "../types";
 
 const { mockShowToast } = vi.hoisted(() => ({
@@ -13,6 +14,20 @@ vi.mock("solid-notifications", () => ({
 
 vi.mock("../api/notifications", () => ({
   recordSurge: vi.fn().mockResolvedValue(undefined),
+}));
+
+const dock = vi.hoisted(() => ({ open: vi.fn() }));
+
+vi.mock("../components/common/symbolDockContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../components/common/symbolDockContext")>()),
+  useSymbolDock: () => ({
+    open: dock.open,
+    preview: vi.fn(),
+    endPreview: vi.fn(),
+    close: vi.fn(),
+    setOutlet: vi.fn(),
+    pinned: false,
+  }),
 }));
 
 import { checkPriceSurges, clearSurgeCache } from "./surgeNotifications";
@@ -181,5 +196,53 @@ describe("checkPriceSurges", () => {
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
 
     expect(toastText(mockShowToast.mock.calls[0][0])).toContain("5-Min Movers");
+  });
+
+  it("renders the toast as a real button that opens the dock without a reload", async () => {
+    const data = makeSurgeData("intraday_5m", [{ symbol: "RELIANCE", move_5m: 4.2 }]);
+    checkPriceSurges(data, "intraday_5m", "5-Min Movers");
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    render(() => mockShowToast.mock.calls[0][0] as never, container);
+    const button = container.querySelector<HTMLButtonElement>("button[data-surge-symbol]")!;
+
+    expect(button.tagName).toBe("BUTTON");
+    expect(button).not.toHaveAttribute("aria-label");
+    expect(button.textContent).toContain("RELIANCE");
+    expect(button.textContent).toContain("5-Min Movers");
+
+    const hrefBefore = window.location.href;
+    await fireEvent.click(button);
+    expect(dock.open).toHaveBeenCalledWith("RELIANCE");
+    expect(window.location.href).toBe(hrefBefore);
+    container.remove();
+  });
+
+  it("activates the toast button with Enter and Space", async () => {
+    const data = makeSurgeData("intraday_5m", [{ symbol: "INFY", move_5m: 5.0 }]);
+    checkPriceSurges(data, "intraday_5m", "5-Min Movers");
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    render(() => mockShowToast.mock.calls[0][0] as never, container);
+    const button = container.querySelector<HTMLButtonElement>("button[data-surge-symbol]")!;
+
+    await fireEvent.keyDown(button, { key: "Enter" });
+    expect(dock.open).toHaveBeenCalledWith("INFY");
+    dock.open.mockClear();
+    await fireEvent.keyDown(button, { key: " " });
+    expect(dock.open).toHaveBeenCalledWith("INFY");
+    container.remove();
+  });
+
+  it("no longer delegates surge clicks at document level", async () => {
+    expect(document.head.querySelector("[data-surge-init]")).toBeNull();
+    const decoy = document.createElement("div");
+    decoy.setAttribute("data-surge-symbol", "DECOY");
+    document.body.appendChild(decoy);
+    await fireEvent.click(decoy);
+    expect(dock.open).not.toHaveBeenCalled();
+    decoy.remove();
   });
 });

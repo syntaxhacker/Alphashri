@@ -10,6 +10,7 @@ import {
 import { useNavigate } from "@solidjs/router";
 import { Box, Button, Divider, Indicator, Overlay, ScrollArea, Stack } from "@/ui";
 import { IconNews } from "../common/Icons";
+import { chartHrefForSymbol, isUsMarket, useSymbolDock } from "../common/symbolDockContext";
 import type { NewsItem, NewsSource, ArticleResponse, NewsSymbol } from "./news-types";
 import { fetchNews, fetchArticle, fetchNewsSources } from "../../api/news";
 import { useNewsWebSocket } from "../../state/newsWebSocket";
@@ -349,15 +350,27 @@ function useNewsPanelHandlers(
   clearNewArticlesFlag: () => void,
   navigate: (path: string) => void,
 ) {
+  const dock = useSymbolDock();
   const handleClose = () => {
     setIsOpen(false);
     articleReader.handleBack();
   };
 
   const handleSymbolClick = (symbol: NewsSymbol) => {
-    if (symbol.instrument_key && symbol.trading_symbol) {
-      navigate(`/chart/${symbol.trading_symbol}`);
-    } else if (symbol.url) {
+    const tradingSymbol = symbol.trading_symbol?.trim();
+    if (symbol.instrument_key && tradingSymbol) {
+      // US listings have no NSE dock chart: use the chart route's documented
+      // `?market=usa` contract. Everything else goes through the dock, which
+      // pins a chart on desktop and navigates to /chart/:symbol when narrow.
+      const exchange = symbol.instrument_key.split("|")[0]?.split("_")[0];
+      if (isUsMarket(exchange)) {
+        navigate(chartHrefForSymbol(tradingSymbol, exchange));
+      } else {
+        dock.open(tradingSymbol);
+      }
+      return;
+    }
+    if (symbol.url) {
       window.open(symbol.url, "_blank", "noopener,noreferrer");
     }
   };

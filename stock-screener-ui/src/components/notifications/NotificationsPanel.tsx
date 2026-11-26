@@ -9,6 +9,7 @@ import type { PriceSurgeEvent } from "../../types/notifications";
 import { formatTimeAgo } from "../../utils/ui-helpers";
 import { ErrorAlert } from "../common/states";
 import { unreadSurgeCount } from "../../state/store/notificationsSlice";
+import { useSymbolDock } from "../common/symbolDockContext";
 import { resolveTodayCount, acknowledgeFromResponse } from "./surgeAlertCount";
 
 const PAGE_SIZE = 10;
@@ -145,9 +146,11 @@ export function NotificationsPanel(props: { opened: boolean; onClose: () => void
 }
 
 function SurgeCard(props: { event: PriceSurgeEvent }) {
+  const dock = useSymbolDock();
   const isUp = () => props.event.direction === "up";
   const color = () => (isUp() ? "success" : "error");
   const sign = () => (isUp() ? "+" : "");
+  const openSymbol = () => dock.open(props.event.symbol);
 
   return (
     <Paper p="xs" data-testid={`surge-card-${props.event.id}`}>
@@ -156,7 +159,21 @@ function SurgeCard(props: { event: PriceSurgeEvent }) {
           <Show when={isUp()} fallback={<IconTrendingDown size={14} />}>
             <IconTrendingUp size={14} />
           </Show>
-          <Text size="sm" fw={600}>{props.event.symbol}</Text>
+          <button
+            type="button"
+            onClick={openSymbol}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                openSymbol();
+              }
+            }}
+            aria-label={`Open ${props.event.symbol} chart`}
+            data-testid={`surge-symbol-${props.event.id}`}
+            className="cursor-pointer border-0 bg-transparent p-0 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
+          >
+            <Text size="sm" fw={600}>{props.event.symbol}</Text>
+          </button>
           <Text size="sm" c={color()} fw={600}>{sign()}{props.event.move_pct.toFixed(1)}%</Text>
         </Group>
         <Badge size="xs" variant="light" color="secondary">{props.event.screen_label}</Badge>

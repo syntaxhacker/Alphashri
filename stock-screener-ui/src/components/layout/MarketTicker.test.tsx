@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within, cleanup, waitFor } from "@solidjs/testing-library";
+import { render, screen, within, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { MarketTicker, MarketStatus } from "./MarketTicker";
 import { UIProvider } from "@/ui";
@@ -23,6 +23,25 @@ const clock = vi.hoisted(() => ({
 vi.mock("../../api/holidays_api", () => ({
   fetchHolidays: vi.fn(async () => []),
   fetchHolidayCheck: vi.fn(),
+}));
+
+const nav = vi.hoisted(() => ({ navigate: vi.fn(), dockOpen: vi.fn() }));
+
+vi.mock("@solidjs/router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@solidjs/router")>()),
+  useNavigate: () => nav.navigate,
+}));
+
+vi.mock("../common/symbolDockContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../common/symbolDockContext")>()),
+  useSymbolDock: () => ({
+    open: nav.dockOpen,
+    preview: vi.fn(),
+    endPreview: vi.fn(),
+    close: vi.fn(),
+    setOutlet: vi.fn(),
+    pinned: false,
+  }),
 }));
 
 vi.mock("../../state/holidays", async (importOriginal) => {
@@ -181,6 +200,68 @@ describe("MarketTicker", () => {
         "-200.00 (-0.44%)",
       );
     });
+  });
+
+  it("opens the chart dock with canonical ids when index names are activated", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockTickerData,
+    });
+
+    render(() => (<UIProvider>
+        <MarketTicker />
+      </UIProvider>),
+    );
+
+    const nifty = await screen.findByTestId("ticker-nsei");
+    const bankNifty = screen.getByTestId("ticker-nsebank");
+    expect(nifty.tagName).toBe("BUTTON");
+    expect(bankNifty.tagName).toBe("BUTTON");
+    // The visible tape content names the button — no aria-label override that
+    // would trip axe's label-content-name-mismatch on every app page.
+    expect(nifty).not.toHaveAttribute("aria-label");
+    expect(nifty).toHaveAccessibleName(/Nifty 50/);
+    expect(nifty).toHaveAccessibleName(/22,000\.00/);
+
+    await fireEvent.click(nifty);
+    expect(nav.dockOpen).toHaveBeenCalledWith("NIFTY");
+    expect(nav.navigate).not.toHaveBeenCalled();
+
+    nav.dockOpen.mockClear();
+    await fireEvent.keyDown(bankNifty, { key: "Enter" });
+    expect(nav.dockOpen).toHaveBeenCalledWith("BANKNIFTY");
+    expect(nav.navigate).not.toHaveBeenCalled();
+  });
+
+  it("leaves commodity and forex quotes non-interactive", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        tickers: {
+          "GC=F": { symbol: "GC=F", name: "Gold", price: 1800, change: 10, change_percent: 0.56, is_positive: true },
+          "SI=F": { symbol: "SI=F", name: "Silver", price: 25, change: 0.5, change_percent: 2.0, is_positive: true },
+          "CL=F": { symbol: "CL=F", name: "Crude Oil", price: 70, change: -1, change_percent: -1.4, is_positive: false },
+          "USDINR=X": { symbol: "USDINR=X", name: "USD/INR", price: 83, change: 0.1, change_percent: 0.12, is_positive: true },
+        },
+        last_updated: "2025-06-15T10:30:00Z",
+        loading: false,
+        error: null,
+      }),
+    });
+
+    render(() => (<UIProvider>
+        <MarketTicker />
+      </UIProvider>),
+    );
+
+    for (const id of ["ticker-gcf", "ticker-sif", "ticker-clf", "ticker-usdinrx"]) {
+      const row = await screen.findByTestId(id);
+      expect(row.tagName).not.toBe("BUTTON");
+      expect(row).toHaveStyle({ cursor: "default" });
+      await fireEvent.click(row);
+    }
+    expect(nav.dockOpen).not.toHaveBeenCalled();
+    expect(nav.navigate).not.toHaveBeenCalled();
   });
 
   it("keeps price and change in one grid row with no pill badge", async () => {
