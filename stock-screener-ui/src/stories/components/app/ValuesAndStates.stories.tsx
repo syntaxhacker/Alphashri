@@ -23,7 +23,7 @@ type ValuesArgs = {
 };
 
 const meta: Meta<ValuesArgs> = {
-  title: "Design System/Components/App/ValuesAndStates",
+  title: "App/Components/ValuesAndStates",
   tags: ["autodocs"],
   parameters: {
     docs: {

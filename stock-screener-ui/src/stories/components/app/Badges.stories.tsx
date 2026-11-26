@@ -24,7 +24,7 @@ type BadgeArgs = {
 };
 
 const meta: Meta<BadgeArgs> = {
-  title: "Design System/Components/App/Badges",
+  title: "App/Components/Badges",
   tags: ["autodocs"],
   parameters: {
     docs: {

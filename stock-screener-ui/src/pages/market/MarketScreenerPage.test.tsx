@@ -15,7 +15,7 @@ vi.mock("@solidjs/router", async (importOriginal) => {
 });
 
 import { MarketScreenerPage } from "./MarketScreenerPage";
-import { useMarketSnapshotSolid } from "../../components/market/useMarketSnapshotSolid";
+import { isLiveUniverse, useMarketSnapshotSolid } from "../../components/market/useMarketSnapshotSolid";
 import type { MarketRow } from "../../types/marketScreener";
 import type { UseMarketSnapshotResult } from "../../components/market/useMarketSnapshotSolid";
 import { defaultMarketConfig, serializeMarketConfig } from "../../components/market/useMarketConfig";
@@ -23,11 +23,17 @@ import type { ScreenerDashboardResponse } from "../../types/screenerDashboard";
 import { fetchScreenerDashboard } from "../../api/screenerDashboard";
 import { getUserConfig, putUserConfig, deleteUserConfig } from "../../api/userConfigs";
 
+const marketMocks = vi.hoisted(() => ({
+  isLiveUniverse: vi.fn(() => true),
+}));
+
 vi.mock("../../components/market/useMarketSnapshotSolid", () => ({
   useMarketSnapshotSolid: vi.fn(),
+  isLiveUniverse: marketMocks.isLiveUniverse,
 }));
 
 const mockUseMarketSnapshot = vi.mocked(useMarketSnapshotSolid);
+const mockIsLiveUniverse = vi.mocked(isLiveUniverse);
 
 const mockLookupPatterns = vi.hoisted(() => vi.fn());
 vi.mock("../../api/patternLookup", () => ({
@@ -178,11 +184,21 @@ function r(jsx: () => JSX.Element) {
   return render(() => <UIProvider>{jsx()}</UIProvider>);
 }
 
+const universeSelect = () =>
+  screen.getByTestId("market-universe-select").querySelector("select") as HTMLSelectElement;
+
+function chooseUniverse(label: string) {
+  const select = universeSelect();
+  const option = Array.from(select.options).find((o) => o.textContent === label);
+  fireEvent.input(select, { target: { value: option?.value ?? label } });
+}
+
 afterEach(cleanup);
 afterEach(() => window.history.replaceState({}, "", "/screener"));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockIsLiveUniverse.mockReturnValue(true);
   mockUseMarketSnapshot.mockReturnValue(hookResult());
   mockLookupPatterns.mockResolvedValue({
     timeframe: "1D",
@@ -278,9 +294,7 @@ describe("MarketScreenerPage", () => {
     await waitFor(() =>
       expect(screen.getByTestId("market-filter-chip-rsi")).toBeInTheDocument(),
     );
-    const combobox = screen.getByTestId("market-universe-select").querySelector('[role="combobox"]') as HTMLInputElement;
-    fireEvent.focus(combobox);
-    fireEvent.mouseDown(await screen.findByRole("option", { name: "F&O" }));
+    chooseUniverse("F&O");
     await waitFor(() => expect(mockUseMarketSnapshot.mock.calls.at(-1)?.[0]()).toBe("nse_fo"));
     expect(screen.getByTestId("market-filter-chip-rsi")).toBeInTheDocument();
     expect(screen.queryByTestId("market-filter-chip-search")).not.toBeInTheDocument();
@@ -366,9 +380,7 @@ describe("MarketScreenerPage", () => {
 
   test("universe select drives useMarketSnapshot", async () => {
     r(() => <MarketScreenerPage />);
-    const combobox = screen.getByTestId("market-universe-select").querySelector('[role="combobox"]') as HTMLInputElement;
-    fireEvent.focus(combobox);
-    fireEvent.mouseDown(await screen.findByRole("option", { name: "F&O" }));
+    chooseUniverse("F&O");
     const call = mockUseMarketSnapshot.mock.calls.at(-1)?.[0];
     expect(typeof call).toBe("function");
     expect((call as unknown as () => string)()).toBe("nse_fo");

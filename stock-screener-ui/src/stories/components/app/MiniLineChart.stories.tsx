@@ -19,7 +19,7 @@ type MiniChartArgs = {
 };
 
 const meta: Meta<MiniChartArgs> = {
-  title: "Design System/Components/App/MiniLineChart",
+  title: "App/Components/MiniLineChart",
   tags: ["autodocs"],
   parameters: {
     docs: {

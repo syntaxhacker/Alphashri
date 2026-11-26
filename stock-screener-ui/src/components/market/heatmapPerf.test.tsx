@@ -128,6 +128,7 @@ vi.mock("./useMarketSnapshotSolid", async () => {
       ageSec: () => null,
       warming: () => false,
     }),
+    isLiveUniverse: () => true,
   };
 });
 

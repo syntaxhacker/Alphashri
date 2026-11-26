@@ -1,4 +1,5 @@
 import type { Preview } from "@storybook/html-vite";
+import { themes } from "storybook/theming";
 import "../src/tailwind.css";
 import "../src/style.css";
 import "solid-notifications/index.css";
@@ -12,6 +13,7 @@ const preview: Preview = {
     if (context.viewMode === "story") disposeSolidStories();
   },
   parameters: {
+    docs: { theme: themes.dark },
     backgrounds: {
       default: "canvas",
       values: [

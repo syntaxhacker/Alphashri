@@ -16,9 +16,9 @@ export const MARKET_SNAPSHOT_WARMING_HINT_MS = 4_000;
 /** Auto-refresh cadence while the selected universe's cash session is live. */
 export const MARKET_LIVE_POLL_MS = 5_000;
 /**
- * Closed-market cadence, matched to the server's 60s snapshot TTL: one refresh
- * per cache window still picks up the final print after 15:30 without firing
- * twelve times for data that cannot change.
+ * Session re-check cadence for a closed universe. A closed market cannot change,
+ * so this timer never fetches: it only re-evaluates the session clock so a
+ * reopening switches back to MARKET_LIVE_POLL_MS at the next boundary.
  */
 export const MARKET_CLOSED_POLL_MS = 60_000;
 
@@ -91,8 +91,6 @@ export function useMarketSnapshotSolid(
   };
 
   // Re-arm after every tick so a session flip is picked up at the next boundary.
-  // Live uses MARKET_LIVE_POLL_MS; a closed session drops to the server's cache
-  // TTL instead of firing a no-op request every 5s for the rest of the day.
   // `universe()` is tracked so a switch re-arms against the new market at once.
   createEffect(() => {
     if (!enabled()) return;
@@ -101,17 +99,33 @@ export function useMarketSnapshotSolid(
     let timer: number | undefined;
     const arm = () => {
       if (disposed) return;
-      const cadence = isLiveUniverse(u) ? MARKET_LIVE_POLL_MS : MARKET_CLOSED_POLL_MS;
+      // The cadence is decided at arm time. A closed window stays a session
+      // re-check even if the market reopens inside it — no fetch at the
+      // boundary, only a re-arm that adopts the 5s live cadence from there.
+      const live = isLiveUniverse(u);
       timer = window.setTimeout(() => {
+        if (disposed || !enabled()) return;
+        // A closed market cannot change, so there is nothing to fetch. This
+        // timer exists only to catch a reopening: re-arming re-reads the clock.
+        if (!live) {
+          arm();
+          return;
+        }
+        // The session may have closed inside a live window; do not send a
+        // request for a market that is no longer trading.
+        if (!isLiveUniverse(u)) {
+          arm();
+          return;
+        }
         // A still-running request is skipped; the next tick re-checks, so a
         // hung fetch cannot pile up parallel scans.
-        if (!enabled() || isLoading()) {
+        if (isLoading()) {
           arm();
           return;
         }
         refresh();
         arm();
-      }, cadence);
+      }, live ? MARKET_LIVE_POLL_MS : MARKET_CLOSED_POLL_MS);
     };
     arm();
     onCleanup(() => {

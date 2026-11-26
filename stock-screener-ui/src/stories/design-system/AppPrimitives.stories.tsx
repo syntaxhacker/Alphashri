@@ -11,13 +11,13 @@ import { TanStackTable, type TableColumnDef } from "@/components/common/TanStack
 import { ComponentIndex, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
 
 const meta: Meta = {
-  title: "Design System/App primitives",
+  title: "App/Overview",
   tags: ["autodocs"],
   parameters: {
     docs: {
       description: {
         component:
-          "Family landing page for the composed app widgets: key-value rows, semantic badges, empty and error states, compact panels, stat grids and the shared table. Every example reads one frozen NIFTY option-chain fixture; dedicated pages live under Design System/Components/App.",
+          "Family landing page for the composed app widgets: key-value rows, semantic badges, empty and error states, compact panels, stat grids and the shared table. Every example reads one frozen NIFTY option-chain fixture; dedicated pages live under App/Components.",
       },
     },
   },
@@ -26,24 +26,23 @@ export default meta;
 type Story = StoryObj;
 
 const components: FamilyComponentRef[] = [
-  { id: "design-system-components-app-badges--docs", name: "Badges", note: "Side, status, exit and mode badges" },
-  { id: "design-system-components-app-compactpanels--docs", name: "CompactPanels", note: "Titled panel with a stat grid" },
-  { id: "design-system-components-app-errorboundary--docs", name: "ErrorBoundary", note: "Contain a failed render" },
-  { id: "design-system-components-app-filterstatusrow--docs", name: "FilterStatusRow", note: "Active chips and clear-all" },
-  { id: "design-system-components-app-icons--docs", name: "Icons", note: "Terminal icon vocabulary" },
-  { id: "design-system-components-app-keyvalue--docs", name: "KeyValue", note: "Label, value, hint and tone" },
-  { id: "design-system-components-app-minilinechart--docs", name: "MiniLineChart", note: "Compact trend line" },
-  { id: "design-system-components-app-papertradingtable--docs", name: "PaperTradingTable", note: "Positions and trades grid" },
-  { id: "design-system-components-app-rangeinput--docs", name: "RangeInput", note: "Two-ended numeric range" },
-  { id: "design-system-components-app-sectionheader--docs", name: "SectionHeader", note: "Title with badge and tone" },
-  { id: "design-system-components-app-sparkline--docs", name: "Sparkline", note: "Inline trend sketch" },
-  { id: "design-system-components-app-states--docs", name: "States", note: "Empty, error and inline loading" },
-  { id: "design-system-components-app-symbollink--docs", name: "SymbolLink", note: "Symbol with chart navigation" },
-  { id: "design-system-components-app-tablecells--docs", name: "TableCells", note: "Shared cell renderers" },
-  { id: "design-system-components-app-tanstacktable--docs", name: "TanStackTable", note: "Dense, aligned data grid" },
-  { id: "design-system-components-app-tradestatsgrid--docs", name: "TradeStatsGrid", note: "Trade summary metrics" },
-  { id: "design-system-components-app-tradingdatepicker--docs", name: "TradingDatePicker", note: "Session-aware date choice" },
-  { id: "design-system-components-app-valuesandstates--docs", name: "ValuesAndStates", note: "Live value and table state widgets" },
+  { id: "app-components-badges--docs", name: "Badges", note: "Side, status, exit and mode badges" },
+  { id: "app-components-compactpanels--docs", name: "CompactPanels", note: "Titled panel with a stat grid" },
+  { id: "app-components-errorboundary--docs", name: "ErrorBoundary", note: "Contain a failed render" },
+  { id: "app-components-filterstatusrow--docs", name: "FilterStatusRow", note: "Active chips and clear-all" },
+  { id: "app-components-icons--docs", name: "Icons", note: "Terminal icon vocabulary" },
+  { id: "app-components-keyvalue--docs", name: "KeyValue", note: "Label, value, hint and tone" },
+  { id: "app-components-minilinechart--docs", name: "MiniLineChart", note: "Compact trend line" },
+  { id: "app-components-rangeinput--docs", name: "RangeInput", note: "Two-ended numeric range" },
+  { id: "app-components-sectionheader--docs", name: "SectionHeader", note: "Title with badge and tone" },
+  { id: "app-components-sparkline--docs", name: "Sparkline", note: "Inline trend sketch" },
+  { id: "app-components-states--docs", name: "States", note: "Empty, error and inline loading" },
+  { id: "app-components-symbollink--docs", name: "SymbolLink", note: "Symbol with chart navigation" },
+  { id: "app-components-tablecells--docs", name: "TableCells", note: "Shared cell renderers" },
+  { id: "app-components-tanstacktable--docs", name: "TanStackTable", note: "Dense, aligned data grid" },
+  { id: "app-components-tradestatsgrid--docs", name: "TradeStatsGrid", note: "Trade summary metrics" },
+  { id: "app-components-tradingdatepicker--docs", name: "TradingDatePicker", note: "Session-aware date choice" },
+  { id: "app-components-valuesandstates--docs", name: "ValuesAndStates", note: "Live value and table state widgets" },
 ];
 
 // One labelled fixture shared by every example: spot, change and OI are a

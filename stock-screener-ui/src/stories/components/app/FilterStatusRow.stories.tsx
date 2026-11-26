@@ -19,7 +19,7 @@ type FilterStatusArgs = {
 };
 
 const meta: Meta<FilterStatusArgs> = {
-  title: "Design System/Components/App/FilterStatusRow",
+  title: "App/Components/FilterStatusRow",
   tags: ["autodocs"],
   parameters: {
     docs: {

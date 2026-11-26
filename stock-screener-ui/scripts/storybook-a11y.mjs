@@ -40,7 +40,7 @@ const FAILING_IMPACTS = new Set(['serious', 'critical']);
  */
 const LANDINGS = [
   { label: 'Overview', title: 'Design System/Overview', name: 'Overview' },
-  { label: 'App primitives/Family landing', title: 'Design System/App primitives', name: 'Family Landing' },
+  { label: 'App/Overview (family landing)', title: 'App/Overview', name: 'Family Landing' },
   { label: 'Data display/Family landing', title: 'Design System/Data display', name: 'Family Landing' },
   { label: 'Feedback/Family landing', title: 'Design System/Feedback', name: 'Family Landing' },
   { label: 'Foundations/Landing', title: 'Design System/Foundations', name: 'Landing' },
@@ -50,7 +50,7 @@ const LANDINGS = [
   { label: 'Navigation/Family landing', title: 'Design System/Navigation', name: 'Family Landing' },
   { label: 'Overlay/Family landing', title: 'Design System/Overlay', name: 'Family Landing' },
   { label: 'Portal/Family landing', title: 'Design System/Portal', name: 'Family Landing' },
-  { label: 'Shared primitives/Family landing', title: 'Design System/Shared primitives', name: 'Family Landing' },
+  { label: 'App/Shared widgets (family landing)', title: 'App/Shared widgets', name: 'Family Landing' },
   { label: 'Typography/Landing', title: 'Design System/Typography', name: 'Landing' },
 ];
 
@@ -76,7 +76,7 @@ const OVERLAY_PLAYABLES = [
 const COMPONENT_REPRESENTATIVES = [
   {
     label: 'App/TanStackTable',
-    title: 'Design System/Components/App/TanStackTable',
+    title: 'App/Components/TanStackTable',
     name: 'Normal',
   },
   {
@@ -108,19 +108,19 @@ const REPRESENTATIVES = [...LANDINGS, ...OVERLAY_PLAYABLES, ...COMPONENT_REPRESE
 const NEW_VISIBLE_STATES = [
   {
     label: 'App/BrokerAuthNotice (default)',
-    id: 'design-system-components-app-brokerauthnotice--default',
+    id: 'app-components-brokerauthnotice--default',
   },
   {
     label: 'App/MembersDrawer (populated)',
-    id: 'design-system-components-app-membersdrawer--populated',
+    id: 'app-components-membersdrawer--populated',
   },
   {
     label: 'App/ChartPreviews (hover with data)',
-    id: 'design-system-components-app-chartpreviews--hover-with-data',
+    id: 'app-components-chartpreviews--hover-with-data',
   },
   {
     label: 'App/ChartPreviews (expanded with data)',
-    id: 'design-system-components-app-chartpreviews--expanded-with-data',
+    id: 'app-components-chartpreviews--expanded-with-data',
   },
   {
     label: 'Foundations/Theme bridge',

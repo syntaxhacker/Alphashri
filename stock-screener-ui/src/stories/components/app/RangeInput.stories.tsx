@@ -16,7 +16,7 @@ type RangeArgs = {
 };
 
 const meta: Meta<RangeArgs> = {
-  title: "Design System/Components/App/RangeInput",
+  title: "App/Components/RangeInput",
   tags: ["autodocs"],
   parameters: {
     docs: {

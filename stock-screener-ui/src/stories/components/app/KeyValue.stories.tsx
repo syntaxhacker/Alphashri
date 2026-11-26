@@ -106,7 +106,7 @@ type KeyValueArgs = {
 };
 
 const meta: Meta<KeyValueArgs> = {
-  title: "Design System/Components/App/KeyValue",
+  title: "App/Components/KeyValue",
   tags: ["autodocs"],
   parameters: {
     docs: {

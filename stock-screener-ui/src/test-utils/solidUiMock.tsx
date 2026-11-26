@@ -742,13 +742,14 @@ function StubBadge(props: DivProps & {
   );
 }
 
-function StubAlert(props: DivProps & { color?: string; variant?: string; title?: JSX.Element; icon?: JSX.Element }) {
+function StubAlert(props: DivProps & { color?: string; variant?: string; title?: JSX.Element; icon?: JSX.Element; action?: JSX.Element }) {
   const s = shape(props);
   return (
     <div {...s} role="alert">
       {props.icon}
       {props.title ? <strong>{props.title}</strong> : null}
       {props.children}
+      {props.action}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { createMemo, createSignal, type JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import { MarketScreenerPanel, marketSortToSortEntry, sortEntryToMarketSort } from "./MarketScreenerPanel";
 import { valueScan } from "../../api/valueScan";
-import { useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
+import { isLiveUniverse, useMarketSnapshotSolid } from "./useMarketSnapshotSolid";
 import { fetchScreenerDashboard } from "../../api/screenerDashboard";
 import { getUserConfig, putUserConfig, deleteUserConfig } from "../../api/userConfigs";
 import * as marketFilters from "./marketFilters";
@@ -26,8 +26,13 @@ vi.mock("@solidjs/router", async (importOriginal) => {
   return { ...actual, useNavigate: () => routerMocks.navigate };
 });
 
+const marketMocks = vi.hoisted(() => ({
+  isLiveUniverse: vi.fn(() => true),
+}));
+
 vi.mock("./useMarketSnapshotSolid", () => ({
   useMarketSnapshotSolid: vi.fn(),
+  isLiveUniverse: marketMocks.isLiveUniverse,
 }));
 
 vi.mock("../../api/screenerDashboard", () => ({
@@ -60,6 +65,7 @@ const mockPutUserConfig = vi.mocked(putUserConfig);
 const mockDeleteUserConfig = vi.mocked(deleteUserConfig);
 
 const mockUseMarketSnapshot = vi.mocked(useMarketSnapshotSolid);
+const mockIsLiveUniverse = vi.mocked(isLiveUniverse);
 
 const mockLookupPatterns = vi.hoisted(() => vi.fn());
 vi.mock("../../api/patternLookup", () => ({
@@ -189,10 +195,20 @@ function r(jsx: () => JSX.Element) {
   return render(() => (<UIProvider>{jsx()}</UIProvider>));
 }
 
+const universeSelect = () =>
+  screen.getByTestId("market-universe-select").querySelector("select") as HTMLSelectElement;
+
+function chooseUniverse(label: string) {
+  const select = universeSelect();
+  const option = Array.from(select.options).find((o) => o.textContent === label);
+  fireEvent.input(select, { target: { value: option?.value ?? label } });
+}
+
 afterEach(cleanup);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockIsLiveUniverse.mockReturnValue(true);
   // The panel reads `?wire=` once at setup; a leftover value would leak.
   window.history.replaceState({}, "", "/");
   mockUseMarketSnapshot.mockReturnValue(hookResult());
@@ -241,6 +257,62 @@ beforeEach(() => {
   mockDeleteUserConfig.mockResolvedValue({ scope: "market.filters", deleted: true });
 });
 
+describe("MarketScreenerPanel — universe dropdown", () => {
+  test("is a native select exposing all nine universes, including USA after picking Nifty 50", () => {
+    r(() => <MarketScreenerPanel />);
+    const field = screen.getByTestId("market-universe-select");
+    expect(field.querySelector("input")).toBeNull();
+    const select = universeSelect();
+    expect(select).toHaveAttribute("aria-label", "Market universe");
+    expect(Array.from(select.options, (option) => option.textContent)).toEqual([
+      "All NSE",
+      "Nifty 500",
+      "Nifty 50",
+      "NIFTY 100",
+      "NIFTY 200",
+      "Bank Nifty",
+      "Sensex",
+      "F&O",
+      "USA",
+    ]);
+
+    chooseUniverse("Nifty 50");
+    expect(select).toHaveValue("nifty50");
+    // The old searchable input kept its chosen label as the query, so a second
+    // open filtered the list down to Nifty 50 and USA disappeared.
+    expect(Array.from(select.options, (option) => option.textContent)).toContain("USA");
+    expect(mockUseMarketSnapshot.mock.calls.at(-1)?.[0]()).toBe("nifty50");
+  });
+});
+
+describe("MarketScreenerPanel — feed mode badge", () => {
+  test("a closed India universe reads Closed, never Live, even on a streaming snapshot", () => {
+    mockIsLiveUniverse.mockReturnValue(false);
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ updateMode: "streaming" }));
+    r(() => <MarketScreenerPanel />);
+
+    const badge = screen.getByTestId("market-mode-badge");
+    expect(badge).toHaveTextContent("Closed");
+    expect(badge).not.toHaveTextContent("Live");
+    // Tooltip names its wrapper with the hint; no hover needed.
+    expect(badge.parentElement).toHaveAttribute(
+      "aria-label",
+      "Market closed · showing last snapshot",
+    );
+    expect(mockIsLiveUniverse).toHaveBeenCalledWith("all_equity");
+  });
+
+  test("an open India universe with a streaming snapshot reads Live", () => {
+    mockIsLiveUniverse.mockReturnValue(true);
+    mockUseMarketSnapshot.mockReturnValue(hookResult({ updateMode: "streaming" }));
+    r(() => <MarketScreenerPanel />);
+
+    const badge = screen.getByTestId("market-mode-badge");
+    expect(badge).toHaveTextContent("Live");
+    expect(badge).not.toHaveTextContent("Closed");
+  });
+});
+
 describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
   test("shows rows with a Stale badge while serving the cached snapshot", () => {
     mockUseMarketSnapshot.mockReturnValue(
@@ -276,9 +348,7 @@ describe("MarketScreenerPanel — stale cache, warming hint, timeout", () => {
     );
     r(() => <MarketScreenerPanel />);
     expect(screen.getByTestId("market-warming-hint")).toBeInTheDocument();
-    const combo = screen.getByTestId("market-universe-select").querySelector('[role="combobox"]') as HTMLInputElement;
-    await fireEvent.focus(combo);
-    await fireEvent.mouseDown(await screen.findByRole("option", { name: "Nifty 500" }));
+    chooseUniverse("Nifty 500");
     expect(screen.queryByTestId("market-warming-hint")).not.toBeInTheDocument();
     expect(mockUseMarketSnapshot.mock.calls.at(-1)?.[0]()).toBe("nifty500");
   });
@@ -811,11 +881,7 @@ describe("MarketScreenerPanel — symbol allowlist", () => {
   test("changing the universe clears the symbol allowlist", async () => {
     const onClear = vi.fn();
     r(() => <MarketScreenerPanel symbolAllowlist={["RELIANCE"]} onClearSymbolAllowlist={onClear} />);
-    const combo = screen.getByTestId("market-universe-select").querySelector(
-      '[role="combobox"]',
-    ) as HTMLInputElement;
-    await fireEvent.focus(combo);
-    await fireEvent.mouseDown(await screen.findByRole("option", { name: "Nifty 500" }));
+    chooseUniverse("Nifty 500");
     expect(onClear).toHaveBeenCalled();
   });
 
@@ -1257,9 +1323,7 @@ describe("MarketScreenerPanel — saved filters", () => {
       // Fails on the buggy code: the mirror's pre-hydration write closes the
       // latch, so nifty50 is discarded and the snapshot stays on all_equity.
       expect(mockUseMarketSnapshot.mock.calls.at(-1)?.[0]()).toBe("nifty50");
-      expect(
-        within(screen.getByTestId("market-universe-select")).getByRole("combobox"),
-      ).toHaveValue("Nifty 50");
+      expect(universeSelect()).toHaveValue("nifty50");
       await new Promise((resolve) => setTimeout(resolve, 1200));
       expect(
         mockPutUserConfig.mock.calls.some(
@@ -1608,15 +1672,8 @@ describe("MarketScreenerPanel — universe-aware columns, rail and reset", () =>
   const mcapHeader = () =>
     document.getElementById("paper-tanstack-header-market_cap_cr")?.textContent ?? "";
 
-  async function selectUniverse(name: string) {
-    const combo = screen.getByTestId("market-universe-select").querySelector(
-      '[role="combobox"]',
-    ) as HTMLInputElement;
-    await fireEvent.focus(combo);
-    // `handleSelect` keeps the chosen label as the search query, so a second
-    // open is filtered down to just that option. Clear it before picking.
-    await fireEvent.input(combo, { target: { value: "" } });
-    await fireEvent.mouseDown(await screen.findByRole("option", { name }));
+  function selectUniverse(name: string) {
+    chooseUniverse(name);
   }
 
   function setNumber(testId: string, value: string) {
@@ -1828,13 +1885,8 @@ describe("MarketScreenerPanel — cap-tier counts follow the loaded rows", () =>
     row("SMALL", { exchange: "NASDAQ", currency: "USD", capTier: "small", marketCapCr: null, marketCapUsdB: 1 }),
   ];
 
-  async function selectUniverse(name: string) {
-    const combo = screen.getByTestId("market-universe-select").querySelector(
-      '[role="combobox"]',
-    ) as HTMLInputElement;
-    await fireEvent.focus(combo);
-    await fireEvent.input(combo, { target: { value: "" } });
-    await fireEvent.mouseDown(await screen.findByRole("option", { name }));
+  function selectUniverse(name: string) {
+    chooseUniverse(name);
   }
 
   const rail = () => within(screen.getByTestId("market-filter-rail"));
@@ -2151,11 +2203,7 @@ describe("MarketScreenerPanel — embedded Value view", () => {
       ),
     );
 
-    const combo = screen.getByTestId("market-universe-select").querySelector(
-      '[role="combobox"]',
-    ) as HTMLInputElement;
-    await fireEvent.focus(combo);
-    await fireEvent.mouseDown(await screen.findByRole("option", { name: "USA" }));
+    chooseUniverse("USA");
 
     await waitFor(
       () =>
@@ -2232,11 +2280,7 @@ describe("MarketScreenerPanel — market snapshot gating in Value view", () => {
     await screen.findByTestId("value-panel", {}, { timeout: 3000 });
     expect(enabledForFirstCall()).toBe(false);
 
-    const combo = screen.getByTestId("market-universe-select").querySelector(
-      '[role="combobox"]',
-    ) as HTMLInputElement;
-    await fireEvent.focus(combo);
-    await fireEvent.mouseDown(await screen.findByRole("option", { name: "USA" }));
+    chooseUniverse("USA");
 
     await waitFor(() =>
       expect(mockValueScan).toHaveBeenCalledWith(
@@ -2582,11 +2626,7 @@ describe("MarketScreenerPanel — market breadth strip", () => {
     const breadth = screen.getByTestId("market-breadth");
     expect(breadth).toBeInTheDocument();
     const bandParent = breadth.parentElement;
-    const combo = screen.getByTestId("market-universe-select").querySelector(
-      '[role="combobox"]',
-    ) as HTMLInputElement;
-    await fireEvent.focus(combo);
-    await fireEvent.mouseDown(await screen.findByRole("option", { name: "USA" }));
+    chooseUniverse("USA");
     expect(screen.queryByTestId("market-breadth")).not.toBeInTheDocument();
     // The placeholder keeps the strip's Paper box (and the flex gap), so the
     // table top does not jump when the India-only breadth data disappears.

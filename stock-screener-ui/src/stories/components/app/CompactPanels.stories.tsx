@@ -20,7 +20,7 @@ type CompactArgs = {
 };
 
 const meta: Meta<CompactArgs> = {
-  title: "Design System/Components/App/CompactPanels",
+  title: "App/Components/CompactPanels",
   tags: ["autodocs"],
   parameters: {
     docs: {

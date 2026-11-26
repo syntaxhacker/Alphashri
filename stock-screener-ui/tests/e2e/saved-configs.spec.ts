@@ -50,7 +50,7 @@ const LARGE_ROW_IDS = ["RELIANCE", "HDFCBANK", "TCS"].map((s) => `market-row-${s
 
 const GRID_HEADERS = '[data-testid="market-grid"] th';
 const SECTOR_CHIP_IT = '[data-testid="market-filter-chip-sector:IT"]';
-const UNIVERSE_COMBO = '[data-testid="market-universe-select"] [role="combobox"]';
+const UNIVERSE_COMBO = '[data-testid="market-universe-select"] select';
 const SECTOR_COMBO = '[data-testid="market-filter-sector"] [role="combobox"]';
 
 async function mockMarketSnapshot(page: Page) {
@@ -108,8 +108,7 @@ async function pickSector(page: Page, name: string) {
 }
 
 async function pickUniverse(page: Page, label: string) {
-  await page.locator(UNIVERSE_COMBO).click();
-  await page.getByRole("option", { name: label }).click();
+  await page.locator(UNIVERSE_COMBO).selectOption({ label });
 }
 
 async function openMarketTab(page: Page, path = SNAPSHOT_PATH) {
@@ -151,7 +150,7 @@ test.describe("Saved screen state — market.filters", () => {
     await pickSector(page, "IT");
 
     await expect(page.locator(SECTOR_CHIP_IT)).toBeVisible();
-    await expect(page.locator(UNIVERSE_COMBO)).toHaveValue("Nifty 500");
+    await expect(page.locator(`${UNIVERSE_COMBO} option:checked`)).toHaveText("Nifty 500");
     // A pinned sector makes the column constant; it must stay hidden after the
     // reload too (a restored sector that forgot to hide SECTOR is the bug).
     await expect(page.locator(GRID_HEADERS).filter({ hasText: "SECTOR" })).toHaveCount(0);
@@ -167,7 +166,7 @@ test.describe("Saved screen state — market.filters", () => {
     await page.reload();
 
     await expect(page.locator(SECTOR_CHIP_IT)).toBeVisible();
-    await expect(page.locator(UNIVERSE_COMBO)).toHaveValue("Nifty 500");
+    await expect(page.locator(`${UNIVERSE_COMBO} option:checked`)).toHaveText("Nifty 500");
     await expect(page.locator(GRID_HEADERS).filter({ hasText: "SECTOR" })).toHaveCount(0);
     await expect.poll(() => renderedRowIds(page)).toEqual(IT_ROW_IDS);
     await expect(page.locator('[data-testid="market-result-count"]')).toContainText(
@@ -189,7 +188,7 @@ test.describe("Saved screen state — market.filters", () => {
     await expect(page.locator('[data-testid="market-grid"]')).toBeHidden();
     // … while the saved universe and sector still land.
     await expect(page.locator(SECTOR_CHIP_IT)).toBeVisible();
-    await expect(page.locator(UNIVERSE_COMBO)).toHaveValue("Nifty 500");
+    await expect(page.locator(`${UNIVERSE_COMBO} option:checked`)).toHaveText("Nifty 500");
     // Legacy `?view=map` normalises to the canonical `vis`, which is what gets
     // written back — the URL still owns the layout instead of the saved `table`.
     await expect(page).toHaveURL(/view=vis/);
@@ -318,6 +317,6 @@ test.describe("Saved screen state — market.filters", () => {
 
     await expect(page.getByTestId("market-value-region")).toBeVisible();
     await expect(page).toHaveURL(/[?&]view=value/);
-    await expect(page.locator(UNIVERSE_COMBO)).toHaveValue("Nifty 500");
+    await expect(page.locator(`${UNIVERSE_COMBO} option:checked`)).toHaveText("Nifty 500");
   });
 });

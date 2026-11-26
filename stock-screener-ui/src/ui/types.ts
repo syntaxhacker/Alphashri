@@ -248,6 +248,8 @@ export interface UIAlertProps extends UIBaseProps {
   radius?: UIRadius;
   icon?: JSX.Element;
   title?: JSX.Element;
+  /** Optional control rendered as a flex sibling of the text block (Ant Design `action`). */
+  action?: JSX.Element;
   withCloseButton?: boolean;
   onClose?: () => void;
 }

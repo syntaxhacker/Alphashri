@@ -25,7 +25,7 @@ type CellArgs = {
 };
 
 const meta: Meta<CellArgs> = {
-  title: "Design System/Components/App/TableCells",
+  title: "App/Components/TableCells",
   tags: ["autodocs"],
   parameters: {
     docs: {

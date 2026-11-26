@@ -126,15 +126,15 @@ const groups: Array<{ title: string; id: string; description: string; stories: A
   },
   {
     title: "Shared primitives",
-    id: "design-system-shared-primitives--family-landing",
+    id: "app-shared-widgets--family-landing",
     description: "Section headers, filter status, range control, sparklines, values and trade stats.",
-    stories: [{ id: "design-system-shared-primitives--family-landing", label: "Open Shared primitives" }],
+    stories: [{ id: "app-shared-widgets--family-landing", label: "Open Shared primitives" }],
   },
   {
     title: "App primitives",
-    id: "design-system-app-primitives--family-landing",
+    id: "app-overview--family-landing",
     description: "KeyValue rows, market badges and shared empty / error / loading states.",
-    stories: [{ id: "design-system-app-primitives--family-landing", label: "Open App primitives" }],
+    stories: [{ id: "app-overview--family-landing", label: "Open App primitives" }],
   },
   {
     title: "Portal",
