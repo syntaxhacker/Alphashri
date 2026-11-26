@@ -1,0 +1,53 @@
+{
+  "feature": "sector-single-page",
+  "route": "/sector",
+  "head": "0c3533e1790e52a5207bc0ecf2623388c5846ba1",
+  "viewports": [
+    1600,
+    390
+  ],
+  "sha256": {
+    "overview-1600.png": "e3f05a045c97e4ef09d89c8b74a0946340fcb1f45a51d56aa320514b658f8f01",
+    "rotation-1600.png": "51eec4716d9daf7aa13de0f2a16c453f11d1c9fb505c25078d4f2cdb5b217fa6",
+    "correlation-1600.png": "384b8b0890bafe90db4bccd7881c1f80433fa962e8234751af8df5f50bee1396",
+    "history-1600.png": "bdb6971470ab253056bc074c0620d45641cbf4469ee64b97b36763f8fb605787",
+    "overview-390.png": "bb8214e248ebd0d7c9f9ffbfc0341f0347c6e80a61a56e3d70ac060194ab48b4",
+    "rotation-390.png": "7c050f3bfc4e3ce86db3cd57a1770404580afdf27537780583fba1cd8eb8477a",
+    "correlation-390.png": "7f8a59b30d6505c258249f7c8fd866a22a3c568249ba6cfba24ad06b336376f2",
+    "history-390.png": "77d0c6a6d70f936ee51983f28d96828e29280371a40a5b37b1953139665cbfff"
+  },
+  "states": [
+    {
+      "id": "overview-loaded",
+      "files": {
+        "390": "overview-390.png",
+        "1600": "overview-1600.png"
+      },
+      "covers": "Overview at the top of /sector: summary strip, MOVE table and alerts."
+    },
+    {
+      "id": "rotation-loaded",
+      "files": {
+        "390": "rotation-390.png",
+        "1600": "rotation-1600.png"
+      },
+      "covers": "Rotation section after anchor navigation: regime, board and matrix."
+    },
+    {
+      "id": "correlation-loaded",
+      "files": {
+        "390": "correlation-390.png",
+        "1600": "correlation-1600.png"
+      },
+      "covers": "Correlation section after anchor navigation: heatmap and relative strength."
+    },
+    {
+      "id": "history-loaded",
+      "files": {
+        "390": "history-390.png",
+        "1600": "history-1600.png"
+      },
+      "covers": "History section after anchor navigation: lazy chunk mounted with overview data."
+    }
+  ]
+}
