@@ -190,6 +190,9 @@ describe("ScreenerTable", () => {
 
     const text = screen.getByTestId("symbol-link-RELIANCE");
     expect(text.tagName).toBe("BUTTON");
+    // The text is the only in-app affordance here: at the default symbol
+    // column width a second chart icon would steal its pointer target.
+    expect(screen.queryByTestId("symbol-chart-RELIANCE")).toBeNull();
     await fireEvent.click(text);
     expect(defaultProps.onSymbolClick).toHaveBeenCalledTimes(1);
     expect(defaultProps.onSymbolClick).toHaveBeenCalledWith("RELIANCE");

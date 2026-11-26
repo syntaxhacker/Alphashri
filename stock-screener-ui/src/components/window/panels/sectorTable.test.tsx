@@ -129,6 +129,34 @@ describe("sector — two-window request count", () => {
     expect(ctl.fetchSectorPerformance).toHaveBeenCalledTimes(1);
   });
 
+  it("adding a movers window after a table shares the loaded frame without a second fetch", async () => {
+    type Layout = "table" | "both";
+    const [layout, setLayout] = createSignal<Layout>("table");
+    render(() => (
+      <UIProvider>
+        <Show keyed when={layout()}>
+          {(mode) => (
+            <>
+              <MountSpec id="sector.table" />
+              {mode === "both" && <MountSpec id="sector.movers" />}
+            </>
+          )}
+        </Show>
+      </UIProvider>
+    ));
+
+    await waitFor(() => expect(screen.getByTestId("sector-row-energy")).toBeInTheDocument());
+    expect(ctl.fetchSectorPerformance).toHaveBeenCalledTimes(1);
+
+    // HOME changes the desk key when a window type is added, so every frame is
+    // rebuilt: the table detaches and a new movers window mounts in one commit.
+    setLayout("both");
+
+    await waitFor(() => expect(screen.getByTestId("interval-movers-table")).toHaveTextContent("RELIANCE"));
+    expect(screen.queryByTestId("sector-movers-loading")).toBeNull();
+    expect(ctl.fetchSectorPerformance).toHaveBeenCalledTimes(1);
+  });
+
   it("two heatmap windows share one /api/sector fetch", async () => {
     renderPanels(["sector.heatmap", "sector.heatmap"]);
 

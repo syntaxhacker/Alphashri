@@ -1,5 +1,5 @@
 import { createEffect, createSignal, onMount, onCleanup } from "solid-js";
-import { useLocation, useSearchParams } from "@solidjs/router";
+import { useLocation, useNavigate, useSearchParams } from "@solidjs/router";
 import {
   subscribe,
   getChartPatternsState,
@@ -194,12 +194,15 @@ export function PatternsContainer() {
   const [members, setMembers] = createSignal<string | null>(null);
 
   const [, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const location = useLocation();
 
   let hydrated = false;
   let firstRun = true;
   let parsed: ParsedPatternParams | null = null;
   let lastWritten = "";
+  /** Search we just wrote; a stale URL must not be read back over a local edit. */
+  let localWriteTarget: string | null = null;
 
   const currentState = () => ({
     universe: universe(),
@@ -302,11 +305,30 @@ export function PatternsContainer() {
     const merged = mergeWithSearch(location.search, next);
     lastWritten = merged;
     if (normalizeSearch(location.search) === normalizeSearch(merged)) return;
-    setSearchParams(next, { replace: true });
+    // A filter edit patches the store synchronously, so this effect can run
+    // before the navigation lands. Hold the readback until the URL matches the
+    // value we wrote; otherwise it re-applies the previous `hist` and the
+    // applied filter is lost while the old param stays in the address bar.
+    localWriteTarget = merged;
+    const mergedQuery = new URLSearchParams(normalizeSearch(merged));
+    setSearchParams(mergedQuery as unknown as Parameters<typeof setSearchParams>[0], { replace: true });
+    // Solid Router's setSearchParams merges onto the current search and only
+    // reads enumerable entries; URLSearchParams has none, so keys removed from
+    // `merged` would survive. Navigate to the merged query explicitly so the
+    // old filter param is actually deleted.
+    navigate(location.pathname + (merged ? `?${mergedQuery}` : ""), {
+      replace: true,
+      scroll: false,
+      resolve: false,
+    });
   });
 
   createEffect(() => {
     const search = location.search;
+    if (localWriteTarget !== null) {
+      if (normalizeSearch(search) === normalizeSearch(localWriteTarget)) localWriteTarget = null;
+      else return;
+    }
     if (!hydrated) return;
     const merged = mergeWithSearch(search, buildParamsObject(currentState()));
     if (merged === lastWritten) return;

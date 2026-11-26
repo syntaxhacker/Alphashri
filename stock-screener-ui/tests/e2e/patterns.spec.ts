@@ -1011,12 +1011,17 @@ test.describe("Chart Patterns page", () => {
     await page.locator('[data-testid="patterns-filter-history-1"]').click();
     await applyFilters(page);
 
+    // The URL sync writes the applied filters back after the modal closes.
+    // Wait for it before counting cards: with a stale `hist=3` still on the
+    // URL, the readback can restore the old history and keep all four cards.
+    await page.waitForURL((url) => !url.searchParams.has("hist"), { timeout: 15_000 });
+    await expect(page).not.toHaveURL(/hist/);
+
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(2);
     await expect(page.locator('[data-testid="patterns-card-DLF-consolidation"]')).toBeVisible();
     await expect(page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]')).toBeVisible();
     await expect(page.locator('[data-testid="patterns-card-DLF-ascending_triangle"]')).toBeHidden();
     await expect(page.locator('[data-testid="patterns-card-DLF-ascending_channel"]')).toBeHidden();
-    await expect(page).not.toHaveURL(/hist/);
   });
 
   test("status pills derive BREAKOUT / EXTENDED / ARMED from price vs the box", async ({ page }) => {

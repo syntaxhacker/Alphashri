@@ -1,5 +1,4 @@
-import { createMemo, type Accessor } from "solid-js";
-import { useStoreSubscription } from "@/hooks/useStoreSubscription";
+import { createMemo, createSignal, onCleanup, type Accessor } from "solid-js";
 import type { SectorMarket, SectorState } from "@/state/sector";
 import {
   getSectorState,
@@ -154,7 +153,12 @@ export function switchSectorMarket(market: SectorMarket): void {
 }
 
 export function useSectorPanelState(): Accessor<SectorState> {
-  const version = useStoreSubscription(subscribe);
+  // Subscribe during setup, not in an effect: a desk rebuild restores the
+  // shared frame from a panel's onMount, and an effect-based subscription can
+  // miss that notify, leaving a late-mounted panel on the reset snapshot.
+  const [version, setVersion] = createSignal(0);
+  const unsubscribe = subscribe(() => setVersion((n) => n + 1));
+  onCleanup(unsubscribe);
   return createMemo(() => {
     version();
     return getSectorState();
