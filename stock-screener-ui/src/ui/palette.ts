@@ -198,6 +198,42 @@ export const CHART_SHARE_STOPS = [
   CHART_CURRENT,
 ] as const;
 
+// ----- Agri (mandi) redesign palette ---------------------------------------
+// Mandi prices are levels, not P&L, so this palette deliberately avoids the
+// terminal bull/bear green/red pair: direction reads as cool-vs-warm ink and
+// every categorical hue clears 4.5:1 as text on SURFACE. Seasonality is a
+// diverging *deviation-from-own-average* scale (blue < average, amber >
+// average); each stop carries either the off-white or the page ink at >=4.5:1,
+// chosen by pickTextColor() rather than by eye.
+/** Focused hero line and the selected cell in the small-multiple grid. */
+export const AGRI_ACCENT = "#8C9DFF";
+/** De-emphasised context lines behind the focused series. */
+export const AGRI_CONTEXT = "#7A8899";
+/** Non-terminal direction ink: cool = up, warm terracotta = down. */
+export const AGRI_UP = "#6FB1FF";
+export const AGRI_DOWN = "#E8906B";
+/** Values outside the 1.5×IQR fence in the mandi dispersion plot. */
+export const AGRI_OUTLIER = "#C58AF9";
+/** Stable series colours for ranking / comparison marks. */
+export const AGRI_CATEGORICAL = [
+  "#6FB1FF",
+  "#F2B84B",
+  "#9B8CF7",
+  "#4FC3B0",
+  "#E8906B",
+  "#B9C97E",
+] as const;
+/** Below average → neutral → above average; dark enough for direct cell labels. */
+export const AGRI_SEASON_STOPS = [
+  "#224A70",
+  "#2B5C8A",
+  "#316A9C",
+  "#242A33",
+  "#805C22",
+  "#A87628",
+  "#C99233",
+] as const;
+
 // --- Desk / terminal surface for the Nifty analytics panels ----------------
 // Deep panel, hairline border, CE-blue / PE-orange legs, mint net-gamma.
 // The desk reuses the global ramp rather than a near-miss copy of it: it had

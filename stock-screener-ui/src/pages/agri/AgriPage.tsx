@@ -62,11 +62,23 @@ import {
 } from "@/config/agri";
 import { buildAgriChartOption } from "./agriChartOption";
 import { buildEdaOption } from "./agriEdaOptions";
+import { buildAgriHeroOption } from "./agriHeroOption";
+import { buildAgriRankOption } from "./agriRankOption";
+import { buildAgriSeasonalityOption } from "./agriSeasonalityOption";
+import { buildAgriDispersionOption } from "./agriDispersionOption";
+import {
+  buildDispersionRows,
+  buildRankBoard,
+  buildSeasonRows,
+  buildSparkRows,
+  type AgriAnalyticsSeries,
+} from "./agriRedesignData";
 import { monthlyBox, monthlyHeatmap, seasonality, summariseEda, supplyDemand } from "./agriEda";
 import { agriRangeStart, formatAgriSessionDate } from "./agriDates";
 import { AGRI_QUOTE_DEFAULT_SORT, agriColumns, type AgriTableViewRow } from "./agriColumns";
 import { AgriGroupOverview } from "./AgriGroupOverview";
 import { AgriFluctuationMatrix } from "./AgriFluctuationMatrix";
+import { AgriSparkGrid } from "./AgriSparkGrid";
 import { buildAgriGroupSummaries } from "./agriGroupSummary";
 
 type SelectOption = { value: string; label: string; group?: string };
@@ -252,7 +264,7 @@ export function AgriPage() {
       : AGRI_DEFAULT_RANGE,
   );
   const [mode, setMode] = createSignal<AgriChartMode>(resolvedMode || AGRI_DEFAULT_CHART_MODE);
-  const [pageView, setPageView] = createSignal<"chart" | "groups">("chart");
+  const [pageView, setPageView] = createSignal<"overview" | "groups" | "data">("overview");
   const [compareExtras, setCompareExtras] = createSignal<string[]>(
     AGRI_COMPARE_DEFAULTS.filter((key) => key !== initialCommodity).slice(0, AGRI_MAX_COMPARE - 1),
   );
@@ -365,14 +377,10 @@ export function AgriPage() {
     };
     const selectedSource = source();
     if (selectedSource !== AGRI_SOURCE_LOCAL) params.source = selectedSource;
-    if (mode() === "compare") {
-      // The active commodity is the anchor: the backend comparison series must
-      // always contain it or the overlay silently drops the selected line.
-      params.compare = compareKeys();
-    } else if (mode() === "heatmap") {
-      // The heatmap already draws the active series separately.
-      params.compare = compareExtras();
-    }
+    // The active commodity is the anchor. Requesting the tracked set on every
+    // mode gives the rank board, seasonality rows and sparkline cells real
+    // paths instead of derived guesses; the cap stays at AGRI_MAX_COMPARE.
+    params.compare = compareKeys();
     const selectedGroup = group();
     const selectedState = state();
     const selectedDistrict = district();
@@ -544,7 +552,11 @@ export function AgriPage() {
     const next = value ?? "";
     if (!next) return;
     setCommodity(next);
-    setCompareExtras((previous) => previous.filter((key) => key !== next));
+    // Keep the same array when nothing changed so the price effect does not
+    // fire twice for one selection.
+    setCompareExtras((previous) =>
+      previous.includes(next) ? previous : previous.filter((key) => key !== next),
+    );
   }
 
   function toggleCompare(key: string) {
@@ -670,7 +682,65 @@ export function AgriPage() {
   });
   const canDraw = createMemo(() => Object.keys(chartOption()).length > 0);
 
+  /** One tracked set feeds the hero context, rank board, seasonality and grid. */
+  const analyticsSeries = createMemo<AgriAnalyticsSeries[]>(() => [
+    {
+      key: commodity(),
+      label: commodityLabel(commodity(), commodity()),
+      points: chartSeries().map((point) => ({ date: point.date, modal: point.modal })),
+    },
+    ...comparison().map((entry) => ({
+      key: entry.key,
+      label: entry.label,
+      points: entry.points.map((point) => ({ date: point.date, modal: point.modal })),
+    })),
+  ]);
+  const heroOption = createMemo(() =>
+    buildAgriHeroOption({
+      title: commodityLabel(commodity(), commodity()),
+      series: chartSeries(),
+      comparison: analyticsSeries().slice(1),
+      unit: AGRICULTURE_UNIT,
+      isDark: isDark(),
+      asOf: asOf() ?? undefined,
+      compact: isMobile(),
+    }),
+  );
+  const heroCanDraw = createMemo(() =>
+    mode() === "band" ? Object.keys(heroOption()).length > 0 : canDraw(),
+  );
+  const rankRows = createMemo(() => buildRankBoard(analyticsSeries()));
+  const rankOption = createMemo(() =>
+    buildAgriRankOption({
+      rows: rankRows(),
+      selected: commodity(),
+      isDark: isDark(),
+      compact: isMobile(),
+    }),
+  );
+  const seasonRows = createMemo(() => buildSeasonRows(analyticsSeries()));
+  const seasonOption = createMemo(() =>
+    buildAgriSeasonalityOption({
+      rows: seasonRows(),
+      unit: AGRICULTURE_UNIT,
+      isDark: isDark(),
+      compact: isMobile(),
+    }),
+  );
+  const sparkRows = createMemo(() =>
+    buildSparkRows(snapshot(), comparison(), (key, fallback) => commodityLabel(key, fallback)),
+  );
+
   const quotes = createMemo(() => prices()?.quotes ?? []);
+  const dispersionRows = createMemo(() => buildDispersionRows(quotes()));
+  const dispersionOption = createMemo(() =>
+    buildAgriDispersionOption({
+      rows: dispersionRows(),
+      unit: AGRICULTURE_UNIT,
+      isDark: isDark(),
+      compact: isMobile(),
+    }),
+  );
   const quotesTotal = createMemo(() => {
     const total = prices()?.quotes_total;
     if (typeof total !== "number" || !Number.isFinite(total)) return null;
@@ -768,9 +838,13 @@ export function AgriPage() {
   return (
     <Box
       data-testid="agri-page"
-      className="flex h-full w-full min-h-0 flex-col gap-2 overflow-hidden p-2"
+      className="flex h-full w-full min-h-0 flex-col gap-2 overflow-hidden bg-fin-bg p-2"
     >
-      <ToolbarRow gap={8} data-testid="agri-toolbar" className="shrink-0">
+      <ToolbarRow
+        gap={8}
+        data-testid="agri-toolbar"
+        className="sticky top-0 z-20 shrink-0 rounded-[6px] border border-fin-border bg-fin-bg px-2 py-1"
+      >
         <Box className="flex flex-wrap items-center gap-2 min-w-0" data-testid="agri-scan-group">
           <Text fw={700} className={MICRO_LABEL}>
             Scan
@@ -1157,23 +1231,23 @@ export function AgriPage() {
         >
           <ToolbarRow gap={8} className="shrink-0 px-1" data-testid="agri-eda-head">
             <Text fw={700} className={SECTION_LABEL}>
-              EDA summary
+              Workspace
             </Text>
             <Text c="dimmed" className={SECTION_HINT}>
-              derived from the active window · unavailable inputs read —
+              visuals first · data on demand · unavailable inputs read —
             </Text>
             <Box className="ml-auto flex items-center gap-1" data-testid="agri-view-toggle">
               <Button
                 size="xs"
                 radius="sm"
-                variant={pageView() === "chart" ? "default" : "subtle"}
-                color={pageView() === "chart" ? "primary" : undefined}
-                className={pageView() === "chart" ? "font-semibold" : undefined}
-                onClick={() => setPageView("chart")}
+                variant={pageView() === "overview" ? "default" : "subtle"}
+                color={pageView() === "overview" ? "primary" : undefined}
+                className={pageView() === "overview" ? "font-semibold" : undefined}
+                onClick={() => setPageView("overview")}
                 data-testid="agri-view-chart"
-                aria-pressed={pageView() === "chart"}
+                aria-pressed={pageView() === "overview"}
               >
-                Chart
+                Overview
               </Button>
               <Button
                 size="xs"
@@ -1186,6 +1260,18 @@ export function AgriPage() {
                 aria-pressed={pageView() === "groups"}
               >
                 Categories
+              </Button>
+              <Button
+                size="xs"
+                radius="sm"
+                variant={pageView() === "data" ? "default" : "subtle"}
+                color={pageView() === "data" ? "primary" : undefined}
+                className={pageView() === "data" ? "font-semibold" : undefined}
+                onClick={() => setPageView("data")}
+                data-testid="agri-view-data"
+                aria-pressed={pageView() === "data"}
+              >
+                Data
               </Button>
             </Box>
           </ToolbarRow>
@@ -1243,47 +1329,135 @@ export function AgriPage() {
             />
           </Box>
           <Show
-            when={pageView() === "chart"}
+            when={pageView() === "overview"}
             fallback={
-              <Box
-                className="flex min-h-0 flex-1 flex-col gap-2 max-sm:overflow-visible sm:overflow-y-auto"
-                data-testid="agri-groups-view"
+              <Show
+                when={pageView() === "groups"}
+                fallback={
+                  <Box
+                    className="flex min-h-0 flex-1 flex-col gap-2"
+                    data-testid="agri-data-view"
+                  >
+                    <CompactPanel
+                      testId="agri-table-panel"
+                      className="flex min-h-0 flex-col"
+                      scrollable
+                      style={{
+                        flex: isMobile() ? "0 0 320px" : "1 1 0%",
+                        "min-height": isMobile() ? "320px" : "240px",
+                      }}
+                      title="Latest mandi quotes · Data"
+                      description={
+                        quotes().length > 0
+                          ? `${quoteScope()} · ${formatAgriSessionDate(asOf())}`
+                          : `${tableRows().length} snapshot rows · ${formatAgriSessionDate(asOf())} · not a mandi universe`
+                      }
+                    >
+                      <Show
+                        when={tableRows().length > 0}
+                        fallback={
+                          <EmptyState
+                            kind="no-data"
+                            data-testid="agri-table-empty"
+                            title="No mandi quotes for this selection"
+                            description={emptyCopy()}
+                          />
+                        }
+                      >
+                        <Box className="flex min-h-0 flex-1 flex-col" data-testid="agri-table-region">
+                          <TanStackTable
+                            data={tableRows()}
+                            columns={columns()}
+                            dataTestId="agri-quotes-table"
+                            stickyHeader
+                            fillContainer
+                            bare
+                            rowWindowSize={80}
+                            minTableWidth={1168}
+                            initialSorting={AGRI_QUOTE_DEFAULT_SORT}
+                            onRowClick={(row) => {
+                              applyRowFilters(row);
+                              setPageView("overview");
+                            }}
+                            getRowTestId={(row) => `agri-row-${row.key}`}
+                            ariaLabel="Agricultural mandi prices"
+                          />
+                          <Text
+                            size="xs"
+                            c="dimmed"
+                            className="shrink-0 px-2 pb-1 break-words text-ui-micro"
+                            data-testid="agri-table-scope"
+                          >
+                            Sorted by modal price (high → low) · {quoteScope()}
+                          </Text>
+                          <Show when={isMobile()}>
+                            <Text
+                              size="xs"
+                              c="dimmed"
+                              className="shrink-0 px-2 pb-1 text-ui-micro"
+                              data-testid="agri-table-scroll-hint"
+                            >
+                              Swipe left / right to see all columns →
+                            </Text>
+                          </Show>
+                        </Box>
+                      </Show>
+                    </CompactPanel>
+                  </Box>
+                }
               >
-                <AgriGroupOverview
-                  className="shrink-0"
-                  groups={groupSummaries()}
-                  asOf={asOf()}
-                  selected={group()}
-                  onSelect={(key) => {
-                    setGroup(key);
-                    setPageView("chart");
-                  }}
-                />
-                <AgriFluctuationMatrix
-                  className="shrink-0"
-                  rows={snapshot()}
-                  group={group() || null}
-                  asOf={asOf()}
-                  selected={commodity()}
-                  onSelect={(key) => {
-                    setCommodity(key);
-                    setPageView("chart");
-                  }}
-                />
-              </Box>
+                <Box
+                  className="flex min-h-0 flex-1 flex-col gap-2"
+                  data-testid="agri-groups-view"
+                >
+                  <AgriGroupOverview
+                    className="shrink-0"
+                    groups={groupSummaries()}
+                    asOf={asOf()}
+                    selected={group()}
+                    onSelect={(key) => {
+                      setGroup(key);
+                      setPageView("overview");
+                    }}
+                  />
+                  <AgriFluctuationMatrix
+                    className="shrink-0"
+                    rows={snapshot()}
+                    group={group() || null}
+                    asOf={asOf()}
+                    selected={commodity()}
+                    onSelect={(key) => {
+                      setCommodity(key);
+                      setPageView("overview");
+                    }}
+                  />
+                </Box>
+              </Show>
             }
           >
-            <CompactPanel
-              testId="agri-chart-panel"
-              className="flex min-h-0 flex-col"
-              scrollable
-              style={{
-                flex: isMobile() ? "0 0 340px" : "3 1 0%",
-                "min-height": isMobile() ? "340px" : "280px",
-              }}
-              title={`Modal price — ${commodityLabel(commodity(), commodity())}`}
-              description={`${agriRange(range())?.label ?? range()} · ${series().length} sessions · ₹/quintal${asOf() ? ` · from ${formatAgriSessionDate(agriRangeStart(asOf(), agriRange(range())?.days ?? null))}` : ""}`}
+            <Box
+              data-testid="agri-overview-grid"
+              className={
+                isMobile()
+                  ? "flex min-h-0 flex-1 flex-col gap-2"
+                  : "grid min-h-0 flex-1 grid-cols-12 grid-rows-2 gap-2"
+              }
             >
+              <CompactPanel
+                testId="agri-chart-panel"
+                className="col-span-12 flex min-h-0 flex-col lg:col-span-8"
+                scrollable
+                style={{
+                  flex: isMobile() ? "0 0 320px" : "1 1 0%",
+                  "min-height": isMobile() ? "320px" : "0px",
+                }}
+                title={`Price focus — ${commodityLabel(commodity(), commodity())}`}
+                description={
+                  mode() === "band" && asOf()
+                    ? `How to read: bold = modal ₹/quintal · thin = tracked commodities · latest as of ${formatAgriSessionDate(asOf())}`
+                    : `${agriRange(range())?.label ?? range()} · ${series().length} sessions · ₹/quintal${asOf() ? ` · from ${formatAgriSessionDate(agriRangeStart(asOf(), agriRange(range())?.days ?? null))}` : ""}`
+                }
+              >
               <ToolbarRow gap={8} className="shrink-0 px-1 pb-1" data-testid="agri-mode-row">
                 <Text c="dimmed" className={MICRO_LABEL}>
                   View
@@ -1401,7 +1575,7 @@ export function AgriPage() {
 
               <Show when={!(mode() === "seasonality" && seasonalityWeak())}>
                 <Show
-                  when={canDraw()}
+                  when={heroCanDraw()}
                   fallback={
                     <EmptyState
                       kind="no-data"
@@ -1430,76 +1604,148 @@ export function AgriPage() {
                     className={isMobile() ? "flex min-h-[240px] flex-1" : "flex min-h-0 flex-1"}
                     data-testid="agri-chart-region"
                   >
-                    <EChart option={chartOption()} data-testid="agri-chart" />
+                    <EChart
+                      option={mode() === "band" ? heroOption() : chartOption()}
+                      data-testid="agri-chart"
+                    />
                   </Box>
                 </Show>
               </Show>
             </CompactPanel>
-          </Show>
 
-          <Show when={pageView() === "chart"}>
             <CompactPanel
-              testId="agri-table-panel"
-              className="flex min-h-0 flex-col"
+              testId="agri-spark-panel"
+              className="col-span-12 flex min-h-0 flex-col lg:col-span-4 lg:row-span-2"
               scrollable
               style={{
-                flex: isMobile() ? "0 0 240px" : "2 1 0%",
-                "min-height": isMobile() ? "240px" : "200px",
+                flex: isMobile() ? "0 0 auto" : "1 1 0%",
+                "min-height": isMobile() ? "260px" : "0px",
               }}
-              title="Latest mandi quotes"
-              description={
-                quotes().length > 0
-                  ? `${quoteScope()} · ${formatAgriSessionDate(asOf())}`
-                  : `${tableRows().length} snapshot rows · ${formatAgriSessionDate(asOf())} · not a mandi universe`
-              }
+              title="Commodity universe"
+              description="Click or press Enter / Space to focus the price chart"
             >
               <Show
-                when={tableRows().length > 0}
+                when={sparkRows().length > 0}
                 fallback={
                   <EmptyState
                     kind="no-data"
-                    data-testid="agri-table-empty"
-                    title="No mandi quotes for this selection"
+                    data-testid="agri-spark-empty"
+                    title="No commodity universe in this payload"
+                    description="Waiting for the next snapshot."
+                  />
+                }
+              >
+                <AgriSparkGrid
+                  rows={sparkRows()}
+                  selected={commodity()}
+                  onSelect={changeCommodity}
+                />
+              </Show>
+            </CompactPanel>
+
+            <CompactPanel
+              testId="agri-rank-panel"
+              className="col-span-12 flex min-h-0 flex-col md:col-span-6 lg:col-span-4"
+              scrollable
+              style={{
+                flex: isMobile() ? "0 0 240px" : "1 1 0%",
+                "min-height": isMobile() ? "240px" : "0px",
+              }}
+              title="Rank movement · monthly"
+              description="1 = highest modal among commodities priced that month · gaps are not last place"
+            >
+              <Show
+                when={Object.keys(rankOption()).length > 0}
+                fallback={
+                  <EmptyState
+                    kind="no-data"
+                    data-testid="agri-rank-empty"
+                    title="Not enough months to rank"
+                    description="A bump board needs two months across two commodities in this window."
+                  />
+                }
+              >
+                <Box
+                  className={isMobile() ? "flex min-h-[200px] flex-1" : "flex min-h-0 flex-1"}
+                  data-testid="agri-rank-region"
+                >
+                  <EChart option={rankOption()} data-testid="agri-rank-chart" />
+                </Box>
+              </Show>
+            </CompactPanel>
+
+            <CompactPanel
+              testId="agri-season-panel"
+              className="col-span-12 flex min-h-0 flex-col md:col-span-6 lg:col-span-4"
+              scrollable
+              style={{
+                flex: isMobile() ? "0 0 240px" : "1 1 0%",
+                "min-height": isMobile() ? "240px" : "0px",
+              }}
+              title="Seasonality · commodity × month"
+              description={
+                seasonRows().length > 0
+                  ? seasonRows()
+                      .slice(0, 2)
+                      .map(
+                        (row) =>
+                          `${row.label}: ${row.hitRate == null ? "—" : `${Math.round(row.hitRate * 100)}% above`} · n≥${row.minYears ?? "—"}`,
+                      )
+                      .join(" · ")
+                  : "Deviation from each commodity's own observed-month average"
+              }
+            >
+              <Show
+                when={Object.keys(seasonOption()).length > 0}
+                fallback={
+                  <EmptyState
+                    kind="no-data"
+                    data-testid="agri-season-empty"
+                    title="No monthly pattern in this window"
+                    description="Seasonality needs at least one dated modal price per month."
+                  />
+                }
+              >
+                <Box
+                  className={isMobile() ? "flex min-h-[200px] flex-1" : "flex min-h-0 flex-1"}
+                  data-testid="agri-season-region"
+                >
+                  <EChart option={seasonOption()} data-testid="agri-season-chart" />
+                </Box>
+              </Show>
+            </CompactPanel>
+
+            <CompactPanel
+              testId="agri-dispersion-panel"
+              className="col-span-12 flex min-h-0 flex-col md:col-span-6 lg:col-span-4"
+              scrollable
+              style={{
+                flex: isMobile() ? "0 0 240px" : "1 1 0%",
+                "min-height": isMobile() ? "240px" : "0px",
+              }}
+              title="Mandi dispersion"
+              description="Dot = modal ₹/quintal · bar = min–max · violet = outside 1.5×IQR"
+            >
+              <Show
+                when={Object.keys(dispersionOption()).length > 0}
+                fallback={
+                  <EmptyState
+                    kind="no-data"
+                    data-testid="agri-dispersion-empty"
+                    title="No mandi spread for this selection"
                     description={emptyCopy()}
                   />
                 }
               >
-                <Box className="flex min-h-0 flex-1 flex-col" data-testid="agri-table-region">
-                  <TanStackTable
-                    data={tableRows()}
-                    columns={columns()}
-                    dataTestId="agri-quotes-table"
-                    stickyHeader
-                    fillContainer
-                    bare
-                    rowWindowSize={80}
-                    minTableWidth={1168}
-                    initialSorting={AGRI_QUOTE_DEFAULT_SORT}
-                    onRowClick={applyRowFilters}
-                    getRowTestId={(row) => `agri-row-${row.key}`}
-                    ariaLabel="Agricultural mandi prices"
-                  />
-                  <Text
-                    size="xs"
-                    c="dimmed"
-                    className="shrink-0 px-2 pb-1 break-words text-ui-micro"
-                    data-testid="agri-table-scope"
-                  >
-                    Sorted by modal price (high → low) · {quoteScope()}
-                  </Text>
-                  <Show when={isMobile()}>
-                    <Text
-                      size="xs"
-                      c="dimmed"
-                      className="shrink-0 px-2 pb-1 text-ui-micro"
-                      data-testid="agri-table-scroll-hint"
-                    >
-                      Swipe left / right to see all columns →
-                    </Text>
-                  </Show>
+                <Box
+                  className={isMobile() ? "flex min-h-[220px] flex-1" : "flex min-h-0 flex-1"}
+                  data-testid="agri-dispersion-region"
+                >
+                  <EChart option={dispersionOption()} data-testid="agri-dispersion-chart" />
                 </Box>
               </Show>
             </CompactPanel>
+            </Box>
           </Show>
         </Box>
       </Show>
