@@ -105,7 +105,6 @@ function makeState(overrides: Partial<ChartPatternsState> = {}): ChartPatternsSt
     universe: "nifty50",
     lookbackBars: null,
     filters: { sort: "confidence" } as ChartPatternsState["filters"],
-    computeTrendlines: true,
     job: null,
     scanning: false,
     summary: null,

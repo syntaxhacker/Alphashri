@@ -16,7 +16,6 @@ import {
   triggerScan,
   refresh,
   forceRefresh,
-  setComputeTrendlines,
   DEFAULT_TIMEFRAME,
   CUSTOM_UNIVERSE,
   DEFAULT_PATTERN_FILTERS,
@@ -58,8 +57,6 @@ const PATTERN_PARAM_KEYS = [
   "sort",
   "symbol",
   "q",
-  "trendlines",
-  "compute_trendlines",
   "tab",
   "view",
   "igroup",
@@ -72,7 +69,6 @@ function buildParamsObject(
     timeframe: string;
     selectedTimeframes?: string[];
     lookbackBars: number | null;
-    computeTrendlines?: boolean;
     tab?: "scan" | "watch";
     view?: "matrix" | "list" | "grid";
     indexGroup?: IndexGroup;
@@ -123,11 +119,6 @@ function buildParamsObject(
       ? String(filters.history)
       : null;
   next.q = filters.q || null;
-  next.trendlines =
-    filters.trendlines && filters.trendlines !== DEFAULT_PATTERN_FILTERS.trendlines
-      ? filters.trendlines
-      : null;
-  next.compute_trendlines = state.computeTrendlines === false ? "0" : null;
   next.tab = state.tab === "watch" ? "watch" : null;
   if ((filters.symbols?.length ?? 0) > 0) {
     next.symbol = [...filters.symbols!];
@@ -173,7 +164,6 @@ export function PatternsContainer() {
   const timeframe = () => snapshot().timeframe;
   const selectedTimeframes = () => snapshot().selectedTimeframes;
   const lookbackBars = () => snapshot().lookbackBars;
-  const computeTrendlines = () => snapshot().computeTrendlines;
   const filters = () => snapshot().filters;
   const timeframes = () => snapshot().timeframes;
   const universes = () => snapshot().universes;
@@ -205,7 +195,6 @@ export function PatternsContainer() {
     timeframe: timeframe(),
     selectedTimeframes: selectedTimeframes(),
     lookbackBars: lookbackBars(),
-    computeTrendlines: computeTrendlines(),
     tab: tab(),
     view: view(),
     indexGroup: indexGroup(),
@@ -224,9 +213,6 @@ export function PatternsContainer() {
       selectTimeframe(p.timeframe);
     }
     if ((p.lookback ?? null) !== (lookbackBars() ?? null)) setLookbackBars(p.lookback);
-    if (p.computeTrendlines != null && p.computeTrendlines !== (computeTrendlines() ?? true)) {
-      setComputeTrendlines(p.computeTrendlines);
-    }
     if (p.tab != null && p.tab !== tab()) setTab(p.tab);
     if (p.view != null && p.view !== view()) setView(p.view);
     if (p.indexGroup != null && p.indexGroup !== indexGroup()) setIndexGroup(p.indexGroup);
@@ -250,7 +236,6 @@ export function PatternsContainer() {
       p.universe != null ||
       p.timeframe != null ||
       p.lookback != null ||
-      p.computeTrendlines != null ||
       p.tab != null ||
       p.view != null ||
       p.indexGroup != null ||
@@ -278,9 +263,6 @@ export function PatternsContainer() {
         !p.timeframes ||
         filterValuesEqual(state.selectedTimeframes ?? [state.timeframe], p.timeframes);
       const lookbackOk = p.lookback == null || state.lookbackBars === p.lookback;
-      const computeOk =
-        p.computeTrendlines == null ||
-        (state.computeTrendlines ?? true) === p.computeTrendlines;
       const tabOk = p.tab == null || (state.tab ?? "scan") === p.tab;
       const viewOk = p.view == null || (state.view ?? "matrix") === p.view;
       const indexGroupOk =
@@ -292,7 +274,7 @@ export function PatternsContainer() {
       });
       if (
         !(
-          universeOk && timeframeOk && timeframesOk && lookbackOk && computeOk && tabOk &&
+          universeOk && timeframeOk && timeframesOk && lookbackOk && tabOk &&
           viewOk && indexGroupOk && membersOk && filtersOk
         )
       ) {
@@ -353,8 +335,6 @@ export function PatternsContainer() {
       setFilter={(key, value) => setFilter(key as keyof PatternFilters, value)}
       resetFilters={resetFilters}
       applyFilters={applyFilters}
-      computeTrendlines={computeTrendlines()}
-      setComputeTrendlines={setComputeTrendlines}
       customUniverse={CUSTOM_UNIVERSE}
       selectSymbols={selectSymbols}
       job={job()}

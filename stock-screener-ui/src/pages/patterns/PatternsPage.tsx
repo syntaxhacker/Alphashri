@@ -1,4 +1,4 @@
-import { Suspense, batch, type JSX } from "solid-js";
+import { Suspense, batch, createMemo, type JSX } from "solid-js";
 import { Tabs } from "@/ui";
 import { IndexMembersDrawer } from "@/components/patterns/IndexMembersDrawer";
 import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenView";
@@ -20,6 +20,16 @@ import type { PatternsPageProps } from "./page/types";
 
 function PatternsWorkspace(props: PatternsPageProps) {
   const vm = usePatternsPage(props);
+  // The inline alert owns failure copy; the scope band's status line must not
+  // repeat the same message a second time.
+  const toolbarError = () => null;
+  // The scope chip reads the registry label, so helper copy must use that same
+  // label instead of the raw universe id.
+  const displayUniverse = createMemo(() => {
+    const id = vm.universe();
+    return vm.universes().find((u) => u.id === id)?.label ?? id.replace(/_/g, " ").toUpperCase();
+  });
+  const resultsModel = { ...vm, universe: displayUniverse };
 
   return (
     <PageShell
@@ -54,7 +64,7 @@ function PatternsWorkspace(props: PatternsPageProps) {
             scanning={vm.scanning}
             job={vm.job}
             queuePosition={vm.queuePosition}
-            error={vm.error}
+            error={toolbarError}
             forceRefresh={vm.forceRefresh}
             showCacheChip={() => vm.job()?.status === "completed" && !vm.scanActive()}
             actions={
@@ -71,8 +81,6 @@ function PatternsWorkspace(props: PatternsPageProps) {
                 setLookbackBars={vm.setLookbackBars}
                 scanReplay={vm.scanReplay}
                 replayAsOf={vm.replayAsOf}
-                computeTrendlines={vm.computeTrendlines}
-                setComputeTrendlines={vm.setComputeTrendlines}
                 view={vm.view}
                 changeView={vm.changeView}
                 universe={vm.universe}
@@ -95,7 +103,7 @@ function PatternsWorkspace(props: PatternsPageProps) {
               />
             }
           />
-          <ResultsSurface model={vm} results={<ResultsView model={vm} />} />
+          <ResultsSurface model={resultsModel} results={<ResultsView model={vm} />} />
         </Tabs.Panel>
       }
       watchPanel={() => <WatchPanel model={vm} />}

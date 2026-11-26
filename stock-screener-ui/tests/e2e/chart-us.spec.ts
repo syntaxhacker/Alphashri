@@ -101,7 +101,6 @@ function makeHit(
         { t: "2026-11-16T00:00:00Z", price: 352 },
       ],
     ],
-    trend_lines: [],
     notes: "rising support; resistance near 354.8",
     pivots: [
       { t: "2026-11-03T00:00:00Z", price: 344.01, kind: "high" },
@@ -134,19 +133,6 @@ function chartPayload(symbol: string, isUS: boolean) {
               ],
             },
           ],
-          trend_lines: [
-            {
-              kind: "support",
-              start_date: "2026-11-01",
-              start_price: 330,
-              end_date: "2026-11-16",
-              end_price: 344,
-              slope: 1,
-              touches: 3,
-              span_bars: 10,
-              violations: 0,
-            },
-          ],
           hits: [
             makeHit(symbol, "Falling Wedge", "live", "2026-11-16"),
             makeHit(symbol, "Rising Wedge", "live", "2026-11-10"),
@@ -154,7 +140,6 @@ function chartPayload(symbol: string, isUS: boolean) {
         }
       : {
           overlays: [],
-          trend_lines: [],
           hits: [makeHit(symbol, "Consolidation", "scan", "2026-11-16")],
         }),
   };

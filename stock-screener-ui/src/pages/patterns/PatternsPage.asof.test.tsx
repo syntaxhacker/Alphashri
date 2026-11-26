@@ -230,13 +230,10 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
       from_date: null,
       to_date: null,
       sort: "confidence",
-      trendlines: "both",
     },
     setFilter: vi.fn(),
     resetFilters: vi.fn(),
     applyFilters: vi.fn(),
-    computeTrendlines: true,
-    setComputeTrendlines: vi.fn(),
     customUniverse: "custom",
     selectSymbols: vi.fn(),
     job: null,
@@ -338,7 +335,6 @@ describe("PatternsPage fullscreen as-of replay", () => {
       timeframe: "1D",
       candles: [{ t: "2026-09-30T09:15:00+05:30", o: 1, h: 1, l: 1, c: 1, v: 1 }],
       overlays: [],
-      trend_lines: [],
       hits: [oldConfident, newWeak],
     });
 
@@ -367,7 +363,6 @@ describe("PatternsPage fullscreen as-of replay", () => {
       timeframe: "1D",
       candles: [{ t: "2026-06-01T09:15:00+05:30", o: 1, h: 1, l: 1, c: 1, v: 1 }],
       overlays: [],
-      trend_lines: [],
       hits: [],
     });
     fireEvent.input(screen.getByTestId("patterns-fullscreen-asof-to"), {

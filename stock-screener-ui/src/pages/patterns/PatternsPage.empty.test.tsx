@@ -46,7 +46,7 @@ describe("PatternsPage empty and error states", () => {
     r(() => <PatternsPage {...props} />);
     const cta = screen.getByTestId("patterns-empty-scan");
     expect(cta).toHaveTextContent("Scan 15m now");
-    expect(screen.getByTestId("patterns-empty")).toHaveTextContent("nifty500 · 15m");
+    expect(screen.getByTestId("patterns-empty")).toHaveTextContent("Nifty 500 · 15m");
     fireEvent.click(cta);
     expect(props.scan).toHaveBeenCalledTimes(1);
   });

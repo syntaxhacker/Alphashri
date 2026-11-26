@@ -109,27 +109,8 @@ export interface MarketStatus {
   reason: string;
 }
 
-/** A single trendline is a list of `{t, price}` points. */
+/** A pattern-boundary trendline: a list of `{t, price}` points. */
 export type Trendline = Array<{ t: string; price: number }>;
-
-/**
- * Auto-computed standalone trendline (support/resistance) attached to a result
- * item or a symbol-chart payload as `trend_lines`. Transport shape only.
- */
-export interface TrendLine {
-  kind: "support" | "resistance";
-  start_date: string;
-  start_price: number;
-  end_date: string;
-  end_price: number;
-  slope: number;
-  touches: number;
-  span_bars: number;
-  violations: number;
-}
-
-/** View-only filter controlling which standalone trendlines are drawn. */
-export type TrendlinesView = "both" | "support" | "resistance" | "none";
 
 /** Server-computed overlay lines (`ChartPayload.indicators`). */
 export type IndicatorSeriesId =
@@ -207,8 +188,6 @@ export interface PatternHitDTO {
   bars_ago: number;
   volume_confirmed: boolean;
   trendlines: Trendline[];
-  /** Auto-computed standalone support/resistance lines (view-only overlay). */
-  trend_lines?: TrendLine[];
   notes: string;
   /** Swing pivots used to define the pattern: on-chart markers + manual audit. */
   pivots?: Array<{ t: string; price: number; kind?: "high" | "low" }>;
@@ -315,8 +294,6 @@ export interface ChartPayload {
   timeframe: string;
   candles: ChartCandle[];
   overlays: PatternOverlay[];
-  /** Auto-computed standalone support/resistance lines (view-only overlay). */
-  trend_lines?: TrendLine[];
   /** Server-computed SMA/BB/VWAP overlay bundle (null/absent on older backends). */
   indicators?: ChartIndicators | null;
   /** Server-computed support/resistance bands (view-only overlay). */
@@ -448,11 +425,6 @@ export interface PatternFilters {
    * `sort=distance` is never sent to `/results` or `/results/stream`.
    */
   sort: "confidence" | "newest" | "range_pos" | "breakout" | "distance";
-  /**
-   * View-only filter for standalone trendlines. CLIENT-ONLY: never sent to
-   * `/results` or `/summary` (not part of `baseQuery`), never restrictive.
-   */
-  trendlines: TrendlinesView;
 }
 
 /**
@@ -468,8 +440,6 @@ export interface PatternsQuery extends Partial<PatternFilters> {
   offset?: number;
   /** Card candle window in bars (omitted/null = server default). */
   lookback_bars?: number | null;
-  /** Skip server-side trendline computation (false = skip; omitted/true = compute). */
-  compute_trendlines?: boolean;
 }
 
 /** Breakout-watch setup (`GET /api/chart-patterns/watch/setups`). */

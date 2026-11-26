@@ -158,12 +158,6 @@ describe("buildPatternsQuery exact strings", () => {
     expect(buildPatternsQuery({ sort: "distance" })).toBe("?sort=distance");
   });
 
-  it("serializes compute_trendlines only when explicitly false", () => {
-    expect(buildPatternsQuery({ compute_trendlines: false })).toBe("?compute_trendlines=0");
-    expect(buildPatternsQuery({ compute_trendlines: true })).toBe("");
-    expect(buildPatternsQuery({})).toBe("");
-  });
-
   it("pins the full representative query string byte-for-byte", () => {
     expect(
       buildPatternsQuery({
@@ -189,7 +183,6 @@ describe("buildPatternsQuery exact strings", () => {
         from_date: "2026-06-01",
         to_date: "2026-09-30T14:30",
         sort: "newest",
-        compute_trendlines: false,
         limit: 200,
         offset: 0,
       }),
@@ -201,7 +194,7 @@ describe("buildPatternsQuery exact strings", () => {
         "&min_base_days=30&max_range_pct=20&max_52w_gap=5&min_range_pos=80" +
         "&symbol=IRCON&symbol=SBIN&symbol=TCS&q=bank" +
         "&from_date=2026-06-01&to_date=2026-09-30T14%3A30" +
-        "&sort=newest&compute_trendlines=0&limit=200&offset=0",
+        "&sort=newest&limit=200&offset=0",
     );
   });
 });
