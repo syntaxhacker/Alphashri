@@ -27,9 +27,9 @@ export function OptionChainGuide(props: OptionChainGuideProps) {
       <Stack spacing={1} className="w-full guide-content" data-testid="options-guide-content">
         <Box className="flex flex-wrap items-center gap-2 w-full" data-testid="options-guide-basics">
           <Text size="xs" fw={700}>CALLS (CE)</Text>
-          <Text size="xs" c="dimmed">right to buy</Text>
+          <Text size="xs" c="dimmed">right to buy · expect up</Text>
           <Text size="xs" fw={700}>PUTS (PE)</Text>
-          <Text size="xs" c="dimmed">right to sell</Text>
+          <Text size="xs" c="dimmed">right to sell · expect down</Text>
         </Box>
 
         <List spacing="xs" size="sm" className="guide-indicators" data-testid="options-guide-indicators">
@@ -37,7 +37,7 @@ export function OptionChainGuide(props: OptionChainGuideProps) {
             <Text component="span" fw={700}>PCR</Text> &gt; 1.2 bullish · &lt; 0.7 bearish
           </ListItem>
           <ListItem className="guide-indicator-item" data-testid="options-guide-max-pain">
-            <Text component="span" fw={700}>Max Pain</Text> · expiry magnet, not a target
+            <Text component="span" fw={700}>Max Pain</Text> · strike where buyers lose most; expiry magnet, not a target
           </ListItem>
           <ListItem className="guide-indicator-item" data-testid="options-guide-oi">
             <Text component="span" fw={700}>OI</Text> · open contracts; high OI is a wall

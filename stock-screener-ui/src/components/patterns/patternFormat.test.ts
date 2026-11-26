@@ -71,15 +71,15 @@ describe("formatOneDecimal", () => {
 describe("formatSignedPct1", () => {
   test("prefixes positives with + and negatives with a true minus sign", () => {
     expect(formatSignedPct1(4.72)).toBe("+4.7%");
-    expect(formatSignedPct1(0)).toBe("+0.0%");
+    expect(formatSignedPct1(0)).toBe("0.0%");
     expect(formatSignedPct1(-0.84)).toBe("−0.8%");
     expect(formatSignedPct1(100)).toBe("+100.0%");
   });
 
   test("a sub-precision move renders as zero, never −0.0%", () => {
-    expect(formatSignedPct1(-0.04)).toBe("+0.0%");
-    expect(formatSignedPct1(-0.0001)).toBe("+0.0%");
-    expect(formatSignedPct1(0.04)).toBe("+0.0%");
+    expect(formatSignedPct1(-0.04)).toBe("0.0%");
+    expect(formatSignedPct1(-0.0001)).toBe("0.0%");
+    expect(formatSignedPct1(0.04)).toBe("0.0%");
   });
 
   test("renders an em dash for missing or non-finite values", () => {

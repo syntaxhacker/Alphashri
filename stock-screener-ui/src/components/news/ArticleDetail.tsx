@@ -200,7 +200,7 @@ export function ArticleDetail(props: ArticleDetailProps) {
 
                       <Show when={content()?.analysis_status === "failed"}>
                         <Alert color="warning" variant="filled">
-                          ANALYSIS PENDING
+                          ANALYSIS UNAVAILABLE
                         </Alert>
                       </Show>
 

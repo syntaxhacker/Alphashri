@@ -105,7 +105,7 @@ describe("ArticleDetail filler copy", () => {
     fetchedAt: "2025-01-01T10:00:00Z",
   };
 
-  it("states a pending analysis in one terminal line and drops the dead source button", () => {
+  it("states an unavailable analysis in one terminal line and drops the dead source button", () => {
     render(
       () => (
         <ArticleDetail
@@ -117,7 +117,8 @@ describe("ArticleDetail filler copy", () => {
       { wrapper: TestWrapper },
     );
 
-    expect(screen.getByText("ANALYSIS PENDING")).toBeInTheDocument();
+    expect(screen.getByText("ANALYSIS UNAVAILABLE")).toBeInTheDocument();
+    expect(screen.queryByText("ANALYSIS PENDING")).not.toBeInTheDocument();
     expect(screen.queryByText(/queued for analysis/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Analysis will be available/i)).not.toBeInTheDocument();
     expect(screen.queryByText("No source link")).not.toBeInTheDocument();

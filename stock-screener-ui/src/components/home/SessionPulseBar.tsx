@@ -26,11 +26,10 @@ function istClockLabel(iso: string | null | undefined): string {
 
 /** A sub-0.005% move rounds to "-0.00%" — show a plain zero instead. */
 function pct(value: number | null | undefined): string {
-  return formatPercentage(
-    value != null && Number.isFinite(value) && Math.abs(value) < 0.005 ? 0 : value,
-    2,
-    true,
-  );
+  if (value != null && Number.isFinite(value) && Math.abs(value) < 0.005) {
+    return formatPercentage(0, 2, false);
+  }
+  return formatPercentage(value, 2, true);
 }
 
 /** Null/absent is a dash — never a fabricated zero. */

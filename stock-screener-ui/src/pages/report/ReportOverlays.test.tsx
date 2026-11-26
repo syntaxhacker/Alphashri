@@ -89,6 +89,8 @@ afterEach(() => {
   setOverlayOpen.mockClear();
 });
 
+const VISUAL_KEYS = ["chart", "heat", "flowChart", "pressure", "gex", "iv"] as const;
+
 describe("ReportOverlays visuals", () => {
   test("the V surface is a real shortcut grid, not a 'coming soon' stub", () => {
     render(() => <ReportOverlays />, { wrapper: UIProvider });
@@ -96,17 +98,19 @@ describe("ReportOverlays visuals", () => {
 
     const grid = screen.getByTestId("nifty-visuals-stub");
     expect(grid.textContent).not.toMatch(/coming soon|stub/i);
-    expect(screen.getByTestId("nifty-visuals-chart")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-visuals-heat")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-visuals-flowChart")).toBeInTheDocument();
+    for (const key of VISUAL_KEYS) {
+      expect(screen.getByTestId(`nifty-visuals-${key}`)).toBeInTheDocument();
+    }
   });
 
-  test("choosing a visual closes the grid and opens the real panel", () => {
+  test("every visual closes the grid and opens its own real panel", () => {
     render(() => <ReportOverlays />, { wrapper: UIProvider });
-    setVisualsOpen(true);
 
-    fireEvent.click(screen.getByTestId("nifty-visuals-flowChart"));
-    expect(visualsOpen()).toBe(false);
-    expect(setOverlayOpen).toHaveBeenCalledWith("flowChart", true);
+    for (const key of VISUAL_KEYS) {
+      setVisualsOpen(true);
+      fireEvent.click(screen.getByTestId(`nifty-visuals-${key}`));
+      expect(visualsOpen()).toBe(false);
+      expect(setOverlayOpen).toHaveBeenLastCalledWith(key, true);
+    }
   });
 });

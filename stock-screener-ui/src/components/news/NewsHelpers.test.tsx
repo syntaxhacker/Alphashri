@@ -244,7 +244,7 @@ describe("news copy and controls", () => {
 
     const button = screen.getByTestId("news-unread-badge");
     expect(button.tagName).toBe("BUTTON");
-    expect(button).toHaveAccessibleName("Mark all as read");
+    expect(button).toHaveAccessibleName("4 unread — mark all as read");
     await fireEvent.click(button);
     expect(onMarkAllRead).toHaveBeenCalledTimes(1);
   });

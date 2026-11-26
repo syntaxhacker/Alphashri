@@ -24,7 +24,7 @@ export function formatSignedPct1(value: number | null | undefined): string {
   const magnitude = Math.abs(value).toFixed(1);
   // Below display precision a move rounds to zero; a signed "−0.0%" invents a
   // direction the number cannot support.
-  if (magnitude === "0.0") return "+0.0%";
+  if (magnitude === "0.0") return "0.0%";
   return `${value >= 0 ? "+" : "−"}${magnitude}%`;
 }
 

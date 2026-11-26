@@ -461,7 +461,7 @@ export function NewsFilterControls(props: {
           <button
             type="button"
             onClick={props.onMarkAllRead}
-            aria-label="Mark all as read"
+            aria-label={`${props.unreadCount} unread — mark all as read`}
             data-testid="news-unread-badge"
             class="cursor-pointer rounded border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
           >

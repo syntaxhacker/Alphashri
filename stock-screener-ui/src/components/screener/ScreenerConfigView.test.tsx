@@ -397,6 +397,21 @@ describe("ScreenerConfigView", () => {
       expect(lastPreviewFilters()).toEqual([{ key: "min_volume_m", default: 1 }]);
     });
 
+    it("(c3) dict filters render human labels and never leak raw keys or nulls", async () => {
+      await renderFilterShape({
+        max_52w_gap: 5,
+        min_volume_m: 0,
+        min_turnover_cr: 0.5,
+        rsi_range: null,
+      });
+      expect(screen.getByText("52W gap: 5")).toBeInTheDocument();
+      expect(screen.getByText("Volume (M): 0")).toBeInTheDocument();
+      expect(screen.getByText("Turnover (Cr): 0.5")).toBeInTheDocument();
+      expect(screen.queryByText(/max 52w gap/i)).toBeNull();
+      expect(screen.queryByText(/rsi range: null/i)).toBeNull();
+      expect(screen.queryByText(/null/i)).toBeNull();
+    });
+
     it("(d) null / undefined / scalar filters yield [] and never throw", async () => {
       for (const bad of [null, undefined, 42, "oops", true]) {
         cleanup();

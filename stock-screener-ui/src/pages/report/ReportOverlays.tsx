@@ -369,6 +369,8 @@ export function ReportOverlays() {
         open={ui.visualsOpen()}
         title="Visuals"
         onClose={() => ui.setVisualsOpen(false)}
+        autoHeight
+        maxWidth={760}
       >
         <Box
           data-testid="nifty-visuals-stub"

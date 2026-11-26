@@ -257,7 +257,7 @@ describe("HomeMonitorView", () => {
     render(() => <HomeMonitorView />);
 
     expect(screen.getByTestId("monitor-auto-change")).not.toHaveTextContent("-0.00%");
-    expect(screen.getByTestId("monitor-auto-change")).toHaveTextContent("+0.00%");
+    expect(screen.getByTestId("monitor-auto-change")).toHaveTextContent("0.00%");
     expect(screen.getByTestId("session-check-demand-value")).not.toHaveTextContent("-0.00%");
     expect(screen.getByTestId("monitor-leader-TINY")).not.toHaveTextContent("-0.00%");
   });

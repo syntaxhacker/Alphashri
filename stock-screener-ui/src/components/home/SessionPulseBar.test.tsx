@@ -154,7 +154,7 @@ describe("SessionPulseBar", () => {
     render(() => <SessionPulseBar />);
 
     expect(pulse()).not.toHaveTextContent("-0.00%");
-    expect(screen.getByTestId("pulse-nifty")).toHaveTextContent("+0.00%");
-    expect(screen.getByTestId("pulse-sector")).toHaveTextContent("+0.00%");
+    expect(screen.getByTestId("pulse-nifty")).toHaveTextContent("0.00%");
+    expect(screen.getByTestId("pulse-sector")).toHaveTextContent("0.00%");
   });
 });
