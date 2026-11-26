@@ -1,4 +1,4 @@
-import { Show, createEffect, createSignal, onCleanup, onMount, type ComponentProps } from "solid-js";
+import { Show, createEffect, createSignal } from "solid-js";
 import type { IChartApi } from "lightweight-charts";
 import { Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -10,15 +10,15 @@ import { NiftyDepthMap } from "./NiftyDepthMap";
 import { REPORT_FONT, REPORT_LINE_HEIGHT, REPORT_RADIUS } from "./reportTokens";
 import { PATTERN_LOOKBACK_BARS, type PatternScanState } from "./useNiftyPatternScan";
 import type { NiftyReport } from "@/types/niftyReport";
-import type { ReplayCandle } from "@/types/replay";
-import type { ChartSource } from "./niftyReportStore";
+import type { ChartBodyProps } from "./NiftyChartPanel.bodyProps";
+import { usePhoneViewport } from "./NiftyChartPanel.bodyHooks";
+import { ChartFirstTimeTick } from "./NiftyChartPanel.bodyParts";
 import {
   applyChartPlotMargin, CHART_CUTOFF_RIGHT, CHART_PLOT_MARGIN,
   FILL_MAX_HEIGHT, FILL_MIN_HEIGHT, leftTimeGutterPx, MOBILE_CHART_TARGET,
   MOBILE_LEFT_PAD_PX, useGutteredChartRange, type ChartTimeframe,
 } from "./NiftyChartPanel.constants";
-import { computePatternStripTitle, type ScanBadge } from "./NiftyChartPanel.annotations";
-import { phoneViewport } from "./NiftyChartPanel.range";
+import { computePatternStripTitle } from "./NiftyChartPanel.annotations";
 import { NARROW_CONTAINER_PX, useNarrowContainer } from "./NiftyChartPanel.controls";
 import {
   applyOverlayAxisGeometry,
@@ -26,8 +26,6 @@ import {
   plottableCandleCount,
 } from "./NiftyChartPanel.overlayLegend";
 export { NARROW_CONTAINER_PX };
-
-type ChartProps = ComponentProps<typeof TradingViewChart>;
 
 /** With the volume tag hidden, one full "22,364.00" tag (85px by the 12px-mono
  *  model) fits a 92px lane. 92 axis + 8 gutter + 16 cutoff = 116px, leaving
@@ -46,44 +44,12 @@ export const NARROW_EDGE_GUTTER = 4;
 export const NARROW_CUTOFF_LANE = 10;
 export const NARROW_CUTOFF_RIGHT = NARROW_EDGE_GUTTER + NARROW_AXIS_MIN_WIDTH + NARROW_CUTOFF_LANE;
 
-interface ChartBodyProps {
-  view: "chart" | "depth";
-  offlineEmpty: boolean;
-  sessionDate: string;
-  chartCandles: ReplayCandle[];
-  candlesEverShown: boolean;
-  chartHeight: number | null;
-  fillContainer: boolean;
-  mpTouchesLength: number;
-  flipMarkerPresent: boolean;
-  patternSourceState: string;
-  patternOverlayCount: number;
-  chartMarkLines: NonNullable<ChartProps["markLines"]>;
-  chartEmaData: NonNullable<ChartProps["emaData"]>;
-  touchMarkers: NonNullable<ChartProps["touchMarkers"]>;
-  lastDataBoundary: string;
-  scanBadge: ScanBadge | null;
-  chartSource: ChartSource;
-  scanStatus: PatternScanState["status"];
-  chartTf: ChartTimeframe;
-  symbol: () => string;
-  onScanPatterns: () => void;
-}
-
 /** Chart + depth view wrappers. Both stay mounted after first use; the
  *  inactive wrapper is `display: none` so switching never remounts an engine. */
 export function ChartBody(props: ChartBodyProps) {
-  const [phone, setPhone] = createSignal(phoneViewport());
+  const phone = usePhoneViewport();
   let bodyRef: HTMLDivElement | undefined;
   const narrowContainer = useNarrowContainer(() => bodyRef?.parentElement ?? bodyRef);
-  onMount(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const mq = window.matchMedia("(max-width: 600px)");
-    setPhone(mq.matches);
-    const onChange = (event: MediaQueryListEvent) => setPhone(event.matches);
-    mq.addEventListener("change", onChange);
-    onCleanup(() => mq.removeEventListener("change", onChange));
-  });
 
   const axisGeometry = () =>
     narrowContainer()
@@ -220,27 +186,11 @@ export function ChartBody(props: ChartBodyProps) {
             onChartReady={chartReady}
           />
           <ChartOverlayLegend lines={overlaySeries()} compact={narrowContainer() || phone()} />
-          {/* On a phone the engine's UTC-anchored tick grid starts at 09:30,
-              so the session-open label is never emitted even after the first
-              bar is inset. Print the real first-bar time at its plot position
-              instead of leaving the left edge unlabelled. */}
-          <Show when={phone() || narrowContainer()}>
-            <span
-              data-testid="nifty-chart-first-time-tick"
-              class="pointer-events-none absolute whitespace-nowrap text-ui-micro tabular-nums"
-              style={{
-                bottom: "0px",
-                left: `${leftPad() + leftGutter() - 18}px`,
-                color: palette.TEXT_MUTED,
-                "font-family": palette.MONO,
-                "font-size": `${REPORT_FONT.micro}px`,
-                "line-height": "16px",
-              }}
-              title="First candle of the session"
-            >
-              {props.chartCandles[0] ? formatTimeOnly(props.chartCandles[0].time) : ""}
-            </span>
-          </Show>
+          <ChartFirstTimeTick
+            shown={phone() || narrowContainer()}
+            left={leftPad() + leftGutter() - 18}
+            time={props.chartCandles[0] ? formatTimeOnly(props.chartCandles[0].time) : ""}
+          />
           <Show when={hasPinnedCandles() && props.lastDataBoundary}>
             {(boundary) => (
               <div

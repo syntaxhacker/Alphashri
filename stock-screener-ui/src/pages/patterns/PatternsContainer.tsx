@@ -1,5 +1,5 @@
 import { createEffect, createSignal, onMount, onCleanup } from "solid-js";
-import { useLocation, useNavigate, useSearchParams } from "@solidjs/router";
+import { useLocation, useSearchParams } from "@solidjs/router";
 import {
   subscribe,
   getChartPatternsState,
@@ -194,7 +194,6 @@ export function PatternsContainer() {
   const [members, setMembers] = createSignal<string | null>(null);
 
   const [, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const location = useLocation();
 
   let hydrated = false;
@@ -203,6 +202,11 @@ export function PatternsContainer() {
   let lastWritten = "";
   /** Search we just wrote; a stale URL must not be read back over a local edit. */
   let localWriteTarget: string | null = null;
+  /** Trailing debounce: a burst of filter edits gets one URL commit. */
+  let writeTimer: ReturnType<typeof setTimeout> | null = null;
+  onCleanup(() => {
+    if (writeTimer != null) clearTimeout(writeTimer);
+  });
 
   const currentState = () => ({
     universe: universe(),
@@ -310,17 +314,15 @@ export function PatternsContainer() {
     // value we wrote; otherwise it re-applies the previous `hist` and the
     // applied filter is lost while the old param stays in the address bar.
     localWriteTarget = merged;
-    const mergedQuery = new URLSearchParams(normalizeSearch(merged));
-    setSearchParams(mergedQuery as unknown as Parameters<typeof setSearchParams>[0], { replace: true });
-    // Solid Router's setSearchParams merges onto the current search and only
-    // reads enumerable entries; URLSearchParams has none, so keys removed from
-    // `merged` would survive. Navigate to the merged query explicitly so the
-    // old filter param is actually deleted.
-    navigate(location.pathname + (merged ? `?${mergedQuery}` : ""), {
-      replace: true,
-      scroll: false,
-      resolve: false,
-    });
+    // The store already has the edit. Only the URL is debounced: consecutive
+    // picks in a multi-select must not navigate (and remount the rail) between
+    // writes, or the first symbol is lost before the second is staged.
+    if (writeTimer != null) clearTimeout(writeTimer);
+    writeTimer = setTimeout(() => {
+      writeTimer = null;
+      if (normalizeSearch(location.search) === normalizeSearch(lastWritten)) return;
+      setSearchParams(next, { replace: true });
+    }, 600);
   });
 
   createEffect(() => {
