@@ -1099,11 +1099,14 @@ async def _attach_analytics(symbol: str, report: dict, intraday: list[dict]) -> 
         pivots = report.get("pivots")
         prev = (pivots or {}).get("prev") if isinstance(pivots, dict) else None
         prev_close = _opt_num((prev or {}).get("close")) if isinstance(prev, dict) else None
+        # Same gate as NIFTY: falling spot must not be read as put writing.
+        spot_change = nv.spot_change_from_tape(tape)
         report.update(nv.build_verdicts(
             rows=report.get("strikes") or [], spot=spot, gex=report.get("gex"),
             candles=intraday or None, tape_rows=tape, baseline=baseline,
             vix=vix, reference=report.get("reference"),
             prev_close=prev_close, flow_bias=flow_bias,
+            spot_change=spot_change,
         ))
     except Exception:
         pass

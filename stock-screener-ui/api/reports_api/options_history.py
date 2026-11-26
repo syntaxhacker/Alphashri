@@ -50,6 +50,7 @@ from api.reports_api.nifty_bursts import (
     OI_BURST_MIN_ABS,
     OI_BURST_WINDOW,
     OI_SIGNAL_RISK_BUDGET,
+    classify_flow,
     coalesce_bursts,
     derive_oi_signal,
     detect_coiling,
@@ -59,7 +60,13 @@ from api.reports_api.nifty_bursts import (
     detect_strike_bursts,
     session_trend,
 )
-from api.reports_api.nifty_fuel import basis_text, fuel_state, structure_evidence
+from api.reports_api.nifty_fuel import (
+    basis_text,
+    fuel_state,
+    minute_frames,
+    structure_evidence,
+    verify_burst_flow,
+)
 from api.reports_api.report_io import read_jsonl, read_jsonl_tail, symbol_or_400
 
 router = APIRouter(prefix="/api/reports/options", tags=["options-history"])
@@ -116,6 +123,36 @@ def _path(kind: str, symbol: str, date_str: str, suffix: str = ".jsonl") -> Path
 def _read_jsonl(path: Path) -> list[dict]:
     """Parsed JSON-object lines; ``[]`` when missing, blank lines skipped."""
     return read_jsonl(path)
+
+
+#: The bursts feed is polled; a symbol's chain10s day file is several MB.
+#: Reuse its parsed minute frames until the file changes.
+_CHAIN10S_FRAMES_CACHE: dict[tuple, dict[str, dict]] = {}
+
+
+def _symbol_chain10s_frames(symbol: str, date_str: str) -> dict[str, dict]:
+    """This underlying's own chain10s day file as ``{HH:MM: last frame}``.
+
+    NEVER read NIFTY's chain10s directory: the generic recorder writes
+    ``options_chain10s/{SYM}/{date}.jsonl`` with the same 7-tuple row contract.
+    A day with no file means "no feed to verify against" (legacy reading);
+    a file with frames but no frame for a burst minute means "unconfirmed".
+    """
+    path = _path(CHAIN10S_DIR, symbol, date_str)
+    try:
+        st = path.stat()
+        stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
+    except OSError:
+        return {}
+    key = (symbol, date_str)
+    cached = _CHAIN10S_FRAMES_CACHE.get(key)
+    if cached is not None and cached[0] == stamp:
+        return cached[1]
+    frames = minute_frames(_read_jsonl(path))
+    _CHAIN10S_FRAMES_CACHE[key] = (stamp, frames)
+    while len(_CHAIN10S_FRAMES_CACHE) > 64:
+        _CHAIN10S_FRAMES_CACHE.pop(next(iter(_CHAIN10S_FRAMES_CACHE)), None)
+    return frames
 
 
 def _read_jsonl_tail(path: Path, max_bytes: int = 1_500_000) -> list[dict]:
@@ -381,30 +418,41 @@ def get_options_bursts(
     except Exception:
         trend = None
 
+    # The generic feed has its own per-symbol chain10s file — NIFTY's directory
+    # is never read. A day with that feed is held to the same confirmation gate.
+    chain_frames = _symbol_chain10s_frames(symbol, date_str)
     for b in bursts:
-        try:
-            # Trend at the burst's own minute, not at the close.
-            b_trend = session_trend(rows, at_time=b.get("t")) or trend
-            prem = b.get("premChg")
-            building = _safe_float(b.get("delta")) > 0
-            b["fuel_state"] = fuel_state(building, None if prem is None else float(prem))
-            b["structure"] = structure_evidence(rows, str(b.get("t") or ""), levels)
-            if b["structure"]:
-                b["invalidation"] = b["structure"].get("level")
-            b["signal"] = derive_oi_signal(b, strikes, spot, trend=b_trend)
-            if b["signal"] is not None:
-                _size_signal(b["signal"], lot, lot_verified)
-            elif (strikes and spot
-                  and b.get("type") not in ("coil", "squeeze", "premium")):
-                b["plan_suppressed"] = True
-                b["signal"] = {
-                    "leg": None, "strike": None, "entry": None, "sl": None,
-                    "target": None, "qty": 0, "lots": 0,
-                    "basis": basis_text(b.get("fuel_state"), b.get("side") or "call",
-                                        b.get("structure"), _safe_float(b.get("spot"))),
-                }
-        except Exception:
-            b["signal"] = None
+        verified = True
+        if chain_frames:
+            try:
+                verified = verify_burst_flow(b, rows, date_str,
+                                             chain_frames, classify_flow)
+            except Exception:
+                verified = True  # a bad frame must not erase a valid burst
+        if verified:
+            try:
+                # Trend at the burst's own minute, not at the close.
+                b_trend = session_trend(rows, at_time=b.get("t")) or trend
+                prem = b.get("premChg")
+                building = _safe_float(b.get("delta")) > 0
+                b["fuel_state"] = fuel_state(building, None if prem is None else float(prem))
+                b["structure"] = structure_evidence(rows, str(b.get("t") or ""), levels)
+                if b["structure"]:
+                    b["invalidation"] = b["structure"].get("level")
+                b["signal"] = derive_oi_signal(b, strikes, spot, trend=b_trend)
+                if b["signal"] is not None:
+                    _size_signal(b["signal"], lot, lot_verified)
+                elif (strikes and spot and not b.get("plan_suppressed")
+                      and b.get("type") not in ("coil", "squeeze", "premium")):
+                    b["plan_suppressed"] = True
+                    b["signal"] = {
+                        "leg": None, "strike": None, "entry": None, "sl": None,
+                        "target": None, "qty": 0, "lots": 0,
+                        "basis": basis_text(b.get("fuel_state"), b.get("side") or "call",
+                                            b.get("structure"), _safe_float(b.get("spot"))),
+                    }
+            except Exception:
+                b["signal"] = None
         # No NIFTY headline feed for a stock/index-generic symbol.
         b.setdefault("news", [])
         if trend:

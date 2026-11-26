@@ -76,7 +76,9 @@ class TestGetNiftyBursts:
     def test_flat_tape_count_zero(self, _tmp_tape):
         _write_tape(_tmp_tape, [_row(f"09:{15 + i:02d}", 1000, 5000)
                                 for i in range(10)])
-        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
+        # Before the 09:20 watchdog cutoff: this case asserts a quiet feed,
+        # not the recorder-alert path (pinned separately in TestNoTapeAlert).
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=_t("09:18"))
         assert out["count"] == 0
         assert out["bursts"] == []
         assert out["interval_sec"] == nifty.TAPE_INTERVAL_SEC
@@ -84,7 +86,7 @@ class TestGetNiftyBursts:
 
     def test_spike_yields_exactly_one_burst(self, _tmp_tape):
         _write_tape(_tmp_tape, _spike_rows())
-        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=_t("09:18"))
         assert out["count"] == 1
         assert out["date"] == DATE
         b = out["bursts"][0]
@@ -101,7 +103,7 @@ class TestGetNiftyBursts:
 
     def test_spike_below_min_abs_ignored(self, _tmp_tape):
         _write_tape(_tmp_tape, _spike_rows())
-        out = get_nifty_bursts(date=DATE, window=3, min_abs=20000)
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=20000, _now=_t("09:18"))
         assert out["count"] == 0
         assert out["bursts"] == []
 
@@ -115,17 +117,18 @@ class TestGetNiftyBursts:
             _row("09:19", 13300, 5000),
         ]
         _write_tape(_tmp_tape, rows)
-        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=_t("09:18"))
         assert out["count"] == 0
 
     def test_missing_tape_is_200_with_reason(self, _tmp_tape):
-        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=_t("09:18"))
         assert out == {"date": DATE, "count": 0,
                        "interval_sec": nifty.TAPE_INTERVAL_SEC,
                        "bursts": [], "reason": "no tape"}
 
     def test_default_date_uses_today(self, _tmp_tape):
-        out = get_nifty_bursts(date=None, window=3, min_abs=1000)
+        # Same clock pin: the missing-tape watchdog is covered elsewhere.
+        out = get_nifty_bursts(date=None, window=3, min_abs=1000, _now=_t("09:18"))
         assert out["date"] == nifty._today_str()
         assert out["count"] == 0
         assert out["reason"] == "no tape"
@@ -273,7 +276,7 @@ class TestBurstSignal:
         (_tmp_snapshots / f"{DATE}.json").write_text(json.dumps(_snapshot([
             {"strike": 22500.0, "ce": {"ltp": 80.0}, "pe": {"ltp": 30.0}},
         ])))
-        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=_t("09:18"))
         assert out["count"] == 1
         sig = out["bursts"][0]["signal"]
         assert sig is not None
@@ -295,7 +298,7 @@ class TestBurstSignal:
 
     def test_signal_null_without_snapshot(self, _tmp_tape, _tmp_snapshots):
         _write_tape(_tmp_tape, _spike_rows())
-        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=_t("09:18"))
         assert out["count"] == 1
         assert out["bursts"][0]["signal"] is None
 
@@ -303,7 +306,7 @@ class TestBurstSignal:
         _write_tape(_tmp_tape, _spike_rows())
         _tmp_snapshots.mkdir(parents=True, exist_ok=True)
         (_tmp_snapshots / f"{DATE}.json").write_text("{not valid json")
-        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=_t("09:18"))
         assert out["count"] == 1
         assert out["bursts"][0]["signal"] is None
 
@@ -313,7 +316,7 @@ class TestBurstSignal:
         _tmp_snapshots.mkdir(parents=True, exist_ok=True)
         (_tmp_snapshots / f"{DATE}.json").write_text(
             json.dumps({"spot": 22500.0}))
-        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=_t("09:18"))
         assert out["count"] == 1
         assert out["bursts"][0]["signal"] is None
 
@@ -325,7 +328,7 @@ class TestBurstSignal:
         (_tmp_snapshots / f"{DATE}.json").write_text(json.dumps(_snapshot([
             {"strike": 22500.0, "ce": {"ltp": 80.0}, "pe": {"ltp": 30.0}},
         ])))
-        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=_t("09:18"))
         assert out["count"] == 0
         assert out["bursts"] == []
 
@@ -448,7 +451,7 @@ class TestTrendGate:
         (_tmp_snapshots / f"{DATE}.json").write_text(json.dumps(_snapshot([
             {"strike": 22600.0, "ce": {"ltp": 25.0}, "pe": {"ltp": 30.0}},
         ])))
-        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=_t("09:18"))
         assert out["bursts"], "expected bursts to still be recorded"
         assert not any(b.get("signal") and b["signal"]["leg"] == "PE" for b in out["bursts"]), \
             "no bearish plan on a rising tape"
@@ -589,7 +592,7 @@ class TestDetectSqueezes:
         (_tmp_snapshots / f"{DATE}.json").write_text(json.dumps(_snapshot([
             {"strike": 22600.0, "ce": {"ltp": 40.0}, "pe": {"ltp": 35.0}},
         ])))
-        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=_t("09:18"))
         kinds = [b.get("type") for b in out["bursts"] if b.get("type") == "squeeze"]
         assert kinds, "expected a squeeze in the feed"
         sq = [b for b in out["bursts"] if b.get("type") == "squeeze"][0]
@@ -674,7 +677,7 @@ class TestDetectStrikeBursts:
         rows[-1]["strikes_top"] = [{"strike": 22750.0, "ce_oi": 100_000 * 13 + 6_200_000,
                                     "pe_oi": 1_000_000}]
         _write_tape(_tmp_tape, rows)
-        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000, _now=_t("09:18"))
         strikes = [b for b in out["bursts"] if b.get("type") == "strike"]
         assert strikes, "expected a per-strike burst in the feed"
         assert strikes[0]["strike"] == 22750.0
@@ -826,3 +829,83 @@ class TestCoalesceBursts:
 
     def test_empty(self):
         assert coalesce_bursts([]) == []
+
+
+# ------------------------------------------ gap + adaptive-baseline regressions
+
+class TestBurstGapAndBaseline:
+    """Proven from the live 2026-11-26 SENSEX /bursts feed: a 66-second
+    recorder gap was credited as a one-minute burst, and 102/119 bursts had
+    the fixed 2,000-contract floor as their baseline."""
+
+    @staticmethod
+    def _row(t, call_doi, put_doi=0.0, spot=84_000.0):
+        return {"t": t, "spot": spot, "call_doi": call_doi, "put_doi": put_doi,
+                "call_tick": 0, "put_tick": 0}
+
+    def test_seconds_between_is_exact_where_minutes_between_floors(self):
+        from api.reports_api._time import minutes_between, seconds_between
+        a = {"t": "2026-11-26T09:54:03+05:30"}
+        b = {"t": "2026-11-26T09:55:09+05:30"}
+        assert minutes_between(a, b) == 1        # unchanged legacy semantics
+        assert seconds_between(a, b) == 66.0     # the gap the detector must see
+        assert seconds_between({}, b) is None
+
+    def test_66_second_gap_is_not_credited_as_a_burst(self):
+        from api.reports_api.nifty_bursts import detect_oi_bursts
+        times = ["09:50:03", "09:51:03", "09:52:03", "09:53:03", "09:54:03",
+                 "09:55:09"]
+        rows = [self._row(f"2026-11-26T{t}+05:30", 0) for t in times]
+        rows[-1] = self._row(f"2026-11-26T{times[-1]}+05:30", 1_000_000)
+        assert detect_oi_bursts(rows, min_abs=2_000) == []
+
+    def test_exactly_one_minute_still_bursts(self):
+        from api.reports_api.nifty_bursts import detect_oi_bursts
+        times = ["09:50:03", "09:51:03", "09:52:03", "09:53:03", "09:54:03",
+                 "09:55:03"]
+        rows = [self._row(f"2026-11-26T{t}+05:30", 0) for t in times]
+        rows[-1] = self._row(f"2026-11-26T{times[-1]}+05:30", 1_000_000)
+        out = detect_oi_bursts(rows, min_abs=2_000)
+        assert len(out) == 1
+        assert out[0]["side"] == "call"
+
+    def test_high_oi_baseline_scales_with_the_underlying(self):
+        from api.reports_api.nifty_bursts import detect_oi_bursts
+        # SENSEX-shaped cumulative call OI (~-19M contracts). The same +1M
+        # minute used to score 500x against the fixed 2,000-contract floor.
+        cum = [-19_000_000 - 500 * i for i in range(5)]
+        rows = [self._row(f"2026-11-26T09:{50 + i:02d}:00+05:30", c)
+                for i, c in enumerate(cum)]
+        rows.append(self._row("2026-11-26T09:55:00+05:30", cum[-1] + 1_000_000))
+        call = [b for b in detect_oi_bursts(rows, min_abs=2_000)
+                if b["side"] == "call"]
+        assert call, "expected the +1M move to still be reported"
+        b = call[-1]
+        assert b["baseline"] > 2_000             # the fixed floor no longer dominates
+        assert b["score"] <= 20                  # sane tier, not 500x
+        assert b["severity"] in ("watch", "alert", "critical")
+
+    def test_unwind_does_not_collapse_the_adaptive_floor(self):
+        from api.reports_api.nifty_bursts import detect_oi_bursts
+        # Live SENSEX call_doi was about -1.16M. A +1M unwind leaves the SIGNED
+        # value near zero — a floor keyed on the instantaneous cumDoi would
+        # fall back to 2,000 and score 500x again at exactly the wrong moment.
+        cum = [-1_160_000 - 400 * i for i in range(5)]
+        rows = [self._row(f"2026-11-26T09:{50 + i:02d}:00+05:30", c)
+                for i, c in enumerate(cum)]
+        rows.append(self._row("2026-11-26T09:55:00+05:30", cum[-1] + 1_000_000))
+        call = [b for b in detect_oi_bursts(rows, min_abs=2_000)
+                if b["side"] == "call"]
+        assert call
+        b = call[-1]
+        assert b["baseline"] > 2_000
+        assert b["score"] < 250
+
+    def test_nifty_shaped_fixture_keeps_its_score(self):
+        from api.reports_api.nifty_bursts import detect_oi_bursts
+        rows = [self._row(f"2026-11-26T09:{50 + i:02d}:00+05:30", c)
+                for i, c in enumerate([0, 100, 200, 300, 12_300])]
+        out = detect_oi_bursts(rows, min_abs=1_000)
+        assert len(out) == 1
+        assert out[0]["baseline"] == 1_000.0
+        assert out[0]["score"] == 12.0

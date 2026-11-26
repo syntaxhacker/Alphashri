@@ -72,9 +72,44 @@ def _null_vix() -> dict:
 #: ~0.1 % of a 58,000 Cr book, so anything smaller is noise, not a bias.
 from api.reports_api.nifty_positioning import FLOW_EPS_CR as FLOW_BIAS_EPS_CR
 
+#: Spot window used by the report's SESSION/15m/5m strip. A writer label is a
+#: DIRECTIONAL claim ("put writers" = index supported / up), so the index has to
+#: agree over the same window before the claim is published.
+SPOT_CONFIRM_MINUTES = 15
+
+
+def spot_change_from_tape(tape_rows: Optional[list[dict]],
+                          minutes: int = SPOT_CONFIRM_MINUTES) -> Optional[float]:
+    """Spot points gained over the tape's trailing ``minutes`` window.
+
+    Anchored exactly like the strip's 15m OI leg (``nifty._rolling_oi``): the
+    newest tape row is the endpoint and the base row is the one nearest
+    ``last - minutes``. ``None`` when either end lacks a usable timestamp or
+    spot — an unknown move is never read as a flat one.
+    """
+    clean = [r for r in tape_rows or []
+             if isinstance(r, dict) and r.get("t")]
+    if not clean:
+        return None
+    try:
+        stamps = [datetime.fromisoformat(str(r["t"])) for r in clean]
+        cut = stamps[-1] - timedelta(minutes=minutes)
+        idx = min(range(len(clean)),
+                  key=lambda i: abs((stamps[i] - cut).total_seconds()))
+    except (TypeError, ValueError):
+        return None
+    base = _f(clean[idx].get("spot"))
+    last = _f(clean[-1].get("spot"))
+    if (base is None or last is None
+            or not math.isfinite(base) or not math.isfinite(last)
+            or base <= 0 or last <= 0):
+        return None
+    return round(last - base, 2)
+
 
 def control_verdict(ce_doi: float, pe_doi: float,
-                    flow_bias: Optional[float] = None) -> str:
+                    flow_bias: Optional[float] = None,
+                    spot_change: Optional[float] = None) -> str:
     """Who is in control: read OI *build* together with the signed flow bias.
 
     ``flow_bias`` is the session's signed directional premium flow in **₹ Cr**
@@ -109,6 +144,15 @@ def control_verdict(ce_doi: float, pe_doi: float,
     ce_doi = −5M and pe_doi = +1M the comparison ``pe_doi > ce_doi * 1.25``
     was true (1M > −6.25M) and the panel printed "PUT WRITERS IN CONTROL" on
     a day the calls were being shed.
+
+    ``spot_change`` (points over the 15-minute tape window, see
+    :func:`spot_change_from_tape`) applies the same strict sign gate as
+    ``verify_burst_flow`` to WRITER labels: ``put_writers`` claims support (up)
+    and ``call_writers`` claims resistance (down). When the index moved the
+    other way the label is demoted to the neutral ``net_put_build`` /
+    ``net_call_build``. A flat or unknown move cannot contradict a claim, and
+    buyer labels are left alone — this fixes the 2026-11-26 tape where falling
+    put premium manufactured a bullish bias while spot fell 25 points in 15m.
     """
     if ce_doi <= 0 or pe_doi <= 0:
         return "balanced"
@@ -121,9 +165,16 @@ def control_verdict(ce_doi: float, pe_doi: float,
         # Old snapshot / no flow block: OI build is real, but WHO built it is
         # unknown — never assert a writer without flow evidence.
         return "net_put_build" if put_dominant else "net_call_build"
+    move = _f(spot_change)
     if put_dominant:
-        return "put_buyers" if bias < -FLOW_BIAS_EPS_CR else "put_writers"
-    return "call_buyers" if bias > FLOW_BIAS_EPS_CR else "call_writers"
+        verdict = "put_buyers" if bias < -FLOW_BIAS_EPS_CR else "put_writers"
+        if verdict == "put_writers" and move is not None and move < 0:
+            return "net_put_build"
+        return verdict
+    verdict = "call_buyers" if bias > FLOW_BIAS_EPS_CR else "call_writers"
+    if verdict == "call_writers" and move is not None and move > 0:
+        return "net_call_build"
+    return verdict
 
 
 def premium_flow_bias(rows: list[dict], spot: float) -> Optional[float]:
@@ -186,14 +237,17 @@ def atm_ivs(rows: list[dict], spot: float) -> tuple[Optional[float], Optional[fl
 
 def compute_control(rows: list[dict], spot: float,
                     gex_regime: Optional[str] = None,
-                    flow_bias: Optional[float] = None) -> dict:
+                    flow_bias: Optional[float] = None,
+                    spot_change: Optional[float] = None) -> dict:
     """Sum today's net OI change per side, tag who is writing, add IV skew.
 
     ``flow_bias`` (₹ Cr, positive = bullish) is threaded into
     :func:`control_verdict` so a writer label needs flow evidence, not just the
     OI share (see that function). When the chain carries price changes, the
     price-confirmed :func:`premium_flow_bias` overrides the raw signed-delta
-    flow; the emitted ``flow_bias`` is the value actually used.
+    flow; the emitted ``flow_bias`` is the value actually used. ``spot_change``
+    is the tape's 15m spot move, which gates the writer label itself (the flow
+    number is left untouched so the panel still shows what the chain said).
     """
     ce_doi = 0
     pe_doi = 0
@@ -218,7 +272,7 @@ def compute_control(rows: list[dict], spot: float,
     if confirmed is not None:
         bias = confirmed
     return {
-        "verdict": control_verdict(ce_doi, pe_doi, bias),
+        "verdict": control_verdict(ce_doi, pe_doi, bias, spot_change=spot_change),
         "ce_doi": ce_doi,
         "pe_doi": pe_doi,
         "flow_bias": round(bias, 2) if bias is not None else None,
@@ -1024,17 +1078,23 @@ def build_verdicts(*, rows: list[dict], spot: float, gex: Optional[dict],
                    vix: Optional[dict] = None,
                    reference: Optional[dict] = None,
                    prev_close: Optional[float] = None,
-                   flow_bias: Optional[float] = None) -> dict:
+                   flow_bias: Optional[float] = None,
+                   spot_change: Optional[float] = None) -> dict:
     """Return the four frozen blocks. Pure — all I/O happens in the fetchers.
 
     ``flow_bias`` is the signed session premium flow (₹ Cr, positive =
     bullish) — ``positioning.flow``, the raw signed-delta figure, not the
     class-weighted ``initiated``; it is threaded into the control block so
-    writer labels require flow evidence.
+    writer labels require flow evidence. ``spot_change`` is the tape's 15m
+    spot move from :func:`spot_change_from_tape` and gates the writer label's
+    implied direction. Callers that do not supply it fall back to deriving it
+    from ``tape_rows`` so no report path can skip the gate by omission.
     """
+    if spot_change is None:
+        spot_change = spot_change_from_tape(tape_rows)
     control = compute_control(rows or [], _f(spot, 0.0) or 0.0,
                               gex_regime=(gex or {}).get("regime"),
-                              flow_bias=flow_bias)
+                              flow_bias=flow_bias, spot_change=spot_change)
     regime = compute_regime(candles=candles, baseline=baseline,
                             iv=_avg_iv(control), tape_rows=tape_rows,
                             reference=reference, prev_close=prev_close,

@@ -47,12 +47,20 @@ from api.reports_api._tape_row import build_tape_row
 from api.reports_api._time import today_str as _today_str
 from api.reports_api.desk_trades import router as desk_trades_router
 from api.reports_api.nifty_intel import router as nifty_intel_router
-from api.reports_api.nifty_fuel import basis_text, fuel_state, structure_evidence, setup_for_burst
+from api.reports_api.nifty_fuel import (
+    basis_text,
+    fuel_state,
+    minute_frames,
+    setup_for_burst,
+    structure_evidence,
+    verify_burst_flow,
+)
 from api.reports_api.nifty_bursts import (
     NEWS_WINDOW_MIN,
     OI_BURST_MIN_ABS,
     OI_BURST_WINDOW,
     attach_news,
+    classify_flow,
     coalesce_bursts,
     derive_oi_signal,
     detect_coiling,
@@ -1186,6 +1194,10 @@ async def _attach_verdicts(report: dict, rows: list[dict], spot: float,
     flow_bias = (positioning.get("flow")
                  if isinstance(positioning, dict) else None)
     try:
+        # Same 15m tape window the SESSION/15m/5m strip uses. A writer label
+        # claims direction, so an index moving the other way demotes it to the
+        # neutral net-build instead of calling falling spot "put writers".
+        spot_change = nv.spot_change_from_tape(tape)
         report.update(nv.build_verdicts(
             rows=rows, spot=spot, gex=report.get("gex"), candles=candles,
             tape_rows=tape, baseline=baseline, vix=vix,
@@ -1194,7 +1206,7 @@ async def _attach_verdicts(report: dict, rows: list[dict], spot: float,
             # compare two different contracts once the ATM strike rolls.
             reference=report.get("reference"),
             prev_close=prev_close,
-            flow_bias=flow_bias))
+            flow_bias=flow_bias, spot_change=spot_change))
     except Exception:
         pass
     # IV surface: ATM / 25-delta skew from the same chain rows. ``expiries`` is
@@ -3349,17 +3361,33 @@ def _chain10s_minute_frames(date_str: str) -> dict[str, dict]:
     try:
         from api.reports_api import chain10s
 
-        frames = chain10s._read_day(date_str)
+        return minute_frames(chain10s._read_day(date_str))
     except Exception:
         return {}
-    per_minute: dict[str, dict] = {}
-    for frame in frames:
-        if not isinstance(frame, dict):
-            continue
-        t = frame.get("t")
-        if isinstance(t, str) and len(t) >= 16:
-            per_minute[t[:16]] = frame
-    return per_minute
+
+
+#: The bursts feed is polled; a chain10s day file is several MB. Reuse the
+#: parsed minute frames until the day file changes (inode + stamp + size).
+_CHAIN10S_FRAMES_CACHE: dict[str, tuple[int, int, int, dict]] = {}
+
+
+def _cached_chain10s_minute_frames(date_str: str) -> dict[str, dict]:
+    """``_chain10s_minute_frames`` with a stat-stamped read-through cache."""
+    try:
+        from api.reports_api import chain10s
+
+        st = (chain10s._dir() / f"{date_str}.jsonl").stat()
+        stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
+    except Exception:
+        return {}
+    cached = _CHAIN10S_FRAMES_CACHE.get(date_str)
+    if cached is not None and cached[:3] == stamp:
+        return cached[3]
+    frames = _chain10s_minute_frames(date_str)
+    _CHAIN10S_FRAMES_CACHE[date_str] = (*stamp, frames)
+    while len(_CHAIN10S_FRAMES_CACHE) > _CACHE_MAX:
+        _CHAIN10S_FRAMES_CACHE.pop(next(iter(_CHAIN10S_FRAMES_CACHE)), None)
+    return frames
 
 
 def _minute_gap(prev_minute: Optional[str], minute: str) -> Optional[int]:
@@ -4644,6 +4672,52 @@ def notify_new_bursts(bursts: Iterable[dict], date_str: str,
     return sent
 
 
+_SIGNAL_PLAN_FIELDS = ("leg", "strike", "entry", "sl", "target", "qty", "lots")
+
+
+def _plan_fingerprint(signal: Any) -> Optional[tuple]:
+    """The trade idea in a signal, ignoring prose and trend annotations."""
+    if not isinstance(signal, dict) or signal.get("leg") is None:
+        return None
+    return tuple(signal.get(k) for k in _SIGNAL_PLAN_FIELDS)
+
+
+def _drop_duplicate_minute_plans(bursts: list[dict]) -> None:
+    """One plan per minute, kept on the side whose leg actually moved.
+
+    A call build by buyers and a put build by writers in the same minute both
+    resolve to CE through `_flow_leg`. The attachment used to give both alerts
+    that identical CE plan (35 duplicate keys on the 2026-11-26 SENSEX tape),
+    so the desk read one trade idea twice. The other side gets no plan rather
+    than an invented opposite-leg one — no trade is the honest output there.
+    """
+    by_minute: dict[str, dict[tuple, list[dict]]] = {}
+    for b in bursts:
+        key = _plan_fingerprint(b.get("signal"))
+        if key is None:
+            continue
+        minute = str(b.get("t") or "")[:16]
+        by_minute.setdefault(minute, {}).setdefault(key, []).append(b)
+
+    for groups in by_minute.values():
+        for group in groups.values():
+            if len(group) < 2:
+                continue
+            if len({str(b.get("side") or "").lower() for b in group}) < 2:
+                continue  # same-side duplicates were coalesced upstream
+            leg = group[0]["signal"]["leg"]
+            traded_side = "call" if leg == "CE" else "put"
+            keeper = next(
+                (b for b in group if str(b.get("side") or "").lower() == traded_side),
+                group[0],
+            )
+            for b in group:
+                if b is keeper:
+                    continue
+                b["signal"] = None
+                b["plan_suppressed"] = True
+
+
 @router.get("/nifty/bursts")
 @router.get("/nifty/bursts", dependencies=[Depends(get_current_user)])
 def get_nifty_bursts(
@@ -4752,7 +4826,31 @@ def get_nifty_bursts(
                 levels[f"{kind}_{side_key}"] = _safe_float(entries[0]["strike"])
     except Exception:
         levels = {}
+    # Chain10s frames are read-only; only a day that actually has the feed is
+    # held to same-strike confirmation (older tapes predate the poller).
+    chain_frames = _cached_chain10s_minute_frames(date_str)
     for b in bursts:
+        if chain_frames:
+            try:
+                verified = verify_burst_flow(b, rows, date_str,
+                                             chain_frames, classify_flow)
+            except Exception:
+                verified = True  # a bad frame must not erase a valid burst
+            if not verified:
+                try:
+                    side = str(b.get("side") or "call").lower()
+                    b.update(setup_for_burst(
+                        side=side, fuel=None, trend=None,
+                        spot=_safe_float(b.get("spot")) or None,
+                        wall=_safe_float(b.get("wall")) or None,
+                        # An unconfirmed burst must not inherit the squeeze
+                        # story: WALL/PUT SQUEEZE is only for verified flow.
+                        burst_type=None,
+                        score=_safe_float(b.get("score")) or None,
+                    ))
+                except Exception:
+                    pass
+                continue
         try:
             # Trend at the burst's own minute, not at the close.
             b_trend = session_trend(rows, at_time=b.get("t")) or trend
@@ -4780,6 +4878,7 @@ def get_nifty_bursts(
             except Exception:
                 pass
             if (b.get("signal") is None and strikes and spot
+                    and not b.get("plan_suppressed")
                     and b.get("type") not in ("coil", "squeeze", "premium", "wall",
                                               "wall_test", "rejection", "break",
                                               "wall_break", "data_stale")):
@@ -4792,6 +4891,7 @@ def get_nifty_bursts(
                 }
         except Exception:
             b["signal"] = None
+    _drop_duplicate_minute_plans(bursts)
     if trend:
         for b in bursts:
             b["trend"] = trend
