@@ -1,143 +1,58 @@
-import { Modal, Text, Badge, List, ListItem } from "@/ui";
-import { Box, Paper, Stack } from "@/ui";
-import { IconTarget } from "@/ui/icons";
-import * as palette from "@/ui/palette";
+import { For } from "solid-js";
+import { Modal, Text, Badge, List, ListItem, Box, Stack } from "@/ui";
 
 interface OptionChainGuideProps {
   opened: boolean;
   onClose: () => void;
 }
 
+const SENTIMENT = [
+  { code: "LB", label: "Long buildup", color: "success", testId: "options-guide-badge-lb" },
+  { code: "SB", label: "Short buildup", color: "error", testId: "options-guide-badge-sb" },
+  { code: "SC", label: "Short covering", color: "info", testId: "options-guide-badge-sc" },
+  { code: "LU", label: "Long unwinding", color: "warning", testId: "options-guide-badge-lu" },
+] as const;
+
 export function OptionChainGuide(props: OptionChainGuideProps) {
   return (
     <Modal
       opened={props.opened}
       onClose={props.onClose}
-      title="How to Read the Option Chain"
+      title="Option chain key"
       size="lg"
       style={{ "border-radius": "6px" }}
       className="option-chain-guide-modal"
       data-testid="options-chain-guide-modal"
     >
-      <Stack spacing={1} className="flex items-center w-full guide-content" data-testid="options-guide-content">
-        <Text size="sm" className="text-fin-text-muted guide-intro" style={{ "text-align": "center" }}>
-          Options can be complex. Here is a simple guide to help you understand the data and make better decisions.
-        </Text>
-
-        <Box className="flex items-center justify-center w-full" style={{ "padding-top": "8px", "padding-bottom": "8px" }}>
-          <Text size="sm" fw={700}>
-            The Basics
-          </Text>
-        </Box>
-
-        <Box className="flex flex-wrap gap-[8px]" data-testid="options-guide-basics">
-          <Box style={{ width: "calc(50% - 4px)" }} className="flex justify-center">
-            <Paper p={1} w="100%" className="guide-card guide-card-calls">
-              <Box p={1}>
-                <Text fw={700} size="sm" className="text-fin-positive">
-                  CALLS (CE)
-                </Text>
-                <Text size="sm">
-                  Right to buy. Traders buy CE if they expect the price to <strong>GO UP</strong>.
-                </Text>
-              </Box>
-            </Paper>
-          </Box>
-          <Box style={{ width: "calc(50% - 4px)" }} className="flex justify-center">
-            <Paper p={1} w="100%" className="guide-card guide-card-puts">
-              <Box p={1}>
-                <Text fw={700} size="sm" className="text-fin-negative">
-                  PUTS (PE)
-                </Text>
-                <Text size="sm">
-                  Right to sell. Traders buy PE if they expect the price to <strong>GO DOWN</strong>.
-                </Text>
-              </Box>
-            </Paper>
-          </Box>
-        </Box>
-
-        <Box className="flex items-center justify-center w-full" style={{ "padding-top": "8px", "padding-bottom": "8px" }}>
-          <Text size="sm" fw={700}>
-            Key Indicators
-          </Text>
+      <Stack spacing={1} className="w-full guide-content" data-testid="options-guide-content">
+        <Box className="flex flex-wrap items-center gap-2 w-full" data-testid="options-guide-basics">
+          <Text size="xs" fw={700}>CALLS (CE)</Text>
+          <Text size="xs" c="dimmed">right to buy</Text>
+          <Text size="xs" fw={700}>PUTS (PE)</Text>
+          <Text size="xs" c="dimmed">right to sell</Text>
         </Box>
 
         <List spacing="xs" size="sm" className="guide-indicators" data-testid="options-guide-indicators">
           <ListItem className="guide-indicator-item" data-testid="options-guide-pcr">
-            <Text component="span" fw={700}>PCR (Put-Call Ratio):</Text> If {">"} 1.2, more puts are being sold (Bullish). If {"<"} 0.7, more calls are being sold (Bearish).
+            <Text component="span" fw={700}>PCR</Text> &gt; 1.2 bullish · &lt; 0.7 bearish
           </ListItem>
           <ListItem className="guide-indicator-item" data-testid="options-guide-max-pain">
-            <Text component="span" fw={700}>Max Pain:</Text> The price level where option buyers lose the most money. Market often tends to gravitate towards this level on expiry.
+            <Text component="span" fw={700}>Max Pain</Text> · expiry magnet, not a target
           </ListItem>
           <ListItem className="guide-indicator-item" data-testid="options-guide-oi">
-            <Text component="span" fw={700}>Open Interest (OI):</Text> The total number of open contracts. High OI acts as a "Wall" (Support or Resistance).
+            <Text component="span" fw={700}>OI</Text> · open contracts; high OI is a wall
           </ListItem>
         </List>
 
-        <Box className="flex items-center justify-center w-full" style={{ "padding-top": "8px", "padding-bottom": "8px" }}>
-          <Text size="sm" fw={700}>
-            Sentiment Badges (What are they doing?)
-          </Text>
+        <Box className="flex flex-wrap gap-1 w-full" data-testid="options-guide-badges">
+          <For each={SENTIMENT}>
+            {(item) => (
+              <Badge size="xs" variant="light" color={item.color} data-testid={item.testId}>
+                {item.code} · {item.label}
+              </Badge>
+            )}
+          </For>
         </Box>
-
-        <Stack spacing={1} className="w-full items-center" data-testid="options-guide-badges">
-          <Box className="flex items-center gap-[8px] justify-center" data-testid="options-guide-badge-lb">
-            <Badge color="success" variant="light" style={{ width: "80px" }}>
-              LB
-            </Badge>
-            <Text size="sm" fw={700}>
-              Long Buildup:
-            </Text>
-            <Text size="sm">
-              New buyers entering. <strong>Strong Bullish signal.</strong>
-            </Text>
-          </Box>
-          <Box className="flex items-center gap-[8px] justify-center" data-testid="options-guide-badge-sb">
-            <Badge color="error" variant="light" style={{ width: "80px" }}>
-              SB
-            </Badge>
-            <Text size="sm" fw={700}>
-              Short Buildup:
-            </Text>
-            <Text size="sm">
-              Sellers creating new positions. <strong>Strong Bearish signal.</strong>
-            </Text>
-          </Box>
-          <Box className="flex items-center gap-[8px] justify-center" data-testid="options-guide-badge-sc">
-            <Badge color="info" variant="light" style={{ width: "80px" }}>
-              SC
-            </Badge>
-            <Text size="sm" fw={700}>
-              Short Covering:
-            </Text>
-            <Text size="sm">
-              Sellers closing positions. <strong>Price usually bounces up.</strong>
-            </Text>
-          </Box>
-          <Box className="flex items-center gap-[8px] justify-center" data-testid="options-guide-badge-lu">
-            <Badge color="warning" variant="light" style={{ width: "80px" }}>
-              LU
-            </Badge>
-            <Text size="sm" fw={700}>
-              Long Unwinding:
-            </Text>
-            <Text size="sm">
-              Buyers closing positions. <strong>Price usually profit books (down).</strong>
-            </Text>
-          </Box>
-        </Stack>
-
-        <Paper p={1} w="100%" className="guide-pro-tip" data-testid="options-guide-pro-tip">
-          <Box p={1}>
-            <Box className="flex items-center gap-[8px] justify-center">
-              <IconTarget size={20} color={palette.PRIMARY} />
-              <Text size="sm" fw={600} className="text-fin-primary">
-                PRO TIP: Look for strikes where both OI and Volume are spiking with an "LB" badge—that's where the next big move might happen!
-              </Text>
-            </Box>
-          </Box>
-        </Paper>
       </Stack>
     </Modal>
   );

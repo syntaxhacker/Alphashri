@@ -36,6 +36,13 @@ vi.mock("./ScreenerTable", () => ({
           {col.label}
         </span>
       ))}
+      <button
+        type="button"
+        data-testid="preview-symbol-click"
+        onClick={() => props.onSymbolClick("RELIANCE")}
+      >
+        open symbol
+      </button>
     </div>
   ),
 }));
@@ -284,6 +291,36 @@ describe("ScreenerConfigView", () => {
       await waitFor(() => expect(screen.getByTestId("preview-table")).toBeInTheDocument());
       expect(screen.queryByTestId("preview-empty")).not.toBeInTheDocument();
       expect(screen.queryByTestId("preview-loading")).not.toBeInTheDocument();
+    });
+
+    it("labels filter badges with the saved filter label, not its backend key", async () => {
+      mockFetchWithAuth.mockReset();
+      mockFetchWithAuth.mockResolvedValue({
+        ok: true,
+        json: async () => ({ approaching: [], touched: [] }),
+      });
+      renderWithProvider(<ScreenerConfigView {...defaultProps} />);
+      await waitFor(() => expect(screen.getByTestId("preview-empty")).toBeInTheDocument());
+
+      expect(screen.getByTestId("screener-filters")).toHaveTextContent("Min RSI: 30");
+      expect(screen.getByTestId("screener-filters")).not.toHaveTextContent("min rsi: 30");
+    });
+
+    it("wires preview rows to the parent symbol handler and drops the no-op compare bar", async () => {
+      const onSymbolClick = vi.fn();
+      mockFetchWithAuth.mockReset();
+      mockFetchWithAuth.mockResolvedValue({
+        ok: true,
+        json: async () => ({ approaching: [{ symbol: "RELIANCE", score: 85 }], touched: [] }),
+      });
+      renderWithProvider(
+        <ScreenerConfigView {...defaultProps} onSymbolClick={onSymbolClick} />,
+      );
+      await waitFor(() => expect(screen.getByTestId("preview-table")).toBeInTheDocument());
+
+      fireEvent.click(screen.getByTestId("preview-symbol-click"));
+      expect(onSymbolClick).toHaveBeenCalledWith("RELIANCE");
+      expect(screen.queryByTestId("selection-bar-mock")).not.toBeInTheDocument();
     });
 
   });

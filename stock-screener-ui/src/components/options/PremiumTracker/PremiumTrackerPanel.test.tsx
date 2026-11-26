@@ -85,6 +85,18 @@ describe("PremiumTrackerPanel v2", () => {
     expect(await screen.findByText("No closed trades yet")).toBeInTheDocument();
   });
 
+  it("keeps the snapshot time and risk caveat, drops the how-to-read wall", async () => {
+    render(() => <PremiumTrackerPanel strikeMatrix={matrix} selectedUnderlying="NIFTY" />);
+    await screen.findByTestId("premium-leg-NIFTY");
+
+    expect(screen.getByText("Snapshot 27 Sep, 05:30 IST")).toBeInTheDocument();
+    expect(screen.getByText("Long premium — max loss is the debit you pay")).toBeInTheDocument();
+    expect(screen.getByText("Short premium, always hedged — never naked")).toBeInTheDocument();
+    expect(screen.queryByText(/Straddle vs avg range/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Buying rows bet the run/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Pick a day, set exits/)).not.toBeInTheDocument();
+  });
+
   it("shows an error when the snapshot fails", async () => {
     vi.mocked(fetchPremiumTracker).mockRejectedValueOnce(new Error("no token"));
     render(() => <PremiumTrackerPanel />);
