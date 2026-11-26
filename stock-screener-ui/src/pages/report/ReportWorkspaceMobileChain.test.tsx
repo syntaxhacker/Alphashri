@@ -132,6 +132,11 @@ describe("ReportWorkspace — 390 chain rail and dock footer", () => {
     expect(wrap).toHaveAttribute("data-chain-v-scroll", "1");
     expect(wrap.className).toContain("max-[600px]:max-h-full!");
     expect(screen.getByTestId("nifty-chain-scroll-cue")).toHaveTextContent("⇄");
+    const sig = screen.getByTestId("nifty-chain-mobile-sig");
+    expect(sig).toHaveTextContent("CE SIG");
+    expect(sig).toHaveTextContent("PE SIG");
+    expect(sig).toHaveTextContent("LB");
+    expect(sig).toHaveTextContent("SB");
   });
 
   test("the collapsed phone heatmap names the CE/PE OI walls from the tape", () => {
