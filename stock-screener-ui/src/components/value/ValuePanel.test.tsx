@@ -7,6 +7,7 @@ import { UIProvider } from "@/ui";
 import { ValuePanel } from "./ValuePanel";
 import { PRESET_IDS, valueScan } from "../../api/valueScan";
 import type { ValueMarket, ValueRow, ValueScanResponse } from "../../api/valueScan";
+import { MOVER_PRESETS } from "../market/marketFilters";
 
 vi.mock("../../api/valueScan", async (importOriginal) => {
   const actual =
@@ -540,6 +541,94 @@ describe("ValuePanel", () => {
       { timeout: 3000 },
     );
     expect(await screen.findByTestId("value-row-AAPL", {}, { timeout: 3000 })).toBeInTheDocument();
+  });
+});
+
+describe("ValuePanel — preset gallery entry", () => {
+  test("the gallery opens from the Value tab and lists every preset family", async () => {
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    const entry = screen.getByTestId("value-preset-gallery");
+    expect(entry).toHaveAttribute("aria-haspopup", "dialog");
+    fireEvent.click(entry);
+
+    expect(screen.getByTestId("market-preset-gallery")).toBeInTheDocument();
+    expect(screen.getByTestId("market-value-fields")).toBeInTheDocument();
+    expect(screen.getByTestId("market-movers-list")).toBeInTheDocument();
+    for (const preset of PRESET_IDS) {
+      expect(screen.getByTestId(`value-preset-card-${preset}`)).toBeInTheDocument();
+    }
+    for (const preset of MOVER_PRESETS) {
+      expect(screen.getByTestId(`preset-card-${preset.id}`)).toBeInTheDocument();
+    }
+  });
+
+  test("applying Deep Value from the gallery selects the value scan preset once", async () => {
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    fireEvent.click(screen.getByTestId("value-preset-gallery"));
+
+    const calls = mockValueScan.mock.calls.length;
+    fireEvent.click(screen.getByTestId("market-value-preset"));
+    await waitFor(
+      () =>
+        expect(mockValueScan.mock.calls.length).toBeGreaterThan(calls) &&
+        expect(mockValueScan).toHaveBeenLastCalledWith(
+          expect.objectContaining({ preset: "DEEP" }),
+          expect.anything(),
+        ),
+      { timeout: 3000 },
+    );
+    expect(screen.getByTestId("value-preset-active")).toHaveTextContent("Active");
+  });
+
+  test("a value scan preset applies and clears from the gallery", async () => {
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    fireEvent.click(screen.getByTestId("value-preset-gallery"));
+
+    fireEvent.click(screen.getByTestId("value-preset-apply-YIELD"));
+    await waitFor(
+      () =>
+        expect(mockValueScan).toHaveBeenLastCalledWith(
+          expect.objectContaining({ preset: "YIELD" }),
+          expect.anything(),
+        ),
+      { timeout: 3000 },
+    );
+    fireEvent.click(screen.getByTestId("value-preset-clear-YIELD"));
+    await waitFor(
+      () =>
+        expect(mockValueScan).toHaveBeenLastCalledWith(
+          expect.not.objectContaining({ preset: "YIELD" }),
+          expect.anything(),
+        ),
+      { timeout: 3000 },
+    );
+  });
+
+  test("mover presets are handed to the host once and never mutate value filters", async () => {
+    const onApplyMarketPreset = vi.fn();
+    r(<ValuePanel onApplyMarketPreset={onApplyMarketPreset} />);
+    await screen.findByTestId("value-row-RELIANCE");
+    fireEvent.click(screen.getByTestId("value-preset-gallery"));
+    const calls = mockValueScan.mock.calls.length;
+
+    fireEvent.click(screen.getByTestId("market-mover-gapUp"));
+    expect(onApplyMarketPreset).toHaveBeenCalledTimes(1);
+    expect(onApplyMarketPreset).toHaveBeenCalledWith({ mcapMinCr: 500, gapMin: 3, sort: "gap_desc" });
+    expect(mockValueScan.mock.calls.length).toBe(calls);
+  });
+
+  test("Escape closes the gallery and returns focus to the Value tab entry", async () => {
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    const entry = screen.getByTestId("value-preset-gallery");
+    entry.focus();
+    fireEvent.click(entry);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("market-preset-gallery")).toBeNull();
+    expect(document.activeElement).toBe(entry);
   });
 });
 

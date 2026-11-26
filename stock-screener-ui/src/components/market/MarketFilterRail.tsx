@@ -1,28 +1,34 @@
-import { createEffect, createSignal, For, Show, type JSX } from "solid-js";
+import { createSignal, For, Show, type JSX } from "solid-js";
 import {
   Box,
-  Button,
   Checkbox,
   Divider,
   MultiSelect,
-  NumberInput,
   Switch,
   Text,
   ActionIcon,
   Indicator,
   Tooltip,
+  useDisclosure,
 } from "@/ui";
-import { IconChevronDown, IconChevronLeft, IconChevronUp, IconCurrencyDollar, IconFilter } from "../common/Icons";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconCurrencyDollar,
+  IconFilter,
+  IconSparkles,
+} from "../common/Icons";
 import { RangeInput } from "../common/RangeInput";
 import { currencyFor, type CurrencyCode } from "@/config/currency";
 import { descriptorForCurrency } from "@/config/marketUniverses";
 import {
+  activeMoverPreset,
   capTierOptions,
-  DEEP_VALUE_PRESET,
-  MOVER_PRESETS,
   universeHasFno,
   type MarketFilterState,
 } from "./marketFilters";
+import { PresetGallery } from "./presets/PresetGallery";
+import { VALUE_FIELDS } from "./presets/presetFields";
 
 /** One size for every band label in the rail — header included. */
 const SECTION_LABEL = "text-ui-micro uppercase tracking-[0.06em]";
@@ -93,85 +99,20 @@ function ToggleGroup(props: { children?: JSX.Element }) {
   return <Box className="flex flex-col gap-1">{props.children}</Box>;
 }
 
-type ValueFilterKey =
-  | "peMax"
-  | "psMax"
-  | "pbMax"
-  | "roeMin"
-  | "divYieldMin"
-  | "fcfYieldMin"
-  | "debtToEquityMax"
-  | "revYoyMin"
-  | "epsYoyMin"
-  | "pePctMax"
-  | "roePctMin"
-  | "dePctMax";
-
-interface ValueFieldDef {
-  key: ValueFilterKey;
-  label: string;
-  suffix?: string;
-  min?: number;
-  step?: number;
-}
-
-const VALUE_FIELDS: readonly ValueFieldDef[] = [
-  // Sector-relative first: these are what the preset uses, because a flat
-  // threshold means different things per sector and rejects large caps on
-  // rounding (SBIN at ROE 14.58 vs a 15 floor).
-  { key: "pePctMax", label: "P/E %ile ≤ (cheap)", min: 0, step: 0.05 },
-  { key: "roePctMin", label: "ROE %ile ≥ (top)", min: 0, step: 0.05 },
-  { key: "dePctMax", label: "D/E %ile ≤ (low)", min: 0, step: 0.05 },
-  { key: "peMax", label: "P/E ≤ (absolute)", min: 0, step: 0.5 },
-  { key: "psMax", label: "P/S ≤ (absolute)", min: 0, step: 0.1 },
-  { key: "pbMax", label: "P/B ≤ (absolute)", min: 0, step: 0.1 },
-  { key: "roeMin", label: "ROE ≥ (absolute)", suffix: "%", min: -100, step: 1 },
-  { key: "divYieldMin", label: "Div yield ≥", suffix: "%", min: 0, step: 0.1 },
-  { key: "fcfYieldMin", label: "FCF yield ≥", suffix: "%", min: -100, step: 0.1 },
-  { key: "debtToEquityMax", label: "D/E ≤ (absolute)", min: 0, step: 0.1 },
-  { key: "revYoyMin", label: "Rev growth ≥", suffix: "%", step: 1 },
-  { key: "epsYoyMin", label: "EPS growth ≥", suffix: "%", step: 1 },
-];
-
-type MoverValueKey =
-  | "gapMin"
-  | "gapMax"
-  | "rangeVsAtrMin"
-  | "to52wHighMin"
-  | "to52wHighMax"
-  | "from52wLowMin"
-  | "from52wLowMax"
-  | "volumeMin"
-  | "valueTradedMin";
-
-const MOVER_VALUE_FIELDS: readonly (Omit<ValueFieldDef, "key"> & { key: MoverValueKey })[] = [
-  { key: "gapMin", label: "Gap ≥", suffix: "%", step: 0.5 },
-  { key: "gapMax", label: "Gap ≤", suffix: "%", step: 0.5 },
-  { key: "rangeVsAtrMin", label: "Range ÷ ATR ≥", min: 0, step: 0.1 },
-  { key: "to52wHighMin", label: "To 52W high ≥", suffix: "%", step: 0.5 },
-  { key: "to52wHighMax", label: "To 52W high ≤", suffix: "%", step: 0.5 },
-  { key: "from52wLowMin", label: "From 52W low ≥", suffix: "%", step: 0.5 },
-  { key: "from52wLowMax", label: "From 52W low ≤", suffix: "%", step: 0.5 },
-  { key: "volumeMin", label: "Volume ≥", min: 0, step: 100 },
-  { key: "valueTradedMin", label: "Value traded ≥", min: 0, step: 100 },
-];
-
-/** In-progress keystrokes ("1.", "-") are not bounds; an empty field is "off". */
-function toBound(raw: number | string): number | null {
-  if (raw === "" || raw == null) return null;
-  const n = typeof raw === "number" ? raw : Number(raw);
-  return Number.isFinite(n) ? n : null;
-}
-
 export function MarketFilterRail(props: MarketFilterRailProps) {
   const filters = () => props.filters;
-  // Collapsed on purpose: the default Market rail keeps its original silhouette.
-  const [valueOpen, setValueOpen] = createSignal(false);
-  const [moversOpen, setMoversOpen] = createSignal(false);
-  // Collapsed sections hide their own state, so the header has to show that
-  // something inside is narrowing the table. Without it a user can leave a
-  // preset on and never see why rows disappeared.
+  // One modal owns every preset and every advanced bound. The rail keeps only
+  // two compact entry points, so the 390px filter drawer no longer scrolls to
+  // reach the presets (and the fields never push the table below the fold).
+  const [galleryOpened, gallery] = useDisclosure(false);
+  const [focusSection, setFocusSection] = createSignal<"value" | "movers">("value");
+  const openGallery = (section: "value" | "movers"): void => {
+    setFocusSection(section);
+    gallery.open();
+  };
+  // Hidden fields still narrow the table — the entry button has to say so.
   const valueActiveCount = () => VALUE_FIELDS.filter((f) => filters()[f.key] != null).length;
+  const moverActive = () => activeMoverPreset(filters());
   const tierCounts = () => props.tierCounts;
   const collapseLabel = () => props.collapseLabel ?? "Collapse filters";
   const capTierOpts = () => capTierOptions(descriptorForCurrency(props.currency).value);
@@ -199,7 +140,7 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
   return (
     <Box
       data-testid="market-filter-rail"
-      className="flex flex-col gap-3 p-2"
+      className="flex flex-col gap-3 p-2 w-full max-w-full min-w-0 overflow-x-hidden"
     >
       <Box className="flex items-center justify-between">
         <Box className="flex items-center gap-1">
@@ -340,175 +281,61 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
 
       <Divider />
 
-      {/* A collapsible band reads as a separator unless it advertises itself:
-          icon + "Value filters" + an active-count badge, at body size rather
-          than the 10px dim label the static sections use. The preset sits
-          OUTSIDE the collapse so the one-click path is never two clicks deep. */}
-      <Box role="group" aria-label="Value filters" className="flex flex-col gap-1">
-        <button
-          type="button"
-          data-testid="market-value-toggle"
-          aria-expanded={valueOpen()}
-          aria-controls="market-value-fields"
-          onClick={() => setValueOpen((open) => !open)}
-          className="flex items-center justify-between w-full min-w-0 cursor-pointer"
-        >
-          <Box className="flex items-center gap-1 min-w-0">
-            <IconCurrencyDollar size={12} />
-            <Text fw={600} c={valueActiveCount() > 0 ? undefined : "dimmed"} className="text-ui-micro whitespace-nowrap">
-              Value filters
-            </Text>
-            <Show when={valueActiveCount() > 0}>
-              <Indicator label={String(valueActiveCount())} color="primary" size={12} />
-            </Show>
-          </Box>
-          <Show when={valueOpen()} fallback={<IconChevronDown size={12} />}>
-            <IconChevronUp size={12} />
-          </Show>
-        </button>
-
-        <Button
-          size="xs"
-          variant="outline"
-          data-testid="market-value-preset"
-          onClick={() => props.onChange(DEEP_VALUE_PRESET)}
-          title="Cheapest 35% on P/E · top 55% on ROE · least-leveraged 30% on D/E — each within the row's own sector"
-        >
-          Deep value preset
-        </Button>
-
-        <Show when={valueOpen()}>
-          <Box
-            id="market-value-fields"
-            data-testid="market-value-fields"
-            className="flex flex-col gap-2 pt-1"
+      {/* The value band is now a gallery entry, not a stack of twelve inputs.
+          The active count stays on the rail so a hidden gate is never invisible. */}
+      <button
+        type="button"
+        data-testid="market-value-toggle"
+        aria-haspopup="dialog"
+        aria-expanded={galleryOpened()}
+        aria-controls="market-value-fields"
+        onClick={() => openGallery("value")}
+        className="flex items-center justify-between w-full min-w-0 cursor-pointer"
+      >
+        <Box className="flex items-center gap-1 min-w-0">
+          <IconCurrencyDollar size={12} />
+          <Text
+            fw={600}
+            c={valueActiveCount() > 0 ? undefined : "dimmed"}
+            className="text-ui-micro whitespace-nowrap"
           >
-            <For each={VALUE_FIELDS}>
-              {(def) => {
-                const [raw, setRaw] = createSignal(
-                  filters()[def.key] == null ? "" : String(filters()[def.key]),
-                );
-                let committed: number | null = filters()[def.key];
-                // Presets and chip removals move the filter from outside this
-                // field; follow them without stomping an in-progress keystroke.
-                createEffect(() => {
-                  const bound = filters()[def.key];
-                  if (bound === committed) return;
-                  committed = bound;
-                  setRaw(bound == null ? "" : String(bound));
-                });
-                return (
-                  <NumberInput
-                    size="xs"
-                    label={def.label}
-                    suffix={def.suffix}
-                    min={def.min}
-                    step={def.step}
-                    hideControls
-                    placeholder="Any"
-                    value={raw()}
-                    data-testid={`market-filter-${def.key}`}
-                    onChange={(next) => {
-                      const text = typeof next === "string" ? next : String(next);
-                      setRaw(text);
-                      const bound = toBound(next);
-                      if (bound === committed) return;
-                      committed = bound;
-                      props.onChange({ [def.key]: bound } as Partial<MarketFilterState>);
-                    }}
-                  />
-                );
-              }}
-            </For>
-          </Box>
-        </Show>
-      </Box>
+            Value filters
+          </Text>
+          <Show when={valueActiveCount() > 0}>
+            <Indicator label={String(valueActiveCount())} color="primary" size={12} />
+          </Show>
+        </Box>
+        <IconChevronRight size={12} />
+      </button>
 
       <Divider />
 
-      {/* Mirrors the ten dashboard.py mover cards plus the report's two New 52W
-          panels. Collapsed by default so the default Market rail is unchanged;
-          each button replaces bounds + sort. */}
-      <Box role="group" aria-label="Movers" className="flex flex-col gap-1">
-        <button
-          type="button"
-          data-testid="market-movers-toggle"
-          aria-expanded={moversOpen()}
-          aria-controls="market-movers-list"
-          onClick={() => setMoversOpen((open) => !open)}
-          className="flex items-center justify-between w-full min-w-0 cursor-pointer"
-        >
-          <Text fw={600} c="dimmed" className="text-ui-micro whitespace-nowrap">
+      {/* Each mover replaces bounds + sort. The gallery shows the whole set
+          with its thesis and chips instead of twelve bare buttons on the rail. */}
+      <button
+        type="button"
+        data-testid="market-movers-toggle"
+        aria-haspopup="dialog"
+        aria-expanded={galleryOpened()}
+        aria-controls="market-movers-list"
+        onClick={() => openGallery("movers")}
+        className="flex items-center justify-between w-full min-w-0 cursor-pointer"
+      >
+        <Box className="flex items-center gap-1 min-w-0">
+          <IconSparkles size={12} />
+          <Text
+            fw={600}
+            c={moverActive() ? undefined : "dimmed"}
+            className="text-ui-micro whitespace-nowrap"
+          >
             Mover presets
           </Text>
-          <Show when={moversOpen()} fallback={<IconChevronDown size={12} />}>
-            <IconChevronUp size={12} />
+          <Show when={moverActive()}>
+            <Indicator label="1" color="primary" size={12} />
           </Show>
-        </button>
-
-        <Show when={moversOpen()}>
-          <Box
-            id="market-movers-list"
-            data-testid="market-movers-list"
-            className="flex flex-col gap-1 pt-1"
-          >
-            <For each={MOVER_PRESETS}>
-              {(preset) => (
-                <Button
-                  size="xs"
-                  variant="outline"
-                  data-testid={`market-mover-${preset.id}`}
-                  title={preset.description}
-                  onClick={() => props.onChange({ ...preset.filters, sort: preset.sort })}
-                >
-                  {preset.label}
-                </Button>
-              )}
-            </For>
-
-            <Box className="flex flex-col gap-1 pt-1">
-              <Text fw={600} c="dimmed" className={SECTION_LABEL}>
-                Manual bounds
-              </Text>
-              <For each={MOVER_VALUE_FIELDS}>
-                {(def) => {
-                  const [raw, setRaw] = createSignal(
-                    filters()[def.key] == null ? "" : String(filters()[def.key]),
-                  );
-                  let committed: number | null = filters()[def.key];
-                  createEffect(() => {
-                    const bound = filters()[def.key];
-                    if (bound === committed) return;
-                    committed = bound;
-                    setRaw(bound == null ? "" : String(bound));
-                  });
-                  return (
-                    <NumberInput
-                      size="xs"
-                      label={def.label}
-                      suffix={def.suffix}
-                      min={def.min}
-                      step={def.step}
-                      hideControls
-                      placeholder="Any"
-                      value={raw()}
-                      data-testid={`market-filter-${def.key}`}
-                      onChange={(next) => {
-                        const text = typeof next === "string" ? next : String(next);
-                        setRaw(text);
-                        const bound = toBound(next);
-                        if (bound === committed) return;
-                        committed = bound;
-                        props.onChange({ [def.key]: bound } as Partial<MarketFilterState>);
-                      }}
-                    />
-                  );
-                }}
-              </For>
-            </Box>
-          </Box>
-        </Show>
-      </Box>
+        </Box>
+        <IconChevronRight size={12} />
+      </button>
 
       <Divider />
 
@@ -568,6 +395,14 @@ export function MarketFilterRail(props: MarketFilterRailProps) {
           data-testid="market-filter-sector"
         />
       </RailSection>
+
+      <PresetGallery
+        opened={galleryOpened()}
+        onClose={gallery.close}
+        filters={filters()}
+        onChange={props.onChange}
+        focus={focusSection()}
+      />
     </Box>
   );
 }

@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { IconDownload, IconRefresh } from "../common/Icons";
+import { IconDownload, IconRefresh, IconSparkles } from "../common/Icons";
 import {
   ActionIcon,
   Alert,
@@ -14,8 +14,15 @@ import {
   TabsList,
   Text,
   ToolbarRow,
+  useDisclosure,
 } from "@/ui";
 import { CompactPanel } from "../common/compact";
+import { PresetGallery } from "../market/presets/PresetGallery";
+import {
+  DEEP_VALUE_PRESET,
+  defaultMarketFilters,
+  type MarketFilterState,
+} from "../market/marketFilters";
 import { useValueScanSolid } from "./useValueScanSolid";
 import {
   VALUE_MARKETS,
@@ -53,6 +60,11 @@ interface ValuePanelProps {
    * the row click. The standalone tab omits it and needs no dock provider.
    */
   onOpenSymbol?: (symbol: string) => void;
+  /**
+   * Market-view presets opened from this panel's gallery. The host owns the
+   * market filter state; without a host the gallery still browses them.
+   */
+  onApplyMarketPreset?: (patch: Partial<MarketFilterState>) => void;
 }
 
 const PRESET_OPTIONS = Object.entries(VALUE_PRESETS).map(([value, meta]) => ({
@@ -81,6 +93,19 @@ export function ValuePanel(props: ValuePanelProps) {
 
   const patch = (p: Partial<ValueFilters>): void => {
     setFilters((f) => ({ ...f, ...p }));
+  };
+  const [galleryOpened, gallery] = useDisclosure(false);
+
+  // The one market card with a real value-scan counterpart is Deep Value;
+  // mover screens have no value-scan gate, so those stay a host concern.
+  const handleMarketPatch = (marketPatch: Partial<MarketFilterState>): void => {
+    const gates = Object.keys(DEEP_VALUE_PRESET);
+    if (gates.some((key) => key in marketPatch)) {
+      const applied = marketPatch.pePctMax != null;
+      patch({ preset: applied ? "DEEP" : undefined });
+      return;
+    }
+    props.onApplyMarketPreset?.(marketPatch);
   };
 
   const canOpenInHost = (exchange: string | undefined): boolean =>
@@ -183,6 +208,17 @@ export function ValuePanel(props: ValuePanelProps) {
               size="sm"
               data-testid="value-preset-select"
             />
+            <Button
+              size="sm"
+              variant="outline"
+              aria-haspopup="dialog"
+              aria-expanded={galleryOpened()}
+              onClick={gallery.open}
+              data-testid="value-preset-gallery"
+            >
+              <IconSparkles size={12} />
+              Presets
+            </Button>
           </ToolbarRow>
           <ToolbarRow gap={8}>
             <Show when={lastUpdated()}>
@@ -293,6 +329,17 @@ export function ValuePanel(props: ValuePanelProps) {
           </ToolbarRow>
         </ToolbarRow>
       </Box>
+      <PresetGallery
+        opened={galleryOpened()}
+        onClose={gallery.close}
+        filters={defaultMarketFilters()}
+        onChange={handleMarketPatch}
+        valuePresets={{
+          selected: filters().preset,
+          presets: VALUE_PRESETS,
+          onSelect: (id) => patch({ preset: id }),
+        }}
+      />
       <ValueDetailDrawer row={selected()} onClose={() => setSelected(null)} />
     </CompactPanel>
   );

@@ -1410,6 +1410,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                   embedded
                   market={marketUniverseToValueMarket(universe()) ?? "india"}
                   onOpenSymbol={selectAndOpen}
+                  onApplyMarketPreset={applyPreset}
                 />
               </Suspense>
             </Box>

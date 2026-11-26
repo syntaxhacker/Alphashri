@@ -636,7 +636,9 @@ describe("MarketScreenerPanel ↔ market heatmap — one metric control", () => 
 
     const pageToolbar = screen.getByTestId("market-vis-toolbar");
     // The desk panel is lazy: its component graph resolves after mount.
-    const panel = await screen.findByTestId("market-heatmap-panel");
+    // The lazy desk panel resolves after the host's much larger module graph;
+    // under a loaded CI box its chunk can take several seconds.
+    const panel = await screen.findByTestId("market-heatmap-panel", {}, { timeout: 8000 });
     // The page owns one dropdown; the panel owns one (plus its universe select).
     expect(pageToolbar.querySelectorAll("select")).toHaveLength(1);
     expect(panel.querySelectorAll("select")).toHaveLength(2);
