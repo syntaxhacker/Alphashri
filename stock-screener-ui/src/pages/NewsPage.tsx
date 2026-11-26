@@ -5,6 +5,7 @@ import { Box, Modal, Paper, Stack, Text, useMediaQuery } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { ArticleResponse, NewsItem, NewsSymbol } from "../components/news/news-types";
 import { fetchArticle } from "../api/news";
+import { chartHrefForSymbol } from "../components/common/symbolDockContext";
 import { getSourceOptions, useNewsSourceGroups } from "../components/news/useNewsSourceGroups";
 import { useNewsList } from "../components/news/useNewsList";
 import { ArticleDetail } from "../components/news/ArticleDetail";
@@ -94,10 +95,7 @@ function NewsWorkspaceHeader(props: { storyCount: number; sourceCount: number })
       </Box>
       <Box className="min-w-0">
         <Text size="sm" fw={700} style={{ "line-height": 1.2 }}>
-          Market intelligence
-        </Text>
-        <Text size="xs" c="dimmed" className="hidden sm:block">
-          Headlines, catalysts and AI-assisted briefs in one workspace
+          NEWS
         </Text>
       </Box>
       <Box className="min-w-0 flex-1" />
@@ -184,8 +182,15 @@ export default function NewsPage() {
     });
 
   const handleSymbolClick = (symbol: NewsSymbol) => {
-    if (symbol.instrument_key && symbol.trading_symbol) navigate(`/chart/${symbol.trading_symbol}`);
-    else if (symbol.url) window.open(symbol.url, "_blank", "noopener,noreferrer");
+    const tradingSymbol = symbol.trading_symbol?.trim();
+    if (symbol.instrument_key && tradingSymbol) {
+      // Same chart contract as the news rail: US symbols need `?market=usa`
+      // and feed decoration is stripped before the route is built.
+      const exchange = symbol.instrument_key.split("|")[0]?.split("_")[0];
+      navigate(chartHrefForSymbol(tradingSymbol, exchange));
+    } else if (symbol.url) {
+      window.open(symbol.url, "_blank", "noopener,noreferrer");
+    }
   };
 
   // Spreading a plain object into <NewsList> would freeze props.children-like

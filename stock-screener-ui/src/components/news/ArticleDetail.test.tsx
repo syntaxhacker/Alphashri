@@ -19,10 +19,13 @@ const emptyProps = {
 describe("ArticleDetail empty state", () => {
   afterEach(() => cleanup());
 
-  it("explains the reading desk at the top of the pane instead of a blank body", () => {
+  it("uses one terse prompt in the empty pane, not marketing copy about a reading desk", () => {
     render(() => <ArticleDetail {...emptyProps} />, { wrapper: TestWrapper });
 
-    expect(screen.getByTestId("article-empty")).toHaveTextContent("Your reading desk is ready");
+    const empty = screen.getByTestId("article-empty");
+    expect(empty).toHaveTextContent("Select a headline");
+    expect(empty).not.toHaveTextContent("reading desk");
+    expect(empty).not.toHaveTextContent("AI-assisted");
     const pane = screen.getByTestId("article-detail");
     expect(pane.getAttribute("style") ?? "").toContain("justify-content: flex-start");
   });
@@ -86,5 +89,59 @@ describe("ArticleDetail symbol badge", () => {
     onSymbolClick.mockClear();
     await fireEvent.keyDown(badge, { key: " " });
     expect(onSymbolClick).toHaveBeenCalledWith(symbol);
+  });
+});
+
+describe("ArticleDetail filler copy", () => {
+  afterEach(() => cleanup());
+
+  const article = {
+    id: "1",
+    headline: "Headline",
+    description: "",
+    source: "Reuters",
+    sourceUrl: "https://example.com/1",
+    publishedAt: "2025-01-01T10:00:00Z",
+    fetchedAt: "2025-01-01T10:00:00Z",
+  };
+
+  it("states a pending analysis in one terminal line and drops the dead source button", () => {
+    render(
+      () => (
+        <ArticleDetail
+          {...emptyProps}
+          selectedArticle={article}
+          articleContent={{ ...article, analysis_status: "failed", description: "Body" }}
+        />
+      ),
+      { wrapper: TestWrapper },
+    );
+
+    expect(screen.getByText("ANALYSIS PENDING")).toBeInTheDocument();
+    expect(screen.queryByText(/queued for analysis/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Analysis will be available/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("No source link")).not.toBeInTheDocument();
+  });
+
+  it("shows the signal badges without a redundant section label", () => {
+    render(
+      () => (
+        <ArticleDetail
+          {...emptyProps}
+          selectedArticle={article}
+          articleContent={{
+            ...article,
+            analysis_status: "done",
+            summary: "Summary text",
+            sentiment: "BULLISH",
+            impact_score: 80,
+          }}
+        />
+      ),
+      { wrapper: TestWrapper },
+    );
+
+    expect(screen.queryByText("Signal snapshot")).not.toBeInTheDocument();
+    expect(screen.getByTestId("article-summary")).toBeInTheDocument();
   });
 });

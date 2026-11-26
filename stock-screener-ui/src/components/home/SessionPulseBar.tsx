@@ -24,6 +24,15 @@ function istClockLabel(iso: string | null | undefined): string {
   return `${String(hour).padStart(2, "0")}:${minute} IST`;
 }
 
+/** A sub-0.005% move rounds to "-0.00%" — show a plain zero instead. */
+function pct(value: number | null | undefined): string {
+  return formatPercentage(
+    value != null && Number.isFinite(value) && Math.abs(value) < 0.005 ? 0 : value,
+    2,
+    true,
+  );
+}
+
 /** Null/absent is a dash — never a fabricated zero. */
 function levelText(value: number | null | undefined): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
@@ -59,7 +68,7 @@ function IndexQuote(props: { label: string; testId: string; quote: CatalystIndex
         c={changeTone(props.quote?.change_pct)}
         className="font-mono tabular-nums"
       >
-        {formatPercentage(props.quote?.change_pct, 2, true)}
+        {pct(props.quote?.change_pct)}
       </Text>
     </span>
   );
@@ -143,7 +152,7 @@ export function SessionPulseBar() {
 
   const refreshHint = (): string => {
     const warnings = data()?.warnings ?? [];
-    const updated = data()?.as_of ? `Updated ${istClockLabel(data()?.as_of)}` : "No successful update yet";
+    const updated = data()?.as_of ? `Updated ${istClockLabel(data()?.as_of)}` : "NO UPDATE";
     const detail = warnings.length > 0 ? ` · ${warnings.join(", ")}` : "";
     return `${updated}${detail}`;
   };
@@ -194,7 +203,7 @@ export function SessionPulseBar() {
             c={changeTone(sector()?.change_pct)}
             className="font-mono tabular-nums"
           >
-            {formatPercentage(sector()?.change_pct, 2, true)}
+            {pct(sector()?.change_pct)}
           </Text>
           <Text component="span" size="xs" c="dimmed">
             RS
@@ -206,7 +215,7 @@ export function SessionPulseBar() {
             c={changeTone(sector()?.relative_strength_pct)}
             className="font-mono tabular-nums"
           >
-            {formatPercentage(sector()?.relative_strength_pct, 2, true)}
+            {pct(sector()?.relative_strength_pct)}
           </Text>
         </Segment>
 

@@ -3,7 +3,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import "@testing-library/jest-dom/vitest";
-import { ArticleSymbols, NewsItemCard, NewsListContent } from "./NewsHelpers";
+import { ArticleSymbols, NewsFilterControls, NewsItemCard, NewsListContent } from "./NewsHelpers";
 import { TestWrapper } from "@/test-utils/renderWithProviders";
 import type { NewsItem, NewsSymbol } from "./news-types";
 
@@ -193,5 +193,59 @@ describe("NewsItemCard headline", () => {
     expect(style).toContain("-webkit-box");
     expect(style).not.toMatch(/white-space:\s*nowrap/);
     expect(style).toMatch(/overflow-wrap:\s*anywhere/);
+  });
+});
+
+describe("news copy and controls", () => {
+  afterEach(() => cleanup());
+
+  it("renders the empty feed as one line, with no generic helper sentence", () => {
+    render(
+      () => (
+        <NewsListContent
+          loading={false}
+          error={null}
+          newsItems={[]}
+          selectedSource="all"
+          sourceNames={[]}
+          groupedNewsItems={{}}
+          expandedSources={new Set()}
+          readIds={new Set()}
+          onToggleSource={() => {}}
+          onArticleClick={() => {}}
+        />
+      ),
+      { wrapper: TestWrapper },
+    );
+
+    expect(screen.getByTestId("news-empty")).toHaveTextContent("No news available");
+    expect(screen.queryByText(/New articles will appear here/i)).not.toBeInTheDocument();
+  });
+
+  it("exposes mark-all-read as a named button instead of a clickable badge", async () => {
+    const onMarkAllRead = vi.fn();
+    render(
+      () => (
+        <NewsFilterControls
+          sourceData={[]}
+          selectedSource="all"
+          autoRefreshMs="60000"
+          loading={false}
+          isRefreshing={false}
+          unreadCount={4}
+          onSourceChange={() => {}}
+          onRefresh={() => {}}
+          onAutoRefreshChange={() => {}}
+          onMarkAllRead={onMarkAllRead}
+        />
+      ),
+      { wrapper: TestWrapper },
+    );
+
+    const button = screen.getByTestId("news-unread-badge");
+    expect(button.tagName).toBe("BUTTON");
+    expect(button).toHaveAccessibleName("Mark all as read");
+    await fireEvent.click(button);
+    expect(onMarkAllRead).toHaveBeenCalledTimes(1);
   });
 });
