@@ -89,4 +89,25 @@ describe("ResultsToolbar narrow layout", () => {
     expect(screen.getByTestId("patterns-open-filters")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-view-toggle")).toBeInTheDocument();
   });
+
+  test("wraps every control on a phone with no sideways cue", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width"),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    try {
+      render(() => <ResultsToolbar {...props()} />);
+      expect(screen.queryByTestId("patterns-results-toolbar-scroll-region")).toBeNull();
+      expect(screen.queryByTestId("patterns-results-toolbar-scroll-cue")).toBeNull();
+      expect(screen.getByTestId("patterns-results-toolbar").parentElement?.className).toContain(
+        "flex-col",
+      );
+      for (const id of ["symbol-filter", "timeframe-select", "lookback-select", "patterns-open-filters", "patterns-view-toggle"]) {
+        expect(screen.getByTestId(id)).toBeInTheDocument();
+      }
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

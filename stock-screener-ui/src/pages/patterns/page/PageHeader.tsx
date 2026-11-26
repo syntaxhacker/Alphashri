@@ -24,7 +24,7 @@ export function PageHeader(props: PageHeaderProps) {
           Watch
         </Tabs.Tab>
       </Tabs.List>
-      <Box className="ml-auto flex min-w-0 items-center overflow-x-auto">
+      <Box className="ml-auto flex min-w-0 items-center">
         <ScanStats summary={props.displaySummary()} job={props.job} onSelect={props.onSelectStat} />
       </Box>
     </Box>

@@ -1,4 +1,4 @@
-import type { JSX } from "solid-js";
+import { Show, type JSX } from "solid-js";
 import { Box } from "@/ui";
 import { cn } from "@/ui/cn";
 import { ScrollSidewaysCue } from "./ScrollSidewaysCue";
@@ -31,6 +31,8 @@ export interface PatternScrollRegionProps {
   stickyFirstColumn?: boolean;
   className?: string;
   cueClassName?: string;
+  /** False when the narrow layout has no sideways scroll to afford. */
+  showCue?: boolean;
 }
 
 /**
@@ -51,6 +53,11 @@ export function PatternScrollRegion(props: PatternScrollRegionProps) {
 
   return (
     <Box className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      {/* Attached to the container's top edge: a cue below a full-height table
+          ends up stranded far from the columns it describes. */}
+      <Show when={props.showCue !== false}>
+        <ScrollSidewaysCue testId={props.cueTestId} className={props.cueClassName} />
+      </Show>
       <div
         data-testid={props.testId}
         data-scroll="horizontal"
@@ -66,7 +73,6 @@ export function PatternScrollRegion(props: PatternScrollRegionProps) {
       >
         {props.children}
       </div>
-      <ScrollSidewaysCue testId={props.cueTestId} className={props.cueClassName} />
     </Box>
   );
 }

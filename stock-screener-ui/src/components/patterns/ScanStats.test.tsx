@@ -60,6 +60,25 @@ describe("ScanStats", () => {
     expect(strip.className).not.toContain("min-h-");
   });
 
+  test("wraps the strip on a phone so every stat stays readable", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width"),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    try {
+      render(() => <ScanStats summary={SUMMARY} />);
+      const strip = screen.getByTestId("patterns-stats");
+      expect(strip.className).toContain("flex-wrap");
+      expect(strip.className).not.toContain("overflow-x-auto");
+      for (const key of ["scanned", "in_view", "data_through", "last_scan"]) {
+        expect(within(strip).getByTestId(`patterns-stat-${key}`)).toBeInTheDocument();
+      }
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   test("formats the bull/bear and data-through values", () => {
     render(() => <ScanStats summary={SUMMARY} />);
     expect(screen.getByTestId("patterns-stat-bull_bear")).toHaveTextContent("7 / 3");
