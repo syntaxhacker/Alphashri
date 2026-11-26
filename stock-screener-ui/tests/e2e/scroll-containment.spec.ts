@@ -492,13 +492,20 @@ for (const viewport of VIEWPORTS) {
 
       await page.goto("/patterns?view=grid");
       await expect(page.locator('[data-testid="patterns-page"]')).toBeVisible({ timeout: 20_000 });
+      // Below 900px the page renders its single-column result list, not the
+      // card grid. Both regions are the designated vertical scroll owners.
+      const narrow = viewport.width < 900;
+      const rowPrefix = narrow
+        ? 'data-testid^="patterns-narrow-result-HEAVY"'
+        : 'data-testid^="patterns-mini-chart-HEAVY"';
+      const region = narrow ? "patterns-narrow-results" : "patterns-grid-scroll-region";
       await expect
-        .poll(() => page.locator('[data-testid^="patterns-mini-chart-HEAVY"]').count())
+        .poll(() => page.locator(`[${rowPrefix}]`).count())
         .toBe(HEAVY_PATTERN_COUNT);
 
       await expectInternalScroll(
-        page.locator('[data-testid="patterns-grid-scroll-region"]'),
-        `patterns grid at ${viewport.name}`,
+        page.locator(`[data-testid="${region}"]`),
+        `patterns ${narrow ? "list" : "grid"} at ${viewport.name}`,
       );
       await expectContained(page, `patterns grid at ${viewport.name}`);
     });

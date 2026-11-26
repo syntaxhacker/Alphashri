@@ -5,6 +5,8 @@ import {
   getSectorState,
   loadSectorData,
   resetSectorState,
+  restoreSectorState,
+  sectorResetGeneration,
   setMarket,
   subscribe,
 } from "@/state/sector";
@@ -33,6 +35,10 @@ let failures = 0;
 let visibilityBound = false;
 /** A market switch supersedes the old flight; its finally must not clear the new one. */
 let generation = 0;
+/** A desk rebuild remounts every frame in one commit; carry the last frame across it. */
+let rebuildFrame: SectorState | null = null;
+let rebuildGeneration = 0;
+let rebuildResetToken = -1;
 
 function isHidden(): boolean {
   return typeof document !== "undefined" && (document.hidden === true || document.visibilityState === "hidden");
@@ -95,6 +101,14 @@ function bindVisibility(): void {
 }
 
 export function attachSectorPanel(): void {
+  // Adding a window of another type changes the desk key and remounts every
+  // panel. Detach then attach happens in the same commit; carry the frame back
+  // so the rebuild does not fire a second identical /api/sector request.
+  if (rebuildFrame != null && rebuildResetToken === sectorResetGeneration()) {
+    restoreSectorState(rebuildFrame);
+    rebuildFrame = null;
+    rebuildGeneration += 1;
+  }
   mounts += 1;
   if (mounts === 1) {
     bindVisibility();
@@ -112,14 +126,21 @@ export function detachSectorPanel(): void {
   mounts = Math.max(0, mounts - 1);
   // Only the last sector window tears the shared store down; minimizing one of
   // three panels must not blank the others or stop their poll.
-  if (mounts === 0) {
-    clearTimer();
-    generation += 1;
-    inflight = null;
-    primed = false;
-    failures = 0;
-    resetSectorState();
-  }
+  if (mounts > 0) return;
+  clearTimer();
+  generation += 1;
+  inflight = null;
+  primed = false;
+  failures = 0;
+  // A genuine close still clears the store immediately. Keep one frame aside
+  // for the synchronous remount that a HOME layout change performs.
+  rebuildFrame = { ...getSectorState() };
+  resetSectorState();
+  rebuildResetToken = sectorResetGeneration();
+  const token = ++rebuildGeneration;
+  setTimeout(() => {
+    if (token === rebuildGeneration) rebuildFrame = null;
+  }, 0);
 }
 
 export function switchSectorMarket(market: SectorMarket): void {
@@ -142,6 +163,8 @@ export function useSectorPanelState(): Accessor<SectorState> {
 
 /** Test-only teardown: no timer or stale frame survives into the next desk mount. */
 export function __resetSectorPanelStore(): void {
+  rebuildFrame = null;
+  rebuildGeneration += 1;
   clearTimer();
   generation += 1;
   mounts = 0;

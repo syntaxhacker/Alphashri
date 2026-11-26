@@ -1,5 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
-import { setupApiMocks, loginAsTestUser, setupOptionDockMocks } from "../mocks/apiResponses";
+import {
+  setupApiMocks,
+  loginAsTestUser,
+  setupOptionDockMocks,
+  setupFnoScreenerMocks,
+} from "../mocks/apiResponses";
 import { ANALYTICS_EXPIRIES, ANALYTICS_STRIKES, analyticsBody } from "../mocks/analyticsResponse";
 import { apiRoute } from "../mocks/routeHelper";
 import { collectConsoleErrors } from "./helpers/flowsB";
@@ -119,13 +124,21 @@ async function enterWithDock(
   await loginAsTestUser(page);
   await mockMarketSnapshot(page);
   await mockPatternLookup(page);
+  if (isNarrow(page)) await setupFnoScreenerMocks(page);
   const dock = await setupOptionDockMocks(page, options);
   return dock;
 }
 
+/** Narrow Market rows intentionally drop per-row affordances; the F&O table keeps them. */
+function isNarrow(page: Page): boolean {
+  return (page.viewportSize()?.width ?? 1280) < 900;
+}
+
 async function openDock(page: Page) {
-  await page.goto(SNAPSHOT_PATH);
-  await expect(page.locator('[data-testid="market-row-RELIANCE"]')).toBeVisible({ timeout: 15000 });
+  const narrow = isNarrow(page);
+  await page.goto(narrow ? "/screener/fno" : SNAPSHOT_PATH);
+  const row = narrow ? "fno-row-RELIANCE" : "market-row-RELIANCE";
+  await expect(page.locator(`[data-testid="${row}"]`)).toBeVisible({ timeout: 15000 });
   await page.locator('[data-testid="symbol-options-RELIANCE"]').first().click();
   await expect(page.locator('[data-testid="options-dock"]')).toBeVisible({ timeout: 15000 });
 }

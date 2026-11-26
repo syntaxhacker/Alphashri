@@ -78,6 +78,7 @@ function initialState(): SectorState {
 }
 
 let state: SectorState = initialState();
+let resetGeneration = 0;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let pollKey: string | null = null;
 
@@ -178,5 +179,17 @@ function stopPolling(): void {
 export function resetSectorState(): void {
   stopPolling();
   state = initialState();
+  resetGeneration += 1;
+  notify();
+}
+
+/** Distinguishes a desk rebuild from an explicit reset before a fresh mount. */
+export function sectorResetGeneration(): number {
+  return resetGeneration;
+}
+
+/** Restore a frame captured during a synchronous desk remount, without a refetch. */
+export function restoreSectorState(frame: SectorState): void {
+  state = { ...initialState(), ...frame };
   notify();
 }

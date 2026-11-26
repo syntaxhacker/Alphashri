@@ -26,8 +26,9 @@ import { apiRoute } from "../mocks/routeHelper";
 import { setupPatternEvidenceMocks } from "../mocks/patternEvidence";
 import { setupNewsMocks } from "./helpers/newsHelpers";
 import { setupFullBacktestMocks } from "./helpers/backtestHelpers";
+import { uiArtifactRoot } from "./helpers/artifactRoot";
 
-const ARTIFACT_DIR = "/workspaces/react/.agent-artifacts/ui-a-plus/a11y";
+const ARTIFACT_DIR = uiArtifactRoot("a11y");
 const RESULTS_PATH = path.join(ARTIFACT_DIR, "matrix-results.json");
 const JSONL_PATH = path.join(ARTIFACT_DIR, "matrix-records.jsonl");
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];

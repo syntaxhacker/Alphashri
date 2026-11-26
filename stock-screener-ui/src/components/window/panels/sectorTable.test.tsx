@@ -115,6 +115,20 @@ describe("sector — two-window request count", () => {
     expect(ctl.fetchSectorPerformance).toHaveBeenCalledTimes(1);
   });
 
+  it("a desk rebuild remounting every sector window keeps the one fetch", async () => {
+    const first = renderPanels(["sector.table", "sector.movers"]);
+    await waitFor(() => expect(screen.getByTestId("sector-row-energy")).toBeInTheDocument());
+    expect(ctl.fetchSectorPerformance).toHaveBeenCalledTimes(1);
+
+    // HOME changes its desk key when a window type is added: WindowManager
+    // rebuilds all frames, so both panels detach and reattach in one commit.
+    first.unmount();
+    renderPanels(["sector.table", "sector.movers"]);
+
+    await waitFor(() => expect(screen.getByTestId("sector-row-energy")).toBeInTheDocument());
+    expect(ctl.fetchSectorPerformance).toHaveBeenCalledTimes(1);
+  });
+
   it("two heatmap windows share one /api/sector fetch", async () => {
     renderPanels(["sector.heatmap", "sector.heatmap"]);
 

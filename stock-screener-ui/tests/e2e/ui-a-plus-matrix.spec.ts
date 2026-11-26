@@ -28,8 +28,9 @@ import { setupPatternEvidenceMocks } from "../mocks/patternEvidence";
 import { setupHomePatternMocks } from "../mocks/homeDeskFixtures";
 import { setupNewsMocks } from "./helpers/newsHelpers";
 import { setupFullBacktestMocks } from "./helpers/backtestHelpers";
+import { uiArtifactRoot } from "./helpers/artifactRoot";
 
-const ARTIFACT_ROOT = "/workspaces/react/.agent-artifacts/ui-a-plus";
+const ARTIFACT_ROOT = uiArtifactRoot();
 const CAPTURE_DIR = path.join(ARTIFACT_ROOT, "captures");
 const MANIFEST_PATH = path.join(ARTIFACT_ROOT, "manifest.json");
 const README_PATH = path.join(CAPTURE_DIR, "README.md");
