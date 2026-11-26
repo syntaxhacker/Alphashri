@@ -378,7 +378,7 @@ export function AggregatedDashboard() {
         }
       >
         <Show
-          when={data()}
+          when={data()?.summary.total_trades ? data() : null}
           fallback={
             <Center h={260} className="paper-dashboard-empty">
               <Text c="dimmed">No closed trades found for this period.</Text>
@@ -386,15 +386,6 @@ export function AggregatedDashboard() {
           }
         >
           {(d) => (
-            <Show
-              when={d().summary.total_trades > 0}
-              fallback={
-                <Center h={260} className="paper-dashboard-empty">
-                  <Text c="dimmed">No closed trades found for this period.</Text>
-                </Center>
-              }
-            >
-
             <>
               <SummaryStrip data={d()} />
 
@@ -437,7 +428,6 @@ export function AggregatedDashboard() {
 
               <SymbolPanel data={d()} />
             </>
-            </Show>
           )}
         </Show>
       </Show>

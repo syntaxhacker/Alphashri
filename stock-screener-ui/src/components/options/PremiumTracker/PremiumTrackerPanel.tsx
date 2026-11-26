@@ -97,12 +97,6 @@ function formatSnapshotTime(isoStr: string | null): string {
   return `${day} ${month}, ${hours}:${minutes} IST`;
 }
 
-const CHECKS = [
-  "Straddle vs avg range — straddle % far above avg range means costly, far below means cheap.",
-  "IV vs HV — IV above HV x 1.1 favors selling, below HV x 0.9 favors buying.",
-  "Costly + chop = sell spreads. Cheap + morning range = buy ATM, exit same day.",
-];
-
 export function PremiumTrackerPanel(props: PremiumTrackerPanelProps) {
   const [legs, setLegs] = createSignal<PremiumLeg[]>([]);
   const [asOf, setAsOf] = createSignal<string | null>(null);
@@ -202,7 +196,7 @@ export function PremiumTrackerPanel(props: PremiumTrackerPanelProps) {
     <Stack spacing={1} w="100%" data-testid="premium-tracker-panel">
       <CompactPanel
         title="Premium Tracker"
-        description={asOf() ? `Snapshot ${formatSnapshotTime(asOf())}` : "Cheap vs expensive + paper setups"}
+        description={asOf() ? `Snapshot ${formatSnapshotTime(asOf())}` : undefined}
         testId="premium-snapshot-panel"
         action={
           <Button size="sm" onClick={() => void refresh()} data-testid="premium-refresh">
@@ -234,23 +228,9 @@ export function PremiumTrackerPanel(props: PremiumTrackerPanelProps) {
             <Text size="sm" className="text-fin-text-muted" data-testid="premium-empty">No snapshot data.</Text>
           </Show>
         </Show>
-        <Divider data-testid="premium-checks-divider" />
-        <ul style={{ margin: 0, "padding-left": "16px", width: "100%" }} data-testid="premium-checks">
-          <For each={CHECKS}>
-            {(check) => (
-              <li>
-                <Text size="xs" className="text-fin-text-muted">{check}</Text>
-              </li>
-            )}
-          </For>
-        </ul>
       </CompactPanel>
 
-      <CompactPanel
-        title="Paper setups"
-        description="Buying rows bet the run · Selling rows bet the chop — entries are paper, exits are diary"
-        testId="premium-setups-panel"
-      >
+      <CompactPanel title="Paper setups" testId="premium-setups-panel">
         <StrategyRow
           side="BUY"
           title="BUYING strategies"
@@ -284,11 +264,7 @@ export function PremiumTrackerPanel(props: PremiumTrackerPanelProps) {
         />
       </CompactPanel>
 
-      <CompactPanel
-        title="Diary — revisit and learn"
-        description="Pick a day, set exits, open Review to record conviction, plan, and what went wrong"
-        testId="premium-diary-panel"
-      >
+      <CompactPanel title="Diary" testId="premium-diary-panel">
         <DiaryStrip
           trades={trades()}
           onSetExit={setExit}

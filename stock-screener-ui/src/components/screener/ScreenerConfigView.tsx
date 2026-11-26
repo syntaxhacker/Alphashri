@@ -22,7 +22,6 @@ import { fetchWithAuth } from "@/state/auth";
 import type { ScreenerOption, ProfileFilter } from "../../types";
 import type { ColumnDef } from "./columns";
 import { ScreenerTable } from "./ScreenerTable";
-import { SelectionBar } from "./SelectionBar";
 import { createScreener, updateScreener, deleteScreener } from "../../api/screeners";
 import { loadScreeners } from "../../api/index";
 import { approachingStocksOf, buildScreenerPreviewUrl } from "@/api/screenerQuery";
@@ -84,6 +83,7 @@ interface Props {
   screenerOptions: ScreenerOption[];
   activeScreener: string;
   onScreenerChange: (id: string) => void;
+  onSymbolClick?: (symbol: string) => void;
 }
 
 interface ScreenerForm {
@@ -406,6 +406,15 @@ export function ScreenerConfigView(props: Props) {
     return {};
   };
 
+  const filterLabel = (key: string): string => {
+    const filters = activeOption()?.filters;
+    if (Array.isArray(filters)) {
+      const hit = filters.find((f) => f.key === key || key.startsWith(`${f.key}_`));
+      if (hit?.label) return hit.label;
+    }
+    return key.replace(/_/g, " ");
+  };
+
   const formOpen = () => createModalOpen() || editModalOpen();
 
   return (
@@ -526,7 +535,7 @@ export function ScreenerConfigView(props: Props) {
                   <For each={Object.entries(activeFilterBadges())}>
                     {([key, value]) => (
                       <Badge size="xs" color="default" variant="light">
-                        {key.replace(/_/g, " ")}: {String(value)}
+                        {filterLabel(key)}: {String(value)}
                       </Badge>
                     )}
                   </For>
@@ -633,22 +642,13 @@ export function ScreenerConfigView(props: Props) {
                 stocks={previewStocks()}
                 columns={columnDefs()}
                 touchedSymbols={touchedSymbols()}
-                onSymbolClick={() => {
-                  /* No-op for config preview - could open detail modal in future */
-                }}
-                onSymbolHover={() => {
-                  /* No-op for config preview */
-                }}
+                onSymbolClick={(symbol) => props.onSymbolClick?.(symbol)}
+                onSymbolHover={() => {}}
                 testId="preview-table"
               />
             </Match>
           </Switch>
         </Box>
-        <SelectionBar
-          onCompare={() => {
-            /* no-op for config preview */
-          }}
-        />
       </Paper>
     </Box>
   );

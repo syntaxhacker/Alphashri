@@ -498,6 +498,7 @@ export function ScreenerPage(props: ScreenerPageProps) {
                     screenerOptions={props.screenerOptions}
                     activeScreener={props.activeScreener}
                     onScreenerChange={props.onConfigScreenerSelect}
+                    onSymbolClick={props.onSymbolClick}
                   />
                 </Suspense>
               </div>

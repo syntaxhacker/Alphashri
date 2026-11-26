@@ -422,7 +422,7 @@ describe("ReplayPanel", () => {
     expect(screen.getByTestId("replay-empty")).toBeInTheDocument();
   });
 
-  test("empty state centers an icon, a two-line explanation and one Open Options Dock CTA", () => {
+  test("empty state CTA opens /options, not the screener route", () => {
     render(() => <ReplayPanel />);
     const empty = screen.getByTestId("replay-empty");
     expect(empty.parentElement!.className).toContain("py-8");
@@ -436,7 +436,7 @@ describe("ReplayPanel", () => {
 
     fireEvent.click(cta);
     expect(routerMocks.navigate).toHaveBeenCalledTimes(1);
-    expect(routerMocks.navigate).toHaveBeenCalledWith("/screener");
+    expect(routerMocks.navigate).toHaveBeenCalledWith("/options");
   });
 
   test("previews the pending structure and slices P&L at the playhead", async () => {
