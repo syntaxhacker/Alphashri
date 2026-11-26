@@ -7,6 +7,7 @@ import {
   IconClock,
 } from "@/ui/icons";
 import dayjs from "dayjs";
+import { useSymbolDock } from "@/components/common/symbolDockContext";
 import { getChainLiveState, CHAIN_POLL_INTERVAL_MS } from "../../../hooks/chainLiveState";
 import { OptionChainTable } from "./OptionChainTable";
 import { ChainSummary } from "./ChainSummary";
@@ -27,6 +28,7 @@ interface OptionChainPanelProps {
 }
 
 export function OptionChainPanel(props: OptionChainPanelProps) {
+  const dock = useSymbolDock();
   let inFlight = false;
   const [nowMs, setNowMs] = createSignal(Date.now());
 
@@ -146,7 +148,12 @@ export function OptionChainPanel(props: OptionChainPanelProps) {
                   <Box className="shrink-0">
                     <ChainSummary strikeMatrix={props.strikeMatrix} spotPrice={props.spotPrice} selectedExpiry={props.selectedExpiry} summary={props.summary} />
                   </Box>
-                  <OptionChainTable strikeMatrix={props.strikeMatrix} filters={props.filters} spotPrice={props.spotPrice} onRowClick={() => {}} />
+                  <OptionChainTable
+                    strikeMatrix={props.strikeMatrix}
+                    filters={props.filters}
+                    spotPrice={props.spotPrice}
+                    onRowClick={() => dock.open(props.selectedUnderlying, "options")}
+                  />
                 </Stack>
               </TabsPanel>
 
