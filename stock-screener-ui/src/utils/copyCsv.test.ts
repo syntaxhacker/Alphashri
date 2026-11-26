@@ -62,6 +62,21 @@ describe("toSymbolList", () => {
     expect(toSymbolList([{ symbol: "NSE:INFY" }])).toBe("NSE:INFY");
   });
 
+  test("preserves a non-default exchange prefix instead of forcing NSE", () => {
+    expect(toSymbolList([{ symbol: "BSE:TATA" }])).toBe("BSE:TATA");
+    expect(toSymbolList([{ symbol: "NASDAQ:AAPL" }, { symbol: "NSE:INFY" }])).toBe(
+      "NASDAQ:AAPL,NSE:INFY",
+    );
+  });
+
+  test("converts a Yahoo suffix to its TV symbol", () => {
+    expect(toSymbolList([{ symbol: "RELIANCE.NS" }])).toBe("NSE:RELIANCE");
+  });
+
+  test("honours a custom exchange prefix", () => {
+    expect(toSymbolList([{ symbol: "AAPL" }], "symbol", "NASDAQ:")).toBe("NASDAQ:AAPL");
+  });
+
   test("prefix can be disabled", () => {
     expect(toSymbolList([{ symbol: "INFY" }], "symbol", "")).toBe("INFY");
   });

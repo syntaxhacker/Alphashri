@@ -6,6 +6,8 @@ import { IconUsers } from "../screener/icons";
 import type { RotationPeriod, RotationRow } from "../../types/rotation";
 import { formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
 import { ROTATION_STATUS_LABELS, ROTATION_STATUS_COLORS_PANEL } from "./rotationStatus";
+import { displaySymbol } from "@/config/tvSymbols";
+import { chartHrefForSymbol } from "../common/symbolDockContext";
 
 const PERIODS: RotationPeriod[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y"];
 
@@ -182,11 +184,11 @@ export function RotationDetail(props: RotationDetailProps) {
                 >
                   <Box
                     component="a"
-                    href={`/chart/${encodeURIComponent(mover.symbol)}`}
+                    href={chartHrefForSymbol(mover.symbol)}
                     className="min-w-0 text-fin-text no-underline hover:text-fin-primary hover:underline"
                   >
                     <Text truncate className="text-ui-micro font-semibold">
-                      {mover.symbol}
+                      {displaySymbol(mover.symbol)}
                     </Text>
                   </Box>
                   <Box className="flex-1" />

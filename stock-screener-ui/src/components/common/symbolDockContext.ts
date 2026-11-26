@@ -1,4 +1,5 @@
 import { createContext, useContext } from "solid-js";
+import { displaySymbol } from "@/config/tvSymbols";
 
 /** Which surface the right-side dock is showing. */
 export type SymbolDockMode = "chart" | "options";
@@ -41,12 +42,13 @@ export function hasIndianOptionsChain(exchange: string | null | undefined): bool
 }
 
 /**
- * In-app chart destination for a symbol. US rows carry `?market=usa` so the
- * chart route selects the US provider; the symbol is passed through untouched
- * (`BRK.B` stays `BRK.B` — the `.` → `-` rewrite belongs to the provider).
+ * In-app chart destination for a symbol. The shared normalizer removes feed
+ * decoration so a prefixed symbol never produces a dead `/chart/NSE:…` route;
+ * US share-class dots survive (`BRK.B` stays `BRK.B` — the `.` → `-` rewrite
+ * belongs to the provider). US rows carry `?market=usa` for the US provider.
  */
 export function chartHrefForSymbol(symbol: string, market?: string): string {
-  const path = `/chart/${encodeURIComponent(String(symbol ?? "").trim())}`;
+  const path = `/chart/${encodeURIComponent(displaySymbol(symbol))}`;
   return isUsMarket(market) ? `${path}?market=usa` : path;
 }
 

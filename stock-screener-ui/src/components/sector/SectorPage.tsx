@@ -31,6 +31,8 @@ import { subscribeToHolidays, isMarketOpenNow } from "../../state/holidays";
 import type { SectorResponse, SectorItem, StockMover } from "../../types/sector";
 import { CompactPanel } from "../common/compact";
 import { formatPercentage } from "../../utils/ui-helpers";
+import { displaySymbol } from "@/config/tvSymbols";
+import { chartHrefForSymbol } from "../common/symbolDockContext";
 import { detectSectorAlerts, detectIntervalMovers } from "./SectorHelpers";
 import type { SectorAlert, InternalStockMover } from "./SectorHelpers";
 import { SectorHeatmapView } from "./SectorHeatmapView";
@@ -108,6 +110,7 @@ function AlertsAndMovers(props: {
   alerts: SectorAlert[];
   intervalMovers: InternalStockMover[];
   topStocks: StockMover[];
+  market: "india" | "america";
 }) {
   return (
     <Stack
@@ -171,11 +174,14 @@ function AlertsAndMovers(props: {
                   >
                     <Box
                       component="a"
-                      href={`/chart/${encodeURIComponent(stock.symbol)}`}
+                      href={chartHrefForSymbol(
+                        stock.symbol,
+                        props.market === "america" ? "usa" : undefined,
+                      )}
                       className="min-w-0 text-fin-text no-underline hover:text-fin-primary"
                     >
                       <Text truncate className="text-ui-micro font-semibold">
-                        {stock.symbol}
+                        {displaySymbol(stock.symbol)}
                       </Text>
                     </Box>
                     <Box className="flex-1" />
@@ -366,6 +372,7 @@ function DashboardContent(props: {
   heatmapStocks: HeatmapStock[];
   heatmapMetric: string;
   dashboardView: DashboardView;
+  market: "india" | "america";
 }) {
   const data = () => props.data;
 
@@ -379,7 +386,12 @@ function DashboardContent(props: {
         >
           <SectorPerformancePanel sectors={data().sectors} />
           <Box className="min-w-0 flex flex-col">
-            <AlertsAndMovers alerts={props.alerts} intervalMovers={props.intervalMovers} topStocks={data().top_stock_movers} />
+            <AlertsAndMovers
+              alerts={props.alerts}
+              intervalMovers={props.intervalMovers}
+              topStocks={data().top_stock_movers}
+              market={props.market}
+            />
           </Box>
         </Box>
       }>
@@ -418,7 +430,12 @@ function DashboardContent(props: {
           <SectorPerformancePanel sectors={data().sectors} />
 
           <Box className="min-w-0 flex flex-col">
-            <AlertsAndMovers alerts={props.alerts} intervalMovers={props.intervalMovers} topStocks={data().top_stock_movers} />
+            <AlertsAndMovers
+              alerts={props.alerts}
+              intervalMovers={props.intervalMovers}
+              topStocks={data().top_stock_movers}
+              market={props.market}
+            />
           </Box>
         </Box>
       </Show>
@@ -807,6 +824,7 @@ function DashboardSectionContent(props: {
             heatmapStocks={props.heatmapStocks}
             heatmapMetric={props.heatmapMetric}
             dashboardView={props.dashboardView}
+            market={props.market}
           />
         </Show>
       </Show>

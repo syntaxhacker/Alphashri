@@ -11,6 +11,7 @@ import type {
 } from "../../types/profitability";
 import { formatCurrencyCompact, formatPercentage, formatTimeOnly } from "../../utils/ui-helpers";
 import { deriveProfitKpis, formatSignedMoney } from "./profitFormat";
+import { displaySymbol } from "@/config/tvSymbols";
 
 interface ProfitabilityPageProps {
   universe?: string;
@@ -92,7 +93,7 @@ function SignalCard(props: {
   onOpenSymbol?: (symbol: string) => void;
 }) {
   const row = () => props.row;
-  const open = () => props.onOpenSymbol?.(row().symbol);
+  const open = () => props.onOpenSymbol?.(displaySymbol(row().symbol));
   return (
     <div
       data-testid={`profitability-signal-card-${row().symbol}-${props.index}`}
@@ -108,7 +109,7 @@ function SignalCard(props: {
       } : undefined}
     >
       <div class="flex items-start justify-between gap-2">
-        <Text size="sm" fw={600} className="min-w-0 break-words">{row().symbol}</Text>
+        <Text size="sm" fw={600} className="min-w-0 break-words">{displaySymbol(row().symbol)}</Text>
         <div class="flex shrink-0 flex-col items-end">
           <Text size="xs" c="dimmed">NET</Text>
           <NumCell
@@ -481,7 +482,9 @@ export function ProfitabilityPage(props: ProfitabilityPageProps) {
                       emptyMessage="No signals"
                       dense
                       onRowClick={
-                        props.onOpenSymbol ? (row) => props.onOpenSymbol?.(row.symbol) : undefined
+                        props.onOpenSymbol
+                          ? (row) => props.onOpenSymbol?.(displaySymbol(row.symbol))
+                          : undefined
                       }
                       getRowTestId={(row, index) => `profitability-signal-row-${row.symbol}-${index}`}
                     />

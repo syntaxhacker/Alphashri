@@ -103,4 +103,13 @@ describe("static column factories never flash", () => {
       expect(el.closest("[data-flash-key]")).toBeNull();
     }
   });
+
+  test("symbolColumn renders a decorated feed symbol as a bare ticker", () => {
+    const row = { symbol: "NSE:RELIANCE", name: "Reliance Industries" };
+    renderCell(symbolColumn<typeof row>({ id: "symbol", header: "SYMBOL", cellTestId: () => "col-symbol" }), row);
+
+    const el = screen.getByTestId("col-symbol");
+    expect(el).toHaveTextContent("RELIANCE");
+    expect(el).not.toHaveTextContent("NSE:");
+  });
 });

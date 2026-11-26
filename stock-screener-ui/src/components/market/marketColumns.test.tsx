@@ -98,4 +98,15 @@ describe("market symbol cell — options icon eligibility", () => {
     expect(screen.getByTestId("market-chart-AAPL")).toBeInTheDocument();
     expect(screen.getByTestId("symbol-tv-AAPL")).toBeInTheDocument();
   });
+
+  test("a decorated feed symbol shows as a bare ticker while TV keeps its exchange", () => {
+    renderSymbolCell(row("BSE:TATA", false, "BSE"));
+    const text = screen.getByTestId("market-symbol-BSE:TATA");
+    expect(text).toHaveTextContent("TATA");
+    expect(text).not.toHaveTextContent("BSE:");
+    expect(screen.getByTestId("symbol-tv-TATA")).toHaveAttribute(
+      "href",
+      "https://www.tradingview.com/chart/?symbol=BSE%3ATATA",
+    );
+  });
 });

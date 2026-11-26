@@ -35,6 +35,22 @@ describe("SymbolLink", () => {
     expect(screen.getByTestId("symbol-chart-SBIN")).toBeInTheDocument();
   });
 
+  test("strips an exchange prefix from the label without changing the TV destination", () => {
+    r(<SymbolLink symbol="BSE:TATA" testId="sym-tv" />);
+    const link = screen.getByTestId("sym-tv");
+    expect(link).toHaveTextContent("TATA");
+    expect(link).not.toHaveTextContent("BSE:");
+    expect(link).toHaveAttribute("href", "https://www.tradingview.com/chart/?symbol=BSE%3ATATA");
+  });
+
+  test("strips a Yahoo suffix from the label and tags the TV symbol NSE", () => {
+    r(<SymbolLink symbol="INFY.NS" testId="sym-tv" />);
+    const link = screen.getByTestId("sym-tv");
+    expect(link).toHaveTextContent("INFY");
+    expect(link).not.toHaveTextContent(".NS");
+    expect(link).toHaveAttribute("href", "https://www.tradingview.com/chart/?symbol=NSE%3AINFY");
+  });
+
   test("uses the app-wide dock context when no handler is supplied", async () => {
     const open = vi.fn();
     r(

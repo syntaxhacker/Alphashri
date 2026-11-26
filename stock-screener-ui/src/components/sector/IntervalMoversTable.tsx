@@ -3,6 +3,7 @@ import { Box, Text } from "@/ui";
 import type { InternalStockMover } from "./sectorUtils";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 import { MONO } from "@/ui/palette";
+import { displaySymbol } from "@/config/tvSymbols";
 
 function pct(value: number): string {
   return `${value.toFixed(2)}%`;
@@ -43,7 +44,7 @@ export function IntervalMoversTable(props: { movers: InternalStockMover[] }) {
           {(mover) => (
             <Box className="grid grid-cols-[minmax(0,1fr)_44px_44px_52px] items-center gap-0.5 min-h-5 px-0.5 border-b border-fin-border">
               <Text truncate className="text-ui-micro font-semibold">
-                {mover.symbol}
+                {displaySymbol(mover.symbol)}
               </Text>
               <Text c="dimmed" ta="right" className="text-ui-micro font-mono tabular-nums" style={NUM_CELL}>
                 {pct(mover.prev_change)}
