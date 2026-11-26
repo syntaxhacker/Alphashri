@@ -26,13 +26,13 @@ import jwt
 import bcrypt
 from fastapi.testclient import TestClient
 from fastapi import HTTPException, status
-from sqlalchemy import create_engine, text, StaticPool
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy import text
+from sqlalchemy.orm import sessionmaker
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from db.database import Base, get_db
+from db.database import get_db
 from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
 from api.auth import (
     hash_password,
@@ -46,7 +46,6 @@ from api.auth import (
     REFRESH_TOKEN_EXPIRE_DAYS,
     get_current_user,
 )
-from tests.helpers.db import import_all_models
 
 
 def fast_hash_password(password: str) -> str:
@@ -61,35 +60,12 @@ def fast_hash_password(password: str) -> str:
     ).decode("utf-8")
 
 
-# Use in-memory database for test isolation (consistent with conftest.py)
-TEST_SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-
-test_engine = create_engine(
-    TEST_SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool
-)
-
-TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
-
-
-def override_get_db():
-    db = TestSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-
 @pytest.fixture(scope="function")
-def db():
-    import_all_models()
-    Base.metadata.create_all(bind=test_engine)
-    session = TestSessionLocal()
+def db(test_db_engine):
+    """Use the shared schema-clone engine instead of per-test create_all/drop_all."""
+    session = sessionmaker(autocommit=False, autoflush=False, bind=test_db_engine)()
     yield session
     session.close()
-    Base.metadata.drop_all(bind=test_engine)
 
 
 @pytest.fixture(scope="function")
