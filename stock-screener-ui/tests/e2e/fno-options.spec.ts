@@ -50,7 +50,7 @@ test.describe("F&O screener symbol actions", () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  test("renders the options icon, no chart icon, and a target=_blank TradingView anchor", async ({
+  test("renders the options and chart icons plus a target=_blank TradingView anchor", async ({
     page,
   }) => {
     await enterFnoPage(page);
@@ -60,7 +60,7 @@ test.describe("F&O screener symbol actions", () => {
     await expect(
       firstRow.locator(`[data-testid="symbol-options-${SYM}"]`),
     ).toBeVisible();
-    await expect(firstRow.locator(`[data-testid="symbol-chart-${SYM}"]`)).toHaveCount(0);
+    await expect(firstRow.locator(`[data-testid="symbol-chart-${SYM}"]`)).toBeVisible();
 
     const tv = firstRow.locator(`[data-testid="symbol-tv-${SYM}"]`);
     await expect(tv).toBeVisible();
@@ -87,14 +87,30 @@ test.describe("F&O screener symbol actions", () => {
     await expect(page.locator('[data-testid="options-dock-symbol"]')).toHaveText(SYM);
   });
 
-  test("clicking the symbol body navigates to /chart/<SYM> exactly once", async ({ page }) => {
+  test("clicking the symbol body opens the app-wide chart dock without navigating", async ({
+    page,
+  }) => {
     await enterFnoPage(page);
 
     await expect(page).toHaveURL(/\/screener\/fno/);
 
     await page.locator(`[data-testid="fno-cell-symbol-${SYM}"]`).click();
 
-    await expect(page).toHaveURL(/\/chart\/RELIANCE$/);
+    await expect(page.locator('[data-testid="symbol-dock"]')).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page).toHaveURL(/\/screener\/fno/);
+  });
+
+  test("clicking the chart icon opens the same dock as the symbol text", async ({ page }) => {
+    await enterFnoPage(page);
+
+    await page.locator(`[data-testid="symbol-chart-${SYM}"]`).click();
+
+    await expect(page.locator('[data-testid="symbol-dock"]')).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page).toHaveURL(/\/screener\/fno/);
   });
 
   test("clicking the options icon neither navigates nor expands the row", async ({ page }) => {

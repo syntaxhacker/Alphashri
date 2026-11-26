@@ -32,18 +32,17 @@ test.describe("Screener - Interactions", () => {
     await expect(page.locator('[data-testid^="screener-heatmap-"]')).toHaveCount(0);
   });
 
-  test("should navigate to chart on row click", async ({ page }) => {
+  test("should open the app-wide dock on row click without navigating", async ({ page }) => {
     await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
 
-    // The symbol text is the TradingView link now; the row (pattern cell)
-    // keeps the in-app navigation.
     const firstRow = page.locator('[data-testid="screener-table"] tbody tr').first();
     await firstRow.locator("td").nth(2).click();
 
-    await expect(page).toHaveURL(/\/chart\//);
+    await expect(page.getByTestId("symbol-dock")).toBeVisible({ timeout: 15000 });
+    await expect(page).toHaveURL(/\/\?tab=screener/);
   });
 
   test("should display side panel with screener info", async ({ page }) => {
