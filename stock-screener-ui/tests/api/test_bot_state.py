@@ -34,6 +34,11 @@ from db.models import (
 )
 
 
+@pytest.fixture(autouse=True)
+def no_redis(monkeypatch):
+    """Keep unpatched tests off a real Redis; @patch tests still override this."""
+    monkeypatch.setattr("api.bot_state.get_redis_client", lambda: None)
+
 
 def _scan_ts(minutes_ago: int = 0) -> str:
     """ISO timestamp (IST offset) `minutes_ago` minutes in the past."""
