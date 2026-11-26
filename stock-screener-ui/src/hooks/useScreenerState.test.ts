@@ -10,6 +10,23 @@ import { renderSolidHook } from "../test-utils/solidRenderHook";
 // Helper to flush pending promises
 const flushPromises = () => new Promise(setImmediate);
 
+const dockMocks = vi.hoisted(() => ({ open: vi.fn() }));
+
+vi.mock("../components/common/symbolDockContext", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../components/common/symbolDockContext")>();
+  return {
+    ...actual,
+    useSymbolDock: () => ({
+      preview: vi.fn(),
+      endPreview: vi.fn(),
+      open: dockMocks.open,
+      close: vi.fn(),
+      pinned: false,
+      setOutlet: vi.fn(),
+    }),
+  };
+});
+
 // Mock dependencies
 vi.mock("../state", () => ({
   ...vi.importActual("../state"),
@@ -248,7 +265,7 @@ describe("useScreenerState", () => {
       expect(fetchData).toHaveBeenCalledWith("upstox", "intraday", "rsi_reversal");
     });
 
-    it("onSymbolClick navigates to chart page", () => {
+    it("onSymbolClick opens the app-wide dock and never navigates to /chart/:symbol", () => {
       const mockNavigate = vi.fn();
       (useNavigate as any).mockReturnValue(mockNavigate);
 
@@ -256,7 +273,9 @@ describe("useScreenerState", () => {
 
       result.current.onSymbolClick("RELIANCE");
 
-      expect(mockNavigate).toHaveBeenCalledWith("/chart/RELIANCE");
+      expect(dockMocks.open).toHaveBeenCalledTimes(1);
+      expect(dockMocks.open).toHaveBeenCalledWith("RELIANCE");
+      expect(mockNavigate).not.toHaveBeenCalled();
     });
   });
 

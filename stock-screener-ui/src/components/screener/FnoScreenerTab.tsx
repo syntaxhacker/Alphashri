@@ -1,5 +1,5 @@
 import { Show, createEffect, createMemo, createSignal, For, onCleanup } from "solid-js";
-import { useNavigate } from "@solidjs/router";
+import { useSymbolDock } from "../common/symbolDockContext";
 import { IconRefresh } from "./icons";
 import {
   ActionIcon,
@@ -64,7 +64,7 @@ function screenerParams(
 }
 
 export function FnoScreenerTab() {
-  const navigate = useNavigate();
+  const dock = useSymbolDock();
   const [preset, setPreset] = createSignal<FnoScreenerPreset>("cheap_momentum");
   const [expiry, setExpiry] = createSignal<string>("");
   const [costMin, setCostMin] = createSignal<number | undefined>(undefined);
@@ -168,7 +168,7 @@ export function FnoScreenerTab() {
   const showEmpty = () =>
     !isLoading() && error() === null && rows().length === 0 && backendIssue() === null;
 
-  const columns = createMemo(() => buildFnoColumns((sym) => navigate(`/chart/${sym}`)));
+  const columns = createMemo(() => buildFnoColumns((sym) => dock.open(sym)));
 
   return (
     <CompactPanel testId="fno-panel" scrollable>

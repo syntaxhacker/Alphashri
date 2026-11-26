@@ -196,7 +196,7 @@ describe("buildFnoColumns symbol cell — in-app text / TV ↗ inversion", () =>
     vi.restoreAllMocks();
   });
 
-  function renderSymbolCell(onSymbolClick?: (symbol: string) => void, rowClick = vi.fn()) {
+  function renderSymbolCell(onSymbolClick: (symbol: string) => void = dockOpen, rowClick = vi.fn()) {
     const col = buildFnoColumns(onSymbolClick).find((c) => c.id === "symbol")!;
     const row = {
       original: sampleRow,
@@ -223,18 +223,17 @@ describe("buildFnoColumns symbol cell — in-app text / TV ↗ inversion", () =>
     return rowClick;
   }
 
-  it("body click calls onSymbolClick and never window.open", async () => {
-    const onSymbolClick = vi.fn();
+  it("symbol text opens the dock and never window.open", async () => {
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
-    const rowClick = renderSymbolCell(onSymbolClick);
+    const rowClick = renderSymbolCell();
 
     const text = screen.getByTestId("fno-cell-symbol-RELIANCE");
     expect(text.tagName).toBe("BUTTON");
     expect(text).toHaveTextContent("RELIANCE");
     await fireEvent.click(text);
 
-    expect(onSymbolClick).toHaveBeenCalledTimes(1);
-    expect(onSymbolClick).toHaveBeenCalledWith("RELIANCE");
+    expect(dockOpen).toHaveBeenCalledTimes(1);
+    expect(dockOpen).toHaveBeenCalledWith("RELIANCE");
     expect(openSpy).not.toHaveBeenCalled();
     expect(rowClick).not.toHaveBeenCalled();
   });
@@ -266,12 +265,29 @@ describe("buildFnoColumns symbol cell — in-app text / TV ↗ inversion", () =>
     expect(dockOpen).toHaveBeenCalledWith("RELIANCE", "options");
   });
 
-  it("keeps the chart icon hidden and the TV ↗ anchor intact with showChart=false", () => {
+  it("renders a chart icon alongside the TV ↗ anchor", () => {
     renderSymbolCell();
 
-    expect(screen.queryByTestId("symbol-chart-RELIANCE")).not.toBeInTheDocument();
+    expect(screen.getByTestId("symbol-chart-RELIANCE")).toBeInTheDocument();
     const external = screen.getByTestId("symbol-tv-RELIANCE");
     expect(external.tagName).toBe("A");
+  });
+
+  it("chart icon opens the dock in chart mode without bubbling to the row", async () => {
+    const onSymbolClick = vi.fn();
+    const rowClick = renderSymbolCell(onSymbolClick);
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    const chart = screen.getByTestId("symbol-chart-RELIANCE");
+    expect(chart.tagName).toBe("BUTTON");
+    await fireEvent.click(chart);
+
+    expect(onSymbolClick).toHaveBeenCalledTimes(1);
+    expect(onSymbolClick).toHaveBeenCalledWith("RELIANCE");
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(rowClick).not.toHaveBeenCalled();
+    // Chart icon must not trigger the options action.
+    expect(dockOpen).not.toHaveBeenCalled();
   });
 
   it("options click does not call onSymbolClick or bubble to the row", async () => {
