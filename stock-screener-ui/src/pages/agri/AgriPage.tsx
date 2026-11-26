@@ -850,7 +850,7 @@ export function AgriPage() {
   return (
     <Box
       data-testid="agri-page"
-      className="flex h-full w-full min-h-0 flex-col gap-2 overflow-hidden bg-fin-bg p-2"
+      className="flex h-full w-full min-h-0 flex-col gap-2 overflow-x-hidden overflow-y-auto bg-fin-bg p-2"
     >
       <ToolbarRow
         gap={8}
@@ -1233,13 +1233,15 @@ export function AgriPage() {
       </Show>
 
       <Show when={prices()}>
+        {/* The page root owns vertical scrolling; a nested scroller here would
+            fight it and trap the wheel on desktop. */}
         <Box
           data-testid="agri-body"
           role="region"
           aria-label="Agri workspace"
-          tabIndex={isMobile() ? 0 : undefined}
+          tabIndex={0}
           aria-busy={pricesLoading() ? "true" : undefined}
-          className={`flex min-h-0 flex-1 flex-col gap-2 ${isMobile() ? "overflow-y-auto" : "overflow-hidden"}`}
+          className="flex min-h-0 flex-1 shrink-0 flex-col gap-2 overflow-visible"
         >
           <ToolbarRow gap={8} className="shrink-0 px-1" data-testid="agri-eda-head">
             <Text fw={700} className={SECTION_LABEL}>

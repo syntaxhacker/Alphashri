@@ -1273,7 +1273,14 @@ describe("AgriPage redesign grammar", () => {
     await settled();
 
     expect(screen.getByTestId("agri-toolbar")).toHaveClass("sticky", "shrink-0");
-    expect(screen.getByTestId("agri-page")).toHaveClass("overflow-hidden", "min-h-0");
+    expect(screen.getByTestId("agri-page")).toHaveClass(
+      "overflow-y-auto",
+      "overflow-x-hidden",
+      "min-h-0",
+    );
+    expect(screen.getByTestId("agri-page")).not.toHaveClass("overflow-hidden");
+    expect(screen.getByTestId("agri-body")).toHaveClass("overflow-visible", "shrink-0");
+    expect(screen.getByTestId("agri-body")).not.toHaveClass("overflow-y-auto", "overflow-hidden");
     expect(screen.getByTestId("agri-body")).not.toHaveAttribute("aria-busy", "true");
     expect(screen.getByTestId("agri-overview-grid")).toHaveClass(
       "grid-rows-[minmax(320px,1.1fr)_minmax(280px,1fr)]",
@@ -1327,7 +1334,9 @@ describe("AgriPage layout", () => {
 
     expect(screen.getByTestId("agri-overview-grid")).toHaveClass("flex", "flex-col");
     expect(screen.getByTestId("agri-overview-grid")).not.toHaveClass("grid");
-    expect(screen.getByTestId("agri-body")).toHaveClass("overflow-y-auto");
+    expect(screen.getByTestId("agri-page")).toHaveClass("overflow-y-auto", "overflow-x-hidden");
+    expect(screen.getByTestId("agri-body")).toHaveClass("overflow-visible");
+    expect(screen.getByTestId("agri-body")).not.toHaveClass("overflow-y-auto");
     expect(screen.getByTestId("agri-chart-region")).toHaveClass("min-h-[280px]");
     expect(screen.getByTestId("agri-rank-region")).toHaveClass("min-h-[240px]");
     expect(screen.getByTestId("agri-season-region")).toHaveClass("min-h-[280px]");
@@ -1336,7 +1345,45 @@ describe("AgriPage layout", () => {
       expect(screen.getByTestId(id), id).toHaveStyle({ "min-height": height });
     }
     expectChartRegionsSized();
-    expect(screen.getByTestId("agri-page")).toHaveClass("overflow-hidden", "min-h-0");
+    expect(screen.getByTestId("agri-page")).toHaveClass(
+      "overflow-y-auto",
+      "overflow-x-hidden",
+      "min-h-0",
+    );
     expect(screen.getByTestId("agri-refresh")).toBeInTheDocument();
   });
+
+  it.each([
+    [false, 1000],
+    [true, 844],
+  ])(
+    "keeps the last panel reachable through the single page scrollport (mobile=%s)",
+    async (mobile, viewportHeight) => {
+      if (mobile) {
+        vi.stubGlobal("matchMedia", (query: string) => ({
+          matches: query.includes("max-width: 640px"),
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }));
+      }
+      renderPage();
+      await settled();
+
+      const root = screen.getByTestId("agri-page");
+      const body = screen.getByTestId("agri-body");
+      // happy-dom has no layout engine; model a viewport shorter than content.
+      Object.defineProperty(root, "scrollHeight", { configurable: true, value: 2400 });
+      Object.defineProperty(root, "clientHeight", { configurable: true, value: viewportHeight });
+      expect(root.scrollHeight).toBeGreaterThan(root.clientHeight);
+      expect(root).toHaveClass("overflow-y-auto", "overflow-x-hidden", "min-h-0");
+      expect(body).toHaveClass("overflow-visible", "shrink-0");
+      expect(body).not.toHaveClass("overflow-y-auto", "overflow-hidden");
+
+      root.scrollTop = root.scrollHeight - root.clientHeight;
+      expect(root.scrollTop).toBeGreaterThan(0);
+      expect(screen.getByTestId("agri-dispersion-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("agri-toolbar")).toHaveClass("sticky", "top-0");
+    },
+  );
 });
