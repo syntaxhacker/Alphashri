@@ -1,6 +1,8 @@
-import { Show } from "solid-js";
+import { Show, onCleanup, onMount } from "solid-js";
 import { IconBell, IconChevronLeft, IconChevronRight } from "../common/Icons";
 import { ActionIcon, Badge, Box, Stack, Text, Tooltip, typeSize } from "@/ui";
+import * as palette from "@/ui/palette";
+import { setMobileDrawerOpen } from "@/state/ui";
 import NewsPanel2 from "../news/NewsPanel";
 import { MarketStatus, MarketTicker } from "./MarketTicker";
 import { surgeAriaLabel, surgeBadgeText, surgeTooltip } from "../notifications/surgeAlertCount";
@@ -31,6 +33,25 @@ export function SidebarHeader(props: SidebarHeaderProps) {
   // strict-mode queries.
   const testId = (id: string) => (props.mobile ? `${id}-mobile` : id);
   const badgeText = () => surgeBadgeText(props.surgeTotal);
+  let headerEl: HTMLDivElement | undefined;
+
+  // AppLayout owns the toggle as local state, but this header is the child it
+  // shows/hides. Mirror that visibility into the shared signal so page bands
+  // can yield their rects to the overlay without editing AppLayout.
+  onMount(() => {
+    if (!props.mobile) return;
+    const sync = () => setMobileDrawerOpen((headerEl?.getClientRects().length ?? 0) > 0);
+    sync();
+    const parent = headerEl?.parentElement;
+    const observer = parent && typeof MutationObserver !== "undefined"
+      ? new MutationObserver(sync)
+      : undefined;
+    observer?.observe(parent!, { attributes: true, attributeFilter: ["style"] });
+    onCleanup(() => {
+      observer?.disconnect();
+      setMobileDrawerOpen(false);
+    });
+  });
 
   const bell = () => (
     <Tooltip label={surgeTooltip(props.surgeTotal)}>
@@ -71,6 +92,7 @@ export function SidebarHeader(props: SidebarHeaderProps) {
 
   return (
     <Box
+      ref={(el: HTMLDivElement) => { headerEl = el; }}
       data-testid={testId("app-sidebar-header")}
       className="flex flex-col items-stretch gap-2 flex-shrink-0"
       style={{
@@ -82,6 +104,9 @@ export function SidebarHeader(props: SidebarHeaderProps) {
         "align-items": collapsed() ? "center" : "stretch",
         gap: "4px",
         "min-width": "0px",
+        // The drawer is a fixed overlay over the page. An opaque header stops
+        // the toolbar behind it bleeding through the ticker's reserved row.
+        "background-color": props.mobile ? palette.BG : undefined,
       }}
     >
       <Show when={collapsed()} fallback={(
@@ -108,7 +133,7 @@ export function SidebarHeader(props: SidebarHeaderProps) {
       </Show>
       <MarketStatus compact={collapsed()} />
       <Show when={!collapsed()}>
-        <MarketTicker variant="tape" />
+        <MarketTicker variant="tape" mobile={props.mobile} />
       </Show>
     </Box>
   );

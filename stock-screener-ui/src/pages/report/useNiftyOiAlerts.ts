@@ -88,17 +88,26 @@ export function useNiftyOiAlerts(
    * 2026-10-23 11:19, call unwind −2.55M, premChg −4.45, bearish true, signal
    * CE. The flow reading is the reason the alert fired, so it wins; the plan
    * is re-derived from the live chain instead of trusting the contradiction.
+   *
+   * A backend that says `plan_suppressed` or `flow: "unconfirmed"` has already
+   * looked for same-strike/spot confirmation and found none. Re-deriving from
+   * OI + the chain would smuggle the very plan it withheld back onto the tape,
+   * so those bursts carry no signal at all. Genuinely unlabelled legacy bursts
+   * still get the derivation.
    */
   const toAlert = (b: OiBurst, chainNow: NiftyStrike[], spotNow: number): MarketAlert => {
       // Wall geometry + stale-data warnings carry no trade plan: map them
       // directly so no signal is derived from a zero-delta event.
       if (isNonTradeAlertType(b.type)) return burstToAlert(b);
-      const flowDir = resolveOiDirection(b);
+      const withheld = b.plan_suppressed === true || b.flow === "unconfirmed";
+      const flowDir = withheld ? null : resolveOiDirection(b);
       const backendAgrees =
-        b.signal != null && (flowDir == null || b.signal.leg === flowDir.leg);
-      const signal: OiSignal | null = backendAgrees
-        ? (b.signal as OiSignal)
-        : deriveOiSignal(b, chainNow, spotNow, { trend: b.trend ?? null, trend5m: b.trend5m ?? null });
+        !withheld && b.signal != null && (flowDir == null || b.signal.leg === flowDir.leg);
+      const signal: OiSignal | null = withheld
+        ? null
+        : backendAgrees
+          ? (b.signal as OiSignal)
+          : deriveOiSignal(b, chainNow, spotNow, { trend: b.trend ?? null, trend5m: b.trend5m ?? null });
       // A signal priced off a stale chain is void — mark it for re-pricing.
       const freshness = signal ? entryFreshness(signal, chainNow) : null;
       return burstToAlert(b, signal, { freshness });

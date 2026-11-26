@@ -1,6 +1,6 @@
 import { Text } from "@/ui";
-import { useSymbolDock } from "@/components/common/symbolDockContext";
-import { resolveUnderlyingSymbol } from "./optionTradeUtils";
+import { chartHrefForSymbol, useSymbolDock } from "@/components/common/symbolDockContext";
+import { displayOptionSymbol, resolveUnderlyingSymbol } from "./optionTradeUtils";
 
 interface ClickableSymbolSolidProps {
   symbol: string;
@@ -13,14 +13,19 @@ interface ClickableSymbolSolidProps {
 
 /**
  * Solid-native stand-in for the React ClickableSymbol/SymbolLink pair.
- * An explicit `onClick` owns the action (positions/watchlists select locally).
- * Without one, the symbol opens the app-wide chart dock; option contract
- * symbols resolve to their chartable underlying before reaching the dock.
+ * The canonical label collapses both option encodings while the raw contract
+ * stays in the tooltip and click payload. An explicit `onClick` owns the action;
+ * otherwise the app-wide dock charts the resolved underlying, and contexts
+ * without a dock fall back to the shared `/chart/:symbol` route.
  */
 export function ClickableSymbolSolid(props: ClickableSymbolSolidProps) {
   const dock = useSymbolDock();
   const testIdValue = () => props.testId ?? `symbol-link-${props.symbol}`;
   const stop = () => props.stopPropagation ?? true;
+  const label = () => displayOptionSymbol(props.symbol);
+  const chartHref = () => chartHrefForSymbol(resolveUnderlyingSymbol(props.symbol));
+  // A real provider exposes `mode`; the inert default context does not.
+  const dockAvailable = () => typeof dock.mode === "function";
 
   const handleClick = (e: MouseEvent) => {
     if (stop()) e.stopPropagation();
@@ -28,7 +33,11 @@ export function ClickableSymbolSolid(props: ClickableSymbolSolidProps) {
       props.onClick(props.symbol);
       return;
     }
-    dock.open(resolveUnderlyingSymbol(props.symbol));
+    if (dockAvailable()) {
+      dock.open(resolveUnderlyingSymbol(props.symbol));
+    } else if (typeof window !== "undefined") {
+      location.assign(chartHref());
+    }
   };
 
   return (
@@ -37,10 +46,11 @@ export function ClickableSymbolSolid(props: ClickableSymbolSolidProps) {
       class="symbol-link font-semibold text-sky-400 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
       data-testid={testIdValue()}
       onClick={handleClick}
-      aria-label={`Open chart for ${props.symbol}`}
+      title={props.symbol}
+      aria-label={`Open chart for ${label()}`}
     >
       <Text span fw={props.fw ?? 600} size={props.size ?? "sm"} style={{ color: "inherit" }}>
-        {props.symbol}
+        {label()}
       </Text>
     </button>
   );

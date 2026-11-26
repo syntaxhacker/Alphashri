@@ -82,13 +82,51 @@ export function sortAlertsCriticalFirst<T extends { severity: AlertSeverity }>(
     .map(({ a }) => a);
 }
 
+const SEVERITY_RANK: Record<AlertSeverity, number> = {
+  critical: 3,
+  alert: 2,
+  watch: 1,
+  info: 0,
+};
+
+function hasActionablePlan(b: OiBurst): boolean {
+  // toAlert re-derives a backend plan whose leg disagrees with who traded, so
+  // that plan is not the one the surviving row will actually show.
+  return (
+    b.signal != null &&
+    b.signal.leg === resolveOiDirection(b)?.leg &&
+    b.plan_suppressed !== true
+  );
+}
+
+/** One row per agreeing minute+leg group: strongest signal first, input order
+ *  last so repeated derivations pick the same burst. */
+function preferredBurst(group: OiBurst[]): OiBurst {
+  let best = group[0]!;
+  for (const candidate of group.slice(1)) {
+    const rank = SEVERITY_RANK[candidate.severity] - SEVERITY_RANK[best.severity];
+    if (
+      rank > 0 ||
+      (rank === 0 &&
+        (candidate.score > best.score ||
+          (candidate.score === best.score &&
+            hasActionablePlan(candidate) && !hasActionablePlan(best))))
+    ) {
+      best = candidate;
+    }
+  }
+  return best;
+}
+
 /**
- * Two-sided writer builds are a pin, not a trade.
+ * Two-sided writer builds are a pin, not a trade — drop every burst in a
+ * minute whose resolved legs disagree (2026-10-29 09:19: call +3.6M and
+ * put +2.2M at 22,700 gave opposite plans).
  *
- * 2026-10-29 09:19: call OI +3.6M and put OI +2.2M at 22,700 in the same
- * minute. The per-side plans are opposite (call writers -> fade with puts,
- * put writers -> floor holds, buy calls). Emitting both is a contradiction;
- * drop every burst in a minute whose per-side plans disagree.
+ * When the legs AGREE the feed can still carry near-identical rows: a call
+ * and a put burst both resolve to the same backend leg (SENSEX 2026-11-26
+ * 12:05 printed the same BUY PE 84,400 plan twice). Emitting both is a
+ * duplicate, so collapse each minute+leg group to one representative.
  */
 export function dropConflictingSides(bursts: OiBurst[]): OiBurst[] {
   const byMinute = new Map<string, OiBurst[]>();
@@ -105,13 +143,24 @@ export function dropConflictingSides(bursts: OiBurst[]): OiBurst[] {
   const drop = new Set<string>();
   for (const group of byMinute.values()) {
     if (group.length < 2) continue;
-    const legs = new Set(
-      group
-        .map((b) => resolveOiDirection(b)?.leg)
-        .filter((l): l is "CE" | "PE" => l === "CE" || l === "PE"),
-    );
-    if (legs.size > 1) {
+    const byLeg = new Map<"CE" | "PE", OiBurst[]>();
+    for (const b of group) {
+      const leg = resolveOiDirection(b)?.leg;
+      if (leg !== "CE" && leg !== "PE") continue;
+      const legGroup = byLeg.get(leg);
+      if (legGroup) legGroup.push(b);
+      else byLeg.set(leg, [b]);
+    }
+    if (byLeg.size > 1) {
       for (const b of group) drop.add(b.id);
+      continue;
+    }
+    for (const legGroup of byLeg.values()) {
+      if (legGroup.length < 2) continue;
+      const keep = preferredBurst(legGroup);
+      for (const b of legGroup) {
+        if (b.id !== keep.id) drop.add(b.id);
+      }
     }
   }
   return drop.size === 0 ? bursts : bursts.filter((b) => !drop.has(b.id));

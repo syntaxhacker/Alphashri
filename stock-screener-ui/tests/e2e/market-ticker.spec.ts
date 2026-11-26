@@ -52,8 +52,8 @@ test.describe("Market Ticker", () => {
     const ticker = page.locator('[data-testid="market-ticker"]');
     await expect(ticker).toBeVisible({ timeout: 10000 });
 
-    await expect(ticker).toContainText("Nifty 50");
-    await expect(ticker).toContainText("Bank Nifty");
+    await expect(ticker).toContainText("NIFTY");
+    await expect(ticker).toContainText("BANKNIFTY");
     await expect(ticker).toContainText("Gold");
   });
 
@@ -63,8 +63,8 @@ test.describe("Market Ticker", () => {
     const ticker = page.locator('[data-testid="market-ticker"]');
     await expect(ticker).toBeVisible({ timeout: 10000 });
 
-    await expect(ticker).toContainText("Nifty 50");
-    await expect(ticker).toContainText("Bank Nifty");
+    await expect(ticker).toContainText("NIFTY");
+    await expect(ticker).toContainText("BANKNIFTY");
     await expect(ticker).toContainText("Gold");
   });
 
@@ -85,7 +85,13 @@ test.describe("Market Ticker", () => {
     await page.waitForSelector('[data-testid="market-ticker"]', { timeout: 10000 });
 
     const ticker = page.locator('[data-testid="market-ticker"]');
-    await expect(ticker).toContainText("+123.45 (0.55%)");
+    await expect(ticker).toBeVisible();
+
+    // The tile shows only the signed percent; the full signed absolute + percent
+    // stays in the change element's tooltip so no information is lost.
+    const change = page.locator('[data-testid="ticker-change-nsei"]');
+    await expect(change).toContainText("▲+0.55%");
+    await expect(change).toHaveAttribute("title", "+123.45 (0.55%)");
   });
 
   test("should display negative changes in red", async ({ page }) => {
@@ -94,7 +100,11 @@ test.describe("Market Ticker", () => {
     await page.waitForSelector('[data-testid="market-ticker"]', { timeout: 10000 });
 
     const ticker = page.locator('[data-testid="market-ticker"]');
-    await expect(ticker).toContainText("-87.65 (-0.18%)");
+    await expect(ticker).toBeVisible();
+
+    const change = page.locator('[data-testid="ticker-change-nsebank"]');
+    await expect(change).toContainText("▼-0.18%");
+    await expect(change).toHaveAttribute("title", "-87.65 (-0.18%)");
   });
 
   test("should display updated timestamp", async ({ page }) => {

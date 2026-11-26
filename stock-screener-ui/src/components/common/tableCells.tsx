@@ -3,6 +3,7 @@ import { createEffect, createSignal, Show } from "solid-js";
 import { Badge, Box, Text, type UIVariant, typeSize } from "@/ui";
 import { cn } from "@/ui/cn";
 import { getPnLTextColor } from "@/utils/ui-helpers";
+import { displaySymbol } from "@/config/tvSymbols";
 import { useValueFlash } from "@/utils/valueFlash";
 
 /**
@@ -175,11 +176,12 @@ export function SymbolCell(props: {
   testId?: string;
   onOpen?: (symbol: string) => void;
 }): JSX.Element {
+  const label = () => displaySymbol(props.symbol);
   const open = (event?: MouseEvent) => {
     if (!props.onOpen) return;
     // The symbol is the in-app action: don't also fire a row click handler.
     event?.stopPropagation();
-    props.onOpen(props.symbol);
+    props.onOpen(label());
   };
   return (
     <div class="flex min-w-0 flex-col leading-tight">
@@ -188,7 +190,7 @@ export function SymbolCell(props: {
         data-testid={props.testId}
         role={props.onOpen ? "button" : undefined}
         tabIndex={props.onOpen ? 0 : undefined}
-        aria-label={props.onOpen ? `Open ${props.symbol} chart` : undefined}
+        aria-label={props.onOpen ? `Open ${label()} chart` : undefined}
         className={cn(
           "text-xs truncate text-left min-w-0",
           props.onOpen && "cursor-pointer hover:text-fin-primary focus-visible:underline",
@@ -206,7 +208,7 @@ export function SymbolCell(props: {
             : undefined
         }
       >
-        {props.symbol}
+        {label()}
       </Box>
       <Show when={props.name}>
         <Text size="xs" c="dimmed" span truncate className="text-left min-w-0 text-ui-micro">

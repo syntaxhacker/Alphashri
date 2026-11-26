@@ -1300,4 +1300,15 @@ describe("shared exchange classification (symbolDockContext)", () => {
     expect(chartHrefForSymbol("BRK.B", "NYSE")).not.toContain("BRK-B");
     expect(chartHrefForSymbol("RELIANCE", "NSE")).toBe("/chart/RELIANCE");
   });
+
+  test("chartHrefForSymbol strips exchange decoration before routing", () => {
+    expect(chartHrefForSymbol("NSE:RELIANCE", "NSE")).toBe("/chart/RELIANCE");
+    expect(chartHrefForSymbol("BSE:TATA", "BSE")).toBe("/chart/TATA");
+    expect(chartHrefForSymbol("RELIANCE.NS")).toBe("/chart/RELIANCE");
+    expect(chartHrefForSymbol("NASDAQ:AAPL", "NASDAQ")).toBe("/chart/AAPL?market=usa");
+    for (const symbol of ["NSE:RELIANCE", "BSE:TATA", "RELIANCE.NS"]) {
+      expect(chartHrefForSymbol(symbol)).not.toContain("/chart/NSE:");
+      expect(chartHrefForSymbol(symbol)).not.toContain("/chart/BSE:");
+    }
+  });
 });

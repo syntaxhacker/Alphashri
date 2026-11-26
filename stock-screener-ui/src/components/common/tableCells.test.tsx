@@ -102,6 +102,22 @@ describe("SymbolCell", () => {
     expect(opened).toBe("SBIN");
   });
 
+  test("renders a decorated symbol as a bare ticker and opens that ticker", () => {
+    const onOpen = vi.fn();
+    render(() => <SymbolCell symbol="NSE:RELIANCE" onOpen={onOpen} testId="s" />);
+    const el = screen.getByTestId("s");
+    expect(el).toHaveTextContent("RELIANCE");
+    expect(el).not.toHaveTextContent("NSE:");
+    fireEvent.click(el);
+    expect(onOpen).toHaveBeenCalledWith("RELIANCE");
+  });
+
+  test("strips a Yahoo suffix from the rendered identity", () => {
+    render(() => <SymbolCell symbol="INFY.NS" testId="s" />);
+    expect(screen.getByTestId("s")).toHaveTextContent("INFY");
+    expect(screen.getByTestId("s")).not.toHaveTextContent(".NS");
+  });
+
   test("is keyboard-accessible and does not double-fire a row handler", () => {
     const onOpen = vi.fn();
     const row = vi.fn();

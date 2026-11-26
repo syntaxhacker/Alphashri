@@ -1,7 +1,7 @@
 import { Show, splitProps, type JSX } from "solid-js";
 import { ActionIcon, Box, CopyButton, Text, Tooltip, cn } from "@/ui";
 import { IconChartCandle, IconCheck, IconCopy, IconExternalLink, IconChartArea } from "./Icons";
-import { tradingViewSymbol } from "@/config/tvSymbols";
+import { displaySymbol, tradingViewChartUrl } from "@/config/tvSymbols";
 import { isUsMarket, useSymbolDock, type SymbolDockMode } from "./symbolDockContext";
 
 // `solid-js` does not re-export JSX.CSSProperties from its package root.
@@ -103,7 +103,8 @@ export function SymbolLink(props: SymbolLinkProps) {
   const tvLink = () => local.tvLink ?? true;
   const inAppText = () => local.inAppText ?? false;
   const stopPropagation = () => local.stopPropagation ?? true;
-  const label = () => String(local.symbol ?? "");
+  const raw = () => String(local.symbol ?? "");
+  const label = () => displaySymbol(raw());
   const dock = useSymbolDock();
   // Only US markets change the dock call: the provider ignores `market` for
   // India, so forwarding NSE would be noise and would break hosts/mocks that
@@ -129,11 +130,18 @@ export function SymbolLink(props: SymbolLinkProps) {
   // want a preview opt in explicitly with onPreview.
   const previewHandler = () => local.onPreview;
   const previewEndHandler = () => local.onPreviewEnd;
-  const tv = () => local.tvSymbol ?? tradingViewSymbol(label(), local.market);
-  const tvUrl = () =>
-    tvLink() && tv()
-      ? `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tv()!)}`
-      : "";
+  const tvUrl = () => {
+    if (!tvLink()) return "";
+    if (local.tvSymbol) {
+      const override = local.tvSymbol.trim();
+      return override
+        ? `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(override)}`
+        : "";
+    }
+    // The raw feed symbol keeps its own exchange tag (e.g. BSE:TATA) so the
+    // canonical helper cannot re-tag it to the surface's default market.
+    return tradingViewChartUrl(raw(), local.market);
+  };
 
   const stop = (event: MouseEvent) => {
     if (stopPropagation()) event.stopPropagation();

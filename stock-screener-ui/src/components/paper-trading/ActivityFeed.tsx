@@ -9,6 +9,7 @@ import { formatTimeOnly } from "../../utils/ui-helpers";
 import type { ActivityEvent } from "../../types/paperTrading";
 import { CompactPanel } from "../common/compact";
 import { TanStackTable, type TableColumnDef } from "./TanStackTable";
+import { displayOptionSymbol } from "./optionTradeUtils";
 import * as palette from "@/ui/palette";
 
 export function ActivityFeed() {
@@ -59,8 +60,15 @@ export function ActivityFeed() {
       size: 88,
       meta: { align: "left" },
       cell: ({ row }) => (
-        <Text className="paper-activity-symbol font-mono tabular-nums" fw={600} size="xs" c={palette.PRIMARY} style={{ "font-size": `${typeSize("micro")}px` }}>
-          {row.original.symbol}
+        <Text
+          className="paper-activity-symbol font-mono tabular-nums"
+          fw={600}
+          size="xs"
+          c={palette.PRIMARY}
+          title={row.original.symbol}
+          style={{ "font-size": `${typeSize("micro")}px` }}
+        >
+          {displayOptionSymbol(row.original.symbol ?? "")}
         </Text>
       ),
     },

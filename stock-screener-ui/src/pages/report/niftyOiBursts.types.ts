@@ -31,6 +31,21 @@ export interface OiStructure {
   confirmed_at?: string;
 }
 
+/** Same-strike / spot evidence for a plan the backend withheld.
+ * Every field is optional: a missing reading is never agreement. */
+export interface OiConfirmation {
+  /** OI and premium were read at the same listed strike. */
+  same_strike?: boolean | null;
+  /** OI change at that strike over the burst minute. */
+  strike_oi_delta?: number | null;
+  /** Premium change at that strike over the burst minute. */
+  strike_premium_change?: number | null;
+  /** Spot move over the burst minute (index points). */
+  spot_change?: number | null;
+  /** Why a direction could not be confirmed. */
+  reasons?: string[];
+}
+
 export interface OiBurst {
   id: string;
   side: "call" | "put";
@@ -45,9 +60,10 @@ export interface OiBurst {
   /** Signal pre-computed by the backend; when absent the client derives one. */
   signal?: OiSignal | null;
   /** Buyer/writer flow label (`buyers`/`writers`/`covering`/`liquidation`)
-   * from the backend; absent on pre-restart bursts. Takes precedence over
-   * the OI-only direction rule when present. */
-  flow?: string;
+   * from the backend; absent on pre-restart bursts. `"unconfirmed"` is the
+   * confirmation gate: the OI move had no same-strike/spot backing, so no
+   * direction may be claimed from it. */
+  flow?: OiFlowKind | "unconfirmed" | (string & {});
   /** Backend direction verdict (true = bearish → buy puts). Beats `flow`
    * when both are present. */
   bearish?: boolean | null;
@@ -107,6 +123,8 @@ export interface OiBurst {
   plan_suppressed?: boolean;
   /** Backend fuel state — the OI × premium 2×2 cell. */
   fuel_state?: OiFuelState;
+  /** Evidence attached to an unconfirmed / suppressed burst. */
+  confirmation?: OiConfirmation | null;
 }
 
 export const OI_SIGNAL_RISK_BUDGET = 5_000;

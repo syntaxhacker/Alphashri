@@ -106,20 +106,38 @@ function PriceDisplay(props: { price: number; flashKey: string }) {
   );
 }
 
-function PnLDisplay(props: { pnl: number; pnlPct: number; flashKey: string }) {
+/**
+ * The shared table inlines `text-overflow: ellipsis` on every sized cell, so a
+ * single-line `₹-848 (-11.48%)` lost its percentage at the fixed column width.
+ * Two stacked rows keep each number whole without depending on viewport width.
+ */
+export const PNL_COLUMN_SIZE = 120;
+
+export function PnLDisplay(props: { pnl: number; pnlPct: number; flashKey: string }) {
   const pnl = props.pnl;
   const pnlClass = getPnLTextColor(pnl);
 
   return (
-    <FlashValue value={pnl} flashKey={props.flashKey} className="paper-pnl-display">
-      <Text c={pnlClass} fw={600} className="font-mono tabular-nums" style={{ display: "inline" }}>
-        {formatSignedPnl(pnl)}
-        <Text className="paper-pnl-pct font-mono tabular-nums" span c={pnlClass} size="sm">
-          {" "}
-          ({formatPercentage(props.pnlPct)})
+    <Box className="paper-pnl-cell flex flex-col items-end leading-tight" data-testid="paper-pnl-cell">
+      <FlashValue
+        value={pnl}
+        flashKey={props.flashKey}
+        className="paper-pnl-amount"
+        testId="paper-pnl-amount"
+      >
+        <Text c={pnlClass} fw={600} size="xs" className="font-mono tabular-nums">
+          {formatSignedPnl(pnl)}
         </Text>
+      </FlashValue>
+      <Text
+        data-testid="paper-pnl-pct"
+        className="paper-pnl-pct font-mono tabular-nums"
+        c={pnlClass}
+        size="xs"
+      >
+        ({formatPercentage(props.pnlPct)})
       </Text>
-    </FlashValue>
+    </Box>
   );
 }
 
@@ -392,7 +410,7 @@ export function PositionsTableBody(props: {
     {
       id: "pnl",
       header: "P&L",
-      size: 100,
+      size: PNL_COLUMN_SIZE,
       meta: { align: "right" },
       accessorFn: (row) => row.pnl,
       cell: ({ row }) => <PnLDisplay flashKey={`pnl-${getCompositeRowId(row.original)}`} pnl={row.original.pnl} pnlPct={row.original.pnl_pct} />,

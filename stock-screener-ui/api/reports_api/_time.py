@@ -46,9 +46,28 @@ def minutes_between(a: dict, b: dict) -> Optional[int]:
     Returns ``None`` when either timestamp is missing or unparseable. One shared
     copy so every reader treats recorder gaps identically instead of re-implementing
     the same subtraction (and its ``(ValueError, TypeError)`` guard) per module.
+
+    Floors by design — legacy callers compare against a whole-minute budget.
+    Callers that must know whether two rows are truly adjacent should use
+    :func:`seconds_between` instead: flooring turns a 66-second recorder gap
+    into "1 minute", which a one-minute-only detector must not credit.
     """
     try:
         return int((datetime.fromisoformat(str(b.get("t"))) -
                     datetime.fromisoformat(str(a.get("t")))).total_seconds() // 60)
+    except (ValueError, TypeError):
+        return None
+
+
+def seconds_between(a: dict, b: dict) -> Optional[float]:
+    """Exact elapsed seconds from timestamp ``a`` to ``b`` (ISO ``...HH:MM[:SS]``).
+
+    ``None`` for missing/unparseable timestamps, same guard as
+    :func:`minutes_between`. Unlike that helper nothing is floored, so a
+    09:54:03 -> 09:55:09 gap reads 66.0 and can be rejected as out-of-cadence.
+    """
+    try:
+        return (datetime.fromisoformat(str(b.get("t"))) -
+                datetime.fromisoformat(str(a.get("t")))).total_seconds()
     except (ValueError, TypeError):
         return None

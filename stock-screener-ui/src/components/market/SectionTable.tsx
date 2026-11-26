@@ -1,11 +1,13 @@
-import { createMemo, Show, type JSX } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, Show, type JSX } from "solid-js";
 import { Badge, Text } from "@/ui";
 import { cn } from "@/ui/cn";
+import * as palette from "@/ui/palette";
 import { TanStackTable, type TableColumnDef } from "../common/TanStackTable";
 import { DashCell, NumCell, TextCell } from "../common/tableCells";
 import { symbolRowCursor, symbolRowProps, type SymbolOpenHandler } from "../common/symbolRowProps";
 import { InlineLoader } from "../common/states";
 import { formatNumber, formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
+import { displaySymbol } from "@/config/tvSymbols";
 import type { SectionDefinition } from "../../state/sections/types";
 
 export interface SectionScanRow {
@@ -36,6 +38,21 @@ const PERCENT_FIELDS = new Set(["change|1", "change|5", "change|15", "volume_cha
 const MULTIPLIER_FIELDS = new Set(["relative_volume_10d_calc"]);
 const COMPACT_FIELDS = new Set(["average_volume_10d_calc", "market_cap_basic"]);
 const TEXT_FIELDS = new Set(["update_mode"]);
+
+// TanStackTable paints its one horizontal "Scroll →" cue in a 16px lane above
+// the scrollport; the wash starts below it so the cue is never muted.
+const SCROLL_CUE_LANE_PX = 16;
+const EDGE_FADE_PX = 24;
+const EDGE_FADE_STYLE: JSX.CSSProperties = {
+  position: "absolute",
+  top: `${SCROLL_CUE_LANE_PX}px`,
+  right: 0,
+  bottom: 0,
+  width: `${EDGE_FADE_PX}px`,
+  "pointer-events": "none",
+  "z-index": 10,
+  background: `linear-gradient(to right, ${palette.alpha(palette.SURFACE, 0)}, ${palette.SURFACE})`,
+};
 
 function fieldLabel(field: string): string {
   return FIELD_LABELS[field] ?? field.toUpperCase();
@@ -102,11 +119,12 @@ function buildSectionColumns(
     {
       id: "symbol",
       header: "SYMBOL",
-      size: 120,
+      size: 88,
       accessorFn: (row) => row.symbol,
       meta: { align: "left" },
       cell: ({ row }) => {
         const symbol = row.original.symbol;
+        const label = displaySymbol(symbol);
         return (
           <Text
             size="xs"
@@ -114,15 +132,15 @@ function buildSectionColumns(
             span
             truncate
             data-testid={`section-symbol-${symbol}`}
-            title={onOpenSymbol ? `Open ${symbol} chart` : undefined}
+            title={onOpenSymbol ? `Open ${label} chart` : undefined}
             className={cn(
               "text-left min-w-0",
               onOpenSymbol && "hover:text-fin-primary focus-visible:underline",
             )}
             style={{ cursor: symbolRowCursor(onOpenSymbol) }}
-            {...symbolRowProps(onOpenSymbol, symbol)}
+            {...symbolRowProps(onOpenSymbol, label)}
           >
-            {symbol}
+            {label}
           </Text>
         );
       },
@@ -130,7 +148,7 @@ function buildSectionColumns(
     {
       id: "name",
       header: "NAME",
-      size: 140,
+      size: 108,
       accessorFn: (row) => row.name,
       meta: { align: "left" },
       cell: ({ row }) => <TextCell value={row.original.name} dimmed truncate />,
@@ -209,6 +227,26 @@ export function SectionTable(props: {
     if (props.rows.length === 0) return "empty";
     return null;
   });
+  const [atScrollEnd, setAtScrollEnd] = createSignal(true);
+  let panelEl: HTMLDivElement | undefined;
+
+  // The wash belongs to the table's own scrollport — the single scroll owner.
+  // Rebind it when a named state swaps the table for a status view.
+  createEffect(() => {
+    state();
+    const viewport = panelEl?.querySelector<HTMLElement>(".paper-tanstack-scroll");
+    if (!viewport) {
+      setAtScrollEnd(true);
+      return;
+    }
+    const sync = () => {
+      const max = viewport.scrollWidth - viewport.clientWidth;
+      setAtScrollEnd(max <= 2 || viewport.scrollLeft >= max - 2);
+    };
+    viewport.addEventListener("scroll", sync, { passive: true });
+    sync();
+    onCleanup(() => viewport.removeEventListener("scroll", sync));
+  });
   const builtColumns = createMemo(() => {
     const fields = Array.from(new Set(props.section.render.columns ?? [])).filter(
       (field) => field !== "symbol" && field !== "name",
@@ -218,8 +256,12 @@ export function SectionTable(props: {
 
   return (
     <div
-      class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-fin border border-fin-border bg-fin-surface"
+      ref={(el) => {
+        panelEl = el;
+      }}
+      class="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-fin border border-fin-border bg-fin-surface"
       data-testid={`section-panel-${props.section.id}`}
+      data-edge-fade={!atScrollEnd() ? "right" : undefined}
     >
       <Show
         when={state()}
@@ -241,6 +283,14 @@ export function SectionTable(props: {
         {(kind) => (
           <StateView kind={kind()} section={props.section} error={props.error} />
         )}
+      </Show>
+      <Show when={!atScrollEnd()}>
+        <div
+          data-testid={`section-table-edge-fade-${props.section.id}`}
+          aria-hidden="true"
+          class="pointer-events-none absolute z-10"
+          style={EDGE_FADE_STYLE}
+        />
       </Show>
     </div>
   );

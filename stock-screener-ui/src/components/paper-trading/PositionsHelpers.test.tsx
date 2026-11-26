@@ -1,13 +1,28 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, test } from "vitest";
+import { afterEach, describe, it, expect, test, vi } from "vitest";
+import { render, screen } from "@solidjs/testing-library";
 import {
   nearBreakoutPct,
   formatNear,
   groupPositionsByStrategy,
   calcStrategySummary,
+  PositionsTableBody,
+  PNL_COLUMN_SIZE,
 } from "./PositionsHelpers";
 import type { PaperPosition, PaperScanItem } from "../../types/paperTrading";
 import { mockPosition } from "./testFixtures";
+
+vi.mock("../common/useTablePrefs", () => ({
+  useTablePrefs: () => ({
+    prefs: () => ({ sorting: [], order: [], hidden: [] }),
+    status: () => "ready",
+    error: () => null,
+    hydrated: () => true,
+    setSorting: vi.fn(),
+    setColumnPrefs: vi.fn(),
+    retry: vi.fn(),
+  }),
+}));
 
 describe("PositionsHelpers", () => {
   describe("nearBreakoutPct", () => {
@@ -224,5 +239,54 @@ describe("PositionsHelpers", () => {
       const result = nearBreakoutPct(item);
       expect(Number.isFinite(result)).toBe(true);
     });
+  });
+});
+
+describe("P&L cell — full signed amount and % stay visible", () => {
+  const FULL_AMOUNT = "₹-848";
+  const FULL_PCT = "(-11.48%)";
+  // Measured 12px monospace advance is ~6.5px; the shared table pads a sized
+  // cell 8px on each side. The whole single-line string must fit the column.
+  const MONO_ADVANCE_PX = 6.5;
+  const CELL_PADDING_PX = 16;
+  const MIN_CELL_PX = Math.ceil(`${FULL_AMOUNT} ${FULL_PCT}`.length * MONO_ADVANCE_PX + CELL_PADDING_PX);
+
+  const originalWidth = window.innerWidth;
+  afterEach(() => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
+  });
+
+  const renderPnlCell = (width: number) => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+    const { container } = render(() => (
+      <PositionsTableBody
+        positions={[mockPosition({ order_id: "pnl-row", symbol: "RELIANCE", pnl: -848, pnl_pct: -11.48 })]}
+      />
+    ));
+    const cell = container.querySelector('[id^="paper-tanstack-cell-pnl"]') as HTMLElement | null;
+    expect(cell).not.toBeNull();
+    return cell!;
+  };
+
+  test.each([1600, 390])("at %ipx the full amount and percent render with no ellipsis", (width) => {
+    const cell = renderPnlCell(width);
+
+    // geometry: the sized cell is wide enough for the whole string, and the
+    // shared table actually applies that width to the rendered <td>.
+    expect(PNL_COLUMN_SIZE).toBeGreaterThanOrEqual(MIN_CELL_PX);
+    expect(cell.style.width).toBe(`${PNL_COLUMN_SIZE}px`);
+
+    // structure: both halves are present as separate, untruncated rows.
+    const amount = screen.getByTestId("paper-pnl-amount");
+    const pct = screen.getByTestId("paper-pnl-pct");
+    expect(amount).toHaveTextContent(FULL_AMOUNT);
+    expect(pct).toHaveTextContent(FULL_PCT);
+    expect(cell.textContent).toContain(FULL_AMOUNT);
+    expect(cell.textContent).toContain(FULL_PCT);
+    expect(screen.getByTestId("paper-pnl-cell")).toHaveClass("flex-col");
+    expect(amount.className).not.toContain("truncate");
+    expect(pct.className).not.toContain("truncate");
+    expect(amount.style.textOverflow || "").not.toBe("ellipsis");
+    expect(pct.style.textOverflow || "").not.toBe("ellipsis");
   });
 });

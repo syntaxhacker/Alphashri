@@ -8,10 +8,17 @@ import { useSymbolDock } from "../common/symbolDockContext";
 import type { RotationPeriod, RotationRow } from "../../types/rotation";
 import { formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
 import { ROTATION_STATUS_LABELS, ROTATION_STATUS_COLORS_PANEL } from "./rotationStatus";
+import { displaySymbol } from "@/config/tvSymbols";
+import { chartHrefForSymbol } from "../common/symbolDockContext";
 
 const PERIODS: RotationPeriod[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y"];
 
-
+// Decorated feed symbols (NSE:RELIANCE, BRK.B) need a canonical chart href;
+// plain tickers render through the shared dock button.
+function needsCanonicalLink(symbol: string): boolean {
+  const raw = String(symbol ?? "").trim();
+  return displaySymbol(raw) !== raw || raw.includes(".");
+}
 
 function SectionLabel(props: { children: JSX.Element }) {
   return (
@@ -189,18 +196,30 @@ export function RotationDetail(props: RotationDetailProps) {
                 <Box
                   className="flex min-w-0 items-center gap-1.5"
                 >
-                  <SymbolLink
-                    symbol={mover.symbol}
-                    inAppText
-                    tvLink={false}
-                    showChart={false}
-                    showOptions={false}
-                    size="xs"
-                    weight={600}
-                    testId={`rotation-mover-${mover.symbol}`}
-                    onTextClick={(sym) => openSymbol(sym)}
-                    className="min-w-0 flex-1"
-                  />
+                  {needsCanonicalLink(mover.symbol) ? (
+                    <Box
+                      component="a"
+                      href={chartHrefForSymbol(mover.symbol, props.market)}
+                      className="min-w-0 text-fin-text no-underline hover:text-fin-primary hover:underline"
+                    >
+                      <Text truncate className="text-ui-micro font-semibold">
+                        {displaySymbol(mover.symbol)}
+                      </Text>
+                    </Box>
+                  ) : (
+                    <SymbolLink
+                      symbol={mover.symbol}
+                      inAppText
+                      tvLink={false}
+                      showChart={false}
+                      showOptions={false}
+                      size="xs"
+                      weight={600}
+                      testId={`rotation-mover-${mover.symbol}`}
+                      onTextClick={(sym) => openSymbol(sym)}
+                      className="min-w-0 flex-1"
+                    />
+                  )}
                   <Box className="flex-1" />
                   <Text
                     c={getPnLTextColor(mover.change)}

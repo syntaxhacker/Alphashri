@@ -28,6 +28,14 @@ describe("SelectedPositionBar", () => {
       expect(screen.getByText("RELIANCE")).toBeInTheDocument();
     });
 
+    test("renders an option contract symbol in canonical form with the raw tooltip", () => {
+      const pos = mockPosition({ symbol: "NIFTY 2026-10-19 22900CE" });
+      render(() => <SelectedPositionBar position={pos} />);
+      const label = screen.getByText("NIFTY 22900 CE");
+      expect(label).toHaveAttribute("title", "NIFTY 2026-10-19 22900CE");
+      expect(screen.queryByText("NIFTY 2026-10-19 22900CE")).not.toBeInTheDocument();
+    });
+
     test("renders side badge with correct color (BUY=teal, SELL=red)", () => {
       const [pos, setPos] = createSignal(mockPosition({ side: "BUY" as const }));
       render(() => <SelectedPositionBar position={pos()} />);

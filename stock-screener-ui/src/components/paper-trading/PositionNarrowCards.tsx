@@ -4,6 +4,7 @@ import { IconX } from "@/components/common/Icons";
 import type { PaperPosition } from "../../types/paperTrading";
 import { formatPercentage, formatSignedPnl, getPnLTextColor } from "../../utils/ui-helpers";
 import { ClickableSymbolSolid } from "./ClickableSymbolSolid";
+import { displayOptionSymbol } from "./optionTradeUtils";
 import { getPositionRowId } from "./positionId";
 
 export interface PositionSelectHandler {
@@ -87,7 +88,7 @@ export function PositionNarrowCards(props: PositionNarrowCardsProps) {
                   type="button"
                   class="flex h-6 w-6 shrink-0 items-center justify-center rounded border border-transparent text-fin-negative"
                   title="Close position"
-                  aria-label={`Close position ${pos.symbol}`}
+                  aria-label={`Close position ${displayOptionSymbol(pos.symbol)}`}
                   data-testid={`close-position-${rowId()}`}
                   onClick={() => props.onClose?.(pos.symbol, pos.current_price)}
                 >

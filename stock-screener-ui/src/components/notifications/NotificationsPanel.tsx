@@ -4,6 +4,7 @@ import {
   ScrollArea, Loader, Center,
 } from "@/ui";
 import { IconTrendingDown, IconTrendingUp } from "../common/Icons";
+import { displaySymbol } from "@/config/tvSymbols";
 import { fetchSurges } from "../../api/notifications";
 import type { PriceSurgeEvent } from "../../types/notifications";
 import { formatTimeAgo } from "../../utils/ui-helpers";
@@ -168,11 +169,12 @@ function SurgeCard(props: { event: PriceSurgeEvent }) {
                 openSymbol();
               }
             }}
-            aria-label={`Open ${props.event.symbol} chart`}
+            aria-label={`Open ${displaySymbol(props.event.symbol)} chart`}
+            title={displaySymbol(props.event.symbol)}
             data-testid={`surge-symbol-${props.event.id}`}
             className="cursor-pointer border-0 bg-transparent p-0 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
           >
-            <Text size="sm" fw={600}>{props.event.symbol}</Text>
+            <Text size="sm" fw={600}>{displaySymbol(props.event.symbol)}</Text>
           </button>
           <Text size="sm" c={color()} fw={600}>{sign()}{props.event.move_pct.toFixed(1)}%</Text>
         </Group>

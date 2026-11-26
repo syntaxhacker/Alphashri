@@ -167,13 +167,76 @@ describe("two-sided writer pin", () => {
   test("drops both sides when call and put writers add in the same minute", () => {
     const call = burst({ id: "call", side: "call", delta: 3_600_000 });
     const put = burst({ id: "put", side: "put", delta: 2_200_000 });
-    expect(dropConflictingSides([call, put])).toHaveLength(0);
+    expect(dropConflictingSides([call, put])).toEqual([]);
   });
 
-  test("keeps same-leg bursts in the same minute", () => {
+  test("keeps one representative for same-leg bursts in the same minute", () => {
     const a = burst({ id: "a", side: "call", delta: 3_600_000 });
     const b = burst({ id: "b", side: "call", delta: 1_000_000 });
-    expect(dropConflictingSides([a, b])).toHaveLength(2);
+    expect(dropConflictingSides([a, b]).map((x) => x.id)).toEqual(["a"]);
+  });
+
+  test("prefers the highest severity/score, then an actionable plan", () => {
+    const watch = burst({ id: "watch", score: 3, severity: "watch" });
+    const critical = burst({ id: "critical", score: 12, severity: "critical" });
+    expect(dropConflictingSides([watch, critical]).map((x) => x.id)).toEqual(["critical"]);
+
+    const signal = {
+      leg: "PE" as const,
+      strike: 84_400,
+      entry: 198,
+      sl: 148.5,
+      target: 297,
+      qty: 100,
+      lots: 1,
+      basis: "backend",
+    };
+    const suppressed = burst({ id: "suppressed", plan_suppressed: true });
+    const actionable = burst({ id: "actionable", signal });
+    expect(dropConflictingSides([suppressed, actionable]).map((x) => x.id)).toEqual([
+      "actionable",
+    ]);
+    // A backend leg that contradicts the flow reading is re-derived by the
+    // alert builder, so it is not the plan the row will show.
+    const mismatched = burst({ id: "mismatched", signal: { ...signal, leg: "CE" } });
+    expect(dropConflictingSides([mismatched, actionable]).map((x) => x.id)).toEqual([
+      "actionable",
+    ]);
+  });
+
+  test("collapses duplicate backend plans that resolve to the same leg", () => {
+    const signal = {
+      leg: "PE" as const,
+      strike: 84_400,
+      entry: 198,
+      sl: 148.5,
+      target: 297,
+      qty: 100,
+      lots: 1,
+      basis: "backend",
+    };
+    const a = burst({
+      id: "a",
+      t: "2026-11-26T12:05:00+05:30",
+      delta: 3_600_000,
+      bearish: true,
+      signal,
+    });
+    const b = burst({
+      id: "b",
+      t: "2026-11-26T12:05:00+05:30",
+      side: "put",
+      delta: 2_200_000,
+      bearish: true,
+      signal,
+    });
+    expect(dropConflictingSides([a, b]).map((x) => x.id)).toEqual(["a"]);
+  });
+
+  test("same-leg bursts in different minutes stay independent", () => {
+    const a = burst({ id: "a", t: "2026-11-26T12:05:00+05:30" });
+    const b = burst({ id: "b", t: "2026-11-26T12:06:00+05:30" });
+    expect(dropConflictingSides([a, b]).map((x) => x.id)).toEqual(["a", "b"]);
   });
 });
 
@@ -212,5 +275,38 @@ describe("tape context helpers (5m trend + premium change)", () => {
     expect(premiumChangeBefore(prems, "15:04", "put")).toBe(10);
     expect(premiumChangeBefore(prems, "15:04", "call")).toBe(0);
     expect(premiumChangeBefore(prems, "15:03", "put")).toBeNull();
+  });
+});
+
+describe("withheld-plan evidence shape", () => {
+  test("a burst carries unconfirmed flow and same-strike evidence, never a plan", () => {
+    const b: OiBurst = {
+      id: "b-unconfirmed",
+      side: "call",
+      t: "2026-11-26T12:05:00+05:30",
+      delta: -2_400_000,
+      baseline: 100_000,
+      score: 14.2,
+      severity: "critical",
+      cumDoi: -2_400_000,
+      spot: 24_310,
+      tickVol: 900_000,
+      flow: "unconfirmed",
+      plan_suppressed: true,
+      confirmation: {
+        same_strike: false,
+        strike_oi_delta: -30_000,
+        strike_premium_change: -4.25,
+        spot_change: -18.4,
+        reasons: ["no same-strike agreement"],
+      },
+    };
+    expect(b.flow).toBe("unconfirmed");
+    expect(b.confirmation?.same_strike).toBe(false);
+    expect(b.confirmation?.strike_oi_delta).toBe(-30_000);
+    expect(b.confirmation?.strike_premium_change).toBe(-4.25);
+    expect(b.confirmation?.spot_change).toBe(-18.4);
+    expect(b.confirmation?.reasons).toEqual(["no same-strike agreement"]);
+    expect(b.signal ?? null).toBeNull();
   });
 });

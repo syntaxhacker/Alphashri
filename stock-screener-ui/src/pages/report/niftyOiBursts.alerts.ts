@@ -95,6 +95,76 @@ function dataStaleToAlert(burst: OiBurst): MarketAlert {
 }
 
 /**
+ * A withheld plan is evidence, not an instruction. Same-strike premium and
+ * spot are the only readings that can back a leg; when the backend says they
+ * are missing or contradictory, print the move and what was checked. The
+ * `signal` argument is deliberately ignored — an OI delta alone is not a
+ * direction.
+ */
+function unconfirmedToAlert(burst: OiBurst): MarketAlert {
+  const sideLabel = burst.side === "call" ? "Call" : "Put";
+  const c = burst.confirmation ?? null;
+  const doi = compact(burst.delta);
+  const spotTxt = formatNumberIN(Math.round(burst.spot));
+  const signed = (v: number) => `${v > 0 ? "+" : ""}${v}`;
+
+  const evidence: string[] = [];
+  if (c?.same_strike === true) evidence.push("same-strike premium and OI agree");
+  else if (c?.same_strike === false) evidence.push("no same-strike agreement");
+  if (c && Number.isFinite(c.strike_oi_delta)) {
+    evidence.push(`strike OI ${compact(c.strike_oi_delta!)}`);
+  }
+  if (c && Number.isFinite(c.strike_premium_change)) {
+    evidence.push(`strike premium ${signed(c.strike_premium_change!)}`);
+  }
+  if (c && Number.isFinite(c.spot_change)) {
+    evidence.push(`spot ${signed(c.spot_change!)} pts`);
+  }
+  if (c?.reasons?.length) evidence.push(c.reasons.join("; "));
+
+  const detail = [
+    `${sideLabel} OI ${doi} in 1 min @ ${spotTxt}.`,
+    evidence.length > 0
+      ? `Evidence: ${evidence.join(" · ")}.`
+      : "Direction not confirmed — same-strike premium and spot evidence are missing.",
+    "No trade. Heuristic, not advice.",
+  ].join(" ");
+
+  const tone: "up" | "down" = burst.delta >= 0 ? "up" : "down";
+  const metrics = [
+    { label: "ΔOI", value: doi, tone },
+    { label: "SPOT", value: spotTxt },
+    ...(c?.same_strike != null
+      ? [{ label: "SAME STRIKE", value: c.same_strike ? "yes" : "no" }]
+      : []),
+    ...(c && Number.isFinite(c.strike_oi_delta)
+      ? [{ label: "STRIKE ΔOI", value: compact(c.strike_oi_delta!) }]
+      : []),
+    ...(c && Number.isFinite(c.strike_premium_change)
+      ? [{ label: "STRIKE Δ₹", value: signed(c.strike_premium_change!) }]
+      : []),
+    ...(c && Number.isFinite(c.spot_change)
+      ? [{ label: "SPOT Δ", value: signed(c.spot_change!) }]
+      : []),
+    ...(c?.reasons?.length ? [{ label: "REASON", value: c.reasons[0] }] : []),
+  ];
+
+  return {
+    id: burst.id,
+    kind: "oi_burst",
+    severity: burst.severity,
+    symbol: "NIFTY",
+    title: "OI SHIFT · unconfirmed",
+    detail,
+    metrics,
+    ts: burstTs(burst.t),
+    source: `Nifty tape · ${burstTimeLabel(burst.t)} IST · unconfirmed`,
+    href: "/report/index",
+    actionable: false,
+  } as MarketAlert;
+}
+
+/**
  * Burst → alert. Grammar: WHAT (fuel) · WHERE (level) · WITH (reason) ·
  * GUARD (invalidation). A spent-fuel burst without a structure break prints
  * "NO TRADE"; a plan whose entry the market has run away from prints
@@ -108,6 +178,11 @@ export function burstToAlert(
   // Wall geometry and system warnings bypass the OI-burst grammar entirely.
   if (isWallEventType(burst.type)) return wallEventToAlert(burst);
   if (burst.type === "data_stale") return dataStaleToAlert(burst);
+  // The backend withheld the plan or could not confirm a leg at the same
+  // strike. Even a supplied signal is dropped: no direction from OI alone.
+  if (burst.plan_suppressed === true || burst.flow === "unconfirmed") {
+    return unconfirmedToAlert(burst);
+  }
 
   const sideLabel = burst.side === "call" ? "Call" : "Put";
   const tone: "up" | "down" = burst.delta >= 0 ? "up" : "down";
@@ -150,7 +225,7 @@ export function burstToAlert(
   // "no trade" suppressed plan: spot was still below the wall at detection
   // (e.g. 24,995 vs 25,000 on 2026-11-09 11:35:58) and the break happens
   // seconds later. Surface the playbook without pretending it is a swing plan.
-  if (burst.setup === "short_squeeze" && (!signal || burst.plan_suppressed === true)) {
+  if (burst.setup === "short_squeeze" && !signal) {
     const trig = burst.trigger != null ? formatNumberIN(burst.trigger) : "the wall";
     return {
       id: burst.id,
@@ -218,13 +293,12 @@ export function burstToAlert(
         ...(fuel ? [{ label: "FUEL", value: spent ? "spent" : "fresh" }] : []),
       ];
 
-  // Verdict: the backend withheld the plan, or spent fuel has no break in
-  // this direction — either way it is not a trade.
+  // Verdict: spent fuel with no break in this direction is not a trade.
+  // A backend-withheld plan returns earlier, before any plan is considered.
   const suppressed =
-    burst.plan_suppressed === true ||
-    (fuel === "writers_covering" &&
-      structure !== null &&
-      structure.direction !== coveringDirection(burst.side));
+    fuel === "writers_covering" &&
+    structure !== null &&
+    structure.direction !== coveringDirection(burst.side);
 
   // WHY there is no trade: spent fuel without a break, or the backend's own
   // filter (trend / structure) withholding the plan.
@@ -311,6 +385,22 @@ export function criticalBannerText(
   burst: OiBurst | undefined,
   alert: MarketAlert,
 ): string {
+  // The backend withheld the plan or could not confirm a same-strike/spot leg.
+  // Neither fuel nor the supplied alert may re-introduce a direction here: an
+  // OI delta alone is not a buyer/writer claim and never carries a plan.
+  if (burst && (burst.plan_suppressed === true || burst.flow === "unconfirmed")) {
+    const doi = compact(burst.delta);
+    const spotTxt =
+      Number.isFinite(burst.spot) && burst.spot > 0
+        ? formatNumberIN(Math.round(burst.spot))
+        : "";
+    const evidence = [`ΔOI ${doi}`, spotTxt ? `spot ${spotTxt}` : ""]
+      .filter((p) => p.length > 0)
+      .join(" · ");
+    return `OI SHIFT · unconfirmed — spot/premium did not confirm${
+      evidence ? ` · ${evidence}` : ""
+    }`;
+  }
   const doi =
     alert.metrics?.find((m) => m.label === "ΔOI")?.value ??
     (burst ? compact(burst.delta) : "");

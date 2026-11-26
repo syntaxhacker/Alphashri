@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
+import { render, screen, cleanup, waitFor, fireEvent, within } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { For } from "solid-js";
@@ -16,7 +16,10 @@ vi.mock("@/components/common/TanStackTable", () => ({
     <div data-testid={props.dataTestId}>
       <For each={props.data}>
         {(row: any, i: () => number) => (
-          <div data-testid={props.getRowTestId ? props.getRowTestId(row, i()) : undefined}>
+          <div
+            data-testid={props.getRowTestId ? props.getRowTestId(row, i()) : undefined}
+            onClick={() => props.onRowClick?.(row)}
+          >
             {props.columns.map((col: any) =>
               col.cell ? (
                 <span>
@@ -146,5 +149,26 @@ describe("ProfitabilityPage", () => {
     } as never);
     renderPage();
     expect(await screen.findByTestId("profitability-empty")).toBeInTheDocument();
+  });
+
+  test("a decorated signal symbol renders as a bare ticker and opens that ticker", async () => {
+    const onOpenSymbol = vi.fn();
+    vi.mocked(fetchProfitability).mockResolvedValue({
+      ...mockPayload,
+      strategies: [],
+      top_signals: [{ ...mockPayload.top_signals[0], symbol: "NSE:RELIANCE" }],
+    } as never);
+    render(() => (
+      <UIProvider>
+        <ProfitabilityPage onOpenSymbol={onOpenSymbol} />
+      </UIProvider>
+    ));
+
+    const row = await screen.findByTestId("profitability-signal-row-NSE:RELIANCE-0");
+    const cell = within(row).getByTestId("profit-signal-NSE:RELIANCE-0");
+    expect(cell).toHaveTextContent("RELIANCE");
+    expect(cell).not.toHaveTextContent("NSE:");
+    fireEvent.click(row);
+    expect(onOpenSymbol).toHaveBeenCalledWith("RELIANCE");
   });
 });

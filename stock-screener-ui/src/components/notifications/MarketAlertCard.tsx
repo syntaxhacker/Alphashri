@@ -1,5 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { ActionIcon, Box, Text } from "@/ui";
+import { displaySymbol } from "@/config/tvSymbols";
 import { IconX } from "../common/Icons";
 import * as palette from "@/ui/palette";
 
@@ -159,17 +160,18 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
   const onOpen = () => props.onOpen;
   const onDismiss = () => props.onDismiss;
   const sev = () => ALERT_SEVERITY[alert().severity];
+  const symbol = () => displaySymbol(alert().symbol);
   const clickable = () => typeof onOpen() === "function" || typeof onSelect() === "function";
   return (
     <Box
       role="alert"
       aria-live={alert().severity === "critical" ? "assertive" : "polite"}
       aria-atomic="true"
-      aria-label={`${ALERT_KIND_LABEL[alert().kind]} ${alert().severity} — ${alert().symbol}`}
+      aria-label={`${ALERT_KIND_LABEL[alert().kind]} ${alert().severity} — ${symbol()}`}
       data-testid={`market-alert-${alert().kind}`}
       data-severity={alert().severity}
       data-active={active() ? "1" : undefined}
-      title={`${alert().symbol} · ${ALERT_KIND_LABEL[alert().kind]} · ${alert().title} — ${alert().detail}${alert().source ? ` (${alert().source})` : ""}`}
+      title={`${symbol()} · ${ALERT_KIND_LABEL[alert().kind]} · ${alert().title} — ${alert().detail}${alert().source ? ` (${alert().source})` : ""}`}
       onClick={clickable() ? () => (onSelect() ?? onOpen())?.(alert()) : undefined}
       tabIndex={clickable() && !alert().href ? 0 : undefined}
       onKeyDown={
@@ -227,20 +229,20 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
         when={alert().href}
         fallback={
           <Box style={{ width: "92px", "flex-shrink": 0, overflow: "hidden" }}>
-            <Text size="xs" span fw={700} truncate>{alert().symbol}</Text>
+            <Text size="xs" span fw={700} truncate>{symbol()}</Text>
           </Box>
         }
       >
         <a
           href={alert()!.href}
           data-testid="market-alert-link"
-          aria-label={`Open ${alert().symbol} — ${alert().title}`}
+          aria-label={`Open ${symbol()} — ${alert().title}`}
           title={alert()!.href}
           onClick={(e) => e.stopPropagation()}
           class="inline-flex w-[92px] shrink-0 items-center overflow-hidden text-inherit no-underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary"
           style={{ color: "inherit" }}
         >
-          <Text size="xs" span fw={700} truncate>{alert().symbol}</Text>
+          <Text size="xs" span fw={700} truncate>{symbol()}</Text>
         </a>
       </Show>
       <Box className="flex-1 min-w-0 overflow-hidden">
@@ -299,6 +301,7 @@ export function MarketAlertCard(props: MarketAlertCardProps) {
   const compact = () => density() === "compact";
   const onOpen = () => props.onOpen;
   const onDismiss = () => props.onDismiss;
+  const symbol = () => displaySymbol(alert().symbol);
   const clickable = () => typeof onOpen() === "function";
 
   return (
@@ -306,7 +309,7 @@ export function MarketAlertCard(props: MarketAlertCardProps) {
       role="alert"
       aria-live={alert().severity === "critical" ? "assertive" : "polite"}
       aria-atomic="true"
-      aria-label={`${ALERT_KIND_LABEL[alert().kind]} ${alert().severity} — ${alert().symbol}`}
+      aria-label={`${ALERT_KIND_LABEL[alert().kind]} ${alert().severity} — ${symbol()}`}
       data-testid={`market-alert-${alert().kind}`}
       data-severity={alert().severity}
       onClick={clickable() ? () => onOpen()?.(alert()) : undefined}
@@ -339,21 +342,21 @@ export function MarketAlertCard(props: MarketAlertCardProps) {
             when={alert().href}
             fallback={
               <Text size={compact() ? "xs" : "sm"} span fw={700} truncate>
-                {alert().symbol}
+                {symbol()}
               </Text>
             }
           >
             <a
               href={alert()!.href}
               data-testid="market-alert-link"
-              aria-label={`Open ${alert().symbol} — ${alert().title}`}
+              aria-label={`Open ${symbol()} — ${alert().title}`}
               title={alert()!.href}
               onClick={(e) => e.stopPropagation()}
               class="inline-flex items-center overflow-hidden text-inherit no-underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary"
               style={{ color: "inherit" }}
             >
               <Text size={compact() ? "xs" : "sm"} span fw={700} truncate>
-                {alert().symbol}
+                {symbol()}
               </Text>
             </a>
           </Show>

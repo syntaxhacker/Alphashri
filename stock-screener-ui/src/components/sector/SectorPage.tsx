@@ -31,6 +31,8 @@ import { subscribeToHolidays, isMarketOpenNow } from "../../state/holidays";
 import type { SectorResponse, SectorItem, StockMover } from "../../types/sector";
 import { CompactPanel } from "../common/compact";
 import { formatPercentage } from "../../utils/ui-helpers";
+import { displaySymbol } from "@/config/tvSymbols";
+import { chartHrefForSymbol } from "../common/symbolDockContext";
 import { detectSectorAlerts, detectIntervalMovers } from "./SectorHelpers";
 import type { SectorAlert, InternalStockMover } from "./SectorHelpers";
 import { SectorHeatmapView } from "./SectorHeatmapView";
@@ -104,6 +106,13 @@ function writeDashboardView(view: DashboardView): void {
   if (view === "visual") url.searchParams.set("dash", "visual");
   else url.searchParams.delete("dash");
   window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+// Decorated feed symbols (NSE:RELIANCE, BRK.B) need a canonical chart href;
+// plain tickers render through the shared dock button.
+function needsCanonicalLink(symbol: string): boolean {
+  const raw = String(symbol ?? "").trim();
+  return displaySymbol(raw) !== raw || raw.includes(".");
 }
 
 function AlertsAndMovers(props: {
@@ -192,18 +201,33 @@ function AlertsAndMovers(props: {
                   <Box
                     className="flex min-w-0 items-center gap-1.5 px-1 py-[2px]"
                   >
-                    <SymbolLink
-                      symbol={stock.symbol}
-                      inAppText
-                      tvLink={false}
-                      showChart={false}
-                      showOptions={false}
-                      size="xs"
-                      weight={600}
-                      testId={`sector-top-stock-${stock.symbol}`}
-                      onTextClick={(sym) => openSymbol(sym)}
-                      className="min-w-0"
-                    />
+                    {needsCanonicalLink(stock.symbol) ? (
+                      <Box
+                        component="a"
+                        href={chartHrefForSymbol(
+                          stock.symbol,
+                          props.market === "america" ? "usa" : undefined,
+                        )}
+                        className="min-w-0 text-fin-text no-underline hover:text-fin-primary"
+                      >
+                        <Text truncate className="text-ui-micro font-semibold">
+                          {displaySymbol(stock.symbol)}
+                        </Text>
+                      </Box>
+                    ) : (
+                      <SymbolLink
+                        symbol={stock.symbol}
+                        inAppText
+                        tvLink={false}
+                        showChart={false}
+                        showOptions={false}
+                        size="xs"
+                        weight={600}
+                        testId={`sector-top-stock-${stock.symbol}`}
+                        onTextClick={(sym) => openSymbol(sym)}
+                        className="min-w-0"
+                      />
+                    )}
                     <Box className="flex-1" />
                     <Text c={stock.change >= 0 ? "success" : "error"} className="text-ui-micro tabular-nums font-mono">
                       {formatPercentage(stock.change)}
