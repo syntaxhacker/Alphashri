@@ -121,6 +121,8 @@ def _resolve_instrument_keys(symbols: list[str]) -> dict[str, str]:
         from db.models.broker import Instrument
 
         with SessionLocal() as db:
+            # These two columns plus the segment filter are exactly the
+            # ix_instruments_segment_symbol_key covering index — do not widen.
             rows = (
                 db.query(Instrument.trading_symbol, Instrument.instrument_key)
                 .filter(

@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, Date, Float, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, DateTime, Date, Float, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -63,6 +63,16 @@ class Instrument(Base):
     isin = Column(String(20), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("ix_instruments_segment", "segment"),
+        # Symbol cache warms and movers key resolution both filter on segment
+        # first; keeping the returned columns in the index avoids row reads.
+        Index(
+            "ix_instruments_segment_symbol_key",
+            "segment", "trading_symbol", "instrument_key",
+        ),
+    )
 
     def __repr__(self):
         return f"<Instrument({self.trading_symbol})>"
