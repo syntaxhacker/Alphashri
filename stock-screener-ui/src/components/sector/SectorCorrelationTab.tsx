@@ -3,10 +3,8 @@ import { Box, Stack, Text } from "@/ui";
 import { Button } from "@/ui";
 import { Loader } from "@/ui";
 import { Select } from "@/ui";
-import { Chip } from "@/ui";
 import { useColorScheme } from "@/ui";
 import { IconRefresh, IconClock } from "../screener/icons";
-import type { TableColumnDef } from "@/components/common/TanStackTable";
 import type { SectorCorrelationResponse } from "../../types/sector";
 import {
   market as sectorMarket,
@@ -20,10 +18,13 @@ import {
   subscribe as subscribeToState,
 } from "../../state/sectorCorrelation";
 import { useStoreSnapshot } from "../../hooks/useStoreSubscription";
-import { TanStackTable } from "../common/TanStackTable";
 import { CompactPanel } from "../common/compact";
-import { formatPercentage } from "../../utils/ui-helpers";
-import { CorrelationHeatmap, SectorBetaChart, RotationTimeline } from "./SectorCorrelationCharts";
+import {
+  SectorBetaChart,
+  RotationTimeline,
+  RelativeStrengthBoard,
+} from "./SectorCorrelationCharts";
+import { CorrelationMatrixBoard } from "./correlation/CorrelationMatrixBoard";
 
 const LOOKBACK_OPTIONS = [
   { label: "5D", value: 5 },
@@ -34,6 +35,9 @@ const LOOKBACK_OPTIONS = [
 ];
 
 type SectorRow = SectorCorrelationResponse["sectors"][number];
+
+const PANEL_CLASS =
+  "flex min-w-0 flex-col overflow-hidden rounded-sm border border-fin-border bg-fin-surface";
 
 function CorrelationHeader(props: { currentMarket: string; currentLookback: number; lastUpdated?: string }) {
   // The header reads props at construction; force re-check on each render pass.
@@ -98,118 +102,6 @@ function CorrelationHeader(props: { currentMarket: string; currentLookback: numb
   );
 }
 
-function RelativeStrengthTable(props: { sectors: SectorRow[] }) {
-  const columns: TableColumnDef<SectorRow>[] = [
-    {
-      id: "rank",
-      header: "Rank",
-      accessorKey: "rank_current",
-      size: 56,
-      meta: { align: "center" },
-      cell: ({ row }) => {
-        const rank = row.original.rank_current;
-        return (
-          <Chip size="xs" variant="outline" color={rank <= 3 ? "success" : "default"} className="h-[16px] text-ui-micro px-1">
-            #{rank}
-          </Chip>
-        );
-      },
-    },
-    {
-      id: "sector",
-      header: "Sector",
-      accessorKey: "name",
-      meta: { align: "left" },
-      cell: ({ row }) => (
-        <Text className="font-semibold text-ui-micro whitespace-nowrap">{row.original.name}</Text>
-      ),
-    },
-    {
-      id: "rs_5d",
-      header: "5D RS",
-      accessorKey: "relative_strength_5d",
-      size: 80,
-      meta: { align: "right" },
-      cell: ({ row }) => {
-        const val = row.original.relative_strength_5d;
-        return (
-          <Text c={val >= 0 ? "success" : "error"} className="text-ui-micro font-numeric tabular-nums font-mono">
-            {formatPercentage(val, 2, true)}
-          </Text>
-        );
-      },
-    },
-    {
-      id: "rs_1m",
-      header: "1M RS",
-      accessorKey: "relative_strength_1m",
-      size: 80,
-      meta: { align: "right" },
-      cell: ({ row }) => {
-        const val = row.original.relative_strength_1m;
-        return (
-          <Text c={val >= 0 ? "success" : "error"} className="text-ui-micro font-numeric tabular-nums font-mono">
-            {formatPercentage(val, 2, true)}
-          </Text>
-        );
-      },
-    },
-    {
-      id: "rs_3m",
-      header: "3M RS",
-      accessorKey: "relative_strength_3m",
-      size: 80,
-      meta: { align: "right" },
-      cell: ({ row }) => {
-        const val = row.original.relative_strength_3m;
-        return (
-          <Text c={val >= 0 ? "success" : "error"} className="text-ui-micro font-numeric tabular-nums font-mono">
-            {formatPercentage(val, 2, true)}
-          </Text>
-        );
-      },
-    },
-    {
-      id: "beta",
-      header: "Beta",
-      accessorKey: "beta_vs_index",
-      size: 64,
-      meta: { align: "right" },
-      cell: ({ row }) => (
-        <Text className="text-ui-micro font-numeric tabular-nums font-mono">{row.original.beta_vs_index.toFixed(2)}</Text>
-      ),
-    },
-    {
-      id: "rank_change",
-      header: "1M Change",
-      accessorKey: "rank_change_1m",
-      size: 88,
-      meta: { align: "center" },
-      cell: ({ row }) => {
-        const change = row.original.rank_change_1m;
-        return (
-          <Chip size="xs" variant="outline" color={change > 0 ? "success" : change < 0 ? "error" : "default"} className="h-[16px] text-ui-micro px-1">
-            {change > 0 ? `+${change}` : String(change)}
-          </Chip>
-        );
-      },
-    },
-  ];
-
-  return (
-    <TanStackTable
-      data={props.sectors}
-      columns={columns}
-      enableSorting={false}
-      dataTestId="relative-strength-table-inner"
-      emptyMessage="No relative-strength rows"
-      dense
-      stickyHeader
-      rowWindowSize={40}
-    />
-  );
-}
-
 function LoadingState() {
   return (
     <Box data-testid="sector-correlation-loading" className="flex items-center justify-center gap-2 flex-1 min-h-[200px]">
@@ -246,7 +138,7 @@ export function SectorCorrelationTab() {
   const { colorScheme } = useColorScheme();
   const isDark = () => colorScheme() === "dark";
 
-  const sortedSectors = createMemo(() => {
+  const sortedSectors = createMemo<SectorRow[]>(() => {
     const d = store().data;
     if (!d?.sectors) return [];
     return [...d.sectors].sort((a, b) => a.rank_current - b.rank_current);
@@ -283,37 +175,66 @@ export function SectorCorrelationTab() {
               currentLookback={store().lookbackDays}
               lastUpdated={store().data?.last_updated}
             />
-            <Box data-testid="sector-correlation-scroll" className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-1">
+            <Box data-testid="sector-correlation-scroll" className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-1">
               <Stack spacing={0.5} className="w-full min-w-0">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-1 w-full">
+                {/*
+                 * Two deliberate columns on wide screens: the matrix keeps its
+                 * own height while the ranked boards share the other column.
+                 * Narrow screens get one column and page-level vertical scroll.
+                 */}
+                <div
+                  data-testid="sector-correlation-grid"
+                  className="grid min-w-0 grid-cols-1 gap-1 xl:h-[560px] xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]"
+                >
                   <CompactPanel
+                    scrollable
                     flush
                     padded={false}
                     id="sector-correlation-heatmap"
                     testId="sector-correlation-heatmap"
                     title={<Text className="text-ui-micro font-bold">Cross-Sector Correlation</Text>}
-                    className="min-w-0"
+                    className={`${PANEL_CLASS} h-[360px] xl:h-full`}
                   >
-                    <Box className="p-1 min-h-[280px] w-full">
-                      <CorrelationHeatmap matrix={store().data!.correlation_matrix} symbols={store().data!.sector_names} isDark={isDark()} />
-                    </Box>
-                  </CompactPanel>
-                  <CompactPanel
-                    flush
-                    padded={false}
-                    id="sector-beta-chart"
-                    testId="sector-beta-chart"
-                    title={<Text className="text-ui-micro font-bold">Sector Beta vs Benchmark</Text>}
-                    className="min-w-0"
-                  >
-                    <Box className="p-1 h-[320px] w-full flex">
-                      <SectorBetaChart
-                        sectors={sortedSectors()}
-                        benchmark={store().market === "india" ? "NIFTY 50" : "SPY"}
+                    <Box className="flex min-h-0 w-full flex-1 flex-col p-1">
+                      <CorrelationMatrixBoard
+                        matrix={store().data!.correlation_matrix}
+                        symbols={store().data!.sector_names}
                         isDark={isDark()}
                       />
                     </Box>
                   </CompactPanel>
+                  <div className="grid min-w-0 grid-cols-1 gap-1 xl:h-full xl:grid-rows-2">
+                    <CompactPanel
+                      scrollable
+                      flush
+                      padded={false}
+                      id="sector-beta-chart"
+                      testId="sector-beta-chart"
+                      title={<Text className="text-ui-micro font-bold">Sector Beta vs Benchmark</Text>}
+                      className={`${PANEL_CLASS} h-[280px] xl:h-full`}
+                    >
+                      <Box className="flex min-h-0 w-full flex-1 p-1">
+                        <SectorBetaChart
+                          sectors={sortedSectors()}
+                          benchmark={store().market === "india" ? "NIFTY 50" : "SPY"}
+                          isDark={isDark()}
+                        />
+                      </Box>
+                    </CompactPanel>
+                    <CompactPanel
+                      scrollable
+                      flush
+                      padded={false}
+                      id="rotation-timeline"
+                      testId="rotation-timeline"
+                      title={<Text className="text-ui-micro font-bold">Sector Rotation (1-Month Rank Change)</Text>}
+                      className={`${PANEL_CLASS} h-[280px] xl:h-full`}
+                    >
+                      <Box className="flex min-h-0 w-full flex-1 p-1">
+                        <RotationTimeline sectors={sortedSectors()} isDark={isDark()} />
+                      </Box>
+                    </CompactPanel>
+                  </div>
                 </div>
                 <CompactPanel
                   flush
@@ -321,22 +242,10 @@ export function SectorCorrelationTab() {
                   id="relative-strength-table"
                   testId="relative-strength-table"
                   title={<Text className="text-ui-micro font-bold">Relative Strength Rankings</Text>}
-                  className="min-w-0"
+                  className={PANEL_CLASS}
                 >
-                  <Box className="w-full min-w-0">
-                    <RelativeStrengthTable sectors={sortedSectors()} />
-                  </Box>
-                </CompactPanel>
-                <CompactPanel
-                  flush
-                  padded={false}
-                  id="rotation-timeline"
-                  testId="rotation-timeline"
-                  title={<Text className="text-ui-micro font-bold">Sector Rotation (1-Month Rank Change)</Text>}
-                  className="min-w-0"
-                >
-                  <Box className="p-1 h-[400px] w-full flex">
-                    <RotationTimeline sectors={sortedSectors()} isDark={isDark()} />
+                  <Box className="w-full min-w-0 p-1">
+                    <RelativeStrengthBoard sectors={sortedSectors()} isDark={isDark()} />
                   </Box>
                 </CompactPanel>
               </Stack>
