@@ -161,7 +161,7 @@ type AuditRoute = {
   supportsMobile?: boolean;
   setup?: (page: Page) => Promise<void>;
   navigate?: (page: Page) => Promise<void>;
-  verify?: (page: Page) => Promise<void>;
+  verify?: (page: Page, viewportWidth: number) => Promise<void>;
   waitForNetworkIdle?: boolean;
 };
 
@@ -238,9 +238,16 @@ const ROUTES: readonly AuditRoute[] = [
       consoleErrors.set(page, collectConsoleErrors(page));
       await setupScreenerEvidenceMocks(page);
     },
-    verify: async (page) => {
+    verify: async (page, viewportWidth) => {
       await expect(page.locator(TABLE_ROWS).first()).toBeVisible();
-      await expect(page.getByTestId("group-performance-panel")).toBeVisible();
+      const groups = page.getByTestId("group-performance-panel");
+      if (viewportWidth >= 900) {
+        await expect(groups).toBeVisible();
+      } else if ((await groups.count()) > 0 && (await groups.isVisible())) {
+        // Below 900 the results own the row: the rail is hidden, or reduced to
+        // its collapsed toggle. Either state is by design at narrow widths.
+        await expect(groups).toHaveAttribute("data-collapsed", "true");
+      }
       await expect(page.getByTestId("group-performance-error")).toHaveCount(0);
       await expect(page.getByTestId("screener-error-container")).toHaveCount(0);
       expect(
@@ -268,7 +275,7 @@ for (const viewport of VIEWPORTS) {
       if (route.ready) await page.waitForSelector(route.ready, { timeout: 20000 });
       if (route.waitForNetworkIdle !== false) await page.waitForLoadState("networkidle");
       await page.waitForTimeout(400);
-      await route.verify?.(page);
+      await route.verify?.(page, viewport.width);
 
       const summary = await auditPage(page);
       await test.info().attach(`axe-summary-${viewport.width}`, {
