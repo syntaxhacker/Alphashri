@@ -770,12 +770,14 @@ describe("OptionChainTable", () => {
       },
     ];
 
-    it("makes each row a labelled, focusable button with a visible focus ring", () => {
+    it("makes each row a focusable button with a visible focus ring and no overriding label", () => {
       render(() => <OptionChainTable {...defaultProps} strikeMatrix={activationMatrix()} />);
       const row = screen.getByTestId("options-chain-row-24500");
       expect(row).toHaveAttribute("role", "button");
       expect(row).toHaveAttribute("tabindex", "0");
-      expect(row).toHaveAttribute("aria-label", "Open options chain for strike 24500");
+      // The row's visible cells supply the accessible name; an overriding
+      // aria-label fails axe's label-content-name-mismatch on this row.
+      expect(row).not.toHaveAttribute("aria-label");
       expect(row).toHaveClass("focus-visible:outline");
       expect(row.className).toContain("focus-visible:outline-[var(--color-fin-primary)]");
     });

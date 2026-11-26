@@ -662,7 +662,6 @@ export function OptionChainTable(props: OptionChainTableProps) {
                   className={`cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]${isATM() ? " chain-row-atm" : ""}`}
                   role="button"
                   tabIndex={0}
-                  aria-label={`Open options chain for strike ${strike()}`}
                   onKeyDown={(event: KeyboardEvent) => {
                     if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") return;
                     event.preventDefault();
