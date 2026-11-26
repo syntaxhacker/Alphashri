@@ -6,6 +6,7 @@ import { LoginForm, RegisterForm } from "./components/auth/LoginForm";
 import { NotificationContainer } from "./components/notifications/NotificationContainer";
 import { PreviewChartProvider } from "./components/common/PreviewChartProvider";
 import { SymbolDockProvider } from "./components/common/SymbolDockProvider";
+import { useSymbolDock } from "./components/common/symbolDockContext";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { AppLayout } from "./components/layout/AppLayout";
 import { NewsWebSocketProvider } from "./state/newsWebSocket";
@@ -91,6 +92,12 @@ function Shell(props: { children?: JSX.Element }) {
   );
 }
 
+/** Route adapter: the profit report's symbol rows open the app-wide chart dock. */
+export function ProfitabilityWithDock() {
+  const dock = useSymbolDock();
+  return <ProfitabilityPage onOpenSymbol={(symbol) => dock.open(symbol)} />;
+}
+
 function AppContent() {
   // No destructuring: the auth context exposes getters, and destructuring
   // would copy each value once instead of reading it live.
@@ -146,7 +153,7 @@ function AppContent() {
           <Route path="/agri" component={AgriContainer} />
           <Route path="/patterns" component={PatternsContainer} />
           <Route path="/report" component={() => <Navigate href="/screener" />} />
-          <Route path="/report/profit" component={ProfitabilityPage} />
+          <Route path="/report/profit" component={ProfitabilityWithDock} />
           <Route path="/poc/kit" component={KitPoc} />
           <Route path="/poc/smc" component={SmcPoc} />
           <Route path="/poc/smc-trades" component={SmcTrades} />

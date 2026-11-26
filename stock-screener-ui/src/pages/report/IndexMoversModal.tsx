@@ -6,11 +6,14 @@ import * as palette from "@/ui/palette";
 import { Loader, Text, SegmentedControl, Button, Tooltip } from "@/ui";
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { fetchIndexMovers, IndexMoversResponse, IndexMoverRow } from "@/api/indexMovers";
+import { useSymbolDock } from "@/components/common/symbolDockContext";
 
 interface IndexMoversModalProps {
   open: boolean;
   onClose: () => void;
   index: "NIFTY" | "SENSEX";
+  /** Constituent symbol → app-wide chart dock. */
+  onOpenSymbol?: (symbol: string) => void;
 }
 
 function formatSignedPct(v: number): string {
@@ -33,6 +36,7 @@ type TabValue = (typeof TABS)[number]["value"];
 function MoversTable(props: {
   rows: MoversTableRow[];
   index: "NIFTY" | "SENSEX";
+  onOpenSymbol: (symbol: string) => void;
 }) {
   const columns = createMemo<TableColumnDef<MoversTableRow>[]>(() => [
     {
@@ -51,7 +55,9 @@ function MoversTable(props: {
       accessorKey: "symbol",
       size: 120,
       meta: { align: "left" },
-      cell: ({ row }) => <SymbolCell symbol={row.original.symbol} />,
+      cell: ({ row }) => (
+        <SymbolCell symbol={row.original.symbol} onOpen={props.onOpenSymbol} />
+      ),
     },
     {
       id: "ltp",
@@ -116,6 +122,13 @@ function MoversTable(props: {
 export function IndexMoversModal(props: IndexMoversModalProps) {
   const open = () => props.open;
   const index = () => props.index;
+  const dock = useSymbolDock();
+  // NIFTY 50 / SENSEX 30 are symbol chips: open the canonical index chart in
+  // the app-wide dock, never switch the report's underlying Select.
+  const openIndex = (value: "NIFTY" | "SENSEX") =>
+    dock.open(value === "SENSEX" ? "SENSEX" : "NIFTY");
+  const openSymbol = (symbol: string) =>
+    (props.onOpenSymbol ?? ((s) => dock.open(s)))(symbol);
   const [data, setData] = createSignal<IndexMoversResponse | null>(null);
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
@@ -176,9 +189,20 @@ export function IndexMoversModal(props: IndexMoversModalProps) {
     <LocalPanelModal
       open={open()}
       title={
-        <span class="font-mono text-ui-title font-extrabold tracking-[0.08em] text-fin-text">
+        <button
+          type="button"
+          data-testid="movers-index"
+          title={`Open ${index()} index report`}
+          onClick={() => openIndex(index())}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" && e.key !== " ") return;
+            e.preventDefault();
+            openIndex(index());
+          }}
+          class="cursor-pointer border-0 bg-transparent p-0 font-mono text-ui-title font-extrabold tracking-[0.08em] text-fin-text focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary"
+        >
           MOVERS · {index()} {index() === "NIFTY" ? "50" : "30"}
-        </span>
+        </button>
       }
       onClose={props.onClose}
       maxWidth={720}
@@ -243,7 +267,7 @@ export function IndexMoversModal(props: IndexMoversModalProps) {
 
       <Show when={data() && rows().length > 0}>
         <div class="min-w-0">
-          <MoversTable rows={rows()} index={index()} />
+          <MoversTable rows={rows()} index={index()} onOpenSymbol={openSymbol} />
         </div>
       </Show>
 
