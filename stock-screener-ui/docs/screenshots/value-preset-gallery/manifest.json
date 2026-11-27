@@ -1,0 +1,153 @@
+{
+  "feature": "value-preset-gallery",
+  "route": "/screener/market?view=value",
+  "head": "b4b6ac4d24aebd427918d25431d1975532a8d7cb",
+  "viewports": [
+    1600,
+    390
+  ],
+  "sha256": {
+    "mover-applied-1600.png": "55c426ab165c96af4d96929cb8c0bd0105885f93a57a728035aa9ed4d25c69bf",
+    "mover-applied-390.png": "70b78cd85fc736b964da6ad9b4632ddeae11122714fd6665185488d48af7bdae",
+    "rail-gallery-movers-1600.png": "e9ac442a7573968cbf89afdf18db8ef43c8880618a03c09e5eb8d491029a7b4e",
+    "rail-gallery-movers-390.png": "a2895737b5a18248c86d209ef085c5c8b11046be145a7f832f79714bfdf9b164",
+    "rail-gallery-value-1600.png": "cfa7e6fc89f3ccd65a8e7f77a9ea0874af0ae54cf56a6bb6882acf882f041643",
+    "rail-gallery-value-390.png": "b783fdfe217af1f18edf2c5a9bd768ddd2682a50205733b31b19f3018f7a5cb8",
+    "us-mover-gallery-1600.png": "3a029d18a063649b5d7d66563c83100c40da7c54305beebde65cd714872c7ddf",
+    "us-mover-gallery-390.png": "d776d1ca2ae2c2562e81944fbfeca877a01270c787caf1346e1b3cc19b640f56",
+    "value-cleared-1600.png": "5bf513799c6503e7fcf969f4be737e795fe71cf96bb330342f536ab38acc9675",
+    "value-cleared-390.png": "15322ae6e75354836fa28369209f5600076e862ad86feebdf158711ee142b40e",
+    "value-deep-applied-1600.png": "093de1aa853fe512173919f7126fa9f4d1b6996503b98ab071df89af790edd8b",
+    "value-deep-applied-390.png": "193c0d49792c83198cdf3ff701cb8e87ed69c627a5cb9a3c697c6b572004f308",
+    "value-empty-1600.png": "a996c6e833f158606a791a47ee871fd47fb2c244928414ec1dd307548a431b8c",
+    "value-empty-390.png": "65e76a47db769d3e0020bc9bf5ddf5786f8ddab2c57c5895631ff37c3086ae88",
+    "value-error-1600.png": "410a03824f43e69a7d3ab83442ac667382e7f4c34f30e850023e56e0051a9151",
+    "value-error-390.png": "8af30181e0455dc32071772297da3120f3dffb8ae13ff46f93325c95658fa7c8",
+    "value-gallery-1600.png": "ca328325063db6e6eb5d63552511fa3b041452fcd60814cf055f6111501fb44b",
+    "value-gallery-390.png": "bd1b8d586ca09843746c9b0d59c594f4174c9bdb5fb44846f9193c7cc0dac488",
+    "value-loading-1600.png": "844e729693b8c904d8d298026ba4bd834dacf79d22ccf49310a5c6bbc2bc0573",
+    "value-loading-390.png": "270e8922ad1df7578754b8b3a5f8f6f730762295b0aa6c5b93e9e4ea04888a76",
+    "value-manual-bounds-1600.png": "c1b6c73dfcfa2f9e90e3d72fa4664cbbb900f3922b92c1f252624ff6cd29e1fe",
+    "value-manual-bounds-390.png": "96cb071f20cb7165e2d1e3951bae2d801849f62b6405550221cee472310afbca",
+    "value-manual-bounds-header-1600.png": "d04bf782abfb8047a3f171dbe5fe626f94812300fed02749105b4a6dc72125e2",
+    "value-manual-bounds-header-390.png": "d7d4efb83c23357da39a1336ae8d5b8c980d60c3fc7379624d9af0fd04826222",
+    "value-no-match-1600.png": "46391d7af5603ecacd4416c4ac226e6838ef217622c6f7e16c84114677205231",
+    "value-no-match-390.png": "c431d5b114e219f2c5d6efe6b85e28c4ff02d9002098271936e54f5619903144",
+    "value-preset-applied-1600.png": "6ff27291f3d214f7242f27f3e7a91a59dc27612fe71b85ef5fb8484bd87666f4",
+    "value-preset-applied-390.png": "571e0ab0de51799877eb16090042e9b2ec826ec88d813074f514c6a6f18b3e4d"
+  },
+  "states": [
+    {
+      "id": "mover-applied",
+      "files": {
+        "1600": "mover-applied-1600.png",
+        "390": "mover-applied-390.png"
+      },
+      "covers": "Mover preset applied: gallery closed, market Table with active bounds/order."
+    },
+    {
+      "id": "rail-gallery-movers",
+      "files": {
+        "1600": "rail-gallery-movers-1600.png",
+        "390": "rail-gallery-movers-390.png"
+      },
+      "covers": "Market rail Mover presets entry opening the shared gallery."
+    },
+    {
+      "id": "rail-gallery-value",
+      "files": {
+        "1600": "rail-gallery-value-1600.png",
+        "390": "rail-gallery-value-390.png"
+      },
+      "covers": "Market rail Value filters entry opening the shared gallery."
+    },
+    {
+      "id": "us-mover-gallery",
+      "files": {
+        "1600": "us-mover-gallery-1600.png",
+        "390": "us-mover-gallery-390.png"
+      },
+      "covers": "US session mover gallery: $500B floor, no Cr units."
+    },
+    {
+      "id": "value-cleared",
+      "files": {
+        "1600": "value-cleared-1600.png",
+        "390": "value-cleared-390.png"
+      },
+      "covers": "No preset after Clear: selector, badge and unfiltered scan agree."
+    },
+    {
+      "id": "value-deep-applied",
+      "files": {
+        "1600": "value-deep-applied-1600.png",
+        "390": "value-deep-applied-390.png"
+      },
+      "covers": "Deep scan preset applied: one Deep card, Active badge and Clear."
+    },
+    {
+      "id": "value-empty",
+      "files": {
+        "1600": "value-empty-1600.png",
+        "390": "value-empty-390.png"
+      },
+      "covers": "Value empty state."
+    },
+    {
+      "id": "value-error",
+      "files": {
+        "1600": "value-error-1600.png",
+        "390": "value-error-390.png"
+      },
+      "covers": "Value scan error state."
+    },
+    {
+      "id": "value-gallery",
+      "files": {
+        "1600": "value-gallery-1600.png",
+        "390": "value-gallery-390.png"
+      },
+      "covers": "Value host gallery: value presets first, Deep, movers collapsed."
+    },
+    {
+      "id": "value-loading",
+      "files": {
+        "1600": "value-loading-1600.png",
+        "390": "value-loading-390.png"
+      },
+      "covers": "Value loading state."
+    },
+    {
+      "id": "value-manual-bounds",
+      "files": {
+        "1600": "value-manual-bounds-1600.png",
+        "390": "value-manual-bounds-390.png"
+      },
+      "covers": "Manual value bounds applied: max_pe=15, min_roe=18, No preset."
+    },
+    {
+      "id": "value-manual-bounds-header",
+      "files": {
+        "1600": "value-manual-bounds-header-1600.png",
+        "390": "value-manual-bounds-header-390.png"
+      },
+      "covers": "Header after manual bounds: same values, selector stays No preset."
+    },
+    {
+      "id": "value-no-match",
+      "files": {
+        "1600": "value-no-match-1600.png",
+        "390": "value-no-match-390.png"
+      },
+      "covers": "Search with no matching presets."
+    },
+    {
+      "id": "value-preset-applied",
+      "files": {
+        "1600": "value-preset-applied-1600.png",
+        "390": "value-preset-applied-390.png"
+      },
+      "covers": "Value-scan preset applied: badge and scan updated."
+    }
+  ]
+}
