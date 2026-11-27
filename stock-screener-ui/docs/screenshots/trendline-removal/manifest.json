@@ -1,9 +1,12 @@
 {
   "feature": "trendline-removal",
   "route": "/patterns",
-  "head": "58640c0f5565eec3c8f9ba6d694ce5f5167b1252",
-  "viewports": [1600, 390],
-  "data": "ALL chart-bearing states (patterns-loaded, legend-loaded, fullscreen-loaded at 1600 and 390) share ONE real 200-bar IRCON 1D OHLCV fixture (2026-02-03 to 2026-11-25) from experiments/data/pattern_cache/candles/1D/IRCON.v3.pkl, with price ₹107.36 and consistent as-of 25 Nov / LAST CANDLE 2026-11-25; S/R bands come from the IRCON pattern fixture's own breakout/target/stop prices. Pattern rows mirror tests/mocks/patternEvidence.ts. Loading (pending matrix), error (mocked 500) and empty states are mocked; all other states use the shared pattern mocks. API routes are mocked in Playwright; no devtools/server restart.",
+  "head": "25079b7c9efde6a438b6bfc1cb5dc3670f564465",
+  "viewports": [
+    1600,
+    390
+  ],
+  "data": "ALL chart-bearing states (patterns-loaded, legend-loaded, fullscreen-loaded at 1600 and 390) share ONE real 200-bar IRCON 1D OHLCV fixture (2026-02-03 to 2026-11-25) from experiments/data/pattern_cache/candles/1D/IRCON.v3.pkl, with price \u20b9107.36 and consistent as-of 25 Nov / LAST CANDLE 2026-11-25; S/R bands come from the IRCON pattern fixture's own breakout/target/stop prices. Pattern rows mirror tests/mocks/patternEvidence.ts. Loading (pending matrix), error (mocked 500) and empty states are mocked; all other states use the shared pattern mocks. API routes are mocked in Playwright; no devtools/server restart.",
   "sha256": {
     "tl-patterns-loaded-1600.png": "4c6ee2b158f00046aaf435d03e1dd5caf27b87672585593f134ed9f9f0ceffde",
     "tl-patterns-loaded-390.png": "9516891a0248a13a18f94f6abe2e30c266c80ea0e24268f0e19b0d275449224e",
@@ -25,7 +28,7 @@
   "states": [
     {
       "id": "patterns-loaded",
-      "covers": "Real IRCON pattern row with the shared real 200-bar 1D OHLCV chart docked at 1600 and modal at 390; topmost price tick fully inside the plot at 390. Falling Wedge boundary label, volume, S/R zones, ₹107.36 and 25 Nov / LAST CANDLE 2026-11-25 are consistent; no TLS/TLR text, testids or request params.",
+      "covers": "Real IRCON pattern row with the shared real 200-bar 1D OHLCV chart docked at 1600 and modal at 390; topmost price tick fully inside the plot at 390. Falling Wedge boundary label, volume, S/R zones, \u20b9107.36 and 25 Nov / LAST CANDLE 2026-11-25 are consistent; no TLS/TLR text, testids or request params.",
       "files": {
         "1600": "tl-patterns-loaded-1600.png",
         "390": "tl-patterns-loaded-390.png"
@@ -41,7 +44,7 @@
     },
     {
       "id": "filter-rail-loaded",
-      "covers": "Filters modal with the draft filter rail open: opaque overlay masks page bleed, three columns at 1600; one labelled scrollport with cue and a single stacked column at 390 with no clipped glyph at the edge. Presets, family, Freshness, Structure, 52W gap ≤ %, Base length (days) and Advanced sections are reachable. No TLS only / TLR only options remain.",
+      "covers": "Filters modal with the draft filter rail open: opaque overlay masks page bleed, three columns at 1600; one labelled scrollport with cue and a single stacked column at 390 with no clipped glyph at the edge. Presets, family, Freshness, Structure, 52W gap \u2264 %, Base length (days) and Advanced sections are reachable. No TLS only / TLR only options remain.",
       "files": {
         "1600": "tl-filter-rail-loaded-1600.png",
         "390": "tl-filter-rail-loaded-390.png"
@@ -49,7 +52,7 @@
     },
     {
       "id": "legend-loaded",
-      "covers": "Same shared real 200-bar IRCON 1D fixture as patterns-loaded, with the chart legend showing 'Falling Wedge' and the indicators menu open (no TLS/TLR entries, S/R zones 2). ₹107.36 / 25 Nov / LAST CANDLE 2026-11-25 are identical to the other chart states.",
+      "covers": "Same shared real 200-bar IRCON 1D fixture as patterns-loaded, with the chart legend showing 'Falling Wedge' and the indicators menu open (no TLS/TLR entries, S/R zones 2). \u20b9107.36 / 25 Nov / LAST CANDLE 2026-11-25 are identical to the other chart states.",
       "files": {
         "1600": "tl-legend-loaded-1600.png",
         "390": "tl-legend-loaded-390.png"
@@ -57,7 +60,7 @@
     },
     {
       "id": "fullscreen-loaded",
-      "covers": "Fullscreen pattern chart (maximized at 1600, modal with History=3 at 390) on the same shared real 200-bar IRCON 1D fixture; chart toolbar, Falling Wedge boundary, ₹107.36 and 25 Nov / LAST CANDLE 2026-11-25 consistent, no standalone TLS/TLR lines.",
+      "covers": "Fullscreen pattern chart (maximized at 1600, modal with History=3 at 390) on the same shared real 200-bar IRCON 1D fixture; chart toolbar, Falling Wedge boundary, \u20b9107.36 and 25 Nov / LAST CANDLE 2026-11-25 consistent, no standalone TLS/TLR lines.",
       "files": {
         "1600": "tl-fullscreen-loaded-1600.png",
         "390": "tl-fullscreen-loaded-390.png"

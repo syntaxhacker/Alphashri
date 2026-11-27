@@ -261,6 +261,18 @@ export interface SymbolDetail {
   patterns: PatternHitDTO[];
 }
 
+/**
+ * Where the chart candles came from. `cache+tail` means the cached frame was
+ * extended with a live tail; `cache+tail-failed` means the tail fetch failed
+ * and the cached frame was served stale.
+ */
+export type ChartDataSource =
+  | "provider"
+  | "cache"
+  | "cache+tail"
+  | "cache+tail-failed"
+  | "none";
+
 /** OHLCV candle (`GET /symbol/{symbol}/chart`). */
 export interface ChartCandle {
   t: string;
@@ -319,7 +331,28 @@ export interface ChartPayload {
    * refresh runs. Fresh wire responses omit these (or send `cached:false`).
    */
   cached?: boolean;
+  /** True when the returned series lags the expected live bar. */
   stale?: boolean;
+  /**
+   * Provenance of the returned candles. `cache+tail` means the cached frame
+   * was merged with a live tail; `cache+tail-failed` means that merge failed
+   * and the stale cache was served instead.
+   */
+  data_source?: ChartDataSource;
+  /** Last bar timestamp covered by the cache before the tail merge. */
+  cache_through?: string | null;
+  /** Latest bar timestamp in the returned candle series. */
+  latest_bar?: string | null;
+  /** Bars the tail merge appended to the cached frame. */
+  appended?: number;
+  /** Bars the tail merge repaired/replaced in the cached frame. */
+  updated?: number;
+  /** Holiday-aware session state for the chart's market. */
+  market_open?: boolean;
+  /** Seconds between the latest returned bar and the response time. */
+  cache_age_sec?: number | null;
+  /** A background cache refresh is still running after this response. */
+  refreshing?: boolean;
   /**
    * Machine-readable failure from the chart endpoint (`no_data`,
    * `fetch_timeout`, `upstream_error`). Present with empty `candles`; the UI
@@ -328,6 +361,8 @@ export interface ChartPayload {
   error?: string | null;
   /** Human-readable explanation that accompanies `error`. */
   note?: string | null;
+  /** Non-fatal data warning, e.g. a failed live-tail merge over cached bars. */
+  warning?: string | null;
   /** Data market: India uses Upstox, USA uses the provider registry. */
   market?: ChartMarket;
   /** Provider feed identifier (e.g. `yahoo`, `alpaca-iex`, `upstox`). */

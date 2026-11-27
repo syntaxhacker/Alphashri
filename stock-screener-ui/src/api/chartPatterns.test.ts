@@ -400,6 +400,31 @@ describe("results/summary/symbol error messages", () => {
     await expect(fetchSymbolDetail("SBIN", "1D")).rejects.toThrow("Failed to load SBIN");
   });
 
+  it("fetchSymbolChart passes freshness metadata through unchanged", async () => {
+    const payload = {
+      symbol: "IRCON",
+      timeframe: "15m",
+      candles: [{ t: "2026-11-27T10:15:00+05:30", o: 1, h: 2, l: 0.5, c: 1.5, v: 10 }],
+      overlays: [],
+      cached: true,
+      stale: false,
+      data_source: "cache+tail",
+      cache_through: "2026-11-27T10:00:00+05:30",
+      latest_bar: "2026-11-27T10:15:00+05:30",
+      appended: 3,
+      updated: 2,
+      market_open: true,
+      cache_age_sec: 12,
+      refreshing: false,
+      note: "Tail merged.",
+    };
+    mockedFetch.mockResolvedValue(okResponse(payload));
+
+    const result = await fetchSymbolChart("IRCON", "15m");
+
+    expect(result).toMatchObject(payload);
+  });
+
   it("fetchSymbolChart sends refresh=1 only when refresh is true", async () => {
     mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
     await fetchSymbolChart("IRCON", "1D", { refresh: true });

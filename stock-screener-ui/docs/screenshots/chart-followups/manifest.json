@@ -1,8 +1,11 @@
 {
   "feature": "chart-followups",
   "route": "/chart/POWERGRID",
-  "head": "7129412bbb0a3a85815563147f291bb46dcab06a",
-  "viewports": [1600, 390],
+  "head": "25079b7c9efde6a438b6bfc1cb5dc3670f564465",
+  "viewports": [
+    1600,
+    390
+  ],
   "data": "Real POWERGRID 1D candles and backend-computed sr_zones (500 bars, last close 266.75) from the chart perf fixture; API routes mocked in Playwright.",
   "sha256": {
     "chart-followups-sr-1600.png": "03702f808c8243438c673e3ee71e18396d737cc6b5ff92a9d39ce7f386f5dd45",
@@ -17,7 +20,7 @@
         "1600": "chart-followups-sr-1600.png",
         "390": "chart-followups-sr-390.png"
       },
-      "covers": "POWERGRID chart after reload: S/R preference persisted, one solid support and one resistance, age suffix at 1600 (`R 291.18 ×7 · 76b`, `S 243.92 ×3 · 21b`)."
+      "covers": "POWERGRID chart after reload: S/R preference persisted, one solid support and one resistance, age suffix at 1600 (`R 291.18 \u00d77 \u00b7 76b`, `S 243.92 \u00d73 \u00b7 21b`)."
     },
     {
       "id": "fullscreen",

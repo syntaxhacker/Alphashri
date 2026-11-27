@@ -1,0 +1,33 @@
+{
+  "feature": "chart-tail-freshness",
+  "route": "/chart/:symbol",
+  "head": "25079b7c9efde6a438b6bfc1cb5dc3670f564465",
+  "viewports": [
+    1600,
+    390
+  ],
+  "sha256": {
+    "loaded-1600.png": "25cd6944c4748c0e7a5cb57b6146f90975412f3100dd1bf4f107c900d5fd1c0b",
+    "stale-1600.png": "7a63ab68aa7fd3c2fec7094f7c155046dae57d07be9df9e62e12d8c8611f422a",
+    "loaded-390.png": "ee36d3d4d41f44c9a2bf03ae39975d5c2c358b5a21788593b742dd3e8df8c993",
+    "stale-390.png": "065f742ce14fdd92ce6bf98ed8b13d46875b8c4ecc780c7e9cf19a7d558a9650"
+  },
+  "states": [
+    {
+      "id": "loaded",
+      "files": {
+        "1600": "loaded-1600.png",
+        "390": "loaded-390.png"
+      },
+      "covers": "1m chart at /chart/RELIANCE?tf=1m with the live tail merged; +N BARS when new bars arrive."
+    },
+    {
+      "id": "stale",
+      "files": {
+        "1600": "stale-1600.png",
+        "390": "stale-390.png"
+      },
+      "covers": "Tail timeout/failure: cached chart stays populated with STALE + UPDATING and a NOTE warning strip."
+    }
+  ]
+}
