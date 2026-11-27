@@ -20,6 +20,9 @@ on:
       - 'stock-screener-ui/backtest/**'
       - 'stock-screener-ui/trading/**'
       - 'stock-screener-ui/cache/**'
+      # Root broker-client package (instrument mapping, API client, strategies)
+      # is tested too; a PR touching only it also ran no Python tests.
+      - 'upstox_trader/**'
       - 'stock-screener-ui/.storybook/**'
       # A knip.json edit changes what the unused-code gate considers acceptable,
       # and a test_cases/ edit is a test artefact. Neither triggered CI before,

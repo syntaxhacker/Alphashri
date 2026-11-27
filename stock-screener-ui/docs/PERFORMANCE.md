@@ -70,6 +70,27 @@ last-checked / next-check on every review.
   `bun run perf:chart`; they are not averaged with the API or test-budget tables
   here.
 
+## Benchmark harnesses
+
+Deterministic, network-free harnesses in [`scripts/perf/`](../scripts/perf/).
+Paths are repo-relative; commands run from `stock-screener-ui`. Use the project
+venv interpreter. The harnesses also offer golden/parity modes — see each
+script's docstring. Report medians, never a single run.
+
+| Script | Measures | One-line command |
+|---|---|---|
+| [`stock-screener-ui/scripts/perf/bench_levels.py`](../scripts/perf/bench_levels.py) | LevelBook build/fusion vs the raw `compute_sr_zones` detector | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_levels.py` |
+| [`stock-screener-ui/scripts/perf/bench_agri.py`](../scripts/perf/bench_agri.py) | Agri `/api/agri/filters` cold/warm/profile/parity against a synthetic cache (never the real DB) | `python scripts/perf/bench_agri.py warm` (run `build` once first) |
+| [`stock-screener-ui/scripts/perf/bench_indicators.py`](../scripts/perf/bench_indicators.py) | Indicator computation across timeframes, with optional golden parity check | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_indicators.py` |
+| [`stock-screener-ui/scripts/perf/bench_sr.py`](../scripts/perf/bench_sr.py) | Support/resistance zone computation on seeded candles, with golden dump/compare | `PYTHONPATH=. python scripts/perf/bench_sr.py --mode bench` |
+| [`stock-screener-ui/scripts/perf/bench_api_reads.py`](../scripts/perf/bench_api_reads.py) | 52W touch-history enrichment read path on in-memory SQLite with a frozen clock | `python scripts/perf/bench_api_reads.py` |
+| [`stock-screener-ui/scripts/perf/bench_backtest_chart.py`](../scripts/perf/bench_backtest_chart.py) | Backtest chart-data payload build, with frozen-fixture parity capture/compare | `python scripts/perf/bench_backtest_chart.py bench` |
+| [`stock-screener-ui/scripts/perf/bench_backtest_sim.py`](../scripts/perf/bench_backtest_sim.py) | Sim `BarDataWrangler` bar conversion, with bit-exact capture/compare and A/B | `PYTHONPATH=. python scripts/perf/bench_backtest_sim.py bench <baseline.json>` |
+| [`stock-screener-ui/scripts/perf/bench_instrument_index.py`](../scripts/perf/bench_instrument_index.py) | Instrument-key resolution: linear scan vs indexed map (counted + wall passes) | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_instrument_index.py` |
+| [`stock-screener-ui/scripts/perf/bench_screener_52w.py`](../scripts/perf/bench_screener_52w.py) | 52W screener read path with counted upstream reads; capture/verify/bench modes | `python scripts/perf/bench_screener_52w.py --mode bench3` |
+| [`stock-screener-ui/scripts/perf/bench_screener_52w_meta.py`](../scripts/perf/bench_screener_52w_meta.py) | 52W rationale/summary call counts + response parity over mixed/empty/skeleton fixtures | `python scripts/perf/bench_screener_52w_meta.py --compare <baseline.json>` (run `--capture <baseline.json>` first) |
+| [`stock-screener-ui/scripts/perf/bench_dashboard_sparks.py`](../scripts/perf/bench_dashboard_sparks.py) | Dashboard spark fan-out with a fixed-latency fetch stub | `PYTHONPATH=. CI_MODE=1 python scripts/perf/bench_dashboard_sparks.py` |
+
 ## 2026-11-26 backend/DB performance loop
 
 **Gate:** measurable backend/DB improvement, zero regressions, agri untouched,
