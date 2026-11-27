@@ -281,24 +281,36 @@ const selectedLabel = (testId: string): string =>
 
 const openDataView = () => fireEvent.click(screen.getByTestId("agri-view-data"));
 
-const CHART_REGION_HEIGHTS = [
-  ["agri-chart-region", "280px"],
-  ["agri-rank-region", "280px"],
-  ["agri-season-region", "320px"],
-  ["agri-dispersion-region", "300px"],
-] as const;
+const HERO_HEIGHT = "clamp(300px, 52dvh, 560px)";
+const HERO_HEIGHT_MOBILE = "clamp(260px, 46dvh, 420px)";
+const PANEL_HEIGHT = "clamp(260px, 30dvh, 360px)";
+const SEASON_HEIGHT = "clamp(280px, 34dvh, 380px)";
+const DISPERSION_HEIGHT = "clamp(280px, 34dvh, 380px)";
 
 const CHART_PANEL_HEIGHTS = [
-  ["agri-chart-panel", "460px"],
-  ["agri-rank-panel", "380px"],
-  ["agri-season-panel", "460px"],
-  ["agri-dispersion-panel", "460px"],
+  ["agri-chart-panel", HERO_HEIGHT],
+  ["agri-rank-panel", PANEL_HEIGHT],
+  ["agri-season-panel", SEASON_HEIGHT],
+  ["agri-dispersion-panel", DISPERSION_HEIGHT],
 ] as const;
 
-/** ECharts measures its container at mount; a flex-only parent can read 0px. */
+const CHART_PANEL_HEIGHTS_MOBILE = [
+  ["agri-chart-panel", HERO_HEIGHT_MOBILE],
+  ["agri-rank-panel", PANEL_HEIGHT],
+  ["agri-season-panel", SEASON_HEIGHT],
+  ["agri-dispersion-panel", DISPERSION_HEIGHT],
+] as const;
+
+/** Charts fill their panel body; no fixed minimum may push the dataZoom out. */
 const expectChartRegionsSized = () => {
-  for (const [id, height] of CHART_REGION_HEIGHTS) {
-    expect(screen.getByTestId(id), id).toHaveStyle({ "min-height": height });
+  for (const id of [
+    "agri-chart-region",
+    "agri-rank-region",
+    "agri-season-region",
+    "agri-dispersion-region",
+  ]) {
+    expect(screen.getByTestId(id), id).toHaveClass("min-h-0", "flex-1");
+    expect(screen.getByTestId(id), id).toHaveStyle({ "min-height": "0px" });
   }
 };
 
@@ -1445,13 +1457,12 @@ describe("AgriPage layout", () => {
     );
     expect(screen.getByTestId("agri-body")).toHaveClass("overflow-visible");
     expect(screen.getByTestId("agri-body")).not.toHaveClass("overflow-y-auto");
-    expect(screen.getByTestId("agri-chart-region")).toHaveClass("min-h-[280px]");
-    expect(screen.getByTestId("agri-rank-region")).toHaveClass("min-h-[280px]");
-    expect(screen.getByTestId("agri-season-region")).toHaveClass("min-h-[320px]");
-    expect(screen.getByTestId("agri-dispersion-region")).toHaveClass("min-h-[300px]");
-    for (const [id, height] of CHART_PANEL_HEIGHTS) {
+    for (const [id, height] of CHART_PANEL_HEIGHTS_MOBILE) {
       expect(screen.getByTestId(id), id).toHaveStyle({ "min-height": height });
     }
+    expect(screen.getByTestId("agri-dispersion-panel")).toHaveTextContent(
+      "dot/bar = modal/range",
+    );
     expectChartRegionsSized();
     expect(screen.getByTestId("agri-page")).toHaveClass(
       "overflow-y-auto",
@@ -1459,6 +1470,36 @@ describe("AgriPage layout", () => {
       "min-h-0",
     );
     expect(screen.getByTestId("agri-refresh")).toBeInTheDocument();
+  });
+
+  it("condenses the mobile chrome while keeping every filter reachable", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width: 640px"),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    renderPage();
+    await settled();
+
+    for (const label of ["Scan", "Range", "Geo"]) {
+      expect(screen.getByText(label)).toHaveClass("max-sm:hidden");
+    }
+    expect(screen.getByText("Workspace")).toHaveClass("max-sm:hidden");
+    expect(screen.getByText("Data as of")).toHaveClass("max-sm:hidden");
+    expect(screen.getByText("· 42 mandis")).toHaveClass("max-sm:hidden");
+    // Every control remains in the DOM and labelled.
+    for (const id of [
+      "agri-source-select",
+      "agri-group-select",
+      "agri-commodity-select",
+      "agri-range-strip",
+      "agri-state-select",
+      "agri-district-select",
+      "agri-market-select",
+    ]) {
+      expect(screen.getByTestId(id), id).toBeInTheDocument();
+    }
   });
 
   it.each([
@@ -1478,6 +1519,9 @@ describe("AgriPage layout", () => {
       renderPage();
       await settled();
 
+      for (const [id, height] of mobile ? CHART_PANEL_HEIGHTS_MOBILE : CHART_PANEL_HEIGHTS) {
+        expect(screen.getByTestId(id), id).toHaveStyle({ "min-height": height });
+      }
       const root = screen.getByTestId("agri-page");
       const body = screen.getByTestId("agri-body");
       // happy-dom has no layout engine; model a viewport shorter than content.

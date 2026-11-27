@@ -765,6 +765,11 @@ export function AgriPage() {
     mode() === "band" ? Object.keys(heroOption()).length > 0 : canDraw(),
   );
   const heroEmpty = createMemo(() => !heroCanDraw());
+  const heroHeight = () =>
+    isMobile() ? "clamp(260px, 46dvh, 420px)" : "clamp(300px, 52dvh, 560px)";
+  const panelHeight = () => "clamp(260px, 30dvh, 360px)";
+  const seasonHeight = () => "clamp(280px, 34dvh, 380px)";
+  const dispersionHeight = () => "clamp(280px, 34dvh, 380px)";
   const rankRows = createMemo(() => buildRankBoard(analyticsSeries()));
   const rankOption = createMemo(() =>
     buildAgriRankOption({
@@ -843,6 +848,19 @@ export function AgriPage() {
     return `${count} · API page, not the full mandi universe`;
   });
   const dispersionSummary = createMemo(() => dispersionPopulation().summary);
+  const dispersionDescription = createMemo(() => {
+    const summary = dispersionSummary();
+    if (summary.markets === 0) {
+      return "Dot = modal · bar = min–max · halo = outside this set's IQR";
+    }
+    const stats = `IQR/median of these ${summary.shown}: ${formatAgriPrice(summary.q1)}–${formatAgriPrice(summary.q3)} / ${formatAgriPrice(summary.median)}`;
+    if (isMobile()) {
+      // The eight-row plot needs its panel height for labels, so the mobile
+      // caption stays to two-to-three lines.
+      return `${summary.shown} of ${summary.markets} mandis · ${stats} · as of ${formatAgriSessionDate(asOf())} · dot/bar = modal/range · halo = outside set IQR`;
+    }
+    return `${summary.shown} highest-priced of ${summary.markets} mandis (${quotes().length}-quote page) · ${stats} · as of ${formatAgriSessionDate(asOf())} · dot = modal · bar = min–max · violet halo = outside this set's 1.5×IQR`;
+  });
   const classifiedWarnings = createMemo(() =>
     warnings().map((text, index) => ({
       id: `warning-${index}`,
@@ -1062,7 +1080,7 @@ export function AgriPage() {
         className="sticky top-0 z-20 shrink-0 rounded-[6px] border border-fin-border bg-fin-bg px-2 py-1"
       >
         <Box className="flex flex-wrap items-center gap-2 min-w-0" data-testid="agri-scan-group">
-          <Text fw={700} className={MICRO_LABEL}>
+          <Text fw={700} className={`${MICRO_LABEL} max-sm:hidden`}>
             Scan
           </Text>
           <Box className={CONTROL_CELL}>
@@ -1119,7 +1137,7 @@ export function AgriPage() {
         <Box className="hidden h-5 w-px shrink-0 bg-fin-border md:block" aria-hidden="true" />
 
         <Box className="flex flex-nowrap items-center gap-2 min-w-0" data-testid="agri-range-group">
-          <Text c="dimmed" className={MICRO_LABEL}>
+          <Text c="dimmed" className={`${MICRO_LABEL} max-sm:hidden`}>
             Range
           </Text>
           <Box className={SEGMENT_TRACK} data-testid="agri-range-strip">
@@ -1150,7 +1168,7 @@ export function AgriPage() {
           data-testid="agri-geo-group"
           title="Geography"
         >
-          <Text c="dimmed" className={MICRO_LABEL}>
+          <Text c="dimmed" className={`${MICRO_LABEL} max-sm:hidden`}>
             Geo
           </Text>
           <Box className="w-[108px] max-sm:w-[96px]">
@@ -1210,7 +1228,7 @@ export function AgriPage() {
               style={{ "background-color": freshness().colour }}
               data-testid="agri-freshness-dot"
             />
-            <Text size="xs" c="dimmed" style={typeStyle("micro")}>
+            <Text size="xs" c="dimmed" style={typeStyle("micro")} className="max-sm:hidden">
               Data as of
             </Text>
             <Text size="xs" fw={700} style={{ ...typeStyle("micro"), color: freshness().colour }}>
@@ -1222,7 +1240,7 @@ export function AgriPage() {
             <Text size="xs" fw={700} style={{ ...typeStyle("micro"), color: freshness().colour }}>
               {freshness().stale}
             </Text>
-            <Text size="xs" c="dimmed" style={typeStyle("micro")}>
+            <Text size="xs" c="dimmed" style={typeStyle("micro")} className="max-sm:hidden">
               · {kpis()?.market_count ?? 0} mandis
             </Text>
           </Box>
@@ -1354,10 +1372,10 @@ export function AgriPage() {
           className="flex min-h-0 shrink-0 flex-col gap-2 overflow-visible"
         >
           <ToolbarRow gap={8} className="shrink-0 px-1" data-testid="agri-eda-head">
-            <Text fw={700} className={SECTION_LABEL}>
+            <Text fw={700} className={`${SECTION_LABEL} max-sm:hidden`}>
               Workspace
             </Text>
-            <Text c="dimmed" className={SECTION_HINT}>
+            <Text c="dimmed" className={`${SECTION_HINT} max-sm:hidden`}>
               visuals first · data on demand · unavailable inputs read —
             </Text>
             <Box className="ml-auto flex items-center gap-1" data-testid="agri-view-toggle">
@@ -1506,9 +1524,10 @@ export function AgriPage() {
                 className="col-span-12 flex min-h-0 flex-col lg:col-span-8"
                 scrollable
                 style={{
-                  // An empty chart owns only its header and message; the old
-                  // 460px floor left a blank slab above the other panels.
-                  "min-height": heroEmpty() ? "0px" : "460px",
+                  // Fit the available viewport; an empty chart still owns
+                  // only its header and message.
+                  height: heroEmpty() ? "auto" : heroHeight(),
+                  "min-height": heroEmpty() ? "0px" : heroHeight(),
                   flex: "0 0 auto",
                   "align-self": heroEmpty() ? "start" : undefined,
                 }}
@@ -1657,8 +1676,8 @@ export function AgriPage() {
                   }
                 >
                   <Box
-                    className="flex min-h-[280px] flex-1"
-                    style={{ "min-height": "280px", flex: "1 1 0%" }}
+                    className="flex min-h-0 flex-1"
+                    style={{ "min-height": "0px", flex: "1 1 0%" }}
                     data-testid="agri-chart-region"
                   >
                     <EChart
@@ -1677,9 +1696,11 @@ export function AgriPage() {
               className="col-span-12 flex min-h-0 flex-col lg:col-span-4"
               scrollable
               style={{
-                // An empty universe collapses like an empty hero instead of
-                // reserving a 620px blank slab.
-                "min-height": sparkEmpty() ? "0px" : isMobile() ? "0px" : "620px",
+                // An empty universe collapses like an empty hero; otherwise
+                // it shares the hero's viewport-derived height on desktop and
+                // scrolls its remaining cells inside the panel.
+                height: sparkEmpty() || isMobile() ? "auto" : heroHeight(),
+                "min-height": sparkEmpty() ? "0px" : isMobile() ? "0px" : heroHeight(),
                 flex: "0 0 auto",
                 "align-self": sparkEmpty() ? "start" : undefined,
               }}
@@ -1709,7 +1730,7 @@ export function AgriPage() {
               testId="agri-rank-panel"
               className="col-span-12 flex min-h-0 flex-col md:col-span-6 lg:col-span-4"
               scrollable
-              style={{ "min-height": "380px", flex: "0 0 auto" }}
+              style={{ "min-height": panelHeight(), flex: "0 0 auto" }}
               title="Rank movement · monthly"
               description={`1 = highest mean modal (₹/quintal) among commodities priced that month · n=${rankRows().length} ${rankRows().length === 1 ? "commodity" : "commodities"} · gaps are not last place`}
             >
@@ -1725,8 +1746,8 @@ export function AgriPage() {
                 }
               >
                 <Box
-                  className="flex min-h-[280px] flex-1"
-                  style={{ "min-height": "280px", flex: "1 1 0%" }}
+                  className="flex min-h-0 flex-1"
+                  style={{ "min-height": "0px", flex: "1 1 0%" }}
                   data-testid="agri-rank-region"
                 >
                   <EChart option={rankOption()} data-testid="agri-rank-chart" />
@@ -1738,7 +1759,7 @@ export function AgriPage() {
               testId="agri-season-panel"
               className="col-span-12 flex min-h-0 flex-col md:col-span-6 lg:col-span-4"
               scrollable
-              style={{ "min-height": "460px", flex: "0 0 auto" }}
+              style={{ "min-height": seasonHeight(), flex: "0 0 auto" }}
               title="Month profile · commodity × month"
               description={seasonProfileNote()}
             >
@@ -1754,8 +1775,8 @@ export function AgriPage() {
                 }
               >
                 <Box
-                  className="flex min-h-[320px] flex-1"
-                  style={{ "min-height": "320px", flex: "1 1 0%" }}
+                  className="flex min-h-0 flex-1"
+                  style={{ "min-height": "0px", flex: "1 1 0%" }}
                   data-testid="agri-season-region"
                 >
                   <EChart option={seasonOption()} data-testid="agri-season-chart" />
@@ -1767,13 +1788,9 @@ export function AgriPage() {
               testId="agri-dispersion-panel"
               className="col-span-12 flex min-h-0 flex-col md:col-span-12 lg:col-span-4"
               scrollable
-              style={{ "min-height": "460px", flex: "0 0 auto" }}
+              style={{ "min-height": dispersionHeight(), flex: "0 0 auto" }}
               title="Top-priced mandis"
-              description={
-                dispersionSummary().markets > 0
-                  ? `${dispersionSummary().shown} highest-priced of ${dispersionSummary().markets} mandis (${quotes().length}-quote page) · IQR/median of these ${dispersionSummary().shown}: ${formatAgriPrice(dispersionSummary().q1)}–${formatAgriPrice(dispersionSummary().q3)} / ${formatAgriPrice(dispersionSummary().median)} · as of ${formatAgriSessionDate(asOf())} · dot = modal · bar = min–max · violet halo = outside this set's 1.5×IQR`
-                  : "Dot = modal · bar = min–max · violet halo = outside this set's 1.5×IQR"
-              }
+              description={dispersionDescription()}
             >
               <Show
                 when={Object.keys(dispersionOption()).length > 0}
@@ -1787,8 +1804,8 @@ export function AgriPage() {
                 }
               >
                 <Box
-                  className="flex min-h-[300px] flex-1"
-                  style={{ "min-height": "300px", flex: "1 1 0%" }}
+                  className="flex min-h-0 flex-1"
+                  style={{ "min-height": "0px", flex: "1 1 0%" }}
                   data-testid="agri-dispersion-region"
                 >
                   <EChart option={dispersionOption()} data-testid="agri-dispersion-chart" />
