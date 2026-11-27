@@ -3,22 +3,37 @@ import type { MarketAlert } from "@/components/notifications/MarketAlertCard";
 import { FUEL_STATE_LABEL } from "./niftyOiBursts.types";
 import type { OiBurst, OiSignal } from "./niftyOiBursts.types";
 import { burstTimeLabel, burstTs, compact, levelText, shortNum } from "./niftyOiBursts.format";
-import { isWallEventType } from "./niftyOiBursts.normalize";
+import { isNonTradeAlertType, isWallEventType } from "./niftyOiBursts.normalize";
 import { coveringDirection, isSpentFuel, resolveFuelState } from "./niftyOiBursts.signal";
 import type { OiEntryFreshness } from "./niftyOiBursts.types";
 
-/**
- * Strike-wall event → alert.
- *
- * Icons carry the event class so the row reads at a glance:
- *   ◇ wall_test  (watch — the wall is being tested, no break yet)
- *   ✕ rejection  (alert — the wall held; target = the move's magnet)
- *   ↑ / ↓ break  (alert — the wall broke; arrow follows the side)
- *
- * All wall events are `kind: "oi_burst"` so they join the existing trail/toast
- * pipeline; the severity rail is what colours them (watch = muted,
- * rejection/break = warning).
- */
+/** Zero and non-finite deltas are absent readings, not one-minute OI moves. */
+function hasRealOiMove(v: number | null | undefined): boolean {
+  return typeof v === "number" && Number.isFinite(v) && v !== 0;
+}
+
+const spotMetric = (burst: OiBurst) =>
+  Number.isFinite(burst.spot) && burst.spot > 0
+    ? [{ label: "SPOT", value: formatNumberIN(Math.round(burst.spot)) }]
+    : [];
+
+/** Unknown geometry is an em dash with no `%` suffix — a missing reading must
+ *  never be rendered as if it were a measured percentage. */
+function pctOrDash(v: number | null | undefined): string {
+  return typeof v === "number" && Number.isFinite(v) ? `${v.toFixed(3)}%` : "—";
+}
+
+const FUEL_PLAIN: Record<string, string> = {
+  writers_covering: "shorts covering", longs_liquidating: "longs exiting",
+  fresh_buyers: "buyers adding", fresh_sellers: "writers adding",
+};
+const FUEL_WHY: Record<string, string> = {
+  writers_covering: "shorts buying back lifts the index", longs_liquidating: "longs exiting presses the index",
+  fresh_buyers: "fresh buying supports the index", fresh_sellers: "fresh selling caps the index",
+};
+
+/** Wall test/rejection/break → alert. Icons carry the event class (◇ / ✕ / ↑↓);
+ *  all rows join the oi_burst trail and the severity rail supplies the colour. */
 function wallEventToAlert(burst: OiBurst): MarketAlert {
   const type = burst.type ?? "wall_test";
   const level = burst.strike ?? burst.wall ?? null;
@@ -30,11 +45,7 @@ function wallEventToAlert(burst: OiBurst): MarketAlert {
   const isBreak = type === "break" || type === "wall_break";
   const icon = isTest ? "◇" : type === "rejection" ? "✕" : burst.side === "put" ? "↓" : "↑";
   const verb = isTest ? "TESTED" : type === "rejection" ? "REJECTED" : "BROKEN";
-  const title = isTest
-    ? `${icon} ${sideCode} ${levelTxt} ${verb}`
-    : targetTxt
-      ? `${icon} ${sideCode} ${levelTxt} → ${targetTxt}`
-      : `${icon} ${sideCode} ${levelTxt} ${verb}`;
+  const title = `${icon} ${sideCode} ${levelTxt} ${!isTest && targetTxt ? `→ ${targetTxt}` : verb}`;
 
   const fallback = isTest
     ? `${sideCode} ${levelTxt} is being tested · no break yet`
@@ -49,9 +60,7 @@ function wallEventToAlert(burst: OiBurst): MarketAlert {
   const metrics = [
     ...(levelTxt ? [{ label: isBreak ? "BROKE" : "STRIKE", value: levelTxt }] : []),
     ...(targetTxt ? [{ label: "TGT", value: targetTxt, tone: "down" as const }] : []),
-    ...(Number.isFinite(burst.spot) && burst.spot > 0
-      ? [{ label: "SPOT", value: formatNumberIN(Math.round(burst.spot)) }]
-      : []),
+    ...spotMetric(burst),
   ];
 
   return {
@@ -66,6 +75,42 @@ function wallEventToAlert(burst: OiBurst): MarketAlert {
     source: `Nifty walls · ${burstTimeLabel(burst.t)} IST`,
     href: "/report/index",
   };
+}
+
+/** A relocation is a `from` → `to` state change with no OI delta — never route
+ *  it through the burst grammar, which would invent a fake `ΔOI +0`. */
+function wallRelocationToAlert(burst: OiBurst): MarketAlert {
+  const side = burst.side === "put" ? "PUT" : "CALL";
+  const fromTxt = levelText(burst.from ?? burst.wall ?? null) || "?";
+  const toTxt = levelText(burst.to ?? burst.strike ?? null) || "?";
+  const detail = [
+    burst.detail?.trim() || `${side.toLowerCase()} wall moved ${fromTxt} → ${toTxt}`,
+    burst.flip ? "side flip — the wall changed sides" : null,
+    "No OI burst — this is a wall state change.",
+  ]
+    .filter((part): part is string => typeof part === "string" && part.length > 0)
+    .join(" · ");
+
+  return {
+    id: burst.id,
+    kind: "oi_burst",
+    severity: burst.severity,
+    symbol: "NIFTY",
+    title: `${side} WALL ${fromTxt} → ${toTxt}${burst.flip ? " · SIDE FLIP" : ""}`,
+    detail,
+    metrics: [
+      { label: "FROM", value: fromTxt },
+      { label: "TO", value: toTxt },
+      ...spotMetric(burst),
+      ...(typeof burst.migration_strikes === "number" && Number.isFinite(burst.migration_strikes)
+        ? [{ label: "STEPS", value: String(burst.migration_strikes) }]
+        : []),
+    ],
+    ts: burstTs(burst.t),
+    source: `Nifty walls · ${burstTimeLabel(burst.t)} IST · relocation`,
+    href: "/report/index",
+    actionable: false,
+  } as MarketAlert;
 }
 
 /** Backend `data_stale` warning → critical system alert. */
@@ -84,9 +129,7 @@ function dataStaleToAlert(burst: OiBurst): MarketAlert {
     detail,
     metrics: [
       ...(burst.t ? [{ label: "TAPE", value: `${burstTimeLabel(burst.t)} IST` }] : []),
-      ...(Number.isFinite(burst.spot) && burst.spot > 0
-        ? [{ label: "SPOT", value: formatNumberIN(Math.round(burst.spot)) }]
-        : []),
+      ...spotMetric(burst),
     ],
     ts: burstTs(burst.t),
     source: "Nifty tape watchdog",
@@ -94,58 +137,42 @@ function dataStaleToAlert(burst: OiBurst): MarketAlert {
   };
 }
 
-/**
- * A withheld plan is evidence, not an instruction. Same-strike premium and
- * spot are the only readings that can back a leg; when the backend says they
- * are missing or contradictory, print the move and what was checked. The
- * `signal` argument is deliberately ignored — an OI delta alone is not a
- * direction.
- */
+/** Withheld plan → evidence, never an instruction. Premium/spot are the only
+ *  readings that can back a leg; an OI delta alone is not a direction. */
 function unconfirmedToAlert(burst: OiBurst): MarketAlert {
   const sideLabel = burst.side === "call" ? "Call" : "Put";
   const c = burst.confirmation ?? null;
-  const doi = compact(burst.delta);
+  const doi = hasRealOiMove(burst.delta) ? compact(burst.delta) : null;
   const spotTxt = formatNumberIN(Math.round(burst.spot));
   const signed = (v: number) => `${v > 0 ? "+" : ""}${v}`;
 
-  const evidence: string[] = [];
-  if (c?.same_strike === true) evidence.push("same-strike premium and OI agree");
-  else if (c?.same_strike === false) evidence.push("no same-strike agreement");
-  if (c && Number.isFinite(c.strike_oi_delta)) {
-    evidence.push(`strike OI ${compact(c.strike_oi_delta!)}`);
-  }
-  if (c && Number.isFinite(c.strike_premium_change)) {
-    evidence.push(`strike premium ${signed(c.strike_premium_change!)}`);
-  }
-  if (c && Number.isFinite(c.spot_change)) {
-    evidence.push(`spot ${signed(c.spot_change!)} pts`);
-  }
-  if (c?.reasons?.length) evidence.push(c.reasons.join("; "));
+  const evidence = [
+    c?.same_strike === true ? "same-strike premium and OI agree" : null,
+    c?.same_strike === false ? "no same-strike agreement" : null,
+    c && Number.isFinite(c.strike_oi_delta) ? `strike OI ${compact(c.strike_oi_delta!)}` : null,
+    c && Number.isFinite(c.strike_premium_change) ? `strike premium ${signed(c.strike_premium_change!)}` : null,
+    c && Number.isFinite(c.spot_change) ? `spot ${signed(c.spot_change!)} pts` : null,
+    c?.reasons?.length ? c.reasons.join("; ") : null,
+  ].filter((p): p is string => typeof p === "string" && p.length > 0);
 
   const detail = [
-    `${sideLabel} OI ${doi} in 1 min @ ${spotTxt}.`,
+    doi
+      ? `${sideLabel} OI ${doi} in 1 min @ ${spotTxt}.`
+      : `${sideLabel} OI shift @ ${spotTxt} — no one-minute OI move to size.`,
     evidence.length > 0
       ? `Evidence: ${evidence.join(" · ")}.`
       : "Direction not confirmed — same-strike premium and spot evidence are missing.",
     "No trade. Heuristic, not advice.",
   ].join(" ");
 
-  const tone: "up" | "down" = burst.delta >= 0 ? "up" : "down";
+  const tone: "up" | "down" = (burst.delta ?? 0) >= 0 ? "up" : "down";
   const metrics = [
-    { label: "ΔOI", value: doi, tone },
+    ...(doi ? [{ label: "ΔOI", value: doi, tone }] : []),
     { label: "SPOT", value: spotTxt },
-    ...(c?.same_strike != null
-      ? [{ label: "SAME STRIKE", value: c.same_strike ? "yes" : "no" }]
-      : []),
-    ...(c && Number.isFinite(c.strike_oi_delta)
-      ? [{ label: "STRIKE ΔOI", value: compact(c.strike_oi_delta!) }]
-      : []),
-    ...(c && Number.isFinite(c.strike_premium_change)
-      ? [{ label: "STRIKE Δ₹", value: signed(c.strike_premium_change!) }]
-      : []),
-    ...(c && Number.isFinite(c.spot_change)
-      ? [{ label: "SPOT Δ", value: signed(c.spot_change!) }]
-      : []),
+    ...(c?.same_strike != null ? [{ label: "SAME STRIKE", value: c.same_strike ? "yes" : "no" }] : []),
+    ...(c && Number.isFinite(c.strike_oi_delta) ? [{ label: "STRIKE ΔOI", value: compact(c.strike_oi_delta!) }] : []),
+    ...(c && Number.isFinite(c.strike_premium_change) ? [{ label: "STRIKE Δ₹", value: signed(c.strike_premium_change!) }] : []),
+    ...(c && Number.isFinite(c.spot_change) ? [{ label: "SPOT Δ", value: signed(c.spot_change!) }] : []),
     ...(c?.reasons?.length ? [{ label: "REASON", value: c.reasons[0] }] : []),
   ];
 
@@ -164,45 +191,41 @@ function unconfirmedToAlert(burst: OiBurst): MarketAlert {
   } as MarketAlert;
 }
 
-/**
- * Burst → alert. Grammar: WHAT (fuel) · WHERE (level) · WITH (reason) ·
- * GUARD (invalidation). A spent-fuel burst without a structure break prints
- * "NO TRADE"; a plan whose entry the market has run away from prints
- * "RE-PRICE". Both are actionable=false, so they never take the banner.
- */
+/** Burst → alert: WHAT (fuel) · WHERE (level) · WITH (reason) · GUARD. Spent fuel
+ *  without a break is "NO TRADE"; a stale entry is "RE-PRICE" — neither takes
+ *  the sticky banner (actionable=false). */
 export function burstToAlert(
   burst: OiBurst,
   signal?: OiSignal | null,
   opts: { freshness?: OiEntryFreshness | null } = {},
 ): MarketAlert {
-  // Wall geometry and system warnings bypass the OI-burst grammar entirely.
+  // Wall geometry, relocations, coils and system warnings bypass the
+  // OI-burst grammar entirely: they carry no one-minute OI move to rate.
   if (isWallEventType(burst.type)) return wallEventToAlert(burst);
+  if (burst.type === "wall") return wallRelocationToAlert(burst);
   if (burst.type === "data_stale") return dataStaleToAlert(burst);
   // The backend withheld the plan or could not confirm a leg at the same
   // strike. Even a supplied signal is dropped: no direction from OI alone.
-  if (burst.plan_suppressed === true || burst.flow === "unconfirmed") {
+  // Non-trade rows keep their own renderer instead of borrowing this label.
+  if (
+    !isNonTradeAlertType(burst.type) &&
+    (burst.plan_suppressed === true || burst.flow === "unconfirmed")
+  ) {
     return unconfirmedToAlert(burst);
   }
 
   const sideLabel = burst.side === "call" ? "Call" : "Put";
-  const tone: "up" | "down" = burst.delta >= 0 ? "up" : "down";
+  const tone: "up" | "down" = (burst.delta ?? 0) >= 0 ? "up" : "down";
   const scoreTxt = `${burst.score.toFixed(1)}× a normal minute`;
 
   // WHAT: fresh money, or a book being spent. Plain English, not "fuel" jargon.
   const fuel = resolveFuelState(burst);
   const spent = isSpentFuel(fuel);
+  // Coils, wall geometry and system warnings carry no one-minute OI move: even
+  // a backend-supplied fuel state must not surface as a FUEL metric on them.
+  const showFuel = !!fuel && !isNonTradeAlertType(burst.type);
   const plainFuel =
-    fuel === "writers_covering"
-      ? "shorts covering"
-      : fuel === "longs_liquidating"
-        ? "longs exiting"
-        : fuel === "fresh_buyers"
-          ? "buyers adding"
-          : fuel === "fresh_sellers"
-            ? "writers adding"
-            : burst.delta >= 0
-              ? "writers adding"
-              : "shorts covering";
+    (fuel && FUEL_PLAIN[fuel]) || ((burst.delta ?? 0) >= 0 ? "writers adding" : "shorts covering");
   const what = `${sideLabel} ${plainFuel} ${compact(burst.delta)}`;
 
   // WHERE: the level the underlying closed beyond.
@@ -282,15 +305,19 @@ export function burstToAlert(
         { label: "TGT", value: signal.target.toFixed(2), tone: "up" as const },
         { label: "QTY", value: signal.qty > 0 ? String(signal.qty) : "—" },
         { label: "ΔOI", value: compact(burst.delta), tone },
-        ...(fuel ? [{ label: "FUEL", value: spent ? "spent" : "fresh" }] : []),
+        ...(showFuel ? [{ label: "FUEL", value: spent ? "spent" : "fresh" }] : []),
       ]
     : [
         ...setupMetrics,
-        { label: "ΔOI", value: compact(burst.delta), tone },
-        { label: "CUM", value: compact(burst.cumDoi), tone: burst.cumDoi >= 0 ? ("up" as const) : ("down" as const) },
-        { label: "TICK", value: compact(burst.tickVol) },
+        ...(hasRealOiMove(burst.delta)
+          ? [
+              { label: "ΔOI", value: compact(burst.delta), tone },
+              { label: "CUM", value: compact(burst.cumDoi), tone: (burst.cumDoi ?? 0) >= 0 ? ("up" as const) : ("down" as const) },
+              { label: "TICK", value: compact(burst.tickVol) },
+            ]
+          : []),
         { label: "SPOT", value: burst.spot.toLocaleString("en-IN", { maximumFractionDigits: 0 }) },
-        ...(fuel ? [{ label: "FUEL", value: spent ? "spent" : "fresh" }] : []),
+        ...(showFuel ? [{ label: "FUEL", value: spent ? "spent" : "fresh" }] : []),
       ];
 
   // Verdict: spent fuel with no break in this direction is not a trade.
@@ -331,15 +358,7 @@ export function burstToAlert(
   const whyTxt =
     burst.type === "squeeze"
       ? "short-covering squeeze through a wall"
-      : fuel === "writers_covering"
-      ? "shorts buying back lifts the index"
-      : fuel === "longs_liquidating"
-        ? "longs exiting presses the index"
-        : fuel === "fresh_buyers"
-          ? "fresh buying supports the index"
-          : fuel === "fresh_sellers"
-            ? "fresh selling caps the index"
-            : "flow shifted";
+      : (fuel && FUEL_WHY[fuel]) || "flow shifted";
   const doTxt = late
     ? `wait for a 1-min close ${dirWord} ${levelTxt} before buying`
     : signal
@@ -350,7 +369,7 @@ export function burstToAlert(
     burst.type === "coil"
       ? `spot ${formatNumberIN(burst.spot)} pressed on the ${burst.side} wall ${
           typeof burst.wall === "number" ? formatNumberIN(burst.wall) : "?"
-        } · ${burst.range_pct?.toFixed(3) ?? "?"}% range, ${burst.dist_pct?.toFixed(3) ?? "?"}% away · heads-up, no plan`
+        } · ${pctOrDash(burst.range_pct)} range, ${pctOrDash(burst.dist_pct)} away · heads-up, no plan`
       : suppressed
         ? `${what} ${where}. ${noTradeWhy}. ${doTxt}. Not a trade.`
         : signal
@@ -385,16 +404,19 @@ export function criticalBannerText(
   burst: OiBurst | undefined,
   alert: MarketAlert,
 ): string {
+  // Wall geometry/relocations, coils and stale-data warnings describe a state
+  // change, not an OI move: the alert itself is the whole banner.
+  if (burst && isNonTradeAlertType(burst.type)) return alert.title;
   // The backend withheld the plan or could not confirm a same-strike/spot leg.
   // Neither fuel nor the supplied alert may re-introduce a direction here: an
   // OI delta alone is not a buyer/writer claim and never carries a plan.
   if (burst && (burst.plan_suppressed === true || burst.flow === "unconfirmed")) {
-    const doi = compact(burst.delta);
+    const doi = hasRealOiMove(burst.delta) ? compact(burst.delta) : null;
     const spotTxt =
       Number.isFinite(burst.spot) && burst.spot > 0
         ? formatNumberIN(Math.round(burst.spot))
         : "";
-    const evidence = [`ΔOI ${doi}`, spotTxt ? `spot ${spotTxt}` : ""]
+    const evidence = [doi ? `ΔOI ${doi}` : "", spotTxt ? `spot ${spotTxt}` : ""]
       .filter((p) => p.length > 0)
       .join(" · ");
     return `OI SHIFT · unconfirmed — spot/premium did not confirm${
@@ -413,7 +435,7 @@ export function criticalBannerText(
   };
   const head = burst
     ? `CRITICAL ${burst.side === "call" ? "CALL" : "PUT"} ${
-        fuel ? plain[fuel] : burst.delta >= 0 ? "BUILD" : "UNWIND"
+        fuel ? plain[fuel] : (burst.delta ?? 0) >= 0 ? "BUILD" : "UNWIND"
       } ${doi}`
     : "CRITICAL";
   const spotTxt =

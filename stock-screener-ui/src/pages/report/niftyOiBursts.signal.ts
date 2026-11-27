@@ -20,6 +20,14 @@ import type {
 import { round2 } from "./niftyOiBursts.format";
 import { isNonTradeAlertType } from "./niftyOiBursts.normalize";
 
+/** A missing or non-finite OI reading is unknown — never a zero, never a
+ *  build/unwind direction. Only a real number may drive a directional claim. */
+function finiteOi(v: number | null | undefined): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+const NO_OI_BASIS = "no OI reading — no direction claimed";
+
 export function fuelStateFromFlow(flow: string): OiFuelState | null {
   switch (flow.trim().toLowerCase()) {
     case "buyers":
@@ -50,7 +58,12 @@ export function resolveFuelState(
     const f = fuelStateFromFlow(burst.flow);
     if (f) return f;
   }
-  const inferred = inferFlowFromPremium(burst.premChg, burst.delta > 0);
+  // Premium alone cannot say who traded: build vs unwind needs a REAL one-minute
+  // OI move. A coil's delta is 0 — a finite zero is still no move, so inferring
+  // "covering"/"liquidating" from its premium would invent spent fuel.
+  const delta = finiteOi(burst.delta);
+  if (delta === null || delta === 0) return null;
+  const inferred = inferFlowFromPremium(burst.premChg, delta > 0);
   return inferred ? fuelStateFromFlow(inferred) : null;
 }
 
@@ -135,12 +148,14 @@ function flowBasis(side: "call" | "put", flow: OiFlowKind, leg: "CE" | "PE"): st
 /**
  * Resolve the trade direction for a plain burst. Precedence: backend
  * `bearish` verdict → backend `flow` label → same-side ATM premium direction
- * (`premChg`) → legacy OI-only rule.
+ * (`premChg`) → legacy OI-only rule. The last two infer from OI direction, so
+ * a missing reading yields null: premium alone cannot tell build from unwind.
  */
-export function resolveOiDirection(
+function resolveOiDirectionOrNull(
   burst: Pick<OiBurst, "side" | "delta" | "flow" | "bearish" | "premChg">,
-): OiDirection {
-  const building = burst.delta > 0;
+): OiDirection | null {
+  const delta = finiteOi(burst.delta);
+  const building = delta !== null && delta > 0;
   // 1. The backend verdict is the reading — no inference needed.
   if (typeof burst.bearish === "boolean") {
     const leg = burst.bearish ? "PE" : "CE";
@@ -150,7 +165,7 @@ export function resolveOiDirection(
       flow && flow.leg === leg
         ? flowBasis(burst.side, flowLabel!.trim().toLowerCase() as OiFlowKind, leg)
         : `${burst.side === "call" ? "call" : "put"} OI ${
-            building ? "build" : "unwind"
+            delta === null ? "reading unavailable" : building ? "build" : "unwind"
           } — backend flow ${burst.bearish ? "bearish" : "bullish"} → ${
             leg === "CE" ? "buy calls" : "buy puts"
           }`;
@@ -167,6 +182,8 @@ export function resolveOiDirection(
       };
     }
   }
+  // Both remaining rules need an OI reading; a missing one claims nothing.
+  if (delta === null) return null;
   // 3. Same-side ATM premium direction over the burst minute.
   const inferred = inferFlowFromPremium(burst.premChg, building);
   if (inferred) {
@@ -186,6 +203,19 @@ export function resolveOiDirection(
       ? "put OI build — writers adding floor → fade with calls"
       : "put OI unwind — support removed → downside fuel → buy puts";
   return { leg, bearish: null, via: "oi", basis };
+}
+
+/** Keeps the non-null public shape for existing callers; with no OI reading
+ *  and no backend verdict the direction is explicitly marked as unclaimed. */
+export function resolveOiDirection(
+  burst: Pick<OiBurst, "side" | "delta" | "flow" | "bearish" | "premChg">,
+): OiDirection {
+  return resolveOiDirectionOrNull(burst) ?? {
+    leg: burst.side === "call" ? "CE" : "PE",
+    bearish: null,
+    via: "oi",
+    basis: NO_OI_BASIS,
+  };
 }
 
 /**
@@ -230,12 +260,16 @@ export function deriveOiSignal(
   if (isNonTradeAlertType(burst.type)) return null;
 
   const call = burst.side === "call";
-  const building = burst.delta > 0;
+  const delta = finiteOi(burst.delta);
+  const building = delta !== null && delta > 0;
   const isSqueeze = burst.type === "squeeze";
   const isPremium = burst.type === "premium";
   // Plain bursts read WHO traded (flow → premium → OI-only). A squeeze is
   // MOMENTUM: the broken side is being run over, so buy the break.
-  const dir = isSqueeze || isPremium ? null : resolveOiDirection(burst);
+  const dir = isSqueeze || isPremium ? null : resolveOiDirectionOrNull(burst);
+  // Neither a premium guess nor the legacy OI rule may claim a leg when the
+  // OI reading itself is missing and the backend gave no verdict.
+  if (!isSqueeze && !isPremium && dir === null) return null;
   const leg: "CE" | "PE" = dir
     ? dir.leg
     : (burst.leg ?? (call ? "CE" : "PE")) === "CE"
@@ -295,7 +329,9 @@ export function deriveOiSignal(
     : isSqueeze
       ? `short-covering squeeze — ${burst.side} wall ${
         typeof burst.wall === "number" ? formatNumberIN(burst.wall) : "?"
-        } broken while that side unwound ${formatNumberIN(Math.abs(burst.delta))} units`
+        } broken while that side unwound ${
+          delta === null ? "?" : formatNumberIN(Math.abs(delta))
+        } units`
       : (dir?.basis ??
         (call
           ? building

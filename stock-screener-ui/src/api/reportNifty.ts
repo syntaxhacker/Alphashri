@@ -1,6 +1,6 @@
 import { fetchWithAuth } from "../state/auth";
 import { apiErrorFromResponse, asApiError, isAbortError } from "./apiError";
-import { safeNum } from "../utils/reportParsers";
+import { safeNum, safeNumNull } from "../utils/reportParsers";
 import type {
   NiftyBurst,
   NiftyBurstFuelState,
@@ -1648,6 +1648,14 @@ export function normalizeBurst(raw: Record<string, unknown>): NiftyBurst {
   const t = String(raw.t ?? raw.time ?? "");
   const strikeRaw = raw.strike !== undefined && raw.strike !== null ? safeNum(raw.strike) : null;
   const targetRaw = raw.target !== undefined && raw.target !== null ? safeNum(raw.target) : null;
+  // Wall relocations carry `from`/`to` (no `wall`); coils carry geometry as
+  // optional percents. Keep missing readings absent so the renderer can say
+  // "unknown" instead of inventing a level or a 0% measurement.
+  const fromRaw = safeNumNull(raw.from);
+  const toRaw = safeNumNull(raw.to);
+  const migrationRaw = safeNumNull(raw.migration_strikes);
+  const rangePctRaw = safeNumNull(raw.range_pct);
+  const distPctRaw = safeNumNull(raw.dist_pct);
   // Wall events (and data-stale warnings) are emitted without an `id`. An
   // empty id collapsed every wall event into one row in the panel map AND was
   // silently dropped by the burst WS hook, so derive a deterministic one from
@@ -1691,6 +1699,12 @@ export function normalizeBurst(raw: Record<string, unknown>): NiftyBurst {
     ...(targetRaw !== null ? { target: targetRaw } : {}),
     ...(raw.wall !== undefined && raw.wall !== null ? { wall: safeNum(raw.wall) } : {}),
     ...(strikeRaw !== null ? { strike: strikeRaw } : {}),
+    ...(fromRaw !== null ? { from: fromRaw } : {}),
+    ...(toRaw !== null ? { to: toRaw } : {}),
+    ...(typeof raw.flip === "boolean" ? { flip: raw.flip } : {}),
+    ...(migrationRaw !== null ? { migration_strikes: migrationRaw } : {}),
+    ...(rangePctRaw !== null ? { range_pct: rangePctRaw } : {}),
+    ...(distPctRaw !== null ? { dist_pct: distPctRaw } : {}),
     ...(typeof raw.leg === "string" ? { leg: raw.leg } : {}),
     ...(typeof raw.label === "string" && raw.label.length > 0 ? { label: raw.label } : {}),
     ...(typeof raw.detail === "string" && raw.detail.length > 0 ? { detail: raw.detail } : {}),

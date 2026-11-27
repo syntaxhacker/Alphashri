@@ -787,6 +787,30 @@ describe("normalizeBurst (snake_case backend -> camelCase panel)", () => {
     });
     expect(burst.signal).toBeNull();
   });
+
+  // 2026-11-27 verifier defect 1/4: the backend emits wall relocations with
+  // `from`/`to`/`strike` (no `wall`) and coils with `range_pct`/`dist_pct`.
+  // Dropping these fields made the live wall headline read "? → 25,500".
+  test("carries wall relocation from/to and coil geometry, without inventing a wall", () => {
+    const wall = normalizeBurst({
+      id: "w1", type: "wall", side: "put", t: "11:20",
+      from: 25_400, to: 25_500, strike: 25_500,
+      flip: false, migration_strikes: 2,
+    });
+    expect(wall.from).toBe(25_400);
+    expect(wall.to).toBe(25_500);
+    expect(wall.flip).toBe(false);
+    expect(wall.migration_strikes).toBe(2);
+    expect(wall.wall).toBeUndefined(); // backend sends no `wall` on a relocation
+
+    const coil = normalizeBurst({
+      id: "c1", type: "coil", side: "call", t: "11:22",
+      range_pct: 0.12, dist_pct: 0.03,
+    });
+    expect(coil.range_pct).toBe(0.12);
+    expect(coil.dist_pct).toBe(0.03);
+    expect(normalizeBurst({ id: "c2", type: "coil" }).range_pct).toBeUndefined();
+  });
 });
 
 describe("fetchNiftyBursts (additive feed, never throws)", () => {

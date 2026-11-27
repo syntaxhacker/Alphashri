@@ -107,13 +107,13 @@ const section: SectionDefinition = {
   pinned: false,
 };
 
-// Enough rows that a real viewport must scroll; their presence is the moment
-// the user expects the wheel to work without a second interaction.
+// Enough matched rows that a real viewport must scroll; each card now renders
+// only its own signal's rows, so every fixture row must carry that signal.
 const manyRows: SectionScanRow[] = Array.from({ length: 40 }, (_, i) => ({
   symbol: `SYM-${String(i).padStart(3, "0")}`,
   name: `Symbol ${i}`,
   fields: { close: 100 + i, "change|5": 0.5 },
-  signals: { momentum_5m: i === 0 },
+  signals: { "momentum-5m": true },
 }));
 
 const scrollOwnerClasses = /(?:^|\s)overflow-(?:y-)?(?:auto|scroll)(?:\s|$)/;

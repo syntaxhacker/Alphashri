@@ -188,10 +188,13 @@ function buildSectionColumns(
       header: "SIGNAL",
       size: 72,
       enableSorting: false,
-      accessorFn: (row) => Object.values(row.signals ?? {}).some(Boolean),
+      // A row can carry flags for other sections from the same scan. Only this
+      // section's flag may earn the MATCH badge, or a card could badge a row
+      // its own heading does not count.
+      accessorFn: (row) => row.signals?.[section.id] === true,
       meta: { align: "center" },
       cell: ({ row }) =>
-        Object.values(row.original.signals ?? {}).some(Boolean) ? (
+        row.original.signals?.[section.id] === true ? (
           <div class="flex items-center justify-center">
             <Badge size="xs" variant="light" color="primary">
               MATCH
@@ -216,10 +219,12 @@ export function SectionTable(props: {
   loading?: boolean;
   error?: string | null;
   dense?: boolean;
+  /** The Screener card owns the border; a standalone mount keeps its own. */
+  borderless?: boolean;
   onOpenSymbol?: SymbolOpenHandler;
 }): JSX.Element {
   const hasSignals = createMemo(() =>
-    props.rows.some((row) => Object.values(row.signals ?? {}).some(Boolean)),
+    props.rows.some((row) => row.signals?.[props.section.id] === true),
   );
   const state = createMemo<SectionState | null>(() => {
     if (props.error?.trim()) return "error";
@@ -259,7 +264,10 @@ export function SectionTable(props: {
       ref={(el) => {
         panelEl = el;
       }}
-      class="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-fin border border-fin-border bg-fin-surface"
+      class={cn(
+        "relative flex min-h-0 flex-1 flex-col overflow-hidden bg-fin-surface",
+        !props.borderless && "rounded-fin border border-fin-border",
+      )}
       data-testid={`section-panel-${props.section.id}`}
       data-edge-fade={!atScrollEnd() ? "right" : undefined}
     >

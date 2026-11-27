@@ -12,6 +12,9 @@ import {
   MarketAlertLog,
   MarketAlertRow,
   MarketAlertStack,
+  logFixedWidth,
+  logLayoutFits,
+  logLayoutFor,
   formatAlertHm,
   formatAlertTime,
   type MarketAlert,
@@ -282,5 +285,84 @@ describe("MarketAlertLog", () => {
     fireEvent.keyDown(log, { key: "End" });
     fireEvent.keyDown(log, { key: "ArrowDown" });
     expect(getRows()[2].getAttribute("data-active")).toBe("1");
+  });
+});
+
+/**
+ * Geometry regression (defect 3): the old fixed 232px FACTS column forced the
+ * HEADLINE flex child to 0px at 390, hiding the alert type with no scroll cue.
+ * happy-dom has no layout engine, so the flex arithmetic is asserted both as a
+ * pure contract (the same constants the component renders) and as DOM styles.
+ */
+describe("MarketAlertLog geometry at narrow viewports", () => {
+  const atWidth = (width: number, fn: () => void) => {
+    const original = window.innerWidth;
+    window.innerWidth = width;
+    try {
+      window.dispatchEvent(new Event("resize"));
+      fn();
+    } finally {
+      window.innerWidth = original;
+      window.dispatchEvent(new Event("resize"));
+    }
+  };
+
+  test("390 layout fits with HEADLINE > 0 and no column overlap", () => {
+    const l = logLayoutFor(390);
+    expect(l.kind).toBe(0);
+    expect(l.headlineMin).toBeGreaterThan(0);
+    for (const col of ["sev", "symbol", "facts", "ist", "dismiss"] as const) {
+      expect(l[col], `${col} collapsed`).toBeGreaterThan(0);
+    }
+    expect(logLayoutFits(390, l)).toBe(true);
+    let cursor = 2;
+    for (const col of [l.sev, l.symbol, l.headlineMin, l.facts, l.ist, l.dismiss]) {
+      expect(cursor + col).toBeLessThanOrEqual(390);
+      cursor += col + 4;
+    }
+  });
+
+  test("1600 layout keeps the original wide columns", () => {
+    const wide = logLayoutFor(1600);
+    expect(wide).toEqual({
+      kind: 34,
+      sev: 70,
+      symbol: 92,
+      facts: 232,
+      ist: 34,
+      dismiss: 18,
+      headlineMin: 0,
+    });
+    expect(logFixedWidth(wide)).toBe(516);
+    expect(logLayoutFits(1600, wide)).toBe(true);
+  });
+
+  test("DOM at 390 renders a visible TYPE/HEADLINE, with SEV/SYMBOL/FACTS/IST intact", () => {
+    atWidth(390, () => {
+      r(<MarketAlertLog alerts={[alert()]} fill={false} height={120} />);
+      const log = screen.getByTestId("market-alert-log");
+      const head = within(log).getByTestId("market-alert-log-head");
+      const headHeadline = within(log).getByTestId("market-alert-log-headline");
+      const rowHeadline = within(log).getByTestId("market-alert-row-headline");
+      expect(headHeadline.style.minWidth).toBe("48px");
+      expect(rowHeadline.style.minWidth).toBe("48px");
+      expect(rowHeadline).toHaveTextContent("OI · Call ΔOI burst");
+      expect(head.querySelector('[data-col="kind"]')).toHaveStyle("display: none");
+      for (const col of ["sev", "symbol", "facts", "ist"]) {
+        expect(head.querySelector(`[data-col="${col}"]`), `${col} missing`).not.toBeNull();
+      }
+      expect(screen.queryByTestId("market-alert-log-scroll-cue")).toBeNull();
+      expect(log).toHaveAttribute("tabindex", "0");
+      fireEvent.keyDown(log, { key: "ArrowDown" });
+      expect(within(log).getAllByRole("alert")[0].getAttribute("data-active")).toBe("1");
+    });
+  });
+
+  test("an unfit width shows a reachable horizontal-scroll cue", () => {
+    atWidth(280, () => {
+      r(<MarketAlertLog alerts={[alert()]} fill={false} height={120} />);
+      expect(screen.getByTestId("market-alert-log-scroll-cue")).toHaveTextContent("SCROLL");
+      expect(screen.getByTestId("market-alert-log-scroll")).toHaveAttribute("tabindex", "0");
+    });
   });
 });

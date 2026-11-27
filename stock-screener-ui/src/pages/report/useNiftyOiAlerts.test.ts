@@ -660,3 +660,89 @@ describe("useNiftyOiAlerts withheld plans", () => {
     expect(result.banners()).toHaveLength(0);
   });
 });
+
+/**
+ * 2026-11-27 — wall relocations (`from`/`to`, no delta) and coils (`delta: 0`)
+ * are heads-ups, not directional bursts. The hook must not derive a plan or
+ * smuggle an "OI SHIFT · unconfirmed" label onto either row.
+ */
+describe("useNiftyOiAlerts non-trade wall and coil rows", () => {
+  type WallRow = OiBurst & { from?: number; to?: number; flip?: boolean };
+  const supplied: OiSignal = {
+    leg: "CE", strike: 26_000, entry: 185, sl: 138.75, target: 277.5,
+    qty: 65, lots: 1, basis: "backend plan — must not be shown",
+  };
+  const hasPlan = (a: MarketAlert) =>
+    a.metrics?.some((m) => ["ENTRY", "SL", "TGT", "QTY"].includes(m.label)) ?? false;
+
+  test("a relocated wall announces from → to with no plan or fake ΔOI", () => {
+    const { result, setters } = renderEmptyAlerts();
+    const row: WallRow = {
+      ...FRESH,
+      id: "wall-move-hook",
+      type: "wall",
+      side: "call",
+      from: 25_800,
+      to: 26_000,
+      strike: 26_000,
+      delta: 0,
+      baseline: 0,
+      cumDoi: 1_234_000,
+      tickVol: 10_000,
+      severity: "watch",
+      flow: "unconfirmed",
+      signal: supplied,
+    };
+    setters.setBursts([row]);
+    expect(result.trail()).toHaveLength(1);
+    const a = result.trail()[0];
+    expect(a.title).toContain("CALL WALL 25,800 → 26,000");
+    expect(a.title).not.toContain("OI SHIFT");
+    expect(hasPlan(a)).toBe(false);
+    expect(a.detail).not.toContain("backend plan");
+    expect(a.metrics?.find((m) => m.label === "ΔOI")).toBeUndefined();
+  });
+
+  test("a coil with a priceable chain stays a heads-up, not a zero-delta burst", () => {
+    const { result, setters } = renderEmptyAlerts();
+    setters.setBursts([{
+      ...FRESH,
+      id: "coil-hook",
+      type: "coil",
+      side: "call",
+      delta: 0,
+      cumDoi: 900_000,
+      tickVol: 0,
+      wall: 25_800,
+      range_pct: 0.12,
+      dist_pct: 0.03,
+      severity: "watch",
+      flow: "unconfirmed",
+      signal: supplied,
+    }]);
+    expect(result.trail()).toHaveLength(1);
+    const a = result.trail()[0];
+    expect(a.title).toContain("COILING @ 25,800");
+    expect(a.title).not.toContain("OI SHIFT");
+    expect(hasPlan(a)).toBe(false);
+    for (const label of ["ΔOI", "CUM", "TICK"]) {
+      expect(a.metrics?.find((m) => m.label === label)).toBeUndefined();
+    }
+  });
+
+  test("a genuine unconfirmed directional burst keeps its real ΔOI and no plan", () => {
+    const { result, setters } = renderEmptyAlerts();
+    setters.setBursts([{
+      ...FRESH,
+      id: "flow-unconfirmed-real",
+      flow: "unconfirmed",
+      delta: -1_480_000,
+      signal: supplied,
+    }]);
+    const a = result.trail()[0];
+    expect(a.title).toBe("OI SHIFT · unconfirmed");
+    expect(a.metrics?.find((m) => m.label === "ΔOI")?.value).toBe("-1.48M");
+    expect(hasPlan(a)).toBe(false);
+    expect(a.actionable).toBe(false);
+  });
+});

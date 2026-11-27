@@ -115,5 +115,34 @@ def test_basis_text_states_what_where_and_the_guard():
     assert "structure broken" in broke
 
 
+def test_flow_verification_still_denies_a_directional_burst_on_spot_conflict():
+    """The non-directional gate must not weaken confirmation for real OI moves."""
+    from api.reports_api.nifty_fuel import verify_burst_flow
+
+    def classify(side, delta, premium_change):
+        assert (side, delta, premium_change) == ("call", 10_000, -10.0)
+        return {"flow": "writers", "bearish": True}
+
+    frames = {
+        "2026-10-22T11:13": {
+            "rows": [[22_700.0, 80.0, 1_000.0, 0, 30.0, 5_000.0, 0]],
+        },
+        "2026-10-22T11:14": {
+            "rows": [[22_700.0, 70.0, 11_000.0, 0, 30.0, 5_000.0, 0]],
+        },
+    }
+    rows = [
+        {"t": "2026-10-22T11:13:00+05:30", "spot": 22_700.0},
+        {"t": "2026-10-22T11:14:00+05:30", "spot": 22_710.0},  # up vs claimed down
+    ]
+    burst = {"t": "2026-10-22T11:14:00+05:30", "side": "call",
+             "delta": 12_000, "bearish": True}  # call build claims "down"
+
+    assert verify_burst_flow(burst, rows, "2026-10-21", frames, classify) is False
+    assert burst["flow"] == "unconfirmed"
+    assert burst["plan_suppressed"] is True
+    assert "spot_disagrees" in burst["confirmation"]["reasons"]
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))

@@ -717,6 +717,15 @@ export interface NiftyBurst {
   leg?: string;
   /** Wall strike the squeeze broke through. */
   wall?: number;
+  /** Wall relocation state change — the backend emits `from`/`to`/`strike`
+   *  with no `wall` field. Absent means no relocation, not level zero. */
+  from?: number | null;
+  to?: number | null;
+  flip?: boolean;
+  migration_strikes?: number;
+  /** Coil geometry (percent). Absent means unknown — never print "?%". */
+  range_pct?: number | null;
+  dist_pct?: number | null;
   /** Human headline supplied by the backend (wall/data-stale events). */
   label?: string | null;
   /** Longer explanation supplied by the backend (wall/data-stale events). */

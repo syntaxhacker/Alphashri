@@ -4,6 +4,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
+import { normalizeBurst } from "@/api/reportNifty";
 import { MarketAlertRow, MarketAlertStack } from "@/components/notifications/MarketAlertCard";
 import type { OiBurst, OiSignal } from "./niftyOiBursts";
 import {
@@ -560,6 +561,67 @@ describe("strike-wall events", () => {
   });
 });
 
+/**
+ * 2026-11-27 — wall relocation is a STATE change (`from` → `to`), not a
+ * one-minute OI impulse. The backend sends no delta; rendering it through the
+ * burst grammar invented `ΔOI +0` and mislabelled it "OI SHIFT · unconfirmed".
+ */
+describe("wall relocation events (type: wall)", () => {
+  type WallRow = OiBurst & {
+    from?: number;
+    to?: number;
+    flip?: boolean;
+    migration_strikes?: number;
+  };
+  const relocation = (over: Partial<WallRow> = {}): WallRow => ({
+    id: "wall-move:2026-11-27T11:20:00+05:30:call:25800:26000",
+    type: "wall",
+    side: "call",
+    t: "2026-11-27T11:20:00+05:30",
+    from: 25_800,
+    to: 26_000,
+    strike: 26_000,
+    delta: 0,
+    baseline: 0,
+    score: 4,
+    severity: "watch",
+    cumDoi: 1_234_000,
+    spot: 25_912,
+    tickVol: 10_000,
+    ...over,
+  });
+
+  test("reads as a wall relocation, not an OI burst with a fake delta", () => {
+    const a = burstToAlert(relocation());
+    expect(a.title).toContain("CALL WALL 25,800 → 26,000");
+    expect(a.title).not.toContain("OI SHIFT");
+    expect(a.detail).not.toContain("ΔOI");
+    expect(a.detail).not.toContain("+0");
+    for (const label of ["ΔOI", "CUM", "TICK"]) {
+      expect(a.metrics?.find((m) => m.label === label)).toBeUndefined();
+    }
+    expect(a.metrics?.some((m) => m.value === "25,800")).toBe(true);
+    expect(a.metrics?.some((m) => m.value === "26,000")).toBe(true);
+    expect(a.actionable).toBe(false);
+  });
+
+  test("a side flip is named and put walls use the PUT label", () => {
+    const a = burstToAlert(
+      relocation({ side: "put", flip: true, severity: "alert", migration_strikes: 4 }),
+    );
+    expect(a.title).toContain("PUT WALL 25,800 → 26,000");
+    expect(a.title).toContain("SIDE FLIP");
+    expect(a.severity).toBe("alert");
+  });
+
+  test("an 'unconfirmed' label cannot turn a relocation into an OI SHIFT", () => {
+    const a = burstToAlert(relocation({ flow: "unconfirmed", plan_suppressed: true }));
+    expect(a.title).toContain("CALL WALL 25,800 → 26,000");
+    expect(a.title).not.toContain("OI SHIFT · unconfirmed");
+    expect(a.metrics?.find((m) => m.label === "ΔOI")).toBeUndefined();
+  });
+});
+
 describe("unconfirmed OI shifts are never trade plans", () => {
   afterEach(() => cleanup());
 
@@ -657,5 +719,143 @@ describe("unconfirmed OI shifts are never trade plans", () => {
     expect(stack).not.toHaveTextContent("BUY CE");
     expect(stack).not.toHaveTextContent("BUY PE");
     expect(stack).not.toHaveTextContent("backend plan");
+  });
+});
+
+describe("coil heads-ups carry no OI burst metrics", () => {
+  const coil = (over: Partial<OiBurst> = {}): OiBurst => ({
+    id: "coil-1",
+    type: "coil",
+    side: "call",
+    t: "2026-11-27T11:22:00+05:30",
+    delta: 0,
+    baseline: 0,
+    score: 0.12,
+    severity: "watch",
+    cumDoi: 900_000,
+    spot: 25_800,
+    tickVol: 0,
+    wall: 25_800,
+    range_pct: 0.12,
+    dist_pct: 0.03,
+    ...over,
+  });
+  const noOiMetrics = (a: ReturnType<typeof burstToAlert>) => {
+    for (const label of ["ΔOI", "CUM", "TICK"]) {
+      expect(a.metrics?.find((m) => m.label === label)).toBeUndefined();
+    }
+  };
+
+  test("a coil reads as coiling, not a zero-delta burst", () => {
+    const a = burstToAlert(coil());
+    expect(a.title).toContain("COILING @ 25,800");
+    expect(a.title).not.toContain("OI SHIFT");
+    expect(a.detail).toContain("heads-up, no plan");
+    noOiMetrics(a);
+    expect(a.metrics?.find((m) => m.label === "SPOT")?.value).toBe("25,800");
+  });
+
+  test("an unconfirmed-labelled coil stays a coil, never 'OI SHIFT · unconfirmed'", () => {
+    const a = burstToAlert(coil({ flow: "unconfirmed", plan_suppressed: true }));
+    expect(a.title).toContain("COILING @ 25,800");
+    expect(a.title).not.toContain("OI SHIFT · unconfirmed");
+    expect(a.detail).not.toContain("Call OI +0 in 1 min");
+    noOiMetrics(a);
+  });
+});
+
+describe("unconfirmed bursts only print a real delta", () => {
+  const base = (delta: number): OiBurst => ({
+    id: "unconfirmed-delta",
+    side: "call",
+    t: "2026-11-26T12:05:00+05:30",
+    delta,
+    baseline: 100_000,
+    score: 14.2,
+    severity: "critical",
+    cumDoi: delta,
+    spot: 24_310,
+    tickVol: 900_000,
+    flow: "unconfirmed",
+  });
+
+  test("a genuine directional burst keeps its real ΔOI", () => {
+    const a = burstToAlert(base(-2_400_000), null);
+    expect(a.title).toBe("OI SHIFT · unconfirmed");
+    expect(a.detail).toContain("Call OI -2.40M in 1 min");
+    expect(a.metrics?.find((m) => m.label === "ΔOI")?.value).toBe("-2.40M");
+    expect(criticalBannerText(base(-2_400_000), a)).toContain("ΔOI -2.40M");
+  });
+
+  test("a zero or non-finite delta is omitted, never printed as +0 or NaN", () => {
+    for (const delta of [0, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const b = base(delta);
+      const a = burstToAlert(b, null);
+      expect(a.title).toBe("OI SHIFT · unconfirmed");
+      expect(a.detail).not.toContain("+0");
+      expect(a.detail).not.toContain("NaN");
+      expect(a.detail).not.toContain("Infinity");
+      expect(a.metrics?.find((m) => m.label === "ΔOI")).toBeUndefined();
+      expect(criticalBannerText(b, a)).not.toContain("ΔOI +0");
+      expect(criticalBannerText(b, a)).not.toContain("NaN");
+    }
+  });
+});
+
+/**
+ * 2026-11-27 independent verifier defects 1, 2 and 4. Evidence fixtures had a
+ * `wall` field and always supplied range/dist, hiding all three in production:
+ * the backend emits `from`/`to` with no `wall`, coils have delta 0, and the
+ * geometry fields are frequently absent.
+ */
+describe("production-shaped wall and coil payloads", () => {
+  test("a backend wall relocation (from/to, no wall field) renders FROM and TO, never ?", () => {
+    const raw = normalizeBurst({
+      id: "wall-prod", type: "wall", side: "put",
+      t: "2026-11-27T11:20:00+05:30",
+      from: 25_400, to: 25_500, strike: 25_500,
+      flip: false, migration_strikes: 2,
+      spot: 25_480, severity: "watch",
+    });
+    const a = burstToAlert(raw as OiBurst, null);
+    expect(a.title).toContain("PUT WALL 25,400 → 25,500");
+    expect(a.title).not.toContain("?");
+    expect(a.metrics?.find((m) => m.label === "FROM")?.value).toBe("25,400");
+    expect(a.metrics?.find((m) => m.label === "TO")?.value).toBe("25,500");
+    expect(a.metrics?.find((m) => m.label === "STEPS")?.value).toBe("2");
+  });
+
+  test("a zero-delta coil with a premium change prints no FUEL and no flow claim", () => {
+    const coil: OiBurst = {
+      id: "coil-2", type: "coil", side: "call", t: "2026-11-27T11:22:00+05:30",
+      delta: 0, baseline: 0, score: 0.12, severity: "watch",
+      cumDoi: 900_000, spot: 25_800, tickVol: 0, wall: 25_800,
+      premChg: 12, range_pct: 0.12, dist_pct: 0.03,
+    };
+    const a = burstToAlert(coil, null);
+    expect(a.metrics?.find((m) => m.label === "FUEL")).toBeUndefined();
+    for (const claim of ["shorts covering", "buyers adding", "writers adding", "longs exiting"]) {
+      expect(a.detail).not.toContain(claim);
+      expect(a.title).not.toContain(claim);
+    }
+    expect(a.detail).toContain("0.120% range, 0.030% away");
+  });
+
+  test("an explicit backend fuel_state on a coil is suppressed too", () => {
+    const coil: OiBurst = {
+      id: "coil-3", type: "coil", side: "call", t: "2026-11-27T11:22:00+05:30",
+      delta: 0, baseline: 0, score: 0.12, severity: "watch",
+      cumDoi: 900_000, spot: 25_800, tickVol: 0, wall: 25_800,
+      fuel_state: "writers_covering",
+    };
+    const a = burstToAlert(coil, null);
+    expect(a.metrics?.find((m) => m.label === "FUEL")).toBeUndefined();
+  });
+
+  test("missing coil geometry renders an em dash, never ?%", () => {
+    const raw = normalizeBurst({ id: "coil-4", type: "coil", side: "call", t: "11:22", spot: 25_800, wall: 25_800 });
+    const a = burstToAlert(raw as OiBurst, null);
+    expect(a.detail).not.toContain("?%");
+    expect(a.detail).toContain("— range, — away");
   });
 });
