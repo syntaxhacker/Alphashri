@@ -579,8 +579,13 @@ describe("ValuePanel — preset gallery entry", () => {
     expect(screen.queryByTestId("market-value-preset")).toBeNull();
     expect(screen.queryByTestId("market-filter-peMax")).toBeNull();
     expect(screen.queryByTestId("market-mover-gapUp")).toBeNull();
+    const count = screen.getByTestId("preset-match-count");
+    expect(count).toHaveTextContent("6 matching presets");
+    expect(count).toHaveTextContent("12 in collapsed Market table presets");
 
     fireEvent.click(screen.getByTestId("preset-movers-toggle"));
+    expect(count).toHaveTextContent("18 matching presets");
+    expect(count).not.toHaveTextContent("collapsed Market table presets");
     for (const preset of MOVER_PRESETS) {
       expect(screen.getByTestId(`preset-card-${preset.id}`)).toBeInTheDocument();
     }
@@ -622,11 +627,22 @@ describe("ValuePanel — preset gallery entry", () => {
     await waitFor(() => expect(select.value).toBe("DEEP"));
     expect(select.selectedOptions[0]?.textContent).toBe("Deep");
     expect(screen.getByTestId("value-preset-current")).toHaveTextContent("Deep");
+    // The badge lives in the secondary header row, so applying it cannot push
+    // the Presets button onto a new row at 390.
+    expect(
+      within(screen.getByTestId("value-header-secondary")).getByTestId(
+        "value-preset-current",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("value-header")).getByTestId("value-preset-gallery"),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("value-preset-gallery"));
     expect(screen.getByTestId("value-preset-active-DEEP")).toHaveTextContent("Active");
     const clear = screen.getByTestId("value-preset-clear-DEEP");
     expect(clear).toBeEnabled();
+    clear.focus();
     fireEvent.click(clear);
     await waitFor(
       () => expect(mockValueScan.mock.calls.at(-1)?.[0]?.preset).toBeUndefined(),
@@ -635,6 +651,11 @@ describe("ValuePanel — preset gallery entry", () => {
     await waitFor(() => expect(select.value).toBe(""));
     expect(select.selectedOptions[0]?.textContent).toBe("No preset");
     expect(screen.queryByTestId("value-preset-current")).toBeNull();
+    // The focused Clear button disables itself; focus moves to search instead
+    // of falling through to BODY.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByTestId("market-preset-search")),
+    );
   });
 
   test("a value preset applies and clears from the gallery", async () => {
@@ -700,9 +721,13 @@ describe("ValuePanel — preset gallery entry", () => {
       "FCF yield percentile ≥ 80%",
       "Min mcap ₹0.5B",
       "D/E ≤ 0.8",
+      "Not among the furthest 15% below the 52W high",
     ]) {
       expect(within(deep).getByText(label)).toBeInTheDocument();
     }
+    expect(within(screen.getByTestId("value-preset-card-SERIOUS")).getByText(
+      "Not among the furthest 25% below the 52W high",
+    )).toBeInTheDocument();
     expect(deep).not.toHaveTextContent("PE PCT MAX");
     expect(deep).not.toHaveTextContent("MIN MCAP BN");
     expect(deep).not.toHaveTextContent("ABOVE 200DMA ON");
@@ -770,6 +795,23 @@ describe("ValuePanel — preset gallery entry", () => {
     expect(document.activeElement).toBe(screen.getByTestId("value-preset-apply-DEEP"));
     fireEvent.keyDown(document, { key: "ArrowUp" });
     expect(document.activeElement).toBe(screen.getByTestId("value-preset-apply-SERIOUS"));
+  });
+
+  test("arrows fall through to the expanded mover band when the value band is empty", async () => {
+    r(<ValuePanel onApplyMarketPreset={vi.fn()} />);
+    await screen.findByTestId("value-row-RELIANCE");
+    fireEvent.click(screen.getByTestId("value-preset-gallery"));
+    const search = screen.getByTestId("market-preset-search");
+    await waitFor(() => expect(document.activeElement).toBe(search));
+
+    fireEvent.input(search, { target: { value: "gap up" } });
+    const moverApply = await screen.findByTestId("market-mover-gapUp");
+    expect(screen.queryByTestId("preset-no-matches-value")).toHaveTextContent(
+      "No value presets match",
+    );
+
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(moverApply);
   });
 
   test("clearing the search restores the list and returns focus to search", async () => {

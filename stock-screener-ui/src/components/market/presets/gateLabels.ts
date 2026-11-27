@@ -66,7 +66,7 @@ export function valueGateLabel(
   if (key === "min_mcap_bn") return `Min mcap ${currencySymbol}${fmt(Number(value))}B`;
   if (key === "max_mcap_bn") return `Max mcap ${currencySymbol}${fmt(Number(value))}B`;
   if (key === "off_52w_high_pct_min") {
-    return `Not in the bottom ${fmt(Number(value) * 100)}% below the 52W high`;
+    return `Not among the furthest ${fmt(Number(value) * 100)}% below the 52W high`;
   }
   if (key === "sectors") return `Sector: ${String(value)}`;
 

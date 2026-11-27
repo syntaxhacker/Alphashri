@@ -227,11 +227,6 @@ export function ValuePanel(props: ValuePanelProps) {
               size="sm"
               data-testid="value-preset-select"
             />
-            <Show when={filters().preset}>
-              <Badge size="xs" color="primary" variant="light" data-testid="value-preset-current">
-                {VALUE_PRESETS[filters().preset ?? ""]?.label ?? filters().preset}
-              </Badge>
-            </Show>
             <Button
               size="sm"
               variant="outline"
@@ -244,7 +239,12 @@ export function ValuePanel(props: ValuePanelProps) {
               Presets
             </Button>
           </ToolbarRow>
-          <ToolbarRow gap={8}>
+          <ToolbarRow gap={8} data-testid="value-header-secondary">
+            <Show when={filters().preset}>
+              <Badge size="xs" color="primary" variant="light" data-testid="value-preset-current">
+                {VALUE_PRESETS[filters().preset ?? ""]?.label ?? filters().preset}
+              </Badge>
+            </Show>
             <Show when={lastUpdated()}>
               <Text size="xs" c="dimmed" data-testid="value-as-of">
                 {`as of ${formatValueAsOf(lastUpdated())}`}

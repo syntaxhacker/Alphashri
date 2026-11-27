@@ -152,10 +152,20 @@ export function PresetGallery(props: PresetGalleryProps) {
   const showMovers = () =>
     (props.showMovers ?? true) && (mode() === "market" || props.onMarketPreset != null);
   const showValueSection = () => mode() === "value" && props.valuePresets != null;
+  const valueMatchCount = () => (showValueSection() ? visibleValueEntries().length : 0);
+  const collapsedMoverCount = () => (showMovers() && !moversOpen() ? visibleMovers().length : 0);
   const matchCount = () =>
     (mode() === "market" && showDeep() ? 1 : 0) +
-    (showValueSection() ? visibleValueEntries().length : 0) +
-    (showMovers() ? visibleMovers().length : 0);
+    valueMatchCount() +
+    (showMovers() && moversOpen() ? visibleMovers().length : 0);
+  const countLabel = () => {
+    const base = `${matchCount()} matching preset${matchCount() === 1 ? "" : "s"}`;
+    const collapsed =
+      collapsedMoverCount() > 0
+        ? ` · ${collapsedMoverCount()} in collapsed Market table presets`
+        : "";
+    return `${base}${collapsed} · ↑↓ to walk · Esc to close`;
+  };
 
   const focusSearch = (): void => {
     document
@@ -198,18 +208,43 @@ export function PresetGallery(props: PresetGalleryProps) {
     if (props.opened && needle() !== "" && mode() === "value") setMoversOpen(true);
   });
 
+  // A new search result set starts at its first visible action, not at a stale
+  // index from the previous list.
+  createEffect(() => {
+    needle();
+    setCursor(-1);
+  });
+
   const sectionId = (): string => {
     if (props.focus === "movers") return "market-movers-list";
     return mode() === "value" ? "value-preset-gallery-list" : "market-value-fields";
   };
 
-  /** Arrow walking stays inside the band the user entered from. */
-  const applyButtons = (): HTMLButtonElement[] =>
+  const sectionOrder = (): string[] => {
+    // From the mover entry, the walk must never jump back to an off-screen
+    // Deep card. Every other entry may fall through to later visible bands.
+    if (props.focus === "movers") return ["market-movers-list"];
+    if (mode() === "value") return ["value-preset-gallery-list", "market-movers-list"];
+    return ["market-value-fields", "market-movers-list"];
+  };
+
+  const buttonsIn = (id: string): HTMLButtonElement[] =>
     Array.from(
-      document.querySelectorAll<HTMLButtonElement>(
-        `#${sectionId()} [data-preset-apply="true"]`,
-      ),
+      document.querySelectorAll<HTMLButtonElement>(`#${id} [data-preset-apply="true"]`),
     );
+
+  /** Arrow walking stays in its band unless that band has no visible match. */
+  const applyButtons = (): HTMLButtonElement[] => {
+    const focused = sectionId();
+    const own = buttonsIn(focused);
+    if (own.length > 0) return own;
+    for (const id of sectionOrder()) {
+      if (id === focused) continue;
+      const next = buttonsIn(id);
+      if (next.length > 0) return next;
+    }
+    return [];
+  };
 
   const moveCursor = (delta: 1 | -1): void => {
     const buttons = applyButtons();
@@ -281,7 +316,9 @@ export function PresetGallery(props: PresetGalleryProps) {
               "align-self": "flex-end",
               height: "min(82dvh, 720px)",
               "max-height": "82dvh",
-              "border-radius": "12px 12px 0 0",
+              "border-radius": "10px",
+              "border-bottom-left-radius": "0px",
+              "border-bottom-right-radius": "0px",
               "border-bottom": "0",
             }
           : undefined
@@ -341,7 +378,7 @@ export function PresetGallery(props: PresetGalleryProps) {
             data-testid="preset-match-count"
           >
             <Text size="xs" c="dimmed">
-              {`${matchCount()} matching preset${matchCount() === 1 ? "" : "s"} · ↑↓ to walk · Esc to close`}
+              {countLabel()}
             </Text>
           </div>
         </Box>
@@ -419,7 +456,13 @@ export function PresetGallery(props: PresetGalleryProps) {
                         variant="subtle"
                         disabled={!active()}
                         data-testid={`value-preset-clear-${id}`}
-                        onClick={() => props.valuePresets?.onSelect(undefined)}
+                        onClick={() => {
+                          // Clearing disables this button while it owns focus;
+                          // without a hand-off the browser drops focus to body.
+                          // Search is the stable target across the card rebuild.
+                          props.valuePresets?.onSelect(undefined);
+                          focusSearch();
+                        }}
                       >
                         Clear
                       </Button>
