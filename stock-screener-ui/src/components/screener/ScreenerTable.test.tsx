@@ -695,3 +695,57 @@ describe("ScreenerTable controlled sorting with the real useTablePrefs", () => {
     expect(changeHeader()).toHaveAttribute("aria-sort", "descending");
   });
 });
+
+describe("ScreenerTable per-symbol copy", () => {
+  const dockOpen = vi.fn();
+  const dockValue = {
+    open: dockOpen,
+    close: vi.fn(),
+    preview: vi.fn(),
+    endPreview: vi.fn(),
+    pinned: false,
+    setOutlet: vi.fn(),
+  };
+
+  function renderTable(stocks: Stock[] = mockStocks) {
+    return render(() => (
+      <UIProvider>
+        <SymbolDockContext.Provider value={dockValue}>
+          <ScreenerTable {...defaultProps} stocks={stocks} onSymbolClick={dockOpen} />
+        </SymbolDockContext.Provider>
+      </UIProvider>
+    ));
+  }
+
+  beforeEach(() => {
+    dockOpen.mockClear();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps copy-all and the symbol affordances, with a 16px per-symbol copy action", () => {
+    renderTable();
+
+    const copy = screen.getByTestId("copy-symbol-btn-RELIANCE");
+    expect(copy).toHaveAccessibleName("Copy RELIANCE");
+    expect(copy).toHaveStyle({ width: "16px", height: "16px" });
+    expect(screen.getByTestId("copy-all-symbols-btn")).toBeInTheDocument();
+    expect(screen.getByTestId("symbol-link-RELIANCE")).toBeInTheDocument();
+    expect(screen.getByTestId("symbol-tv-RELIANCE")).toBeInTheDocument();
+  });
+
+  it("copies the displayed ticker without opening the dock or the row", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    renderTable([{ ...mockStock, symbol: "NSE:RELIANCE" }]);
+
+    await fireEvent.click(screen.getByTestId("copy-symbol-btn-NSE:RELIANCE"));
+
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
+    expect(dockOpen).not.toHaveBeenCalled();
+    expect(screen.getByTestId("stock-row-NSE:RELIANCE")).toBeInTheDocument();
+  });
+});

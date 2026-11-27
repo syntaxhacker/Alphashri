@@ -1,5 +1,5 @@
 import { Show } from "solid-js";
-import { ActionIcon, Box, Button, Modal, Text, Tooltip } from "@/ui";
+import { ActionIcon, Box, Button, CopyButton, Modal, Text, Tooltip } from "@/ui";
 import {
   IconArrowsMaximize,
   IconChevronLeft,
@@ -7,6 +7,8 @@ import {
   IconRefresh,
   IconX,
 } from "@/ui/icons";
+import { IconCheck, IconCopy, IconExternalLink } from "../common/Icons";
+import { displaySymbol, tradingViewChartUrl } from "@/config/tvSymbols";
 import type {
   ChartCandle,
   ChartIndicators,
@@ -169,6 +171,12 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
       </Tooltip>
     ) : null;
 
+  const dockSymbol = () => props.hit?.symbol ?? props.symbol ?? "";
+  const dockTvUrl = () => {
+    const raw = dockSymbol();
+    return raw ? tradingViewChartUrl(raw, props.market) : "";
+  };
+
   const openChartPageHref = () =>
     !props.docked && props.symbol ? chartHrefForSymbol(props.symbol, props.market) : null;
 
@@ -200,6 +208,54 @@ export function PatternFullscreenView(props: PatternFullscreenViewProps) {
           <Box className="min-w-0 flex-1">{renderToolbar()}</Box>
           {renderStepper()}
           {renderRefreshButton()}
+          <Show when={dockSymbol()}>
+            {(raw) => {
+              const label = displaySymbol(raw());
+              return (
+                <>
+                  <Show when={dockTvUrl()}>
+                    {(href) => (
+                      <Tooltip label={`View ${label} on TradingView`}>
+                        <Box
+                          component="a"
+                          href={href()}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`Open ${label} on TradingView`}
+                          title={`View ${label} on TradingView`}
+                          data-testid="patterns-dock-tv"
+                          className="mt-[2px] inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-fin text-fin-text-muted hover:text-fin-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
+                        >
+                          <IconExternalLink size={14} />
+                        </Box>
+                      </Tooltip>
+                    )}
+                  </Show>
+                  <CopyButton value={label}>
+                    {({ copied, copy }) => (
+                      <Tooltip label={copied ? `Copied ${label}` : `Copy ${label}`}>
+                        <ActionIcon
+                          size="xs"
+                          variant="subtle"
+                          color={copied ? "info" : undefined}
+                          aria-label={`Copy ${label}`}
+                          title={copied ? `Copied ${label}` : `Copy ${label}`}
+                          data-testid="patterns-dock-copy"
+                          className="mt-[2px] shrink-0"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            copy();
+                          }}
+                        >
+                          {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                  </CopyButton>
+                </>
+              );
+            }}
+          </Show>
           {props.asOf && props.onLive ? (
             <Tooltip label="Return to live data">
               <Button

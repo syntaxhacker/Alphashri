@@ -126,7 +126,10 @@ beforeEach(() => {
   store.refresh.mockClear();
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("CatalystRadarPanel states", () => {
   test("shows a loader until the first payload arrives", () => {
@@ -176,6 +179,22 @@ describe("CatalystRadarPanel states", () => {
     expect(screen.getByTestId("catalyst-stale")).toHaveTextContent("no update since 10:00 IST");
     expect(screen.getByTestId("catalyst-asof")).toHaveTextContent("STALE 10:00 IST");
     expect(screen.getByTestId("catalyst-row-MARUTI")).toBeInTheDocument();
+  });
+
+  test("copies the display symbol from a symbol cell without expanding the row", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    store.data = payload({ rows: [row({ symbol: "NSE:MARUTI", name: "Maruti Suzuki" })] });
+    renderPanel();
+
+    const text = screen.getByTestId("catalyst-symbol-NSE:MARUTI");
+    expect(text).toHaveTextContent("MARUTI");
+    const copy = screen.getByTestId("copy-symbol-MARUTI");
+    expect(copy).toHaveAttribute("aria-label", "Copy MARUTI");
+
+    await fireEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("MARUTI");
+    expect(screen.queryByTestId("catalyst-detail-NSE:MARUTI")).toBeNull();
   });
 
   test("reports the confirmed count from the rows, not the payload counts", () => {

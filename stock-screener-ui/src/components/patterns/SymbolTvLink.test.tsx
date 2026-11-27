@@ -10,7 +10,10 @@ vi.mock("@/ui", async () => {
 import { SymbolTvLink } from "./SymbolTvLink";
 
 describe("SymbolTvLink", () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
 
   test("builds the TradingView URL from the symbol (default NSE market)", () => {
     render(() => <SymbolTvLink symbol="IRCON" testId="tv-IRCON">IRCON</SymbolTvLink>);
@@ -45,6 +48,21 @@ describe("SymbolTvLink", () => {
       </SymbolTvLink>);
     expect(screen.getByTestId("label")).toHaveTextContent("Custom Label");
     expect(screen.getByTestId("tv-custom")).toHaveTextContent("Custom Label");
+  });
+
+  test("showCopy adds a copy button that writes the display symbol without following the TV link", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const parentOnClick = vi.fn();
+    render(() => <div data-testid="wrap" onClick={parentOnClick}>
+        <SymbolTvLink symbol="NSE:RELIANCE" testId="tv-copy" showCopy>RELIANCE</SymbolTvLink>
+      </div>);
+
+    const copy = screen.getByTestId("symbol-copy-RELIANCE");
+    expect(copy).toHaveAttribute("aria-label", "Copy RELIANCE");
+    await fireEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
+    expect(parentOnClick).not.toHaveBeenCalled();
   });
 
   test("clicking the link stops propagation and does not bubble", async () => {

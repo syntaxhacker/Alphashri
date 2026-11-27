@@ -1,7 +1,7 @@
 import { createMemo, Show } from "solid-js";
 import { usePolling } from "@/hooks/usePolling";
-import { Text, Badge, Loader, ActionIcon, typeSize } from "@/ui";
-import { IconRefresh } from "@/components/common/Icons";
+import { Text, Badge, Loader, ActionIcon, CopyButton, Box, typeSize } from "@/ui";
+import { IconCheck, IconCopy, IconRefresh } from "@/components/common/Icons";
 import { useStoreSnapshot } from "./storeSnapshot";
 import { getPaperTradingState, subscribe } from "../../state/paperTrading";
 import { fetchActivityFeed } from "../../api/paperTrading";
@@ -59,18 +59,41 @@ export function ActivityFeed() {
       accessorKey: "symbol",
       size: 88,
       meta: { align: "left" },
-      cell: ({ row }) => (
-        <Text
-          className="paper-activity-symbol font-mono tabular-nums"
-          fw={600}
-          size="xs"
-          c={palette.PRIMARY}
-          title={row.original.symbol}
-          style={{ "font-size": `${typeSize("micro")}px` }}
-        >
-          {displayOptionSymbol(row.original.symbol ?? "")}
-        </Text>
-      ),
+      cell: ({ row }) => {
+        const label = () => displayOptionSymbol(row.original.symbol ?? "");
+        return (
+          <Box className="flex min-w-0 items-center gap-[2px]">
+            <Text
+              className="paper-activity-symbol min-w-0 truncate font-mono tabular-nums"
+              fw={600}
+              size="xs"
+              c={palette.PRIMARY}
+              title={row.original.symbol}
+              style={{ "font-size": `${typeSize("micro")}px` }}
+            >
+              {label()}
+            </Text>
+            <CopyButton value={label()}>
+              {({ copied, copy }) => (
+                <ActionIcon
+                  variant="subtle"
+                  color={copied ? "info" : "secondary"}
+                  size="xs"
+                  style={{ width: "16px", height: "16px", "min-height": "16px", padding: "0px" }}
+                  onClick={(event: MouseEvent) => {
+                    event.stopPropagation();
+                    copy();
+                  }}
+                  aria-label={`Copy ${label()}`}
+                  data-testid={`copy-symbol-${label()}`}
+                >
+                  {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+                </ActionIcon>
+              )}
+            </CopyButton>
+          </Box>
+        );
+      },
     },
     {
       id: "side",

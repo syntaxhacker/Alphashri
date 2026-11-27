@@ -1,6 +1,6 @@
 import { Show } from "solid-js";
-import { Text, Button, Tooltip } from "@/ui";
-import { IconX } from "@/components/common/Icons";
+import { ActionIcon, CopyButton, Text, Button, Tooltip } from "@/ui";
+import { IconCheck, IconCopy, IconX } from "@/components/common/Icons";
 import type { PaperPosition } from "../../types/paperTrading";
 import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";
 import { displayOptionSymbol } from "./optionTradeUtils";
@@ -30,9 +30,29 @@ export function SelectedPositionBar(props: SelectedPositionBarProps) {
         return (
           <div class="paper-selected-bar flex items-center justify-between flex-wrap gap-2 px-2 py-1 border-t border-fin-border rounded-b-fin" id={`paper-selected-bar-${pos().symbol}`} style={{ "background-color": bgTint() }}>
             <div class="paper-selected-bar-main flex items-center gap-4 flex-wrap">
-              <Text className="paper-selected-bar-symbol font-mono tabular-nums" id={`paper-selected-bar-symbol-${pos().symbol}`} size="sm" fw={600} title={pos().symbol}>
-                {displayOptionSymbol(pos().symbol)}
-              </Text>
+              <span class="inline-flex min-w-0 items-center gap-[2px]">
+                <Text className="paper-selected-bar-symbol font-mono tabular-nums" id={`paper-selected-bar-symbol-${pos().symbol}`} size="sm" fw={600} title={pos().symbol}>
+                  {displayOptionSymbol(pos().symbol)}
+                </Text>
+                <CopyButton value={displayOptionSymbol(pos().symbol)}>
+                  {({ copied, copy }) => (
+                    <ActionIcon
+                      variant="subtle"
+                      color={copied ? "info" : "secondary"}
+                      size="xs"
+                      style={{ width: "16px", height: "16px", "min-height": "16px", padding: "0px" }}
+                      onClick={(event: MouseEvent) => {
+                        event.stopPropagation();
+                        copy();
+                      }}
+                      aria-label={`Copy ${displayOptionSymbol(pos().symbol)}`}
+                      data-testid={`copy-symbol-${displayOptionSymbol(pos().symbol)}`}
+                    >
+                      {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+                    </ActionIcon>
+                  )}
+                </CopyButton>
+              </span>
               <div class="paper-selected-bar-side flex items-center px-2 py-1 rounded-[1px]" style={{ "background-color": alpha(pos().side === "BUY" ? palette.POSITIVE : palette.NEGATIVE, 0.08) }}>
                 <Text className="paper-selected-bar-side-text" size="xs" fw={600} c={sideColor()}>
                   {pos().side}

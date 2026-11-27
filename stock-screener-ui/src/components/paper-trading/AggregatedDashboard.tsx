@@ -1,6 +1,6 @@
 import { createSignal, createMemo, createEffect, For, Show } from "solid-js";
-import { IconRefresh } from "@/components/common/Icons";
-import { Badge, Button, Center, Loader, Select, Text, Box, Flex, Group, Stack, typeSize } from "@/ui";
+import { IconCheck, IconCopy, IconRefresh } from "@/components/common/Icons";
+import { ActionIcon, Badge, Button, Center, CopyButton, Loader, Select, Text, Box, Flex, Group, Stack, typeSize } from "@/ui";
 import { useStoreSnapshot } from "./storeSnapshot";
 import { getPaperTradingState, subscribe } from "../../state/paperTrading";
 import { fetchDashboardAnalytics } from "../../api/paperTrading";
@@ -64,6 +64,35 @@ function formatHold(minutes: number | null | undefined) {
 
 function pct(value: number) {
   return `${value.toFixed(1)}%`;
+}
+
+function DashboardSymbolCell(props: { symbol: string }) {
+  const label = () => displayOptionSymbol(props.symbol);
+  return (
+    <Box className="flex min-w-0 items-center gap-[2px]">
+      <Text fw={700} size="sm" title={props.symbol} className="min-w-0 truncate">
+        {label()}
+      </Text>
+      <CopyButton value={label()}>
+        {({ copied, copy }) => (
+          <ActionIcon
+            variant="subtle"
+            color={copied ? "info" : "secondary"}
+            size="xs"
+            style={{ width: "16px", height: "16px", "min-height": "16px", padding: "0px" }}
+            onClick={(event: MouseEvent) => {
+              event.stopPropagation();
+              copy();
+            }}
+            aria-label={`Copy ${label()}`}
+            data-testid={`copy-symbol-${label()}`}
+          >
+            {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+          </ActionIcon>
+        )}
+      </CopyButton>
+    </Box>
+  );
 }
 
 function chartBase(xData: string[], series: any[], yFormatter = "₹{value}") {
@@ -274,7 +303,7 @@ function TradesTable(props: { title: string; trades: PaperDashboardTradeItem[] }
   const isWinners = () => props.title.toLowerCase().includes("win");
   const accentColor = () => isWinners() ? "success" as const : "error" as const;
   const columns: TableColumnDef<PaperDashboardTradeItem>[] = [
-    { id: "symbol", header: "Symbol", accessorKey: "symbol", meta: { align: "left" }, cell: ({ row }) => <Text fw={700} size="sm" title={row.original.symbol}>{displayOptionSymbol(row.original.symbol)}</Text> },
+    { id: "symbol", header: "Symbol", accessorKey: "symbol", meta: { align: "left" }, cell: ({ row }) => <DashboardSymbolCell symbol={row.original.symbol} /> },
     { id: "bot", header: "Bot", accessorKey: "bot_name", meta: { align: "left" } },
     { id: "strategy", header: "Strategy", accessorKey: "strategy_name", meta: { align: "left" } },
     { id: "exit", header: "Exit Reason", accessorKey: "exit_reason", meta: { align: "center" }, cell: ({ row }) => <Badge size="xs" variant="light">{row.original.exit_reason || "UNKNOWN"}</Badge> },
@@ -290,7 +319,7 @@ function TradesTable(props: { title: string; trades: PaperDashboardTradeItem[] }
 
 function SymbolPanel(props: { data: PaperDashboardAnalyticsData }) {
   const columns: TableColumnDef<PaperDashboardSymbolPerformance>[] = [
-    { id: "symbol", header: "Symbol", accessorKey: "symbol", meta: { align: "left" }, cell: ({ row }) => <Text fw={700} size="sm" title={row.original.symbol}>{displayOptionSymbol(row.original.symbol)}</Text> },
+    { id: "symbol", header: "Symbol", accessorKey: "symbol", meta: { align: "left" }, cell: ({ row }) => <DashboardSymbolCell symbol={row.original.symbol} /> },
     { id: "trades", header: "Trades", accessorKey: "total_trades", meta: { align: "right" } },
     { id: "winrate", header: "Win%", accessorKey: "win_rate", meta: { align: "right" }, cell: ({ row }) => pct(row.original.win_rate) },
     { id: "pnl", header: "Net P&L", accessorKey: "total_net_pnl", meta: { align: "right" }, cell: ({ row }) => <PnlValue value={row.original.total_net_pnl} /> },

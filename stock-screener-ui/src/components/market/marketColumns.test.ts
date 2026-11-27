@@ -72,7 +72,10 @@ function renderMcap(marketCapCr: number | null): void {
   render(() => column.cell!(cellArgs({ ...ROW, marketCapCr }, column)));
 }
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("buildMarketColumns", () => {
   test("keeps the sector column by default", () => {
@@ -207,6 +210,37 @@ describe("buildMarketColumns", () => {
     expect(external).toHaveAccessibleName("Open RELIANCE on TradingView");
     await fireEvent.click(external);
     expect(onSymbolOpen).toHaveBeenCalledTimes(1);
+  });
+
+  test("symbol cell keeps its existing affordances and adds a 16px copy action", () => {
+    renderSymbolCell(ROW);
+
+    const copy = screen.getByTestId("symbol-copy-RELIANCE");
+    expect(copy).toHaveAccessibleName("Copy RELIANCE");
+    expect(copy).toHaveStyle({ width: "16px", height: "16px" });
+    expect(screen.getByTestId("market-symbol-RELIANCE")).toBeInTheDocument();
+    expect(screen.getByTestId("market-chart-RELIANCE")).toBeInTheDocument();
+    expect(screen.getByTestId("symbol-tv-RELIANCE")).toBeInTheDocument();
+    expect(screen.getByTestId("symbol-options-RELIANCE")).toBeInTheDocument();
+  });
+
+  test("copy writes the displayed ticker without opening the symbol chart", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const onSymbolOpen = vi.fn();
+    const onChartOpen = vi.fn();
+    const column = buildMarketColumns({ onSymbolOpen, onChartOpen }).find(
+      (candidate) => candidate.id === "symbol",
+    );
+    if (!column?.cell) throw new Error("symbol column has no cell renderer");
+
+    render(() => column.cell!(cellArgs({ ...ROW, symbol: "NSE:RELIANCE" }, column)));
+
+    await fireEvent.click(screen.getByTestId("symbol-copy-RELIANCE"));
+
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
+    expect(onSymbolOpen).not.toHaveBeenCalled();
+    expect(onChartOpen).not.toHaveBeenCalled();
   });
 
   test("mcap cell reads as lakh crore above 1e5", () => {

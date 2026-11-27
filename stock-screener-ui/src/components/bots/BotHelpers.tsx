@@ -7,12 +7,14 @@ import {
   Stack,
   Progress,
   ActionIcon,
+  CopyButton,
   ToolbarRow,
   Tooltip,
   Box,
   typeSize,
 } from "@/ui";
-import { IconRefresh, IconPlayerPlay, IconPlayerStop, IconEye, IconEdit, IconTrash } from "../common/Icons";
+import { IconCheck, IconCopy, IconRefresh, IconPlayerPlay, IconPlayerStop, IconEye, IconEdit, IconTrash } from "../common/Icons";
+import { displaySymbol } from "@/config/tvSymbols";
 import type {
   BotTrade,
   BotPosition,
@@ -38,6 +40,37 @@ const STAT_LABEL: JSX.CSSProperties = { "font-size": `${typeSize("micro")}px`, "
 const SECTION_LABEL: JSX.CSSProperties = { "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.06em", "text-transform": "uppercase" };
 const SESSION_CLOSED_DETAIL = "Closed at 15:30 IST · Opens 09:15 IST";
 const MARKET_CLOSED_RECHECK_MS = 60_000;
+
+function BotSymbolCell(props: { symbol: string }) {
+  const label = () => displaySymbol(props.symbol);
+  return (
+    <Box className="flex items-center justify-start">
+      <Box className="flex min-w-0 items-center gap-[2px]">
+        <Text fw={600} ta="left" className="min-w-0 truncate">
+          {label()}
+        </Text>
+        <CopyButton value={label()}>
+          {({ copied, copy }) => (
+            <ActionIcon
+              variant="subtle"
+              color={copied ? "info" : "secondary"}
+              size="xs"
+              style={{ width: "16px", height: "16px", "min-height": "16px", padding: "0px" }}
+              onClick={(event: MouseEvent) => {
+                event.stopPropagation();
+                copy();
+              }}
+              aria-label={`Copy ${label()}`}
+              data-testid={`copy-symbol-${label()}`}
+            >
+              {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+            </ActionIcon>
+          )}
+        </CopyButton>
+      </Box>
+    </Box>
+  );
+}
 
 /** Re-check the session clock so a tab left open past 15:30 flips to closed. */
 export function useMarketClockTick() {
@@ -166,7 +199,7 @@ export function PositionsTable(props: { positions: BotPosition[] }) {
       header: "Symbol",
       accessorKey: "symbol",
       meta: { align: "left" },
-      cell: ({ row }) => <Box className="flex items-center justify-start"><Text fw={600} ta="left">{row.original.symbol}</Text></Box>,
+      cell: ({ row }) => <BotSymbolCell symbol={row.original.symbol} />,
     },
     {
       id: "side",
@@ -281,7 +314,7 @@ export function TradesTable(props: { trades: BotTrade[]; onRefresh: () => void }
       header: "Symbol",
       accessorKey: "symbol",
       meta: { align: "left" },
-      cell: ({ row }) => <Box className="flex items-center justify-start"><Text fw={600} ta="left">{row.original.symbol}</Text></Box>,
+      cell: ({ row }) => <BotSymbolCell symbol={row.original.symbol} />,
     },
     {
       id: "side",

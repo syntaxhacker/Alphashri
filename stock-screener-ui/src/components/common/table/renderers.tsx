@@ -12,6 +12,22 @@ import type {
   TableProps,
 } from "./types";
 
+const INTERACTIVE_SELECTOR =
+  "button, a, input, select, textarea, [contenteditable='true'], [role='button'], [role='link']";
+
+/** Row/header key activation must not swallow Enter/Space on a nested control. */
+function isInteractiveTarget(event: Event): boolean {
+  const target = event.target as HTMLElement | null;
+  return !!target && typeof target.closest === "function" && !!target.closest(INTERACTIVE_SELECTOR);
+}
+
+function handleActivationKey(event: KeyboardEvent, activate: () => void): void {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  if (isInteractiveTarget(event)) return;
+  event.preventDefault();
+  activate();
+}
+
 export interface TableRenderContext<T> {
   props: TableProps<T>;
   visibleColumns: Accessor<TableColumnDef<T>[]>;
@@ -72,13 +88,8 @@ export function renderHeader<T>(col: TableColumnDef<T>, ctx: TableRenderContext<
       style={headerStyle()}
       tabIndex={sortable() ? 0 : undefined}
       aria-sort={ariaSort()}
-      onClick={() => sortable() && ctx.toggleSort(col.id)}
-      onKeyDown={sortable() ? (event: KeyboardEvent) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          ctx.toggleSort(col.id);
-        }
-      } : undefined}
+      onClick={(event) => { if (isInteractiveTarget(event)) return; if (sortable()) ctx.toggleSort(col.id); }}
+      onKeyDown={sortable() ? (event: KeyboardEvent) => handleActivationKey(event, () => ctx.toggleSort(col.id)) : undefined}
     >
       {content}
       {isSorted() && (sortDir()?.desc ? " ▼" : " ▲")}
@@ -115,8 +126,8 @@ export function renderRow<T>(item: RowSlot<T>, ctx: TableRenderContext<T>): JSX.
     <>
       <tr
         style={{ ...ctx.rowStyleBase(row()) }}
-        onClick={() => ctx.props.onRowClick?.(row())}
-        onKeyDown={ctx.props.onRowClick ? (event: KeyboardEvent) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); ctx.props.onRowClick!(row()); } } : undefined}
+        onClick={(event) => { if (isInteractiveTarget(event)) return; ctx.props.onRowClick?.(row()); }}
+        onKeyDown={ctx.props.onRowClick ? (event: KeyboardEvent) => handleActivationKey(event, () => ctx.props.onRowClick!(row())) : undefined}
         tabIndex={ctx.props.onRowClick ? 0 : undefined}
         className={ctx.props.getRowClassName?.(row())}
         data-testid={ctx.props.getRowTestId?.(row(), index())}
@@ -156,12 +167,9 @@ export function renderGroupRow<T>(item: GroupSlot<T>, ctx: TableRenderContext<T>
   return (
     <tr
       data-testid={ctx.props.getGroupRowTestId?.(frame().value)}
-      onClick={() => ctx.toggleGroup(frame().value)}
+      onClick={(event) => { if (isInteractiveTarget(event)) return; ctx.toggleGroup(frame().value); }}
       onKeyDown={(event: KeyboardEvent) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          ctx.toggleGroup(frame().value);
-        }
+        handleActivationKey(event, () => ctx.toggleGroup(frame().value));
       }}
       tabIndex={0}
       aria-expanded={expanded()}

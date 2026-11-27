@@ -1,5 +1,7 @@
 import type { JSX } from "solid-js";
-import { BadgeCell, FlashValue, NumCell, SymbolCell, TextCell } from "@/components/common/tableCells";
+import { Text } from "@/ui";
+import { BadgeCell, FlashValue, NumCell, TextCell } from "@/components/common/tableCells";
+import { SymbolLink } from "@/components/common/SymbolLink";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 
 /**
@@ -36,6 +38,8 @@ export interface SymbolColumnOpts<T> extends BaseOpts<T> {
   name?: (row: T) => string | null | undefined;
   onOpen?: (symbol: string) => void;
   cellTestId?: (row: T) => string;
+  /** Copy affordance next to the symbol (default true). */
+  showCopy?: boolean;
 }
 
 /** Symbol over company name. The identity column never truncates away. */
@@ -46,14 +50,34 @@ export function symbolColumn<T>(opts: SymbolColumnOpts<T>): TableColumnDef<T> {
     ...accessorFor(opts),
     size: opts.size ?? 176,
     meta: { align: "left" },
-    cell: ({ row }) => (
-      <SymbolCell
-        symbol={String((row.original as Record<string, unknown>)[opts.id] ?? "")}
-        name={opts.name?.(row.original)}
-        onOpen={opts.onOpen}
-        testId={opts.cellTestId?.(row.original)}
-      />
-    ),
+    cell: ({ row }) => {
+      const raw = String((row.original as Record<string, unknown>)[opts.id] ?? "");
+      const secondary = opts.name?.(row.original);
+      return (
+        <SymbolLink
+          symbol={raw}
+          tvLink={false}
+          showChart={false}
+          showOptions={false}
+          showCopy={opts.showCopy ?? true}
+          inAppText={Boolean(opts.onOpen)}
+          onOpen={opts.onOpen}
+          testId={opts.cellTestId?.(row.original)}
+          size="xs"
+          className="leading-tight"
+          textClassName="text-xs truncate text-left min-w-0"
+          secondary={
+            secondary ? (
+              <div className="block">
+                <Text size="xs" c="dimmed" span truncate className="text-left min-w-0 text-ui-micro">
+                  {secondary}
+                </Text>
+              </div>
+            ) : undefined
+          }
+        />
+      );
+    },
   } as TableColumnDef<T>;
 }
 

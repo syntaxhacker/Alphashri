@@ -143,6 +143,7 @@ export function PatternListView(props: PatternListViewProps) {
               onOpen={props.onSymbolOpen}
               onPreview={props.onSymbolPreview}
               onPreviewEnd={props.onSymbolPreviewEnd}
+              showCopy
               size="xs"
               weight={600}
               className="flex-1"
