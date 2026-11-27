@@ -983,7 +983,10 @@ Vitest spawns a worker per file and a worker pool can saturate the box; a strand
 - Reuse these; do not fork (several competing copies exist).
 - Backend: `config.IST` (only constant); `frame_last_date()` (IST session date of a frame's last bar), `fmt_date()` (IST display date).
 - Frontend: `TZ_IST`, `sessionDateKey()`, `istChartTime` (Intl, explicit `timeZone`), `istClock`.
-- Two open/closed implementations: `isMarketOpenIst()` (holiday-unaware) vs `isMarketOpenNow()` (holiday + session window). Use the holiday-aware one for user-facing gates; `isMarketClosedToday()` answers only "is today a holiday".
+- **One user-facing gate:** `isMarketOpenNow()` (`src/state/holidays.ts`) — IST 09:15–15:30 session *plus* the exchange holiday calendar. Every user-facing open/closed badge, poll and gate uses it; `isMarketClosedToday()` answers only "is today a holiday".
+- `isMarketOpenIst()` (`src/utils/marketClock.ts`) is a **session-clock primitive**, not a trading gate: weekday + IST window only, no holiday calendar. Keep it for pure session/derivatives window maths (`isDerivativesOpenIst`, `isUsMarketOpen`); never wire it into a user-facing gate.
+- Backend canonical gate: `trading.utils.is_market_open()` (weekends + exchange holidays + 09:15–15:30 IST). `api_server_fastapi._is_market_hours()` and app-adjacent scripts such as `scripts/daily/daily_runner.py` delegate to it instead of restating the window.
+- `india_board/**` is a **separate product** with its own market-open helpers — leave it out of this single-source rule.
 
 ## Backend ↔ frontend vocabulary parity (MANDATORY)
 

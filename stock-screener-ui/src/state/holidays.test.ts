@@ -154,6 +154,17 @@ describe("isMarketOpenNow", () => {
     expect(isMarketOpenNow(new Date("2026-10-24T06:00:00Z"))).toBe(false);
     expect(isMarketOpenNow(new Date("2026-10-25T06:00:00Z"))).toBe(false);
   });
+
+  it("closes on a listed holiday even inside the session window", async () => {
+    mockedFetchHolidays.mockResolvedValue([
+      { date: "2026-01-26", description: "Republic Day", type: "trading" },
+    ]);
+    await loadHolidays();
+
+    // Both instants are 11:30 IST on a Monday; only the holiday differs.
+    expect(isMarketOpenNow(new Date("2026-01-26T06:00:00Z"))).toBe(false);
+    expect(isMarketOpenNow(new Date("2026-01-19T06:00:00Z"))).toBe(true);
+  });
 });
 
 describe("isClearingHoliday", () => {
