@@ -1090,5 +1090,119 @@ class TestFilterLogic:
         assert enable_filters.default is False
 
 
+class TestShared52WBoilerplate:
+    """Parity guards for the helpers extracted into backtest/strategies/base_52w.py."""
+
+    def test_summarize_trades_matches_prior_inline_math(self):
+        from backtest.strategies.base_52w import summarize_trades
+
+        trades = [
+            {'gross_pnl': 12.5, 'trading_costs': 1.5, 'net_pnl': 11.0},
+            {'gross_pnl': -4.0, 'trading_costs': 0.5, 'net_pnl': -4.5},
+            {'gross_pnl': 0.0, 'trading_costs': 0.0, 'net_pnl': 0.0},
+        ]
+        for include_costs in (True, False):
+            gross = sum(t['gross_pnl'] for t in trades)
+            costs = sum(t['trading_costs'] for t in trades) if include_costs else 0
+            wins = sum(1 for t in trades if t['net_pnl'] > 0)
+            losses = sum(1 for t in trades if t['net_pnl'] < 0)
+            total = wins + losses
+            profits = sum(t['net_pnl'] for t in trades if t['net_pnl'] > 0)
+            losses_total = abs(sum(t['net_pnl'] for t in trades if t['net_pnl'] < 0))
+
+            assert summarize_trades(trades, include_costs) == {
+                'gross_pnl': gross,
+                'total_costs': costs,
+                'net_pnl': gross - costs,
+                'wins': wins,
+                'losses': losses,
+                'total_trades': total,
+                'win_rate': (wins / total * 100) if total > 0 else 0,
+                'profit_factor': profits / losses_total if losses_total > 0 else float('inf') if profits > 0 else 0,
+            }
+
+    def test_summarize_trades_empty_and_all_wins(self):
+        from backtest.strategies.base_52w import summarize_trades
+
+        assert summarize_trades([], True) == {
+            'gross_pnl': 0,
+            'total_costs': 0,
+            'net_pnl': 0,
+            'wins': 0,
+            'losses': 0,
+            'total_trades': 0,
+            'win_rate': 0,
+            'profit_factor': 0,
+        }
+        assert summarize_trades([{'gross_pnl': 1.0, 'trading_costs': 0.0, 'net_pnl': 1.0}], False)['profit_factor'] == float('inf')
+
+    def test_empty_backtest_result_shape(self, monkeypatch):
+        from backtest.strategies import base_52w
+        from backtest import utils
+
+        candles = [{'close': 100.0}]
+        monkeypatch.setattr(utils, 'build_candle_data', lambda df: candles)
+        frame = pd.DataFrame({'close': [100.0]})
+
+        assert base_52w.empty_backtest_result('TEST', frame) == {
+            'symbol': 'TEST',
+            'success': True,
+            'trades': 0,
+            'result': None,
+            'candles': candles,
+        }
+
+    def test_both_strategies_share_the_extracted_helpers(self):
+        from backtest.strategies import base_52w
+        from backtest.strategies import week52_chaser as chaser
+        from backtest.strategies import week52_target as target
+
+        for name in (
+            'add_project_root_to_path',
+            'get_broker_access_token',
+            'summarize_trades',
+            'empty_backtest_result',
+        ):
+            shared = getattr(base_52w, name)
+            assert getattr(chaser, name) is shared
+            assert getattr(target, name) is shared
+        assert chaser._NAUTILUS_AVAILABLE is base_52w._NAUTILUS_AVAILABLE
+        assert target._NAUTILUS_AVAILABLE is base_52w._NAUTILUS_AVAILABLE
+
+    def test_run_single_functions_use_shared_stats_only(self):
+        import ast
+        import inspect
+        import textwrap
+        from backtest.strategies import week52_chaser as chaser
+        from backtest.strategies import week52_target as target
+
+        stale_locals = {
+            'gross_pnl', 'total_costs', 'net_pnl', 'wins', 'losses',
+            'total_trades', 'win_rate', 'profit_factor',
+            'gross_profits', 'gross_losses',
+        }
+        for func in (chaser.run_single_stock_backtest, target.run_single_stock_week52_target):
+            tree = ast.parse(textwrap.dedent(inspect.getsource(func)))
+            loaded = {
+                node.id for node in ast.walk(tree)
+                if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+            }
+            assert not loaded & stale_locals, f"{func.__name__} still reads removed stats locals"
+
+    def test_get_broker_access_token_uses_shared_broker_token(self, monkeypatch):
+        from backtest.strategies import base_52w
+        from db import models
+
+        seen = []
+
+        def fake_token(broker):
+            seen.append(broker)
+            return {'access_token': 'token-from-db'}
+
+        monkeypatch.setattr(models, 'get_shared_broker_token', fake_token)
+        assert base_52w.get_broker_access_token() == 'token-from-db'
+        assert seen == ['upstox']
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

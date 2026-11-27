@@ -1,8 +1,10 @@
-"""Canonical 52W-high screener helpers: config, keys, math, ranges and job status.
+"""Canonical 52W-high screener helpers: config, defaults, keys, math, ranges, upsert and job status.
 
 Import the public API from here:
     from trading.week52 import get_52w_range, load_all_52w_ranges, classify_approach
 """
+import importlib
+
 from .config import (
     PRICE_CAP,
     PROFILES_WITH_52W_BUCKETS,
@@ -10,7 +12,6 @@ from .config import (
     TV_BATCH_SIZE,
     batch_delay_sec,
     batch_interval_sec,
-    batch_max_wait_sec,
     batch_workers,
     cache_ttl_sec,
     enrich_top_n,
@@ -24,6 +25,7 @@ from .config import (
     touch_lookback_top,
     touched_52w_gap_threshold_pct,
 )
+from .defaults import ChaserDefaults, TargetDefaults
 from .job import (
     JOB_STATUS_KEY,
     JOB_STATUS_TTL,
@@ -55,9 +57,11 @@ from .math import (
     is_plausible_52w_gap,
     is_within_52w_touch_gap,
 )
-from .ranges import get_52w_range, load_all_52w_ranges, sanitize_bulk, sanitize_entry
 
 __all__ = [
+    # defaults
+    "ChaserDefaults",
+    "TargetDefaults",
     # config
     "STALE_52W_BREAKOUT_PCT",
     "PRICE_CAP",
@@ -73,7 +77,6 @@ __all__ = [
     "touch_band_gap_pct",
     "touch_lookback_top",
     "batch_interval_sec",
-    "batch_max_wait_sec",
     "job_stale_sec",
     "cache_ttl_sec",
     "batch_workers",
@@ -98,6 +101,8 @@ __all__ = [
     "sanitize_bulk",
     "get_52w_range",
     "load_all_52w_ranges",
+    # upsert
+    "upsert_52w_ranges",
     # job
     "JOB_STATUS_KEY",
     "JOB_STATUS_TTL",
@@ -112,3 +117,21 @@ __all__ = [
     "is_job_stale",
     "job_age_sec",
 ]
+
+
+#: DB-backed helpers are resolved on first access so config/math consumers do
+#: not pull SQLAlchemy (and the db package) in just by importing this package.
+_LAZY_EXPORTS = {
+    "get_52w_range": "ranges",
+    "load_all_52w_ranges": "ranges",
+    "sanitize_entry": "ranges",
+    "sanitize_bulk": "ranges",
+    "upsert_52w_ranges": "upsert",
+}
+
+
+def __getattr__(name: str):
+    module_name = _LAZY_EXPORTS.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    return getattr(importlib.import_module(f".{module_name}", __name__), name)

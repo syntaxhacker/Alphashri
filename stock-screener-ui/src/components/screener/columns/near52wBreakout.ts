@@ -9,7 +9,7 @@ import {
   perfWCol,
   dayChangeCol,
 } from "./base";
-import { numCol, gapCell } from "./columnHelpers";
+import { gapCol } from "./columnHelpers";
 
 export function getNear52wBreakoutColumns(): ColumnDef[] {
   return [
@@ -18,7 +18,7 @@ export function getNear52wBreakoutColumns(): ColumnDef[] {
     rsiCol,
     adxCol,
     dayChangeCol,
-    numCol("to_52w_high", "52W Gap %", (value: number) => gapCell(value, 2)),
+    gapCol(),
     recentReturn5dCol,
     perfWCol,
     sectorCol,

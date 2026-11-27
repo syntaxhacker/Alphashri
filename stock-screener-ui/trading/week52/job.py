@@ -6,14 +6,14 @@ from typing import Any
 
 import config
 
-from .config import job_stale_sec
+from .config import JOB_STALE_DEFAULT_SEC, job_stale_sec
 from .keys import JOB_STATUS as JOB_STATUS_KEY
 from .keys import JOB_TTL as JOB_STATUS_TTL
 
 # A "running" job whose last update is older than this is considered stale
-# (crashed/hung subprocess) and may be reset by the scheduler or admin endpoints.
-# Override with env SCREENER_52W_STALE_SEC (default 1800s = 30min).
-STALE_DEFAULT_SEC = 1800
+# (crashed/hung subprocess) and may be reported or reset by an admin endpoint or
+# the release-sync watcher. Override with env SCREENER_52W_STALE_SEC (30min default).
+STALE_DEFAULT_SEC = JOB_STALE_DEFAULT_SEC  # legacy alias for the week52_job_status shim
 
 
 def _now_iso() -> str:

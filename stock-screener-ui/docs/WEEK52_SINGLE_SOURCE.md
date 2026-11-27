@@ -59,5 +59,16 @@ module instead; old import paths keep working by re-export.
 | `tests/test_week52_defaults_parity.py` | Canonical defaults vs live generators, backtest strategies and TypeScript UI defaults/replay params. |
 | Patch-target migration: `tests/api/test_screeners.py`, `tests/api/test_db_cache_perf.py`, `tests/api/test_admin.py`, `tests/test_week52_batch.py`, `tests/test_week52_job_stale.py` | Mocks target the module that owns the symbol (`trading.week52.ranges` / `.job` / `.config` / `.keys` / `.upsert`) rather than duplicating logic in a flat module or shim. |
 
+## Follow-up (2026-11-27)
+
+The follow-up wave does not add a second source of 52W truth. The P2 cleanup stays in the
+existing surfaces as review nits; the 52W backtest strategies share behaviour-neutral
+bootstrap/trade-stat boilerplate in `backtest/strategies/base_52w.py` while their entry/exit
+math stays in the strategy modules; and the duplicated UI gap renderer is gone — the
+`to_52w_high` column in both `52w_high` and `near_52w_breakout` now comes from the shared
+`gapCol`/`gapCell` in `src/components/screener/columns/columnHelpers.ts`, with the same id,
+label, precision, tone and rendered output on each screen. No strategy math, env reader,
+cache key or orchestrator changed.
+
 Operational detail lives in [`AGENTS.md`](../AGENTS.md) (52W Range Screener Background Job)
 and [`RUNBOOK_REFRESH.md`](./RUNBOOK_REFRESH.md).

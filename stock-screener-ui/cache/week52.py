@@ -1,9 +1,8 @@
 """Bulk Redis cache for 52W ranges, importable without the FastAPI app.
 
-The batch runner used to pull these helpers out of ``api_server_fastapi``, which
-imports the whole application (routers, background tasks, Redis at import time).
-Scheduled compute runs must stay standalone, so the bulk load/store pair lives
-here instead.
+The on-demand admin batch and the release-asset sync both need these helpers
+without importing ``api_server_fastapi`` (which pulls in routers, background
+tasks and Redis at import time), so the bulk load/store pair lives here instead.
 
 TTL resolution and range sanitization belong to ``trading.week52``; this module
 only wires them to Redis and the paper-trading file cache.

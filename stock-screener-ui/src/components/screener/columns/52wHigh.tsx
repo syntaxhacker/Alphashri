@@ -10,14 +10,13 @@ import {
   intLocaleOrDash,
   numCol,
   rupeePrice,
-  signedPercent,
-  gapTone,
+  gapCol as sharedGapCol,
 } from "./columnHelpers";
 
 export type Week52Section = "approaching" | "touched";
 
-const gapCol: ColumnDef = numCol("to_52w_high", "52W Gap %", (value: number) => (
-  <NumCell value={value} format={(v) => signedPercent(v, 2)} tone={gapTone(value, 2) || undefined} />
+const gapCol = sharedGapCol((value, cell) => (
+  <NumCell value={value} format={() => cell.value} tone={cell.className || undefined} />
 ));
 
 const coreCols: ColumnDef[] = [
