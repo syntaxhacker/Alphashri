@@ -26,13 +26,13 @@ const rows: SectionScanRow[] = [
     symbol: "RELIANCE",
     name: "Reliance Industries",
     fields: { close: 2981.5, "change|5": 0.84, relative_volume_10d_calc: 1.73 },
-    signals: { momentum_5m: true },
+    signals: { "momentum-5m": true },
   },
   {
     symbol: "TCS",
     name: "Tata Consultancy",
     fields: { close: 4120.25, "change|5": -0.31, relative_volume_10d_calc: 0.92 },
-    signals: { momentum_5m: false },
+    signals: { "momentum-5m": false },
   },
 ];
 
@@ -73,12 +73,44 @@ describe("SectionTable — full state", () => {
     expect(headers().filter((h) => h === "NAME")).toHaveLength(1);
   });
 
-  it("omits the signal badge column when no row carries a signal", () => {
+  it("omits the signal badge column when no row carries this section's signal", () => {
     render(() => (
       <SectionTable section={def()} rows={rows.map((row) => ({ ...row, signals: {} }))} />
     ));
     expect(headers()).not.toContain("SIGNAL");
     expect(screen.queryByText("MATCH")).toBeNull();
+  });
+
+  it("badges only this section's signal, never an unrelated section's flag", () => {
+    const mixed: SectionScanRow[] = [
+      {
+        symbol: "OTHER",
+        name: "Other Section",
+        fields: { close: 100 },
+        signals: { "vwap-reclaim": true },
+      },
+      {
+        symbol: "MINE",
+        name: "This Section",
+        fields: { close: 200 },
+        signals: { "momentum-5m": true },
+      },
+    ];
+    render(() => <SectionTable section={def()} rows={mixed} />);
+
+    expect(within(panel()).getAllByText("MATCH")).toHaveLength(1);
+    expect(within(within(panel()).getByTestId("section-row-MINE")).getByText("MATCH")).toBeInTheDocument();
+    expect(within(within(panel()).getByTestId("section-row-OTHER")).queryByText("MATCH")).toBeNull();
+  });
+
+  it("omits the signal column when rows only carry a different section's signal", () => {
+    render(() => (
+      <SectionTable
+        section={def()}
+        rows={rows.map((row) => ({ ...row, signals: { "vwap-reclaim": true } }))}
+      />
+    ));
+    expect(headers()).not.toContain("SIGNAL");
   });
 });
 
@@ -326,5 +358,19 @@ describe("SectionTable — 390px right-edge wash", () => {
     );
     expect(owners).toEqual([viewport]);
     expect(within(panel()).getByTestId(fadeId).className).not.toMatch(scrollOwnerClasses);
+  });
+});
+
+describe("SectionTable — one border per card", () => {
+  it("owns its border when mounted standalone", () => {
+    render(() => <SectionTable section={def()} rows={rows} />);
+    expect(panel().className).toContain("border-fin-border");
+  });
+
+  it("defers the border to the wrapper when embedded in a bordered card", () => {
+    render(() => <SectionTable section={def()} rows={rows} borderless />);
+    expect(panel().className).not.toContain("border-fin-border");
+    expect(panel().className).not.toContain("rounded-fin");
+    expect(panel().className).toContain("flex-col");
   });
 });

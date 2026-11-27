@@ -322,23 +322,64 @@ function SectionsView(props: {
             className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 auto-rows-[minmax(0,1fr)] gap-2 overflow-hidden"
           >
             <For each={activeSections()}>
-              {(section) => (
-                <Paper
-                  elevation={0}
-                  className="min-w-0 min-h-0 border border-fin-border rounded-sm bg-fin-surface overflow-hidden flex flex-col"
-                >
-                  <Suspense fallback={<Skeleton h={120} visible />}>
-                    <SectionTable
-                      section={section}
-                      rows={result()?.rows ?? []}
-                      loading={loading()}
-                      error={null}
-                      dense
-                      onOpenSymbol={props.onOpenSymbol}
-                    />
-                  </Suspense>
-                </Paper>
-              )}
+              {(section) => {
+                // One scan payload feeds every card. Filter it to this section's
+                // own signal once: the heading count and the rendered table rows
+                // must be the same set, not a count over a narrower set than the
+                // table shows. The toolbar count stays global.
+                const matchedRows = createMemo(() => {
+                  const rows = result()?.rows;
+                  return rows ? rows.filter((row) => row.signals?.[section.id] === true) : null;
+                });
+                const matchCount = createMemo(() => matchedRows()?.length ?? null);
+                return (
+                  <Paper
+                    elevation={0}
+                    data-testid={`section-card-${section.id}`}
+                    className="min-w-0 min-h-0 border border-fin-border rounded-sm bg-fin-surface overflow-hidden flex flex-col"
+                  >
+                    <ToolbarRow
+                      gap={8}
+                      wrap={false}
+                      data-testid={`section-card-heading-${section.id}`}
+                      className="flex-shrink-0 px-2 py-1 border-b border-fin-border"
+                    >
+                      <Text
+                        component="h3"
+                        size="sm"
+                        fw={700}
+                        truncate
+                        title={section.name}
+                        className="text-ui-label min-w-0"
+                        data-testid={`section-name-${section.id}`}
+                      >
+                        {section.name}
+                      </Text>
+                      <Show when={matchCount() !== null}>
+                        <Text
+                          size="xs"
+                          c="dimmed"
+                          className="text-ui-micro font-numeric whitespace-nowrap"
+                          data-testid={`section-card-matches-${section.id}`}
+                        >
+                          {matchCount()} {matchCount() === 1 ? "match" : "matches"}
+                        </Text>
+                      </Show>
+                    </ToolbarRow>
+                    <Suspense fallback={<Skeleton h={120} visible />}>
+                      <SectionTable
+                        section={section}
+                        rows={matchedRows() ?? []}
+                        loading={loading()}
+                        error={null}
+                        dense
+                        borderless
+                        onOpenSymbol={props.onOpenSymbol}
+                      />
+                    </Suspense>
+                  </Paper>
+                );
+              }}
             </For>
           </Box>
         </Show>

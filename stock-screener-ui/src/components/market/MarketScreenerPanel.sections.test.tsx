@@ -2,10 +2,11 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { JSX } from "solid-js";
+import { createEffect, type JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import { MarketScreenerPanel } from "./MarketScreenerPanel";
 import type { SectionDefinition } from "../../state/sections/types";
+import type { SectionScanRow } from "./SectionTable";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -94,12 +95,24 @@ vi.mock("./SectionTable", () => ({
     rows: unknown[];
     error?: string | null;
     loading?: boolean;
+    borderless?: boolean;
     onOpenSymbol?: (symbol: string) => void;
   }) => {
     const el = document.createElement("div");
+    const label = document.createElement("span");
+    el.appendChild(label);
     el.setAttribute("data-testid", "section-table");
     el.setAttribute("data-section-id", props.section.id);
-    el.textContent = `${props.section.name}|${props.rows.length}|${props.error ?? ""}|${props.loading ? "loading" : ""}`;
+    // Reactive: the scan resolves after this stand-in is first constructed.
+    createEffect(() => {
+      el.setAttribute("data-borderless", props.borderless ? "true" : "false");
+      el.setAttribute("data-rows", String(props.rows.length));
+      el.setAttribute(
+        "data-symbols",
+        (props.rows as SectionScanRow[]).map((row) => row.symbol).join(","),
+      );
+      label.textContent = `${props.section.name}|${props.rows.length}|${props.error ?? ""}|${props.loading ? "loading" : ""}`;
+    });
     if (props.onOpenSymbol) {
       const open = document.createElement("button");
       open.setAttribute("data-testid", `section-open-${props.section.id}`);
@@ -148,6 +161,18 @@ const scanResult = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+const scanRow = (symbol: string, signals: Record<string, boolean>): SectionScanRow => ({
+  symbol,
+  name: symbol,
+  fields: { close: 100 },
+  signals,
+});
+
+const matchesText = async (id: string): Promise<string> => {
+  const card = await screen.findByTestId(`section-card-${id}`);
+  return within(card).getByTestId(`section-card-matches-${id}`).textContent?.trim() ?? "";
+};
+
 function renderPanel(jsx: () => JSX.Element) {
   return render(() => <UIProvider>{jsx()}</UIProvider>);
 }
@@ -187,6 +212,105 @@ describe("MarketScreenerPanel — Sections tab", () => {
       "vwap-reclaim",
       "momentum-5m",
     ]);
+  });
+
+  test("names every section card above its table without a second bordered card", async () => {
+    mocks.sections = [
+      section("vwap-reclaim", { name: "VWAP Reclaim" }),
+      section("momentum-5m", { name: "Momentum 5m + RVOL" }),
+    ];
+    renderPanel(() => <MarketScreenerPanel />);
+    await openSectionsTab();
+
+    for (const def of mocks.sections) {
+      const card = await screen.findByTestId(`section-card-${def.id}`);
+      const heading = within(card).getByTestId(`section-card-heading-${def.id}`);
+      const name = within(card).getByTestId(`section-name-${def.id}`);
+      const table = within(card).getByTestId("section-table");
+
+      expect(name).toHaveTextContent(def.name);
+      // A shrink-0 flex header above a flex-1 table cannot overlap the table.
+      expect(heading.className).toContain("flex");
+      expect(heading.className).toContain("shrink-0");
+      expect(card.className).toContain("flex-col");
+      expect(name.parentElement).toBe(heading);
+      expect(heading.parentElement).toBe(card);
+      const children = Array.from(card.children);
+      expect(children.indexOf(heading)).toBeLessThan(children.indexOf(table));
+      // One border per card: the embedded table drops its own border.
+      expect(table).toHaveAttribute("data-borderless", "true");
+    }
+  });
+
+  test("each card's match count equals the rows it renders for that section's signal", async () => {
+    mocks.sections = [
+      section("vwap-reclaim", { name: "VWAP Reclaim" }),
+      section("momentum-5m", { name: "Momentum 5m" }),
+    ];
+    mocks.fetchSectionScan.mockResolvedValue(
+      scanResult({
+        row_count: 5,
+        rows: [
+          scanRow("AAA", { "vwap-reclaim": true }),
+          scanRow("BBB", { "vwap-reclaim": true, "momentum-5m": true }),
+          scanRow("CCC", { "momentum-5m": true }),
+          scanRow("DDD", { "unrelated": true }),
+          scanRow("EEE", { "vwap-reclaim": true }),
+        ],
+      }),
+    );
+    renderPanel(() => <MarketScreenerPanel />);
+    await openSectionsTab();
+
+    for (const [id, symbols] of [
+      ["vwap-reclaim", "AAA,BBB,EEE"],
+      ["momentum-5m", "BBB,CCC"],
+    ] as const) {
+      const card = await screen.findByTestId(`section-card-${id}`);
+      const table = within(card).getByTestId("section-table");
+      const count = Number((await matchesText(id)).match(/\d+/)?.[0]);
+
+      expect(table).toHaveAttribute("data-rows", String(count));
+      expect(table).toHaveAttribute("data-symbols", symbols);
+      expect(count).toBe(symbols.split(",").length);
+      // A row carrying only another section's signal is never in either card.
+      expect(table.getAttribute("data-symbols")).not.toContain("DDD");
+    }
+  });
+
+  test("pluralizes one match against zero and many matches", async () => {
+    mocks.sections = [
+      section("vwap-reclaim", { name: "VWAP Reclaim" }),
+      section("momentum-5m", { name: "Momentum 5m" }),
+      section("rvol-spike", { name: "RVOL Spike" }),
+    ];
+    mocks.fetchSectionScan.mockResolvedValue(
+      scanResult({
+        row_count: 3,
+        rows: [
+          scanRow("AAA", { "vwap-reclaim": true, "momentum-5m": true }),
+          scanRow("BBB", { "vwap-reclaim": true }),
+          scanRow("CCC", { "vwap-reclaim": true }),
+        ],
+      }),
+    );
+    renderPanel(() => <MarketScreenerPanel />);
+    await openSectionsTab();
+
+    expect(await matchesText("vwap-reclaim")).toBe("3 matches");
+    expect(await matchesText("momentum-5m")).toBe("1 match");
+    expect(await matchesText("rvol-spike")).toBe("0 matches");
+  });
+
+  test("renders the section name as a level-3 semantic heading", async () => {
+    mocks.sections = [section("vwap-reclaim", { name: "VWAP Reclaim" })];
+    renderPanel(() => <MarketScreenerPanel />);
+    await openSectionsTab();
+
+    const card = await screen.findByTestId("section-card-vwap-reclaim");
+    const name = within(card).getByTestId("section-name-vwap-reclaim");
+    expect(name.tagName).toBe("H3");
+    expect(within(card).getByRole("heading", { level: 3, name: "VWAP Reclaim" })).toBe(name);
   });
 
   test("refreshes explicitly with one request per market, and forwards the delayed opt-in", async () => {
