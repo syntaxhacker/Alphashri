@@ -39,9 +39,9 @@ function valueFor(pct: number): string {
   return `${rounded > 0 ? "+" : ""}${rounded}`;
 }
 
+/** Cells stay to three glyphs at 390; the % unit lives in the panel caption. */
 function cellLabel(pct: number): string {
-  const plain = valueFor(pct);
-  return plain === "0" ? "0%" : `${plain}%`;
+  return valueFor(pct);
 }
 
 /**
@@ -110,8 +110,10 @@ export function buildAgriSeasonalityOption(
     tooltip: { ...(base.tooltip as Record<string, unknown>), trigger: "item" },
     grid: [
       {
-        left: compact ? 52 : 84,
-        right: compact ? 8 : 14,
+        // Give the 12 cells as much width as possible; row labels are short
+        // (Onion/Wheat/Tomato) and do not need the old 84px gutter.
+        left: compact ? 44 : 72,
+        right: compact ? 2 : 8,
         top: 8,
         bottom: 58,
         containLabel: true,
@@ -130,7 +132,7 @@ export function buildAgriSeasonalityOption(
           // Twelve three-letter months merge into one run at 390; keep every
           // cell but label alternate months so the ticks stay scannable.
           interval: compact ? 1 : 0,
-          width: compact ? 26 : 28,
+          width: compact ? 24 : 28,
           overflow: "break",
           lineHeight: 12,
         },
@@ -183,7 +185,9 @@ export function buildAgriSeasonalityOption(
             return typeof value === "number" ? cellLabel(value) : "";
           },
         },
-        labelLayout: { hideOverlap: true },
+        // Every month cell must keep its direct label; dropping overlaps is
+        // what left Onion with 5 of 7 visible values at 1600 / 4 of 7 at 390.
+        labelLayout: { hideOverlap: false },
         itemStyle: { borderColor: BORDER, borderWidth: 1 },
         emphasis: { itemStyle: { borderColor: t.text, borderWidth: 2 } },
       },

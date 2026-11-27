@@ -1,4 +1,5 @@
-import { alpha, BORDER, VIRIDIS_STOPS } from "@/ui/palette";
+import { AGRI_SEASON_STOPS, alpha, BORDER } from "@/ui/palette";
+import { pickTextColor } from "@/utils/contrast";
 import { heatmapColumns } from "./heatmap.columns";
 import {
   asArray,
@@ -6,6 +7,7 @@ import {
   baseOption,
   categoryAxis,
   CHART_LAYOUT,
+  compactAxisLabel,
   DEFAULT_UNIT,
   EdaHeatmapInput,
   EdaHeatmapRow,
@@ -59,9 +61,10 @@ export function buildHeatmapOption(input: EdaHeatmapInput | null | undefined): O
   const columns = heatmapColumns(byRow);
   if (columns.length === 0) return {};
 
+  const compact = input.compact === true;
   const raw: (number | null)[][] = [];
   const ranges: { min: number; max: number }[] = [];
-  const filled: number[][] = [];
+  const filled: (number[] | Record<string, unknown>)[] = [];
   const missing: number[][] = [];
   rows.forEach((_, y) => {
     const values = columns.map((column) => byRow[y].get(column) ?? null);
@@ -76,7 +79,16 @@ export function buildHeatmapOption(input: EdaHeatmapInput | null | undefined): O
         return;
       }
       // A constant row has no internal spread; 0.5 keeps it mid-ramp.
-      filled.push([x, y, max > min ? (value - min) / (max - min) : 0.5]);
+      const position = max > min ? (value - min) / (max - min) : 0.5;
+      const stop = AGRI_SEASON_STOPS[Math.round(position * (AGRI_SEASON_STOPS.length - 1))];
+      filled.push({
+        value: [x, y, position],
+        label: {
+          show: !compact,
+          color: pickTextColor(stop),
+          formatter: compact ? "" : compactAxisLabel(value),
+        },
+      });
     });
   });
   if (filled.length === 0) return {};
@@ -86,7 +98,7 @@ export function buildHeatmapOption(input: EdaHeatmapInput | null | undefined): O
   );
   const option = baseOption(
     t,
-    `Modal-price heatmap · row-relative colour · ${DEFAULT_UNIT}`,
+    compact ? "Row-relative heatmap" : `Modal-price heatmap · row-relative colour · ${DEFAULT_UNIT}`,
     [],
     (params) => {
       const param = asParams(params)[0];
@@ -106,7 +118,9 @@ export function buildHeatmapOption(input: EdaHeatmapInput | null | undefined): O
         field("Row position", `${position}%`),
       ]);
     },
-    "Colour = position within each commodity's own range; blank cells have no data",
+    compact
+      ? "Colour = row position · blank = no data"
+      : "Colour = position within each commodity's own range; blank cells have no data",
     "item",
   );
 
@@ -114,12 +128,12 @@ export function buildHeatmapOption(input: EdaHeatmapInput | null | undefined): O
     ...option,
     grid: [
       {
-        left: 56,
-        right: 24,
-        top: CHART_LAYOUT.gridTopWithSubtext,
+        left: compact ? 48 : 56,
+        right: compact ? 8 : 24,
+        top: compact ? 46 : CHART_LAYOUT.gridTopWithSubtext,
         // Keep the horizontal visualMap clear of the month labels; sharing a
-        // line made "Row low / Row high" collide with the last x tick.
-        bottom: CHART_LAYOUT.gridBottomHeatmap + 28,
+        // line made the scale collide with the last x tick.
+        bottom: CHART_LAYOUT.gridBottomHeatmap + 20,
         containLabel: true,
       },
     ],
@@ -135,10 +149,11 @@ export function buildHeatmapOption(input: EdaHeatmapInput | null | undefined): O
         // ECharts rotates the horizontal visualMap group, so these are the
         // pre-rotation axes: itemHeight becomes the bar length on screen.
         itemWidth: 12,
-        itemHeight: 120,
-        text: ["Row high", "Row low"],
+        itemHeight: compact ? 100 : 120,
+        text: ["100%", "0%"],
         textStyle: { color: t.muted, fontSize: CHART_LAYOUT.font },
-        inRange: { color: [...VIRIDIS_STOPS] },
+        // Row position runs cool → amber on the agri ramp, never red/green.
+        inRange: { color: [...AGRI_SEASON_STOPS] },
       },
       {
         // ECharts requires a visualMap for every heatmap series; the no-data
@@ -157,7 +172,7 @@ export function buildHeatmapOption(input: EdaHeatmapInput | null | undefined): O
         name: "Modal price",
         type: "heatmap",
         data: filled,
-        label: { show: false },
+        label: { show: !compact, fontSize: CHART_LAYOUT.font, fontWeight: 700 },
         itemStyle: { borderColor: BORDER, borderWidth: 1 },
         emphasis: { itemStyle: { borderColor: t.text, borderWidth: 2 } },
       },

@@ -146,7 +146,7 @@ describe("seasonality option", () => {
     expect(option.xAxis[0].data).toHaveLength(12);
     expect(option.xAxis[0].axisLabel.width).toBeLessThanOrEqual(28);
     const formatter = (option.series[0].label as { formatter: (p: { value: number[] }) => string }).formatter;
-    expect(formatter({ value: [0, 0, 10.4] })).toBe("+10%");
+    expect(formatter({ value: [0, 0, 10.4] })).toBe("+10");
     const tooltip = option.tooltip.formatter as (params: unknown) => string;
     expect(tooltip([{ value: [0, 0, 10] }])).toContain("Observations");
   });
@@ -187,12 +187,15 @@ describe("seasonality option", () => {
       isDark: true,
     }) as Record<string, any>;
     expect(option.series[0].data).toHaveLength(36);
+    expect(option.series[0].labelLayout.hideOverlap).toBe(false);
     expect(option.visualMap[0].dimension).toBe(3);
-    // Every data row keeps its honest value in dimension 2 and a clamped
-    // colour value in dimension 3.
+    // Every data row keeps its honest value in dimension 2, a clamped colour
+    // value in dimension 3, and a direct label of its own.
     for (const datum of option.series[0].data) {
       expect(datum.value).toHaveLength(4);
       expect(Math.abs(datum.value[3])).toBeLessThanOrEqual(20);
+      expect(typeof datum.label.formatter).toBe("string");
+      expect(datum.label.formatter.length).toBeGreaterThan(0);
     }
   });
 
@@ -280,6 +283,28 @@ describe("dispersion option", () => {
       isDark: true,
     }) as Record<string, any>;
     expect(option.yAxis[0].data).toHaveLength(8);
+  });
+
+  it("scales the axis to the drawn rows instead of snapping to round tens", () => {
+    const rows = Array.from({ length: 8 }, (_, index) => ({
+      market: `M${index}`,
+      label: `M${index}`,
+      date: "2026-11-24",
+      min: 13_300 + index * 400,
+      modal: 13_500 + index * 500,
+      max: 17_600,
+      arrivals: null,
+      outlier: true,
+    }));
+    const option = buildAgriDispersionOption({
+      rows,
+      unit: "₹/quintal",
+      isDark: true,
+      compact: true,
+    }) as Record<string, any>;
+    expect(option.xAxis[0].min).toBeGreaterThanOrEqual(12_000);
+    expect(option.xAxis[0].max).toBeLessThanOrEqual(19_000);
+    expect(option.xAxis[0].interval).toBeGreaterThanOrEqual(1_000);
   });
 
   it("returns {} without a modal price", () => {

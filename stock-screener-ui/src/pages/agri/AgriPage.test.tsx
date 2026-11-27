@@ -291,8 +291,8 @@ const CHART_REGION_HEIGHTS = [
 const CHART_PANEL_HEIGHTS = [
   ["agri-chart-panel", "460px"],
   ["agri-rank-panel", "380px"],
-  ["agri-season-panel", "420px"],
-  ["agri-dispersion-panel", "400px"],
+  ["agri-season-panel", "460px"],
+  ["agri-dispersion-panel", "460px"],
 ] as const;
 
 /** ECharts measures its container at mount; a flex-only parent can read 0px. */
@@ -382,7 +382,9 @@ describe("AgriPage initial load — visuals first", () => {
     expect(screen.getByTestId("agri-chart-panel")).toHaveTextContent(
       "How to read: bold = modal ₹/quintal",
     );
-    expect(screen.getByTestId("agri-page").textContent?.match(/How to read/g) ?? []).toHaveLength(1);
+    expect(screen.getByTestId("agri-page").textContent?.match(/How to read/g) ?? []).toHaveLength(2);
+    expect(screen.getByTestId("agri-chart-panel")).toHaveTextContent("How to read:");
+    expect(screen.getByTestId("agri-season-panel")).toHaveTextContent("How to read:");
     expect(screen.queryByTestId("agri-quotes-table")).not.toBeInTheDocument();
     expect(screen.queryByTestId("agri-table-panel")).not.toBeInTheDocument();
   });
@@ -547,6 +549,10 @@ describe("AgriPage filters", () => {
     const options = within(screen.getByTestId("agri-commodity-select"));
     expect(options.getByRole("option", { name: "Wheat" })).toBeInTheDocument();
     expect(options.queryByRole("option", { name: "Onion" })).not.toBeInTheDocument();
+    // The spark universe follows the same group scope as the commodity select.
+    expect(screen.getByTestId("agri-spark-wheat")).toBeInTheDocument();
+    expect(screen.queryByTestId("agri-spark-onion")).not.toBeInTheDocument();
+    expect(screen.getByTestId("agri-spark-panel")).toHaveTextContent("change = 1M");
   });
 
   it("refetches with the chosen range", async () => {
@@ -619,6 +625,9 @@ describe("AgriPage chart modes", () => {
     }
     expect(within(strip).queryByTestId("agri-mode-ohlc")).not.toBeInTheDocument();
     expect(within(strip).queryByTestId("agri-mode-arrivals")).not.toBeInTheDocument();
+    // The hero draws modal + tracked lines, so the tab must not promise a band.
+    expect(within(strip).getByTestId("agri-mode-band")).toHaveTextContent("Price");
+    expect(within(strip).getByTestId("agri-mode-band")).not.toHaveTextContent("band");
   });
 
   it("keeps the band option for band and routes compare through the existing builder", async () => {
@@ -807,6 +816,7 @@ describe("AgriPage KPI and EDA consolidation", () => {
     const hero = screen.getByTestId("agri-chart-panel");
     expect(hero).toHaveTextContent("+1.2% window");
     expect(hero).toHaveTextContent("modal CV 0.6%");
+    expect(hero).toHaveTextContent("n=2 sessions");
     expect(hero).toHaveTextContent("How to read: bold = modal ₹/quintal");
   });
 
@@ -915,6 +925,9 @@ describe("AgriPage data states", () => {
     expect(screen.getByTestId("agri-chart-empty")).toHaveTextContent("17 Nov 2026");
     expect(screen.queryByTestId("agri-chart")).not.toBeInTheDocument();
     expect(screen.getByTestId("agri-spark-onion")).toBeInTheDocument();
+    // The empty panel must not reserve a 460px blank chart body.
+    expect(screen.getByTestId("agri-chart-panel")).toHaveStyle({ "min-height": "0px" });
+    expect(screen.getByTestId("agri-chart-panel")).toHaveStyle({ "align-self": "start" });
   });
 
   it("keeps the working body visible during a refresh", async () => {
@@ -1041,6 +1054,15 @@ describe("AgriPage data states", () => {
     renderPage();
     await settled();
     expect(screen.getByTestId("agri-data-source")).toHaveTextContent("csv_seed");
+  });
+
+  it("explains a mixed-source payload instead of leaving a bare MIXED badge", async () => {
+    vi.mocked(fetchAgriPrices).mockResolvedValueOnce(pricesPayload({ data_source: "mixed" }));
+    renderPage();
+    await settled();
+    const badge = screen.getByTestId("agri-data-source");
+    expect(badge).toHaveTextContent("Mixed sources");
+    expect(badge).toHaveAttribute("title", expect.stringContaining("more than one feed"));
   });
 
   it("shows the data-as-of and freshness context inline with Refresh", async () => {
@@ -1181,6 +1203,9 @@ describe("AgriPage redesign grammar", () => {
     for (const series of option.series as Array<{ endLabel?: { show?: boolean } }>) {
       expect(series.endLabel?.show).toBe(true);
     }
+    const panel = screen.getByTestId("agri-rank-panel");
+    expect(panel).toHaveTextContent("₹/quintal");
+    expect(panel).toHaveTextContent("n=2 commodities");
   });
 
   it("uses a diverging agri season ramp with direct labels and an n annotation", async () => {
@@ -1198,8 +1223,43 @@ describe("AgriPage redesign grammar", () => {
     expect(xAxis.axisLabel.width).toBeLessThanOrEqual(28);
     expect(((option.series as Array<{ label?: { show?: boolean } }>)[0].label)?.show).toBe(true);
     const season = screen.getByTestId("agri-season-panel");
-    expect(season).toHaveTextContent("single-year month profile");
-    expect(season).toHaveTextContent("1y");
+    expect(season).toHaveTextContent("How to read: cell = % vs own monthly average");
+    expect(season).toHaveTextContent("single-year profile");
+    expect(season).toHaveTextContent("Onion 1y");
+    expect(season).toHaveTextContent("Wheat 1y");
+  });
+
+  it("names every rendered month-profile row and defines the cell", async () => {
+    vi.mocked(fetchAgriPrices).mockResolvedValueOnce(
+      pricesPayload({
+        comparison: [
+          {
+            key: "wheat",
+            label: "Wheat",
+            points: [
+              { date: "2026-10-17", modal: 2400 },
+              { date: "2026-11-17", modal: 2450 },
+            ],
+          },
+          {
+            key: "tomato",
+            label: "Tomato",
+            points: [
+              { date: "2026-10-17", modal: 1800 },
+              { date: "2026-11-17", modal: 1900 },
+            ],
+          },
+        ],
+      }),
+    );
+    renderPage();
+    await settled();
+
+    const season = screen.getByTestId("agri-season-panel");
+    for (const label of ["Onion", "Wheat", "Tomato"]) {
+      expect(season).toHaveTextContent(`${label} 1y`);
+    }
+    expect(season).toHaveTextContent("n = observations in tooltip");
   });
 
   it("dedupes the active commodity when comparison echoes it", async () => {

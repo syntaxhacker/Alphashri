@@ -147,6 +147,20 @@ describe("buildDispersionRows", () => {
     expect(summary.outliers).toBe(1);
   });
 
+  it("keeps the IQR/median reference on the mandis the panel draws", () => {
+    const rows = buildDispersionRows(
+      Array.from({ length: 12 }, (_, index) => quote(`M${index}`, 1000 + index * 500)),
+    );
+    const summary = summariseDispersion(rows, 8);
+    expect(summary.markets).toBe(12);
+    expect(summary.shown).toBe(8);
+    // Top eight modals are 3,000 … 6,500; the reference must live there, not
+    // in the cheap half of the quote page.
+    expect(summary.median).toBe(4750);
+    expect(summary.q1).toBe(3875);
+    expect(summary.q3).toBe(5625);
+  });
+
   it("does not flag outliers from a sample too small for a fence", () => {
     const rows = buildDispersionRows([quote("A", 100), quote("B", 5000)]);
     expect(rows.every((row) => !row.outlier)).toBe(true);

@@ -121,9 +121,12 @@ export function buildRollingOption(input: EdaRollingInput | null | undefined): O
     ? `${gapNote} · ${skipped.length} gap${skipped.length === 1 ? "" : "s"} skipped`
     : gapNote;
 
+  const compact = input.compact === true;
   const option = baseOption(
     t,
-    `Modal price with ${window}-observation rolling band · ${DEFAULT_UNIT}`,
+    compact
+      ? `Rolling mean · ${window} obs`
+      : `Modal price with ${window}-observation rolling band · ${DEFAULT_UNIT}`,
     ["Modal", `Rolling mean (${window})`, "Lower band", "Upper band"],
     (params) => {
       const index = paramIndex(params);
@@ -145,22 +148,25 @@ export function buildRollingOption(input: EdaRollingInput | null | undefined): O
         field("Window n", formatCount(counts[index])),
       ]);
     },
-    skippedNote,
+    compact ? `n = ${formatCount(points.length)}` : skippedNote,
   );
 
   return {
     ...option,
+    // On a 390 panel the four-item legend and a y-axis name share the same
+    // top-right corner; the unit already lives in the panel caption.
+    legend: { ...(option.legend as Record<string, unknown>), top: compact ? 42 : CHART_LAYOUT.legendTopWithSubtext },
     grid: [
       {
-        left: 56,
-        right: 24,
-        top: CHART_LAYOUT.gridTopWithSubtext,
+        left: compact ? 48 : 56,
+        right: compact ? 12 : 24,
+        top: compact ? 66 : CHART_LAYOUT.gridTopWithSubtext,
         bottom: CHART_LAYOUT.gridBottomWithZoom,
         containLabel: true,
       },
     ],
     xAxis: [categoryAxis(rows.map((row) => (row.gap ? "" : formatDateLabel(row.date))), t)],
-    yAxis: [valueAxis(t, DEFAULT_UNIT)],
+    yAxis: [valueAxis(t, compact ? undefined : DEFAULT_UNIT)],
     dataZoom: makeDataZoom(t, [0]),
     series: [
       {

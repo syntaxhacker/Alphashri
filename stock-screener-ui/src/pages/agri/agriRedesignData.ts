@@ -288,18 +288,22 @@ export function summariseDispersion(
   shown: number,
 ): AgriDispersionSummary {
   const source = Array.isArray(rows) ? rows : [];
-  const modals = source
+  // The reference statistics describe the mandis the panel actually draws;
+  // a full-quote-page IQR would sit far outside the plotted top-eight range.
+  const drawCount = Math.max(0, Math.min(shown, source.length));
+  const drawn = drawCount > 0 ? source.slice(source.length - drawCount) : [];
+  const modals = drawn
     .map((row) => finite(row?.modal))
     .filter((value): value is number => value != null)
     .sort((a, b) => a - b);
   const at = (p: number) => (modals.length > 0 ? quantile(modals, p) : null);
   return {
     markets: source.length,
-    shown: Math.max(0, Math.min(shown, source.length)),
+    shown: drawCount,
     median: at(0.5),
     q1: at(0.25),
     q3: at(0.75),
-    outliers: source.filter((row) => row?.outlier).length,
+    outliers: drawn.filter((row) => row?.outlier).length,
   };
 }
 

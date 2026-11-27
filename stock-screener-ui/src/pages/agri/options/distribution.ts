@@ -77,9 +77,10 @@ export function buildDistributionOption(input: EdaDistributionInput | null | und
     for (const value of entry.outliers) outlierPoints.push([index, value]);
   });
 
+  const compact = input.compact === true;
   const option = baseOption(
     t,
-    `Monthly modal-price distribution · ${unit}`,
+    compact ? "Monthly modal spread" : `Monthly modal-price distribution · ${unit}`,
     outlierPoints.length > 0 ? ["Monthly spread", "Median", "Outliers"] : ["Monthly spread", "Median"],
     (params) => {
       const index = paramIndex(params);
@@ -103,9 +104,18 @@ export function buildDistributionOption(input: EdaDistributionInput | null | und
   );
   return {
     ...option,
-    grid: [{ left: 56, right: 24, top: CHART_LAYOUT.gridTop, bottom: CHART_LAYOUT.gridBottom, containLabel: true }],
+    legend: { ...(option.legend as Record<string, unknown>), top: compact ? 30 : CHART_LAYOUT.legendTop },
+    grid: [
+      {
+        left: compact ? 44 : 56,
+        right: compact ? 12 : 24,
+        top: compact ? 74 : CHART_LAYOUT.gridTop,
+        bottom: CHART_LAYOUT.gridBottom,
+        containLabel: true,
+      },
+    ],
     xAxis: [categoryAxis(prepared.map((entry) => entry.label), t, { interval: 0 })],
-    yAxis: [valueAxis(t, unit)],
+    yAxis: [valueAxis(t, compact ? undefined : unit)],
     series: [
       {
         name: "Monthly spread",

@@ -31,7 +31,15 @@ function niceAxis(min: number, max: number, targetTicks: number): { min: number;
   const raw = span / Math.max(1, targetTicks - 1);
   const magnitude = 10 ** Math.floor(Math.log10(raw));
   const normalized = raw / magnitude;
-  const step = (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) * magnitude;
+  // Nearest nice step, not the ceiling: ceiling-of-span divided 13.3k–17.6k
+  // into ₹10k–20k, wasting half the axis on empty space.
+  const choices = [1, 2, 5, 10];
+  const step = choices.reduce((best, candidate) =>
+    Math.abs(Math.log(candidate) - Math.log(normalized)) <
+    Math.abs(Math.log(best) - Math.log(normalized))
+      ? candidate
+      : best,
+  ) * magnitude;
   return {
     min: Math.max(0, Math.floor(min / step) * step),
     max: Math.ceil(max / step) * step,
@@ -82,7 +90,7 @@ export function buildAgriDispersionOption(
   const prices = rows.flatMap((row) => [row.min, row.modal, row.max].filter((value): value is number => typeof value === "number" && Number.isFinite(value)));
   const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
   const maxPrice = prices.length > 0 ? Math.max(...prices) : 1;
-  const pad = Math.max((maxPrice - minPrice) * 0.08, 1);
+  const pad = Math.max((maxPrice - minPrice) * 0.05, 1);
   const axis = niceAxis(Math.max(0, minPrice - pad), maxPrice + pad, compact ? 3 : 5);
 
   const tooltip = (params: unknown): string => {

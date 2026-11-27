@@ -1,4 +1,5 @@
 import { createComponent, type JSX } from "solid-js";
+import { AGRI_CONTEXT, AGRI_UP } from "@/ui/palette";
 import { formatAgriPrice, formatArrivals } from "@/config/agri";
 import type { SortEntry, TableColumnDef } from "@/components/common/TanStackTable";
 import { BadgeCell, NumCell, TextCell } from "@/components/common/tableCells";
@@ -124,7 +125,7 @@ export function agriColumns(asOf: string | null = null): TableColumnDef<AgriTabl
       cell: cell((row) =>
         createComponent(BadgeCell, {
           label: isLatest(row) ? "Latest" : "Past",
-          color: isLatest(row) ? "success" : "secondary",
+          color: isLatest(row) ? AGRI_UP : AGRI_CONTEXT,
           testId: `agri-status-${row.key}`,
         }),
       ),

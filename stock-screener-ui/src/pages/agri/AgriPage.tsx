@@ -22,7 +22,7 @@ import {
 } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactPanel } from "@/components/common/compact";
-import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
+import { EmptyState, InlineLoader } from "@/components/common/states";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { EChart } from "@/components/common/EChart";
 import { fetchAgriFilters, fetchAgriPrices, fetchAgriSources } from "@/api/agri";
@@ -203,6 +203,43 @@ function humaniseWarning(value: string, kind: WarningKind): string {
   return value.replace(/_/g, " ");
 }
 
+/** A failure is data-quality ink, not a page-sized alarm fill. */
+function AgriErrorBanner(props: {
+  testId: string;
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <Box
+      role="alert"
+      data-testid={props.testId}
+      className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-[4px] border px-2 py-1"
+      style={{
+        "background-color": palette.alpha(palette.AGRI_DOWN, 0.1),
+        "border-color": palette.alpha(palette.AGRI_DOWN, 0.5),
+      }}
+    >
+      <Box className="flex min-w-0 flex-col gap-0.5">
+        <Text fw={700} className="text-ui-micro uppercase tracking-[0.08em]" style={{ color: palette.AGRI_DOWN }}>
+          Could not load agri data
+        </Text>
+        <Text c="dimmed" size="xs" className="break-words">
+          {props.message}
+        </Text>
+      </Box>
+      <Button
+        size="xs"
+        variant="outline"
+        onClick={props.onRetry}
+        data-testid={`${props.testId}-retry`}
+        style={{ "border-color": palette.alpha(palette.AGRI_DOWN, 0.6) }}
+      >
+        Retry
+      </Button>
+    </Box>
+  );
+}
+
 export function AgriPage() {
   const { isDark } = useColorScheme();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -245,6 +282,15 @@ export function AgriPage() {
   const [retryToken, setRetryToken] = createSignal(0);
 
   const isMobile = useMediaQuery("(max-width: 640px)");
+  // The default hero draws modal + tracked commodities, not the daily
+  // min–max band, so the tab must not promise one.
+  const chartModes = createMemo(() =>
+    AGRI_CHART_MODES.map((item) =>
+      item.key === "band"
+        ? { ...item, label: "Price", description: "Daily modal price for the selected commodity" }
+        : item,
+    ),
+  );
 
   let activeSourcesController: AbortController | null = null;
   function loadSources() {
@@ -655,6 +701,7 @@ export function AgriPage() {
     arrivalsUnit: AGRI_ARRIVALS_UNIT,
     rolling: 7,
     isDark: isDark(),
+    compact: isMobile(),
   }));
   const chartOption = createMemo<Record<string, unknown>>(() => {
     const current = mode();
@@ -671,6 +718,7 @@ export function AgriPage() {
         unit: AGRICULTURE_UNIT,
         isDark: isDark(),
         asOf: asOf() ?? undefined,
+        compact: isMobile(),
       });
     }
     return buildEdaOption(current, edaInput());
@@ -716,6 +764,7 @@ export function AgriPage() {
   const heroCanDraw = createMemo(() =>
     mode() === "band" ? Object.keys(heroOption()).length > 0 : canDraw(),
   );
+  const heroEmpty = createMemo(() => !heroCanDraw());
   const rankRows = createMemo(() => buildRankBoard(analyticsSeries()));
   const rankOption = createMemo(() =>
     buildAgriRankOption({
@@ -737,28 +786,33 @@ export function AgriPage() {
   const seasonProfileNote = createMemo(() => {
     const rows = seasonRows();
     if (rows.length === 0) {
-      return "Deviation from each commodity's own observed-month average";
+      return "Cell = % vs each commodity's own monthly average";
     }
     const years = rows
       .map((row) => row.minYears)
       .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
     const minimum = years.length > 0 ? Math.min(...years) : null;
-    const sample = rows
-      .slice(0, 2)
-      .map(
-        (row) =>
-          `${row.label}: ${row.hitRate == null ? "—" : `${Math.round(row.hitRate * 100)}% above`} · ${row.minYears ?? "—"}y`,
-      )
+    const scopes = rows
+      .map((row) => `${row.label} ${row.minYears ?? "—"}y`)
       .join(" · ");
     const honesty =
       minimum != null && minimum >= 2
         ? "month-of-year deviation"
-        : "single-year month profile, not a seasonal signal";
-    return `${sample} · ${honesty}`;
+        : "single-year profile, not a seasonal signal";
+    return `How to read: cell = % vs own monthly average · n = observations in tooltip · ${scopes} · ${honesty}`;
   });
-  const sparkRows = createMemo(() =>
-    buildSparkRows(snapshot(), comparison(), (key, fallback) => commodityLabel(key, fallback)),
-  );
+  const sparkRows = createMemo(() => {
+    const rows = buildSparkRows(snapshot(), comparison(), (key, fallback) =>
+      commodityLabel(key, fallback),
+    );
+    const selected = group();
+    if (!selected) return rows;
+    // The universe must describe the same scope as the commodity select.
+    return rows.filter(
+      (row) =>
+        (commodityMetaByKey().get(row.key)?.group ?? agriCommodity(row.key)?.group) === selected,
+    );
+  });
 
   const quotes = createMemo(() => prices()?.quotes ?? []);
   const dispersionRows = createMemo(() => buildDispersionRows(quotes()));
@@ -878,7 +932,7 @@ export function AgriPage() {
     if (mode() === "band" && asOf()) {
       const trend = facts.trend == null ? "" : ` ${formatChangePct(facts.trend)} window`;
       const cv = facts.cv == null ? "—" : `${facts.cv.toFixed(1)}%`;
-      return `How to read: bold = modal ₹/quintal · thin = tracked commodities · ${rangeLabel}${trend} · modal CV ${cv} · as of ${formatAgriSessionDate(asOf())}`;
+      return `How to read: bold = modal ₹/quintal · thin = tracked commodities · ${rangeLabel}${trend} · modal CV ${cv} · n=${facts.sessions} sessions · as of ${formatAgriSessionDate(asOf())}`;
     }
     const start = asOf()
       ? formatAgriSessionDate(agriRangeStart(asOf(), agriRange(range())?.days ?? null))
@@ -1003,7 +1057,7 @@ export function AgriPage() {
       <ToolbarRow
         gap={8}
         data-testid="agri-toolbar"
-        className="sticky top-0 z-20 shrink-0 rounded-[6px] border border-fin-border bg-fin-bg px-2 py-1"
+        className="sticky top-0 z-20 shrink-0 rounded-[6px] border border-fin-border bg-fin-bg px-2 py-1 max-sm:-mt-2"
       >
         <Box className="flex flex-wrap items-center gap-2 min-w-0" data-testid="agri-scan-group">
           <Text fw={700} className={MICRO_LABEL}>
@@ -1181,8 +1235,17 @@ export function AgriPage() {
             </Badge>
           </Show>
           <Show when={dataSource() && dataSource() !== "db"}>
-            <Badge color={palette.AGRI_OUTLIER} size="xs" data-testid="agri-data-source">
-              {dataSource()}
+            <Badge
+              color={palette.AGRI_OUTLIER}
+              size="xs"
+              data-testid="agri-data-source"
+              title={
+                dataSource() === "mixed"
+                  ? "Mixed sources: this page combines rows from more than one feed"
+                  : `Data source: ${dataSource()}`
+              }
+            >
+              {dataSource() === "mixed" ? "Mixed sources" : dataSource()}
             </Badge>
           </Show>
           <Show when={pricesLoading() && prices()}>
@@ -1253,18 +1316,16 @@ export function AgriPage() {
       <Show when={!isMobile()}>{headlineStrip()}</Show>
 
       <Show when={filtersError()}>
-        <ErrorAlert
+        <AgriErrorBanner
+          testId="agri-filters-error"
           message={filtersError() ?? "Failed to load agri filters"}
-          data-testid="agri-filters-error"
-          withRetry
           onRetry={retryFilters}
         />
       </Show>
       <Show when={pricesError()}>
-        <ErrorAlert
+        <AgriErrorBanner
+          testId="agri-error"
           message={pricesError() ?? "Failed to load agri prices"}
-          data-testid="agri-error"
-          withRetry
           onRetry={refresh}
         />
       </Show>
@@ -1442,7 +1503,13 @@ export function AgriPage() {
                 testId="agri-chart-panel"
                 className="col-span-12 flex min-h-0 flex-col lg:col-span-8"
                 scrollable
-                style={{ "min-height": "460px", flex: "0 0 auto" }}
+                style={{
+                  // An empty chart owns only its header and message; the old
+                  // 460px floor left a blank slab above the other panels.
+                  "min-height": heroEmpty() ? "0px" : "460px",
+                  flex: "0 0 auto",
+                  "align-self": heroEmpty() ? "start" : undefined,
+                }}
                 title={`Price focus — ${commodityLabel(commodity(), commodity())}`}
                 description={heroCaption()}
               >
@@ -1457,7 +1524,7 @@ export function AgriPage() {
                       className={`${SEGMENT_TRACK} max-w-full flex-wrap`}
                       data-testid="agri-mode-strip"
                     >
-                      <For each={AGRI_CHART_MODES}>
+                      <For each={chartModes()}>
                         {(item) => (
                           <Button
                             size="xs"
@@ -1479,7 +1546,7 @@ export function AgriPage() {
                 >
                   <Box className="w-[132px]" data-testid="agri-mode-select-cell">
                     <Select
-                      data={AGRI_CHART_MODES.map((item) => ({
+                      data={chartModes().map((item) => ({
                         value: item.key,
                         label: item.label,
                       }))}
@@ -1546,8 +1613,7 @@ export function AgriPage() {
                   kind="no-data"
                   data-testid="agri-seasonality-weak"
                   title="Seasonality is not measurable yet"
-                  description={`A month-of-year cycle needs at least two distinct years. ${seasonalityDetail()}`}
-                  hint="Showing this on one annual cycle would imply a pattern the data cannot support."
+                  description={`A month-of-year cycle needs at least two distinct years. ${seasonalityDetail()} Showing this on one annual cycle would imply a pattern the data cannot support.`}
                   action={
                     <Button
                       size="xs"
@@ -1555,7 +1621,7 @@ export function AgriPage() {
                       onClick={() => setMode("band")}
                       data-testid="agri-seasonality-band"
                     >
-                      Show price band
+                      Show price
                     </Button>
                   }
                 />
@@ -1613,7 +1679,7 @@ export function AgriPage() {
                 flex: "0 0 auto",
               }}
               title="Commodity universe"
-              description="Click or press Enter / Space to focus the price chart"
+              description="Click or press Enter / Space · change = 1M"
             >
               <Show
                 when={sparkRows().length > 0}
@@ -1640,7 +1706,7 @@ export function AgriPage() {
               scrollable
               style={{ "min-height": "380px", flex: "0 0 auto" }}
               title="Rank movement · monthly"
-              description="1 = highest modal among commodities priced that month · gaps are not last place"
+              description={`1 = highest mean modal (₹/quintal) among commodities priced that month · n=${rankRows().length} ${rankRows().length === 1 ? "commodity" : "commodities"} · gaps are not last place`}
             >
               <Show
                 when={Object.keys(rankOption()).length > 0}
@@ -1667,7 +1733,7 @@ export function AgriPage() {
               testId="agri-season-panel"
               className="col-span-12 flex min-h-0 flex-col md:col-span-6 lg:col-span-4"
               scrollable
-              style={{ "min-height": "420px", flex: "0 0 auto" }}
+              style={{ "min-height": "460px", flex: "0 0 auto" }}
               title="Month profile · commodity × month"
               description={seasonProfileNote()}
             >
@@ -1696,11 +1762,11 @@ export function AgriPage() {
               testId="agri-dispersion-panel"
               className="col-span-12 flex min-h-0 flex-col md:col-span-12 lg:col-span-4"
               scrollable
-              style={{ "min-height": "400px", flex: "0 0 auto" }}
+              style={{ "min-height": "460px", flex: "0 0 auto" }}
               title="Mandi dispersion"
               description={
                 dispersionSummary().markets > 0
-                  ? `${dispersionSummary().shown} highest-priced of ${dispersionSummary().markets} mandis (${quotes().length}-quote page) · IQR ${formatAgriPrice(dispersionSummary().q1)}–${formatAgriPrice(dispersionSummary().q3)} · dot = modal · bar = min–max · violet halo = outside 1.5×IQR`
+                  ? `${dispersionSummary().shown} highest-priced of ${dispersionSummary().markets} mandis (${quotes().length}-quote page) · shown IQR ${formatAgriPrice(dispersionSummary().q1)}–${formatAgriPrice(dispersionSummary().q3)} · median ${formatAgriPrice(dispersionSummary().median)} · as of ${formatAgriSessionDate(asOf())} · dot = modal · bar = min–max · violet halo = outside 1.5×IQR`
                   : "Dot = modal · bar = min–max · violet halo = outside 1.5×IQR"
               }
             >

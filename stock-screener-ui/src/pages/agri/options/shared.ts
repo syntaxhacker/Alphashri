@@ -76,6 +76,7 @@ export interface EdaDistributionInput {
   boxes?: EdaBox[] | null;
   unit?: string;
   isDark?: boolean;
+  compact?: boolean;
 }
 
 export interface EdaSupplyDemandInput {
@@ -83,11 +84,13 @@ export interface EdaSupplyDemandInput {
   unit?: string;
   arrivalsUnit?: string;
   isDark?: boolean;
+  compact?: boolean;
 }
 
 export interface EdaHeatmapInput {
   rows?: EdaHeatmapRow[] | null;
   isDark?: boolean;
+  compact?: boolean;
 }
 
 export interface EdaRollingInput {
@@ -96,12 +99,14 @@ export interface EdaRollingInput {
   window?: number;
   rolling?: number;
   isDark?: boolean;
+  compact?: boolean;
 }
 
 export interface EdaSeasonalityInput {
   seasonality?: EdaBox[] | null;
   unit?: string;
   isDark?: boolean;
+  compact?: boolean;
 }
 
 export type EdaOptionInput =
@@ -269,7 +274,7 @@ export function baseOption(
   };
 }
 
-function compactAxisLabel(value: number): string {
+export function compactAxisLabel(value: number): string {
   const abs = Math.abs(value);
   if (abs >= 1_000_000) return `${STAT_FMT.format(value / 1_000_000)}M`;
   if (abs >= 1_000) return `${STAT_FMT.format(value / 1_000)}k`;
