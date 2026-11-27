@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import math
 import statistics
+from bisect import bisect_right
 from dataclasses import dataclass
 from typing import Mapping, Sequence
 
@@ -73,6 +74,27 @@ FUNDAMENTAL_KEYS: tuple[str, ...] = (
     "dividends_yield_current",
 )
 
+#: Every field parsed once per scored row: the 14 fundamentals (also used by
+#: the unknown-fundamentals flag), plus price/high/SMA200 for derived metrics
+#: and the trend/volume inputs.
+_SCORE_KEYS: tuple[str, ...] = FUNDAMENTAL_KEYS + (
+    "close", "SMA200", "price_52_week_high",
+    "volume", "RSI", "Perf.3M", "Perf.1M", "Recommend.All",
+)
+
+#: Fields needed to build the pre-gate peer distributions.
+_PEER_KEYS: tuple[str, ...] = (
+    "price_earnings_ttm", "price_sales_ratio", "price_book_fq", "return_on_equity_fq",
+    "free_cash_flow_ttm", "market_cap_basic", "total_revenue_yoy_growth_ttm",
+    "earnings_per_share_diluted_yoy_growth_ttm", "debt_to_equity_fq",
+    "gross_margin_ttm", "operating_margin_ttm", "close", "price_52_week_high",
+)
+
+
+def _parsed_values(row: Mapping, keys: Sequence[str]) -> dict[str, float | None]:
+    """Parse each requested field exactly once; unknown stays ``None``."""
+    return {key: _num(row.get(key)) for key in keys}
+
 
 def sector_bucket(sector: str | None) -> str:
     """Map a TradingView sector string to its peer bucket.
@@ -108,36 +130,29 @@ class ScoreConfig:
 # ---------------------------------------------------------------------------
 
 
-def _fcf_yield(row: Mapping) -> float | None:
+def _fcf_yield_from(fcf: float | None, mcap: float | None) -> float | None:
     """Free-cash-flow yield in percent, or ``None`` when unknown."""
-    fcf = _num(row.get("free_cash_flow_ttm"))
-    mcap = _num(row.get("market_cap_basic"))
     if fcf is None or mcap is None or mcap <= 0:
         return None
     return fcf / mcap * 100.0
 
 
-def _earnings_yield_frac(row: Mapping) -> float | None:
+def _earnings_yield_frac_from(pe: float | None) -> float | None:
     """Earnings yield as a fraction (1 / P/E), or ``None`` when unknown."""
-    pe = _num(row.get("price_earnings_ttm"))
     if pe is None or pe == 0.0:
         return None
     return 1.0 / pe
 
 
-def _vs_200dma(row: Mapping) -> float | None:
+def _vs_200dma_from(close: float | None, sma: float | None) -> float | None:
     """Distance of close above the 200-day SMA in percent."""
-    close = _num(row.get("close"))
-    sma = _num(row.get("SMA200"))
     if close is None or sma is None or sma <= 0:
         return None
     return (close / sma - 1.0) * 100.0
 
 
-def _off_52w_high(row: Mapping) -> float | None:
+def _off_52w_high_from(close: float | None, high: float | None) -> float | None:
     """Distance of close below the 52-week high in percent."""
-    close = _num(row.get("close"))
-    high = _num(row.get("price_52_week_high"))
     if close is None or high is None or high <= 0:
         return None
     return (close / high - 1.0) * 100.0
@@ -207,18 +222,19 @@ def peer_medians(rows: Sequence[Mapping]) -> dict[str, dict]:
         bucket = sector_bucket(row.get("sector"))
         slot = acc.setdefault(bucket, {})
         _bucket_size[bucket] = _bucket_size.get(bucket, 0) + 1
+        vals = _parsed_values(row, _PEER_KEYS)
         candidates: dict[str, float | None] = {
-            "pe": _num(row.get("price_earnings_ttm")),
-            "ps": _num(row.get("price_sales_ratio")),
-            "pb": _num(row.get("price_book_fq")),
-            "roe": _num(row.get("return_on_equity_fq")),
-            "fcf_yield": _fcf_yield(row),
-            "rev_yoy": _num(row.get("total_revenue_yoy_growth_ttm")),
-            "eps_yoy": _num(row.get("earnings_per_share_diluted_yoy_growth_ttm")),
-            "de": _num(row.get("debt_to_equity_fq")),
-            "gross_margin": _num(row.get("gross_margin_ttm")),
-            "op_margin": _num(row.get("operating_margin_ttm")),
-            "off_52w_high": _off_52w_high(row),
+            "pe": vals["price_earnings_ttm"],
+            "ps": vals["price_sales_ratio"],
+            "pb": vals["price_book_fq"],
+            "roe": vals["return_on_equity_fq"],
+            "fcf_yield": _fcf_yield_from(vals["free_cash_flow_ttm"], vals["market_cap_basic"]),
+            "rev_yoy": vals["total_revenue_yoy_growth_ttm"],
+            "eps_yoy": vals["earnings_per_share_diluted_yoy_growth_ttm"],
+            "de": vals["debt_to_equity_fq"],
+            "gross_margin": vals["gross_margin_ttm"],
+            "op_margin": vals["operating_margin_ttm"],
+            "off_52w_high": _off_52w_high_from(vals["close"], vals["price_52_week_high"]),
         }
         for key, value in candidates.items():
             if value is not None:
@@ -496,36 +512,37 @@ def score_row(
     has_pb = available("pb")
     has_ps = available("ps")
 
-    pe = _num(row.get("price_earnings_ttm"))
-    ps = _num(row.get("price_sales_ratio"))
-    pb = _num(row.get("price_book_fq"))
-    roe = _num(row.get("return_on_equity_fq"))
-    gm = _num(row.get("gross_margin_ttm"))
-    om = _num(row.get("operating_margin_ttm"))
-    de = _num(row.get("debt_to_equity_fq"))
-    cr = _num(row.get("current_ratio"))
-    fcf = _num(row.get("free_cash_flow_ttm"))
-    mcap = _num(row.get("market_cap_basic"))
-    rev_yoy = _num(row.get("total_revenue_yoy_growth_ttm"))
-    eps_yoy = _num(row.get("earnings_per_share_diluted_yoy_growth_ttm"))
-    eps = _num(row.get("earnings_per_share_diluted_ttm"))
-    div = _num(row.get("dividends_yield_current"))
-    volume = _num(row.get("volume"))
-    rsi = _num(row.get("RSI"))
-    perf3 = _num(row.get("Perf.3M"))
-    perf1 = _num(row.get("Perf.1M"))
-    rec = _num(row.get("Recommend.All"))
+    vals = _parsed_values(row, _SCORE_KEYS)
+    pe = vals["price_earnings_ttm"]
+    ps = vals["price_sales_ratio"]
+    pb = vals["price_book_fq"]
+    roe = vals["return_on_equity_fq"]
+    gm = vals["gross_margin_ttm"]
+    om = vals["operating_margin_ttm"]
+    de = vals["debt_to_equity_fq"]
+    cr = vals["current_ratio"]
+    fcf = vals["free_cash_flow_ttm"]
+    mcap = vals["market_cap_basic"]
+    rev_yoy = vals["total_revenue_yoy_growth_ttm"]
+    eps_yoy = vals["earnings_per_share_diluted_yoy_growth_ttm"]
+    eps = vals["earnings_per_share_diluted_ttm"]
+    div = vals["dividends_yield_current"]
+    volume = vals["volume"]
+    rsi = vals["RSI"]
+    perf3 = vals["Perf.3M"]
+    perf1 = vals["Perf.1M"]
+    rec = vals["Recommend.All"]
 
-    fcf_yield = _fcf_yield(row)
-    ey_frac = _earnings_yield_frac(row)
+    fcf_yield = _fcf_yield_from(fcf, mcap)
+    ey_frac = _earnings_yield_frac_from(pe)
     ey_pct = 100.0 * ey_frac if ey_frac is not None else None
-    vs200 = _vs_200dma(row)
-    off_high = _off_52w_high(row)
+    vs200 = _vs_200dma_from(vals["close"], vals["SMA200"])
+    off_high = _off_52w_high_from(vals["close"], vals["price_52_week_high"])
 
     loss_making = eps is not None and eps < 0
     negative_fcf = fcf is not None and fcf < 0
     distorted = pe is not None and pe < 6 and (roe is not None and roe > 25)
-    missing_count = sum(1 for key in FUNDAMENTAL_KEYS if _num(row.get(key)) is None)
+    missing_count = sum(1 for key in FUNDAMENTAL_KEYS if vals[key] is None)
     # A huge EPS swing on flat sales is a one-off (asset sale, tax credit, write-back),
     # not repeatable growth -> flag it and winsorise the growth term.
     one_off = (
@@ -676,7 +693,14 @@ def score_row(
     # Market-relative percentile ranks (0 = cheapest / weakest, 1 = richest /
     # strongest) inside the row's own sector bucket. Portable "cheap" gates use
     # these instead of absolute multiples, which do not travel between markets.
-    out["_pct"] = _percentiles(row, peers, bucket)
+    out["_pct"] = _percentiles(
+        {
+            "pe": pe, "ps": ps, "pb": pb, "roe": roe, "fcf_yield": fcf_yield,
+            "rev_yoy": rev_yoy, "eps_yoy": eps_yoy, "de": de, "off_52w_high": off_high,
+        },
+        peers,
+        bucket,
+    )
     out["_avail"] = {
         "pe": has_pe,
         "ps": has_ps,
@@ -691,31 +715,25 @@ def score_row(
     return out
 
 
-def _percentiles(row: Mapping, peers: Mapping, bucket: str) -> dict[str, float]:
-    """Percentile rank of each metric inside its peer bucket (0..1)."""
+def _percentiles(values: Mapping[str, float | None], peers: Mapping, bucket: str) -> dict[str, float]:
+    """Percentile rank of each metric inside its peer bucket (0..1).
+
+    ``peer_medians`` pre-sorts every distribution, so the rank is an insertion
+    point: ``bisect_right`` counts exactly ``v <= value``, including duplicates
+    and values equal to an element.
+    """
     dist_all = peers.get(_DIST_KEY)
     if not isinstance(dist_all, Mapping):
         return {}
     dist = dist_all.get(bucket)
     if not isinstance(dist, Mapping):
         return {}
-    values = {
-        "pe": _num(row.get("price_earnings_ttm")),
-        "ps": _num(row.get("price_sales_ratio")),
-        "pb": _num(row.get("price_book_fq")),
-        "roe": _num(row.get("return_on_equity_fq")),
-        "fcf_yield": _fcf_yield(row),
-        "rev_yoy": _num(row.get("total_revenue_yoy_growth_ttm")),
-        "eps_yoy": _num(row.get("earnings_per_share_diluted_yoy_growth_ttm")),
-        "de": _num(row.get("debt_to_equity_fq")),
-        "off_52w_high": _off_52w_high(row),
-    }
     out: dict[str, float] = {}
     for key, value in values.items():
         series = dist.get(key)
         if value is None or not series:
             continue
-        out[key] = sum(1 for v in series if v <= value) / len(series)
+        out[key] = bisect_right(series, value) / len(series)
     return out
 
 
