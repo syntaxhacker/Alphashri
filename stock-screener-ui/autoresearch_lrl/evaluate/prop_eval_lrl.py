@@ -1,9 +1,10 @@
-"""Rolling prop eval for the frozen best LRL config (reads best_r5.json)."""
+"""Rolling prop eval for the frozen best LRL config (reads sims/lrl_ifvg/params.json)."""
 import json, pickle, os
 import pandas as pd, numpy as np
 HERE=os.path.dirname(os.path.abspath(__file__))
-P=json.load(open(os.path.join(HERE,"best_r5.json"))); TF=P["tf"]
-DUKA="/tmp/opencode/duka_nq_1m.pkl"; PT=2.0
+PARAMS=os.environ.get("PARAMS_JSON",os.path.join(HERE,"..","sims","lrl_ifvg","params.json"))
+P=json.load(open(PARAMS)); TF=P["tf"]
+DUKA=os.environ.get("NQ_1M_PKL","/tmp/opencode/duka_nq_1m.pkl"); PT=2.0
 def load():
     df=pickle.load(open(DUKA,"rb")); df=df.rename(columns={c:c.lower() for c in df.columns})
     if df.index.tz is None: df.index=df.index.tz_localize("UTC")

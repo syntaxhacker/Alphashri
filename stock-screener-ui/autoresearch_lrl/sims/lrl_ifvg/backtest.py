@@ -3,8 +3,10 @@ Corrected intrabar sim (stop checked before peak update). Tracks hold bars. Filt
 IS = 2025, OOS = 2026. Params in params.json. Prints METRIC lines."""
 import json, pickle, os
 import pandas as pd, numpy as np
-HERE=os.path.dirname(os.path.abspath(__file__)); DUKA="/tmp/opencode/duka_nq_1m.pkl"
-P=json.load(open(os.path.join(HERE,"params.json"))); TF=P.get("tf",1)
+HERE=os.path.dirname(os.path.abspath(__file__))
+DUKA=os.environ.get("NQ_1M_PKL","/tmp/opencode/duka_nq_1m.pkl")
+PARAMS=os.environ.get("PARAMS_JSON",os.path.join(HERE,"params.json"))
+P=json.load(open(PARAMS)); TF=P.get("tf",1)
 def load():
     df=pickle.load(open(DUKA,"rb")); df=df.rename(columns={c:c.lower() for c in df.columns})
     if df.index.tz is None: df.index=df.index.tz_localize("UTC")

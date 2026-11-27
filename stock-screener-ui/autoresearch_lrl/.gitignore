@@ -1,0 +1,2 @@
+# Root .gitignore ignores *.json; keep the three frozen research configs trackable.
+!sims/*/params.json

@@ -1,0 +1,11 @@
+{
+  "htf": 30,
+  "K": 40,
+  "brk": 0.0,
+  "min_rng_atr": 1.0,
+  "sl_buf": 0.2,
+  "exit": "trail",
+  "trail": 1.25,
+  "fixed_R": 3.0,
+  "maxhold": 20
+}

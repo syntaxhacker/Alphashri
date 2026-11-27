@@ -2,8 +2,10 @@
 Params in params.json. Prints METRIC lines. IS=2025 OOS=2026 (walk-forward)."""
 import json, pickle, os
 import pandas as pd, numpy as np
-HERE=os.path.dirname(os.path.abspath(__file__)); P=json.load(open(os.path.join(HERE,"params.json")))
-DUKA="/tmp/opencode/duka_nq_1m.pkl"
+HERE=os.path.dirname(os.path.abspath(__file__))
+PARAMS=os.environ.get("PARAMS_JSON",os.path.join(HERE,"params.json"))
+P=json.load(open(PARAMS))
+DUKA=os.environ.get("NQ_1M_PKL","/tmp/opencode/duka_nq_1m.pkl")
 def load1m():
     df=pickle.load(open(DUKA,"rb")); df=df.rename(columns={c:c.lower() for c in df.columns})
     if df.index.tz is None: df.index=df.index.tz_localize("UTC")
