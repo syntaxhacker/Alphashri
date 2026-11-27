@@ -604,6 +604,9 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const [presetOwnsOrder, setPresetOwnsOrder] = createSignal(false);
   const applyPreset = (patch: Partial<MarketFilterState>) => {
     const { sort, ...bounds } = patch;
+    // A preset owns both bounds and order; showing the table makes the applied
+    // result visible instead of leaving the user on the Value/Vis surface.
+    if (sort) setViewMode("table");
     if (Object.keys(bounds).length > 0) {
       setFilters((current) => mergeMoverPresetFilters(current, bounds));
     }
@@ -943,7 +946,20 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   createEffect(() => {
     if (!drawerOpen()) return;
     const onKeyDown = (event: KeyboardEvent) => {
+      // The preset gallery is portalled out of this drawer and owns both Tab
+      // and Escape while it is up.
+      if (document.querySelector('[data-testid="market-preset-gallery"]')) return;
       if (event.key === "Escape") {
+        // The gallery's own Escape handler closes only the gallery. The event
+        // target stays inside the gallery subtree even after its close path
+        // unmounts it.
+        const target = event.target;
+        if (
+          target instanceof Element &&
+          target.closest('[data-testid="market-preset-gallery"]')
+        ) {
+          return;
+        }
         event.preventDefault();
         closeDrawer();
         return;
@@ -1410,6 +1426,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
                   embedded
                   market={marketUniverseToValueMarket(universe()) ?? "india"}
                   onOpenSymbol={selectAndOpen}
+                  onApplyMarketPreset={applyPreset}
                 />
               </Suspense>
             </Box>
@@ -1582,6 +1599,7 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
               currency={currency()}
               onCollapse={closeDrawer}
               collapseLabel="Close filters"
+              portalGallery
             />
           </Box>
         </Box>

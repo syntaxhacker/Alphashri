@@ -255,7 +255,7 @@ export function Select(props: UISelectProps) {
 
   const [focused, setFocused] = createSignal(false);
 
-  let selectEl: HTMLSelectElement | undefined;
+  const [selectEl, setSelectEl] = createSignal<HTMLSelectElement>();
   let appliedDefault: string | undefined;
   /**
    * Solid writes `value={}` on a <select> as a property, but its effect tracks
@@ -264,9 +264,13 @@ export function Select(props: UISelectProps) {
    * Re-apply while tracking both inputs; ignore values with no matching option.
    * Effects run after the option nodes are inserted, which is also what lets an
    * uncontrolled `defaultValue` match.
+   *
+   * The element is a signal, not a plain variable: a first effect run can happen
+   * before the ref is assigned, and returning on `!el` would then subscribe to
+   * nothing — a later value change had no effect to re-run it.
    */
   createEffect(() => {
-    const el = selectEl;
+    const el = selectEl();
     if (!el) return;
     const available = options();
     if (!isControlled()) {
@@ -303,7 +307,7 @@ export function Select(props: UISelectProps) {
       {known.leftSection && <span className="shrink-0 text-fin-text-muted text-xs">{known.leftSection}</span>}
       <div className="relative min-w-0 flex-1">
         <select
-          ref={(el) => (selectEl = el)}
+          ref={(el) => setSelectEl(el)}
           id={inputId}
           name={known.name as string | undefined}
           onInput={handleChange}
