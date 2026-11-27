@@ -104,6 +104,7 @@ export function buildValueColumns(
               className="flex-shrink-0"
               inAppText={inApp}
               tvIcon={!inApp}
+              showCopy
               onTextClick={inApp ? (sym) => onSymbolClick?.(sym, r.exchange) : undefined}
             />
             <TextCell

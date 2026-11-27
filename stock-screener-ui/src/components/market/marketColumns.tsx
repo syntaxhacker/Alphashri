@@ -266,6 +266,7 @@ export function buildMarketColumns(handlers: MarketColumnHandlers = {}): ColumnD
               tvLink={!handlers.narrow}
               tvIcon={!handlers.narrow}
               showChart={!handlers.narrow}
+              showCopy
               showOptions={!handlers.narrow && Boolean(r.fno) && !r.etf && hasIndianOptionsChain(r.exchange)}
               onTextClick={(sym) => handlers.onSymbolOpen?.(sym)}
               // Only override the chart icon when the host supplied a destination;

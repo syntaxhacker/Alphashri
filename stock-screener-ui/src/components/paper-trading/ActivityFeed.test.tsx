@@ -1,13 +1,14 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach, test } from "vitest";
-import { render, cleanup, screen } from "@solidjs/testing-library";
+import { render, cleanup, screen, fireEvent } from "@solidjs/testing-library";
 import { ActivityFeed } from "./ActivityFeed";
 import * as paperTradingState from "../../state/paperTrading";
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 vi.mock("../../api/paperTrading", () => ({
@@ -55,6 +56,21 @@ describe("ActivityFeed", () => {
     render(() => <ActivityFeed />);
     expect(screen.getAllByText("GESHIP").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/52W Target Swing/i).length).toBeGreaterThan(0);
+  });
+
+  it("copies the displayed symbol from an activity row", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    paperTradingState.setActivityEvents([{
+      ...entryEvent,
+      symbol: "NSE:NIFTY26OCT23000PE",
+    } as any]);
+    render(() => <ActivityFeed />);
+
+    const copy = screen.getByTestId("copy-symbol-NIFTY 23000 PE");
+    expect(copy).toHaveAttribute("aria-label", "Copy NIFTY 23000 PE");
+    fireEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("NIFTY 23000 PE");
   });
 
   it("renders an option contract as one canonical label with the raw value in the tooltip", () => {

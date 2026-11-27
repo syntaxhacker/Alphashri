@@ -12,7 +12,8 @@ import {
   type JSX,
   type Setter,
 } from "solid-js";
-import { Box, Group, Text, Button, Stack, Loader, ScrollArea, ToolbarRow } from "@/ui";
+import { ActionIcon, Box, CopyButton, Group, Text, Button, Stack, Loader, ScrollArea, ToolbarRow } from "@/ui";
+import { IconCheck, IconCopy } from "../common/Icons";
 import {
   IconRefresh,
   IconBellRinging,
@@ -207,19 +208,39 @@ function TopStocksCard(props: {
                   className="flex min-w-0 items-center gap-1.5 px-1 py-[2px]"
                 >
                   {needsCanonicalLink(stock.symbol) ? (
-                    <Box
-                      component="a"
-                      href={chartHrefForSymbol(
-                        stock.symbol,
-                        props.market === "america" ? "usa" : undefined,
-                      )}
-                      data-testid={`sector-top-stock-${stock.symbol}`}
-                      onKeyDown={clickOnSpace}
-                      className="min-w-0 text-fin-text no-underline hover:text-fin-primary"
-                    >
-                      <Text truncate className="text-ui-micro font-semibold">
-                        {displaySymbol(stock.symbol)}
-                      </Text>
+                    <Box className="flex min-w-0 items-center gap-[2px]">
+                      <Box
+                        component="a"
+                        href={chartHrefForSymbol(
+                          stock.symbol,
+                          props.market === "america" ? "usa" : undefined,
+                        )}
+                        data-testid={`sector-top-stock-${stock.symbol}`}
+                        onKeyDown={clickOnSpace}
+                        className="min-w-0 text-fin-text no-underline hover:text-fin-primary"
+                      >
+                        <Text truncate className="text-ui-micro font-semibold">
+                          {displaySymbol(stock.symbol)}
+                        </Text>
+                      </Box>
+                      <CopyButton value={displaySymbol(stock.symbol)}>
+                        {({ copied, copy }) => (
+                          <ActionIcon
+                            variant="subtle"
+                            color={copied ? "info" : "secondary"}
+                            size="xs"
+                            style={{ width: "16px", height: "16px", "min-height": "16px", padding: "0px" }}
+                            onClick={(event: MouseEvent) => {
+                              event.stopPropagation();
+                              copy();
+                            }}
+                            aria-label={`Copy ${displaySymbol(stock.symbol)}`}
+                            data-testid={`copy-symbol-${displaySymbol(stock.symbol)}`}
+                          >
+                            {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+                          </ActionIcon>
+                        )}
+                      </CopyButton>
                     </Box>
                   ) : (
                     <SymbolLink
@@ -228,6 +249,7 @@ function TopStocksCard(props: {
                       tvLink={false}
                       showChart={false}
                       showOptions={false}
+                      showCopy
                       size="xs"
                       weight={600}
                       testId={`sector-top-stock-${stock.symbol}`}

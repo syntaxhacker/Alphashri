@@ -106,6 +106,7 @@ describe("WatchView", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   test("loads setups and renders rows with state badges", async () => {
@@ -208,6 +209,32 @@ describe("WatchView", () => {
 
     fireEvent.click(screen.getByTestId("watch-row-TCS"));
     expect(onOpenSymbol).toHaveBeenCalledWith("TCS");
+  });
+
+  test("copies a watch symbol without opening its chart on a dock-backed row", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const onOpenSymbol = vi.fn();
+    render(() => <WatchView universe="nifty500" timeframe="1D" onOpenSymbol={onOpenSymbol} />);
+    await waitFor(() => expect(screen.getByTestId("watch-row-TCS")).toBeInTheDocument());
+
+    const copy = screen.getByTestId("symbol-copy-TCS");
+    expect(copy).toHaveAttribute("aria-label", "Copy TCS");
+    await fireEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("TCS");
+    expect(onOpenSymbol).not.toHaveBeenCalled();
+  });
+
+  test("copies a watch symbol from the plain (no dock) row", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    render(() => <WatchView universe="nifty500" timeframe="1D" />);
+    await waitFor(() => expect(screen.getByTestId("watch-row-TCS")).toBeInTheDocument());
+
+    const copy = screen.getByTestId("copy-symbol-TCS");
+    expect(copy).toHaveAttribute("aria-label", "Copy TCS");
+    await fireEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("TCS");
   });
 
   test("does not auto-poll the watch list (manual refresh only)", async () => {
@@ -658,6 +685,7 @@ describe("WatchView last-touch badge", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   test("PDSL-shaped row renders the last-touch badge with short date and full date in the title", async () => {
@@ -953,6 +981,7 @@ describe("WatchView tags and Hide ETFs", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   test("renders F&O and ETF badges next to the symbol: F&O only, ETF only, both, none", async () => {
@@ -1086,6 +1115,7 @@ describe("WatchView near_52w trigger date", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   test("surfaces trigger_date next to the numeric 52W high value", async () => {

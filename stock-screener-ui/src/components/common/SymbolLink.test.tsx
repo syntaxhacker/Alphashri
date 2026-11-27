@@ -161,6 +161,49 @@ describe("SymbolLink", () => {
     await fireEvent.click(copy);
     expect(writeText).toHaveBeenCalledWith("RELIANCE");
   });
+
+  test("copy is named Copy <SYMBOL> and writes the displayed ticker, not the feed symbol", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+
+    r(<SymbolLink symbol="NSE:RELIANCE" showCopy testId="sym-tv" />);
+
+    const copy = screen.getByTestId("symbol-copy-RELIANCE");
+    expect(copy).toHaveAccessibleName("Copy RELIANCE");
+    await fireEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
+  });
+
+  test("hovering the copy action ends the symbol preview instead of opening it", () => {
+    const onPreviewEnd = vi.fn();
+    r(<SymbolLink symbol="SBIN" showCopy onPreviewEnd={onPreviewEnd} testId="sym-tv" />);
+    fireEvent.mouseEnter(screen.getByTestId("symbol-copy-SBIN"));
+    expect(onPreviewEnd).toHaveBeenCalledWith("SBIN");
+  });
+
+  test("copy stops row propagation and never opens the dock or closes the chart", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const open = vi.fn();
+    const close = vi.fn();
+    const row = vi.fn();
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+
+    r(
+      <SymbolDockContext.Provider
+        value={{ open, close, preview: vi.fn(), endPreview: vi.fn(), pinned: false, setOutlet: vi.fn() }}
+      >
+        <div onClick={row}>
+          <SymbolLink symbol="BSE:TATA" showCopy testId="sym-tv" />
+        </div>
+      </SymbolDockContext.Provider>,
+    );
+
+    await fireEvent.click(screen.getByTestId("symbol-copy-TATA"));
+    expect(writeText).toHaveBeenCalledWith("TATA");
+    expect(row).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+  });
 });
 
 describe("SymbolLink inAppText — symbol body / ↗ inversion", () => {

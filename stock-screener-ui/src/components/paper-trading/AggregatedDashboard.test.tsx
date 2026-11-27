@@ -142,6 +142,7 @@ describe("AggregatedDashboard", () => {
   afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
   it("loads all bots 30D analytics by default", async () => {
@@ -172,6 +173,19 @@ describe("AggregatedDashboard", () => {
 
     expect(screen.getAllByText("No closed trades found for this period.")).toHaveLength(1);
     expect(screen.queryByText("Equity Curve")).not.toBeInTheDocument();
+  });
+
+  it("copies a symbol cell from the winners table without any row action", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    paperTradingState.setDashboardAnalyticsData(mockDashboardData());
+    render(() => <AggregatedDashboard />);
+
+    const copies = screen.getAllByTestId("copy-symbol-RELIANCE");
+    expect(copies.length).toBeGreaterThan(0);
+    expect(copies[0]).toHaveAttribute("aria-label", "Copy RELIANCE");
+    await fireEvent.click(copies[0]);
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
   });
 
   it("renders summary, bot rankings, strategy rows, winners, and losers", () => {

@@ -9,6 +9,7 @@ import { mockPosition } from "./testFixtures";
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("SelectedPositionBar", () => {
@@ -26,6 +27,18 @@ describe("SelectedPositionBar", () => {
       const pos = mockPosition();
       render(() => <SelectedPositionBar position={pos} />);
       expect(screen.getByText("RELIANCE")).toBeInTheDocument();
+    });
+
+    test("copies the displayed symbol with a labelled action", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal("navigator", { clipboard: { writeText } });
+      const pos = mockPosition({ symbol: "NSE:RELIANCE" });
+      render(() => <SelectedPositionBar position={pos} />);
+
+      const copy = screen.getByTestId("copy-symbol-RELIANCE");
+      expect(copy).toHaveAttribute("aria-label", "Copy RELIANCE");
+      fireEvent.click(copy);
+      expect(writeText).toHaveBeenCalledWith("RELIANCE");
     });
 
     test("renders an option contract symbol in canonical form with the raw tooltip", () => {

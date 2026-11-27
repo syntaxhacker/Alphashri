@@ -132,8 +132,28 @@ describe("SectorPage", () => {
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
     delete (window as any).__E2E_MOCK_MARKET_OPEN__;
     window.history.replaceState({}, "", "/");
+  });
+
+  it("copies the display symbol from a decorated top-stock row without opening its chart", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    mockFetchSectorPerformance.mockResolvedValue({
+      ...mockResponse,
+      top_stock_movers: [{ symbol: "NSE:RELIANCE", change: 2.5 }],
+    });
+
+    renderWithDock();
+    const link = await screen.findByTestId("sector-top-stock-NSE:RELIANCE");
+    expect(link).toHaveTextContent("RELIANCE");
+    const copy = screen.getByTestId("copy-symbol-RELIANCE");
+    expect(copy).toHaveAttribute("aria-label", "Copy RELIANCE");
+
+    await fireEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
+    expect(dockOpen).not.toHaveBeenCalled();
   });
 
   it("shows loading state during initial fetch", async () => {

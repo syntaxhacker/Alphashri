@@ -1,4 +1,5 @@
-import { Text } from "@/ui";
+import { ActionIcon, CopyButton, Text } from "@/ui";
+import { IconCheck, IconCopy } from "../common/Icons";
 import { chartHrefForSymbol, useSymbolDock } from "@/components/common/symbolDockContext";
 import { displayOptionSymbol, resolveUnderlyingSymbol } from "./optionTradeUtils";
 
@@ -41,17 +42,37 @@ export function ClickableSymbolSolid(props: ClickableSymbolSolidProps) {
   };
 
   return (
-    <button
-      type="button"
-      class="symbol-link font-semibold text-sky-400 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
-      data-testid={testIdValue()}
-      onClick={handleClick}
-      title={props.symbol}
-      aria-label={`Open chart for ${label()}`}
-    >
-      <Text span fw={props.fw ?? 600} size={props.size ?? "sm"} style={{ color: "inherit" }}>
-        {label()}
-      </Text>
-    </button>
+    <span class="inline-flex min-w-0 items-center gap-[2px]">
+      <button
+        type="button"
+        class="symbol-link font-semibold text-sky-400 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
+        data-testid={testIdValue()}
+        onClick={handleClick}
+        title={props.symbol}
+        aria-label={`Open chart for ${label()}`}
+      >
+        <Text span fw={props.fw ?? 600} size={props.size ?? "sm"} style={{ color: "inherit" }}>
+          {label()}
+        </Text>
+      </button>
+      <CopyButton value={label()}>
+        {({ copied, copy }) => (
+          <ActionIcon
+            variant="subtle"
+            color={copied ? "info" : "secondary"}
+            size="xs"
+            style={{ width: "16px", height: "16px", "min-height": "16px", padding: "0px" }}
+            onClick={(event: MouseEvent) => {
+              event.stopPropagation();
+              copy();
+            }}
+            aria-label={`Copy ${label()}`}
+            data-testid={`copy-symbol-${label()}`}
+          >
+            {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+          </ActionIcon>
+        )}
+      </CopyButton>
+    </span>
   );
 }

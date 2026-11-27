@@ -46,7 +46,29 @@ function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
 
 
 describe("PatternListView", () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  test("copies the display symbol from a list row without opening its chart", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const onSymbolOpen = vi.fn();
+    render(() => (
+      <PatternListView
+        hits={[makeHit({ symbol: "NSE:RELIANCE" })]}
+        onSelect={vi.fn()}
+        onSymbolOpen={onSymbolOpen}
+      />
+    ));
+
+    const copy = screen.getByTestId("symbol-copy-RELIANCE");
+    expect(copy).toHaveAttribute("aria-label", "Copy RELIANCE");
+    await fireEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
+    expect(onSymbolOpen).not.toHaveBeenCalled();
+  });
 
   test("emits the rendered (header-sorted) order for prev/next navigation", async () => {
     const hits = [

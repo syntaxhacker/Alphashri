@@ -155,7 +155,30 @@ function fixtureRows() {
 
 
 describe("PatternSymbolMatrix", () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  test("copies the display symbol from a matrix row without opening its chart", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const onSymbolOpen = vi.fn();
+    const { rowA } = fixtureRows();
+    const row = { ...rowA, symbol: "NSE:RELIANCE" };
+    render(() => <PatternSymbolMatrix
+        rows={[row]}
+        timeframes={["1D"]}
+        onSelect={vi.fn()}
+        onSymbolOpen={onSymbolOpen}
+      />);
+
+    const copy = screen.getByTestId("symbol-copy-RELIANCE");
+    expect(copy).toHaveAttribute("aria-label", "Copy RELIANCE");
+    await fireEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
+    expect(onSymbolOpen).not.toHaveBeenCalled();
+  });
 
   test("marks the row whose symbol is docked in the chart", () => {
     const { rowA, rowB } = fixtureRows();

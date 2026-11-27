@@ -194,12 +194,17 @@ describe("buildFnoColumns symbol cell — in-app text / TV ↗ inversion", () =>
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
-  function renderSymbolCell(onSymbolClick: (symbol: string) => void = dockOpen, rowClick = vi.fn()) {
+  function renderSymbolCell(
+    onSymbolClick: (symbol: string) => void = dockOpen,
+    rowClick = vi.fn(),
+    rowOverride: Partial<FnoScreenerRow> = {},
+  ) {
     const col = buildFnoColumns(onSymbolClick).find((c) => c.id === "symbol")!;
     const row = {
-      original: sampleRow,
+      original: { ...sampleRow, ...rowOverride },
       index: 0,
       isExpanded: () => false,
       toggle: () => {},
@@ -271,6 +276,33 @@ describe("buildFnoColumns symbol cell — in-app text / TV ↗ inversion", () =>
     expect(screen.getByTestId("symbol-chart-RELIANCE")).toBeInTheDocument();
     const external = screen.getByTestId("symbol-tv-RELIANCE");
     expect(external.tagName).toBe("A");
+  });
+
+  it("renders a 16px copy action beside the existing symbol affordances", () => {
+    renderSymbolCell();
+
+    const copy = screen.getByTestId("symbol-copy-RELIANCE");
+    expect(copy.tagName).toBe("BUTTON");
+    expect(copy).toHaveAccessibleName("Copy RELIANCE");
+    expect(copy).toHaveStyle({ width: "16px", height: "16px" });
+    expect(screen.getByTestId("fno-cell-symbol-RELIANCE")).toBeInTheDocument();
+    expect(screen.getByTestId("symbol-chart-RELIANCE")).toBeInTheDocument();
+    expect(screen.getByTestId("symbol-options-RELIANCE")).toBeInTheDocument();
+    expect(screen.getByTestId("symbol-tv-RELIANCE")).toBeInTheDocument();
+  });
+
+  it("copy writes the displayed ticker without opening the dock or the row", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const onSymbolClick = vi.fn();
+    const rowClick = renderSymbolCell(onSymbolClick, vi.fn(), { symbol: "NSE:RELIANCE" });
+
+    await fireEvent.click(screen.getByTestId("symbol-copy-RELIANCE"));
+
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
+    expect(onSymbolClick).not.toHaveBeenCalled();
+    expect(dockOpen).not.toHaveBeenCalled();
+    expect(rowClick).not.toHaveBeenCalled();
   });
 
   it("chart icon opens the dock in chart mode without bubbling to the row", async () => {

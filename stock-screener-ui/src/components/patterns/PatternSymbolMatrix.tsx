@@ -154,6 +154,7 @@ function SymbolCell(props: {
           onOpen={props.onSymbolOpen}
           onPreview={props.onSymbolPreview}
           onPreviewEnd={props.onSymbolPreviewEnd}
+          showCopy
           size="xs"
           weight={700}
           className="flex-1"
