@@ -986,6 +986,42 @@ def append_state(path: Path, record: dict[str, Any], keep: int = 50) -> None:
     os.replace(temporary, path)
 
 
+def latest_52w_as_of(
+    repo: str = DEFAULT_REPO,
+    token: Optional[str] = None,
+    api_url: str = DEFAULT_API_URL,
+) -> str | None:
+    """Newest 52W asset date published across all ``data-YYYY-MM`` releases."""
+    pattern = ASSET_PATTERNS["52w"]
+    dates: list[str] = []
+    for asset in list_github_assets(repo=repo, token=token, api_url=api_url):
+        match = pattern.match(asset.name)
+        if match:
+            dates.append(match.group(1))
+    return max(dates) if dates else None
+
+
+def last_applied_52w_as_of(state_file: Path = DEFAULT_STATE_FILE) -> str | None:
+    """Newest 52W date in the last successful sync ledger record, if any."""
+    try:
+        records = json.loads(Path(state_file).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(records, list):
+        return None
+    for record in reversed(records):
+        if not isinstance(record, dict) or record.get("status") != "ok":
+            continue
+        dates = [
+            value
+            for value in (record.get("week52_dates") or [])
+            if isinstance(value, str) and value
+        ]
+        if dates:
+            return max(dates)
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------

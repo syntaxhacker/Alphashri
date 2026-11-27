@@ -60,6 +60,7 @@ from api.news_routes import (
 )
 from api.news.news_poller import _init_news_modules
 from api.bots_api.bot_operations import bot_auto_recovery_task
+from trading import release_sync_watcher
 
 _news_available = False
 _llm_available = False
@@ -692,6 +693,7 @@ async def lifespan(app: FastAPI):
     print(f'🚀 Alphashri API starting...')
     prewarm = None
     _52w_task = None
+    _release_sync_task = None
     news_poller = None
     _prefetch_task = None
     _recovery_task = None
@@ -777,7 +779,8 @@ async def lifespan(app: FastAPI):
             _prefetch_task = _spawn_task("News prefetch", news_startup_prefetch, started="📰 News prefetch scheduled")
             prewarm = _spawn_task("Screener pre-warm", screener_prewarm_task, started="🔄 Screener pre-warm started", failed="⚠️ Screener prewarm failed: {e}")
 
-            _52w_task = _spawn_task("52W Range", compute_52w_ranges_task, started="📊 52W Range background task started", failed="⚠️ 52W Range task failed: {e}")
+            if os.getenv("RELEASE_SYNC_ENABLED", "1").strip().lower() not in ("0", "false", "no"):
+                _release_sync_task = _spawn_task("52W Release Sync", release_sync_watcher.release_sync_task, started="📦 52W release sync task started", failed="⚠️ 52W release sync failed: {e}")
 
             _recovery_task = _spawn_task("Bot auto-recovery", bot_auto_recovery_task, started="🔄 Bot auto-recovery task started", failed="⚠️ Bot auto-recovery task failed: {e}")
 
@@ -895,6 +898,8 @@ async def lifespan(app: FastAPI):
         prewarm.cancel()
     if _52w_task:
         _52w_task.cancel()
+    if _release_sync_task:
+        _release_sync_task.cancel()
     if news_poller:
         news_poller.cancel()
     if _prefetch_task:
