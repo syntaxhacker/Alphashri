@@ -2,7 +2,9 @@
 
 Every SCREENER_52W_* / SCREENER_TOUCH_* / SCREENER_RETEST_* env read and every
 shared constant lives here. No other module may read these env vars directly.
-Bad or negative env values fall back to the documented default.
+Bad or negative env values fall back to the documented default; integer readers
+accept whole-number strings only (fractional values such as "120.5" fall back
+rather than being truncated).
 """
 import math
 import os
@@ -22,6 +24,12 @@ def _env_float(name: str, default: float) -> float:
 
 
 def _env_int(name: str, default: int) -> int:
+    """Read an integer env value: only whole-number strings are accepted.
+
+    A fractional string like "120.5" is malformed for an integer knob, so it
+    falls back to ``default`` instead of being silently truncated to 120.
+    Negative values also fall back.
+    """
     raw = os.environ.get(name)
     if raw is None:
         return default
@@ -94,18 +102,18 @@ def touch_lookback_top() -> int:
 
 
 def batch_interval_sec() -> int:
-    """Batch scheduler interval (seconds)."""
+    """Interval (seconds) shown by the admin panel; the batch itself is on-demand."""
     return _env_int('SCREENER_52W_INTERVAL_SEC', 3600)
 
 
-def batch_max_wait_sec() -> int:
-    """Max seconds the scheduler waits for a batch subprocess to finish."""
-    return _env_int('SCREENER_52W_MAX_WAIT_SEC', 7200)
+#: One canonical staleness default: job.STALE_DEFAULT_SEC aliases this value for
+#: legacy callers instead of restating a second 1800 literal.
+JOB_STALE_DEFAULT_SEC = 1800
 
 
 def job_stale_sec() -> int:
     """Staleness threshold for a 'running' job (env SCREENER_52W_STALE_SEC, default 1800)."""
-    return _env_int('SCREENER_52W_STALE_SEC', 1800)
+    return _env_int('SCREENER_52W_STALE_SEC', JOB_STALE_DEFAULT_SEC)
 
 
 def cache_ttl_sec() -> int:
@@ -138,7 +146,7 @@ __all__ = [
     "touch_band_gap_pct",
     "touch_lookback_top",
     "batch_interval_sec",
-    "batch_max_wait_sec",
+    "JOB_STALE_DEFAULT_SEC",
     "job_stale_sec",
     "cache_ttl_sec",
     "batch_workers",

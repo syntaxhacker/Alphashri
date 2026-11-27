@@ -1,13 +1,31 @@
-"""Pure 52-week math helpers (moved verbatim from api/screener_api/screener_models.py).
+"""Pure 52-week math helpers (extracted from api/screener_api/screener_models.py).
 
-Threshold readers and STALE_52W_BREAKOUT_PCT live in .config; bodies below
-are byte-identical copies of the originals.
+Threshold readers and STALE_52W_BREAKOUT_PCT live in .config. This module has no
+api/db imports so it stays cheap for every screener caller.
 """
 
+import math
 import re
 from typing import Optional
 
-from api.utils import _to_float
+
+def _to_float(value, default: float = 0.0) -> float:
+    """Finite-float coercion for screener fields (None/NaN/Inf/error -> default).
+
+    Deliberate leaf copy of ``api.utils._to_float``: importing api.utils pulls
+    ``api/__init__`` -> every router -> auth -> db at import time. Use a neutral
+    shared numeric helper instead once one exists; parity is guarded in tests.
+    """
+    try:
+        if value is None:
+            return default
+        out = float(value)
+        if not math.isfinite(out):
+            return default
+        return out
+    except Exception:
+        return default
+
 
 from .config import (
     STALE_52W_BREAKOUT_PCT,
@@ -100,7 +118,6 @@ def is_plausible_52w_gap(gap_pct: Optional[float]) -> bool:
         gap = float(gap_pct)
     except (TypeError, ValueError):
         return False
-    import math
     if not math.isfinite(gap):
         return False
     return gap >= -STALE_52W_BREAKOUT_PCT

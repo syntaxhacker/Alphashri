@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { get52wHighColumns } from "./52wHigh";
+import { gapCol as sharedGapCol } from "./columnHelpers";
 import { cellOf, cellText, fmtOf } from "./columnTestFixtures";
 
 function findFmt(key: string) {
@@ -33,7 +34,18 @@ describe("52wHigh columns", () => {
     );
   });
 
-  describe("gapCol to_52w_high formatting (52W gap %)", () => {
+  describe("shared gapCol to_52w_high formatting (52W gap %)", () => {
+    it("uses the shared column id, label and metadata", () => {
+      const shared = sharedGapCol();
+      const col = get52wHighColumns().find((c) => c.key === "to_52w_high")!;
+      expect(col).toMatchObject({
+        key: shared.key,
+        label: shared.label,
+        type: shared.type,
+        sortable: shared.sortable,
+      });
+    });
+
     it.each([
       [-5.76, "-5.76%", "success"],
       [0, "0.00%", ""],

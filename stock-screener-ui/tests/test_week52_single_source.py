@@ -218,6 +218,23 @@ class TestCanonicalDefinitions:
         assert not duplicates, f"duplicate 52W definitions: {sorted(duplicates)}"
 
 
+class TestPackageExports:
+    def test_defaults_and_upsert_are_reexported_by_identity(self):
+        pkg = importlib.import_module("trading.week52")
+        expected = {
+            "ChaserDefaults": canonical_defaults.ChaserDefaults,
+            "TargetDefaults": canonical_defaults.TargetDefaults,
+            "upsert_52w_ranges": canonical_upsert.upsert_52w_ranges,
+        }
+        assert set(expected) <= set(pkg.__all__)
+        for name, obj in expected.items():
+            assert getattr(pkg, name) is obj
+
+    def test_dead_scheduler_wait_reader_is_gone(self):
+        assert "batch_max_wait_sec" not in canonical_config.__all__
+        assert not hasattr(canonical_config, "batch_max_wait_sec")
+
+
 class TestShims:
     @pytest.mark.parametrize("rel", sorted(SHIM_EXPORTS))
     def test_shim_has_no_definitions_or_env_reads(self, rel):

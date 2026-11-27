@@ -80,13 +80,18 @@ export function signedPercentCell(value: number, precision: number): FormattedCe
 
 // ── 52W gap cells ────────────────────────────────────────────────────
 
+/** Threshold above which a 52W gap reads as extended rather than neutral. */
+export const GAP_ERROR_ABOVE_PCT = 2;
+
 /** Below zero → basing (success); above errorAbove → extended (error); else neutral. */
 export function gapTone(value: number, errorAbove: number): "" | "success" | "error" {
   return value < 0 ? "success" : value > errorAbove ? "error" : "";
 }
 
+type GapTone = ReturnType<typeof gapTone>;
+
 /** 2-dp signed-percent gap cell with the standard 52W gap tone. */
-export function gapCell(value: number, errorAbove: number): FormattedCell {
+export function gapCell(value: number, errorAbove: number): FormattedCell & { className: GapTone } {
   return { value: signedPercent(value, 2), className: gapTone(value, errorAbove) };
 }
 
@@ -113,4 +118,19 @@ export function numCol(
   format?: ColumnDef["format"],
 ): ColumnDef {
   return { key, label, type: "number", sortable: true, ...(format ? { format } : {}) };
+}
+
+type GapRenderer = (
+  value: number,
+  cell: FormattedCell,
+) => ReturnType<NonNullable<ColumnDef["format"]>>;
+
+/** One `to_52w_high` definition; `render` only swaps the cell shell (kit vs plain Text). */
+export function gapCol(
+  render: GapRenderer = (_value, cell) => cell,
+  errorAbove = GAP_ERROR_ABOVE_PCT,
+): ColumnDef {
+  return numCol("to_52w_high", "52W Gap %", (value: number) =>
+    render(value, gapCell(value, errorAbove)),
+  );
 }

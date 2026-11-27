@@ -10,8 +10,6 @@ Backtest behavior:
 - Cooldown period after exit before re-entry
 """
 
-import sys
-import os
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -21,37 +19,21 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# Guarded nautilus imports for environments without nautilus-trader (no Rust toolchain).
-# Allows importing pure parts of module (Week52HighIndicator, calculate_adx/rsi, get_date_from_ns, Week52ChaserStrategy wrapper).
-try:
-    from nautilus_trader.model import BarType, InstrumentId
-    from nautilus_trader.trading.strategy import Strategy
-    from nautilus_trader.config import StrategyConfig
-    _NAUTILUS_AVAILABLE = True
-except ImportError:
-    Strategy = object  # type: ignore
-    StrategyConfig = object  # type: ignore
-    BarType = None  # type: ignore
-    InstrumentId = None  # type: ignore
-    _NAUTILUS_AVAILABLE = False
-
-if not _NAUTILUS_AVAILABLE:
-    class _SafeNautilusBase: pass
-    Strategy = _SafeNautilusBase
-
 from .base import BaseStrategy, StrategyParam, Week52NautilusMixin
+from .base_52w import (
+    IST,
+    BarType,
+    InstrumentId,
+    Strategy,
+    StrategyConfig,
+    _NAUTILUS_AVAILABLE,
+    add_project_root_to_path,
+    empty_backtest_result,
+    get_broker_access_token,
+    summarize_trades,
+)
 
-# Add project root to path for imports
-_current_file_dir = os.path.dirname(os.path.abspath(__file__))
-_backtest_dir = os.path.dirname(_current_file_dir)
-_ui_dir = os.path.dirname(_backtest_dir)
-_project_root_dir = os.path.dirname(_ui_dir)
-
-if _project_root_dir not in sys.path:
-    sys.path.insert(0, _project_root_dir)
-
-import config
-IST = config.IST
+add_project_root_to_path(__file__)
 
 from trading.week52_utils import calculate_52w_high, get_date_from_ns, Week52HighTracker
 
@@ -428,40 +410,27 @@ def run_single_stock_backtest(args):
         engine.dispose()
 
         if not trades:
-            candle_data = build_candle_data(df_for_backtest)
-            return {'symbol': symbol, 'success': True, 'trades': 0, 'result': None, 'candles': candle_data}
+            return empty_backtest_result(symbol, df_for_backtest)
 
         trades = filter_trades_by_cutoff(trades, cutoff_date)
 
         if not trades:
-            candle_data = build_candle_data(df_for_backtest)
-            return {'symbol': symbol, 'success': True, 'trades': 0, 'result': None, 'candles': candle_data}
+            return empty_backtest_result(symbol, df_for_backtest)
 
-        gross_pnl = sum(t['gross_pnl'] for t in trades)
-        total_costs = sum(t['trading_costs'] for t in trades) if include_costs else 0
-        net_pnl = gross_pnl - total_costs
-
-        wins = sum(1 for t in trades if t['net_pnl'] > 0)
-        losses = sum(1 for t in trades if t['net_pnl'] < 0)
-        total_trades = wins + losses
-        win_rate = (wins / total_trades * 100) if total_trades > 0 else 0
-
-        gross_profits = sum(t['net_pnl'] for t in trades if t['net_pnl'] > 0)
-        gross_losses = abs(sum(t['net_pnl'] for t in trades if t['net_pnl'] < 0))
-        profit_factor = gross_profits / gross_losses if gross_losses > 0 else float('inf') if gross_profits > 0 else 0
+        stats = summarize_trades(trades, include_costs)
 
         # shared gives the exit counts + base metrics (we force chaser rounding/fields for exact output)
         metrics = compute_52w_result_metrics(trades, include_costs=include_costs, strategy_kind='chaser')
         result = {
             'symbol': symbol,
-            'trades': total_trades,
-            'wins': wins,
-            'losses': losses,
-            'win_rate': round(win_rate, 1),
-            'gross_pnl': round(gross_pnl, 2),
-            'total_costs': round(total_costs, 2),
-            'net_pnl': round(net_pnl, 2),
-            'pf': round(profit_factor, 2),
+            'trades': stats['total_trades'],
+            'wins': stats['wins'],
+            'losses': stats['losses'],
+            'win_rate': round(stats['win_rate'], 1),
+            'gross_pnl': round(stats['gross_pnl'], 2),
+            'total_costs': round(stats['total_costs'], 2),
+            'net_pnl': round(stats['net_pnl'], 2),
+            'pf': round(stats['profit_factor'], 2),
             'tp_exits': metrics.get('tp_exits', 0),
             'sl_exits': metrics.get('sl_exits', 0),
             'trailing_exits': metrics.get('trailing_exits', 0),
@@ -474,7 +443,7 @@ def run_single_stock_backtest(args):
         return {
             'symbol': symbol,
             'success': True,
-            'trades': total_trades,
+            'trades': stats['total_trades'],
             'result': result,
             'candles': candle_data,
             'trade_list': trades,
@@ -604,10 +573,7 @@ class Week52ChaserStrategy(BaseStrategy):
         return errors
 
     def run(self, symbols: List[str], days: int, params: Dict, progress_callback=None) -> Dict:
-        from db.models import get_shared_broker_token
-
-        token_data = get_shared_broker_token('upstox')
-        access_token = token_data.get('access_token') if token_data else None
+        access_token = get_broker_access_token()
 
         worker_args = [(symbol, params, days, access_token) for symbol in symbols]
 
