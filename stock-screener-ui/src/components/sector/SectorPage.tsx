@@ -30,7 +30,7 @@ import type { HeatmapStock } from "../../api/heatmap";
 import { subscribeToHolidays, isMarketOpenNow } from "../../state/holidays";
 import type { SectorResponse, SectorItem, StockMover } from "../../types/sector";
 import { CompactPanel } from "../common/compact";
-import { formatSectorPercentage as formatPercentage } from "./sectorUtils";
+import { formatSectorPercentage as formatPercentage, clickOnSpace } from "./sectorUtils";
 import { displaySymbol } from "@/config/tvSymbols";
 import { chartHrefForSymbol } from "../common/symbolDockContext";
 import { detectSectorAlerts, detectIntervalMovers } from "./SectorHelpers";
@@ -213,6 +213,8 @@ function TopStocksCard(props: {
                         stock.symbol,
                         props.market === "america" ? "usa" : undefined,
                       )}
+                      data-testid={`sector-top-stock-${stock.symbol}`}
+                      onKeyDown={clickOnSpace}
                       className="min-w-0 text-fin-text no-underline hover:text-fin-primary"
                     >
                       <Text truncate className="text-ui-micro font-semibold">

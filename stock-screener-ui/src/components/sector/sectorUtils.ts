@@ -32,6 +32,18 @@ export function formatSectorPercentage(
   return `${sign}${normalized.toFixed(precision)}%`;
 }
 
+/**
+ * Native anchors activate on Enter, not Space. The sector's decorated-symbol
+ * chart links use Space for parity with the dock buttons and every other
+ * keyboard-activatable surface, so translate Space to a real anchor click.
+ */
+export function clickOnSpace(event: KeyboardEvent): void {
+  if (event.key !== " " && event.key !== "Spacebar") return;
+  event.preventDefault();
+  const target = event.currentTarget;
+  if (target instanceof HTMLElement) target.click();
+}
+
 export interface SectorAlert {
   timestamp: string;
   sector: string;

@@ -1,7 +1,7 @@
 import { For, Show } from "solid-js";
 import { Box, Text } from "@/ui";
 import type { InternalStockMover } from "./sectorUtils";
-import { formatSectorPercentage } from "./sectorUtils";
+import { formatSectorPercentage, clickOnSpace } from "./sectorUtils";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 import { MONO } from "@/ui/palette";
 import { displaySymbol } from "@/config/tvSymbols";
@@ -75,6 +75,8 @@ export function IntervalMoversTable(props: IntervalMoversTableProps) {
                 <Box
                   component="a"
                   href={chartHrefForSymbol(mover.symbol, props.market)}
+                  data-testid={`interval-mover-${mover.symbol}`}
+                  onKeyDown={clickOnSpace}
                   className="min-w-0 text-fin-text no-underline hover:text-fin-primary"
                 >
                   <Text truncate className="text-ui-micro font-semibold">
