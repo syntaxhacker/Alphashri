@@ -4,8 +4,14 @@
   "head": "e071ba8a61cd713ea6e9ace6c270863d29df170b",
   "viewports": [1600, 390],
   "dimensions": {
-    "1600": { "width": 1600, "height": 1000 },
-    "390": { "width": 390, "height": 844 }
+    "1600": {
+      "width": 1600,
+      "height": 1000
+    },
+    "390": {
+      "width": 390,
+      "height": 844
+    }
   },
   "notes": [
     "The release source is a fixture: local and release prices are identical by fixture design. Provenance is shown by the source select and release badge, and asserted by the ?source URL plus source=release:data-2026-11 on both /api/agri/filters and /api/agri/prices requests."
@@ -55,7 +61,7 @@
         "1600": "source-loading-1600.png",
         "390": "source-loading-390.png"
       },
-      "covers": "Prices delayed 1.5s: filters render while the Mandi quotes skeleton and Loading mandi prices… state is visible."
+      "covers": "Prices delayed 1.5s: filters render while the Mandi quotes skeleton and Loading mandi prices\u2026 state is visible."
     },
     {
       "id": "source-error",

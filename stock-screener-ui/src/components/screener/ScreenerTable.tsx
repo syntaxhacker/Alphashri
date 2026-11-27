@@ -1,6 +1,7 @@
 import { createMemo, createSignal, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { Checkbox, ActionIcon, CopyButton, Tooltip, Badge, Group, Text, Box, Stack } from "@/ui";
-import { IconCopy, IconCheck } from "./icons";
+import { IconCopy, IconCheck } from "../common/Icons";
+import { displaySymbol } from "@/config/tvSymbols";
 import { TanStackTable, type TableColumnDef } from "../common/TanStackTable";
 import { useTablePrefs } from "../common/useTablePrefs";
 import { SymbolLink } from "../common/SymbolLink";
@@ -222,13 +223,13 @@ function ScreenerTableBody(props: ScreenerTableProps & { tableId: string }) {
                   }}
                   className="flex-1"
                 />
-                <CopyButton value={stock.symbol}>
+                <CopyButton value={displaySymbol(stock.symbol)}>
                   {({ copied, copy }) => (
                     <ActionIcon
                       variant="subtle"
                       color={copied ? "info" : "secondary"}
                       size="xs"
-                      aria-label={copied ? `Copied ${stock.symbol}` : `Copy ${stock.symbol}`}
+                      aria-label={copied ? `Copied ${displaySymbol(stock.symbol)}` : `Copy ${displaySymbol(stock.symbol)}`}
                       style={{ width: "16px", height: "16px", "min-height": "16px", padding: 0 }}
                       onClick={(e: MouseEvent) => { e.stopPropagation(); copy(); }}
                       data-testid={`copy-symbol-btn-${stock.symbol}`}

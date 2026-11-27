@@ -18,6 +18,7 @@ import threading
 import time as _time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import NamedTuple, Optional
 
 import pandas as pd
@@ -551,6 +552,253 @@ _chart_neg_cache_lock = threading.Lock()
 _chart_logger = logging.getLogger(__name__)
 
 
+# Live tail merge for the open-market stale-first path.
+#
+# The cached frame is completed-session data; while NSE is trading the last few
+# bars live only upstream. ``chart_patterns.tail_refresh.fetch_live_tail``
+# appends/repairs that tail. It is bounded here (default 2s) so a slow provider
+# can never hold a populated chart hostage: on timeout/failure the cached frame
+# is still served (marked stale) and the existing daemon refresh runs.
+_TAIL_TIMEOUT_DEFAULT_SEC = 2.0
+
+
+class _TailMergeFallback(NamedTuple):
+    """Failure-shaped answer when the tail module is not importable yet."""
+    frame: Optional[pd.DataFrame]
+    appended: int = 0
+    updated: int = 0
+    cache_through: Optional[datetime] = None
+    latest_bar: Optional[datetime] = None
+    provider_called: bool = False
+    error: Optional[str] = None
+
+
+def _tail_timeout_sec() -> float:
+    try:
+        value = float(os.environ.get("CHART_TAIL_TIMEOUT_SEC", str(_TAIL_TIMEOUT_DEFAULT_SEC)))
+    except (TypeError, ValueError):
+        value = _TAIL_TIMEOUT_DEFAULT_SEC
+    return max(0.05, value)
+
+
+def _last_bar_timestamp(df) -> Optional[pd.Timestamp]:
+    if df is None or getattr(df, "empty", True):
+        return None
+    try:
+        index = df.index
+        if pd.api.types.is_numeric_dtype(getattr(index, "dtype", None)):
+            return None
+        return pd.Timestamp(index[-1])
+    except Exception:
+        return None
+
+
+def _tail_unavailable(cached, error: str) -> _TailMergeFallback:
+    last_bar = _last_bar_timestamp(cached)
+    return _TailMergeFallback(
+        frame=cached,
+        appended=0,
+        updated=0,
+        cache_through=last_bar,
+        latest_bar=last_bar,
+        provider_called=False,
+        error=str(error)[:200],
+    )
+
+
+def fetch_live_tail(
+    symbol: str, timeframe: str, cached, *, now=None, cache_path: Optional[Path] = None,
+):
+    """Lazy bridge to ``chart_patterns.tail_refresh.fetch_live_tail``.
+
+    The module is owned by a parallel change and may still be landing, so the
+    import lives here behind a module-level name (tests monkeypatch it) and a
+    missing module degrades to a cache-only answer rather than an import error.
+    ``cache_path`` is the exact file the stale-first read served; the tail
+    merger must rewrite that entry (not the default) so the next poll sees it.
+    Older tail module revisions without the kwarg still work.
+    """
+    try:
+        from chart_patterns.tail_refresh import fetch_live_tail as _impl
+    except Exception as exc:  # noqa: BLE001 - module still landing / import cycle
+        return _tail_unavailable(cached, f"tail_refresh unavailable: {exc}")
+    kwargs = {"now": now}
+    try:
+        import inspect
+
+        params = inspect.signature(_impl).parameters.values()
+        accepts_path = any(
+            param.name == "cache_path"
+            or param.kind is inspect.Parameter.VAR_KEYWORD
+            for param in params
+        )
+    except Exception:
+        accepts_path = False
+    if accepts_path:
+        kwargs["cache_path"] = cache_path
+    return _impl(symbol, timeframe, cached, **kwargs)
+
+
+def _chart_now_ist() -> datetime:
+    """Single clock read for freshness/tail decisions (tests freeze it)."""
+    try:
+        return candles._now_ist()
+    except Exception:
+        return datetime.now(root_config.IST)
+
+
+def _india_market_open(now: Optional[datetime] = None) -> bool:
+    """Holiday-aware NSE session predicate. Never raises (closed on failure)."""
+    try:
+        from trading.utils import is_market_open
+        if now is None:
+            now = datetime.now(root_config.IST)
+        return bool(is_market_open(now))
+    except Exception:
+        return False
+
+
+def _timeframe_minutes(timeframe: str) -> int:
+    try:
+        from chart_patterns import timeframes as _timeframes
+        return int(_timeframes.get_timeframe(timeframe).minutes)
+    except Exception:
+        return 5
+
+
+def _iso_value(value) -> Optional[str]:
+    if value is None:
+        return None
+    try:
+        return value.isoformat() if hasattr(value, "isoformat") else str(value)
+    except Exception:
+        return None
+
+
+def _cache_age_sec(latest_bar, now) -> Optional[int]:
+    """Seconds since the last bar (never negative); ``None`` when unknown."""
+    if latest_bar is None:
+        return None
+    try:
+        bar = pd.Timestamp(latest_bar)
+        ref = pd.Timestamp(now)
+        if bar.tzinfo is None:
+            bar = bar.tz_localize("UTC")
+        if ref.tzinfo is None:
+            ref = ref.tz_localize(root_config.IST)
+        return max(0, int((ref - bar).total_seconds()))
+    except Exception:
+        return None
+
+
+def _tail_frame_stale(
+    timeframe: str, df, *, market_open: bool, now: datetime,
+) -> bool:
+    """Staleness for the live-tail path, by bar age and session gap.
+
+    - Intraday open: last bar older than ``max(2 x interval, 2 min)``.
+    - Intraday closed: last bar belongs to an earlier session.
+    - ``1D`` open: today's session bar is missing.
+    - ``1D`` closed: the frame ends before the last completed session.
+    - ``1W``/``1M``: the frame covers the last completed period.
+    """
+    if df is None or getattr(df, "empty", True):
+        return True
+    last_date = candles.frame_last_date(df)
+    if not last_date:
+        return True
+    last_bar = _last_bar_timestamp(df)
+    if timeframe == "1D":
+        if market_open:
+            return last_date != now.date().isoformat()
+        try:
+            expected = candles._last_completed_session().isoformat()
+        except Exception:
+            return True
+        return last_date < expected
+    if timeframe in ("1W", "1M"):
+        try:
+            lcs = candles._last_completed_session().isoformat()
+        except Exception:
+            return True
+        expected = _last_completed_period_label(lcs, timeframe)
+        return not _period_cache_covers(last_date, lcs, expected, timeframe)
+    if market_open:
+        if last_bar is None:
+            return True
+        try:
+            bar = pd.Timestamp(last_bar)
+            ref = pd.Timestamp(now)
+            if bar.tzinfo is None:
+                bar = bar.tz_localize("UTC")
+            if ref.tzinfo is None:
+                ref = ref.tz_localize(root_config.IST)
+        except Exception:
+            return True
+        threshold = max(2 * _timeframe_minutes(timeframe), 2) * 60.0
+        return (ref - bar).total_seconds() > threshold
+    try:
+        expected = candles._last_completed_session().isoformat()
+    except Exception:
+        return True
+    if last_date < expected:
+        return True
+    return _closed_intraday_stale(timeframe, df, expected_session=expected)
+
+
+def _closed_intraday_stale(timeframe: str, df, *, expected_session: str) -> bool:
+    """Closed-market intraday frame that stops before the session close."""
+    if timeframe in ("1D", "1W", "1M"):
+        return False
+    last_bar = _last_bar_timestamp(df)
+    if last_bar is None:
+        return True
+    try:
+        bar = pd.Timestamp(last_bar)
+        if bar.tzinfo is None:
+            bar = bar.tz_localize("UTC")
+        ist_bar = bar.tz_convert(root_config.IST)
+        if ist_bar.date().isoformat() < expected_session:
+            return True
+        hour, minute = 15, 30
+        try:
+            from trading.utils import MARKET_CLOSE
+            hour, minute = int(MARKET_CLOSE[0]), int(MARKET_CLOSE[1])
+        except Exception:
+            pass
+        close = ist_bar.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        return ist_bar < close
+    except Exception:
+        return True
+
+
+def _closed_1d_superseded(
+    timeframe: str, as_of: Optional[str], *, market_open: bool,
+) -> bool:
+    """A closed daily frame predating the last completed session cannot repair
+    itself: there is no live tail after the close, so the normal fetch must run.
+    """
+    if market_open or timeframe != "1D" or not as_of:
+        return False
+    try:
+        completed = candles._last_completed_session().isoformat()
+    except Exception:
+        return False
+    return as_of < completed
+
+
+def _unpack_stale_frame(stale_first) -> tuple:
+    """Normalize the stale-first read to ``(df, as_of, read_ms, path)``.
+
+    Older callers/tests still supply three values; the fourth is the exact
+    on-disk entry the live tail must rewrite when it is an ``lb{N}`` variant.
+    """
+    if len(stale_first) == 4:
+        return stale_first
+    df, as_of, read_ms = stale_first
+    return df, as_of, read_ms, None
+
+
 def _ist_session_date() -> str:
     """Today's IST session date — the date component of the negative-cache key."""
     return datetime.now(root_config.IST).strftime("%Y-%m-%d")
@@ -590,6 +838,14 @@ def _chart_empty_payload(symbol: str, timeframe: str, *, reason: str, note: str)
         "candles": [],
         "overlays": [],
         "close_bar_date": None,
+        "data_source": "none",
+        "market_open": _india_market_open(),
+        "cache_through": None,
+        "latest_bar": None,
+        "appended": 0,
+        "updated": 0,
+        "cache_age_sec": None,
+        "refreshing": False,
         "error": reason,
         "note": note,
     }
@@ -620,7 +876,12 @@ def _stale_chart_fallback(
         lb = None if fetch_lookback is None else int(fetch_lookback)
         variant = f"lb{lb}" if lb is not None else None
         path = candles._cache_path(timeframe, symbol, None, variant=variant)
-        df = candles._read_pickle_any(path)
+        candidates = [path]
+        if variant is not None:
+            alt = candles._cache_path(timeframe, symbol, None)
+            if alt != path:
+                candidates.append(alt)
+        df, _chosen, _read_ms = _read_cached_frame(candidates)
         if df is None:
             return None
         as_of = candles.frame_last_date(df)
@@ -633,6 +894,7 @@ def _stale_chart_fallback(
             return None
     except Exception:
         return None
+    last_bar = _last_bar_timestamp(df)
     return {
         "symbol": str(symbol).upper(),
         "timeframe": timeframe,
@@ -645,6 +907,15 @@ def _stale_chart_fallback(
         # display share a date; the field is kept for a uniform payload shape.
         "detection_as_of": as_of,
         "close_bar_date": _close_bar_date(df),
+        "data_source": "cache",
+        "market_open": _india_market_open(),
+        "cache_through": _iso_value(last_bar),
+        "latest_bar": _iso_value(last_bar),
+        "appended": 0,
+        "updated": 0,
+        "cache_age_sec": _cache_age_sec(last_bar, datetime.now(root_config.IST)),
+        "refreshing": False,
+        "warning": f"served last cached frame: {reason}",
         "note": f"served last cached frame (through {as_of}); {reason}",
     }
 
@@ -779,12 +1050,49 @@ def _clear_chart_caches() -> None:
         _refresh_inflight.clear()
 
 
+def _read_cached_frame(candidates):
+    """First readable, non-empty, size-capped frame among ``candidates``.
+
+    A corrupt/unreadable ``lb{N}`` variant must not mask a valid default
+    entry: every candidate is tried in order. Returns
+    ``(df, path, read_ms)`` or ``(None, None, 0.0)``.
+    """
+    for candidate in candidates:
+        try:
+            size = candidate.stat().st_size
+        except OSError:
+            continue
+        if size <= 0:
+            continue
+        if size > _STALE_FIRST_MAX_BYTES:
+            _chart_logger.info(
+                "chart_stale_first skipped=size path=%s bytes=%d", candidate, size,
+            )
+            continue
+        start = _time.monotonic()
+        try:
+            df = candles._read_pickle_any(candidate)
+        except Exception:
+            df = None
+        read_ms = (_time.monotonic() - start) * 1000.0
+        if read_ms > _STALE_FIRST_DISK_BUDGET_MS:
+            _chart_logger.warning(
+                "chart_stale_first slow disk read path=%s read_ms=%.0f",
+                candidate, read_ms,
+            )
+        if df is not None and not getattr(df, "empty", True):
+            return df, candidate, read_ms
+    return None, None, 0.0
+
+
 def _stale_first_frame(symbol: str, timeframe: str, lookback_bars) -> Optional[tuple]:
     """Default live-edge disk frame when session-current, else ``None``.
 
     Local-disk read only: one size-capped pickle, no network. Returns
-    ``(df, as_of, read_ms)`` where ``as_of`` is the frame's last IST session
-    date. Never raises.
+    ``(df, as_of, read_ms, path)`` where ``as_of`` is the frame's last IST
+    session date and ``path`` is the exact file served (an ``lb{N}`` variant
+    or the default), so the live tail rewrites the entry the next poll reads.
+    Never raises.
 
     For ``1W``/``1M`` with no exact (fresh) cache, falls back to resampling
     the default ``1D`` cache locally (``W-FRI`` / month-end) so a weekly or
@@ -795,38 +1103,14 @@ def _stale_first_frame(symbol: str, timeframe: str, lookback_bars) -> Optional[t
         variant = f"lb{lb}" if lb is not None else None
         path = candles._cache_path(timeframe, symbol, None, variant=variant)
         # A chart asks for the READ_LOOKBACK_BARS variant (e.g. lb500); if that
-        # file was never written, the default live-edge frame is still a valid
-        # stale fallback. This is what makes a symbol chart load instantly
-        # after any prior fetch, regardless of the lookback variant.
+        # file was never written or is corrupt, the default live-edge frame is
+        # still a valid stale fallback.
         candidates = [path]
         if variant is not None:
             alt = candles._cache_path(timeframe, symbol, None)
             if alt != path:
                 candidates.append(alt)
-        chosen = None
-        for candidate in candidates:
-            try:
-                candidate.stat().st_size
-            except OSError:
-                continue
-            chosen = candidate
-            break
-        df = None
-        read_ms = 0.0
-        if chosen is not None:
-            try:
-                size = chosen.stat().st_size
-            except OSError:
-                size = 0
-            if size <= _STALE_FIRST_MAX_BYTES:
-                start = _time.monotonic()
-                df = candles._read_pickle_any(chosen)
-                read_ms = (_time.monotonic() - start) * 1000.0
-                if read_ms > _STALE_FIRST_DISK_BUDGET_MS:
-                    _chart_logger.warning(
-                        "chart_stale_first slow disk read symbol=%s timeframe=%s read_ms=%.0f",
-                        symbol, timeframe, read_ms,
-                    )
+        df, chosen, read_ms = _read_cached_frame(candidates)
         if df is not None:
             as_of = candles.frame_last_date(df)
             if as_of:
@@ -868,7 +1152,7 @@ def _stale_first_frame(symbol: str, timeframe: str, lookback_bars) -> Optional[t
                 else:
                     ok = as_of == _ist_session_date()
                 if ok:
-                    return df, as_of, read_ms
+                    return df, as_of, read_ms, chosen
         # Weekly/monthly resample fallback: no exact (fresh) 1W/1M cache, so
         # resample the default 1D cache locally — capped work, no network.
         if timeframe in ("1W", "1M"):
@@ -913,10 +1197,10 @@ def _stale_first_resampled_daily(symbol: str, timeframe: str) -> Optional[tuple]
 
     Only periods that end on or before the source frame's last session are
     kept: a partial current week/month is dropped rather than emitted with a
-    future label. Returns ``(df, as_of, read_ms)`` where ``as_of`` is the last
-    session date of the source daily frame (truthful "data through" date), or
-    ``None`` when there is no usable ``1D`` cache. The caller marks the result
-    ``stale``.
+    future label. Returns ``(df, as_of, read_ms, path)`` where ``as_of`` is the
+    last session date of the source daily frame (truthful "data through" date)
+    and ``path`` is that source entry. ``None`` when there is no usable ``1D``
+    cache. The caller marks the result ``stale``.
     """
     try:
         path = candles._cache_path("1D", symbol, None)
@@ -956,7 +1240,7 @@ def _stale_first_resampled_daily(symbol: str, timeframe: str) -> Optional[tuple]
         out = _drop_resampled_after(out, as_of)
         if out is None or out.empty:
             return None
-        return out, as_of, read_ms
+        return out, as_of, read_ms, path
     except Exception:
         return None
 
@@ -3329,6 +3613,55 @@ class SymbolChartResponse(BaseModel):
     detection_as_of: Optional[str] = None
     expected_as_of: Optional[str] = None
     note: Optional[str] = None
+    warning: Optional[str] = Field(
+        default=None,
+        description="Non-fatal data warning (e.g. a failed live-tail merge).",
+    )
+    cached: Optional[bool] = Field(
+        default=None,
+        description="True when candles were served from the live-edge disk cache.",
+    )
+    close_bar_date: Optional[str] = Field(
+        default=None,
+        description="IST session date (YYYY-MM-DD) of the last displayed candle.",
+    )
+    data_source: Optional[str] = Field(
+        default=None,
+        description=(
+            "Candle provenance for this response: 'provider' (network fetch), "
+            "'cache' (disk cache only), 'cache+tail' (cache + live tail merge), "
+            "'cache+tail-failed' (tail attempted, cached frame served), or "
+            "'none' (empty/error). Never reuse `source`, which tags pattern hits."
+        ),
+    )
+    market_open: Optional[bool] = Field(
+        default=None,
+        description="Holiday-aware NSE session state at response time.",
+    )
+    cache_through: Optional[str] = Field(
+        default=None,
+        description="Timestamp through which the cached frame is complete.",
+    )
+    latest_bar: Optional[str] = Field(
+        default=None,
+        description="Timestamp (ISO 8601) of the last bar behind `candles`.",
+    )
+    appended: Optional[int] = Field(
+        default=None,
+        description="Bars appended by the live tail merge (0 when none).",
+    )
+    updated: Optional[int] = Field(
+        default=None,
+        description="Bars repaired by the live tail merge (0 when none).",
+    )
+    cache_age_sec: Optional[int] = Field(
+        default=None,
+        description="Seconds between `latest_bar` and response time (null unknown).",
+    )
+    refreshing: Optional[bool] = Field(
+        default=None,
+        description="True when a background cache refresh was kicked for this response.",
+    )
     indicators: Optional[ChartIndicators] = Field(
         default=None,
         description=(
@@ -3408,33 +3741,120 @@ async def get_symbol_chart(
         None if refresh or from_part
         else _stale_first_frame(symbol_u, timeframe, lb)
     )
+    cache_path: Optional[Path] = None
+    now_ist = _chart_now_ist()
+    market_open = _india_market_open(now_ist)
     if stale_first is not None:
-        df, as_of, read_ms = stale_first
-        try:
-            chart_lcs = candles._last_completed_session().isoformat()
-        except Exception:
-            chart_lcs = None
-        # The disk frame is the completed-session base: detection, enrichment
-        # and the frame identity stay pinned to it. Today's tape bar is appended
-        # to the *displayed* candles when the frame ends on the last completed
-        # session — which is exactly the mid-session case (a live Monday frame
-        # ends on Friday) that an ``as_of < last_completed_session`` gate
-        # suppressed for the whole day.
-        display_df, is_partial = _chart_display_frame(df, symbol_u, timeframe)
+        cached_df, as_of, read_ms, cache_path = _unpack_stale_frame(stale_first)
+        if _closed_1d_superseded(timeframe, as_of, market_open=market_open):
+            _chart_logger.info(
+                "chart_stale_first rejected=closed_lag symbol=%s timeframe=%s "
+                "as_of=%s market_open=%s",
+                symbol_u, timeframe, as_of, market_open,
+            )
+            stale_first = None
+
+    if stale_first is not None:
+        # Open market: try to merge the live tail within a hard budget. The
+        # cached (completed-session) frame is the fallback and the detection
+        # base either way — a provider hiccup never blanks a populated chart.
+        frame = cached_df
+        tail = None
+        tail_error: Optional[str] = None
+        appended = 0
+        updated = 0
+        data_source = "cache"
+        refreshing = False
+        tail_skipped = False
+        if market_open:
+            try:
+                tail = await asyncio.wait_for(
+                    run_in_threadpool(
+                        fetch_live_tail, symbol_u, timeframe, cached_df,
+                        now=now_ist, cache_path=cache_path,
+                    ),
+                    timeout=_tail_timeout_sec(),
+                )
+            except asyncio.TimeoutError:
+                tail_error = (
+                    f"live tail exceeded {_tail_timeout_sec():.1f}s"
+                )
+            except Exception as exc:  # noqa: BLE001 - cache serve must never fail
+                tail_error = str(exc)[:200]
+
+            provider_called = bool(
+                getattr(tail, "provider_called", False)
+            ) if tail is not None else False
+            if tail is not None:
+                merge_error = getattr(tail, "error", None)
+                merged_frame = getattr(tail, "frame", None)
+                # A guard result can carry a diagnostic error without ever
+                # calling the provider (e.g. a 1D frame with only today's bar):
+                # that is a skip, not a failed tail/refresh.
+                if merge_error and provider_called:
+                    tail_error = str(merge_error)[:200]
+                elif merged_frame is None or getattr(merged_frame, "empty", True):
+                    if provider_called:
+                        tail_error = "live tail returned no frame"
+                else:
+                    frame = merged_frame
+                    appended = int(getattr(tail, "appended", 0) or 0)
+                    updated = int(getattr(tail, "updated", 0) or 0)
+                    if provider_called:
+                        data_source = "cache+tail"
+
+            if tail_error is not None:
+                # Failed tail: keep the cached frame, say so, and let the
+                # existing daemon refresh run for the next poll. Refreshing is
+                # true even when one is already in flight (dedupe returns False).
+                data_source = "cache+tail-failed"
+                refreshing = True
+                _kick_stale_first_refresh(symbol_u, timeframe, lb)
+            elif not provider_called:
+                # Cooldown / kill switch / outside the refresh window: the tail
+                # never touched the provider, so this is a plain cache serve.
+                tail_skipped = True
+
+        display_df = frame
+        is_partial = False
+        if market_open:
+            # The live-tail module keeps 1D completed-only on purpose; the
+            # display edge still owns today's synthetic daily bar even when the
+            # tail failed — a provider hiccup must not drop it.
+            display_df, _display_partial = _chart_display_frame(
+                frame, symbol_u, timeframe,
+            )
         display_df = _filter_frame_from(display_df, from_part)
-        appended_today = display_df is not df
+        if timeframe == "1D" and market_open:
+            # A daily bar newer than the last completed session is still
+            # forming; after 15:30 the same bar is final.
+            try:
+                last_date = candles.frame_last_date(display_df)
+                last_done = candles._last_completed_session().isoformat()
+                is_partial = bool(last_date and last_date > last_done)
+            except Exception:
+                is_partial = False
         series = _clamped_candle_series(display_df, lookback_bars, limit)
         _mark_partial_last(series, is_partial)
         warmup = _warmup_candles(display_df, series)
         if series:
-            # The disk frame is the completed-session base — the same frame
-            # detection uses, so it is safe to publish for the matrix.
-            _remember_frame((symbol_u, timeframe), df, *_last_close_change(df))
+            # Only the cached completed-session frame is published for the
+            # matrix: detection/enrichment stay on the base, never the live tail.
+            _remember_frame((symbol_u, timeframe), cached_df, *_last_close_change(cached_df))
             overlays = _stored_overlays(symbol_u, timeframe)
             if detect_patterns:
-                hits_block = _pattern_block(df, symbol_u, timeframe, session)
+                hits_block = _pattern_block(cached_df, symbol_u, timeframe, session)
                 overlays.extend(hits_block["live_overlays"])
             display_as_of = candles.frame_last_date(display_df) or as_of
+            stale = _tail_frame_stale(
+                timeframe, display_df, market_open=market_open, now=now_ist,
+            )
+            if tail_error is not None:
+                stale = True
+            latest_bar = _last_bar_timestamp(display_df)
+            cache_through = (
+                getattr(tail, "cache_through", None) if tail_error is None else None
+            ) or _last_bar_timestamp(cached_df)
             payload = {
                 "symbol": symbol_u,
                 "timeframe": timeframe,
@@ -3442,49 +3862,83 @@ async def get_symbol_chart(
                 "overlays": overlays,
                 "cached": True,
                 # Same displayed frame that produced `series`, so the bar date
-                # describes the last candle even when today's tape was appended.
+                # describes the last candle even when the live tail added bars.
                 "close_bar_date": _close_bar_date(display_df),
+                "as_of": display_as_of,
+                "detection_as_of": as_of,
+                "stale": stale,
+                "data_source": data_source,
+                "market_open": market_open,
+                "cache_through": _iso_value(cache_through),
+                "latest_bar": _iso_value(latest_bar),
+                "appended": appended,
+                "updated": updated,
+                "cache_age_sec": _cache_age_sec(latest_bar, now_ist),
+                "refreshing": refreshing,
             }
-            # Freshness describes the displayed series (which may include today's
-            # tape bar), so a synthesized bar clears ``stale``; detection and its
-            # ``bars_ago`` stay on the completed-session base frame. Only the 1D
-            # path knows what "expected" means; weekly/monthly frames close on
-            # their own period.
-            expected = chart_lcs if timeframe == "1D" else None
-            payload.update(_chart_freshness(
-                display_as_of, as_of, expected, served_from_cache=True,
-            ))
-            if appended_today:
-                note = (
-                    f"today's bar synthesized from the intraday tape; detection "
-                    f"through {as_of}"
+            if stale and timeframe == "1D":
+                if market_open:
+                    payload["expected_as_of"] = now_ist.date().isoformat()
+                else:
+                    try:
+                        payload["expected_as_of"] = (
+                            candles._last_completed_session().isoformat()
+                        )
+                    except Exception:
+                        pass
+            if tail_error is not None:
+                payload["note"] = (
+                    f"served cached frame (through {as_of}); live tail "
+                    f"unavailable ({tail_error}); refreshing in background"
+                )
+                payload["warning"] = f"live tail unavailable: {tail_error}"
+            elif tail_skipped:
+                payload["note"] = (
+                    f"served cached frame (through {as_of}); "
+                    "tail skipped (cooldown/kill switch/not open)"
+                )
+            elif appended or updated:
+                payload["note"] = (
+                    f"served cached frame through {as_of} + live tail "
+                    f"(+{appended} bars, {updated} updated)"
+                )
+            elif market_open:
+                payload["note"] = (
+                    f"served cached frame (through {as_of}); live tail checked, "
+                    f"no new bar"
                 )
             else:
-                note = f"served cached frame (through {as_of})"
-                if payload.get("expected_as_of"):
-                    note += (
-                        f"; Upstox daily data expected through "
-                        f"{payload['expected_as_of']}"
+                payload["note"] = (
+                    f"served cached frame (through {as_of}); market closed"
+                )
+            if stale and "warning" not in payload:
+                if not market_open and timeframe not in ("1D", "1W", "1M"):
+                    payload["warning"] = (
+                        "cached intraday frame ends before session close"
                     )
-            payload["note"] = f"{note}; refreshing in background"
+                else:
+                    payload["warning"] = f"cached frame is stale (through {as_of})"
             if detect_patterns:
                 payload["hits"] = list(hits_block["hits"])
                 _store_pattern_block(
-                    symbol_u, timeframe, session, hits_block, _frame_identity(df),
+                    symbol_u, timeframe, session, hits_block,
+                    _frame_identity(cached_df),
                 )
             else:
                 # Detection off: the chart must agree with the market table,
                 # which shows the stored scan's pattern. Live detection never
                 # runs on this path.
                 payload["hits"] = _stored_hits(symbol_u, timeframe)
-            _kick_stale_first_refresh(symbol_u, timeframe, lb)
             _log_chart_fetch(
                 symbol_u, timeframe, elapsed_ms=read_ms, rows=len(series),
-                cache_hit=True, timeout=False, error=None, stale_fallback=True,
+                cache_hit=True, timeout=False,
+                error=tail_error, stale_fallback=True,
             )
             _chart_logger.info(
-                "chart_stale_first symbol=%s timeframe=%s read_ms=%.0f as_of=%s",
-                symbol_u, timeframe, read_ms, as_of,
+                "chart_stale_first symbol=%s timeframe=%s read_ms=%.0f as_of=%s "
+                "market_open=%s data_source=%s appended=%d updated=%d error=%s",
+                symbol_u, timeframe, read_ms, as_of, market_open, data_source,
+                appended, updated, tail_error or "",
             )
             return _json_response(
                 _with_chart_extras(payload, "india", timeframe, warmup=warmup)
@@ -3635,6 +4089,8 @@ async def get_symbol_chart(
         "candles": series,
         "overlays": overlays,
         "close_bar_date": _close_bar_date(display_df),
+        "data_source": "provider",
+        "market_open": _india_market_open(_chart_now_ist()),
     }
     # Every successful chart answer carries the same freshness keys — a plain
     # network fetch is no more "current by assumption" than a forced refresh or

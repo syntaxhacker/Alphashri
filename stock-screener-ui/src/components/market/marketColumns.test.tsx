@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@solidjs/testing-library";
-import { afterEach, describe, expect, test } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { buildMarketColumns } from "./marketColumns";
 import type { MarketRow } from "../../types/marketScreener";
 
@@ -66,7 +66,10 @@ function renderSymbolCell(marketRow: MarketRow) {
   );
 }
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("market symbol cell — options icon eligibility", () => {
   test("F&O NSE row shows the options chain icon", () => {
@@ -74,6 +77,32 @@ describe("market symbol cell — options icon eligibility", () => {
     expect(screen.getByTestId("symbol-options-RELIANCE")).toBeInTheDocument();
     expect(screen.getByTestId("market-chart-RELIANCE")).toBeInTheDocument();
     expect(screen.getByTestId("symbol-tv-RELIANCE")).toBeInTheDocument();
+  });
+
+  test("a decorated exchange symbol exposes copy under the bare ticker", () => {
+    renderSymbolCell(row("BSE:TATA", false, "BSE"));
+    const copy = screen.getByTestId("symbol-copy-TATA");
+    expect(copy.tagName).toBe("BUTTON");
+    expect(copy).toHaveAccessibleName("Copy TATA");
+  });
+
+  test("a copy click does not bubble to the row", async () => {
+    const rowClick = vi.fn();
+    const column = buildMarketColumns().find((candidate) => candidate.id === "symbol");
+    if (!column?.cell) throw new Error("symbol column has no cell renderer");
+    const marketRow = row("RELIANCE", true, "NSE");
+
+    render(() => (
+      <div onClick={rowClick}>
+        {column.cell!({
+          row: { original: marketRow, index: 0, isExpanded: () => false, toggle: () => {} },
+          column,
+        })}
+      </div>
+    ));
+
+    await fireEvent.click(screen.getByTestId("symbol-copy-RELIANCE"));
+    expect(rowClick).not.toHaveBeenCalled();
   });
 
   test("non-F&O NSE row hides the options chain icon but keeps chart and TV links", () => {

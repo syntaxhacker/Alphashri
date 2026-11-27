@@ -7,6 +7,7 @@ import math
 import pickle
 import threading
 import time as _time
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -26,6 +27,12 @@ from db.database import get_db
 class _FakeUser:
     id = 1
     email = "qa@test.com"
+
+
+@pytest.fixture(autouse=True)
+def _closed_market_by_default(monkeypatch):
+    """Keep the live-tail branch off unless a test opts into an open market."""
+    monkeypatch.setattr(cp_api, "_india_market_open", lambda *a, **k: False)
 
 
 def _make_df(n: int = 80) -> pd.DataFrame:
@@ -2141,7 +2148,7 @@ def test_symbol_chart_without_detect_patterns_returns_stored_hits(cp_client, mon
     assert set(body) - {"expected_as_of"} == {
         "symbol", "timeframe", "candles", "overlays",
         "as_of", "stale", "detection_as_of", "hits", "close_bar_date",
-        "indicators", "sr_zones",
+        "indicators", "sr_zones", "data_source", "market_open",
     }
     _assert_chart_extras(body)
     assert len(body["overlays"]) == 1
@@ -2174,6 +2181,7 @@ def test_symbol_chart_stale_first_returns_stored_hits(cp_client, monkeypatch):
     store.save_hits("cpj_storedsf", [_hit("IRCON")])
     df = _make_df(80)
     monkeypatch.setattr(cp_api, "_stale_first_frame", lambda *a, **k: (df, "2026-03-11", 1.0))
+    _pin_last_completed_session(monkeypatch, "2026-03-11")
     monkeypatch.setattr(cp_api, "_kick_stale_first_refresh", lambda *a, **k: True)
     monkeypatch.setattr(cp_api.candles, "missing_today_bar", lambda _df: False)
 
@@ -2999,7 +3007,7 @@ def test_symbol_chart_normal_path_unchanged(cp_client, monkeypatch, no_stale_fir
     assert set(body) - {"expected_as_of"} == {
         "symbol", "timeframe", "candles", "overlays",
         "as_of", "stale", "detection_as_of", "hits", "close_bar_date",
-        "indicators", "sr_zones",
+        "indicators", "sr_zones", "data_source", "market_open",
     }
     _assert_chart_extras(body)
     assert body["hits"][0]["pattern_id"] == "falling_wedge"
@@ -3233,6 +3241,28 @@ def _pin_last_completed_session(monkeypatch, day: str = "2026-11-09"):
     )
 
 
+def _freeze_chart_now(monkeypatch, day: str = "2026-11-09", hh: int = 10, mm: int = 30):
+    from datetime import datetime as _dt
+
+    from trading.timezone import IST
+
+    year, month, dom = (int(p) for p in day.split("-"))
+    monkeypatch.setattr(
+        cp_api, "_chart_now_ist",
+        lambda: _dt(year, month, dom, hh, mm, tzinfo=IST),
+    )
+
+
+def _open_market_tail_fails(monkeypatch, message: str = "tail down"):
+    """Open-market stale-first path whose live tail provider always fails."""
+    monkeypatch.setattr(cp_api, "_india_market_open", lambda *a, **k: True)
+
+    def _fail(*args, **kwargs):
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(cp_api, "fetch_live_tail", _fail)
+
+
 def test_symbol_chart_stale_first_serves_cached_frame_immediately(
     cp_client, monkeypatch, tmp_path,
 ):
@@ -3277,13 +3307,16 @@ def test_symbol_chart_stale_first_serves_cached_frame_immediately(
     assert body["cached"] is True and body["stale"] is False
     assert body["as_of"] == "2026-11-09"
     assert body["detection_as_of"] == "2026-11-09"
+    assert body["data_source"] == "cache"
+    assert body["market_open"] is False
+    assert body["refreshing"] is False
     assert "expected_as_of" not in body
-    assert "served cached frame" in body["note"] and "background" in body["note"]
+    assert "served cached frame" in body["note"] and "market closed" in body["note"]
     assert "error" not in body
     assert len(body["candles"]) == 80
     _assert_chart_extras(body)
     assert fetch_calls == [], "stale-first must not touch the network"
-    assert kicks == [("POWERMECH", "1D", config.READ_LOOKBACK_BARS)]
+    assert kicks == [], "a closed market serves the cache without a refresh"
     assert body["hits"] and body["hits"][0]["pattern_id"] == "double_bottom"
     assert len(engine_calls) == 1
     assert elapsed < 2.0, f"stale-first was not instant: {elapsed:.1f}s"
@@ -3296,7 +3329,7 @@ def test_symbol_chart_stale_first_serves_cached_frame_immediately(
     assert again.json()["hits"] == body["hits"]
     assert len(engine_calls) == 1, "second call must be served from the pattern-hit cache"
     assert fetch_calls == []
-    assert len(kicks) == 2
+    assert len(kicks) == 0
 
 
 def test_symbol_chart_stale_first_miss_uses_network_path(cp_client, monkeypatch, tmp_path):
@@ -3410,7 +3443,7 @@ def test_symbol_chart_stale_first_intraday_today_frame_served(cp_client, monkeyp
     assert body["cached"] is True and body["stale"] is True
     assert body["as_of"] == "2026-11-09"
     assert fetch_calls == []
-    assert kicks == [("POWERMECH", "5m", config.READ_LOOKBACK_BARS)]
+    assert kicks == []
 
 
 def test_symbol_chart_stale_first_uses_lookback_variant(cp_client, monkeypatch, tmp_path):
@@ -3445,7 +3478,7 @@ def test_symbol_chart_stale_first_uses_lookback_variant(cp_client, monkeypatch, 
     assert miss.status_code == 200
     assert "cached" not in miss.json()
     assert fetch_calls == [("POWERMECH", "1D")]
-    assert len(kicks) == 1
+    assert len(kicks) == 0
 
 
 def test_symbol_chart_stale_first_oversized_frame_falls_back_to_network(
@@ -3548,10 +3581,10 @@ def test_symbol_chart_1w_stale_first_resamples_daily_cache(cp_client, monkeypatc
     )
     assert chart.status_code == 200
     body = chart.json()
-    assert body["cached"] is True and body["stale"] is True
+    assert body["cached"] is True and body["stale"] is False
     assert body["as_of"] == "2026-10-09"
     assert fetch_calls == [], "resample serve must not touch the network"
-    assert kicks == [("POWERMECH", "1W", config.READ_LOOKBACK_BARS)]
+    assert kicks == []
     candles = body["candles"]
     assert len(candles) == 2  # weeks ending Fri Oct 2 and Fri Oct 9
     assert candles[0]["o"] == 100.0 and candles[0]["h"] == 102.0
@@ -3586,7 +3619,7 @@ def test_symbol_chart_1w_exact_cache_takes_precedence_over_resample(
     )
     assert chart.status_code == 200
     body = chart.json()
-    assert body["cached"] is True and body["stale"] is True
+    assert body["cached"] is True and body["stale"] is False
     assert body["as_of"] == "2026-10-09"
     assert len(body["candles"]) == len(df)  # exact cache served un-resampled
     assert fetch_calls == []
@@ -3652,7 +3685,7 @@ def test_symbol_chart_period_exact_cache_served_on_wednesday(
     assert body["cached"] is True
     assert body["as_of"] == label
     assert len(body["candles"]) == len(df), "exact cache served un-resampled"
-    assert kicks == [("POWERMECH", timeframe, config.READ_LOOKBACK_BARS)]
+    assert kicks == [], "a closed market serves the cache without a refresh"
 
 
 @pytest.mark.parametrize(
@@ -3730,8 +3763,9 @@ def test_stale_first_resampled_daily_drops_incomplete_current_period(
 
     result = cp_api._stale_first_resampled_daily("POWERMECH", timeframe)
     assert result is not None
-    out, as_of, _ = result
+    out, as_of, _, path = result
     assert as_of == "2026-10-07"
+    assert path == cp_api.candles._cache_path("1D", "POWERMECH", None)
 
     dates = cp_api._ist_session_dates(out.index)
     assert dates, "completed periods must remain"
@@ -3842,8 +3876,9 @@ def test_pattern_hit_cache_keyed_by_session(cp_client, monkeypatch):
 def test_symbol_chart_stale_first_serves_one_session_behind(
     cp_client, monkeypatch, tmp_path,
 ):
-    """A frame one session behind (weekend/Monday before the fresh scan) is
-    still served instantly with stale=true when no today bar exists."""
+    """After the close a frame behind the last completed session is no longer
+    served stale-first: it is repaired on the network path. The freshness fields
+    still describe the lagging frame the fetch returned."""
     df = _make_df_session_current(80, end="2026-11-08")
     monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
     _seed_live_edge_disk_cache("POWERMECH", "1D", df, variant=_disk_cache_variant())
@@ -3865,11 +3900,13 @@ def test_symbol_chart_stale_first_serves_one_session_behind(
 
     assert chart.status_code == 200
     body = chart.json()
-    assert body["cached"] is True and body["stale"] is True
+    assert "cached" not in body
+    assert body["data_source"] == "provider"
+    assert body["stale"] is True
     assert body["as_of"] == "2026-11-08"
     assert body["detection_as_of"] == "2026-11-08"
     assert body["expected_as_of"] == "2026-11-09"
-    assert fetch_calls == []
+    assert fetch_calls == [("POWERMECH", "1D")]
 
 
 def test_kick_stale_first_refresh_refetches_with_force_refresh(cp_client, monkeypatch):
@@ -4015,6 +4052,8 @@ def test_stale_first_as_of_advances_after_refresh(cp_client, monkeypatch, tmp_pa
     monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(cp_api.candles, "_is_today", lambda *a, **k: True)
     _pin_last_completed_session(monkeypatch, "2026-11-09")
+    _freeze_chart_now(monkeypatch, "2026-11-09", 10, 30)
+    _open_market_tail_fails(monkeypatch)
     fresh = _make_df_session_current(80, end="2026-11-09")
     monkeypatch.setattr(
         md, "fetch_candles_for_timeframe",
@@ -4031,8 +4070,19 @@ def test_stale_first_as_of_advances_after_refresh(cp_client, monkeypatch, tmp_pa
     assert b1["cached"] is True and b1["stale"] is True
     assert b1["as_of"] == "2026-11-08"
     assert b1.get("expected_as_of") == "2026-11-09"
-    assert "expected through 2026-11-09" in b1["note"]
+    assert b1["refreshing"] is True
+    assert "live tail unavailable" in b1["note"]
 
+    # Once the refresh has written the current frame, a working tail confirms
+    # it (no new bar) and the chart is no longer stale.
+    monkeypatch.setattr(
+        cp_api, "fetch_live_tail",
+        lambda symbol, timeframe, cached, **kwargs: SimpleNamespace(
+            frame=cached, appended=0, updated=0,
+            cache_through=cached.index[-1], latest_bar=cached.index[-1],
+            provider_called=True, error=None,
+        ),
+    )
     second = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
     assert second.status_code == 200
     b2 = second.json()
@@ -4049,6 +4099,8 @@ def test_refresh_failure_keeps_stale_with_retry(cp_client, monkeypatch, tmp_path
     monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(cp_api.candles, "_is_today", lambda *a, **k: True)
     _pin_last_completed_session(monkeypatch, "2026-11-09")
+    _freeze_chart_now(monkeypatch, "2026-11-09", 10, 30)
+    _open_market_tail_fails(monkeypatch)
     _seed_stale_cache(cp_api.candles, tmp_path, "POWERMECH", "2026-11-08")
     _no_intraday_tape(monkeypatch)
 
@@ -4078,7 +4130,7 @@ def test_refresh_failure_keeps_stale_with_retry(cp_client, monkeypatch, tmp_path
 def test_stale_first_too_stale_falls_to_network(cp_client, monkeypatch, tmp_path):
     """A frame older than the max-staleness cap is not served stale-first;
     the request falls through to the normal network path (no refresh kick).
-    Raising the cap makes the same frame eligible again."""
+    With the market open, raising the cap makes the same frame eligible again."""
     import market_data.market_data as md
 
     monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
@@ -4107,17 +4159,30 @@ def test_stale_first_too_stale_falls_to_network(cp_client, monkeypatch, tmp_path
     assert fetch_calls == [("POWERMECH", "1D")]
     assert kicks == [], "no refresh kick on the network path"
 
-    # Phase 2: raising the cap makes the same (still-cached) 2026-11-05 frame
-    # eligible for stale-first again; no new network fetch. Seed the lb500
-    # variant too, since _stale_first_frame reads it before the default entry.
+    # Phase 2: with the market open the cap governs. Raising it makes the same
+    # (still-cached) 2026-11-05 frame eligible again; no new network fetch. Seed
+    # the lb500 variant too, since _stale_first_frame reads it before the default.
+    from types import SimpleNamespace
+
     _seed_stale_cache(cp_api.candles, tmp_path, "POWERMECH", "2026-11-05")
     _seed_stale_cache(cp_api.candles, tmp_path, "POWERMECH", "2026-11-05", variant="lb500")
     monkeypatch.setattr(cp_api, "_MAX_STALE_DAYS", 10)
+    monkeypatch.setattr(cp_api, "_india_market_open", lambda *a, **k: True)
+    _freeze_chart_now(monkeypatch, "2026-11-09", 10, 30)
+    monkeypatch.setattr(
+        cp_api, "fetch_live_tail",
+        lambda *a, **k: SimpleNamespace(
+            frame=a[2], appended=0, updated=0,
+            cache_through=None, latest_bar=None,
+            provider_called=False, error=None,
+        ),
+    )
     again = cp_client.get("/api/chart-patterns/symbol/POWERMECH/chart", params={"timeframe": "1D"})
     b = again.json()
     assert b["cached"] is True and b["stale"] is True
     assert b["as_of"] == "2026-11-05"
     assert b.get("expected_as_of") == "2026-11-09"
+    assert b["data_source"] == "cache"
     assert fetch_calls == [("POWERMECH", "1D")]  # stale-first served, no re-fetch
 
 
@@ -4130,6 +4195,7 @@ def test_refresh_dedupes_no_storm(cp_client, monkeypatch, tmp_path):
     monkeypatch.setattr(candles, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(candles, "_is_today", lambda *a, **k: True)
     _pin_last_completed_session(monkeypatch, "2026-11-09")
+    _open_market_tail_fails(monkeypatch)
     _seed_stale_cache(candles, tmp_path, "POWERMECH", "2026-11-08")
 
     gate = threading.Event()

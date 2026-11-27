@@ -240,6 +240,7 @@ export function SymbolLink(props: SymbolLinkProps) {
               color={copied ? "info" : "secondary"}
               size="xs"
               style={{ width: "16px", height: "16px", "min-height": "16px", padding: "0px" }}
+              onMouseEnter={() => local.onPreviewEnd?.(label())}
               onClick={(event) => {
                 event.stopPropagation();
                 copy();

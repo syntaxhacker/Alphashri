@@ -90,6 +90,7 @@ describe("buildValueColumns symbol cell — in-app text / TV ↗ inversion", () 
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   function renderNameCell(
@@ -178,6 +179,31 @@ describe("buildValueColumns symbol cell — in-app text / TV ↗ inversion", () 
     const text = screen.getByTestId("value-name-RELIANCE");
     expect(text.tagName).toBe("A");
     expect(screen.getByTestId("symbol-tv-RELIANCE")).toBeInTheDocument();
+    expect(screen.getByTestId("symbol-copy-RELIANCE")).toHaveAccessibleName("Copy RELIANCE");
+  });
+
+  it("renders a 16px copy action beside the existing name affordances", () => {
+    renderNameCell(vi.fn());
+
+    const copy = screen.getByTestId("symbol-copy-RELIANCE");
+    expect(copy.tagName).toBe("BUTTON");
+    expect(copy).toHaveStyle({ width: "16px", height: "16px" });
+    expect(screen.getByTestId("value-name-RELIANCE")).toBeInTheDocument();
+    expect(screen.getByTestId("value-chart-RELIANCE")).toBeInTheDocument();
+    expect(screen.getByTestId("symbol-tv-RELIANCE")).toBeInTheDocument();
+  });
+
+  it("copy writes the displayed ticker without opening the chart or the row", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const onSymbolClick = vi.fn();
+    const rowClick = renderNameCell(onSymbolClick, vi.fn(), { symbol: "NSE:RELIANCE" });
+
+    await fireEvent.click(screen.getByTestId("symbol-copy-RELIANCE"));
+
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
+    expect(onSymbolClick).not.toHaveBeenCalled();
+    expect(rowClick).not.toHaveBeenCalled();
   });
 });
 

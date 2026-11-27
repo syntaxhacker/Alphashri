@@ -710,3 +710,61 @@ describe("PatternFullscreenView full-chart page link", () => {
     );
   });
 });
+
+describe("PatternFullscreenView docked symbol actions", () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  function renderDock(symbol: string, onClose = vi.fn()) {
+    render(() => (
+      <PatternFullscreenView
+        opened
+        docked
+        onClose={onClose}
+        hit={null}
+        symbol={symbol}
+        candles={[]}
+      />
+    ));
+    return { onClose };
+  }
+
+  test("docked toolbar exposes a TradingView link built from the raw symbol", () => {
+    renderDock("NSE:RELIANCE");
+    const link = screen.getByTestId("patterns-dock-tv");
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute(
+      "href",
+      "https://www.tradingview.com/chart/?symbol=NSE%3ARELIANCE",
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link).toHaveAttribute("aria-label", "Open RELIANCE on TradingView");
+    expect(link).toHaveAttribute("title", "View RELIANCE on TradingView");
+  });
+
+  test("docked copy writes the displayed symbol and does not close the chart", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const { onClose } = renderDock("NSE:RELIANCE");
+
+    const copy = screen.getByTestId("patterns-dock-copy");
+    expect(copy).toHaveAccessibleName("Copy RELIANCE");
+    await fireEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  test("symbol actions stay on the single dock toolbar row", () => {
+    renderDock("RELIANCE");
+    const toolbar = screen.getByTestId("patterns-chart-toolbar");
+    const tv = screen.getByTestId("patterns-dock-tv");
+    const copy = screen.getByTestId("patterns-dock-copy");
+    const header = toolbar.parentElement?.parentElement as HTMLElement;
+    expect(header).toContainElement(tv);
+    expect(header).toContainElement(copy);
+    expect(header.className).not.toContain("flex-wrap");
+  });
+});

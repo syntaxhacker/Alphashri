@@ -9,6 +9,7 @@ import type { RotationPeriod, RotationRow } from "../../types/rotation";
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
 });
 
 const returns = {
@@ -96,6 +97,30 @@ describe("RotationDetail mover links", () => {
     const click = vi.spyOn(link, "click").mockImplementation(() => {});
     fireEvent.keyDown(link, { key: " " });
     expect(click).toHaveBeenCalledTimes(1);
+  });
+
+  test("copies the display symbol beside a decorated mover link", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    render(() => <RotationDetail row={rowWithMover("NSE:RELIANCE")} onOpenMembers={vi.fn()} />);
+
+    const copy = screen.getByTestId("copy-symbol-RELIANCE");
+    expect(copy).toHaveAttribute("aria-label", "Copy RELIANCE");
+    await fireEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
+  });
+
+  test("copies a dock-backed mover without opening its chart", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const open = vi.fn();
+    renderDetail(open);
+
+    const copy = screen.getByTestId("symbol-copy-HAL");
+    expect(copy).toHaveAttribute("aria-label", "Copy HAL");
+    await fireEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("HAL");
+    expect(open).not.toHaveBeenCalled();
   });
 });
 

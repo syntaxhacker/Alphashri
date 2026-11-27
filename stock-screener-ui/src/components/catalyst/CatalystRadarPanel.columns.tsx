@@ -1,9 +1,11 @@
 import { Show } from "solid-js";
-import { ActionIcon, Text } from "@/ui";
+import { ActionIcon, Box, CopyButton, Text } from "@/ui";
 import { IconChevronDown, IconChevronRight } from "@/components/common/Icons";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 import { DashCell, TextCell } from "@/components/common/tableCells";
-import { badgeColumn, symbolColumn } from "@/components/table/columns";
+import { badgeColumn } from "@/components/table/columns";
+import { IconCheck, IconCopy } from "@/components/common/Icons";
+import { displaySymbol } from "@/config/tvSymbols";
 import {
   CATALYST_COLUMN_ALIGN,
   confirmationFacts,
@@ -89,14 +91,52 @@ export function buildRadarColumns(ctx: RadarColumnContext): TableColumnDef<Catal
       },
     },
     {
-      ...symbolColumn<CatalystRowLike>({
-        id: "symbol",
-        header: "Symbol",
-        size: 74,
-        name: (row) => row.name,
-        cellTestId: (row) => `catalyst-symbol-${row.symbol}`,
-      }),
+      id: "symbol",
+      header: "Symbol",
+      accessorKey: "symbol",
+      size: 74,
       meta: { align: CATALYST_COLUMN_ALIGN.symbol },
+      cell: ({ row }) => {
+        const symbol = String(row.original.symbol ?? "");
+        const label = () => displaySymbol(symbol);
+        return (
+          <div class="flex min-w-0 flex-col leading-tight">
+            <div class="flex min-w-0 items-center gap-[2px]">
+              <Box
+                component="span"
+                data-testid={`catalyst-symbol-${symbol}`}
+                className="min-w-0 truncate text-left text-xs"
+                style={{ "font-weight": 700 }}
+              >
+                {label()}
+              </Box>
+              <CopyButton value={label()}>
+                {({ copied, copy }) => (
+                  <ActionIcon
+                    variant="subtle"
+                    color={copied ? "info" : "secondary"}
+                    size="xs"
+                    style={{ width: "16px", height: "16px", "min-height": "16px", padding: "0px" }}
+                    onClick={(event: MouseEvent) => {
+                      event.stopPropagation();
+                      copy();
+                    }}
+                    aria-label={`Copy ${label()}`}
+                    data-testid={`copy-symbol-${label()}`}
+                  >
+                    {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+                  </ActionIcon>
+                )}
+              </CopyButton>
+            </div>
+            <Show when={row.original.name}>
+              <Text size="xs" c="dimmed" span truncate className="min-w-0 text-left text-ui-micro">
+                {row.original.name}
+              </Text>
+            </Show>
+          </div>
+        );
+      },
     },
     {
       id: "catalyst",

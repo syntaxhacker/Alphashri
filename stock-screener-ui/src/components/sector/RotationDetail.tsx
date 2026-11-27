@@ -1,7 +1,8 @@
 import type { JSX } from "solid-js";
 import { Show, For } from "solid-js";
 import { NEGATIVE, POSITIVE, TEXT_MUTED } from "@/ui/palette";
-import { Box, Button, Text, typeSize } from "@/ui";
+import { ActionIcon, Box, Button, CopyButton, Text, typeSize } from "@/ui";
+import { IconCheck, IconCopy } from "../common/Icons";
 import { IconUsers } from "../screener/icons";
 import { SymbolLink } from "../common/SymbolLink";
 import { useSymbolDock } from "../common/symbolDockContext";
@@ -216,16 +217,36 @@ export function RotationDetail(props: RotationDetailProps) {
                   className="flex min-w-0 items-center gap-1.5"
                 >
                   {needsCanonicalLink(mover.symbol) ? (
-                    <Box
-                      component="a"
-                      href={chartHrefForSymbol(mover.symbol, props.market)}
-                      data-testid={`rotation-mover-${mover.symbol}`}
-                      onKeyDown={clickOnSpace}
-                      className="min-w-0 text-fin-text no-underline hover:text-fin-primary hover:underline"
-                    >
-                      <Text truncate className="text-ui-micro font-semibold">
-                        {displaySymbol(mover.symbol)}
-                      </Text>
+                    <Box className="flex min-w-0 items-center gap-[2px]">
+                      <Box
+                        component="a"
+                        href={chartHrefForSymbol(mover.symbol, props.market)}
+                        data-testid={`rotation-mover-${mover.symbol}`}
+                        onKeyDown={clickOnSpace}
+                        className="min-w-0 text-fin-text no-underline hover:text-fin-primary hover:underline"
+                      >
+                        <Text truncate className="text-ui-micro font-semibold">
+                          {displaySymbol(mover.symbol)}
+                        </Text>
+                      </Box>
+                      <CopyButton value={displaySymbol(mover.symbol)}>
+                        {({ copied, copy }) => (
+                          <ActionIcon
+                            variant="subtle"
+                            color={copied ? "info" : "secondary"}
+                            size="xs"
+                            style={{ width: "16px", height: "16px", "min-height": "16px", padding: "0px" }}
+                            onClick={(event: MouseEvent) => {
+                              event.stopPropagation();
+                              copy();
+                            }}
+                            aria-label={`Copy ${displaySymbol(mover.symbol)}`}
+                            data-testid={`copy-symbol-${displaySymbol(mover.symbol)}`}
+                          >
+                            {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+                          </ActionIcon>
+                        )}
+                      </CopyButton>
                     </Box>
                   ) : (
                     <SymbolLink
@@ -234,6 +255,7 @@ export function RotationDetail(props: RotationDetailProps) {
                       tvLink={false}
                       showChart={false}
                       showOptions={false}
+                      showCopy
                       size="xs"
                       weight={600}
                       testId={`rotation-mover-${mover.symbol}`}

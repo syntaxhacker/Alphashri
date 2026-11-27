@@ -1,9 +1,11 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 import {
+  ActionIcon,
   Alert,
   Badge,
   Box,
+  CopyButton,
   Loader,
   NumberInput,
   Select,
@@ -22,6 +24,8 @@ import type { CsvColumn } from "@/utils/copyCsv";
 import { isMarketOpenIst } from "@/utils/marketClock";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import { SymbolLink } from "@/components/common/SymbolLink";
+import { IconCheck, IconCopy } from "@/components/common/Icons";
+import { displaySymbol } from "@/config/tvSymbols";
 import { PatternTags, hasTag, rowTags, shortIstDate } from "./rowBadges";
 import { PatternScrollRegion } from "./PatternScrollRegion";
 
@@ -165,11 +169,30 @@ const ctxGet = (ctx: {
 
 const symbolCell = (ctx: WatchCellContext) => {
   const row = ctx.row.original as WatchRow;
+  const label = () => displaySymbol(String(ctxGet(ctx) ?? ""));
   return (
     <Box className="inline-flex min-w-0 items-center gap-1">
       <Text size="sm" fw={600}>
-        {String(ctxGet(ctx))}
+        {label()}
       </Text>
+      <CopyButton value={label()}>
+        {({ copied, copy }) => (
+          <ActionIcon
+            variant="subtle"
+            color={copied ? "info" : "secondary"}
+            size="xs"
+            style={{ width: "16px", height: "16px", "min-height": "16px", padding: "0px" }}
+            onClick={(event: MouseEvent) => {
+              event.stopPropagation();
+              copy();
+            }}
+            aria-label={`Copy ${label()}`}
+            data-testid={`copy-symbol-${label()}`}
+          >
+            {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+          </ActionIcon>
+        )}
+      </CopyButton>
       <PatternTags tags={rowTags(row)} symbol={row.symbol} testIdPrefix="watch" compact />
     </Box>
   );
@@ -685,6 +708,7 @@ export function WatchView(props: WatchViewProps) {
                     onOpen={props.onOpenSymbol}
                     onPreview={props.onSymbolPreview}
                     onPreviewEnd={props.onSymbolPreviewEnd}
+                    showCopy
                   />
                   <PatternTags
                     tags={rowTags(ctx.row.original)}

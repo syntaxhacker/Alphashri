@@ -1,5 +1,6 @@
 import { For, Show } from "solid-js";
-import { Box, Text } from "@/ui";
+import { ActionIcon, Box, CopyButton, Text } from "@/ui";
+import { IconCheck, IconCopy } from "../common/Icons";
 import type { InternalStockMover } from "./sectorUtils";
 import { formatSectorPercentage, clickOnSpace } from "./sectorUtils";
 import { getPnLTextColor } from "../../utils/ui-helpers";
@@ -72,16 +73,36 @@ export function IntervalMoversTable(props: IntervalMoversTableProps) {
           {(mover) => (
             <Box className="grid grid-cols-[minmax(0,1fr)_44px_44px_52px] items-center gap-0.5 min-h-5 px-0.5 border-b border-fin-border">
               {needsCanonicalLink(mover.symbol) ? (
-                <Box
-                  component="a"
-                  href={chartHrefForSymbol(mover.symbol, props.market)}
-                  data-testid={`interval-mover-${mover.symbol}`}
-                  onKeyDown={clickOnSpace}
-                  className="min-w-0 text-fin-text no-underline hover:text-fin-primary"
-                >
-                  <Text truncate className="text-ui-micro font-semibold">
-                    {displaySymbol(mover.symbol)}
-                  </Text>
+                <Box className="flex min-w-0 items-center gap-[2px]">
+                  <Box
+                    component="a"
+                    href={chartHrefForSymbol(mover.symbol, props.market)}
+                    data-testid={`interval-mover-${mover.symbol}`}
+                    onKeyDown={clickOnSpace}
+                    className="min-w-0 text-fin-text no-underline hover:text-fin-primary"
+                  >
+                    <Text truncate className="text-ui-micro font-semibold">
+                      {displaySymbol(mover.symbol)}
+                    </Text>
+                  </Box>
+                  <CopyButton value={displaySymbol(mover.symbol)}>
+                    {({ copied, copy }) => (
+                      <ActionIcon
+                        variant="subtle"
+                        color={copied ? "info" : "secondary"}
+                        size="xs"
+                        style={{ width: "16px", height: "16px", "min-height": "16px", padding: "0px" }}
+                        onClick={(event: MouseEvent) => {
+                          event.stopPropagation();
+                          copy();
+                        }}
+                        aria-label={`Copy ${displaySymbol(mover.symbol)}`}
+                        data-testid={`copy-symbol-${displaySymbol(mover.symbol)}`}
+                      >
+                        {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+                      </ActionIcon>
+                    )}
+                  </CopyButton>
                 </Box>
               ) : (
                 <SymbolLink
@@ -90,6 +111,7 @@ export function IntervalMoversTable(props: IntervalMoversTableProps) {
                   tvLink={false}
                   showChart={false}
                   showOptions={false}
+                  showCopy
                   size="xs"
                   weight={600}
                   testId={`interval-mover-${mover.symbol}`}

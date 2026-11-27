@@ -23,6 +23,7 @@ import {
 import { collectConsoleErrors } from "./helpers/flowsB";
 import { setupNewsMocks } from "./helpers/newsHelpers";
 import { apiRoute } from "../mocks/routeHelper";
+import { waitForSettled } from "./helpers/evidenceFast";
 
 const EVIDENCE = process.env.SCREENSHOT_EVIDENCE === "1";
 
@@ -148,6 +149,7 @@ const ROUTES: readonly EvidenceRoute[] = [
   {
     name: "report",
     path: "/report/index",
+    ready: '[data-testid="nifty-report-content"]',
     setup: async (page) => {
       await setupNiftyTapeMocks(page);
       // The shared tape fixture has no per-strike chain, so the heatmap would
@@ -229,8 +231,7 @@ for (const [width, height] of [
       await page.goto(route.path);
       await route.afterGoto?.(page);
       if (route.ready) await page.waitForSelector(route.ready, { timeout: 20000 });
-      if (route.waitForNetworkIdle !== false) await page.waitForLoadState("networkidle");
-      await page.waitForTimeout(400);
+      await waitForSettled(page, route.ready ?? "body");
       await route.verify?.(page);
       await page.screenshot({
         path: `docs/screenshots/app/${route.name}-${width}.png`,

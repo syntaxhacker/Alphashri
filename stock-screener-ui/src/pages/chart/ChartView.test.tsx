@@ -612,6 +612,357 @@ describe("ChartView (pattern workspace)", () => {
   });
 });
 
+describe("ChartView freshness contract", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(fetchTimeframes).mockResolvedValue(TIMEFRAMES);
+    vi.mocked(fetchSymbolChart).mockResolvedValue(chartPayload());
+  });
+
+  it("shows STALE and UPDATING badges for a stale frame while the market is open", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      chartPayload({
+        stale: true,
+        market_open: true,
+        refreshing: true,
+        data_source: "cache",
+        cache_through: "2026-09-26T10:00:00+05:30",
+      }),
+    );
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("chart-freshness-stale")).toHaveTextContent("STALE"),
+    );
+    expect(screen.getByTestId("chart-freshness-updating")).toHaveTextContent("UPDATING");
+    expect(screen.queryByTestId("chart-freshness-appended")).toBeNull();
+  });
+
+  it("shows the appended-bar count and suppresses the UPDATED variant", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      chartPayload({
+        data_source: "cache+tail",
+        appended: 3,
+        updated: 2,
+        cache_through: "2026-09-26T10:00:00+05:30",
+        latest_bar: "2026-09-26T11:00:00+05:30",
+      }),
+    );
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("chart-freshness-appended")).toHaveTextContent("+3 BARS"),
+    );
+    expect(screen.queryByTestId("chart-freshness-updated")).toBeNull();
+  });
+
+  it("shows UPDATED when the cache was rewritten without appending bars", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      chartPayload({ data_source: "provider", updated: 2, appended: 0 }),
+    );
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("chart-freshness-updated")).toHaveTextContent("UPDATED"),
+    );
+    expect(screen.queryByTestId("chart-freshness-appended")).toBeNull();
+  });
+
+  it("stores every freshness field from the payload", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      chartPayload({
+        data_source: "cache+tail",
+        cache_through: "2026-09-26T10:00:00+05:30",
+        latest_bar: "2026-09-26T11:00:00+05:30",
+        appended: 2,
+        updated: 2,
+        market_open: true,
+        stale: false,
+        cache_age_sec: 42,
+        refreshing: true,
+      }),
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument());
+
+    const view = screen.getByTestId("chart-view");
+    expect(view).toHaveAttribute("data-data-source", "cache+tail");
+    expect(view).toHaveAttribute("data-cache-through", "2026-09-26T10:00:00+05:30");
+    expect(view).toHaveAttribute("data-latest-bar", "2026-09-26T11:00:00+05:30");
+    expect(view).toHaveAttribute("data-market-open", "1");
+    expect(view).toHaveAttribute("data-appended", "2");
+    expect(view).toHaveAttribute("data-updated", "2");
+    expect(view).toHaveAttribute("data-refreshing", "1");
+    expect(screen.getByTestId("chart-freshness-appended")).toHaveTextContent("+2 BARS");
+  });
+
+  it("keeps a payload note with candles and never opens the error panel", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      chartPayload({
+        note: "Tail refresh failed; showing cached bars.",
+        error: "fetch_timeout",
+      }),
+    );
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("chart-warning-text")).toHaveTextContent(
+        "Tail refresh failed; showing cached bars.",
+      ),
+    );
+    expect(screen.queryByTestId("chart-error")).toBeNull();
+    expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument();
+  });
+
+  it("a successful cache+tail note is not rendered as a warning banner", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      chartPayload({
+        data_source: "cache+tail",
+        note: "served cached frame through 2026-11-27 + live tail (+3 bars, 1 updated)",
+        appended: 3,
+        updated: 1,
+      }),
+    );
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("chart-freshness-appended")).toHaveTextContent("+3 BARS"),
+    );
+    expect(screen.queryByTestId("chart-warning")).toBeNull();
+    expect(screen.queryByTestId("chart-warning-text")).toBeNull();
+  });
+
+  it("a failure note still warns when the backend omits an error code", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      chartPayload({ note: "Tail refresh failed; showing cached bars." }),
+    );
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("chart-warning-text")).toHaveTextContent(
+        "Tail refresh failed; showing cached bars.",
+      ),
+    );
+  });
+
+  it("humanizes freshness tooltips in IST and as a duration, not raw UTC/seconds", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      chartPayload({
+        stale: true,
+        market_open: false,
+        data_source: "cache",
+        cache_through: "2026-11-27T04:00:00Z",
+        latest_bar: "2026-11-27T04:15:00Z",
+        cache_age_sec: 40944,
+      }),
+    );
+    renderPage("/chart/TEST?tf=15m");
+
+    await waitFor(() =>
+      expect(screen.getByTestId("chart-freshness-stale")).toBeInTheDocument(),
+    );
+    const title = screen.getByTestId("chart-freshness-stale").getAttribute("title") ?? "";
+    expect(title).toContain("IST");
+    expect(title).toContain("09:45");
+    expect(title).toContain("11 h ago");
+    expect(title).not.toContain("40944");
+    expect(title).not.toContain("04:15");
+  });
+
+  it("keeps stored candles when the live-detection fallback fails", async () => {
+    vi.mocked(fetchSymbolChart)
+      .mockResolvedValueOnce(chartPayload({ hits: [] }))
+      .mockRejectedValueOnce(new Error("detect down"));
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("chart-warning-text")).toHaveTextContent("detect down"),
+    );
+    expect(screen.queryByTestId("chart-error")).toBeNull();
+    expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-fullscreen-body")).toHaveAttribute("data-hits", "0");
+  });
+
+  it("a failed timeframe switch clears the old candles instead of showing them under the new frame", async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument());
+    expect(screen.getByTestId("chart-view")).toHaveAttribute("data-candle-timeframe", "1D");
+
+    vi.mocked(fetchSymbolChart).mockRejectedValueOnce(new Error("1W unavailable"));
+    fireEvent.change(screen.getByTestId("chart-timeframe-select"), { target: { value: "1W" } });
+
+    await waitFor(() => expect(screen.getByTestId("chart-error")).toBeInTheDocument());
+    expect(screen.getByText("1W unavailable")).toBeInTheDocument();
+    expect(screen.queryByTestId("patterns-fullscreen-body")).toBeNull();
+    expect(screen.queryByTestId("chart-freshness-stale")).toBeNull();
+    expect(screen.getByTestId("chart-view")).toHaveAttribute("data-candle-timeframe", "");
+
+    vi.mocked(fetchSymbolChart).mockResolvedValue(chartPayload({ timeframe: "1W" }));
+    fireEvent.click(screen.getByTestId("chart-retry-btn"));
+    await waitFor(() => expect(screen.getByTestId("patterns-fullscreen-body")).toBeInTheDocument());
+    expect(screen.getByTestId("chart-view")).toHaveAttribute("data-candle-timeframe", "1W");
+  });
+
+  it("retry after a transport failure requests refresh=1 instead of the cache", async () => {
+    vi.mocked(fetchSymbolChart).mockRejectedValueOnce(new Error("Network down"));
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("chart-error")).toBeInTheDocument());
+
+    vi.mocked(fetchSymbolChart).mockResolvedValue(chartPayload());
+    fireEvent.click(screen.getByTestId("chart-retry-btn"));
+
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenLastCalledWith("TEST", "1D", {
+        detectPatterns: false,
+        refresh: true,
+      }),
+    );
+  });
+
+  it("retry from the zero-candle state requests refresh=1", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(chartPayload({ candles: [], hits: [] }));
+    renderPage("/chart/TEST?tf=15m");
+    await waitFor(() => expect(screen.getByTestId("chart-no-candles")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("chart-retry-btn"));
+
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenLastCalledWith("TEST", "15m", {
+        detectPatterns: false,
+        refresh: true,
+      }),
+    );
+  });
+
+  it("a late response from the previous timeframe cannot overwrite the new chart", async () => {
+    const daily = deferred<ChartPayload>();
+    const weekly = deferred<ChartPayload>();
+    vi.mocked(fetchSymbolChart)
+      .mockImplementationOnce(() => daily.promise)
+      .mockImplementationOnce(() => weekly.promise);
+    renderPage();
+
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "1D", STORED_OPTIONS),
+    );
+    fireEvent.change(screen.getByTestId("chart-timeframe-select"), { target: { value: "1W" } });
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("TEST", "1W", STORED_OPTIONS),
+    );
+
+    weekly.resolve(
+      chartPayload({
+        timeframe: "1W",
+        hits: [{ ...HIT, id: 21, timeframe: "1W", pattern_name: "Weekly Winning" }],
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent(
+        "Weekly Winning",
+      ),
+    );
+
+    daily.resolve(
+      chartPayload({
+        timeframe: "1D",
+        hits: [{ ...HIT, id: 22, pattern_name: "Daily Late" }],
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent(
+      "Weekly Winning",
+    );
+    expect(screen.getByTestId("patterns-fullscreen-body")).toHaveAttribute("data-timeframe", "1W");
+  });
+});
+
+describe("ChartView stale polling", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.resetAllMocks();
+    vi.mocked(fetchTimeframes).mockResolvedValue(TIMEFRAMES);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("polls a stale open-market frame and stops on unmount", async () => {
+    vi.mocked(fetchSymbolChart).mockImplementation(async () =>
+      chartPayload({
+        stale: true,
+        market_open: true,
+        refreshing: true,
+        data_source: "cache",
+      }),
+    );
+    const { unmount } = renderPage();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(screen.getByTestId("chart-freshness-stale")).toBeInTheDocument();
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+
+    unmount();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+  });
+
+  it("a failed poll keeps the session open and retries on the next 20s tick", async () => {
+    const staleFrame = () =>
+      chartPayload({
+        stale: true,
+        market_open: true,
+        refreshing: true,
+        data_source: "cache",
+      });
+    vi.mocked(fetchSymbolChart)
+      .mockResolvedValueOnce(staleFrame())
+      .mockRejectedValueOnce(new Error("poll failed"))
+      .mockResolvedValue(staleFrame());
+    renderPage();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("chart-view")).toHaveAttribute("data-market-open", "1");
+
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("chart-warning-text")).toHaveTextContent("poll failed");
+    expect(screen.getByTestId("chart-view")).toHaveAttribute("data-candle-timeframe", "1D");
+    expect(screen.getByTestId("chart-view")).toHaveAttribute("data-market-open", "1");
+    expect(screen.queryByTestId("chart-error")).toBeNull();
+
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not poll a current frame or a closed market", async () => {
+    vi.mocked(fetchSymbolChart).mockResolvedValue(
+      chartPayload({ stale: false, market_open: true, data_source: "cache+tail" }),
+    );
+    const { unmount } = renderPage();
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+});
+
+/** Simple deferred for the request-token race test. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 /**
  * US payload carries live-detected hits/overlays plus US metadata; the view
  * must apply all of them (single live-detection read, no stored lookup). Cast

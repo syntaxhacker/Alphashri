@@ -10,6 +10,7 @@ export interface SymbolTvLinkProps {
   className?: string;
   style?: CSSProperties;
   ariaLabel?: string;
+  showCopy?: boolean;
 }
 
 /**
@@ -29,6 +30,7 @@ export function SymbolTvLink(props: SymbolTvLinkProps) {
       textClassName="pattern-tv-link"
       stopPropagation={true}
       ariaLabel={props.ariaLabel}
+      showCopy={props.showCopy}
     >
       {props.children}
     </SymbolLink>

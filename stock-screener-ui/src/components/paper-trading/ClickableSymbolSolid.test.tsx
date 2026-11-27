@@ -50,6 +50,7 @@ describe("ClickableSymbolSolid", () => {
     assign.mockRestore();
     cleanup();
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
   });
 
   function mount(symbol: string, onClick?: (symbol: string) => void) {
@@ -146,6 +147,39 @@ describe("ClickableSymbolSolid", () => {
     expect(onClick).toHaveBeenCalledWith("NIFTY 24000 CE");
     expect(dockMock.open).not.toHaveBeenCalled();
     expect(parent).not.toHaveBeenCalled();
+  });
+
+  it("copies the displayed symbol without opening the chart", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const onClick = vi.fn();
+    const parent = vi.fn();
+    render(() => (
+      <UIProvider>
+        <div onClick={parent}>
+          <ClickableSymbolSolid symbol="NSE:RELIANCE" onClick={onClick} />
+        </div>
+      </UIProvider>
+    ));
+
+    const copy = screen.getByTestId("copy-symbol-RELIANCE");
+    expect(copy).toHaveAttribute("aria-label", "Copy RELIANCE");
+    await fireEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
+    expect(onClick).not.toHaveBeenCalled();
+    expect(dockMock.open).not.toHaveBeenCalled();
+    expect(parent).not.toHaveBeenCalled();
+  });
+
+  it("copies the collapsed option label, not the raw contract", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    mount("NIFTY26OCT22900CE");
+
+    const copy = screen.getByTestId("copy-symbol-NIFTY 22900 CE");
+    expect(copy).toHaveAttribute("aria-label", "Copy NIFTY 22900 CE");
+    await fireEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("NIFTY 22900 CE");
   });
 
   it("no longer contains the old full-page navigation or focus suppression", () => {

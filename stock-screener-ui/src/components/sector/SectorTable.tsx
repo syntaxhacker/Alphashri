@@ -62,6 +62,7 @@ function TopMoversCell(props: { text: string; onOpen?: (symbol: string) => void 
       tvLink={false}
       showChart={false}
       showOptions={false}
+      showCopy
       size="xs"
       weight={600}
       testId={`sector-top-mover-${symbol}`}

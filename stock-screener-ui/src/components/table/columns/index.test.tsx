@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { createSignal } from "solid-js";
-import { cleanup, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
+import { UIProvider } from "@/ui";
 import type { TableColumnDef } from "@/components/common/TanStackTable";
 import { numColumn, symbolColumn, textColumn } from "./index";
 
@@ -111,5 +112,77 @@ describe("static column factories never flash", () => {
     const el = screen.getByTestId("col-symbol");
     expect(el).toHaveTextContent("RELIANCE");
     expect(el).not.toHaveTextContent("NSE:");
+  });
+});
+
+describe("symbolColumn copy affordance", () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  type Row = { symbol: string; name?: string };
+
+  function renderSymbolCell(
+    row: Row,
+    handlers: { onOpen?: (symbol: string) => void; onRowClick?: () => void; showCopy?: boolean } = {},
+  ) {
+    const column = symbolColumn<Row>({
+      id: "symbol",
+      header: "SYMBOL",
+      cellTestId: () => "col-symbol",
+      onOpen: handlers.onOpen,
+      showCopy: handlers.showCopy,
+    });
+    render(() => (
+      <UIProvider>
+        <div onClick={handlers.onRowClick}>
+          {column.cell!({
+            row: { original: row, index: 0, isExpanded: () => false, toggle: () => {} },
+            column,
+          })}
+        </div>
+      </UIProvider>
+    ));
+  }
+
+  test("renders a copy affordance that writes the displayed symbol without firing row click", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const onRowClick = vi.fn();
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    renderSymbolCell(
+      { symbol: "NSE:RELIANCE", name: "Reliance Industries" },
+      { onRowClick },
+    );
+
+    expect(screen.getByTestId("col-symbol")).toHaveTextContent("RELIANCE");
+    const copy = screen.getByTestId("symbol-copy-RELIANCE");
+    expect(copy).toHaveAccessibleName("Copy RELIANCE");
+    await fireEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  test("row click still reaches the host when no onOpen handler is supplied", async () => {
+    const onRowClick = vi.fn();
+    renderSymbolCell({ symbol: "RELIANCE" }, { onRowClick });
+
+    await fireEvent.click(screen.getByTestId("col-symbol"));
+    expect(onRowClick).toHaveBeenCalledTimes(1);
+  });
+
+  test("onOpen still opens the dock without also firing the row handler", async () => {
+    const onOpen = vi.fn();
+    const onRowClick = vi.fn();
+    renderSymbolCell({ symbol: "RELIANCE" }, { onOpen, onRowClick });
+
+    await fireEvent.click(screen.getByTestId("col-symbol"));
+    expect(onOpen).toHaveBeenCalledWith("RELIANCE");
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  test("showCopy false opts out of the affordance", () => {
+    renderSymbolCell({ symbol: "RELIANCE" }, { showCopy: false });
+    expect(screen.queryByTestId("symbol-copy-RELIANCE")).toBeNull();
   });
 });

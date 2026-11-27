@@ -171,6 +171,29 @@ describe("renderRow", () => {
     expect(onRowClick).toHaveBeenCalledWith({ v: 1, label: "SBIN" });
   });
 
+  test("does not hijack Enter/Space on a nested copy button", () => {
+    const onRowClick = vi.fn();
+    const ctx = makeCtx({
+      props: { data: [], columns: [], onRowClick, getRowTestId: () => "stock-row" },
+      visibleColumns: () => [
+        col({ id: "action", header: "", cell: () => <button data-testid="copy">Copy</button> }),
+      ],
+    });
+    renderWithProviders(() =>
+      <table><tbody>{renderRow(rowSlot({ v: 1, label: "SBIN" }, 0), ctx)}</tbody></table>,
+    );
+
+    const copy = screen.getByTestId("copy");
+    fireEvent.click(copy);
+    fireEvent.keyDown(copy, { key: "Enter" });
+    fireEvent.keyDown(copy, { key: " " });
+    expect(onRowClick).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("stock-row"));
+    fireEvent.keyDown(screen.getByTestId("stock-row"), { key: "Enter" });
+    expect(onRowClick).toHaveBeenCalledTimes(2);
+  });
+
   test("mounts the expanded sub-row only for an expanded expandable row", () => {
     const ctx = makeCtx({
       props: {

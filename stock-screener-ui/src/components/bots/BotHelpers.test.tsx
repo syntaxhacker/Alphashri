@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@solidjs/testing-library";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import {
@@ -64,6 +64,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
@@ -176,6 +177,24 @@ describe("StrategyStatusCard", () => {
 });
 
 describe("PositionsTable", () => {
+  it("copies the display symbol from positions and trades tables", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const { unmount } = renderWithProviders(() => <PositionsTable positions={[mockPosition]} />);
+
+    const positionCopy = screen.getByTestId("copy-symbol-RELIANCE");
+    expect(positionCopy).toHaveAttribute("aria-label", "Copy RELIANCE");
+    await fireEvent.click(positionCopy);
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
+    unmount();
+
+    renderWithProviders(() => <TradesTable trades={[mockTrade]} onRefresh={vi.fn()} />);
+    const tradeCopy = screen.getByTestId("copy-symbol-TCS");
+    expect(tradeCopy).toHaveAttribute("aria-label", "Copy TCS");
+    await fireEvent.click(tradeCopy);
+    expect(writeText).toHaveBeenCalledWith("TCS");
+  });
+
   it("renders column headers", () => {
     const { container } = renderWithProviders(() => <PositionsTable positions={[mockPosition]} />);
     const table = container.querySelector('[data-testid="bot-positions"]');

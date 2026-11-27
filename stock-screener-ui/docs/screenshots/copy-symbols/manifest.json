@@ -1,0 +1,31 @@
+{
+  "feature": "copy-symbols",
+  "route": "/screener/market",
+  "head": "37a9a2218ac42a88ec1a717a55ac7b16e1150866",
+  "viewports": [
+    1600,
+    390
+  ],
+  "sha256": {
+    "market-1600.png": "5e10ae650e029824a9ffe5f4274801245029320480de1601f8d3636504281409",
+    "dock-1600.png": "3e29137732e6f286bd2fbb089d7ea10a6c14711196fb9a294e003878b9075242",
+    "market-390.png": "b0328ea50bb831a5a4a4e00130434edd000f35f2ef325e833bc4c8b47e7bcf78"
+  },
+  "states": [
+    {
+      "id": "market-copy",
+      "files": {
+        "1600": "market-1600.png",
+        "390": "market-390.png"
+      },
+      "covers": "Market table symbol rows with 16px copy actions at both widths."
+    },
+    {
+      "id": "dock-tv-copy",
+      "files": {
+        "1600": "dock-1600.png"
+      },
+      "covers": "Chart dock toolbar with TradingView link and copy action."
+    }
+  ]
+}
