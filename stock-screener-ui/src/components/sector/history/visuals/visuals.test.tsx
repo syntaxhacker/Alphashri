@@ -24,6 +24,8 @@ import {
   formatRotationTooltip,
   ROTATION_AXIS_HEIGHT,
   ROTATION_CHART_TOP,
+  ROTATION_PLOT_HEIGHT,
+  ROTATION_PLOT_TOP,
   ROTATION_ROW_GAP,
   ROTATION_ROW_HEIGHT,
   ROTATION_TOP_BAND_BORDER,
@@ -296,7 +298,9 @@ describe("RotationTimeline", () => {
     expect(series.map((item) => item.name)).toEqual(["NIFTY IT", "PSU BANK", "FMCG"]);
     expect(series.some((item) => item.name === "NIFTY 50")).toBe(false);
     expect(grids.every((grid) => grid.height >= 22 && grid.height <= 26)).toBe(true);
-    expect(grids[1].top).toBe(ROTATION_CHART_TOP + ROTATION_ROW_HEIGHT + ROTATION_ROW_GAP);
+    expect(grids[1].top).toBe(
+      ROTATION_CHART_TOP + ROTATION_ROW_HEIGHT + ROTATION_ROW_GAP + ROTATION_PLOT_TOP,
+    );
   });
 
   test("inverts each rank axis and shades the top-3 band in every strip", () => {
@@ -379,7 +383,9 @@ describe("RotationTimeline", () => {
     expect(screen.getByTestId("history-rotation-timeline")).toBeInTheDocument();
     expect(screen.getByText("Rank history by sector")).toBeInTheDocument();
     expect(
-      screen.getByText("Each row is a sector · higher is stronger · shaded band = top 3"),
+      screen.getByText(
+        "Each row is a sector · higher is stronger · rank ticks at left · shaded band = top 3",
+      ),
     ).toBeInTheDocument();
 
     const rail = screen.getByTestId("history-rotation-rail");
@@ -405,6 +411,35 @@ describe("RotationTimeline", () => {
     expect(current.textContent).toContain("#2 GAMMA");
     expect(current.textContent).toContain("#3 ALPHA");
     expect(screen.queryByTestId("history-rotation-legend")).not.toBeInTheDocument();
+  });
+
+  test("shows per-strip rank ticks and #1–#3 labels without hover", () => {
+    render(() => <RotationTimeline months={MONTHS} series={MATRIX_SERIES} />);
+    for (let row = 0; row < 3; row += 1) {
+      for (const rank of [1, 2, 3]) {
+        expect(screen.getByTestId(`history-rotation-rank-tick-${row}-${rank}`)).toBeInTheDocument();
+        expect(
+          screen.getByTestId(`history-rotation-rank-label-${row}-${rank}`),
+        ).toHaveTextContent(`#${rank}`);
+      }
+    }
+    const spacing = ROTATION_PLOT_HEIGHT / 2;
+    expect(screen.getByTestId("history-rotation-rank-tick-0-1")).toHaveStyle({
+      top: `${ROTATION_PLOT_TOP}px`,
+    });
+    expect(screen.getByTestId("history-rotation-rank-tick-0-2")).toHaveStyle({
+      top: `${ROTATION_PLOT_TOP + spacing}px`,
+    });
+    expect(screen.getByTestId("history-rotation-rank-tick-0-3")).toHaveStyle({
+      top: `${ROTATION_PLOT_TOP + spacing * 2}px`,
+    });
+  });
+
+  test("keeps a tick for every rank when the rank scale is dense", () => {
+    render(() => <RotationTimeline months={MONTHS} series={TEN_SERIES} />);
+    expect(screen.getAllByTestId(/^history-rotation-rank-tick-/)).toHaveLength(100);
+    expect(screen.getByTestId("history-rotation-rank-label-0-1")).toHaveTextContent("#1");
+    expect(screen.getAllByTestId(/^history-rotation-rank-label-/)).toHaveLength(10);
   });
 
   test("renders ten compact strips and sizes the chart to the shared grid stack", () => {

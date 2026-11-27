@@ -1,6 +1,8 @@
-import { For, Show, createEffect, createMemo, onCleanup } from "solid-js";
+import { For, Show, createEffect, createMemo, createUniqueId, onCleanup } from "solid-js";
 import type * as ECharts from "echarts";
 import { Box, Text, useColorScheme, typeSize } from "@/ui";
+import { useMediaQuery } from "@/ui/hooks";
+import { pickTextColor } from "@/utils/contrast";
 import { loadEcharts } from "@/utils/loadEcharts";
 import type { SectorItem } from "../../types/sector";
 import type { HeatmapStock } from "../../api/heatmap";
@@ -21,8 +23,10 @@ import {
   TRADING_RED,
   CREAM,
   BROWN_DARK,
+  TEXT_ON_ACCENT,
+  BG,
 } from "../../config/colors";
-import { formatPercentage } from "../../utils/ui-helpers";
+import { formatSectorPercentage as formatPercentage } from "./sectorUtils";
 
 export type ViewMode = "sector" | "stock";
 
@@ -31,6 +35,9 @@ export interface SectorHeatmapViewProps {
   sectors: SectorItem[];
   stocks: HeatmapStock[];
   metric: string;
+  /** Stock-layer request state; the selector and the chart body share it. */
+  loading?: boolean;
+  error?: string | null;
   onSymbolClick?: (symbol: string) => void;
 }
 
@@ -49,15 +56,134 @@ const SECTOR_STOCK_TREEMAP_STYLE: StockTreemapStyle = {
   changeNegative: TRADING_RED,
 };
 
-function buildSectorTreemapOption(sectors: SectorItem[], isDark: boolean) {
+/**
+ * CREAM misses AA on the ramp's mid green/red stops (4.05 and 4.16:1), so the
+ * tile label picks white or the page black per fill instead. Those anchors
+ * clear 4.5:1 at every interpolated stop while the fill keeps direction.
+ */
+export function sectorTileTextColor(fill: string): string {
+  return pickTextColor(fill, TEXT_ON_ACCENT, BG);
+}
+
+type TileLabelData = {
+  itemStyle?: { color?: string };
+  label?: { color?: string };
+};
+
+/**
+ * The shared stock builder uses a luminance heuristic that leaves CREAM on the
+ * mid-green stops (~2.9:1). Re-derive every label from its own fill here so the
+ * sector page's stock mode reaches the same AA floor as its sector mode.
+ */
+function withReadableTileInk<T extends { series: { data: TileLabelData[] }[] }>(option: T): T {
+  for (const tile of option.series[0]?.data ?? []) {
+    const fill = tile.itemStyle?.color;
+    if (typeof fill !== "string") continue;
+    tile.label = { ...tile.label, color: sectorTileTextColor(fill) };
+  }
+  return option;
+}
+
+/**
+ * A treemap tile is only as wide as its stock-count share, so the full NSE
+ * sector name cannot survive on a phone. These are direct labels, not a
+ * separate legend: the compact map fits the biggest tiles, and the full name
+ * stays on the tile tooltip / aria description.
+ */
+const SECTOR_TILE_NAMES: Record<string, string> = {
+  "Technology Services": "Technology",
+  "Energy Minerals": "Energy",
+  "Non-Energy Minerals": "Non-Energy",
+  "Commercial Services": "Commercial",
+  "Producer Manufacturing": "Manufacturing",
+  "Finance": "Finance",
+  "Health Technology": "Health Tech",
+  "Industrial Services": "Industrial",
+  "Utilities": "Utilities",
+  "Distribution Services": "Distribution",
+  "Process Industries": "Process",
+  "Electronic Technology": "Electronics",
+  "Health Services": "Health",
+  "Consumer Durables": "Cons. Durables",
+  "Communications": "Comms",
+  "Consumer Non-Durables": "Cons. Non-Dur.",
+  "Transportation": "Transport",
+  "Retail Trade": "Retail",
+  "Consumer Services": "Cons. Services",
+  "Miscellaneous": "Miscellaneous",
+};
+
+const SECTOR_TILE_NAMES_COMPACT: Record<string, string> = {
+  "Technology Services": "Tech",
+  "Energy Minerals": "Energy",
+  "Non-Energy Minerals": "Non-En.",
+  "Commercial Services": "Comm.",
+  "Producer Manufacturing": "Mfg.",
+  "Finance": "Finance",
+  "Health Technology": "HealthTech",
+  "Health Services": "HealthSvcs",
+  "Industrial Services": "Indust.",
+  "Utilities": "Util.",
+  "Distribution Services": "Distrib.",
+  "Electronic Technology": "Elec.",
+  "Consumer Durables": "Dur.",
+  "Communications": "Comms",
+  "Consumer Non-Durables": "NonDur",
+  "Transportation": "Tran.",
+  "Retail Trade": "Retail",
+  "Consumer Services": "Cons.",
+  "Miscellaneous": "Misc.",
+  "Process Industries": "Proc.",
+};
+
+export function sectorTileName(name: string, compact: boolean): string {
+  return (compact ? SECTOR_TILE_NAMES_COMPACT : SECTOR_TILE_NAMES)[name] ?? name;
+}
+
+/** Approximate advance of the 12px UI sans used by treemap labels. */
+const TREEMAP_CHAR_PX = 7.6;
+const TREEMAP_LABEL_PAD = 14;
+const TREEMAP_LABEL_MIN_HEIGHT = 30;
+
+/**
+ * The treemap gives the label exactly the tile's content box. Two lines need
+ * that box to be both wide enough for the longer line and tall enough for the
+ * two 13px rows. Technology/Utilities tiles can be ~37px wide on a phone while
+ * still being tall, which is how "Te..." / "Util. / 0...." survived a
+ * stock-count-only gate. Decide from the real tile rect instead.
+ */
+export function treemapLabelFits(
+  displayName: string,
+  changeLabel: string,
+  width: number,
+  height: number,
+): boolean {
+  if (!displayName || width <= 0 || height <= 0) return false;
+  const longest = Math.max(displayName.length, changeLabel.length);
+  return width >= longest * TREEMAP_CHAR_PX + TREEMAP_LABEL_PAD &&
+    height >= TREEMAP_LABEL_MIN_HEIGHT;
+}
+
+function buildSectorTreemapOption(sectors: SectorItem[], isDark: boolean, compact = false) {
   const changes = sectors.map((s) => s.avg_change);
   const minChange = changes.length ? Math.min(...changes) : 0;
   const maxChange = changes.length ? Math.max(...changes) : 1;
+  const neutralInk = sectorTileTextColor(getSignedMetricColor(0, minChange, maxChange));
+  // Tiny tiles get a colour and tooltip but no 2-character label ("Di", "H").
+  // On a phone a 12-stock sector can still be a tall 110px tile (Technology),
+  // so count is a better visibility floor than area share; squarify can make a
+  // 5-stock tile wider than a 12-stock strip. The visible legend below the
+  // treemap names every tile that is too small for a direct label.
+  const showLabel = (sector: SectorItem): boolean =>
+    compact
+      ? (sector.stock_count || 0) >= 13 || sector.sector === "Technology Services"
+      : (sector.stock_count || 0) >= 5;
 
   const data = sectors.map((s) => {
     const color = getSignedMetricColor(s.avg_change, minChange, maxChange);
     return {
       name: s.sector,
+      displayName: sectorTileName(s.sector, compact),
       value: Math.max(s.stock_count, 1),
       avg_change: s.avg_change,
       stock_count: s.stock_count,
@@ -66,7 +192,12 @@ function buildSectorTreemapOption(sectors: SectorItem[], isDark: boolean) {
       avg_rsi: s.avg_rsi,
       avg_adx: s.avg_adx,
       top_movers: s.top_movers,
-      label: { color: CREAM },
+      labelBaseShow: showLabel(s),
+      label: {
+        color: sectorTileTextColor(color),
+        show: showLabel(s),
+        lineHeight: 13,
+      },
       itemStyle: { color },
     };
   });
@@ -119,9 +250,16 @@ function buildSectorTreemapOption(sectors: SectorItem[], isDark: boolean) {
         squareRatio: 1,
         label: {
           show: true,
-          formatter: (params: { name?: string; data?: { avg_change?: number } }) =>
-            `${params.name}\n${params.data?.avg_change != null ? formatPercentage(params.data.avg_change, 2, false) : ""}`,
-          color: CREAM,
+          formatter: (params: {
+            name?: string;
+            data?: { avg_change?: number; displayName?: string };
+          }) =>
+            `${params.data?.displayName ?? params.name ?? ""}\n${
+              params.data?.avg_change != null
+                ? formatPercentage(params.data.avg_change, 2, false)
+                : ""
+            }`,
+          color: neutralInk,
           fontSize: typeSize("micro"),
           fontWeight: 600,
           lineHeight: 13,
@@ -152,25 +290,139 @@ function buildSectorTreemapOption(sectors: SectorItem[], isDark: boolean) {
   };
 }
 
+interface TreemapNodeLike {
+  getModel?: () => { get?: (key: string) => unknown } | undefined;
+  getLayout?: () => { width?: number; height?: number } | undefined;
+}
+
+interface SectorTreemapDatum {
+  name?: string;
+  displayName?: string;
+  avg_change?: number;
+  labelBaseShow?: boolean;
+  label?: { show?: boolean; color?: string; lineHeight?: number };
+}
+
+function treemapRects(chart: unknown): Map<string, { width: number; height: number }> {
+  const rects = new Map<string, { width: number; height: number }>();
+  try {
+    const model = (chart as { getModel?: () => { getSeriesByIndex?: (index: number) => { getData?: () => { tree?: { root?: { children?: TreemapNodeLike[] } } } } } }).getModel?.();
+    const nodes = model?.getSeriesByIndex?.(0)?.getData?.()?.tree?.root?.children ?? [];
+    for (const node of nodes) {
+      const name = node.getModel?.()?.get?.("name");
+      const layout = node.getLayout?.();
+      if (typeof name !== "string" || !layout) continue;
+      if (typeof layout.width === "number" && typeof layout.height === "number") {
+        rects.set(name, { width: layout.width, height: layout.height });
+      }
+    }
+  } catch {
+    // A test double or an ECharts upgrade can omit the layout model; the
+    // conservative count gate remains a safe fallback.
+  }
+  return rects;
+}
+
+/**
+ * ECharts sizes a treemap label to its tile's content box and then truncates
+ * with an ellipsis. Re-check the real rects after layout and suppress labels
+ * that cannot carry both lines; the legend names every sector anyway.
+ */
+export function fitTreemapLabelVisibility(chart: unknown, option: unknown): boolean {
+  const series = (option as { series?: Array<{ type?: string; data?: SectorTreemapDatum[] }> })
+    .series?.[0];
+  if (!series || series.type !== "treemap" || !Array.isArray(series.data)) return false;
+  const rects = treemapRects(chart);
+  if (rects.size === 0) return false;
+  let changed = false;
+  for (const item of series.data) {
+    const rect = item.name ? rects.get(item.name) : undefined;
+    if (!rect) continue;
+    const changeLabel =
+      item.avg_change != null ? formatPercentage(item.avg_change, 2, false) : "";
+    const show =
+      Boolean(item.labelBaseShow) &&
+      treemapLabelFits(String(item.displayName ?? item.name ?? ""), changeLabel, rect.width, rect.height);
+    if (item.label?.show !== show) {
+      item.label = { ...item.label, show };
+      changed = true;
+    }
+  }
+  if (changed) {
+    (chart as { setOption?: (option: unknown, opts?: unknown) => void }).setOption?.(
+      { series: [{ data: series.data }] },
+      { lazyUpdate: false },
+    );
+  }
+  return changed;
+}
+
 export function SectorHeatmapView(props: SectorHeatmapViewProps) {
   const { isDark } = useColorScheme();
+  const compact = useMediaQuery("(max-width: 900px)", undefined, { noSsr: true });
+  const descriptionId = `sector-heatmap-description-${createUniqueId()}`;
+
+  const isSectorMode = () => props.viewMode === "sector";
+  const sectorMin = createMemo(() => {
+    const values = props.sectors.map((sector) => sector.avg_change);
+    return values.length ? Math.min(...values) : 0;
+  });
+  const sectorMax = createMemo(() => {
+    const values = props.sectors.map((sector) => sector.avg_change);
+    return values.length ? Math.max(...values) : 1;
+  });
+  const chartLabel = () =>
+    isSectorMode() ? "Sector performance heatmap" : "Stock performance heatmap";
+  const stockState = createMemo<"loading" | "error" | "empty" | null>(() => {
+    if (isSectorMode()) return null;
+    if (props.loading) return "loading";
+    if (props.error) return "error";
+    if (props.stocks.length === 0) return "empty";
+    return null;
+  });
+  const stockStateMessage = createMemo(() => {
+    switch (stockState()) {
+      case "loading":
+        return "Loading stock heatmap…";
+      case "error":
+        return "Stock heatmap unavailable. Keep the sector layer or retry the refresh.";
+      case "empty":
+        return "No stocks match this sector filter.";
+      default:
+        return "";
+    }
+  });
+  const chartDescription = () => {
+    if (isSectorMode()) {
+      const count = props.sectors.length;
+      return count
+        ? `Sector heatmap showing average change and stock count for ${count} sector${count === 1 ? "" : "s"}. Green tiles are positive and red tiles are negative; the same values follow in a text table.`
+        : "Sector heatmap with no sector data available.";
+    }
+    const count = props.stocks.length;
+    return count
+      ? `Stock heatmap showing ${count} stock${count === 1 ? "" : "s"} coloured by ${props.metric}.`
+      : "Stock heatmap with no stock data available.";
+  };
 
   let chartEl: HTMLDivElement | undefined;
   let chart: ECharts.ECharts | undefined;
+  let appliedOption: ReturnType<typeof option> | undefined;
   let disposed = false;
 
-  const option = createMemo(() => {
-    if (props.viewMode === "sector") {
-      return buildSectorTreemapOption(props.sectors, isDark());
-    }
-    return buildStockTreemapOption(
-      props.stocks,
-      props.metric,
-      SECTOR_STOCK_METRICS,
-      isDark(),
-      SECTOR_STOCK_TREEMAP_STYLE,
-    );
-  });
+  const option = createMemo(() =>
+    withReadableTileInk(
+      props.viewMode === "sector"
+        ? buildSectorTreemapOption(props.sectors, isDark(), compact())
+        : buildStockTreemapOption(
+            props.stocks,
+            props.metric,
+            SECTOR_STOCK_METRICS,
+            isDark(),
+            SECTOR_STOCK_TREEMAP_STYLE,
+          ),
+    ),
+  );
 
   // The canvas itself cannot take focus. A compact, keyboard-operable symbol
   // rail exposes the same chart action; keep it bounded so a 500-row snapshot
@@ -206,6 +458,19 @@ export function SectorHeatmapView(props: SectorHeatmapViewProps) {
     }
     chart.setOption(next as Record<string, unknown>, true);
     chart.resize();
+    appliedOption = next;
+    // Treemap nodes receive their final rects during the render step, not in
+    // the setOption call itself. Measure on the next frame, then hide labels
+    // that cannot carry their two lines.
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => {
+        if (!disposed && chart && appliedOption) {
+          fitTreemapLabelVisibility(chart, appliedOption);
+        }
+      });
+    } else {
+      fitTreemapLabelVisibility(chart, next);
+    }
   }
 
   createEffect(() => {
@@ -213,7 +478,16 @@ export function SectorHeatmapView(props: SectorHeatmapViewProps) {
   });
 
   createEffect(() => {
-    const handleResize = () => chart?.resize();
+    const handleResize = () => {
+      chart?.resize();
+      if (chart && appliedOption && typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(() => {
+          if (!disposed && chart && appliedOption) {
+            fitTreemapLabelVisibility(chart, appliedOption);
+          }
+        });
+      }
+    };
     window.addEventListener("resize", handleResize);
     onCleanup(() => window.removeEventListener("resize", handleResize));
   });
@@ -260,9 +534,90 @@ export function SectorHeatmapView(props: SectorHeatmapViewProps) {
           </For>
         </Box>
       </Show>
-      <Box className="flex min-h-0 w-full flex-1" data-testid="sector-heatmap-chart">
-        <div ref={(el) => (chartEl = el)} class="h-full w-full" style={{ "min-width": 0 }} />
+      <Box
+        className="relative flex min-h-0 w-full flex-1 focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-text"
+        data-testid="sector-heatmap-chart"
+        role="img"
+        aria-label={chartLabel()}
+        aria-describedby={descriptionId}
+        tabIndex={0}
+      >
+        <div
+          ref={(el) => (chartEl = el)}
+          class="h-full w-full"
+          style={{ "min-width": 0 }}
+          aria-hidden="true"
+        />
+        <Show when={stockState()}>
+          <div
+            data-testid={`sector-heatmap-state-${stockState()}`}
+            role={stockState() === "error" ? "alert" : "status"}
+            class="absolute inset-0 z-10 flex items-center justify-center bg-fin-surface px-4 text-center text-ui-micro text-fin-text-muted"
+          >
+            {stockStateMessage()}
+          </div>
+        </Show>
       </Box>
+      <p id={descriptionId} class="sr-only" data-testid="sector-heatmap-description">
+        {chartDescription()}
+      </p>
+      <Show when={isSectorMode() && props.sectors.length > 0}>
+        <div
+          data-testid="sector-heatmap-legend"
+          class="grid shrink-0 grid-cols-2 gap-x-2 gap-y-0.5 border-t border-fin-border px-2 py-1 sm:grid-cols-4 xl:grid-cols-5"
+        >
+          <For each={props.sectors}>
+            {(sector) => (
+              <div
+                data-testid={`sector-heatmap-legend-${sector.sector}`}
+                class="flex min-w-0 items-baseline gap-1 text-ui-micro"
+                title={`${sector.sector} · ${formatPercentage(sector.avg_change)}`}
+              >
+                <span
+                  aria-hidden="true"
+                  class="inline-block size-[6px] shrink-0 rounded-full"
+                  style={{
+                    "background-color": getSignedMetricColor(
+                      sector.avg_change,
+                      sectorMin(),
+                      sectorMax(),
+                    ),
+                  }}
+                />
+                <span class="min-w-0 truncate text-fin-text-muted">
+                  {sectorTileName(sector.sector, compact())}
+                </span>
+                <span class="ml-auto shrink-0 font-mono tabular-nums text-fin-text">
+                  {formatPercentage(sector.avg_change)}
+                </span>
+              </div>
+            )}
+          </For>
+        </div>
+      </Show>
+      <Show when={isSectorMode() && props.sectors.length > 0}>
+        <table class="sr-only" data-testid="sector-heatmap-data">
+          <caption>Sector heatmap data: average change and stock count by sector</caption>
+          <thead>
+            <tr>
+              <th scope="col">Sector</th>
+              <th scope="col">Average change</th>
+              <th scope="col">Stocks</th>
+            </tr>
+          </thead>
+          <tbody>
+            <For each={props.sectors}>
+              {(sector) => (
+                <tr data-testid="sector-heatmap-data-row">
+                  <th scope="row">{sector.sector}</th>
+                  <td>{formatPercentage(sector.avg_change)}</td>
+                  <td>{sector.stock_count}</td>
+                </tr>
+              )}
+            </For>
+          </tbody>
+        </table>
+      </Show>
     </Box>
   );
 }

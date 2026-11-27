@@ -1,24 +1,5 @@
-import { NEGATIVE, POSITIVE, SURFACE } from "@/ui/palette";
-import { Box, Text } from "@/ui";
-import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
-import { withAlpha } from "@/utils/color";
-import { compositeOver, pickTextColor } from "@/utils/contrast";
-import { formatPercentage } from "@/utils/ui-helpers";
-import type { RotationPeriod, RotationRow } from "@/types/rotation";
-
-const PERIODS: RotationPeriod[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y"];
-
-function heatCell(value: number | null | undefined): { fill: string; text: string } {
-  const safe = typeof value === "number" && Number.isFinite(value) ? value : 0;
-  const intensity = Math.min(Math.abs(safe) / 12, 1) * 0.2;
-  const tint = safe >= 0 ? POSITIVE : NEGATIVE;
-  return {
-    fill: withAlpha(tint, intensity),
-    // The token is translucent; contrast must be judged against the composited
-    // fill, not the raw tint, or the dark-tinted cells fail 4.5:1.
-    text: pickTextColor(compositeOver(tint, SURFACE, intensity)),
-  };
-}
+import type { RotationRow } from "@/types/rotation";
+import { MultiPeriodHeatmap } from "./rotation/MultiPeriodHeatmap";
 
 export interface RotationMatrixProps {
   rows: RotationRow[];
@@ -27,73 +8,11 @@ export interface RotationMatrixProps {
 }
 
 export function RotationMatrix(props: RotationMatrixProps) {
-  const columns: TableColumnDef<RotationRow>[] = [
-    {
-      id: "group",
-      header: "Group",
-      accessorFn: (row) => row.name,
-      size: 180,
-      meta: { align: "left" },
-      cell: ({ row }) => (
-        <Text truncate className="text-ui-micro font-semibold leading-[1.15]">
-          {row.original.name}
-        </Text>
-      ),
-    },
-    ...PERIODS.map<TableColumnDef<RotationRow>>((period) => ({
-      id: period,
-      header: period,
-      accessorFn: (row) => row.returns[period],
-      size: 64,
-      meta: { align: "right" },
-      cell: ({ row }) => {
-        const value = row.original.returns[period];
-        const cell = heatCell(value);
-        return (
-          <Box
-            className="flex items-center justify-end min-h-[14px] px-[2px] rounded-[0.5px]"
-            style={{ "background-color": cell.fill }}
-          >
-            <Text
-              style={{ color: cell.text }}
-              className="font-mono text-ui-micro font-semibold tabular-nums leading-none"
-            >
-              {formatPercentage(value, 1, true)}
-            </Text>
-          </Box>
-        );
-      },
-    })),
-  ];
-
   return (
-    <Box
-      data-testid="rotation-matrix"
-      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
-    >
-      <TanStackTable<RotationRow>
-        data={props.rows}
-        columns={columns}
-        dataTestId="rotation-matrix-table"
-        initialState={{ sorting: [{ id: "1M", desc: true }] }}
-        onRowClick={(row) => props.onSelect(row.id)}
-        stickyHeader
-        fillContainer
-        dense
-        minTableWidth={700}
-        getRowTestId={(row) => `rotation-matrix-row-${row.id}`}
-        getRowStyle={(row) =>
-          row.id === props.selectedId
-            ? {
-                background: "rgba(88, 166, 255, 0.12)",
-                "box-shadow": "inset 2px 0 0 var(--color-fin-primary)",
-              }
-            : undefined
-        }
-        getRowAttributes={(row) => ({
-          "data-active": row.id === props.selectedId ? "true" : undefined,
-        })}
-      />
-    </Box>
+    <MultiPeriodHeatmap
+      rows={props.rows}
+      selectedId={props.selectedId}
+      onSelect={props.onSelect}
+    />
   );
 }

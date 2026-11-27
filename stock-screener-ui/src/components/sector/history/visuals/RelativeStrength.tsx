@@ -20,6 +20,8 @@ export interface RelativeStrengthInput {
 export interface RelativeStrengthProps extends RelativeStrengthInput {
   /** Set false when the host panel already renders the title and method note. */
   showHeader?: boolean;
+  /** Set false when the host panel already renders the above/below-100 key. */
+  showFooter?: boolean;
 }
 
 export interface RelativeStrengthPoint {
@@ -224,11 +226,21 @@ export function RelativeStrength(props: RelativeStrengthProps) {
         <EChart
           option={option()}
           data-testid="history-relative-strength-chart"
-          style={{ height: `${CHART_HEIGHT}px`, width: "100%" }}
+          style={{
+            height: `${CHART_HEIGHT}px`,
+            flex: "none",
+            width: "100%",
+            "min-height": "0px",
+          }}
         />
-        <span data-testid="history-relative-strength-key" class="text-ui-micro text-fin-text-muted">
-          above 100 = outperform · below 100 = lag
-        </span>
+        <Show when={props.showFooter !== false}>
+          <span
+            data-testid="history-relative-strength-key"
+            class="text-ui-micro text-fin-text-muted"
+          >
+            above 100 = outperform · below 100 = lag
+          </span>
+        </Show>
       </Show>
     </div>
   );

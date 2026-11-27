@@ -6,10 +6,10 @@ import {
   CHART_TOP3,
   TEXT_MUTED,
 } from "@/ui/palette";
-import { rankChangeRows, signed, type CorrelationSector } from "./model";
+import { rankChangeRows, signed, signTone, type CorrelationSector } from "./model";
 
 /** Bars stop short of the edge so the signed value can sit beside the bar end. */
-const BAR_MAX_PCT = 38;
+const BAR_MAX_PCT = 34;
 
 export function RankChangeBoard(props: {
   sectors: CorrelationSector[];
@@ -61,8 +61,10 @@ export function RankChangeBoard(props: {
           {(sector, index) => {
             const change = sector.rank_change_1m;
             const top3 = sector.rank_current <= 3;
-            const positive = change > 0;
-            const color = change === 0 ? TEXT_MUTED : positive ? CHART_POSITIVE : CHART_NEGATIVE;
+            const tone = signTone(change);
+            const positive = tone === "positive";
+            const color =
+              tone === "neutral" ? TEXT_MUTED : positive ? CHART_POSITIVE : CHART_NEGATIVE;
             const width = () => barPct(change);
             return (
               <div
@@ -98,8 +100,9 @@ export function RankChangeBoard(props: {
                 >
                   {sector.name}
                 </span>
-                <span class="relative h-4 min-w-0" aria-hidden="true">
+                <span class="relative h-4 min-w-0">
                   <span
+                    aria-hidden="true"
                     data-testid={`correlation-rank-rail-${index()}`}
                     class="absolute inset-y-0 left-1/2 w-px"
                     style={{ "background-color": alpha(TEXT_MUTED, 0.55) }}
@@ -108,12 +111,14 @@ export function RankChangeBoard(props: {
                     when={change !== 0}
                     fallback={
                       <span
+                        aria-hidden="true"
                         class="absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full"
                         style={{ "background-color": TEXT_MUTED }}
                       />
                     }
                   >
                     <span
+                      aria-hidden="true"
                       data-testid={`correlation-rank-bar-${index()}`}
                       class="absolute top-1/2 h-2.5 -translate-y-1/2 rounded-sm"
                       style={{

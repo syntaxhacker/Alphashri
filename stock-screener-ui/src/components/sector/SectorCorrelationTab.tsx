@@ -26,10 +26,12 @@ import {
 } from "./SectorCorrelationCharts";
 import { CorrelationMatrixBoard } from "./correlation/CorrelationMatrixBoard";
 
+// 90 is the store's default; the previous 66-day "3M" option left the Select
+// showing no valid value for the data that was actually fetched.
 const LOOKBACK_OPTIONS = [
   { label: "5D", value: 5 },
   { label: "1M", value: 22 },
-  { label: "3M", value: 66 },
+  { label: "3M", value: 90 },
   { label: "6M", value: 132 },
   { label: "1Y", value: 252 },
 ];
@@ -178,24 +180,24 @@ export function SectorCorrelationTab() {
             <Box data-testid="sector-correlation-scroll" className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-1">
               <Stack spacing={0.5} className="w-full min-w-0">
                 {/*
-                 * Two deliberate columns on wide screens: the matrix keeps its
-                 * own height while the ranked boards share the other column.
-                 * Narrow screens get one column and page-level vertical scroll.
+                 * The 10-column matrix gets the full row: at 900/1100 a
+                 * 1.1fr/1fr split made it wider than its panel and clipped the
+                 * last index. The two ranked boards share the row underneath on
+                 * wide screens and stack below xl.
                  */}
                 <div
                   data-testid="sector-correlation-grid"
-                  className="grid min-w-0 grid-cols-1 gap-1 xl:h-[560px] xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]"
+                  className="grid min-w-0 grid-cols-1 items-start gap-1 xl:grid-cols-2"
                 >
                   <CompactPanel
-                    scrollable
                     flush
                     padded={false}
                     id="sector-correlation-heatmap"
                     testId="sector-correlation-heatmap"
                     title={<Text className="text-ui-micro font-bold">Cross-Sector Correlation</Text>}
-                    className={`${PANEL_CLASS} h-[360px] xl:h-full`}
+                    className={`${PANEL_CLASS} xl:col-span-2`}
                   >
-                    <Box className="flex min-h-0 w-full flex-1 flex-col p-1">
+                    <Box className="w-full min-w-0 p-1">
                       <CorrelationMatrixBoard
                         matrix={store().data!.correlation_matrix}
                         symbols={store().data!.sector_names}
@@ -203,38 +205,36 @@ export function SectorCorrelationTab() {
                       />
                     </Box>
                   </CompactPanel>
-                  <div className="grid min-w-0 grid-cols-1 gap-1 xl:h-full xl:grid-rows-2">
-                    <CompactPanel
-                      scrollable
-                      flush
-                      padded={false}
-                      id="sector-beta-chart"
-                      testId="sector-beta-chart"
-                      title={<Text className="text-ui-micro font-bold">Sector Beta vs Benchmark</Text>}
-                      className={`${PANEL_CLASS} h-[280px] xl:h-full`}
-                    >
-                      <Box className="flex min-h-0 w-full flex-1 p-1">
-                        <SectorBetaChart
-                          sectors={sortedSectors()}
-                          benchmark={store().market === "india" ? "NIFTY 50" : "SPY"}
-                          isDark={isDark()}
-                        />
-                      </Box>
-                    </CompactPanel>
-                    <CompactPanel
-                      scrollable
-                      flush
-                      padded={false}
-                      id="rotation-timeline"
-                      testId="rotation-timeline"
-                      title={<Text className="text-ui-micro font-bold">Sector Rotation (1-Month Rank Change)</Text>}
-                      className={`${PANEL_CLASS} h-[280px] xl:h-full`}
-                    >
-                      <Box className="flex min-h-0 w-full flex-1 p-1">
-                        <RotationTimeline sectors={sortedSectors()} isDark={isDark()} />
-                      </Box>
-                    </CompactPanel>
-                  </div>
+                  <CompactPanel
+                    scrollable
+                    flush
+                    padded={false}
+                    id="sector-beta-chart"
+                    testId="sector-beta-chart"
+                    title={<Text className="text-ui-micro font-bold">Sector Beta vs Benchmark</Text>}
+                    className={`${PANEL_CLASS} h-[320px]`}
+                  >
+                    <Box className="flex min-h-0 w-full flex-1 p-1">
+                      <SectorBetaChart
+                        sectors={sortedSectors()}
+                        benchmark={store().market === "india" ? "NIFTY 50" : "SPY"}
+                        isDark={isDark()}
+                      />
+                    </Box>
+                  </CompactPanel>
+                  <CompactPanel
+                    scrollable
+                    flush
+                    padded={false}
+                    id="rotation-timeline"
+                    testId="rotation-timeline"
+                    title={<Text className="text-ui-micro font-bold">Sector Rotation (1-Month Rank Change)</Text>}
+                    className={`${PANEL_CLASS} h-[320px]`}
+                  >
+                    <Box className="flex min-h-0 w-full flex-1 p-1">
+                      <RotationTimeline sectors={sortedSectors()} isDark={isDark()} />
+                    </Box>
+                  </CompactPanel>
                 </div>
                 <CompactPanel
                   flush

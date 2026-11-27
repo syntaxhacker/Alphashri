@@ -12,7 +12,9 @@ afterEach(() => {
 describe("SectorAlertsList", () => {
   it("shows empty state when no alerts", () => {
     render(() => <SectorAlertsList alerts={[]} />);
-    expect(screen.getByText("Waiting for major movements...")).toBeInTheDocument();
+    expect(screen.getByTestId("sector-alerts-empty")).toHaveTextContent(
+      "No new 0.30% sector moves this poll.",
+    );
   });
 
   it("renders alert with timestamp and sector name", () => {

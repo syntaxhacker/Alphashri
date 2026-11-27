@@ -1,7 +1,7 @@
 import { For, Show, createMemo } from "solid-js";
 import { Box, Stack, Text, Group, Badge, useColorScheme } from "@/ui";
 import type { SectorItem } from "../../types/sector";
-import { formatPercentage } from "../../utils/ui-helpers";
+import { formatSectorPercentage as formatPercentage } from "./sectorUtils";
 import {
   SECTOR_STRONG_GREEN,
   SECTOR_GREEN,

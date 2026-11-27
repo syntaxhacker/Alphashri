@@ -37,7 +37,7 @@ describe("HistoryScroller", () => {
 
     region.scrollLeft = MAX_SCROLL;
     fireEvent.scroll(region);
-    await waitFor(() => expect(hint).toHaveTextContent("← Older"));
+    await waitFor(() => expect(hint).toHaveTextContent("Scroll ← older"));
 
     region.scrollLeft = 0;
     fireEvent.scroll(region);
@@ -71,7 +71,7 @@ describe("HistoryScroller", () => {
     setResetKey("america:5");
     await waitFor(() => expect(region.scrollLeft).toBeGreaterThanOrEqual(MAX_SCROLL));
     await waitFor(() =>
-      expect(screen.getByTestId("history-test-pinned-hint")).toHaveTextContent("← Older"),
+      expect(screen.getByTestId("history-test-pinned-hint")).toHaveTextContent("Scroll ← older"),
     );
   });
 

@@ -252,7 +252,12 @@ export function UnderwaterDrawdown(props: UnderwaterDrawdownProps) {
         <EChart
           option={option()}
           data-testid="history-underwater-chart"
-          style={{ height: `${CHART_HEIGHT}px`, width: "100%" }}
+          style={{
+            height: `${CHART_HEIGHT}px`,
+            flex: "none",
+            width: "100%",
+            "min-height": "0px",
+          }}
         />
         <span data-testid="history-underwater-caption" class="text-ui-micro text-fin-text-muted">
           {maxCaption()}

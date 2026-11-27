@@ -30,7 +30,7 @@ import type { HeatmapStock } from "../../api/heatmap";
 import { subscribeToHolidays, isMarketOpenNow } from "../../state/holidays";
 import type { SectorResponse, SectorItem, StockMover } from "../../types/sector";
 import { CompactPanel } from "../common/compact";
-import { formatPercentage } from "../../utils/ui-helpers";
+import { formatSectorPercentage as formatPercentage } from "./sectorUtils";
 import { displaySymbol } from "@/config/tvSymbols";
 import { chartHrefForSymbol } from "../common/symbolDockContext";
 import { detectSectorAlerts, detectIntervalMovers } from "./SectorHelpers";
@@ -96,16 +96,155 @@ function sectionFromHash(): SectorSectionId {
 }
 
 function readDashboardView(): DashboardView {
-  if (typeof window === "undefined") return "table";
-  return new URLSearchParams(window.location.search).get("dash") === "visual" ? "visual" : "table";
+  if (typeof window === "undefined") return "visual";
+  // Only an explicit table link opts out of the visual-first overview.
+  return new URLSearchParams(window.location.search).get("dash") === "table" ? "table" : "visual";
 }
 
 function writeDashboardView(view: DashboardView): void {
   if (typeof window === "undefined") return;
   const url = new URL(window.location.href);
-  if (view === "visual") url.searchParams.set("dash", "visual");
+  if (view === "table") url.searchParams.set("dash", "table");
   else url.searchParams.delete("dash");
   window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+function SectorAlertsCard(props: {
+  alerts: SectorAlert[];
+  sectors: SectorItem[];
+  onSymbolClick: (symbol: string) => void;
+}) {
+  const sectorSymbol = (sector: string): string | null => {
+    const top = props.sectors.find((item) => item.sector === sector)?.top_movers ?? "";
+    const withChange = top.match(/([A-Za-z0-9&._-]+)\(/);
+    return withChange?.[1] ?? (top.split(",")[0]?.trim() || null);
+  };
+
+  return (
+    <CompactPanel
+      id="sector-alerts-card"
+      data-testid="sector-alerts-card"
+      className="flex min-w-0 flex-col"
+      title={
+        <Box className="flex items-center justify-between gap-2">
+          <Text fw={600} className="text-ui-micro">Real-time Alerts</Text>
+          <IconBellRinging size={14} color="var(--color-fin-warning)" />
+        </Box>
+      }
+    >
+      <ScrollArea className="max-h-[200px] min-h-0 overflow-auto">
+        <SectorAlertsList
+          alerts={props.alerts}
+          onSectorClick={(sector) => {
+            const symbol = sectorSymbol(sector);
+            if (symbol) props.onSymbolClick(symbol);
+          }}
+        />
+      </ScrollArea>
+    </CompactPanel>
+  );
+}
+
+function IntervalMoversCard(props: {
+  intervalMovers: InternalStockMover[];
+  market: "india" | "america";
+  onSymbolClick: (symbol: string) => void;
+}) {
+  return (
+    <CompactPanel
+      id="sector-interval-movers-card"
+      data-testid="sector-interval-movers-card"
+      className="flex min-w-0 flex-col"
+      title={
+        <Box className="flex items-center justify-between gap-2">
+          <Text fw={600} className="text-ui-micro">Interval Movers</Text>
+          <IconTrendingUp size={14} color="var(--color-fin-primary)" />
+        </Box>
+      }
+    >
+      <ScrollArea className="max-h-[240px] min-h-0 overflow-auto">
+        <IntervalMoversTable
+          movers={props.intervalMovers}
+          market={props.market === "america" ? "usa" : "india"}
+          onSymbolClick={props.onSymbolClick}
+        />
+      </ScrollArea>
+    </CompactPanel>
+  );
+}
+
+function TopStocksCard(props: {
+  topStocks: StockMover[];
+  market: "india" | "america";
+  onSymbolClick: (symbol: string) => void;
+}) {
+  return (
+    <CompactPanel
+      id="sector-top-stocks-card"
+      data-testid="sector-top-stocks-card"
+      className="flex min-w-0 flex-col"
+      title={
+        <Box className="flex items-center justify-between gap-2">
+          <Text fw={600} className="text-ui-micro">Top Gainers</Text>
+          <IconTrendingUp size={14} color="var(--color-fin-positive)" />
+        </Box>
+      }
+    >
+      <ScrollArea className="max-h-[240px] min-h-0 overflow-auto">
+        <Show when={props.topStocks.length > 0} fallback={
+          <Box
+            data-testid="sector-top-stocks-empty"
+            role="status"
+            className="flex items-center justify-center p-2"
+          >
+            <Text size="xs" c="dimmed">No top movers in this snapshot.</Text>
+          </Box>
+        }>
+          <Stack spacing={0.25}>
+            <For each={props.topStocks.slice(0, 10)}>
+              {(stock) => (
+                <Box
+                  className="flex min-w-0 items-center gap-1.5 px-1 py-[2px]"
+                >
+                  {needsCanonicalLink(stock.symbol) ? (
+                    <Box
+                      component="a"
+                      href={chartHrefForSymbol(
+                        stock.symbol,
+                        props.market === "america" ? "usa" : undefined,
+                      )}
+                      className="min-w-0 text-fin-text no-underline hover:text-fin-primary"
+                    >
+                      <Text truncate className="text-ui-micro font-semibold">
+                        {displaySymbol(stock.symbol)}
+                      </Text>
+                    </Box>
+                  ) : (
+                    <SymbolLink
+                      symbol={stock.symbol}
+                      inAppText
+                      tvLink={false}
+                      showChart={false}
+                      showOptions={false}
+                      size="xs"
+                      weight={600}
+                      testId={`sector-top-stock-${stock.symbol}`}
+                      onTextClick={(sym) => props.onSymbolClick(sym)}
+                      className="min-w-0"
+                    />
+                  )}
+                  <Box className="flex-1" />
+                  <Text c={stock.change >= 0 ? "success" : "error"} className="text-ui-micro tabular-nums font-mono">
+                    {formatPercentage(stock.change)}
+                  </Text>
+                </Box>
+              )}
+            </For>
+          </Stack>
+        </Show>
+      </ScrollArea>
+    </CompactPanel>
+  );
 }
 
 // Decorated feed symbols (NSE:RELIANCE, BRK.B) need a canonical chart href;
@@ -115,6 +254,7 @@ function needsCanonicalLink(symbol: string): boolean {
   return displaySymbol(raw) !== raw || raw.includes(".");
 }
 
+/** Table mode keeps the three cards in one rail; visual mode splits them below the heatmap. */
 function AlertsAndMovers(props: {
   alerts: SectorAlert[];
   intervalMovers: InternalStockMover[];
@@ -123,165 +263,79 @@ function AlertsAndMovers(props: {
   market: "india" | "america";
   onSymbolClick: (symbol: string) => void;
 }) {
-  const openSymbol = (symbol: string) => props.onSymbolClick(symbol);
-
-  const sectorSymbol = (sector: string): string | null => {
-    const top = props.sectors.find((item) => item.sector === sector)?.top_movers ?? "";
-    const withChange = top.match(/([A-Za-z0-9&._-]+)\(/);
-    return withChange?.[1] ?? (top.split(",")[0]?.trim() || null);
-  };
-
   return (
     <Stack
       spacing={0.5}
       className="flex w-full min-w-0 items-stretch"
     >
-      <CompactPanel
-        id="sector-alerts-card"
-        data-testid="sector-alerts-card"
-        className="flex min-w-0 flex-col"
-        title={
-          <Box className="flex items-center justify-between gap-2">
-            <Text fw={600} className="text-ui-micro">Real-time Alerts</Text>
-            <IconBellRinging size={14} color="var(--color-fin-warning)" />
-          </Box>
-        }
-      >
-        <ScrollArea className="max-h-[200px] min-h-0 overflow-auto">
-          <SectorAlertsList
-            alerts={props.alerts}
-            onSectorClick={(sector) => {
-              const symbol = sectorSymbol(sector);
-              if (symbol) openSymbol(symbol);
-            }}
-          />
-        </ScrollArea>
-      </CompactPanel>
-
-      <CompactPanel
-        id="sector-interval-movers-card"
-        data-testid="sector-interval-movers-card"
-        className="flex min-w-0 flex-col"
-        title={
-          <Box className="flex items-center justify-between gap-2">
-            <Text fw={600} className="text-ui-micro">Interval Movers</Text>
-            <IconTrendingUp size={14} color="var(--color-fin-primary)" />
-          </Box>
-        }
-      >
-        <ScrollArea className="max-h-[240px] min-h-0 overflow-auto">
-          <IntervalMoversTable
-            movers={props.intervalMovers}
-            market={props.market === "america" ? "usa" : "india"}
-            onSymbolClick={openSymbol}
-          />
-        </ScrollArea>
-      </CompactPanel>
-
-      <CompactPanel
-        id="sector-top-stocks-card"
-        data-testid="sector-top-stocks-card"
-        className="flex min-w-0 flex-col"
-        title={
-          <Box className="flex items-center justify-between gap-2">
-            <Text fw={600} className="text-ui-micro">Top Gainers</Text>
-            <IconTrendingUp size={14} color="var(--color-fin-positive)" />
-          </Box>
-        }
-      >
-        <ScrollArea className="max-h-[240px] min-h-0 overflow-auto">
-          <Show when={props.topStocks.length > 0} fallback={
-            <Box className="flex items-center justify-center p-1">
-              <Text size="xs" c="dimmed">No movers</Text>
-            </Box>
-          }>
-            <Stack spacing={0.25}>
-              <For each={props.topStocks.slice(0, 10)}>
-                {(stock) => (
-                  <Box
-                    className="flex min-w-0 items-center gap-1.5 px-1 py-[2px]"
-                  >
-                    {needsCanonicalLink(stock.symbol) ? (
-                      <Box
-                        component="a"
-                        href={chartHrefForSymbol(
-                          stock.symbol,
-                          props.market === "america" ? "usa" : undefined,
-                        )}
-                        className="min-w-0 text-fin-text no-underline hover:text-fin-primary"
-                      >
-                        <Text truncate className="text-ui-micro font-semibold">
-                          {displaySymbol(stock.symbol)}
-                        </Text>
-                      </Box>
-                    ) : (
-                      <SymbolLink
-                        symbol={stock.symbol}
-                        inAppText
-                        tvLink={false}
-                        showChart={false}
-                        showOptions={false}
-                        size="xs"
-                        weight={600}
-                        testId={`sector-top-stock-${stock.symbol}`}
-                        onTextClick={(sym) => openSymbol(sym)}
-                        className="min-w-0"
-                      />
-                    )}
-                    <Box className="flex-1" />
-                    <Text c={stock.change >= 0 ? "success" : "error"} className="text-ui-micro tabular-nums font-mono">
-                      {formatPercentage(stock.change)}
-                    </Text>
-                  </Box>
-                )}
-              </For>
-            </Stack>
-          </Show>
-        </ScrollArea>
-      </CompactPanel>
+      <SectorAlertsCard
+        alerts={props.alerts}
+        sectors={props.sectors}
+        onSymbolClick={props.onSymbolClick}
+      />
+      <IntervalMoversCard
+        intervalMovers={props.intervalMovers}
+        market={props.market}
+        onSymbolClick={props.onSymbolClick}
+      />
+      <TopStocksCard
+        topStocks={props.topStocks}
+        market={props.market}
+        onSymbolClick={props.onSymbolClick}
+      />
     </Stack>
   );
 }
 
 function LoadingPanel() {
   return (
-    <CompactPanel
-      title={
-        <Group gap="xs" wrap="nowrap" align="center">
-          <Loader size="sm" />
-          <Text fw={600} size="sm">
-            Fetching sector performance
-          </Text>
-        </Group>
-      }
-      description="Loading live sector breadth and movers."
-      className="flex min-h-[140px] flex-col"
-    />
+    <Box
+      data-testid="sector-overview-loading"
+      role="status"
+      aria-label="Loading sector performance"
+    >
+      <CompactPanel
+        title={
+          <Group gap="xs" wrap="nowrap" align="center">
+            <Loader size="sm" />
+            <Text fw={600} size="sm">
+              Fetching sector performance
+            </Text>
+          </Group>
+        }
+        description="Loading live sector breadth and movers."
+        className="flex min-h-[140px] flex-col"
+      />
+    </Box>
   );
 }
 
 function ErrorPanel(props: { error: string; onRetry: () => void }) {
   return (
-    <CompactPanel
-      title="Error"
-      description={props.error}
-      className="flex min-h-0 flex-col"
-      action={
-        <Button variant="filled" color="error" size="sm" onClick={props.onRetry}>
-          Retry
-        </Button>
-      }
-    />
+    <Box data-testid="sector-overview-error" role="alert">
+      <CompactPanel
+        title="Sector data unavailable"
+        description={props.error}
+        className="flex min-h-0 flex-col"
+        action={
+          <Button variant="filled" color="error" size="sm" onClick={props.onRetry}>
+            Retry
+          </Button>
+        }
+      />
+    </Box>
   );
 }
 
 function EmptyPanel() {
   return (
-    <CompactPanel
-      title="No sector data"
-      description="No sector data available for this market."
-      className="flex min-h-0 flex-col"
-    />
+    <Box data-testid="sector-overview-empty" role="status">
+      <CompactPanel
+        title="No sector data"
+        description="No sector data available for this market. Try another market or refresh."
+        className="flex min-h-0 flex-col"
+      />
+    </Box>
   );
 }
 
@@ -416,6 +470,95 @@ function SectorPerformancePanel(props: {
   );
 }
 
+interface SectorHeatmapPanelProps {
+  data: SectorResponse;
+  viewMode: ViewMode;
+  stocks: HeatmapStock[];
+  metric: string;
+  stockSectorFilter: string | null;
+  sectorOptions: { value: string; label: string }[];
+  loading: boolean;
+  error: string | null;
+  onViewModeChange: (mode: ViewMode) => void;
+  onMetricChange: (metric: string) => void;
+  onSectorFilterChange: (sector: string | null) => void;
+  onSymbolClick: (symbol: string) => void;
+}
+
+/**
+ * A stock-layer request with no tiles is a message, not a 620px empty canvas.
+ * `Show` swaps the whole shell so the sparse state can be genuinely short; a
+ * reactive inline height object would have been captured once at mount.
+ */
+function SectorHeatmapPanel(props: SectorHeatmapPanelProps) {
+  const sparseStockState = () =>
+    props.viewMode === "stock" &&
+    (props.loading || props.error != null || props.stocks.length === 0);
+  return (
+    <Show
+      when={!sparseStockState()}
+      fallback={<HeatmapPanelBody {...props} height="clamp(190px, 28vh, 260px)" />}
+    >
+      <HeatmapPanelBody {...props} height="clamp(480px, 62vh, 640px)" />
+    </Show>
+  );
+}
+
+function HeatmapPanelBody(props: SectorHeatmapPanelProps & { height: string }) {
+  return (
+    <CompactPanel
+      id="sector-heatmap-panel"
+      data-testid="sector-heatmap-panel"
+      padded={false}
+      scrollable
+      // A definite height is required: the heatmap view fills 100% of its
+      // parent, and a min-height leaves that percentage unresolvable. The
+      // extra band pays for the visible sector legend under the chart.
+      style={{ height: props.height, flex: "0 0 auto" }}
+      className="flex min-w-0 flex-col"
+      title={
+        <Box className="flex items-center justify-between gap-2">
+          <Text fw={600} className="text-ui-micro">Market Heatmap</Text>
+          <Show when={props.data.last_updated}>
+            <Box className="flex items-center gap-1">
+              <IconClock size={12} color="var(--color-fin-text-muted)" />
+              <Text c="dimmed" className="text-ui-micro font-mono tabular-nums">
+                {new Date(props.data.last_updated!).toLocaleTimeString()}
+              </Text>
+            </Box>
+          </Show>
+        </Box>
+      }
+    >
+      <Box
+        data-testid="sector-heatmap-controls"
+        className="flex w-full min-w-0 shrink-0 flex-wrap items-center gap-1 border-b border-fin-border px-2 py-1"
+      >
+        <SectorHeatmapControls
+          viewMode={props.viewMode}
+          onViewModeChange={props.onViewModeChange}
+          metric={props.metric}
+          onMetricChange={props.onMetricChange}
+          sectorFilter={props.stockSectorFilter}
+          sectorOptions={props.sectorOptions}
+          onSectorFilterChange={props.onSectorFilterChange}
+          loading={props.loading}
+          error={props.error}
+        />
+      </Box>
+      <SectorHeatmapView
+        viewMode={props.viewMode}
+        sectors={props.data.sectors}
+        stocks={props.stocks}
+        metric={props.metric}
+        loading={props.loading}
+        error={props.error}
+        onSymbolClick={props.onSymbolClick}
+      />
+    </CompactPanel>
+  );
+}
+
 function DashboardContent(props: {
   data: SectorResponse;
   alerts: SectorAlert[];
@@ -425,9 +568,17 @@ function DashboardContent(props: {
   heatmapMetric: string;
   dashboardView: DashboardView;
   market: "india" | "america";
+  stockSectorFilter: string | null;
+  sectorOptions: { value: string; label: string }[];
+  heatmapLoading: boolean;
+  heatmapError: string | null;
+  onViewModeChange: (mode: ViewMode) => void;
+  onHeatmapMetricChange: (metric: string) => void;
+  onStockSectorFilterChange: (sector: string | null) => void;
   onSymbolClick: (symbol: string) => void;
 }) {
   const data = () => props.data;
+  const topStocks = () => data().top_stock_movers;
 
   return (
     <Box
@@ -446,7 +597,7 @@ function DashboardContent(props: {
             <AlertsAndMovers
               alerts={props.alerts}
               intervalMovers={props.intervalMovers}
-              topStocks={data().top_stock_movers}
+              topStocks={topStocks()}
               sectors={data().sectors}
               market={props.market}
               onSymbolClick={props.onSymbolClick}
@@ -455,53 +606,47 @@ function DashboardContent(props: {
         </Box>
       }>
         <Box
-          className="grid w-full min-w-0 gap-[2px] grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,2.4fr)_minmax(320px,1fr)]"
+          data-testid="sector-visual-layout"
+          className="flex w-full min-w-0 flex-col gap-[2px]"
         >
-          <CompactPanel
-            id="sector-heatmap-panel"
-            data-testid="sector-heatmap-panel"
-            padded={false}
-            scrollable
-            style={{ "min-height": "320px" }}
-            className="flex flex-col"
-            title={
-              <Box className="flex items-center justify-between gap-2">
-                <Text fw={600} className="text-ui-micro">Market Heatmap</Text>
-                <Show when={data().last_updated}>
-                  <Box className="flex items-center gap-1">
-                    <IconClock size={12} color="var(--color-fin-text-muted)" />
-                    <Text c="dimmed" className="text-ui-micro font-mono tabular-nums">
-                      {new Date(data().last_updated!).toLocaleTimeString()}
-                    </Text>
-                  </Box>
-                </Show>
-              </Box>
-            }
-          >
-            <SectorHeatmapView
-              viewMode={props.viewMode}
-              sectors={data().sectors}
-              stocks={props.heatmapStocks}
-              metric={props.heatmapMetric}
-              onSymbolClick={props.onSymbolClick}
-            />
-          </CompactPanel>
-
-          <SectorPerformancePanel
-            sectors={data().sectors}
-            market={props.market}
+          <SectorHeatmapPanel
+            data={data()}
+            viewMode={props.viewMode}
+            stocks={props.heatmapStocks}
+            metric={props.heatmapMetric}
+            stockSectorFilter={props.stockSectorFilter}
+            sectorOptions={props.sectorOptions}
+            loading={props.heatmapLoading}
+            error={props.heatmapError}
+            onViewModeChange={props.onViewModeChange}
+            onMetricChange={props.onHeatmapMetricChange}
+            onSectorFilterChange={props.onStockSectorFilterChange}
             onSymbolClick={props.onSymbolClick}
           />
 
-          <Box className="min-w-0 flex flex-col">
-            <AlertsAndMovers
-              alerts={props.alerts}
-              intervalMovers={props.intervalMovers}
-              topStocks={data().top_stock_movers}
-              sectors={data().sectors}
-              market={props.market}
-              onSymbolClick={props.onSymbolClick}
-            />
+          <Box
+            data-testid="sector-visual-grid"
+            className="grid w-full min-w-0 gap-[2px] grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+          >
+            <Stack spacing={0.5} className="flex w-full min-w-0 items-stretch">
+              <SectorAlertsCard
+                alerts={props.alerts}
+                sectors={data().sectors}
+                onSymbolClick={props.onSymbolClick}
+              />
+              <IntervalMoversCard
+                intervalMovers={props.intervalMovers}
+                market={props.market}
+                onSymbolClick={props.onSymbolClick}
+              />
+            </Stack>
+            <Box className="min-w-0 flex flex-col">
+              <TopStocksCard
+                topStocks={topStocks()}
+                market={props.market}
+                onSymbolClick={props.onSymbolClick}
+              />
+            </Box>
           </Box>
         </Box>
       </Show>
@@ -771,14 +916,6 @@ function SectorContextBar(props: {
   data: SectorResponse | null;
   dashboardView: DashboardView;
   onDashboardViewChange: (view: DashboardView) => void;
-  viewMode: ViewMode;
-  onViewModeChange: (mode: ViewMode) => void;
-  heatmapMetric: string;
-  onHeatmapMetricChange: (metric: string) => void;
-  stockSectorFilter: string | null;
-  onStockSectorFilterChange: (sector: string | null) => void;
-  sectorOptions: { value: string; label: string }[];
-  heatmapLoading: boolean;
 }) {
   const sectors = () => props.data?.sectors ?? [];
   const top = () => sectors()[0];
@@ -794,23 +931,30 @@ function SectorContextBar(props: {
     >
       <Show when={top() && bottom()}>
         <Box data-testid="sector-summary-strip" className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
-          <Box className="flex min-w-0 flex-wrap items-baseline gap-x-1">
+          <Box
+            data-testid="sector-top-summary"
+            className="flex min-w-0 flex-wrap items-baseline gap-x-1"
+          >
             <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-ui-micro tracking-[0.3px] whitespace-nowrap">
               Top Sector
             </Text>
-            {/* A single-word sector must not be ellipsised mid-word at 390.
-                Dropping the inline change on narrow screens leaves room for the
-                full name; the number stays in the Sector Performance table. */}
+            {/* Both ends of the strip carry the same fields. Hiding only the
+                top change made 390 read as an asymmetric pair; the name now
+                wraps instead of stealing the number's slot. */}
             <Text
               fw={700}
               c="success"
-              className="text-ui-micro min-w-0 w-full whitespace-nowrap sm:w-auto sm:whitespace-normal"
+              className="text-ui-micro min-w-0 break-words"
               title={top()!.sector}
               data-testid="sector-top-summary-name"
             >
               {top()!.sector}
             </Text>
-            <Text c="dimmed" className="text-ui-micro font-mono tabular-nums whitespace-nowrap hidden sm:inline">
+            <Text
+              c="dimmed"
+              data-testid="sector-top-summary-change"
+              className="text-ui-micro font-mono tabular-nums whitespace-nowrap"
+            >
               Avg Change: {formatPercentage(top()!.avg_change)}
             </Text>
           </Box>
@@ -825,30 +969,25 @@ function SectorContextBar(props: {
               {declines()} DOWN
             </Text>
           </Box>
-          <Box className="flex min-w-0 flex-wrap items-baseline gap-x-1">
+          <Box
+            data-testid="sector-bottom-summary"
+            className="flex min-w-0 flex-wrap items-baseline gap-x-1"
+          >
             <Text size="xs" c="dimmed" fw={700} tt="uppercase" className="text-ui-micro tracking-[0.3px] whitespace-nowrap">
               Weakest Sector
             </Text>
             <Text fw={700} c="error" className="text-ui-micro min-w-0 break-words" title={bottom()!.sector}>
               {bottom()!.sector}
             </Text>
-            <Text c="dimmed" className="text-ui-micro font-mono tabular-nums whitespace-nowrap">
+            <Text
+              c="dimmed"
+              data-testid="sector-bottom-summary-change"
+              className="text-ui-micro font-mono tabular-nums whitespace-nowrap"
+            >
               Avg Change: {formatPercentage(bottom()!.avg_change)}
             </Text>
           </Box>
         </Box>
-      </Show>
-      <Show when={props.dashboardView === "visual"}>
-        <SectorHeatmapControls
-          viewMode={props.viewMode}
-          onViewModeChange={props.onViewModeChange}
-          metric={props.heatmapMetric}
-          onMetricChange={props.onHeatmapMetricChange}
-          sectorFilter={props.stockSectorFilter}
-          sectorOptions={props.sectorOptions}
-          onSectorFilterChange={props.onStockSectorFilterChange}
-          loading={props.heatmapLoading}
-        />
       </Show>
       <Box className="flex-1" />
       <CompactToggle
@@ -877,6 +1016,13 @@ function DashboardSectionContent(props: {
   heatmapStocks: HeatmapStock[];
   heatmapMetric: string;
   dashboardView: DashboardView;
+  stockSectorFilter: string | null;
+  sectorOptions: { value: string; label: string }[];
+  heatmapLoading: boolean;
+  heatmapError: string | null;
+  onViewModeChange: (mode: ViewMode) => void;
+  onHeatmapMetricChange: (metric: string) => void;
+  onStockSectorFilterChange: (sector: string | null) => void;
   onSymbolClick: (symbol: string) => void;
 }) {
   return (
@@ -892,6 +1038,13 @@ function DashboardSectionContent(props: {
             heatmapMetric={props.heatmapMetric}
             dashboardView={props.dashboardView}
             market={props.market}
+            stockSectorFilter={props.stockSectorFilter}
+            sectorOptions={props.sectorOptions}
+            heatmapLoading={props.heatmapLoading}
+            heatmapError={props.heatmapError}
+            onViewModeChange={props.onViewModeChange}
+            onHeatmapMetricChange={props.onHeatmapMetricChange}
+            onStockSectorFilterChange={props.onStockSectorFilterChange}
             onSymbolClick={props.onSymbolClick}
           />
         </Show>
@@ -909,9 +1062,19 @@ function useSectionNavigation(initial: SectorSectionId) {
     history: initial === "history",
   });
   const scrollRoot = { current: null as HTMLElement | null };
+  let settleTo: (id: SectorSectionId) => void = () => {};
 
   const forceMount = (id: SectorSectionId) =>
     setMounted((prev) => (prev[id] ? prev : { ...prev, [id]: true }));
+
+  /** A lazy section above the target can expand after the first scroll. */
+  const forceMountThrough = (id: SectorSectionId) => {
+    const targetIndex = SECTOR_SECTIONS.findIndex((section) => section.id === id);
+    if (targetIndex < 0) return;
+    for (const section of SECTOR_SECTIONS.slice(0, targetIndex + 1)) {
+      forceMount(section.id);
+    }
+  };
 
   const focusSection = (id: SectorSectionId) => {
     const target = document.getElementById(id);
@@ -922,16 +1085,16 @@ function useSectionNavigation(initial: SectorSectionId) {
     target.scrollIntoView?.({ behavior: "auto", block: "start" });
     const root = scrollRoot.current;
     if (root) {
+      const desired = id === "overview" ? 0 : 48;
       const offset = target.getBoundingClientRect().top - root.getBoundingClientRect().top;
-      if (Math.abs(offset - 48) > 4) {
-        root.scrollTo?.({ top: root.scrollTop + offset - 48, behavior: "auto" });
+      if (Math.abs(offset - desired) > 4) {
+        root.scrollTo?.({ top: root.scrollTop + offset - desired, behavior: "auto" });
       }
     }
     target.focus({ preventScroll: true });
   };
 
   const goTo = (id: SectorSectionId, push = true) => {
-    forceMount(id);
     setActive(id);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -940,11 +1103,18 @@ function useSectionNavigation(initial: SectorSectionId) {
       if (push) window.history.pushState(window.history.state, "", target);
       else window.history.replaceState(window.history.state, "", target);
     }
-    focusSection(id);
+    // All navigation goes through the same settle loop. The old one-shot
+    // focus was correct for the initial hash but not after a lazy section above
+    // the target expanded.
+    settleTo(id);
   };
 
   onMount(() => {
     const root = scrollRoot.current;
+    let settleTarget: SectorSectionId | null = null;
+    let settleToken = 0;
+    let settleTimer: number | undefined;
+
     const onScroll = () => {
       for (const section of SECTOR_SECTIONS) forceMount(section.id);
     };
@@ -952,6 +1122,7 @@ function useSectionNavigation(initial: SectorSectionId) {
     scroller.addEventListener("scroll", onScroll, { once: true, passive: true });
 
     const syncActive = () => {
+      if (settleTarget) return;
       const atEnd =
         !!root && root.scrollTop + root.clientHeight >= root.scrollHeight - 4;
       if (atEnd) {
@@ -967,6 +1138,79 @@ function useSectionNavigation(initial: SectorSectionId) {
       setActive(current);
     };
     scroller.addEventListener("scroll", syncActive, { passive: true });
+
+    const stopSettle = (notify: boolean) => {
+      const wasSettling = settleTarget !== null;
+      settleTarget = null;
+      settleToken += 1;
+      if (settleTimer !== undefined) {
+        window.clearTimeout(settleTimer);
+        settleTimer = undefined;
+      }
+      if (notify && wasSettling) syncActive();
+    };
+
+    // User intent, not the programmatic scroll, ends the correction loop.
+    const cancelOnIntent = () => {
+      if (settleTarget) stopSettle(true);
+    };
+    const cancelHost: HTMLElement | Window = root ?? window;
+    cancelHost.addEventListener("wheel", cancelOnIntent, { passive: true });
+    cancelHost.addEventListener("touchstart", cancelOnIntent, { passive: true });
+    cancelHost.addEventListener("pointerdown", cancelOnIntent, { passive: true });
+    cancelHost.addEventListener("keydown", cancelOnIntent);
+
+    const beginSettle = (id: SectorSectionId) => {
+      stopSettle(false);
+      const token = ++settleToken;
+      const startedAt = Date.now();
+      let stableSince = 0;
+      settleTarget = id;
+      forceMountThrough(id);
+      setActive(id);
+      focusSection(id);
+
+      const tick = () => {
+        if (token !== settleToken || settleTarget !== id) return;
+        const currentRoot = scrollRoot.current;
+        const target = document.getElementById(id);
+        if (!currentRoot || !target) {
+          if (Date.now() - startedAt >= 8000) {
+            setActive(id);
+            stopSettle(true);
+            return;
+          }
+          settleTimer = window.setTimeout(tick, 50);
+          return;
+        }
+        const desired = id === "overview" ? 0 : 48;
+        const top =
+          target.getBoundingClientRect().top -
+          currentRoot.getBoundingClientRect().top;
+        if (Math.abs(top - desired) > 4) {
+          focusSection(id);
+          stableSince = 0;
+        } else if (stableSince === 0) {
+          stableSince = Date.now();
+        }
+        const now = Date.now();
+        // Keep correcting through lazy expansion above the target. The 48px
+        // offset is the invariant; 600ms of stability is the completion bar.
+        if (
+          (stableSince !== 0 && now - stableSince >= 600) ||
+          now - startedAt >= 8000
+        ) {
+          setActive(id);
+          stopSettle(true);
+          return;
+        }
+        settleTimer = window.setTimeout(tick, 50);
+      };
+      settleTimer = window.setTimeout(tick, 50);
+    };
+    settleTo = beginSettle;
+
+    if (initial !== "overview") beginSettle(initial);
 
     let observer: IntersectionObserver | undefined;
     if (root && typeof IntersectionObserver !== "undefined") {
@@ -987,16 +1231,18 @@ function useSectionNavigation(initial: SectorSectionId) {
     }
 
     const syncFromUrl = () => {
-      const id = sectionFromHash();
-      setActive(id);
-      forceMount(id);
-      focusSection(id);
+      settleTo(sectionFromHash());
     };
     window.addEventListener("hashchange", syncFromUrl);
     window.addEventListener("popstate", syncFromUrl);
-    if (initial !== "overview") focusSection(initial);
 
     onCleanup(() => {
+      stopSettle(false);
+      settleTo = () => {};
+      cancelHost.removeEventListener("wheel", cancelOnIntent);
+      cancelHost.removeEventListener("touchstart", cancelOnIntent);
+      cancelHost.removeEventListener("pointerdown", cancelOnIntent);
+      cancelHost.removeEventListener("keydown", cancelOnIntent);
       scroller.removeEventListener("scroll", onScroll);
       scroller.removeEventListener("scroll", syncActive);
       observer?.disconnect();
@@ -1022,6 +1268,7 @@ export function SectorPage() {
   const [stockSectorFilter, setStockSectorFilter] = createSignal<string | null>(null);
   const [heatmapStocks, setHeatmapStocks] = createSignal<HeatmapStock[]>([]);
   const [heatmapLoading, setHeatmapLoading] = createSignal(false);
+  const [heatmapError, setHeatmapError] = createSignal<string | null>(null);
 
   createEffect(() => {
     const currentView = viewMode();
@@ -1030,15 +1277,19 @@ export function SectorPage() {
     const controller = new AbortController();
     onCleanup(() => controller.abort());
     setHeatmapLoading(true);
+    setHeatmapError(null);
     fetchHeatmapData(undefined, undefined, filter || undefined, 500, controller.signal)
       .then((res) => {
         if (controller.signal.aborted) return;
         setHeatmapStocks(res.stocks);
         setHeatmapLoading(false);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         setHeatmapStocks([]);
+        setHeatmapError(
+          error instanceof Error ? error.message : "Stock heatmap is unavailable",
+        );
         setHeatmapLoading(false);
       });
   });
@@ -1076,14 +1327,6 @@ export function SectorPage() {
                 setDashboardView(view);
                 writeDashboardView(view);
               }}
-              viewMode={viewMode()}
-              onViewModeChange={setViewMode}
-              heatmapMetric={heatmapMetric()}
-              onHeatmapMetricChange={setHeatmapMetric}
-              stockSectorFilter={stockSectorFilter()}
-              onStockSectorFilterChange={setStockSectorFilter}
-              sectorOptions={sectorOptions()}
-              heatmapLoading={heatmapLoading()}
             />
           </Show>
           <DashboardSectionContent
@@ -1098,6 +1341,13 @@ export function SectorPage() {
             heatmapStocks={heatmapStocks()}
             heatmapMetric={heatmapMetric()}
             dashboardView={dashboardView()}
+            stockSectorFilter={stockSectorFilter()}
+            sectorOptions={sectorOptions()}
+            heatmapLoading={heatmapLoading()}
+            heatmapError={heatmapError()}
+            onViewModeChange={setViewMode}
+            onHeatmapMetricChange={setHeatmapMetric}
+            onStockSectorFilterChange={setStockSectorFilter}
             onSymbolClick={openSymbol}
           />
         </SectionShell>
@@ -1105,15 +1355,21 @@ export function SectorPage() {
         <SectionShell
           id="rotation"
           mounted={nav.mounted().rotation}
-          contentClass="h-[900px] lg:h-[720px] overflow-hidden"
+          // The 2x2 desk needs a definite desktop height so the four panels
+          // share two rows. Below lg the panels stack and the section grows
+          // with the page instead of hiding the matrix/board/detail.
+          contentClass="overflow-visible lg:h-[900px] lg:overflow-hidden"
         >
           <RotationTab market={state.market()} />
         </SectionShell>
 
+        {/* Correlation and history size to their content. Fixed section heights
+            used to clip the last board / RS table between the 900–1100 widths,
+            and an inner scrollport is not discoverable on a single-page desk. */}
         <SectionShell
           id="correlation"
           mounted={nav.mounted().correlation}
-          contentClass="h-[1100px] lg:h-[900px] overflow-hidden"
+          contentClass="overflow-visible"
         >
           <SectorCorrelationTab />
         </SectionShell>
@@ -1121,7 +1377,7 @@ export function SectorPage() {
         <SectionShell
           id="history"
           mounted={nav.mounted().history}
-          contentClass="h-[1050px] lg:h-[880px] overflow-hidden"
+          contentClass="overflow-visible"
         >
           <Suspense fallback={<HistoryTabFallback />}>
             <SectorHistoryTab market={state.market()} />

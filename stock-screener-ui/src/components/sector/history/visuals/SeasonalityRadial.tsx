@@ -13,6 +13,8 @@ export interface SeasonalityRadialProps {
   sector: string;
   /** Set false when the host panel already renders the title. */
   showHeader?: boolean;
+  /** Set false when the host panel already renders the method note. */
+  showFooter?: boolean;
 }
 
 export interface SeasonalityRadialEntry {
@@ -186,7 +188,12 @@ export function SeasonalityRadial(props: SeasonalityRadialProps) {
           <EChart
             option={option()}
             data-testid="history-seasonality-radial-chart"
-            style={{ height: `${CHART_HEIGHT}px`, width: "100%" }}
+            style={{
+              height: `${CHART_HEIGHT}px`,
+              flex: "none",
+              width: "100%",
+              "min-height": "0px",
+            }}
           />
           <div
             data-testid="history-seasonality-radial-values"
@@ -219,12 +226,14 @@ export function SeasonalityRadial(props: SeasonalityRadialProps) {
               )}
             </For>
           </div>
-          <span
-            data-testid="history-seasonality-radial-note"
-            class="text-ui-micro text-fin-text-muted"
-          >
-            {`avg return by month · hit rate in tooltip · ${model().sampleLabel} · history, not a forecast`}
-          </span>
+          <Show when={props.showFooter !== false}>
+            <span
+              data-testid="history-seasonality-radial-note"
+              class="text-ui-micro text-fin-text-muted"
+            >
+              {`avg return by month · hit rate in tooltip · ${model().sampleLabel} · history, not a forecast`}
+            </span>
+          </Show>
         </div>
       </Show>
     </div>

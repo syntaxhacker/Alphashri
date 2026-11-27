@@ -17,8 +17,10 @@ import { finite, monthIndex, yearOf } from "./shared";
 
 const LABEL_FONT = typeSize("micro");
 const CHART_MIN_WIDTH = 900;
-export const ROTATION_ROW_HEIGHT = 24;
+export const ROTATION_ROW_HEIGHT = 36;
 export const ROTATION_ROW_GAP = 4;
+export const ROTATION_PLOT_TOP = 6;
+export const ROTATION_PLOT_HEIGHT = 24;
 export const ROTATION_CHART_TOP = 4;
 export const ROTATION_AXIS_HEIGHT = 24;
 export const ROTATION_TOP_BAND_FILL = alpha(CHART_TOP3, 0.18);
@@ -135,8 +137,11 @@ export function buildRotationOption(input: RotationTimelineInput): Record<string
   const grids = model.rows.map((_, index) => ({
     left: 6,
     right: 8,
-    top: ROTATION_CHART_TOP + index * (ROTATION_ROW_HEIGHT + ROTATION_ROW_GAP),
-    height: ROTATION_ROW_HEIGHT,
+    top:
+      ROTATION_CHART_TOP +
+      index * (ROTATION_ROW_HEIGHT + ROTATION_ROW_GAP) +
+      ROTATION_PLOT_TOP,
+    height: ROTATION_PLOT_HEIGHT,
     containLabel: false,
   }));
 
@@ -218,7 +223,8 @@ export function buildRotationOption(input: RotationTimelineInput): Record<string
       label: {
         description:
           "Rank history by sector. Each row is a sector; higher is stronger; " +
-          "the shaded band is the top 3. Hover a month to read its rank.",
+          "rank ticks at the left mark the scale and the shaded band is the top 3. " +
+          "Hover a month to read its exact rank.",
       },
     },
     grid: grids,
@@ -275,6 +281,19 @@ export function RotationTimeline(props: RotationTimelineProps) {
       ROTATION_AXIS_HEIGHT,
   );
   const bottomSpacer = ROTATION_AXIS_HEIGHT - ROTATION_ROW_GAP;
+  const rankTicks = createMemo(() =>
+    Array.from({ length: model().rankMax }, (_, index) => index + 1),
+  );
+  const rankSpacing = () => ROTATION_PLOT_HEIGHT / Math.max(1, model().rankMax - 1);
+  const rankTop = (rank: number) =>
+    ROTATION_PLOT_TOP + ((rank - 1) / Math.max(1, model().rankMax - 1)) * ROTATION_PLOT_HEIGHT;
+  // Labels share one 12px line each; only show the ones the top-3 band has room for.
+  const showRankLabel = (rank: number) => {
+    if (rank > 3) return false;
+    if (rank === 1) return true;
+    if (rank === 2) return rankSpacing() >= 12;
+    return rankSpacing() >= 6;
+  };
 
   return (
     <div class="flex min-w-0 flex-col gap-1">
@@ -293,7 +312,7 @@ export function RotationTimeline(props: RotationTimelineProps) {
           <span class="text-ui-micro font-semibold text-fin-text">Rank history by sector</span>
           <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span class="text-ui-micro text-fin-text-muted">
-              Each row is a sector · higher is stronger · shaded band = top 3
+              Each row is a sector · higher is stronger · rank ticks at left · shaded band = top 3
             </span>
             <span
               data-testid="history-rotation-band-key"
@@ -338,7 +357,7 @@ export function RotationTimeline(props: RotationTimelineProps) {
           data-testid="history-rotation-scroll-hint"
           class={`mb-0.5 items-center justify-end ${hint.overflowing() ? "flex" : "hidden"}`}
         >
-          <span class="text-ui-micro text-fin-text-muted">
+          <span class="rounded-[1px] border border-fin-border bg-fin-surface-alt px-1 py-px text-ui-micro text-fin-text-muted">
             {hint.atEnd() ? "Scroll ←" : "Scroll →"}
           </span>
         </div>
@@ -351,7 +370,7 @@ export function RotationTimeline(props: RotationTimelineProps) {
           >
             <div style={{ height: `${ROTATION_CHART_TOP}px` }} />
             <For each={model().rows}>
-              {(row) => (
+              {(row, index) => (
                 <div
                   class="flex items-center"
                   style={{
@@ -362,13 +381,43 @@ export function RotationTimeline(props: RotationTimelineProps) {
                   <span
                     class={
                       row.currentRank !== null && row.currentRank <= 3
-                        ? "text-ui-micro text-fin-text"
-                        : "text-ui-micro text-fin-text-muted"
+                        ? "min-w-0 flex-1 truncate text-ui-micro text-fin-text"
+                        : "min-w-0 flex-1 truncate text-ui-micro text-fin-text-muted"
                     }
                     title={row.name}
                   >
                     {row.name}
                   </span>
+                  <div
+                    data-testid={`history-rotation-ranks-${index()}`}
+                    class="relative h-full w-9 shrink-0"
+                  >
+                    <For each={rankTicks()}>
+                      {(rank) => (
+                        <div
+                          data-testid={`history-rotation-rank-tick-${index()}-${rank}`}
+                          class="absolute right-0 flex items-center justify-end gap-0.5"
+                          style={{
+                            top: `${rankTop(rank)}px`,
+                            transform: "translateY(-50%)",
+                          }}
+                        >
+                          <Show when={showRankLabel(rank)}>
+                            <span
+                              data-testid={`history-rotation-rank-label-${index()}-${rank}`}
+                              class="font-mono text-ui-micro leading-none tabular-nums text-fin-text-muted"
+                            >
+                              {`#${rank}`}
+                            </span>
+                          </Show>
+                          <span
+                            aria-hidden="true"
+                            class="h-px w-1.5 shrink-0 bg-fin-border"
+                          />
+                        </div>
+                      )}
+                    </For>
+                  </div>
                 </div>
               )}
             </For>

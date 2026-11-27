@@ -1,6 +1,7 @@
 import { For, Show } from "solid-js";
 import { Box, Text } from "@/ui";
 import type { InternalStockMover } from "./sectorUtils";
+import { formatSectorPercentage } from "./sectorUtils";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 import { MONO } from "@/ui/palette";
 import { displaySymbol } from "@/config/tvSymbols";
@@ -15,7 +16,7 @@ function needsCanonicalLink(symbol: string): boolean {
 }
 
 function pct(value: number): string {
-  return `${value.toFixed(2)}%`;
+  return formatSectorPercentage(value, 2, false);
 }
 
 const GRID_COLS = "grid grid-cols-[minmax(0,1fr)_44px_44px_52px] items-center gap-0.5 min-h-[18px] px-0.5 border-b border-fin-border";
@@ -39,9 +40,16 @@ export function IntervalMoversTable(props: IntervalMoversTableProps) {
     <Show
       when={movers().length > 0}
       fallback={
-        <Box className="flex items-center justify-center p-1">
-          <Text size="xs" c="dimmed" ta="center" py={1}>
-            Collecting baseline for interval moves...
+        <Box
+          data-testid="interval-movers-empty"
+          role="status"
+          className="flex flex-col items-center justify-center gap-0.5 p-2"
+        >
+          <Text size="xs" c="dimmed" ta="center">
+            First poll establishes the baseline.
+          </Text>
+          <Text className="text-ui-micro text-fin-text-muted">
+            1-minute movers appear on the next refresh.
           </Text>
         </Box>
       }
@@ -94,7 +102,7 @@ export function IntervalMoversTable(props: IntervalMoversTableProps) {
                 {pct(mover.change)}
               </Text>
               <Text
-                c={getPnLTextColor(mover.delta)}
+                c={getPnLTextColor(Number(mover.delta.toFixed(2)))}
                 fw={700}
                 ta="right"
                 className="text-ui-micro font-mono tabular-nums"

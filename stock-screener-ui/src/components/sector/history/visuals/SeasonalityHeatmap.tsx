@@ -22,9 +22,9 @@ const HEADER_H = 26;
 const EMPTY_W = 360;
 const EMPTY_H = 96;
 const HIT_BAR_INSET = 4;
-const HIT_BAR_H = 2;
-const HIT_BAR_TRACK_OPACITY = 0.18;
-const HIT_BAR_OPACITY = 0.9;
+const HIT_BAR_H = 4;
+const HIT_BAR_TRACK_OPACITY = 0.3;
+const HIT_BAR_OPACITY = 1;
 const MONTHS_IN_YEAR = 12;
 
 export interface SeasonalityHeatmapProps {
@@ -126,8 +126,9 @@ export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
         >
           <span class="inline-flex items-center gap-1.5 whitespace-nowrap">
             <span
+              data-testid="history-seasonality-hit-swatch"
               aria-hidden="true"
-              class="relative inline-block h-[2px] w-[24px]"
+              class="relative inline-block h-1 w-[24px]"
               style={{ "background-color": alpha(CHART_MUTED, HIT_BAR_TRACK_OPACITY) }}
             >
               <span
@@ -294,7 +295,7 @@ export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
                                 </rect>
                                 <text
                                   x={cellX() + CELL_W / 2}
-                                  y={rowY() + CELL_H / 2 - 1}
+                                  y={rowY() + CELL_H / 2 - 3}
                                   font-size={SVG_TEXT}
                                   font-weight={500}
                                   fill={cell.ink}
@@ -307,11 +308,12 @@ export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
                                 </text>
                                 <Show when={cell.avg !== null && cell.hitPct !== null}>
                                   <rect
+                                    data-hit-track={`seasonality-${row.index}-${cell.index}`}
                                     x={cellX() + HIT_BAR_INSET}
-                                    y={rowY() + CELL_H - HIT_BAR_H - 3}
+                                    y={rowY() + CELL_H - HIT_BAR_H - 2}
                                     width={CELL_W - HIT_BAR_INSET * 2}
                                     height={HIT_BAR_H}
-                                    fill={CHART_MUTED}
+                                    fill={cell.ink}
                                     fill-opacity={HIT_BAR_TRACK_OPACITY}
                                     shape-rendering="crispEdges"
                                     pointer-events="none"
@@ -321,10 +323,10 @@ export function SeasonalityHeatmap(props: SeasonalityHeatmapProps) {
                                     data-hit-bar={`seasonality-${row.index}-${cell.index}`}
                                     data-hit-pct={Math.round(cell.hitPct ?? 0)}
                                     x={cellX() + HIT_BAR_INSET}
-                                    y={rowY() + CELL_H - HIT_BAR_H - 3}
+                                    y={rowY() + CELL_H - HIT_BAR_H - 2}
                                     width={barWidth()}
                                     height={HIT_BAR_H}
-                                    fill={CHART_MUTED}
+                                    fill={cell.ink}
                                     fill-opacity={HIT_BAR_OPACITY}
                                     shape-rendering="crispEdges"
                                     pointer-events="none"

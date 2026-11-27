@@ -401,15 +401,23 @@ describe("SectorRankHeatmap axis, width and top-3 emphasis", () => {
 });
 
 describe("SeasonalityHeatmap legend and hit-rate cue", () => {
-  test("encodes hit rate as a bottom bar without replacing the return text", () => {
+  test("encodes hit rate as a legible bottom bar without replacing the return text", () => {
     render(() => <SeasonalityHeatmap cells={SEASONALITY} names={["NIFTY IT", "PSU BANK"]} />);
     const svg = screen.getByTestId("history-seasonality");
     const high = svg.querySelector('[data-hit-bar="seasonality-0-0"]');
     const low = svg.querySelector('[data-hit-bar="seasonality-0-1"]');
+    const highTrack = svg.querySelector('[data-hit-track="seasonality-0-0"]');
     expect(high).toHaveAttribute("data-hit-pct", "60");
     expect(low).toHaveAttribute("data-hit-pct", "40");
     expect(Number(high?.getAttribute("width"))).toBeCloseTo(20.4, 5);
     expect(Number(low?.getAttribute("width"))).toBeCloseTo(13.6, 5);
+    expect(high).toHaveAttribute("height", "4");
+    expect(high).toHaveAttribute("fill-opacity", "1");
+    expect(highTrack).toHaveAttribute("height", "4");
+    expect(Number(highTrack?.getAttribute("fill-opacity"))).toBeLessThan(1);
+    const cellFill = svg.querySelector('[data-cell="seasonality-0-0"]')?.getAttribute("fill") ?? "";
+    expect(contrastRatio(high?.getAttribute("fill") ?? "", cellFill)).toBeGreaterThanOrEqual(3);
+    expect(screen.getByTestId("history-seasonality-hit-swatch")).toHaveClass("h-1");
     expect(screen.getByText("+2.1%")).toBeInTheDocument();
     expect(screen.getByText("-1.4%")).toBeInTheDocument();
     expect(
