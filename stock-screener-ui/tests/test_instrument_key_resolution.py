@@ -493,4 +493,3 @@ def test_get_instrument_key_indexes_once_per_list():
     api.instruments = replacement
     assert api.get_instrument_key("AAA") == "KEY/NEW"
     assert replacement.iterations == 1
-
