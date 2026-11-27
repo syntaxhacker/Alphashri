@@ -55,9 +55,10 @@ export function buildSupplyDemandOption(input: EdaSupplyDemandInput | null | und
     }
   }
 
+  const compact = input.compact === true;
   const option = baseOption(
     t,
-    `Arrivals vs modal price · ${arrivalsUnit} / ${unit}`,
+    compact ? "Arrivals vs price" : `Arrivals vs modal price · ${arrivalsUnit} / ${unit}`,
     regression ? ["Observations", "Regression fit"] : ["Observations"],
     (params) => {
       const param = asParams(params)[0];
@@ -94,9 +95,42 @@ export function buildSupplyDemandOption(input: EdaSupplyDemandInput | null | und
         },
       },
     ],
-    grid: [{ left: 64, right: 24, top: CHART_LAYOUT.gridTop, bottom: CHART_LAYOUT.gridBottom, containLabel: true }],
-    xAxis: [valueAxis(t, `Arrivals (${arrivalsUnit})`)],
-    yAxis: [valueAxis(t, unit)],
+    grid: [
+      {
+        left: compact ? 52 : 64,
+        right: compact ? 28 : 24,
+        top: CHART_LAYOUT.gridTop,
+        bottom: CHART_LAYOUT.gridBottom,
+        containLabel: true,
+      },
+    ],
+    xAxis: [
+      {
+        // The title already carries the units; an end-anchored axis name is
+        // clipped to one glyph on a 1600 panel.
+        ...valueAxis(t),
+        splitNumber: compact ? 3 : 5,
+        axisLabel: {
+          ...(valueAxis(t).axisLabel as Record<string, unknown>),
+          hideOverlap: true,
+          formatter: compact
+            ? (value: number) =>
+                Math.abs(value) >= 1_000
+                  ? `${Math.round(value / 1_000)}k`
+                  : `${Math.round(value)}`
+            : (value: number) =>
+                Math.abs(value) >= 1_000
+                  ? `${(value / 1_000).toFixed(0)}k`
+                  : `${Math.round(value)}`,
+        },
+      },
+    ],
+    yAxis: [
+      {
+        ...valueAxis(t),
+        splitNumber: compact ? 4 : 5,
+      },
+    ],
     series: [
       {
         name: "Observations",

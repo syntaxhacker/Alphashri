@@ -60,6 +60,7 @@ export interface AgriChartInput {
   unit: string;
   isDark: boolean;
   asOf?: string;
+  compact?: boolean;
 }
 
 /** A gap marker is an empty category, not an observation with zero markets. */
@@ -307,6 +308,7 @@ function buildCompare(
   comparisons: AgriComparisonSeries[],
   t: ThemeTokens,
   asOf?: string,
+  compact = false,
 ): OptionFragment {
   const selected = comparisons.slice(0, MAX_COMPARE);
   const prepared = selected
@@ -348,6 +350,17 @@ function buildCompare(
       connectNulls: false,
       lineStyle: { color, width: 1.75 },
       itemStyle: { color },
+      endLabel: {
+        show: true,
+        formatter: labels[i],
+        color,
+        fontSize: CHART_LAYOUT.font,
+        fontWeight: 700,
+        distance: 4,
+        overflow: "truncate",
+        width: compact ? 62 : 86,
+      },
+      labelLayout: { moveOverlap: "shiftY" },
       ...(i === 0
         ? {
             markLine: {
@@ -357,7 +370,11 @@ function buildCompare(
                 {
                   yAxis: 100,
                   lineStyle: { color: t.muted, type: "dashed" },
-                  label: { formatter: "100 (base)", color: t.muted },
+                  label: {
+                    formatter: compact ? "100" : "100 (base)",
+                    color: t.muted,
+                    ...(compact ? { position: "insideStartTop" as const } : {}),
+                  },
                 },
               ],
             },
@@ -386,8 +403,26 @@ function buildCompare(
   };
 
   return {
-    ...baseOption(t, titled("Modal price indexed to 100 at common start", asOf), labels, compareTooltip),
-    grid: [{ left: 56, right: 24, top: CHART_LAYOUT.gridTop, bottom: CHART_LAYOUT.gridBottomWithZoom, containLabel: true }],
+    ...baseOption(
+      t,
+      compact
+        ? "Indexed to 100 · common start"
+        : titled(
+            "Modal price indexed to 100 at common start",
+            asOf ? formatAgriDateLabel(asOf) : undefined,
+          ),
+      labels,
+      compareTooltip,
+    ),
+    grid: [
+      {
+        left: compact ? 44 : 56,
+        right: compact ? 68 : 88,
+        top: CHART_LAYOUT.gridTop,
+        bottom: CHART_LAYOUT.gridBottomWithZoom,
+        containLabel: true,
+      },
+    ],
     xAxis: [categoryAxis(dates.map((date) => (gapDates.has(date) ? "" : formatAgriDateLabel(date))), t, 0, true)],
     yAxis: [valueAxis(t, 0)],
     dataZoom: makeDataZoom(t, [0]),
@@ -478,7 +513,9 @@ export function buildAgriChartOption(input: AgriChartInput): Record<string, unkn
 
   if (mode === "compare") {
     const comparison = Array.isArray(input.comparison) ? input.comparison : [];
-    return comparison.length === 0 ? {} : buildCompare(comparison, t, asOf);
+    return comparison.length === 0
+      ? {}
+      : buildCompare(comparison, t, asOf, input.compact === true);
   }
   if (rows.length === 0) return {};
   if (mode === "arrivals") return buildArrivals(rows, unit, t, asOf);

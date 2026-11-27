@@ -1,5 +1,6 @@
 import { For, Show, createMemo } from "solid-js";
 import { Badge, Box, Text } from "@/ui";
+import { AGRI_CONTEXT, AGRI_DOWN, AGRI_UP } from "@/ui/palette";
 import { CompactPanel } from "@/components/common/compact";
 import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
 import {
@@ -114,11 +115,17 @@ export function resolveCoverageTier(input: AgriCoverageInput): AgriCoverageTier 
   return "C";
 }
 
-export function coverageTierTone(tier: AgriCoverageTier | null): "success" | "warning" | "error" | "dimmed" {
-  if (tier === "A") return "success";
-  if (tier === "B") return "warning";
-  if (tier === "C") return "error";
-  return "dimmed";
+/** Coverage is a status, so it reads on the agri ink ramp, never terminal P&L. */
+export function coverageTierTone(tier: AgriCoverageTier | null): string {
+  if (tier === "A") return AGRI_UP;
+  if (tier === "B") return AGRI_CONTEXT;
+  if (tier === "C") return AGRI_DOWN;
+  return AGRI_CONTEXT;
+}
+
+function directionInk(value: number | null): string {
+  if (value == null || value === 0) return "var(--color-fin-text-muted)";
+  return value > 0 ? AGRI_UP : AGRI_DOWN;
 }
 
 export function coverageTierTitle(tier: AgriCoverageTier | null): string {
@@ -181,9 +188,8 @@ function moverChange(mover: AgriGroupMover | string | null | undefined): number 
   return finiteNumber(mover?.chg_pct);
 }
 
-function moverTone(value: number | null): "success" | "error" | "dimmed" {
-  if (value == null || value === 0) return "dimmed";
-  return value > 0 ? "success" : "error";
+function moverTone(value: number | null): string {
+  return directionInk(value);
 }
 
 function canonicalGroupKey(value: string | null | undefined): string {
@@ -248,23 +254,15 @@ function GroupCard(props: {
     return value == null ? "—" : value.toFixed(1);
   };
 
-  const changeTone = () => {
-    const value = change();
-    if (value == null || value === 0) return "dimmed";
-    return value > 0 ? "success" : "error";
-  };
+  const changeTone = () => directionInk(change());
 
   const breadthTone = () => {
     const value = breadth();
-    if (value == null || value === 50) return "dimmed";
-    return value > 50 ? "success" : "error";
+    if (value == null || value === 50) return "var(--color-fin-text-muted)";
+    return value > 50 ? AGRI_UP : AGRI_DOWN;
   };
 
-  const breadthColour = () => {
-    const value = breadth();
-    if (value == null || value === 50) return "var(--color-fin-text-muted)";
-    return value > 50 ? "var(--color-fin-positive)" : "var(--color-fin-negative)";
-  };
+  const breadthColour = () => breadthTone();
 
   const breadthTitle = () => {
     const value = breadth();
@@ -300,7 +298,6 @@ function GroupCard(props: {
       data-group={key()}
       data-selected={props.selected ? "true" : "false"}
       aria-pressed={props.onSelect ? (props.selected ? "true" : "false") : undefined}
-      aria-label={`${props.group.label} group overview`}
       title={
         tier()
           ? `${props.group.label} · ${coverageTierTitle(tier())}`
@@ -315,18 +312,23 @@ function GroupCard(props: {
           : "",
       ].join(" ")}
     >
+      <Show when={props.onSelect}>
+        <span className="sr-only">Filter by </span>
+      </Show>
       <Box className="flex min-w-0 items-center justify-between gap-1">
         <Text size="xs" fw={700} truncate className="min-w-0" title={props.group.label}>
           {props.group.label}
         </Text>
-        <Badge
-          size="xs"
-          color={coverageTierTone(tier())}
-          title={coverageTierTitle(tier())}
-          data-testid={`agri-group-tier-${key()}`}
-        >
-          {tier() ? `Tier ${tier()}` : "Tier —"}
-        </Badge>
+        <Show when={tier() === "B" || tier() === "C"}>
+          <Badge
+            size="xs"
+            color={coverageTierTone(tier())}
+            title={coverageTierTitle(tier())}
+            data-testid={`agri-group-tier-${key()}`}
+          >
+            Tier {tier()}
+          </Badge>
+        </Show>
       </Box>
 
       <Box className="min-w-0">
@@ -358,7 +360,7 @@ function GroupCard(props: {
             100 base
           </Text>
           <Show when={tier() === "C"}>
-            <Badge size="xs" color="error" data-testid={`agri-group-thin-${key()}`}>
+            <Badge size="xs" color={AGRI_DOWN} data-testid={`agri-group-thin-${key()}`}>
               thin sample
             </Badge>
           </Show>
@@ -461,7 +463,7 @@ export function AgriGroupOverview(props: AgriGroupOverviewProps) {
   };
 
   const description = () =>
-    `Index 100 at window start · breadth = % commodities up · as of ${formatAgriSessionDate(asOf())}`;
+    `Index 100 at window start · breadth = % commodities up · Tier A is the default broad sample; only B/C badges flag thinner coverage · as of ${formatAgriSessionDate(asOf())}`;
 
   return (
     <CompactPanel

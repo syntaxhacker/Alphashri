@@ -569,6 +569,16 @@ describe("band/compare output contracts", () => {
     expect((option.xAxis as Series[])[0].data).toEqual(["02 Jan", "03 Jan"]);
     expect((option.dataZoom as Series[]).map((z) => z.type)).toEqual(["inside", "slider"]);
   });
+
+  it("shortens the compare header and end-labels series on a 390 panel", () => {
+    const option = buildAgriChartOption(input({ mode: "compare", comparison, compact: true }));
+    expect((option.title as { text: string }).text).toBe("Indexed to 100 · common start");
+    const series = seriesOf(option);
+    expect(series[0].endLabel).toMatchObject({ show: true, formatter: "Rice" });
+    expect(series[1].endLabel).toMatchObject({ show: true, formatter: "Wheat" });
+    const markLine = series[0].markLine as { data: { label: { formatter: string } }[] };
+    expect(markLine.data[0].label.formatter).toBe("100");
+  });
 });
 
 describe("layout and legibility invariants", () => {

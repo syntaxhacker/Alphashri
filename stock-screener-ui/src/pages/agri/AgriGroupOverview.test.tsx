@@ -58,7 +58,7 @@ describe("AgriGroupOverview", () => {
     expect(grid).toHaveClass("grid-cols-1", "min-[360px]:grid-cols-2", "xl:grid-cols-5");
   });
 
-  it("shows index, breadth, movers, tier, coverage and as-of", () => {
+  it("shows index, breadth, movers, coverage and as-of without repeating Tier A", () => {
     renderOverview({ groups: [cereals], asOf: "2026-11-21" });
 
     expect(screen.getByTestId("agri-group-index-cereals")).toHaveTextContent("104.2");
@@ -68,7 +68,10 @@ describe("AgriGroupOverview", () => {
     expect(screen.getByTestId("agri-group-best-cereals").textContent).toContain("+3.2%");
     expect(screen.getByTestId("agri-group-worst-cereals").textContent).toContain("Rice");
     expect(screen.getByTestId("agri-group-worst-cereals").textContent).toContain("-1.1%");
-    expect(screen.getByTestId("agri-group-tier-cereals")).toHaveTextContent("Tier A");
+    expect(screen.queryByTestId("agri-group-tier-cereals")).not.toBeInTheDocument();
+    expect(screen.getByTestId("agri-group-overview")).toHaveTextContent(
+      "Tier A is the default broad sample",
+    );
     expect(screen.getByTestId("agri-group-coverage-cereals").textContent).toContain("140 mandis");
     expect(screen.getByTestId("agri-group-coverage-cereals").textContent).toContain("92% cov");
     expect(screen.getByTestId("agri-group-coverage-cereals").textContent).toContain("2.4% vol");
@@ -106,7 +109,7 @@ describe("AgriGroupOverview", () => {
 
     expect(screen.getByTestId("agri-group-index-pulses")).toHaveTextContent("—");
     expect(screen.getByTestId("agri-group-breadth-pulses")).toHaveTextContent("—");
-    expect(screen.getByTestId("agri-group-tier-pulses")).toHaveTextContent("Tier —");
+    expect(screen.queryByTestId("agri-group-tier-pulses")).not.toBeInTheDocument();
     expect(screen.getByTestId("agri-group-best-pulses").textContent).toContain("—");
     expect(screen.getByTestId("agri-group-worst-pulses").textContent).toContain("—");
     expect(screen.getByTestId("agri-group-coverage-pulses")).toHaveTextContent("coverage —");

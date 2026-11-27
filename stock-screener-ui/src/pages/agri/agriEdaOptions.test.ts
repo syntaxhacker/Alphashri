@@ -244,6 +244,19 @@ describe("buildDistributionOption", () => {
   });
 });
 
+describe("buildDistributionOption compact", () => {
+  it("shortens the header and reserves room for the legend at 390", () => {
+    const boxes = [
+      { month: "May", label: "May 26", min: 80, q1: 100, median: 120, q3: 140, max: 160, count: 10 },
+    ];
+    const option = buildDistributionOption({ boxes, compact: true });
+    expect((option.title as { text: string }).text).toBe("Monthly modal spread");
+    expect((option.legend as { top: number }).top).toBe(30);
+    expect((option.grid as Array<{ top: number }>)[0].top).toBe(74);
+    expect((option.yAxis as Series[])[0].name).toBeUndefined();
+  });
+});
+
 describe("buildSupplyDemandOption", () => {
   it("builds scatter observations and a regression line", () => {
     const option = buildSupplyDemandOption({ scatter });
@@ -251,6 +264,18 @@ describe("buildSupplyDemandOption", () => {
     expect(seriesOf(option)[0].data).toEqual([[500, 260], [600, 270], [700, 280], [800, 300]]);
     expect(seriesOf(option)[1].name).toBe("Regression fit");
     expect(seriesOf(option)[1].data).toEqual([[500, 260], [800, 297.5]]);
+  });
+
+  it("drops the axis names and shortens ticks on a 390 panel", () => {
+    const option = buildSupplyDemandOption({ scatter, compact: true });
+    expect((option.title as { text: string }).text).toBe("Arrivals vs price");
+    const xAxis = (option.xAxis as Series[])[0];
+    const yAxis = (option.yAxis as Series[])[0];
+    expect(xAxis.name).toBeUndefined();
+    expect(yAxis.name).toBeUndefined();
+    expect(xAxis.splitNumber).toBe(3);
+    const formatter = (xAxis.axisLabel as { formatter: (value: number) => string }).formatter;
+    expect(formatter(300_000)).toBe("300k");
   });
 
   it("annotates r, R² and n without NaN", () => {
@@ -262,15 +287,16 @@ describe("buildSupplyDemandOption", () => {
     expect(graphic[0].style.text).not.toMatch(/undefined|NaN/);
   });
 
-  it("labels axes with qtl and ₹/quintal", () => {
+  it("keeps units in the title and tooltip rather than clipped axis names", () => {
     const option = buildSupplyDemandOption({ scatter });
-    expect(axisOf(option).name).toBe("Arrivals (qtl)");
-    expect(yAxisOf(option).name).toBe("₹/quintal");
+    expect((option.title as { text: string }).text).toContain("qtl");
+    expect(axisOf(option).name).toBeUndefined();
+    expect(yAxisOf(option).name).toBeUndefined();
   });
 
-  it("honours a custom arrivals unit in the axis and tooltip", () => {
+  it("honours a custom arrivals unit in the title and tooltip", () => {
     const option = buildSupplyDemandOption({ scatter, arrivalsUnit: "quintals" });
-    expect(axisOf(option).name).toBe("Arrivals (quintals)");
+    expect((option.title as { text: string }).text).toContain("quintals");
     expect(formatterOf(option)([{ dataIndex: 0, value: [500, 260] }])).toContain("500 quintals");
   });
 
@@ -329,7 +355,7 @@ describe("buildHeatmapOption", () => {
 
   it("normalises colour within each row instead of a global price scale", () => {
     const option = buildHeatmapOption({ rows });
-    const data = seriesOf(option)[0].data as number[][];
+    const data = (seriesOf(option)[0].data as Array<{ value: number[] }>).map((cell) => cell.value);
     // Rice 100→110 and Wheat 220→250 both span their own row's full ramp.
     expect(data).toContainEqual([0, 0, 0]);
     expect(data).toContainEqual([1, 0, 1]);
@@ -359,11 +385,23 @@ describe("buildHeatmapOption", () => {
       itemWidth: number;
       itemHeight: number;
     }>)[0];
-    expect(visualMap.inRange.color).toEqual([...palette.VIRIDIS_STOPS]);
-    expect(visualMap.text).toEqual(["Row high", "Row low"]);
+    expect(visualMap.inRange.color).toEqual([...palette.AGRI_SEASON_STOPS]);
+    expect(visualMap.text).toEqual(["100%", "0%"]);
     expect(visualMap.textStyle.fontSize).toBe(typeSize("micro"));
-    // A horizontal bar reads length first, then thickness.
-    expect(visualMap.itemWidth).toBeGreaterThan(visualMap.itemHeight);
+    // ECharts rotates the horizontal visualMap group 90°, so the pre-rotation
+    // itemHeight is the on-screen bar length and itemWidth is its thickness.
+    expect(visualMap.itemHeight).toBeGreaterThan(visualMap.itemWidth);
+  });
+
+  it("uses a short header, numeric scale and no cell labels at 390", () => {
+    const option = buildHeatmapOption({ rows, compact: true });
+    expect((option.title as { text: string; subtext: string }).text).toBe("Row-relative heatmap");
+    expect((option.title as { subtext: string }).subtext).toBe(
+      "Colour = row position · blank = no data",
+    );
+    expect((seriesOf(option)[0].label as { show: boolean }).show).toBe(false);
+    const visualMap = (option.visualMap as Array<{ text: string[] }>)[0];
+    expect(visualMap.text).toEqual(["100%", "0%"]);
   });
 
   it("pairs both heatmap series with a visualMap so ECharts emits no warning", () => {
@@ -408,12 +446,21 @@ describe("buildHeatmapOption", () => {
     expect(yAxisOf(option).data).toEqual(["gram"]);
     expect(axisOf(option).data).toEqual(["Mar 24"]);
     // A single-value row has no internal spread, so it sits mid-ramp.
-    expect(seriesOf(option)[0].data).toEqual([[0, 0, 0.5]]);
+    expect((seriesOf(option)[0].data as Array<{ value: number[] }>).map((cell) => cell.value)).toEqual([
+      [0, 0, 0.5],
+    ]);
     expect((seriesOf(option)[1].data as number[][]).length).toBe(0);
   });
 });
 
 describe("buildRollingOption", () => {
+  it("keeps the legend clear of a removed y-axis name on a 390 panel", () => {
+    const option = buildRollingOption({ series, rolling: 3, compact: true });
+    expect((option.title as { text: string }).text).toBe("Rolling mean · 3 obs");
+    expect((option.yAxis as Series[])[0].name).toBeUndefined();
+    expect((option.legend as { top: number }).top).toBe(42);
+  });
+
   it("builds modal, rolling mean, lower and upper band series", () => {
     const option = buildRollingOption({ series, rolling: 3 });
     expect(seriesOf(option).map((s) => s.name)).toEqual([
