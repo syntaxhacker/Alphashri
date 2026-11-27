@@ -61,6 +61,15 @@ def fake_tv(monkeypatch):
     return _FakeQuery
 
 
+@pytest.mark.parametrize("value,expected", [
+    (None, None), ("", None), ("n/a", None), (True, None), (False, None),
+    (float("nan"), None), (float("inf"), None), (float("-inf"), None),
+    (0, 0.0), ("123.5", 123.5),
+])
+def test_to_float_preserves_missing_vs_zero(value, expected):
+    assert tv_prefilter._to_float(value) == expected
+
+
 def test_module_uses_shared_tv_transport():
     """api.tv is the only scanner/symbol implementation; no local copies."""
     import api.tv

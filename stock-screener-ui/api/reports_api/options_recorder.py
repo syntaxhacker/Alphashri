@@ -67,6 +67,7 @@ from typing import Any, Optional
 
 from api.options_conventions import NEAR_BAND_PCT
 from api.reports_api import _journal, _jsonl
+from api.reports_api._rate_limit import get_rate_limiter, reset_rate_limiter
 from api.reports_api._tape_row import build_tape_row
 from api.reports_api._time import today_str as _today_str
 from fastapi import APIRouter
@@ -191,9 +192,6 @@ _task: Optional[asyncio.Task] = None
 _loop: Optional[asyncio.AbstractEventLoop] = None
 _failure_streak = 0
 
-_RATE_LIMITER: Any = None
-_RATE_LIMITER_READY = False
-
 
 def symbols() -> list[str]:
     """Configured symbols (``OPTIONS_RECORDER_SYMBOLS``), de-duped and capped."""
@@ -217,7 +215,7 @@ def _sym_state(symbol: str) -> dict:
 
 def _reset_state() -> None:
     """Drop every in-process cache/counter (tests, manual restart)."""
-    global _lot_maps, _RATE_LIMITER, _RATE_LIMITER_READY, _failure_streak
+    global _lot_maps, _failure_streak
     LAST.clear()
     _expiry_cache.clear()
     _intraday_cache.clear()
@@ -228,8 +226,7 @@ def _reset_state() -> None:
     _per_symbol.clear()
     _LAST_MINUTE.clear()
     _lot_maps = None
-    _RATE_LIMITER = None
-    _RATE_LIMITER_READY = False
+    reset_rate_limiter(RATE_CONSUMER)
     _failure_streak = 0
     _status.update({"last_tick": None, "last_error": None, "iterations": 0,
                     "interval_sec": INTERVAL_SEC, "records": 0})
@@ -417,17 +414,11 @@ def _append_tape_row(path: Path, row: dict) -> None:
 
 
 def _rate_limiter() -> Any:
-    """Lazy singleton ``UpstoxRateLimiter(consumer="options")`` (None if absent)."""
-    global _RATE_LIMITER, _RATE_LIMITER_READY
-    if not _RATE_LIMITER_READY:
-        _RATE_LIMITER_READY = True
-        try:
-            from upstox_trader.rate_limiter import UpstoxRateLimiter
+    """Lazy ``UpstoxRateLimiter(consumer="options")`` (None if absent).
 
-            _RATE_LIMITER = UpstoxRateLimiter(consumer=RATE_CONSUMER)
-        except Exception:
-            _RATE_LIMITER = None
-    return _RATE_LIMITER
+    Kept as a module-level hook so tests can patch the recorder's limiter.
+    """
+    return get_rate_limiter(RATE_CONSUMER)
 
 
 async def _acquire_upstream() -> bool:
