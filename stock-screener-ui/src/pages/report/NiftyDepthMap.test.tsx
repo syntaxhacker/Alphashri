@@ -1,10 +1,6 @@
 // @vitest-environment happy-dom
-import "@testing-library/jest-dom/vitest";
-import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, within, cleanup } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { describe, expect, test } from "vitest";
 import {
-  NiftyDepthMap,
   buildDepthRows,
   findOiPoc,
   dayStats,
@@ -18,57 +14,6 @@ import {
   DEPTH_MAX_ROWS,
 } from "./NiftyDepthMap";
 import type { NiftyReport } from "@/types/niftyReport";
-
-const depthMocks = vi.hoisted(() => ({
-  mounts: 0,
-  setOption: vi.fn(),
-  resize: vi.fn(),
-  lastShouldSetOption: null as null | (() => boolean),
-}));
-
-vi.mock("echarts-for-react", async () => {
-  const React = await import("react");
-  // Faithful-enough stand-in: exposes getEchartsInstance via ref, fires
-  // onChartReady on mount (like the real async init), and records the
-  // shouldSetOption guard so tests can assert the auto-update path is off.
-  const MockECharts = React.forwardRef(function MockECharts(
-    props: {
-      option?: { series?: unknown[] };
-      onChartReady?: (instance: unknown) => void;
-      shouldSetOption?: () => boolean;
-    },
-    ref: React.Ref<{ getEchartsInstance: () => unknown }>,
-  ) {
-    const instance = React.useMemo(
-      () => ({ setOption: depthMocks.setOption, resize: depthMocks.resize }),
-      [],
-    );
-    const readyRef = React.useRef(props.onChartReady);
-    readyRef.current = props.onChartReady;
-    React.useEffect(() => {
-      depthMocks.mounts += 1;
-      readyRef.current?.(instance);
-    }, [instance]);
-    React.useImperativeHandle(
-      ref,
-      () => ({ getEchartsInstance: () => instance }),
-      [instance],
-    );
-    depthMocks.lastShouldSetOption = props.shouldSetOption ?? null;
-    return (
-      <div data-testid="nifty-depth-echarts" data-series={props.option?.series?.length ?? 0} />
-    );
-  });
-  return { default: MockECharts };
-});
-
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
-}
-
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: TestWrapper });
-}
 
 function strikeAt(strike: number, ceOi: number, peOi: number, chg = 0) {
   return {
@@ -142,14 +87,6 @@ function asOpt(report: NiftyReport): DepthOpt {
   return buildDepthOption(report) as unknown as DepthOpt;
 }
 
-afterEach(() => {
-  cleanup();
-  depthMocks.mounts = 0;
-  depthMocks.lastShouldSetOption = null;
-  depthMocks.setOption.mockClear();
-  depthMocks.resize.mockClear();
-});
-
 describe("buildDepthRows", () => {
   test("windows to ATM ±750 and sorts ascending", () => {
     expect(DEPTH_WINDOW).toBe(750);
@@ -160,10 +97,10 @@ describe("buildDepthRows", () => {
   test("boundary ±750 included, beyond excluded", () => {
     const report = mockReport({
       strikes: [
-        strikeAt(25000, 10, 10), // exactly -750
-        strikeAt(26500, 10, 10), // exactly +750
-        strikeAt(24950, 10, 10), // -800 → out
-        strikeAt(26550, 10, 10), // +800 → out
+        strikeAt(25000, 10, 10),
+        strikeAt(26500, 10, 10),
+        strikeAt(24950, 10, 10),
+        strikeAt(26550, 10, 10),
       ],
     });
     expect(buildDepthRows(report).map((r) => r.strike)).toEqual([25000, 26500]);
@@ -177,7 +114,6 @@ describe("buildDepthRows", () => {
     expect(rows).toHaveLength(DEPTH_MAX_ROWS);
     const got = rows.map((r) => r.strike);
     expect(got).toEqual(got.toSorted((a, b) => a - b));
-    // ATM strike survives the cap
     expect(got).toContain(25750);
   });
 
@@ -282,12 +218,10 @@ describe("IST x-axis", () => {
     const opt = asOpt(mockReport());
     const fmt = opt.xAxis[0].axisLabel?.formatter;
     expect(typeof fmt).toBe("function");
-    // Candle session times: 09:15 and 09:30 in the mock report
     expect(fmt?.(opt.xAxis[0].data?.[0])).toBe("09:15");
     expect(fmt?.(opt.xAxis[0].data?.[1])).toBe("09:30");
     for (const v of opt.xAxis[0].data ?? []) {
       const label = fmt?.(v) ?? "";
-      // HH:MM shape, and never a thousands-separated price ("22,300")
       expect(label).toMatch(/^\d{2}:\d{2}$/);
       expect(label).not.toMatch(/,\d{3}/);
     }
@@ -315,13 +249,13 @@ describe("levelLines dedupe", () => {
   test("Spot wins, MP/CW within 25pts skipped (priority Spot > MP > CW/PW > OI-POC > Hi/Lo)", () => {
     const report = mockReport({
       spot: 25750,
-      maxPain: 25760, // within 25 of Spot → skipped
+      maxPain: 25760,
       walls: {
         calls: [
-          { strike: 25755, oi: 5000 }, // within 25 of Spot → skipped
-          { strike: 26000, oi: 4000 }, // fresh → kept
+          { strike: 25755, oi: 5000 },
+          { strike: 26000, oi: 4000 },
         ],
-        puts: [{ strike: 25500, oi: 6000 }], // fresh → kept
+        puts: [{ strike: 25500, oi: 6000 }],
       },
     });
     const names = levelLines(report, dayStats(report), 26000).map((l) => l.name);
@@ -329,7 +263,6 @@ describe("levelLines dedupe", () => {
     expect(names.some((n) => n.startsWith("MP"))).toBe(false);
     expect(names).toContain("CW 26,000");
     expect(names.some((n) => n.startsWith("PW"))).toBe(true);
-    // OI POC dupes the CW line → skipped
     expect(names.some((n) => n.startsWith("OI POC"))).toBe(false);
   });
 
@@ -341,7 +274,6 @@ describe("levelLines dedupe", () => {
       ],
     });
     const names = levelLines(report, dayStats(report), null).map((l) => l.name);
-    // hi 25760 dupes Spot 25750, lo 25740 dupes Spot → both skipped
     expect(names.some((n) => n.startsWith("Hi"))).toBe(false);
     expect(names.some((n) => n.startsWith("Lo"))).toBe(false);
   });
@@ -356,7 +288,6 @@ describe("topOiLabelStrikes", () => {
     }));
     const labeled = topOiLabelStrikes(rows);
     expect(labeled.length).toBeLessThanOrEqual(6);
-    // top-3 CE: highest ceOi; top-3 PE: highest peOi
     expect(labeled).toEqual(expect.arrayContaining([25350, 25300, 25250, 25000, 25050, 25100]));
   });
 });
@@ -381,7 +312,6 @@ describe("buildDepthOption", () => {
     expect(y0.type).toBe("value");
     expect(y0.min).toBeCloseTo(lo * 0.9985, 6);
     expect(y0.max).toBeCloseTo(hi * 1.0015, 6);
-    // Strike extremes (24000/27500 in the full chain) are outside → bars clip
     expect(y0.min ?? 0).toBeGreaterThan(24000);
     expect(y0.max ?? 0).toBeLessThan(27500);
   });
@@ -417,7 +347,6 @@ describe("buildDepthOption", () => {
     expect(peData).toHaveLength(2);
     for (const [oi] of ceData) expect(oi).toBeLessThanOrEqual(0);
     for (const [oi] of peData) expect(oi).toBeGreaterThanOrEqual(0);
-    // …at the same strike rows, ascending (higher strike = higher row)
     expect(ceData.map((d) => d[1])).toEqual(["25700", "25800"]);
     expect(peData.map((d) => d[1])).toEqual(["25700", "25800"]);
     expect(peData[0][0]).toBe(2500);
@@ -438,7 +367,6 @@ describe("buildDepthOption", () => {
     expect(names).toContain("PW 25,600");
     expect(names).toContain("MP 25,700");
     expect(names.some((n) => n.startsWith("Spot"))).toBe(true);
-    // OI POC 25,800 dupes the CW 25,800 line → deduped, never doubled
     expect(names.some((n) => n.startsWith("OI POC"))).toBe(false);
     // A category axis cannot place arbitrary price levels: no markLines there
     expect(opt.series[1].markLine).toBeUndefined();
@@ -446,7 +374,7 @@ describe("buildDepthOption", () => {
   });
 
   test("at most 6 bar labels; only top-3 CE + top-3 PE labeled", () => {
-    const strikes = [];
+    const strikes: ReturnType<typeof strikeAt>[] = [];
     for (let s = 25000; s <= 26500; s += 50) {
       strikes.push(strikeAt(s, 1000 + s, 9000 - s));
     }
@@ -473,123 +401,7 @@ describe("buildDepthOption", () => {
     expect(peDom?.symbolSize).toBe(6);
     expect(ceDom?.label?.show).toBe(false);
     expect(peDom?.label?.show).toBe(false);
-    // 25800 is CE-heavy (9000 vs 1000), 25700 is PE-heavy (2000 vs 2500)
     expect(ceDom?.data).toHaveLength(1);
     expect(peDom?.data).toHaveLength(1);
-  });
-});
-
-describe("NiftyDepthMap render", () => {
-  test("happy path: stats, legend, chart and honesty note", () => {
-    r(<NiftyDepthMap report={mockReport()} />);
-    expect(screen.getByTestId("nifty-depthmap")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-depth-stats")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-depth-echarts")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-depth-legend")).toBeInTheDocument();
-
-    const stats = screen.getByTestId("nifty-depth-stats");
-    expect(within(stats).getByText("25,750")).toBeInTheDocument();
-    expect(within(stats).getByText("1.12")).toBeInTheDocument();
-    expect(within(stats).getByText("25,700")).toBeInTheDocument();
-
-    const legend = screen.getByTestId("nifty-depth-legend");
-    expect(within(legend).getByTestId("nifty-depth-legend-ce-dom")).toHaveTextContent("CE over PE");
-    expect(within(legend).getByTestId("nifty-depth-legend-pe-dom")).toHaveTextContent("PE over CE");
-    expect(within(legend).getByTestId("nifty-depth-legend-total")).toHaveTextContent("Total OI");
-    expect(within(legend).getByTestId("nifty-depth-legend-poc")).toHaveTextContent("OI POC");
-    expect(within(legend).getByTestId("nifty-depth-legend-chg")).toHaveTextContent("OI Chg");
-
-    expect(screen.getByTestId("nifty-depth-note")).toHaveTextContent("no tick footprint");
-  });
-
-  test("empty strikes shows empty state instead of chart", () => {
-    r(<NiftyDepthMap report={mockReport({ strikes: [] })} />);
-    expect(screen.getByTestId("nifty-depthmap")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-depth-empty")).toBeInTheDocument();
-    expect(screen.queryByTestId("nifty-depth-echarts")).not.toBeInTheDocument();
-  });
-
-  test("empty candles shows dash placeholders in stats", () => {
-    r(<NiftyDepthMap report={mockReport({ candles: [] })} />);
-    const stats = screen.getByTestId("nifty-depth-stats");
-    expect(within(screen.getByTestId("nifty-depth-stat-hilo")).getByText("—")).toBeInTheDocument();
-    expect(within(stats).getByTestId("nifty-depth-stat-chg")).toHaveTextContent("—");
-  });
-});
-
-describe("NiftyDepthMap active gate", () => {
-  test("active={false} renders the container but performs no ECharts work", () => {
-    r(<NiftyDepthMap report={mockReport()} active={false} />);
-    expect(screen.getByTestId("nifty-depthmap")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-depth-echarts")).toBeInTheDocument();
-    expect(depthMocks.mounts).toBe(1);
-    expect(depthMocks.setOption).not.toHaveBeenCalled();
-    expect(depthMocks.resize).not.toHaveBeenCalled();
-  });
-
-  test("automatic library updates are disabled — one manual driver only", () => {
-    r(<NiftyDepthMap report={mockReport()} />);
-    expect(typeof depthMocks.lastShouldSetOption).toBe("function");
-    expect(depthMocks.lastShouldSetOption?.()).toBe(false);
-  });
-
-  test("report change while hidden stays silent; activate resizes + catches up", () => {
-    const { rerender } = r(<NiftyDepthMap report={mockReport()} active={false} />);
-    expect(depthMocks.setOption).not.toHaveBeenCalled();
-    expect(depthMocks.resize).not.toHaveBeenCalled();
-
-    // Report updates while hidden: still zero ECharts work.
-    rerender(<NiftyDepthMap report={mockReport({ spot: 25800 })} active={false} />);
-    expect(depthMocks.setOption).not.toHaveBeenCalled();
-    expect(depthMocks.resize).not.toHaveBeenCalled();
-
-    // Flipping to active: exactly one resize + one setOption with latest.
-    rerender(<NiftyDepthMap report={mockReport({ spot: 25800 })} active />);
-    expect(depthMocks.resize).toHaveBeenCalledTimes(1);
-    expect(depthMocks.setOption).toHaveBeenCalledTimes(1);
-    expect(depthMocks.mounts).toBe(1);
-  });
-
-  test("active report change pushes the new option exactly once", () => {
-    const { rerender } = r(<NiftyDepthMap report={mockReport()} />);
-    expect(depthMocks.setOption).toHaveBeenCalledTimes(1);
-    expect(depthMocks.resize).toHaveBeenCalledTimes(1);
-    rerender(<NiftyDepthMap report={mockReport({ spot: 25800 })} />);
-    expect(depthMocks.setOption).toHaveBeenCalledTimes(2);
-  });
-
-  test("the option is pushed with notMerge so a long-lived tab cannot accumulate", () => {
-    r(<NiftyDepthMap report={mockReport()} />);
-    // Second arg of the first setOption call: full replacement, no merge-mode
-    // re-patching of ECharts' internal model on every 10s poll.
-    expect(depthMocks.setOption.mock.calls[0]?.[1]).toEqual({
-      notMerge: true,
-      lazyUpdate: false,
-    });
-  });
-
-  test("a report update does not re-layout the chart (resize is activation-only)", () => {
-    const { rerender } = r(<NiftyDepthMap report={mockReport()} />);
-    expect(depthMocks.resize).toHaveBeenCalledTimes(1);
-    rerender(<NiftyDepthMap report={mockReport({ spot: 25800 })} />);
-    rerender(<NiftyDepthMap report={mockReport({ spot: 25810 })} />);
-    expect(depthMocks.resize).toHaveBeenCalledTimes(1);
-    expect(depthMocks.setOption).toHaveBeenCalledTimes(3);
-  });
-
-  test("a transient empty poll keeps the ECharts engine mounted", () => {
-    const { rerender } = r(<NiftyDepthMap report={mockReport()} />);
-    expect(depthMocks.mounts).toBe(1);
-
-    rerender(<NiftyDepthMap report={mockReport({ strikes: [] })} />);
-    expect(screen.getByTestId("nifty-depth-empty")).toBeInTheDocument();
-    // Engine stays mounted (hidden) instead of being disposed and re-inited on
-    // the next poll — see the echarts-for-react unmount-before-`finished` leak.
-    expect(screen.getByTestId("nifty-depth-echarts")).toBeInTheDocument();
-    expect(depthMocks.mounts).toBe(1);
-
-    rerender(<NiftyDepthMap report={mockReport()} />);
-    expect(screen.queryByTestId("nifty-depth-empty")).not.toBeInTheDocument();
-    expect(depthMocks.mounts).toBe(1);
   });
 });

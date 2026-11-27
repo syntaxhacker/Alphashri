@@ -11,12 +11,15 @@ Never add a second scanner URL/header set elsewhere.
 from __future__ import annotations
 
 import logging
+import random
+import threading
+import time
 from typing import Any, Iterable, Optional, Sequence
 
 import pandas as pd
 import requests
 
-from .auth import get_tv_cookies
+from .auth import get_tv_cookies, refresh_tv_cookies
 from .columns import PRICE_COLUMNS, TEXT_COLUMNS
 from .status import note_update_mode
 
@@ -44,6 +47,20 @@ MARKETS: dict[str, str] = {
     "futures": "futures",
 }
 
+#: Auth failures get exactly one forced cookie refresh + one retry.
+AUTH_STATUSES = frozenset({401, 403})
+#: Bounded retry budget for 429 / 5xx, excluding the initial attempt.
+MAX_TRANSPORT_RETRIES = 2
+_BACKOFF_BASE_SEC = 0.5
+_BACKOFF_CAP_SEC = 8.0
+
+#: requests.Session is not thread-safe: each thread owns its own pooled session.
+_tls = threading.local()
+#: Test seams -- monkeypatchable without sleeping or depending on wall-clock jitter.
+_sleep = time.sleep
+_jitter = random.uniform
+_REQUESTS_POST = requests.post
+
 
 def resolve_market(market: str) -> str:
     """Map a caller's market key to the scanner URL segment."""
@@ -52,6 +69,71 @@ def resolve_market(market: str) -> str:
     if not segment:
         raise ValueError(f"unknown TradingView market {market!r}")
     return segment
+
+
+def _get_session() -> requests.Session:
+    """Return this thread's session, creating it on first use."""
+    session = getattr(_tls, "session", None)
+    if session is None:
+        session = requests.Session()
+        _tls.session = session
+    return session
+
+
+def _post(url: str, **kwargs):
+    """POST through the pooled session, honouring an injected ``requests.post``.
+
+    Existing patch points replace ``requests.post`` wholesale (no network in
+    tests). Production uses one session per thread for connection reuse; a
+    session must never be shared across threads.
+    """
+    if requests.post is not _REQUESTS_POST:
+        return requests.post(url, **kwargs)
+    return _get_session().post(url, **kwargs)
+
+
+def _backoff_delay(attempt: int) -> float:
+    """Full-jitter exponential delay for retry ``attempt`` (1-based)."""
+    ceiling = min(_BACKOFF_BASE_SEC * 2 ** (attempt - 1), _BACKOFF_CAP_SEC)
+    return float(_jitter(0.0, ceiling))
+
+
+def _drop_session_cookies() -> None:
+    """Clear this thread's session jar so a refreshed cookie set takes effect."""
+    jar = getattr(getattr(_tls, "session", None), "cookies", None)
+    if jar is not None and hasattr(jar, "clear"):
+        jar.clear()
+
+
+def _post_with_retries(url: str, kwargs: dict[str, Any]):
+    """POST with bounded auth/transport retries. Never logs request cookies."""
+    auth_retried = False
+    transport_retries = 0
+    while True:
+        resp = _post(url, **kwargs)
+        status = getattr(resp, "status_code", None)
+        if not isinstance(status, int) or status < 400:
+            return resp
+        if status in AUTH_STATUSES:
+            if auth_retried:
+                resp.raise_for_status()
+            auth_retried = True
+            refresh_tv_cookies()
+            _drop_session_cookies()
+            cookies = get_tv_cookies()
+            if cookies:
+                kwargs["cookies"] = cookies
+            else:
+                kwargs.pop("cookies", None)
+            continue
+        if status == 429 or 500 <= status <= 599:
+            if transport_retries >= MAX_TRANSPORT_RETRIES:
+                resp.raise_for_status()
+            transport_retries += 1
+            _sleep(_backoff_delay(transport_retries))
+            continue
+        # Validation and other 4xx responses are deterministic: surface them.
+        resp.raise_for_status()
 
 
 def scan_raw(
@@ -71,7 +153,7 @@ def scan_raw(
     cookies = get_tv_cookies()
     if cookies:
         kwargs["cookies"] = cookies
-    return requests.post(url, **kwargs)
+    return _post_with_retries(url, kwargs)
 
 
 def coerce_numeric(df: pd.DataFrame) -> pd.DataFrame:
@@ -132,7 +214,11 @@ def scan_frame(
 
 
 def get_scanner_data(query):
-    """Run a ``tradingview_screener.Query`` with auth cookies when available."""
+    """Run a ``tradingview_screener.Query`` with auth cookies when available.
+
+    The library owns its own HTTP transport; raw transport policy (session
+    reuse, bounded retries) applies to :func:`scan_frame` / :func:`scan_raw`.
+    """
     cookies = get_tv_cookies()
     if cookies:
         result = query.get_scanner_data(cookies=cookies)

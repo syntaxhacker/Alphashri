@@ -1,0 +1,191 @@
+{
+  "feature": "sector-history",
+  "route": "/sector?tab=history",
+  "head": "25079b7c9efde6a438b6bfc1cb5dc3670f564465",
+  "viewports": [
+    1600,
+    390
+  ],
+  "sha256": {
+    "sector-history-india-3y-overview-1600.png": "962d564ff2799eb2a5c2a190955a5ae493a0ad2d506c3c099b7c908f4b6d5ef7",
+    "sector-history-india-5y-overview-1600.png": "7f9d6d53a5d158f64b9112f516c2eff37885ff3099c5c7d9d7e4caa44961fddb",
+    "sector-history-india-10y-overview-1600.png": "ab3aeadfb2c59322ca5f747de757f8c2400217b16eec70639e48ba4db12d691d",
+    "sector-history-america-5y-overview-1600.png": "ab66a08ccdf2300b0d103437fb16f7e18046e2ed34583b00ff1a4d3622717ba8",
+    "sector-history-america-10y-overview-1600.png": "1cd6f13079dd1863299c09e3b41ba168f31ed7972d371eac0e11d26f564853d8",
+    "sector-history-india-5y-risk-1600.png": "602461c34651e9dd62e095e56a09e7ee4c9588d53d1ba9d1a697dc6f8cd6128e",
+    "sector-history-india-5y-lab-1600.png": "bbe00d2c849a1a69fb9d8d1e5d9fe5d15c1725617fa171031f03db2fd2eb9ed5",
+    "sector-history-india-5y-lab-mid-1600.png": "050333b70598b33dad2be735c36457572ff1297109ec801872c427657dc38eca",
+    "sector-history-india-5y-lab-bottom-1600.png": "3948bc48473dd8f0ad197184bc3a76f93e0178e9e683f64401fa56b69ede8854",
+    "sector-history-america-10y-lab-1600.png": "e50d00f87e57c34418af8c7007897c7fd11a28a3bc7f44420220de0646bd4850",
+    "sector-history-america-10y-lab-mid-1600.png": "ac589fed99cdefc6e248525607cdf1371fa60a48d725efd721e2f2e0e5c47da8",
+    "sector-history-loading-1600.png": "c13489bed5b73004e0856e31ed88db7137de08391a1ba192eeab11cc41568ca4",
+    "sector-history-error-1600.png": "e76305ac830589a4dcd1c3b679efed6a975fbbb1331c7a36baafd47ef55280c7",
+    "sector-history-empty-1600.png": "aae722c9c61e04ed80c02120a09df40fc1b6b3b9186a59585903274519d27f48",
+    "sector-history-india-3y-overview-390.png": "fabc0b33ab84d9a9edf21f4b01a84d8e1213b1f6945c4dfc7d0929f7c96d5c22",
+    "sector-history-india-5y-overview-390.png": "4d800a29dbfbfd554a029d034e45854c22390bccc4bcf4c99373092566ff0902",
+    "sector-history-india-10y-overview-390.png": "bb58619002bb4ea3a4c13316398fc2584ee1d7a23aa1a8e1a25efa0625df7382",
+    "sector-history-america-5y-overview-390.png": "c226cf26b71fdf198659a034da9b28b4b82e42bd71390a97c13c056ccb95ab5c",
+    "sector-history-america-10y-overview-390.png": "82138183abc7bc70c91748b4d2727331698974f3a4f6528ab487d732f6d16854",
+    "sector-history-india-5y-risk-390.png": "593fc098cfe1d74226dc8877819bdbe752fbe240cd5cc3f3b739c76f9ed9791d",
+    "sector-history-india-5y-risk-right-390.png": "a50d6655a1bca53390664ae0d5f070017d1fbf19cd044576a4f43f6ad4e388c4",
+    "sector-history-india-5y-persistence-390.png": "15cf15f4d94b471bad7d2568a3d58a56167b833de5c25534e1db58cdaa131c85",
+    "sector-history-india-5y-rotation-390.png": "ca450aba96eb052bf90660ff3681e390c5357d5ab81f5f5229bb281e0d5be315",
+    "sector-history-india-5y-lab-390.png": "3fd6a5a22f6ee56c3b98d80e4590de779482a01281fe58d693a0f543b90d8372",
+    "sector-history-india-5y-lab-mid-390.png": "862c29376ab53a3f2cbd7a87f77ec3fe113bfc71782efc0812ce42c16eb4c3d3",
+    "sector-history-india-5y-lab-rs-390.png": "a7a64ab1393c404329d5f0febb9c5ba6825b5310b3e2ada7323b4214ec416741",
+    "sector-history-india-5y-lab-bottom-390.png": "540ee631b9b0f18b055a42155bc835f7c81612eec2da7f68965482d6d93915be",
+    "sector-history-india-5y-lab-movers-390.png": "fa3251b38c4ebcc0c672ad48da9b0defcd7276b3c2faab155b8dacb55b629205",
+    "sector-history-america-10y-lab-390.png": "3d99db0830bc065293e5eafc1f73758cbc342fec6793346aa50c5470f23c5a76",
+    "sector-history-loading-390.png": "ffaaaf3acab2b518e9b11018e11c2adcc8be12b709e89300aa3c696a12bc2252",
+    "sector-history-error-390.png": "670058e2d7e7fbf3adcc31454eb3bf79c27e50b611cdcd74251832f3ae0fc8af",
+    "sector-history-empty-390.png": "aa7480d11adec2abae1bf53560813aa8976c4bab94c7cffd577d926ff5046545"
+  },
+  "states": [
+    {
+      "id": "overview-india-3y",
+      "files": {
+        "390": "sector-history-india-3y-overview-390.png",
+        "1600": "sector-history-india-3y-overview-1600.png"
+      },
+      "covers": "India 3Y overview: rank heatmap pinned to Oct 2026, seasonality, persistence, rotation timeline and risk table."
+    },
+    {
+      "id": "overview-india-5y",
+      "files": {
+        "390": "sector-history-india-5y-overview-390.png",
+        "1600": "sector-history-india-5y-overview-1600.png"
+      },
+      "covers": "India 5Y overview at 1600 and 390; rank opens on the newest month and seasonality fits all twelve months at desktop."
+    },
+    {
+      "id": "overview-india-10y",
+      "files": {
+        "390": "sector-history-india-10y-overview-390.png",
+        "1600": "sector-history-india-10y-overview-1600.png"
+      },
+      "covers": "India 10Y overview with the rank scroller pinned to Oct 2026 and the Older hint at the end."
+    },
+    {
+      "id": "overview-america-5y",
+      "files": {
+        "390": "sector-history-america-5y-overview-390.png",
+        "1600": "sector-history-america-5y-overview-1600.png"
+      },
+      "covers": "US 5Y overview at 1600 and 390 with US sector names and the same latest ranks."
+    },
+    {
+      "id": "overview-america-10y",
+      "files": {
+        "390": "sector-history-america-10y-overview-390.png",
+        "1600": "sector-history-america-10y-overview-1600.png"
+      },
+      "covers": "US 10Y overview at 1600 and 390 with the rank scroller pinned to Oct 2026 and seasonality fitting twelve months."
+    },
+    {
+      "id": "risk-india-5y",
+      "files": {
+        "390": "sector-history-india-5y-risk-390.png",
+        "1600": "sector-history-india-5y-risk-1600.png"
+      },
+      "covers": "India 5Y risk panel: desktop page scrolled to the panel; mobile risk table at its left edge."
+    },
+    {
+      "id": "risk-right-india-5y",
+      "files": {
+        "390": "sector-history-india-5y-risk-right-390.png"
+      },
+      "covers": "Mobile India 5Y risk table scrolled horizontally to its right edge, exposing Cumulative return."
+    },
+    {
+      "id": "persistence-india-5y",
+      "files": {
+        "390": "sector-history-india-5y-persistence-390.png"
+      },
+      "covers": "Mobile India 5Y persistence panel with the transition matrix at its default left edge and the Scroll cue visible."
+    },
+    {
+      "id": "rotation-india-5y",
+      "files": {
+        "390": "sector-history-india-5y-rotation-390.png"
+      },
+      "covers": "Mobile India 5Y rotation timeline panel at its default timeline position with the current-rank badges visible."
+    },
+    {
+      "id": "lab-india-5y-top",
+      "files": {
+        "390": "sector-history-india-5y-lab-390.png",
+        "1600": "sector-history-india-5y-lab-1600.png"
+      },
+      "covers": "India 5Y Rotation Lab top: toolbar, rank transitions and monthly movers."
+    },
+    {
+      "id": "lab-india-5y-mid",
+      "files": {
+        "390": "sector-history-india-5y-lab-mid-390.png",
+        "1600": "sector-history-india-5y-lab-mid-1600.png"
+      },
+      "covers": "India 5Y Rotation Lab mid: monthly drawdown and seasonality radial with the twelve-month value strip."
+    },
+    {
+      "id": "lab-india-5y-rs",
+      "files": {
+        "390": "sector-history-india-5y-lab-rs-390.png"
+      },
+      "covers": "Mobile India 5Y relative strength panel with uniform whole-number axis ticks."
+    },
+    {
+      "id": "lab-india-5y-bottom",
+      "files": {
+        "390": "sector-history-india-5y-lab-bottom-390.png",
+        "1600": "sector-history-india-5y-lab-bottom-1600.png"
+      },
+      "covers": "India 5Y Rotation Lab bottom: relative strength momentum trail with quadrant axes."
+    },
+    {
+      "id": "lab-india-5y-movers",
+      "files": {
+        "390": "sector-history-india-5y-lab-movers-390.png"
+      },
+      "covers": "Mobile India 5Y monthly movers body with sector labels visible and the Scroll cue for the current-rank column."
+    },
+    {
+      "id": "lab-america-10y-top",
+      "files": {
+        "390": "sector-history-america-10y-lab-390.png",
+        "1600": "sector-history-america-10y-lab-1600.png"
+      },
+      "covers": "US 10Y Rotation Lab top with the exact observed transition count for 120 months."
+    },
+    {
+      "id": "lab-america-10y-mid",
+      "files": {
+        "1600": "sector-history-america-10y-lab-mid-1600.png"
+      },
+      "covers": "US 10Y Rotation Lab mid at 1600: seasonality radial with all twelve signed values and the history note above the fold."
+    },
+    {
+      "id": "loading",
+      "files": {
+        "390": "sector-history-loading-390.png",
+        "1600": "sector-history-loading-1600.png"
+      },
+      "covers": "Loading state while the first sector-history request is pending."
+    },
+    {
+      "id": "error",
+      "files": {
+        "390": "sector-history-error-390.png",
+        "1600": "sector-history-error-1600.png"
+      },
+      "covers": "Error state with human copy first and the raw unavailable code collapsed under Details."
+    },
+    {
+      "id": "empty",
+      "files": {
+        "390": "sector-history-empty-390.png",
+        "1600": "sector-history-empty-1600.png"
+      },
+      "covers": "Empty state when the market/lookback returns no core history."
+    }
+  ]
+}

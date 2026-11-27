@@ -276,7 +276,6 @@ class TestBotsContract:
             f"{BASE_URL}/api/bots/available-strategies",
             timeout=5
         )
-        # Returns 200 with list or 500 if DB unavailable
         assert response.status_code in [200, 500]
 
 
@@ -293,7 +292,6 @@ class TestStrategiesContract:
             f"{BASE_URL}/api/strategies",
             timeout=5
         )
-        # Returns 200 with list or 500 if DB unavailable
         assert response.status_code in [200, 500]
     
     def test_strategies_templates_returns_data(self):
@@ -305,7 +303,6 @@ class TestStrategiesContract:
             f"{BASE_URL}/api/strategies/templates",
             timeout=5
         )
-        # Returns 200 with list or 500 if DB unavailable
         assert response.status_code in [200, 500]
 
 
@@ -351,7 +348,6 @@ class TestNewsContract:
             f"{BASE_URL}/api/news",
             timeout=10
         )
-        # News may fail if API key not configured
         assert response.status_code in [200, 500, 503]
 
 
@@ -368,7 +364,6 @@ class TestMarketTickerContract:
             f"{BASE_URL}/api/market-ticker",
             timeout=5
         )
-        # Returns 200 with data or 500 if unavailable
         assert response.status_code in [200, 500]
 
 

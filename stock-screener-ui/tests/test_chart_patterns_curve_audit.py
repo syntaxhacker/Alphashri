@@ -76,9 +76,6 @@ def _is_horizontal(line: list[dict]) -> bool:
     return len(prices) >= 2 and max(prices) - min(prices) <= 1e-6
 
 
-# ---------------------------------------------------------------------------
-# Direction + level sides
-# ---------------------------------------------------------------------------
 
 
 def test_curve_bearish_direction_and_level_sides():
@@ -102,9 +99,6 @@ def test_curve_bearish_measured_move_uses_pattern_height():
     assert hit.stop > hit.breakout_level
 
 
-# ---------------------------------------------------------------------------
-# Drawn overlay: curve polyline + coincident horizontal breakout level
-# ---------------------------------------------------------------------------
 
 
 def test_curve_bearish_draws_dome_curve_and_neckline():
@@ -146,9 +140,6 @@ def test_cup_handle_draws_cup_curve_and_rim():
     )
 
 
-# ---------------------------------------------------------------------------
-# Overlay placement: timestamps land on candles and inside the pattern span
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("pattern_id,builder", [
@@ -206,9 +197,6 @@ def test_curve_hit_status_and_rr_sane(pattern_id, builder):
     assert hit.confidence > 0.0
 
 
-# ---------------------------------------------------------------------------
-# Envelope outlines: the drawn overlay must not cut through the candles
-# ---------------------------------------------------------------------------
 
 # A drawn envelope edge may sit at most this fraction of ATR inside a candle
 # before it counts as cutting through price (matches ``F.envelope_line``).

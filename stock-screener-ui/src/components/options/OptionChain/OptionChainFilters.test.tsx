@@ -1,8 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import { screen, cleanup } from "@testing-library/react";
+import { cleanup, render, screen } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
+});
 import { OptionChainFilters } from "./OptionChainFilters";
 
 afterEach(() => {
@@ -11,75 +16,34 @@ afterEach(() => {
 });
 
 describe("OptionChainFilters", () => {
-  it("renders option type select", () => {
-    renderWithProviders(
-      <OptionChainFilters
-        filters={{ optionType: "BOTH", moneyness: "ALL", strikeRange: [0, 100000] }}
-        setFilters={vi.fn()}
-      />,
-    );
-    expect(screen.getByTestId("option-type-select")).toBeInTheDocument();
-  });
-
-  it("renders moneyness select", () => {
-    renderWithProviders(
-      <OptionChainFilters
-        filters={{ optionType: "BOTH", moneyness: "ALL", strikeRange: [0, 100000] }}
-        setFilters={vi.fn()}
-      />,
-    );
-    expect(screen.getByTestId("moneyness-select")).toBeInTheDocument();
-  });
-
-  it("renders strike min and max inputs", () => {
-    renderWithProviders(
-      <OptionChainFilters
-        filters={{ optionType: "BOTH", moneyness: "ALL", strikeRange: [0, 100000] }}
-        setFilters={vi.fn()}
-      />,
-    );
-    expect(screen.getByTestId("strike-min-input")).toBeInTheDocument();
-    expect(screen.getByTestId("strike-max-input")).toBeInTheDocument();
-  });
-
-  it("renders filters container", () => {
-    renderWithProviders(
-      <OptionChainFilters
-        filters={{ optionType: "BOTH", moneyness: "ALL", strikeRange: [0, 100000] }}
-        setFilters={vi.fn()}
-      />,
-    );
-    expect(screen.getByTestId("options-chain-filters")).toBeInTheDocument();
-  });
-
   it("displays current option type as available option", () => {
-    renderWithProviders(
+    render(() => (
       <OptionChainFilters
         filters={{ optionType: "BOTH", moneyness: "ALL", strikeRange: [0, 100000] }}
         setFilters={vi.fn()}
-      />,
-    );
+      />
+    ));
     expect(screen.getByText("Both CE/PE")).toBeInTheDocument();
   });
 
   it("displays all filter option labels", () => {
-    renderWithProviders(
+    render(() => (
       <OptionChainFilters
         filters={{ optionType: "CE", moneyness: "ITM", strikeRange: [0, 100000] }}
         setFilters={vi.fn()}
-      />,
-    );
+      />
+    ));
     expect(screen.getByText("Calls Only")).toBeInTheDocument();
     expect(screen.getByText("ITM")).toBeInTheDocument();
   });
 
   it("shows strike range inputs with correct labels", () => {
-    renderWithProviders(
+    render(() => (
       <OptionChainFilters
         filters={{ optionType: "BOTH", moneyness: "ALL", strikeRange: [24000, 25000] }}
         setFilters={vi.fn()}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("strike-min-input")).toBeInTheDocument();
     expect(screen.getByTestId("strike-max-input")).toBeInTheDocument();
     expect(screen.getAllByText("Strike Min").length).toBeGreaterThan(0);

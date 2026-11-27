@@ -3,7 +3,7 @@ import {
   navigateToPaperTrading,
   navigateToPaperTradingWithBot,
   setupPaperTradingTestMocks,
-} from "../helpers/paperTradingHelpers";
+} from "./helpers/paperTradingHelpers";
 import { setupApiMocks, loginAsTestUser, setupPaperTradingMocks } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
 import {
@@ -22,7 +22,6 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   test("@smoke should display paper trading view with tabs", async ({ page }) => {
     await navigateToPaperTrading(page);
 
-    // Verify tabs are visible
     await expect(page.getByTestId("tab-live")).toBeVisible();
     await expect(page.getByTestId("trade-history-tab")).toBeVisible();
     await expect(page.getByTestId("tab-settings")).toBeVisible();
@@ -31,7 +30,6 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   test("should display bot selector", async ({ page }) => {
     await navigateToPaperTrading(page);
 
-    // Verify bot select is visible
     await expect(page.locator('[data-testid="bot-select"]')).toBeVisible();
   });
 
@@ -70,7 +68,6 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   test("should show positions grouped by strategy panels", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify positions are visible in the container
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS", {
       timeout: 5000,
     });
@@ -96,7 +93,6 @@ test.describe("Paper Trading - Strategy Tabs", () => {
 
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify empty state is shown
     await expect(page.locator('[data-testid="positions-empty"]')).toBeVisible();
     await expect(page.locator('[data-testid="positions-empty"]')).toContainText(
       "No open positions",
@@ -134,7 +130,6 @@ test.describe("Paper Trading - API Polling", () => {
 
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify portfolio API was called
     expect(portfolioApiCalled).toBe(true);
   });
 
@@ -148,7 +143,6 @@ test.describe("Paper Trading - API Polling", () => {
 
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify scan API was called
     expect(scanApiCalled).toBe(true);
   });
 });
@@ -195,7 +189,6 @@ test.describe("Paper Trading - Bot Controls", () => {
 
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify Start Bot button is visible
     await expect(page.locator('[data-testid="start-bot-btn"]')).toBeVisible();
   });
 
@@ -217,7 +210,6 @@ test.describe("Paper Trading - Strategy Tabs", () => {
   test("should show all positions in strategy panels", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    // Verify both positions are visible (all positions shown by default)
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("TCS");
     await expect(page.locator('[data-testid="positions-table-container"]')).toContainText("INFY");
   });
@@ -492,10 +484,11 @@ test.describe("Paper Trading - Settings", () => {
     // Use a positive value below min (0.1) - should trigger error without being clamped
     await slPctInput.fill("0.05");
 
-    // Error should be visible immediately after invalid value is entered
-    await expect(page.locator('[data-testid="config-sl-pct-error"]')).toBeVisible({
-      timeout: 10000,
-    });
+    // Source passes `dataTestid` (camelCase) via errorProps, which renders as a
+    // `datatestid` DOM attribute — there is no `data-testid="config-sl-pct-error"`.
+    // Assert the user-visible error message within the SL field instead.
+    const slFieldError = page.locator('[data-testid="config-sl-pct"]').getByText("Invalid stop loss percentage");
+    await expect(slFieldError).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -618,7 +611,6 @@ test.describe("Paper Trading - Chart Controls", () => {
 
     await page.waitForSelector('[data-testid="bot-select"]', { state: "visible", timeout: 15000 });
     await page.locator('[data-testid="bot-select"]').click({ timeout: 15000 });
-    await expect(page.getByRole("listbox")).toBeVisible();
     await page.keyboard.press("Enter");
 
     await page.getByTestId("tab-live").click();
@@ -711,13 +703,8 @@ test.describe("Paper Trading - Chart Controls", () => {
     const timeframeSelect = page.getByTestId("chart-timeframe-select");
     await expect(timeframeSelect).toBeVisible();
 
-    await timeframeSelect.click();
-    await expect(page.getByRole("listbox")).toBeVisible();
-
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("Enter");
-    await expect(page.getByRole("listbox")).not.toBeVisible();
-
+    // Native <select> (not searchable): drive it via selectOption; no listbox role is produced.
+    await page.selectOption('[data-testid="chart-timeframe-select"] select', "5min");
     await expect(page.getByTestId("paper-chart-header")).toBeVisible();
   });
 

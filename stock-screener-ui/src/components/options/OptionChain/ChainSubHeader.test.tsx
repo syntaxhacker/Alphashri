@@ -1,8 +1,14 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import { screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
+});
+
 import { ChainSubHeader } from "./ChainSubHeader";
 
 afterEach(() => {
@@ -12,22 +18,30 @@ afterEach(() => {
 
 const mockStyles = {
   subHeader: { display: "flex" },
-  subHeaderCell: { flex: 1, textAlign: "center" as const, fontSize: "10px" },
+  subHeaderCell: { flex: 1, textAlign: "center" as const, fontSize: "12px" },
 };
 
 describe("ChainSubHeader", () => {
-  it("renders subheader container", () => {
-    renderWithProviders(<ChainSubHeader styles={mockStyles as any} />);
-    expect(screen.getByTestId("options-chain-table-subheader")).toBeInTheDocument();
-  });
-
-  it("renders column labels", () => {
-    renderWithProviders(<ChainSubHeader styles={mockStyles as any} />);
+  it("renders all eleven column labels in the full grid", () => {
+    render(() => <ChainSubHeader styles={mockStyles as any} />);
     const subheader = screen.getByTestId("options-chain-table-subheader");
     expect(subheader.textContent).toContain("OI");
     expect(subheader.textContent).toContain("OI CHG");
     expect(subheader.textContent).toContain("VOL");
     expect(subheader.textContent).toContain("IV");
     expect(subheader.textContent).toContain("LTP");
+    expect(subheader.children).toHaveLength(11);
+  });
+
+  it("renders only the core OI/LTP columns when compact", () => {
+    render(() => <ChainSubHeader styles={mockStyles as any} compact />);
+    const subheader = screen.getByTestId("options-chain-table-subheader");
+    expect(Array.from(subheader.children).map((cell) => cell.textContent)).toEqual([
+      "OI",
+      "LTP",
+      "",
+      "LTP",
+      "OI",
+    ]);
   });
 });

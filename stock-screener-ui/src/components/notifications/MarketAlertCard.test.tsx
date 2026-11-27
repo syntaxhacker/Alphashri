@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, within, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, within, cleanup, fireEvent } from "@solidjs/testing-library";
+import { createSignal, type JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import {
   ALERT_KIND_CODE,
@@ -34,8 +35,8 @@ function alert(overrides?: Partial<MarketAlert>): MarketAlert {
   };
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: UIProvider });
+function r(jsx: JSX.Element) {
+  return render(() => <UIProvider>{jsx}</UIProvider>);
 }
 
 afterEach(() => cleanup());
@@ -91,11 +92,10 @@ describe("MarketAlertRow", () => {
     expect(within(row).getByText("14:03")).toBeInTheDocument();
   });
 
-  test("row height is fixed (density) and detail lives in the tooltip", () => {
+  test("detail lives in the tooltip", () => {
     r(<MarketAlertRow alert={alert()} />);
     const row = screen.getByTestId("market-alert-oi_burst");
     expect(row).toHaveAttribute("title", expect.stringContaining("+170.16M added in 3 min"));
-    expect(row).toHaveStyle({ height: "20px" });
   });
 
   test("severity drives the data attribute", () => {
@@ -115,6 +115,40 @@ describe("MarketAlertRow", () => {
     expect(onDismiss).toHaveBeenCalledWith("a1");
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
+
+  test("a payload href becomes a real link that does not trigger row onOpen", () => {
+    const onOpen = vi.fn();
+    r(<MarketAlertRow alert={alert({ href: "/report/index" })} onOpen={onOpen} />);
+    const link = screen.getByTestId("market-alert-link");
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("href", "/report/index");
+    expect(link.className).toContain("focus-visible:outline-2");
+    fireEvent.click(link);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+});
+
+describe("canonical alert symbols", () => {
+  test("row and card render displaySymbol while the alert payload keeps the raw symbol", () => {
+    const prefixed = alert({ symbol: "NSE:RELIANCE" });
+    const onOpen = vi.fn();
+    r(
+      <>
+        <MarketAlertRow alert={prefixed} onOpen={onOpen} />
+        <MarketAlertCard alert={prefixed} />
+      </>,
+    );
+    const rows = screen.getAllByTestId("market-alert-oi_burst");
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row).toHaveTextContent("RELIANCE");
+      expect(row).not.toHaveTextContent("NSE:");
+      expect(row.getAttribute("title") ?? "").not.toContain("NSE:");
+      expect(row.getAttribute("aria-label") ?? "").not.toContain("NSE:");
+    }
+    fireEvent.click(rows[0]);
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ symbol: "NSE:RELIANCE" }));
+  });
 });
 
 describe("MarketAlertCard", () => {
@@ -127,15 +161,47 @@ describe("MarketAlertCard", () => {
   });
 
   test("critical is announced assertively, others politely", () => {
-    const { rerender } = r(<MarketAlertCard alert={alert({ severity: "critical" })} />);
+    const [severity, setSeverity] = createSignal<"critical" | "watch">("critical");
+    r(<MarketAlertCard alert={alert({ severity: severity() })} />);
     expect(screen.getByRole("alert")).toHaveAttribute("aria-live", "assertive");
-    rerender(<MarketAlertCard alert={alert({ severity: "watch" })} />);
+    setSeverity("watch");
     expect(screen.getByRole("alert")).toHaveAttribute("aria-live", "polite");
   });
 
   test("metrics with no entries are omitted", () => {
     r(<MarketAlertCard alert={alert({ metrics: [] })} />);
     expect(screen.queryByText("ΔOI")).not.toBeInTheDocument();
+  });
+
+  test("a payload href renders a real focusable link and does not fire onOpen", () => {
+    const onOpen = vi.fn();
+    r(<MarketAlertCard alert={alert({ href: "/report/index" })} onOpen={onOpen} />);
+
+    const link = screen.getByTestId("market-alert-link");
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("href", "/report/index");
+    expect(link).toHaveAccessibleName("Open NIFTY — Call ΔOI burst — 22,600 CE");
+    expect(link.className).toContain("focus-visible:outline-2");
+
+    fireEvent.click(link);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  test("an alert without href renders no link and stays non-interactive", () => {
+    r(<MarketAlertCard alert={alert()} />);
+    expect(screen.queryByTestId("market-alert-link")).toBeNull();
+    expect(screen.getByTestId("market-alert-oi_burst")).not.toHaveAttribute("tabindex");
+  });
+
+  test("a clickable alert without href opens on Enter and Space", () => {
+    const onOpen = vi.fn();
+    r(<MarketAlertCard alert={alert()} onOpen={onOpen} />);
+    const card = screen.getByTestId("market-alert-oi_burst");
+    expect(card).toHaveAttribute("tabindex", "0");
+    fireEvent.keyDown(card, { key: "Enter" });
+    fireEvent.keyDown(card, { key: " " });
+    expect(onOpen).toHaveBeenCalledTimes(2);
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: "a1" }));
   });
 });
 

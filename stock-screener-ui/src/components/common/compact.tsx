@@ -1,185 +1,357 @@
-import type { ReactNode, CSSProperties } from "react";
-import MuiCardContent from "@mui/material/CardContent";
-import Card from "@mui/material/Card";
-import MuiPaper from "@mui/material/Paper";
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
-import SimpleGrid from "@mui/material/Grid";
-import { Text, Title, useDensity } from "@/ui";
+import type { JSX } from "solid-js";
+import { Show, splitProps } from "solid-js";
+import { Box, Card, Paper, SimpleGrid, Stack, Text, Title, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { UIStackProps, UIPaperProps } from "@/ui";
 
+// `solid-js` does not re-export JSX.CSSProperties from its package root.
+type CSSProperties = JSX.CSSProperties;
+
+
 const SCROLLABLE_PANEL_STYLE: CSSProperties = {
   display: "flex",
-  flexDirection: "column",
+  "flex-direction": "column",
   flex: 1,
-  minHeight: 0,
-  minWidth: 0,
+  "min-height": "0px",
+  "min-width": "0px",
   overflow: "hidden",
 };
 
 const SCROLL_CONTAINER_STYLE: CSSProperties = {
+  display: "flex",
+  "flex-direction": "column",
   flex: 1,
-  minHeight: 0,
-  minWidth: 0,
+  "min-height": "0px",
+  "min-width": "0px",
   overflow: "auto",
 };
 
 interface CompactPageProps extends UIStackProps {
-  title?: ReactNode;
-  description?: ReactNode;
-  actions?: ReactNode;
-  children: ReactNode;
+  title?: JSX.Element;
+  description?: JSX.Element;
+  actions?: JSX.Element;
+  children: JSX.Element;
   /** Opt-in to the legacy centered layout. Default is left/stretch. */
   center?: boolean;
 }
 
-export function CompactPage({
-  title,
-  description,
-  actions,
-  children,
-  center = false,
-  ...stackProps
-}: CompactPageProps) {
+export function CompactPage(props: CompactPageProps) {
+  const [own, stackProps] = splitProps(props, ["title", "description", "actions", "children", "center"]);
+  const center = () => own.center ?? false;
+  const hasHeader = () => own.title != null || own.description != null || own.actions != null;
+  const isStringTitle = () => typeof own.title === "string" || typeof own.title === "number";
+
   return (
-    <Stack spacing={1} style={{ alignItems: center ? "center" : "stretch" }} sx={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0, width: "100%" }} {...stackProps}>
-      {(title || description || actions) && (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 1 }}>
-          <Stack spacing={1} sx={{ alignItems: "flex-start" }}>
-            {title ? (typeof title === "string" ? <Title order={2} size="h4">{title}</Title> : title) : null}
-            {description ? <Text size="sm" c="dimmed">{description}</Text> : null}
+    <Stack
+      spacing="sm"
+      style={{
+        "align-items": center() ? "center" : "stretch",
+        height: "100%",
+        display: "flex",
+        "flex-direction": "column",
+        overflow: "hidden",
+        "min-height": "0px",
+        width: "100%",
+      }}
+      className="flex flex-col w-full min-h-0 overflow-hidden"
+      {...stackProps}
+    >
+      <Show when={hasHeader()}>
+        <Box
+          data-compact-page-header=""
+          // Below 900px the app nav toggle owns the top-left 44px. AppLayout's
+          // real nav bar sets --app-mobile-nav-gutter:0px (it reserves the space
+          // in flow, so the title lines up with the panel below). Standalone
+          // headers outside that shell fall back to the 44px inset.
+          className="flex items-center justify-between w-full gap-2 max-[899px]:pl-[var(--app-mobile-nav-gutter,44px)]"
+          style={{ display: "flex", "align-items": "center", "justify-content": "space-between", width: "100%", gap: "8px" }}
+        >
+          <Stack spacing="sm" className="flex flex-start">
+            <Show when={own.title}>
+              <Show when={isStringTitle()} fallback={<Box className="flex items-center flex-start">{own.title}</Box>}>
+                <Title order={2} size="lg">{own.title}</Title>
+              </Show>
+            </Show>
+            <Show when={own.description}>
+              <Text size="sm" c="dimmed">{own.description}</Text>
+            </Show>
           </Stack>
-          {actions}
+          {own.actions}
         </Box>
-      )}
-      <Box style={{ justifyContent: center ? "center" : "flex-start" }} sx={{ flex: 1, minHeight: 0, overflow: "auto", width: "100%", display: "flex" }}>{children}</Box>
+      </Show>
+      <Box
+        style={{ flex: 1, "min-height": "0px", overflow: "auto", width: "100%", display: "flex", "justify-content": center() ? "center" : "flex-start" }}
+        className="flex-1 min-h-0 overflow-auto w-full flex"
+      >
+        {own.children}
+      </Box>
     </Stack>
   );
 }
 
 interface CompactPanelProps extends UIPaperProps {
-  children: ReactNode;
-  title?: ReactNode;
-  description?: ReactNode;
-  action?: ReactNode;
+  children?: JSX.Element;
+  title?: JSX.Element;
+  /** Opt-in classes for the header title element (e.g. responsive truncation). */
+  titleClassName?: string;
+  description?: JSX.Element;
+  action?: JSX.Element;
   padded?: boolean;
   testId?: string;
   id?: string;
   scrollable?: boolean;
-  /**
-   * Edge-to-edge header divider: the header spans the panel width and the
-   * body keeps `panelPad`, instead of the header sitting inside the card's
-   * padding. Terminal/desk pages use this so panel headers line up with the
-   * grid rather than being inset by 8px on each side.
-   */
+  /** Edge-to-edge header divider: the header spans the panel width and the
+   *  body keeps `panelPad`, instead of the header sitting inside the card's
+   *  padding. Terminal/desk pages use this so panel headers line up with the
+   *  grid rather than being inset by 8px on each side. */
   flush?: boolean;
 }
 
-export function CompactPanel({
-  children,
-  title,
-  description,
-  action,
-  padded = true,
-  testId,
-  style,
-  scrollable = false,
-  flush = false,
-  ...paperProps
-}: CompactPanelProps) {
-  /** Fin-app body inset: 4px (dense desk default; was 6px). */
-  const pad = padded ? 0.5 : 0;
-  const panelStyle: CSSProperties = scrollable ? { ...SCROLLABLE_PANEL_STYLE, ...style } : style;
-  const bodyStyle: CSSProperties = flush ? { padding: pad } : {};
+export function CompactPanel(props: CompactPanelProps) {
+  const [own, paperProps] = splitProps(props, [
+    "children",
+    "title",
+    "titleClassName",
+    "description",
+    "action",
+    "padded",
+    "testId",
+    "scrollable",
+    "flush",
+    "style",
+  ]);
+  const padded = () => own.padded ?? true;
+  const flush = () => own.flush ?? false;
+  const scrollable = () => own.scrollable ?? false;
+  const pad = () => (padded() ? 0.5 : 0);
+  const panelStyle = (): CSSProperties =>
+    scrollable() ? { ...SCROLLABLE_PANEL_STYLE, ...own.style } : (own.style ?? {});
+  const bodyStyle = (): CSSProperties => (flush() ? { padding: `${pad() * 8}px` } : {});
+  const hasHeader = () => own.title != null || own.description != null || own.action != null;
+  const isStringTitle = () => typeof own.title === "string" || typeof own.title === "number";
 
-    return (
-      <MuiPaper elevation={0} data-compact="" sx={{ bgcolor: palette.SURFACE, borderRadius: 1, border: `1px solid ${palette.BORDER}` }} style={panelStyle} data-testid={testId} {...(paperProps as any)}>
-        <MuiCardContent sx={{ p: flush ? 0 : pad, "&:last-child": { pb: flush ? 0 : pad }, ...(scrollable && { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }) }}>
-        {(title || description || action) && (
-          <Box data-compact-header="" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5, px: 1, py: 0.25, mb: 0, width: "100%", borderBottom: `1px solid ${palette.BORDER}` }}>
-            <Stack spacing={0.5} sx={{ display: "flex", alignItems: "flex-start", justifyContent: "flex-start", gap: 0.5, minWidth: 0 }}>
-              {title ? (typeof title === "string" ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Title order={4} size="sm" lh={1.2}>{title}</Title></Box> : <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>{title}</Box>) : null}
-              {description ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text size="sm" c="dimmed" data-testid="status">{description}</Text></Box> : null}
+  return (
+    <Paper
+      data-compact=""
+      className={`bg-fin-surface${flush() ? "" : " rounded-fin border border-fin-border"}`}
+      style={{
+        // Theme tokens, not baked palette hexes: switching colour scheme
+        // repaints the panel with the rest of the app.
+        "background-color": "var(--color-fin-surface)",
+        ...(flush()
+          ? {}
+          : { "border-radius": "2px", border: "1px solid var(--color-fin-border)" }),
+        ...panelStyle(),
+      }}
+      data-testid={own.testId}
+      {...(paperProps as Record<string, unknown>)}
+    >
+      <Box
+        data-compact-card-content=""
+        className="flex flex-col"
+        style={{
+          padding: flush() ? 0 : `${pad() * 8}px`,
+          ...(scrollable() && { flex: 1, "min-height": "0px", display: "flex", "flex-direction": "column", overflow: "hidden" }),
+        }}
+      >
+        <Show when={hasHeader()}>
+          <Box
+            data-compact-header=""
+            className={`flex items-center justify-between gap-0.5 py-1 mb-0 w-full border-b border-fin-border${flush() ? "" : " px-4"}`}
+            style={{
+              display: "flex",
+              "align-items": "center",
+              "justify-content": "space-between",
+              gap: "4px",
+              "padding-left": flush() ? "0px" : "8px",
+              "padding-right": flush() ? "0px" : "8px",
+              "padding-bottom": "0px",
+              width: "100%",
+              "border-bottom": "1px solid var(--color-fin-border)",
+            }}
+          >
+            <Stack spacing={0.5} className="flex flex-start min-w-0">
+              <Show when={own.title}>
+                <Show when={isStringTitle()} fallback={<Box className="flex items-center flex-start">{own.title}</Box>}>
+                  <Box className="flex items-center flex-start">
+                    <Title
+                      order={4}
+                      className={own.titleClassName}
+                      style={{
+                        "font-size": `${typeSize("micro")}px`,
+                        "font-family": palette.MONO,
+                        "font-weight": 700,
+                        "letter-spacing": "0.08em",
+                        "text-transform": "uppercase",
+                        "line-height": "1.2",
+                        color: "var(--color-fin-primary)",
+                      }}
+                    >
+                      {own.title}
+                    </Title>
+                  </Box>
+                </Show>
+              </Show>
+              <Show when={own.description}>
+                <Box className="flex items-center flex-start">
+                  <Text size="sm" c="dimmed" data-testid="status">
+                    {own.description}
+                  </Text>
+                </Box>
+              </Show>
             </Stack>
-            {action ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{action}</Box> : null}
+            <Show when={own.action}>
+              <Box className="flex items-center justify-center">{own.action}</Box>
+            </Show>
           </Box>
-        )}
-        {scrollable ? <Box sx={SCROLL_CONTAINER_STYLE} style={bodyStyle}>{children}</Box> : flush ? <Box style={bodyStyle}>{children}</Box> : children}
-      </MuiCardContent>
-    </MuiPaper>
+        </Show>
+        <Show when={scrollable()} fallback={
+          <Show when={flush()} fallback={<>{own.children}</>}>
+            <Box style={bodyStyle()}>{own.children}</Box>
+          </Show>
+        }>
+          <Box style={{ ...SCROLL_CONTAINER_STYLE, ...bodyStyle() }}>
+            {own.children}
+          </Box>
+        </Show>
+      </Box>
+    </Paper>
   );
 }
 
 interface CompactStatProps extends UIPaperProps {
-  label: ReactNode;
-  value: ReactNode;
+  label: JSX.Element;
+  value: JSX.Element;
   tone?: string;
-  hint?: ReactNode;
+  hint?: JSX.Element;
   labelSize?: "xs" | "sm" | "md" | "lg" | "xl";
   valueSize?: "xs" | "sm" | "md" | "lg" | "xl";
   /** Dense mode: smaller label/value fonts + tighter padding (report pages). */
   dense?: boolean;
+  testId?: string;
 }
 
-export function CompactStat({
-  label,
-  value,
-  tone = "text.primary",
-  hint,
-  labelSize = "xs",
-  valueSize = "lg",
-  dense = false,
-  ...paperProps
-}: CompactStatProps) {
-  const { tokens: densityTokens } = useDensity();
-  // 4px body inset keeps stat cards from adding vertical air between rows.
-  const pad = dense ? 0.375 : Math.min(densityTokens.statPad, 0.5);
-  const resolvedLabelSize = dense ? ("xs" as const) : labelSize;
-  const resolvedValueSize = dense ? ("sm" as const) : valueSize;
+export function CompactStat(props: CompactStatProps) {
+  const [own, paperProps] = splitProps(props, [
+    "label",
+    "value",
+    "tone",
+    "hint",
+    "labelSize",
+    "valueSize",
+    "dense",
+    "testId",
+  ]);
+  const tone = () => own.tone ?? "default";
+  const dense = () => own.dense ?? false;
+
+  const isPrimitiveHint = () => typeof own.hint === "string" || typeof own.hint === "number";
+
   return (
-    <Card elevation={0} data-compact-stat="" sx={{ bgcolor: palette.SURFACE, border: `1px solid ${palette.BORDER}` }} {...(paperProps as any)}>
-      <MuiCardContent sx={{ p: pad, "&:last-child": { pb: pad }, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0.5, textAlign: "center" }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
-          <Text size={resolvedLabelSize} tt="uppercase" fw={700} c="dimmed" lh={1.1} ta="center">
-            {label}
+    <Card
+      data-compact-stat=""
+      data-testid={own.testId}
+      className="bg-fin-surface"
+      {...(paperProps as Record<string, unknown>)}
+      bg="var(--color-fin-surface)"
+    >
+      <Box
+        className="flex flex-col w-full"
+        style={{
+          display: "flex",
+          "flex-direction": "column",
+          "justify-content": "center",
+          // Auto height with a floor: a fixed 41px clipped the hint on any
+          // wrapped/floating font, and let the three lines collide.
+          height: "auto",
+          "min-height": dense() ? "40px" : "48px",
+          padding: dense() ? "2px 8px" : "4px 8px",
+          "row-gap": "2px",
+          width: "100%",
+        }}
+      >
+        <Box className="flex w-full">
+          <Text
+            fw={700}
+            c="dimmed"
+            style={{
+              "font-size": `${typeSize("micro")}px`,
+              "text-transform": "uppercase",
+              "letter-spacing": "0.06em",
+              "line-height": "1.2",
+              "text-align": "left",
+            }}
+          >
+            {own.label}
           </Text>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
-          <Text size={resolvedValueSize} fw={700} c={tone} lh={1.1} ta="center">
-            {value}
+        <Box className="flex w-full">
+          <Text
+            fw={700}
+            c={tone()}
+            style={{
+              "line-height": "1.1",
+              "font-family": palette.MONO,
+              "font-variant-numeric": "tabular-nums",
+              "text-align": "right",
+            }}
+          >
+            {own.value}
           </Text>
         </Box>
-        {hint ? (
-          typeof hint === "string" || typeof hint === "number" ? (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
-              <Text size="xs" c="dimmed" ta="center">
-                {hint}
-              </Text>
+        <Show when={own.hint != null}>
+          <Show
+            when={isPrimitiveHint()}
+            fallback={<Box className="flex w-full">{own.hint}</Box>}
+          >
+            <Box className="flex w-full">
+              <Text size="xs" c="dimmed">{own.hint}</Text>
             </Box>
-          ) : (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", mt: 0.5 }}>{hint}</Box>
-          )
-        ) : null}
-      </MuiCardContent>
+          </Show>
+        </Show>
+      </Box>
     </Card>
   );
 }
 
-export function CompactStatGrid({
-  children,
-  center = false,
-  ...props
-}: {
-  children: ReactNode;
+export function CompactStatGrid(props: {
+  children?: JSX.Element;
   /** Opt-in to the legacy centered layout. Default is left/stretch. */
   center?: boolean;
+  /** Stat cells per row. Defaults to 4 — a stat grid is a single row of
+   *  cells, never a single stacked card. */
+  cols?: number;
   [key: string]: any;
 }) {
+  const [own, rest] = splitProps(props, ["children", "center", "cols", "className", "style"]);
+  const center = () => own.center ?? false;
+  const cols = () => {
+    const n = typeof own.cols === "number" ? own.cols : 4;
+    return n > 0 ? n : 4;
+  };
+
   return (
-    <Box style={{ justifyContent: center ? "center" : "flex-start", alignItems: center ? "center" : "stretch" }} sx={{ display: "flex", width: "100%", p: 0.5 }}>
-      <SimpleGrid container spacing={0.5} style={{ justifyContent: center ? "center" : "flex-start", alignItems: center ? "center" : "stretch" }} sx={{ width: "100%", gap: 0.5 }} {...props}>
-        {children}
+    <Box
+      style={{
+        "justify-content": center() ? "center" : "flex-start",
+        "align-items": center() ? "center" : "stretch",
+        display: "flex",
+        width: "100%",
+      }}
+      className="flex w-full"
+    >
+      <SimpleGrid
+        {...rest}
+        cols={cols()}
+        className={`w-full divide-x divide-fin-border${own.className ? ` ${own.className}` : ""}`}
+        style={{
+          "justify-content": center() ? "center" : "flex-start",
+          "align-items": center() ? "center" : "stretch",
+          width: "100%",
+          ...own.style,
+        }}
+      >
+        {own.children}
       </SimpleGrid>
     </Box>
   );

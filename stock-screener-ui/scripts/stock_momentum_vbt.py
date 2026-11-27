@@ -1,19 +1,4 @@
 #!/usr/bin/env python3
-"""Indian cash equities — momentum / pattern study with vectorbt.
-
-Universe: the 66 liquid NSE names already in experiments/data/b15m_2025_*.pkl.
-Data: yfinance daily, 2 years. Costs: 0.25% round trip (delivery).
-
-Strategies:
-  A. cross-sectional momentum — long the top-N by 20-day return, weekly rebalance
-  B. Donchian breakout — close > 20-day high and > 50-DMA; exit < 10-day low
-  C. EMA 20/50 cross
-
-Train = before 2025-10-01, test = after. Also prints this week's "booming" list.
-
-Run:
-    .venv/bin/python scripts/stock_momentum_vbt.py
-"""
 
 from __future__ import annotations
 
@@ -27,7 +12,7 @@ import vectorbt as vbt
 import yfinance as yf
 
 ROOT = Path(__file__).resolve().parents[1]
-COST = 0.0025          # 0.25% round trip (delivery: STT + stamp + brokerage + GST)
+COST = 0.0025
 SPLIT = "2025-10-01"
 
 
@@ -81,7 +66,6 @@ def stats_from_trades(pf, label: str, start=None, end=None) -> dict:
 
 def run_csm(c: pd.DataFrame, top_n=10) -> vbt.Portfolio:
     ret = c.pct_change(20)
-    # weekly rebalance: rank on the last session of each week
     weekly = ret.resample("W-FRI").last()
     ranks = weekly.rank(axis=1, ascending=False)
     w = (ranks <= top_n).astype(float)

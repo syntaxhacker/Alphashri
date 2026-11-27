@@ -30,6 +30,9 @@ coverage
 # Database files
 *.db
 *.db-journal
+# SQLite WAL mode sidecars (db/alphashri.db runs in WAL mode)
+*.db-wal
+*.db-shm
 
 # Python
 __pycache__/
@@ -76,6 +79,8 @@ db/*.backup.*
 *storybook.log
 storybook-static
 bun.lockb
+# Bun is the only package manager here; a stale npm lock is a trap (root only — subprojects keep their own)
+/package-lock.json
 dump.rdb
 *.rdb
 
@@ -88,3 +93,6 @@ backups/
 
 # Options-paper runtime journal (positions/state; source lives in options_paper/*.py)
 options_paper/journal/
+
+# Agent tooling session state (commandcode)
+.commandcode/

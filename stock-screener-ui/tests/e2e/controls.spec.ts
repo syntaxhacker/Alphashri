@@ -15,7 +15,6 @@ test.describe("UI Controls", () => {
       timeout: 10000,
     });
 
-    // Click refresh button (MUI ActionIcon: id/testid "refresh-btn")
     const refreshBtn = page.getByTestId("refresh-btn");
     await refreshBtn.click();
     await expect(page.locator("table tbody tr").first()).toBeVisible({
@@ -31,7 +30,6 @@ test.describe("UI Controls", () => {
       timeout: 10000,
     });
 
-    // Grant clipboard permissions
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
 
     // Copy buttons are icon-only ActionIcons (no accessible "Copy" name);
@@ -68,21 +66,19 @@ test.describe("UI Controls", () => {
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
     await page.getByTestId("tab-screener").click();
     // The screener error panel renders under testid "screener-error-container"
-    // with a "Retry" button ("screener-retry-btn"); there is no .MuiAlert-root.
+    // with a "Retry" button ("screener-retry-btn"); no legacy MUI alert remains.
     const errorElement = page.getByTestId("screener-error-container");
     await expect(errorElement).toBeVisible({ timeout: 5000 });
     await expect(errorElement).toContainText("Screener failed to load");
     await expect(page.getByTestId("screener-retry-btn")).toBeVisible();
   });
   test("should show loading state during data fetch", async ({ page }) => {
-    // Delay the response
     await page.route(apiRoute("screener**"), async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 500));
       await route.continue();
     });
     await page.goto("/");
 
-    // Check for loading indicator (may be brief)
     const _loadingIndicator = page.locator(".inline-refresh, .refreshing");
     // This might be hard to catch due to timing
   });

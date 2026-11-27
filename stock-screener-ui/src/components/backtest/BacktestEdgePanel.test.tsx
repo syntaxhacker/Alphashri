@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
+import type { JSX } from "solid-js";
 import { describe, expect, test, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import type { Trade } from "../../types/backtest";
 import { BacktestEdgePanel } from "./BacktestEdgePanel";
@@ -27,11 +28,11 @@ function makeTrade(over: Partial<Trade> = {}): Trade {
   } as Trade;
 }
 
-const Wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
+const Wrapper = ({ children }: { children: JSX.Element }) => <UIProvider>{children}</UIProvider>;
 
 describe("BacktestEdgePanel", () => {
   test("shows a prompt when there are no trades", () => {
-    render(<BacktestEdgePanel symbol="NETWEB" trades={[]} />, { wrapper: Wrapper });
+    render(() => <BacktestEdgePanel symbol="NETWEB" trades={[]} />, { wrapper: Wrapper });
     expect(screen.queryByTestId("edge-panel")).toBeNull();
     expect(screen.getByText(/Select a symbol with trades/)).toBeInTheDocument();
   });
@@ -41,7 +42,7 @@ describe("BacktestEdgePanel", () => {
       makeTrade({ entry_time: "2026-02-16T09:30:00+05:30", net_pnl: 30, exit_reason: "TP" }),
       makeTrade({ entry_time: "2026-02-17T13:30:00+05:30", net_pnl: -20, exit_reason: "SL", hold_duration_minutes: 200 }),
     ];
-    render(<BacktestEdgePanel symbol="NETWEB" trades={trades} />, { wrapper: Wrapper });
+    render(() => <BacktestEdgePanel symbol="NETWEB" trades={trades} />, { wrapper: Wrapper });
 
     expect(screen.getByTestId("edge-panel")).toBeInTheDocument();
     expect(screen.getByTestId("edge-section-side")).toBeInTheDocument();
@@ -56,7 +57,7 @@ describe("BacktestEdgePanel", () => {
       makeTrade({ entry_time: "2026-02-16T09:30:00+05:30", net_pnl: 30 }),
       makeTrade({ entry_time: "2026-02-16T13:30:00+05:30", net_pnl: -20 }),
     ];
-    render(<BacktestEdgePanel symbol="NETWEB" trades={trades} />, { wrapper: Wrapper });
+    render(() => <BacktestEdgePanel symbol="NETWEB" trades={trades} />, { wrapper: Wrapper });
     expect(screen.getByTestId("edge-insight-best")).toHaveTextContent("09–10");
     expect(screen.getByTestId("edge-insight-worst")).toHaveTextContent("13–14");
   });

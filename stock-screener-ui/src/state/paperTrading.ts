@@ -1,7 +1,3 @@
-/**
- * Paper Trading State Management
- */
-
 import type {
   PaperTradingState,
   PaperTradingView,
@@ -21,10 +17,9 @@ import type {
 
 import { deleteTrade, updateTradeNotes, updatePositionNotes } from "../api/paperTrading";
 import { createSubscriber } from "./createSubscriber";
-import { isMarketClosedToday } from "./holidays";
+import { isMarketOpenNow } from "./holidays";
 import type { TradeSourceFilter } from "../types/paperTrading";
 
-// Initial state
 export const initialPaperTradingState: PaperTradingState = {
   currentView: "live",
 
@@ -72,56 +67,42 @@ export const initialPaperTradingState: PaperTradingState = {
   botLogFile: null,
   botSnapshot: null,
 
-  // Strategy config
   strategyConfig: null,
   configLoading: false,
   configError: null,
   configDirty: false,
 
-  // Multi-strategy bots
   availableBots: [],
 
-  // Analytics
   analyticsData: null,
   analyticsLoading: false,
 
-  // Activity feed
   activityEvents: [],
   activityLoading: false,
 
-  // Aggregated dashboard
   aggregatedData: null,
   aggregatedLoading: false,
   dashboardAnalyticsData: null,
   dashboardAnalyticsLoading: false,
 };
 
-// Additional type for the view state
-export type PaperViewState = "live" | "history" | "analytics" | "activity" | "aggregated";
-
-// Current state (mutable)
 let state: PaperTradingState = { ...initialPaperTradingState };
 
 const { subscribe: _subscribe, notify } = createSubscriber();
 export const subscribe = _subscribe;
 
-// Auto-refresh timer
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
-// Get current state
 export function getPaperTradingState(): Readonly<PaperTradingState> {
   return state;
 }
 
-// View management
 export function setPaperTradingView(view: PaperTradingView) {
   state = { ...state, currentView: view };
   notify();
 }
 
-// Positions management
 export function setPositions(positions: PaperPosition[]) {
-  console.log("[setPositions] count:", positions.length, "sample order_id:", positions[0]?.order_id, "keys:", Object.keys(positions[0] || {}));
   state = { ...state, positions };
   notify();
 }
@@ -131,7 +112,6 @@ export function setPortfolio(portfolio: PortfolioStatus | null) {
   notify();
 }
 
-// Trades management
 export function setTrades(trades: PaperTrade[]) {
   state = { ...state, trades };
   notify();
@@ -147,7 +127,6 @@ export function setSymbolPerformance(performance: SymbolPerformance[]) {
   notify();
 }
 
-// Filters
 export function setFilterDate(date: string | null) {
   state = { ...state, filterDate: date };
   notify();
@@ -173,7 +152,6 @@ export function setFilterStrategy(strategyId: number | null) {
   notify();
 }
 
-// Chart management
 export function setSelectedSymbol(symbol: string | null) {
   state = { ...state, selectedSymbol: symbol, selectedTradeId: null };
   notify();
@@ -284,7 +262,6 @@ export function setChartFromDateHistory(fromDate: string | null) {
   notify();
 }
 
-// Loading states
 export function setLoading(isLoading: boolean) {
   state = { ...state, isLoading };
   notify();
@@ -295,7 +272,6 @@ export function setError(error: string | null) {
   notify();
 }
 
-// Auto-refresh management
 export function setAutoRefresh(enabled: boolean) {
   state = { ...state, autoRefreshEnabled: enabled };
   if (!enabled && refreshTimer) {
@@ -324,7 +300,7 @@ export function setupAutoRefresh(fetchFn: () => void, intervalMs: number = 20000
     clearInterval(refreshTimer);
   }
   refreshTimer = setInterval(() => {
-    if (isMarketClosedToday()) return;
+    if (!isMarketOpenNow()) return;
     if (state.autoRefreshEnabled && state.currentView === "live") {
       fetchFn();
     }
@@ -338,7 +314,6 @@ export function stopAutoRefresh() {
   }
 }
 
-// Analytics
 export function setAnalyticsData(data: AnalyticsData | null) {
   state = { ...state, analyticsData: data, analyticsLoading: false };
   notify();
@@ -349,7 +324,6 @@ export function setAnalyticsLoading(loading: boolean) {
   notify();
 }
 
-// Activity feed
 export function setActivityEvents(events: ActivityEvent[]) {
   state = { ...state, activityEvents: events, activityLoading: false };
   notify();
@@ -360,7 +334,6 @@ export function setActivityLoading(loading: boolean) {
   notify();
 }
 
-// Aggregated dashboard
 export function setAggregatedData(data: AggregatedDashboardData | null) {
   state = { ...state, aggregatedData: data, aggregatedLoading: false };
   notify();
@@ -381,19 +354,16 @@ export function setDashboardAnalyticsLoading(loading: boolean) {
   notify();
 }
 
-// Reset state
 export function resetPaperTradingState() {
   state = { ...initialPaperTradingState };
   stopAutoRefresh();
   notify();
 }
 
-// Force re-render
 export function triggerPaperTradingRerender() {
   notify();
 }
 
-// Strategy config management
 export function setStrategyConfig(config: StrategyConfig | null) {
   state = {
     ...state,
@@ -431,29 +401,24 @@ export function updateConfigValue(key: keyof StrategyConfig, value: any) {
   }
 }
 
-// Multi-strategy bots management
 export function setAvailableBots(bots: BotInfo[]) {
   state = { ...state, availableBots: bots };
   notify();
 }
 
-// Bot filter management
 export function setFilterBot(botId: string | null) {
   state = { ...state, filterBot: botId };
   notify();
 }
 
-// Source filter management (book: equity / options / futures / commodities)
 export function setFilterSource(source: TradeSourceFilter) {
   state = { ...state, filterSource: source };
   notify();
 }
 
-// Trade deletion action
 export async function deleteTradeAction(tradeId: string): Promise<boolean> {
   try {
     await deleteTrade(tradeId);
-    // Remove from local state
     state = {
       ...state,
       trades: state.trades.filter((t) => t.trade_id !== tradeId),

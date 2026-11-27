@@ -1,26 +1,3 @@
-/**
- * Desk plan summary — one-line verdict + weighted confidence.
- *
- * Pure, total helper: it takes a structural snapshot of a two-sided desk plan
- * (bias, spot, the active side's DO block and the reasons behind it) and turns
- * it into the single sentence a trader reads first. No network, no clock, no
- * imports from the mutable `deskPlan` module, so the summary is stable while
- * the plan builder is still being edited.
- *
- * Confidence rule (kept deliberately explicit):
- *   - Base weights: trend 40, gamma 25, oi 20, vol 10, structure 5.
- *   - Only tags actually present in `reasons` are weighted, renormalized to 100.
- *   - An *active* reason supports a directional bias when its tag is one of
- *     trend / gamma / oi / structure. `vol` is context (rich/cheap premium),
- *     not direction, so it never adds confidence. This mirrors the current plan
- *     builder, which computes those four reasons against the bull case for the
- *     bear side (and against the bear case for the bull side).
- *   - confidence = min(95, 35 + 12 × supportingCount); neutral = 0.
- *   - A weak active-side R:R (< 1.5) costs 15 points and is flagged inline.
- *
- * Missing blocks are normal on partial payloads: every accessor tolerates
- * absent/non-finite values and this module never throws.
- */
 
 type PlanBias = "bullish" | "bearish" | "neutral";
 type PlanTone = "positive" | "negative" | "neutral";
@@ -47,7 +24,6 @@ export interface PlanInput {
   spot: number;
   bull?: PlanSide;
   bear?: PlanSide;
-  /** Both sides combined, or just the active side — both are accepted. */
   reasons?: PlanReason[];
 }
 
@@ -59,17 +35,13 @@ interface WeightedReason {
 interface DeskPlanSummary {
   headline: string;
   action: string;
-  /** 0-100, integer. */
   confidence: number;
-  /** Normalized integer weights, sum 100 (empty when no known tags). */
   weights: WeightedReason[];
   tone: PlanTone;
 }
 
-/** Render/weight order — matches the desk plan's reason order. */
 const PLAN_REASON_ORDER = ["trend", "gamma", "oi", "vol", "structure"] as const;
 
-/** Base weights before normalization (only for tags present in the reasons). */
 const BASE_REASON_WEIGHTS: Readonly<Record<string, number>> = {
   trend: 40,
   gamma: 25,
@@ -78,7 +50,6 @@ const BASE_REASON_WEIGHTS: Readonly<Record<string, number>> = {
   structure: 5,
 };
 
-/** Tags that argue for the active direction; `vol` is context only. */
 const SUPPORTING_REASON_TAGS: readonly string[] = [
   "trend",
   "gamma",
@@ -89,7 +60,6 @@ const SUPPORTING_REASON_TAGS: readonly string[] = [
 const BASE_CONFIDENCE = 35;
 const CONFIDENCE_PER_REASON = 12;
 const MAX_CONFIDENCE = 95;
-/** An active-side reward:risk below this is not worth the headline. */
 const WEAK_RR = 1.5;
 const WEAK_RR_PENALTY = 15;
 export const MAX_HEADLINE_LENGTH = 120;
@@ -102,7 +72,6 @@ function finite(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Indian-grouped level: whole points unless the level actually has decimals. */
 function fmtPlanLevel(value: unknown): string | null {
   const n = finite(value);
   if (n === null) return null;
@@ -112,13 +81,6 @@ function fmtPlanLevel(value: unknown): string | null {
   });
 }
 
-/**
- * Headline cut / target are whole index points, the same unit as every other
- * level on the page (spot quote, max pain, walls). The stop is derived
- * (`trigger ± buffer`) and the projected target carries a rounded fraction, so
- * without this the headline read "cut 22,424.98 · target 22,129.53" while the
- * rest of the desk quoted integers. Full precision stays in the reasons block.
- */
 function fmtPlanPoints(value: unknown): string | null {
   const n = finite(value);
   if (n === null) return null;
@@ -131,7 +93,6 @@ function normalizeBias(value: unknown): PlanBias {
     : "neutral";
 }
 
-/** First index-level number in a trigger sentence ("1-min close below 22,690"). */
 export function triggerLevel(trigger: string | undefined): number | null {
   if (typeof trigger !== "string") return null;
   const match = trigger.match(/\d{1,3}(?:,\d{2,3})+(?:\.\d+)?|\d{4,}(?:\.\d+)?/);
@@ -152,10 +113,6 @@ function collectTags(reasons: PlanReason[] | undefined): string[] {
   return PLAN_REASON_ORDER.filter((tag) => seen.has(tag));
 }
 
-/**
- * Integer weights that always sum to exactly 100: floor each share, then hand
- * the leftovers to the largest fractional remainders (stable by order).
- */
 export function normalizePlanWeights(tags: string[]): WeightedReason[] {
   const known = tags.filter((tag) => tag in BASE_REASON_WEIGHTS);
   const total = known.reduce((sum, tag) => sum + BASE_REASON_WEIGHTS[tag], 0);

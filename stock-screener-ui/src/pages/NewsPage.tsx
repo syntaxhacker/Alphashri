@@ -1,47 +1,51 @@
-import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import Typography from "@mui/material/Typography";
-import { IconNews } from "@tabler/icons-react";
-import { Box, Modal, Paper, Stack, useMediaQuery } from "@/ui";
+import { createSignal, mergeProps, Show, type ComponentProps } from "solid-js";
+import { useNavigate } from "@solidjs/router";
+import { Icon } from "../components/common/Icons";
+import { Box, Modal, Paper, Stack, Text, useMediaQuery } from "@/ui";
+import * as palette from "@/ui/palette";
 import type { ArticleResponse, NewsItem, NewsSymbol } from "../components/news/news-types";
 import { fetchArticle } from "../api/news";
+import { chartHrefForSymbol } from "../components/common/symbolDockContext";
 import { getSourceOptions, useNewsSourceGroups } from "../components/news/useNewsSourceGroups";
 import { useNewsList } from "../components/news/useNewsList";
 import { ArticleDetail } from "../components/news/ArticleDetail";
 import { NewsList } from "../components/news/NewsList";
 
-function useArticleDetail(isMobile: boolean) {
-  const [selectedArticle, setSelectedArticle] = useState<NewsItem | null>(null);
-  const [articleContent, setArticleContent] = useState<ArticleResponse | null>(null);
-  const [articleLoading, setArticleLoading] = useState(false);
-  const [articleError, setArticleError] = useState<string | null>(null);
-  const [showFullContent, setShowFullContent] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const articleFetchId = useRef(0);
+type ArticleDetailProps = ComponentProps<typeof ArticleDetail>;
+type NewsListProps = ComponentProps<typeof NewsList>;
+
+function useArticleDetail(isMobile: () => boolean) {
+  const [selectedArticle, setSelectedArticle] = createSignal<NewsItem | null>(null);
+  const [articleContent, setArticleContent] = createSignal<ArticleResponse | null>(null);
+  const [articleLoading, setArticleLoading] = createSignal(false);
+  const [articleError, setArticleError] = createSignal<string | null>(null);
+  const [showFullContent, setShowFullContent] = createSignal(false);
+  const [modalOpen, setModalOpen] = createSignal(false);
+  let articleFetchId = 0;
 
   const handleArticleClick = async (item: NewsItem) => {
-    const fetchId = ++articleFetchId.current;
+    const fetchId = ++articleFetchId;
     setSelectedArticle(item);
     setArticleLoading(true);
     setArticleContent(null);
     setArticleError(null);
     setShowFullContent(false);
-    if (isMobile) setModalOpen(true);
+    if (isMobile()) setModalOpen(true);
     try {
       const content = await fetchArticle(item.sourceUrl);
       if (!content) throw new Error("Article content is unavailable");
-      if (fetchId === articleFetchId.current) setArticleContent(content as ArticleResponse);
+      if (fetchId === articleFetchId) setArticleContent(content as ArticleResponse);
     } catch (err) {
-      if (fetchId === articleFetchId.current) {
+      if (fetchId === articleFetchId) {
         setArticleError(err instanceof Error ? err.message : "Failed to load article");
       }
     } finally {
-      if (fetchId === articleFetchId.current) setArticleLoading(false);
+      if (fetchId === articleFetchId) setArticleLoading(false);
     }
   };
 
   const handleCloseArticle = () => {
-    articleFetchId.current += 1;
+    articleFetchId += 1;
     setSelectedArticle(null);
     setArticleContent(null);
     setArticleError(null);
@@ -63,95 +67,67 @@ function useArticleDetail(isMobile: boolean) {
   };
 }
 
-function NewsWorkspaceHeader({ storyCount, sourceCount }: { storyCount: number; sourceCount: number }) {
+function NewsWorkspaceHeader(props: { storyCount: number; sourceCount: number }) {
   return (
     <Box
       component="header"
       data-testid="news-workspace-header"
-      sx={{
-        minHeight: 56,
-        px: 2,
-        py: 1,
-        display: "flex",
-        alignItems: "center",
-        gap: 1,
-        borderBottom: 1,
-        borderColor: "divider",
-        bgcolor: "background.paper",
+      className="flex shrink-0 items-center gap-2 border-b border-fin-border bg-fin-surface"
+      style={{
+        "min-height": "56px",
+        "padding-left": "16px",
+        "padding-right": "16px",
+        "padding-top": "8px",
+        "padding-bottom": "8px",
       }}
     >
       <Box
-        sx={{
-          width: 32,
-          height: 32,
-          display: "grid",
-          placeItems: "center",
-          borderRadius: 1,
-          color: "primary.main",
-          bgcolor: "action.selected",
-          flex: "0 0 auto",
+        className="size-8 grid place-items-center rounded-fin flex-shrink-0"
+        style={{
+          width: "32px",
+          height: "32px",
+          "border-radius": "2px",
+          color: palette.PRIMARY,
+          "background-color": palette.alpha(palette.PRIMARY, 0.12),
         }}
       >
-        <IconNews size={18} stroke={1.8} aria-hidden="true" />
+        <Icon name="news" size={18} stroke={1.8} aria-hidden="true" />
       </Box>
-      <Box sx={{ minWidth: 0 }}>
-        <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.2 }}>
-          Market intelligence
-        </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ display: { xs: "none", sm: "block" } }}>
-          Headlines, catalysts and AI-assisted briefs in one workspace
-        </Typography>
+      <Box className="min-w-0">
+        <Text size="sm" fw={700} style={{ "line-height": 1.2 }}>
+          NEWS
+        </Text>
       </Box>
-      <Box sx={{ flex: 1 }} />
-      <Stack
-        direction="row"
-        gap={3}
-        sx={{
-          display: { xs: "none", sm: "flex" },
-          "& > :not(:first-of-type)": { borderLeft: 1, borderColor: "divider", pl: 2 },
-        }}
-      >
-        <Box sx={{ textAlign: "right" }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1 }}>
+      <Box className="min-w-0 flex-1" />
+      <Stack direction="row" gap={6} className="hidden sm:flex divide-x divide-fin-border">
+        <Box className="text-right">
+          <Text size="xs" c="dimmed" style={{ "line-height": 1 }}>
             Stories
-          </Typography>
-          <Typography variant="subtitle2" fontWeight={700} sx={{ fontVariantNumeric: "tabular-nums" }}>
-            {storyCount}
-          </Typography>
+          </Text>
+          <Text size="xs" fw={700} style={{ "font-variant-numeric": "tabular-nums" }}>
+            {props.storyCount}
+          </Text>
         </Box>
-        <Box sx={{ textAlign: "right" }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1 }}>
+        <Box className="text-right pl-4">
+          <Text size="xs" c="dimmed" style={{ "line-height": 1 }}>
             Sources
-          </Typography>
-          <Typography variant="subtitle2" fontWeight={700} sx={{ fontVariantNumeric: "tabular-nums" }}>
-            {sourceCount}
-          </Typography>
+          </Text>
+          <Text size="xs" fw={700} style={{ "font-variant-numeric": "tabular-nums" }}>
+            {props.sourceCount}
+          </Text>
         </Box>
       </Stack>
     </Box>
   );
 }
 
-const paneSx = {
-  minHeight: 0,
-  overflow: "hidden",
-  display: "flex",
-  flexDirection: "column",
-  border: 1,
-  borderColor: "divider",
-  borderRadius: 1,
-  bgcolor: "background.paper",
-} as const;
+const paneClassName =
+  "flex flex-col overflow-hidden min-h-0 border border-fin-border rounded-fin bg-fin-surface";
 
-function NewsPageMobile({
-  modalOpen,
-  newsListProps,
-  articleDetailProps,
-  onCloseArticle,
-}: {
+function NewsPageMobile(props: {
   modalOpen: boolean;
-  newsListProps: React.ComponentProps<typeof NewsList>;
-  articleDetailProps: React.ComponentProps<typeof ArticleDetail>;
+  newsListProps: NewsListProps;
+  articleDetailProps: ArticleDetailProps;
   onCloseArticle: () => void;
 }) {
   return (
@@ -160,36 +136,32 @@ function NewsPageMobile({
         component="section"
         aria-label="News feed"
         data-testid="news-list-region"
-        sx={{ ...paneSx, flex: 1, mt: 1 }}
+        className={`${paneClassName} flex-1 m-2`}
       >
-        <NewsList {...newsListProps} />
+        <NewsList {...props.newsListProps} />
       </Paper>
       <Modal
-        opened={modalOpen}
-        onClose={onCloseArticle}
+        opened={props.modalOpen}
+        onClose={props.onCloseArticle}
         fullScreen
         withCloseButton={false}
         padding={0}
         data-testid="article-modal"
       >
-        <ArticleDetail {...articleDetailProps} />
+        <ArticleDetail {...props.articleDetailProps} />
       </Modal>
     </>
   );
 }
 
-function NewsPageDesktop({
-  articleDetailProps,
-}: {
-  articleDetailProps: React.ComponentProps<typeof ArticleDetail>;
-}) {
+function NewsPageDesktop(props: { articleDetailProps: ArticleDetailProps; compact: boolean }) {
   return (
     <Box
       role="region"
       aria-label="Article reader"
-      sx={paneSx}
+      className={`${paneClassName}${props.compact ? " self-start h-[240px]" : ""}`}
     >
-      <ArticleDetail {...articleDetailProps} />
+      <ArticleDetail {...props.articleDetailProps} />
     </Box>
   );
 }
@@ -197,92 +169,96 @@ function NewsPageDesktop({
 export default function NewsPage() {
   const navigate = useNavigate();
   const isMobile = useMediaQuery("(max-width: 899px)");
-  const { newsItems, sources, selectedSource, setSelectedSource, loading, error, loadNews } = useNewsList();
+  const { newsItems, sources, selectedSource, setSelectedSource, loading, error, loadNews } =
+    useNewsList();
   const article = useArticleDetail(isMobile);
-  const sourceData = getSourceOptions(sources);
-  const selectedSourceName = sourceData.find((option) => option.value === selectedSource)?.label;
-  const { groupedNewsItems, sourceNames, expandedSources, toggleSourceExpanded } = useNewsSourceGroups({
-    newsItems,
-    autoExpandCount: 999,
-  });
+  const sourceData = () => getSourceOptions(sources());
+  const selectedSourceName = () =>
+    sourceData().find((option) => option.value === selectedSource())?.label;
+  const { groupedNewsItems, sourceNames, expandedSources, toggleSourceExpanded } =
+    useNewsSourceGroups({
+      newsItems,
+      autoExpandCount: 999,
+    });
 
   const handleSymbolClick = (symbol: NewsSymbol) => {
-    if (symbol.instrument_key && symbol.trading_symbol) navigate(`/chart/${symbol.trading_symbol}`);
-    else if (symbol.url) window.open(symbol.url, "_blank", "noopener,noreferrer");
+    const tradingSymbol = symbol.trading_symbol?.trim();
+    if (symbol.instrument_key && tradingSymbol) {
+      // Same chart contract as the news rail: US symbols need `?market=usa`
+      // and feed decoration is stripped before the route is built.
+      const exchange = symbol.instrument_key.split("|")[0]?.split("_")[0];
+      navigate(chartHrefForSymbol(tradingSymbol, exchange));
+    } else if (symbol.url) {
+      window.open(symbol.url, "_blank", "noopener,noreferrer");
+    }
   };
 
-  const newsListProps = {
-    loading,
-    error,
-    selectedSource,
-    selectedSourceName,
-    sourceData,
-    selectedArticle: article.selectedArticle,
+  // Spreading a plain object into <NewsList> would freeze props.children-like
+  // values at mount — mergeProps keeps every attribute a live getter.
+  const newsListProps = mergeProps(() => ({
+    loading: loading(),
+    error: error(),
+    selectedSource: selectedSource(),
+    selectedSourceName: selectedSourceName(),
+    sourceData: sourceData(),
+    selectedArticle: article.selectedArticle(),
     onSourceChange: setSelectedSource,
     onRefresh: loadNews,
     onArticleClick: article.handleArticleClick,
-    groupedNewsItems,
-    sourceNames,
-    expandedSources,
+    groupedNewsItems: groupedNewsItems(),
+    sourceNames: sourceNames(),
+    expandedSources: expandedSources(),
     toggleSourceExpanded,
-  };
-  const articleDetailProps = {
-    selectedArticle: article.selectedArticle,
-    articleContent: article.articleContent,
-    articleLoading: article.articleLoading,
-    articleError: article.articleError,
-    isMobile,
-    showFullContent: article.showFullContent,
+  }));
+  const articleDetailProps = mergeProps(() => ({
+    selectedArticle: article.selectedArticle(),
+    articleContent: article.articleContent(),
+    articleLoading: article.articleLoading(),
+    articleError: article.articleError(),
+    isMobile: isMobile(),
+    showFullContent: article.showFullContent(),
     onClose: article.handleCloseArticle,
     onToggleFullContent: article.toggleFullContent,
     onSymbolClick: handleSymbolClick,
-    onRetryArticle: article.selectedArticle
-      ? () => article.handleArticleClick(article.selectedArticle as NewsItem)
+    onRetryArticle: article.selectedArticle()
+      ? () => article.handleArticleClick(article.selectedArticle() as NewsItem)
       : undefined,
-  };
+  }));
+  // Empty panes must not stretch into a full-height void on desktop.
+  const compactFeedClass = () => (newsItems().length > 0 ? "" : " self-start h-[240px]");
 
   return (
-    <Box
-      sx={{
-        height: "100%",
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        bgcolor: "background.default",
-      }}
-      data-testid="news-page"
-    >
-      <NewsWorkspaceHeader storyCount={newsItems.length} sourceCount={sourceNames.length} />
-      {isMobile ? (
+    <Box className="h-full min-h-0 flex flex-col overflow-hidden bg-fin-bg" data-testid="news-page">
+      <NewsWorkspaceHeader storyCount={newsItems().length} sourceCount={sourceNames().length} />
+      <Show
+        when={isMobile()}
+        fallback={
+          <Box
+            className="flex-1 min-h-0 grid gap-2 p-2"
+            style={{ "grid-template-columns": "minmax(300px, 0.78fr) minmax(0, 1.22fr)" }}
+          >
+            <Paper
+              component="section"
+              aria-label="News feed"
+              data-testid="news-list-region"
+              className={`${paneClassName}${compactFeedClass()}`}
+            >
+              <NewsList {...newsListProps} />
+            </Paper>
+            <NewsPageDesktop
+              articleDetailProps={articleDetailProps}
+              compact={!article.selectedArticle()}
+            />
+          </Box>
+        }
+      >
         <NewsPageMobile
-          modalOpen={article.modalOpen}
+          modalOpen={article.modalOpen()}
           onCloseArticle={article.handleCloseArticle}
           newsListProps={newsListProps}
           articleDetailProps={articleDetailProps}
         />
-      ) : (
-        <Box
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            display: "grid",
-            gridTemplateColumns: "minmax(300px, 0.78fr) minmax(0, 1.22fr)",
-            gap: 1,
-            p: 1,
-          }}
-        >
-          <Paper
-            component="section"
-            aria-label="News feed"
-            data-testid="news-list-region"
-            sx={paneSx}
-          >
-            <NewsList {...newsListProps} />
-          </Paper>
-          <NewsPageDesktop articleDetailProps={articleDetailProps} />
-        </Box>
-      )}
+      </Show>
     </Box>
   );
 }

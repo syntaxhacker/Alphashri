@@ -192,6 +192,22 @@ class TestFiltering:
         assert body["matched"] == 1
         assert body["rows"][0]["symbol"] == "A"
 
+    def test_sectors_query_string_filters_rows(self, client):
+        body = client.get("/api/value/scan",
+                          params={"sectors": "Technology"}).json()
+        assert body["matched"] == 2
+        assert {r["symbol"] for r in body["rows"]} == {"INFY", "TCS"}
+        body = client.get("/api/value/scan",
+                          params={"sectors": "Energy,Technology"}).json()
+        assert body["matched"] == 3
+
+    def test_fallback_low_de_boundary_matches_main_engine(self):
+        from api.value_scan.router import _passes_fallback
+        row = {"debt_to_equity_fq": 1.0}
+        assert _passes_fallback(row, {"require_low_de": True}, None)
+        row = {"debt_to_equity_fq": 1.01}
+        assert not _passes_fallback(row, {"require_low_de": True}, None)
+
     def test_fallback_engine_filters_without_peer_modules(self, monkeypatch):
         # Simulate filters.py missing: real fallback path end to end.
         from api.value_scan.router import (_fallback_apply_filters,

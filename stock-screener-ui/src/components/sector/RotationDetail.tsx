@@ -1,66 +1,72 @@
-import { Box, Button, Text } from "@/ui";
-import type { ReactNode } from "react";
-import { IconUsers } from "@tabler/icons-react";
-import { MONO, NEGATIVE, POSITIVE, TEXT_MUTED } from "@/ui/palette";
+import type { JSX } from "solid-js";
+import { Show, For } from "solid-js";
+import { NEGATIVE, POSITIVE, TEXT_MUTED } from "@/ui/palette";
+import { ActionIcon, Box, Button, CopyButton, Text, typeSize } from "@/ui";
+import { IconCheck, IconCopy } from "../common/Icons";
+import { IconUsers } from "../screener/icons";
+import { SymbolLink } from "../common/SymbolLink";
+import { useSymbolDock } from "../common/symbolDockContext";
 import type { RotationPeriod, RotationRow } from "../../types/rotation";
-import { formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
+import { getPnLTextColor } from "../../utils/ui-helpers";
+import { formatSectorPercentage as formatPercentage, clickOnSpace } from "./sectorUtils";
+import { formatReturn, returnTone } from "./rotation/returnVisuals";
 import { ROTATION_STATUS_LABELS, ROTATION_STATUS_COLORS_PANEL } from "./rotationStatus";
+import { displaySymbol } from "@/config/tvSymbols";
+import { chartHrefForSymbol } from "../common/symbolDockContext";
 
 const PERIODS: RotationPeriod[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y"];
 
+type MetricTone = "success" | "error" | "muted";
 
+function metricTone(value: number): MetricTone {
+  const tone = returnTone(value);
+  return tone === "dimmed" ? "muted" : tone;
+}
 
-function SectionLabel({ children }: { children: ReactNode }) {
+/** Zero bars are neutral: a green stub would read as a gain. */
+function returnColor(value: number): string {
+  if (!Number.isFinite(value) || value === 0) return TEXT_MUTED;
+  return value > 0 ? POSITIVE : NEGATIVE;
+}
+
+// Decorated feed symbols (NSE:RELIANCE, BRK.B) need a canonical chart href;
+// plain tickers render through the shared dock button.
+function needsCanonicalLink(symbol: string): boolean {
+  const raw = String(symbol ?? "").trim();
+  return displaySymbol(raw) !== raw || raw.includes(".");
+}
+
+function SectionLabel(props: { children: JSX.Element }) {
   return (
     <Text
       c="dimmed"
-      sx={{
-        fontSize: 9.5,
-        fontWeight: 700,
-        letterSpacing: 0.5,
-        textTransform: "uppercase",
-      }}
+      className="text-ui-micro font-bold uppercase tracking-[0.5px]"
     >
-      {children}
+      {props.children}
     </Text>
   );
 }
 
-function Metric({
-  label,
-  value,
-  tone,
-}: {
+function Metric(props: {
   label: string;
   value: string;
   tone: "success" | "error" | "muted";
 }) {
   return (
-    <Box sx={{ minWidth: 0 }}>
+    <Box className="min-w-0">
       <Text
         c="dimmed"
-        sx={{
-          display: "block",
-          fontSize: 9,
-          fontWeight: 700,
-          letterSpacing: 0.4,
-          textTransform: "uppercase",
-        }}
+        className="block text-ui-micro font-bold uppercase tracking-[0.4px]"
       >
-        {label}
+        {props.label}
       </Text>
       <Text
-        c={tone === "muted" ? "secondary" : tone}
+        c={props.tone === "muted" ? "secondary" : props.tone}
         fw={600}
         truncate
-        sx={{
-          display: "block",
-          fontFamily: MONO,
-          fontSize: 10.5,
-          fontVariantNumeric: "tabular-nums",
-        }}
+        className="block font-mono text-ui-micro tabular-nums"
       >
-        {value}
+        {props.value}
       </Text>
     </Box>
   );
@@ -69,220 +75,214 @@ function Metric({
 export interface RotationDetailProps {
   row: RotationRow | null;
   onOpenMembers: (row: RotationRow) => void;
+  market?: string;
+  onSymbolClick?: (symbol: string) => void;
 }
 
-export function RotationDetail({ row, onOpenMembers }: RotationDetailProps) {
-  const status = row ? {
-    label: ROTATION_STATUS_LABELS[row.status].long,
-    color: ROTATION_STATUS_COLORS_PANEL[row.status],
+export function RotationDetail(props: RotationDetailProps) {
+  const row = () => props.row;
+  const dock = useSymbolDock();
+  const openSymbol = (symbol: string) =>
+    props.onSymbolClick
+      ? props.onSymbolClick(symbol)
+      : dock.open(symbol, "chart", props.market);
+  const status = () => row() ? {
+    label: ROTATION_STATUS_LABELS[row()!.status].long,
+    color: ROTATION_STATUS_COLORS_PANEL[row()!.status],
   } : null;
-  const movers = row ? row.top_movers.slice(0, 5) : [];
-  const canOpenMembers = Boolean(row && row.kind === "theme" && row.slug);
-  const monthly = row ? row.returns["1M"] : 0;
+  const movers = () => row() ? row()!.top_movers.slice(0, 5) : [];
+  const canOpenMembers = () => Boolean(row() && row()!.kind === "theme" && row()!.slug);
+  const monthly = () => row() ? row()!.returns["1M"] : 0;
 
   return (
     <Box
       data-testid="rotation-detail"
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        flex: 1,
-        height: "100%",
-        minWidth: 0,
-        minHeight: 0,
-        overflow: "hidden",
-      }}
+      className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     >
-      <Box sx={{ px: 1, py: 0.5, borderBottom: "1px solid", borderColor: "divider" }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
-          {status ? (
-            <Box
-              sx={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                bgcolor: status.color,
-                flexShrink: 0,
-              }}
-            />
-          ) : null}
-          <Text fw={700} truncate sx={{ fontSize: 11, minWidth: 0 }}>
-            {row ? row.name : "Select a group"}
+      <Box className="border-b border-fin-border px-2 py-1">
+        <Box className="flex min-w-0 items-center gap-1.5">
+          <Show when={status()}>
+            {(s_) => (
+              <Box
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ "background-color": s_().color }}
+              />
+            )}
+          </Show>
+          <Text fw={700} truncate className="min-w-0 text-ui-micro">
+            {row() ? row()!.name : "Select a group"}
           </Text>
-          <Box sx={{ flex: 1 }} />
-          {status ? (
-            <Text
-              sx={{
-                fontSize: 9.5,
-                fontWeight: 700,
-                letterSpacing: 0.4,
-                color: status.color,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {status.label}
-            </Text>
-          ) : null}
+          <Box className="flex-1" />
+          <Show when={status()}>
+            {(s_) => (
+              <Text
+                className="whitespace-nowrap text-ui-micro font-bold tracking-[0.4px]"
+                style={{ color: s_().color }}
+              >
+                {s_().label}
+              </Text>
+            )}
+          </Show>
         </Box>
-        <Text c="dimmed" truncate sx={{ display: "block", fontSize: 9 }}>
-          {row
-            ? `${row.category ? `${row.category} · ` : ""}${row.kind} · ${row.quadrant} · ${row.members} members`
+        <Text c="dimmed" truncate className="block text-ui-micro">
+          {row()
+            ? `${row()!.category ? `${row()!.category} · ` : ""}${row()!.kind} · ${row()!.quadrant} · ${row()!.members} members`
             : "Pick a row in the board, matrix or rotation map."}
         </Text>
       </Box>
 
-      {row ? (
+      <Show when={row()}>
         <>
           <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-              gap: 0.5,
-              px: 1,
-              py: 0.5,
-            }}
+            className="grid grid-cols-4 gap-1 px-2 py-1"
           >
-            <Metric label="1M" value={formatPercentage(monthly)} tone={getPnLTextColor(monthly)} />
-            <Metric label="RS" value={row.rs_1m.toFixed(2)} tone={getPnLTextColor(row.rs_1m)} />
+            <Metric label="1M" value={formatReturn(monthly(), 2)} tone={metricTone(monthly())} />
+            <Metric label="RS" value={row()!.rs_1m.toFixed(2)} tone={getPnLTextColor(row()!.rs_1m)} />
             <Metric
               label="Breadth"
-              value={`${row.breadth.toFixed(0)}%`}
-              tone={row.breadth >= 55 ? "success" : row.breadth <= 45 ? "error" : "muted"}
+              value={`${row()!.breadth.toFixed(0)}%`}
+              tone={row()!.breadth >= 55 ? "success" : row()!.breadth <= 45 ? "error" : "muted"}
             />
             <Metric
               label="Volume"
-              value={`${row.rel_volume.toFixed(1)}x`}
-              tone={row.rel_volume >= 1.2 ? "success" : "muted"}
+              value={`${row()!.rel_volume.toFixed(1)}x`}
+              tone={row()!.rel_volume >= 1.2 ? "success" : "muted"}
             />
           </Box>
 
-          <Box sx={{ px: 1, py: 0.5, borderTop: "1px solid", borderColor: "divider" }}>
+          <Box className="border-t border-fin-border px-2 py-1">
             <SectionLabel>Period returns</SectionLabel>
             <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-                gap: 0.5,
-                mt: 0.5,
-              }}
+              className="mt-1 grid grid-cols-7 gap-1"
             >
-              {PERIODS.map((p) => {
-                const value = row.returns[p];
+              <For each={PERIODS}>
+                {(p) => {
+                const value = row()!.returns[p];
                 const height = Math.max(3, Math.min(36, Math.abs(value) * 2.2));
                 return (
                   <Box
-                    key={p}
-                    sx={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: 0.25,
-                      minWidth: 0,
-                    }}
+                    className="flex min-w-0 flex-col items-center gap-[2px]"
                   >
                     <Box
-                      sx={{
-                        height: 28,
-                        width: "100%",
-                        display: "flex",
-                        alignItems: "flex-end",
-                        justifyContent: "center",
-                      }}
+                      className="flex h-7 w-full items-end justify-center"
                     >
                       <Box
-                        sx={{
-                          width: 12,
-                          height,
-                          bgcolor: value >= 0 ? POSITIVE : NEGATIVE,
-                          borderRadius: "2px 2px 0 0",
-                          opacity: 0.9,
-                        }}
+                        data-testid={`rotation-detail-bar-${p}`}
+                        data-zero={value === 0 ? "true" : "false"}
+                        className="w-3 rounded-t-[2px] opacity-90"
+                        style={{ height: `${height}px`, "background-color": returnColor(value) }}
                       />
                     </Box>
-                    <Text sx={{ fontSize: 8, color: TEXT_MUTED, lineHeight: 1 }}>{p}</Text>
+                    <Text className="text-ui-micro leading-none" style={{ color: TEXT_MUTED }}>{p}</Text>
                     <Text
-                      sx={{
-                        fontSize: 8.5,
-                        fontFamily: MONO,
-                        lineHeight: 1,
-                        color: getPnLTextColor(value),
-                        fontVariantNumeric: "tabular-nums",
-                      }}
+                      data-testid={`rotation-detail-return-${p}`}
+                      data-zero={value === 0 ? "true" : "false"}
+                      className="font-mono text-ui-micro leading-none tabular-nums"
+                      style={{ color: returnColor(value) }}
                     >
-                      {value.toFixed(1)}
+                      {formatReturn(value, 1)}
                     </Text>
                   </Box>
                 );
-              })}
+                }}
+              </For>
             </Box>
           </Box>
 
           <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.75,
-              px: 1,
-              py: 0.25,
-              borderTop: "1px solid",
-              borderColor: "divider",
-            }}
+            className="flex items-center gap-1.5 border-t border-fin-border px-2 py-[2px]"
           >
             <SectionLabel>Top movers</SectionLabel>
-            <Box sx={{ flex: 1 }} />
-            {canOpenMembers ? (
+            <Box className="flex-1" />
+            <Show when={canOpenMembers()}>
               <Button
                 data-testid="rotation-detail-members"
                 variant="subtle"
                 size="xs"
                 leftSection={<IconUsers size={12} />}
-                onClick={() => onOpenMembers(row)}
-                style={{ minHeight: 20, paddingInline: 6, fontSize: 10 }}
+                onClick={() => props.onOpenMembers(row()!)}
+                style={{ "min-height": "20px", "padding-inline": "6px", "font-size": `${typeSize("micro")}px` }}
               >
                 Members
               </Button>
-            ) : null}
+            </Show>
           </Box>
 
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, px: 1, pb: 0.5 }}>
-            {movers.length === 0 ? (
-              <Text c="dimmed" sx={{ fontSize: 10 }}>
-                No movers
-              </Text>
-            ) : (
-              movers.map((mover) => (
+          <Box className="flex flex-col gap-[2px] px-2 pb-1">
+            <Show when={movers().length === 0}
+              fallback={
+                <For each={movers()}>
+                  {(mover) => (
                 <Box
-                  key={`${row.id}-${mover.symbol}`}
-                  sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}
+                  className="flex min-w-0 items-center gap-1.5"
                 >
-                  <Box
-                    component="a"
-                    href={`/chart/${encodeURIComponent(mover.symbol)}`}
-                    sx={{
-                      minWidth: 0,
-                      color: "text.primary",
-                      textDecoration: "none",
-                      "&:hover": { color: "primary.main", textDecoration: "underline" },
-                    }}
-                  >
-                    <Text truncate sx={{ fontSize: 10.5, fontWeight: 600 }}>
-                      {mover.symbol}
-                    </Text>
-                  </Box>
-                  <Box sx={{ flex: 1 }} />
+                  {needsCanonicalLink(mover.symbol) ? (
+                    <Box className="flex min-w-0 items-center gap-[2px]">
+                      <Box
+                        component="a"
+                        href={chartHrefForSymbol(mover.symbol, props.market)}
+                        data-testid={`rotation-mover-${mover.symbol}`}
+                        onKeyDown={clickOnSpace}
+                        className="min-w-0 text-fin-text no-underline hover:text-fin-primary hover:underline"
+                      >
+                        <Text truncate className="text-ui-micro font-semibold">
+                          {displaySymbol(mover.symbol)}
+                        </Text>
+                      </Box>
+                      <CopyButton value={displaySymbol(mover.symbol)}>
+                        {({ copied, copy }) => (
+                          <ActionIcon
+                            variant="subtle"
+                            color={copied ? "info" : "secondary"}
+                            size="xs"
+                            style={{ width: "16px", height: "16px", "min-height": "16px", padding: "0px" }}
+                            onClick={(event: MouseEvent) => {
+                              event.stopPropagation();
+                              copy();
+                            }}
+                            aria-label={`Copy ${displaySymbol(mover.symbol)}`}
+                            data-testid={`copy-symbol-${displaySymbol(mover.symbol)}`}
+                          >
+                            {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+                          </ActionIcon>
+                        )}
+                      </CopyButton>
+                    </Box>
+                  ) : (
+                    <SymbolLink
+                      symbol={mover.symbol}
+                      inAppText
+                      tvLink={false}
+                      showChart={false}
+                      showOptions={false}
+                      showCopy
+                      size="xs"
+                      weight={600}
+                      testId={`rotation-mover-${mover.symbol}`}
+                      onTextClick={(sym) => openSymbol(sym)}
+                      className="min-w-0 flex-1"
+                    />
+                  )}
+                  <Box className="flex-1" />
                   <Text
                     c={getPnLTextColor(mover.change)}
                     fw={600}
-                    sx={{ fontFamily: MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}
+                    className="font-mono text-ui-micro tabular-nums"
                   >
                     {formatPercentage(mover.change)}
                   </Text>
                 </Box>
-              ))
-            )}
+                  )}
+                </For>
+              }
+            >
+              <Text c="dimmed" className="text-ui-micro">
+                No movers
+              </Text>
+            </Show>
           </Box>
         </>
-      ) : null}
+      </Show>
     </Box>
   );
 }

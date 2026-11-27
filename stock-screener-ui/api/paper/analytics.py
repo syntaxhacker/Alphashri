@@ -14,8 +14,9 @@ import config
 from .paper_api import router, _get_user_id
 
 
+# Sync `def`: the trade query runs on the anyio worker pool, not the event loop.
 @router.get("/analytics")
-async def get_analytics(
+def get_analytics(
     days_back: int = 90,
     user: "User" = Depends(get_current_user),
 ):
@@ -25,25 +26,37 @@ async def get_analytics(
     from db.models import Trade as TradeModel
     cutoff = datetime.now(config.IST) - timedelta(days=days_back)
     try:
-        db = SessionLocal()
-        trades = db.query(TradeModel).filter(
-            TradeModel.user_id == user_id,
-            TradeModel.is_test == False,
-            TradeModel.exit_time.isnot(None),
-            TradeModel.exit_time >= cutoff,
-        ).order_by(TradeModel.exit_time.asc()).all()
-        for t in trades:
-            d = t.to_dict()
-            d["exit_time"] = str(d["exit_time"]) if d.get("exit_time") else ""
-            d["entry_time"] = str(d["entry_time"]) if d.get("entry_time") else ""
-            all_trades.append(d)
+        from db.database import SessionLocal
+        with SessionLocal() as db:
+            # The rollups below read only these six fields; Trade.to_dict()
+            # would force a full row read just to discard the rest.
+            trades = db.query(
+                TradeModel.exit_time,
+                TradeModel.entry_time,
+                TradeModel.symbol,
+                TradeModel.pnl,
+                TradeModel.costs,
+                TradeModel.net_pnl,
+            ).filter(
+                TradeModel.user_id == user_id,
+                TradeModel.is_test == False,
+                TradeModel.exit_time.isnot(None),
+                TradeModel.exit_time >= cutoff,
+            ).order_by(TradeModel.exit_time.asc()).all()
+            for t in trades:
+                d = {
+                    "exit_time": t.exit_time.isoformat() if t.exit_time else None,
+                    "entry_time": t.entry_time.isoformat() if t.entry_time else None,
+                    "symbol": t.symbol,
+                    "pnl": t.pnl,
+                    "costs": t.costs,
+                    "net_pnl": t.net_pnl,
+                }
+                d["exit_time"] = str(d["exit_time"]) if d.get("exit_time") else ""
+                d["entry_time"] = str(d["entry_time"]) if d.get("entry_time") else ""
+                all_trades.append(d)
     except Exception:
         pass
-    finally:
-        try:
-            db.close()
-        except Exception:
-            pass
 
     all_trades.sort(key=lambda x: x.get("exit_time", ""))
 

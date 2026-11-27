@@ -25,6 +25,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import jwt
+import bcrypt
 import pandas as pd
 import numpy as np
 from fastapi.testclient import TestClient
@@ -36,7 +37,6 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# Standard imports
 from db.database import Base, get_db
 from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies
 from api.auth import (
@@ -51,21 +51,78 @@ from api.auth import (
 )
 
 
+def _install_network_free_news_stubs():
+    """Unconditionally replace news network entry points with deterministic ones.
+
+    This runs before ``api_server_fastapi`` binds the fetch helpers, so even a
+    test that forgets to patch them cannot reach a live site. The real scraper
+    classes are kept: the scraper unit tests exercise their pure helpers.
+    """
+    try:
+        import scrapling.fetchers as _fetchers
+        _fetchers.Fetcher.get = staticmethod(lambda *args, **kwargs: None)
+    except Exception:  # pragma: no cover - scrapling not installed
+        pass
+
+    # news_api lives in the sibling checkout, whose path is otherwise added
+    # later by api.news.news_poller. Add it here so the patches below apply
+    # before api_server_fastapi binds the fetch helpers.
+    import sys as _sys
+    _news_dir = str(ROOT.parent / "moneycontrol-scraper")
+    if _news_dir not in _sys.path:
+        _sys.path.insert(0, _news_dir)
+
+    try:
+        import news_api as _news
+    except Exception:  # pragma: no cover - sibling checkout unavailable
+        return
+
+    _news.fetch_news = lambda *args, **kwargs: []
+    _news.fetch_article_content = lambda url, *args, **kwargs: {
+        "error": "network disabled in tests", "sourceUrl": url,
+    }
+    _aggregator = getattr(_news, "_aggregator", None)
+    if _aggregator is not None:
+        _aggregator.fetch_all = lambda *args, **kwargs: []
+        _aggregator.fetch_from_source = lambda *args, **kwargs: []
+        _aggregator.fetch_article = lambda *args, **kwargs: {
+            "error": "network disabled in tests",
+        }
+
+
+_install_network_free_news_stubs()
+
 from api_server_fastapi import app
 
 
+def _fixture_hash(password: str) -> str:
+    """Fixture-only bcrypt hash at cost 4.
+
+    Production ``hash_password`` (cost 12) is untouched; ``verify_password``
+    reads the cost from the hash, so login assertions still pass. The real
+    hashing path stays covered by tests/api/test_auth.py.
+    """
+    return bcrypt.hashpw(
+        password.encode("utf-8"), bcrypt.gensalt(rounds=4)
+    ).decode("utf-8")
+
+
 @pytest.fixture(scope="function")
-def test_engine():
+def test_engine(_schema_template):
+    # Clone the shared schema instead of running create_all/drop_all per test.
+    # A fresh database per test keeps `db`'s commit semantics isolated: the
+    # fixture's rollback does not undo commits, only discarding the engine does.
     from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument, Trade, Position, MarketHoliday, Stock52WeekTouch, Screener
-    
+
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool
     )
-    Base.metadata.create_all(bind=engine)
+    with _schema_template.raw_connection() as src:
+        with engine.raw_connection() as dst:
+            src.driver_connection.backup(dst.driver_connection)
     yield engine
-    Base.metadata.drop_all(bind=engine)
     engine.dispose()
 
 
@@ -97,6 +154,71 @@ def db(test_engine) -> Generator[Session, None, None]:
     connection.close()
 
 
+@pytest.fixture(autouse=True)
+def _reset_option_caches():
+    """Option routes keep a process-level short-TTL cache.
+
+    Every API test stubs Upstox with its own payload for the same
+    symbol+expiry, so without a reset the second test is served the first
+    test's chain. Reset both caches around each test.
+    """
+    try:
+        from api.options import clear_option_chain_cache
+        from api.options_underlying import _cache as _underlying_cache, _locks
+    except Exception:  # pragma: no cover - options modules unavailable
+        yield
+        return
+
+    def _clear() -> None:
+        clear_option_chain_cache()
+        _underlying_cache.clear()
+        _locks.clear()
+
+    _clear()
+    yield
+    _clear()
+
+
+@pytest.fixture(autouse=True)
+def _reset_analytics_rate_limiter():
+    """The analytics limiter is process-level and each cold build spends
+    ``expiries`` tokens. Without a per-test reset, a file's worth of cold reads
+    exhausts the shared bucket and 429s unrelated tests.
+    """
+    try:
+        from api.rate_limit import analytics_limiter
+    except Exception:  # pragma: no cover - analytics module unavailable
+        yield
+        return
+
+    analytics_limiter.reset()
+    yield
+    analytics_limiter.reset()
+
+
+@pytest.fixture(autouse=True)
+def _stub_chain_snapshot_writer(monkeypatch):
+    """The live chain route now schedules a snapshot on every fresh poll.
+
+    ``record_chain_snapshot`` opens ``SessionLocal`` (the real SQLite file), so
+    API tests must never run it for real. Stub the imported name and clear the
+    process-local throttle between tests; tests that assert on the hook re-patch
+    it with their own recorder.
+    """
+    try:
+        from api import options as _options
+    except Exception:  # pragma: no cover - options modules unavailable
+        yield
+        return
+
+    monkeypatch.setattr(_options, "record_chain_snapshot", lambda payload: 0, raising=False)
+    if hasattr(_options, "_snapshot_last"):
+        _options._snapshot_last.clear()
+    yield
+    if hasattr(_options, "_snapshot_last"):
+        _options._snapshot_last.clear()
+
+
 @pytest.fixture(scope="function")
 def client(db: Session) -> TestClient:
     def override_get_db_for_client():
@@ -104,10 +226,13 @@ def client(db: Session) -> TestClient:
 
     app.dependency_overrides[get_db] = override_get_db_for_client
 
+    # No `with`: the app lifespan starts network-backed background tasks (Event
+    # Radar's EDGAR poll) whose to_thread workers cannot be cancelled at teardown.
+    test_client = TestClient(app)
     try:
-        with TestClient(app) as test_client:
-            yield test_client
+        yield test_client
     finally:
+        test_client.close()
         app.dependency_overrides.clear()
 
 
@@ -118,7 +243,7 @@ def auth_client(db: Session) -> TestClient:
 
     test_user = User(
         email="test@example.com",
-        hashed_password=hash_password("TestPassword123!"),
+        hashed_password=_fixture_hash("TestPassword123!"),
         display_name="Test User",
         is_active=True,
         id=1,
@@ -132,10 +257,13 @@ def auth_client(db: Session) -> TestClient:
     app.dependency_overrides[get_db] = override_get_db_for_client
     app.dependency_overrides[get_current_user] = override_get_current_user
 
+    # No `with`: see `client` — entering the lifespan once per test wedges
+    # TestClient.__exit__ on a blocking EDGAR socket in a thread-pool worker.
+    test_client = TestClient(app)
     try:
-        with TestClient(app) as test_client:
-            yield test_client
+        yield test_client
     finally:
+        test_client.close()
         app.dependency_overrides.clear()
 
 
@@ -168,7 +296,7 @@ def test_user(db: Session, test_user_data: dict) -> User:
     """
     user = User(
         email=test_user_data["email"],
-        hashed_password=hash_password(test_user_data["password"]),
+        hashed_password=_fixture_hash(test_user_data["password"]),
         display_name=test_user_data["display_name"],
         is_active=True,
     )
@@ -187,7 +315,7 @@ def inactive_user(db: Session, test_password: str) -> User:
     """
     user = User(
         email="inactive@example.com",
-        hashed_password=hash_password(test_password),
+        hashed_password=_fixture_hash(test_password),
         display_name="Inactive User",
         is_active=False,
     )
@@ -205,8 +333,8 @@ def auth_headers(client: TestClient, db: Session, test_password: str) -> dict:
     Returns headers with Bearer token that can be used
     to access protected endpoints.
     """
-    # Create a unique test user for this fixture
     import random
+    from unittest.mock import patch
     unique_id = random.randint(10000, 99999)
     user_data = {
         "email": f"authtest{unique_id}@example.com",
@@ -214,14 +342,13 @@ def auth_headers(client: TestClient, db: Session, test_password: str) -> dict:
         "display_name": f"Auth Test User {unique_id}"
     }
 
-    # Register the user
-    client.post("/api/auth/register", json=user_data)
+    with patch("api.auth.hash_password", side_effect=lambda p: _fixture_hash(p)):
+        client.post("/api/auth/register", json=user_data)
 
-    # Then login
-    response = client.post("/api/auth/login", json={
-        "email": user_data["email"],
-        "password": user_data["password"]
-    })
+        response = client.post("/api/auth/login", json={
+            "email": user_data["email"],
+            "password": user_data["password"]
+        })
     data = response.json()
     token = data["access_token"]
     return {"Authorization": f"Bearer {token}"}
@@ -325,7 +452,6 @@ def revoked_refresh_token(db: Session, test_user: User) -> str:
     """
     token = create_refresh_token(test_user.id, db)
 
-    # Get the session and revoke it
     import jwt
     payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
     jti = payload["jti"]
@@ -371,7 +497,7 @@ def multiple_users(db: Session, test_password: str) -> list[User]:
     users = [
         User(
             email=f"user{i}@example.com",
-            hashed_password=hash_password(test_password),
+            hashed_password=_fixture_hash(test_password),
             display_name=f"User {i}",
             is_active=True,
         )
@@ -433,9 +559,6 @@ def login_response_data(client: TestClient, test_user: User, test_password: str)
     return response.json()
 
 
-# ============================================================================
-# Utility API Fixtures (Chart, Symbols, News, Health)
-# ============================================================================
 
 @pytest.fixture
 def sample_candles_data():
@@ -450,7 +573,6 @@ def sample_candles_data():
         freq='1min'
     )
 
-    # Generate realistic price movement
     np.random.seed(42)
     base_price = 100.0
     prices = []
@@ -640,9 +762,6 @@ def sample_article_content():
     }
 
 
-# ============================================================================
-# Mock API Fixtures for External Services
-# ============================================================================
 
 @pytest.fixture
 def mock_trading_api(sample_candles_data):
@@ -657,9 +776,6 @@ def mock_trading_api(sample_candles_data):
     return mock_api
 
 
-# ============================================================================
-# Helper Functions for Utility API Tests
-# ============================================================================
 
 def create_chart_response(symbol: str = "TEST", candles_count: int = 10) -> dict:
     """
@@ -718,7 +834,6 @@ def assert_chart_response_structure(response: dict):
     assert 'pivot_levels' in response
     assert 'timeframe' in response
 
-    # Validate candle structure
     for candle in response.get('candles', []):
         assert 'time' in candle
         assert 'open' in candle
@@ -740,7 +855,6 @@ def assert_news_response_structure(response: dict):
     assert 'total' in response
     assert 'fetchedAt' in response
 
-    # Validate news item structure
     for item in response.get('items', []):
         assert 'title' in item
         assert 'url' in item
@@ -758,16 +872,12 @@ def assert_symbol_search_response_structure(response: dict):
     assert 'query' in response
     assert 'total' in response
 
-    # Validate result structure
     for result in response.get('results', []):
         assert 'symbol' in result
         assert 'name' in result
         assert 'isin' in result
 
 
-# ============================================================================
-# Strategy Management Fixtures
-# ============================================================================
 
 @pytest.fixture
 def sample_template_strategy(db: Session) -> StrategyConfig:
@@ -1057,9 +1167,6 @@ def mock_load_all_trades(sample_journal_data: List[Dict[str, Any]], monkeypatch:
     yield
 
 
-# ============================================================================
-# Bot Configuration Fixtures
-# ============================================================================
 
 @pytest.fixture
 def single_strategy_bot(db: Session, sample_template_strategy: StrategyConfig) -> BotConfig:
@@ -1078,7 +1185,6 @@ def single_strategy_bot(db: Session, sample_template_strategy: StrategyConfig) -
     db.add(bot)
     db.flush()
 
-    # Add strategy association
     db.execute(
         bot_strategies.insert().values(
             bot_id=bot.id,
@@ -1103,7 +1209,6 @@ def multi_strategy_bot(
     Returns:
         BotConfig: A bot configuration with multiple strategies.
     """
-    # Create a second template for multi-strategy bot
     second_tpl = StrategyConfig(
         name="Momentum Template",
         strategy_type="MOMENTUM",
@@ -1123,7 +1228,6 @@ def multi_strategy_bot(
     db.add(bot)
     db.flush()
 
-    # Add strategy associations
     db.execute(
         bot_strategies.insert().values(
             bot_id=bot.id,
@@ -1197,7 +1301,6 @@ def multiple_bots(db: Session, sample_template_strategy: StrategyConfig) -> List
         db.add(bot)
     db.flush()
 
-    # Add strategies to bots
     for i, bot in enumerate(bots):
         db.execute(
             bot_strategies.insert().values(

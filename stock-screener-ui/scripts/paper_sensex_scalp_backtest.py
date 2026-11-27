@@ -1,19 +1,4 @@
 #!/usr/bin/env python3
-"""Scalping strategy backtest on SENSEX — momentum / range / VWAP / breakout scalp.
-
-Tests several scalping styles on 1-min SENSEX candles (23d) and 60-min (3mo),
-priced with Black-Scholes options + costs. Runs in background, writes ranked results.
-
-Scalp styles:
-  momentum  — enter on spot moving X pts over the last N bars (direction of move)
-  range     — fade extremes: buy near N-bar low, sell near N-bar high
-  vwap      — fade deviation from rolling VWAP (reversion)
-  breakout  — buy break of N-bar high / sell break of N-bar low (quick scalp)
-
-Exit: tight target (₹ per lot) / tight SL / EOD. Cooldown 1-3 bars.
-
-Usage: python3 scripts/paper_sensex_scalp_backtest.py [--tf 1|60] [--style all]
-"""
 from __future__ import annotations
 
 import argparse
@@ -32,11 +17,10 @@ from options_paper import greeks as _gr  # noqa: E402
 from scripts.paper_sensex import load_candle_days, option_costs  # noqa: E402
 IST_TZ = __import__("config").IST
 
-T_YEARS = 0.003  # ~1 day to expiry, set below
+T_YEARS = 0.003
 
 
 def bs(side, spot, strike, t, iv=0.19, r=0.05):
-    """Black-Scholes premium on the spot (shared implementation)."""
     return _gr.bs_price(side, spot, strike, t, iv, r)
 
 
@@ -102,7 +86,6 @@ def scalp_day(rows, style, lookback, thr_pts, target, sl, cooldown, eod_hm="15:2
                 reason = "EOD"; ep = bs(pos["side"], spot, pos["strike"], T_YEARS)
             if reason:
                 if ep is None:
-                    # approx exit premium at SL/TP by interpolating from P&L level
                     pnl_at = sl if reason == "SL" else target
                     ep = pos["prem"] + (pnl_at / 20) * (1 if pos["side"] == "CE" else -1)
                 gross = (ep - pos["prem"]) * 20 if pos["side"] == "CE" else (pos["prem"] - ep) * 20

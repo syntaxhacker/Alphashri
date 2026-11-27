@@ -28,6 +28,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     Float,
+    Index,
     String,
     Text,
     UniqueConstraint,
@@ -101,6 +102,8 @@ class CorporateEvent(Base, IdMixin, TimestampMixin):
 
     __table_args__ = (
         UniqueConstraint("external_id", name="uq_corporate_event_external_id"),
+        # Calendar page: market + date range + stable date/symbol order.
+        Index("ix_corporate_events_market_date_symbol", "market", "event_date", "symbol"),
         UniqueConstraint(
             "symbol",
             "event_date",
@@ -175,6 +178,8 @@ class EventAnomaly(Base, IdMixin, TimestampMixin):
 
     __table_args__ = (
         UniqueConstraint("symbol", "ts", name="uq_event_anomaly_symbol_ts"),
+        # Day page: ts range + optional market filter, ordered by ts.
+        Index("ix_event_anomalies_market_ts", "market", "ts"),
     )
 
     def _market_tz(self) -> dt.tzinfo:

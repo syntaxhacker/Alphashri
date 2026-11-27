@@ -34,9 +34,11 @@ from db.models import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def no_redis(monkeypatch):
+    """Keep unpatched tests off a real Redis; @patch tests still override this."""
+    monkeypatch.setattr("api.bot_state.get_redis_client", lambda: None)
+
 
 def _scan_ts(minutes_ago: int = 0) -> str:
     """ISO timestamp (IST offset) `minutes_ago` minutes in the past."""
@@ -161,9 +163,6 @@ def _make_position(db: Session, bot_id: int, user_id: int = 1,
     return p
 
 
-# ============================================================================
-# Tests — Bot not found
-# ============================================================================
 
 @pytest.mark.unit
 class TestBotNotFound:
@@ -178,9 +177,6 @@ class TestBotNotFound:
         assert result is None
 
 
-# ============================================================================
-# Tests — Bot with no positions
-# ============================================================================
 
 @pytest.mark.unit
 class TestBotWithNoPositions:
@@ -222,9 +218,6 @@ class TestBotWithNoPositions:
         assert len(result['positions']) == 0
 
 
-# ============================================================================
-# Tests — Bot with positions
-# ============================================================================
 
 @pytest.mark.unit
 class TestBotWithPositions:
@@ -274,9 +267,6 @@ class TestBotWithPositions:
         assert 'low_price' in p
 
 
-# ============================================================================
-# Tests — Strategy aggregation
-# ============================================================================
 
 @pytest.mark.unit
 class TestStrategyAggregation:
@@ -387,9 +377,6 @@ class TestStrategyAggregation:
         assert result['portfolio']['strategies_count'] == 0
 
 
-# ============================================================================
-# Tests — Scan items (DB first, Redis fallback)
-# ============================================================================
 
 @pytest.mark.unit
 class TestScanItems:
@@ -488,9 +475,6 @@ class TestScanItems:
         assert len(result['strategies'][str(s2.id)]['scan_items']) == 1
 
 
-# ============================================================================
-# Tests — Scan item staleness filtering + honest timestamp
-# ============================================================================
 
 @pytest.mark.unit
 class TestScanItemStaleness:
@@ -612,9 +596,6 @@ class TestScanItemStaleness:
         mock_client.get.assert_not_called()
 
 
-# ============================================================================
-# Tests — Portfolio calculations
-# ============================================================================
 
 @pytest.mark.unit
 class TestPortfolioCalculations:
@@ -682,9 +663,6 @@ class TestPortfolioCalculations:
         assert result['portfolio']['realized_pnl'] == 5000
 
 
-# ============================================================================
-# Tests — Daily loss limit
-# ============================================================================
 
 @pytest.mark.unit
 class TestDailyLossLimit:
@@ -737,16 +715,12 @@ class TestDailyLossLimit:
         bot = _make_bot(db, max_total_capital_pct=0.8)
         strat = _make_strategy(db, max_daily_loss_pct=0.03)
         _link_bot_strategy(db, bot.id, strat.id)
-        # No BotRuntimeState created
 
         result = get_bot_state(bot_id=bot.id, user_id=1, db=db)
 
         assert result['portfolio']['daily_loss_limit_exceeded'] is False
 
 
-# ============================================================================
-# Tests — max_daily_loss_pct aggregation
-# ============================================================================
 
 @pytest.mark.unit
 class TestMaxDailyLossPct:
@@ -794,9 +768,6 @@ class TestMaxDailyLossPct:
         assert result['portfolio']['max_daily_loss_pct'] == 0.03
 
 
-# ============================================================================
-# Tests — Watchlist
-# ============================================================================
 
 @pytest.mark.unit
 class TestWatchlist:
@@ -818,9 +789,6 @@ class TestWatchlist:
         assert result['watchlist'] == []
 
 
-# ============================================================================
-# Tests — Top-level response shape
-# ============================================================================
 
 @pytest.mark.unit
 class TestResponseShape:
@@ -854,7 +822,6 @@ class TestResponseShape:
 
         result = get_bot_state(bot_id=bot.id, user_id=1, db=db)
 
-        # Should be a valid ISO timestamp string
         assert 'T' in result['timestamp']
         assert result['timestamp'] is not None
 

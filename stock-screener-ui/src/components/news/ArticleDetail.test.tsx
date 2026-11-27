@@ -1,297 +1,148 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { ArticleDetail } from "./ArticleDetail";
-import type { NewsItem, ArticleResponse } from "./news-types";
-import { TestWrapper } from "../../test/test-utils";
+import { TestWrapper } from "@/test-utils/renderWithProviders";
 
-vi.mock("./SentimentBadge", () => ({
-  SentimentBadge: ({ sentiment }: { sentiment?: string }) => (
-    <div data-testid="sentiment-badge">{sentiment}</div>
-  ),
-}));
+const emptyProps = {
+  selectedArticle: null,
+  articleContent: null,
+  articleLoading: false,
+  isMobile: false,
+  showFullContent: false,
+  onClose: () => {},
+  onToggleFullContent: () => {},
+  onSymbolClick: () => {},
+};
 
-vi.mock("./ImpactScore", () => ({
-  ImpactScore: ({ score }: { score?: number }) => <div data-testid="impact-score">{score}</div>,
-}));
+describe("ArticleDetail empty state", () => {
+  afterEach(() => cleanup());
 
-vi.mock("./TradeIdeaCard", () => ({
-  TradeIdeaCard: ({ idea }: { idea: any }) =>
-    idea ? <div data-testid="trade-idea">{idea.symbol}</div> : null,
-}));
+  it("uses one terse prompt in the empty pane, not marketing copy about a reading desk", () => {
+    render(() => <ArticleDetail {...emptyProps} />, { wrapper: TestWrapper });
 
-describe("ArticleDetail", () => {
-  const mockNewsItem: NewsItem = {
+    const empty = screen.getByTestId("article-empty");
+    expect(empty).toHaveTextContent("Select a headline");
+    expect(empty).not.toHaveTextContent("reading desk");
+    expect(empty).not.toHaveTextContent("AI-assisted");
+    const pane = screen.getByTestId("article-detail");
+    expect(pane.getAttribute("style") ?? "").toContain("justify-content: flex-start");
+  });
+});
+
+describe("ArticleDetail symbol badge", () => {
+  afterEach(() => cleanup());
+
+  const symbol = {
+    name: "Reliance Industries",
+    code: "RELIANCE",
+    url: "https://example.com/reliance",
+    trading_symbol: "RELIANCE",
+    instrument_key: "NSE_EQ|INE002A01018",
+  };
+
+  it("is a button that activates the symbol action with mouse and keyboard", async () => {
+    const onSymbolClick = vi.fn();
+    render(
+      () => (
+        <ArticleDetail
+          {...emptyProps}
+          selectedArticle={{
+            id: "1",
+            headline: "Headline",
+            description: "",
+            source: "Reuters",
+            sourceUrl: "https://example.com/1",
+            publishedAt: "2025-01-01T10:00:00Z",
+            fetchedAt: "2025-01-01T10:00:00Z",
+          }}
+          articleContent={{
+            id: "1",
+            headline: "Headline",
+            description: "Body",
+            source: "Reuters",
+            sourceUrl: "https://example.com/1",
+            publishedAt: "2025-01-01T10:00:00Z",
+            fetchedAt: "2025-01-01T10:00:00Z",
+            symbols: [symbol],
+          }}
+          onSymbolClick={onSymbolClick}
+        />
+      ),
+      { wrapper: TestWrapper },
+    );
+
+    const badge = screen.getByTestId("symbol-badge");
+    expect(badge.tagName).toBe("BUTTON");
+    expect(badge).not.toHaveAttribute("aria-label");
+    expect(badge).toHaveAccessibleName(/Reliance Industries/);
+    expect(badge.className).toContain("focus-visible:outline");
+
+    await fireEvent.click(badge);
+    expect(onSymbolClick).toHaveBeenCalledWith(symbol);
+
+    onSymbolClick.mockClear();
+    await fireEvent.keyDown(badge, { key: "Enter" });
+    expect(onSymbolClick).toHaveBeenCalledWith(symbol);
+
+    onSymbolClick.mockClear();
+    await fireEvent.keyDown(badge, { key: " " });
+    expect(onSymbolClick).toHaveBeenCalledWith(symbol);
+  });
+});
+
+describe("ArticleDetail filler copy", () => {
+  afterEach(() => cleanup());
+
+  const article = {
     id: "1",
-    headline: "Test Article Headline",
-    description: "Test description",
+    headline: "Headline",
+    description: "",
     source: "Reuters",
-    sourceUrl: "https://example.com/article",
+    sourceUrl: "https://example.com/1",
     publishedAt: "2025-01-01T10:00:00Z",
     fetchedAt: "2025-01-01T10:00:00Z",
-    symbols: [],
   };
 
-  const mockArticleContent: ArticleResponse = {
-    summary: "Test summary",
-    key_points: ["Point 1", "Point 2"],
-    sentiment: "Bullish",
-    impact_score: 8,
-    symbols: [{ code: "RELIANCE", name: "Reliance Industries", instrument_key: "NSE:RELIANCE" }],
-    trade_ideas: [{ symbol: "RELIANCE", direction: "LONG", reasoning: "Strong support" }],
-    description: "Full article description here.",
-    publishedAt: "2025-01-01T10:00:00Z",
-  };
+  it("states an unavailable analysis in one terminal line and drops the dead source button", () => {
+    render(
+      () => (
+        <ArticleDetail
+          {...emptyProps}
+          selectedArticle={article}
+          articleContent={{ ...article, analysis_status: "failed", description: "Body" }}
+        />
+      ),
+      { wrapper: TestWrapper },
+    );
 
-  const defaultProps = {
-    selectedArticle: mockNewsItem,
-    articleContent: mockArticleContent,
-    articleLoading: false,
-    isMobile: false,
-    showFullContent: false,
-    onClose: vi.fn(),
-    onToggleFullContent: vi.fn(),
-    onSymbolClick: vi.fn(),
-  };
-
-  beforeEach(() => {
-    vi.clearAllMocks();
+    expect(screen.getByText("ANALYSIS UNAVAILABLE")).toBeInTheDocument();
+    expect(screen.queryByText("ANALYSIS PENDING")).not.toBeInTheDocument();
+    expect(screen.queryByText(/queued for analysis/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Analysis will be available/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("No source link")).not.toBeInTheDocument();
   });
 
-  afterEach(() => {
-    cleanup();
-  });
-
-  describe("rendering", () => {
-    it("renders empty state when no article selected", () => {
-      render(<ArticleDetail {...defaultProps} selectedArticle={null} />, { wrapper: TestWrapper });
-      expect(screen.getByTestId("article-detail")).toBeInTheDocument();
-    });
-
-    it("renders article title when article is selected", () => {
-      render(<ArticleDetail {...defaultProps} />, { wrapper: TestWrapper });
-      expect(screen.getByTestId("article-title")).toHaveTextContent("Test Article Headline");
-    });
-
-    it("renders source badge", () => {
-      render(<ArticleDetail {...defaultProps} />, { wrapper: TestWrapper });
-      expect(screen.getByText("Reuters")).toBeInTheDocument();
-    });
-
-    it("renders sentiment badge when present", () => {
-      render(<ArticleDetail {...defaultProps} />, { wrapper: TestWrapper });
-      expect(screen.getByTestId("sentiment-badge")).toHaveTextContent("Bullish");
-    });
-
-    it("renders impact score when present", () => {
-      render(<ArticleDetail {...defaultProps} />, { wrapper: TestWrapper });
-      expect(screen.getByTestId("impact-score")).toHaveTextContent("8");
-    });
-
-    it("renders summary when present", () => {
-      render(<ArticleDetail {...defaultProps} />, { wrapper: TestWrapper });
-      expect(screen.getByText("Test summary")).toBeInTheDocument();
-    });
-
-    it("renders key points when present", () => {
-      render(<ArticleDetail {...defaultProps} />, { wrapper: TestWrapper });
-      expect(screen.getByText("Key Takeaways")).toBeInTheDocument();
-    });
-
-    it("renders loading state", () => {
-      render(<ArticleDetail {...defaultProps} articleLoading={true} />, { wrapper: TestWrapper });
-      expect(screen.getByText("Analyzing article...")).toBeInTheDocument();
-    });
-
-    it("renders external link when sourceUrl is present", () => {
-      render(<ArticleDetail {...defaultProps} />, { wrapper: TestWrapper });
-      expect(screen.getByText("Open Original")).toBeInTheDocument();
-    });
-
-    it("renders a retryable error when article loading fails", async () => {
-      const user = userEvent.setup();
-      const onRetryArticle = vi.fn();
-      render(
+  it("shows the signal badges without a redundant section label", () => {
+    render(
+      () => (
         <ArticleDetail
-          {...defaultProps}
-          articleContent={null}
-          articleError="Network error"
-          onRetryArticle={onRetryArticle}
-        />,
-        { wrapper: TestWrapper },
-      );
-      expect(screen.getByTestId("article-error")).toHaveTextContent("Network error");
-      await user.click(screen.getByText("Retry"));
-      expect(onRetryArticle).toHaveBeenCalledTimes(1);
-    });
-  });
+          {...emptyProps}
+          selectedArticle={article}
+          articleContent={{
+            ...article,
+            analysis_status: "done",
+            summary: "Summary text",
+            sentiment: "BULLISH",
+            impact_score: 80,
+          }}
+        />
+      ),
+      { wrapper: TestWrapper },
+    );
 
-  describe("callbacks", () => {
-    it("accepts onClose callback", () => {
-      const onClose = vi.fn();
-      render(<ArticleDetail {...defaultProps} onClose={onClose} />, { wrapper: TestWrapper });
-      expect(onClose).not.toHaveBeenCalled();
-    });
-
-    it("accepts onToggleFullContent callback", () => {
-      const onToggleFullContent = vi.fn();
-      render(<ArticleDetail {...defaultProps} onToggleFullContent={onToggleFullContent} />, {
-        wrapper: TestWrapper,
-      });
-      expect(onToggleFullContent).not.toHaveBeenCalled();
-    });
-
-    it("accepts onSymbolClick callback", () => {
-      const onSymbolClick = vi.fn();
-      render(<ArticleDetail {...defaultProps} onSymbolClick={onSymbolClick} />, {
-        wrapper: TestWrapper,
-      });
-      expect(onSymbolClick).not.toHaveBeenCalled();
-    });
-
-    it("handles undefined onClose gracefully", () => {
-      const { container } = render(<ArticleDetail {...defaultProps} onClose={undefined as any} />, {
-        wrapper: TestWrapper,
-      });
-      expect(container).toBeInTheDocument();
-    });
-
-    it("handles undefined onToggleFullContent gracefully", () => {
-      const { container } = render(
-        <ArticleDetail {...defaultProps} onToggleFullContent={undefined as any} />,
-        { wrapper: TestWrapper },
-      );
-      expect(container).toBeInTheDocument();
-    });
-
-    it("handles undefined onSymbolClick gracefully", () => {
-      const { container } = render(
-        <ArticleDetail {...defaultProps} onSymbolClick={undefined as any} />,
-        { wrapper: TestWrapper },
-      );
-      expect(container).toBeInTheDocument();
-    });
-  });
-
-  describe("edge cases", () => {
-    it("renders with undefined selectedArticle", () => {
-      const { container } = render(
-        <ArticleDetail {...defaultProps} selectedArticle={undefined as any} />,
-        { wrapper: TestWrapper },
-      );
-      expect(container).toBeInTheDocument();
-    });
-
-    it("renders with undefined articleContent", () => {
-      render(
-        <ArticleDetail
-          {...defaultProps}
-          articleContent={undefined as any}
-          selectedArticle={mockNewsItem}
-        />,
-        { wrapper: TestWrapper },
-      );
-      expect(screen.getByTestId("article-title")).toHaveTextContent("Test Article Headline");
-    });
-
-    it("renders with null articleContent", () => {
-      render(
-        <ArticleDetail
-          {...defaultProps}
-          articleContent={null as any}
-          selectedArticle={mockNewsItem}
-        />,
-        { wrapper: TestWrapper },
-      );
-      expect(screen.getByTestId("article-title")).toHaveTextContent("Test Article Headline");
-    });
-
-    it("renders with empty symbols array", () => {
-      render(
-        <ArticleDetail {...defaultProps} articleContent={{ ...mockArticleContent, symbols: [] }} />,
-        { wrapper: TestWrapper },
-      );
-      expect(screen.getByTestId("article-detail")).toBeInTheDocument();
-    });
-
-    it("renders with empty trade_ideas array", () => {
-      render(
-        <ArticleDetail
-          {...defaultProps}
-          articleContent={{ ...mockArticleContent, trade_ideas: [] }}
-        />,
-        { wrapper: TestWrapper },
-      );
-      expect(screen.getByTestId("article-detail")).toBeInTheDocument();
-    });
-
-    it("renders with empty key_points array", () => {
-      render(
-        <ArticleDetail
-          {...defaultProps}
-          articleContent={{ ...mockArticleContent, key_points: [] }}
-        />,
-        { wrapper: TestWrapper },
-      );
-      expect(screen.getByTestId("article-detail")).toBeInTheDocument();
-    });
-
-    it("renders with undefined summary", () => {
-      render(
-        <ArticleDetail
-          {...defaultProps}
-          articleContent={{ ...mockArticleContent, summary: undefined as any }}
-        />,
-        { wrapper: TestWrapper },
-      );
-      expect(screen.getByTestId("article-detail")).toBeInTheDocument();
-    });
-
-    it("renders with undefined description", () => {
-      const { container } = render(
-        <ArticleDetail
-          {...defaultProps}
-          articleContent={{ ...mockArticleContent, description: undefined as any } as any}
-          selectedArticle={null}
-        />,
-        { wrapper: TestWrapper },
-      );
-      expect(container).toBeInTheDocument();
-    });
-
-    it("renders with null sourceUrl", () => {
-      render(
-        <ArticleDetail
-          {...defaultProps}
-          selectedArticle={{ ...mockNewsItem, sourceUrl: null as any }}
-        />,
-        { wrapper: TestWrapper },
-      );
-      expect(screen.queryByText("Open Original")).not.toBeInTheDocument();
-    });
-
-    it("renders with null sentiment in content", () => {
-      render(
-        <ArticleDetail
-          {...defaultProps}
-          articleContent={{ ...mockArticleContent, sentiment: null as any }}
-        />,
-        { wrapper: TestWrapper },
-      );
-      expect(screen.queryByTestId("sentiment-badge")).not.toBeInTheDocument();
-    });
-
-    it("renders with zero impact_score", () => {
-      render(
-        <ArticleDetail
-          {...defaultProps}
-          articleContent={{ ...mockArticleContent, impact_score: 0 }}
-        />,
-        { wrapper: TestWrapper },
-      );
-      expect(screen.getByTestId("impact-score")).toHaveTextContent("0");
-    });
+    expect(screen.queryByText("Signal snapshot")).not.toBeInTheDocument();
+    expect(screen.getByTestId("article-summary")).toBeInTheDocument();
   });
 });

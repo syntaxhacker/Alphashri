@@ -26,13 +26,13 @@ import jwt
 import bcrypt
 from fastapi.testclient import TestClient
 from fastapi import HTTPException, status
-from sqlalchemy import create_engine, text, StaticPool
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy import text
+from sqlalchemy.orm import sessionmaker
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from db.database import Base, get_db
+from db.database import get_db
 from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument
 from api.auth import (
     hash_password,
@@ -46,45 +46,26 @@ from api.auth import (
     REFRESH_TOKEN_EXPIRE_DAYS,
     get_current_user,
 )
-from tests.helpers.db import import_all_models
 
 
-# =============================================================================
-# Test Configuration - Use in-memory SQLite for isolation
-# =============================================================================
+def fast_hash_password(password: str) -> str:
+    """Fixture-only bcrypt hash at cost 4; production hashing is untouched.
 
-# Use in-memory database for test isolation (consistent with conftest.py)
-TEST_SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+    Login/validation tests only need a hash that verify_password accepts. The
+    production cost-12 hash stays in TestPasswordHashing, where strength is the
+    thing under test.
+    """
+    return bcrypt.hashpw(
+        password.encode("utf-8"), bcrypt.gensalt(rounds=4)
+    ).decode("utf-8")
 
-test_engine = create_engine(
-    TEST_SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool
-)
-
-TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
-
-
-def override_get_db():
-    db = TestSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-# =============================================================================
-# Fixtures
-# =============================================================================
 
 @pytest.fixture(scope="function")
-def db():
-    import_all_models()
-    Base.metadata.create_all(bind=test_engine)
-    session = TestSessionLocal()
+def db(test_db_engine):
+    """Use the shared schema-clone engine instead of per-test create_all/drop_all."""
+    session = sessionmaker(autocommit=False, autoflush=False, bind=test_db_engine)()
     yield session
     session.close()
-    Base.metadata.drop_all(bind=test_engine)
 
 
 @pytest.fixture(scope="function")
@@ -117,7 +98,7 @@ def test_password():
 def test_user(db, test_password):
     user = User(
         email="security_test@example.com",
-        hashed_password=hash_password(test_password),
+        hashed_password=fast_hash_password(test_password),
         display_name="Security Test User",
         is_active=True,
         initial_capital=1000000.0,
@@ -132,7 +113,7 @@ def test_user(db, test_password):
 def second_user(db, test_password):
     user = User(
         email="second_user@example.com",
-        hashed_password=hash_password(test_password),
+        hashed_password=fast_hash_password(test_password),
         display_name="Second User",
         is_active=True,
         initial_capital=500000.0,
@@ -205,9 +186,6 @@ def sample_bot(db, test_user, sample_strategy):
     return bot
 
 
-# =============================================================================
-# 1. AUTHENTICATION SECURITY TESTS
-# =============================================================================
 
 @pytest.mark.unit
 class TestPasswordHashing:
@@ -465,9 +443,6 @@ class TestBruteForceProtection:
         assert "does not exist" not in data["detail"].lower()
 
 
-# =============================================================================
-# 2. INPUT VALIDATION TESTS
-# =============================================================================
 
 @pytest.mark.unit
 class TestSQLInjection:
@@ -611,14 +586,15 @@ class TestMalformedInput:
         assert response.status_code == 422
 
     def test_extra_fields_are_ignored_or_rejected(self, client, auth_headers):
-        response = client.post("/api/auth/register", json={
-            "email": "extra@example.com",
-            "password": "Password123!",
-            "extra_field": "should_be_ignored",
-            "admin": True,
-            "role": "superuser"
-        })
-        
+        with patch("api.auth.hash_password", side_effect=fast_hash_password):
+            response = client.post("/api/auth/register", json={
+                "email": "extra@example.com",
+                "password": "Password123!",
+                "extra_field": "should_be_ignored",
+                "admin": True,
+                "role": "superuser"
+            })
+
         assert response.status_code in [201, 422]
 
 
@@ -656,9 +632,6 @@ class TestTypeCoercionAttacks:
         assert response.status_code in [200, 400, 422]
 
 
-# =============================================================================
-# 3. AUTHORIZATION TESTS
-# =============================================================================
 
 @pytest.mark.unit
 class TestUserIsolation:
@@ -749,7 +722,7 @@ class TestPrivilegeEscalation:
     def test_inactive_user_cannot_login(self, client, db, test_password):
         user = User(
             email="inactive_test@example.com",
-            hashed_password=hash_password(test_password),
+            hashed_password=fast_hash_password(test_password),
             display_name="Inactive User",
             is_active=False,
         )
@@ -765,9 +738,6 @@ class TestPrivilegeEscalation:
         assert "disabled" in response.json()["detail"].lower()
 
 
-# =============================================================================
-# 4. API SECURITY TESTS
-# =============================================================================
 
 @pytest.mark.unit
 class TestErrorInformationDisclosure:
@@ -942,9 +912,6 @@ class TestHTTPSecurityHeaders:
         cache_control = response.headers.get("cache-control", "")
 
 
-# =============================================================================
-# 5. DATA VALIDATION TESTS
-# =============================================================================
 
 class TestFinancialValueValidation:
     """Tests for financial value validation."""
@@ -1151,9 +1118,6 @@ class TestInvalidSymbolHandling:
         assert response.status_code in [200, 400, 422]
 
 
-# =============================================================================
-# 6. INTEGRATION SECURITY TESTS
-# =============================================================================
 
 class TestEndToEndSecurity:
     """End-to-end security tests."""
@@ -1161,10 +1125,11 @@ class TestEndToEndSecurity:
     def test_full_auth_flow_security(self, client, test_password):
         email = "e2e_security@example.com"
         
-        response = client.post("/api/auth/register", json={
-            "email": email,
-            "password": test_password
-        })
+        with patch("api.auth.hash_password", side_effect=fast_hash_password):
+            response = client.post("/api/auth/register", json={
+                "email": email,
+                "password": test_password
+            })
         assert response.status_code == 201
         tokens = response.json()
         assert "access_token" in tokens
@@ -1243,9 +1208,6 @@ class TestSecurityRegression:
         assert token not in data
 
 
-# =============================================================================
-# RUN TESTS
-# =============================================================================
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])

@@ -1,20 +1,4 @@
 #!/usr/bin/env python3
-"""Multi-day evaluation of the NiftyPinReversal strategy across all tape days.
-
-For each ``experiments/data/nifty_tape/YYYY-MM-DD.jsonl``: load via
-``options_paper.tape.load_tape``, run ``build("nifty_pin_reversal")``, collect
-trades (entry/exit, reason, net_pnl). Prints a per-day table plus an aggregate
-(total net, win rate, PF, max drawdown of the daily curve, avg hold).
-
-Also runs a parameter-sensitivity baseline (same strategy, ``min_touches``
-2 and 4, ``sweep_max_pts`` 10 and 20) and reports the spread so we know
-whether the default is robust or overfit. No parameter is changed here.
-
-And reports the 2026-10-21 trade in detail (entry 14:49 CE @181.15).
-
-Usage:
-    .venv/bin/python scripts/eval_pin_reversal.py
-"""
 
 from __future__ import annotations
 
@@ -43,11 +27,7 @@ BASELINES: dict[str, dict] = {
 }
 
 
-# --------------------------------------------------------------------------
-# Pure metric helpers (unit-tested in tests/test_eval_pin_reversal.py)
-# --------------------------------------------------------------------------
 def profit_factor(pnls: list[float]) -> float:
-    """Sum(wins) / abs(sum(losses)). inf if no losses but wins; 0.0 if empty."""
     wins = sum(p for p in pnls if p > 0)
     losses = sum(p for p in pnls if p < 0)
     if not pnls:
@@ -58,7 +38,6 @@ def profit_factor(pnls: list[float]) -> float:
 
 
 def max_drawdown(daily_nets: list[float]) -> float:
-    """Peak-to-trough drawdown of the cumulative curve. Magnitude >= 0."""
     peak = 0.0
     worst = 0.0
     cum = 0.0
@@ -70,7 +49,6 @@ def max_drawdown(daily_nets: list[float]) -> float:
 
 
 def aggregate_metrics(trades: list) -> dict:
-    """Aggregate over Trade-like objects with .net_pnl and .hold_min."""
     n = len(trades)
     wins = sum(1 for t in trades if t.net_pnl > 0)
     losses = sum(1 for t in trades if t.net_pnl < 0)
@@ -82,9 +60,6 @@ def aggregate_metrics(trades: list) -> dict:
             "win_rate": win_rate, "pf": pf, "avg_hold": avg_hold}
 
 
-# --------------------------------------------------------------------------
-# Tape evaluation
-# --------------------------------------------------------------------------
 def tape_dates() -> list[str]:
     return sorted(p.stem for p in TAPE_DIR.glob("*.jsonl") if DATE_RE.match(p.stem))
 
@@ -112,7 +87,6 @@ def main() -> int:
         print("no tape days found")
         return 1
 
-    # --- per-day table at default params ---
     print("nifty_pin_reversal — per-day (default touches=3, sweep=15)")
     print(f"{'date':<12}{'n':>3}{'wins':>6}{'loss':>6}{'net':>10}{'PF':>8}")
     per_day_nets: list[float] = []
@@ -139,7 +113,6 @@ def main() -> int:
     print(f"gate (net>0 and n>=5 and PF>=1.2): "
           f"{'PASS' if (agg['net'] > 0 and agg['n'] >= 5 and agg['pf'] >= 1.2) else 'FAIL'}")
 
-    # --- baseline sensitivity ---
     print("\nbaseline sensitivity (all tape days)")
     print(f"{'config':<34}{'n':>4}{'net':>10}{'PF':>8}{'win%':>7}")
     rows = []
@@ -159,7 +132,6 @@ def main() -> int:
     print(f"best by net: {best[0]} ({best[1]['net']:+.0f}, n={best[1]['n']}) — "
           f"shown for context, NOT selected (picking the max would overfit)")
 
-    # --- 2026-10-21 detail ---
     print(f"\n{DETAIL_DATE} trade detail (default params):")
     dtrades = eval_day(DETAIL_DATE)
     if not dtrades:

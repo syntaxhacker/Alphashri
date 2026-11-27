@@ -78,7 +78,7 @@ describe("dataFreshness", () => {
       report: { fetchedAt: "2026-11-03T11:55:41+05:30", market: { session_date: "2026-11-03" } },
       tape: { date: "2026-11-03", rows: [{ t: "11:48" }] },
     });
-    expect(out.ageMs).toBe(1_000); // newest of report/tape
+    expect(out.ageMs).toBe(1_000);
     expect(out.tapeAgeMs).toBe(7 * 60_000 + 42_000);
     expect(out.stale).toBe(true);
   });

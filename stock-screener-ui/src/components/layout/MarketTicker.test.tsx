@@ -1,41 +1,94 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, within, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { MarketTicker, MarketStatus } from "./MarketTicker";
 import { UIProvider } from "@/ui";
+import * as palette from "@/ui/palette";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
-import { isMarketClosedToday, getHolidayState } from "../../state/holidays";
+import { fetchHolidays } from "../../api/holidays_api";
+import { loadHolidays, resetHolidays } from "../../state/holidays";
 
 // Mock fetch
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Mock useMarketTickerEnabled with controllable value
-let mockMarketTickerEnabled = true;
-const mockSetMarketTickerEnabled = vi.fn();
-
-vi.mock("../../hooks/useMarketTickerEnabled", () => ({
-  useMarketTickerEnabled: () => [mockMarketTickerEnabled, mockSetMarketTickerEnabled],
+// Pin both clocks to the test instant, but keep the real IST boundary maths,
+// holiday lookup and E2E override. `isMarketClosedToday` is deliberately kept
+// holiday-only: the fixed-time regressions must fail while the ticker calls it.
+const clock = vi.hoisted(() => ({
+  now: new Date("2026-11-16T05:30:00Z"), // Monday 11:00 IST
 }));
 
-vi.mock("../../state/holidays", () => ({
-  subscribeToHolidays: vi.fn(),
-  isMarketClosedToday: vi.fn().mockReturnValue(false),
-  getHolidayState: vi.fn(() => ({ holidays: [] })),
+vi.mock("../../api/holidays_api", () => ({
+  fetchHolidays: vi.fn(async () => []),
+  fetchHolidayCheck: vi.fn(),
 }));
+
+const nav = vi.hoisted(() => ({ navigate: vi.fn(), dockOpen: vi.fn() }));
+
+vi.mock("@solidjs/router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@solidjs/router")>()),
+  useNavigate: () => nav.navigate,
+}));
+
+vi.mock("../common/symbolDockContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../common/symbolDockContext")>()),
+  useSymbolDock: () => ({
+    open: nav.dockOpen,
+    preview: vi.fn(),
+    endPreview: vi.fn(),
+    close: vi.fn(),
+    setOutlet: vi.fn(),
+    pinned: false,
+  }),
+}));
+
+vi.mock("../../state/holidays", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../state/holidays")>();
+  const istDate = (now: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
+  return {
+    ...actual,
+    isMarketClosedToday: () => actual.isTradingHoliday(istDate(clock.now)),
+    isMarketOpenNow: (now?: Date) => actual.isMarketOpenNow(now ?? clock.now),
+  };
+});
+
+function setClock(utcIso: string) {
+  clock.now = new Date(utcIso);
+}
+
+/** Pin `new Date()` without faking timers, so waitFor/setInterval still run. */
+function freezeDate() {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(clock.now);
+}
+
+async function setHoliday(date: string, description: string) {
+  vi.mocked(fetchHolidays).mockResolvedValueOnce([
+    { date, description, type: "trading" },
+  ]);
+  resetHolidays();
+  await loadHolidays();
+  freezeDate(); // findTodayHoliday() derives the date from `new Date()`
+}
 
 describe("MarketTicker", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(isMarketClosedToday).mockReturnValue(false);
-    // Reset mock to enabled by default
-    mockMarketTickerEnabled = true;
+    resetHolidays();
+    setClock("2026-11-16T05:30:00Z"); // Monday 11:00 IST — open
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+    vi.mocked(fetchHolidays).mockResolvedValue([]);
+    // Component reads the enabled flag straight from localStorage (v2 key)
+    localStorage.clear();
     setupBrowserMocks();
   });
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
   });
 
   const mockTickerData = {
@@ -68,10 +121,9 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     expect(screen.getByTestId("market-ticker")).toBeInTheDocument();
@@ -83,10 +135,9 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -101,10 +152,9 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
@@ -119,17 +169,18 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
-      // change=150 formatted as "+150.00 (0.68%)"
+      // The compact tile shows the signed percent; the full "+150.00 (0.68%)"
+      // stays in the tooltip so no information is lost.
       const change = screen.getByTestId("ticker-change-nsei");
-      expect(change).toHaveTextContent("+150.00 (0.68%)");
-      expect(change).toHaveStyle({ color: "#3FB950" });
+      expect(change).toHaveTextContent("+0.68%");
+      expect(change).toHaveAttribute("title", "+150.00 (0.68%)");
+      expect(change).toHaveStyle({ color: palette.POSITIVE_COLOR });
       expect(change).toHaveTextContent("▲");
     });
   });
@@ -140,18 +191,107 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
-      // change=-200 formatted as "-200.00 (-0.44%)"
-      expect(screen.getByTestId("ticker-change-nsebank")).toHaveTextContent(
+      expect(screen.getByTestId("ticker-change-nsebank")).toHaveTextContent("-0.44%");
+      expect(screen.getByTestId("ticker-change-nsebank")).toHaveAttribute(
+        "title",
         "-200.00 (-0.44%)",
       );
     });
+  });
+
+  it("opens the chart dock with canonical ids when index names are activated", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockTickerData,
+    });
+
+    render(() => (<UIProvider>
+        <MarketTicker />
+      </UIProvider>),
+    );
+
+    const nifty = await screen.findByTestId("ticker-nsei");
+    const bankNifty = screen.getByTestId("ticker-nsebank");
+    expect(nifty.tagName).toBe("BUTTON");
+    expect(bankNifty.tagName).toBe("BUTTON");
+    // The visible tape content names the button — no aria-label override that
+    // would trip axe's label-content-name-mismatch on every app page.
+    expect(nifty).not.toHaveAttribute("aria-label");
+    expect(nifty).toHaveAccessibleName(/NIFTY/);
+    expect(nifty).toHaveAccessibleName(/22,000\.00/);
+
+    await fireEvent.click(nifty);
+    expect(nav.dockOpen).toHaveBeenCalledWith("NIFTY");
+    expect(nav.navigate).not.toHaveBeenCalled();
+
+    nav.dockOpen.mockClear();
+    await fireEvent.keyDown(bankNifty, { key: "Enter" });
+    expect(nav.dockOpen).toHaveBeenCalledWith("BANKNIFTY");
+    expect(nav.navigate).not.toHaveBeenCalled();
+  });
+
+  it("leaves commodity and forex quotes non-interactive", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        tickers: {
+          "GC=F": { symbol: "GC=F", name: "Gold", price: 1800, change: 10, change_percent: 0.56, is_positive: true },
+          "SI=F": { symbol: "SI=F", name: "Silver", price: 25, change: 0.5, change_percent: 2.0, is_positive: true },
+          "CL=F": { symbol: "CL=F", name: "Crude Oil", price: 70, change: -1, change_percent: -1.4, is_positive: false },
+          "USDINR=X": { symbol: "USDINR=X", name: "USD/INR", price: 83, change: 0.1, change_percent: 0.12, is_positive: true },
+        },
+        last_updated: "2025-06-15T10:30:00Z",
+        loading: false,
+        error: null,
+      }),
+    });
+
+    render(() => (<UIProvider>
+        <MarketTicker />
+      </UIProvider>),
+    );
+
+    for (const id of ["ticker-gcf", "ticker-sif", "ticker-clf", "ticker-usdinrx"]) {
+      const row = await screen.findByTestId(id);
+      expect(row.tagName).not.toBe("BUTTON");
+      expect(row).toHaveStyle({ cursor: "default" });
+      await fireEvent.click(row);
+    }
+    expect(nav.dockOpen).not.toHaveBeenCalled();
+    expect(nav.navigate).not.toHaveBeenCalled();
+  });
+
+  const compactGridAssertions = async () => {
+    const item = await screen.findByTestId("ticker-nsei");
+    const price = screen.getByTestId("ticker-price-nsei");
+    const change = screen.getByTestId("ticker-change-nsei");
+    expect(item.contains(price)).toBe(true);
+    expect(item.contains(change)).toBe(true);
+    expect(item.children).toHaveLength(3);
+    expect(item.style.display).toBe("grid");
+    expect(item.style.getPropertyValue("grid-template-rows")).toBe("auto auto auto");
+    // The old pill treatment is gone — the change is plain coloured text.
+    expect(change).toHaveTextContent(/[-+]\d+\.\d+%$/);
+  };
+
+  it("keeps label, price and change in one compact grid with no pill badge", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockTickerData,
+    });
+
+    render(() => (<UIProvider>
+        <MarketTicker />
+      </UIProvider>),
+    );
+
+    await compactGridAssertions();
   });
 
   it("keeps price and change in one grid row with no pill badge", async () => {
@@ -160,31 +300,20 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
-    const item = await screen.findByTestId("ticker-nsei");
-    const price = screen.getByTestId("ticker-price-nsei");
-    const change = screen.getByTestId("ticker-change-nsei");
-    // One shared grid row: price and change are the only cells after the label.
-    expect(item.contains(price)).toBe(true);
-    expect(item.contains(change)).toBe(true);
-    expect(item.children).toHaveLength(3);
-    expect(item.style.display).toBe("grid");
-    // The old MUI Badge pill is gone — the change is plain text.
-    expect(item.querySelector(".MuiBadge-root")).toBeNull();
+    await compactGridAssertions();
   });
 
   it("displays loading state with skeletons", () => {
     mockFetch.mockImplementationOnce(() => new Promise((resolve) => setTimeout(resolve, 1000)));
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     const container = screen.getByTestId("market-ticker");
@@ -194,10 +323,9 @@ describe("MarketTicker", () => {
   it("handles fetch error", async () => {
     mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
@@ -208,21 +336,41 @@ describe("MarketTicker", () => {
     expect(screen.getByText("Market data unavailable")).toBeInTheDocument();
   });
 
-  it("displays custom labels for known symbols", async () => {
+  it("displays canonical index labels from the shared feed descriptor", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Nifty 50")).toBeInTheDocument();
-      expect(screen.getByText("Bank Nifty")).toBeInTheDocument();
+      expect(within(screen.getByTestId("ticker-nsei")).getByText("NIFTY")).toBeInTheDocument();
+      expect(within(screen.getByTestId("ticker-nsebank")).getByText("BANKNIFTY")).toBeInTheDocument();
+      expect(screen.queryByText("Nifty 50")).not.toBeInTheDocument();
+      expect(screen.queryByText("Bank Nifty")).not.toBeInTheDocument();
+    });
+  });
+
+  it("keeps the raw feed key as the item identity for API calls and test ids", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockTickerData,
+    });
+
+    render(() => (<UIProvider>
+        <MarketTicker />
+      </UIProvider>),
+    );
+
+    expect(await screen.findByTestId("ticker-nsei")).toBeInTheDocument();
+    expect(screen.getByTestId("ticker-nsebank")).toBeInTheDocument();
+    expect(Object.keys(mockTickerData.tickers)).toEqual(["^NSEI", "^NSEBANK"]);
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("market-ticker"), {
+      priority: "low",
     });
   });
 
@@ -248,10 +396,9 @@ describe("MarketTicker", () => {
       json: async () => dataWithUnknown,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
@@ -265,10 +412,9 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
@@ -326,10 +472,9 @@ describe("MarketTicker", () => {
       json: async () => priorityData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
@@ -349,10 +494,9 @@ describe("MarketTicker", () => {
       json: async () => mockTickerData,
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     // Wait for initial fetch
@@ -366,7 +510,7 @@ describe("MarketTicker", () => {
     setIntervalSpy.mockRestore();
   });
 
-  it("renders every ticker at one uniform size so the columns align", async () => {
+  it("renders every ticker with one content-sized compact grid and no fixed change track", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -394,10 +538,9 @@ describe("MarketTicker", () => {
       }),
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     await waitFor(() => {
@@ -405,57 +548,52 @@ describe("MarketTicker", () => {
       expect(screen.getByTestId("ticker-gcf")).toBeInTheDocument();
     });
 
-    // One type scale for every item: 9.5px label, 11px tabular price.
+    // One type scale and one content-sized grid for every item: a fixed
+    // 128px change track made a single tile ~260px wide in a 148px rail.
     for (const testId of ["ticker-nsei", "ticker-gcf"]) {
       const item = screen.getByTestId(testId);
       expect(item.children).toHaveLength(3);
-      expect(item.style.gridTemplateColumns).toBe(
-        "minmax(56px, auto) minmax(64px, 1fr) 82px",
-      );
-      expect(within(item).getByText(/Nifty 50|Gold/)).toHaveStyle({
-        fontSize: "9.5px",
+      expect(item.style.getPropertyValue("grid-template-columns")).toBe("max-content");
+      expect(item.style.getPropertyValue("grid-template-rows")).toBe("auto auto auto");
+      expect(item.style.getPropertyValue("grid-template-columns")).not.toContain("128px");
+      expect(within(item).getByText(/NIFTY|Gold/)).toHaveStyle({
+        fontSize: "12px",
       });
     }
     expect(screen.getByTestId("ticker-price-nsei")).toHaveStyle({
-      fontSize: "11px",
+      fontSize: "12px",
     });
     expect(screen.getByTestId("ticker-price-gcf")).toHaveStyle({
-      fontSize: "11px",
+      fontSize: "12px",
     });
   });
 
-  it("shows market-closed status instead of a tape on holidays", () => {
-    vi.mocked(isMarketClosedToday).mockReturnValue(true);
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
-    vi.mocked(getHolidayState).mockReturnValue({
-      holidays: [{ date: today, description: "Dussehra", type: "trading" }],
-      tradingDates: new Set<string>([today]),
-      clearingDates: new Set<string>(),
-      loaded: true,
-      loading: false,
-    });
+  it("shows market-closed status instead of a tape on holidays", async () => {
+    setClock("2026-01-26T05:30:00Z"); // Republic Day, Monday 11:00 IST
+    await setHoliday("2026-01-26", "Republic Day");
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     expect(screen.getByTestId("market-ticker-status")).toBeInTheDocument();
     expect(screen.getByText("Market closed")).toBeInTheDocument();
-    expect(screen.getByText(/Dussehra/)).toBeInTheDocument();
+    expect(screen.getByText(/Republic Day/)).toBeInTheDocument();
     expect(screen.queryByTestId("market-ticker-loading")).not.toBeInTheDocument();
     expect(mockFetch).not.toHaveBeenCalled();
+
+    const detail = screen.getByTestId("market-ticker-status").querySelector("p:last-child") as HTMLElement;
+    expect(detail).toHaveAttribute("title", "· Republic Day");
+    expect(detail).toHaveClass("break-words", "line-clamp-2");
   });
 
   it("returns null when disabled", () => {
-    // Set mock to disabled
-    mockMarketTickerEnabled = false;
+    localStorage.setItem("alphashri_show_market_ticker_v2", "false");
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     // Market ticker container should not be in the document
@@ -467,11 +605,10 @@ describe("MarketTicker", () => {
   it("tape variant renders nothing when the market is closed", () => {
     // The sidebar owns the closed status; the main column must not reserve a
     // 22px strip for a tape that has nothing to show.
-    vi.mocked(isMarketClosedToday).mockReturnValue(true);
-    render(
-      <UIProvider>
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
+    render(() => (<UIProvider>
         <MarketTicker variant="tape" />
-      </UIProvider>,
+      </UIProvider>),
     );
     expect(screen.queryByTestId("market-ticker")).not.toBeInTheDocument();
     expect(screen.queryByTestId("market-ticker-status")).not.toBeInTheDocument();
@@ -491,10 +628,9 @@ describe("MarketTicker", () => {
       }),
     });
 
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketTicker variant="tape" />
-      </UIProvider>,
+      </UIProvider>),
     );
 
     // Wait for the fetched tape items, not just the loading shell: the loading
@@ -506,42 +642,352 @@ describe("MarketTicker", () => {
 describe("MarketStatus", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(isMarketClosedToday).mockReturnValue(false);
+    resetHolidays();
+    setClock("2026-11-16T05:30:00Z"); // Monday 11:00 IST — open
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+    vi.mocked(fetchHolidays).mockResolvedValue([]);
     setupBrowserMocks();
   });
 
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
   it("states the market is closed (dot + label) without a tape", () => {
-    vi.mocked(isMarketClosedToday).mockReturnValue(true);
-    render(
-      <UIProvider>
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
+    render(() => (<UIProvider>
         <MarketStatus />
-      </UIProvider>,
+      </UIProvider>),
     );
     expect(screen.getByTestId("app-market-status")).toBeInTheDocument();
     expect(screen.getByTestId("app-market-status-dot")).toBeInTheDocument();
     expect(screen.getByText("Market closed")).toBeInTheDocument();
   });
 
+  it("shares the closed/live state vocabulary with the report toolbar", () => {
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
+    render(() => (<UIProvider>
+        <MarketStatus />
+      </UIProvider>),
+    );
+    const status = screen.getByTestId("app-market-status");
+    expect(status).toHaveAttribute("data-state", "closed");
+    expect(status).toHaveTextContent("Market closed");
+    expect(status).not.toHaveTextContent("Market live");
+  });
+
+  it("marks an open session with the live state", () => {
+    render(() => (<UIProvider>
+        <MarketStatus />
+      </UIProvider>),
+    );
+    const status = screen.getByTestId("app-market-status");
+    expect(status).toHaveAttribute("data-state", "live");
+    expect(status).toHaveTextContent("Market live");
+  });
+
+  it("gives the closed-session detail a full-width row that wraps at word boundaries with a full title", () => {
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
+    render(() => (<UIProvider>
+        <MarketStatus />
+      </UIProvider>),
+    );
+
+    const root = screen.getByTestId("app-market-status");
+    const headline = screen.getByTestId("app-market-status-headline");
+    const detail = screen.getByTestId("app-market-status-detail");
+    const full = "· Closed at 15:30 IST · Opens 09:15 IST";
+    expect(detail).toHaveTextContent(full);
+    expect(detail).toHaveAttribute("title", full);
+    // The detail owns a full-width row instead of being squeezed next to the
+    // nowrap label, so it wraps at whitespace and no word is cut mid-token.
+    expect(root).toHaveClass("flex", "flex-col", "min-w-0", "w-full");
+    expect(detail).toHaveClass("w-full", "min-w-0", "break-words", "line-clamp-2");
+    expect(root).toContainElement(detail);
+    expect(headline).toContainElement(screen.getByTestId("app-market-status-dot"));
+    expect(headline).toHaveTextContent("Market closed");
+    expect(headline).not.toContainElement(detail);
+  });
+
   it("hides the label but keeps the dot when compact (collapsed rail)", () => {
-    vi.mocked(isMarketClosedToday).mockReturnValue(true);
-    render(
-      <UIProvider>
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST — after the close
+    render(() => (<UIProvider>
         <MarketStatus compact />
-      </UIProvider>,
+      </UIProvider>),
     );
     expect(screen.getByTestId("app-market-status-dot")).toBeInTheDocument();
     expect(screen.queryByText("Market closed")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("app-market-status-detail")).not.toBeInTheDocument();
     expect(screen.getByTestId("app-market-status").getAttribute("title")).toContain("Market closed");
   });
 
   it("reports a live market during trading hours", () => {
-    render(
-      <UIProvider>
+    render(() => (<UIProvider>
         <MarketStatus />
-      </UIProvider>,
+      </UIProvider>),
     );
     expect(screen.getByText("Market live")).toBeInTheDocument();
+  });
+});
+
+// Fixed-instant regression cases: the old holiday-only check happily said
+// "Market live" on every ordinary weekday, including three hours after close.
+describe("MarketStatus — real IST session", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetHolidays();
+    setClock("2026-11-16T05:30:00Z"); // Monday 11:00 IST
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+    vi.mocked(fetchHolidays).mockResolvedValue([]);
+    setupBrowserMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  const renderStatus = () => render(() => (<UIProvider><MarketStatus /></UIProvider>));
+
+  it("17:11 IST on a trading weekday is closed, with the session boundary in the tooltip", () => {
+    setClock("2026-11-16T11:41:00Z"); // Monday 17:11 IST
+    renderStatus();
+    expect(screen.getByText("Market closed")).toBeInTheDocument();
+    expect(screen.getByTestId("app-market-status")).toHaveAttribute(
+      "title",
+      expect.stringContaining("Closed at 15:30 IST"),
+    );
+  });
+
+  it("11:00 IST on a trading weekday is live", () => {
+    setClock("2026-11-16T05:30:00Z");
+    renderStatus();
+    expect(screen.getByText("Market live")).toBeInTheDocument();
+  });
+
+  it("09:14 IST is closed and says when the session opens", () => {
+    setClock("2026-11-16T03:44:00Z"); // Monday 09:14 IST
+    renderStatus();
+    expect(screen.getByText("Market closed")).toBeInTheDocument();
+    expect(screen.getByTestId("app-market-status")).toHaveAttribute(
+      "title",
+      expect.stringContaining("Opens 09:15 IST"),
+    );
+  });
+
+  it("09:15 IST is live", () => {
+    setClock("2026-11-16T03:45:00Z"); // Monday 09:15 IST
+    renderStatus();
+    expect(screen.getByText("Market live")).toBeInTheDocument();
+  });
+
+  it("15:30 IST is closed (the close is exclusive)", () => {
+    setClock("2026-11-16T10:00:00Z"); // Monday 15:30 IST
+    renderStatus();
+    expect(screen.getByText("Market closed")).toBeInTheDocument();
+  });
+
+  it("a holiday at 11:00 IST stays closed and keeps the holiday reason", async () => {
+    setClock("2026-01-26T05:30:00Z"); // Republic Day, Monday 11:00 IST
+    await setHoliday("2026-01-26", "Republic Day");
+    renderStatus();
+    expect(screen.getByText("Market closed")).toBeInTheDocument();
+    expect(screen.getByTestId("app-market-status")).toHaveAttribute(
+      "title",
+      expect.stringContaining("Republic Day"),
+    );
+  });
+
+  it("__E2E_MOCK_MARKET_OPEN__ forces live even at 17:11 IST", () => {
+    setClock("2026-11-16T11:41:00Z");
+    (window as any).__E2E_MOCK_MARKET_OPEN__ = true;
+    renderStatus();
+    expect(screen.getByText("Market live")).toBeInTheDocument();
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+  });
+
+  it("does not fetch a tape at 17:11 IST", () => {
+    setClock("2026-11-16T11:41:00Z");
+    render(() => (<UIProvider><MarketTicker /></UIProvider>));
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("MarketTicker — responsive rail fit (390px drawer / 1600px sidebar)", () => {
+  const tapeData = {
+    tickers: {
+      "^NSEI": {
+        symbol: "^NSEI", name: "NIFTY 50", price: 22000,
+        change: 150, change_percent: 0.68, is_positive: true,
+      },
+      "^NSEBANK": {
+        symbol: "^NSEBANK", name: "BANKNIFTY", price: 45000,
+        change: -200, change_percent: -0.44, is_positive: false,
+      },
+    },
+    last_updated: "2025-06-15T10:30:00Z",
+    loading: false,
+    error: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetHolidays();
+    setClock("2026-11-16T05:30:00Z"); // Monday 11:00 IST — open
+    delete (window as any).__E2E_MOCK_MARKET_OPEN__;
+    vi.mocked(fetchHolidays).mockResolvedValue([]);
+    localStorage.clear();
+    setupBrowserMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  const renderTape = async (mobile = false) => {
+    mockFetch.mockResolvedValue({ ok: true, json: async () => tapeData });
+    render(() => (<UIProvider><MarketTicker variant="tape" mobile={mobile} /></UIProvider>));
+    await screen.findByTestId("ticker-nsei");
+    await screen.findByTestId("ticker-nsebank");
+    return screen.getByTestId("market-ticker");
+  };
+
+  const setRailGeometry = (container: HTMLElement, clientWidth: number, scrollWidth = clientWidth * 3) => {
+    Object.defineProperty(container, "clientWidth", { configurable: true, value: clientWidth });
+    Object.defineProperty(container, "scrollWidth", { configurable: true, value: scrollWidth });
+  };
+
+  const rect = (top: number, bottom: number, left: number, right: number): DOMRect => ({
+    top, bottom, left, right,
+    width: right - left, height: bottom - top, x: left, y: top,
+    toJSON: () => ({}),
+  }) as DOMRect;
+
+  const intersects = (a: DOMRect, b: DOMRect) =>
+    a.top < b.top + b.height && a.top + a.height > b.top &&
+    a.left < b.left + b.width && a.left + a.width > b.left;
+
+  it("390: the tape band matches evidence and clears the toolbar", async () => {
+    await renderTape(true);
+    const spacer = screen.getByTestId("market-ticker-top-spacer");
+    expect(spacer).toHaveStyle({ height: "104px", "min-width": "0px" });
+    const frame = screen.getByTestId("market-ticker-frame");
+    expect(frame.contains(spacer)).toBe(false);
+    expect(frame).toHaveStyle({ "background-color": palette.BG });
+
+    // Measured on first drawer open: x8–168 y168.39–224.39. The pulse
+    // (y88–174) and catalyst band (y182–542) cannot be out-spaced, so Home
+    // removes them via the shared drawer-open signal (see HomePage.test).
+    const frameTop = 64.39 + Number.parseFloat(spacer.style.height);
+    const frameRect = rect(frameTop, frameTop + 56, 8, 168);
+    const toolbarRect = rect(60, 80, 16, 374);
+
+    expect(frameRect.top).toBeCloseTo(168.39);
+    expect(frameRect.bottom).toBeCloseTo(224.39);
+    expect(intersects(frameRect, toolbarRect)).toBe(false);
+    expect(frameRect.bottom).toBeLessThanOrEqual(844);
+  });
+
+  it("390: the tape is the only scroll owner and no numeric value is clipped", async () => {
+    const container = await renderTape(true);
+    const frame = screen.getByTestId("market-ticker-frame");
+    expect(frame).toHaveStyle({
+      width: "100%",
+      "min-width": "0px",
+      "box-sizing": "border-box",
+      "flex-shrink": "0",
+      overflow: "hidden",
+    });
+    expect(container).toHaveStyle({
+      "overflow-x": "auto",
+      "overflow-y": "hidden",
+      "flex-wrap": "nowrap",
+      "min-width": "0px",
+      "box-sizing": "border-box",
+      width: "100%",
+    });
+    expect(Number.parseFloat(container.style.paddingLeft || "0")).toBeLessThanOrEqual(2);
+    expect(Number.parseFloat(container.style.paddingRight || "0")).toBeLessThanOrEqual(2);
+    const nestedScrollOwners = Array.from(container.querySelectorAll<HTMLElement>("*")).filter(
+      (el) => /^(auto|scroll)$/.test(el.style.overflowX),
+    );
+    expect(nestedScrollOwners).toEqual([]);
+
+    for (const id of ["ticker-nsei", "ticker-nsebank"]) {
+      const item = screen.getByTestId(id);
+      expect(item.style.getPropertyValue("grid-template-columns")).toBe("max-content");
+      expect(item.style.getPropertyValue("grid-template-rows")).toBe("auto auto auto");
+      expect(item.style.getPropertyValue("grid-template-columns")).not.toContain("128px");
+    }
+    expect(within(screen.getByTestId("ticker-nsei")).getByText("NIFTY")).toBeInTheDocument();
+    expect(within(screen.getByTestId("ticker-nsebank")).getByText("BANKNIFTY")).toBeInTheDocument();
+    expect(screen.getByTestId("ticker-price-nsebank")).toHaveTextContent("45,000.00");
+    expect(screen.getByTestId("ticker-change-nsei").className).not.toContain("overflow-hidden");
+  });
+
+  it("390: an overflowing tape shows the cue on first open, before any resize", async () => {
+    const observed: Element[] = [];
+    class CapturingResizeObserver {
+      observe(el: Element) { observed.push(el); }
+      disconnect() {}
+    }
+    global.ResizeObserver = CapturingResizeObserver as any;
+
+    const container = await renderTape(true);
+    setRailGeometry(container, 124, 582);
+    // Deliberately no resize event: the drawer was hidden at mount.
+    expect(screen.getByTestId("market-ticker-scroll-cue")).toBeVisible();
+    expect(observed).toContain(container);
+  });
+
+  it("1600: NIFTY and BANKNIFTY both fit fully in the rail — no cut 'BA'", async () => {
+    const container = await renderTape(false);
+    const nifty = screen.getByTestId("ticker-nsei");
+    const bank = screen.getByTestId("ticker-nsebank");
+
+    // The compact tile puts label / price / change on their own rows so its
+    // width is the widest single field (~65px), not label+price (~136px).
+    expect(nifty.style.getPropertyValue("grid-template-rows")).toBe("auto auto auto");
+    expect(bank.style.getPropertyValue("grid-template-rows")).toBe("auto auto auto");
+    const tileWidth = Number.parseFloat(bank.style.width);
+    const gap = Number.parseFloat(container.style.gap || "0");
+    const padding =
+      Number.parseFloat(container.style.paddingLeft || "0") +
+      Number.parseFloat(container.style.paddingRight || "0");
+    expect(tileWidth).toBeGreaterThan(0);
+    expect(tileWidth).toBeLessThanOrEqual(72);
+
+    // 148px rail − 4px tape padding = 144px visible scroller. Two compact
+    // tiles + one gap must fit inside it, so the full BANKNIFTY label and
+    // price are on screen at first paint (not just reachable via the cue).
+    const CLIENT_WIDTH = 144;
+    expect(2 * tileWidth + gap + padding).toBeLessThanOrEqual(CLIENT_WIDTH);
+
+    // Content-sized fields: no internal clipping (scrollWidth <= clientWidth).
+    // At 12px a 9-character mono field is ~65px — inside the compact tile.
+    const price = screen.getByTestId("ticker-price-nsebank");
+    const change = screen.getByTestId("ticker-change-nsebank");
+    const contentWidth = (text: string) => text.length * 7.2;
+    for (const [el, text] of [[price, "45,000.00"], [change, "-0.44%"]] as const) {
+      expect(
+        el.style.whiteSpace === "nowrap" || el.classList.contains("whitespace-nowrap"),
+      ).toBe(true);
+      expect(el.style.overflow).not.toBe("hidden");
+      Object.defineProperty(el, "scrollWidth", { configurable: true, value: contentWidth(text) });
+      Object.defineProperty(el, "clientWidth", { configurable: true, value: tileWidth });
+      expect(el.scrollWidth).toBeLessThanOrEqual(el.clientWidth);
+    }
+
+    // Visible text is the full canonical label and the full price value.
+    expect(within(bank).getByText("BANKNIFTY")).toBeInTheDocument();
+    expect(price).toHaveTextContent("45,000.00");
+    expect(change).toHaveTextContent("-0.44%");
+    expect(change).toHaveAttribute("title", "-200.00 (-0.44%)");
+
+    // The tape is still the single scroll owner for the overflowing drawer.
+    setRailGeometry(container, 124, 582);
+    expect(screen.getByTestId("market-ticker-scroll-cue")).toBeVisible();
   });
 });

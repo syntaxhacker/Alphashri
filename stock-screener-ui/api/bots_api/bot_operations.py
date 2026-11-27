@@ -25,12 +25,22 @@ from .bots_router import (
     equity_bots_disabled,
 )
 
-from ._db import require_db, session_scope, run_db
+from ._db import require_db, session_scope
 
 from api.auth import get_current_user
 from api.utils import _BUY_SIDES, _get_market_price
 from api.bot_state import get_bot_state
 from config import IST
+
+
+def _run_db(fn, *args, db=None, **kwargs):
+    """Sync counterpart of ``_db.run_db`` for the handlers in this module.
+
+    The whole handler already runs on the anyio worker pool, so the session is
+    created and used in that same worker (never handed to another thread).
+    """
+    with session_scope(db) as session:
+        return fn(*args, session, **kwargs)
 
 
 def _calc_costs(entry_price: float, exit_price: float, quantity: int, side: str) -> float:
@@ -162,8 +172,11 @@ def _get_sync_functions():
     return _sync_get_bot_logs_endpoint, _sync_get_bot_portfolio, _sync_get_bot_trades
 
 
+# Handlers in this module are sync `def` on purpose: FastAPI runs them on the
+# anyio worker pool, so the SQLite/Redis/subprocess work never blocks the loop
+# and does not queue behind the default executor the TV scans saturate.
 @router.get("/{bot_id}/logs")
-async def get_bot_logs(
+def get_bot_logs(
     bot_id: str,
     lines: int = 100,
     user=Depends(get_current_user),
@@ -172,11 +185,11 @@ async def get_bot_logs(
     require_db(_db_available)
     user_id = get_user_id(user)
     sync_fn, _, _ = _get_sync_functions()
-    return await run_db(sync_fn, bot_id, user_id, lines, db=db)
+    return _run_db(sync_fn, bot_id, user_id, lines, db=db)
 
 
 @router.get("/{bot_id}/portfolio")
-async def get_bot_portfolio(
+def get_bot_portfolio(
     bot_id: str,
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
@@ -184,11 +197,11 @@ async def get_bot_portfolio(
     require_db(_db_available)
     user_id = get_user_id(user)
     _, sync_fn, _ = _get_sync_functions()
-    return await run_db(sync_fn, bot_id, user_id, db=db)
+    return _run_db(sync_fn, bot_id, user_id, db=db)
 
 
 @router.get("/{bot_id}/positions")
-async def get_bot_positions(
+def get_bot_positions(
     bot_id: str,
     strategy_id: Optional[str] = None,
     user=Depends(get_current_user),
@@ -221,7 +234,7 @@ async def get_bot_positions(
 
 
 @router.get("/{bot_id}/trades")
-async def get_bot_trades(
+def get_bot_trades(
     bot_id: str,
     strategy_id: Optional[str] = None,
     limit: int = 100,
@@ -234,7 +247,7 @@ async def get_bot_trades(
     user_id = user_id_query if user_id_query is not None else get_user_id(user)
     _, _, sync_fn = _get_sync_functions()
     try:
-        return await run_db(sync_fn, bot_id, user_id, strategy_id, limit, include_test, db=db)
+        return _run_db(sync_fn, bot_id, user_id, strategy_id, limit, include_test, db=db)
     except HTTPException:
         raise
     except Exception as e:
@@ -242,7 +255,7 @@ async def get_bot_trades(
 
 
 @router.post("/{bot_id}/start")
-async def start_bot(
+def start_bot(
     bot_id: str,
     test_mode: bool = False,
     user=Depends(get_current_user),
@@ -271,7 +284,7 @@ async def start_bot(
 
 
 @router.post("/start-all")
-async def start_all_bots(
+def start_all_bots(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
@@ -302,7 +315,7 @@ async def start_all_bots(
                     start_bot_process(user_id, bot.id)
                     started.append({"id": bot.uuid, "name": bot.name})
                 except Exception as e:
-                    console.print(f"[red]Failed to start bot {bot.name}: {e}[/red]")
+                    print(f"[red]Failed to start bot {bot.name}: {e}[/red]")
 
         return {
             "message": f"Started {len(started)} bot(s)",
@@ -311,7 +324,7 @@ async def start_all_bots(
 
 
 @router.post("/stop-all")
-async def stop_all_bots(
+def stop_all_bots(
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
 ):
@@ -349,7 +362,7 @@ async def stop_all_bots(
 
 
 @router.post("/{bot_id}/stop")
-async def stop_bot(
+def stop_bot(
     bot_id: str,
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
@@ -369,7 +382,7 @@ async def stop_bot(
 
 
 @router.get("/{bot_id}/scan")
-async def get_bot_scan(
+def get_bot_scan(
     bot_id: str,
     strategy_id: Optional[str] = None,
     user=Depends(get_current_user),
@@ -409,7 +422,7 @@ async def get_bot_scan(
 
 
 @router.post("/{bot_id}/close-all")
-async def close_all_bot_positions(
+def close_all_bot_positions(
     bot_id: str,
     request: CloseAllRequest = CloseAllRequest(),
     user=Depends(get_current_user),
@@ -496,7 +509,7 @@ async def close_all_bot_positions(
 
 
 @router.get("/{bot_id}/performance")
-async def get_bot_performance(
+def get_bot_performance(
     bot_id: str,
     days: int = 30,
     user=Depends(get_current_user),
@@ -556,7 +569,7 @@ async def get_bot_performance(
 
 
 @router.get("/{bot_id}/performance/compare")
-async def compare_strategy_performance(
+def compare_strategy_performance(
     bot_id: str,
     user=Depends(get_current_user),
     db: Session = Depends(get_db) if get_db else None
@@ -603,7 +616,7 @@ async def compare_strategy_performance(
 
 
 @router.get("/{bot_id}/trade-count")
-async def get_bot_trade_count(
+def get_bot_trade_count(
     bot_id: str,
     user_id_query: Optional[int] = None,
     user=Depends(get_current_user),
@@ -635,7 +648,7 @@ async def get_bot_trade_count(
 
 
 @router.get("/{bot_id}/strategy-performance")
-async def get_strategy_performance(
+def get_strategy_performance(
     bot_id: str,
     days: int = 30,
     include_test: bool = True,
@@ -734,11 +747,39 @@ async def get_strategy_performance(
             raise HTTPException(status_code=500, detail=f"Failed to get strategy performance: {str(e)}")
 
 
-async def bot_auto_recovery_task():
-    """Periodically check and restart crashed bots."""
-    from .bots_router import is_bot_running, start_bot_process
+def _collect_active_bots() -> dict[int, list[tuple[int, bool]]]:
+    """Active non-headless bots grouped by owner, read in one worker thread."""
     from db.database import SessionLocal
     from db.models.bot import BotConfig
+
+    user_bots: dict[int, list[tuple[int, bool]]] = {}
+    with SessionLocal() as db:
+        bots = db.query(BotConfig).filter(
+            BotConfig.is_active == True,
+            BotConfig.user_id.isnot(None),
+        ).all()
+        for b in bots:
+            # Options-paper bots are headless (run by options_paper.runner, not
+            # the equity runner). Restarting one here is what produced the OPT_*
+            # restart storm — never scan them.
+            try:
+                if any(is_headless_strategy(s.strategy_type) for s in b.strategies):
+                    continue
+            except Exception:
+                pass
+            user_bots.setdefault(b.user_id, []).append(
+                (b.id, bool(getattr(b, 'live_trading', False)))
+            )
+    return user_bots
+
+
+async def bot_auto_recovery_task():
+    """Periodically check and restart crashed bots.
+
+    Stays async (it is a lifespan background task) but every blocking step —
+    the market-open check and the bot scan — is offloaded to a worker thread.
+    """
+    from .bots_router import is_bot_running, start_bot_process
 
     if equity_bots_disabled():
         print("[Auto-Recovery] EQUITY_BOTS_DISABLED=1 — equity bots are off; task idle")
@@ -754,7 +795,7 @@ async def bot_auto_recovery_task():
             try:
                 from trading.utils import is_market_open
 
-                market_open = bool(is_market_open())
+                market_open = await asyncio.to_thread(lambda: bool(is_market_open()))
             except Exception:
                 # Never let a market-check failure cause a restart storm.
                 market_open = False
@@ -763,24 +804,7 @@ async def bot_auto_recovery_task():
                 await asyncio.sleep(60)
                 continue
 
-            user_bots: dict[int, list[tuple[int, bool]]] = {}
-            with SessionLocal() as db:
-                bots = db.query(BotConfig).filter(
-                    BotConfig.is_active == True,
-                    BotConfig.user_id.isnot(None),
-                ).all()
-                for b in bots:
-                    # Options-paper bots are headless (run by options_paper.runner,
-                    # not the equity runner). Restarting one here is what produced
-                    # the OPT_* restart storm — never scan them.
-                    try:
-                        if any(is_headless_strategy(s.strategy_type) for s in b.strategies):
-                            continue
-                    except Exception:
-                        pass
-                    user_bots.setdefault(b.user_id, []).append(
-                        (b.id, bool(getattr(b, 'live_trading', False)))
-                    )
+            user_bots = await asyncio.to_thread(_collect_active_bots)
 
             for user_id, bot_entries in user_bots.items():
                 for bot_id, live_trading in bot_entries:

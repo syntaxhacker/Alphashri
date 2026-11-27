@@ -23,7 +23,7 @@ from scripts.smc_tick_eval import fetch_ticks, build_1m_bars
 IST = config.IST
 GAP_MIN, SL_BUF, RETEST_TOL = 2.0, 6.0, 2.0
 MIN_RR, MIN_RISK, COOLDOWN, RETEST_TTL = 2.0, 5.0, 3, 30
-SUPPLY_PROX = 25.0   # tie-break conflict distance (opt-in, see TIEBREAK)
+SUPPLY_PROX = 25.0
 HTF_SMA = 60         # HTF bias: 60x1m SMA (~1h)
 TIEBREAK = False
 DEBUG = False
@@ -44,10 +44,10 @@ def dbg(m):
 
 class Engine:
     def __init__(self, gate="none", trail_only=False):
-        self.gate = gate                # "none" | "sma60" | "ema15m"
-        self.trail_only = trail_only    # disable structural TP -> pure trail exits
-        self.trail_hi = self.trail_lo = None       # latest confirmed fractal extremes
-        self.piv_high = self.piv_low = None        # last unbroken pivot (BOS ref)
+        self.gate = gate
+        self.trail_only = trail_only
+        self.trail_hi = self.trail_lo = None
+        self.piv_high = self.piv_low = None
         self.piv_high_broken = self.piv_low_broken = False
         self.bos_dir = 0
         self.fvgs = []
@@ -76,7 +76,6 @@ class Engine:
 
     def on_close(self, bars, i):
         b = bars[i]
-        # fractal pivot at i-2
         if i >= 4:
             j = i - 2
             w = bars[j - 2:j + 3]
@@ -86,7 +85,6 @@ class Engine:
             if all(w[2]["low"] < w[k]["low"] for k in (0, 1, 3, 4)):
                 self.trail_lo = self.piv_low = w[2]["low"]
                 self.piv_low_broken = False
-        # BOS
         if self.piv_high is not None and not self.piv_high_broken and b["close"] > self.piv_high:
             self.bos_dir = 1
             self.piv_high_broken = True
@@ -95,7 +93,6 @@ class Engine:
             self.bos_dir = -1
             self.piv_low_broken = True
             dbg(f"    BOS DOWN @{ist(b['time']*1000)} close {b['close']:.2f} < {self.piv_low:.2f}")
-        # new FVG
         if i >= 2:
             a, c = bars[i - 2], bars[i]
             if c["high"] < a["low"] and a["low"] - c["high"] > GAP_MIN:
@@ -115,7 +112,6 @@ class Engine:
             allow_long, allow_short = b["close"] > self.htf_ema, b["close"] < self.htf_ema
         else:
             allow_long = allow_short = True
-        # v2 semantics: mark+arm inversions in one pass (only while flat)
         armed = None
         for f in self.fvgs:
             if f["inv"]:
@@ -227,7 +223,6 @@ class Engine:
             pos = pos_of.get(b["time"] // 900, 0)
             # bias only after 20 completed 15m bars (~5h warmup) — no fake early bias
             self.htf_ema = ema_vals[pos - 1] if pos >= 20 else None
-            # pending inv fill
             if self.pos is None and self.pending and self.pending["kind"] == "inv" and i > self.pending["sig_i"]:
                 pd = self.pending
                 if i - pd["sig_i"] > 2 or not bt:
@@ -241,7 +236,6 @@ class Engine:
                         self.pending = None
                     elif self.open_pos(pd["side"], px, sl, i, "inv", t["timestamp"], bars):
                         self.pending = None
-            # position management: SL first, then TP
             if self.pos:
                 p = self.pos
                 for t in bt:
@@ -256,7 +250,6 @@ class Engine:
                             self.close_pos(i, p["sl"], "SL", t["timestamp"]); break
                         if p["tp"] and ask >= p["tp"]:
                             self.close_pos(i, p["tp"], "TP", t["timestamp"]); break
-            # pending retest fill
             if self.pos is None and self.pending and self.pending["kind"] == "retest":
                 pd = self.pending
                 for t in bt:
@@ -268,16 +261,13 @@ class Engine:
                         if self.open_pos("LONG", t["askPrice"], pd["sl_ref"] - SL_BUF, i, "retest", t["timestamp"], bars):
                             self.pending = None
                         break
-            # close-state update + signal arming
             self.on_close(bars, i)
-            # retest expiry / invalidation
             if self.pending and self.pending["kind"] == "retest":
                 pd = self.pending
                 if i - pd["sig_i"] > RETEST_TTL or \
                    (pd["side"] == "SHORT" and b["close"] > pd["zone"]["top"]) or \
                    (pd["side"] == "LONG" and b["close"] < pd["zone"]["bot"]):
                     self.pending = None
-            # trail exit for TP-less positions
             if self.pos and self.pos["tp"] is None and bt:
                 p = self.pos
                 if p["side"] == "SHORT" and self.trail_hi is not None and b["close"] > self.trail_hi:
@@ -342,15 +332,15 @@ class SweepEngine:
     """
     def __init__(self):
         self.bias = 0
-        self.sh15 = self.sl15 = None          # confirmed 15m swing levels
+        self.sh15 = self.sl15 = None
         self.sh15_prev = self.sl15_prev = None
-        self.f_low = self.f_high = None       # last confirmed 1m fractal levels
+        self.f_low = self.f_high = None
         self.pos = None
         self.pending = None
         self.last_exit = -999
         self._cur_i = -999
         self.trades = []
-        self.bars15 = []                       # completed 15m dicts
+        self.bars15 = []
 
     def _update_htf(self, bars, i):
         b = bars[i]
@@ -361,17 +351,15 @@ class SweepEngine:
         else:
             c = self.bars15[-1]
             c["high"] = max(c["high"], b["high"]); c["low"] = min(c["low"], b["low"]); c["close"] = b["close"]
-        # evaluate structure on the just-completed bucket
         if i + 1 < len(bars) and bars[i + 1]["time"] // 900 != k:
             done = self.bars15[-1]
             n = len(self.bars15)
             if n >= 5:
                 w = self.bars15[n - 5:]
-                j = 2  # candidate = w[2] (second of last three? use middle of last 5 minus forming)
+                j = 2
                 cand = self.bars15[n - 3]
                 if cand["high"] > w[0]["high"] and cand["high"] > w[1]["high"] and cand["high"] > w[3]["high"] and cand["high"] > w[4]["high"] if len(w) == 5 else False:
                     pass
-            # simpler: fractal with 2 bars each side among completed buckets
             if n >= 5:
                 w = self.bars15[n - 5:n]
                 cand = w[2]
@@ -402,7 +390,6 @@ class SweepEngine:
 
     def _find_tp(self, bars, i, side, entry, risk):
         cands = []
-        # 1m fractal extremes (untouched)
         for j in range(2, i - 2):
             w = bars[j - 2:j + 3]
             if side == "LONG":
@@ -415,7 +402,6 @@ class SweepEngine:
                     lvl = w[2]["low"]
                     if lvl < entry and all(bars[k]["low"] > lvl for k in range(j + 3, i)):
                         cands.append(lvl)
-        # 15m swing levels (big liquidity)
         if side == "LONG" and self.sh15 and self.sh15 > entry:
             cands.append(self.sh15)
         if side == "SHORT" and self.sl15 and self.sl15 < entry:
@@ -454,7 +440,6 @@ class SweepEngine:
         for i, b in enumerate(bars):
             self._cur_i = i
             bt = by_min.get(b["time"], [])
-            # pending sweep fill (market, next bar)
             if self.pos is None and self.pending and i > self.pending["sig_i"]:
                 if i - self.pending["sig_i"] > 2 or not bt:
                     if i - self.pending["sig_i"] > 2:
@@ -462,13 +447,11 @@ class SweepEngine:
                 else:
                     t = bt[0]
                     px = t["askPrice"] if self.pending["side"] == "LONG" else t["bidPrice"]
-                    # gap through the sweep wick before fill = sweep failed -> cancel
                     if (self.pending["side"] == "LONG" and px <= self.pending["sl"]) or \
                        (self.pending["side"] == "SHORT" and px >= self.pending["sl"]):
                         self.pending = None
                     elif self.open_pos(self.pending["side"], px, self.pending["sl"], i, self.pending["kind"], t["timestamp"], bars):
                         self.pending = None
-            # manage position: SL first, then TP
             if self.pos:
                 p = self.pos
                 for t in bt:
@@ -483,11 +466,9 @@ class SweepEngine:
                             self.close_pos(t["timestamp"], p["sl"], "SL"); break
                         if bid <= p["tp"]:
                             self.close_pos(t["timestamp"], p["tp"], "TP"); break
-            # signal detection on bar close
             self._update_1m_pivots(bars, i)
             self._update_htf(bars, i)
             if self.pos is None and self.pending is None and i - self.last_exit >= SWEEP_COOLDOWN and self.bias != 0:
-                # 15m-level sweeps only — the real liquidity grabs (1m-level sweeps are noise)
                 sig = None
                 if self.bias == 1 and self.sl15 is not None:
                     if b["low"] < self.sl15 and b["close"] > self.sl15:

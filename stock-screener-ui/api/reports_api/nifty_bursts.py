@@ -1,20 +1,27 @@
 """Nifty OI-burst detection and mechanical option signal.
 
 Server-side twin of ``src/pages/report/niftyOiBursts.ts`` — the tape's
-``call_doi``/``put_doi`` are cumulative from the day's first recorded row, so a
-burst is the FIRST DIFFERENCE between consecutive minutes, not the headline
-number.
+``call_doi``/``put_doi`` are SIGNED changes from the day's first recorded row
+(``ce_oi - first.ce_oi`` in ``derive_tape_rows``), so they go negative on an
+unwind; they are not a running cumulative total. A burst is the FIRST
+DIFFERENCE between adjacent rows, not the headline number.
 
 Having this on the backend means bursts survive with the stored tape: the
 history is recomputable for any recorded day even when no browser was open.
 
-Rules (kept identical to the TS implementation):
-  - baseline = median of the previous ``window`` per-side |delta| values,
-    floored at ``min_abs`` so a near-zero median on a quiet tape cannot
-    inflate every later move;
+Rules:
+  - baseline = max(``min_abs``, ``OI_BURST_REL_FLOOR`` * peak |cumDoi| so far,
+    median of the previous ``window`` per-side |delta| values). The absolute
+    floor is scaled to the underlying's OI magnitude so a million-contract
+    tape does not score every move 500x against a fixed 2,000-contract floor,
+    while a quiet NIFTY tape keeps the old ``min_abs`` floor. The PEAK (not the
+    instantaneous) cumDoi is the scale: a large unwind brings the signed value
+    back toward zero, which must not re-arm the fixed floor mid-session;
   - score = |delta| / baseline;
   - severity: >= 8 critical, >= 5 alert, >= 3 watch;
-  - requires ``warmup`` prior minutes and |delta| >= ``min_abs``.
+  - requires ``warmup`` prior minutes, |delta| >= ``min_abs``, and the two
+    rows at most one tape interval apart (exact seconds — a 66-second gap
+    floors to 1 minute but is not a one-minute move).
   - OI events also carry ``flow``/``bearish`` (buyer vs writer, read from OI +
     premium together) when the tape has the premium. Squeezes and premium
     impulses are momentum events whose direction is the leg that moved, so they
@@ -30,14 +37,20 @@ from typing import Any, Iterable, Optional
 
 from api.reports_api._numeric import safe_float
 from api.reports_api._time import minutes_between as _gap_minutes
+from api.reports_api._time import seconds_between as _gap_seconds
 from api.reports_api.nifty_fuel import basis_text, fuel_state, plan_allowed
-
-# ------------------------------------------------------------------ constants
 
 OI_BURST_WINDOW = 10
 OI_BURST_MIN_ABS = 2_000
 OI_BURST_WARMUP = 3
 OI_BURST_TIERS = {"watch": 3.0, "alert": 5.0, "critical": 8.0}
+#: Adaptive baseline floor as a fraction of the side's peak |cumulative DOI|.
+#: 0.5% leaves NIFTY's ~1-2K minute deltas on the ``min_abs`` floor, but scales
+#: the floor for a high-OI underlying: on the live 2026-11-26 SENSEX tape the
+#: fixed 2,000-contract floor produced a median score of 343.8 and 101/119
+#: criticals. Peak, not current, because an unwind drags signed cumDoi toward
+#: zero exactly when the floor is most needed.
+OI_BURST_REL_FLOOR = 0.005
 
 OI_SIGNAL_RISK_BUDGET = 5_000.0
 OI_SIGNAL_SL_PCT = 25.0
@@ -118,12 +131,13 @@ def coalesce_bursts(bursts: Iterable[dict]) -> list[dict]:
     return out
 
 
-#: A burst is by definition a ONE-minute OI move, so only strictly adjacent
-#: minutes qualify. Anything further apart is not a burst we can judge: on
-#: 2026-10-14 a 12-minute recorder outage produced index "bursts" scoring 1037
-#: and 1324, and even a 2-minute span scored 1141. Those are the gap, not the
-#: market. We would rather report no burst than a fabricated one.
-MAX_BURST_GAP_MIN = 1
+#: A burst is by definition a ONE-minute OI move, so only rows at most one
+#: tape interval apart qualify (the recorder cadence is 60 s). Compare EXACT
+#: seconds, not floored minutes: 09:54:03 -> 09:55:09 is 66 s, which ``// 60``
+#: reports as 1 and used to sail through the old whole-minute budget. Longer
+#: outages (2026-10-14's 12-minute gap scored 1037/1324, a 2-minute gap scored
+#: 1141) are the gap, not the market — report nothing, not a fabricated burst.
+MAX_BURST_GAP_SEC = 60.0
 
 
 def _ordered_rows(rows: Iterable[dict]) -> list[dict]:
@@ -139,19 +153,18 @@ def _ordered_rows(rows: Iterable[dict]) -> list[dict]:
 
 
 
-def _is_contiguous(a: dict, b: dict, max_gap: int = MAX_BURST_GAP_MIN) -> bool:
+def _is_contiguous(a: dict, b: dict, max_gap_sec: float = MAX_BURST_GAP_SEC) -> bool:
     """True when ``b`` is a real next-minute row after ``a``.
 
     Guards every detector that differences two rows: a recorder gap turns the
     whole missing span into one enormous "one-minute" delta, which then scores
-    as a CRITICAL burst even though nothing happened in a minute.
+    as a CRITICAL burst even though nothing happened in a minute. Uses exact
+    seconds — ``minutes_between`` floors a 66-second gap to 1.
     """
-    gap = _gap_minutes(a, b)
-    return gap is not None and 0 < gap <= max_gap
+    gap = _gap_seconds(a, b)
+    return gap is not None and 0 < gap <= max_gap_sec
 
 
-# -------------------------------------------------- buyer / writer flow
-#
 # ΔOI alone does not say WHO traded. The same put build is bullish when writers
 # sold it (premium fell) and bearish when buyers paid up (premium rose), and the
 # old "put build -> writers -> bullish" assumption got the live chain backwards:
@@ -234,6 +247,7 @@ def minute_doi_series(rows: Iterable[dict]) -> list[dict]:
         out.append({
             "t": cur["t"],
             "gapMinutes": _gap_minutes(prev, cur),
+            "gapSeconds": _gap_seconds(prev, cur),
             "dCall": _f(cur.get("call_doi")) - _f(prev.get("call_doi")),
             "dPut": _f(cur.get("put_doi")) - _f(prev.get("put_doi")),
             "callDoi": _f(cur.get("call_doi")),
@@ -256,11 +270,18 @@ def detect_oi_bursts(
 ) -> list[dict[str, Any]]:
     """Bursts across the tape, one entry per (minute, side), chronological."""
     history: dict[str, list[float]] = {"call": [], "put": []}
+    # Stable OI-magnitude proxy. Instantaneous |cumDoi| collapses when a big
+    # unwind pulls the signed value back toward zero, re-arming the fixed floor
+    # at the worst moment; the session peak does not.
+    oi_scale: dict[str, float] = {"call": 0.0, "put": 0.0}
     out: list[dict[str, Any]] = []
 
     for m in minute_doi_series(rows):
-        # A gap is not a burst: the delta spans minutes we never recorded.
-        if (m.get("gapMinutes") or 1) > MAX_BURST_GAP_MIN:
+        # A gap is not a burst: the delta spans time we never recorded.
+        # Compare exact seconds — a 66 s gap floors to "1 minute" and used to
+        # pass the old whole-minute budget.
+        gap = m.get("gapSeconds")
+        if gap is None or gap <= 0 or gap > MAX_BURST_GAP_SEC:
             continue
         sides = (
             ("call", m["dCall"], m["callDoi"], m["callTick"], m.get("dAtmCe")),
@@ -268,9 +289,17 @@ def detect_oi_bursts(
         )
         for side, delta, cum, tick, prem_chg in sides:
             magnitude = abs(delta)
+            oi_scale[side] = max(oi_scale[side], abs(cum))
             hist = history[side]
             if len(hist) >= warmup:
-                baseline = max(float(min_abs), statistics.median(hist[-window:]))
+                # Scale the absolute floor to the underlying's OI magnitude:
+                # a fixed 2,000-contract floor scored every SENSEX move 100s of
+                # times, while a quiet NIFTY tape keeps the same min_abs floor.
+                baseline = max(
+                    float(min_abs),
+                    OI_BURST_REL_FLOOR * oi_scale[side],
+                    statistics.median(hist[-window:]),
+                )
                 score = magnitude / baseline if baseline > 0 else 0.0
                 if magnitude >= min_abs and score >= OI_BURST_TIERS["watch"]:
                     out.append({
@@ -331,8 +360,6 @@ def session_trend(rows: list[dict], at_time: Any = None) -> Optional[str]:
         return "down"
     return None
 
-
-# ------------------------------------------------------------- squeezes
 
 #: |OI unwind| needed for a wall break to count as a squeeze, in UNITS
 #: (shares) - Upstox reports option OI in units, so 2,000,000 is 2,000,000
@@ -463,8 +490,6 @@ def detect_squeezes(
     return out
 
 
-# -------------------------------------------------------- per-strike bursts
-
 #: A single strike must move at least this much OI to be worth an alert —
 #: higher than the index threshold because one strike is a much sharper event.
 # Was 1_000_000 — an impossible bar. Measured over 1507 genuine 1-minute
@@ -587,8 +612,6 @@ def detect_strike_bursts(
     return out
 
 
-# ------------------------------------------------------- premium velocity
-
 #: ATM premium % move over the window that counts as a tradeable impulse.
 PREMIUM_MOVE_MIN_PCT = 15.0
 PREMIUM_MOVE_WINDOW_MIN = 3
@@ -671,8 +694,6 @@ def detect_premium_moves(
             })
     return out
 
-
-# ----------------------------------------------------------- coiling (pre-move)
 
 #: Spot range over the window, as % of spot, that counts as "tight".
 COIL_MAX_RANGE_PCT = 0.08
@@ -762,9 +783,6 @@ def detect_coiling(
 
 def _round2(v: float) -> float:
     return round(v, 2)
-
-
-# -------------------------------------------------------------------- news
 
 
 def _parse_ts(value: Any) -> Optional[float]:

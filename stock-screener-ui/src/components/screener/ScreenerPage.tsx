@@ -1,29 +1,38 @@
-import { useState, useCallback, lazy, Suspense, useTransition, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
-import MuiStack from "@mui/material/Stack";
-import Paper from "@mui/material/Paper";
-import { Box, Tabs, Text, Select, Skeleton, ActionIcon, Switch, Tooltip } from "@/ui";
-import { BORDER, SURFACE } from "@/ui/palette";
-import { IconTable, IconChartDots, IconSettings, IconLayoutDashboard, IconRefresh, IconCoins, IconCalendarEvent, IconWorld } from "@tabler/icons-react";
+import { Match, Show, Suspense, Switch, createEffect, createMemo, createSignal, lazy, onCleanup, onMount } from "solid-js";
+import { useParams, useNavigate, useSearchParams } from "@solidjs/router";
+import { Box, Stack, Paper, Tabs, Text, Select, Skeleton } from "@/ui";
+import { IconTable, IconChartDots, IconSettings, IconChartCandle, IconWorld } from "./icons";
 import * as state from "../../state";
-import { DashboardView } from "./DashboardView";
 import { ScreenerHeader } from "./ScreenerHeader";
-// ScreenerContent pulls the table + heatmap (echarts) graph — several MB of
-// module evaluation on the critical path of every landing. Load it on first
-// render of the Screener tab, not at page boot.
+// ScreenerContent pulls the table + its whole module tree — heavy module
+// evaluation on the critical path of every landing. Load it on first render of
+// the Screener tab, not at page boot.
 const ScreenerContent = lazy(() =>
   import("./ScreenerContent").then((m) => ({ default: m.ScreenerContent })),
 );
+// The sector-group strip is the heaviest panel on this route and only the
+// Screener tab needs it. Lazy-loading keeps its module (and its exclusive deps)
+// out of the shell chunk, so every other tab — and the first paint of the shell
+// itself — never pays for it.
+const GroupPerformancePanel = lazy(() =>
+  import("./GroupPerformancePanel").then((m) => ({ default: m.GroupPerformancePanel })),
+);
 import { SelectionBar } from "./SelectionBar";
-import { screenerHasSideFilters } from "./ScreenerSidePanel";
-import { GroupPerformancePanel } from "./GroupPerformancePanel";
 import { ScreenerInlineFilters } from "./ScreenerInlineFilters";
 import { ErrorBoundary } from "../common/ErrorBoundary";
+import { MARKET_VIEW_OPTIONS, normalizeMarketView } from "../market/MarketMapView";
 
 const CorrelationTab = lazy(() => import("./CorrelationTab").then((m) => ({ default: m.CorrelationTab })));
 const ScreenerConfigView = lazy(() => import("./ScreenerConfigView").then((m) => ({ default: m.ScreenerConfigView })));
-const DeepValueTab = lazy(() => import("../value/ValuePanel").then((m) => ({ default: m.ValuePanel })));
-const EventsTab = lazy(() => import("../events/EventsPanel").then((m) => ({ default: m.EventsPanel })));
+const FnoScreenerTab = lazy(() =>
+  import("./FnoScreenerTab").then((m) => ({ default: m.FnoScreenerTab })),
+);
+/** Market view ids addressable as `?view=`, derived from the canonical registry. */
+export const MARKET_VIEW_IDS = MARKET_VIEW_OPTIONS.map((o) => o.value);
+
+// The Market panel owns the prop contract (`MarketScreenerPanelProps`), and the
+// route is a thin pass-through to it, so the lazy import is typed directly
+// rather than re-declared here — a second copy could silently drift.
 const MarketTab = lazy(() =>
   import("../../pages/market/MarketScreenerPage").then((m) => ({ default: m.MarketScreenerPage })),
 );
@@ -32,7 +41,6 @@ import {
   setTimeframe,
   setPeriod,
   setPeriodUnit,
-  fetchCorrelationData,
 } from "../../state/correlation";
 import type { Stock } from "../../types";
 
@@ -72,12 +80,12 @@ interface ScreenerPageProps {
   onSymbolHover: (symbol: string | null) => void;
   error?: string | null;
   warning?: string | null;
-  /** Market universe for the Dashboard tab. Uncontrolled default is "nifty500". */
+  /** Market universe for the Dashboard view. Uncontrolled default is "nifty500". */
   universe?: string;
   onUniverseChange?: (universe: string) => void;
 }
 
-/** Market universes offered by the Dashboard toolbar selector. */
+/** Market universes offered by the Dashboard view's universe selector. */
 export const DASHBOARD_UNIVERSES = [
   { value: "nifty50", label: "Nifty 50" },
   { value: "nifty500", label: "Nifty 500" },
@@ -86,459 +94,418 @@ export const DASHBOARD_UNIVERSES = [
 
 export const DEFAULT_DASHBOARD_UNIVERSE = "nifty500";
 
+/** Shared fallback for every lazy tab: same skeleton, one per boundary. */
+function PanelFallback() {
+  return <Box className="p-2"><Skeleton h={120} /><Skeleton h={200} className="mt-sm" /></Box>;
+}
+
+function firstParam(value: string | string[] | undefined): string | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw ?? null;
+}
+
 /**
- * Map a Dashboard panel id to the closest existing screener profile id.
- * Returns null when there is no close profile — the caller then just opens
- * the Screener tab with the current profile.
+ * Query params a single tab owns. `navigate` rebuilds the query from scratch, so
+ * leaving a tab has to drop its params explicitly — otherwise the next URL keeps
+ * params that only mean something on the tab you just left.
  */
-export function mapDashboardPanelToScreener(
-  panelId: string,
-  screenerIds: string[],
-): string | null {
-  const has = (id: string) => screenerIds.includes(id);
-  switch (panelId) {
-    case "near_52w":
-    case "near_52w_high":
-    case "near_52w_high_low":
-      if (has("near_52w_breakout")) return "near_52w_breakout";
-      if (has("52w_high")) return "52w_high";
-      return null;
-    case "near_52w_low":
-      if (has("52w_high")) return "52w_high";
-      if (has("near_52w_breakout")) return "near_52w_breakout";
-      return null;
-    case "gainers_losers":
-    case "losers":
-      return null;
-    case "new_highs":
-    case "touched_52w":
-      if (has("touched_52w_high")) return "touched_52w_high";
-      if (has("52w_high")) return "52w_high";
-      return null;
-    case "gap":
-    case "gap_up":
-    case "gap_down":
-      if (has("market_open_gap")) return "market_open_gap";
-      return null;
-    default:
-      // gainers / losers / most_active / turnover / volume_surge /
-      // range_expansion and anything unknown → Screener tab as-is.
-      return null;
-  }
+const TAB_OWNED_PARAMS: Readonly<Record<string, readonly string[]>> = {
+  correlation: ["symbols", "timeframe", "period"],
+  market: ["view"],
+};
+
+/** Tabs addressable as `/screener/<tab>`. `dashboard` is the folded legacy tab. */
+const KNOWN_TABS = new Set([
+  "screener",
+  "fno",
+  "market",
+  "correlation",
+  "config",
+  "dashboard",
+]);
+
+/** Market is the default tab, so it stays addressable as bare `/screener`. */
+function tabPath(tab: string): string {
+  return tab === "market" ? "/screener" : `/screener/${tab}`;
 }
 
-function CompactAlerts({
-  activeScreener,
-  warning,
-}: {
-  activeScreener: string;
-  warning?: string | null;
-}) {
-  const lines: string[] = [];
-  if (activeScreener === "52w_high") {
-    lines.push("52W from Upstox daily; LTP live when broker connected.");
-  }
-  if (warning) {
-    lines.push(warning);
-  }
-  if (lines.length === 0) {
-    return null;
-  }
-  return (
-    <Box
-      px={2}
-      py={1}
-      sx={{ flexShrink: 0 }}
-      data-testid="screener-52w-high-banner"
-    >
-      {lines.map((line) => (
-        <Text key={line} size="11px" c="dimmed" lineClamp={2}>
-          {line}
-        </Text>
-      ))}
-    </Box>
-  );
+/** Legacy query URLs always carry the tab segment, including the default one. */
+function legacyTabPath(tab: string): string {
+  return `/screener/${tab}`;
 }
 
-export function ScreenerPage({
-  screenerOptions,
-  activeScreener,
-  onScreenerChange,
-  onConfigScreenerSelect,
-  status,
-  isLoading,
-  autoRefreshSeconds,
-  provider,
-  mode,
-  onRefresh,
-  onAutoRefreshChange,
-  onProviderChange,
-  onModeChange,
-  approachingStocks,
-  touchedStocks,
-  onSymbolClick,
-  onSymbolHover,
-  error,
-  warning,
-  universe: universeProp,
-  onUniverseChange,
-}: ScreenerPageProps) {
-  const [viewMode, setViewMode] = useState<"table" | "heatmap">("table");
+/**
+ * One strip height for every tab. The band owns the single bottom rule, so the
+ * kit's own list rule is zeroed — two rules 1px apart read as a fat, fuzzy line.
+ */
+const TAB_STRIP_STYLE = { "min-height": "26px" } as const;
+
+/** One-line notices for the context band. Never their own row. */
+function useAlertNotes(props: { activeScreener: string; warning?: string | null }) {
+  return createMemo(() => {
+    const out: string[] = [];
+    if (props.activeScreener === "52w_high") {
+      out.push("52W from Upstox daily; LTP live when broker connected.");
+    }
+    if (props.warning) {
+      out.push(props.warning);
+    }
+    return out;
+  });
+}
+
+export function ScreenerPage(props: ScreenerPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") || "dashboard";
-  const isValueTab = activeTab === "deepvalue";
-  const isEventsTab = activeTab === "events";
-  const isMarketTab = activeTab === "market";
-  const [isPending, startTransition] = useTransition();
-  const [internalUniverse, setInternalUniverse] = useState(DEFAULT_DASHBOARD_UNIVERSE);
-  const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
-  const [showLastClose, setShowLastClose] = useState(false);
-  const universe = universeProp ?? internalUniverse;
+  const params = useParams<{ tab?: string }>();
+  const navigate = useNavigate();
 
-  // Mount the expensive dashboard/screener panels on first visit, then keep
-  // them alive. Landing on ?tab=market must not pay the dashboard fetch or
-  // the screener table's module/render cost.
-  const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<string>>(
-    () => new Set([activeTab]),
-  );
-  useEffect(() => {
-    setVisitedTabs((prev) => {
-      if (prev.has(activeTab)) return prev;
-      const next = new Set(prev);
-      next.add(activeTab);
-      return next;
-    });
-  }, [activeTab]);
-  const visited = useMemo(() => new Set(visitedTabs).add(activeTab), [visitedTabs, activeTab]);
+  const pathTab = () => {
+    const raw = params.tab;
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    return value && KNOWN_TABS.has(value) ? value : null;
+  };
+  /** Pre-path URLs (`/screener?tab=…`) still resolve; an effect moves them to the path form. */
+  const legacyTab = () => {
+    const raw = firstParam(searchParams.tab);
+    return raw && KNOWN_TABS.has(raw) ? raw : null;
+  };
+  const activeTab = createMemo(() => pathTab() ?? legacyTab() ?? "market");
+  const marketView = () => normalizeMarketView(firstParam(searchParams.view));
+  const isMarketTab = () => activeTab() === "market";
+  const isFnoTab = () => activeTab() === "fno";
+
+  const ownedByAnotherTab = (tab: string, key: string) =>
+    Object.entries(TAB_OWNED_PARAMS).some(([owner, keys]) => owner !== tab && keys.includes(key));
+
+  /**
+   * Query for `tab`: drops the legacy `tab` param and every param owned by the
+   * tab being left, keeps the rest (e.g. the `screener` profile).
+   */
+  const searchForTab = (tab: string): string => {
+    const query = new URLSearchParams();
+    for (const [key, raw] of Object.entries(searchParams)) {
+      if (raw == null) continue;
+      const value = Array.isArray(raw) ? raw.join(",") : raw;
+      if (value === "" || key === "tab" || ownedByAnotherTab(tab, key)) continue;
+      // The view is owned by the Market tab; canonicalise it so a legacy
+      // `?view=map` link is never echoed back with the retired id.
+      query.append(key, key === "view" ? normalizeMarketView(value) : value);
+    }
+    return query.toString();
+  };
+
+  /**
+   * One navigation per tab change. The path carries the tab; the query is
+   * rebuilt so a param written by the tab being left never survives, and the
+   * navigation is pushed so Back walks the tabs.
+   */
+  const navigateToTab = (
+    path: string,
+    searchFor: string,
+    extra?: Record<string, string>,
+    options?: { replace?: boolean },
+  ) => {
+    const query = new URLSearchParams(searchFor);
+    for (const [key, value] of Object.entries(extra ?? {})) query.set(key, value);
+    const search = query.toString();
+    navigate(`${path}${search ? `?${search}` : ""}`, options);
+  };
+
+  // Old `?tab=` links converge on the path form; `replace` keeps them out of history.
+  createEffect(() => {
+    const legacy = legacyTab();
+    if (!legacy || legacy === "dashboard") return;
+    navigateToTab(legacyTabPath(legacy), searchForTab(legacy), undefined, { replace: true });
+  });
+
+  // The Dashboard tab folded into Market as its `movers` view. It is reachable
+  // both as `?tab=dashboard` and as the path segment `/screener/dashboard`.
+  createEffect(() => {
+    if (activeTab() !== "dashboard") return;
+    navigateToTab(legacyTabPath("market"), searchForTab("market"), { view: "movers" }, { replace: true });
+  });
+
+  // Deep Value folded into Market as its `value` view. Its id is retired from
+  // KNOWN_TABS, so the raw param/segment is read instead of `activeTab()`.
+  createEffect(() => {
+    if (firstParam(searchParams.tab) !== "deepvalue" && firstParam(params.tab) !== "deepvalue") return;
+    navigateToTab(legacyTabPath("market"), searchForTab("market"), { view: "value" }, { replace: true });
+  });
 
   // Warm the Market chunk once the browser is idle after mount; hover/focus
   // on the tab does the same sooner. Never blocks the initial load.
-  useEffect(() => {
-    const w = window as unknown as {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
-      cancelIdleCallback?: (id: number) => void;
-    };
+  onMount(() => {
+    const w = window;
     if (typeof w.requestIdleCallback === "function") {
       const id = w.requestIdleCallback(prefetchMarketTab, { timeout: 2500 });
-      return () => w.cancelIdleCallback?.(id);
+      onCleanup(() => w.cancelIdleCallback?.(id));
+      return;
     }
     const id = window.setTimeout(prefetchMarketTab, 1500);
-    return () => window.clearTimeout(id);
-  }, []);
-  const handleUniverseChange = useCallback(
-    (u: string) => {
-      if (onUniverseChange) {
-        onUniverseChange(u);
-      } else {
-        setInternalUniverse(u);
-      }
-    },
-    [onUniverseChange],
+    onCleanup(() => window.clearTimeout(id));
+  });
+
+  // Profile options for the toolbar Select. Memoised so the array identity is
+  // stable across renders — an inline `.map` in JSX handed the select a new
+  // `data` array on every store tick.
+  const screenerSelectData = createMemo(() =>
+    props.screenerOptions.map((o) => ({ value: o.id, label: o.label })),
   );
+
+  // Symbols captured from a Dashboard "Open scan": the Market table narrows
+  // to exactly these names. Cleared when the user leaves the Market tab.
+  const [marketSymbols, setMarketSymbols] = createSignal<string[]>([]);
 
   const setActiveTab = (tab: string) => {
-    startTransition(() => {
-      setSearchParams(
-        (prev) => {
-          if (tab === "dashboard") {
-            prev.delete("tab");
-          } else {
-            prev.set("tab", tab);
-          }
-          return prev;
-        },
-        { replace: true },
-      );
-    });
+    if (tab === activeTab()) return;
+    if (tab !== "market") setMarketSymbols([]);
+    navigateToTab(tabPath(tab), searchForTab(tab));
   };
 
-  const handleOpenScan = useCallback(
-    (panelId: string) => {
-      const target = mapDashboardPanelToScreener(
-        panelId,
-        screenerOptions.map((o) => o.id),
-      );
-      if (target && target !== activeScreener) {
-        onScreenerChange(target);
-      }
-      setActiveTab("screener");
-    },
-    [screenerOptions, activeScreener, onScreenerChange, setSearchParams],
-  );
+  const handleOpenScan = (panelId: string, symbols: string[]) => {
+    setMarketSymbols(symbols);
+    navigateToTab(tabPath("market"), searchForTab("market"), { view: "table" }, { replace: true });
+  };
 
-  const handleCompare = useCallback(() => {
+  const handleCompare = () => {
     const syms = state.selectedSymbols;
     if (syms.length < 2) return;
     setSymbols(syms);
     setTimeframe("daily");
     setPeriod(90);
     setPeriodUnit("days");
-    fetchCorrelationData();
+    // The tab fetches on mount from the params written below; fetching here too
+    // would race it and could let the older response publish last.
     state.clearSelectedSymbols();
-    setSearchParams(
-      { tab: "correlation", symbols: syms.join(","), timeframe: "daily", period: "90" },
-      { replace: true },
-    );
-  }, [setSearchParams]);
+    navigateToTab(tabPath("correlation"), searchForTab("correlation"), {
+      symbols: syms.join(","),
+      timeframe: "daily",
+      period: "90",
+    });
+  };
 
-  const hasSideFilters = screenerHasSideFilters(activeScreener);
-  const hasResults = approachingStocks.length + touchedStocks.length > 0;
-  const isDashboard = activeTab === "dashboard";
+  const alertNotes = useAlertNotes(props);
+  const hasResults = () => props.approachingStocks.length + props.touchedStocks.length > 0;
+
+  // Market is both the default tab and the transient state while a legacy
+  // `?tab=dashboard` URL converges on the path form, so one component serves
+  // the explicit Match and the Switch fallback.
+  const MarketPanel = () => (
+    <div
+      data-testid="market-tab-panel"
+      class="min-w-0 min-h-0 overflow-hidden"
+      style={{ display: "flex", flex: 1 }}
+    >
+      <Suspense fallback={<PanelFallback />}>
+        <ErrorBoundary label="Market screener">
+          <MarketTab
+            initialView={marketView()}
+            onViewChange={(v) => {
+              const view = normalizeMarketView(v);
+              setSearchParams({ view: view === "table" ? null : view }, { replace: true });
+            }}
+            onOpenScan={handleOpenScan}
+            symbolAllowlist={marketSymbols()}
+            onClearSymbolAllowlist={() => setMarketSymbols([])}
+          />
+        </ErrorBoundary>
+      </Suspense>
+    </div>
+  );
 
   return (
-    <Box sx={{ width: "100%", minHeight: 0, display: "flex", flexDirection: "column", gap: 1 }}>
-      <MuiStack
-        spacing={0}
-        id="screener-main"
-        data-testid="screener-page"
-        sx={{ minHeight: 0, width: "100%", gap: 1 }}
-      >
-        {/* Unified 48px toolbar — POC Option A promoted to live */}
+    <Box className="h-full min-h-0 w-full flex flex-col overflow-hidden p-4">
+      <Stack id="screener-main" data-testid="screener-page" gap={12} className="min-h-0 w-full flex-1 overflow-hidden">
         <Paper
-          elevation={0}
+          radius={0}
           data-testid="screener-controls"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 2,
-            px: 1.5,
-            height: 48,
-            minHeight: 48,
-            maxHeight: 48,
-            border: 1,
-            borderColor: BORDER,
-            borderRadius: 2,
-            bgcolor: SURFACE,
-            flexShrink: 0,
-            overflow: "hidden",
-            flexWrap: "nowrap",
-          }}
+          className="flex items-center gap-2 h-[28px] min-h-[28px] max-h-[28px] flex-shrink-0 overflow-hidden flex-nowrap border-b border-fin-border"
         >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
-            {isDashboard ? (
-              <Select
-                value={universe}
-                onChange={(v) => v && handleUniverseChange(v)}
-                data={DASHBOARD_UNIVERSES.map((o) => ({ value: o.value, label: o.label }))}
-                size="xs"
-                w={148}
-                data-testid="dashboard-universe-select"
-                comboboxProps={{ withinPortal: true }}
-                aria-label="Market universe"
-              />
-            ) : isValueTab ? (
-              <Text size="xs" fw={600} data-testid="deep-value-tab-label">
-                Deep Value
-              </Text>
-            ) : isEventsTab ? (
-              // Keeps the tab strip from jumping: the slot below it is a
-              // 148px Select on the other tabs. The word "Events" is already
-              // the active tab two elements to the right, so this slot names
-              // the surface instead of repeating it.
-              <Text size="xs" fw={600} data-testid="events-tab-label" sx={{ width: 148, flexShrink: 0 }}>
-                Event calendar
-              </Text>
-            ) : isMarketTab ? (
-              <Text size="xs" fw={600} data-testid="market-tab-label" sx={{ width: 148, flexShrink: 0 }}>
+          <Box className="flex items-center gap-2 min-w-0 flex-1">
+            <Show when={isMarketTab()} fallback={
+              <Show when={isFnoTab()} fallback={
+                <Select
+                  value={props.activeScreener}
+                  onChange={(v) => v && props.onScreenerChange(v)}
+                  data={screenerSelectData()}
+                  size="xs"
+                  w={148}
+                  data-testid="screener-select"
+                  aria-label="Screener"
+                />
+              }>
+                <Text
+                  size="xs"
+                  fw={600}
+                  data-testid="fno-tab-label"
+                  className="w-[148px] flex-shrink-0 hidden md:block"
+                >
+                  F&O Momentum (India)
+                </Text>
+              </Show>
+            }>
+              <Text size="xs" fw={600} data-testid="market-tab-label" className="w-[148px] flex-shrink-0">
                 Market
               </Text>
-            ) : (
-              <Select
-                value={activeScreener}
-                onChange={(v) => v && onScreenerChange(v)}
-                data={screenerOptions.map((o) => ({ value: o.id, label: o.label }))}
-                size="xs"
-                w={148}
-                data-testid="screener-select"
-                comboboxProps={{ withinPortal: true }}
-                aria-label="Screener"
-              />
-            )}
+            </Show>
             <Tabs
-              value={activeTab}
+              value={activeTab()}
               onChange={(v) => {
                 if (v && v !== "screener") state.setSelectedSymbols([]);
                 if (v) setActiveTab(v);
               }}
+              className="flex-1 min-w-0 overflow-x-auto"
             >
-              <Tabs.List sx={{ minHeight: 32, display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Tabs.Tab value="dashboard" leftSection={<IconLayoutDashboard size={14} />} data-testid="tab-dashboard" style={{ minHeight: 32 }}>
-                  Dashboard
-                </Tabs.Tab>
-                <Tabs.Tab value="screener" leftSection={<IconTable size={14} />} data-testid="tab-screener" style={{ minHeight: 32 }}>
+              <Tabs.List
+                data-testid="screener-tab-list"
+                className="flex-1 min-w-0"
+                style={{ "border-bottom-width": "0px", "min-height": "26px" }}
+              >
+                <Tabs.Tab value="screener" leftSection={<IconTable size={14} />} data-testid="tab-screener" style={TAB_STRIP_STYLE}>
                   Screener
                 </Tabs.Tab>
-                <Tabs.Tab value="deepvalue" leftSection={<IconCoins size={14} />} data-testid="tab-deepvalue" style={{ minHeight: 32 }}>
-                  Deep Value
+                <Tabs.Tab value="fno" leftSection={<IconChartCandle size={14} />} data-testid="tab-fno" style={TAB_STRIP_STYLE}>
+                  F&O (India)
                 </Tabs.Tab>
-                <Tabs.Tab value="events" leftSection={<IconCalendarEvent size={14} />} data-testid="tab-events" style={{ minHeight: 32 }}>
-                  Events
-                </Tabs.Tab>
-                <Tabs.Tab value="market" leftSection={<IconWorld size={14} />} data-testid="tab-market" style={{ minHeight: 32 }} onMouseEnter={prefetchMarketTab} onFocus={prefetchMarketTab}>
+                {/* `onFocus` is not on `UITabProps` (shared type) but `Tab`
+                    forwards unknown props to the DOM, so the focus path still
+                    warms the chunk instead of silently disappearing. */}
+                <Tabs.Tab
+                  value="market"
+                  leftSection={<IconWorld size={14} />}
+                  data-testid="tab-market"
+                  style={TAB_STRIP_STYLE}
+                  onMouseEnter={() => void prefetchMarketTab()}
+                  {...({ onFocus: () => void prefetchMarketTab() } as Record<string, unknown>)}
+                >
                   Market
                 </Tabs.Tab>
-                <Tabs.Tab value="correlation" leftSection={<IconChartDots size={14} />} data-testid="tab-correlation" style={{ minHeight: 32 }}>
+                <Tabs.Tab value="correlation" leftSection={<IconChartDots size={14} />} data-testid="tab-correlation" style={TAB_STRIP_STYLE}>
                   Correlation
                 </Tabs.Tab>
-                <Tabs.Tab value="config" leftSection={<IconSettings size={14} />} data-testid="tab-config" style={{ minHeight: 32 }}>
+                <Tabs.Tab value="config" leftSection={<IconSettings size={14} />} data-testid="tab-config" style={TAB_STRIP_STYLE}>
                   Config
                 </Tabs.Tab>
               </Tabs.List>
             </Tabs>
           </Box>
-          <Box sx={{ flex: 1, minWidth: 80, px: 1, display: "flex", justifyContent: "center", overflow: "hidden" }}>
-            {isMarketTab ? null : (
-              <Text size="xs" c="dimmed" truncate sx={{ fontSize: 11 }} title={status} data-testid="screener-status">
-                {status}
-              </Text>
-            )}
-          </Box>
-          <Box sx={{ flexShrink: 0, display: "flex", alignItems: "center", flexWrap: "nowrap" }}>
-            {isDashboard ? (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
-                <Tooltip label={showLastClose ? "Showing last close (visual)" : "Show last close"}>
-                  <Switch
-                    size="xs"
-                    checked={showLastClose}
-                    onChange={(e) => setShowLastClose(e.currentTarget.checked)}
-                    label="Last close"
-                    data-testid="dashboard-last-close-toggle"
-                    aria-label="Last close"
-                  />
-                </Tooltip>
-                <Tooltip label="Refresh dashboard">
-                  <ActionIcon
-                    variant="subtle"
-                    size="sm"
-                    onClick={() => setDashboardRefreshKey((k) => k + 1)}
-                    data-testid="dashboard-refresh"
-                    aria-label="Refresh dashboard"
-                  >
-                    <IconRefresh size={14} />
-                  </ActionIcon>
-                </Tooltip>
-              </Box>
-            ) : isValueTab ? null : isEventsTab ? null : isMarketTab ? null : (
+          <Box className="flex-shrink-0 flex items-center flex-nowrap ml-auto">
+            <Show when={!isMarketTab() && !isFnoTab()}>
               <ScreenerHeader
-              status={status}
-              isLoading={isLoading}
-              autoRefreshSeconds={autoRefreshSeconds}
-              provider={provider}
-              mode={mode}
-              onRefresh={onRefresh}
-              onAutoRefreshChange={onAutoRefreshChange}
-              onProviderChange={onProviderChange}
-              onModeChange={onModeChange}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              hideStatus
-              disableControls={isLoading && !hasResults}
-            />
-            )}
+                status={props.status}
+                isLoading={props.isLoading}
+                autoRefreshSeconds={props.autoRefreshSeconds}
+                provider={props.provider}
+                mode={props.mode}
+                onRefresh={props.onRefresh}
+                onAutoRefreshChange={props.onAutoRefreshChange}
+                onProviderChange={props.onProviderChange}
+                onModeChange={props.onModeChange}
+                hideStatus
+                disableControls={props.isLoading && !hasResults()}
+              />
+            </Show>
           </Box>
         </Paper>
         <Box
           id="screener-content"
           data-testid="screener-content"
-          sx={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}
+          flex={1}
+          className="flex-1 min-h-0 flex overflow-hidden"
+          style={{ display: "flex" }}
         >
-          <Box
-            data-testid="dashboard-panel"
-            sx={{ display: isDashboard ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}
-          >
-            {visited.has("dashboard") ? (
-              <DashboardView
-                key={`dashboard-${dashboardRefreshKey}`}
-                universe={universe}
-                onOpenSymbol={onSymbolClick}
-                onOpenScan={handleOpenScan}
-              />
-            ) : null}
-          </Box>
-          <Box sx={{ display: activeTab === "screener" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, gap: 1 }}>
-            {visited.has("screener") ? (
-              <>
-                <GroupPerformancePanel />
+          <Switch fallback={<MarketPanel />}>
+            <Match when={activeTab() === "screener"}>
+              <div
+                data-testid="screener-panel"
+                class="min-w-0 min-h-0 flex-1 flex-row gap-1 overflow-hidden"
+                style={{ display: "flex", flex: 1 }}
+              >
+                {/* Below 900px the results own the whole row; the rail stays
+                    mounted (and keeps its testids) but is visually removed. */}
+                <Box className="flex max-[899px]:hidden">
+                  <Suspense fallback={<Box className="p-1"><Skeleton h={24} /></Box>}>
+                    <GroupPerformancePanel />
+                  </Suspense>
+                </Box>
                 <Paper
-                  elevation={0}
-                  sx={{
-                    flex: 1,
-                    minWidth: 0,
-                    minHeight: 0,
-                    display: "flex",
-                    flexDirection: "column",
-                    overflow: "hidden",
-                    border: 1,
-                    borderColor: BORDER,
-                    borderRadius: 2,
-                    bgcolor: SURFACE,
-                    opacity: isPending ? 0.6 : 1,
-                  }}
+                  radius={2}
+                  flex={1}
+                  p={0}
+                  className="min-w-0 min-h-0 flex flex-col overflow-hidden bg-fin-surface"
                 >
-                  <CompactAlerts activeScreener={activeScreener} warning={warning} />
-                  {hasSideFilters && <ScreenerInlineFilters activeScreener={activeScreener} embedded />}
-                  <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", p: 0.5, gap: 0.5 }}>
-                    <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
+                  {/* Always-mounted 24px band: status, warning notes and the first
+                      filter all live here, so none of them can shift the table. */}
+                  <ScreenerInlineFilters
+                    activeScreener={props.activeScreener}
+                    status={props.status}
+                    notes={alertNotes()}
+                    embedded
+                  />
+                  <Box flex={1} className="min-h-0 overflow-hidden flex flex-col gap-1">
+                    <Suspense fallback={<PanelFallback />}>
                       <ScreenerContent
-                        approachingStocks={approachingStocks}
-                        touchedStocks={touchedStocks}
-                        isLoading={isLoading}
-                        error={error}
-                        onRefresh={onRefresh}
-                        onSymbolClick={onSymbolClick}
-                        onSymbolHover={onSymbolHover}
-                        activeScreener={activeScreener}
-                        viewMode={viewMode}
+                        approachingStocks={props.approachingStocks}
+                        touchedStocks={props.touchedStocks}
+                        isLoading={props.isLoading}
+                        error={props.error}
+                        onRefresh={props.onRefresh}
+                        onSymbolClick={props.onSymbolClick}
+                        onSymbolHover={props.onSymbolHover}
+                        activeScreener={props.activeScreener}
                       />
                     </Suspense>
                     <SelectionBar onCompare={handleCompare} />
                   </Box>
                 </Paper>
-              </>
-            ) : null}
-          </Box>
-          <Box
-            data-testid="deep-value-panel"
-            sx={{ display: isValueTab ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}
-          >
-            <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
-              {isValueTab ? <DeepValueTab /> : null}
-            </Suspense>
-          </Box>
-          <Box
-            data-testid="events-tab-panel"
-            sx={{ display: isEventsTab ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}
-          >
-            <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
-              {isEventsTab ? <EventsTab /> : null}
-            </Suspense>
-          </Box>
-          <Box
-            data-testid="market-tab-panel"
-            sx={{ display: isMarketTab ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}
-          >
-            <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
-              <ErrorBoundary label="Market screener">
-                {isMarketTab ? <MarketTab /> : null}
-              </ErrorBoundary>
-            </Suspense>
-          </Box>
-          <Box sx={{ display: activeTab === "correlation" || activeTab === "config" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}>
-            <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
-              {activeTab === "config" ? (
-                <ScreenerConfigView
-                  screenerOptions={screenerOptions}
-                  activeScreener={activeScreener}
-                  onScreenerChange={onConfigScreenerSelect}
-                />
-              ) : activeTab === "correlation" ? (
-                <CorrelationTab />
-              ) : null}
-            </Suspense>
-          </Box>
+              </div>
+            </Match>
+            <Match when={isFnoTab()}>
+              <div
+                data-testid="fno-tab-panel"
+                class="min-w-0 min-h-0 overflow-hidden"
+                style={{ display: "flex", flex: 1 }}
+              >
+                <Suspense fallback={<PanelFallback />}>
+                  <ErrorBoundary label="Market screener">
+                    <FnoScreenerTab />
+                  </ErrorBoundary>
+                </Suspense>
+              </div>
+            </Match>
+            <Match when={isMarketTab()}>
+              <MarketPanel />
+            </Match>
+            <Match when={activeTab() === "correlation"}>
+              <div
+                data-testid="correlation-config-panel"
+                class="min-w-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
+                style={{ display: "flex", flex: 1 }}
+              >
+                <Suspense fallback={<PanelFallback />}>
+                  <CorrelationTab />
+                </Suspense>
+              </div>
+            </Match>
+            <Match when={activeTab() === "config"}>
+              <div
+                data-testid="correlation-config-panel"
+                class="min-w-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
+                style={{ display: "flex", flex: 1 }}
+              >
+                <Suspense fallback={<PanelFallback />}>
+                  <ScreenerConfigView
+                    screenerOptions={props.screenerOptions}
+                    activeScreener={props.activeScreener}
+                    onScreenerChange={props.onConfigScreenerSelect}
+                    onSymbolClick={props.onSymbolClick}
+                  />
+                </Suspense>
+              </div>
+            </Match>
+          </Switch>
         </Box>
-      </MuiStack>
+      </Stack>
     </Box>
   );
 }

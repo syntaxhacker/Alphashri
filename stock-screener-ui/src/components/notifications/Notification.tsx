@@ -1,7 +1,7 @@
-import { useEffect } from "react";
-import { Box, Paper, IconButton, Typography } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
-import { BLACK } from "@/ui/palette";
+import { createEffect, onCleanup } from "solid-js";
+import { ActionIcon, Box, Paper, Text } from "@/ui";
+import { IconX } from "../common/Icons";
+import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import type { Notification } from "../../state/store/notificationsSlice";
 
@@ -13,66 +13,64 @@ type NotificationItemProps = {
 export const typeConfig = {
   success: {
     icon: "✓",
-    color: "success.main" as const,
-    borderColor: "success.main" as const,
+    color: palette.POSITIVE,
+    borderColor: palette.POSITIVE,
   },
   error: {
     icon: "✕",
-    color: "error.main" as const,
-    borderColor: "error.main" as const,
+    color: palette.NEGATIVE,
+    borderColor: palette.NEGATIVE,
   },
   warning: {
     icon: "⚠",
-    color: "warning.main" as const,
-    borderColor: "warning.main" as const,
+    color: palette.WARNING,
+    borderColor: palette.WARNING,
   },
   info: {
     icon: "ℹ",
-    color: "info.main" as const,
-    borderColor: "info.main" as const,
+    color: palette.INFO,
+    borderColor: palette.INFO,
   },
 };
 
-export function NotificationItem({ notification, onDismiss }: NotificationItemProps) {
-  const config = typeConfig[notification.type];
+export function NotificationItem(props: NotificationItemProps) {
+  const config = () => typeConfig[props.notification.type];
 
-  useEffect(() => {
-    if (notification.duration && notification.duration > 0) {
+  createEffect(() => {
+    const duration = props.notification.duration;
+    if (duration && duration > 0) {
+      const id = props.notification.id;
       const timer = setTimeout(() => {
-        onDismiss(notification.id);
-      }, notification.duration);
-
-      return () => clearTimeout(timer);
+        props.onDismiss(id);
+      }, duration);
+      onCleanup(() => clearTimeout(timer));
     }
-  }, [notification.id, notification.duration, onDismiss]);
+  });
 
   return (
     <Paper
       role="alert"
       aria-live="polite"
       aria-atomic="true"
-      data-testid={`notification-${notification.type}`}
-      data-notification-id={notification.id}
-      sx={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 1,
-        p: "12px 16px",
-        borderLeft: "3px solid",
-        borderLeftColor: config.borderColor,
-        borderRadius: 1,
-        boxShadow: `0 4px 12px ${withAlpha(BLACK, 0.08)}`,
+      data-testid={`notification-${props.notification.type}`}
+      data-notification-id={props.notification.id}
+      className="flex items-start gap-3 rounded-fin"
+      style={{
+        padding: "12px 16px",
+        "border-left": `3px solid ${config().borderColor}`,
+        "border-radius": "8px",
+        "box-shadow": `0 4px 12px ${withAlpha(palette.BG, 0.08)}`,
       }}
     >
-      <Box aria-hidden="true" sx={{ color: config.color, lineHeight: 1.5 }}>
-        {config.icon}
+      <Box aria-hidden="true" style={{ "line-height": 1.5, color: config().color }}>
+        {config().icon}
       </Box>
-      <Typography variant="body2" data-testid="notification-message" sx={{ flex: 1, minWidth: 0 }}>
-        {notification.message}
-      </Typography>
-      <IconButton size="small" onClick={() => onDismiss(notification.id)} aria-label="Dismiss notification" data-testid="notification-dismiss-btn">
-        <CloseIcon fontSize="small" />
-      </IconButton>
+      <Text size="sm" data-testid="notification-message" style={{ flex: 1, "min-width": "0px" }}>
+        {props.notification.message}
+      </Text>
+      <ActionIcon size="sm" onClick={() => props.onDismiss(props.notification.id)} aria-label="Dismiss notification" data-testid="notification-dismiss-btn" variant="transparent">
+        <IconX size={12} />
+      </ActionIcon>
     </Paper>
   );
 }

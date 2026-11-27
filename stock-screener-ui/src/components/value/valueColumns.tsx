@@ -1,21 +1,23 @@
-import type { ColumnDef } from "@tanstack/react-table";
-import { Box, Badge, Text } from "@/ui";
+import { For } from "solid-js";
+import type { TableColumnDef as ColumnDef } from "../common/TanStackTable";
+import { Box } from "@/ui";
 import type { ValueRow } from "../../api/valueScan";
 import { SymbolLink } from "../common/SymbolLink";
+import { chartHrefForSymbol, isInAppChartMarket } from "../common/symbolDockContext";
+import { BadgeCell, DashCell, NumCell, TextCell } from "../common/tableCells";
 import { ValueScoreCell } from "./ValueScoreCell";
-import {
-  formatValueMcap,
-  formatValueNum,
-  formatValuePct,
-  formatValuePrice,
-} from "./valueFormat";
+import { formatValueMcap, formatValueNum, formatValuePct, formatValuePrice } from "./valueFormat";
 
-function dash(symbol: string, key: string): React.ReactNode {
-  return (
-    <Text size="xs" c="dimmed" data-testid={`value-dash-${symbol}-${key}`}>
-      –
-    </Text>
-  );
+const DASH = "–";
+
+// Exchange → chart/options capability lives in symbolDockContext so every
+// table agrees on what "US" and "in-app chart" mean.
+export function isInAppChartExchange(exchange: string | undefined): boolean {
+  return isInAppChartMarket(exchange);
+}
+
+export function buildChartHref(symbol: string, exchange?: string): string {
+  return chartHrefForSymbol(symbol, exchange);
 }
 
 interface ValueCsvColumn {
@@ -44,24 +46,29 @@ const VALUE_CSV_COLUMNS: ValueCsvColumn[] = [
 
 export const VALUE_CSV_HEADERS: string[] = VALUE_CSV_COLUMNS.map((c) => c.header);
 
+/** A missing metric is an empty CSV cell — never the literal "NaN"/"undefined". */
+function csvNumber(value: number | null | undefined): number | string {
+  return typeof value === "number" && Number.isFinite(value) ? value : "";
+}
+
 export function valueRowToCsvRow(row: ValueRow): (string | number)[] {
   return [
     row.symbol,
     row.name,
     row.exchange,
-    row.price,
-    row.change,
-    row.mcap_bn,
-    row.pe ?? "",
-    row.ps ?? "",
-    row.pb ?? "",
-    row.fcf_yield ?? "",
-    row.roe ?? "",
-    row.rev_yoy ?? "",
-    row.score,
+    csvNumber(row.price),
+    csvNumber(row.change),
+    csvNumber(row.mcap_bn),
+    csvNumber(row.pe),
+    csvNumber(row.ps),
+    csvNumber(row.pb),
+    csvNumber(row.fcf_yield),
+    csvNumber(row.roe),
+    csvNumber(row.rev_yoy),
+    csvNumber(row.score),
     row.peer.bucket,
     row.flags.join("|"),
-    row.off_52w_high ?? "",
+    csvNumber(row.off_52w_high),
   ];
 }
 
@@ -70,19 +77,23 @@ export function escapeCsvCell(cell: string | number): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function buildValueColumns(): ColumnDef<ValueRow>[] {
+export function buildValueColumns(
+  onSymbolClick?: (symbol: string, exchange?: string) => void,
+): ColumnDef<ValueRow>[] {
   return [
     {
       id: "name",
       header: "NAME",
-      meta: { align: "left" } as never,
+      accessorFn: (r) => r.name ?? r.symbol,
+      meta: { align: "left" },
       cell: ({ row }) => {
         const r = row.original;
+        const inApp = isInAppChartExchange(r.exchange) && typeof onSymbolClick === "function";
         return (
           // Single-line identity: symbol + company·exchange. A stacked second
           // line doubled the row height (40px) for information the drawer
           // already carries; the full name stays in the tooltip.
-          <Box sx={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, textAlign: "left" }}>
+          <Box className="flex min-w-0 items-center gap-[6px] text-left">
             <SymbolLink
               symbol={r.symbol}
               market={r.exchange}
@@ -90,19 +101,18 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
               chartTestId={`value-chart-${r.symbol}`}
               size="xs"
               weight={600}
-              sx={{ flexShrink: 0 }}
+              className="flex-shrink-0"
+              inAppText={inApp}
+              tvIcon={!inApp}
+              showCopy
+              onTextClick={inApp ? (sym) => onSymbolClick?.(sym, r.exchange) : undefined}
             />
-            <Text
-              size="xs"
-              c="dimmed"
-              truncate
-              lh={1.15}
+            <TextCell
+              value={`${r.name} · ${r.exchange}`}
+              dimmed
               title={`${r.name} · ${r.exchange}`}
-              data-testid={`value-subname-${r.symbol}`}
-              sx={{ minWidth: 0, fontSize: 10 }}
-            >
-              {r.name} · {r.exchange}
-            </Text>
+              testId={`value-subname-${r.symbol}`}
+            />
           </Box>
         );
       },
@@ -111,13 +121,17 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
       id: "price",
       header: "PRICE",
       accessorFn: (r) => r.price,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
         return (
-          <Text size="xs" fw={500} data-testid={`value-price-${r.symbol}`}>
-            {formatValuePrice(r)}
-          </Text>
+          <NumCell
+            value={r.price}
+            dash={DASH}
+            fw={500}
+            format={(v) => formatValuePrice({ ...r, price: v })}
+            testId={`value-price-${r.symbol}`}
+          />
         );
       },
     },
@@ -125,18 +139,18 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
       id: "change",
       header: "CH%",
       accessorFn: (r) => r.change,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
         return (
-          <Text
-            size="xs"
+          <NumCell
+            value={r.change}
+            dash={DASH}
+            signed
             fw={600}
-            c={r.change >= 0 ? "success" : "error"}
-            data-testid={`value-change-${r.symbol}`}
-          >
-            {formatValuePct(r.change)}
-          </Text>
+            format={(v) => formatValuePct(v)}
+            testId={`value-change-${r.symbol}`}
+          />
         );
       },
     },
@@ -144,13 +158,16 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
       id: "mcap",
       header: "MCAP",
       accessorFn: (r) => r.mcap_bn,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
         return (
-          <Text size="xs" data-testid={`value-mcap-${r.symbol}`}>
-            {formatValueMcap(r)}
-          </Text>
+          <NumCell
+            value={r.mcap_bn}
+            dash={DASH}
+            format={(v) => formatValueMcap({ ...r, mcap_bn: v })}
+            testId={`value-mcap-${r.symbol}`}
+          />
         );
       },
     },
@@ -158,14 +175,17 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
       id: "pe",
       header: "P/E",
       accessorFn: (r) => r.pe,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        if (r.pe === null) return dash(r.symbol, "pe");
+        if (r.pe === null) return <DashCell testId={`value-dash-${r.symbol}-pe`} />;
         return (
-          <Text size="xs" data-testid={`value-pe-${r.symbol}`}>
-            {formatValueNum(r.pe)}
-          </Text>
+          <NumCell
+            value={r.pe}
+            dash={DASH}
+            format={(v) => formatValueNum(v)}
+            testId={`value-pe-${r.symbol}`}
+          />
         );
       },
     },
@@ -173,14 +193,17 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
       id: "ps",
       header: "P/S",
       accessorFn: (r) => r.ps,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        if (r.ps === null) return dash(r.symbol, "ps");
+        if (r.ps === null) return <DashCell testId={`value-dash-${r.symbol}-ps`} />;
         return (
-          <Text size="xs" data-testid={`value-ps-${r.symbol}`}>
-            {formatValueNum(r.ps)}
-          </Text>
+          <NumCell
+            value={r.ps}
+            dash={DASH}
+            format={(v) => formatValueNum(v)}
+            testId={`value-ps-${r.symbol}`}
+          />
         );
       },
     },
@@ -188,14 +211,17 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
       id: "fcf",
       header: "FCF%",
       accessorFn: (r) => r.fcf_yield,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        if (r.fcf_yield === null) return dash(r.symbol, "fcf");
+        if (r.fcf_yield === null) return <DashCell testId={`value-dash-${r.symbol}-fcf`} />;
         return (
-          <Text size="xs" data-testid={`value-fcf-${r.symbol}`}>
-            {formatValuePct(r.fcf_yield)}
-          </Text>
+          <NumCell
+            value={r.fcf_yield}
+            dash={DASH}
+            format={(v) => formatValuePct(v)}
+            testId={`value-fcf-${r.symbol}`}
+          />
         );
       },
     },
@@ -203,14 +229,17 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
       id: "roe",
       header: "ROE%",
       accessorFn: (r) => r.roe,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        if (r.roe === null) return dash(r.symbol, "roe");
+        if (r.roe === null) return <DashCell testId={`value-dash-${r.symbol}-roe`} />;
         return (
-          <Text size="xs" data-testid={`value-roe-${r.symbol}`}>
-            {formatValuePct(r.roe)}
-          </Text>
+          <NumCell
+            value={r.roe}
+            dash={DASH}
+            format={(v) => formatValuePct(v)}
+            testId={`value-roe-${r.symbol}`}
+          />
         );
       },
     },
@@ -218,14 +247,17 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
       id: "rev",
       header: "REV%",
       accessorFn: (r) => r.rev_yoy,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        if (r.rev_yoy === null) return dash(r.symbol, "rev");
+        if (r.rev_yoy === null) return <DashCell testId={`value-dash-${r.symbol}-rev`} />;
         return (
-          <Text size="xs" data-testid={`value-rev-${r.symbol}`}>
-            {formatValuePct(r.rev_yoy)}
-          </Text>
+          <NumCell
+            value={r.rev_yoy}
+            dash={DASH}
+            format={(v) => formatValuePct(v)}
+            testId={`value-rev-${r.symbol}`}
+          />
         );
       },
     },
@@ -233,7 +265,7 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
       id: "score",
       header: "SCORE",
       accessorFn: (r) => r.score,
-      meta: { align: "center" } as never,
+      meta: { align: "center" },
       cell: ({ row }) => {
         const r = row.original;
         return (
@@ -245,20 +277,18 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
       id: "flags",
       header: "FLAGS",
       enableSorting: false,
-      meta: { align: "center" } as never,
+      meta: { align: "center" },
       cell: ({ row }) => {
         const r = row.original;
-        if (r.flags.length === 0) return dash(r.symbol, "flags");
+        if (r.flags.length === 0) return <DashCell testId={`value-dash-${r.symbol}-flags`} />;
         return (
           <Box
-            sx={{ display: "flex", justifyContent: "center", gap: "4px", flexWrap: "nowrap", overflow: "hidden" }}
+            className="flex flex-nowrap justify-center gap-1 overflow-hidden"
             data-testid={`value-flags-${r.symbol}`}
           >
-            {r.flags.slice(0, 3).map((f) => (
-              <Badge key={f} size="xs" color="secondary">
-                {f.replace(/_/g, " ")}
-              </Badge>
-            ))}
+            <For each={r.flags.slice(0, 3)}>
+              {(f) => <BadgeCell label={f.replace(/_/g, " ")} color="secondary" />}
+            </For>
           </Box>
         );
       },
@@ -267,14 +297,17 @@ export function buildValueColumns(): ColumnDef<ValueRow>[] {
       id: "w52",
       header: "52W",
       accessorFn: (r) => r.off_52w_high,
-      meta: { align: "right" } as never,
+      meta: { align: "right" },
       cell: ({ row }) => {
         const r = row.original;
-        if (r.off_52w_high === null) return dash(r.symbol, "w52");
+        if (r.off_52w_high === null) return <DashCell testId={`value-dash-${r.symbol}-w52`} />;
         return (
-          <Text size="xs" data-testid={`value-w52-${r.symbol}`}>
-            {formatValuePct(r.off_52w_high)}
-          </Text>
+          <NumCell
+            value={r.off_52w_high}
+            dash={DASH}
+            format={(v) => formatValuePct(v)}
+            testId={`value-w52-${r.symbol}`}
+          />
         );
       },
     },

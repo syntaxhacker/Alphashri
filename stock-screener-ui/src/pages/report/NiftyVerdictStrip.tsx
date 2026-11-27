@@ -1,12 +1,12 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
 import { formatReportFixed } from "./reportFormat";
-import { memo, useMemo } from "react";
-import Box from "@mui/material/Box";
-import type { ReactNode } from "react";
+import { createMemo, Show } from "solid-js";
+import type { JSX } from "solid-js";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { AnimatedValue } from "@/components/common/AnimatedValue";
 import { NiftyCoilGauge } from "./NiftyCoilGauge";
+import { REPORT_FONT } from "./reportTokens";
 import type {
   NiftyControlBlock,
   NiftyControlVerdict,
@@ -16,10 +16,8 @@ import type {
   NiftyStrengthVerdict,
 } from "@/types/niftyReport";
 
-/** Rendered for any absent/null field so the strip never shows a blank/NaN. */
 export const VERDICT_DASH = "—";
 
-/** Locale number (Indian grouping) to fixed decimals, or dash when absent. */
 export function fmtVerdictNum(
   value: number | null | undefined,
   digits = 0,
@@ -232,7 +230,7 @@ interface VerdictCellProps {
   primary: string;
   secondary: string;
   /** Rich primary line (e.g. with AnimatedValue flashes); falls back to `primary`. */
-  primaryNode?: ReactNode;
+  primaryNode?: JSX.Element;
   /**
    * Single-line dense layout for the decision-strip context row: primary +
    * secondary inline at 24px row height instead of the two-line stack.
@@ -241,108 +239,115 @@ interface VerdictCellProps {
 }
 
 /** One compact cell: a small status dot + verdict line + muted detail line. */
-const VerdictCell = memo(function VerdictCell({ testId, accent, primary, secondary, primaryNode, compact }: VerdictCellProps) {
-  if (compact) {
+function VerdictCell(props: VerdictCellProps) {
+  if (props.compact) {
     return (
-      <Box
-        data-testid={testId}
-        title={`${primary} — ${secondary}`}
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0.75,
-          minWidth: 0,
-          overflow: "hidden",
-          px: 1,
-          py: "2px",
-        }}
+      <div
+        data-testid={props.testId}
+        title={`${props.primary} — ${props.secondary}`}
+        class="flex items-start gap-[6px] min-w-0 px-2 py-[2px]"
       >
-        <Box
-          aria-hidden
-          data-testid={`${testId}-dot`}
-          sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: accent, flexShrink: 0 }}
-        />
-        <Text
-          data-testid={`${testId}-primary`}
-          size="xs"
-          fw={700}
-          c={accent}
-          span
-          truncate
+        <div
+          aria-hidden="true"
+          data-testid={`${props.testId}-dot`}
+          class="w-[6px] h-[6px] shrink-0"
+          // `rounded-full` computes to a 3.3e7px radius on a 6px box. Clamp to
+          // half the width so the dot is a circle without an absurd radius.
           style={{
-            fontSize: 11,
-            lineHeight: 1.2,
-            letterSpacing: "0.04em",
-            minWidth: 0,
-            // The label is the meaning; the numbers beside it are detail.
-            // Let the 9px secondary ellipsize first — a clipped
-            // "CALL WRITERS IN CON…" hides the one word that matters.
-            flexShrink: 0,
+            "background-color": props.accent,
+            "border-radius": "3px",
+            "margin-top": "5px",
           }}
-        >
-          {primaryNode ?? primary}
-        </Text>
-        <Text
-          data-testid={`${testId}-secondary`}
-          size="xs"
-          c="dimmed"
-          span
-          truncate
-          style={{ fontSize: 9, lineHeight: 1.2, minWidth: 0 }}
-        >
-          {secondary}
-        </Text>
-      </Box>
+        />
+        {/*
+         * Two lines, both visible. The detail used to be `sr-only` because a
+         * 47px cell ellipsised it mid-digit — but hiding the evidence is worse
+         * than wrapping it: the verdict row is where a reader looks for *why*.
+         * The cell now wraps so `primary` and `secondary` each get a full line,
+         * and the row's height is driven by content rather than a fixed 24px.
+         */}
+        <div class="flex min-w-0 flex-col" style={{ gap: "1px" }}>
+          <Text
+            data-testid={`${props.testId}-primary`}
+            size="xs"
+            fw={700}
+            c={props.accent}
+            span
+            style={{
+              "font-size": `${REPORT_FONT.micro}px`,
+              "line-height": "1.2",
+              "letter-spacing": "0.04em",
+              "min-width": "0",
+            }}
+          >
+            {props.primaryNode ?? props.primary}
+          </Text>
+          <Text
+            data-testid={`${props.testId}-secondary`}
+            size="xs"
+            c="dimmed"
+            span
+            style={{
+              "font-size": `${REPORT_FONT.micro}px`,
+              "line-height": "1.2",
+              "min-width": "0",
+              "white-space": "normal",
+            }}
+          >
+            {props.secondary}
+          </Text>
+        </div>
+      </div>
     );
   }
   return (
-    <Box
-      data-testid={testId}
-      title={`${primary} — ${secondary}`}
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        gap: "2px",
-        minWidth: 0,
-        overflow: "hidden",
-        px: 1.5,
-        py: 0.75,
-        borderLeft: `1px solid ${palette.TERM_BORDER}`,
-      }}
+    <div
+      data-testid={props.testId}
+      title={`${props.primary} — ${props.secondary}`}
+      class="flex flex-col justify-center gap-[2px] min-w-0 overflow-hidden px-[12px] py-[6px]"
+      style={{ "border-left": `1px solid ${palette.TERM_BORDER}` }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
-        <Box
-          aria-hidden
-          data-testid={`${testId}-dot`}
-          sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: accent, flexShrink: 0 }}
+      <div class="flex items-center gap-[6px] min-w-0">
+        <div
+          aria-hidden="true"
+          data-testid={`${props.testId}-dot`}
+          class="w-[6px] h-[6px] shrink-0"
+          style={{ "background-color": props.accent, "border-radius": "3px" }}
         />
         <Text
-          data-testid={`${testId}-primary`}
+          data-testid={`${props.testId}-primary`}
           size="xs"
           fw={700}
-          c={accent}
+          c={props.accent}
           span
           truncate
-          style={{ fontSize: 11, lineHeight: 1.3, letterSpacing: "0.04em" }}
+          style={{
+            "font-size": `${REPORT_FONT.micro}px`,
+            "line-height": "1.3",
+            "letter-spacing": "0.04em",
+          }}
         >
-          {primaryNode ?? primary}
+          {props.primaryNode ?? props.primary}
         </Text>
-      </Box>
+      </div>
       <Text
-        data-testid={`${testId}-secondary`}
+        data-testid={`${props.testId}-secondary`}
         size="xs"
         c="dimmed"
         span
-        truncate
-        style={{ fontSize: 10, lineHeight: 1.3 }}
+        style={{
+          "font-size": `${REPORT_FONT.micro}px`,
+          "line-height": "1.2",
+          "min-width": "0",
+          "white-space": "normal",
+          "overflow-wrap": "anywhere",
+        }}
       >
-        {secondary}
+        {props.secondary}
       </Text>
-    </Box>
+    </div>
   );
-});
-VerdictCell.displayName = "VerdictCell";
+}
 
 export interface NiftyVerdictStripProps {
   report: NiftyReport;
@@ -359,108 +364,91 @@ export interface NiftyVerdictStripProps {
  * under the spot+Pcr stat pills. Every block is optional on the payload, so
  * each cell falls back to an em dash instead of crashing or showing NaN.
  */
-function NiftyVerdictStripInner({ report, mode = "full" }: NiftyVerdictStripProps) {
-  const control = report.control;
-  const regime = report.regime;
-  const vix = report.vix;
-  const strength = report.strength;
+export function NiftyVerdictStrip(props: NiftyVerdictStripProps) {
+  const report = () => props.report;
+  const mode = () => props.mode ?? "full";
+  const control = () => report().control;
+  const regime = () => report().regime;
+  const vix = () => report().vix;
+  const strength = () => report().strength;
 
-  const controlPrimary = controlLabel(control?.verdict);
-  const controlSecondary = controlDetail(control);
+  const controlPrimary = () => controlLabel(control()?.verdict);
+  const controlSecondary = () => controlDetail(control());
 
-  const regimePrimary = regime?.verdict
-    ? resolveRegimeLabel(regime.verdict, regime)
-    : VERDICT_DASH;
-  const regimeSecondary = regimeDetail(regime);
+  const regimePrimary = () =>
+    regime()?.verdict ? resolveRegimeLabel(regime()!.verdict, regime()) : VERDICT_DASH;
+  const regimeSecondary = () => regimeDetail(regime());
 
-  const vixPrimary = `VIX ${fmtVerdictNum(vix?.ltp, 2)} (${fmtVerdictChange(
-    vix?.change_pct,
+  const vixPrimary = () => `VIX ${fmtVerdictNum(vix()?.ltp, 2)} (${fmtVerdictChange(
+    vix()?.change_pct,
   )}%)`;
   // Same text as vixPrimary, but the two numbers flash on poll updates.
   // Memoised so the VIX cell keeps stable props when unrelated blocks change.
-  const vixPrimaryNode = useMemo(
+  const vixPrimaryNode = createMemo(
     () => (
       <>
         VIX{" "}
-        <AnimatedValue value={vix?.ltp ?? null} format={(v) => fmtVerdictNum(v, 2)} /> (
-        <AnimatedValue value={vix?.change_pct ?? null} format={(v) => fmtVerdictChange(v)} />
+        <AnimatedValue value={vix()?.ltp ?? null} format={(v) => fmtVerdictNum(v, 2)} /> (
+        <AnimatedValue value={vix()?.change_pct ?? null} format={(v) => fmtVerdictChange(v)} />
         %)
       </>
     ),
-    [vix?.ltp, vix?.change_pct],
   );
-  const vixSecondary = `day ${fmtVerdictNum(vix?.day_low, 2)}–${fmtVerdictNum(
-    vix?.day_high,
+  const vixSecondary = () => `day ${fmtVerdictNum(vix()?.day_low, 2)}–${fmtVerdictNum(
+    vix()?.day_high,
     2,
   )}`;
 
-  const strengthPrimary = strength?.verdict
-    ? STRENGTH_LABELS[strength.verdict]
-    : VERDICT_DASH;
-  const strengthSecondary = `score ${fmtVerdictNum(
-    strength?.score,
+  const strengthPrimary = () =>
+    strength()?.verdict ? STRENGTH_LABELS[strength()!.verdict!] : VERDICT_DASH;
+  const strengthSecondary = () => `score ${fmtVerdictNum(
+    strength()?.score,
     1,
-  )} · RSI ${fmtVerdictNum(strength?.rsi, 1)}`;
+  )} · RSI ${fmtVerdictNum(strength()?.rsi, 1)}`;
 
   return (
-    <Box
+    <div
       data-testid="nifty-verdict-strip"
-      sx={
-        mode === "context"
-          ? {
-              display: "flex",
-              flexWrap: "nowrap",
-              alignItems: "center",
-              width: "100%",
-              minWidth: 0,
-              minHeight: 24,
-              overflow: "hidden",
-              borderTop: `1px solid ${palette.TERM_BORDER}`,
-              "& > *": {
-                borderLeft: `1px solid ${palette.TERM_BORDER}`,
-                flex: "1 1 0",
-                minWidth: 0,
-              },
-              "& > *:first-of-type": { borderLeft: "none" },
-            }
-          : { display: "contents" }
+      class={
+        mode() === "context"
+          ? "flex flex-nowrap items-stretch w-full min-w-0 min-h-6 overflow-hidden [&>*]:border-l [&>*]:border-l-[var(--desk-border)] [&>*]:flex-[1_1_0] [&>*]:min-w-0 [&>*:first-of-type]:border-l-0"
+          : "contents"
       }
+      style={{ "--desk-border": palette.TERM_BORDER } as JSX.CSSProperties}
     >
       <VerdictCell
         testId="nifty-verdict-control"
-        accent={controlAccent(control?.verdict)}
-        primary={controlPrimary}
-        secondary={controlSecondary}
+        accent={controlAccent(control()?.verdict)}
+        primary={controlPrimary()}
+        secondary={controlSecondary()}
         compact
       />
-      {mode === "full" && (
+      <Show when={mode() === "full"}>
         <VerdictCell
           testId="nifty-verdict-regime"
-          accent={regimeAccent(regime?.verdict)}
-          primary={regimePrimary}
-          secondary={regimeSecondary}
+          accent={regimeAccent(regime()?.verdict)}
+          primary={regimePrimary()}
+          secondary={regimeSecondary()}
         />
-      )}
-      <NiftyCoilGauge regime={regime} compact />
+      </Show>
+      <NiftyCoilGauge regime={regime()} compact />
       <VerdictCell
         testId="nifty-verdict-vix"
-        accent={vixAccent(vix?.change_pct)}
-        primary={vixPrimary}
-        primaryNode={vixPrimaryNode}
-        secondary={vixSecondary}
+        accent={vixAccent(vix()?.change_pct)}
+        primary={vixPrimary()}
+        primaryNode={vixPrimaryNode()}
+        secondary={vixSecondary()}
         compact
       />
       <VerdictCell
         testId="nifty-verdict-strength"
-        accent={strengthAccent(strength?.verdict)}
-        primary={strengthPrimary}
-        secondary={strengthSecondary}
+        accent={strengthAccent(strength()?.verdict)}
+        primary={strengthPrimary()}
+        secondary={strengthSecondary()}
         compact
       />
-    </Box>
+    </div>
   );
 }
 
-/** Memoised leaf strip — `report` keeps identity between unrelated parent renders. */
-export const NiftyVerdictStrip = memo(NiftyVerdictStripInner);
-NiftyVerdictStrip.displayName = "NiftyVerdictStrip";
+

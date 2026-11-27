@@ -9,21 +9,21 @@
 - Found 11 clones in production `src/` (0.72% duplicated lines).
 - **Key production duplicates (refactor candidates):**
   1. **52W Gap column logic**:
-     - `src/components/screener/columns/52wHigh.ts:6-15` (gapCol formatting with color classes)
+     - `src/components/screener/columns/52wHigh.tsx` (gapCol formatting with color classes)
      - `src/components/screener/columns/near52wBreakout.ts:20-29`
      - *Opportunity:* Extract to shared `src/components/screener/columns/gapCol.ts` or base.
   2. **Heatmap utils internal dup**:
-     - `src/pages/heatmap/heatmapUtils.ts` (two similar blocks ~85-105)
+     - `src/components/heatmap/heatmapUtils.ts` (two similar blocks ~85-105)
      - *Opportunity:* Refactor duplicated color/scale logic into helper fn.
-  3. **Backtest chart options overlap**:
-     - `src/components/backtest/buildBacktestChartOption.ts` duplicates with `src/utils/chart/buildOverlays.ts` (multiple 14-line blocks for series/options)
-     - *Opportunity:* Centralize in chart builders.
+  3. **Backtest chart options overlap — RESOLVED by removal**:
+     - `src/components/backtest/buildBacktestChartOption.ts` (dead file, 0 importers) duplicated `src/utils/chart/buildOverlays.ts` (multiple 14-line blocks for series/options); **REMOVED 2026-11**.
+     - *Status:* centralization achieved by deleting the unused copy; the shared builders in `src/utils/chart/` remain the single source.
   4. **Chart utils + zoom/trade**:
      - `src/utils/chartUtils.ts` <-> `src/components/backtest/zoomToTrade.ts` (multiple blocks for time/price handling)
   5. **Internal in trading_agents.ts**:
      - Dupe SSE/function call patterns (lines 115-124 vs 210-219, 158-178 vs 293-313)
   6. **Replay vs Live prices streaming**:
-     - `src/api/replay.ts` <-> `src/hooks/useLivePrices.ts` (SSE connection logic)
+     - `src/api/replay.ts` <-> `src/components/paper-trading/LivePriceUpdater.tsx` (SSE connection logic)
   7. **Paper trading internal**:
      - Duplicates in `src/api/paperTrading.ts`
 
@@ -33,13 +33,13 @@
 ## From knip (unused = DRY by removal)
 - `bun run check:unused` found:
   - 7 unused files (e.g., some backtest/news/sector components – can delete or integrate)
-  - 1 unused dep: d3-interpolate
+  - 1 unused dep: d3-interpolate (REMOVED 2026-11 — no longer in package.json)
   - 49 unused exports (e.g., many in replay helpers, paper-trading helpers, heatmap colors, useApi hooks, useScreener* – dead code from refactors)
 - Removing these reduces maintenance surface (DRY principle: don't keep similar-but-unused variants).
 
 ## From depcheck
 - `bun run check:deps`:
-  - Unused: d3-interpolate (matches knip)
+  - Unused: d3-interpolate (matches knip) — REMOVED 2026-11
   - Unused devDeps: several @storybook/* addons (can clean if not used)
   - Missing: babel pkgs for remove-console-logs.js (script dep?)
 

@@ -13,6 +13,7 @@
  */
 
 import type { ValueRow } from "../../api/valueScan";
+import { currencyFor } from "../../config/currency";
 
 /** Glyph the table prints for a missing value. */
 const VALUE_DASH = "–";
@@ -20,11 +21,25 @@ const VALUE_DASH = "–";
 /** Glyph the drawer and the score cell print for a missing value. */
 export const VALUE_NA = "n/a";
 
-/** Currency symbol for a market's quote currency. */
-function currencyPrefix(currency: string): string {
-  if (currency === "INR") return "₹";
-  if (currency === "USD") return "$";
-  return "";
+/** `api/value_scan/scoring.py::_clamp25` caps each sub-score at 25; the four sum to 0–100. */
+export const SUBSCORE_MAX = 25;
+
+/**
+ * Convert a 0–25 sub-score to a bar fill percentage. Clamping and the finite
+ * check keep a malformed payload from overflowing or blanking a bar with NaN.
+ */
+export function subscorePercent(value: number | null | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return (Math.max(0, Math.min(SUBSCORE_MAX, value)) / SUBSCORE_MAX) * 100;
+}
+
+/**
+ * TradingView sends NaN for unsupported columns; `NaN.toFixed()` would print
+ * the literal "NaN" — exactly what the dash is meant to replace. A number that
+ * is not finite is treated as missing everywhere in this module.
+ */
+function isFiniteNumber(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 /**
@@ -36,7 +51,7 @@ export function formatValuePct(
   digits = 1,
   dash = VALUE_DASH,
 ): string {
-  if (value === null || value === undefined) return dash;
+  if (!isFiniteNumber(value)) return dash;
   const sign = value > 0 ? "+" : "";
   return `${sign}${value.toFixed(digits)}%`;
 }
@@ -47,7 +62,7 @@ export function formatValueNum(
   digits = 1,
   dash = VALUE_DASH,
 ): string {
-  if (value === null || value === undefined) return dash;
+  if (!isFiniteNumber(value)) return dash;
   return value.toFixed(digits);
 }
 
@@ -58,13 +73,20 @@ export function formatValueMedian(
   digits = 1,
   dash = VALUE_NA,
 ): string {
-  if (value === null || value === undefined) return dash;
+  if (!isFiniteNumber(value)) return dash;
   return `${value.toFixed(digits)}${suffix}`;
+}
+
+/** Rounded 0–100 score. Non-finite payloads show `n/a`, never "NaN". */
+export function formatValueScore(value: number | null | undefined): string {
+  if (!isFiniteNumber(value)) return VALUE_NA;
+  return String(Math.round(Math.max(0, Math.min(100, value))));
 }
 
 /** Quoted price with the row's currency symbol — `₹1,234.50`. */
 export function formatValuePrice(row: ValueRow): string {
-  return `${currencyPrefix(row.currency)}${row.price.toLocaleString("en-US", {
+  if (!isFiniteNumber(row.price)) return VALUE_DASH;
+  return `${currencyFor(row.currency).symbol}${row.price.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -72,5 +94,6 @@ export function formatValuePrice(row: ValueRow): string {
 
 /** Market capitalisation in billions, prefixed with the currency symbol. */
 export function formatValueMcap(row: ValueRow): string {
-  return `${currencyPrefix(row.currency)}${row.mcap_bn.toFixed(1)}B`;
+  if (!isFiniteNumber(row.mcap_bn)) return VALUE_DASH;
+  return `${currencyFor(row.currency).symbol}${row.mcap_bn.toFixed(1)}B`;
 }

@@ -12,7 +12,6 @@ from pathlib import Path
 import types
 import random
 
-# Add project root to path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -24,8 +23,10 @@ if 'tradingview_screener' not in sys.modules:
     sys.modules['tradingview_screener'] = stub
 
 from api_server_fastapi import (
+    PREWARM_SCREENERS,
     PROFILE_META,
     PROFILES_WITH_52W_BUCKETS,
+    _build_prewarm_screeners,
     fetch_screener_data,
     _profile_meta,
     _passes_profile_filters,
@@ -213,7 +214,6 @@ class TestScreenersList:
                     assert 'key' in filter_config
                     assert 'label' in filter_config
                     assert 'type' in filter_config
-                    # Type-specific fields
                     if filter_config['type'] == 'number':
                         assert 'min' in filter_config
                         assert 'max' in filter_config
@@ -231,6 +231,51 @@ class TestScreenersList:
             assert 'column' in sort_config
             assert 'direction' in sort_config
             assert sort_config['direction'] in ['asc', 'desc']
+
+
+class TestScreenerWorkerPool:
+    """Fan-out width matches the queued rate limiter's 20-worker pool."""
+
+    def test_default_max_workers_is_20(self, monkeypatch):
+        from api.screener_api import screener_models as sm
+
+        monkeypatch.delenv(sm.SCREENER_MAX_WORKERS_ENV_VAR, raising=False)
+        assert sm.DEFAULT_MAX_WORKERS == 20
+        assert sm.resolve_max_workers() == 20
+
+    def test_max_workers_env_override(self, monkeypatch):
+        from api.screener_api import screener_models as sm
+
+        monkeypatch.setenv(sm.SCREENER_MAX_WORKERS_ENV_VAR, "7")
+        assert sm.resolve_max_workers() == 7
+        assert sm.resolve_max_workers(3) == 3  # explicit arg wins
+
+    def test_max_workers_invalid_env_falls_back(self, monkeypatch):
+        from api.screener_api import screener_models as sm
+
+        for bad in ("", "0", "-3", "abc"):
+            monkeypatch.setenv(sm.SCREENER_MAX_WORKERS_ENV_VAR, bad)
+            assert sm.resolve_max_workers() == sm.DEFAULT_MAX_WORKERS
+
+
+class TestScreenerPrewarm:
+    """Default tab is warmed first; the set stays de-duplicated."""
+
+    def test_prewarm_includes_trending_first(self):
+        assert "trending" in PREWARM_SCREENERS
+        assert PREWARM_SCREENERS[0] == "trending"
+
+    def test_prewarm_keeps_existing_set_deduped(self):
+        assert set(PREWARM_SCREENERS) == {
+            "trending", "buyer_interest", "high_momentum",
+            "nifty_movers", "52w_high", "price_surge",
+        }
+        assert len(PREWARM_SCREENERS) == len(set(PREWARM_SCREENERS))
+
+    def test_prewarm_builder_dedupes_and_pins_trending_first(self):
+        assert _build_prewarm_screeners(
+            ["52w_high", "trending", "trending", "price_surge", "52w_high"]
+        ) == ["trending", "52w_high", "price_surge"]
 
 
 class TestScreenerDataRetrieval:
@@ -320,11 +365,9 @@ class TestScreenerDataRetrieval:
         assert 'profile_meta' in result
         assert 'summary' in result
 
-        # Check profile meta
         assert result['profile_meta']['section_labels']['primary'] == '🎯 APPROACHING 52W HIGH'
         assert result['profile_meta']['section_labels']['secondary'] == '✅ ALREADY TOUCHED 52W HIGH'
 
-        # Check that we have both approaching and touched stocks
         approaching_count = len(result['approaching'])
         touched_count = len(result['touched'])
         assert approaching_count + touched_count == 4  # Total from mock data
@@ -376,7 +419,6 @@ class TestScreenerDataRetrieval:
         # This profile doesn't use touched bucket
         assert len(result['touched']) == 0
 
-        # Verify section labels
         assert result['profile_meta']['section_labels']['primary'] == '📈 GAP OPEN CANDIDATES'
         assert result['profile_meta']['section_labels']['secondary'] == '✅ LARGER GAP MOVERS'
 
@@ -478,7 +520,6 @@ class TestScreenerDataRetrieval:
         prefix_symbols = {s['symbol'] for s in result_with_prefix['approaching']}
         no_prefix_symbols = {s['symbol'] for s in result_without['approaching']}
         assert prefix_symbols == no_prefix_symbols
-        # Same profile meta
         assert result_with_prefix['profile_meta'] == result_without['profile_meta']
 
     @patch('api_server_fastapi.TradingAPIFactory.create_from_config')
@@ -742,7 +783,6 @@ class TestScreenerDataStructure:
         all_stocks = result['approaching'] + result['touched']
 
         for stock in all_stocks:
-            # Required fields
             assert 'symbol' in stock
             assert 'score' in stock
             assert 'tv_price' in stock
@@ -750,8 +790,6 @@ class TestScreenerDataStructure:
             assert 'to_52w_high' in stock
             assert 'rationale' in stock
 
-            # Optional but commonly present fields
-            # These may vary by profile
             if 'day_change' in stock:
                 assert isinstance(stock['day_change'], (int, float))
 
@@ -774,7 +812,6 @@ class TestScreenerDataStructure:
         assert 'summary' in result
         summary = result['summary']
 
-        # Summary should be a list of summary items
         assert isinstance(summary, list)
 
         if summary:
@@ -801,7 +838,6 @@ class TestScreenerCaching:
             profile_filters={'min_gap_pct': '1.0', 'min_volume_m': '1'}
         )
 
-        # Second call with different filters
         result2 = fetch_screener_data(
             provider='upstox',
             mode='intraday',
@@ -909,10 +945,8 @@ class Test52WeekTouchEnrichment:
             'touched': [],
         }
 
-        # Act
         _enrich_with_touch_history(data, 'trending')
 
-        # Assert
         stock = data['approaching'][0]
         assert stock['last_touched'] is None
         assert stock['last_touched_price'] is None
@@ -923,7 +957,6 @@ class Test52WeekTouchEnrichment:
         """Test that stocks with recent touches are moved to touched bucket."""
         from datetime import datetime, timedelta
 
-        # Arrange: stock that didn't touch today but has a touch 2 days ago
         touch_date = datetime.now() - timedelta(days=2)
         record = Stock52WeekTouch(
             symbol="ADANIGREEN",
@@ -950,10 +983,8 @@ class Test52WeekTouchEnrichment:
             'touched': [],
         }
 
-        # Act
         _enrich_with_touch_history(data, 'trending')
 
-        # Assert: stock moved to touched, touched_52w set to True
         assert len(data['approaching']) == 0
         assert len(data['touched']) == 1
         stock = data['touched'][0]
@@ -966,7 +997,6 @@ class Test52WeekTouchEnrichment:
         """Test that stocks already touched today stay in touched."""
         from datetime import datetime
 
-        # Arrange: stock touched today
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         record = Stock52WeekTouch(
             symbol="RELIANCE",
@@ -993,10 +1023,8 @@ class Test52WeekTouchEnrichment:
             ],
         }
 
-        # Act
         _enrich_with_touch_history(data, 'trending')
 
-        # Assert: stays in touched
         assert len(data['approaching']) == 0
         assert len(data['touched']) == 1
         stock = data['touched'][0]
@@ -1007,7 +1035,6 @@ class Test52WeekTouchEnrichment:
         """Test enrichment with multiple stocks with mixed touch history."""
         from datetime import datetime, timedelta
 
-        # Setup: stocks with different touch patterns
         two_days_ago = datetime.now() - timedelta(days=2)
         three_days_ago = datetime.now() - timedelta(days=3)
 
@@ -1061,10 +1088,8 @@ class Test52WeekTouchEnrichment:
             'touched': [],
         }
 
-        # Act
         _enrich_with_touch_history(data, 'trending')
 
-        # Assert: ADANIGREEN and RELIANCE moved to touched, TCS stays approaching
         assert len(data['approaching']) == 1
         assert len(data['touched']) == 2
 
@@ -1079,7 +1104,6 @@ class Test52WeekTouchEnrichment:
         """Test that touches older than 7 days are not considered recent for bucket placement."""
         from datetime import datetime, timedelta
 
-        # Arrange: touch from 8 days ago (outside lookback)
         old_date = datetime.now() - timedelta(days=8)
         record = Stock52WeekTouch(
             symbol="ADANIGREEN",
@@ -1105,10 +1129,8 @@ class Test52WeekTouchEnrichment:
             'touched': [],
         }
 
-        # Act
         _enrich_with_touch_history(data, 'trending')
 
-        # Assert: stock stays in approaching (old touch not recent enough to move)
         assert len(data['approaching']) == 1
         assert len(data['touched']) == 0
         stock = data['approaching'][0]
@@ -1121,7 +1143,6 @@ class Test52WeekTouchEnrichment:
         """Test that only the most recent touch per symbol is used."""
         from datetime import datetime, timedelta
 
-        # Arrange: multiple touches for same symbol, different dates
         old_date = datetime.now() - timedelta(days=5)
         newer_date = datetime.now() - timedelta(days=1)
 
@@ -1157,10 +1178,8 @@ class Test52WeekTouchEnrichment:
             'touched': [],
         }
 
-        # Act
         _enrich_with_touch_history(data, 'trending')
 
-        # Assert: uses the most recent (newer_date) touch
         stock = data['touched'][0]
         assert stock['last_touched_price'] == 1255.0
 
@@ -1284,3 +1303,420 @@ class TestUpstox52wGap:
         good = next(s for s in result['approaching'] + result['touched'] if s['symbol'] == 'GOOD')
         assert good['source'] == 'upstox'
         assert good['to_52w_high'] == pytest.approx(6.54)
+
+
+class Test52wHighColdStartFallback:
+    """A cold 52w_high request serves a range-only skeleton in milliseconds."""
+
+    @pytest.fixture
+    def cold_ranges(self, db, monkeypatch):
+        from sqlalchemy.orm import sessionmaker
+        from db.models import Stock52WeekRange
+
+        TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db.get_bind())
+        monkeypatch.setattr("trading.week52_range_lookup.SessionLocal", TestSessionLocal)
+        # An empty screener cache without requiring a live Redis.
+        monkeypatch.setattr("cache.redis_client.get_redis_client", lambda: None)
+
+        db.add(Stock52WeekRange(
+            symbol="RELIANCE", high_52w=1611.8, low_52w=1290.0,
+            close=1580.0, days_ago=None,
+        ))
+        db.add(Stock52WeekRange(
+            symbol="TCS", high_52w=4000.0, low_52w=3000.0,
+            close=3999.0, days_ago=0,
+        ))
+        db.commit()
+
+    def test_cold_request_serves_skeleton_without_awaiting_full_compute(
+        self, cold_ranges, auth_client, monkeypatch
+    ):
+        import time
+
+        slow_compute = MagicMock(side_effect=lambda *a, **k: time.sleep(30))
+        monkeypatch.setattr("api_server_fastapi._compute_screener", slow_compute)
+        spawn = MagicMock(return_value=None)
+        monkeypatch.setattr("api_server_fastapi._spawn_task", spawn)
+
+        started = time.monotonic()
+        response = auth_client.get("/api/screener", params={"screener": "52w_high"})
+        elapsed = time.monotonic() - started
+
+        assert response.status_code == 200
+        assert elapsed < 2.0, f"cold request blocked for {elapsed:.2f}s"
+        assert response.headers["x-cache"] == "warming"
+        data = response.json()
+        assert data["warming"] is True
+        assert data["cache_status"] == "warming"
+        assert data["served_from_cache"] is False
+        assert data["refreshing"] is True
+        symbols = {s["symbol"] for s in data["approaching"] + data["touched"]}
+        assert {"RELIANCE", "TCS"} <= symbols
+        assert data["approaching"] and data["touched"]
+
+        slow_compute.assert_not_called()
+        assert spawn.call_count == 1
+        assert spawn.call_args.args[0] == "52w screener warm"
+
+    def test_cold_request_without_snapshot_times_out_to_503(self, db, auth_client, monkeypatch):
+        import asyncio
+
+        monkeypatch.setattr("cache.redis_client.get_redis_client", lambda: None)
+        monkeypatch.setattr("api.screener_api.screener_52w.load_all_52w_ranges", lambda: {})
+
+        async def timed_out(*args, **kwargs):
+            raise asyncio.TimeoutError()
+
+        monkeypatch.setattr("cache.redis_client.stale_while_revalidate", timed_out)
+
+        response = auth_client.get("/api/screener", params={"screener": "52w_high"})
+        assert response.status_code == 503
+
+    @pytest.mark.asyncio
+    async def test_compute_timeout_bounds_stale_while_revalidate(self, monkeypatch):
+        import asyncio
+        import time
+        import cache.redis_client as rc
+
+        monkeypatch.setattr(rc, "get_redis_client", lambda: None)
+
+        def slow():
+            time.sleep(2)
+            return {}
+
+        with pytest.raises(asyncio.TimeoutError):
+            await rc.stale_while_revalidate("screener:test", slow, compute_timeout=0.01)
+
+
+class Test52wSkeletonTruthfulness:
+    """The warming skeleton must not invent data the snapshot does not carry."""
+
+    @pytest.fixture
+    def sessions(self, db, monkeypatch):
+        from sqlalchemy.orm import sessionmaker
+
+        TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db.get_bind())
+        monkeypatch.setattr("api.screener_api.screener_52w.SessionLocal", TestSessionLocal)
+        monkeypatch.setattr("api.screener_api.screener_scan.SessionLocal", TestSessionLocal)
+        return db
+
+    def _ranges(self, monkeypatch, ranges):
+        monkeypatch.setattr(
+            "api.screener_api.screener_52w.load_all_52w_ranges", lambda: ranges,
+        )
+
+    def test_skeleton_nulls_live_metrics_and_reports_pending_volume_gates(
+        self, sessions, monkeypatch
+    ):
+        from api.screener_api.screener_52w import build_52w_skeleton_data
+
+        self._ranges(monkeypatch, {
+            'RELIANCE': {'high': 1611.8, 'low': 1290.0, 'close': 1580.0},
+        })
+
+        data = build_52w_skeleton_data(profile_filters={'max_52w_gap': 10})
+
+        row = next(s for s in data['approaching'] + data['touched'] if s['symbol'] == 'RELIANCE')
+        assert row['volume_m'] is None
+        assert row['rsi'] is None
+        assert row['adx'] is None
+        assert row['day_change'] is None
+        assert 'min_turnover_cr' in data['pending_filters']
+        assert 'min_turnover_cr' in data['warning']
+
+    def test_skeleton_survives_zero_defaults_on_live_metrics(self, sessions, monkeypatch):
+        """min_volume_m=0 means the gate is inert and must not be reported as pending."""
+        from api.screener_api.screener_52w import build_52w_skeleton_data
+
+        self._ranges(monkeypatch, {
+            'RELIANCE': {'high': 1611.8, 'low': 1290.0, 'close': 1580.0},
+        })
+
+        data = build_52w_skeleton_data(
+            profile_filters={'max_52w_gap': 10, 'min_volume_m': 0, 'min_turnover_cr': 0},
+        )
+        assert data['pending_filters'] == []
+
+    def test_old_stored_close_is_not_labelled_ltp_or_today(self, sessions, monkeypatch):
+        from datetime import timedelta
+
+        from db.models import Stock52WeekRange
+        from api.screener_api.screener_52w import build_52w_skeleton_data
+
+        old_session = datetime.now() - timedelta(days=40)
+        sessions.add(Stock52WeekRange(
+            symbol='STALEISH', high_52w=1000.0, low_52w=800.0,
+            close=995.0, days_ago=45, updated_at=old_session,
+        ))
+        sessions.commit()
+        self._ranges(monkeypatch, {
+            'STALEISH': {'high': 1000.0, 'low': 800.0, 'close': 995.0, 'days_ago': 45},
+        })
+
+        data = build_52w_skeleton_data(profile_filters={'max_52w_gap': 10})
+
+        row = next(s for s in data['touched'] if s['symbol'] == 'STALEISH')
+        assert row['ltp_fresh'] is False
+        assert row['price_as_of'].startswith(old_session.date().isoformat())
+        assert row['days_ago'] == 45, 'an old stored close must not become "today"'
+
+    def test_touched_today_verified_row_still_does_not_claim_zero_days(self, sessions, monkeypatch):
+        """A fresh snapshot timestamp proves when we verified, not which session closed.
+
+        The close inside a verified-today row may be an older bar, so the skeleton
+        must leave days_ago to touch history rather than asserting "today".
+        """
+        from db.models import Stock52WeekRange
+        from api.screener_api.screener_52w import build_52w_skeleton_data
+
+        sessions.add(Stock52WeekRange(
+            symbol='TODAYVERIFIED', high_52w=1000.0, low_52w=800.0, close=995.0,
+            days_ago=None, updated_at=datetime.now(),
+        ))
+        sessions.commit()
+        self._ranges(monkeypatch, {
+            'TODAYVERIFIED': {'high': 1000.0, 'low': 800.0, 'close': 995.0},
+        })
+
+        data = build_52w_skeleton_data(profile_filters={'max_52w_gap': 10})
+
+        row = next(s for s in data['touched'] if s['symbol'] == 'TODAYVERIFIED')
+        assert row['price_as_of'] is not None
+        assert row['days_ago'] is None
+
+    def test_price_as_of_present_but_does_not_fake_today(self, sessions, monkeypatch):
+        """A fresh snapshot with no stored days_ago may claim 0 only if captured today."""
+        from datetime import timedelta
+
+        from db.models import Stock52WeekRange
+        from api.screener_api.screener_52w import build_52w_skeleton_data
+
+        sessions.add(Stock52WeekRange(
+            symbol='OLDSNAP', high_52w=1000.0, low_52w=800.0, close=995.0,
+            days_ago=None, updated_at=datetime.now() - timedelta(days=12),
+        ))
+        sessions.commit()
+        self._ranges(monkeypatch, {
+            'OLDSNAP': {'high': 1000.0, 'low': 800.0, 'close': 995.0},
+        })
+
+        data = build_52w_skeleton_data(profile_filters={'max_52w_gap': 10})
+
+        row = next(s for s in data['touched'] if s['symbol'] == 'OLDSNAP')
+        assert row['days_ago'] != 0
+
+    def test_skeleton_and_full_paths_agree_on_bucket_for_recent_touch(
+        self, sessions, monkeypatch
+    ):
+        """A symbol with a recent touch row lands in the same bucket in both paths."""
+        from datetime import timedelta
+
+        from db.models import Stock52WeekTouch
+        from api.screener_api.screener_52w import (
+            build_52w_skeleton_data, fetch_52w_high_data,
+        )
+
+        sessions.add(Stock52WeekTouch(
+            symbol='RECENTTOUCH',
+            touched_date=datetime.now() - timedelta(days=2),
+            touched_price=1002.0,
+            is_high=True,
+            is_current_52w_high=False,
+        ))
+        sessions.commit()
+        self._ranges(monkeypatch, {
+            'RECENTTOUCH': {'high': 1005.0, 'low': 700.0, 'close': 1000.0},
+        })
+        filters = {'max_52w_gap': 10, 'min_volume_m': 0, 'min_turnover_cr': 0}
+
+        with patch('api.screener_api.screener_52w._enrich_with_tv_scanner_data'), patch(
+            'api.screener_api.screener_52w._create_upstox_api', return_value=(None, False)
+        ):
+            full = fetch_52w_high_data(provider='upstox', profile_filters=filters)
+
+        skeleton = build_52w_skeleton_data(profile_filters=filters)
+
+        def bucket(data):
+            for name in ('approaching', 'touched'):
+                if any(s['symbol'] == 'RECENTTOUCH' for s in data[name]):
+                    return name
+            return None
+
+        assert bucket(skeleton) == 'touched'
+        assert bucket(skeleton) == bucket(full)
+
+        # Touch history (DB only) also lands in the skeleton: no 90d bar fetch needed.
+        row = next(s for s in skeleton['touched'] if s['symbol'] == 'RECENTTOUCH')
+        assert row['last_touched'] is not None
+        assert row['days_ago'] == 2
+
+    def test_touched_sorted_by_days_ago_then_gap(self, sessions, monkeypatch):
+        from api.screener_api.screener_52w import build_52w_skeleton_data
+
+        self._ranges(monkeypatch, {
+            # all within the 1% touch band; gaps differ so the tie can be broken
+            'OLD': {'high': 1000.0, 'low': 700.0, 'close': 992.0, 'days_ago': 6},
+            'NEARGAP': {'high': 1000.0, 'low': 700.0, 'close': 999.9, 'days_ago': 1},
+            'WIDEGAP': {'high': 1000.0, 'low': 700.0, 'close': 995.0, 'days_ago': 1},
+        })
+
+        data = build_52w_skeleton_data(profile_filters={'max_52w_gap': 10})
+
+        order = [s['symbol'] for s in data['touched']]
+        assert order == ['NEARGAP', 'WIDEGAP', 'OLD']
+
+
+
+    """A cold 52W cache must spawn exactly one warm, whatever the request rate."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_warm_state(self, monkeypatch):
+        import api_server_fastapi as api_mod
+
+        monkeypatch.setattr(api_mod, "_WARMING_SCREENERS", set())
+        monkeypatch.setattr(api_mod, "_WARM_TASKS", set())
+        monkeypatch.setattr(api_mod, "_SCREENER_MEM", {})
+        yield
+
+    @pytest.fixture
+    def ranges(self, db, monkeypatch):
+        from sqlalchemy.orm import sessionmaker
+        from db.models import Stock52WeekRange
+
+        TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db.get_bind())
+        monkeypatch.setattr("trading.week52_range_lookup.SessionLocal", TestSessionLocal)
+        monkeypatch.setattr("cache.redis_client.get_redis_client", lambda: None)
+
+        db.add(Stock52WeekRange(
+            symbol="RELIANCE", high_52w=1611.8, low_52w=1290.0,
+            close=1580.0, days_ago=None,
+        ))
+        db.commit()
+
+    def test_two_cold_requests_spawn_one_warm_without_redis(self, ranges, auth_client, monkeypatch):
+        import api_server_fastapi as api_mod
+
+        slow = MagicMock(side_effect=lambda *a, **k: {"approaching": [], "touched": []})
+        monkeypatch.setattr(api_mod, "_compute_screener", slow)
+        spawn = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(api_mod, "_spawn_task", spawn)
+
+        first = auth_client.get("/api/screener", params={"screener": "52w_high"})
+        second = auth_client.get("/api/screener", params={"screener": "52w_high"})
+
+        assert first.status_code == 200 and second.status_code == 200
+        assert spawn.call_count == 1, "second cold request started a duplicate sweep"
+        slow.assert_not_called()
+        assert second.json()["cache_status"] == "warming"
+
+    def test_cold_timeout_keeps_lock_and_does_not_start_second_compute(
+        self, db, auth_client, monkeypatch
+    ):
+        """Without a snapshot: 503 + Retry-After, lock retained, one compute total."""
+        import time
+        import fakeredis
+        import api_server_fastapi as api_mod
+        import cache.redis_client as rc
+        from cache.redis_client import make_cache_key
+
+        fake = fakeredis.FakeRedis(decode_responses=True)
+        monkeypatch.setattr("cache.redis_client.get_redis_client", lambda: fake)
+        monkeypatch.setattr("api.screener_api.screener_52w.load_all_52w_ranges", lambda: {})
+        monkeypatch.setattr(api_mod, "SCREENER_COLD_TIMEOUT", 0.3)
+
+        calls = []
+
+        def slow(*args, **kwargs):
+            calls.append(1)
+            time.sleep(1.5)
+            return {"approaching": [], "touched": []}
+
+        monkeypatch.setattr(api_mod, "_compute_screener", slow)
+        key = make_cache_key("screener", "upstox", "intraday", "52w_high")
+
+        first = auth_client.get("/api/screener", params={"screener": "52w_high"})
+        second = auth_client.get("/api/screener", params={"screener": "52w_high"})
+
+        assert first.status_code == 503
+        assert first.headers["retry-after"] == "15"
+        assert second.status_code in (503, 200), second.text
+        assert len(calls) == 1, "timed-out request released the lock for a duplicate compute"
+        assert fake.exists(f"{key}:lock") == 1
+
+        # The abandoned compute finishes anyway and fills the cache under its lock.
+        time.sleep(2.0)
+        assert rc.cache_get(key) == {"approaching": [], "touched": []}
+        assert fake.exists(f"{key}:lock") == 0
+        assert len(calls) == 1
+
+    def test_warm_result_is_served_from_memo_without_redis(self, ranges, auth_client, monkeypatch):
+        import api_server_fastapi as api_mod
+        from cache.redis_client import make_cache_key
+
+        key = make_cache_key("screener", "upstox", "intraday", "52w_high")
+        api_mod._SCREENER_MEM[key] = ({"approaching": [], "touched": [], "summary": []}, api_mod.time.monotonic())
+        spawn = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(api_mod, "_spawn_task", spawn)
+
+        response = auth_client.get("/api/screener", params={"screener": "52w_high"})
+
+        assert response.status_code == 200
+        assert response.headers["x-cache"] == "fresh"
+        assert response.json()["served_from_cache"] is True
+        spawn.assert_not_called()
+
+    def test_expired_memo_is_not_served(self, ranges, auth_client, monkeypatch):
+        import api_server_fastapi as api_mod
+        from cache.redis_client import make_cache_key
+
+        key = make_cache_key("screener", "upstox", "intraday", "52w_high")
+        stale_ts = api_mod.time.monotonic() - (api_mod._SCREENER_MEM_TTL + 1)
+        api_mod._SCREENER_MEM[key] = ({"approaching": [], "touched": []}, stale_ts)
+        monkeypatch.setattr(api_mod, "_spawn_task", MagicMock(return_value=MagicMock()))
+
+        response = auth_client.get("/api/screener", params={"screener": "52w_high"})
+
+        assert response.headers["x-cache"] == "warming"
+        assert key not in api_mod._SCREENER_MEM  # expired entry dropped, not served
+
+    @pytest.mark.asyncio
+    async def test_warm_task_is_retained_until_done(self, monkeypatch):
+        import asyncio
+        import api_server_fastapi as api_mod
+
+        release = asyncio.Event()
+
+        async def slow_warm(*args, **kwargs):
+            await release.wait()
+
+        monkeypatch.setattr(api_mod, "_warm_screener_cache", slow_warm)
+
+        task = api_mod._spawn_task(
+            "52w screener warm", lambda: slow_warm("k", "upstox", "intraday", "52w_high", {})
+        )
+        api_mod._WARM_TASKS.add(task)
+        task.add_done_callback(api_mod._WARM_TASKS.discard)
+
+        assert task in api_mod._WARM_TASKS, "warm task must be strongly referenced"
+        release.set()
+        await task
+        assert task not in api_mod._WARM_TASKS
+
+    def test_ensure_warm_starts_once_per_key(self, monkeypatch):
+        import api_server_fastapi as api_mod
+
+        spawn = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(api_mod, "_spawn_task", spawn)
+
+        assert api_mod._ensure_screener_warm("screener:k", "upstox", "intraday", "52w_high", {}) is True
+        assert api_mod._ensure_screener_warm("screener:k", "upstox", "intraday", "52w_high", {}) is False
+        assert spawn.call_count == 1
+        assert len(api_mod._WARM_TASKS) == 1
+
+    def test_ensure_warm_retries_when_spawn_fails(self, monkeypatch):
+        import api_server_fastapi as api_mod
+
+        monkeypatch.setattr(api_mod, "_spawn_task", MagicMock(return_value=None))
+
+        assert api_mod._ensure_screener_warm("screener:k", "upstox", "intraday", "52w_high", {}) is False
+        assert "screener:k" not in api_mod._WARMING_SCREENERS

@@ -61,7 +61,6 @@ def pct_str(k, n):
 
 
 def verdict(a_k, a_n, b_k, b_n):
-    """20d (a) vs 60d (b): confirmed / weaker / rejected."""
     if not a_n or not b_n:
         return "➖"
     pa, pb = a_k / a_n, b_k / b_n
@@ -73,7 +72,6 @@ def verdict(a_k, a_n, b_k, b_n):
     return "⚠️ weaker"
 
 
-# ---------------- loaders ----------------
 def add_indicators(g, use_volume=True):
     g = g.copy()
     tp = (g["High"] + g["Low"] + g["Close"]) / 3
@@ -108,7 +106,7 @@ def load_timing20():
 
 
 def fyers_fetch(symbol, frm, to):
-    from api.orderflow_recorder import recorder_token
+    from api.broker_hub import recorder_token
     t = recorder_token("fyers_tbt")
     app, _, tok = t.partition(":")
     import requests
@@ -138,7 +136,6 @@ def load_fyers60():
         df = df[~df.index.duplicated(keep="last")]
         df.to_csv(CACHE60)
         print(f"fetched + cached {len(df)} bars")
-    # keep last N_SESS complete sessions (>=70 bars, 5m)
     days = [d for d in sorted(set(df.index.date))
             if len(df[df.index.date == d]) >= 70][-N_SESS:]
     print(f"using {len(days)} sessions {days[0]} -> {days[-1]}")
@@ -177,17 +174,14 @@ def add_rsi_full(df):
     return df
 
 
-# ---------------- analysis: identical on any sess dict ----------------
 def analyze(sess):
     S = {}
-    # gaps
     gu = [(d, s) for d, s in sess.items() if not np.isnan(s["gap"]) and s["gap"] > 0.1]
     gd = [(d, s) for d, s in sess.items() if not np.isnan(s["gap"]) and s["gap"] < -0.1]
     fl = [(d, s) for d, s in sess.items() if not np.isnan(s["gap"]) and abs(s["gap"]) <= 0.1]
     S["gap_up"] = (sum(1 for _, s in gu if s["c"] > s["o"]), len(gu))
     S["gap_dn"] = (sum(1 for _, s in gd if s["c"] < s["o"]), len(gd))
     S["gap_flat"] = len(fl)
-    # ORB first break
     fu = fd = uu = ud = late = 0
     for _, s in sess.items():
         g = s["g"]
@@ -211,7 +205,6 @@ def analyze(sess):
     S["orb_up"] = (uu, fu)
     S["orb_dn"] = (ud, fd)
     S["orb_none"] = late
-    # VWAP 10:30 persistence + range timing
     pers = n1030 = 0
     b10, b12, b133 = [], [], []
     for _, s in sess.items():
@@ -228,7 +221,6 @@ def analyze(sess):
             arr.append((float(sub["High"].max()) - float(sub["Low"].min())) / rng * 100)
     S["vwap_pers"] = (pers, n1030)
     S["range_med"] = (float(np.median(b10)), float(np.median(b12)), float(np.median(b133)))
-    # flips
     flips, ftimes = 0, []
     for _, s in sess.items():
         g = s["g"]
@@ -246,7 +238,6 @@ def analyze(sess):
                     break
     S["flips"] = (flips, len(sess))
     S["flip_times"] = sorted(ftimes)
-    # 13:30 leader: close still on the same side of the 13:30 price as open
     lh = 0
     for _, s in sess.items():
         g = s["g"]
@@ -257,9 +248,7 @@ def analyze(sess):
         o0 = s["o"]
         lh += (s["c"] - p1330) * (p1330 - o0) > 0 or abs(s["c"] - p1330) < 0.0005 * o0
     S["lead_hold"] = (lh, len(sess))
-    # RSI midday snaps (needs warmed RSI: computed by caller on full df)
     S["rsi_nd"] = S["rsi_nw"] = 0
-    # VIX
     vv = [(s["vix"], (s["h"] - s["lo"]) / s["o"] * 100) for _, s in sess.items() if not np.isnan(s["vix"])]
     S["vix_corr"] = float(np.corrcoef([v[0] for v in vv], [v[1] for v in vv])[0, 1]) if len(vv) > 3 else np.nan
     S["vix_hi"] = float(np.median([r for v, r in vv if v >= 14])) if any(v >= 14 for v, _ in vv) else np.nan
@@ -272,7 +261,6 @@ sess20 = load_timing20()
 sess60 = load_fyers60()
 A, B = analyze(sess20), analyze(sess60)
 
-# RSI midday snaps on warmed-up series for both universes
 def rsi_snaps(full_df, days):
     full_df = add_rsi_full(full_df)
     nd = nw = 0
@@ -313,7 +301,6 @@ B["rsi_nd"], B["rsi_nw"] = rsi_snaps(_f60, _d60)
 print("rsi snaps 20d:", A["rsi_nd"], A["rsi_nw"], " 60d:", B["rsi_nd"], B["rsi_nw"])
 
 
-# ---------------- lessons ----------------
 L = []
 
 
@@ -403,7 +390,6 @@ for l in L:
     print(l["title"][:40], "|", l["v"], "| 20:", l["num20"][:60], "| 60:", l["num60"][:60])
 
 
-# ---------------- charts (60d) ----------------
 def fig_gap():
     fig, ax = plt.subplots(figsize=(10, 4.2))
     for d, s in sess60.items():
@@ -476,7 +462,6 @@ fig_range()
 fig_flips()
 
 
-# ---------------- 60-day gallery ----------------
 def day_tags(d, s):
     g, o, c = s["g"], s["o"], s["c"]
     tags = []
@@ -520,7 +505,6 @@ def plot_gallery_day(d, s):
     n = len(g)
     xs = list(range(n))
     fig, ax = plt.subplots(figsize=(11, 4.6))
-    # minimum body = 2% of day range, else bodies vanish on small-range days
     floor = max((s["h"] - s["lo"]) * 0.02, 0.01)
     for x, (_, b) in zip(xs, g.iterrows()):
         o, h, l, c = float(b["Open"]), float(b["High"]), float(b["Low"]), float(b["Close"])
@@ -592,7 +576,6 @@ day_cards = "\n".join(
     f'<img loading="lazy" src="figures/{fn}"/>' for d, tags, fn in gallery)
 
 
-# ---------------- HTML ----------------
 CSS = ("body{background:#0D1117;color:#E6EDF3;font-family:system-ui,sans-serif;"
        "max-width:900px;margin:0 auto;padding:24px;line-height:1.7;font-size:15px}"
        "h1{border-bottom:1px solid #30363D;padding-bottom:6px}"

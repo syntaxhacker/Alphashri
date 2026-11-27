@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Autoresearch wave 3 — entry-side filters on top of the hold-60 fade.
-
-One dimension at a time, then the winners get combined in wave 4.
-Gate: train PF >= 1.5 (stricter than the earlier 1.3) and train n >= 10.
-"""
 
 from __future__ import annotations
 

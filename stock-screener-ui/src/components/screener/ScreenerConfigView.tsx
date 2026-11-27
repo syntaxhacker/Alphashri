@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
-import Paper from "@mui/material/Paper";
+import { Show, Switch, Match, createEffect, createMemo, createSignal, For, onCleanup, type JSX } from "solid-js";
 import {
   Stack,
   Text,
@@ -9,22 +8,24 @@ import {
   Box,
   Button,
   ScrollArea,
-  Divider,
   TextInput,
   Checkbox,
   Select,
   NumberInput,
-  ActionIcon,
   Skeleton,
+  Paper,
+  typeSize,
 } from "@/ui";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
-import type { ScreenerOption, Stock, ProfileFilter, ColumnDef} from "../../types";
+import { fetchWithAuth } from "@/state/auth";
+import type { ScreenerOption, ProfileFilter } from "../../types";
+import type { ColumnDef } from "./columns";
 import { ScreenerTable } from "./ScreenerTable";
-import { SelectionBar } from "./SelectionBar";
 import { createScreener, updateScreener, deleteScreener } from "../../api/screeners";
 import { loadScreeners } from "../../api/index";
-import { useScreenerPreview } from "../../hooks/useScreenerApi";
+import { approachingStocksOf, buildScreenerPreviewUrl } from "@/api/screenerQuery";
+import type { Stock } from "../../types";
 
 const ALL_COLUMNS = [
   { key: "symbol", label: "Symbol" },
@@ -82,6 +83,7 @@ interface Props {
   screenerOptions: ScreenerOption[];
   activeScreener: string;
   onScreenerChange: (id: string) => void;
+  onSymbolClick?: (symbol: string) => void;
 }
 
 interface ScreenerForm {
@@ -105,80 +107,214 @@ const EMPTY_FORM: ScreenerForm = {
   defaultSortDirection: "desc",
 };
 
-export function ScreenerConfigView({ screenerOptions, activeScreener, onScreenerChange }: Props) {
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editingScreener, setEditingScreener] = useState<ScreenerOption | null>(null);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [form, setForm] = useState<ScreenerForm>(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
-  const [touchedSymbols] = useState<Set<string>>(new Set());
+type FilterEntry = { key: string; default: unknown };
 
-  const activeOption = screenerOptions.find((o) => o.id === activeScreener);
-  const columns = activeOption?.columns || [
-    "symbol",
-    "score",
-    "rsi",
-    "day_change",
-    "volume_m",
-    "perf_w",
-    "sector",
-  ];
+// User-facing names for the built-in screener filter keys. The API returns a
+// `{key: default}` dict without labels, so raw keys would leak into the badge
+// row. Keep these aligned with `screener_models.py`.
+const FILTER_LABELS: Record<string, string> = {
+  direction: "Direction",
+  lookback_minutes: "Lookback",
+  max_52w_gap: "52W gap",
+  max_pe: "Max P/E",
+  max_rsi: "RSI",
+  min_atr_pct: "ATR %",
+  min_cap_b: "Market cap (B)",
+  min_gap_pct: "Gap %",
+  min_impact: "Impact",
+  min_interest_score: "Interest",
+  min_move_pct: "Move %",
+  min_roe: "ROE %",
+  min_rsi: "RSI",
+  min_stoch_k: "Stoch K",
+  min_surge_pct: "Surge %",
+  min_turnover_cr: "Turnover (Cr)",
+  min_vol_surge: "Vol surge",
+  min_volume_m: "Volume (M)",
+  rsi_range: "RSI",
+  score_range: "Score",
+  trend: "Trend",
+  wick_pct_range: "Wick %",
+};
 
-  const activeFilters = activeOption?.filters;
-  const filterArr: { key: string; default: any; min?: number; max?: number }[] = [];
-  if (activeFilters) {
-    Object.entries(activeFilters as Record<string, any>).forEach(([key, value]) => {
-      if (Array.isArray(value) && value.length === 2) {
-        filterArr.push({ key: key + "_min", default: value[0] });
-        filterArr.push({ key: key + "_max", default: value[1] });
-      } else {
-        filterArr.push({ key, default: value });
+// Select filters cannot be represented by the dict's scalar default alone.
+// Keep their allowed values so Edit renders a select, not a number stepper.
+const FILTER_META: Record<string, Pick<ProfileFilter, "type" | "options">> = {
+  direction: { type: "select", options: ["both", "bullish", "bearish"] },
+  trend: { type: "select", options: ["all", "bullish", "bearish", "strong_trend"] },
+};
+
+function humanizeFilterKey(key: string): string {
+  return key
+    .replace(/_/g, " ")
+    .replace(/\b52w\b/gi, "52W")
+    .replace(/\brsi\b/gi, "RSI")
+    .replace(/\broe\b/gi, "ROE")
+    .replace(/\bpe\b/gi, "P/E")
+    .replace(/\batr\b/gi, "ATR")
+    .replace(/\bpct\b/gi, "%")
+    .replace(/\bcr\b/gi, "Cr");
+}
+
+function labelForFilterKey(key: string, filters?: unknown): string {
+  if (Array.isArray(filters)) {
+    const hit = filters.find(
+      (f) =>
+        f &&
+        typeof f === "object" &&
+        ((f as { key?: string }).key === key ||
+          (typeof (f as { key?: string }).key === "string" &&
+            key.startsWith(`${(f as { key: string }).key}_`))),
+    ) as { label?: string } | undefined;
+    if (hit?.label) return hit.label;
+  }
+  // Range pairs are split into `<base>_min` / `<base>_max`.
+  const range = /^(.*)_(min|max)$/.exec(key);
+  const base = range?.[1] ?? key;
+  const label = FILTER_LABELS[key] ?? FILTER_LABELS[base];
+  if (label) return range ? `${label} ${range[2] === "min" ? "≥" : "≤"}` : label;
+  return humanizeFilterKey(key);
+}
+
+/**
+ * The screener payload's `filters` is not type-guaranteed at runtime: the
+ * `/api/screeners` route emits a dict while `profile_meta.filters` is an array.
+ * Normalise both to `{key, default}` entries; a two-value array is a range.
+ */
+function normalizeScreenerFilters(filters: unknown): FilterEntry[] {
+  const out: FilterEntry[] = [];
+  const pushPair = (key: string, pair: unknown) => {
+    if (Array.isArray(pair) && pair.length === 2) {
+      out.push({ key: `${key}_min`, default: pair[0] });
+      out.push({ key: `${key}_max`, default: pair[1] });
+    } else if (pair !== undefined && pair !== null) {
+      out.push({ key, default: pair });
+    }
+  };
+
+  if (Array.isArray(filters)) {
+    for (const filter of filters) {
+      if (!filter || typeof filter !== "object") continue;
+      const key = (filter as { key?: unknown }).key;
+      if (typeof key !== "string" || !key) continue;
+      const range = (filter as { rangeDefault?: unknown }).rangeDefault;
+      if (Array.isArray(range) && range.length === 2) {
+        pushPair(key, range);
+      } else if ((filter as { default?: unknown }).default !== undefined) {
+        out.push({ key, default: (filter as { default: unknown }).default });
       }
-    });
+    }
+    return out;
   }
 
-  const {
-    stocks,
-    loading: previewLoading,
-    refresh: loadPreview,
-  } = useScreenerPreview(activeScreener, columns, filterArr);
+  if (filters !== null && typeof filters === "object") {
+    for (const [key, value] of Object.entries(filters)) {
+      if (key) pushPair(key, value);
+    }
+  }
+  return out;
+}
+
+export function ScreenerConfigView(props: Props) {
+  const [createModalOpen, setCreateModalOpen] = createSignal(false);
+  const [editModalOpen, setEditModalOpen] = createSignal(false);
+  const [editingScreener, setEditingScreener] = createSignal<ScreenerOption | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = createSignal(false);
+  const [deletingId, setDeletingId] = createSignal<string | null>(null);
+  const [form, setForm] = createSignal<ScreenerForm>(EMPTY_FORM);
+  const [saving, setSaving] = createSignal(false);
+  const [touchedSymbols] = createSignal<Set<string>>(new Set());
+
+  const activeOption = createMemo(() =>
+    props.screenerOptions.find((o) => o.id === props.activeScreener) ?? null,
+  );
+  const columns = createMemo(() =>
+    activeOption()?.columns || [
+      "symbol",
+      "score",
+      "rsi",
+      "day_change",
+      "volume_m",
+      "perf_w",
+      "sector",
+    ],
+  );
+
+  // `activeOption().filters` is whatever `GET /api/screeners` returned: a plain
+  // `{key: default}` dict (built with `{f['key']: f.get('default') for f in
+  // filter_list}` in `get_screeners`). Older saved configs and `profile_meta`
+  // carry an ARRAY of `ProfileFilter` (`{key,label,type,default,rangeDefault?}`)
+  // instead, so both shapes are accepted here. A range pair (array value, or
+  // `rangeDefault` on an array entry) is sent as `<key>_min`/`<key>_max`,
+  // matching `_passes_profile_filters`; empty values are dropped so no `key=`
+  // with a blank default is sent. Anything else yields no filters.
+  const filterArr = createMemo(() => normalizeScreenerFilters(activeOption()?.filters));
 
   // Config preview: load once per screener selection (debounced, NOT on
   // every filter keystroke — too many loaders). Manual reload via ↻ button.
-  useEffect(() => {
-    const t = setTimeout(() => loadPreview(), 500);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeScreener]);
+  const [previewStocks, setPreviewStocks] = createSignal<Stock[]>([]);
+  const [previewLoading, setPreviewLoading] = createSignal(true);
+  let previewAbort: AbortController | null = null;
 
-  const columnDefs: ColumnDef[] = columns.map((key) => ({
-    key,
-    label: ALL_COLUMNS.find((c) => c.key === key)?.label || key,
-    sortable: true,
-  }));
+  const loadPreview = () => {
+    const url = buildScreenerPreviewUrl({
+      screener: props.activeScreener,
+      columns: columns(),
+      filters: filterArr(),
+    });
+    previewAbort?.abort();
+    const controller = new AbortController();
+    previewAbort = controller;
+    setPreviewLoading(true);
+    fetchWithAuth(url, {
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        return res.json();
+      })
+      .then((json) => {
+        if (controller.signal.aborted) return;
+        setPreviewStocks(approachingStocksOf(json));
+        setPreviewLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        console.error("Failed to load screener preview:", err);
+        setPreviewStocks([]);
+        setPreviewLoading(false);
+      });
+  };
 
-  const handleSymbolClick = useCallback((_symbol: string) => {
-    // No-op for config preview - could open detail modal in future
-  }, []);
+  createEffect(() => {
+    void props.activeScreener;
+    const timer = setTimeout(loadPreview, 500);
+    onCleanup(() => clearTimeout(timer));
+  });
+  onCleanup(() => previewAbort?.abort());
 
-  const handleSymbolHover = useCallback((_symbol: string | null) => {
-    // No-op for config preview
-  }, []);
+  const columnDefs = createMemo<ColumnDef[]>(() =>
+    columns().map((key) => ({
+      key,
+      label: ALL_COLUMNS.find((c) => c.key === key)?.label || key,
+      sortable: true,
+    })),
+  );
 
   const handleCreate = async () => {
-    if (!form.label || form.columns.length === 0) return;
+    const f = form();
+    if (!f.label || f.columns.length === 0) return;
     setSaving(true);
     try {
       await createScreener({
-        name: form.label,
-        description: form.description,
-        indicators: form.indicators,
-        columns: form.columns,
-        filters: Object.fromEntries((form.filters || []).map((f) => [f.key, f.default])),
-        default_sort: form.defaultSortColumn
-          ? { column: form.defaultSortColumn, direction: form.defaultSortDirection }
+        name: f.label,
+        description: f.description,
+        indicators: f.indicators,
+        columns: f.columns,
+        filters: Object.fromEntries((f.filters || []).map((filter) => [filter.key, filter.default])),
+        default_sort: f.defaultSortColumn
+          ? { column: f.defaultSortColumn, direction: f.defaultSortDirection }
           : undefined,
       });
       setCreateModalOpen(false);
@@ -193,17 +329,19 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
   };
 
   const handleUpdate = async () => {
-    if (!form.label || form.columns.length === 0 || !editingScreener) return;
+    const f = form();
+    const editing = editingScreener();
+    if (!f.label || f.columns.length === 0 || !editing) return;
     setSaving(true);
     try {
-      await updateScreener(Number(editingScreener.id), {
-        name: form.label,
-        description: form.description,
-        indicators: form.indicators,
-        columns: form.columns,
-        filters: Object.fromEntries((form.filters || []).map((f) => [f.key, f.default])),
-        default_sort: form.defaultSortColumn
-          ? { column: form.defaultSortColumn, direction: form.defaultSortDirection }
+      await updateScreener(editing.id, {
+        name: f.label,
+        description: f.description,
+        indicators: f.indicators,
+        columns: f.columns,
+        filters: Object.fromEntries((f.filters || []).map((filter) => [filter.key, filter.default])),
+        default_sort: f.defaultSortColumn
+          ? { column: f.defaultSortColumn, direction: f.defaultSortDirection }
           : undefined,
       });
       setEditModalOpen(false);
@@ -219,14 +357,15 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
   };
 
   const handleDelete = async () => {
-    if (!deletingId) return;
+    const id = deletingId();
+    if (!id) return;
     setSaving(true);
     try {
-      await deleteScreener(Number(deletingId));
+      await deleteScreener(id);
       setDeleteConfirmOpen(false);
       setDeletingId(null);
-      if (activeScreener === deletingId) {
-        onScreenerChange("trending");
+      if (props.activeScreener === id) {
+        props.onScreenerChange("trending");
       }
       await loadScreeners(false);
     } catch (e) {
@@ -245,7 +384,18 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
       description: screener.description || "",
       indicators: screener.indicators || [],
       columns: screener.columns || [],
-      filters: screener.filters || [],
+      filters: Array.isArray(screener.filters)
+        ? screener.filters
+        : normalizeScreenerFilters(screener.filters).map((entry) => {
+            const meta = FILTER_META[entry.key];
+            return {
+              key: entry.key,
+              label: labelForFilterKey(entry.key, screener.filters),
+              type: meta?.type ?? ("number" as const),
+              options: meta?.options,
+              default: entry.default as number | string,
+            };
+          }),
       defaultSortColumn: screener.default_sort?.column || "score",
       defaultSortDirection: screener.default_sort?.direction || "desc",
     });
@@ -258,72 +408,94 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
   };
 
   const handleIndicatorToggle = (indicator: string, checked: boolean) => {
+    const f = form();
     let newIndicators: string[];
     let newFilters: ProfileFilter[];
 
     if (checked) {
-      newIndicators = [...form.indicators, indicator];
+      newIndicators = [...f.indicators, indicator];
       const defaultFilter = DEFAULT_FILTERS[indicator];
-      newFilters = defaultFilter ? [...form.filters, { ...defaultFilter }] : [...form.filters];
+      newFilters = defaultFilter ? [...f.filters, { ...defaultFilter }] : [...f.filters];
     } else {
-      newIndicators = form.indicators.filter((i) => i !== indicator);
-      newFilters = form.filters.filter((f) => f.key !== DEFAULT_FILTERS[indicator]?.key);
+      newIndicators = f.indicators.filter((i) => i !== indicator);
+      newFilters = f.filters.filter((filter) => filter.key !== DEFAULT_FILTERS[indicator]?.key);
     }
-    setForm({ ...form, indicators: newIndicators, filters: newFilters });
+    setForm({ ...f, indicators: newIndicators, filters: newFilters });
   };
 
   const updateFilterValue = (key: string, value: number | string) => {
-    const newFilters = form.filters.map((f) => (f.key === key ? { ...f, default: value } : f));
-    setForm({ ...form, filters: newFilters });
+    const f = form();
+    const newFilters = f.filters.map((filter) => (filter.key === key ? { ...filter, default: value } : filter));
+    setForm({ ...f, filters: newFilters });
   };
 
-  const renderFilterInput = (filter: ProfileFilter) => {
+  const renderFilterInput = (filter: ProfileFilter): JSX.Element => {
     if (filter.type === "number") {
       return (
-        <Box key={filter.key} sx={{ display: "flex", alignItems: "center", width: 120 }}>
+        <Box className="flex items-center w-[120px]">
           <NumberInput
             label={filter.label}
             value={filter.default as number}
-            onChange={(val) => updateFilterValue(filter.key, val || 0)}
+            onChange={(val: number | string) => updateFilterValue(filter.key, Number(val) || 0)}
             min={filter.min}
             max={filter.max}
             step={filter.step}
-            sx={{ width: 120 }}
+            className="w-[120px]"
           />
         </Box>
       );
     }
     if (filter.type === "select" && filter.options) {
+      // `ProfileFilter.options` allows bare numbers, but `Select` only accepts
+      // strings or `{value,label}` — a number used to reach `normalizeOptions`
+      // and produce `{value: undefined, label: undefined}` (an unlabelled
+      // option). Normalise here.
+      const options = filter.options.map((option) =>
+        typeof option === "object" ? option : { value: String(option), label: String(option) },
+      );
       return (
-        <Box key={filter.key} sx={{ display: "flex", alignItems: "center", width: 120 }}>
+        <Box className="flex items-center w-[120px]">
           <Select
             label={filter.label}
-            data={filter.options}
+            data={options}
             value={filter.default as string}
             onChange={(val) => updateFilterValue(filter.key, val || "")}
-            sx={{ width: 120 }}
+            className="w-[120px]"
           />
         </Box>
       );
     }
-    return null;
+    return <></>;
   };
 
+  const activeFilterBadges = createMemo(() =>
+    filterArr().filter(
+      (entry) =>
+        entry.default !== undefined &&
+        entry.default !== null &&
+        String(entry.default).trim() !== "",
+    ),
+  );
+
+  const filterLabel = (key: string): string => labelForFilterKey(key, activeOption()?.filters);
+
+  const formOpen = () => createModalOpen() || editModalOpen();
+
   return (
-    <Box sx={{ display: "flex", height: "100%", minHeight: 0, minWidth: 0, gap: 1, p: 1, bgcolor: palette.BG }}>
+    <Box flex={1} p={1} gap={1} bg={palette.BG} className="h-full min-h-0 min-w-0 flex">
       <Paper
-        elevation={0}
+        w={260}
+        radius={2}
         data-testid="screener-list-panel"
-        sx={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden", border: 1, borderColor: palette.BORDER, borderRadius: 2, bgcolor: palette.SURFACE }}
+        className="flex-shrink-0 flex flex-col overflow-hidden border border-fin-border"
       >
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, px: 1.5, py: 1, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.SURFACE_ALT, height: 36, flexShrink: 0 }}>
-          <Text fw={600} size="xs" data-testid="screener-configs-title" style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>
+        <Box className="flex items-center justify-between gap-2 px-3 py-2 h-[36px] flex-shrink-0 border-b border-fin-border bg-fin-surface-alt">
+          <Text fw={600} size="xs" data-testid="screener-configs-title" style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.5px", color: palette.TEXT_MUTED }}>
             CONFIGS
           </Text>
           <Button
             size="xs"
             variant="outline"
-            color="inherit"
             onClick={() => {
               setForm({
                 ...EMPTY_FORM,
@@ -337,354 +509,211 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               setCreateModalOpen(true);
             }}
             data-testid="create-screener-btn"
-            style={{ fontSize: 11, height: 24 }}
+            style={{ "font-size": `${typeSize("micro")}px`, height: "24px", color: palette.TEXT }}
           >
             + Create
           </Button>
         </Box>
         <ScrollArea h="100%" type="auto">
           <Stack gap={0} p={1}>
-            {screenerOptions.map((option) => (
-              <Box
-                key={option.id}
-                p={1}
-                data-testid={`screener-row-${option.id}`}
-                sx={{
-                  borderRadius: 1,
-                  cursor: "pointer",
-                  bgcolor: option.id === activeScreener ? palette.SURFACE_ALT : "transparent",
-                  border: option.id === activeScreener ? 1 : 0,
-                  borderColor: palette.BORDER,
-                  mb: 0.5,
-                }}
-                onClick={() => onScreenerChange(option.id)}
-              >
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 0.5 }}>
-                  <Group gap={1} align="center">
-                    <Text size="xs" fw={500} style={{ fontSize: 12, color: palette.TEXT }}>
-                      {option.label}
-                    </Text>
-                    {option.id === activeScreener && (
-                      <Badge size="xs" color="default" variant="light" data-testid="screener-active-badge">
-                        Active
-                      </Badge>
-                    )}
-                  </Group>
-                  <Group gap={0.5} align="center">
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      color="inherit"
-                      onClick={(e: any) => {
-                        e.stopPropagation();
-                        openEditModal(option);
-                      }}
-                      data-testid={`edit-screener-${option.id}`}
-                      style={{ fontSize: 11, height: 22, padding: "0 6px", borderColor: palette.BORDER, color: palette.TEXT }}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      color="error"
-                      onClick={(e: any) => {
-                        e.stopPropagation();
-                        openDeleteConfirm(option.id);
-                      }}
-                      data-testid={`delete-screener-${option.id}`}
-                      style={{ fontSize: 11, height: 22, padding: "0 6px" }}
-                    >
-                      Del
-                    </Button>
-                  </Group>
+            <For each={props.screenerOptions}>
+              {(option) => (
+                <Box
+                  p={1}
+                  data-testid={`screener-row-${option.id}`}
+                  className={[
+                    "rounded-sm cursor-pointer mb-1 border-fin-border",
+                    option.id === props.activeScreener ? "bg-fin-surface-alt border" : "bg-transparent border-0",
+                  ].join(" ")}
+                  onClick={() => props.onScreenerChange(option.id)}
+                >
+                  <Box className="flex items-center justify-between gap-2 mb-1">
+                    <Group gap={1} align="center">
+                      <Text size="xs" fw={500} style={{ "font-size": `${typeSize("micro")}px`, color: palette.TEXT }}>
+                        {option.label}
+                      </Text>
+                      <Show when={option.id === props.activeScreener}>
+                        <Badge size="xs" color="default" variant="light" data-testid="screener-active-badge">
+                          Active
+                        </Badge>
+                      </Show>
+                    </Group>
+                    <Group className="gap-1" align="center">
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={(e: MouseEvent) => {
+                          e.stopPropagation();
+                          openEditModal(option);
+                        }}
+                        data-testid={`edit-screener-${option.id}`}
+                        style={{ "font-size": `${typeSize("micro")}px`, height: "22px", padding: "0 6px", "border-color": palette.BORDER, color: palette.TEXT }}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        color="error"
+                        onClick={(e: MouseEvent) => {
+                          e.stopPropagation();
+                          openDeleteConfirm(option.id);
+                        }}
+                        data-testid={`delete-screener-${option.id}`}
+                        style={{ "font-size": `${typeSize("micro")}px`, height: "22px", padding: "0 6px" }}
+                      >
+                        Del
+                      </Button>
+                    </Group>
+                  </Box>
+                  <Text size="xs" c="dimmed" lineClamp={1} style={{ "font-size": `${typeSize("micro")}px`, color: palette.TEXT_MUTED }}>
+                    {option.id}
+                  </Text>
                 </Box>
-                <Text size="xs" c="dimmed" lineClamp={1} style={{ fontSize: 11, color: palette.TEXT_MUTED }}>
-                  {option.id}
-                </Text>
-              </Box>
-            ))}
+              )}
+            </For>
           </Stack>
         </ScrollArea>
       </Paper>
 
       <Paper
-        elevation={0}
         data-testid="screener-preview-panel"
-        sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden", border: 1, borderColor: palette.BORDER, borderRadius: 2, bgcolor: palette.SURFACE }}
+        radius={2}
+        className="flex-1 min-w-0 flex flex-col overflow-hidden border border-fin-border"
       >
-        <Box data-testid="preview-header" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, px: 1.5, py: 1, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.SURFACE_ALT, height: 36, flexShrink: 0 }}>
+        <Box data-testid="preview-header" className="flex items-center justify-between gap-2 px-3 py-2 h-[36px] flex-shrink-0 border-b border-fin-border bg-fin-surface-alt">
           <Group gap={1} wrap="wrap" data-testid="screener-filters" align="center">
-            {activeOption ? (
-              <>
-                <Badge size="xs" color="default" variant="light" data-testid="screener-name-badge">
-                  {activeOption.label}
-                </Badge>
-                {(() => {
-                  let filterObj: Record<string, any> = {};
-                  if (Array.isArray(activeOption.filters)) {
-                    activeOption.filters.forEach((f: any) => {
-                      if (f.key && f.default !== undefined) filterObj[f.key] = f.default;
-                    });
-                  } else if (activeOption.filters && typeof activeOption.filters === "object") {
-                    filterObj = activeOption.filters as Record<string, any>;
-                  }
-                  return Object.entries(filterObj).map(([key, value]) => (
-                    <Badge key={key} size="xs" color="default" variant="light">
-                      {key.replace(/_/g, " ")}: {String(value)}
-                    </Badge>
-                  ));
-                })()}
-              </>
-            ) : (
-              <Text size="xs" c="dimmed" style={{ fontSize: 11, color: palette.TEXT_MUTED }}>
-                Select a screener
-              </Text>
-            )}
+            <Show
+              when={activeOption()}
+              fallback={
+                <Text size="xs" c="dimmed" style={{ "font-size": `${typeSize("micro")}px`, color: palette.TEXT_MUTED }}>
+                  Select a screener
+                </Text>
+              }
+            >
+              {(active) => (
+                <>
+                  <Badge size="xs" color="default" variant="light" data-testid="screener-name-badge">
+                    {active().label}
+                  </Badge>
+                  <For each={activeFilterBadges()}>
+                    {(entry) => (
+                      <Badge size="xs" color="default" variant="light">
+                        {filterLabel(entry.key)}: {String(entry.default)}
+                      </Badge>
+                    )}
+                  </For>
+                </>
+              )}
+            </Show>
           </Group>
-          <Group gap={1} align="center" sx={{ flexShrink: 0 }}>
-            <Text fw={600} size="xs" data-testid="preview-count" style={{ fontSize: 11, color: palette.TEXT_MUTED }}>
-              PREVIEW ({stocks.length})
+          <Group gap={1} align="center" className="flex-shrink-0">
+            <Text fw={600} size="xs" data-testid="preview-count" style={{ "font-size": `${typeSize("micro")}px`, color: palette.TEXT_MUTED }}>
+              PREVIEW ({previewStocks().length})
             </Text>
             <Button
               size="xs"
               variant="outline"
-              color="inherit"
               onClick={() => loadPreview()}
-              loading={previewLoading}
+              loading={previewLoading()}
               data-testid="preview-refresh-btn"
-              style={{ height: 24, fontSize: 11 }}
+              style={{ height: "24px", "font-size": `${typeSize("micro")}px` }}
             >
               ↻
             </Button>
           </Group>
         </Box>
-        {(createModalOpen || editModalOpen) && (
-          <Box sx={{ p: 1.5, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.BG, maxHeight: 380, overflow: "auto" }} data-testid="inline-form">
+        <Show when={formOpen()}>
+          <Box gap={2} bg={palette.BG} className="flex p-3 border-b border-fin-border max-h-[380px] overflow-auto" data-testid="inline-form">
             <Stack gap={1}>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 0.5 }}>
-                <Text fw={600} size="xs" style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>{editModalOpen ? "EDIT SCREENER" : "NEW SCREENER"}</Text>
-                <Button size="xs" variant="subtle" color="inherit" onClick={() => { setCreateModalOpen(false); setEditModalOpen(false); setEditingScreener(null); setForm(EMPTY_FORM); }} style={{ height: 22 }}>✕</Button>
+              <Box className="flex items-center justify-between gap-2 mb-1">
+                <Text fw={600} size="xs" style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.5px", color: palette.TEXT_MUTED }}>{editModalOpen() ? "EDIT SCREENER" : "NEW SCREENER"}</Text>
+                <Button size="xs" variant="subtle" onClick={() => { setCreateModalOpen(false); setEditModalOpen(false); setEditingScreener(null); setForm(EMPTY_FORM); }} style={{ height: "22px" }}>✕</Button>
               </Box>
               <ToolbarRow gap={8} wrap={false}>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <TextInput label="Name" data-testid="screener-name-input" placeholder="e.g., My Screener" value={form.label} onChange={(val) => setForm({ ...form, label: val })} size="xs" style={{ width: "100%" }} />
+                <Box className="flex-1 min-w-0">
+                  <TextInput label="Name" data-testid="screener-name-input" placeholder="e.g., My Screener" value={form().label} onChange={(val) => setForm({ ...form(), label: val })} size="xs" style={{ width: "100%" }} />
                 </Box>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <TextInput label="Description" placeholder="Brief description" value={form.description} onChange={(val) => setForm({ ...form, description: val })} size="xs" style={{ width: "100%" }} />
+                <Box className="flex-1 min-w-0">
+                  <TextInput label="Description" placeholder="Brief description" value={form().description} onChange={(val) => setForm({ ...form(), description: val })} size="xs" style={{ width: "100%" }} />
                 </Box>
               </ToolbarRow>
-              <Text size="xs" fw={600} style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>Indicators</Text>
+              <Text size="xs" fw={600} style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.5px", color: palette.TEXT_MUTED }}>Indicators</Text>
               <ToolbarRow gap={8}>
-                {["RSI", "ADX", "Volume", "52W Gap %", "Stochastic", "ATR", "MACD", "Momentum"].map((ind) => (
-                  <Checkbox key={ind} label={ind} checked={form.indicators.includes(ind)} onChange={(checked) => handleIndicatorToggle(ind, checked)} size="xs" />
-                ))}
+                <For each={["RSI", "ADX", "Volume", "52W Gap %", "Stochastic", "ATR", "MACD", "Momentum"]}>
+                  {(ind) => (
+                    <Checkbox
+                      label={ind}
+                      checked={form().indicators.includes(ind)}
+                      onChange={(checked) => handleIndicatorToggle(ind, checked)}
+                      size="xs"
+                    />
+                  )}
+                </For>
               </ToolbarRow>
-              {form.filters.length > 0 && (
-                <>
-                  <Text size="xs" fw={600} style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>Filters</Text>
-                  <ToolbarRow gap={8}>{form.filters.map(renderFilterInput)}</ToolbarRow>
-                </>
-              )}
+              <Show when={form().filters.length > 0}>
+                <Text size="xs" fw={600} style={{ "font-size": `${typeSize("micro")}px`, "letter-spacing": "0.5px", color: palette.TEXT_MUTED }}>Filters</Text>
+                <ToolbarRow gap={8}><For each={form().filters}>{renderFilterInput}</For></ToolbarRow>
+              </Show>
               <ToolbarRow gap={8} wrap={false}>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Select label="Sort Column" data={ALL_COLUMNS.map((c) => ({ value: c.key, label: c.label }))} value={form.defaultSortColumn} onChange={(val) => setForm({ ...form, defaultSortColumn: val || "score" })} size="xs" style={{ width: "100%" }} />
+                <Box className="flex-1 min-w-0">
+                  <Select label="Sort Column" data={ALL_COLUMNS.map((c) => ({ value: c.key, label: c.label }))} value={form().defaultSortColumn} onChange={(val) => setForm({ ...form(), defaultSortColumn: val || "score" })} size="xs" style={{ width: "100%" }} />
                 </Box>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Select label="Direction" data={[{ value: "desc", label: "Desc ↓" }, { value: "asc", label: "Asc ↑" }]} value={form.defaultSortDirection} onChange={(val) => setForm({ ...form, defaultSortDirection: (val as "asc" | "desc") || "desc" })} size="xs" style={{ width: "100%" }} />
+                <Box className="flex-1 min-w-0">
+                  <Select label="Direction" data={[{ value: "desc", label: "Desc ↓" }, { value: "asc", label: "Asc ↑" }]} value={form().defaultSortDirection} onChange={(val) => setForm({ ...form(), defaultSortDirection: (val as "asc" | "desc") || "desc" })} size="xs" style={{ width: "100%" }} />
                 </Box>
               </ToolbarRow>
-              <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1, pt: 1, borderTop: 1, borderColor: palette.BORDER, mt: 1 }}>
-                <Button size="xs" variant="outline" color="inherit" onClick={() => { setCreateModalOpen(false); setEditModalOpen(false); setEditingScreener(null); setForm(EMPTY_FORM); }} data-testid="cancel-create-btn">Cancel</Button>
-                <Button size="xs" data-testid="confirm-create-btn" onClick={() => (editModalOpen ? handleUpdate() : handleCreate())} disabled={!form.label || form.columns.length === 0} loading={saving}>{editModalOpen ? "Update" : "Create"}</Button>
+              <Box className="flex justify-end gap-2 pt-2 border-t border-fin-border mt-2">
+                <Button size="xs" variant="outline" onClick={() => { setCreateModalOpen(false); setEditModalOpen(false); setEditingScreener(null); setForm(EMPTY_FORM); }} data-testid="cancel-create-btn">Cancel</Button>
+                {/* @/ui Button reads `disabled` once at construction, so it is keyed on the form to pick up edits */}
+                <Show when={form()} keyed>
+                  {(current) => (
+                    <Button size="xs" data-testid="confirm-create-btn" onClick={() => (editModalOpen() ? handleUpdate() : handleCreate())} disabled={!current.label || current.columns.length === 0} loading={saving()}>{editModalOpen() ? "Update" : "Create"}</Button>
+                  )}
+                </Show>
               </Box>
             </Stack>
           </Box>
-        )}
-        {deleteConfirmOpen && (
-          <Box sx={{ p: 1.5, borderBottom: 1, borderColor: palette.BORDER, bgcolor: withAlpha(palette.NEGATIVE, 0.08), display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-            <Text size="xs" style={{ color: palette.NEGATIVE }}>Are you sure you want to delete {deletingId}?</Text>
+        </Show>
+        <Show when={deleteConfirmOpen()}>
+          <Box className="p-3 border-b border-fin-border flex items-center justify-between gap-2" style={{ "background-color": withAlpha(palette.NEGATIVE, 0.08) }}>
+            <Text size="xs" style={{ color: palette.NEGATIVE }}>Are you sure you want to delete {deletingId()}?</Text>
             <ToolbarRow gap={8}>
-              <Button size="xs" variant="outline" color="inherit" onClick={() => { setDeleteConfirmOpen(false); setDeletingId(null); }}>Cancel</Button>
-              <Button size="xs" color="error" onClick={handleDelete} loading={saving}>Delete</Button>
+              <Button size="xs" variant="outline" onClick={() => { setDeleteConfirmOpen(false); setDeletingId(null); }}>Cancel</Button>
+              <Button size="xs" color="error" onClick={handleDelete} loading={saving()}>Delete</Button>
             </ToolbarRow>
           </Box>
-        )}
-        <Box sx={{ flex: 1, overflow: "auto", p: 1, minHeight: 0 }}>
-          {previewLoading ? (
-            <Stack gap={1} data-testid="preview-loading">
-              <Text size="xs" c="dimmed" ta="center">Loading...</Text>
-              <Skeleton h={28} radius={1} />
-              <Skeleton h={20} />
-              <Skeleton h={20} />
-              <Skeleton h={20} />
-              <Skeleton h={20} />
-            </Stack>
-          ) : stocks.length === 0 ? (
-            <Text size="sm" c="dimmed" ta="center" py="xl" data-testid="preview-empty">
-              No stocks
-            </Text>
-          ) : (
-            <ScreenerTable
-              stocks={stocks}
-              columns={columnDefs}
-              touchedSymbols={touchedSymbols}
-              onSymbolClick={handleSymbolClick}
-              onSymbolHover={handleSymbolHover}
-              testId="preview-table"
-            />
-          )}
+        </Show>
+        <Box className="flex-1 overflow-auto p-2 min-h-0">
+          <Switch>
+            <Match when={previewLoading()}>
+              <Stack gap={1} data-testid="preview-loading">
+                <Text size="xs" c="dimmed" ta="center">Loading...</Text>
+                <Skeleton h={28} radius={1} />
+                <Skeleton h={20} />
+                <Skeleton h={20} />
+                <Skeleton h={20} />
+                <Skeleton h={20} />
+              </Stack>
+            </Match>
+            <Match when={previewStocks().length === 0}>
+              <Text size="sm" c="dimmed" ta="center" py="xl" data-testid="preview-empty">
+                No stocks
+              </Text>
+            </Match>
+            <Match when={true}>
+              <ScreenerTable
+                stocks={previewStocks()}
+                columns={columnDefs()}
+                touchedSymbols={touchedSymbols()}
+                onSymbolClick={(symbol) => props.onSymbolClick?.(symbol)}
+                onSymbolHover={() => {}}
+                testId="preview-table"
+              />
+            </Match>
+          </Switch>
         </Box>
-        <SelectionBar
-          onCompare={() => {
-            /* no-op for config preview */
-          }}
-        />
       </Paper>
     </Box>
   );
-
-  function renderFormModal(isEdit: boolean, onSubmit: () => void, isSaving: boolean) {
-    return (
-      <Box sx={{ display: "flex", gap: 2, bgcolor: palette.BG }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Stack gap={1} data-testid="create-screener-form">
-            <TextInput
-              label="Name"
-              data-testid="screener-name-input"
-              placeholder="e.g., My Custom Screener"
-              value={form.label}
-              onChange={(val) => setForm({ ...form, label: val })}
-              size="xs"
-            />
-            <TextInput
-              label="Description"
-              placeholder="Brief description of this screener"
-              value={form.description}
-              onChange={(val) => setForm({ ...form, description: val })}
-              size="xs"
-            />
-
-            <Text size="xs" fw={600} style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>
-              Indicators
-            </Text>
-            <Group gap={1} align="center" style={{ flexWrap: "wrap" }}>
-              {["RSI", "ADX", "Volume", "52W Gap %", "Stochastic", "ATR", "MACD", "Momentum"].map(
-                (ind) => (
-                  <Checkbox
-                    key={ind}
-                    label={ind}
-                    checked={form.indicators.includes(ind)}
-                    onChange={(checked) => handleIndicatorToggle(ind, checked)}
-                    size="xs"
-                  />
-                ),
-              )}
-            </Group>
-
-            {form.filters.length > 0 && (
-              <>
-                <Text size="xs" fw={600} style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>
-                  Filter Values
-                </Text>
-                <Group gap={1} align="center" style={{ flexWrap: "wrap" }}>{form.filters.map(renderFilterInput)}</Group>
-              </>
-            )}
-
-            <Select
-              label="Default Sort Column"
-              data={ALL_COLUMNS.map((c) => ({ value: c.key, label: c.label }))}
-              value={form.defaultSortColumn}
-              onChange={(val) => setForm({ ...form, defaultSortColumn: val || "score" })}
-              size="xs"
-            />
-
-            <Select
-              label="Default Sort Direction"
-              data={[
-                { value: "desc", label: "Descending ↓" },
-                { value: "asc", label: "Ascending ↑" },
-              ]}
-              value={form.defaultSortDirection}
-              onChange={(val) =>
-                setForm({ ...form, defaultSortDirection: (val as "asc" | "desc") || "desc" })
-              }
-              size="xs"
-            />
-
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, mt: 1.5 }}>
-              <Button
-                variant="outline"
-                color="inherit"
-                onClick={() => {
-                  setCreateModalOpen(false);
-                  setEditModalOpen(false);
-                  setForm(EMPTY_FORM);
-                }}
-                data-testid="cancel-create-btn"
-                size="xs"
-              >
-                Cancel
-              </Button>
-              <Button
-                data-testid="confirm-create-btn"
-                onClick={onSubmit}
-                disabled={!form.label || form.columns.length === 0}
-                loading={isSaving}
-                size="xs"
-              >
-                {isEdit ? "Update" : "Create"}
-              </Button>
-            </Box>
-          </Stack>
-        </Box>
-
-        <Box
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            borderLeft: 1,
-            borderColor: palette.BORDER,
-            pl: 2,
-          }}
-        >
-            <Stack gap={1} data-testid="create-modal-preview">
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", pb: 1, borderBottom: 1, borderColor: palette.BORDER }}>
-              <Text fw={600} size="xs" data-testid="modal-live-preview-title" style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>
-                LIVE PREVIEW
-              </Text>
-              <Badge size="xs" color="default" variant="light">
-                {stocks.length} stocks
-              </Badge>
-            </Box>
-            {form.columns.length === 0 ? (
-              <Text size="xs" c="dimmed" ta="center" py="xl" style={{ color: palette.TEXT_MUTED }}>
-                Select columns to preview
-              </Text>
-            ) : stocks.length > 0 ? (
-              <Paper elevation={0} sx={{ height: 300, overflow: "hidden", border: 1, borderColor: palette.BORDER, borderRadius: 1, bgcolor: palette.SURFACE }}>
-                <Box sx={{ height: 300, overflow: "auto", p: 0.5 }}>
-                <ScreenerTable
-                  stocks={stocks.slice(0, 10)}
-                  columns={form.columns.slice(0, 5).map((key) => ({
-                    key,
-                    label: ALL_COLUMNS.find((c) => c.key === key)?.label || key,
-                    sortable: true,
-                  }))}
-                  touchedSymbols={touchedSymbols}
-                  onSymbolClick={() => {}}
-                  onSymbolHover={() => {}}
-                />
-                </Box>
-              </Paper>
-            ) : (
-              <Text size="xs" c="dimmed" ta="center" py="xl" style={{ color: palette.TEXT_MUTED }}>
-                No stocks available
-              </Text>
-            )}
-          </Stack>
-        </Box>
-      </Box>
-    );
-  }
 }

@@ -14,8 +14,8 @@ export interface WallBurstLike {
 
 export interface WallOverlayLine {
   yAxis: number;
-  label: { formatter: string };
-  lineStyle: { type: "solid" | "dashed"; color: string };
+  label: { position: string; formatter: string };
+  lineStyle: { type: "solid" | "dashed"; color: string; width: number };
   includeInScale: boolean;
 }
 
@@ -30,14 +30,6 @@ export interface WallOverlayMarker {
 
 const WALL_TYPES = new Set(["wall_test", "rejection", "break", "wall_break"]);
 
-/**
- * Map wall bursts to chart annotations.
- *
- * The 2026-11-03 case is the reference: a dashed line at 23,700 (tested
- * 11:54) plus a marker on the 12:10 rejection and a dashed target line at
- * max pain 23,650. Watch tests are muted; rejection/break markers are the
- * actual events; only one line per level survives.
- */
 export function wallEventOverlay(bursts: WallBurstLike[] | null | undefined): {
   markLines: WallOverlayLine[];
   markers: WallOverlayMarker[];
@@ -57,10 +49,14 @@ export function wallEventOverlay(bursts: WallBurstLike[] | null | undefined): {
       seenLevels.add(level);
       markLines.push({
         yAxis: level,
-        label: { formatter: `${side} WALL ${Math.round(level).toLocaleString("en-IN")}` },
+        label: {
+          position: "insideEndTop",
+          formatter: `${side} WALL ${Math.round(level).toLocaleString("en-IN")}`,
+        },
         lineStyle: {
           type: "dashed",
           color: type === "wall_test" ? palette.TEXT_MUTED : palette.WARNING,
+          width: 1,
         },
         includeInScale: false,
       });
@@ -72,8 +68,8 @@ export function wallEventOverlay(bursts: WallBurstLike[] | null | undefined): {
         seenLevels.add(target);
         markLines.push({
           yAxis: target,
-          label: { formatter: `TARGET ${Math.round(target).toLocaleString("en-IN")}` },
-          lineStyle: { type: "dashed", color: palette.NEGATIVE },
+          label: { position: "insideEndTop", formatter: `TARGET ${Math.round(target).toLocaleString("en-IN")}` },
+          lineStyle: { type: "dashed", color: palette.NEGATIVE, width: 1 },
           includeInScale: false,
         });
       }

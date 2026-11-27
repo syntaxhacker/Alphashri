@@ -1,20 +1,3 @@
-"""
-SR Breakout TP Investigation — Apr 2, 2026
-
-Replays the Classic S/R Breakout strategy minute-by-minute using real Upstox 1-min data.
-Simulates the exact same logic as multi_strategy_runner.py:
-  1. Uses Apr 1 daily HLC for pivot point calculation
-  2. Walks through 1-min candles on Apr 2 to find the breakout moment
-  3. Checks exit on the SAME candle (matching the monitor_positions behavior)
-
-Answers:
-- How far did stocks actually run past the 1.5% TP?
-- Does the breakout candle itself already exceed TP? (0-min hold time bug)
-- Would a structure-based TP (R2) be better?
-
-Usage:
-    cd stock-screener-ui && python scripts/investigate_sr_tp.py
-"""
 
 import sys
 from pathlib import Path
@@ -89,18 +72,6 @@ def fetch_1min_data(api, symbol):
 
 
 def simulate_trade_minute_by_minute(candles_1m, entry_price, sl_price, tp_price, side="BUY"):
-    """
-    Simulate the exact bot behavior:
-    - Bot enters when price > R1 (we pass entry_price as the price at that moment)
-    - On the SAME cycle, monitor_positions checks the last 1-min candle's high/low
-    - If candle_high >= TP → instant TP (0-min hold)
-    - If candle_low <= SL → instant SL (0-min hold)
-    - Then continues checking subsequent candles
-
-    We simulate TWO scenarios:
-    A) Same-cycle check (what the bot does): check TP/SL on the entry candle immediately
-    B) Next-cycle check (fixed): skip entry candle, start checking from next candle
-    """
     if candles_1m is None or candles_1m.empty:
         return None
 

@@ -1,5 +1,5 @@
 import json
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 
 from .base import Base, PaperTradingMixin, PythonUpdatedAtMixin
@@ -28,6 +28,10 @@ class Trade(PaperTradingMixin, Base):
 
     __table_args__ = (
         UniqueConstraint("bot_id", "strategy_id", "symbol", "entry_time", name="uq_trade_bot_strategy_symbol_entry"),
+        # Matches the trades-history query: user/test equality then an exit_time
+        # range scanned in DESC order (SQLite walks the index backwards, so no
+        # TEMP B-TREE sort). Plain composite so SQLite and Postgres share it.
+        Index("ix_trades_user_test_exit_time", "user_id", "is_test", "exit_time"),
     )
 
     def to_dict(self):

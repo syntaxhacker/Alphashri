@@ -6,6 +6,41 @@ instead of re-listing scanner fields.
 
 from __future__ import annotations
 
+from typing import Iterable
+
+#: Known scanner field drift: legacy/consumer spelling -> canonical TV field.
+#:
+#: Targets were checked against the TradingView stock-field catalogue and the
+#: field sets already in use by ``api/market_screen`` and ``api/screener_api``:
+#: ``price_book_fq`` (Price/Book MRQ), ``return_on_equity_fq`` (ROE FQ),
+#: ``relative_volume_10d_calc`` (Relative Volume) and ``dividend_yield_recent``
+#: (Dividend Yield Forward). The drifted keys are still emitted by older
+#: consumers; this map lets a caller resolve them without rewriting every
+#: consumer's field list at once. Missing names pass through unchanged.
+FIELD_ALIASES: dict[str, str] = {
+    "price_book_ratio": "price_book_fq",
+    "return_on_equity": "return_on_equity_fq",
+    "relative_volume": "relative_volume_10d_calc",
+    "dividends_yield_current": "dividend_yield_recent",
+}
+
+
+def canonical_field(name: str) -> str:
+    """Return the canonical TradingView field for a (possibly drifted) name.
+
+    Matching is exact after stripping surrounding whitespace — TV field names
+    are case-sensitive (``RSI``, ``Recommend.All``), so this never lowercases.
+    Unknown names, including canonical ones, pass through unchanged.
+    """
+    text = str(name).strip() if name is not None else ""
+    return FIELD_ALIASES.get(text, text)
+
+
+def canonicalize_fields(names: Iterable[str]) -> list[str]:
+    """Resolve an iterable of field names, preserving order and duplicates."""
+    return [canonical_field(name) for name in names]
+
+
 #: Scanner string columns (everything else is coerced to numeric).
 TEXT_COLUMNS = {
     "name",
@@ -81,6 +116,17 @@ CORE_FIELDS = [
     "market_cap_basic", "price_earnings_ttm", "price_book_fq",
     "return_on_equity_fq", "free_cash_flow_ttm", "close",
 ]
+
+#: Intraday price-change periods -> TradingView scanner field. These are
+#: separate from ``PERFORMANCE_FIELDS``: ``change|N`` is the percentage move
+#: over N minutes, while ``Perf.1M`` etc. are calendar returns. Verified against
+#: the live scanner: ``change|1``, ``change|5`` and ``change|15`` return
+#: numbers; ``change_1m``/``change_5m`` are not scanner fields.
+INTRADAY_CHANGE_FIELDS = {
+    "1m": "change|1",
+    "5m": "change|5",
+    "15m": "change|15",
+}
 
 #: Rotation period -> scanner field.
 PERFORMANCE_FIELDS = {

@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-"""Generate a self-contained HTML backtest viewer for SENSEX strategies.
-
-Reads the hourly sweep trade CSV (all 48 configs x dates x trades) and emits a
-single HTML file with:
-  - config selector (dropdown)
-  - summary card (median/mean day P&L, % profitable days, net, max DD, trades)
-  - per-day totals table for the last N trading days
-  - per-trade table (time, side, strike, entry, premium, signal, reason, P&L)
-
-Usage:
-  python3 scripts/paper_sensex_report.py [--csv experiments/data/hourly_sweep_trades_2026-08-05.csv]
-                                         [--days 7] [--config notrend-t600-sl200-on]
-                                         [--out experiments/data/sensex_backtest_report.html]
-"""
 from __future__ import annotations
 
 import argparse
@@ -40,7 +26,6 @@ def load_trades(csv_path: Path) -> list:
 
 
 def per_config_metrics(trades: list) -> dict:
-    """Aggregate trades per config -> summary metrics + per-day + trade list."""
     by_cfg = {}
     for t in trades:
         by_cfg.setdefault(t["config"], []).append(t)
@@ -56,7 +41,6 @@ def per_config_metrics(trades: list) -> dict:
         wins = [t for t in ts if t["pnl"] > 0]
         losses = [t for t in ts if t["pnl"] <= 0]
         total = round(sum(t["pnl"] for t in ts), 2)
-        # max drawdown from cumulative trade P&L
         cum, peak, mdd = 0.0, 0.0, 0.0
         for t in ts:
             cum += t["pnl"]
@@ -83,10 +67,8 @@ def render(cfg_name: str, data: dict, days_shown: int) -> str:
     all_days = m["days"]
     shown_days = all_days[-days_shown:]
 
-    # summary row
     def fmt(x): return f"{x:,.0f}"
 
-    # build per-day rows
     day_rows = []
     for d in shown_days:
         net = m["day_nets"].get(d, 0)
@@ -101,7 +83,6 @@ def render(cfg_name: str, data: dict, days_shown: int) -> str:
                         f"<td>{dw}</td><td>{dl}</td><td class='{'pos' if net>=0 else 'neg'}'>{net:+,.0f}</td>"
                         f"<td>{pf:.2f}</td><td>{net/dw if dw else 0:,.0f}</td></tr>")
 
-    # trade rows (only shown days)
     trade_rows = []
     for t in m["trades"]:
         if t["date"] not in set(shown_days):
@@ -112,7 +93,6 @@ def render(cfg_name: str, data: dict, days_shown: int) -> str:
                           f"<td>{t['premium']:.2f}</td><td>{html.escape(t['signal'])}</td>"
                           f"<td>{html.escape(t['reason'])}</td><td class='{cls}'>{t['pnl']:+,.0f}</td></tr>")
 
-    # config dropdown options
     opts = "".join(f"<option value='{html.escape(c)}' {'selected' if c==cfg_name else ''}>{html.escape(c)}</option>"
                    for c in sorted(data.keys()))
 

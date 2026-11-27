@@ -9,6 +9,28 @@ Available strategies:
 - EMA Cross: Exponential Moving Average Crossover
 """
 
+import importlib.util
+import os
+
+# The engine must be chosen before any strategy module is imported: the sim shim
+# injects nautilus_trader stand-ins into sys.modules, and each strategy binds its
+# base classes at import time. sim is the default and needs no external package;
+# nautilus is kept as an opt-in for A/B against the real engine.
+_ENGINE = os.environ.get("BACKTEST_ENGINE", "sim")
+if _ENGINE not in ("nautilus", "sim"):
+    raise RuntimeError(
+        f"BACKTEST_ENGINE must be 'nautilus' or 'sim', got {_ENGINE!r}"
+    )
+if _ENGINE == "sim":
+    from backtest.sim import install as _install_sim
+
+    _install_sim()
+elif importlib.util.find_spec("nautilus_trader") is None:
+    raise RuntimeError(
+        "BACKTEST_ENGINE=nautilus requires nautilus_trader, which is not installed. "
+        "Use the default sim engine, or reinstall the package to A/B against it."
+    )
+
 from .base import BaseStrategy, StrategyParam
 
 

@@ -1,13 +1,15 @@
 import { formatNumberIN } from "@/utils/ui-helpers";
-import { useState, type ReactNode } from "react";
-import Divider from "@mui/material/Divider";
-import { ActionIcon, Box, Button, Modal, Text, Textarea, Tooltip } from "@/ui";
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import type { JSX } from "solid-js";
+import { Box, Divider, Text, Textarea, Tooltip } from "@/ui";
+import { cn } from "@/ui/cn";
 import {
   IconAlertTriangle,
   IconClipboardText,
   IconPencil,
   IconPlayerPlay,
-} from "@tabler/icons-react";
+  IconX,
+} from "@/ui/icons";
 import type { JobDTO, Universe } from "@/types/chartPatterns";
 import { JobStatus } from "./JobStatus";
 import { parseSymbolList } from "./parseSymbolList";
@@ -16,107 +18,85 @@ export interface UniverseBarProps {
   universes: Universe[];
   universe: string;
   setUniverse: (value: string) => void;
-  /** Reserved id of the custom symbol scope (e.g. `"custom"`). */
   customUniverse?: string;
-  /** How many symbols the custom scope currently holds (drives the label). */
   customSymbolCount?: number;
   scan: () => void;
   scanning: boolean;
   job: JobDTO | null;
   queuePosition: number | null;
   error: string | null;
-  /** Right-side controls rendered in the same toolbar row (timeframe, filters…). */
-  actions?: ReactNode;
+  actions?: JSX.Element;
   /** Scan-status controls rendered next to the scan button (cache, force re-run…). */
-  scanActions?: ReactNode;
-  /** Apply a pasted symbol list (switches to the custom universe). */
+  scanActions?: JSX.Element;
   onPasteSymbols?: (symbols: string[]) => void;
+}
+
+function Spinner() {
+  return (
+    <span
+      className="inline-block size-3 animate-spin rounded-full border-2 border-fin-text border-t-transparent"
+      aria-hidden="true"
+    />
+  );
 }
 
 /**
  * Scan-scope toolbar.
  *
- * Three fixed rows: scope + action, caller-supplied result controls, and an
- * error line. The scope is a single segmented group (one border, one selected
- * fill) rather than a row of loose pills, so the bar reads as one control and
- * its right-hand status / scan cluster never drifts. The whole bar is sticky
- * (`top: 0`) with a divider so content scrolling underneath stays legible.
+ * One bordered context band: scope + action on a single row, with the
+ * right-hand status / scan cluster pushed by `ml-auto` so it never becomes an
+ * orphan row. The caller's tools are rendered directly below (no extra bordered
+ * column or divider — the parent already owns that row), and the error line
+ * only appears when a scan fails. The whole block is sticky (`top: 0`).
  */
-export function UniverseBar({
-  universes,
-  universe,
-  setUniverse,
-  customUniverse = "custom",
-  customSymbolCount = 0,
-  scan,
-  scanning,
-  job,
-  queuePosition,
-  error,
-  actions,
-  scanActions,
-  onPasteSymbols,
-}: UniverseBarProps) {
-  const [pasteOpen, setPasteOpen] = useState(false);
-  const [pasteText, setPasteText] = useState("");
-  const parsed = parseSymbolList(pasteText);
+export function UniverseBar(props: UniverseBarProps) {
+  const [pasteOpen, setPasteOpen] = createSignal(false);
+  const [pasteText, setPasteText] = createSignal("");
+  const parsed = createMemo(() => parseSymbolList(pasteText()));
+  const customUniverse = () => props.customUniverse ?? "custom";
+  const customSymbolCount = () => props.customSymbolCount ?? 0;
+
+  // `UITextareaProps` has no `autoFocus` (and `Textarea` drops unknown props),
+  // so focus the paste box imperatively once the dialog mounts.
+  createEffect(() => {
+    if (!pasteOpen()) return;
+    const el = document.querySelector<HTMLTextAreaElement>(
+      '[data-testid="patterns-paste-symbols-input"]',
+    );
+    el?.focus();
+  });
+
   const applyPaste = () => {
-    if (!parsed.length) return;
-    onPasteSymbols?.(parsed);
+    if (!parsed().length) return;
+    props.onPasteSymbols?.(parsed());
     setPasteOpen(false);
     setPasteText("");
   };
+
   // Idle and completed scans are already summarised by the stat strip above
   // ("LAST SCAN …", "LAST CANDLE …"); the inline status is only worth its
   // ~200px while a scan is queued/running or has failed. It stays mounted
   // (display:none) so the `patterns-job-status` contract is preserved.
   const liveStatuses = new Set(["queued", "running", "failed", "cancelled"]);
-  const showStatus = scanning || (job != null && liveStatuses.has(job.status));
-  const customActive = universe === customUniverse;
-  const customCount = customSymbolCount ?? 0;
-  const scanDisabled = scanning || (customActive && customCount === 0);
-  const scanLabel =
-    customActive && customCount > 0
-      ? `Scan ${customCount} symbol${customCount === 1 ? "" : "s"}`
+  const showStatus = () =>
+    props.scanning || (props.job != null && liveStatuses.has(props.job.status));
+  const customActive = () => props.universe === customUniverse();
+  const scanDisabled = () => props.scanning || (customActive() && customSymbolCount() === 0);
+  const scanLabel = () =>
+    customActive() && customSymbolCount() > 0
+      ? `Scan ${customSymbolCount()} symbol${customSymbolCount() === 1 ? "" : "s"}`
       : "Scan again";
 
   return (
-    <Box
-      data-testid="patterns-universe-bar"
-      sx={{
-        minWidth: 0,
-        position: "sticky",
-        top: 0,
-        zIndex: 5,
-        bgcolor: "background.paper",
-        borderBottom: 1,
-        borderColor: "divider",
-        pb: 0.5,
-      }}
-    >
+    <Box className="sticky top-0 z-[5] min-w-0 shrink-0 bg-fin-surface pb-1">
       <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-          rowGap: 0.75,
-          minWidth: 0,
-          // Wrap the scan cluster to a second line instead of clipping the
-          // scope group when the cache chip + force re-run are on screen.
-          flexWrap: "wrap",
-        }}
+        data-testid="patterns-universe-bar"
+        className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-fin-border bg-fin-surface"
       >
         <Text
           size="xs"
           c="dimmed"
-          sx={{
-            flexShrink: 0,
-            fontSize: 10,
-            fontWeight: 600,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            whiteSpace: "nowrap",
-          }}
+          className="shrink-0 text-ui-micro font-semibold uppercase leading-none tracking-[0.08em] whitespace-nowrap"
         >
           Scope
         </Text>
@@ -124,258 +104,185 @@ export function UniverseBar({
         <Box
           role="group"
           aria-label="Scan scope"
-          sx={{
-            display: "inline-flex",
-            alignItems: "stretch",
-            gap: 0.25,
-            p: 0.25,
-            minWidth: 0,
-            border: 1,
-            borderColor: "divider",
-            borderRadius: 1.5,
-            bgcolor: "action.hover",
-            flexWrap: "wrap",
-            rowGap: 0.25,
-          }}
+          className="inline-flex min-w-0 flex-wrap items-stretch gap-0.5 gap-y-[2px] rounded-xl border border-fin-border bg-fin-surface-alt p-0.5"
         >
-          {universes.map((u) => {
-            const active = universe === u.id;
-            return (
-              <Box
-                key={u.id}
-                component="button"
-                type="button"
-                onClick={() => setUniverse(u.id)}
-                aria-pressed={active}
-                title={u.count > 0 ? `${u.label} · ${formatNumberIN(u.count)} symbols` : u.label}
-                data-testid={`patterns-universe-${u.id}`}
-                sx={{
-                  appearance: "none",
-                  border: 0,
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "baseline",
-                  gap: 0.5,
-                  px: 0.75,
-                  py: 0.375,
-                  borderRadius: 1,
-                  whiteSpace: "nowrap",
-                  fontFamily: "inherit",
-                  fontSize: 11,
-                  lineHeight: 1.25,
-                  fontWeight: active ? 600 : 500,
-                  color: active ? "primary.main" : "text.secondary",
-                  bgcolor: active ? "action.selected" : "transparent",
-                  boxShadow: active ? "inset 0 0 0 1px var(--mui-palette-primary-main)" : "none",
-                  "&:hover": {
-                    color: active ? "primary.main" : "text.primary",
-                    bgcolor: active ? "action.selected" : "action.hover",
-                  },
-                  "&:focus-visible": {
-                    outline: "2px solid var(--mui-palette-primary-main)",
-                    outlineOffset: 1,
-                  },
-                }}
-              >
-                {u.label}
-                {u.count > 0 ? (
-                  <Box
-                    component="span"
-                    sx={{
-                      fontSize: 9.5,
-                      fontWeight: 500,
-                      fontVariantNumeric: "tabular-nums",
-                      color: active ? "primary.main" : "text.disabled",
-                      opacity: active ? 0.9 : 1,
-                    }}
-                  >
-                    {formatNumberIN(u.count)}
-                  </Box>
-                ) : null}
-              </Box>
-            );
-          })}
-
-          <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
-
-          <Box
-            component="button"
-            type="button"
-            onClick={() => setUniverse(customUniverse)}
-            aria-pressed={customActive}
-            data-testid="patterns-universe-custom"
-            sx={{
-              appearance: "none",
-              border: 0,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 0.5,
-              px: 0.75,
-              py: 0.375,
-              borderRadius: 1,
-              whiteSpace: "nowrap",
-              fontFamily: "inherit",
-              fontSize: 11,
-              lineHeight: 1.25,
-              fontWeight: customActive ? 600 : 500,
-              color: customActive ? "primary.main" : "text.secondary",
-              bgcolor: customActive ? "action.selected" : "transparent",
-              boxShadow: customActive ? "inset 0 0 0 1px var(--mui-palette-primary-main)" : "none",
-              "&:hover": {
-                color: customActive ? "primary.main" : "text.primary",
-                bgcolor: customActive ? "action.selected" : "action.hover",
-              },
-              "&:focus-visible": {
-                outline: "2px solid var(--mui-palette-primary-main)",
-                outlineOffset: 1,
-              },
+          <For each={props.universes}>
+            {(u) => {
+              const active = () => props.universe === u.id;
+              return (
+                <button
+                  type="button"
+                  onClick={() => props.setUniverse(u.id)}
+                  aria-pressed={active()}
+                  title={u.count > 0 ? `${u.label} · ${formatNumberIN(u.count)} symbols` : u.label}
+                  data-testid={`patterns-universe-${u.id}`}
+                  className={cn(
+                    "inline-flex cursor-pointer appearance-none items-baseline gap-1 whitespace-nowrap rounded-fin border-0 px-1 py-[3px] font-[inherit] text-ui-micro leading-[1.25] transition-colors",
+                    "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-text",
+                    active()
+                      ? "bg-fin-primary/12 font-semibold text-fin-primary shadow-[inset_0_0_0_1px_var(--color-fin-primary)]"
+                      : "font-medium text-fin-text-muted hover:bg-fin-surface hover:text-fin-text",
+                  )}
+                >
+                  {u.label}
+                  <Show when={u.count > 0}>
+                    <span
+                      className={cn(
+                        "text-ui-micro font-medium tabular-nums",
+                        active() ? "text-fin-primary opacity-90" : "text-fin-text-muted",
+                      )}
+                    >
+                      {formatNumberIN(u.count)}
+                    </span>
+                  </Show>
+                </button>
+              );
             }}
+          </For>
+
+          <Divider orientation="vertical" className="my-0.5" />
+
+          <button
+            type="button"
+            onClick={() => props.setUniverse(customUniverse())}
+            aria-pressed={customActive()}
+            data-testid="patterns-universe-custom"
+            className={cn(
+              "inline-flex cursor-pointer appearance-none items-center gap-1 whitespace-nowrap rounded-fin border-0 px-1 py-[3px] font-[inherit] text-ui-micro leading-[1.25] transition-colors",
+              "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-text",
+              customActive()
+                ? "bg-fin-primary/12 font-semibold text-fin-primary shadow-[inset_0_0_0_1px_var(--color-fin-primary)]"
+                : "font-medium text-fin-text-muted hover:bg-fin-surface hover:text-fin-text",
+            )}
           >
-            <IconPencil size={11} />
+            <IconPencil size={12} />
             Custom
-            {customCount > 0 ? (
-              <Box
-                component="span"
-                sx={{
-                  fontSize: 9.5,
-                  fontWeight: 500,
-                  fontVariantNumeric: "tabular-nums",
-                  color: customActive ? "primary.main" : "text.disabled",
-                }}
+            <Show when={customSymbolCount() > 0}>
+              <span
+                className={cn(
+                  "text-ui-micro font-medium tabular-nums",
+                  customActive() ? "text-fin-primary" : "text-fin-text-muted",
+                )}
               >
-                {formatNumberIN(customCount)}
-              </Box>
-            ) : null}
-          </Box>
+                {formatNumberIN(customSymbolCount())}
+              </span>
+            </Show>
+          </button>
         </Box>
 
-        {onPasteSymbols ? (
+        <Show when={props.onPasteSymbols}>
           <Tooltip label="Paste a comma or newline separated symbol list">
-            <ActionIcon
-              size="xs"
-              variant="outline"
+            <button
+              type="button"
               aria-label="Paste symbols"
               onClick={() => setPasteOpen(true)}
               data-testid="patterns-paste-symbols"
-              sx={{ flexShrink: 0 }}
+              className="inline-flex size-6 shrink-0 items-center justify-center rounded border border-fin-border bg-transparent text-fin-text-muted transition-colors hover:bg-fin-surface-alt hover:text-fin-text"
             >
               <IconClipboardText size={14} />
-            </ActionIcon>
+            </button>
           </Tooltip>
-        ) : null}
+        </Show>
 
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.75,
-            flexShrink: 0,
-            flexWrap: "wrap",
-            justifyContent: "flex-end",
-            ml: "auto",
-            minWidth: 0,
-          }}
-        >
+        <Box className="ml-auto flex min-w-0 shrink-0 flex-nowrap items-center justify-end gap-1.5">
           <Box
             data-testid="patterns-job-status-wrap"
-            data-visible={showStatus ? "true" : "false"}
-            sx={{ display: showStatus ? "flex" : "none", minWidth: 0 }}
+            data-visible={showStatus() ? "true" : "false"}
+            className={cn("min-w-0", showStatus() ? "flex" : "hidden")}
           >
-            <JobStatus job={job} queuePosition={queuePosition} scanning={scanning} />
+            <JobStatus
+              job={props.job}
+              queuePosition={props.queuePosition}
+              scanning={props.scanning}
+            />
           </Box>
-          {scanActions}
-          <Button
-            size="xs"
-            variant="filled"
-            onClick={scan}
-            loading={scanning}
-            disabled={scanDisabled}
-            leftSection={scanning ? undefined : <IconPlayerPlay size={13} />}
+          {props.scanActions}
+          <button
+            type="button"
+            onClick={() => props.scan()}
+            disabled={scanDisabled()}
             data-testid="patterns-scan-again"
-            sx={{ minWidth: 96, whiteSpace: "nowrap" }}
+            className="inline-flex h-6 min-w-[96px] items-center justify-center gap-1 whitespace-nowrap rounded-fin border-0 bg-fin-primary px-2 text-xs font-semibold text-fin-bg transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {scanLabel}
-          </Button>
+            <Show when={props.scanning} fallback={<IconPlayerPlay size={14} />}>
+              <Spinner />
+            </Show>
+            {scanLabel()}
+          </button>
         </Box>
       </Box>
 
-      {actions ? (
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 0.25,
-            mt: 0.5,
-            pt: 0.5,
-            borderTop: 1,
-            borderColor: "divider",
-            minWidth: 0,
-          }}
-        >
-          {actions}
-        </Box>
-      ) : null}
+      {props.actions}
 
-      {error ? (
+      <Show when={props.error}>
         <Box
           role="alert"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.5,
-            mt: 0.75,
-            px: 0.75,
-            py: 0.375,
-            borderRadius: 1,
-            bgcolor: "action.hover",
-            borderLeft: 3,
-            borderColor: "error.main",
-            color: "error.main",
+          className="mt-1.5 flex items-center gap-1 rounded-fin border-l-[3px] border-fin-negative bg-fin-surface-alt px-1.5 py-[3px] text-fin-negative"
+        >
+          <IconAlertTriangle size={14} />
+          <Text size="xs" c="error" data-testid="patterns-status-line">
+            {props.error}
+          </Text>
+        </Box>
+      </Show>
+
+      <Show when={pasteOpen()}>
+        <div
+          data-testid="patterns-paste-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Paste symbols"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPasteOpen(false);
           }}
         >
-          <IconAlertTriangle size={13} />
-          <Text size="xs" c="error" data-testid="patterns-status-line">
-            {error}
-          </Text>
-        </Box>
-      ) : null}
-
-      <Modal
-        opened={pasteOpen}
-        onClose={() => setPasteOpen(false)}
-        title="Paste symbols"
-        size="sm"
-      >
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          <Text size="xs" sx={{ color: "text.secondary" }}>
-            Comma, space or newline separated. Duplicates are removed.
-          </Text>
-          <Textarea
-            value={pasteText}
-            onChange={setPasteText}
-            placeholder="ASIANPAINT, CIPLA, LT, NTPC…"
-            minRows={5}
-            autosize
-            autoFocus
-            data-testid="patterns-paste-symbols-input"
-          />
-          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
-            <Button size="xs" variant="light" onClick={() => setPasteOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              size="xs"
-              variant="filled"
-              onClick={applyPaste}
-              disabled={!parsed.length}
-              data-testid="patterns-paste-symbols-apply"
-            >
-              Use {parsed.length || ""} symbol{parsed.length === 1 ? "" : "s"}
-            </Button>
-          </Box>
-        </Box>
-      </Modal>
+          <div className="flex w-full max-w-md flex-col gap-2 rounded-fin border border-fin-border bg-fin-surface p-3 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <Text size="sm" fw={600}>
+                Paste symbols
+              </Text>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => setPasteOpen(false)}
+                className="inline-flex size-6 items-center justify-center rounded text-fin-text-muted hover:bg-fin-surface-alt"
+              >
+                <IconX size={14} />
+              </button>
+            </div>
+            <Text size="xs" c="dimmed">
+              Comma, space or newline separated. Duplicates are removed.
+            </Text>
+            <Textarea
+              value={pasteText()}
+              onChange={setPasteText}
+              placeholder="ASIANPAINT, CIPLA, LT, NTPC…"
+              minRows={5}
+              autosize
+              data-testid="patterns-paste-symbols-input"
+            />
+            <Box className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPasteOpen(false)}
+                className="inline-flex h-6 items-center rounded-fin px-2 text-xs text-fin-text transition-colors hover:bg-fin-surface-alt"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={applyPaste}
+                disabled={parsed().length === 0}
+                data-testid="patterns-paste-symbols-apply"
+                className="inline-flex h-6 items-center rounded-fin bg-fin-primary px-2 text-xs font-semibold text-fin-bg transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Use {parsed().length || ""} symbol{parsed().length === 1 ? "" : "s"}
+              </button>
+            </Box>
+          </div>
+        </div>
+      </Show>
     </Box>
   );
 }

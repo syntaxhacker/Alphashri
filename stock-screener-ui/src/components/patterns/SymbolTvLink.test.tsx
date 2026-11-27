@@ -1,19 +1,22 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { UIProvider } from "@/ui";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
+});
 import { SymbolTvLink } from "./SymbolTvLink";
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
-}
-
 describe("SymbolTvLink", () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
 
   test("builds the TradingView URL from the symbol (default NSE market)", () => {
-    r(<SymbolTvLink symbol="IRCON" testId="tv-IRCON">IRCON</SymbolTvLink>);
+    render(() => <SymbolTvLink symbol="IRCON" testId="tv-IRCON">IRCON</SymbolTvLink>);
 
     const link = screen.getByTestId("tv-IRCON");
     expect(link).toHaveAttribute(
@@ -28,7 +31,7 @@ describe("SymbolTvLink", () => {
   });
 
   test("maps Indian index symbols to their exchange (SENSEX → BSE)", () => {
-    r(<SymbolTvLink symbol="SENSEX" testId="tv-sensex">SENSEX</SymbolTvLink>);
+    render(() => <SymbolTvLink symbol="SENSEX" testId="tv-sensex">SENSEX</SymbolTvLink>);
 
     const link = screen.getByTestId("tv-sensex");
     expect(link).toHaveAttribute(
@@ -40,22 +43,33 @@ describe("SymbolTvLink", () => {
   });
 
   test("renders custom children as the link label", () => {
-    r(
-      <SymbolTvLink symbol="IRCON" testId="tv-custom">
+    render(() => <SymbolTvLink symbol="IRCON" testId="tv-custom">
         <span data-testid="label">Custom Label</span>
-      </SymbolTvLink>,
-    );
+      </SymbolTvLink>);
     expect(screen.getByTestId("label")).toHaveTextContent("Custom Label");
     expect(screen.getByTestId("tv-custom")).toHaveTextContent("Custom Label");
   });
 
+  test("showCopy adds a copy button that writes the display symbol without following the TV link", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const parentOnClick = vi.fn();
+    render(() => <div data-testid="wrap" onClick={parentOnClick}>
+        <SymbolTvLink symbol="NSE:RELIANCE" testId="tv-copy" showCopy>RELIANCE</SymbolTvLink>
+      </div>);
+
+    const copy = screen.getByTestId("symbol-copy-RELIANCE");
+    expect(copy).toHaveAttribute("aria-label", "Copy RELIANCE");
+    await fireEvent.click(copy);
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
+    expect(parentOnClick).not.toHaveBeenCalled();
+  });
+
   test("clicking the link stops propagation and does not bubble", async () => {
     const parentOnClick = vi.fn();
-    r(
-      <div data-testid="wrap" onClick={parentOnClick}>
+    render(() => <div data-testid="wrap" onClick={parentOnClick}>
         <SymbolTvLink symbol="NIFTY" testId="tv-nifty">NIFTY</SymbolTvLink>
-      </div>,
-    );
+      </div>);
 
     await fireEvent.click(screen.getByTestId("tv-nifty"));
     expect(parentOnClick).not.toHaveBeenCalled();

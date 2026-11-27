@@ -36,7 +36,6 @@ def db_session():
         bind=engine
     )
 
-    # Import all models to ensure they're registered
     from tests.helpers.db import import_all_models
     import_all_models()
     Base.metadata.create_all(bind=engine)

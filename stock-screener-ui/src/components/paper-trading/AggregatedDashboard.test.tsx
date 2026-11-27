@@ -1,17 +1,15 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
+import { render, fireEvent, cleanup, screen, waitFor, within } from "@solidjs/testing-library";
 import { AggregatedDashboard } from "./AggregatedDashboard";
 import * as paperTradingState from "../../state/paperTrading";
 import type { PaperDashboardAnalyticsData } from "../../types/paperTrading";
 
 const fetchDashboardAnalytics = vi.fn().mockResolvedValue(null);
 
-vi.mock("echarts-for-react", () => ({
-  default: () => <div data-testid="mock-echarts">ECharts</div>,
+vi.mock("./EChartSolid", () => ({
+  EChartSolid: () => <div data-testid="mock-echarts">ECharts</div>,
 }));
 
 vi.mock("../../api/paperTrading", () => ({
@@ -144,10 +142,11 @@ describe("AggregatedDashboard", () => {
   afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
   it("loads all bots 30D analytics by default", async () => {
-    renderWithProviders(<AggregatedDashboard />);
+    render(() => <AggregatedDashboard />);
     await waitFor(() => {
       expect(fetchDashboardAnalytics).toHaveBeenCalledWith({
         preset: "30D",
@@ -159,13 +158,39 @@ describe("AggregatedDashboard", () => {
   });
 
   it("shows empty state when no dashboard data is available", () => {
-    renderWithProviders(<AggregatedDashboard />);
+    render(() => <AggregatedDashboard />);
     expect(screen.getByText("No closed trades found for this period.")).toBeInTheDocument();
+  });
+
+  it("collapses zero-trade data into one empty state", () => {
+    const base = mockDashboardData();
+    paperTradingState.setDashboardAnalyticsData({
+      ...base,
+      summary: { ...base.summary, total_trades: 0 },
+      period: { ...base.period, trade_count: 0 },
+    });
+    render(() => <AggregatedDashboard />);
+
+    expect(screen.getAllByText("No closed trades found for this period.")).toHaveLength(1);
+    expect(screen.queryByText("Equity Curve")).not.toBeInTheDocument();
+  });
+
+  it("copies a symbol cell from the winners table without any row action", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    paperTradingState.setDashboardAnalyticsData(mockDashboardData());
+    render(() => <AggregatedDashboard />);
+
+    const copies = screen.getAllByTestId("copy-symbol-RELIANCE");
+    expect(copies.length).toBeGreaterThan(0);
+    expect(copies[0]).toHaveAttribute("aria-label", "Copy RELIANCE");
+    await fireEvent.click(copies[0]);
+    expect(writeText).toHaveBeenCalledWith("RELIANCE");
   });
 
   it("renders summary, bot rankings, strategy rows, winners, and losers", () => {
     paperTradingState.setDashboardAnalyticsData(mockDashboardData());
-    renderWithProviders(<AggregatedDashboard />);
+    render(() => <AggregatedDashboard />);
 
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
     expect(screen.getAllByText("Net P&L").length).toBeGreaterThan(0);
@@ -178,15 +203,27 @@ describe("AggregatedDashboard", () => {
     expect(screen.getAllByTestId("mock-echarts").length).toBeGreaterThanOrEqual(5);
   });
 
+  it("renders option symbols in canonical form in both trade and symbol tables", () => {
+    const data = mockDashboardData({
+      biggest_winners: [{ ...mockDashboardData().biggest_winners[0], symbol: "NIFTY26OCT23000PE" }],
+      symbol_performance: [{ symbol: "NIFTY26OCT23000PE", total_net_pnl: 4250, total_trades: 1, win_rate: 100 }],
+    });
+    paperTradingState.setDashboardAnalyticsData(data);
+    render(() => <AggregatedDashboard />);
+    const labels = screen.getAllByText("NIFTY 23000 PE");
+    expect(labels.length).toBeGreaterThanOrEqual(2);
+    for (const label of labels) expect(label).toHaveAttribute("title", "NIFTY26OCT23000PE");
+    expect(screen.queryByText("NIFTY26OCT23000PE")).not.toBeInTheDocument();
+  });
+
   it("uses available bots in the bot filter and fetches selected bot analytics", async () => {
-    const user = userEvent.setup();
     paperTradingState.setAvailableBots([
       { id: "bot-1", name: "ORB Bot", strategies: [], is_active: true, live_trading: false },
     ]);
-    renderWithProviders(<AggregatedDashboard />);
+    render(() => <AggregatedDashboard />);
 
-    await user.click(within(screen.getByTestId("dashboard-bot-filter")).getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "ORB Bot" }));
+    const botFilter = within(screen.getByTestId("dashboard-bot-filter")).getByRole("combobox");
+    await fireEvent.input(botFilter, { target: { value: "bot-1" } });
 
     await waitFor(() => {
       expect(fetchDashboardAnalytics).toHaveBeenLastCalledWith({

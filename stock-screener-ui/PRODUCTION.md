@@ -1,5 +1,7 @@
 # Production Deployment Guide
 
+> **Not the current setup:** Railway is not in use. The project is currently run personally/locally. The Railway material below is historical reference only; do not assume a hosted Railway backend, CLI, URL, or deployment check when planning work. See [AGENTS.md](./AGENTS.md) for the current rule.
+
 Production infrastructure, deployment, and debugging docs. See [AGENTS.md](./AGENTS.md) for dev rules.
 
 ## Known Production Issues
@@ -8,6 +10,10 @@ Production infrastructure, deployment, and debugging docs. See [AGENTS.md](./AGE
 - `fetch_historical_data_v3` returns data with UTC index but filtering uses `config.IST` (UTC+5:30), causing 0 rows after date filter
 - Works locally because `railway run` may use different config
 - **Fix**: compare `df_1m_full.index.tz` vs `config.IST` in the Docker container
+
+### Known migration warning (validator heuristic)
+- `scripts/validate_migrations.py` warns that `2026_04_25_add_scan_items_to_bot_runtime.py` has a `down_revision` that "looks like a filename" — the chain is correct (`h8b9c0d1e2f3 → 2026_04_24_multi_screener_profiles → i9c0d1e2f3g4 → ...`); the parent's own `revision` really is `2026_04_24_multi_screener_profiles`, and the validator just flags any `2026_`/`2025_` string.
+- Do **not** rename that revision ID to silence the warning without a DB-version migration/plan — deployed `alembic_version` rows already store the old string, so renaming would orphan them.
 
 ## Infrastructure
 - **Railway**: project `298aedcc-23a9-4ce3-9dbe-a87986f910de`, env `bc5056b2-6a82-4af3-bec2-2d1ac848fc5c`, service `b66dd871-18ac-49e7-a9fa-7addfb1be351`. Deploy via `git push` to `fix/*` or `develop` branch.

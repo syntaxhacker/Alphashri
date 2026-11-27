@@ -1,12 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import { StrategiesPage } from "./StrategiesPage";
 import type { StrategiesPageProps } from "./types";
-import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 afterEach(() => {
   cleanup();
@@ -46,123 +44,170 @@ const baseProps: StrategiesPageProps = {
 
 describe("StrategiesPage", () => {
   it("renders with data-testid", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategies-view")).toBeInTheDocument();
   });
 
   it("renders the merged strategies panel", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategies-nav")).toBeInTheDocument();
   });
 
-  it("renders content area", () => {
-    render(
+  it("keeps the page frame clipped and scrolls the content region", () => {
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
+    const page = screen.getByTestId("strategies-view");
+    expect(page.className).toContain("h-full");
+    expect(page.className).toContain("min-h-0");
+    expect(page.className).toContain("overflow-hidden");
+
+    const nav = screen.getByTestId("strategies-nav");
+    expect(nav.className).toContain("flex-1");
+    expect(nav.className).toContain("min-h-0");
+    expect(nav.className).toContain("flex-col");
+    // The content region below the 32px identity band owns the vertical scroll.
+    const scroller = nav.lastElementChild as HTMLElement;
+    expect(scroller.className).toContain("flex-1");
+    expect(scroller.className).toContain("min-h-0");
+    expect(scroller.className).toContain("overflow-auto");
+  });
+
+  it("renders content area", () => {
+    render(() => (
+      <UIProvider>
+        <StrategiesPage {...baseProps} />
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategies-content")).toBeInTheDocument();
   });
 
   it("shows error state with Retry and Dismiss buttons", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} error="Something went wrong" />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("strategies-error")).toBeInTheDocument();
     expect(screen.getByTestId("strategies-retry-btn")).toBeInTheDocument();
     expect(screen.getByTestId("strategies-dismiss-btn")).toBeInTheDocument();
   });
 
-  it("Retry button calls onRefresh", async () => {
+  it("Retry button calls onRefresh", () => {
     const onRefresh = vi.fn();
-    const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} error="Error" onRefresh={onRefresh} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("strategies-retry-btn"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByTestId("strategies-retry-btn"));
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it("Dismiss button calls onClearError", async () => {
+  it("Dismiss button calls onClearError", () => {
     const onClearError = vi.fn();
-    const user = userEvent.setup();
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} error="Error" onClearError={onClearError} />
-      </UIProvider>,
-    );
-    await user.click(screen.getByTestId("strategies-dismiss-btn"));
+      </UIProvider>
+    ));
+    fireEvent.click(screen.getByTestId("strategies-dismiss-btn"));
     expect(onClearError).toHaveBeenCalledTimes(1);
   });
 
   it("active view 'tree' renders TemplateTreeView", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} activeView="tree" />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("template-tree-empty")).toBeInTheDocument();
   });
 
   it("active view 'performance' renders PerformanceView", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} activeView="performance" />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByTestId("performance-empty-state")).toBeInTheDocument();
   });
 
   it("renders create modal when showCreateModal is true", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage {...baseProps} showCreateModal={true} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const modals = screen.getAllByTestId("strategy-form-modal");
     expect(modals.length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders edit modal when showEditModal is true", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategiesPage
           {...baseProps}
           showEditModal={true}
           editingStrategy={{
-            id: "1", internal_id: 1, name: "Test", strategy_type: "ORB",
-            parent_id: null, is_template: false, is_active: true, is_default: false,
-            description: null, or_minutes: 15, sl_pct: 1, tp_pct: 1.5,
-            min_or_range_pct: 0.3, max_or_range_pct: 2, max_positions: 3,
-            max_capital_per_trade_pct: 20, max_daily_loss_pct: 5,
-            max_total_exposure_pct: 50, risk_per_trade_pct: 2,
-            min_trade_value: 5000, max_trade_value: 100000,
-            cooldown_minutes: 30, max_distance_from_or_pct: 1.5,
-            entry_threshold_pct: 3, enable_trailing_stop: false,
-            trailing_stop_pct: 3, trailing_activation_pct: 2,
-            max_holding_days: 30, cooldown_days: 30, enable_filters: false,
-            ema_fast_period: 9, ema_slow_period: 21,
-            pivot_type: "classic", breakout_buffer_pct: 0.1,
+            id: "1",
+            internal_id: 1,
+            name: "Test",
+            strategy_type: "ORB",
+            parent_id: null,
+            is_template: false,
+            is_active: true,
+            is_default: false,
+            description: null,
+            or_minutes: 15,
+            sl_pct: 1,
+            tp_pct: 1.5,
+            min_or_range_pct: 0.3,
+            max_or_range_pct: 2,
+            max_positions: 3,
+            max_capital_per_trade_pct: 20,
+            max_daily_loss_pct: 5,
+            max_total_exposure_pct: 50,
+            risk_per_trade_pct: 2,
+            min_trade_value: 5000,
+            max_trade_value: 100000,
+            cooldown_minutes: 30,
+            max_distance_from_or_pct: 1.5,
+            entry_threshold_pct: 3,
+            enable_trailing_stop: false,
+            trailing_stop_pct: 3,
+            trailing_activation_pct: 2,
+            max_holding_days: 30,
+            cooldown_days: 30,
+            enable_filters: false,
+            ema_fast_period: 9,
+            ema_slow_period: 21,
+            pivot_type: "classic",
+            breakout_buffer_pct: 0.1,
             screener_profiles: [],
-            brokerage_pct: 0.03, min_brokerage: 20, stt_pct: 0.025,
-            exchange_pct: 0.003, sebi_pct: 0.0001, stamp_pct: 0.003,
-            gst_pct: 18, created_at: null, updated_at: null,
+            brokerage_pct: 0.03,
+            min_brokerage: 20,
+            stt_pct: 0.025,
+            exchange_pct: 0.003,
+            sebi_pct: 0.0001,
+            stamp_pct: 0.003,
+            gst_pct: 18,
+            created_at: null,
+            updated_at: null,
           }}
         />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     const modals = screen.getAllByTestId("strategy-form-modal");
     expect(modals.length).toBeGreaterThanOrEqual(1);
   });

@@ -1,11 +1,13 @@
-import { useEffect, useRef } from "react";
+import { createEffect, onCleanup } from "solid-js";
 
 export type DeskChartTimeframe = "1m" | "5m" | "15m";
 
 export interface DeskHotkeyCallbacks {
   /** `D` — toggle desk/research. */
   onToggleDesk?: () => void;
-  /** `F` — chart fullscreen. */
+  /** `F` — LEVEL 1 in-shell chart focus. Nothing unmounts; Esc restores. */
+  onChartFocus?: () => void;
+  /** LEVEL 2 fullscreen is owned by the chart's expand button, not a hotkey. */
   onChartFullscreen?: () => void;
   /** `E` — expand the last-hovered panel (plan reasons fallback). */
   onExpandHovered?: () => void;
@@ -38,10 +40,12 @@ export function isTypingTarget(target: EventTarget | null): boolean {
  * callbacks via ref (never rebinds), removed on unmount. Returns nothing.
  */
 export function useDeskHotkeys(callbacks: DeskHotkeyCallbacks): void {
-  const ref = useRef(callbacks);
-  ref.current = callbacks;
+  // Solid components run once, so the callback object is captured by the
+  // closure below; callers pass a stable object literal from the component
+  // body (its members are live getters over the latest state).
+  const ref = { current: callbacks };
 
-  useEffect(() => {
+  createEffect(() => {
     let lastKey = "";
     let lastAt = 0;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -53,7 +57,7 @@ export function useDeskHotkeys(callbacks: DeskHotkeyCallbacks): void {
       if (lower === "d") {
         c.onToggleDesk?.();
       } else if (lower === "f") {
-        c.onChartFullscreen?.();
+        c.onChartFocus?.();
       } else if (lower === "e") {
         c.onExpandHovered?.();
       } else if (lower === "v") {
@@ -76,8 +80,6 @@ export function useDeskHotkeys(callbacks: DeskHotkeyCallbacks): void {
       lastAt = Date.now();
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, []);
+    onCleanup(() => window.removeEventListener("keydown", onKeyDown));
+  });
 }

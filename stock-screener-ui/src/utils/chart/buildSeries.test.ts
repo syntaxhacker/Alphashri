@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { typeSize } from "@/ui/typography";
 import { buildSeries } from "./buildSeries";
+import type { MarkLineData } from "./types";
 import { CANDLESTICK_ITEM_STYLE } from "../chartUtils";
 import {
   MARKER_SL,
@@ -52,10 +54,10 @@ describe("buildSeries", () => {
 
   describe("markLines integration", () => {
     // The identical one-line bracket used by the symbol/label cases.
-    const singleBlackMarkLine = [
+    const singleBlackMarkLine: MarkLineData[] = [
       {
         yAxis: 100,
-        lineStyle: { color: BLACK },
+        lineStyle: { color: BLACK, type: "dashed", width: 1 },
         label: { position: "insideEndTop", formatter: "Test" },
       },
     ];
@@ -82,7 +84,7 @@ describe("buildSeries", () => {
       const result = buildSeries(mockCandles, {} as any, false, singleBlackMarkLine);
       expect(result.series[0].markLine.label).toEqual({
         color: "inherit",
-        fontSize: 11,
+        fontSize: typeSize("micro"),
         formatter: "{b}",
       });
     });

@@ -36,7 +36,6 @@ from scripts.upstox_common import data as _data  # noqa: E402
 BASE_URL = upstox_common.BASE_V2
 NIFTY_KEY = "NSE_INDEX|Nifty 50"
 
-# Top-10 NIFTY constituents (by weight) used for the news lookup.
 TOP10_SYMBOLS = (
     "RELIANCE",
     "HDFCBANK",
@@ -50,24 +49,20 @@ TOP10_SYMBOLS = (
     "KOTAKBANK",
 )
 
-# Fallback instrument keys (ISIN-based) when the local DB lookup fails.
 FALLBACK_NEWS_KEYS = (
-    "NSE_EQ|INE002A01018",  # RELIANCE
-    "NSE_EQ|INE040A01034",  # HDFCBANK
-    "NSE_EQ|INE090A01021",  # ICICIBANK
-    "NSE_EQ|INE009A01021",  # INFY
-    "NSE_EQ|INE467B01029",  # TCS
-    "NSE_EQ|INE397D01024",  # BHARTIARTL
-    "NSE_EQ|INE154A01025",  # ITC
-    "NSE_EQ|INE062A01020",  # SBIN
-    "NSE_EQ|INE238A01034",  # AXISBANK
-    "NSE_EQ|INE237A01028",  # KOTAKBANK
+    "NSE_EQ|INE002A01018",
+    "NSE_EQ|INE040A01034",
+    "NSE_EQ|INE090A01021",
+    "NSE_EQ|INE009A01021",
+    "NSE_EQ|INE467B01029",
+    "NSE_EQ|INE397D01024",
+    "NSE_EQ|INE154A01025",
+    "NSE_EQ|INE062A01020",
+    "NSE_EQ|INE238A01034",
+    "NSE_EQ|INE237A01028",
 )
 
 
-# ---------------------------------------------------------------------------
-# pure parsing helpers (unit-tested, no network)
-# ---------------------------------------------------------------------------
 def parse_oi_payload(payload) -> dict:
     """Normalise the ``GET /market/oi`` response.
 
@@ -132,7 +127,6 @@ def parse_change_oi_payload(payload) -> dict:
 
 
 def top_change_oi(rows, n: int = 5) -> list[dict]:
-    """Top-``n`` strikes by absolute combined change in OI, strongest first."""
     ranked = sorted(
         (r for r in rows or [] if isinstance(r, dict) and r.get("strike") is not None),
         key=lambda r: abs(_as_float(r.get("total")) or 0.0)
@@ -144,11 +138,6 @@ def top_change_oi(rows, n: int = 5) -> list[dict]:
 
 
 def parse_max_pain_payload(payload) -> dict:
-    """Normalise ``GET /market/max-pain`` → ``{"max_pain", "spot"}``.
-
-    Spot prefers ``spot_closing_price``, falling back to the last intraday
-    insight's ``spot_price``.
-    """
     data = _data(payload)
     if not isinstance(data, dict):
         return {"max_pain": None, "spot": None}
@@ -170,7 +159,6 @@ def parse_max_pain_payload(payload) -> dict:
 
 
 def parse_pcr_payload(payload):
-    """Normalise ``GET /market/pcr`` → float or None."""
     data = _data(payload)
     if isinstance(data, (int, float)):
         return _as_float(data)
@@ -182,13 +170,6 @@ def parse_pcr_payload(payload):
 
 
 def parse_fii_dii_payload(payload, prefer: str = "NSE_EQ|CASH") -> dict:
-    """Normalise ``GET /market/fii`` (or ``/dii``) → ``{"buy","sell","net"}``.
-
-    The endpoint returns a map of segment → record list; the ``prefer``red
-    segment (cash market by default) wins, otherwise the first segment. The
-    latest record by ``time_stamp`` is used. Amounts are ₹ crores as returned
-    by Upstox. Net is derived as buy − sell when absent.
-    """
     data = _data(payload)
     rows: list[dict] | None = None
     if isinstance(data, list):
@@ -281,11 +262,6 @@ def _to_ist(moment):
 
 
 def parse_news_items(payload, limit: int = 5) -> list[dict]:
-    """Normalise ``GET /news`` → ``[{published_ist, heading, link}]`` newest first.
-
-    Handles both the documented map shape (``{key: [items]}``) and a bare
-    list, tagging each row with its instrument ``key``.
-    """
     data = _data(payload)
     entries: list[tuple[str, dict]] = []
     if isinstance(data, dict):
@@ -323,9 +299,6 @@ def parse_news_items(payload, limit: int = 5) -> list[dict]:
     return trimmed
 
 
-# ---------------------------------------------------------------------------
-# live sources (network, degrading)
-# ---------------------------------------------------------------------------
 def _get(path: str, params: dict, timeout: float) -> dict:
     # rate_limit=False: the API caller (``api/reports_api/nifty_intel.py``)
     # acquires the shared limiter itself — acquiring it twice would burn the
@@ -365,7 +338,6 @@ def resolve_news_keys() -> list[str]:
 
 
 def _expiry_param(expiry: str | None) -> dict:
-    """Expiry query param — passes Upstox keywords (``current_week`` …) or a date straight through."""
     if not expiry or not str(expiry).strip():
         return {"expiry": "current_week"}
     return {"expiry": str(expiry).strip()}
@@ -378,7 +350,7 @@ def _current_week_tuesday(date_str: str) -> str:
     for a relative expiry keyword.
     """
     day = dt.date.fromisoformat(date_str)
-    days_ahead = (1 - day.weekday()) % 7  # Tuesday == 1
+    days_ahead = (1 - day.weekday()) % 7
     return (day + dt.timedelta(days=days_ahead)).isoformat()
 
 
@@ -500,9 +472,6 @@ def build_payload(args) -> dict:
     return payload
 
 
-# ---------------------------------------------------------------------------
-# rendering
-# ---------------------------------------------------------------------------
 def _fmt(value, dec: int = 2, dash: str = "—") -> str:
     try:
         if value is None:
@@ -595,9 +564,6 @@ def render(payload: dict) -> str:
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# cli
-# ---------------------------------------------------------------------------
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         prog="upstox_intel",

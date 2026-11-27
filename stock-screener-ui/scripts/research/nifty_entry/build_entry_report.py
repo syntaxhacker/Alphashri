@@ -16,7 +16,7 @@ import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # repo root for api/ config/ db/
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 import matplotlib
 matplotlib.use("Agg")
@@ -53,17 +53,15 @@ SENSEX_EXPIRY_NOTE = ("Sensex expired <b>today</b> (Thursday expiry). The 0-DTE 
                       "purged from Fyers history, so this section prices the next-weekly (22-Oct, 7 DTE) "
                       "ATM legs — the contracts actually tradeable today.")
 TAPE = Path("experiments/data/nifty_tape")
-STOP_PCT = 0.40          # premium stop: -40% of entry premium
-EXIT_HM = (15, 0)        # realized exits marked at 15:00 (or last tape bar)
+STOP_PCT = 0.40
+EXIT_HM = (15, 0)
 
 
-# ---------------- loaders ----------------
 def load_tape(day):
     rows = [json.loads(l) for l in open(TAPE / f"{day}.jsonl")]
     df = pd.DataFrame(rows)
     df["t"] = pd.to_datetime(df["t"]).dt.tz_convert(IST)
     df = df.sort_values("t").reset_index(drop=True)
-    # --- corrupt-snapshot filter: drop rows whose spot is far from the
     # local median (e.g. 2026-10-14 12:53-12:54 printed spot 22363, ~360pts
     # below neighbours while yfinance 5m glided smoothly -> bad snapshot).
     s = pd.to_numeric(df["spot"], errors="coerce")
@@ -129,7 +127,7 @@ def add_spot_indicators(g):
     g["orb_hi"] = float(orb["High"].max()) if len(orb) else np.nan
     g["orb_lo"] = float(orb["Low"].min()) if len(orb) else np.nan
     rng = float(g["High"].max() - g["Low"].min())
-    g["atr_proxy"] = rng / max(len(g), 1) / float(g["Close"].iloc[0]) * 100  # avg bar %
+    g["atr_proxy"] = rng / max(len(g), 1) / float(g["Close"].iloc[0]) * 100
     return g
 
 
@@ -142,7 +140,6 @@ def premium_asof(tape, ts, col):
     return (None if v is None or (isinstance(v, float) and np.isnan(v)) else float(v)), r["t"]
 
 
-# ---------------- Fyers (fixed-strike option candles + OI) ----------------
 # Fyers token is daily (~06:00 IST expiry). All calls degrade to None so the
 # report falls back to tape-only pricing with an HTML note. No SDK needed.
 FYERS_DATA = "https://api-t1.fyers.in/data"
@@ -150,7 +147,7 @@ FYERS_DATA = "https://api-t1.fyers.in/data"
 
 def fyers_token():
     try:
-        from api.orderflow_recorder import recorder_token
+        from api.broker_hub import recorder_token
         t = recorder_token("fyers_tbt")
         if not t or ":" not in t:
             return None
@@ -216,7 +213,6 @@ def fyers_expiry_chain(timestamp_epoch, underlying="NSE:NIFTY50-INDEX"):
 
 
 def resolve_leg_symbols(expiry_iso, strike, underlying="NSE:NIFTY50-INDEX"):
-    """(expiry YYYY-MM-DD, strike) -> (ce_symbol, pe_symbol) via live chain."""
     import datetime as _dt
     want = _dt.datetime.strptime(expiry_iso, "%Y-%m-%d").strftime("%d-%m-%Y")
     chain = None
@@ -261,7 +257,6 @@ def resolve_leg_symbols(expiry_iso, strike, underlying="NSE:NIFTY50-INDEX"):
     return ce, pe
 
 
-# ---------------- unified premium pricer ----------------
 class LegPricer:
     """Premium source per side. Fixed Fyers contract candles preferred
     (one tradable contract + OI); tape rolling-ATM leg as fallback."""
@@ -304,7 +299,6 @@ class LegPricer:
         return px, at, None
 
     def window(self, side, t0, t1):
-        """-> (list[datetime], list[float]) premium between t0..t1."""
         if self.fixed(side):
             df = self.legs[side]
             w = df[(df.index >= t0) & (df.index <= t1)]
@@ -325,8 +319,6 @@ class LegPricer:
 
 def fetch_day_legs(day, spot_open, tape, underlying="NSE:NIFTY50-INDEX",
                    expiry=None, step=50):
-    """Fixed-strike CE/PE 5m candles for the day-open ATM strike. {} if Fyers down.
-    expiry: explicit YYYY-MM-DD, else tape mode expiry. step: strike grid (50 Nifty)."""
     try:
         if expiry is None:
             if tape is None:
@@ -358,9 +350,7 @@ def fetch_day_legs(day, spot_open, tape, underlying="NSE:NIFTY50-INDEX",
         return {}, {}
 
 
-# ---------------- entry engine ----------------
 def build_candidates(day, spot, tape, pricer):
-    """Rule-based entry candidates. Returns list of dicts with premium MFE/MAE/realized."""
     cands = []
     closes = list(spot.iterrows())
     idx = list(spot.index)
@@ -370,7 +360,6 @@ def build_candidates(day, spot, tape, pricer):
     def reg(row):
         return float(row["Close"]) - float(row["vwap"])
 
-    # signal flags per bar
     orb_fired = {}
     for i, (ts, r) in enumerate(closes):
         if ts.time() < T(9, 50):
@@ -407,7 +396,6 @@ def build_candidates(day, spot, tape, pricer):
                 cands.append(dict(signal="RSI cool-down", side="SHORT", ts=ts, spot=float(r["Close"]),
                                   why=f"RSI 5m overheated to {rs0:.0f} then cooled"))
 
-    # wall bounce (tape walls asof each bar; skipped when no tape, e.g. Sensex)
     has_walls = tape is not None and "walls" in tape
     for i, (ts, r) in enumerate(closes):
         if not has_walls:
@@ -437,7 +425,6 @@ def build_candidates(day, spot, tape, pricer):
             cands.append(dict(signal="Call-wall rejection", side="SHORT", ts=ts, spot=c,
                               why=f"rejected at top call wall {cw:.0f} + bearish reversal bar"))
 
-    # afternoon continuation 13:30+
     for i, (ts, r) in enumerate(closes):
         if ts.time() != T(13, 30):
             continue
@@ -458,7 +445,6 @@ def build_candidates(day, spot, tape, pricer):
         print(f"{day}: deduped {len(cands) - len(uniq)} duplicate (side, time) candidates")
     cands = uniq
 
-    # price each candidate (fixed Fyers leg preferred, tape rolling-ATM fallback)
     priced = []
     exit_ts = pd.Timestamp(f"{day} {EXIT_HM[0]:02d}:{EXIT_HM[1]:02d}", tz=IST)
     for c in cands:
@@ -493,7 +479,6 @@ def build_candidates(day, spot, tape, pricer):
 
 
 def hindsight_grid(day, spot, tape, pricer):
-    """Exhaustive 5m entries 09:30-14:30, both sides, exit 15:00. Top windows."""
     rows = []
     exit_ts = pd.Timestamp(f"{day} {EXIT_HM[0]:02d}:{EXIT_HM[1]:02d}", tz=IST)
     for ts, r in spot.iterrows():
@@ -514,9 +499,7 @@ def hindsight_grid(day, spot, tape, pricer):
     return df.sort_values("ret", ascending=False).reset_index(drop=True)
 
 
-# ---------------- charts ----------------
 def plot_spot(index, day, spot, cands, ctx):
-    """Final-view spot chart: candles + VWAP + ORB box + RSI + entry markers."""
     n = len(spot)
     xs = list(range(n))
     fig, (ax, axr) = plt.subplots(2, 1, figsize=(17, 7.5), sharex=True,
@@ -536,8 +519,6 @@ def plot_spot(index, day, spot, cands, ctx):
     ax.axhline(float(spot["High"].max()), color=DIM, ls=":", lw=0.9, alpha=0.7, label="day high")
     ax.axhline(float(spot["Low"].min()), color=DIM, ls=":", lw=0.9, alpha=0.7, label="day low")
     idx_of = lambda ts: min(range(n), key=lambda i: abs((spot.index[i] - ts).total_seconds()))
-    # short labels (time + result; signal names live in the HTML table) staggered
-    # vertically with leader lines so clustered entries stay readable
     up_lv, dn_lv = [16, 48, 80], [-18, -50, -82]
     ui = di = 0
     for c in cands:
@@ -597,7 +578,6 @@ def plot_day(index, day, spot, tape, cands, grid, pricer):
     orb_hi, orb_lo = float(spot["orb_hi"].iloc[0]), float(spot["orb_lo"].iloc[0])
     ax.axhspan(orb_lo, orb_hi, color="#161B22", alpha=0.9)
     ax.text(2, orb_hi, "09:15-09:45 box", color=DIM, fontsize=7, va="bottom")
-    # premium curves: fixed Fyers legs when available, else tape rolling-ATM
     idx_of = lambda ts: min(range(n), key=lambda i: abs((spot.index[i] - ts).total_seconds()))
     t0, t1 = spot.index[0], spot.index[-1]
     prem_src = "fixed Fyers legs" if pricer.fixed("LONG") else "tape rolling-ATM"
@@ -629,7 +609,6 @@ def plot_day(index, day, spot, tape, cands, grid, pricer):
     ax.set_title(f"{index} {day} — spot (5m) + {prem_src} premium with rule entries (yellow)",
                  fontsize=11, color=FG)
     if tape is not None:
-        # tape strip: PCR-OI + max-pain gap
         ti = [idx_of(t) for t in tape["t"]]
         axv.plot(ti, pd.to_numeric(tape["pcr_oi"], errors="coerce").values, color=PUR, lw=1.1, label="PCR-OI")
         axv.axhline(1.0, color=DIM, ls="--", lw=0.8)
@@ -693,7 +672,6 @@ def plot_decay(days_data, fixed=None):
     return fn
 
 
-# ---------------- 20-session deeper cut ----------------
 
 
 def oi_txt(c):
@@ -787,7 +765,6 @@ def spot_summary(day, ctx, res):
 
 
 CSS = ("body{background:#0D1117;color:#E6EDF3;font-family:system-ui,sans-serif;max-width:1180px;margin:0 auto;padding:24px;line-height:1.55}h1,h2{border-bottom:1px solid #30363D;padding-bottom:6px}h2{border-left:4px solid #1F6FEB;padding-left:10px}table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}th,td{border:1px solid #30363D;padding:5px 8px;text-align:right;font-variant-numeric:tabular-nums}th:first-child,td:first-child{text-align:left}th{background:#161B22}img{max-width:100%;background:#0D1117;border:1px solid #30363D;border-radius:6px;margin:10px 0}.up{color:#3FB950}.dn{color:#F85149}.dim{color:#8B949E}.warn{background:#161B22;border-left:3px solid #D29922;padding:8px 12px;margin:12px 0}.good{background:#161B22;border-left:3px solid #3FB950;padding:8px 12px;margin:12px 0}td.pos{color:#3FB950;font-weight:600}td.neg{color:#F85149;font-weight:600}.split{display:flex;gap:16px;align-items:flex-start;margin:12px 0}.split .L{flex:0 0 270px;min-width:0}.split .R{flex:1;min-width:0}.split .R img{margin:0}@media(max-width:900px){.split{flex-direction:column}.split .L{flex:auto;width:100%}}.kv{font-size:13px}.kv b{color:#E6EDF3}")
-# ---------------- main ----------------
 def main():
     spot_cache = {}
 

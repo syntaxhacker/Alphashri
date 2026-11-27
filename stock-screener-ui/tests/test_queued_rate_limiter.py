@@ -94,7 +94,6 @@ def _stub_session_request(monkeypatch, latency=0.0, status=200, tracker=None):
     return state
 
 
-# --- worker-count resolution ---
 
 def test_default_max_workers_is_20(monkeypatch):
     monkeypatch.delenv("UPSTOX_RL_MAX_WORKERS", raising=False)
@@ -128,7 +127,6 @@ def test_max_workers_invalid_env_falls_back(monkeypatch):
         rl.shutdown()
 
 
-# --- utilisation budget guard ---
 
 def test_default_pool_stays_under_limiter_budget():
     # 20 workers × ~2s Upstox latency ≈ 10 req/s, comfortably under 50/s.
@@ -141,7 +139,6 @@ def test_default_pool_stays_under_limiter_budget():
     assert RATE_BUDGET_PER_SECOND == 50
 
 
-# --- concurrency proof (mock sleeps, no live API) ---
 
 def _run_parallel(rl, n_requests):
     """Issue n_requests executes from parallel caller threads; return elapsed."""
@@ -224,7 +221,6 @@ def test_worker_sessions_are_persistent_and_reused(monkeypatch, stub_rls):
     assert 1 <= len(state["sessions"]) <= 2
 
 
-# --- circuit / back-pressure semantics unchanged ---
 
 def test_saturated_limiter_fails_fast(monkeypatch):
     """acquire() never grants -> max_wait_time raises Timeout instead of piling up."""

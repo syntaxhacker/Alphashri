@@ -35,7 +35,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # repo root
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 IST = ZoneInfo("Asia/Kolkata")
 HERE = Path(__file__).resolve().parent
@@ -45,10 +45,9 @@ CACHE_5M = DATA / "nifty50_5m.pkl"
 CACHE_DAILY = DATA / "nifty50_daily.pkl"
 SNAP_CSV = DATA / "session_snapshots.csv"
 
-FETCH_START = "2026-09-01"  # 5m history capped at ~60d; covers 2026-09-10..10-15
+FETCH_START = "2026-09-01"
 RTH = (pd.Timestamp("09:15").time(), pd.Timestamp("15:30").time())
 
-# ---- index weights, Tickertape 2026-10-15 (pct) ----
 NIFTY50_WEIGHTS = {
     "HDFCBANK": 10.73, "ICICIBANK": 9.23, "RELIANCE": 7.60, "BHARTIARTL": 5.20,
     "LT": 4.08, "AXISBANK": 3.72, "SBIN": 3.64, "INFY": 3.62, "KOTAKBANK": 3.06,
@@ -64,7 +63,7 @@ NIFTY50_WEIGHTS = {
     "MAXHEALTH": 0.58, "TMPV": 0.57, "HDFCLIFE": 0.49,
 }
 W = pd.Series(NIFTY50_WEIGHTS, dtype=float)
-W = W / W.sum()  # renorm (tickertape sums to ~100.01)
+W = W / W.sum()
 TOP5 = ["HDFCBANK", "ICICIBANK", "RELIANCE", "BHARTIARTL", "LT"]
 BANKS = ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK"]
 IT = ["INFY", "TCS", "HCLTECH", "TECHM"]
@@ -73,7 +72,6 @@ YF = {t: (t + ".NS") for t in NIFTY50_WEIGHTS}
 YF["NIFTY"] = "^NSEI"
 
 
-# ---------------- fetch ----------------
 def fetch_all(refetch=False):
     import yfinance as yf
 
@@ -102,7 +100,6 @@ def fetch_all(refetch=False):
 
 
 def _orient(df):
-    """Normalize yfinance columns to (field, ticker) whatever the download returns."""
     if not isinstance(df.columns, pd.MultiIndex):
         return df
     tickers = set(YF.values())
@@ -136,7 +133,7 @@ def sessions_index(panels):
     idx = panels["NIFTY"]
     days = sorted(set(idx.index.date))
     return [d for d in days
-            if len(idx[idx.index.date == d]) >= 60]  # full sessions only
+            if len(idx[idx.index.date == d]) >= 60]
 
 
 def prev_closes(daily):
@@ -154,9 +151,7 @@ def prev_closes(daily):
     return out
 
 
-# ---------------- features (all causal: uses bars <= t only) ----------------
 def session_frame(day, panels, prev):
-    """One row per 5m bar; features known at bar close t; targets forward."""
     g = panels["NIFTY"]
     g = g[g.index.date == day].copy()
     if len(g) < 60:
@@ -175,7 +170,6 @@ def session_frame(day, panels, prev):
     n = len(g)
     cov = npx.loc[px.index] / len(stocks)
 
-    # prior closes for this session (prev trading day close from daily)
     pc = {}
     for t in stocks:
         s = prev.get(t)
@@ -234,24 +228,19 @@ def session_frame(day, panels, prev):
                                     if t not in TOP5], 6)
     fe["top5_rest_spread_30"] = fe["top5_mom_30"] - fe["rest_mom_30"]
 
-    # diffusion: % fresh 30m (6-bar) highs minus fresh 30m lows
     roll_max = px.rolling(6, min_periods=6).max()
     roll_min = px.rolling(6, min_periods=6).min()
     fe["diffusion_30"] = ((px >= roll_max).mean(axis=1)
                           - (px <= roll_min).mean(axis=1)) * 100
-    # breadth thrust: 30m change in weighted VWAP breadth
     fe["br_thrust_30"] = fe["br_w_vwap"].diff(6)
-    # index regime context (not a predictor — reported for conditioning)
     fe["idx_vwap_gap"] = (idx_close - idx_vwap) / idx_close * 100
 
     F = pd.DataFrame(fe)
     F["coverage"] = cov.loc[F.index] * 100
     F["day"] = str(day)
     F["t"] = F.index.strftime("%H:%M")
-    # targets: index forward returns
     F["fwd30"] = idx_close.shift(-6) / idx_close * 100 - 100
     F["fwd60"] = idx_close.shift(-12) / idx_close * 100 - 100
-    # forward to 12:30 and to last bar (for day-call framing)
     try:
         px1230 = float(idx_close[idx_close.index.strftime("%H:%M") == "12:30"].iloc[0])
         F["fwd_to_1230"] = px1230 / idx_close * 100 - 100
@@ -262,7 +251,6 @@ def session_frame(day, panels, prev):
     return F
 
 
-# ---------------- stats ----------------
 def wilson(p, n, z=1.96):
     if n == 0:
         return (np.nan, np.nan)
@@ -281,7 +269,6 @@ def corr_ci(r, n, z=1.96):
 
 
 def day_block_bootstrap_acc(day_correct, nrep=1000, seed=7):
-    """day_correct: {day: 0/1 np.array}. Resample whole days; pool; percentile CI."""
     rng = np.random.default_rng(seed)
     LAB = list(day_correct.keys())
     est = np.empty(nrep)
@@ -344,7 +331,6 @@ def snapshot_table(ALL, at="10:30", target="fwd_to_close"):
     return S
 
 
-# ---------------- frozen candidate rule ----------------
 # v2 (frozen 2026-10-15): equal-weight above-prior-close breadth + index-vs-avg-line
 # confirmation, read at the 10:30 bar close. In-sample selection on 31 sessions
 # (Sep-01..Oct-15 2026); NOT forward-validated. v1 (weighted + thrust filter) was
@@ -429,7 +415,6 @@ def main():
             "idx_vwap_gap", "idx_mom_30", "diffusion_30", "bank_it_spread_30"]
     print(S[cols].to_string(index=False,
                             formatters={c: "{:+.2f}".format for c in cols if c not in ("day", "at")}))
-    # snapshot skill per predictor (sign(x) vs sign(fwd_to_close))
     print(f"\n=== snapshot directional skill @ {args.at} (n={len(S)}) ===")
     for p in PREDICTORS + ["idx_vwap_gap"]:
         x = S[p].values.astype(float)

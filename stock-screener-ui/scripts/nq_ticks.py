@@ -1,11 +1,3 @@
-"""Real-NQ tick stream: Dukascopy US-100 cash ticks shifted by the NQ=F futures basis.
-
-Basis (NQ 1m close minus cash 1m mid, same minute) is stable intraday (Sep 2 2026:
-mean +46.05, stdev 0.66 over 966 min). A constant session-median shift preserves tick
-microstructure bit-for-bit, so validated strategy behavior is unchanged — only absolute
-levels move onto real NQ prices (accurate to ~+-1pt, sound for 6-40pt SL/TP scales).
-yfinance 1m expires after ~30d; older sessions fall back to daily basis, cached on disk.
-"""
 import json
 import os
 import statistics as st
@@ -32,7 +24,6 @@ def _save_basis_cache(cache):
 
 
 def _coarse_basis(date, ticks, interval, min_n):
-    """Fallback when 1m NQ history expired (hourly goes back 2y): NQ close vs cash mid."""
     try:
         import yfinance as yf
         import pandas as pd
@@ -59,7 +50,6 @@ def _coarse_basis(date, ticks, interval, min_n):
 
 
 def fetch_nq_ticks(date: str):
-    """Returns (shifted_ticks, stats)."""
     ticks = fetch_ticks(date)
     try:
         import yfinance as yf
@@ -79,7 +69,7 @@ def fetch_nq_ticks(date: str):
     cash = {}
     for t in ticks:
         m = int(t["timestamp"] // 1000 // 60) * 60
-        cash[m] = (t["bidPrice"] + t["askPrice"]) / 2.0  # last tick wins ~ close
+        cash[m] = (t["bidPrice"] + t["askPrice"]) / 2.0
     diffs = [nq[m] - c for m, c in cash.items() if m in nq and abs(nq[m] - c) < 500]
     cache = _load_basis_cache()
     if len(diffs) >= 60:

@@ -47,7 +47,6 @@ DEFAULT_STRIKES = (22500, 22600, 22700, 22750, 22800, 22850, 23000, 23300)
 LTP_URL = "https://api.upstox.com/v2/market-quote/ltp"
 HIST_URL = "https://api.upstox.com/v2/historical-candle/{key}/day/{to}/{frm}"
 
-# (verdict key, display label, Upstox instrument key)
 BREADTH_KEYS = (
     ("NIFTY", "NIFTY", "NSE_INDEX|Nifty 50"),
     ("BANK", "BANK", "NSE_INDEX|Nifty Bank"),
@@ -62,19 +61,15 @@ SKEW_DELTA_LOW = 0.15
 SKEW_DELTA_HIGH = 0.35
 SKEW_TARGET = 0.25
 
-# unusual-activity thresholds (chain-wide scan, --unusual only)
 UNUSUAL_OI_ABS = 2_000_000       # absolute OI build, contracts
-UNUSUAL_OI_PCT = 0.15            # OI build vs prior OI
-UNUSUAL_TURNOVER_MULT = 2.0      # vol/OI vs chain median
-UNUSUAL_IV_MULT = 1.5            # IV vs ATM IV
-UNUSUAL_IV_Z = 2.0               # neighbour-relative IV jump
-UNUSUAL_NEW_WALL_TOP = 3         # top-N OI per side = "wall"
+UNUSUAL_OI_PCT = 0.15
+UNUSUAL_TURNOVER_MULT = 2.0
+UNUSUAL_IV_MULT = 1.5
+UNUSUAL_IV_Z = 2.0
+UNUSUAL_NEW_WALL_TOP = 3
 UNUSUAL_MAX_LINES = 12           # compact block cap
 
 
-# ---------------------------------------------------------------------------
-# formatting
-# ---------------------------------------------------------------------------
 def fmt_num(value, dec: int = 2, dash: str = "—") -> str:
     try:
         if value is None:
@@ -112,7 +107,6 @@ def fmt_rupees(value, dec: int = 0, dash: str = "—") -> str:
 
 
 def fmt_millions(value, dec: int = 2, dash: str = "—") -> str:
-    """Compact signed millions: ``"+4.63M"`` / ``"-1.20M"`` / ``"—"``."""
     try:
         if value is None:
             return dash
@@ -121,9 +115,6 @@ def fmt_millions(value, dec: int = 2, dash: str = "—") -> str:
         return dash
 
 
-# ---------------------------------------------------------------------------
-# pure analytics (unit-tested, no network)
-# ---------------------------------------------------------------------------
 def iv_rv_ratio(iv, rv):
     """IV / RV ratio, or None when either leg is missing/non-positive."""
     try:
@@ -136,7 +127,6 @@ def iv_rv_ratio(iv, rv):
 
 
 def fmt_iv_rv(iv, rv) -> str:
-    """``"1.19x rich"`` / ``"0.83x cheap"`` / ``"1.00x fair"`` / ``"n/a"``."""
     ratio = iv_rv_ratio(iv, rv)
     if ratio is None:
         return "n/a"
@@ -150,10 +140,6 @@ def fmt_iv_rv(iv, rv) -> str:
 
 
 def _closest_to_25_delta(legs):
-    """Pick the leg nearest |delta| 0.25 inside the 0.15–0.35 band.
-
-    ``legs`` yields ``(strike, delta, iv)``. Returns ``(strike, iv)`` or None.
-    """
     best = None
     for strike, delta, iv in legs:
         try:
@@ -171,10 +157,14 @@ def _closest_to_25_delta(legs):
 
 
 def skew_25d(strikes):
-    """25-delta put IV minus 25-delta call IV, in vol points.
+    """25-delta call IV minus 25-delta put IV, in vol points.
 
-    Positive = downside put skew (the desk's existing ``control.skew`` sign).
-    Returns None when either wing has no contract in the delta band.
+    Positive = calls rich, negative = puts rich — the documented 25Δ
+    risk-reversal convention, shared with ``api/options_iv.rr25`` and the
+    report IV-skew panel. This is deliberately opposite in sign to the desk's
+    ATM ``control.skew`` (put − call) shown beside it: that is a different
+    metric, not the 25Δ wing reversal. Returns None when either wing has no
+    contract in the delta band.
     """
     calls, puts = [], []
     for row in strikes or []:
@@ -187,7 +177,7 @@ def skew_25d(strikes):
     put = _closest_to_25_delta(puts)
     if call is None or put is None:
         return None
-    return put[1] - call[1]
+    return call[1] - put[1]
 
 
 def breadth_verdict(pcts):
@@ -236,12 +226,10 @@ def breadth_verdict(pcts):
 
 
 def classify_symbol(symbol) -> str:
-    """Manual ledger symbols carry a space (``NIFTY 2026-10-27 22700PE``)."""
     return "manual" if " " in str(symbol or "").strip() else "coded"
 
 
 def realised_split(rows) -> dict:
-    """Split ``[{symbol, net_pnl}, ...]`` into manual / coded / total."""
     out = {"manual": 0.0, "coded": 0.0, "total": 0.0, "manual_n": 0, "coded_n": 0}
     for row in rows or []:
         try:
@@ -256,7 +244,6 @@ def realised_split(rows) -> dict:
 
 
 def mark_premium(position, strikes):
-    """Live premium for one ledger position from the report strike ladder."""
     try:
         strike = float(position.get("strike") or 0)
     except (TypeError, ValueError):
@@ -279,7 +266,6 @@ def mark_premium(position, strikes):
 
 
 def position_pnl(position, mark):
-    """Signed P&L for a ledger position at ``mark`` (None when unmarkable)."""
     try:
         entry = float(position.get("entry_premium") or 0)
         qty = int(position.get("qty") or 0)
@@ -292,7 +278,6 @@ def position_pnl(position, mark):
 
 
 def prev_close_from_candles(candles, today_str: str):
-    """Last completed daily close strictly before ``today_str`` (YYYY-MM-DD)."""
     best = None
     for candle in candles or []:
         try:
@@ -311,9 +296,6 @@ def nearest_strike(strikes, spot):
     return min(rows, key=lambda r: abs(float(r["strike"]) - float(spot)))
 
 
-# ---------------------------------------------------------------------------
-# unusual-activity scan (chain-wide, --unusual)
-# ---------------------------------------------------------------------------
 _SENTIMENT_ALIASES = {
     "long buildup": "LB",
     "short buildup": "SB",
@@ -353,7 +335,6 @@ def sentiment_label(leg) -> str:
 
 
 def sentiment_tag(side, label) -> str:
-    """Desk-facing role tag for one leg, or ``""`` when not SB/LB."""
     return _SENTIMENT_TAGS.get((str(side or "").lower(), str(label or "").upper()), "")
 
 
@@ -408,7 +389,6 @@ def leg_rows(strikes) -> list[dict]:
 
 
 def atm_iv_value(strikes, atm=None, spot=None):
-    """Mean of ATM CE/PE IV (falls back to the strike nearest ``spot``)."""
     target = _as_float(atm)
     if target is None:
         target = _as_float(spot)
@@ -426,7 +406,6 @@ def atm_iv_value(strikes, atm=None, spot=None):
 
 
 def iv_neighbour_z(leg, same_side, window: int = 3):
-    """Z-score of ``leg``'s IV against the ``window`` nearest same-side strikes."""
     iv = (leg or {}).get("iv")
     if iv is None:
         return None
@@ -447,7 +426,6 @@ def iv_neighbour_z(leg, same_side, window: int = 3):
 
 
 def top_oi_strikes(legs, side, n: int = UNUSUAL_NEW_WALL_TOP) -> set:
-    """Strikes holding the top-``n`` OI for one side today."""
     ranked = sorted(
         (l for l in legs or [] if l["side"] == side and l["oi"] is not None and l["oi"] > 0),
         key=lambda l: l["oi"],
@@ -457,10 +435,6 @@ def top_oi_strikes(legs, side, n: int = UNUSUAL_NEW_WALL_TOP) -> set:
 
 
 def unusual_flags(strikes, atm=None, spot=None) -> list[dict]:
-    """Every strike/side with unusual OI, turnover, IV or a fresh wall.
-
-    Pure: sorted by absolute OI change (desc); the renderer caps the output.
-    """
     legs = leg_rows(strikes)
     if not legs:
         return []
@@ -528,7 +502,6 @@ def unusual_flags(strikes, atm=None, spot=None) -> list[dict]:
 
 
 def new_walls(strikes) -> list[dict]:
-    """Top-3 OI strikes per side that also gained OI today, strongest first."""
     legs = leg_rows(strikes)
     out: list[dict] = []
     for side in ("ce", "pe"):
@@ -549,7 +522,6 @@ def new_walls(strikes) -> list[dict]:
 
 
 def unusual_summary(strikes) -> dict:
-    """OI-change sums by writer/buyer bucket + today's fresh walls."""
     buckets = {"ce_writers": 0.0, "pe_writers": 0.0, "pe_buyers": 0.0, "ce_buyers": 0.0}
     for leg in leg_rows(strikes):
         key = _SUMMARY_KEYS.get(leg["tag"])
@@ -560,7 +532,6 @@ def unusual_summary(strikes) -> dict:
 
 
 def render_unusual(unusual: dict) -> list[str]:
-    """Compact ``UNUSUAL`` block: flagged strikes + one summary line."""
     flags = list((unusual or {}).get("flags") or [])
     summary = (unusual or {}).get("summary") or {}
     shown = flags[:UNUSUAL_MAX_LINES]
@@ -602,9 +573,7 @@ def render_unusual(unusual: dict) -> list[str]:
 
 
 
-# ---------------------------------------------------------------------------
 # momentum speed (pure, unit-tested)
-# ---------------------------------------------------------------------------
 # NSE Closing Auction Session (since 3 Aug 2026): continuous F&O-stock
 # trading ends at 15:15 IST, the index print is frozen 15:15–15:35 (no
 # continuous matching), and the official close is the CAS print (~15:35).
@@ -641,15 +610,14 @@ SPEED_ATR_PERIOD = ATR_TRUE_PERIOD
 SPEED_SHORT_MINUTES = 5
 SPEED_LONG_MINUTES = 15
 SPEED_RVOL_MINUTES = 5
-SPEED_RVOL_MIN_WINDOWS = 2  # baseline N-min windows needed for a median
-SPEED_FAST_ATR = 1.0        # |5m ROC| >= 1.0 ATR ...
-SPEED_FAST_RVOL = 1.2       # ... AND RVOL >= 1.2x -> FAST
-SPEED_SLOW_ATR = 0.5        # |5m ROC| < 0.5 ATR ...
-SPEED_SLOW_RVOL = 0.8       # ... OR RVOL < 0.8x -> SLOW
+SPEED_RVOL_MIN_WINDOWS = 2
+SPEED_FAST_ATR = 1.0
+SPEED_FAST_RVOL = 1.2
+SPEED_SLOW_ATR = 0.5
+SPEED_SLOW_RVOL = 0.8
 
 
 def _candle_time(candle):
-    """ISO timestamp of a dict (``time``) or list (index 0) candle, or None."""
     raw = (candle or {}).get("time") if isinstance(candle, dict) else (candle[0] if candle else None)
     if not raw:
         return None
@@ -672,7 +640,6 @@ def _closes_in_order(candles) -> list[tuple]:
 
 
 def roc_points(candles, minutes: int):
-    """``close_now - close`` at/before ``(last_time - minutes)``, else None."""
     rows = _closes_in_order(candles)
     if len(rows) < 2:
         return None
@@ -690,7 +657,6 @@ def roc_points(candles, minutes: int):
 
 
 def roc_atr(candles, minutes: int, atr_value):
-    """``roc_points / atr_value`` — signed ATR multiples, None-safe."""
     try:
         atr_f = float(atr_value)
     except (TypeError, ValueError):
@@ -732,11 +698,6 @@ def rvol(candles, minutes: int = SPEED_RVOL_MINUTES):
 
 
 def speed_verdict(roc5_atr, rvol5=None) -> str:
-    """FAST / NORMAL / SLOW from the 5-minute ATR multiple (+ optional RVOL).
-
-    RVOL None (no volume on the feed) judges on ATR only. ``roc5_atr`` None
-    (no usable candles) yields ``"n/a"``.
-    """
     try:
         mag = abs(float(roc5_atr))
     except (TypeError, ValueError):
@@ -753,7 +714,6 @@ def speed_verdict(roc5_atr, rvol5=None) -> str:
 
 
 def speed_from_candles(candles) -> dict:
-    """Full SPEED read: ATR, 5m/15m ROC in points + ATR units, RVOL, verdict."""
     atr14 = atr(candles)
     roc5 = roc_points(candles, SPEED_SHORT_MINUTES)
     roc15 = roc_points(candles, SPEED_LONG_MINUTES)
@@ -772,7 +732,6 @@ def speed_from_candles(candles) -> dict:
 
 
 def load_tape_spots(date_str: str) -> list[dict]:
-    """Spot-only fallback: ``{time, close}`` rows from the nifty tape jsonl."""
     path = ROOT / "experiments" / "data" / "nifty_tape" / f"{date_str}.jsonl"
     if not path.exists():
         return []
@@ -786,7 +745,7 @@ def load_tape_spots(date_str: str) -> list[dict]:
                 try:
                     row = json.loads(line)
                 except json.JSONDecodeError:
-                    continue  # gaps file may interleave; skip bad lines
+                    continue
                 try:
                     spot = float(row.get("spot") or 0)
                 except (TypeError, ValueError):
@@ -800,9 +759,6 @@ def load_tape_spots(date_str: str) -> list[dict]:
 
 
 
-# ---------------------------------------------------------------------------
-# live sources
-# ---------------------------------------------------------------------------
 def _now_ist() -> dt.datetime:
     import config
 
@@ -827,12 +783,11 @@ def fetch_report(date_str: str, base_url: str, timeout: float) -> tuple[dict, st
         try:
             return _get_json(f"{base_url}/api/reports/nifty?date={date_str}", timeout), "snapshot"
         except Exception:
-            pass  # no snapshot for that date — fall back to live
+            pass
     return _get_json(f"{base_url}/api/reports/nifty/live", timeout), "live"
 
 
 def _report_from_chain(chain: dict, expiry: str) -> dict:
-    """Project a raw Upstox v2 chain into the report's ``strikes`` shape."""
     strikes = []
     for row in chain.get("rows") or []:
         ce = (row.get("call_options") or {}).get("market_data") or {}
@@ -848,7 +803,6 @@ def _report_from_chain(chain: dict, expiry: str) -> dict:
 
 
 def fetch_chain_report(expiry: str) -> dict:
-    """Reuse ``agent_desk_manager``'s token + chain primitive with our expiry."""
     from scripts import agent_desk_manager as adm
 
     previous = adm.EXPIRY
@@ -867,7 +821,6 @@ def _upstox_token() -> str:
 
 
 def fetch_breadth(timeout: float = 10.0, today: str | None = None) -> list[dict]:
-    """Last price + % vs previous daily close for the five benchmark indices."""
     import requests
 
     token = _upstox_token()
@@ -940,9 +893,6 @@ def load_realised(date_str: str) -> dict:
     return realised_split([{"symbol": s, "net_pnl": n} for s, n in rows])
 
 
-# ---------------------------------------------------------------------------
-# payload
-# ---------------------------------------------------------------------------
 def build_payload(args) -> dict:
     errors: list[str] = []
 
@@ -1144,15 +1094,11 @@ def build_payload(args) -> dict:
     return payload
 
 
-# ---------------------------------------------------------------------------
-# rendering
-# ---------------------------------------------------------------------------
 def _level(value) -> str:
     return fmt_num(value, 0)
 
 
 def render_speed(speed: dict) -> str:
-    """One-line momentum read: 5m/15m ROC in points (ATR multiples) + RVOL."""
     verdict = (speed or {}).get("verdict") or "n/a"
     if verdict == "n/a":
         return "SPEED  n/a (no candles)"
@@ -1191,6 +1137,8 @@ def render(payload: dict, now=None) -> str:
         f"VIX {fmt_num(vix.get('ltp'))} {fmt_pct(vix.get('change_pct'))}"
     )
 
+    # SKEW25 is the 25Δ call−put RR; `ctl` is the ATM put−call skew from
+    # compute_control — different metrics, so opposite signs are expected.
     lines.append(
         f"VOL  ATM IV CE {fmt_num(vol['atm_ce_iv'])} / PE {fmt_num(vol['atm_pe_iv'])}  "
         f"RV {fmt_num(vol['rv'])}  IV/RV {vol['iv_rv']}  "
@@ -1274,9 +1222,6 @@ def render(payload: dict, now=None) -> str:
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# cli
-# ---------------------------------------------------------------------------
 def _parse_strikes(raw: str) -> list[int]:
     out = []
     for token in str(raw or "").split(","):

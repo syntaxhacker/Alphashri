@@ -1,13 +1,13 @@
 /**
  * Shared ECharts series scaffold for overlay line/box series.
  *
- * `buildBacktestChartOption` and `buildOverlays` both painted line and box
- * overlays with the same skeleton (`type: "line"`, `showSymbol: false`,
- * `connectNulls: false`, `silent: true`, `z`, `lineStyle.color`) but diverged
- * on `label`/`endLabel` and `dash` normalization. This builder owns the shared
- * scaffold so both callers render identical output; callers pass their own
- * `dash` (boolean for backtest, string/number[] for buildOverlays) and optional
- * label/endLabel/tooltip overrides.
+ * Historically `buildBacktestChartOption` and `buildOverlays` both painted line
+ * and box overlays with the same skeleton (`type: "line"`, `showSymbol: false`,
+ * `connectNulls: false`, `silent: true`, `z`, `lineStyle.color`) but diverged on
+ * `label`/`endLabel` and `dash` normalization. The backtest caller was removed
+ * as dead code in 2026-11; this builder still owns the shared scaffold so
+ * callers render identical output. Callers pass their own `dash` (string/number[]
+ * for buildOverlays) and optional label/endLabel/tooltip overrides.
  */
 export interface OverlayLineOptions {
   id: string;

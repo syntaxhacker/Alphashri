@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""Causal replay of the pre-move score on the 10-second chain.
-
-Purpose: prove (or disprove) that the positioning score arms *before* a squeeze
-using only data available at each snapshot. No lookahead:
-
-* every feature at snapshot ``i`` uses snapshots ``<= i`` and tape rows ``<= t``;
-* the forward label uses ``t+..`` only;
-* the score components mirror ``src/pages/report/niftyPreMove.ts``.
-
-Run:
-    .venv/bin/python scripts/market/presqueeze_replay.py --date 2026-10-28 --from 12:30 --to 13:05
-    .venv/bin/python scripts/market/presqueeze_replay.py --date 2026-10-28 --evaluate
-"""
 from __future__ import annotations
 
 import argparse
@@ -135,21 +122,17 @@ def score_series(rows: list[dict], tape_times: list[datetime], tape_gex: list[fl
 
     for i in range(8, len(rows)):
         comps: list[str] = []
-        # 1) put writing persists: >=8 of the last 30 samples (~5 min).
         start = max(0, i - 30 + 1)
         sold = sum(1 for k in range(start, i + 1) if (flow(k) or ("", ""))[0] == "puts sold")
         if sold >= 8:
             comps.append("put-writing")
-        # 2) call OI builds over 2 min.
         i2 = index_ago(times, i, 120)
         if ce_oi[i] - ce_oi[i2] >= 500_000:
             comps.append("call-build")
-        # 3) call premium richer than the delta-implied move.
         if ce_prem[i] > 0 and ce_prem[i2] > 0 and spot[i] > 0 and spot[i2] > 0:
             residual = (ce_prem[i] - ce_prem[i2] - 0.5 * (spot[i] - spot[i2])) / ce_prem[i2]
             if residual > 0.01:
                 comps.append("call-premium")
-        # 4) GEX flip/rise (1-min tape joined causally).
         g = last_gex(tape_times, tape_gex, times[i])
         g_prev = None
         if tape_times:
@@ -166,7 +149,6 @@ def score_series(rows: list[dict], tape_times: list[datetime], tape_gex: list[fl
             )
             if flipped or g - g_prev >= 10:
                 comps.append("gex")
-        # 5) participation: 60s chain volume vs the prior 20 min median.
         iv = index_ago(times, i, 60)
         v_now = (ce_vol[i] + pe_vol[i]) - (ce_vol[iv] + pe_vol[iv])
         base_vals = []
@@ -179,7 +161,6 @@ def score_series(rows: list[dict], tape_times: list[datetime], tape_gex: list[fl
         if rvol >= 1.8:
             comps.append("rvol")
         score = min(7, len(comps) + (1 if "put-writing" in comps else 0) + (1 if "call-build" in comps else 0))
-        # weighted like the TS score: put 2, call 2, premium/gex/rvol 1.
         score = 0
         for c in comps:
             score += 2 if c in ("put-writing", "call-build") else 1
@@ -226,7 +207,6 @@ def main(argv=None) -> int:
                     f"  {hm}  spot {s['spot']:8.2f}  score {s['score']}/7  "
                     f"{s['state']:<6}  rvol {s['rvol']:.2f}  {'+'.join(s['comps']) or '-'}"
                 )
-        # first arm in the window and forward move to the peak
         armed = [s for s in series if lo <= hhmm(s["t"]) <= hi and s["score"] >= 5]
         if armed:
             first = armed[0]
@@ -239,7 +219,6 @@ def main(argv=None) -> int:
                   f"trough {trough:.2f} ({trough - first['spot']:+.0f})")
         return 0
 
-    # Causal evaluation: score>=5 -> event within the forward horizon.
     events = 0
     hits = 0
     armed_rows = [s for s in series if s["score"] >= 5]

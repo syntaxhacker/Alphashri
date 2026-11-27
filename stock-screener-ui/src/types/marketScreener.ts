@@ -1,10 +1,53 @@
 /** Market Screener — snapshot contract shared by api/hooks/components. */
 
-export type MarketUniverse = "all_equity" | "nifty500" | "nifty50" | "nse_fo";
+import type { CapTierKey } from "../config/marketUniverses";
 
-export type MarketCapTier = "large" | "mid" | "small" | "micro";
+export type MarketUniverse =
+  | "all_equity"
+  | "nifty500"
+  | "nifty200"
+  | "nifty100"
+  | "nifty50"
+  | "banknifty"
+  | "sensex"
+  | "nse_fo"
+  | "us";
 
-export interface MarketRow {
+/** Derived from the descriptor registries; never a second literal vocabulary. */
+export type MarketCapTier = CapTierKey;
+
+/** Optional technical/fundamental columns fetched in the same TV scan. */
+export interface MarketExtraFields {
+  ema20: number | null;
+  ema50: number | null;
+  ema200: number | null;
+  vwap: number | null;
+  bbUpper: number | null;
+  bbLower: number | null;
+  macd: number | null;
+  macdSignal: number | null;
+  macdHist: number | null;
+  stochK: number | null;
+  stochD: number | null;
+  stochRsiK: number | null;
+  stochRsiD: number | null;
+  cci20: number | null;
+  momentum: number | null;
+  adxPlus: number | null;
+  adxMinus: number | null;
+  hullMa9: number | null;
+  psar: number | null;
+  volatilityD: number | null;
+  volatilityW: number | null;
+  perf3m: number | null;
+  perf6m: number | null;
+  perfYtd: number | null;
+  perfY: number | null;
+  recommendAll: number | null;
+  avgVolume30d: number | null;
+}
+
+export interface MarketRow extends Partial<MarketExtraFields> {
   symbol: string;
   name: string;
   sector: string | null;
@@ -13,10 +56,18 @@ export interface MarketRow {
   close: number | null;
   /** Day change in percent. */
   change: number | null;
+  /** Intraday 1-minute change in percent (TradingView `change|1`). */
+  change1m?: number | null;
+  /** Intraday 5-minute change in percent (TradingView `change|5`). */
+  change5m?: number | null;
   /** Today's volume vs the trailing average (x). */
   relativeVolume: number | null;
-  /** Market cap in ₹ crore (derived from raw market cap server-side). */
+  /** Market cap in ₹ crore (derived from raw market cap server-side). Null for USD rows. */
   marketCapCr: number | null;
+  /** Market cap in $ billions. Null for INR rows. */
+  marketCapUsdB?: number | null;
+  /** Quote currency; absent on legacy cached rows means INR. */
+  currency?: "INR" | "USD";
   capTier: string | null;
   rsi: number | null;
   adx: number | null;
@@ -31,8 +82,43 @@ export interface MarketRow {
   low52w: number | null;
   /** Position within the 52-week range, 0–100. */
   pos52w: number | null;
+  /** Fundamentals (null when the source has no coverage). */
+  peRatio: number | null;
+  pbRatio: number | null;
+  dividendYield: number | null;
+  roe: number | null;
+  /** Value-filter fundamentals; nullable on purpose — coverage is market-dependent. */
+  psRatio: number | null;
+  /** Free cash flow / market cap, derived server-side. Null when either is absent. */
+  fcfYield: number | null;
+  revenue: number | null;
+  netIncome: number | null;
+  debtToEquity: number | null;
+  currentRatio: number | null;
+  grossMargin: number | null;
+  operatingMargin: number | null;
+  /** Year-over-year growth in revenue / diluted EPS, in percent. */
+  revYoy: number | null;
+  epsYoy: number | null;
   fno: boolean;
   etf: boolean;
+  /* Liquidity + mover inputs — the same scan, so the Movers cards' maths is
+     computable on this row without a second fetch. */
+  volume: number | null;
+  avgVolume: number | null;
+  /** Overnight gap in percent: (open − prevClose) / prevClose × 100. */
+  gap: number | null;
+  atr: number | null;
+  high: number | null;
+  low: number | null;
+  /** Traded value in the quote currency (TradingView `Value.Traded`). */
+  valueTraded: number | null;
+  /* Derived server-side so the client never divides two nullable operands.
+     Signed to match the Movers dashboard: at/below the 52W high is ≤ 0,
+     at/above the 52W low is ≥ 0, and range÷ATR is only defined for atr > 0. */
+  to52wHighPct: number | null;
+  from52wLowPct: number | null;
+  rangeVsAtr: number | null;
 }
 
 export interface MarketSnapshot {
@@ -42,4 +128,8 @@ export interface MarketSnapshot {
   /** e.g. "streaming" (live) vs anything else (delayed). */
   updateMode: string;
   rows: MarketRow[];
+  /** The frame is being served while a refresh runs; `ageSec` bounds it. */
+  stale?: boolean;
+  ageSec?: number | null;
+  cached?: boolean;
 }

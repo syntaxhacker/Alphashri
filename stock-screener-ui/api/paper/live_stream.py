@@ -46,9 +46,17 @@ def _get_instrument_keys(user_id: int) -> tuple[list[str], dict[str, str]]:
 
         db = SessionLocal()
         try:
-            for p in db.query(Position).filter(Position.user_id == user_id).all():
-                if p.symbol:
-                    trading_symbols.add(p.symbol)
+            # Only the symbol is consumed; a full-row read would pull every
+            # position column on each SSE connect for no benefit.
+            rows = (
+                db.query(Position.symbol)
+                .filter(Position.user_id == user_id)
+                .all()
+            )
+            for row in rows:
+                symbol = getattr(row, "symbol", None)
+                if symbol:
+                    trading_symbols.add(symbol)
         finally:
             db.close()
     except Exception:

@@ -1,21 +1,65 @@
-import Box from "@mui/material/Box";
+import { Box } from "@/ui";
+import * as palette from "@/ui/palette";
 import type { ThemeType } from "./chainStyles";
+import { getStyles } from "./chainStyles";
+import type { JSX } from "solid-js";
+type CSSProperties = JSX.CSSProperties;
 
 interface ChainTableHeaderProps {
-  theme: ThemeType;
-  styles: ReturnType<typeof import("./chainStyles").getStyles>;
+  /** Accepted for API compatibility; unused by the header itself. */
+  theme?: ThemeType;
+  styles: ReturnType<typeof getStyles>;
 }
 
-export function ChainTableHeader({ theme, styles }: ChainTableHeaderProps) {
+export function ChainTableHeader(props: ChainTableHeaderProps) {
+  const headerCell = (): CSSProperties =>
+    ({
+      ...props.styles.headerCell,
+      display: "flex",
+      "align-items": "center",
+      "justify-content": "center",
+      gap: "8px",
+      padding: "8px",
+    }) as CSSProperties;
+  // Wide grids pin strike at their centre; narrow full-chain grids pin it to
+  // the leading edge so a 390px viewport can always see the reference strike.
+  const strikeCell = (): CSSProperties =>
+    ({
+      ...headerCell(),
+      position: "sticky",
+      left: props.styles.strikeCell?.left ?? "calc(50% - 40px)",
+      "z-index": 12,
+    }) as CSSProperties;
   return (
-    <Box className="chain-table-header" sx={{ ...styles.header, display: "grid", gap: 1, p: 1 }} data-testid="options-chain-table-header">
-      <Box className="chain-header-cell chain-calls-header" sx={{ ...styles.headerCell, color: "success.main", bgcolor: "background.paper", display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+    <Box
+      className="chain-table-header"
+      style={
+        {
+          ...props.styles.header,
+          display: "grid",
+          gap: props.styles.header.gap ?? "8px",
+          padding: props.styles.header.padding ?? "8px",
+        } as CSSProperties
+      }
+      data-testid="options-chain-table-header"
+    >
+      <Box
+        className="chain-header-cell chain-calls-header"
+        style={{ ...headerCell(), color: palette.POSITIVE, "background-color": palette.SURFACE } as CSSProperties}
+      >
         CALLS (CE)
       </Box>
-      <Box className="chain-header-cell chain-strike-header" sx={{ ...styles.headerCell, color: "warning.main", bgcolor: "background.paper", display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+      <Box
+        className="chain-header-cell chain-strike-header"
+        data-testid="options-chain-strike-header"
+        style={{ ...strikeCell(), color: palette.WARNING, "background-color": palette.SURFACE } as CSSProperties}
+      >
         STRIKE
       </Box>
-      <Box className="chain-header-cell chain-puts-header" sx={{ ...styles.headerCell, color: "error.main", bgcolor: "background.paper", display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+      <Box
+        className="chain-header-cell chain-puts-header"
+        style={{ ...headerCell(), color: palette.NEGATIVE, "background-color": palette.SURFACE } as CSSProperties}
+      >
         PUTS (PE)
       </Box>
     </Box>

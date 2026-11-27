@@ -4,6 +4,7 @@
  * Pure functions only (no React / ECharts imports) so they stay unit-testable:
  *  - parseOptionSymbol       contract symbol -> { underlying, optionType, strike, expiry? }
  *  - resolveUnderlyingSymbol any trade symbol -> chartable underlying (no spaces)
+ *  - displayOptionSymbol     label-only canonical form of a trade symbol
  *  - isOptionTrade           source-first (`options_paper*`) classification with
  *                            symbol-parse fallback
  *  - optionPayoffAt          payoff at expiry for a single leg at one underlying price
@@ -18,6 +19,7 @@
  */
 
 import type { PaperTrade, TradeBookKey } from "../../types/paperTrading";
+import { displaySymbol } from "@/config/tvSymbols";
 
 export interface OptionContract {
   underlying: string;
@@ -116,10 +118,22 @@ export function parseOptionSymbol(symbol: string): OptionContract | null {
  * their underlying (spaces stripped), everything else passes through trimmed.
  */
 export function resolveUnderlyingSymbol(symbol: string): string {
-  const trimmed = (symbol || "").trim();
-  if (!trimmed) return "";
-  const parsed = parseOptionSymbol(trimmed);
-  return parsed ? parsed.underlying : trimmed;
+  const raw = displaySymbol(symbol);
+  if (!raw) return "";
+  const parsed = parseOptionSymbol(raw);
+  return parsed ? parsed.underlying : raw;
+}
+
+/**
+ * Label-only form of a trade symbol. Both option encodings collapse to one
+ * display; the raw value stays in the payload, tooltip and API calls.
+ */
+export function displayOptionSymbol(symbol: string): string {
+  const raw = displaySymbol(symbol);
+  if (!raw) return "";
+  const contract = parseOptionSymbol(raw);
+  if (!contract) return raw;
+  return `${resolveUnderlyingSymbol(raw)} ${contract.strike} ${contract.optionType}`;
 }
 
 /**

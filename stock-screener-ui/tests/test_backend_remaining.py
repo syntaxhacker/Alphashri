@@ -116,8 +116,7 @@ class TestJournalFallback:
         mock_journals.return_value = [{"symbol": "TEST", "trade_id": "JRNL-001"}]
 
         from api.paper.history import get_trades
-        import asyncio
-        result = asyncio.run(get_trades(limit=50, user=MagicMock(id=1, is_admin=False)))
+        result = get_trades(limit=50, user=MagicMock(id=1, is_admin=False))
 
         mock_journals.assert_called_once()
         assert result["total_trades"] == 1
@@ -129,8 +128,7 @@ class TestJournalFallback:
         mock_db.return_value = [{"symbol": "RELIANCE", "trade_id": "DB-001"}]
 
         from api.paper.history import get_trades
-        import asyncio
-        result = asyncio.run(get_trades(limit=50, user=MagicMock(id=1, is_admin=False)))
+        result = get_trades(limit=50, user=MagicMock(id=1, is_admin=False))
 
         mock_journals.assert_not_called()
         assert result["total_trades"] == 1
@@ -208,7 +206,3 @@ class TestWeek52DataCaching:
 
 class TestScenarioScaffold:
     """Placeholder for scenario tests needing real infrastructure."""
-
-    def test_scenario_needs_infrastructure(self):
-        """Mark scenario/integration tests as needing Docker/Redis/WebSocket."""
-        pytest.skip("Requires Docker/Redis/WebSocket infrastructure")

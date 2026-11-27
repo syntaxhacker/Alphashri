@@ -1,77 +1,108 @@
-import { TZ_IST } from "@/config/constants";
+import { MARKET_TIME_ZONE, formatChartTimeLabel } from "@/utils/chart/time";
 
 /**
- * Shared IST formatters for chart timestamps and time axes.
+ * Chart-time formatters for lightweight-charts axes and crosshairs.
  *
  * lightweight-charts renders `UTCTimestamp` values in UTC by default, so an
- * intraday bar at 03:45Z would read "03:45" instead of the trader's "09:15" IST — these
- * helpers pin every tick / crosshair label to the exchange timezone. Candle
- * timestamps from the detector arrive as ISO strings (Upstox daily candles land at
- * 18:30 UTC = 00:00 IST the next trading day, intraday candles carry a real time),
- * so the ISO-string parse + format lives here too — one source of truth for both
- * the lightweight-charts axis and the ECharts category axis / tooltip.
+ * intraday bar at 03:45Z would read "03:45" instead of the trader's "09:15" IST —
+ * these helpers pin every tick / crosshair label to the requested zone (default
+ * IST, the exchange zone). The ECharts category axes use the ISO-string helpers
+ * below from the same module, so one source of truth serves both charts.
+ *
+ * Epoch numbers are rendered in `timeZone` (DST-aware for named zones); an ISO
+ * string carrying an explicit offset is the true instant and is likewise
+ * rendered in the requested zone. India output is unchanged.
  */
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-const dateFmt = new Intl.DateTimeFormat("en-GB", {
-  timeZone: TZ_IST,
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-});
+type FmtKind =
+  | "date"
+  | "dayMonth"
+  | "time"
+  | "timeSeconds"
+  | "year"
+  | "month"
+  | "day"
+  | "hourMinute";
 
-const dayMonthFmt = new Intl.DateTimeFormat("en-GB", {
-  timeZone: TZ_IST,
-  day: "2-digit",
-  month: "short",
-});
+function optionsFor(kind: FmtKind): Intl.DateTimeFormatOptions {
+  switch (kind) {
+    case "date":
+      return { day: "2-digit", month: "short", year: "numeric" };
+    case "dayMonth":
+      return { day: "2-digit", month: "short" };
+    case "time":
+    case "hourMinute":
+      return { hour: "2-digit", minute: "2-digit", hourCycle: "h23" };
+    case "timeSeconds":
+      return { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" };
+    case "year":
+      return { year: "numeric" };
+    case "month":
+      return { month: "short" };
+    case "day":
+      return { day: "2-digit" };
+  }
+}
 
-const timeFmt = new Intl.DateTimeFormat("en-GB", {
-  timeZone: TZ_IST,
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
+const fmtCache = new Map<string, Intl.DateTimeFormat>();
 
-const yearFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ_IST, year: "numeric" });
-const monthFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ_IST, month: "short" });
-const dayFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ_IST, day: "2-digit" });
-const timeSecFmt = new Intl.DateTimeFormat("en-GB", {
-  timeZone: TZ_IST,
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hourCycle: "h23",
-});
+/** Zone-aware `en-GB` formatter, cached per (zone, kind); invalid zones fall back to IST. */
+function zoneFormatter(timeZone: string, kind: FmtKind): Intl.DateTimeFormat {
+  const key = `${timeZone}|${kind}`;
+  let fmt = fmtCache.get(key);
+  if (!fmt) {
+    const options = optionsFor(kind);
+    try {
+      fmt = new Intl.DateTimeFormat("en-GB", { timeZone, ...options });
+    } catch {
+      fmt = new Intl.DateTimeFormat("en-GB", {
+        timeZone: MARKET_TIME_ZONE.india,
+        ...options,
+      });
+    }
+    fmtCache.set(key, fmt);
+  }
+  return fmt;
+}
+
+function formatInZone(date: Date, kind: FmtKind, timeZone: string): string {
+  return zoneFormatter(timeZone, kind).format(date);
+}
 
 /** Tick-mark granularity requested by lightweight-charts' `tickMarkFormatter`. */
 export type ISTTickKind = "year" | "month" | "day" | "time" | "timeSeconds";
 
 /**
- * lightweight-charts axis tick label, formatted in the exchange timezone.
+ * lightweight-charts axis tick label, formatted in `timeZone`.
  */
-export function formatISTTick(epochSeconds: number, kind: ISTTickKind): string {
+export function formatISTTick(
+  epochSeconds: number,
+  kind: ISTTickKind,
+  timeZone: string = MARKET_TIME_ZONE.india,
+): string {
   const date = new Date(epochSeconds * 1000);
   if (Number.isNaN(date.getTime())) return "";
   switch (kind) {
     case "year":
-      return yearFmt.format(date);
+      return formatInZone(date, "year", timeZone);
     case "month":
-      return monthFmt.format(date);
+      return formatInZone(date, "month", timeZone);
     case "day":
-      return dayFmt.format(date);
+      return formatInZone(date, "day", timeZone);
     case "timeSeconds":
-      return timeSecFmt.format(date);
+      return formatInZone(date, "timeSeconds", timeZone);
     default:
-      return timeFmt.format(date);
+      return formatChartTimeLabel(epochSeconds, "HM", timeZone);
   }
 }
 
-/** True when the instant resolves to IST midnight (a daily candle boundary). */
-function isISTMidnight(date: Date): boolean {
-  const hour = Number(timeFmt.formatToParts(date).find((p) => p.type === "hour")?.value ?? "0");
-  const minute = Number(timeFmt.formatToParts(date).find((p) => p.type === "minute")?.value ?? "0");
+/** True when the instant resolves to midnight in `timeZone` (a daily candle boundary). */
+function isMidnight(date: Date, timeZone: string): boolean {
+  const parts = zoneFormatter(timeZone, "hourMinute").formatToParts(date);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
   return hour === 0 && minute === 0;
 }
 
@@ -104,20 +135,25 @@ function parseTimestamp(iso: string): ParsedTimestamp | null {
 
 /** True for date-only inputs and for intraday timestamps that resolve to IST midnight. */
 function isDaily({ date, dateOnly }: ParsedTimestamp): boolean {
-  return dateOnly || isISTMidnight(date);
+  return dateOnly || isMidnight(date, MARKET_TIME_ZONE.india);
 }
 
-/** "04 May 2026" on a daily boundary, else "04 May, 09:20". */
+/** "04 May 2026" on a daily boundary, else "04 May, 09:20" (IST). */
 function formatISTMoment(date: Date, daily: boolean): string {
-  if (daily) return dateFmt.format(date);
-  return `${dayMonthFmt.format(date)}, ${timeFmt.format(date)}`;
+  const zone = MARKET_TIME_ZONE.india;
+  if (daily) return formatInZone(date, "date", zone);
+  return `${formatInZone(date, "dayMonth", zone)}, ${formatChartTimeLabel(date.getTime(), "HM", zone)}`;
 }
 
-/** lightweight-charts crosshair time label, formatted in IST (date-only when daily). */
-export function formatISTCrosshair(epochSeconds: number): string {
+/** lightweight-charts crosshair time label, formatted in `timeZone` (date-only when daily). */
+export function formatISTCrosshair(
+  epochSeconds: number,
+  timeZone: string = MARKET_TIME_ZONE.india,
+): string {
   const date = new Date(epochSeconds * 1000);
   if (Number.isNaN(date.getTime())) return "";
-  return formatISTMoment(date, isISTMidnight(date));
+  if (isMidnight(date, timeZone)) return formatInZone(date, "date", timeZone);
+  return `${formatInZone(date, "dayMonth", timeZone)}, ${formatChartTimeLabel(epochSeconds, "HM", timeZone)}`;
 }
 
 /**
@@ -141,6 +177,7 @@ export function formatChartTimestamp(iso: string): string {
 export function formatChartTick(iso: string): string {
   const parsed = parseTimestamp(iso);
   if (!parsed) return iso;
-  if (isDaily(parsed)) return dayMonthFmt.format(parsed.date);
-  return `${dayMonthFmt.format(parsed.date)} ${timeFmt.format(parsed.date)}`;
+  const zone = MARKET_TIME_ZONE.india;
+  if (isDaily(parsed)) return formatInZone(parsed.date, "dayMonth", zone);
+  return `${formatInZone(parsed.date, "dayMonth", zone)} ${formatChartTimeLabel(parsed.date.getTime(), "HM", zone)}`;
 }

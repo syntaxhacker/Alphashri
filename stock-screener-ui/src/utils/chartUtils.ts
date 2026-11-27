@@ -25,12 +25,22 @@ import {
   build52wHighSeries,
   buildOrLevelSeries,
 } from "./chart/scaleHelpers";
+import type {
+  EntryMarkerPrice,
+  ExitMarkerPrice,
+  TradeLevelSource,
+} from "./chart/scaleHelpers";
 
-export function getChartThemeColors(isDark: boolean, theme: UITheme | Record<string, any>) {
-  const t: any = theme as any;
+/** Mantine-era theme shape still passed by older chart callers. */
+export interface LegacyChartTheme {
+  white?: string;
+  colors?: { dark?: Record<number, string>; gray?: Record<number, string> };
+}
+
+export function getChartThemeColors(isDark: boolean, theme: UITheme | LegacyChartTheme) {
+  const t = theme as UITheme & LegacyChartTheme;
   const colors = t?.colors;
   const palette = t?.palette;
-  // Support both legacy (colors) and MUI (palette) themes; FormControl muiName crash guard
   if (colors?.dark && colors?.gray) {
     return {
       bgColor: isDark ? colors.dark[7] : t.white ?? CHART_BG,
@@ -42,7 +52,7 @@ export function getChartThemeColors(isDark: boolean, theme: UITheme | Record<str
       negativeColor: NEGATIVE,
     };
   }
-  // MUI palette fallback — defaults use palette single source of truth
+  // Palette fallback — defaults use the palette single source of truth
   const bgDefault = palette?.background?.default;
   const bgPaper = palette?.background?.paper;
   const textPrimary = palette?.text?.primary;
@@ -73,13 +83,23 @@ export function getCandleChange(open: number, close: number) {
   return { change, changeColor };
 }
 
-export function getCandleFromParams(
-  params: any[],
-  candles: { open: number; close: number; [key: string]: any }[],
-) {
-  const candle = params.find((p: any) => p.seriesType === "candlestick");
+/** The subset of an ECharts tooltip params entry these helpers read. */
+export interface TooltipParam {
+  seriesType?: string;
+  dataIndex?: number;
+}
+
+/**
+ * Generic over the candle row so the returned candle keeps the caller's exact
+ * shape (tooltips read `time_str`/`date` off it, not just OHLC).
+ */
+export function getCandleFromParams<T extends { open: number; close: number }>(
+  params: TooltipParam[],
+  candles: T[],
+): { candle: T; change: { change: string; changeColor: string } } | null {
+  const candle = params.find((p) => p.seriesType === "candlestick");
   if (!candle) return null;
-  const c = candles[candle.dataIndex];
+  const c = candle.dataIndex != null ? candles[candle.dataIndex] : undefined;
   if (!c) return null;
   return { candle: c, change: getCandleChange(c.open, c.close) };
 }
@@ -89,8 +109,6 @@ export function formatVolume(vol: number): string {
   if (vol >= 1000) return (vol / 1000).toFixed(1) + "K";
   return vol.toString();
 }
-
-// === Holiday Helpers ===
 
 export interface HolidayMap {
   trading: Set<string>;
@@ -173,14 +191,19 @@ export function insertHolidayGaps(
   return { extendedTimeData, hasGaps: true };
 }
 
-// === Marker Configs ===
-
 export interface MarkerConfig {
-  filter: (t: any) => boolean;
+  /** Receives a marker entry: either an entry marker or an exit marker whose
+   *  closed trade carries `exit_reason`. */
+  filter: (t: TradeMarkerLike) => boolean;
   color: string;
   symbol: string;
   symbolSize: number;
   symbolRotate?: number;
+}
+
+export interface TradeMarkerLike {
+  type?: string;
+  trade?: { exit_reason?: string };
 }
 
 export function getMarkerConfigs(): MarkerConfig[] {
@@ -193,37 +216,37 @@ export function getMarkerConfigs(): MarkerConfig[] {
       symbolRotate: 180,
     },
     {
-      filter: (t) => t.type === "exit" && (t.trade as any).exit_reason === "TP",
+      filter: (t) => t.type === "exit" && t.trade?.exit_reason === "TP",
       color: MARKER_TP,
       symbol: "circle",
       symbolSize: 16,
     },
     {
-      filter: (t) => t.type === "exit" && (t.trade as any).exit_reason === "SL",
+      filter: (t) => t.type === "exit" && t.trade?.exit_reason === "SL",
       color: MARKER_SL,
       symbol: "circle",
       symbolSize: 16,
     },
     {
-      filter: (t) => t.type === "exit" && (t.trade as any).exit_reason === "EOD",
+      filter: (t) => t.type === "exit" && t.trade?.exit_reason === "EOD",
       color: MARKER_EOD,
       symbol: "diamond",
       symbolSize: 16,
     },
     {
-      filter: (t) => t.type === "exit" && (t.trade as any).exit_reason === "TRAILING_STOP",
+      filter: (t) => t.type === "exit" && t.trade?.exit_reason === "TRAILING_STOP",
       color: MARKER_STOP_LOSS,
       symbol: "circle",
       symbolSize: 16,
     },
     {
-      filter: (t) => t.type === "exit" && (t.trade as any).exit_reason === "MAX_HOLDING",
+      filter: (t) => t.type === "exit" && t.trade?.exit_reason === "MAX_HOLDING",
       color: MARKER_MAX_HOLDING,
       symbol: "diamond",
       symbolSize: 16,
     },
     {
-      filter: (t) => t.type === "exit" && (t.trade as any).exit_reason === "NEW_52W_HIGH",
+      filter: (t) => t.type === "exit" && t.trade?.exit_reason === "NEW_52W_HIGH",
       color: PIVOT_S2,
       symbol: "circle",
       symbolSize: 16,
@@ -231,11 +254,9 @@ export function getMarkerConfigs(): MarkerConfig[] {
   ];
 }
 
-// === Zoom-to-Trade Highlight Helpers ===
-
 export function buildHighlightMarkers(
-  entryMarker: any,
-  exitMarker: any | undefined,
+  entryMarker: EntryMarkerPrice,
+  exitMarker: ExitMarkerPrice | undefined,
   entryIdx: number,
   exitIdx: number,
   tradeIndex: number,
@@ -248,11 +269,11 @@ export function buildHighlightMarkers(
 }
 
 export function buildHighlightLevelSeries(
-  candles: any[],
+  candles: { date?: string }[],
   entryDate: string,
   entryIdx: number,
   exitIdx: number,
-  selectedTrade: any,
+  selectedTrade: TradeLevelSource,
   isSameDay: boolean,
   fontSizes: Record<string, number>,
 ): any[] {

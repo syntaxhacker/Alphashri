@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import statistics
 from datetime import datetime
 from pathlib import Path
@@ -51,6 +50,7 @@ from api.reports_api.nifty_bursts import (
     OI_BURST_MIN_ABS,
     OI_BURST_WINDOW,
     OI_SIGNAL_RISK_BUDGET,
+    classify_flow,
     coalesce_bursts,
     derive_oi_signal,
     detect_coiling,
@@ -60,7 +60,14 @@ from api.reports_api.nifty_bursts import (
     detect_strike_bursts,
     session_trend,
 )
-from api.reports_api.nifty_fuel import basis_text, fuel_state, structure_evidence
+from api.reports_api.nifty_fuel import (
+    basis_text,
+    fuel_state,
+    minute_frames,
+    structure_evidence,
+    verify_burst_flow,
+)
+from api.reports_api.report_io import read_jsonl, read_jsonl_tail, symbol_or_400
 
 router = APIRouter(prefix="/api/reports/options", tags=["options-history"])
 
@@ -75,10 +82,6 @@ SNAPSHOTS_DIR = "options_snapshots"
 #: The generic tape/chain10s are recorded per minute / per 10 seconds.
 TAPE_INTERVAL_SEC = 60
 
-#: Underlying names seen in F&O: RELIANCE, BAJAJ-AUTO, M&M, NIFTYNXT50.
-_SYMBOL_RE = re.compile(r"^[A-Z0-9][A-Z0-9&_-]{0,23}$")
-
-# --- blasts (10-second chain) — adaptive thresholds ----------------------------
 #: A blast must be unusual *for this session*: ``max(floor, k × median)``.
 #: Unlike NIFTY (where the 10 s OI delta runs 0.7M-2.8M), a stock's chain OI is
 #: orders of magnitude smaller, so the absolute floors here are deliberately
@@ -95,7 +98,6 @@ from api.reports_api._blasts import chain_blasts as _shared_chain_blasts
 _SLIM_CACHE: dict[tuple, list[dict]] = {}
 
 
-# --- validation / paths --------------------------------------------------------
 def _today() -> str:
     """Today's session date in IST (never the host's local date)."""
     return datetime.now(config.IST).strftime("%Y-%m-%d")
@@ -111,13 +113,7 @@ def _symbol(underlying: str) -> str:
     The value lands in a filesystem path, so the charset is enforced rather
     than trusted: ``..`` / ``/`` / whitespace can never leave ``DATA_ROOT``.
     """
-    symbol = str(underlying or "").strip().upper()
-    if not _SYMBOL_RE.match(symbol):
-        raise HTTPException(
-            status_code=400,
-            detail=f"bad underlying: {underlying!r}, want a symbol like NIFTY/RELIANCE",
-        )
-    return symbol
+    return symbol_or_400(underlying, noun="underlying")
 
 
 def _path(kind: str, symbol: str, date_str: str, suffix: str = ".jsonl") -> Path:
@@ -126,24 +122,37 @@ def _path(kind: str, symbol: str, date_str: str, suffix: str = ".jsonl") -> Path
 
 def _read_jsonl(path: Path) -> list[dict]:
     """Parsed JSON-object lines; ``[]`` when missing, blank lines skipped."""
-    if not path.exists():
-        return []
-    out: list[dict] = []
+    return read_jsonl(path)
+
+
+#: The bursts feed is polled; a symbol's chain10s day file is several MB.
+#: Reuse its parsed minute frames until the file changes.
+_CHAIN10S_FRAMES_CACHE: dict[tuple, dict[str, dict]] = {}
+
+
+def _symbol_chain10s_frames(symbol: str, date_str: str) -> dict[str, dict]:
+    """This underlying's own chain10s day file as ``{HH:MM: last frame}``.
+
+    NEVER read NIFTY's chain10s directory: the generic recorder writes
+    ``options_chain10s/{SYM}/{date}.jsonl`` with the same 7-tuple row contract.
+    A day with no file means "no feed to verify against" (legacy reading);
+    a file with frames but no frame for a burst minute means "unconfirmed".
+    """
+    path = _path(CHAIN10S_DIR, symbol, date_str)
     try:
-        with open(path) as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
-                    continue
-                if isinstance(row, dict):
-                    out.append(row)
+        st = path.stat()
+        stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
     except OSError:
-        return []
-    return out
+        return {}
+    key = (symbol, date_str)
+    cached = _CHAIN10S_FRAMES_CACHE.get(key)
+    if cached is not None and cached[0] == stamp:
+        return cached[1]
+    frames = minute_frames(_read_jsonl(path))
+    _CHAIN10S_FRAMES_CACHE[key] = (stamp, frames)
+    while len(_CHAIN10S_FRAMES_CACHE) > 64:
+        _CHAIN10S_FRAMES_CACHE.pop(next(iter(_CHAIN10S_FRAMES_CACHE)), None)
+    return frames
 
 
 def _read_jsonl_tail(path: Path, max_bytes: int = 1_500_000) -> list[dict]:
@@ -154,32 +163,7 @@ def _read_jsonl_tail(path: Path, max_bytes: int = 1_500_000) -> list[dict]:
     snapshots was pure waste. The first line of a tail read is almost always
     partial, so it is dropped unless the read started at 0. Never raises.
     """
-    if not path.exists():
-        return []
-    try:
-        with open(path, "rb") as fh:
-            fh.seek(0, os.SEEK_END)
-            size = fh.tell()
-            start = max(0, size - max_bytes)
-            fh.seek(start)
-            data = fh.read()
-    except OSError:
-        return []
-    lines = data.split(b"\n")
-    if start > 0:
-        lines = lines[1:]
-    out: list[dict] = []
-    for raw in lines:
-        raw = raw.strip()
-        if not raw:
-            continue
-        try:
-            row = json.loads(raw)
-        except (json.JSONDecodeError, ValueError):
-            continue
-        if isinstance(row, dict):
-            out.append(row)
-    return out
+    return read_jsonl_tail(path, max_bytes=max_bytes)
 
 
 def _read_json(path: Path) -> Optional[dict]:
@@ -225,7 +209,6 @@ def _epoch(value: Any) -> float:
         return 0.0
 
 
-# --- 1. tape -------------------------------------------------------------------
 @router.get("/{underlying}/tape")
 def get_options_tape(
     underlying: str,
@@ -237,6 +220,10 @@ def get_options_tape(
     the formulas (``call_doi``/``put_doi``/``net``/``call_tick``/``pcr_doi``/
     ``spot_flip``) are identical. A missing/empty tape is a 404 envelope — the
     recorder only writes rows for minutes it was alive.
+
+    Per-row chains are trimmed by :func:`api.reports_api.nifty._trim_tape_chains`
+    (the same rule the NIFTY endpoint uses), so SENSEX's ~233-strike chain no
+    longer dominates the response; the recorded file keeps every strike.
     """
     symbol = _symbol(underlying)
     date_str = validate_date(date if isinstance(date, str) and date else _today())
@@ -245,9 +232,9 @@ def get_options_tape(
         raise _missing(date_str, f"no {symbol} tape for {date_str}")
     # Lazy: nifty is a heavy module (auth, intel routers) and this reader must
     # stay import-light for the API's startup path.
-    from api.reports_api.nifty import derive_tape_rows
+    from api.reports_api.nifty import derive_tape_rows, _trim_tape_chains
 
-    rows = derive_tape_rows(raw)
+    rows = _trim_tape_chains(derive_tape_rows(raw))
     return {
         "date": date_str,
         "interval_sec": TAPE_INTERVAL_SEC,
@@ -256,7 +243,6 @@ def get_options_tape(
     }
 
 
-# --- 2. 10-second chain --------------------------------------------------------
 @router.get("/{underlying}/chain10s")
 def get_options_chain10s(
     underlying: str,
@@ -303,7 +289,6 @@ def get_options_chain10s(
     return {"date": date_str, "count": len(rows), "snapshots": newest}
 
 
-# --- 3. OI bursts --------------------------------------------------------------
 def _snapshot_context(symbol: str, date_str: str) -> tuple[Optional[dict], Optional[list], float]:
     """``(report, strikes, spot)`` from the day's last snapshot.
 
@@ -433,30 +418,41 @@ def get_options_bursts(
     except Exception:
         trend = None
 
+    # The generic feed has its own per-symbol chain10s file — NIFTY's directory
+    # is never read. A day with that feed is held to the same confirmation gate.
+    chain_frames = _symbol_chain10s_frames(symbol, date_str)
     for b in bursts:
-        try:
-            # Trend at the burst's own minute, not at the close.
-            b_trend = session_trend(rows, at_time=b.get("t")) or trend
-            prem = b.get("premChg")
-            building = _safe_float(b.get("delta")) > 0
-            b["fuel_state"] = fuel_state(building, None if prem is None else float(prem))
-            b["structure"] = structure_evidence(rows, str(b.get("t") or ""), levels)
-            if b["structure"]:
-                b["invalidation"] = b["structure"].get("level")
-            b["signal"] = derive_oi_signal(b, strikes, spot, trend=b_trend)
-            if b["signal"] is not None:
-                _size_signal(b["signal"], lot, lot_verified)
-            elif (strikes and spot
-                  and b.get("type") not in ("coil", "squeeze", "premium")):
-                b["plan_suppressed"] = True
-                b["signal"] = {
-                    "leg": None, "strike": None, "entry": None, "sl": None,
-                    "target": None, "qty": 0, "lots": 0,
-                    "basis": basis_text(b.get("fuel_state"), b.get("side") or "call",
-                                        b.get("structure"), _safe_float(b.get("spot"))),
-                }
-        except Exception:
-            b["signal"] = None
+        verified = True
+        if chain_frames:
+            try:
+                verified = verify_burst_flow(b, rows, date_str,
+                                             chain_frames, classify_flow)
+            except Exception:
+                verified = True  # a bad frame must not erase a valid burst
+        if verified:
+            try:
+                # Trend at the burst's own minute, not at the close.
+                b_trend = session_trend(rows, at_time=b.get("t")) or trend
+                prem = b.get("premChg")
+                building = _safe_float(b.get("delta")) > 0
+                b["fuel_state"] = fuel_state(building, None if prem is None else float(prem))
+                b["structure"] = structure_evidence(rows, str(b.get("t") or ""), levels)
+                if b["structure"]:
+                    b["invalidation"] = b["structure"].get("level")
+                b["signal"] = derive_oi_signal(b, strikes, spot, trend=b_trend)
+                if b["signal"] is not None:
+                    _size_signal(b["signal"], lot, lot_verified)
+                elif (strikes and spot and not b.get("plan_suppressed")
+                      and b.get("type") not in ("coil", "squeeze", "premium")):
+                    b["plan_suppressed"] = True
+                    b["signal"] = {
+                        "leg": None, "strike": None, "entry": None, "sl": None,
+                        "target": None, "qty": 0, "lots": 0,
+                        "basis": basis_text(b.get("fuel_state"), b.get("side") or "call",
+                                            b.get("structure"), _safe_float(b.get("spot"))),
+                    }
+            except Exception:
+                b["signal"] = None
         # No NIFTY headline feed for a stock/index-generic symbol.
         b.setdefault("news", [])
         if trend:
@@ -466,7 +462,6 @@ def get_options_bursts(
             "interval_sec": TAPE_INTERVAL_SEC, "bursts": bursts}
 
 
-# --- 4. OI / volume blasts (10-second chain only) ------------------------------
 def _chain_blasts(symbol: str, date_str: str, lookback_min: int) -> list[dict]:
     """OI + volume blasts from the generic 10-second chain.
 
@@ -533,7 +528,6 @@ def get_options_blasts(
             "lookback_min": lookback_min, "blasts": blasts}
 
 
-# --- 5. replay dates -----------------------------------------------------------
 @router.get("/{underlying}/replay/dates")
 def get_options_replay_dates(
     underlying: str,
@@ -568,7 +562,6 @@ def get_options_replay_dates(
     return {"dates": dates, "latest": dates[0] if dates else None}
 
 
-# --- 6. replay frames ----------------------------------------------------------
 def _needs_analytics(report: Optional[dict]) -> bool:
     """True when a stored frame predates the analytics-carrying recorder.
 
@@ -724,7 +717,6 @@ async def get_options_replay(
             "interval_sec": TAPE_INTERVAL_SEC, "snapshots": snaps}
 
 
-# --- 7. last snapshot ----------------------------------------------------------
 @router.get("/{underlying}/snapshot")
 async def get_options_snapshot(
     underlying: str,
@@ -745,7 +737,6 @@ async def get_options_snapshot(
     return data
 
 
-# --- 8. recorder status --------------------------------------------------------
 def _recorder_status() -> Optional[dict]:
     """The recorder's own status dict, or ``None`` when it is not available.
 

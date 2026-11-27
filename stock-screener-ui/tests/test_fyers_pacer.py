@@ -21,9 +21,6 @@ import fyers_data  # noqa: E402
 import fyers_pacer  # noqa: E402
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 class _Clock:
     """Virtual monotonic clock whose ``sleep`` advances it."""
 
@@ -86,9 +83,6 @@ def _patch_requests(monkeypatch, responses):
     return calls
 
 
-# ---------------------------------------------------------------------------
-# Token bucket
-# ---------------------------------------------------------------------------
 class TestTokenBucket:
     def test_burst_respects_per_second_window(self, monkeypatch):
         monkeypatch.setattr(fyers_pacer, "_PER_SEC_MAX", 8)
@@ -131,9 +125,6 @@ class TestTokenBucket:
             fyers_pacer.acquire()
 
 
-# ---------------------------------------------------------------------------
-# 429 / retry handling
-# ---------------------------------------------------------------------------
 class TestRetries:
     def test_honours_retry_after_seconds(self, monkeypatch):
         clock = _install_clock(monkeypatch)
@@ -197,9 +188,6 @@ class TestRetries:
         assert len(calls) == 1, "a dead token must never be retried"
 
 
-# ---------------------------------------------------------------------------
-# Concatenated-payload parsing
-# ---------------------------------------------------------------------------
 class TestParseJsonMulti:
     def test_quirk_returns_last_object(self):
         text = (
@@ -223,9 +211,6 @@ class TestParseJsonMulti:
             fyers_pacer.parse_json_multi("")
 
 
-# ---------------------------------------------------------------------------
-# get_chain — frozen interface
-# ---------------------------------------------------------------------------
 def _chain_response():
     return {
         "s": "ok",
@@ -361,9 +346,6 @@ class TestGetChain:
         assert row["ce_oichp"] == 5.2
 
 
-# ---------------------------------------------------------------------------
-# list_expiries
-# ---------------------------------------------------------------------------
 class TestListExpiries:
     def test_returns_structured_expiries_and_caches(self, monkeypatch):
         client = _FakeChainClient(_chain_response())
@@ -382,9 +364,6 @@ class TestListExpiries:
         assert len(client.calls) == 1, "second call must be served from cache"
 
 
-# ---------------------------------------------------------------------------
-# get_quotes
-# ---------------------------------------------------------------------------
 class _FakeQuotesClient:
     def __init__(self):
         self.batches: list[list[str]] = []
@@ -442,9 +421,6 @@ class TestGetQuotes:
         assert fyers_data.get_quotes([]) == {}
 
 
-# ---------------------------------------------------------------------------
-# get_history
-# ---------------------------------------------------------------------------
 class TestGetHistory:
     def test_wraps_params_and_returns_candles(self, monkeypatch):
         captured: dict = {}
@@ -482,9 +458,6 @@ class TestGetHistory:
         assert "oi_flag" not in captured
 
 
-# ---------------------------------------------------------------------------
-# Token re-resolution (no 401 loop)
-# ---------------------------------------------------------------------------
 class TestReauth:
     def test_401_invalidates_and_retries_once(self, monkeypatch):
         calls: list[int] = []

@@ -6,6 +6,7 @@
  */
 
 import { createSubscriber } from "./createSubscriber";
+import { ApiError, asApiError, isAbortError } from "../api/apiError";
 import { triggerDistancePct } from "../components/patterns/triggerDistance";
 import type {
   TFSpec,
@@ -41,15 +42,15 @@ import { normalizeFilterArray, normalizeSymbolList } from "../api/queryParams";
 /** Poll cadence while a scan job is queued/running. */
 export const POLL_INTERVAL_MS = 2000;
 /** Coalesce streamed `onItem` appends into one store patch per flush window. */
-export const STREAM_FLUSH_MS = 50;
+const STREAM_FLUSH_MS = 50;
 export const DEFAULT_TIMEFRAME = "1D";
 /** Reserved universe id for a hand-picked symbol scan (no preset universe). */
 export const CUSTOM_UNIVERSE = "custom";
-export const DEFAULT_RESULTS_LIMIT = 200;
+const DEFAULT_RESULTS_LIMIT = 200;
 /**
  * A combo whose last completed scan is older than this (or that has never been
  * scanned) is considered stale and gets an automatic background refresh, even
- * when it currently has hits. Keeps stored payloads (trendlines/pivots) fresh.
+ * when it currently has hits. Keeps stored payloads (pivots) fresh.
  */
 export const STALE_SCAN_MINUTES = 30;
 
@@ -82,7 +83,6 @@ export const DEFAULT_PATTERN_FILTERS: PatternFilters = {
   from_date: null,
   to_date: null,
   sort: "confidence",
-  trendlines: "both",
 };
 
 export interface ChartPatternsState {
@@ -97,10 +97,9 @@ export interface ChartPatternsState {
   /** Lookback window in bars (null = Auto / server default). */
   lookbackBars: number | null;
   filters: PatternFilters;
-  /** Skip server-side trendline computation + hide standalone lines (default true = compute). */
-  computeTrendlines: boolean;
   job: JobDTO | null;
   scanning: boolean;
+  queuePosition: number | null;
   summary: PatternSummary | null;
   results: PatternHitDTO[];
   total: number;
@@ -116,6 +115,9 @@ export interface ChartPatternsState {
   detailChart: ChartPayload | null;
   loading: boolean;
   error: string | null;
+  /** Typed failure detail for status-aware Retry. Additive; `error` stays a string.
+   * Optional so existing panel test fixtures that build a full state literal still compile. */
+  apiError?: ApiError | null;
 }
 
 function createInitialState(): ChartPatternsState {
@@ -130,9 +132,9 @@ function createInitialState(): ChartPatternsState {
     universe: "",
     lookbackBars: null,
     filters: { ...DEFAULT_PATTERN_FILTERS },
-    computeTrendlines: true,
     job: null,
     scanning: false,
+    queuePosition: null,
     summary: null,
     results: [],
     total: 0,
@@ -145,6 +147,7 @@ function createInitialState(): ChartPatternsState {
     detailChart: null,
     loading: false,
     error: null,
+    apiError: null,
   };
 }
 
@@ -176,49 +179,40 @@ let inFlightQuerySig: string | null = null;
  */
 let displayedQuerySig: string | null = null;
 
-/**
- * Keep streamed hits in the active result order: `newest` = freshest bars
- * first (`bars_ago` asc), `range_pos` = consolidation position desc,
- * `breakout` = breakout-conviction score desc, `distance` = closest to the
- * trigger (absolute distance asc, nulls last) and anything else =
- * `confidence` desc (server default).
- *
- * Keys + nulls-last + `id DESC` tie-break mirror the server's order_by
- * (store.py) so the final order matches `GET /results` deterministically.
- */
-export function sortStreamedHits(hits: PatternHitDTO[], sort: string | undefined): PatternHitDTO[] {
-  const ordered = [...hits];
-  // The stream arrives in worker-completion order, so the client must sort.
+type HitComparator = (a: PatternHitDTO, b: PatternHitDTO) => number;
+
+// Only base patterns have a horizontal trigger box; anything else has no
+// meaningful distance and sorts last.
+function distanceOf(hit: PatternHitDTO): number | null {
+  return hit.pattern_id === "consolidation" || (hit.base_days ?? 0) > 0
+    ? triggerDistancePct(hit)
+    : null;
+}
+
+// Single source for the keys / nulls-last / id DESC tie-breaks used by both the
+// one-shot sort and the incremental merge so they cannot drift apart.
+function comparatorForSort(sort: string | undefined): HitComparator {
   const byId = (a: PatternHitDTO, b: PatternHitDTO) => (b.id ?? 0) - (a.id ?? 0);
   if (sort === "newest") {
-    ordered.sort(
-      (a, b) =>
-        (a.bars_ago ?? 0) - (b.bars_ago ?? 0) ||
-        (b.confidence ?? 0) - (a.confidence ?? 0) ||
-        byId(a, b),
-    );
-  } else if (sort === "range_pos") {
-    ordered.sort(
-      (a, b) =>
-        (b.range_pos ?? -Infinity) - (a.range_pos ?? -Infinity) ||
-        (b.confidence ?? 0) - (a.confidence ?? 0) ||
-        byId(a, b),
-    );
-  } else if (sort === "breakout") {
-    ordered.sort(
-      (a, b) =>
-        (b.breakout_score ?? -Infinity) - (a.breakout_score ?? -Infinity) ||
-        (b.confidence ?? 0) - (a.confidence ?? 0) ||
-        byId(a, b),
-    );
-  } else if (sort === "distance") {
-    // Only base patterns have a horizontal trigger box; anything else has no
-    // meaningful distance and sorts last.
-    const distanceOf = (hit: PatternHitDTO) =>
-      hit.pattern_id === "consolidation" || (hit.base_days ?? 0) > 0
-        ? triggerDistancePct(hit)
-        : null;
-    ordered.sort((a, b) => {
+    return (a, b) =>
+      (a.bars_ago ?? 0) - (b.bars_ago ?? 0) ||
+      (b.confidence ?? 0) - (a.confidence ?? 0) ||
+      byId(a, b);
+  }
+  if (sort === "range_pos") {
+    return (a, b) =>
+      (b.range_pos ?? -Infinity) - (a.range_pos ?? -Infinity) ||
+      (b.confidence ?? 0) - (a.confidence ?? 0) ||
+      byId(a, b);
+  }
+  if (sort === "breakout") {
+    return (a, b) =>
+      (b.breakout_score ?? -Infinity) - (a.breakout_score ?? -Infinity) ||
+      (b.confidence ?? 0) - (a.confidence ?? 0) ||
+      byId(a, b);
+  }
+  if (sort === "distance") {
+    return (a, b) => {
       const da = distanceOf(a);
       const db = distanceOf(b);
       if (da == null && db == null) {
@@ -231,11 +225,48 @@ export function sortStreamedHits(hits: PatternHitDTO[], sort: string | undefined
         (b.confidence ?? 0) - (a.confidence ?? 0) ||
         byId(a, b)
       );
-    });
-  } else {
-    ordered.sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0) || byId(a, b));
+    };
   }
-  return ordered;
+  return (a, b) => (b.confidence ?? 0) - (a.confidence ?? 0) || byId(a, b);
+}
+
+/**
+ * Keep streamed hits in the active result order: `newest` = freshest bars
+ * first (`bars_ago` asc), `range_pos` = consolidation position desc,
+ * `breakout` = breakout-conviction score desc, `distance` = closest to the
+ * trigger (absolute distance asc, nulls last) and anything else =
+ * `confidence` desc (server default).
+ *
+ * Keys + nulls-last + `id DESC` tie-break mirror the server's order_by
+ * (store.py) so the final order matches `GET /results` deterministically.
+ */
+export function sortStreamedHits(hits: PatternHitDTO[], sort: string | undefined): PatternHitDTO[] {
+  // The stream arrives in worker-completion order, so the client must sort.
+  return [...hits].sort(comparatorForSort(sort));
+}
+
+/**
+ * Fold an unsorted batch into a list already sorted by `sort` without
+ * re-sorting the accumulated list. Stable on ties (`> 0`, never `<= 0`) so the
+ * result matches one stable sort of the concatenation.
+ */
+export function mergeStreamedHits(
+  existingSorted: PatternHitDTO[],
+  batch: PatternHitDTO[],
+  sort: string | undefined,
+): PatternHitDTO[] {
+  const cmp = comparatorForSort(sort);
+  const sortedBatch = [...batch].sort(cmp);
+  const merged: PatternHitDTO[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < existingSorted.length && j < sortedBatch.length) {
+    if (cmp(existingSorted[i], sortedBatch[j]) > 0) merged.push(sortedBatch[j++]);
+    else merged.push(existingSorted[i++]);
+  }
+  while (i < existingSorted.length) merged.push(existingSorted[i++]);
+  while (j < sortedBatch.length) merged.push(sortedBatch[j++]);
+  return merged;
 }
 
 /**
@@ -253,12 +284,23 @@ export function getChartPatternsState(): ChartPatternsState {
 }
 
 function patch(partial: Partial<ChartPatternsState>): void {
-  state = { ...state, ...partial };
+  // Any patch that clears `error` also clears the typed detail, so a stale 401
+  // can never survive a later successful load. Failure patches carry both.
+  const next = "error" in partial ? { apiError: null, ...partial } : partial;
+  state = { ...state, ...next };
   notify();
 }
 
 function toMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
+}
+
+/** Additive typed detail alongside the string message every panel already reads. */
+function failurePatch(
+  error: unknown,
+  fallback: string,
+): Pick<ChartPatternsState, "error" | "apiError"> {
+  return { error: toMessage(error, fallback), apiError: asApiError(error, fallback) };
 }
 
 function startLoading(): void {
@@ -278,20 +320,8 @@ function isTerminal(status: JobStatus): boolean {
   return status === "completed" || status === "failed" || status === "cancelled";
 }
 
-// ---------------------------------------------------------------------------
-// Setters
-// ---------------------------------------------------------------------------
-
 export function setTimeframes(timeframes: TFSpec[]): void {
   patch({ timeframes });
-}
-
-export function setUniverses(universes: Universe[]): void {
-  patch({ universes });
-}
-
-export function setPatterns(patterns: PatternDef[], families: PatternFamily[]): void {
-  patch({ patterns, families });
 }
 
 export function setTimeframe(timeframe: string): void {
@@ -316,41 +346,53 @@ export function setFilters(filters: PatternFilters): void {
   patch({ filters });
 }
 
+/**
+ * `patch()` notifies subscribers synchronously. The patterns URL-sync
+ * subscriber re-parses the URL on that notification — before its own write has
+ * landed — and calls `applyFilters()` with the *previous* filter values. Left
+ * unchecked, that re-entrant call reverts the change the user just made, so the
+ * `loadResults()` immediately below reads the old `state.filters` and issues a
+ * stale query (chip disappears/grid never refreshes). Filter actions ignore
+ * `applyFilters()` while their patch is notifying; the URL sync settles on the
+ * new URL in its own follow-up pass.
+ */
+let filterActionNotifying = false;
+
+function patchFilterAction(partial: Partial<ChartPatternsState>): void {
+  filterActionNotifying = true;
+  try {
+    patch(partial);
+  } finally {
+    filterActionNotifying = false;
+  }
+}
+
 /** Set one filter-rail value and reload the visible results/summary. */
 export function setFilter<K extends keyof PatternFilters>(
   key: K,
   value: PatternFilters[K],
 ): void {
-  patch({ filters: { ...state.filters, [key]: value }, error: null });
-  void loadResults({ offset: 0 });
-  void loadSummary();
-}
-
-/**
- * Toggle server-side trendline computation. Reloads results/summary with the
- * new flag; no forced re-scan is needed (the flag is view/compute-level, and
- * the next explicit scan picks it up via `triggerScan`).
- */
-export function setComputeTrendlines(value: boolean): void {
-  if (value === state.computeTrendlines) return;
-  patch({ computeTrendlines: value, error: null });
+  patchFilterAction({ filters: { ...state.filters, [key]: value }, error: null });
   void loadResults({ offset: 0 });
   void loadSummary();
 }
 
 /** Clear all filters back to defaults and reload results/summary. */
 export function resetFilters(): void {
-  patch({ filters: { ...DEFAULT_PATTERN_FILTERS }, error: null });
+  patchFilterAction({ filters: { ...DEFAULT_PATTERN_FILTERS }, error: null });
   void loadResults({ offset: 0 });
   void loadSummary();
 }
 
 /**
  * Apply a partial filter patch, merged onto `DEFAULT_PATTERN_FILTERS` (so
- * unspecified keys reset), then reload results/summary. Used by presets.
+ * unspecified keys reset), then reload results/summary. Used by presets and by
+ * the URL sync; re-entrant calls during another filter action's patch are
+ * ignored (see `filterActionNotifying`).
  */
 export function applyFilters(filters: Partial<PatternFilters>): void {
-  patch({ filters: { ...DEFAULT_PATTERN_FILTERS, ...filters }, error: null });
+  if (filterActionNotifying) return;
+  patchFilterAction({ filters: { ...DEFAULT_PATTERN_FILTERS, ...filters }, error: null });
   void loadResults({ offset: 0 });
   void loadSummary();
 }
@@ -383,10 +425,6 @@ export function setSelectedSymbol(selectedSymbol: string | null): void {
   void loadSymbolDetail(selectedSymbol);
 }
 
-// ---------------------------------------------------------------------------
-// Query building
-// ---------------------------------------------------------------------------
-
 function baseQuery(): PatternsQuery {
   const custom = state.universe === CUSTOM_UNIVERSE;
   return {
@@ -418,23 +456,19 @@ function baseQuery(): PatternsQuery {
     // Card candle window: the cards fetch the active Lookback so mini-charts
     // span it (omitted when Auto so the server default applies).
     lookback_bars: state.lookbackBars ?? undefined,
-    compute_trendlines: state.computeTrendlines,
   };
 }
 
-// ---------------------------------------------------------------------------
-// Async loaders
-// ---------------------------------------------------------------------------
-
-/** Load timeframe registry, universes and pattern catalog, then initial data. */
-export async function loadCatalog(): Promise<void> {
+/** Load timeframe registry, universes and pattern catalog, then initial data.
+ * `force` bypasses the API layer's registry cache (the Retry / admin-edit path). */
+export async function loadCatalog(force = false): Promise<void> {
   patch({ error: null });
   startLoading();
   try {
     const [timeframes, universes, catalog] = await Promise.all([
-      fetchTimeframes(),
-      fetchUniverses(),
-      fetchPatternCatalog(),
+      fetchTimeframes(force),
+      fetchUniverses(force),
+      fetchPatternCatalog(force),
     ]);
     const known = new Set(timeframes.map((tf) => tf.id));
     const seed =
@@ -459,13 +493,35 @@ export async function loadCatalog(): Promise<void> {
       error: null,
     });
   } catch (error) {
-    patch({ error: toMessage(error, "Failed to load chart-pattern catalog") });
+    if (isAbortError(error)) return;
+    patch(failurePatch(error, "Failed to load chart-pattern catalog"));
   } finally {
     finishLoading();
   }
 
   await Promise.all([loadSummary(), loadResults({ offset: 0 }), loadActiveJobs()]);
   maybeAutoScan();
+}
+
+/**
+ * Single flight for the catalog bootstrap. The patterns page and any number of
+ * PATTERNS windows mount independently, so they must share one metadata fetch.
+ * A settled promise is kept: once the registries are here, reopening a window
+ * is a no-op. `force` is the explicit Retry path for a failed bootstrap.
+ *
+ * `loadCatalog()` never rejects (it records failures in `state.error`), so a
+ * settled promise is safe to cache on both the success and failure paths.
+ */
+let catalogBootstrap: Promise<void> | null = null;
+
+export function ensureCatalogLoaded(force = false): Promise<void> {
+  if (!force) {
+    if (catalogBootstrap) return catalogBootstrap;
+    if (state.timeframes.length > 0 && state.universes.length > 0) return Promise.resolve();
+  }
+  const promise = loadCatalog(force);
+  catalogBootstrap = promise;
+  return promise;
 }
 
 /**
@@ -564,8 +620,10 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
     const batch = pendingItems;
     pendingItems = [];
     if (batch.length === 0) return;
-    const next = replaceOnFirstItem ? batch : [...state.results, ...batch];
-    patch({ results: sortStreamedHits(next, uiSort) });
+    // `state.results` is already ordered by `uiSort`; a same-query reload's
+    // first batch replaces the stale list instead of merging into it.
+    const base = replaceOnFirstItem ? [] : state.results;
+    patch({ results: mergeStreamedHits(base, batch, uiSort) });
     if (replaceOnFirstItem) replaceOnFirstItem = false;
   };
   const scheduleFlush = (): void => {
@@ -652,7 +710,8 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
       displayedQuerySig = sig;
     } catch (error) {
       if (generation !== resultsGeneration) return;
-      patch({ streaming: false, error: toMessage(error, "Failed to load pattern results") });
+      if (isAbortError(error) || controller.signal.aborted) return;
+      patch({ streaming: false, ...failurePatch(error, "Failed to load pattern results") });
       inFlightQuerySig = null;
     }
   } finally {
@@ -674,7 +733,8 @@ export async function loadSummary(overrides: Partial<PatternsQuery> = {}): Promi
     patch({ summary, dataThrough: summary.data_through ?? state.dataThrough });
   } catch (error) {
     if (generation !== summaryGeneration) return;
-    patch({ error: toMessage(error, "Failed to load pattern summary") });
+    if (isAbortError(error)) return;
+    patch(failurePatch(error, "Failed to load pattern summary"));
   } finally {
     finishLoading();
   }
@@ -724,8 +784,7 @@ function isScanStale(): boolean {
 /**
  * True when any result-narrowing filter is active. An empty result set under a
  * restrictive filter is filter-caused, not a missing scan — so it must never
- * trigger an automatic scan. (`sort` is ordering-only, not restrictive;
- * `trendlines` is a client-only view filter, never restrictive.)
+ * trigger an automatic scan. (`sort` is ordering-only, not restrictive.)
  */
 export function hasRestrictiveFilter(filters: PatternFilters): boolean {
   return (
@@ -760,8 +819,8 @@ export function hasRestrictiveFilter(filters: PatternFilters): boolean {
 /**
  * Auto-submit a scan for the active universe+timeframe when its last completed
  * scan is missing/stale — including when hits are present but were produced by
- * an older detector (those payloads lack trendlines/pivots). Skips while a scan
- * is already in flight and at most once per combination this session.
+ * an older detector (those payloads lack pivots). Skips while a scan is already
+ * in flight and at most once per combination this session.
  * Only universe/timeframe transitions call this; filter-only changes never do.
  */
 function maybeAutoScan(): void {
@@ -890,7 +949,6 @@ export async function triggerScan(
       ...(refresh ? { refresh: true } : {}),
       symbols,
       ...(lookback != null ? { lookback_bars: lookback } : {}),
-      compute_trendlines: state.computeTrendlines,
       // Scan-time volume pre-filters (only sent when set; never null).
       ...(state.filters.min_rel_volume != null
         ? { min_rel_volume: state.filters.min_rel_volume }
@@ -922,17 +980,21 @@ export async function triggerScan(
     });
     void pollJob(response.job_id);
   } catch (error) {
+    if (isAbortError(error)) return;
     if (error instanceof QueueFullError) {
       patch({
         scanning: false,
         error: error.message,
+        // The API raises QueueFullError only for 429; carry that status without
+        // changing the message the panel already renders.
+        apiError: new ApiError(error.message, 429),
         job: state.job
           ? { ...state.job, queue_position: null }
           : null,
       });
       return;
     }
-    patch({ scanning: false, error: toMessage(error, "Failed to start scan") });
+    patch({ scanning: false, ...failurePatch(error, "Failed to start scan") });
   }
 }
 
@@ -988,10 +1050,11 @@ export async function pollJob(jobId: string): Promise<void> {
       }
     } catch (error) {
       if (token !== pollToken) return;
+      if (isAbortError(error)) return;
       stopPolling();
       patch({
         scanning: false,
-        error: toMessage(error, "Lost connection while polling scan job"),
+        ...failurePatch(error, "Lost connection while polling scan job"),
       });
     }
   };
@@ -1100,20 +1163,17 @@ export async function loadSymbolDetail(symbol: string, timeframe?: string): Prom
   const tf = timeframe ?? state.timeframe;
   patch({ selectedSymbol: symbol, detail: null, detailChart: null, error: null });
   startLoading();
+  const chartOpts = state.lookbackBars != null ? { lookbackBars: state.lookbackBars } : {};
   try {
     const [detail, chart] = await Promise.all([
       fetchSymbolDetail(symbol, tf),
-      // Forward the TLS/TLR opt-out: with computation off the chart endpoint
-      // skips the detector and returns empty `trend_lines`.
-      fetchSymbolChart(symbol, tf, {
-        ...(state.lookbackBars != null ? { lookbackBars: state.lookbackBars } : {}),
-        computeTrendlines: state.computeTrendlines,
-      }),
+      fetchSymbolChart(symbol, tf, chartOpts),
     ]);
     if (state.selectedSymbol !== symbol) return;
     patch({ detail, detailChart: chart, error: null });
   } catch (error) {
-    patch({ error: toMessage(error, `Failed to load ${symbol}`) });
+    if (isAbortError(error)) return;
+    patch(failurePatch(error, `Failed to load ${symbol}`));
   } finally {
     finishLoading();
   }
@@ -1130,6 +1190,7 @@ export function resetChartPatternsState(): void {
   inFlightQuerySig = null;
   displayedQuerySig = null;
   autoScanRequested.clear();
+  catalogBootstrap = null;
   state = createInitialState();
   notify();
 }

@@ -46,6 +46,8 @@ def _period_bounds(preset: str, from_date: Optional[str], to_date: Optional[str]
     if preset_key == "YTD":
         return end.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0), end
     if preset_key == "ALL":
+        # ALL is intentionally unbounded below: it is the only way to see a
+        # bot's entire history. The trade read stays narrow via a projection.
         return None, end
     return end - timedelta(days=30), end
 
@@ -78,6 +80,26 @@ def _max_drawdown(points: list[dict]) -> tuple[float, float, list[dict]]:
     return round(max_dd, 2), round(max_dd_pct, 2), series
 
 
+def _cumulative_drawdown(trades: list) -> tuple[float, float]:
+    """Peak drawdown over a trade sequence in one pass.
+
+    Mirrors `_max_drawdown` fed by a running cumulative-P&L curve, but never
+    rebuilds the curve from a prefix slice for every trade (that was O(n^2)).
+    """
+    peak = 0.0
+    max_dd = 0.0
+    max_dd_pct = 0.0
+    cumulative = 0.0
+    for t in trades:
+        cumulative += float(t.net_pnl or 0)
+        peak = max(peak, cumulative)
+        drawdown = peak - cumulative
+        drawdown_pct = (drawdown / peak * 100) if peak > 0 else 0.0
+        max_dd = max(max_dd, drawdown)
+        max_dd_pct = max(max_dd_pct, drawdown_pct)
+    return round(max_dd, 2), round(max_dd_pct, 2)
+
+
 def _summary_for_trades(trades: list) -> dict:
     wins = [t for t in trades if float(t.net_pnl or 0) >= 0]
     losses = [t for t in trades if float(t.net_pnl or 0) < 0]
@@ -104,15 +126,16 @@ def _summary_for_trades(trades: list) -> dict:
     }
 
 
-def _trade_item(t) -> dict:
+def _trade_item(t, bot_lookup: dict) -> dict:
     hold = None
     if t.entry_time and t.exit_time:
         hold = int((t.exit_time - t.entry_time).total_seconds() / 60)
+    bot = bot_lookup.get(t.bot_id)
     return {
         "trade_id": f"TRADE-{t.id:06d}",
         "symbol": t.symbol,
-        "bot_id": str(t.bot.uuid) if t.bot else None,
-        "bot_name": t.bot.name if t.bot else "Default",
+        "bot_id": str(bot.uuid) if bot else None,
+        "bot_name": bot.name if bot else "Default",
         "strategy_id": t.strategy_id,
         "strategy_name": t.strategy_name or "",
         "side": t.side,
@@ -125,8 +148,9 @@ def _trade_item(t) -> dict:
     }
 
 
+# Sync `def`: the trade query + aggregation run on the anyio worker pool.
 @router.get("/dashboard/analytics")
-async def get_dashboard_analytics(
+def get_dashboard_analytics(
     preset: str = "30D",
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
@@ -137,7 +161,24 @@ async def get_dashboard_analytics(
     start, end = _period_bounds(preset, from_date, to_date)
 
     with SessionLocal() as db:
-        query = db.query(TradeModel).filter(
+        # Aggregate every ranking/curve from one narrow row shape. Bot names
+        # come from the user-scoped `bot_lookup` below, so no `t.bot` lazy load
+        # (and no full-row fetch) is needed per trade.
+        query = db.query(
+            TradeModel.id,
+            TradeModel.bot_id,
+            TradeModel.strategy_id,
+            TradeModel.strategy_name,
+            TradeModel.symbol,
+            TradeModel.side,
+            TradeModel.entry_time,
+            TradeModel.exit_time,
+            TradeModel.pnl,
+            TradeModel.pnl_pct,
+            TradeModel.costs,
+            TradeModel.net_pnl,
+            TradeModel.exit_reason,
+        ).filter(
             TradeModel.user_id == user_id,
             TradeModel.is_test == False,
             TradeModel.exit_time.isnot(None),
@@ -185,7 +226,8 @@ async def get_dashboard_analytics(
         by_symbol: dict[str, list] = defaultdict(list)
         exit_reasons: dict[str, int] = defaultdict(int)
         for t in trades:
-            bot_key = str(t.bot.uuid) if t.bot else "default"
+            bot = bot_lookup.get(t.bot_id)
+            bot_key = str(bot.uuid) if bot else "default"
             by_bot[bot_key].append(t)
             by_strategy[(bot_key, t.strategy_id or 0, t.strategy_name or "Unknown")].append(t)
             by_symbol[t.symbol].append(t)
@@ -196,10 +238,7 @@ async def get_dashboard_analytics(
             first = bot_trades[0]
             bot = bot_lookup.get(first.bot_id)
             bot_summary = _summary_for_trades(bot_trades)
-            bot_max_dd, bot_max_dd_pct, _ = _max_drawdown([
-                {"date": str(i), "cumulative_pnl": sum(float(t.net_pnl or 0) for t in bot_trades[: i + 1])}
-                for i in range(len(bot_trades))
-            ])
+            bot_max_dd, bot_max_dd_pct = _cumulative_drawdown(bot_trades)
             bot_rankings.append({
                 "bot_id": key,
                 "bot_name": bot.name if bot else "Default",
@@ -261,8 +300,8 @@ async def get_dashboard_analytics(
             "daily_pnl": sorted(daily.values(), key=lambda p: p["date"]),
             "equity_curve": equity_curve,
             "drawdown": drawdown,
-            "biggest_winners": [_trade_item(t) for t in winners if float(t.net_pnl or 0) > 0],
-            "biggest_losers": [_trade_item(t) for t in losers if float(t.net_pnl or 0) < 0],
+            "biggest_winners": [_trade_item(t, bot_lookup) for t in winners if float(t.net_pnl or 0) > 0],
+            "biggest_losers": [_trade_item(t, bot_lookup) for t in losers if float(t.net_pnl or 0) < 0],
             "symbol_performance": symbol_performance[:20],
             "exit_reasons": [
                 {"reason": reason, "count": count, "pct": round(count / total_exits * 100, 2)}

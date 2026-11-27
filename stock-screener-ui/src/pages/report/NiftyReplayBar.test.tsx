@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, within, cleanup, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, within, cleanup, fireEvent } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
+import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import {
   NiftyReplayBar,
@@ -19,15 +20,10 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function Wrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
+function r(ui: () => JSX.Element) {
+  return render(() => <UIProvider>{ui()}</UIProvider>);
 }
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: Wrapper });
-}
-
-/** Three recorded minutes with distinct spots so scrubbing is observable. */
 function replayFixture(): NiftyReplay {
   const frame = (hm: string) => ({
     t: `2026-10-10T${hm}:00+05:30`,
@@ -57,7 +53,7 @@ function renderBar(overrides?: Partial<Parameters<typeof NiftyReplayBar>[0]>) {
     onTogglePlay: vi.fn(),
     ...overrides,
   };
-  const view = r(<NiftyReplayBar {...props} />);
+  const view = r(() => <NiftyReplayBar {...props} />);
   return { ...view, props, bar: screen.getByTestId("nifty-replay-bar") };
 }
 
@@ -82,10 +78,63 @@ describe("NiftyReplayBar", () => {
     expect(bar).toHaveStyle({ height: "24px" });
   });
 
-  test("play button label follows `playing` and fires onTogglePlay", async () => {
-    const user = userEvent.setup();
+  test("coverage title names recorded/session minutes, percent and missing count from coverage", () => {
+    const { bar, props } = renderBar();
+    const cov = props.coverage!;
+    // The title is built from the coverage object, not hardcoded literals.
+    expect(within(bar).getByTestId("nifty-replay-coverage")).toHaveAttribute(
+      "title",
+      `Recorded ${cov.recorded} of ${cov.sessionMinutes} session minutes (${cov.pct}%) — ${cov.missing} minutes missing`,
+    );
+  });
+
+  test("coverage title tracks values that differ from the fixture", () => {
+    cleanup();
+    const coverage = {
+      ...computeReplayCoverage(replayFixture().snapshots),
+      recorded: 373,
+      missing: 12,
+      pct: 96.9,
+    };
+    const { bar } = renderBar({ coverage });
+    expect(within(bar).getByTestId("nifty-replay-coverage")).toHaveAttribute(
+      "title",
+      "Recorded 373 of 385 session minutes (96.9%) — 12 minutes missing",
+    );
+  });
+
+  test("count title names the playhead frame and total recorded snapshots", () => {
+    cleanup();
+    const { bar } = renderBar({ replayIndex: 1 });
+    expect(within(bar).getByTestId("nifty-replay-count")).toHaveAttribute(
+      "title",
+      "Replay frame 2 of 3 recorded snapshots",
+    );
+  });
+
+  test("count title tracks a different snapshot count and playhead index", () => {
+    cleanup();
+    const replay = replayFixture();
+    const bigReplay = {
+      ...replay,
+      snapshots: [...replay.snapshots, replay.snapshots[0], replay.snapshots[1]],
+      count: 5,
+    } as unknown as NiftyReplay;
+    const { bar } = renderBar({
+      replay: bigReplay,
+      replayIndex: 2,
+      coverage: computeReplayCoverage(bigReplay.snapshots),
+    });
+    expect(within(bar).getByTestId("nifty-replay-count")).toHaveTextContent("3/5");
+    expect(within(bar).getByTestId("nifty-replay-count")).toHaveAttribute(
+      "title",
+      "Replay frame 3 of 5 recorded snapshots",
+    );
+  });
+
+  test("play button label follows `playing` and fires onTogglePlay", () => {
     const { props, bar } = renderBar();
-    await user.click(within(bar).getByTestId("nifty-replay-play"));
+    fireEvent.click(within(bar).getByTestId("nifty-replay-play"));
     expect(props.onTogglePlay).toHaveBeenCalledTimes(1);
     cleanup();
     const paused = renderBar({ playing: true });
@@ -123,8 +172,8 @@ describe("NiftyReplayBar", () => {
 
   test("names the recorder's skip reasons when the gap journal exists", () => {
     cleanup();
-    const reasons = toReplayReasons({ "chain-failed": 41, timeout: 12 });
-    r(
+    const reasons = toReplayReasons({ chainFailed: 41, timeout: 12 });
+    r(() => (
       <NiftyReplayBar
         replay={replayFixture()}
         replayIndex={0}
@@ -134,8 +183,8 @@ describe("NiftyReplayBar", () => {
         holes={0}
         onScrub={vi.fn()}
         onTogglePlay={vi.fn()}
-      />,
-    );
+      />
+    ));
     const el = screen.getByTestId("nifty-replay-reasons");
     // Counts are tooltip-only (the 24px bar shows `time · %`).
     expect(el).toHaveAttribute("title", expect.stringContaining("chain fetch failed ×41"));
@@ -150,40 +199,28 @@ describe("NiftyReplayBar", () => {
     expect(el).toHaveAttribute("title", expect.stringContaining("reason not logged"));
   });
 
-  test("memo: identical props keep the segment DOM nodes across re-renders", () => {
+  test("stable strip: changing replayIndex leaves the coverage strip DOM untouched", () => {
     const replay = replayFixture();
     const coverage = computeReplayCoverage(replay.snapshots);
     const reasons = toReplayReasons(replay.gap_reasons);
     const holes = countReplayHoles(buildReplaySegments(replay, coverage));
-    const onScrub = vi.fn();
-    const onTogglePlay = vi.fn();
-    const { rerender } = r(
+    const [idx, setIdx] = createSignal(0);
+    r(() => (
       <NiftyReplayBar
         replay={replay}
-        replayIndex={0}
+        replayIndex={idx()}
         playing={false}
         coverage={coverage}
         reasons={reasons}
         holes={holes}
-        onScrub={onScrub}
-        onTogglePlay={onTogglePlay}
-      />,
-    );
+        onScrub={vi.fn()}
+        onTogglePlay={vi.fn()}
+      />
+    ));
     const strip = screen.getByTestId("nifty-replay-coverage-strip");
     const firstChild = strip.firstElementChild;
-    rerender(
-      <NiftyReplayBar
-        replay={replay}
-        replayIndex={0}
-        playing={false}
-        coverage={coverage}
-        reasons={reasons}
-        holes={holes}
-        onScrub={onScrub}
-        onTogglePlay={onTogglePlay}
-      />,
-    );
-    // React.memo bailed out — the strip and its segment boxes are untouched.
+    setIdx(2);
+    // Solid swaps in the new time/counter text without rebuilding the strip.
     expect(screen.getByTestId("nifty-replay-coverage-strip")).toBe(strip);
     expect(screen.getByTestId("nifty-replay-coverage-strip").firstElementChild).toBe(firstChild);
   });

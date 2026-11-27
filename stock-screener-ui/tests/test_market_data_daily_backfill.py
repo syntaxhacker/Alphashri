@@ -13,6 +13,7 @@ session stays opt-in.
 """
 
 import sys
+from datetime import date as _date
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -25,9 +26,40 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import config
 import chart_patterns.candles as candles_mod
+from market_data import market_data as market_data_mod
 from market_data.market_data import fetch_candles_for_timeframe
 
 IST = config.IST
+
+# Fixtures describe a one-session-lagging daily feed around this weekday; on a
+# weekend the wall clock remaps "today" to Friday and the tape fixtures stop
+# matching the live edge. Freeze the clock readers instead of relying on it.
+FROZEN_TODAY = "2026-09-11"
+
+
+def _frozen_now_ist() -> datetime:
+    d = _date.fromisoformat(FROZEN_TODAY)
+    # Return the subclass instance so production's
+    # ``isinstance(now, datetime)`` checks still hold when datetime is patched.
+    return _FrozenDatetime(d.year, d.month, d.day, 10, 0, tzinfo=IST)
+
+
+class _FrozenDatetime(datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return _frozen_now_ist().astimezone(tz) if tz is not None else _frozen_now_ist()
+
+
+@pytest.fixture(autouse=True)
+def _pin_session_clock(monkeypatch):
+    """Freeze both clock readers used by the 1D live edge to a trading session."""
+    frozen = _frozen_now_ist()
+    monkeypatch.setattr(candles_mod, "_now_ist", lambda: frozen)
+    monkeypatch.setattr(candles_mod, "_is_trading_day", lambda d: d.weekday() < 5)
+    # candles.fetch_for_timeframe derives `to_date` from its own datetime, which
+    # must agree with market_data's "today" for the live edge to run at all.
+    monkeypatch.setattr(candles_mod, "datetime", _FrozenDatetime)
+    monkeypatch.setattr(market_data_mod, "datetime", _FrozenDatetime)
 
 
 def _sane_frame(index: pd.DatetimeIndex, base: float = 100.0) -> pd.DataFrame:
@@ -49,7 +81,7 @@ def _sane_frame(index: pd.DatetimeIndex, base: float = 100.0) -> pd.DataFrame:
 
 def _recent_business_days(count: int) -> list[str]:
     """Last ``count`` business-day dates strictly before today (IST)."""
-    today = datetime.now(IST).date()
+    today = _frozen_now_ist().date()
     biz = pd.bdate_range(end=today.isoformat(), periods=count + 8)
     past = [d.date().isoformat() for d in biz if d.date() < today]
     return past[-count:]
@@ -177,7 +209,7 @@ class TestBackfillsMissingCompletedSessions:
 class TestTodaySessionStaysOptIn:
     def _today_tapes(self):
         missing = _recent_business_days(2)
-        today = datetime.now(IST).strftime("%Y-%m-%d")
+        today = _frozen_now_ist().strftime("%Y-%m-%d")
         history = _daily_history(missing[0])
         tape_hist = pd.concat([_session_tape_1m(d) for d in missing])
         # Today's in-progress tape lives on both legs (as in a live session).

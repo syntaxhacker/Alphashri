@@ -132,7 +132,6 @@ def run(date: str, cfg: dict) -> list[dict]:
                    "entry_time": r["t"], "entry_i": i, "spot": spot}
             continue
         if pos:
-            # short (s=-1): pnl = (entry - cur); long (s=+1): pnl = (cur - entry)
             gross = 0.0
             for k, o, s in pos["legs"]:
                 cur = _px(r, k, o) or pos["entry"][f"{k}{o}"]

@@ -12,6 +12,20 @@ on:
       - '.github/workflows/**'
       - 'stock-screener-ui/src/**'
       - 'stock-screener-ui/tests/**'
+      - 'stock-screener-ui/api/**'
+      - 'stock-screener-ui/options_paper/**'
+      - 'stock-screener-ui/.storybook/**'
+      # A knip.json edit changes what the unused-code gate considers acceptable,
+      # and a test_cases/ edit is a test artefact. Neither triggered CI before,
+      # so a PR that touched only those landed with no checks at all.
+      - 'stock-screener-ui/knip.json'
+      - 'stock-screener-ui/test_cases/**'
+      # The reports index is generated and has its own --check gate, so a change
+      # to its scanner is a change to a verified artefact.
+      - 'stock-screener-ui/scripts/market/reports_index.py'
+      # CI-only tooling: changes to the E2E failure summarizer must run through CI.
+      - 'stock-screener-ui/scripts/ci/**'
+      - 'stock-screener-ui/perf/e2e-file-durations.json'
       - 'stock-screener-ui/package.json'
       - 'stock-screener-ui/bun.lock'
       - 'stock-screener-ui/vite.config.*'
@@ -30,9 +44,17 @@ concurrency:
 
 jobs:
   pytest:
-    name: Python Unit Tests
+    name: Python Unit Tests (${{ matrix.shard }}/6)
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      # Timing bundle: PRs measure the fast known-green tier, main/nightly the full tier.
+      PERF_TIER: ${{ github.event_name == 'pull_request' && 'backend-pr-fast' || 'backend-full' }}
+      PERF_MARKER_EXPR: ${{ github.event_name == 'pull_request' && 'unit and not slow' || 'not (slow or slow_testcontainers or integration or contract or e2e or testcontainers or postgres)' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -45,7 +67,7 @@ jobs:
       - run: |
           cd stock-screener-ui/api
           # Install all deps normally, except conflicting packages (pandas 2.x vs 3.x)
-          grep -vE '^(tradingagents|tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
+          grep -vE '^(tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
           # pandas-ta is declared in the ROOT requirements.txt, but this job only
           # installs api/requirements.txt (it cd's into api/). trading/indicators/
           # _engine.py imports it, so 53 test modules failed to COLLECT with
@@ -53,31 +75,86 @@ jobs:
           uv pip install --system --python 3.12 'pandas-ta==0.4.71b0'
           # Install conflicting packages with --no-deps (works locally with pandas 3.0.2)
           uv pip install --system --python 3.12 --no-deps tradingview-screener
-          # tradingagents is NOT on PyPI (404) - it was installed locally from a
-          # source that no longer exists. Install it only when resolvable, so a
-          # missing optional dep cannot fail this step and block the whole suite
-          # (it was doing exactly that: Python Unit Tests and E2E never ran).
-          uv pip install --system --python 3.12 --no-deps tradingagents \
-            || echo "::warning::tradingagents unavailable - backend tests run without it"
         env:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
-      - run: |
+      # Tiered selection. PRs to develop/main run the fast known-green set
+      # (`unit and not slow`, ~660 tests) so the branch gate stays quick and
+      # meaningful. Push to main and the nightly schedule run the full
+      # exclusion selection (~9k tests): that is the debt alarm, not a PR gate.
+      # Most of the suite is unmarked, so the full tier must EXCLUDE the heavy
+      # categories rather than include `unit`; path-only integration/contract
+      # modules are tagged by the collection hook in tests/conftest.py.
+      # 6 shards x -n 4 keeps both tiers inside the 20-minute job timeout;
+      # `set -o pipefail` makes pytest collection errors fail the shard.
+      - name: Collect and shard tests
+        run: |
+          set -e -o pipefail
           cd stock-screener-ui
-          uv run --python 3.12 pytest -m "unit and not slow" -n 4 --dist loadfile -q --tb=short --ignore=tests/api/test_llm_analyzer.py
+          mkdir -p perf
+          # Timing plugin only records; it does not add markers or change selection.
+          uv run --python 3.12 pytest -o addopts="" --collect-only -q \
+            -p tests.perf_plugin \
+            -m "$MARKER_EXPR" \
+            | grep '::' > /tmp/all-tests.txt
+          COUNT=$(wc -l < /tmp/all-tests.txt)
+          # Never shard an empty selection: grep can exit 1 on no matches, and
+          # a pytest collection failure must not be mistaken for a valid list.
+          if [[ ! -s /tmp/all-tests.txt || "$COUNT" -eq 0 ]]; then
+            echo "::error::pytest collected no test node IDs; check the collection step."
+            exit 1
+          fi
+          # Guard: fail loudly if the expression regresses to a filter that
+          # silently drops most tests (or stops excluding the heavy tiers).
+          if (( COUNT < MIN_COUNT )); then
+            echo "::error::pytest selection collected only $COUNT tests (expected >= $MIN_COUNT for '$MARKER_EXPR'). Check the marker expression in the Collect and shard tests step."
+            exit 1
+          fi
+          echo "selected $COUNT unit/API tests ($MARKER_EXPR; min $MIN_COUNT)"
+          awk -v s=${{ matrix.shard }} -v n=6 '((NR-1) % n) == (s-1)' /tmp/all-tests.txt > /tmp/shard.txt
+          echo "shard ${{ matrix.shard }}/6: $(wc -l < /tmp/shard.txt) of $COUNT tests"
+          cp /tmp/shard.txt "$RUNNER_TEMP/shard.txt"
         env:
+          # PRs: fast known-green tier. main push / schedule: full debt alarm.
+          MARKER_EXPR: ${{ github.event_name == 'pull_request' && 'unit and not slow' || 'not (slow or slow_testcontainers or integration or contract or e2e or testcontainers or postgres)' }}
+          MIN_COUNT: ${{ github.event_name == 'pull_request' && 600 || 8000 }}
+          PERF_TIMINGS_JSON: perf/pytest-collect-timings.json
+          JWT_SECRET_KEY: test-secret
+          DATABASE_URL: sqlite:///./test.db
+          PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
+          SKIP_ALEMBIC: "1"
+      - name: Run unit tests (shard)
+        run: |
+          cd stock-screener-ui
+          if [[ ! -s "$RUNNER_TEMP/shard.txt" ]]; then
+            echo "::warning::shard ${{ matrix.shard }}/6 has no tests"
+            exit 0
+          fi
+          mkdir -p perf
+          mapfile -t TESTS < "$RUNNER_TEMP/shard.txt"
+          # -p tests.perf_plugin is inert unless PERF_TIMINGS_JSON is set (below).
+          uv run --python 3.12 pytest "${TESTS[@]}" \
+            -o addopts="" -n 4 --dist loadfile -q --tb=short \
+            -p tests.perf_plugin
+        env:
+          PERF_TIMINGS_JSON: perf/pytest-timings.json
+          PERF_SHARD: "${{ matrix.shard }}"
+          PERF_TOTAL_SHARDS: "6"
           JWT_SECRET_KEY: test-secret
           DATABASE_URL: sqlite:///./test.db
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
           SKIP_ALEMBIC: "1"
       - name: Validate migration file integrity
+        if: matrix.shard == 1
         run: |
           cd stock-screener-ui
           uv run --python 3.12 python scripts/validate_migrations.py
       - name: Run migrations on test DB
+        if: matrix.shard == 1
         run: |
           cd stock-screener-ui
           uv run --python 3.12 alembic upgrade head
       - name: Validate migration status
+        if: matrix.shard == 1
         run: |
           cd stock-screener-ui
           # Skip alembic check on SQLite - SQLite batch mode doesn't preserve FK ondelete
@@ -86,12 +163,41 @@ jobs:
           fi
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL || 'sqlite:///./test.db' }}
+      - name: Summarize pytest timings
+        if: always()
+        run: |
+          cd stock-screener-ui
+          # Merge the collect-only timings (real collection time) with the
+          # shard run timings (per-test phases). Missing files are tolerated.
+          uv run --python 3.12 python scripts/perf/collect_pytest_timings.py \
+            --input perf/pytest-collect-timings.json \
+            --input perf/pytest-timings.json \
+            --output perf/pytest-summary.json
+      - name: Check test budgets (warning only)
+        if: always()
+        continue-on-error: true
+        run: |
+          cd stock-screener-ui
+          uv run --python 3.12 python scripts/perf/check_test_budgets.py \
+            --budgets perf/budgets.json \
+            --summary perf/pytest-summary.json
+      - name: Upload pytest timing artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-timings-shard-${{ matrix.shard }}
+          path: |
+            stock-screener-ui/perf/pytest-collect-timings.json
+            stock-screener-ui/perf/pytest-timings.json
+            stock-screener-ui/perf/pytest-summary.json
+          if-no-files-found: warn
+          retention-days: 14
 
 
   frontend-lint-typecheck:
     name: Frontend Lint & TypeCheck
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -99,12 +205,42 @@ jobs:
           bun-version: '1.2.5'
       - run: cd stock-screener-ui && bun install --frozen-lockfile
       - run: cd stock-screener-ui && bun run lint
-        continue-on-error: true
-  frontend-unit:
-    name: Frontend Unit Tests
+      - name: Typecheck app (TypeScript 7)
+        run: cd stock-screener-ui && bun run typecheck
+      - name: Typecheck tests ratchet
+        run: cd stock-screener-ui && bun run typecheck:ratchet
+      - name: Audit typography floor
+        run: cd stock-screener-ui && bun run audit:typography:check
+      - name: Build Storybook
+        run: cd stock-screener-ui && bun run build-storybook
+      - name: Verify Storybook catalog
+        run: cd stock-screener-ui && bun x vitest run src/test/storybook-catalog.test.ts
+      - name: Verify design-system a11y smoke
+        run: cd stock-screener-ui && bun x vitest run src/test/a11y-smoke.test.ts
+      - name: Verify design-system coverage
+        run: cd stock-screener-ui && bun run test:coverage:ui
+      - name: Install Playwright Chromium
+        run: cd stock-screener-ui && bun x playwright install --with-deps chromium
+      - name: Verify Storybook visual baseline
+        run: cd stock-screener-ui && bun run visual:test
+      - name: Verify screenshot evidence
+        run: cd stock-screener-ui && bun run audit:evidence
+      - name: Verify Storybook in a real browser (axe)
+        run: cd stock-screener-ui && node scripts/storybook-a11y.mjs
+      - name: Verify Storybook keyboard walkthrough
+        run: cd stock-screener-ui && node scripts/storybook-keyboard.mjs
+  frontend-unit-changed:
+    name: Frontend Unit Tests (changed files)
+    if: github.event_name == 'pull_request' && github.base_ref == 'develop'
     runs-on: ubuntu-24.04
-    # Full vitest suite on PRs to main exceeds 5 minutes; --changed on develop stays fast.
+    # Tradeoff: feature PRs gate only changed test files, not the transitive
+    # changed-dependency closure that made a small shared-module edit run the
+    # whole suite. The full 4-shard suite runs on PR-to-main/nightly, so the
+    # release gate stays complete.
     timeout-minutes: 15
+    env:
+      # Which wall-time budget applies to the summary produced below.
+      PERF_TIER: ${{ github.event_name == 'pull_request' && github.base_ref == 'develop' && 'frontend-changed' || 'frontend-full' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -113,20 +249,119 @@ jobs:
         with:
           bun-version: '1.2.5'
       - run: cd stock-screener-ui && bun install --frozen-lockfile
-      - name: Run changed unit tests (PR to develop only)
+      - name: Run changed frontend test files (PR to develop only)
         if: github.event_name == 'pull_request' && github.base_ref == 'develop'
-        run: cd stock-screener-ui && bun x vitest run --changed --reporter=verbose --dir src --exclude 'tests/e2e/**'
-      - name: Run all unit tests (PR to main)
-        if: github.event_name == 'pull_request' && github.base_ref == 'main'
-        run: cd stock-screener-ui && bun x vitest run --reporter=verbose --dir src --exclude 'tests/e2e/**'
-      - name: Run all unit tests (push / nightly)
-        if: github.event_name != 'pull_request'
-        run: cd stock-screener-ui && bun x vitest run --reporter=verbose --dir src --exclude 'tests/e2e/**'
+        run: |
+          cd stock-screener-ui
+          mkdir -p perf
+          BASE="${{ github.event.pull_request.base.sha }}"
+          mapfile -t FILES < <(git diff --relative --name-only "$BASE...HEAD" -- 'src' | grep -E '\.(test|spec)\.(ts|tsx)$' || true)
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "no changed frontend test files; full unit suite runs on PR-to-main/nightly"
+            exit 0
+          fi
+          bun x vitest run "${FILES[@]}" --reporter=verbose --reporter=json \
+            --outputFile.json=perf/vitest-timings.json --dir src --exclude 'tests/e2e/**'
+      - name: Guard changed frontend test files run (PR to develop only)
+        if: ${{ always() && github.event_name == 'pull_request' && github.base_ref == 'develop' }}
+        run: |
+          cd stock-screener-ui
+          BASE="${{ github.event.pull_request.base.sha }}"
+          mapfile -t FILES < <(git diff --relative --name-only "$BASE...HEAD" -- 'src' | grep -E '\.(test|spec)\.(ts|tsx)$' || true)
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "no changed frontend test files; guard passed"
+            exit 0
+          fi
+          TESTS=$(python3 -c 'import json; print(json.load(open("perf/vitest-timings.json")).get("numTotalTests", 0))' 2>/dev/null || echo 0)
+          if [ "$TESTS" -eq 0 ]; then
+            echo "::error::changed test files ran 0 tests although test files changed (base $BASE)"
+            echo "Changed frontend test files:"
+            printf '%s\n' "${FILES[@]}"
+            exit 1
+          fi
+          echo "changed frontend test files run executed $TESTS tests (base $BASE)"
+      - name: Summarize vitest timings
+        if: always()
+        run: |
+          cd stock-screener-ui
+          python3 scripts/perf/summarize_vitest.py \
+            --input perf/vitest-timings.json \
+            --output perf/vitest-summary.json
+      - name: Check test budgets (warning only)
+        if: always()
+        continue-on-error: true
+        run: |
+          cd stock-screener-ui
+          python3 scripts/perf/check_test_budgets.py \
+            --budgets perf/budgets.json \
+            --summary perf/vitest-summary.json
+      - name: Upload vitest timing artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-timings-changed
+          path: |
+            stock-screener-ui/perf/vitest-timings.json
+            stock-screener-ui/perf/vitest-summary.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  frontend-unit-full:
+    name: Frontend Unit Tests (${{ matrix.shard }}/4)
+    if: github.event_name == 'pull_request' && github.base_ref == 'main' || github.event_name == 'push' || github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      # Which wall-time budget applies to the summary produced below.
+      PERF_TIER: frontend-full
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.5'
+      - run: cd stock-screener-ui && bun install --frozen-lockfile
+      - name: Run unit tests (shard)
+        run: |
+          cd stock-screener-ui
+          mkdir -p perf
+          bun x vitest run --shard=${{ matrix.shard }}/4 --reporter=verbose --reporter=json \
+            --outputFile.json=perf/vitest-timings.json --dir src --exclude 'tests/e2e/**'
+      - name: Summarize vitest timings
+        if: always()
+        run: |
+          cd stock-screener-ui
+          python3 scripts/perf/summarize_vitest.py \
+            --input perf/vitest-timings.json \
+            --output perf/vitest-summary.json
+      - name: Check test budgets (warning only)
+        if: always()
+        continue-on-error: true
+        run: |
+          cd stock-screener-ui
+          python3 scripts/perf/check_test_budgets.py \
+            --budgets perf/budgets.json \
+            --summary perf/vitest-summary.json
+      - name: Upload vitest timing artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-timings-shard-${{ matrix.shard }}
+          path: |
+            stock-screener-ui/perf/vitest-timings.json
+            stock-screener-ui/perf/vitest-summary.json
+          if-no-files-found: warn
+          retention-days: 14
 
   e2e-smoke:
     name: E2E Smoke (22 tests)
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     if: github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'main')
     steps:
       - uses: actions/checkout@v4
@@ -150,19 +385,13 @@ jobs:
       - name: Install Python deps for backend
         run: |
           cd stock-screener-ui/api
-          grep -vE '^(tradingagents|tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
+          grep -vE '^(tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
           # pandas-ta is declared in the ROOT requirements.txt, but this job only
           # installs api/requirements.txt (it cd's into api/). trading/indicators/
           # _engine.py imports it, so 53 test modules failed to COLLECT with
           # "No module named 'pandas_ta'" and the suite never ran.
           uv pip install --system --python 3.12 'pandas-ta==0.4.71b0'
           uv pip install --system --python 3.12 --no-deps tradingview-screener
-          # tradingagents is NOT on PyPI (404) - it was installed locally from a
-          # source that no longer exists. Install it only when resolvable, so a
-          # missing optional dep cannot fail this step and block the whole suite
-          # (it was doing exactly that: Python Unit Tests and E2E never ran).
-          uv pip install --system --python 3.12 --no-deps tradingagents \
-            || echo "::warning::tradingagents unavailable - backend tests run without it"
         env:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
       - name: Start backend API
@@ -190,9 +419,17 @@ jobs:
         env:
           NODE_PATH: ${{ github.workspace }}/stock-screener-ui/node_modules
       - name: Run smoke E2E tests
-        run: cd stock-screener-ui && npx playwright test --grep @smoke
+        # --reporter=blob,list,json keeps the CI blob/list reporters and adds a
+        # machine-readable report; PLAYWRIGHT_JSON_OUTPUT_NAME writes it to disk.
+        run: cd stock-screener-ui && npx playwright test --grep @smoke --reporter=blob,list,json
         env:
           CI: true
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/smoke-report.json
+      - name: Verify app routes with axe
+        run: cd stock-screener-ui && APP_A11Y=1 npx playwright test tests/e2e/app-a11y.spec.ts --workers=2 --reporter=blob,list,json
+        env:
+          CI: true
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/a11y-report.json
       - name: Dump server logs on failure
         if: failure()
         run: |
@@ -208,14 +445,14 @@ jobs:
           retention-days: 7
 
   e2e-full:
-    name: E2E Full (shard ${{ matrix.shard }}/20)
+    name: E2E Full (shard ${{ matrix.shard }}/16)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     if: github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'pull_request' && github.base_ref == 'main')
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -238,19 +475,13 @@ jobs:
       - name: Install Python deps for backend
         run: |
           cd stock-screener-ui/api
-          grep -vE '^(tradingagents|tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
+          grep -vE '^(tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
           # pandas-ta is declared in the ROOT requirements.txt, but this job only
           # installs api/requirements.txt (it cd's into api/). trading/indicators/
           # _engine.py imports it, so 53 test modules failed to COLLECT with
           # "No module named 'pandas_ta'" and the suite never ran.
           uv pip install --system --python 3.12 'pandas-ta==0.4.71b0'
           uv pip install --system --python 3.12 --no-deps tradingview-screener
-          # tradingagents is NOT on PyPI (404) - it was installed locally from a
-          # source that no longer exists. Install it only when resolvable, so a
-          # missing optional dep cannot fail this step and block the whole suite
-          # (it was doing exactly that: Python Unit Tests and E2E never ran).
-          uv pip install --system --python 3.12 --no-deps tradingagents \
-            || echo "::warning::tradingagents unavailable - backend tests run without it"
         env:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
       - name: Start backend API
@@ -278,9 +509,16 @@ jobs:
         env:
           NODE_PATH: ${{ github.workspace }}/stock-screener-ui/node_modules
       - name: Run full E2E tests
-        run: cd stock-screener-ui && npx playwright test --shard=${{ matrix.shard }}/20
+        # --reporter=blob,list,json keeps the CI blob/list reporters and adds a
+        # machine-readable report; PLAYWRIGHT_JSON_OUTPUT_NAME writes it to disk.
+        run: |
+          cd stock-screener-ui
+          FILES=$(python3 scripts/ci/plan_e2e_shard.py --shard ${{ matrix.shard }} --count 16)
+          if [ -z "$FILES" ]; then echo "::error::no specs assigned to shard"; exit 1; fi
+          npx playwright test $FILES --reporter=blob,list,json
         env:
           CI: true
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/report.json
       - name: Dump server logs on failure
         if: failure()
         run: |
@@ -294,3 +532,9 @@ jobs:
           name: e2e-report-shard-${{ matrix.shard }}
           path: stock-screener-ui/test-results/
           retention-days: 7
+      - name: Summarize failed E2E tests
+        # GITHUB_STEP_SUMMARY is provided by Actions; the script never exits non-zero.
+        if: always()
+        continue-on-error: true
+        working-directory: stock-screener-ui
+        run: node scripts/ci/summarize-e2e.mjs --shard ${{ matrix.shard }}/16 --report test-results/report.json

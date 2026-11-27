@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui/typography";
 import type { ChartColors } from "./types";
 import { formatVolume } from "../chartUtils";
 
@@ -20,11 +21,22 @@ function isMultiDayLabel(value: string): boolean {
   return value.includes(" ") && value.substring(0, value.indexOf(" ")).includes("-");
 }
 
+/** Loose ECharts option bag: each field is a different nested shape and the
+ *  callers only ever assign/read a handful of known keys. */
+export type EChartsBag = Record<string, any>;
+
+/** Known axis fields, plus room for the rest of ECharts' axis option. */
+export interface ChartAxis extends EChartsBag {
+  data?: string[];
+  min?: number | string;
+  max?: number | string;
+}
+
 interface GridResult {
-  grids: any[];
-  xAxes: any[];
-  yAxes: any[];
-  dataZoom: any[];
+  grids: EChartsBag[];
+  xAxes: ChartAxis[];
+  yAxes: ChartAxis[];
+  dataZoom: EChartsBag[];
 }
 
 export function buildGrid(
@@ -51,7 +63,7 @@ export function buildGrid(
           boundaryGap: true,
           axisLine: { lineStyle: { color: colors.borderColor } },
           axisLabel: {
-            fontSize: 10,
+            fontSize: typeSize("micro"),
             color: colors.mutedColor,
             rotate: 0,
             interval: 0,
@@ -76,14 +88,14 @@ export function buildGrid(
         {
           scale: true,
           axisLine: { lineStyle: { color: colors.borderColor } },
-          axisLabel: { color: colors.mutedColor, fontSize: 10 },
+          axisLabel: { color: colors.mutedColor, fontSize: typeSize("micro") },
           splitLine: { lineStyle: { color: colors.gridLineColor } },
         },
         {
           scale: true,
           gridIndex: 1,
           axisLine: { show: false },
-          axisLabel: { show: true, color: colors.mutedColor, fontSize: 9, formatter: (value: number) => formatVolume(value) },
+          axisLabel: { show: true, color: colors.mutedColor, fontSize: typeSize("micro"), formatter: (value: number) => formatVolume(value) },
           splitLine: { show: false },
         },
       ],

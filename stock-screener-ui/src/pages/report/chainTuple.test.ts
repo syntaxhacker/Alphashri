@@ -1,6 +1,3 @@
-/**
- * Tests for the canonical chain-tuple accessors.
- */
 import { describe, expect, test } from "vitest";
 import {
   CHAIN_CE_LTP,
@@ -25,7 +22,6 @@ describe("chainTuple constants", () => {
   });
 
   test("ChainTuple type is the canonical NiftyTapeChainTuple (6 elements)", () => {
-    // Type test: if this compiles, the type alias is correct
     const tuple: ChainTuple = [10, 12, 1000, 2000, 500, 400];
     expect(tuple).toHaveLength(6);
   });
@@ -109,7 +105,7 @@ describe("chainLeg", () => {
 
   test("handles short tuples gracefully", () => {
     const chain = {
-      "25000": [100, 110] as unknown as ChainTuple, // only 2 elements
+      "25000": [100, 110] as unknown as ChainTuple,
     };
     const leg = chainLeg(chain, 25000);
     expect(leg).toEqual({

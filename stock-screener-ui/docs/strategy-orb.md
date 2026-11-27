@@ -305,7 +305,7 @@ All positions are force-closed at 14:45 IST (45 minutes before 15:30 market clos
 
 ```mermaid
 graph TD
-    subgraph Frontend["Frontend (React)"]
+    subgraph Frontend["Frontend (SolidJS)"]
         UI["Backtest UI\nStrategy Config"]
     end
 

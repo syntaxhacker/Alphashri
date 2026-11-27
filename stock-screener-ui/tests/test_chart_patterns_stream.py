@@ -139,9 +139,6 @@ def _no_heartbeat(events: list) -> list:
     return [(name, data) for name, data in events if name != "heartbeat"]
 
 
-# ---------------------------------------------------------------------------
-# /results/stream
-# ---------------------------------------------------------------------------
 
 
 def test_results_stream_meta_items_done_match_batch(cp_client, monkeypatch):
@@ -151,10 +148,6 @@ def test_results_stream_meta_items_done_match_batch(cp_client, monkeypatch):
     })
     store.save_hits("cpj_stream", [_hit("AAA"), _hit("BBB", name="B Co"), _hit("CCC")])
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
 
     batch = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_stream"})
     assert batch.status_code == 200
@@ -186,7 +179,6 @@ def test_results_stream_meta_items_done_match_batch(cp_client, monkeypatch):
     # Well-formed card shape.
     for item in streamed:
         assert item["candles"] and item["last_close"] is not None
-        assert isinstance(item["trend_lines"], list)
 
 
 def test_results_stream_items_arrive_progressively(monkeypatch):
@@ -199,17 +191,12 @@ def test_results_stream_items_arrive_progressively(monkeypatch):
         return _make_df(80)
 
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
     items = [_hit("SLOW"), _hit("FAST"), _hit("MID")]
 
     async def _main():
         gen = cp_api._results_sse_events(
             [dict(it) for it in items], default_timeframe="1D", lookback_bars=None,
-            compute_trendlines=True, total=3, summary={}, data_through=None,
-            request=None,
+            total=3, summary={}, data_through=None, request=None,
         )
         events = [_parse_one(await gen.__anext__())]
         # SLOW is still blocked on the gate: the next frame must already be a
@@ -267,9 +254,6 @@ def test_results_stream_store_failure_emits_error(cp_client, monkeypatch):
         cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_any"})
 
 
-# ---------------------------------------------------------------------------
-# /watch/stream
-# ---------------------------------------------------------------------------
 
 
 def test_watch_stream_live_rows(cp_client, monkeypatch):
@@ -427,9 +411,6 @@ def test_watch_stream_empty_arm_meta_then_done(cp_client, monkeypatch):
     assert events[-1] == ("done", {})
 
 
-# ---------------------------------------------------------------------------
-# GZip exclusion (streams must never buffer behind compression)
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -477,10 +458,6 @@ def test_stream_is_excluded_from_gzip_and_delivers_events(gz_stream_client, monk
     })
     store.save_hits("cpj_gz_stream", [_hit("AAA"), _hit("BBB", name="B Co")])
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
-    monkeypatch.setattr(
-        cp_api.trendlines_mod, "detect_trendlines",
-        lambda df, lookback_bars=None: {"support": None, "resistance": None},
-    )
 
     resp = gz_stream_client.get(
         "/api/chart-patterns/results/stream",

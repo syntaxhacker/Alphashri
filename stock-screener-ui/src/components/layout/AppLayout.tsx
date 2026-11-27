@@ -1,174 +1,196 @@
-import { useLocation } from "react-router-dom";
-import { useCallback, useEffect, useState } from "react";
+import { Show, createEffect, createSignal, onCleanup, type JSX } from "solid-js";
+import { useLocation } from "@solidjs/router";
 import { useDisclosure } from "@/ui/hooks";
-import { Box, Divider } from "@/ui";
-import MuiDrawer from "@mui/material/Drawer";
-import IconButton from "@mui/material/IconButton";
-import useMediaQuery from "@mui/material/useMediaQuery";
-import { useTheme } from "@mui/material/styles";
-import { IconMenu2 } from "@tabler/icons-react";
+import { Box, Divider, ActionIcon } from "@/ui";
+import * as palette from "@/ui/palette";
+import { useMediaQuery } from "@/ui/hooks";
+import { IconMenu2 } from "../common/Icons";
 import { NavbarNested } from "./NavbarNested";
 import { SidebarHeader } from "./SidebarHeader";
 import { NotificationsPanel, useSurgeAlertTotal } from "../notifications/NotificationsPanel";
 
 interface AppLayoutProps {
-  children: React.ReactNode;
+  children?: JSX.Element;
 }
 
-export function AppLayout({ children }: AppLayoutProps) {
+const MD_BREAKPOINT = "(min-width: 900px)";
+
+export function AppLayout(props: AppLayoutProps) {
   const location = useLocation();
-  const theme = useTheme();
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   const [desktopCollapsed, { toggle: toggleDesktop }] = useDisclosure(false);
   // Only one navigation tree is mounted at a time: the hidden permanent drawer
   // used to keep all 19 links (and the news poller) alive on phones.
-  const isDesktop = useMediaQuery(theme.breakpoints.up("md"), { noSsr: true });
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [notifRefreshKey, setNotifRefreshKey] = useState(0);
+  const isDesktop = useMediaQuery(MD_BREAKPOINT, undefined, { noSsr: true });
+  const [notifOpen, setNotifOpen] = createSignal(false);
+  const [notifRefreshKey, setNotifRefreshKey] = createSignal(0);
+  // Read-through accessor: the surge total refetches when the key bumps.
   const surgeTotal = useSurgeAlertTotal(notifRefreshKey);
-  const navWidth = desktopCollapsed ? 64 : 200;
+  const navWidth = () => (desktopCollapsed() ? 48 : 148);
 
   // The desk dock drawer is portaled to <body>, outside #app-shell; publish the
   // nav width on the root so the bottom sheet aligns with the main column.
-  useEffect(() => {
-    document.documentElement.style.setProperty("--app-nav-width", `${navWidth}px`);
-    return () => {
+  createEffect(() => {
+    document.documentElement.style.setProperty("--app-nav-width", `${navWidth()}px`);
+    // The mobile bar already reserves the navigation gutter in flow. Publishing
+    // 0px lets standalone CompactPage headers skip their fallback inset so the
+    // title still lines up with the panel below it.
+    document.documentElement.style.setProperty("--app-mobile-nav-gutter", "0px");
+    onCleanup(() => {
       document.documentElement.style.removeProperty("--app-nav-width");
-    };
-  }, [navWidth]);
+      document.documentElement.style.removeProperty("--app-mobile-nav-gutter");
+    });
+  });
 
-  const handleNotifOpen = useCallback(() => setNotifOpen(true), []);
-  const handleNotifClose = useCallback(() => {
+  const handleNotifOpen = () => setNotifOpen(true);
+  const handleNotifClose = () => {
     setNotifOpen(false);
     setNotifRefreshKey((key) => key + 1);
-  }, []);
+  };
 
-  const drawerContent = (
+  const drawerContent = () => (
     <NavbarNested
       activePath={location.pathname}
-      collapsed={desktopCollapsed}
+      collapsed={desktopCollapsed()}
       onMobileNavigate={closeMobile}
     />
   );
 
   return (
     <Box
-      sx={{
+      className="flex h-screen overflow-hidden bg-fin-bg"
+      style={{
         display: "flex",
         height: "100vh",
         overflow: "hidden",
-        bgcolor: "background.default",
+        "background-color": palette.BG,
       }}
       id="app-shell"
       data-testid="app-shell"
     >
-      {/* No top app bar: on narrow viewports the rail is a temporary drawer, so
-          a floating trigger replaces the header hamburger without a bar. */}
-      <IconButton
-        aria-label="Toggle navigation"
-        onClick={toggleMobile}
-        data-testid="app-mobile-nav-toggle"
-        sx={{
-          display: { xs: "inline-flex", md: "none" },
-          position: "fixed",
-          top: 8,
-          left: 8,
-          zIndex: (t) => t.zIndex.drawer - 1,
-          width: 36,
-          height: 36,
-          bgcolor: "background.paper",
-          border: 1,
-          borderColor: "divider",
-          boxShadow: 2,
-          "&:hover": { bgcolor: "action.hover" },
-        }}
-      >
-        <IconMenu2 size={18} />
-      </IconButton>
+      <NotificationsPanel opened={notifOpen()} onClose={handleNotifClose} />
 
-      <NotificationsPanel opened={notifOpen} onClose={handleNotifClose} />
-
-      {!isDesktop ? (
-      <MuiDrawer
-        variant="temporary"
-        open={mobileOpened}
-        onClose={closeMobile}
-        sx={{
-          display: { xs: "block", md: "none" },
-          "& .MuiDrawer-paper": { width: 220, boxSizing: "border-box" },
-        }}
-      >
-        <SidebarHeader
-          mobile
-          surgeTotal={surgeTotal}
-          onToggleCollapse={toggleDesktop}
-          onOpenNotifications={handleNotifOpen}
-        />
-        <Divider />
-        {drawerContent}
-      </MuiDrawer>
-      ) : null}
-
-      {isDesktop ? (
-      <MuiDrawer
-        variant="permanent"
-        id="app-navbar"
-        data-testid="app-navbar"
-        sx={{
-          display: { xs: "none", md: "block" },
-          width: navWidth,
-          flexShrink: 0,
-          "& .MuiDrawer-paper": {
-            width: navWidth,
-            boxSizing: "border-box",
-            transition: theme.transitions.create("width", {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.enteringScreen,
-            }),
-            // The nav body owns the only scrollbar: the drawer paper is just a
-            // fixed-width flex column (header + nav + footer).
+      <Show when={!isDesktop()}>
+        <div
+          style={{
+            display: mobileOpened() ? "flex" : "none",
+            position: "fixed",
+            top: "0px",
+            left: "0px",
+            bottom: "0px",
+            width: "168px",
+            "box-sizing": "border-box",
+            "flex-direction": "column",
+            "min-height": "0px",
             overflow: "hidden",
-          },
-        }}
-        open
-      >
-        <SidebarHeader
-          rail={desktopCollapsed}
-          surgeTotal={surgeTotal}
-          onToggleCollapse={toggleDesktop}
-          onOpenNotifications={handleNotifOpen}
-        />
-        <Divider />
-        {drawerContent}
-      </MuiDrawer>
-      ) : null}
+            "z-index": 1300,
+          }}
+        >
+          <SidebarHeader
+            mobile
+            surgeTotal={surgeTotal()}
+            onToggleCollapse={toggleDesktop}
+            onOpenNotifications={handleNotifOpen}
+          />
+          <Divider />
+          {drawerContent()}
+        </div>
+      </Show>
+
+      <Show when={isDesktop()}>
+        <div
+          id="app-navbar"
+          data-testid="app-navbar"
+          style={{
+            display: "flex",
+            width: `${navWidth()}px`,
+            "flex-direction": "column",
+            "flex-shrink": "0",
+            "min-height": "0px",
+            transition: "width 0.2s ease-in-out",
+            overflow: "hidden",
+          }}
+        >
+          <SidebarHeader
+            rail={desktopCollapsed()}
+            surgeTotal={surgeTotal()}
+            onToggleCollapse={toggleDesktop}
+            onOpenNotifications={handleNotifOpen}
+          />
+          <Divider />
+          {drawerContent()}
+        </div>
+      </Show>
 
       <Box
         component="main"
-        sx={{
-          flexGrow: 1,
-          minWidth: 0,
-          minHeight: 0,
-          overflow: "auto",
-          bgcolor: "background.default",
+        className="flex-1 min-w-0 min-h-0 overflow-hidden bg-fin-bg flex flex-col"
+        style={{
+          "flex-grow": 1,
+          "min-width": "0px",
+          "min-height": "0px",
+          overflow: "hidden",
+          "background-color": palette.BG,
           display: "flex",
-          flexDirection: "column",
+          "flex-direction": "column",
         }}
         id="app-main"
         data-testid="app-main"
       >
+        {/* Below 900px the rail is a temporary drawer. Its toggle lives in a
+            real 44px-tall bar pinned to the top of this scroll column instead
+            of floating over the page, so every header starts underneath it and
+            no title is clipped by the control (390px used to read "ptions
+            replay"). The bar is sticky, so it keeps the gutter while scrolling. */}
+        <Show when={!isDesktop()}>
+          <div
+            data-testid="app-mobile-nav-bar"
+            className="sticky top-0 z-[1299] flex h-11 shrink-0 items-center bg-fin-bg px-1"
+            style={{
+              position: "sticky",
+              top: "0px",
+              "z-index": 1299,
+              display: "flex",
+              "align-items": "center",
+              "flex-shrink": 0,
+              height: "44px",
+              "box-sizing": "border-box",
+              "padding-left": "4px",
+              "padding-right": "4px",
+              "background-color": palette.BG,
+            }}
+          >
+            <ActionIcon
+              aria-label="Toggle navigation"
+              onClick={toggleMobile}
+              data-testid="app-mobile-nav-toggle"
+              className="rounded-fin border border-fin-border"
+              style={{
+                display: "inline-flex",
+                width: "36px",
+                height: "36px",
+                "background-color": palette.SURFACE,
+                border: `1px solid ${palette.BORDER}`,
+              }}
+            >
+              <IconMenu2 size={18} />
+            </ActionIcon>
+          </div>
+        </Show>
+
         <Box
-          sx={{
+          className="flex-1 min-h-0 flex flex-col w-full"
+          style={{
             flex: 1,
-            minHeight: 0,
+            "min-height": "0px",
             display: "flex",
-            flexDirection: "column",
+            "flex-direction": "column",
             width: "100%",
-            p: 0,
-            m: 0,
+            padding: "0px",
+            margin: "0px",
           }}
         >
-          {children}
+          {props.children}
         </Box>
       </Box>
     </Box>

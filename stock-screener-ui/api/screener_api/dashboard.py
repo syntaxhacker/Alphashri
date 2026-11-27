@@ -25,9 +25,11 @@ rupees before paneling).
 
 Fail-soft: any error returns ``{sections: []}`` (never 500). A small
 in-process TTL cache (60 s) keyed by (universe, limit, min_market_cap_cr)
-avoids hammering TV; a background ``dashboard_prewarm_task`` (same pattern
-as ``watch_snapshot_task``) keeps the default universe(s) warm every ~60 s
-in market hours.
+avoids rebuilding panels, and the upstream TV frame is cached by the shared
+``api.tv.cache`` (one descriptor, one scan per window) across every universe
+and filter combo. A background
+``dashboard_prewarm_task`` (same pattern as ``watch_snapshot_task``) keeps
+the default universe(s) warm every ~60 s in market hours.
 """
 
 from __future__ import annotations
@@ -43,7 +45,8 @@ from typing import Any, Optional
 from fastapi import APIRouter, Query
 
 from api.utils import _sanitize_for_json
-from api.tv import get_scanner_data, SCREENER_COLUMNS
+from api.tv import SCREENER_COLUMNS
+from api.tv.cache import FrameDescriptor, invalidate, scan_frame_cached
 
 router = APIRouter(prefix="/api/screener", tags=["screener"])
 
@@ -56,9 +59,21 @@ CACHE_TTL_SECONDS = 60
 SPARK_BARS = 30
 SPARK_MAX_SYMBOLS = 60
 SPARK_WORKERS = 6
-TV_LIMIT = 3000
+# 4000, not 3000. This is an input cap, not what bounds the panels: measured,
+# TV returns 4,000 rows for `india` either way and only ~2,450 of those are in
+# the `all_equity` universe list, which is the real binding limit
+# (`_frame_to_records` drops anything outside `allowed`). Raising this changes
+# nothing today; it stops the constant from being the next ceiling.
+TV_LIMIT = 4000
 
 _cache: dict[str, tuple[float, dict]] = {}
+
+# The full India frame is the same scan for every universe and every set of UI
+# filters. The shared api.tv.cache owns its TTL/LRU/singleflight; this module
+# only names the query so prewarm and all filter variants hit the same entry.
+_INDIA_FRAME = FrameDescriptor(
+    market="india", columns=TV_FIELDS, limit=TV_LIMIT,
+)
 
 
 def logo_url(logoid: Any) -> Optional[str]:
@@ -118,19 +133,6 @@ def _row_symbol(row: dict) -> str:
     if ":" in ticker:
         ticker = ticker.split(":")[-1]
     return ticker
-
-
-def _fetch_tv_frame() -> Any:
-    from tradingview_screener import Query
-
-    q = (
-        Query()
-        .select(*TV_FIELDS)
-        .set_markets("india")
-        .limit(TV_LIMIT)
-    )
-    _, df = get_scanner_data(q)
-    return df
 
 
 def _fetch_sparks(symbols: list[str]) -> dict[str, list[float]]:
@@ -553,7 +555,8 @@ async def run_dashboard_prewarm_once(
             from chart_patterns.universes import get_universe
 
             allowed = {str(s).upper() for s in get_universe(uid)}
-            df = await asyncio.to_thread(_fetch_tv_frame)
+            df = await asyncio.to_thread(
+                scan_frame_cached, _INDIA_FRAME, CACHE_TTL_SECONDS)
             records = _frame_to_records(df, allowed)
             floor = float(min_market_cap_cr) * 1e7
             records = [
@@ -625,7 +628,8 @@ async def screener_dashboard(
         from chart_patterns.universes import get_universe
 
         allowed = {str(s).upper() for s in get_universe(uid)}
-        df = await asyncio.to_thread(_fetch_tv_frame)
+        df = await asyncio.to_thread(
+            scan_frame_cached, _INDIA_FRAME, CACHE_TTL_SECONDS)
         records = _frame_to_records(df, allowed)
         floor = float(min_market_cap_cr) * 1e7
         records = [
@@ -642,5 +646,6 @@ async def screener_dashboard(
 
 
 def clear_cache() -> None:
-    """Test hook: drop the in-process TTL cache."""
+    """Test hook: drop the payload cache and the shared India frame."""
     _cache.clear()
+    invalidate(_INDIA_FRAME)

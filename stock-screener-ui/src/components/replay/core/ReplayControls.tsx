@@ -1,18 +1,10 @@
 // ReplayControls — presentational playback control strip (play/pause, speed, scrub slider,
 // clock/trade summary + loading/error chips). Strategy-specific parameter controls are
 // injected via `children` so this core component stays strategy-agnostic.
-import type { ReactNode } from "react";
-import Stack from "@mui/material/Stack";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import MenuItem from "@mui/material/MenuItem";
-import Slider from "@mui/material/Slider";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
+import { For, type JSX } from "solid-js";
+import { Button, Select, Text, Chip, Stack, Box } from "@/ui";
 import { fmtClock } from "../format";
 import * as palette from "@/ui/palette";
-
 export const SPEEDS = [1, 5, 15, 60, 300];
 
 export interface ReplayControlsProps {
@@ -31,32 +23,48 @@ export interface ReplayControlsProps {
   onSpeedChange: (speed: number) => void;
   onJump: (t: number) => void;
   /** strategy-specific parameter controls rendered after Speed */
-  children?: ReactNode;
+  children?: JSX.Element;
 }
 
-export default function ReplayControls({
-  playing, loading, disabled, speed, t0, tEnd, clock,
-  closedCount, revealedCount, net, error,
-  onPlayToggle, onSpeedChange, onJump, children,
-}: ReplayControlsProps) {
+export default function ReplayControls(props: ReplayControlsProps) {
   return (
-    <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: "center", flexWrap: "wrap" }}>
-      <Button size="small" variant="contained" onClick={onPlayToggle} disabled={disabled}>
-        {playing ? "⏸ Pause" : "▶ Play"}
+    <Stack direction="row" gap="sm" mb="sm" align="center" wrap="wrap">
+      <Button size="sm" variant="filled" onClick={props.onPlayToggle} disabled={props.disabled}>
+        {props.playing ? "⏸ Pause" : "▶ Play"}
       </Button>
-      <TextField size="small" select value={speed} onChange={e => onSpeedChange(Number(e.target.value))} sx={{ width: 110 }} label="Speed">
-        {SPEEDS.map(s => <MenuItem key={s} value={s}>{s}x</MenuItem>)}
-      </TextField>
-      {children}
-      <Box sx={{ flex: 1, minWidth: 200, px: 1 }}>
-        <Slider size="small" min={t0} max={tEnd} step={1} value={Math.round(clock)}
-          onChange={(_, v) => onJump(v as number)} aria-label="replay position" />
+      <Select
+        size="sm"
+        w={110}
+        value={String(props.speed)}
+        onChange={(v) => props.onSpeedChange(Number(v ?? ""))}
+        label="Speed"
+        data-testid="replay-speed-select"
+      >
+        <For each={SPEEDS}>{(s) => (
+          <option value={s}>
+            {s}x
+          </option>
+        )}</For>
+      </Select>
+      {props.children}
+      <Box flex="1" miw={200} px="sm">
+        <input
+          type="range"
+          min={props.t0}
+          max={props.tEnd}
+          step={1}
+          value={Math.round(props.clock)}
+          onInput={(e) => props.onJump(Number(e.currentTarget.value))}
+          aria-label="replay position"
+          class="w-full"
+          style={{ "accent-color": palette.TEXT }}
+        />
       </Box>
-      <Typography variant="caption" sx={{ color: "#E5E7EB", fontFamily: "monospace" }}>
-        {clock > 0 ? fmtClock(clock) : "--:--:--"} · {closedCount}/{revealedCount} closed · net {net > 0 ? "+" : ""}{net.toFixed(1)}
-      </Typography>
-      {loading && <Chip size="small" label="loading ticks…" sx={{ bgcolor: "#1F2937", color: palette.PRIMARY }} />}
-      {error && <Chip size="small" label={error} sx={{ bgcolor: "#3B1D1D", color: "#F87171" }} />}
+      <Text size="xs" className="font-mono tabular-nums" style={{ color: palette.REPLAY_CHART_TEXT }}>
+        {props.clock > 0 ? fmtClock(props.clock) : "--:--:--"} · {props.closedCount}/{props.revealedCount} closed · net {props.net > 0 ? "+" : ""}{props.net.toFixed(1)}
+      </Text>
+      {props.loading && <Chip size="sm" style={{ "background-color": palette.REPLAY_CHIP_BG, color: palette.PRIMARY }}>loading ticks…</Chip>}
+      {props.error && <Chip size="sm" style={{ "background-color": palette.REPLAY_CHIP_BG_ERROR, color: palette.REPLAY_CHIP_TEXT_ERROR }}>{props.error}</Chip>}
     </Stack>
   );
 }

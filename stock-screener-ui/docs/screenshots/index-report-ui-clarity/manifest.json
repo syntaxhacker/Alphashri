@@ -1,0 +1,91 @@
+{
+  "feature": "index-report-ui-clarity",
+  "route": "/report/index",
+  "head": "25079b7c9efde6a438b6bfc1cb5dc3670f564465",
+  "viewports": [
+    1600,
+    390
+  ],
+  "sha256": {
+    "index-report-monitor-loaded-1600.png": "746bab169986df3cedfeb1199b34a9f644db8084d8c904b52df884f503bb115b",
+    "index-report-monitor-loaded-390.png": "83c0d1bcf99425b993106913d499ff407bea5e2abbef4bd63070e291965f5c45",
+    "index-report-desk-loaded-1600.png": "c839eb591c567d25ac25a0fbe0294dd5cc28fd9689ccfc3f69a3a70d956d015a",
+    "index-report-desk-loaded-390.png": "ae2f7c521f3ce71d736eb5acee359b66712bf454c09c6d2a8ca2a2a490f5c31a",
+    "index-report-gex-1600.png": "7db0fb47a4bff95963bdd71207123fc6f3c0c4621823792726011c5db9741981",
+    "index-report-gex-390.png": "38498eadf75fcde28eb385a2a9f489b17bddaf7de7d3a6571e59ca6c59ffeeff",
+    "index-report-all-stats-popover-1600.png": "a171f2f4f2c7d81b6fb0b3ab1a9c1eea890c09896b46343c2da4326208a2ad49",
+    "index-report-all-stats-popover-390.png": "80ad1224cf4bca29061856ef179b6d94052b2f9d8fba27879ffe3c4715aff37b",
+    "index-report-loading-1600.png": "778e07f1351249ebb0f86f66e5bf302b5d48f2377e1696f127d8815a6c1fb372",
+    "index-report-loading-390.png": "ba3a4c3d271a41c8b62b886476d66258cfde0e097613da79ec624e81cec7f790",
+    "index-report-error-1600.png": "b9c09de1e72e9645973c0b4ce16d4ca47d7b6ef25fca292ced487b6199ff486c",
+    "index-report-error-390.png": "369fb371aeacab3864c97167ba42ae85a48c44eab1fd8edf930efee2df53b83f",
+    "index-report-snapshot-empty-1600.png": "9e6801441639a60e5425b02f3042f2b074526139df1f21ea28fa1a1ffee54aa6",
+    "index-report-snapshot-empty-390.png": "f8db6a5a43d24934900c02f43a85f20589c45a394b5baa9c8bc7a5725fff94af"
+  },
+  "states": [
+    {
+      "id": "monitor-loaded",
+      "files": {
+        "1600": "index-report-monitor-loaded-1600.png",
+        "390": "index-report-monitor-loaded-390.png"
+      },
+      "covers": "Chart-first monitor view with a loaded report (spot 22,363, candles, EMA9 overlay legend, OI chain, movers, walls and heatmap at 1600). Full HH:MM time-axis ticks asserted in-browser at both widths; stale freshness 44d."
+    },
+    {
+      "id": "desk-loaded",
+      "files": {
+        "1600": "index-report-desk-loaded-1600.png",
+        "390": "index-report-desk-loaded-390.png"
+      },
+      "covers": "DESK view with real panel content (chart, chain, walls, flow, options analytics and a populated movers strip with TCS/INFY/WIPRO). No section error banner; full HH:MM time-axis ticks asserted at both widths."
+    },
+    {
+      "id": "gex",
+      "files": {
+        "1600": "index-report-gex-1600.png",
+        "390": "index-report-gex-390.png"
+      },
+      "covers": "DESK > OPTIONS ANALYTICS after a real page.click on the GEX tab: aria-pressed=true on GEX, false on Futures, and a populated GEX profile panel (net -142.60 Cr/pt, zero cross 22,350, gamma ramp) visible at both viewports."
+    },
+    {
+      "id": "all-stats-popover",
+      "files": {
+        "1600": "index-report-all-stats-popover-1600.png",
+        "390": "index-report-all-stats-popover-390.png"
+      },
+      "covers": "MONITOR view with the ALL STATS disclosure opened via nifty-live-tape-toggle; bounded popover shows the report snapshot including spot 22,363. Full HH:MM time-axis ticks asserted at both widths."
+    },
+    {
+      "id": "loading",
+      "files": {
+        "1600": "index-report-loading-1600.png",
+        "390": "index-report-loading-390.png"
+      },
+      "covers": "Report shell while nifty-report-loading is visible (MOCKED: delayed /api/reports/nifty/live route handler)."
+    },
+    {
+      "id": "error",
+      "files": {
+        "1600": "index-report-error-1600.png",
+        "390": "index-report-error-390.png"
+      },
+      "covers": "Report shell error banner (MOCKED: /api/reports/nifty/live fulfilled with HTTP 500 and detail 'mock failure'); exactly one alert carries the failure copy."
+    },
+    {
+      "id": "snapshot-empty",
+      "files": {
+        "1600": "index-report-snapshot-empty-1600.png",
+        "390": "index-report-snapshot-empty-390.png"
+      },
+      "covers": "App's real no-payload fallback reached by selecting EOD with no session date; nifty-report-empty-reason names the last recorded snapshot ('Snapshot 10:00 \u00b7 2026-10-12 \u2014 no live report for this selection')."
+    }
+  ],
+  "notes": [
+    "Recaptured with a temporary 14-test Playwright harness at UI head 20510c0a997b197a6d53853d6fd5e3d8df9b5689 ('fix: reserve chart axis gutter for full time labels'), overwriting the previous head-2db3dcd1 set. The temp spec is deleted after capture; no git writes were made.",
+    "Loaded/GEX/popover frames use setupApiMocks, loginAsTestUser, setupNiftyTapeMocks and setupNiftyReportMocks plus enriched report/tape/walls/movers route payloads so no window is left in Loading or NO DATA; the app renders the real UI from those seeded responses. The report payload sets market.is_open=true for real movers rows (the shell's MARKET CLOSED chrome comes from the app market clock) and carries a full GEX block so the GEX tab shows real profile values rather than dashes.",
+    "GEX is selected by a real Playwright click on report-analytics-tab-gex after the DESK view opens; aria-pressed flips to true and Futures to false before the screenshot.",
+    "Time-axis assertion: the production chart has no chart-time-first-label / chart-time-last-label DOM nodes (those testids exist only in NiftyChartPanel.geometry.test.tsx's TradingViewChart mock). The harness therefore patches CanvasRenderingContext2D.fillText scoped to nifty-chart-wrap, asserts --chart-time-label-gutter is 24px and data-pinned-candles is 10, then checks the first and last drawn tick texts are complete HH:MM with their measured boxes inside the chart canvas. At 1600 they are 09:15 and 10:00; at 390 the engine drops intermediate ticks and shows 09:30 and 10:00, both complete.",
+    "loading and error are deliberately mocked with Playwright route handlers; no live server state can produce them on demand. snapshot-empty is not mocked: it is the application's own no-payload selection state with a single explicit reason line.",
+    "All 14 PNGs are viewport-sized captures (1600x1000 and 390x844) and were read back after writing to confirm complete 09:15 / 10:00 labels at 1600 and 09:30 / 10:00 at 390."
+  ]
+}

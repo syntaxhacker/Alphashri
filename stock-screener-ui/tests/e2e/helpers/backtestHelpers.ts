@@ -153,14 +153,19 @@ export async function selectSymbolFromMultiselect(
   symbol: string = "RELIANCE",
   delay: number = 50,
 ) {
-  const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-  await symbolSelect.click({ force: true });
+  // Click the <input>, not the wrapper div: the wrapper click lands on padding,
+  // leaves focus on <body> and never opens the listbox (aria-expanded stays
+  // false), so the typed keys go nowhere and no option ever appears.
+  const searchInput = page.locator('[data-testid="symbol-multiselect"] input');
+  await searchInput.click();
+  await expect(page.locator('[data-part="multiselect-listbox"]')).toBeVisible({ timeout: 5000 });
   await page.keyboard.type(symbol, { delay });
-  await expect(page.locator('[role="option"]').first()).toBeVisible({ timeout: 5000 });
-  const option = page.locator('[role="option"]').first();
-  if (await option.isVisible()) {
-    await option.click();
-  }
+  // The dropdown renders a "No symbols found" placeholder (role=option)
+  // before the 300 ms search debounce resolves; match the real row by text
+  // or the click lands on the placeholder and no symbol is selected.
+  const option = page.locator('[role="option"]', { hasText: symbol }).first();
+  await expect(option).toBeVisible({ timeout: 5000 });
+  await option.click();
 }
 
 export async function withTradeHistoryPanel(page: Page, fn: () => Promise<void>) {
@@ -191,13 +196,13 @@ export async function selectSymbolAndRun(page: Page, symbol: string = "RELIANCE"
 
   const searchInput = page.locator('[data-testid="symbol-multiselect"] input');
   await searchInput.click();
-  await page.waitForTimeout(500);
+  await expect(page.locator('[data-part="multiselect-listbox"]')).toBeVisible({ timeout: 5000 });
 
   const clearBtn = page.locator('[data-testid="clear-symbols-btn"]');
   const clearBtnVisible = await clearBtn.isVisible().catch(() => false);
   if (clearBtnVisible) {
     await clearBtn.click({ force: true });
-    await page.waitForTimeout(500);
+    await expect(clearBtn).toBeHidden({ timeout: 5000 });
   }
 
   for (const sym of ["NETWEB", "SBILIFE"]) {
@@ -208,13 +213,13 @@ export async function selectSymbolAndRun(page: Page, symbol: string = "RELIANCE"
       const count = await removeBtn.count();
       if (count > 0) {
         await removeBtn.first().click({ force: true });
-        await page.waitForTimeout(300);
+        await expect(chip).toBeHidden({ timeout: 5000 });
       } else {
         const svg = chip.locator("svg");
         const svgCount = await svg.count();
         if (svgCount > 0) {
           await svg.first().click({ force: true });
-          await page.waitForTimeout(300);
+          await expect(chip).toBeHidden({ timeout: 5000 });
         }
       }
     }
@@ -222,8 +227,9 @@ export async function selectSymbolAndRun(page: Page, symbol: string = "RELIANCE"
 
   await searchInput.focus();
   await page.keyboard.type(symbol, { delay: 50 });
-  await page.waitForSelector('[role="option"]', { timeout: 5000 });
-  const option = page.locator('[role="option"]').first();
+  // Match the real row: the dropdown shows a "No symbols found" placeholder
+  // (role=option) until the 300 ms search debounce resolves.
+  const option = page.locator('[role="option"]', { hasText: symbol }).first();
   await option.waitFor({ state: "visible", timeout: 5000 });
   await option.click();
   const runBtn = page.locator('[data-testid="run-backtest-btn"]');

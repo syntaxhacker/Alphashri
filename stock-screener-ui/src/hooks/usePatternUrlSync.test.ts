@@ -1,34 +1,105 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi } from "vitest";
-import { useSearchParams } from "react-router-dom";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { useSearchParams } from "@solidjs/router";
 import {
   parsePatternParams,
   buildPatternParams,
   filterValuesEqual,
+  usePatternUrlSync,
   type UsePatternUrlSyncArgs,
 } from "./usePatternUrlSync";
 import { DEFAULT_PATTERN_FILTERS } from "../state/chartPatterns";
-import {
-  urlSyncSetSearchParams as setSearchParams,
-  setMockUrl,
-  urlSyncArgsBase,
-  registerUrlSyncTestHarness,
-  renderPatternUrlSync,
-  expectNoUrlSyncCalls,
-  expectUrlWrite,
-} from "./testFixtures";
+import { renderSolidHookReactive } from "../test-utils/solidRenderHook";
 
-vi.mock("react-router-dom", () => ({
+vi.mock("@solidjs/router", () => ({
   useSearchParams: vi.fn(() => [new URLSearchParams(), vi.fn()]),
 }));
 
 const mockedUseSearchParams = vi.mocked(useSearchParams);
 
-registerUrlSyncTestHarness();
+// ---- local URL-sync harness (the shared React fixtures are gone) ----------
+/** The single params object the mocked `useSearchParams` always hands out.
+ * It is mutated in place: the hook captures the tuple once at mount, so a new
+ * `URLSearchParams` instance would be invisible to it. */
+const mockParams = new URLSearchParams();
+
+/** Point the mocked useSearchParams at the given query string. */
+function setMockUrl(url: string): void {
+  const next = new URLSearchParams(url);
+  for (const key of Array.from(mockParams.keys())) mockParams.delete(key);
+  for (const [key, value] of next) mockParams.append(key, value);
+  mockedUseSearchParams.mockReturnValue([
+    mockParams,
+    setSearchParams,
+  ] as never);
+}
+
+/** Write spy that behaves like the router: the URL now reports what was written. */
+const setSearchParams = vi.fn((next: URLSearchParams) => {
+  setMockUrl(next.toString());
+});
+
+/** Base args shared by the URL-sync suites. */
+function urlSyncArgsBase() {
+  return {
+    universe: "",
+    timeframe: "1D",
+    lookbackBars: null,
+    filters: { ...DEFAULT_PATTERN_FILTERS },
+    setUniverse: vi.fn(),
+    setTimeframe: vi.fn(),
+    setLookbackBars: vi.fn(),
+    applyFilters: vi.fn(),
+  };
+}
+
+let activeHook: { dispose: () => void } | undefined;
+
+/** Mount the hook with live props: `rerender(next)` re-runs the effects that
+ * read the changed fields (Solid has no re-render of its own). */
+function renderPatternUrlSync(args: UsePatternUrlSyncArgs) {
+  const handle = renderSolidHookReactive(
+    (props: UsePatternUrlSyncArgs) => usePatternUrlSync(props),
+    { initialProps: args },
+  );
+  activeHook = handle;
+  return handle;
+}
+
+/** Assert the "sync hook did nothing" block shared by several mount tests. */
+function expectNoUrlSyncCalls(
+  args: UsePatternUrlSyncArgs,
+  opts: { writes?: boolean } = {},
+): void {
+  const { writes = true } = opts;
+  expect(args.setUniverse).not.toHaveBeenCalled();
+  expect(args.setTimeframe).not.toHaveBeenCalled();
+  expect(args.setLookbackBars).not.toHaveBeenCalled();
+  expect(args.applyFilters).not.toHaveBeenCalled();
+  if (writes) expect(setSearchParams).not.toHaveBeenCalled();
+}
+
+/** Assert exactly one URL write with replace:true; returns the written params. */
+function expectUrlWrite(): URLSearchParams {
+  expect(setSearchParams).toHaveBeenCalledTimes(1);
+  const [params, options] = setSearchParams.mock.calls[0];
+  expect(options).toEqual({ replace: true });
+  return params as URLSearchParams;
+}
+
+beforeEach(() => {
+  setSearchParams.mockClear();
+  setMockUrl("");
+});
+
+afterEach(() => {
+  activeHook?.dispose();
+  activeHook = undefined;
+  vi.clearAllMocks();
+});
 
 function makeArgs(overrides: Partial<UsePatternUrlSyncArgs> = {}): UsePatternUrlSyncArgs {
   return {
-    computeTrendlines: undefined,
     ...urlSyncArgsBase(),
     ...overrides,
   };
@@ -63,7 +134,6 @@ describe("parsePatternParams", () => {
       indexGroup: null,
       members: null,
       lookback: null,
-      computeTrendlines: null,
       tab: null,
       filters: {
         pattern_id: ["ascending_channel", "double_top"],
@@ -135,7 +205,7 @@ describe("parsePatternParams", () => {
     const parsed = parsePatternParams(
       new URLSearchParams("universe=&tf=&within=&symbol=&foo=bar"),
     );
-    expect(parsed).toEqual({ universe: null, timeframe: null, timeframes: null, view: null, indexGroup: null, members: null, lookback: null, computeTrendlines: null, tab: null, filters: {} });
+    expect(parsed).toEqual({ universe: null, timeframe: null, timeframes: null, view: null, indexGroup: null, members: null, lookback: null, tab: null, filters: {} });
   });
 
   it("parses multiple tf values from comma and repeated forms", () => {
@@ -333,58 +403,6 @@ describe("buildPatternParams", () => {
     expect(buildPatternParams(state).toString()).toBe(serialized);
   });
 
-  it("round-trips trendlines=support and omits it when both", () => {
-    const state = {
-      universe: "",
-      timeframe: "1D",
-      lookbackBars: null as number | null,
-      filters: { ...DEFAULT_PATTERN_FILTERS, trendlines: "support" as const },
-    };
-    const serialized = buildPatternParams(state).toString();
-    expect(serialized).toBe("avgvol=150&trendlines=support");
-    expect(parsePatternParams(new URLSearchParams(serialized)).filters.trendlines).toBe(
-      "support",
-    );
-
-    const clean = buildPatternParams({
-      universe: "",
-      timeframe: "1D",
-      lookbackBars: null,
-      filters: { ...DEFAULT_PATTERN_FILTERS },
-    });
-    expect(clean.has("trendlines")).toBe(false);
-  });
-
-  it("round-trips compute_trendlines=0 and omits it when true", () => {
-    const off = buildPatternParams({
-      universe: "",
-      timeframe: "1D",
-      lookbackBars: null,
-      computeTrendlines: false,
-      filters: { ...DEFAULT_PATTERN_FILTERS },
-    });
-    expect(off.get("compute_trendlines")).toBe("0");
-    expect(parsePatternParams(new URLSearchParams(off.toString())).computeTrendlines).toBe(false);
-
-    const on = buildPatternParams({
-      universe: "",
-      timeframe: "1D",
-      lookbackBars: null,
-      computeTrendlines: true,
-      filters: { ...DEFAULT_PATTERN_FILTERS },
-    });
-    expect(on.has("compute_trendlines")).toBe(false);
-    expect(on.toString()).toBe("avgvol=150");
-
-    const omitted = buildPatternParams({
-      universe: "",
-      timeframe: "1D",
-      lookbackBars: null,
-      filters: { ...DEFAULT_PATTERN_FILTERS },
-    });
-    expect(omitted.has("compute_trendlines")).toBe(false);
-  });
-
   it("round-trips gap52 (max_52w_gap) through build/parse", () => {
     const state = {
       universe: "",
@@ -519,11 +537,6 @@ describe("buildPatternParams", () => {
     expect(cleared.has("avgvol")).toBe(false);
   });
 
-  it("ignores unknown trendlines values", () => {
-    expect(
-      parsePatternParams(new URLSearchParams("trendlines=bogus")).filters.trendlines,
-    ).toBeUndefined();
-  });
 });
 
 describe("usePatternUrlSync", () => {
@@ -591,16 +604,6 @@ describe("usePatternUrlSync", () => {
     const { unmount } = renderPatternUrlSync(args);
 
     expect(args.setLookbackBars).toHaveBeenCalledWith(250);
-    unmount();
-  });
-
-  it("applies compute_trendlines=0 from the URL on mount", () => {
-    setMockUrl("compute_trendlines=0");
-
-    const args = makeArgs();
-    const { unmount } = renderPatternUrlSync(args);
-
-    expect(args.setComputeTrendlines).toHaveBeenCalledWith(false);
     unmount();
   });
 
@@ -680,7 +683,7 @@ describe("usePatternUrlSync", () => {
     // The router now reports the written URL: nothing new to adopt.
     (args.setUniverse as ReturnType<typeof vi.fn>).mockClear();
     (args.applyFilters as ReturnType<typeof vi.fn>).mockClear();
-    mockedUseSearchParams.mockReturnValue([written, setSearchParams] as never);
+    setMockUrl(written.toString());
     rerender({ ...args, universe: "nifty50", filters: { ...DEFAULT_PATTERN_FILTERS, q: "bank" } });
 
     expect(args.setUniverse).not.toHaveBeenCalled();
@@ -689,30 +692,27 @@ describe("usePatternUrlSync", () => {
   });
 });
 
-describe("universe/tf/lookback/compute_trendlines round-trip", () => {
-  it("round-trips all four selection keys through build/parse", () => {
+describe("universe/tf/lookback round-trip", () => {
+  it("round-trips all three selection keys through build/parse", () => {
     const state = {
       universe: "nifty50",
       timeframe: "15m",
       lookbackBars: 250 as number | null,
-      computeTrendlines: false as boolean | undefined,
       filters: { ...DEFAULT_PATTERN_FILTERS, q: "bank" },
     };
     const serialized = buildPatternParams(state).toString();
     expect(serialized).toContain("universe=nifty50");
     expect(serialized).toContain("tf=15m");
     expect(serialized).toContain("lookback=250");
-    expect(serialized).toContain("compute_trendlines=0");
 
     const parsed = parsePatternParams(new URLSearchParams(serialized));
     expect(parsed.universe).toBe("nifty50");
     expect(parsed.timeframe).toBe("15m");
     expect(parsed.lookback).toBe(250);
-    expect(parsed.computeTrendlines).toBe(false);
     expect(parsed.filters.q).toBe("bank");
   });
 
-  it("writes non-default universe/tf/lookback/compute_trendlines=0 on change", () => {
+  it("writes non-default universe/tf/lookback on change", () => {
     const args = makeArgs();
     const { rerender } = renderPatternUrlSync(args);
     expect(setSearchParams).not.toHaveBeenCalled();
@@ -722,7 +722,6 @@ describe("universe/tf/lookback/compute_trendlines round-trip", () => {
       universe: "nifty50",
       timeframe: "15m",
       lookbackBars: 250,
-      computeTrendlines: false,
       filters: { ...DEFAULT_PATTERN_FILTERS, q: "bank" },
     });
 
@@ -730,7 +729,6 @@ describe("universe/tf/lookback/compute_trendlines round-trip", () => {
     expect(written.get("universe")).toBe("nifty50");
     expect(written.get("tf")).toBe("15m");
     expect(written.get("lookback")).toBe("250");
-    expect(written.get("compute_trendlines")).toBe("0");
     expect(written.get("q")).toBe("bank");
   });
 
@@ -743,14 +741,12 @@ describe("universe/tf/lookback/compute_trendlines round-trip", () => {
       universe: "nifty50",
       timeframe: "15m",
       lookbackBars: 250,
-      computeTrendlines: false,
       filters: { ...DEFAULT_PATTERN_FILTERS, q: "bank" },
     };
     rerender(changed);
     expect(setSearchParams).toHaveBeenCalledTimes(1);
     const first = setSearchParams.mock.calls[0][0] as URLSearchParams;
     expect(first.get("lookback")).toBe("250");
-    expect(first.get("compute_trendlines")).toBe("0");
 
     // The router adopts the write; the user then clears back to defaults.
     setMockUrl(first.toString());
@@ -763,54 +759,34 @@ describe("universe/tf/lookback/compute_trendlines round-trip", () => {
     expect(second.has("universe")).toBe(false);
     expect(second.has("tf")).toBe(false);
     expect(second.has("lookback")).toBe(false);
-    expect(second.has("compute_trendlines")).toBe(false);
   });
 });
 
 describe("usePatternUrlSync mount adoption", () => {
-  it("adopts trendlines=support from the URL on mount", () => {
-    setMockUrl("trendlines=support");
+  it("ignores unrelated params on mount", () => {
+    setMockUrl("screener=momentum");
 
     const args = makeArgs();
     renderPatternUrlSync(args);
 
-    expect(args.applyFilters).toHaveBeenCalledWith({ trendlines: "support" });
-  });
-
-  it("adopts compute_trendlines=1 from the URL on mount", () => {
-    setMockUrl("compute_trendlines=1");
-
-    const args = makeArgs();
-    renderPatternUrlSync(args);
-
-    expect(args.setComputeTrendlines).toHaveBeenCalledWith(true);
-  });
-
-  it("ignores unknown trendlines values and unrelated params on mount", () => {
-    setMockUrl("trendlines=bogus&screener=momentum");
-
-    const args = makeArgs();
-    renderPatternUrlSync(args);
-
-    expectNoUrlSyncCalls(args, { computeTrendlines: true });
+    expectNoUrlSyncCalls(args);
   });
 });
 
 describe("usePatternUrlSync back/forward adoption", () => {
-  it("adopts universe/timeframe/lookback/compute_trendlines on external navigation", () => {
+  it("adopts universe/timeframe/lookback on external navigation", () => {
     const args = makeArgs();
     const { rerender } = renderPatternUrlSync(args);
     expect(args.setUniverse).not.toHaveBeenCalled();
     expect(setSearchParams).not.toHaveBeenCalled();
 
     // Simulate back/forward navigation to a fully-specified URL.
-    setMockUrl("universe=nifty50&tf=15m&lookback=250&compute_trendlines=0");
+    setMockUrl("universe=nifty50&tf=15m&lookback=250");
     rerender(args);
 
     expect(args.setUniverse).toHaveBeenCalledWith("nifty50");
     expect(args.setTimeframe).toHaveBeenCalledWith("15m");
     expect(args.setLookbackBars).toHaveBeenCalledWith(250);
-    expect(args.setComputeTrendlines).toHaveBeenCalledWith(false);
     expect(args.applyFilters).not.toHaveBeenCalled();
     expect(setSearchParams).not.toHaveBeenCalled();
   });
@@ -819,10 +795,10 @@ describe("usePatternUrlSync back/forward adoption", () => {
     const args = makeArgs();
     const { rerender } = renderPatternUrlSync(args);
 
-    setMockUrl("trendlines=bogus");
+    setMockUrl("foo=bar");
     rerender(args);
 
-    expectNoUrlSyncCalls(args, { computeTrendlines: true, writes: false });
+    expectNoUrlSyncCalls(args, { writes: false });
   });
 });
 
@@ -854,8 +830,8 @@ describe("usePatternUrlSync hydration gate", () => {
 });
 
 describe("usePatternUrlSync unrelated params", () => {
-  it("preserves unrelated params and drops unknown trendlines on write", () => {
-    setMockUrl("screener=momentum&trendlines=bogus");
+  it("preserves unrelated params on write", () => {
+    setMockUrl("screener=momentum");
 
     const args = makeArgs();
     const { written } = renderAndWriteQFilter(args);
@@ -863,6 +839,5 @@ describe("usePatternUrlSync unrelated params", () => {
     expect(written.get("screener")).toBe("momentum");
     expect(written.get("universe")).toBe("nifty50");
     expect(written.get("q")).toBe("bank");
-    expect(written.has("trendlines")).toBe(false);
   });
 });

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Compact wall-replay report: left day/trade sidebar, per-trade charts."""
 
 from __future__ import annotations
 

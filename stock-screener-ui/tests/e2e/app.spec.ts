@@ -55,7 +55,6 @@ test.describe("Paper Trading Settings", () => {
     await saveButton.click({ force: true });
     await expect(saveButton).toContainText("Saved", { timeout: 10000 });
 
-    // Navigate fresh to paper trading settings after reload
     await navigateToPaperTradingSettings(page);
 
     const maxPositionsAfterRefresh = page.locator('[data-testid="config-max-positions"] input');

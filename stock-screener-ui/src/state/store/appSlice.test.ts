@@ -1,37 +1,49 @@
-import { describe, expect, test } from "vitest";
-import { appReducer, setCurrentView } from "./appSlice";
-import type { AppRouteView } from "./appSlice";
+import { beforeEach, describe, expect, test } from "vitest";
+import { createEffect, createRoot } from "solid-js";
+import { appStore, setCurrentView, type AppRouteView } from "./appSlice";
 
 describe("appSlice", () => {
-  test("has correct initial state", () => {
-    const state = appReducer(undefined, { type: "@@INIT" });
-    expect(state.currentView).toBe("screener");
+  beforeEach(() => {
+    setCurrentView("screener");
+  });
+
+  test("defaults to the screener view", () => {
+    expect(appStore.currentView).toBe("screener");
   });
 
   test("setCurrentView updates currentView", () => {
     const views: AppRouteView[] = ["screener", "backtest", "paper", "sector", "strategies", "bots"];
 
     for (const view of views) {
-      const state = appReducer(undefined, setCurrentView(view));
-      expect(state.currentView).toBe(view);
+      setCurrentView(view);
+      expect(appStore.currentView).toBe(view);
     }
   });
 
-  test("handles unknown action by returning current state", () => {
-    const initialState = appReducer(undefined, { type: "@@INIT" });
-    const state = appReducer(initialState, { type: "UNKNOWN_ACTION" });
-    expect(state).toBe(initialState);
-    expect(state.currentView).toBe("screener");
-  });
+  test("notifies subscribers only when the view actually changes", async () => {
+    // Solid stores notify through reactivity, not a `subscribe` method: an effect
+    // that reads `currentView` must not re-run when the value is unchanged.
+    let reads = 0;
+    const dispose = createRoot((disposeRoot) => {
+      createEffect(() => {
+        // Read the field so the effect subscribes to it.
+        void appStore.currentView;
+        reads++;
+      });
+      return disposeRoot;
+    });
+    await Promise.resolve();
+    const initialReads = reads;
 
-  test("preserves state through multiple transitions", () => {
-    let state = appReducer(undefined, setCurrentView("backtest"));
-    expect(state.currentView).toBe("backtest");
+    setCurrentView("backtest");
+    await Promise.resolve();
+    const afterFirst = reads;
 
-    state = appReducer(state, setCurrentView("paper"));
-    expect(state.currentView).toBe("paper");
+    setCurrentView("backtest");
+    await Promise.resolve();
 
-    state = appReducer(state, { type: "UNKNOWN" });
-    expect(state.currentView).toBe("paper");
+    expect(afterFirst).toBeGreaterThan(initialReads);
+    expect(reads).toBe(afterFirst);
+    dispose();
   });
 });

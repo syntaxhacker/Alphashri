@@ -16,7 +16,6 @@ function makeReport(spot: number, strikeStep: number): { spot: number; strikes: 
 describe("maxPainTouches", () => {
   test("default tolerance is 10 pts (NIFTY legacy)", () => {
     expect(MAX_PAIN_TOUCH_TOL).toBe(10);
-    // 22,995 vs 23,000 — the 5.05-pt close that a 5-pt window missed.
     expect(maxPainTouches([p(22995, 23000)])).toHaveLength(1);
   });
 
@@ -56,7 +55,6 @@ describe("maxPainTouches", () => {
     expect(maxPainTouches([p(NaN, 25700), p(Infinity, 25700)])).toHaveLength(0);
   });
 
-  // --- Report-derived tolerance (new) ---
 
   test("maxPainTouchTol derives 20% of strike step (NIFTY: 50 -> 10)", () => {
     const report = makeReport(22_800, 50);
@@ -74,11 +72,10 @@ describe("maxPainTouches", () => {
   });
 
   test("maxPainTouches accepts report-derived tolerance", () => {
-    // SENSEX: 100-pt step -> tol=20
     const sensexReport = makeReport(79_000, 100);
     const touches = maxPainTouches([p(79_015, 79_000)], sensexReport);
-    expect(touches).toHaveLength(1); // 15 pts away, within 20
-    expect(maxPainTouches([p(79_025, 79_000)], sensexReport)).toHaveLength(0); // 25 pts away, outside 20
+    expect(touches).toHaveLength(1);
+    expect(maxPainTouches([p(79_025, 79_000)], sensexReport)).toHaveLength(0);
   });
 
   test("maxPainTouches with explicit tol still works (backward compat)", () => {
@@ -91,9 +88,7 @@ describe("maxPainTouches", () => {
     const tol = maxPainTouchTol(report);
     expect(tol).toBe(20);
 
-    // 15 pts from max pain = touch
     expect(maxPainTouches([p(79_015, 79_000)], report)).toHaveLength(1);
-    // 25 pts from max pain = no touch
     expect(maxPainTouches([p(79_025, 79_000)], report)).toHaveLength(0);
   });
 

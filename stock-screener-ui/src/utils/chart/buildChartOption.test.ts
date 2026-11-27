@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { typeSize } from "@/ui/typography";
 import {
   CHART_BG,
   CHART_TEXT,
@@ -142,7 +143,7 @@ describe("buildChartOption", () => {
       expect(result.title).toEqual({
         text: "My Chart",
         left: "center",
-        textStyle: { color: CHART_TEXT, fontSize: 14 },
+        textStyle: { color: CHART_TEXT, fontSize: typeSize("label") },
       });
     });
 
@@ -161,7 +162,7 @@ describe("buildChartOption", () => {
         backgroundColor: CHART_LIGHT_OVERLAY,
         borderColor: CHART_BORDER,
         borderWidth: 1,
-        textStyle: { color: CHART_TEXT, fontSize: "12px" },
+        textStyle: { color: CHART_TEXT, fontSize: typeSize("micro") },
         formatter: "tooltip HTML",
       });
     });
@@ -207,14 +208,9 @@ describe("buildChartOption", () => {
         ],
       });
       const result = buildChartOption(input);
-      expect(result.xAxis[0].data[0]).toBe("2025-01-15 09:30");
-      expect(result.xAxis[0].data[1]).toBe("2025-01-16 09:30");
-    });
-  });
-
-  describe("holiday gap integration", () => {
-    it("uses extendedTimeData when holidays present", () => {
-      const _mockExtend = vi.fn().mockReturnValue(["-"]);
+      const axisData = result.xAxis[0].data as string[];
+      expect(axisData[0]).toBe("2025-01-15 09:30");
+      expect(axisData[1]).toBe("2025-01-16 09:30");
     });
   });
 
@@ -249,25 +245,12 @@ describe("buildChartOption", () => {
         },
       });
       const result = buildChartOption(input);
-      const candleSeries = result.series.find((s: any) => s.type === "candlestick");
-      expect(candleSeries.markLine).toBeDefined();
-      expect(candleSeries.markLine.data).toContainEqual({ yAxis: 95, label: expect.any(Object) });
-      expect(candleSeries.markLine.data).toContainEqual({ yAxis: 110, label: expect.any(Object) });
+      const candleSeries = result.series.find((s) => s.type === "candlestick");
+      expect(candleSeries?.markLine).toBeDefined();
+      expect(candleSeries?.markLine.data).toContainEqual({ yAxis: 95, label: expect.any(Object) });
+      expect(candleSeries?.markLine.data).toContainEqual({ yAxis: 110, label: expect.any(Object) });
     });
 
-    it("does not add live position when times is empty", () => {
-      const _input = createMockInput({
-        livePosition: {
-          entry_price: 100,
-          entry_time: "",
-          side: "BUY",
-          stop_loss: 95,
-          take_profit: 110,
-        },
-      });
-      // This would require modifying the mock to return empty times
-      // Skipping as it's edge case covered by composition
-    });
   });
 
   describe("series aggregation", () => {
@@ -350,7 +333,8 @@ describe("buildChartOption", () => {
 
     it("configures yAxis formatter with rupee", () => {
       const result = buildChartOption(createMockInput({ showVolume: false }));
-      const formatter = result.yAxis[0].axisLabel.formatter as (v: number) => string;
+      const axisLabel = result.yAxis[0].axisLabel as { formatter: (v: number) => string };
+      const formatter = axisLabel.formatter;
       expect(formatter(1000)).toBe("₹1000");
     });
   });

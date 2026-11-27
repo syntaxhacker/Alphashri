@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import pickle
+import tempfile
 import threading
 import time
 from concurrent.futures import Future
@@ -53,9 +55,13 @@ TODAY_TTL_SECONDS = 300
 #: never cached — each still propagates to its own caller.
 EMPTY_RESULT_TTL_SECONDS = 90.0
 _EMPTY_CACHE_MAX = 512
+#: Default tolerance for completed 1D cache entries: the exact current
+#: behaviour (a frame may end on the last completed session or one before it).
+#: Analytical callers may pass a wider *bounded* tolerance explicitly; charts,
+#: scans and replay must keep this default so they never serve an old frame.
+DEFAULT_MAX_LAG_SESSIONS = 1
 
 def _attr(spec: Any, name: str, default=None):
-    """Read a field from a TFSpec dataclass, namedtuple or dict."""
     if spec is None:
         return default
     if isinstance(spec, dict):
@@ -65,7 +71,7 @@ def _attr(spec: Any, name: str, default=None):
 
 def _resolve_timeframe(tf_id: str):
     try:
-        from chart_patterns.timeframes import get_timeframe  # local import: Agent 1 module
+        from chart_patterns.timeframes import get_timeframe
     except Exception as exc:  # pragma: no cover - integration env always has it
         raise RuntimeError("chart_patterns.timeframes unavailable") from exc
     return get_timeframe(tf_id)
@@ -77,7 +83,6 @@ def _is_today(date_str: str) -> bool:
 
 
 def _asof_date_part(value: Optional[str]) -> Optional[str]:
-    """Date (``YYYY-MM-DD``) portion of an as-of/from value, else ``None``."""
     if value is None:
         return None
     text = str(value).strip()
@@ -151,7 +156,6 @@ def truncate_frame_to(df: pd.DataFrame, to_dt: datetime) -> Optional[pd.DataFram
 
 
 def _is_trading_day(d: date) -> bool:
-    """Weekday that is not an NSE trading holiday."""
     from trading import utils as trading_utils
 
     if d.weekday() >= 5:
@@ -160,6 +164,26 @@ def _is_trading_day(d: date) -> bool:
         return not trading_utils.is_trading_holiday(d)
     except Exception:
         return True
+
+
+def _now_ist() -> datetime:
+    from trading.timezone import IST
+
+    return datetime.now(IST)
+
+
+def previous_trading_day(d: date) -> Optional[date]:
+    """Most recent NSE session strictly before ``d``.
+
+    Walks back over weekends and trading holidays; ``None`` when no session is
+    found within a year (a broken holiday calendar, never a real date).
+    """
+    cursor = d - timedelta(days=1)
+    for _ in range(365):
+        if _is_trading_day(cursor):
+            return cursor
+        cursor -= timedelta(days=1)
+    return None
 
 
 def _last_completed_session(now: Optional[datetime] = None) -> date:
@@ -174,7 +198,7 @@ def _last_completed_session(now: Optional[datetime] = None) -> date:
     from trading.utils import MARKET_CLOSE
 
     if now is None:
-        now = datetime.now(IST)
+        now = _now_ist()
     if isinstance(now, datetime):
         today = now.date()
         try:
@@ -191,12 +215,47 @@ def _last_completed_session(now: Optional[datetime] = None) -> date:
         after_close = True
     if _is_trading_day(today) and after_close:
         return today
-    d = today - timedelta(days=1)
-    for _ in range(365):
-        if _is_trading_day(d):
-            return d
-        d -= timedelta(days=1)
-    return d
+    return previous_trading_day(today) or (today - timedelta(days=1))
+
+
+def current_session_date(now: Optional[datetime] = None) -> Optional[date]:
+    """IST date of today's session, or ``None`` on a weekend/trading holiday.
+
+    Deliberately not derived from :func:`_last_completed_session`: that helper
+    only advances at the 15:30 close, so on a live Monday it still names the
+    previous Friday. A chart wants "is there a session today", which is true all
+    through the trading day.
+    """
+    today = _now_ist() if now is None else now
+    if isinstance(today, datetime):
+        today = today.date()
+    return today if _is_trading_day(today) else None
+
+
+def missing_today_bar(df: pd.DataFrame) -> bool:
+    """True when a daily frame ends on the last completed session, not today.
+
+    This is the append gate for the display edge, and it is deliberately *not*
+    ``as_of < _last_completed_session()``: that helper only advances at the
+    15:30 close, so on a live Monday it still names the previous Friday and a
+    Friday frame looks complete for the whole session — the chart then served
+    Friday until 15:30.
+
+    Restricted to a one-session gap (``previous_trading_day``, so the
+    Friday→Monday and holiday-bridge cases qualify). A frame further back is a
+    lagging feed: appending one isolated bar would draw a hole under a chart
+    that then claims to be current, so the stale frame is served as stale and
+    the background refresh closes the gap. False on a weekend/holiday (no
+    session) and when the frame already ends today (no duplicate). Never raises.
+    """
+    if df is None or getattr(df, "empty", True):
+        return False
+    session = current_session_date()
+    last = frame_last_date(df)
+    if session is None or not last:
+        return False
+    previous = previous_trading_day(session)
+    return previous is not None and last == previous.isoformat()
 
 
 def _cache_path(tf_id: str, symbol: str, as_of_date: Optional[str] = None,
@@ -219,8 +278,16 @@ def _cache_path(tf_id: str, symbol: str, as_of_date: Optional[str] = None,
 
 
 def _read_cached(
-    path: Path, is_today: bool, is_daily: bool = False
+    path: Path,
+    is_today: bool,
+    is_daily: bool = False,
+    max_lag_sessions: int = DEFAULT_MAX_LAG_SESSIONS,
 ) -> Optional[pd.DataFrame]:
+    """Read a disk entry, tolerating at most ``max_lag_sessions`` for 1D.
+
+    Callers that need current bars keep the default; bounded analytical
+    tolerances are opt-in so a lagging feed does not force a refetch storm.
+    """
     if not path.exists():
         return None
     try:
@@ -233,11 +300,15 @@ def _read_cached(
                 if is_daily:
                     # Completed daily sessions are immutable. A frame that
                     # reaches the last completed session stays valid for the
-                    # whole session, and we additionally tolerate a frame up
-                    # to 3 calendar days behind (weekend / one-session lag) so
-                    # a cache stamped to an earlier session is still served
-                    # instead of refetching. Anything older (or stamped ahead
-                    # of the last completed session) is rejected as stale.
+                    # whole session; we also tolerate a frame exactly one
+                    # completed session behind (the official daily feed lags
+                    # the tape, and a Fri->Mon bridge is one session).
+                    #
+                    # The old rule tolerated 3 *calendar* days, which cannot
+                    # distinguish a weekend bridge from two genuinely missing
+                    # sessions (a Monday frame served on Thursday). Count
+                    # sessions instead; the threshold is caller-controlled but
+                    # bounded so an unbounded frame can never be served.
                     meta_session = meta.get("session")
                     if meta_session != session:
                         try:
@@ -248,10 +319,17 @@ def _read_cached(
                             )
                         except (ValueError, TypeError):
                             return None
-                        if meta_date is None:
+                        if meta_date is None or meta_date > ref_date:
                             return None
-                        lag = (ref_date - meta_date).days
-                        if lag < 0 or lag > 3:
+                        lag_sessions = 0
+                        cursor = ref_date
+                        while cursor > meta_date:
+                            lag_sessions += 1
+                            prev = previous_trading_day(cursor)
+                            if prev is None or prev >= cursor:
+                                return None
+                            cursor = prev
+                        if lag_sessions > max(0, int(max_lag_sessions)):
                             return None
                 else:
                     from trading import utils as trading_utils
@@ -277,7 +355,6 @@ def _read_cached(
 
 
 def _read_pickle_any(path: Path) -> Optional[pd.DataFrame]:
-    """Read a cache entry ignoring freshness (for incremental top-ups)."""
     try:
         if not path.exists():
             return None
@@ -289,9 +366,43 @@ def _read_pickle_any(path: Path) -> Optional[pd.DataFrame]:
 
 
 def _merge_frames(old: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
-    """Append only the rows that are new/updated, newest wins."""
     merged = pd.concat([old, new])
     return merged[~merged.index.duplicated(keep="last")].sort_index()
+
+
+def atomic_write_pickle(path: Path, frame: pd.DataFrame) -> None:
+    """Write ``frame`` to ``path`` atomically (same-directory temp + fsync).
+
+    The temp file is created next to the destination (so ``os.replace`` is a
+    same-filesystem rename), flushed and fsynced, then swapped in. On any
+    failure the previous file is left untouched and the temp file is removed;
+    the exception propagates so callers can decide whether to retry/log.
+
+    Used by :func:`_write_cached` and by the live-tail refresh so a reader
+    never observes a half-written pickle during a concurrent refresh.
+    """
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path: Optional[Path] = None
+    try:
+        fd, tmp_name = tempfile.mkstemp(
+            dir=str(destination.parent),
+            prefix=f".{destination.name}.",
+            suffix=".tmp",
+        )
+        tmp_path = Path(tmp_name)
+        with os.fdopen(fd, "wb") as handle:
+            pickle.dump(frame, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(str(tmp_path), str(destination))
+        tmp_path = None
+    finally:
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
 
 
 def _write_cached(
@@ -301,8 +412,7 @@ def _write_cached(
         return
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "wb") as f:
-            pickle.dump(df, f)
+        atomic_write_pickle(path, df)
         if is_today:
             # Pin to the frame's own last session when provided (1D): a frame
             # that stops short of the last completed session (the official
@@ -387,7 +497,6 @@ def clear_cache(
                     candidates.extend((CACHE_DIR / tf).glob(suffix))
             else:
                 candidates.extend(CACHE_DIR.glob(f"*/{suffix}"))
-                # Tolerate stray files directly under CACHE_DIR.
                 candidates.extend(
                     p for p in CACHE_DIR.glob(suffix) if p.is_file()
                 )
@@ -409,23 +518,88 @@ def clear_cache(
 
 
 def _resample(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
-    """Resample OHLCV to tf_minutes using a rule derived from the target width.
+    """Resample OHLCV to ``tf_minutes``.
 
-    Bins are anchored to the IST session (Asia/Kolkata midnight), not UTC
-    midnight: the index is converted to IST before ``resample`` and back to its
-    original timezone after, so 2h/3h/3min bins align with the NSE session open.
+    Intraday targets are binned per exchange session, starting at that
+    session's first supplied bar (09:15 for NSE), because a fixed IST-midnight
+    grid produced off-session bins (e.g. 4h bars at 08:00/12:00/16:00, with a
+    45-minute first bar). Daily/weekly/monthly targets keep the generic
+    calendar-rule resample (``_resample_ohlcv``).
     """
-    rule = _resample_rule(int(tf_minutes))
+    minutes = int(tf_minutes)
+    if minutes < 1440:
+        return _resample_session_binned(df, minutes)
+    return _resample_ohlcv(
+        df, _resample_rule(minutes), label="left", closed="left"
+    )
+
+
+def _infer_bar_step(index) -> Optional[pd.Timedelta]:
+    """Typical spacing of the supplied bars (median positive diff), or None."""
+    try:
+        diffs = pd.Series(index).diff().dropna()
+        diffs = diffs[diffs > pd.Timedelta(0)]
+        if diffs.empty:
+            return None
+        step = diffs.median()
+        return step if pd.notna(step) and step > pd.Timedelta(0) else None
+    except Exception:
+        return None
+
+
+def _nse_session_close(first, last, step) -> Optional[pd.Timestamp]:
+    """15:30 IST on ``first``'s date when the group looks like an NSE session.
+
+    A group is treated as the NSE session only when it opens around 09:15 and
+    its last bar does not run past the close by more than one source bar (the
+    synthetic midnight-anchored test frames, for example, run to 20:00 and must
+    keep their own scaling).
+    """
+    open_minutes = first.hour * 60 + first.minute
+    if not (9 * 60 <= open_minutes <= 9 * 60 + 30):
+        return None
+    try:
+        from trading.utils import MARKET_CLOSE
+
+        close_hour, close_minute = MARKET_CLOSE
+    except Exception:
+        close_hour, close_minute = 15, 30
+    close = first.normalize() + pd.Timedelta(hours=close_hour, minutes=close_minute)
+    if last > close + (step or pd.Timedelta(0)):
+        return None
+    return close
+
+
+def _aggregate_bin(chunk: pd.DataFrame, columns: list) -> dict:
+    row = {}
+    for name in columns:
+        values = chunk[name]
+        if name == "open":
+            row[name] = values.iloc[0]
+        elif name == "high":
+            row[name] = values.max()
+        elif name == "low":
+            row[name] = values.min()
+        elif name == "volume":
+            row[name] = values.sum()
+        else:
+            row[name] = values.iloc[-1]
+    return row
+
+
+def _resample_session_binned(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
+    """Aggregate intraday OHLCV into bins anchored to each session's first bar.
+
+    The final bin of a session is merged into the previous bin when it covers
+    less than 25% of the target width (e.g. NSE 3h: 12:15 + a 15:15-15:30
+    stub becomes one 12:15 bar). Merging keeps the session's closing print in
+    the series; dropping it would end the chart at 15:15. A single-bin session
+    is never merged away. Never raises; returns ``df`` unchanged on failure.
+    """
     if df is None or df.empty:
         return df
-    agg = {
-        "open": "first",
-        "high": "max",
-        "low": "min",
-        "close": "last",
-        "volume": "sum",
-    }
-    available = {k: v for k, v in agg.items() if k in df.columns}
+    agg = ("open", "high", "low", "close", "volume")
+    available = [name for name in agg if name in df.columns]
     if "close" not in available:
         return df
     orig_tz = df.index.tz
@@ -435,10 +609,45 @@ def _resample(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
         else:
             ist_index = df.index.tz_convert("Asia/Kolkata")
     except Exception:
-        ist_index = df.index
+        return df
     work = df.copy()
     work.index = ist_index
-    out = work.resample(rule, label="left", closed="left").agg(available)
+    width = pd.Timedelta(minutes=int(tf_minutes))
+    step = _infer_bar_step(ist_index)
+    timestamps: list = []
+    rows: list = []
+    try:
+        for _session_date, group in work.groupby(ist_index.date):
+            group = group.sort_index()
+            if group.empty:
+                continue
+            first = group.index[0]
+            last = group.index[-1]
+            bins = [int(delta // width) for delta in (group.index - first)]
+            bin_ids = sorted(set(bins))
+            merge_last = False
+            if len(bin_ids) > 1:
+                final_start = first + width * bin_ids[-1]
+                end = last + (step or width)
+                session_close = _nse_session_close(first, last, step)
+                if session_close is not None and end >= session_close:
+                    end = session_close
+                merge_last = (end - final_start) < width * 0.25
+            for position, bin_id in enumerate(bin_ids):
+                if merge_last and position >= len(bin_ids) - 2:
+                    continue
+                chunk = group[[b == bin_id for b in bins]]
+                timestamps.append(first + width * bin_id)
+                rows.append(_aggregate_bin(chunk, available))
+            if merge_last:
+                chunk = group[[b >= bin_ids[-2] for b in bins]]
+                timestamps.append(first + width * bin_ids[-2])
+                rows.append(_aggregate_bin(chunk, available))
+    except Exception:
+        return df
+    if not rows:
+        return df
+    out = pd.DataFrame(rows, index=pd.DatetimeIndex(timestamps), columns=available)
     out = out.dropna(subset=["close"])
     try:
         if orig_tz is None:
@@ -450,14 +659,18 @@ def _resample(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
     return out
 
 
-def _resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
+def _resample_ohlcv(
+    df: pd.DataFrame, rule: str, *, label: str = "right", closed: str = "right"
+) -> pd.DataFrame:
     """Resample an OHLCV frame to a pandas offset rule anchored to IST.
 
     ``rule`` is a raw pandas offset alias (e.g. ``"W-FRI"`` for weekly
     candles or ``"ME"`` for month-end). Aggregates open=first, high=max,
-    low=min, close=last, volume=sum. Bins are anchored to the IST session
-    and the frame is returned in its original timezone. Never raises;
-    returns the input unchanged when it cannot be resampled.
+    low=min, close=last, volume=sum. The index is converted to IST before
+    resampling so calendar rules label on IST boundaries, then returned in its
+    original timezone. This is a calendar grid, not a session grid — intraday
+    resampling must go through :func:`_resample`. Never raises; returns the
+    input unchanged when it cannot be resampled.
     """
     if df is None or df.empty:
         return df
@@ -481,7 +694,7 @@ def _resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
         ist_index = df.index
     work = df.copy()
     work.index = ist_index
-    out = work.resample(rule, label="right", closed="right").agg(available)
+    out = work.resample(rule, label=label, closed=closed).agg(available)
     out = out.dropna(subset=["close"])
     try:
         if orig_tz is None:
@@ -493,9 +706,6 @@ def _resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
     return out
 
 
-# ---------------------------------------------------------------------------
-# In-flight singleflight + negative (empty-result) cache
-#
 # Concurrent chart opens for the same symbol/timeframe must not each fire a
 # broker fetch (10–14 s apiece, and the shared Upstox budget cannot take it).
 # Two cheap guards live at this layer:
@@ -507,7 +717,6 @@ def _resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
 #   results, scoped per session. Errors are deliberately NOT cached: a raise
 #   means something is broken, not that the symbol has no data, and callers
 #   (API retry, SSE worker) should see the failure each time.
-# ---------------------------------------------------------------------------
 
 _INFLIGHT: dict[tuple, Future] = {}
 _INFLIGHT_LOCK = threading.Lock()
@@ -546,7 +755,6 @@ def _empty_cache_put(key: tuple) -> None:
 
 
 def clear_empty_cache() -> None:
-    """Drop all negative-cache entries (tests + operator resets)."""
     with _EMPTY_LOCK:
         _EMPTY_CACHE.clear()
 
@@ -625,6 +833,7 @@ def fetch_for_timeframe(
     force_refresh: bool = False,
     provenance: Optional[dict] = None,
     partial_bar: Optional[pd.DataFrame] = None,
+    max_lag_sessions: int = DEFAULT_MAX_LAG_SESSIONS,
 ) -> Optional[pd.DataFrame]:
     """Fetch candles for a symbol at a registered timeframe id.
 
@@ -646,6 +855,11 @@ def fetch_for_timeframe(
     from the 1-minute tape). Those bars are ordinary completed-session data
     — immutable once the session closes — so caching them in the default
     entry is safe. Only the in-progress session stays out of the cache:
+
+    ``max_lag_sessions`` widens the completed-session tolerance of a 1D cache
+    hit. It exists for analytical readers that do not need the latest tape;
+    callers that draw charts or trade keep the default. A cache hit is always
+    returned as stored — no bars are synthesized from the wider tolerance.
 
     With ``include_partial_today=True`` on ``"1D"`` (used by the symbol
     chart), today's in-progress daily bar — aggregated from the 1-minute tape
@@ -704,7 +918,8 @@ def fetch_for_timeframe(
     is_today = _is_today(to_date)
     cache_path = _cache_path(tf_id, symbol, as_of_part if as_of_part else None, variant=variant)
     cached = None if force_refresh else _read_cached(
-        cache_path, is_today, is_daily=(tf_id == "1D")
+        cache_path, is_today, is_daily=(tf_id == "1D"),
+        max_lag_sessions=max_lag_sessions,
     )
     if provenance is not None:
         try:
@@ -793,11 +1008,14 @@ def fetch_for_timeframe(
 
 
 def _today_is_session() -> bool:
-    """True when today (IST) is an NSE trading day."""
+    """True when today (IST) is an NSE trading day.
+
+    Fail-open on a clock/holiday-calendar failure (the pre-existing behaviour):
+    this only decides whether to *attempt* a tape fetch, and a fabricated empty
+    session is worse than one wasted call.
+    """
     try:
-        from datetime import datetime as _dt
-        from trading.timezone import IST
-        return _is_trading_day(_dt.now(IST).date())
+        return current_session_date() is not None
     except Exception:
         return True
 
@@ -826,6 +1044,40 @@ def _cached_synthetic_today(api, symbol: str) -> Optional[pd.DataFrame]:
     return synth
 
 
+def _synthetic_bar_in_progress(bar: Optional[pd.DataFrame]) -> bool:
+    """True when a tape-synthesized bar belongs to a session still trading.
+
+    ``_last_completed_session()`` advances to today at the 15:30 IST close, so a
+    bar dated after it can only be an in-progress session. Once the close has
+    passed the bar is final and no longer partial. Never raises.
+    """
+    if bar is None or getattr(bar, "empty", True):
+        return False
+    session = frame_last_date(bar)
+    if not session:
+        return False
+    try:
+        last_done = _last_completed_session().isoformat()
+    except Exception:
+        return False
+    return bool(session > last_done)
+
+
+def with_partial_today(
+    df: pd.DataFrame, symbol: str, api_client=None,
+    partial_bar: Optional[pd.DataFrame] = None,
+) -> Optional[pd.DataFrame]:
+    """Public entry point for appending today's synthetic bar for display.
+
+    The base frame is only read; the returned merged frame is flagged with
+    ``partial_today`` (a synthetic bar was appended) and
+    ``partial_today_in_progress`` (the session is still trading). The synthetic
+    bar is never written to the disk cache — that write happens before this
+    step in :func:`fetch_for_timeframe`. Never raises.
+    """
+    return _with_partial_today(df, symbol, api_client, partial_bar)
+
+
 def _with_partial_today(
     df: pd.DataFrame, symbol: str, api_client=None,
     partial_bar: Optional[pd.DataFrame] = None,
@@ -837,11 +1089,11 @@ def _with_partial_today(
     directly and no per-symbol intraday tape call is made. Otherwise the bar is
     synthesized from today's 1-minute tape (legacy path). The official daily
     bar wins; the merged frame is flagged via ``df.attrs["partial_today"]`` and
-    must never be written to the disk cache. Never raises.
+    ``df.attrs["partial_today_in_progress"]`` and must never be written to the
+    disk cache. Never raises.
     """
     if df is None or df.empty:
         return df
-    # No session today (weekend/holiday): skip the intraday call entirely.
     if not _today_is_session():
         return df
     try:
@@ -867,6 +1119,7 @@ def _with_partial_today(
         return df
     try:
         merged.attrs["partial_today"] = True
+        merged.attrs["partial_today_in_progress"] = _synthetic_bar_in_progress(bar)
     except Exception:
         pass
     return merged
@@ -885,6 +1138,11 @@ def frame_last_date(df: pd.DataFrame) -> Optional[str]:
     if df is None or df.empty:
         return None
     try:
+        # pd.Timestamp(1) is 1970-01-01, so a plain RangeIndex/int index would
+        # silently produce a confident (and wrong) 1970 session date. Candle
+        # frames always carry a timestamp-like index; never invent one.
+        if pd.api.types.is_numeric_dtype(df.index.dtype):
+            return None
         ts = pd.Timestamp(df.index[-1])
         if ts.tz is None:
             ts = ts.tz_localize("UTC")
@@ -919,7 +1177,7 @@ def _f(value: Any, default: float = 0.0) -> float:
         if value is None:
             return default
         out = float(value)
-        if out != out or math.isinf(out):  # NaN or +/-Inf
+        if out != out or math.isinf(out):
             return default
         return out
     except Exception:

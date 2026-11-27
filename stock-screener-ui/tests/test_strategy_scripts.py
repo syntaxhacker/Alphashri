@@ -16,9 +16,6 @@ from trading.smc_chop import SMCChopEngine
 import trading.risk as risk_mod
 
 
-# ---------------------------------------------------------------------------
-# helpers
-# ---------------------------------------------------------------------------
 
 BASIS = 46.0
 DAY = "2026-09-01"
@@ -99,9 +96,6 @@ def _trade(t_in, t_out, pnl, entry=100.0, sl=95.0):
     return {"t_in": t_in, "t_out": t_out, "entry": entry, "sl": sl, "pnl": pnl}
 
 
-# ---------------------------------------------------------------------------
-# 1. scripts/nq_ticks.fetch_nq_ticks
-# ---------------------------------------------------------------------------
 
 class TestFetchNQTicks:
     def test_1m_basis_shift_preserves_microstructure(self, monkeypatch):
@@ -167,9 +161,6 @@ class TestFetchNQTicks:
             assert o["askPrice"] == t["askPrice"]
 
 
-# ---------------------------------------------------------------------------
-# 2. scripts/htf_bias.bias_for
-# ---------------------------------------------------------------------------
 
 class TestHtfBias:
     def _bull(self):
@@ -223,9 +214,6 @@ class TestHtfBias:
         assert bias_for(df, late) == 1            # history-only check passes later
 
 
-# ---------------------------------------------------------------------------
-# 3. trading/smc_chop.SMCChopEngine
-# ---------------------------------------------------------------------------
 
 class TestSMCChopEngine:
     def test_breakdown_failure_long(self):
@@ -263,9 +251,6 @@ class TestSMCChopEngine:
             assert pa == pb
 
 
-# ---------------------------------------------------------------------------
-# 4. trading/risk.py
-# ---------------------------------------------------------------------------
 
 class TestRiskPublicAPI:
     def test_public_functions_listed(self):

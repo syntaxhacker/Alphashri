@@ -1,7 +1,7 @@
 import os
 import json
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 import httpx
@@ -79,14 +79,21 @@ def _get_token_status() -> dict:
             else:
                 token_time = timestamp_str
             
-            # Upstox tokens expire at 3:30 AM the following day
-            # Calculate expiry: next day at 3:30 AM from token creation time
+            # token_timestamp is stored as a naive IST wall clock. Treat it as
+            # IST, not UTC - assuming UTC shifts expiry by another 5h30m.
+            # Aware values are normalised to IST so the arithmetic is unambiguous.
+            if token_time.tzinfo is None:
+                token_time = token_time.replace(tzinfo=config.IST)
+            else:
+                token_time = token_time.astimezone(config.IST)
+
+            # Upstox tokens expire at 3:30 AM IST the following day
             expires_at = token_time.replace(hour=3, minute=30, second=0, microsecond=0)
             if token_time.hour >= 3 or (token_time.hour == 3 and token_time.minute >= 30):
                 # If created after 3:30 AM, expires next day at 3:30 AM
                 expires_at = expires_at + timedelta(days=1)
-            
-            now = datetime.now(token_time.tzinfo) if token_time.tzinfo else datetime.utcnow()
+
+            now = datetime.now(config.IST)
             expires_in = expires_at - now
             expires_in_hours = expires_in.total_seconds() / 3600
             
@@ -275,15 +282,17 @@ def _get_fyers_status() -> dict:
     if ts:
         try:
             token_time = datetime.fromisoformat(ts.replace("Z", "+00:00")) if isinstance(ts, str) else ts
+            # `token_timestamp` is written as a naive IST wall clock, so a
+            # missing tzinfo means IST — not UTC. Assuming UTC shifted the wall
+            # clock 5h30m and mis-reported the expiry in both directions.
             if token_time.tzinfo is None:
-                token_time = token_time.replace(tzinfo=timezone.utc)
+                token_time = token_time.replace(tzinfo=config.IST)
             # Fyers access tokens expire at 06:00 IST (the next occurrence).
-            ist = timezone(timedelta(hours=5, minutes=30))
-            token_ist = token_time.astimezone(ist)
+            token_ist = token_time.astimezone(config.IST)
             expires = token_ist.replace(hour=6, minute=0, second=0, microsecond=0)
             if expires <= token_ist:
                 expires = expires + timedelta(days=1)
-            now = datetime.now(ist)
+            now = datetime.now(config.IST)
             expires_in_hours = round((expires - now).total_seconds() / 3600, 2)
             expires_at = expires.isoformat()
         except Exception:

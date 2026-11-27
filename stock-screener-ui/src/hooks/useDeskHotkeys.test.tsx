@@ -1,13 +1,13 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
+import { Show } from "solid-js";
 import { isTypingTarget, useDeskHotkeys } from "./useDeskHotkeys";
 import type { DeskHotkeyCallbacks } from "./useDeskHotkeys";
 
-function Harness({ cbs }: { cbs: DeskHotkeyCallbacks }) {
-  useDeskHotkeys(cbs);
+function Harness(props: { cbs: DeskHotkeyCallbacks }) {
+  useDeskHotkeys(props.cbs);
   return (
     <div>
       <input data-testid="typing-input" />
@@ -15,14 +15,14 @@ function Harness({ cbs }: { cbs: DeskHotkeyCallbacks }) {
       <select data-testid="typing-select">
         <option value="a">a</option>
       </select>
-      <div data-testid="typing-editable" contentEditable />
+      <div data-testid="typing-editable" contentEditable={"true"} />
       <div data-testid="plain">plain</div>
     </div>
   );
 }
 
 function renderHarness(cbs: DeskHotkeyCallbacks = {}) {
-  return render(<Harness cbs={cbs} />);
+  return render(() => <Harness cbs={cbs} />);
 }
 
 afterEach(() => {
@@ -53,6 +53,7 @@ describe("useDeskHotkeys", () => {
     const cbs: DeskHotkeyCallbacks = {
       onToggleDesk: vi.fn(),
       onChartFullscreen: vi.fn(),
+      onChartFocus: vi.fn(),
       onExpandHovered: vi.fn(),
       onVisualsGrid: vi.fn(),
       onClose: vi.fn(),
@@ -66,11 +67,24 @@ describe("useDeskHotkeys", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     fireEvent.keyDown(window, { key: "x" });
     expect(cbs.onToggleDesk).toHaveBeenCalledTimes(1);
-    expect(cbs.onChartFullscreen).toHaveBeenCalledTimes(1);
+    // F is LEVEL 1 in-shell focus; LEVEL 2 fullscreen stays on the expand
+    // button, so the fullscreen callback must not fire from the keyboard.
+    expect(cbs.onChartFocus).toHaveBeenCalledTimes(1);
+    expect(cbs.onChartFullscreen).not.toHaveBeenCalled();
     expect(cbs.onExpandHovered).toHaveBeenCalledTimes(1);
     expect(cbs.onVisualsGrid).toHaveBeenCalledTimes(1);
     expect(cbs.onClose).toHaveBeenCalledTimes(1);
     expect(cbs.onTimeframe).not.toHaveBeenCalled();
+  });
+
+  test("F enters LEVEL 1 focus only; Escape is the single restore path", () => {
+    const onChartFocus = vi.fn();
+    const onClose = vi.fn();
+    renderHarness({ onChartFocus, onClose });
+    fireEvent.keyDown(window, { key: "f" });
+    expect(onChartFocus).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   test("1 fires 1m, 5 fires 5m, and a fast 1-then-5 fires 15m", () => {
@@ -87,12 +101,12 @@ describe("useDeskHotkeys", () => {
     expect(onTimeframe).toHaveBeenLastCalledWith("5m");
   });
 
-  test("hotkeys are ignored from typing targets", async () => {
-    const user = userEvent.setup();
+  test("hotkeys are ignored from typing targets", () => {
+    // Solid has no user-event: click and keydown are fired natively.
     const onToggleDesk = vi.fn();
     renderHarness({ onToggleDesk });
-    await user.click(screen.getByTestId("typing-input"));
-    await user.keyboard("d");
+    fireEvent.click(screen.getByTestId("typing-input"));
+    fireEvent.keyDown(screen.getByTestId("typing-input"), { key: "d" });
     expect(onToggleDesk).not.toHaveBeenCalled();
     fireEvent.keyDown(screen.getByTestId("typing-area"), { key: "d" });
     expect(onToggleDesk).not.toHaveBeenCalled();
@@ -114,9 +128,9 @@ describe("useDeskHotkeys", () => {
     let hookReturn: unknown = "unset";
     function Probe() {
       hookReturn = useDeskHotkeys({ onToggleDesk });
-      return null;
+      return <Show when={false}>{null}</Show>;
     }
-    const { unmount } = render(<Probe />);
+    const { unmount } = render(() => <Probe />);
     expect(hookReturn).toBeUndefined();
     unmount();
     fireEvent.keyDown(window, { key: "d" });

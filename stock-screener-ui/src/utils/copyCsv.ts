@@ -1,4 +1,5 @@
-/** CSV helpers for the Patterns/Watch copy actions (dependency-free). */
+/** CSV helpers for the Patterns/Watch copy actions. */
+import { tradingViewSymbol } from "@/config/tvSymbols";
 
 export interface CsvColumn {
   key: string;
@@ -59,15 +60,16 @@ export function toSymbolList(
   key = "symbol",
   prefix = "NSE:",
 ): string {
-  return rows
+  const values = rows
     .map((row) => row[key])
     .filter((v): v is string | number => typeof v === "string" || typeof v === "number")
     .map((v) => String(v).trim())
-    .filter((v) => v.length > 0)
-    .map((v) =>
-      prefix && !v.toUpperCase().startsWith(prefix.toUpperCase()) ? `${prefix}${v}` : v,
-    )
-    .join(",");
+    .filter((v) => v.length > 0);
+  if (!prefix) return values.join(",");
+  // The shared normalizer detects an existing exchange prefix/suffix, so a
+  // BSE/NASDAQ symbol is never rewritten to the default NSE prefix.
+  const market = prefix.replace(/:$/, "").trim().toUpperCase() || "NSE";
+  return values.map((v) => tradingViewSymbol(v, market)).join(",");
 }
 
 /**

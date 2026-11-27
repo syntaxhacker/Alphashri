@@ -1,12 +1,45 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, act } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor, fireEvent } from "@solidjs/testing-library";
+import { For } from "solid-js";
 import { IndexMoversModal } from "./IndexMoversModal";
 import { fetchIndexMovers, IndexMoversResponse } from "@/api/indexMovers";
+import { SymbolDockContext, type SymbolDockApi } from "@/components/common/symbolDockContext";
 
-// Mock the API
+const spies = vi.hoisted(() => ({ handleSymbolChange: vi.fn() }));
+
 vi.mock("@/api/indexMovers", () => ({
   fetchIndexMovers: vi.fn(),
+}));
+
+// The movers modal must never switch the report underlying, even if a future
+// edit reintroduces the store hook.
+vi.mock("./ReportContext", () => ({
+  useNiftyReport: () => ({ selection: { handleSymbolChange: spies.handleSymbolChange } }),
+}));
+
+vi.mock("@/components/common/TanStackTable", () => ({
+  TanStackTable: (props: any) => (
+    <table data-testid={props.dataTestId}>
+      <thead>
+        <tr>
+          {props.columns.map((col: any) => (
+            <th>{typeof col.header === "string" ? col.header : null}</th>
+          ))}
+        </tr>
+      </thead>
+      <For each={props.data}>
+        {(row: any, i) => (
+          <tr>
+            {props.columns.map((col: any) => (
+              <td>{col.cell ? col.cell({ row: { original: row, index: i() }, column: col }) : null}</td>
+            ))}
+          </tr>
+        )}
+      </For>
+    </table>
+  ),
 }));
 
 const mockFetchIndexMovers = vi.mocked(fetchIndexMovers);
@@ -31,31 +64,40 @@ const createMockResponse = (overrides: Partial<IndexMoversResponse> = {}): Index
 });
 
 describe("IndexMoversModal", () => {
+  const dockApi = (open: (symbol: string) => void): SymbolDockApi => ({
+    open,
+    preview: vi.fn(),
+    endPreview: vi.fn(),
+    close: vi.fn(),
+    pinned: false,
+    setOutlet: vi.fn(),
+  });
+
   beforeEach(() => {
     mockFetchIndexMovers.mockReset();
+    spies.handleSymbolChange.mockClear();
   });
 
   it("renders nothing when closed", () => {
-    render(<IndexMoversModal open={false} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={false} onClose={vi.fn()} index="NIFTY" />);
     expect(screen.queryByTestId("panel-modal")).not.toBeInTheDocument();
   });
 
   it("renders modal when open", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("panel-modal")).toBeInTheDocument(), { timeout: 10000 });
-    // Title is in panel-modal-title
     expect(screen.getByTestId("panel-modal-title")).toHaveTextContent("MOVERS · NIFTY 50");
   });
 
   it("shows loading state initially", async () => {
-    let resolve: (v: IndexMoversResponse) => void;
-    const promise = new Promise<IndexMoversResponse>((r) => { resolve = r; });
+    let _resolve: (v: IndexMoversResponse) => void;
+    const promise = new Promise<IndexMoversResponse>((r) => { _resolve = r; });
     mockFetchIndexMovers.mockReturnValue(promise);
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("panel-modal")).toBeInTheDocument(), { timeout: 10000 });
     expect(screen.getByText("loading movers…")).toBeInTheDocument();
@@ -64,12 +106,11 @@ describe("IndexMoversModal", () => {
   it("renders table with gainers and losers in ALL tab", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
     
-    // Click ALL tab
-    await userEvent.click(screen.getByText("ALL"));
+    fireEvent.click(screen.getByText("ALL"));
     
     await waitFor(() => expect(screen.getByText("HDFCBANK")).toBeInTheDocument(), { timeout: 10000 });
     await waitFor(() => expect(screen.getByText("TCS")).toBeInTheDocument(), { timeout: 10000 });
@@ -79,12 +120,11 @@ describe("IndexMoversModal", () => {
   it("shows GAINERS tab with only gainers", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
 
-    // Click GAINERS tab
-    await userEvent.click(screen.getByText("GAINERS"));
+    fireEvent.click(screen.getByText("GAINERS"));
 
     await waitFor(() => expect(screen.getByText("HDFCBANK")).toBeInTheDocument(), { timeout: 10000 });
     expect(screen.queryByText("TCS")).not.toBeInTheDocument();
@@ -94,12 +134,11 @@ describe("IndexMoversModal", () => {
   it("shows LOSERS tab with only losers", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
 
-    // Click LOSERS tab
-    await userEvent.click(screen.getByText("LOSERS"));
+    fireEvent.click(screen.getByText("LOSERS"));
 
     await waitFor(() => expect(screen.getByText("TCS")).toBeInTheDocument(), { timeout: 10000 });
     expect(screen.queryByText("HDFCBANK")).not.toBeInTheDocument();
@@ -108,11 +147,10 @@ describe("IndexMoversModal", () => {
   it("sorts by change_pct desc by default", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
 
-    // Check first row is highest gainer
     const rows = screen.getAllByRole("row");
     const firstDataRow = rows[1];
     expect(firstDataRow).toHaveTextContent("HDFCBANK");
@@ -121,7 +159,7 @@ describe("IndexMoversModal", () => {
   it("shows stale badge when data.stale is true", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse({ stale: true }));
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByText("STALE")).toBeInTheDocument(), { timeout: 10000 });
   });
@@ -131,22 +169,23 @@ describe("IndexMoversModal", () => {
     const isoString = now.toISOString();
     mockFetchIndexMovers.mockResolvedValue(createMockResponse({ as_of: isoString }));
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
 
-    expect(screen.getByText(/Source: NIFTY50_WEIGHTS/)).toBeInTheDocument();
-    expect(screen.getByText(/As of:/)).toBeInTheDocument();
+    expect(screen.getByTestId("movers-modal-source")).toHaveTextContent("Source:");
+    expect(screen.getByTestId("movers-modal-source")).toHaveTextContent("NIFTY50_WEIGHTS");
+    expect(screen.getByTestId("movers-modal-asof")).toHaveTextContent("As of:");
   });
 
   it("calls onClose when close button clicked", async () => {
     const onClose = vi.fn();
     mockFetchIndexMovers.mockResolvedValue(createMockResponse());
 
-    render(<IndexMoversModal open={true} onClose={onClose} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={onClose} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("panel-modal-close")).toBeInTheDocument(), { timeout: 10000 });
-    await userEvent.click(screen.getByTestId("panel-modal-close"));
+    fireEvent.click(screen.getByTestId("panel-modal-close"));
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -154,7 +193,7 @@ describe("IndexMoversModal", () => {
   it("shows error state when fetch fails", async () => {
     mockFetchIndexMovers.mockRejectedValue(new Error("Network error"));
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByText("unavailable")).toBeInTheDocument(), { timeout: 10000 });
     expect(screen.getByText("Retry")).toBeInTheDocument();
@@ -163,7 +202,7 @@ describe("IndexMoversModal", () => {
   it("shows MOVERS_UNAVAILABLE error correctly", async () => {
     mockFetchIndexMovers.mockRejectedValue(new Error("MOVERS_UNAVAILABLE"));
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByText("unavailable")).toBeInTheDocument(), { timeout: 10000 });
   });
@@ -171,25 +210,99 @@ describe("IndexMoversModal", () => {
   it("renders SENSEX 30 label correctly", async () => {
     mockFetchIndexMovers.mockResolvedValue(createMockResponse({ index: "SENSEX" }));
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="SENSEX" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="SENSEX" />);
 
     await waitFor(() => expect(screen.getByTestId("panel-modal")).toBeInTheDocument(), { timeout: 10000 });
-    // Title is in panel-modal-title
     expect(screen.getByTestId("panel-modal-title")).toHaveTextContent("MOVERS · SENSEX 30");
   });
 
+  it("uses a 16px section title, 12px labels, 13px values and an 8px footer rhythm", async () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "src/pages/report/IndexMoversModal.tsx"),
+      "utf8",
+    );
+    expect(source).toContain("font-mono text-ui-title font-extrabold");
+    expect(source).toContain('data-report-spacing="8"');
+    expect(source).toContain("gap-2 flex-wrap mt-2 pt-2 border-t");
+    expect(source).not.toContain("truncate");
+    expect(source).not.toContain("text-ellipsis");
+    expect(source).not.toContain("handleSymbolChange");
+
+    mockFetchIndexMovers.mockResolvedValue(createMockResponse());
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    await waitFor(() => expect(screen.getByTestId("movers-modal-footer")).toBeInTheDocument(), { timeout: 10000 });
+    const footer = screen.getByTestId("movers-modal-footer");
+    expect(footer.getAttribute("data-report-spacing")).toBe("8");
+    for (const label of footer.querySelectorAll('[data-report-text="label"]')) {
+      expect(label.className).toContain("text-ui-micro");
+    }
+    for (const value of footer.querySelectorAll('[data-report-text="value"]')) {
+      expect(value.className).toContain("text-ui-body");
+      expect(value.className).toContain("whitespace-nowrap");
+    }
+  });
+
   it("contribution column shows — when missing", async () => {
-    // Response without contribution_pct
     const response = createMockResponse();
     response.gainers[0] = { ...response.gainers[0], contribution_pct: undefined };
     response.losers[0] = { ...response.losers[0], contribution_pct: undefined };
     mockFetchIndexMovers.mockResolvedValue(response);
 
-    render(<IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
+    render(() => <IndexMoversModal open={true} onClose={vi.fn()} index="NIFTY" />);
 
     await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument(), { timeout: 10000 });
 
-    // Should show — for missing contribution
     expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  describe("movers are real activation targets", () => {
+    it("the modal title opens the canonical index in the app-wide dock", async () => {
+      const open = vi.fn();
+      mockFetchIndexMovers.mockResolvedValue(createMockResponse({ index: "SENSEX" }));
+
+      render(() => (
+        <SymbolDockContext.Provider value={dockApi(open)}>
+          <IndexMoversModal open={true} onClose={vi.fn()} index="SENSEX" />
+        </SymbolDockContext.Provider>
+      ));
+      await waitFor(() => expect(screen.getByTestId("movers-index")).toBeInTheDocument());
+
+      const label = screen.getByTestId("movers-index");
+      expect(label.tagName).toBe("BUTTON");
+      // axe label-content-name-mismatch: visible text must be the accessible name.
+      expect(label).not.toHaveAttribute("aria-label");
+      expect(label).toHaveAccessibleName("MOVERS · SENSEX 30");
+      expect(label.className).toContain("focus-visible:outline-2");
+      fireEvent.click(label);
+      fireEvent.keyDown(label, { key: "Enter" });
+      expect(open).toHaveBeenCalledTimes(2);
+      expect(open).toHaveBeenCalledWith("SENSEX");
+      expect(spies.handleSymbolChange).not.toHaveBeenCalled();
+      expect(screen.getByTestId("panel-modal-title")).toHaveTextContent("MOVERS · SENSEX 30");
+    });
+
+    it("a mover symbol opens the app-wide dock with keyboard parity", async () => {
+      const onOpenSymbol = vi.fn();
+      mockFetchIndexMovers.mockResolvedValue(createMockResponse());
+
+      render(() => (
+        <IndexMoversModal
+          open={true}
+          onClose={vi.fn()}
+          index="NIFTY"
+          onOpenSymbol={onOpenSymbol}
+        />
+      ));
+      await waitFor(() => expect(screen.getByTestId("movers-table")).toBeInTheDocument());
+
+      const cell = screen.getByText("HDFCBANK") as HTMLElement;
+      expect(cell).toHaveAttribute("role", "button");
+      expect(cell).toHaveAttribute("tabindex", "0");
+      expect(cell).toHaveAccessibleName("Open HDFCBANK chart");
+      fireEvent.click(cell);
+      fireEvent.keyDown(cell, { key: " " });
+      expect(onOpenSymbol).toHaveBeenCalledWith("HDFCBANK");
+      expect(onOpenSymbol).toHaveBeenCalledTimes(2);
+    });
   });
 });

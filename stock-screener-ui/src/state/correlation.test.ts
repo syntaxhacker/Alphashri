@@ -22,6 +22,16 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe("correlation state", () => {
   describe("setSymbols", () => {
     test("sets symbols and calls notify", async () => {
@@ -238,6 +248,93 @@ describe("correlation state", () => {
         meta: { start_date: "2024-01-01", end_date: "2024-01-31", data_points: 1 },
       });
       await fetchPromise;
+    });
+
+    test("a newer request's data cannot be overwritten by a stale response", async () => {
+      const { fetchCorrelation } = await import("../api/correlation");
+      const older = deferred<any>();
+      const newer = deferred<any>();
+      vi.mocked(fetchCorrelation)
+        .mockReturnValueOnce(older.promise as any)
+        .mockReturnValueOnce(newer.promise as any);
+
+      const mod = await import("./correlation");
+      const first = mod.fetchCorrelationData();
+      const second = mod.fetchCorrelationData();
+
+      newer.resolve({
+        matrix: [[2]],
+        symbols: ["NEWER"],
+        normalized: { NEWER: [] },
+        meta: { start_date: "2024-02-01", end_date: "2024-02-28", data_points: 2 },
+      });
+      await second;
+      older.resolve({
+        matrix: [[1]],
+        symbols: ["OLDER"],
+        normalized: { OLDER: [] },
+        meta: { start_date: "2024-01-01", end_date: "2024-01-31", data_points: 1 },
+      });
+      await first;
+
+      expect(mod.matrix).toEqual([[2]]);
+    });
+
+    test("a stale response cannot clear the loading state of a newer request", async () => {
+      const { fetchCorrelation } = await import("../api/correlation");
+      const older = deferred<any>();
+      const newer = deferred<any>();
+      vi.mocked(fetchCorrelation)
+        .mockReturnValueOnce(older.promise as any)
+        .mockReturnValueOnce(newer.promise as any);
+
+      const mod = await import("./correlation");
+      const first = mod.fetchCorrelationData();
+      const second = mod.fetchCorrelationData();
+
+      older.resolve({
+        matrix: [[1]],
+        symbols: ["OLDER"],
+        normalized: { OLDER: [] },
+        meta: { start_date: "2024-01-01", end_date: "2024-01-31", data_points: 1 },
+      });
+      await first;
+      expect(mod.isLoading).toBe(true);
+
+      newer.resolve({
+        matrix: [[2]],
+        symbols: ["NEWER"],
+        normalized: { NEWER: [] },
+        meta: { start_date: "2024-02-01", end_date: "2024-02-28", data_points: 2 },
+      });
+      await second;
+      expect(mod.isLoading).toBe(false);
+    });
+
+    test("a stale error cannot overwrite the newer request's result", async () => {
+      const { fetchCorrelation } = await import("../api/correlation");
+      const older = deferred<any>();
+      const newer = deferred<any>();
+      vi.mocked(fetchCorrelation)
+        .mockReturnValueOnce(older.promise as any)
+        .mockReturnValueOnce(newer.promise as any);
+
+      const mod = await import("./correlation");
+      const first = mod.fetchCorrelationData();
+      const second = mod.fetchCorrelationData();
+
+      newer.resolve({
+        matrix: [[2]],
+        symbols: ["NEWER"],
+        normalized: { NEWER: [] },
+        meta: { start_date: "2024-02-01", end_date: "2024-02-28", data_points: 2 },
+      });
+      await second;
+      older.reject(new Error("stale network error"));
+      await first;
+
+      expect(mod.error).toBeNull();
+      expect(mod.matrix).toEqual([[2]]);
     });
   });
 });

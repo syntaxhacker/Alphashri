@@ -66,9 +66,6 @@ def _isolate(tmp_path, monkeypatch):
     yield
 
 
-# ---------------------------------------------------------------------------
-# builders
-# ---------------------------------------------------------------------------
 
 
 def _rollover(*, pct=0.72, call=0.80, put=0.60, ticker="NIFTY",
@@ -115,9 +112,6 @@ def _vrp(*, verdict="EXPENSIVE", vrp=0.03, vrp_pct=3.0, hv20=0.15):
     return {"verdict": verdict, "vrp": vrp, "vrp_pct": vrp_pct, "hv20": hv20}
 
 
-# ---------------------------------------------------------------------------
-# P5 — rollover positional
-# ---------------------------------------------------------------------------
 
 
 def test_p5_fires_on_high_rollover_and_rising_basis():
@@ -198,9 +192,6 @@ def test_p5_none_on_unavailable_inputs():
                              _basis(prev=1.0)) is None
 
 
-# ---------------------------------------------------------------------------
-# P6 — VRP premium sale
-# ---------------------------------------------------------------------------
 
 
 def test_p6_fires_on_expensive_and_rich_skew():
@@ -257,9 +248,6 @@ def test_p6_ticker_fallback_and_missing_vrp_pct():
     assert rec["features"]["vrp_pct"] == pytest.approx(5.0)
 
 
-# ---------------------------------------------------------------------------
-# P7 — sector rotation
-# ---------------------------------------------------------------------------
 
 
 def _sector(name, chg, *, adv=3, dec=1, n=4, top=1.0, top_name="X"):
@@ -317,9 +305,6 @@ def test_p7_ignores_negative_and_missing_strength():
     assert swing.p7_sector_rotation([], {"pct_advancing": 60.0}) == []
 
 
-# ---------------------------------------------------------------------------
-# sector map
-# ---------------------------------------------------------------------------
 
 
 def test_builtin_sector_map_size_and_uniqueness():
@@ -356,9 +341,6 @@ def test_load_sector_map_defaults_to_builtin_without_env():
     assert swing.load_sector_map() == swing.BUILTIN_SECTOR_MAP
 
 
-# ---------------------------------------------------------------------------
-# build_sector_rows aggregation
-# ---------------------------------------------------------------------------
 
 
 def test_build_sector_rows_exact_aggregation():
@@ -403,9 +385,6 @@ def test_build_sector_rows_empty_and_missing():
     assert swing.build_sector_rows({}, sector_map={"A": "S"}) == []
 
 
-# ---------------------------------------------------------------------------
-# dedupe ledger
-# ---------------------------------------------------------------------------
 
 
 def _p7_record(strength, ticker="AUTO"):
@@ -454,9 +433,6 @@ def test_dedupe_keyed_per_playbook_and_day():
     assert swing.apply_dedupe(again, now=later) is again
 
 
-# ---------------------------------------------------------------------------
-# run_once — all external calls injected
-# ---------------------------------------------------------------------------
 
 
 def _scan_payload():
@@ -572,9 +548,6 @@ def test_run_once_live_path_rotates_and_caps_tickers(monkeypatch):
     assert seen[4:6] == ["E", "F"]
 
 
-# ---------------------------------------------------------------------------
-# scheduler plumbing
-# ---------------------------------------------------------------------------
 
 
 def test_interval_env_override(monkeypatch):

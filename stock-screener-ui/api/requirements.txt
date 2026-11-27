@@ -24,7 +24,7 @@ upstox-python-sdk>=2.30.0
 # TradingView screener
 tradingview-screener>=2.0.0
 rich>=13.0.0
-scrapling>=0.4.0
+scrapling[fetchers]>=0.4.0
 curl_cffi>=0.5.0
 playwright>=1.40.0
 browserforge>=1.0.0
@@ -34,12 +34,8 @@ rookiepy>=0.2.0
 openai>=1.0.0
 preciz @ git+https://github.com/syntaxhacker/preciz-agent.git@cli-sdk
 fastembed>=0.4.0
-tradingagents>=0.3.0
 langchain-litellm>=0.6.0
 langchain-openrouter>=0.2.0
-
-# Backtesting
-nautilus-trader>=1.0.0
 
 # Testing
 pytest>=7.0.0

@@ -16,10 +16,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import requests
-from tradingview_screener import Query as TVQuery, col
 
 from config import IST
-from api.tv import get_scanner_data
+from api.tv.cache import FrameDescriptor, invalidate, scan_frame_cached
 from db.database import SessionLocal
 from db.models.taxonomy import Theme, ThemeConstituent
 from api.utils import (
@@ -53,24 +52,53 @@ class SectorResponse(BaseModel):
     market: str
 
 
-def _fetch_sector_data(market: str, limit: int) -> pd.DataFrame:
-    """Synchronous TradingView query — must not be called directly in an async context."""
-    query = TVQuery().select('name', 'close', 'change', 'sector', 'market_cap_basic', 'RSI', 'ADX')
-    query = query.set_markets(market)
+#: The dashboard's RSI/ADX sector view needs technicals the shared group frame
+#: does not carry, so it keeps its own descriptor (and its own 15s cadence).
+SECTOR_COLUMNS = (
+    'name', 'close', 'change', 'sector', 'market_cap_basic', 'RSI', 'ADX',
+)
 
+
+def _market_filters(market: str) -> tuple:
+    """TradingView filter dicts for a market's non-empty-sector universe."""
+    filters = ({"left": "sector", "operation": "nequal", "right": ""},)
     if market == 'india':
-        market_cap_filter = 5_000_000_000
-        query = query.where(
-            col('sector') != '',
-            col('market_cap_basic') > market_cap_filter
+        filters += (
+            {"left": "market_cap_basic", "operation": "greater",
+             "right": 5_000_000_000},
         )
-    else:
-        query = query.where(col('sector') != '')
+    return filters
 
-    query = query.order_by('market_cap_basic', ascending=False).limit(limit)
 
-    _, df = get_scanner_data(query)
-    return df
+#: Every descriptor this module has asked the gateway for. ``clear_sector_cache``
+#: invalidates exactly these (never another consumer's frames).
+_sector_descriptors: set[FrameDescriptor] = set()
+
+
+def _sector_descriptor(market: str, limit: int) -> FrameDescriptor:
+    descriptor = FrameDescriptor(
+        market=market,
+        columns=SECTOR_COLUMNS,
+        filters=_market_filters(market),
+        sort="market_cap_basic",
+        order="desc",
+        limit=limit,
+    )
+    _sector_descriptors.add(descriptor)
+    return descriptor
+
+
+def _fetch_sector_data(market: str, limit: int, force: bool = False) -> pd.DataFrame:
+    """Fetch the sector technical frame through the shared TV gateway.
+
+    Must not be called directly in an async context. The gateway owns the TTL,
+    singleflight and LRU; ``force`` bypasses freshness for the explicit refresh.
+    """
+    return scan_frame_cached(
+        _sector_descriptor(market, limit),
+        ttl_seconds=SECTOR_CACHE_TTL_SECONDS,
+        force=force,
+    )
 
 
 # The TradingView scan below is the entire cost of this endpoint (~0.4-1.0s warm,
@@ -84,9 +112,15 @@ _sector_cache_locks: Dict[Tuple[str, int], asyncio.Lock] = {}
 
 
 def clear_sector_cache() -> None:
-    """Drop cached responses and per-key locks (used by tests)."""
+    """Drop cached responses/per-key locks and this module's shared frames.
+
+    Only descriptors owned here are invalidated — the gateway cache is shared
+    with rotation and the dashboard, so a sector test hook must not clear it.
+    """
     _sector_cache.clear()
     _sector_cache_locks.clear()
+    for descriptor in tuple(_sector_descriptors):
+        invalidate(descriptor)
 
 
 def _build_sector_response(df: pd.DataFrame, market: str) -> SectorResponse:
@@ -158,8 +192,10 @@ def _build_sector_response(df: pd.DataFrame, market: str) -> SectorResponse:
     )
 
 
-async def _fetch_sector_response(market: str, limit: int) -> SectorResponse:
-    df = await asyncio.to_thread(_fetch_sector_data, market, limit)
+async def _fetch_sector_response(
+    market: str, limit: int, force: bool = False
+) -> SectorResponse:
+    df = await asyncio.to_thread(_fetch_sector_data, market, limit, force)
     return _build_sector_response(df, market)
 
 
@@ -193,7 +229,7 @@ async def get_sector_performance(
                     return cached[1]
 
             try:
-                response = await _fetch_sector_response(market, limit)
+                response = await _fetch_sector_response(market, limit, force)
             except Exception:
                 stale = _sector_cache.get(key)
                 if (
@@ -619,6 +655,25 @@ GROUP_CACHE_TTL_SECONDS = 60
 # key: (market, classify, period, limit) -> (expires_at_monotonic, response dump)
 _group_cache: Dict[Tuple[str, str, str, int], Tuple[float, Dict[str, Any]]] = {}
 
+#: Canonical India/US fundamentals+technicals frame. Rotation asks for the
+#: same universe, sort and row cap; it additionally needs ``relative_volume``,
+#: so the single column set is the union of both queries (groups ignore the
+#: extra column). Both consumers pass the same 60s TTL, hence one shared scan
+#: per market per window in :mod:`api.tv.cache`.
+SHARED_FRAME_COLUMNS = GROUP_COLUMNS + ("relative_volume",)
+SHARED_FRAME_LIMIT = 3000
+SHARED_FRAMES: Dict[str, FrameDescriptor] = {
+    market: FrameDescriptor(
+        market=market,
+        columns=SHARED_FRAME_COLUMNS,
+        filters=_market_filters(market),
+        sort="market_cap_basic",
+        order="desc",
+        limit=SHARED_FRAME_LIMIT,
+    )
+    for market in ("india", "america")
+}
+
 
 class GroupPerformanceItem(BaseModel):
     name: str
@@ -643,15 +698,17 @@ def _make_group_cache_key(market: str, classify: str, period: str, limit: int) -
 
 
 def _fetch_group_data(market: str, limit: int) -> pd.DataFrame:
-    """Synchronous TradingView query for group performance — must not be called directly in an async context."""
-    q = TVQuery().select(*GROUP_COLUMNS).set_markets(market)
-    if market == 'india':
-        q = q.where(col('sector') != '', col('market_cap_basic') > 5_000_000_000)
-    else:
-        q = q.where(col('sector') != '')
-    q = q.order_by('market_cap_basic', ascending=False).limit(limit)
-    _, df = get_scanner_data(q)
-    return df
+    """Group frame from the shared gateway, capped to the caller's row count.
+
+    The canonical frame is fetched once per TTL window for every group and for
+    the rotation overview. Slicing here (rather than putting ``limit`` in the
+    descriptor) keeps a single shared scan while preserving the old top-N
+    input to the aggregation. Must not run directly in an async context.
+    """
+    frame = scan_frame_cached(
+        SHARED_FRAMES[market], ttl_seconds=GROUP_CACHE_TTL_SECONDS
+    )
+    return frame.head(limit) if 0 < limit < SHARED_FRAME_LIMIT else frame
 
 
 def _aggregate_groups(
@@ -831,7 +888,7 @@ def _theme_to_summary(theme: Theme, member_count: int) -> ThemeSummary:
 
 
 @router.get("/themes", response_model=ThemeListResponse)
-async def list_themes():
+def list_themes():
     """List active curated themes with member counts, sorted by name."""
     db = SessionLocal()
     try:
@@ -851,7 +908,7 @@ async def list_themes():
 
 
 @router.get("/themes/{slug}", response_model=ThemeDetailResponse)
-async def get_theme_detail(slug: str):
+def get_theme_detail(slug: str):
     """Theme detail + sorted constituent symbols. 404 for unknown slug."""
     db = SessionLocal()
     try:
@@ -913,7 +970,8 @@ async def get_group_performance(
 
         period_col = PERIOD_COLUMN_MAP[period]
         if classify == "theme":
-            info, slug_to_members = _load_theme_membership()
+            # DB-backed theme membership; keep the query off the event loop.
+            info, slug_to_members = await asyncio.to_thread(_load_theme_membership)
             groups = _aggregate_theme_groups(df, period_col, slug_to_members, info)
         else:
             groups = _aggregate_groups(df, classify, period_col)

@@ -1,65 +1,59 @@
-import { useEffect, useMemo } from "react";
+import { Show, createMemo, onMount } from "solid-js";
 import { Box, Stack, Text } from "@/ui";
-import Grid from "@mui/material/Grid";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import Select from "@mui/material/Select";
-import MenuItem from "@mui/material/MenuItem";
-import { IconRefresh, IconClock } from "@tabler/icons-react";
-import type { ColumnDef } from "@tanstack/react-table";
-import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import { Button } from "@/ui";
+import { Loader } from "@/ui";
+import { Select } from "@/ui";
+import { useColorScheme } from "@/ui";
+import { IconRefresh, IconClock } from "../screener/icons";
 import type { SectorCorrelationResponse } from "../../types/sector";
 import {
   market as sectorMarket,
   lookbackDays,
   setMarket,
   setLookbackDays,
-  isLoading as stateLoading,
-  error as stateError,
-  data as stateData,
+  isLoading as stateLoadingFlag,
+  error as stateErrorRaw,
+  data as stateDataRaw,
   fetchCorrelationData,
   subscribe as subscribeToState,
 } from "../../state/sectorCorrelation";
-import { TanStackTable } from "../common/TanStackTable";
+import { useStoreSnapshot } from "../../hooks/useStoreSubscription";
 import { CompactPanel } from "../common/compact";
-import { formatPercentage } from "../../utils/ui-helpers";
-import { CorrelationHeatmap, SectorBetaChart, RotationTimeline } from "./SectorCorrelationCharts";
+import {
+  SectorBetaChart,
+  RotationTimeline,
+  RelativeStrengthBoard,
+} from "./SectorCorrelationCharts";
+import { CorrelationMatrixBoard } from "./correlation/CorrelationMatrixBoard";
 
+// 90 is the store's default; the previous 66-day "3M" option left the Select
+// showing no valid value for the data that was actually fetched.
 const LOOKBACK_OPTIONS = [
   { label: "5D", value: 5 },
   { label: "1M", value: 22 },
-  { label: "3M", value: 66 },
+  { label: "3M", value: 90 },
   { label: "6M", value: 132 },
   { label: "1Y", value: 252 },
 ];
 
-/** Dense control row shared by the header strip (8pt grid → 4px gaps). */
-const HEADER_ROW_SX = {
-  display: "flex",
-  alignItems: "center",
-  gap: 0.5,
-  flexWrap: "wrap",
-  px: 0.5,
-  py: 0.25,
-  minHeight: 28,
-} as const;
+type SectorRow = SectorCorrelationResponse["sectors"][number];
 
-function CorrelationHeader({
-  currentMarket,
-  currentLookback,
-  lastUpdated,
-}: {
-  currentMarket: string;
-  currentLookback: number;
-  lastUpdated?: string;
-}) {
-  const handleMarketChange = (v: string) => {
+const PANEL_CLASS =
+  "flex min-w-0 flex-col overflow-hidden rounded-sm border border-fin-border bg-fin-surface";
+
+function CorrelationHeader(props: { currentMarket: string; currentLookback: number; lastUpdated?: string }) {
+  // The header reads props at construction; force re-check on each render pass.
+  const currentMarket = () => props.currentMarket;
+  const currentLookback = () => props.currentLookback;
+  const lastUpdated = () => props.lastUpdated;
+
+  const handleMarketChange = (v: string | null) => {
+    if (v == null) return;
     setMarket(v as "india" | "america");
     void fetchCorrelationData();
   };
-  const handleLookbackChange = (v: string) => {
+  const handleLookbackChange = (v: string | null) => {
+    if (v == null) return;
     setLookbackDays(Number(v));
     void fetchCorrelationData();
   };
@@ -68,45 +62,40 @@ function CorrelationHeader({
   };
 
   return (
-    <Box data-testid="sector-correlation-header" sx={{ ...HEADER_ROW_SX, borderBottom: "1px solid", borderColor: "divider" }}>
-      <Text fw={700} sx={{ fontSize: 12, whiteSpace: "nowrap" }}>
+    <Box data-testid="sector-correlation-header" className="flex min-h-[28px] shrink-0 items-center gap-1 flex-wrap border-b border-fin-border px-1 py-0.5 overflow-x-auto">
+      <Text fw={700} className="text-ui-micro whitespace-nowrap">
         Sector Correlation
       </Text>
       <Select
-        size="small"
-        value={currentMarket}
-        onChange={(e) => handleMarketChange(String(e.target.value))}
+        size="xs"
+        value={currentMarket()}
+        onChange={handleMarketChange}
+        data={[{ value: "india", label: "India" }, { value: "america", label: "US" }]}
         data-testid="market-segment"
-        sx={{ height: 24, fontSize: 11, minWidth: 84 }}
-      >
-        <MenuItem value="india">India</MenuItem>
-        <MenuItem value="america">US</MenuItem>
-      </Select>
+        aria-label="Sector correlation market"
+        className="h-[24px] text-ui-micro min-w-[84px]"
+      />
       <Select
-        size="small"
-        value={String(currentLookback)}
-        onChange={(e) => handleLookbackChange(String(e.target.value))}
+        size="xs"
+        value={String(currentLookback())}
+        onChange={handleLookbackChange}
+        data={LOOKBACK_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
         data-testid="lookback-segment"
-        sx={{ height: 24, fontSize: 11, minWidth: 64 }}
-      >
-        {LOOKBACK_OPTIONS.map((o) => (
-          <MenuItem key={o.value} value={String(o.value)}>
-            {o.label}
-          </MenuItem>
-        ))}
-      </Select>
-      <Box sx={{ flex: 1 }} />
-      {lastUpdated && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <IconClock size={12} color="var(--mui-palette-text-secondary)" />
-          <Typography variant="caption" sx={{ fontSize: 10, fontVariantNumeric: "tabular-nums" }}>
-            {new Date(lastUpdated).toLocaleTimeString()}
-          </Typography>
+        aria-label="Sector correlation lookback"
+        className="h-[24px] text-ui-micro min-w-[64px]"
+      />
+      <Box className="flex-1" />
+      <Show when={lastUpdated()}>
+        <Box className="flex items-center gap-1">
+          <IconClock size={12} className="text-fin-text-muted" />
+          <Text size="xs" className="font-numeric tabular-nums font-mono">
+            {new Date(lastUpdated()!).toLocaleTimeString()}
+          </Text>
         </Box>
-      )}
+      </Show>
       <Box
         data-testid="sector-correlation-refresh"
-        sx={{ p: 0.5, cursor: "pointer", display: "flex", alignItems: "center" }}
+        className="p-1 cursor-pointer flex items-center"
         onClick={handleRefresh}
       >
         <IconRefresh size={14} />
@@ -115,151 +104,25 @@ function CorrelationHeader({
   );
 }
 
-function RelativeStrengthTable({ sectors }: { sectors: SectorCorrelationResponse["sectors"] }) {
-  const columns = useMemo<ColumnDef<SectorCorrelationResponse["sectors"][number]>[]>(
-    () => [
-      {
-        id: "rank",
-        header: "Rank",
-        accessorKey: "rank_current",
-        size: 56,
-        meta: { align: "center" },
-        cell: (info) => {
-          const rank = info.getValue<number>();
-          return (
-            <Chip
-              size="small"
-              label={`#${rank}`}
-              color={rank <= 3 ? "success" : "default"}
-              variant="outlined"
-              sx={{ height: 16, fontSize: 9.5, "& .MuiChip-label": { px: 0.5 } }}
-            />
-          );
-        },
-      },
-      {
-        id: "sector",
-        header: "Sector",
-        accessorKey: "name",
-        meta: { align: "left" },
-        cell: (info) => (
-          <Text sx={{ fontWeight: 600, fontSize: 10.5, whiteSpace: "nowrap" }}>{info.getValue<string>()}</Text>
-        ),
-      },
-      {
-        id: "rs_5d",
-        header: "5D RS",
-        accessorKey: "relative_strength_5d",
-        size: 80,
-        meta: { align: "right" },
-        cell: (info) => {
-          const val = info.getValue<number>();
-          return (
-            <Text c={val >= 0 ? "success.main" : "error.main"} sx={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
-              {formatPercentage(val / 100, 2, false)}
-            </Text>
-          );
-        },
-      },
-      {
-        id: "rs_1m",
-        header: "1M RS",
-        accessorKey: "relative_strength_1m",
-        size: 80,
-        meta: { align: "right" },
-        cell: (info) => {
-          const val = info.getValue<number>();
-          return (
-            <Text c={val >= 0 ? "success.main" : "error.main"} sx={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
-              {formatPercentage(val / 100, 2, false)}
-            </Text>
-          );
-        },
-      },
-      {
-        id: "rs_3m",
-        header: "3M RS",
-        accessorKey: "relative_strength_3m",
-        size: 80,
-        meta: { align: "right" },
-        cell: (info) => {
-          const val = info.getValue<number>();
-          return (
-            <Text c={val >= 0 ? "success.main" : "error.main"} sx={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
-              {formatPercentage(val / 100, 2, false)}
-            </Text>
-          );
-        },
-      },
-      {
-        id: "beta",
-        header: "Beta",
-        accessorKey: "beta_vs_index",
-        size: 64,
-        meta: { align: "right" },
-        cell: (info) => (
-          <Text sx={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>{info.getValue<number>().toFixed(2)}</Text>
-        ),
-      },
-      {
-        id: "rank_change",
-        header: "1M Change",
-        accessorKey: "rank_change_1m",
-        size: 88,
-        meta: { align: "center" },
-        cell: (info) => {
-          const change = info.getValue<number>();
-          return (
-            <Chip
-              size="small"
-              label={change > 0 ? `+${change}` : String(change)}
-              color={change > 0 ? "success" : change < 0 ? "error" : "default"}
-              variant="outlined"
-              sx={{ height: 16, fontSize: 9.5, "& .MuiChip-label": { px: 0.5 } }}
-            />
-          );
-        },
-      },
-    ],
-    [],
-  );
-
-  return (
-    <TanStackTable
-      data={sectors}
-      columns={columns}
-      enableSorting={false}
-      dataTestId="relative-strength-table-inner"
-      emptyMessage="No relative-strength rows"
-      dense
-      stickyHeader
-      rowWindowSize={40}
-    />
-  );
-}
-
 function LoadingState() {
   return (
-    <Box
-      data-testid="sector-correlation-loading"
-      sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5, flex: 1, minHeight: 200 }}
-    >
-      <CircularProgress size={16} />
-      <Typography variant="caption">Loading sector correlation…</Typography>
+    <Box data-testid="sector-correlation-loading" className="flex items-center justify-center gap-2 flex-1 min-h-[200px]">
+      <Loader size="xs" />
+      <Text size="xs">Loading sector correlation…</Text>
     </Box>
   );
 }
 
-function ErrorState({ error }: { error: string }) {
+function ErrorState(props: { error: string }) {
   const handleRefresh = () => {
     void fetchCorrelationData();
   };
   return (
-    <Box data-testid="sector-correlation-error" sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-      <Typography variant="caption" color="error">
-        {error}
-      </Typography>
-      <Button variant="outlined" color="error" size="small" onClick={handleRefresh} sx={{ height: 22, fontSize: 10 }}>
+    <Box data-testid="sector-correlation-error" className="flex min-h-0 flex-1 items-center gap-2 p-2">
+      <Text size="xs" c="error">
+        {props.error}
+      </Text>
+      <Button variant="outline" color="error" size="xs" onClick={handleRefresh} className="h-[22px] text-ui-micro">
         Retry
       </Button>
     </Box>
@@ -267,88 +130,129 @@ function ErrorState({ error }: { error: string }) {
 }
 
 export function SectorCorrelationTab() {
-  useStoreSubscription(subscribeToState);
-  const isDark = typeof document !== "undefined" ? document.documentElement.getAttribute("data-dark") === "true" : false;
-  const data = stateData;
-  const sortedSectors = useMemo(() => {
-    if (!data?.sectors) return [];
-    return [...data.sectors].sort((a, b) => a.rank_current - b.rank_current);
-  }, [data]);
+  const store = useStoreSnapshot(subscribeToState, () => ({
+    market: sectorMarket,
+    lookbackDays,
+    data: stateDataRaw,
+    isLoading: stateLoadingFlag,
+    error: stateErrorRaw,
+  }));
+  const { colorScheme } = useColorScheme();
+  const isDark = () => colorScheme() === "dark";
 
-  useEffect(() => {
-    if (!data && !stateLoading) void fetchCorrelationData();
-  }, []);
+  const sortedSectors = createMemo<SectorRow[]>(() => {
+    const d = store().data;
+    if (!d?.sectors) return [];
+    return [...d.sectors].sort((a, b) => a.rank_current - b.rank_current);
+  });
 
-  if (stateLoading && !data) return <LoadingState />;
-  if (stateError) return <ErrorState error={stateError} />;
-  if (!data || !data.sector_names || data.sector_names.length === 0) {
-    return (
-      <Box data-testid="sector-correlation-empty" sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-        <Typography variant="caption" color="text.secondary">
-          No correlation data available.
-        </Typography>
-      </Box>
-    );
-  }
-  const benchmark = sectorMarket === "india" ? "NIFTY 50" : "SPY";
+  onMount(() => {
+    if (!store().data && !store().isLoading) void fetchCorrelationData();
+  });
+
+  const showLoading = () => store().isLoading && !store().data;
+  const showError = () => !!store().error && !showLoading();
+  const showEmpty = () =>
+    !showLoading() && !showError() && (!store().data || !store().data!.sector_names || store().data!.sector_names.length === 0);
 
   return (
-    <Stack spacing={0.5} sx={{ p: 0.5, width: "100%", minWidth: 0 }}>
-      <CorrelationHeader currentMarket={sectorMarket} currentLookback={lookbackDays} lastUpdated={data.last_updated} />
-      <Grid container spacing={0.5} sx={{ width: "100%" }}>
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <CompactPanel
-            flush
-            padded={false}
-            id="sector-correlation-heatmap"
-            testId="sector-correlation-heatmap"
-            title={<Text sx={{ fontSize: 10, fontWeight: 700 }}>Cross-Sector Correlation</Text>}
-            sx={{ minWidth: 0 }}
+    <Box
+      data-testid="sector-correlation-tab"
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    >
+      <Show when={!showLoading()} fallback={<LoadingState />}>
+        <Show when={!showError()} fallback={<ErrorState error={store().error ?? ""} />}>
+          <Show
+            when={!showEmpty()}
+            fallback={
+              <Box data-testid="sector-correlation-empty" className="flex min-h-0 flex-1 items-center justify-center p-2">
+                <Text size="xs" c="dimmed">
+                  No correlation data available.
+                </Text>
+              </Box>
+            }
           >
-            <Box sx={{ p: 0.5, minHeight: 280, width: "100%" }}>
-              <CorrelationHeatmap matrix={data.correlation_matrix} symbols={data.sector_names} isDark={isDark} />
+            <CorrelationHeader
+              currentMarket={store().market}
+              currentLookback={store().lookbackDays}
+              lastUpdated={store().data?.last_updated}
+            />
+            <Box data-testid="sector-correlation-scroll" className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-1">
+              <Stack spacing={0.5} className="w-full min-w-0">
+                {/*
+                 * The 10-column matrix gets the full row: at 900/1100 a
+                 * 1.1fr/1fr split made it wider than its panel and clipped the
+                 * last index. The two ranked boards share the row underneath on
+                 * wide screens and stack below xl.
+                 */}
+                <div
+                  data-testid="sector-correlation-grid"
+                  className="grid min-w-0 grid-cols-1 items-start gap-1 xl:grid-cols-2"
+                >
+                  <CompactPanel
+                    flush
+                    padded={false}
+                    id="sector-correlation-heatmap"
+                    testId="sector-correlation-heatmap"
+                    title={<Text className="text-ui-micro font-bold">Cross-Sector Correlation</Text>}
+                    className={`${PANEL_CLASS} xl:col-span-2`}
+                  >
+                    <Box className="w-full min-w-0 p-1">
+                      <CorrelationMatrixBoard
+                        matrix={store().data!.correlation_matrix}
+                        symbols={store().data!.sector_names}
+                        isDark={isDark()}
+                      />
+                    </Box>
+                  </CompactPanel>
+                  <CompactPanel
+                    scrollable
+                    flush
+                    padded={false}
+                    id="sector-beta-chart"
+                    testId="sector-beta-chart"
+                    title={<Text className="text-ui-micro font-bold">Sector Beta vs Benchmark</Text>}
+                    className={`${PANEL_CLASS} h-[320px]`}
+                  >
+                    <Box className="flex min-h-0 w-full flex-1 p-1">
+                      <SectorBetaChart
+                        sectors={sortedSectors()}
+                        benchmark={store().market === "india" ? "NIFTY 50" : "SPY"}
+                        isDark={isDark()}
+                      />
+                    </Box>
+                  </CompactPanel>
+                  <CompactPanel
+                    scrollable
+                    flush
+                    padded={false}
+                    id="rotation-timeline"
+                    testId="rotation-timeline"
+                    title={<Text className="text-ui-micro font-bold">Sector Rotation (1-Month Rank Change)</Text>}
+                    className={`${PANEL_CLASS} h-[320px]`}
+                  >
+                    <Box className="flex min-h-0 w-full flex-1 p-1">
+                      <RotationTimeline sectors={sortedSectors()} isDark={isDark()} />
+                    </Box>
+                  </CompactPanel>
+                </div>
+                <CompactPanel
+                  flush
+                  padded={false}
+                  id="relative-strength-table"
+                  testId="relative-strength-table"
+                  title={<Text className="text-ui-micro font-bold">Relative Strength Rankings</Text>}
+                  className={PANEL_CLASS}
+                >
+                  <Box className="w-full min-w-0 p-1">
+                    <RelativeStrengthBoard sectors={sortedSectors()} isDark={isDark()} />
+                  </Box>
+                </CompactPanel>
+              </Stack>
             </Box>
-          </CompactPanel>
-        </Grid>
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <CompactPanel
-            flush
-            padded={false}
-            id="sector-beta-chart"
-            testId="sector-beta-chart"
-            title={<Text sx={{ fontSize: 10, fontWeight: 700 }}>Sector Beta vs Benchmark</Text>}
-            sx={{ minWidth: 0 }}
-          >
-            <Box sx={{ p: 0.5, height: 320, width: "100%", display: "flex" }}>
-              <SectorBetaChart sectors={sortedSectors} benchmark={benchmark} isDark={isDark} />
-            </Box>
-          </CompactPanel>
-        </Grid>
-      </Grid>
-      <CompactPanel
-        flush
-        padded={false}
-        id="relative-strength-table"
-        testId="relative-strength-table"
-        title={<Text sx={{ fontSize: 10, fontWeight: 700 }}>Relative Strength Rankings</Text>}
-        sx={{ minWidth: 0 }}
-      >
-        <Box sx={{ width: "100%", minWidth: 0 }}>
-          <RelativeStrengthTable sectors={sortedSectors} />
-        </Box>
-      </CompactPanel>
-      <CompactPanel
-        flush
-        padded={false}
-        id="rotation-timeline"
-        testId="rotation-timeline"
-        title={<Text sx={{ fontSize: 10, fontWeight: 700 }}>Sector Rotation (1-Month Rank Change)</Text>}
-        sx={{ minWidth: 0 }}
-      >
-        <Box sx={{ p: 0.5, height: 400, width: "100%", display: "flex" }}>
-          <RotationTimeline sectors={sortedSectors} isDark={isDark} />
-        </Box>
-      </CompactPanel>
-    </Stack>
+          </Show>
+        </Show>
+      </Show>
+    </Box>
   );
 }

@@ -32,7 +32,6 @@ def test_heartbeat_ttls_with_spy():
         pid = os.getpid()
         status_key = f"bot:7:3:status"
         pid_key = f"bot:7:3:pid"
-        # Trigger what _run does
         spy.setex(status_key, HEARTBEAT_TTL, f"running:{pid}")
         spy.setex(pid_key, 86400, str(pid))
         assert HEARTBEAT_TTL == 90
@@ -63,7 +62,6 @@ def test_heartbeat_run_writes_correct_ttls():
 def test_cache_redis_client_ttl_constants():
     from trading.bot_heartbeat import HEARTBEAT_TTL
     assert HEARTBEAT_TTL == 90
-    # Ensure code uses 86400 literal for pid
     text = Path(ROOT / "trading" / "bot_heartbeat.py").read_text()
     assert "86400" in text
     assert "HEARTBEAT_TTL" in text

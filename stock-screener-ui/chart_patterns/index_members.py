@@ -1,4 +1,3 @@
-"""Constituent membership for the Indian index universe."""
 
 from __future__ import annotations
 

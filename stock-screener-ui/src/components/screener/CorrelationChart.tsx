@@ -1,6 +1,7 @@
-import { useEffect } from "react";
-import { Box, Loader, Flex, Stack, Text } from "@/ui";
-import { useECharts } from "../../hooks/useECharts";
+import { Show, createEffect, onCleanup, onMount, createMemo } from "solid-js";
+import type * as ECharts from "echarts";
+import { Box, Loader, Flex, Stack, Text, typeSize } from "@/ui";
+import { loadEcharts } from "../../utils/loadEcharts";
 import type { CorrelationDataPoint } from "../../api/correlation";
 import {
   CREAM,
@@ -36,14 +37,16 @@ const COLORS = [
   BLACK,
 ];
 
-export function CorrelationChart({ normalized, symbols, isLoading }: CorrelationChartProps) {
-  const { chartRef, setChartOption } = useECharts({ isDark: false });
+export function CorrelationChart(props: CorrelationChartProps) {
+  let chartEl: HTMLDivElement | undefined;
+  let chart: ECharts.ECharts | undefined;
+  let disposed = false;
 
-  const hasData = normalized && symbols && symbols.length > 0;
+  const hasData = () =>
+    props.normalized != null && props.symbols != null && props.symbols.length > 0;
 
-  useEffect(() => {
-    if (!hasData) return;
-
+  const buildOption = () => {
+    const { normalized, symbols } = props;
     const allTimestamps = new Set<string>();
     symbols.forEach((sym) => {
       normalized[sym]?.forEach((dp) => allTimestamps.add(dp.timestamp));
@@ -63,7 +66,7 @@ export function CorrelationChart({ normalized, symbols, isLoading }: Correlation
       itemStyle: { color: COLORS[idx % COLORS.length] },
     }));
 
-    setChartOption({
+    return {
       tooltip: {
         trigger: "axis" as const,
         axisPointer: { type: "cross", snap: true },
@@ -84,14 +87,14 @@ export function CorrelationChart({ normalized, symbols, isLoading }: Correlation
         data: symbols,
         top: 0,
         type: "scroll" as const,
-        textStyle: { fontSize: 11, color: CHART_MUTED },
+        textStyle: { fontSize: typeSize("micro"), color: CHART_MUTED },
       },
       grid: { left: 60, right: 20, top: 40, bottom: 30 },
       xAxis: {
         type: "category" as const,
         data: sortedTimestamps,
         axisLabel: {
-          fontSize: 10,
+          fontSize: typeSize("micro"),
           rotate: 30,
           formatter: (val: string) => {
             const d = new Date(val);
@@ -103,24 +106,56 @@ export function CorrelationChart({ normalized, symbols, isLoading }: Correlation
       yAxis: {
         type: "value" as const,
         name: "% Change",
-        nameTextStyle: { fontSize: 11, color: CHART_MUTED },
-        axisLabel: { fontSize: 10, formatter: "{value}%", color: CHART_MUTED },
+        nameTextStyle: { fontSize: typeSize("micro"), color: CHART_MUTED },
+        axisLabel: { fontSize: typeSize("micro"), formatter: "{value}%", color: CHART_MUTED },
         splitLine: { lineStyle: { type: "dashed", color: CHART_SPLIT } },
         axisLine: { lineStyle: { color: CHART_MUTED } },
       },
       series,
-    });
-  }, [hasData, normalized, symbols, setChartOption]);
+    };
+  };
+
+  const option = createMemo(() => (hasData() ? buildOption() : null));
+  let optionGeneration = 0;
+
+  async function applyOption(next: ReturnType<typeof buildOption>, generation: number) {
+    const lib = await loadEcharts();
+    // The loader is async: a slower earlier import must not paint over a newer
+    // result when the store ticks again before it resolves.
+    if (disposed || generation !== optionGeneration || !chartEl || !lib) return;
+    if (!chart) chart = lib.init(chartEl, null) as ECharts.ECharts;
+    chart.setOption(next, true);
+    chart.resize();
+  }
+
+  createEffect(() => {
+    const next = option();
+    if (!next) return;
+    void applyOption(next, ++optionGeneration);
+  });
+
+  onMount(() => {
+    const handleResize = () => chart?.resize();
+    window.addEventListener("resize", handleResize);
+    onCleanup(() => window.removeEventListener("resize", handleResize));
+  });
+
+  onCleanup(() => {
+    disposed = true;
+    optionGeneration++;
+    chart?.dispose();
+    chart = undefined;
+  });
 
   return (
-    <Box pos="relative" sx={{ minHeight: 300 }}>
-      <Box
+    <Box pos="relative" style={{ "min-height": hasData() || props.isLoading ? "300px" : "36px" }}>
+      <div
         data-testid="correlation-chart"
-        ref={chartRef}
-        sx={{ minHeight: 300, opacity: hasData ? 1 : 0 }}
+        ref={(el) => (chartEl = el)}
+        style={{ opacity: hasData() ? "1" : "0", "min-height": hasData() || props.isLoading ? "300px" : "36px" }}
       />
-      {isLoading && (
-        <Flex pos="absolute" inset={0} justify="center" align="center" sx={{ zIndex: 1 }}>
+      <Show when={props.isLoading}>
+        <Flex pos="absolute" inset={0} justify="center" align="center" style={{ "z-index": 1, "pointer-events": "none" }}>
           <Stack align="center" gap="sm">
             <Loader size="sm" />
             <Text size="sm" c="dimmed">
@@ -128,14 +163,17 @@ export function CorrelationChart({ normalized, symbols, isLoading }: Correlation
             </Text>
           </Stack>
         </Flex>
-      )}
-      {!isLoading && !hasData && (
-        <Flex pos="absolute" inset={0} justify="center" align="center">
+      </Show>
+      {/* Informational overlay only: it must never swallow clicks meant for the
+          controls above, which is exactly what happened before pointer-events-none
+          (the empty-state overlay sat over the correlation toolbar). */}
+      <Show when={!props.isLoading && !hasData()}>
+        <Flex pos="absolute" inset={0} justify="center" align="center" style={{ "pointer-events": "none" }}>
           <Text size="sm" c="dimmed">
             No chart data available
           </Text>
         </Flex>
-      )}
+      </Show>
     </Box>
   );
 }

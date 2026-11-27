@@ -1,8 +1,3 @@
-"""Pre-range fade — cross-ticker comparison (SNDK, MU, WDC, STX, RKLB, mega caps).
-
-Recomputes every ticker with identical code so the ranking is apples-to-apples.
-Run: .venv/bin/python scripts/research/prerange/generate_compare.py
-"""
 import datetime
 import json
 import os
@@ -54,7 +49,7 @@ def run(df, closes, rule, moc, tgt_mode, min_move=1.0, max_move=5.0):
         reg = day[(day.index.time >= T(9, 30)) & (day.index.time < T(16, 0))]
         if len(pre) == 0 or len(reg) == 0:
             continue
-        if str(reg.index[-1].time()) < "15:30":   # skip half days / live partial
+        if str(reg.index[-1].time()) < "15:30":
             continue
         prior = [x for x in tdates if x < D]
         if not prior:
@@ -126,7 +121,6 @@ for tk in TICKERS:
         res[tk][label] = {v[0]: stat(run(df, closes, v[1], v[2], v[3])) for v in VARIANTS}
     print(tk, {k: {vv: res[tk][k][vv]["pf"] for vv in res[tk][k]} for k in res[tk]})
 
-# edge buckets (6mo 1h, baseline, pre-filter 0.2-100)
 edge = {}
 for tk in TICKERS:
     d = cache[(tk, "6mo", "1h")]
@@ -134,7 +128,6 @@ for tk in TICKERS:
         continue
     a = pd.DataFrame({"pnl": run(d[0], d[1], "NONE", None, "pre", 0.2, 100)})
     edge[tk] = stat(list(a.pnl))
-# edge needs pre_chg per trade; recompute with bucket tagging
 
 def buckets(tk, period="6mo", interval="1h"):
     d = cache[(tk, period, interval)]
@@ -182,9 +175,7 @@ def buckets(tk, period="6mo", interval="1h"):
 
 edge = {tk: buckets(tk) for tk in TICKERS}
 
-# ---------- ranking ----------
 def score(tk):
-    """Rank: weight robustness (1y) + strength (6mo)."""
     a = res[tk]["A · 6mo 1h"]
     c = res[tk]["C · 1y 1h"]
     best_a = max((v["pf"] or 0) for v in a.values())
@@ -194,7 +185,6 @@ def score(tk):
 
 rank = sorted(TICKERS, key=score, reverse=True)
 
-# ---------- chart ----------
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 5.5))
 x = np.arange(len(rank))
 w = 0.26
@@ -222,7 +212,6 @@ fig.tight_layout()
 fig.savefig(FIG / "pf_by_ticker.png", dpi=110)
 plt.close(fig)
 
-# ---------- HTML ----------
 def pfcell(s):
     if s["n"] == 0:
         return "<td class=\"dim\">—</td>"

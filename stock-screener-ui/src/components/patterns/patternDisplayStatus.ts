@@ -64,8 +64,6 @@ export function patternDisplayStatus(args: {
 }): DisplayStatus {
   const { rawStatus, isBase, lastClose, upper, lower } = args;
 
-  // Without a live price and a breakout trigger we cannot place the price in
-  // the box — fall back to the raw DB status.
   if (!isPositive(lastClose) || !isPositive(upper)) {
     return rawStatusFallback(rawStatus);
   }
@@ -94,7 +92,6 @@ export function patternDisplayStatus(args: {
     };
   }
 
-  // dist < 0: price is below the trigger.
   if (lower == null || !Number.isFinite(lower) || lastClose >= lower) {
     return {
       label: "ARMED",
@@ -110,11 +107,6 @@ export function patternDisplayStatus(args: {
   };
 }
 
-/**
- * Convenience wrapper for surfaces that only have the hit (list, fullscreen,
- * chart body): resolves the box edges from the hit's trendlines/pivots and
- * derives the display status with the same rules as the card pill.
- */
 export function displayStatusForHit(hit: PatternHitDTO): DisplayStatus {
   const isBase = hit.pattern_id === "consolidation" || (hit.base_days ?? 0) > 0;
   const { upper, lower } = isBase ? triggerLevels(hit) : { upper: null, lower: null };

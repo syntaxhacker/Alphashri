@@ -1,5 +1,6 @@
-import { Box, Flex, Tabs } from "@/ui";
-import { IconTable, IconHistory } from "@tabler/icons-react";
+import { Tabs, Box, Flex } from "@/ui";
+import * as palette from "@/ui/palette";
+import { IconTable, IconHistory } from "@/components/common/Icons";
 import {
   BacktestSummary,
   BacktestResultsTable,
@@ -22,28 +23,14 @@ interface BacktestLeftPanelProps {
   onSort: (column: string) => void;
 }
 
-export function BacktestLeftPanel({
-  activeTab,
-  setActiveTab,
-  isRunning,
-  progress,
-  results,
-  totals,
-  selectedChartSymbol,
-  sortedResults,
-  resultsSortColumn,
-  resultsSortDirection,
-  onRowClick,
-  onSort,
-}: BacktestLeftPanelProps) {
+export function BacktestLeftPanel(props: BacktestLeftPanelProps) {
   return (
     <Tabs
-      value={activeTab}
-      onChange={setActiveTab}
-      h="100%"
-      sx={{ display: "flex", flexDirection: "column" }}
+      value={props.activeTab}
+      onChange={props.setActiveTab}
+      className="flex h-full min-h-0 flex-col overflow-hidden"
     >
-      <Box sx={{ flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+      <Box className="shrink-0 flex items-center justify-center p-2" style={{ flex: "0 0 auto", display: "flex", "align-items": "center", "justify-content": "center", padding: "8px" }}>
         <Tabs.List>
           <Tabs.Tab value="results" leftSection={<IconTable size={14} />}>
             Results
@@ -56,29 +43,29 @@ export function BacktestLeftPanel({
 
       <Tabs.Panel
         value="results"
-        className="backtest-results-panel"
-        flex={1}
-        sx={{ minHeight: 0, overflow: "hidden" }}
+        className="backtest-results-panel min-h-0 overflow-hidden"
+        style={{ flex: 1, "min-height": 0, overflow: "hidden" }}
       >
-        {isRunning ? (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 2 }}>
+        {props.isRunning ? (
+          <Box className="flex items-center justify-center p-2" style={{ display: "flex", "align-items": "center", "justify-content": "center", padding: "16px" }}>
             <BacktestProgress
               progress={{
-                current: progress.current,
-                total: progress.total,
-                message: progress.message,
+                current: props.progress.current,
+                total: props.progress.total,
+                message: props.progress.message,
               }}
             />
           </Box>
-        ) : !results || results.length === 0 ? (
+        ) : !props.results || props.results.length === 0 ? (
           <Box
-            sx={(theme) => ({
+            className="flex items-center justify-center h-full"
+            style={{
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              "align-items": "center",
+              "justify-content": "center",
               height: "100%",
-              color: theme.palette.text.secondary,
-            })}
+              color: palette.TEXT_MUTED,
+            }}
             data-testid="results-empty"
           >
             No results yet. Run a backtest.
@@ -88,20 +75,20 @@ export function BacktestLeftPanel({
             direction="column"
             gap="xs"
             h="100%"
-            className="backtest-results-content"
-            sx={{ minHeight: 0, gap: 1 }}
+            className="backtest-results-content min-h-0 gap-2"
+            style={{ "min-height": 0, gap: "8px" }}
           >
-            <Box sx={{ flex: "0 0 auto", display: "flex", alignItems: "center" }}>
-              <BacktestSummary totals={totals} />
+            <Box className="shrink-0 flex items-center" style={{ flex: "0 0 auto", display: "flex", "align-items": "center" }}>
+              <BacktestSummary totals={props.totals} />
             </Box>
-            <Box flex={1} sx={{ minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column" }}>
+            <Box flex={1} className="min-h-0 overflow-auto flex flex-col" style={{ "min-height": 0, overflow: "auto", display: "flex", "flex-direction": "column" }}>
               <BacktestResultsTable
-                results={sortedResults}
-                selectedSymbol={selectedChartSymbol}
-                sortColumn={resultsSortColumn}
-                sortDirection={resultsSortDirection}
-                onRowClick={onRowClick}
-                onSort={onSort}
+                results={props.sortedResults}
+                selectedSymbol={props.selectedChartSymbol}
+                sortColumn={props.resultsSortColumn}
+                sortDirection={props.resultsSortDirection}
+                onRowClick={props.onRowClick}
+                onSort={props.onSort}
               />
             </Box>
           </Flex>
@@ -110,11 +97,10 @@ export function BacktestLeftPanel({
 
       <Tabs.Panel
         value="history"
-        className="backtest-history-panel"
-        flex={1}
-        sx={{ minHeight: 0, minWidth: 0, overflow: "auto", display: "flex", flexDirection: "column" }}
+        className="backtest-history-panel min-h-0 min-w-0 overflow-auto flex flex-col"
+        style={{ flex: 1, "min-height": 0, "min-width": 0, overflow: "auto", display: "flex", "flex-direction": "column" }}
       >
-        <BacktestHistory active={activeTab === "history"} onLoad={() => setActiveTab("results")} />
+        <BacktestHistory active={props.activeTab === "history"} onLoad={() => props.setActiveTab("results")} />
       </Tabs.Panel>
     </Tabs>
   );

@@ -3,7 +3,7 @@
  * Guard: common components must not contain hardcoded color literals.
  * Colors come from ONE source: src/ui/palette.ts (via config/colors).
  * This catches any future component that inlines hex/rgba instead of
- * importing palette tokens or using MUI theme CSS variables.
+ * importing palette tokens or using theme CSS variables.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -18,8 +18,6 @@ const ALLOWED = new Set([
   "ui/theme.tsx",
   // palette is THE source
   "ui/palette.ts",
-  // playground is user-facing dev tooling
-  "ui/ThemePlayground.tsx",
 ]);
 
 // hex + rgb()/rgba() literals (not var() / palette constants)
@@ -81,6 +79,6 @@ describe("color hygiene guard", () => {
       const m = txt.match(COLOR_RE);
       if (m) offenders.push(`${r}: ${[...new Set(m)].slice(0, 4).join(", ")}`);
     }
-    expect(offenders, "ui wrappers must pass through MUI theme").toEqual([]);
+    expect(offenders, "ui wrappers must pass through palette tokens").toEqual([]);
   });
 });

@@ -1,0 +1,123 @@
+# Design system A+ gate
+
+**Goal:** reach an **A+ score for the dark-only financial-terminal design system**, not Ant Design parity. Light mode, i18n/RTL and SSR are explicitly out of scope by product decision.
+
+This file is the design-system scorecard and loop contract. The visual gate itself — roles, the
+seven-dimension rubric, caps and verdict format — is
+[`UI_RULES.md` §7](../UI_RULES.md#7-visual-review-gate-independent-verifier--approver). This file
+adds only the design-system dimensions below; do not restate or reinterpret §7 here. We do not mark
+the design-system task finished until §7 records an A+.
+
+## Scope-adjusted A+ definition
+
+| Dimension | A+ target | Evidence required |
+|---|---:|---|
+| Tokens / dark theme contract | 9/10 | one palette source, semantic + component tokens, no hardcoded hex outside palette; JS consumers use semantic palette constants (or `tokenColor` where a computed CSS variable is required — there is only one scheme) |
+| Typography | 9/10 | one six-step `text-ui-*` scale, 12px floor, no private inline sizes, chart/JS consumers read the same scale |
+| Component completeness | 9/10 | every exported primitive has default/hover/focus/active/disabled/loading/error (where meaningful), light/dark not applicable |
+| API consistency | 9/10 | no advertised-but-ignored props, one callback convention per control family, no swallowed legacy props |
+| Accessibility | 9/10 | zero serious/critical axe violations, keyboard + focus management, form errors associated, modal/popover containment |
+| Forms | 8/10 | label/description/error contract, invalid state, required semantics; no schema engine required |
+| Data display | 9/10 | table, tree, tabs, menu, timeline, key/value, charts; density + empty/loading/error states |
+| Overlays | 9/10 | modal, popover, tooltip, floating window; focus trap, dismissal, background inert, keyboard parity |
+| Documentation / Storybook | 9/10 | every component page has variants/states/usage/a11y notes; family pages; links resolve |
+| Test strategy | 9/10 | co-located tests for every primitive, axe smoke gate, catalog guard, visual evidence |
+| Performance | 8/10 | no new runtime deps, CSS-only motion, no layout thrash, bundle budget no regression |
+| i18n / RTL / light / SSR | N/A | explicitly out of scope; documented, not silently broken |
+
+An A+ requires every in-scope dimension to meet its target **and** the
+[`UI_RULES.md` §7.3 rubric](../UI_RULES.md#73-a-rubric) to be clean in every state and viewport. The verdict comes from one independent verifier; the approver (main agent or named human)
+records it. There is no averaging, no median across raters, no self-scoring by the implementing
+agent and no self-approval. Only A+ ships.
+
+## Loop
+
+1. The implementer closes P0/P1 gaps in the design-system scorecard.
+2. The implementer integrates and verifies: typecheck, lint, targeted tests, axe gate, Storybook build, 1600/390 screenshots.
+3. The main agent dispatches one **independent verifier** (read-only, authored no changed files) against this table and the §7 rubric.
+4. A miss on any in-scope dimension, or any remaining P0/P1, sends the work back to the implementer. Repeat until the verifier records A+.
+5. The approver records the A+ verdict, verifier, approver and screenshot paths. The main agent is the **sole git actor** and commits/opens the PR only after A+ is recorded.
+6. Only then mark the task finished.
+
+## Current known gaps (as of 2026-11-24, at HEAD `the final evidence commit`; see composition wave below)
+
+Resolved since the first draft (verified against source/CI, not memory):
+
+- `uiTheme` is typed (`as const` + `export type UiTheme` in `src/ui/theme.tsx`) and `UIProvider` now applies the colour-scheme props through the shared signal. The old "no-op theme stub" claim is stale.
+- `FormField` (`src/ui/form/FormField.tsx`, with story and co-located test) owns ids, `aria-describedby` and `aria-invalid`; `Checkbox` and `Switch` now expose `error`/`description` slots and wire the same attributes. The "no error slot on Checkbox/Switch" claim is stale.
+- `Tree` and `Menu` keyboard contracts are closed: Arrow/Home/End roving focus, `loop={false}` clamping, Escape dismissal, with regression tests in `Tree.test.tsx` / `Menu.test.tsx`. They are no longer "being closed in the current wave".
+- `Select`/`MultiSelect` no longer accept `allowDeselect`, `maxDropdownHeight`, `comboboxProps`, `withinPortal` or `InputProps` (`@ts-expect-error` tests in `legacyProps.test.tsx` assert they are absent); Tooltip's `withinPortal` is gone too. `legacyProps.ts` is now only a defensive strip for force-cast callers of Text/Number/Password (`LEGACY_INPUT_PROP_KEYS`). `InputProps` has been removed from every public input type and from that strip — callers must not pass it at all, so no swallowed-prop debt remains.
+- Automated a11y is no longer happy-dom-only: `src/test/a11y-smoke.test.tsx` runs in vitest and `node scripts/storybook-a11y.mjs` runs axe-core in real Chromium over representative stories (serious/critical fail the job). Scoped UI coverage (`bun run test:coverage:ui`), the Storybook catalog guard (after a CI Storybook build) and `design-scale.test.ts` (no `ui/` exemption) also run in CI. Local catalog-guard runs still skip without a built manifest.
+- Real-browser gates now cover **30 axe stories** (all 13 family landings + 3 overlay playables + 5 component representatives + 9 newly pinned visible states, including NavLink) and **10 keyboard walkthroughs**: Modal, Tree, Menu, horizontal/vertical Tabs, Popover, Tooltip, modal FloatingWindow and NavLink (native-button Enter/Space activation, disabled inert, href stays an anchor), plus the original modal dismissal case.
+- Typography has one tier: `src/ui/typography.ts` + `--text-ui-*` in `tailwind.css`, with a 12px hard floor, a 12/13/14/16/20/24 ladder and `uiTheme.fontSizes` aliases. The migration is complete: `node scripts/typography-audit.mjs` reports **0 private size declarations** across non-test/non-story source; `design-scale.test.ts` rejects any new one, and `audit:typography:check` is a CI step. The report now derives `REPORT_FONT` from the same scale (12/13/16/24), and every family/component showcase was recaptured at 1600 and 390.
+
+Still open — keep the A+ verdict honest:
+
+- **Token contract (dark-only).** With one colour scheme, static semantic palette imports are the intended contract; `tokenColor`/`useTokenColor` exist for the cases that must read a computed CSS variable. The guard is the absence of raw hex outside `palette.ts` (asserted by `theme-single-source.test.ts`), not call-site counts. This is a scope correction, not a claim that every chart was migrated to a runtime accessor.
+- **API callback conventions (resolved).** `onChange` is value-based across the input family, including `Checkbox`/`Switch`/`Chip` (`boolean`); `onClick` is the `UIBaseProps` `MouseEvent` handler on every control, including `NavLink`, `Menu.Item` and `CloseButton`. No void overrides remain — reopen this only with a new independent verification.
+- **Visual regression baseline.** Browser axe now covers **30 stories** including rendered contrast, and the keyboard walkthrough covers **10 interactions**; `docs/COMPONENT_AUDIT.md` reports **100 audited modules, 96 story files / 403 story entries, 88/100 modules with a story, 100/100 with a co-located test and 0 violations** (modules with no standalone story are composition-only helpers documented in `docs/COMPONENT_AUDIT_EXCEPTIONS.md`). The automated 1600/390 image-diff harness (`scripts/visual-regression.mjs`, `bun run visual:test`, plus the `Verify Storybook visual baseline` CI step added in `ff939b9a`) is in place, and its 12 baseline PNGs (6 stories × 2 viewports) are generated and committed under `tests/visual/__screenshots__/`; `bun run visual:test` passes **12/12**, so the pixel gate is green. The Storybook showcase is captured by `scripts/storybook-showcase.mjs` (width 1600 / 390, height ≥ viewport — some full-page, some viewport-sized), and app-route captures are 1600×1000 / 390×844 by `tests/e2e/design-evidence.spec.ts`, which reproduces the checked-in `docs/screenshots/app/report-{1600,390}.png` when run with `SCREENSHOT_EVIDENCE=1`.
+- **Coverage is scoped, not universal.** `docs/COMPONENT_AUDIT.md` reports **100 audited modules, 96 story files / 403 story entries, 88/100 with a story, 100/100 with a co-located test, 0 violations**; the 12 modules without a standalone story are context providers, error boundaries, chart adapters and similar composition-only helpers listed in `docs/COMPONENT_AUDIT_EXCEPTIONS.md`. "story: yes" means one exported name is imported, not that every state is reviewed.
+- DatePicker is intentionally single-date; no range/time/locale.
+- Tooltip requires a focusable child unless the opt-in tab stop is used.
+- Screenshots are current at `the final evidence commit` (62/62, 1600/390 read-back **DONE**).
+
+## Prior review — historical, superseded
+
+An earlier review wave scored the pre-fix tree at `6d25b3c8` as **7 / 8.5 / 8** — **not A+**. It found no P0; the remaining P1s were mobile pre-chart chrome, duplicated closed-state signalling, mobile chain window and the final polish items. That review predates the composition wave and is **not** a verdict on the current tree.
+
+For the current tree at `the final evidence commit`, the final 1600/390 read-back is **DONE** and the final polish tree has **not been re-verified** under `UI_RULES.md` §7. No A+ certification is claimed. Do not close the gate until one independent verifier records A+, the approver records it, and no P0/P1 remains.
+
+The 2026-11-23 P5 per-dimension scores are retained in git history only; the retired panel process does not certify or block the current tree. Only the §7 verdict does.
+
+## Index Report composition wave — 2026-11-23 (post-review; read-back DONE, A+ NOT CERTIFIED)
+
+Source changes landed on `/report/index` **after** the review above. This section records the work, not a score: **no A+ verdict is claimed here.** The contract is `docs/INDEX_REPORT_DENSITY.md`; its §3 composition target names a target shape, not an achieved grade.
+
+| Area | What landed | Source / guard |
+| --- | --- | --- |
+| One decision hero | `ReportDecisionStrip.hero.tsx` / `.derive.ts` / `.format.ts`: a single `data-report-band="decision-hero"` band with spot/change, one neutral status (`MARKET CLOSED` / `AWAITING DATA` / `AWAITING TRIGGER` / `LIVE READ`), one reason and one claim. No-call states are neutral, never a green verdict. | `.hero.test.tsx`, `.hierarchy.test.tsx`; `87b2c0a1` |
+| Chart-first at both widths | `NiftyReportShell.tsx` `REPORT_MOBILE_ORDER_CLASS`: stat strip (hero + More stats) order 1, chart order 2, then dock/flow/movers/rail/analytics; desk keeps its paint order via negative orders. Chart gains a labelled last-data cutoff lane and a mobile axis gutter. | `NiftyReportShell.layout.test.tsx`, `ReportWorkspaceMobile.test.tsx`, `ReportChartMobileBudget.test.tsx`, `NiftyChartPanelGeometry.test.tsx`; `474f7434`, `e30103d6`, `ab2bdde5` |
+| Chain | `reportCells.chainMetrics.ts` / `.chainPanel.tsx`: definite 384px desk width under the 420px panel budget, 360px **px** height cap (never `max-height: 100%`), ATM centring/emphasis; the full chain scrolls inside its own region at 390. | `reportCells.chain.test.tsx`, `reportCells.chain.panel.test.tsx`; `b0ff34d1`, `9b52b77c`, `fac47217` (scroll-region a11y) |
+| Chart pinned to candles | `niftyChartData.ts` `effectiveSessionDate()` / `selectBaseCandles()` — the chart's base series is **session-scoped OHLC candles** (intraday → EOD → spot-derived 1-minute with wicks), so neither a stale previous-session series nor a bare tape-spot line can be mixed into today's chart. Confirmed in the final 1600/390 read-back. | `niftyChartData.math.test.ts`, `niftyChartData.session.test.ts`, `NiftyChartPanel.interactions.test.tsx`; `the final evidence commit` |
+| Phone chain opens on ATM | `reportCells.chainPanel.tsx` `centreChainAtm()` — at the 390 phone viewport the chain opens on the `nifty-strike-atm-badge` row, pinned just **below** the sticky header (not centred under it) with the next row visible as a vertical scroll cue; re-centring is idempotent via `data-chain-atm-centered`. Confirmed in the final 390 read-back. | `reportCells.chain.panel.test.tsx`, `reportCells.chain.test.tsx`; `the final evidence commit` |
+| Compact walls / window strips | Compact walls surfaces; the walls card mounts only on real OI; `NiftyFlowWindows` collapses empty windows; movers/flow/heatmap unavailable bands collapse to one reason line instead of reserving empty rows. | `ReportStrips.tsx` + `ReportStrips.test.tsx` (`e715fd3e`), `NiftyFlowWindows.test.tsx` (`51fa3412`), `bcc5535e`, `fbc606dc` |
+| Two-row toolbar | `ReportToolbar.tsx`: below 1200 exactly `TOOLBAR_PRIMARY_HEIGHT = 48` + `TOOLBAR_SECONDARY_HEIGHT = 20` = 68px, no third row from padding/gap; selector strip scrolls behind a fade with a native-select cue; ≥1200 both bands inline. | `ReportToolbar.test.tsx`; `cf4b55ee`, `699cb297` |
+| Decomposition | 11 report facades now re-export satellites that own constants, pure helpers and rendering, each with a `*.structure.test.ts`: `niftyReportStore`, `NiftyWallsCard`, `NiftyWallsExpanded`, `NiftyPressureDesk`, `NiftyOiHeatmap`, `niftyOiBursts`, `NiftyChartPanel`, `ReportDecisionStrip`, `reportCells`, `NiftyDepthMap`, `NiftyGexProfile`. | `*.structure.test.ts`; `e4cfca16`, `ec679d1d`, `3d9c9197`, `185cde52`, `851d5848`, `699cb297` |
+| a11y fixes | Unique disclosure content ids, accessible option-chain scroll region, chart-draw and mobile-disclosure accessibility, mobile chart-first focus order, 390 app-route axe audits added to `app-a11y.spec.ts`, `report-keyboard.spec.ts` walkthrough and `NiftyChartPanel.a11y.test.tsx`. | `f806a852`, `fac47217`, `2995d67e`, `e30103d6`, `0ee91f5b`; config/tests only — no committed run artifact |
+
+Verification status at `the final evidence commit`: the **final 1600/390 screenshot read-back is DONE** — all PNGs were opened and checked for hero/chart/chain/toolbar legibility, no blank canvas and no `undefined`/`NaN`. The latest report captures show **chart-first layout at both widths, snapshot freshness, a populated option chain and heatmap, and compact walls**, confirming the composition wave landed as intended; the chart is pinned to session-scoped candles (no stale/tape-only or two-day series) and the 390 option chain opens on the ATM strike, pinned below the sticky header with the next row as a scroll cue. **62/62** screenshot files are present at `the final evidence commit` (`VISUAL_EVIDENCE_INDEX.md`), including the committed `report-*.png` re-capture. The earlier review at `6d25b3c8` scored **7 / 8.5 / 8** (pre-fix, **not A+**); the final polish tree has not been re-verified. No A+ verdict is claimed.
+
+**OPEN — do not mark finished:**
+
+- The fresh **independent verification** on `the final evidence commit` (one read-only verifier
+  against this scorecard and `UI_RULES.md` §7, with the approver's record) — **NOT RUN**. The
+  `6d25b3c8` review was pre-fix and is not an A+ certification.
+- Re-run of the integrated gates on the final tree (typecheck, lint, affected
+  tests, axe/keyboard gates, gating `bun run audit:evidence`).
+
+The final 1600/390 read-back is **DONE** at `the final evidence commit` (62/62). No P0/P1 closure
+claim and no A+ claim is made for this wave until the §7 verification and
+gate items above are evidenced.
+
+## P5 evidence (2026-11-23)
+
+This table is the **P5 baseline**, recorded before the composition wave above;
+it is not evidence for the current report tree.
+
+| Check | Result |
+|---|---|
+| `bun run typecheck` / `bun run lint` | 0 errors / 0 warnings |
+| Typography audit | 0 private declarations; 12px floor clean |
+| Frontend suite | 11,968 passed, 1 fixed theme assertion; the only remaining worker error is a pre-existing `PatternsPage.test.tsx` fork OOM (reproduced on the pre-typography commit) |
+| Production build | clean (198 chunks) |
+| Storybook build + catalog | clean |
+| Browser axe (30 stories) | 0 serious/critical violations |
+| Screenshots | `docs/screenshots/showcase/` recaptured at 1600/390 with focus-ring proof (`scripts/storybook-showcase.mjs`); Index Report app route captured at 1600×1000 / 390×844 by `tests/e2e/design-evidence.spec.ts` into `docs/screenshots/app/report-{1600,390}.png` — reproduce with `SCREENSHOT_EVIDENCE=1 npx playwright test tests/e2e/design-evidence.spec.ts`; the 1600/390 pixel-diff harness and CI step landed in `ff939b9a`; its 12 baseline PNGs are committed in `tests/visual/__screenshots__/` and `bun run visual:test` passes **12/12** |
+| Browser keyboard | 10/10 (Modal, Tree, Menu, horizontal/vertical Tabs, Popover, Tooltip, modal FloatingWindow, NavLink, modal dismissal) |
+
+Current capture state at `the final evidence commit`: all five in-scope app routes (report,
+sector, home, screener, patterns) and all 26 showcase names have committed PNGs
+at 1600 and 390; **62/62** manifest images are present and the final 1600/390
+read-back is **DONE**. See `VISUAL_EVIDENCE_INDEX.md` for the file-by-file state.
+The final tree has not been re-verified; the independent review scored 7 / 8.5 / 8
+at `6d25b3c8` and is **not A+**. No A+ claim is made.

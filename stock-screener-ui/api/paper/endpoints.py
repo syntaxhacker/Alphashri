@@ -2,7 +2,6 @@
 Additional endpoints: signals, risk, health, chart, config.
 """
 
-import asyncio
 import math
 
 from trading.indicators import ema as _ema
@@ -32,8 +31,12 @@ console = Console()
 from .orb_utils import compute_orb_score, calculate_pivot_points
 from .chart_utils import format_candles_for_chart, calc_hold_duration
 
+# Handlers in this module are sync `def` on purpose: FastAPI runs them on the
+# anyio worker pool, so the SQLite reads and the Upstox HTTP fetches never block
+# the event loop (and do not queue behind the default executor that the TV scans
+# saturate).
 @router.get("/signals")
-async def get_signals():
+def get_signals():
     """Get current ORB signals from screener."""
     try:
         sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'scanners'))
@@ -63,7 +66,7 @@ async def get_signals():
 
 
 @router.post("/signal/create")
-async def create_signal(
+def create_signal(
     symbol: str,
     price: float,
     or_high: float,
@@ -98,14 +101,14 @@ async def create_signal(
 
 
 @router.get("/risk/config")
-async def get_risk_config():
+def get_risk_config():
     """Get risk management configuration."""
     risk_manager = get_risk_manager()
     return risk_manager.get_config()
 
 
 @router.post("/risk/validate")
-async def validate_trade(
+def validate_trade(
     entry_price: float,
     stop_loss: float,
     take_profit: float,
@@ -131,7 +134,7 @@ async def validate_trade(
 
 
 @router.get("/health")
-async def health_check():
+def health_check():
     """Health check endpoint."""
     trader = get_paper_trader()
     return {
@@ -213,7 +216,7 @@ def _fetch_candles_at_tf(upstox_api, symbol: str, timeframe: str, from_date: str
 
 
 @router.get("/chart/{symbol}")
-async def get_paper_chart(
+def get_paper_chart(
     symbol: str,
     date: Optional[str] = None,
     from_date: Optional[str] = None,
@@ -445,7 +448,7 @@ async def get_paper_chart(
             save_cached_candles(sym, date, df_1m)
             return df_1m, False
 
-        df_1m, cached = await asyncio.to_thread(_fetch_chart_data)
+        df_1m, cached = _fetch_chart_data()
 
         # Resample only if direct fetch didn't succeed at the requested TF
         if fetched_at_tf:
@@ -793,7 +796,7 @@ async def get_paper_chart(
 
 
 @router.get("/config")
-async def get_strategy_config_endpoint(
+def get_strategy_config_endpoint(
     name: Optional[str] = None,
     strategy_id: Optional[int] = None,
 ):
@@ -819,7 +822,7 @@ async def get_strategy_config_endpoint(
 
 
 @router.put("/config")
-async def update_strategy_config_endpoint(
+def update_strategy_config_endpoint(
     request: StrategyConfigUpdate,
     name: str = "orb_default",
     user: "User" = Depends(get_current_user),
@@ -853,7 +856,7 @@ async def update_strategy_config_endpoint(
 
 
 @router.post("/config/reset")
-async def reset_strategy_config_endpoint(name: str = "orb_default", user: "User" = Depends(get_current_user)):
+def reset_strategy_config_endpoint(name: str = "orb_default", user: "User" = Depends(get_current_user)):
     """Reset strategy configuration to defaults."""
     try:
         with SessionLocal() as db:
@@ -939,7 +942,7 @@ def _write_52w_cache(symbol: str, high_52w: float, low_52w: float) -> None:
 
 
 @router.get("/52w/{symbol}")
-async def get_52w_levels(symbol: str, user: "User" = Depends(get_current_user)):
+def get_52w_levels(symbol: str, user: "User" = Depends(get_current_user)):
     """Get 52-week high/low for a symbol (cached with 5min TTL for today, infinite for past)."""
     cached = _read_52w_cache(symbol)
     if cached is not None:

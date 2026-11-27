@@ -6,7 +6,7 @@ static NIFTY constituent list (:mod:`chart_patterns.constituents`).
 
 * ``all_equity``  — ``segment == "NSE_EQ"`` and ``instrument_type == "EQ"``
 * ``nse_fo``      — ``NSE_FO`` equity underlyings (``underlying_type == "EQUITY"``)
-* ``nifty50/100/200/500`` — static constituent symbol lists.
+* ``nifty50/100/200/500``, ``banknifty``, ``sensex`` — static constituent lists.
 
 The parsed instruments file is cached in-process.
 """
@@ -27,7 +27,7 @@ _CANONICAL = (
     / "nse_instruments.json"
 )
 
-_INDEX_IDS = ["nifty50", "nifty100", "nifty200", "nifty500"]
+_INDEX_IDS = ["nifty50", "nifty100", "nifty200", "nifty500", "banknifty", "sensex"]
 _LABELS = {
     "all_equity": "All NSE Equity",
     "nse_fo": "NSE F&O",
@@ -36,9 +36,10 @@ _LABELS = {
     "nifty100": "NIFTY 100",
     "nifty200": "NIFTY 200",
     "nifty500": "NIFTY 500",
+    "banknifty": "Bank Nifty",
+    "sensex": "Sensex",
 }
 
-# Test/injection hooks.
 _INSTRUMENTS_PATH_OVERRIDE: Path | None = None
 _CACHE: dict[str, dict[str, list[str]]] = {}
 
@@ -54,7 +55,6 @@ def _candidate_paths() -> list[Path]:
 
 
 def instruments_path() -> Path:
-    """Filesystem path actually used to load instruments (honours override)."""
     if _INSTRUMENTS_PATH_OVERRIDE is not None:
         return Path(_INSTRUMENTS_PATH_OVERRIDE)
     for candidate in _candidate_paths():
@@ -64,19 +64,16 @@ def instruments_path() -> Path:
 
 
 def set_instruments_path(path: str | Path | None) -> None:
-    """Override the instruments path (primarily for tests) and clear caches."""
     global _INSTRUMENTS_PATH_OVERRIDE
     _INSTRUMENTS_PATH_OVERRIDE = Path(path) if path is not None else None
     clear_cache()
 
 
 def clear_cache() -> None:
-    """Drop the in-process parsed-instruments cache."""
     _CACHE.clear()
 
 
 def _load() -> dict[str, list[str]]:
-    """Parse (and cache) the instruments file into ``all_equity`` / ``nse_fo``."""
     path = instruments_path()
     key = str(path)
     cached = _CACHE.get(key)
@@ -132,7 +129,6 @@ def get_universe(universe_id: str) -> list[str]:
 
 
 def list_universes() -> list[dict]:
-    """Return ``[{id, label, count}]`` for every available universe."""
     data = _load()
     out = [
         {"id": "all_equity", "label": _LABELS["all_equity"], "count": len(data["all_equity"])},

@@ -60,7 +60,6 @@ def max_workers(cap: int = _MAX_WORKERS_CAP) -> int:
 
 
 def supports_processes() -> bool:
-    """True when the platform forks (auto-mode may pick processes)."""
     try:
         return hasattr(os, "fork")
     except Exception:
@@ -88,7 +87,6 @@ def spawn_context():
 
 
 def _resolve_workers(n: int, workers) -> int:
-    """Clamp ``workers`` to ``[1, n]``; default :func:`max_workers`."""
     try:
         w = int(workers) if workers is not None else max_workers()
     except (TypeError, ValueError):
@@ -111,14 +109,18 @@ def _apply_one(task) -> tuple:
 
 
 def _unwrap(outcomes: list) -> tuple[list, int]:
-    """Outcomes back to values (``None`` for failed items) + failure count."""
     values: list = []
     failed = 0
     for outcome in outcomes or []:
-        try:
+        # Fast path for the (ok, value) pair _apply_one always produces; the
+        # guard keeps _unwrap tolerant of malformed outcomes from custom pools.
+        if type(outcome) is tuple and len(outcome) == 2:
             ok, value = outcome
-        except (TypeError, ValueError):
-            ok, value = False, None
+        else:
+            try:
+                ok, value = outcome
+            except (TypeError, ValueError):
+                ok, value = False, None
         if ok:
             values.append(value)
         else:
@@ -164,7 +166,7 @@ def run_symbols_with_mode(
     on fork platforms. Any pool error falls back (processes → threads →
     sequential). Never raises.
     """
-    syms = [str(s) for s in (symbols or [])]
+    syms = [s if isinstance(s, str) else str(s) for s in (symbols or [])]
     n = len(syms)
     if n == 0:
         return [], "sequential"

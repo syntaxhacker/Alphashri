@@ -1,0 +1,237 @@
+@import "tailwindcss";
+
+
+@theme {
+  /* Mirrors src/ui/palette.ts — theme-single-source.test.ts enforces this. */
+  --color-fin-bg: #000000;
+  --color-fin-surface: #13161c;
+  --color-fin-surface-alt: #1f242d;
+  --color-fin-border: #2c313b;
+  --color-fin-text: #e8e8e8;
+  --color-fin-text-muted: #9b9b9b;
+  --color-fin-primary: #d9902a;
+  --color-fin-positive: #2fa36b;
+  --color-fin-negative: #e5606a;
+  --color-fin-warning: #c9912f;
+  --color-fin-info: #4a8fd8;
+  /* Semantic borders — mirror the alpha()-derived tokens in palette.ts. */
+  --color-fin-border-subtle: rgba(44, 49, 59, 0.6);
+  --color-fin-border-default: #2c313b;
+  --color-fin-border-strong: rgba(155, 155, 155, 0.6);
+  --color-fin-border-focus: rgba(217, 144, 42, 0.9);
+  --color-fin-border-positive: rgba(47, 163, 107, 0.7);
+  --color-fin-border-negative: rgba(229, 96, 106, 0.7);
+  --color-fin-border-warning: rgba(201, 145, 47, 0.7);
+  --color-fin-border-info: rgba(74, 143, 216, 0.7);
+  --color-fin-border-disabled: rgba(155, 155, 155, 0.25);
+  /* Radius scale: controls = md, inner elements (tags, checkboxes) = sm,
+     modals/drawers = lg. Nothing else stays at 2px except hairline separators.
+     --radius-fin is the control alias, kept because every primitive uses it. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-fin: 6px;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  /* Type scale — mirrored for TS/chart consumers in src/ui/typography.ts.
+     The floor is 12px; use text-ui-* instead of text-[Npx]. */
+  --text-ui-micro: 12px;
+  --text-ui-micro--line-height: 16px;
+  --text-ui-body: 13px;
+  --text-ui-body--line-height: 18px;
+  --text-ui-label: 14px;
+  --text-ui-label--line-height: 20px;
+  --text-ui-title: 16px;
+  --text-ui-title--line-height: 24px;
+  --text-ui-heading: 20px;
+  --text-ui-heading--line-height: 28px;
+  --text-ui-display: 24px;
+  --text-ui-display--line-height: 32px;
+}
+
+/*
+ * Component-token tier: Button / Badge / Alert read these instead of re-deriving
+ * palette values per component. Every alias resolves through an existing
+ * semantic token, so the dark appearance is unchanged (the 12/20% button
+ * washes use the same oklab mix Tailwind emitted for `/12` and `/20`; the
+ * badge 12% and alert 10/35% washes use the srgb alpha of the old palette.alpha
+ * calls). Dark-only: this tier has no scheme overrides. Mirrored for TS in
+ * src/ui/componentTokens.ts — keep both lists in sync.
+ */
+:root {
+  /* Button — tone fill, tone ink (also the tone hairline) and hover washes. */
+  --ui-button-primary-bg: var(--color-fin-primary);
+  --ui-button-primary-text: var(--color-fin-primary);
+  --ui-button-primary-wash: color-mix(in oklab, var(--color-fin-primary) 12%, transparent);
+  --ui-button-primary-wash-hover: color-mix(in oklab, var(--color-fin-primary) 20%, transparent);
+
+  --ui-button-positive-bg: var(--color-fin-positive);
+  --ui-button-positive-text: var(--color-fin-positive);
+  --ui-button-positive-wash: color-mix(in oklab, var(--color-fin-positive) 12%, transparent);
+  --ui-button-positive-wash-hover: color-mix(in oklab, var(--color-fin-positive) 20%, transparent);
+
+  --ui-button-negative-bg: var(--color-fin-negative);
+  --ui-button-negative-text: var(--color-fin-negative);
+  --ui-button-negative-wash: color-mix(in oklab, var(--color-fin-negative) 12%, transparent);
+  --ui-button-negative-wash-hover: color-mix(in oklab, var(--color-fin-negative) 20%, transparent);
+
+  --ui-button-warning-bg: var(--color-fin-warning);
+  --ui-button-warning-text: var(--color-fin-warning);
+  --ui-button-warning-wash: color-mix(in oklab, var(--color-fin-warning) 12%, transparent);
+  --ui-button-warning-wash-hover: color-mix(in oklab, var(--color-fin-warning) 20%, transparent);
+
+  --ui-button-info-bg: var(--color-fin-info);
+  --ui-button-info-text: var(--color-fin-info);
+  --ui-button-info-wash: color-mix(in oklab, var(--color-fin-info) 12%, transparent);
+  --ui-button-info-wash-hover: color-mix(in oklab, var(--color-fin-info) 20%, transparent);
+
+  --ui-button-muted-bg: var(--color-fin-text-muted);
+  --ui-button-muted-text: var(--color-fin-text-muted);
+  --ui-button-muted-wash: color-mix(in oklab, var(--color-fin-text-muted) 12%, transparent);
+  --ui-button-muted-wash-hover: color-mix(in oklab, var(--color-fin-text-muted) 20%, transparent);
+
+  /* Button — roles shared by every tone. */
+  --ui-button-solid-ink: var(--color-fin-bg);
+  --ui-button-neutral-border: var(--color-fin-border);
+  --ui-button-neutral-text: var(--color-fin-text);
+  --ui-button-neutral-muted: var(--color-fin-text-muted);
+  --ui-button-neutral-surface: var(--color-fin-surface);
+  --ui-button-neutral-surface-alt: var(--color-fin-surface-alt);
+
+  /* Badge — one tone ink carries text, outline, dot and the inverted fill. */
+  --ui-badge-primary-main: var(--color-fin-primary);
+  --ui-badge-primary-wash: color-mix(in srgb, var(--color-fin-primary) 12%, transparent);
+  --ui-badge-positive-main: var(--color-fin-positive);
+  --ui-badge-positive-wash: color-mix(in srgb, var(--color-fin-positive) 12%, transparent);
+  --ui-badge-negative-main: var(--color-fin-negative);
+  --ui-badge-negative-wash: color-mix(in srgb, var(--color-fin-negative) 12%, transparent);
+  --ui-badge-warning-main: var(--color-fin-warning);
+  --ui-badge-warning-wash: color-mix(in srgb, var(--color-fin-warning) 12%, transparent);
+  --ui-badge-info-main: var(--color-fin-info);
+  --ui-badge-info-wash: color-mix(in srgb, var(--color-fin-info) 12%, transparent);
+  --ui-badge-muted-main: var(--color-fin-text-muted);
+  --ui-badge-muted-wash: color-mix(in srgb, var(--color-fin-text-muted) 12%, transparent);
+  --ui-badge-filled-ink: var(--color-fin-bg);
+
+  /* Alert — tone ink plus the light variant's fill and hairline. */
+  --ui-alert-primary-main: var(--color-fin-primary);
+  --ui-alert-primary-wash: color-mix(in srgb, var(--color-fin-primary) 10%, transparent);
+  --ui-alert-primary-wash-border: color-mix(in srgb, var(--color-fin-primary) 35%, transparent);
+  --ui-alert-positive-main: var(--color-fin-positive);
+  --ui-alert-positive-wash: color-mix(in srgb, var(--color-fin-positive) 10%, transparent);
+  --ui-alert-positive-wash-border: color-mix(in srgb, var(--color-fin-positive) 35%, transparent);
+  --ui-alert-negative-main: var(--color-fin-negative);
+  --ui-alert-negative-wash: color-mix(in srgb, var(--color-fin-negative) 10%, transparent);
+  --ui-alert-negative-wash-border: color-mix(in srgb, var(--color-fin-negative) 35%, transparent);
+  --ui-alert-warning-main: var(--color-fin-warning);
+  --ui-alert-warning-wash: color-mix(in srgb, var(--color-fin-warning) 10%, transparent);
+  --ui-alert-warning-wash-border: color-mix(in srgb, var(--color-fin-warning) 35%, transparent);
+  --ui-alert-info-main: var(--color-fin-info);
+  --ui-alert-info-wash: color-mix(in srgb, var(--color-fin-info) 10%, transparent);
+  --ui-alert-info-wash-border: color-mix(in srgb, var(--color-fin-info) 35%, transparent);
+  --ui-alert-muted-main: var(--color-fin-text-muted);
+  --ui-alert-muted-wash: color-mix(in srgb, var(--color-fin-text-muted) 10%, transparent);
+  --ui-alert-muted-wash-border: color-mix(in srgb, var(--color-fin-text-muted) 35%, transparent);
+}
+
+@layer base {
+  /*
+   * Light theme. Every utility and primitive compiles to `var(--color-fin-*)`,
+   * so overriding the tokens is the whole theme. There was no block here, only a
+   * `color-scheme` hint in style.css — which is why the toolbar's theme toggle
+   * flipped the attribute and the app stayed black.
+   * The attribute is set on <html> by useColorScheme and, before first paint, by
+   * the bootstrap in index.html; both target :root.
+   */
+  :root[data-color-scheme="light"] {
+    --color-fin-bg: #f4f5f7;
+    --color-fin-surface: #ffffff;
+    --color-fin-surface-alt: #eef0f3;
+    --color-fin-border: #d3d8df;
+    --color-fin-text: #14171c;
+    --color-fin-text-muted: #5b6472;
+    --color-fin-primary: #9a5d05;
+    --color-fin-positive: #12724a;
+    --color-fin-negative: #b3261e;
+    --color-fin-warning: #7a560d;
+    --color-fin-info: #1f5fa8;
+    /* Semantic borders retuned to the light anchors (no dark ink bleed). */
+    --color-fin-border-subtle: rgba(211, 216, 223, 0.6);
+    --color-fin-border-default: #d3d8df;
+    --color-fin-border-strong: rgba(91, 100, 114, 0.6);
+    --color-fin-border-focus: rgba(154, 93, 5, 0.9);
+    --color-fin-border-positive: rgba(18, 114, 74, 0.7);
+    --color-fin-border-negative: rgba(179, 38, 30, 0.7);
+    --color-fin-border-warning: rgba(122, 86, 13, 0.7);
+    --color-fin-border-info: rgba(31, 95, 168, 0.7);
+    --color-fin-border-disabled: rgba(91, 100, 114, 0.25);
+  }
+
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+
+  body {
+    background: var(--color-fin-bg);
+    color: var(--color-fin-text);
+    font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  /*
+   * One focus ring for every native control. `:focus-visible` only: the old
+   * `:focus` arm on inputs painted the amber primary chrome on a plain mouse
+   * click (most obvious on sliders and selects). The neutral text token is
+   * high-contrast in both themes and cannot be mistaken for a semantic state.
+   */
+  :is(button, a, [role="button"], summary, input, select, textarea):focus-visible {
+    outline: 2px solid var(--color-fin-text);
+    outline-offset: 1px;
+  }
+}
+
+/* Brief background flash for numeric cells whose value just changed.
+   Tints derive from the semantic tokens so light/dark themes both work. */
+@keyframes valueFlashUp {
+  from {
+    background-color: color-mix(in srgb, var(--color-fin-positive) 26%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@keyframes valueFlashDown {
+  from {
+    background-color: color-mix(in srgb, var(--color-fin-negative) 26%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.value-flash-up {
+  animation: valueFlashUp 600ms ease-out;
+}
+
+.value-flash-down {
+  animation: valueFlashDown 600ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .value-flash-up,
+  .value-flash-down {
+    animation: none;
+  }
+}

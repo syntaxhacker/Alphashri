@@ -45,9 +45,6 @@ def cache_dir(monkeypatch, tmp_path):
     return tmp_path
 
 
-# ---------------------------------------------------------------------------
-# _last_completed_session
-# ---------------------------------------------------------------------------
 
 
 def test_session_after_close_returns_today(monkeypatch):
@@ -82,9 +79,6 @@ def test_session_holiday_walks_back(monkeypatch):
     assert candles_mod._last_completed_session(monday_close) == date(2026, 10, 2)
 
 
-# ---------------------------------------------------------------------------
-# _read_cached session behaviour (market closed)
-# ---------------------------------------------------------------------------
 
 
 def test_closed_market_reuses_session_stamped_entry_past_ttl(cache_dir, monkeypatch):
@@ -140,9 +134,6 @@ def test_write_cached_honours_explicit_session_pin(cache_dir, monkeypatch):
     assert candles_mod._read_cached(path, True) is None
 
 
-# ---------------------------------------------------------------------------
-# TTL still applies while the market is open
-# ---------------------------------------------------------------------------
 
 
 def test_open_market_ttl_applies(cache_dir, monkeypatch):
@@ -165,9 +156,6 @@ def test_historical_path_unchanged(cache_dir, monkeypatch):
     assert candles_mod._read_cached(path, False) is not None
 
 
-# ---------------------------------------------------------------------------
-# Daily session tolerance (_read_cached with is_daily)
-# ---------------------------------------------------------------------------
 
 
 def _closed_market(monkeypatch):
@@ -188,16 +176,18 @@ def test_daily_one_session_behind_served_from_cache(cache_dir, monkeypatch):
     assert got is not None and len(got) == len(df)
 
 
-def test_daily_three_days_behind_served_from_cache(cache_dir, monkeypatch):
-    """The tolerance is inclusive: a frame exactly 3 days behind is still served."""
+def test_daily_two_sessions_behind_rejected(cache_dir, monkeypatch):
+    """A frame more than one completed session behind is stale, even when it
+    is only 3 calendar days behind (the old calendar-day tolerance bug)."""
     df = _make_df()
     path = cache_dir / "1D" / "BBB.pkl"
     _write_entry(path, df, time.time(), "2026-10-03")
     _closed_market(monkeypatch)
+    monkeypatch.setattr("trading.utils.is_trading_holiday", lambda d: False)
     monkeypatch.setattr(
         candles_mod, "_last_completed_session", lambda now=None: date(2026, 10, 6)
     )
-    assert candles_mod._read_cached(path, True, is_daily=True) is not None
+    assert candles_mod._read_cached(path, True, is_daily=True) is None
 
 
 def test_daily_four_days_behind_rejected(cache_dir, monkeypatch):
@@ -224,9 +214,72 @@ def test_daily_future_session_rejected(cache_dir, monkeypatch):
     assert candles_mod._read_cached(path, True, is_daily=True) is None
 
 
-# ---------------------------------------------------------------------------
-# _resample_ohlcv (weekly / monthly fallback)
-# ---------------------------------------------------------------------------
+def test_daily_two_session_lag_default_rejected_tolerance_accepts(cache_dir, monkeypatch):
+    """Chart default rejects a two-session-lag frame; analytical callers opt in."""
+    df = _make_df(120)
+    path = cache_dir / "1D" / "EEE.pkl"
+    # Fri 2026-10-02 -> Tue 2026-10-06 is two completed sessions (Fri, Mon).
+    _write_entry(path, df, time.time(), "2026-10-02")
+    _closed_market(monkeypatch)
+    monkeypatch.setattr("trading.utils.is_trading_holiday", lambda d: False)
+    monkeypatch.setattr(
+        candles_mod, "_last_completed_session", lambda now=None: date(2026, 10, 6)
+    )
+    assert candles_mod._read_cached(path, True, is_daily=True) is None
+    got = candles_mod._read_cached(path, True, is_daily=True, max_lag_sessions=2)
+    assert got is not None and got.equals(df)
+
+
+def test_fetch_for_timeframe_default_rejects_two_session_lag(cache_dir, monkeypatch):
+    """The chart/replay default must still refetch a two-session-lag daily frame."""
+    stale = _make_df(120)
+    path = candles_mod._cache_path("1D", "FFF")
+    _write_entry(path, stale, time.time(), "2026-10-02")
+    fresh = _make_df(120) + 50.0
+    _closed_market(monkeypatch)
+    monkeypatch.setattr("trading.utils.is_trading_holiday", lambda d: False)
+    monkeypatch.setattr(
+        candles_mod, "_last_completed_session", lambda now=None: date(2026, 10, 6)
+    )
+    calls: list = []
+    monkeypatch.setattr(
+        md, "fetch_candles_for_timeframe",
+        lambda *a, **k: (calls.append(a), fresh)[1],
+    )
+    prov: dict = {}
+    out = candles_mod.fetch_for_timeframe("FFF", "1D", provenance=prov)
+    assert calls and prov["from_cache"] is False
+    assert not out.equals(stale)
+
+
+def test_fetch_for_timeframe_analytical_tolerance_uses_cache_no_fetch(cache_dir, monkeypatch):
+    """A wider bounded tolerance serves the stored frame without any fetch."""
+    df = _make_df(120)
+    path = candles_mod._cache_path("1D", "GGG")
+    _write_entry(path, df, time.time(), "2026-10-02")
+    _closed_market(monkeypatch)
+    monkeypatch.setattr("trading.utils.is_trading_holiday", lambda d: False)
+    monkeypatch.setattr(
+        candles_mod, "_last_completed_session", lambda now=None: date(2026, 10, 6)
+    )
+    calls: list = []
+
+    def _fetch(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise AssertionError("analytical cache hit must not call the feed")
+
+    monkeypatch.setattr(md, "fetch_candles_for_timeframe", _fetch)
+    prov: dict = {}
+    out = candles_mod.fetch_for_timeframe(
+        "GGG", "1D", max_lag_sessions=5, provenance=prov
+    )
+    assert out is not None and out.equals(df)
+    assert calls == []
+    assert prov["from_cache"] is True and prov["session_pin"] == "2026-10-02"
+    # Staleness stays visible to callers; no bars are fabricated by the tolerance.
+    assert prov["session_stale"] is True
+
+
 
 
 def test_resample_ohlcv_weekly_and_monthly():
@@ -265,9 +318,125 @@ def test_resample_ohlcv_weekly_and_monthly():
     assert m["volume"] == 12000.0
 
 
-# ---------------------------------------------------------------------------
-# Provenance
-# ---------------------------------------------------------------------------
+
+
+def _resample_sample_df(tz="UTC") -> pd.DataFrame:
+    """Small synthetic 5-minute OHLCV frame spanning several 15-minute bins."""
+    idx = pd.date_range("2026-09-01 03:45", periods=12, freq="5min", tz=tz)
+    base = [100.0 + i for i in range(len(idx))]
+    return pd.DataFrame(
+        {
+            "open": base,
+            "high": [b + 2.0 for b in base],
+            "low": [b - 2.0 for b in base],
+            "close": [b + 0.5 for b in base],
+            "volume": [1000.0 * (i + 1) for i in range(len(idx))],
+        },
+        index=idx,
+    )
+
+
+def test_resample_anchors_intraday_bins_to_first_session_bar():
+    df = _resample_sample_df()
+    n = 15
+    got = candles_mod._resample(df, n)
+    # 2026-09-01 03:45 UTC is 09:15 IST; 12 x 5m bars end at 10:10 IST.
+    ist = got.index.tz_convert("Asia/Kolkata")
+    assert [ts.strftime("%H:%M") for ts in ist] == [
+        "09:15", "09:30", "09:45", "10:00",
+    ]
+    first = got.iloc[0]
+    assert first["open"] == df["open"].iloc[0]
+    assert first["high"] == df["high"].iloc[0:3].max()
+    assert first["low"] == df["low"].iloc[0:3].min()
+    assert first["close"] == df["close"].iloc[2]
+    assert first["volume"] == df["volume"].iloc[0:3].sum()
+
+
+def _hourly_nse_session() -> pd.DataFrame:
+    idx = pd.date_range("2026-11-25 09:15", periods=7, freq="h",
+                        tz="Asia/Kolkata")
+    base = np.arange(7, dtype=float) + 100.0
+    return pd.DataFrame(
+        {
+            "open": base,
+            "high": base + 2.0,
+            "low": base - 2.0,
+            "close": base + 1.0,
+            "volume": np.full(7, 100.0),
+        },
+        index=idx,
+    )
+
+
+def test_resample_4h_starts_at_session_open_with_full_first_bin():
+    df = _hourly_nse_session()
+    out = candles_mod._resample(df, 240)
+    ist = out.index.tz_convert("Asia/Kolkata")
+    assert [ts.strftime("%H:%M") for ts in ist] == ["09:15", "13:15"]
+
+    first = out.iloc[0]  # 09:15, 10:15, 11:15, 12:15
+    assert first["open"] == 100.0
+    assert first["high"] == 105.0
+    assert first["low"] == 98.0
+    assert first["close"] == 104.0
+    assert first["volume"] == 400.0
+
+    second = out.iloc[1]  # 13:15, 14:15, 15:15
+    assert second["open"] == 104.0
+    assert second["high"] == 108.0
+    assert second["low"] == 102.0
+    assert second["close"] == 107.0
+    assert second["volume"] == 300.0
+
+
+def test_resample_3h_merges_trailing_15m_stub_into_prior_bin():
+    df = _hourly_nse_session()
+    out = candles_mod._resample(df, 180)
+    ist = out.index.tz_convert("Asia/Kolkata")
+    assert [ts.strftime("%H:%M") for ts in ist] == ["09:15", "12:15"]
+
+    first = out.iloc[0]  # 09:15, 10:15, 11:15
+    assert first["open"] == 100.0
+    assert first["high"] == 104.0
+    assert first["low"] == 98.0
+    assert first["close"] == 103.0
+    assert first["volume"] == 300.0
+
+    second = out.iloc[1]  # 12:15 + 13:15 + 14:15 + merged 15:15 stub
+    assert second["open"] == 103.0
+    assert second["high"] == 108.0
+    assert second["low"] == 101.0
+    assert second["close"] == 107.0
+    assert second["volume"] == 400.0
+
+
+def test_resample_keeps_forming_trailing_bin():
+    """An in-progress bin must not be treated as a completed-session stub."""
+    df = _hourly_nse_session().iloc[:2]  # 09:15, 10:15; the session is still live
+    out = candles_mod._resample(df, 240)
+    assert len(out) == 1
+    assert out.index[0].tz_convert("Asia/Kolkata").strftime("%H:%M") == "09:15"
+
+
+@pytest.mark.parametrize("tz", ["UTC", "Asia/Kolkata", None])
+def test_resample_preserves_input_timezone(tz):
+    df = _resample_sample_df(tz)
+    out = candles_mod._resample(df, 15)
+    assert out.index.tz == df.index.tz
+    assert list(out.columns) == ["open", "high", "low", "close", "volume"]
+    assert not out.empty
+
+
+def test_resample_ohlcv_default_bin_sides_are_right():
+    """The generic resampler keeps its right/right default contract."""
+    df = _resample_sample_df()
+    rule = md._resample_rule(15)
+    default = candles_mod._resample_ohlcv(df, rule)
+    explicit = candles_mod._resample_ohlcv(df, rule, label="right", closed="right")
+    pd.testing.assert_frame_equal(default, explicit)
+
+
 
 
 def test_fill_provenance_session_stale(cache_dir, monkeypatch):
@@ -313,9 +482,6 @@ def test_fetch_for_timeframe_daily_serves_stale_cache_no_fetch(cache_dir, monkey
     assert calls == []
 
 
-# ---------------------------------------------------------------------------
-# clear_cache
-# ---------------------------------------------------------------------------
 
 
 def _seed(cache_dir):
@@ -395,9 +561,6 @@ def test_cache_path_is_versioned():
     )
 
 
-# ---------------------------------------------------------------------------
-# Singleflight (in-flight coalescing) + negative (empty-result) cache
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture

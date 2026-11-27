@@ -1,0 +1,25 @@
+{
+  "entry": ["src/main.tsx", "tests/**/*.ts"],
+  "project": ["src/**/*.ts", "src/**/*.tsx"],
+  "ignoreDependencies": [
+    "dukascopy-node"
+  ],
+  "ignore": [
+    "poc/**",
+    "src/**/*.test.ts",
+    "src/api/index.ts",
+    "src/api/news.ts",
+    "src/api/paperTrading.ts",
+    "src/components/screener/types.ts",
+    "src/state/backtest.ts",
+    "src/state/strategies.ts",
+    "src/types/bots.ts",
+    "src/types/sector.ts",
+    "src/types/strategies.ts",
+    "src/api/utils/index.ts",
+    "src/api/symbols.ts",
+    "src/api/upstoxOptions.ts",
+    "src/components/backtest/BacktestChartTabs.tsx",
+    "src/components/chart/chartRenderer.ts"
+  ]
+}

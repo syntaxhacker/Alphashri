@@ -1,19 +1,30 @@
-import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Collapse from "@mui/material/Collapse";
-import Divider from "@mui/material/Divider";
-import IconButton from "@mui/material/IconButton";
-import Skeleton from "@mui/material/Skeleton";
-import Tooltip from "@mui/material/Tooltip";
-import Typography from "@mui/material/Typography";
-import CloseIcon from "@mui/icons-material/Close";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import ShowChartIcon from "@mui/icons-material/ShowChart";
-import { IconArrowUpRight, IconBulb, IconNews } from "@tabler/icons-react";
-import { Box, Stack } from "@/ui";
+import { Show, For, createMemo, type JSX } from "solid-js";
+import {
+  Alert,
+  Badge,
+  Button,
+  Anchor,
+  Box,
+  Collapse,
+  Divider,
+  Skeleton,
+  Stack,
+  Text,
+  Title,
+  Tooltip,
+  ActionIcon,
+  typeSize,
+} from "@/ui";
+import {
+  IconBulb,
+  IconChartLine,
+  IconChevronDown,
+  IconChevronUp,
+  IconExternalLink,
+  IconNews,
+  IconX,
+} from "../common/Icons";
+import * as palette from "@/ui/palette";
 import type { ArticleResponse, NewsItem, NewsSymbol } from "./news-types";
 import { formatTimeAgo } from "../../utils/ui-helpers";
 import { SentimentBadge } from "./SentimentBadge";
@@ -34,389 +45,444 @@ interface ArticleDetailProps {
   onRetryArticle?: () => void;
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function SectionLabel(props: { children: JSX.Element }) {
   return (
-    <Typography
-      variant="overline"
-      color="text.secondary"
-      fontWeight={700}
-      sx={{ display: "block", letterSpacing: "0.08em", lineHeight: 1.4 }}
+    <Text
+      size="xs"
+      fw={700}
+      c="dimmed"
+      tt="uppercase"
+      style={{ display: "block", "letter-spacing": "0.08em", "line-height": 1.4 }}
     >
-      {children}
-    </Typography>
+      {props.children}
+    </Text>
   );
 }
 
-export function ArticleDetail({
-  selectedArticle,
-  articleContent,
-  articleLoading,
-  articleError,
-  isMobile,
-  showFullContent,
-  onClose,
-  onToggleFullContent,
-  onSymbolClick,
-  onRetryArticle,
-}: ArticleDetailProps) {
-  const hasLlmSummary =
-    articleContent?.analysis_status === "done" &&
-    Boolean(articleContent.summary || articleContent.key_points?.length);
-
-  if (!selectedArticle) {
+export function ArticleDetail(props: ArticleDetailProps) {
+  const article = () => props.selectedArticle;
+  const content = () => props.articleContent;
+  const hasLlmSummary = createMemo(() => {
+    const c = content();
     return (
-      <Box
-        sx={{ width: "100%", minHeight: 0, flex: 1, display: "flex", flexDirection: "column" }}
-        data-testid="article-detail-region"
-      >
-        <Box
-          sx={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            p: 3,
-            bgcolor: "background.default",
-          }}
-          data-testid="article-detail"
-        >
-          <EmptyState
-            icon={
-              <Box
-                sx={{
-                  width: 48,
-                  height: 48,
-                  display: "grid",
-                  placeItems: "center",
-                  borderRadius: 1,
-                  color: "text.secondary",
-                  bgcolor: "action.hover",
-                }}
-              >
-                <IconNews size={26} stroke={1.4} />
-              </Box>
-            }
-            title="Your reading desk is ready"
-            description="Select a headline to open the full story, catalysts, and AI-assisted market brief."
-            data-testid="article-empty"
-          />
-        </Box>
-      </Box>
+      c?.analysis_status === "done" &&
+      Boolean(c.summary || (c.key_points && c.key_points.length > 0))
     );
-  }
+  });
 
   return (
-    <Box
-      sx={{ width: "100%", minHeight: 0, flex: 1, display: "flex", flexDirection: "column" }}
-      data-testid="article-detail-region"
-    >
-      <Box data-testid="article-detail" sx={{ display: "contents" }}>
-        <Box
-          component="header"
-          sx={{
-            position: "sticky",
-            top: 0,
-            zIndex: 2,
-            px: { xs: 1.5, sm: 2 },
-            py: 1.5,
-            bgcolor: "background.paper",
-            borderBottom: 1,
-            borderColor: "divider",
-          }}
-        >
-          <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Box
-                sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75, minWidth: 0 }}
-              >
-                <Typography
-                  variant="caption"
-                  color="primary.main"
-                  fontWeight={800}
-                  sx={{ textTransform: "uppercase", letterSpacing: "0.08em" }}
+    <Box className="flex flex-col flex-1 min-h-0 w-full" data-testid="article-detail-region">
+      <Show
+        when={article()}
+        fallback={
+          <Box
+            className="flex flex-1 flex-col items-center bg-fin-bg"
+            style={{ padding: "16px", "align-items": "center", "justify-content": "flex-start" }}
+            data-testid="article-detail"
+          >
+            <EmptyState
+              icon={
+                <Box
+                  style={{
+                    width: "48px",
+                    height: "48px",
+                    display: "grid",
+                    "place-items": "center",
+                    "border-radius": "8px",
+                    color: palette.TEXT_MUTED,
+                    "background-color": palette.SURFACE_ALT,
+                  }}
                 >
-                  {selectedArticle.source}
-                </Typography>
-                <Box sx={{ width: 3, height: 3, borderRadius: "50%", bgcolor: "text.disabled" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontVariantNumeric: "tabular-nums" }}
-                >
-                  {formatTimeAgo(articleContent?.publishedAt || selectedArticle.publishedAt)}
-                </Typography>
-              </Box>
-              <Typography
-                variant="h4"
-                data-testid="article-title"
-                sx={{
-                  fontSize: { xs: "1.25rem", sm: "1.5rem" },
-                  lineHeight: 1.2,
-                  fontWeight: 750,
-                  textWrap: "balance",
-                }}
-              >
-                {selectedArticle.headline}
-              </Typography>
-            </Box>
-            {isMobile ? (
-              <IconButton
-                size="small"
-                aria-label="Close article"
-                onClick={onClose}
-                data-testid="close-article-btn"
-                sx={{ mt: 0.25, flex: "0 0 auto" }}
-              >
-                <CloseIcon fontSize="small" />
-              </IconButton>
-            ) : null}
+                  <IconNews size={26} stroke={1.4} />
+                </Box>
+              }
+              title="Select a headline"
+              data-testid="article-empty"
+            />
           </Box>
-        </Box>
-
-        {articleLoading ? (
-          <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 2 }} data-testid="article-loading">
-            <Stack spacing={1.5}>
-              <Skeleton variant="rounded" height={72} />
-              <Skeleton variant="text" width="38%" />
-              <Skeleton variant="rounded" height={104} />
-              <Skeleton variant="rounded" height={80} />
-              <Typography variant="body2" color="text.secondary">
-                Analyzing article...
-              </Typography>
-            </Stack>
-          </Box>
-        ) : (
-          <>
-            <Box sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
-              <Stack spacing={2} sx={{ p: { xs: 1.5, sm: 2 }, maxWidth: 920 }}>
-                {articleError ? (
-                  <Alert severity="error" data-testid="article-error">
-                    {articleError}
-                  </Alert>
-                ) : null}
-
-                {articleContent?.analysis_status === "failed" ? (
-                  <Alert severity="warning" icon={false}>
-                    This article is queued for analysis and will be updated shortly.
-                  </Alert>
-                ) : null}
-
-                {articleContent?.analysis_status === "none" ? (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Skeleton variant="circular" width={18} height={18} />
-                    <Typography variant="body2" color="text.secondary">
-                      Analysis will be available once processed.
-                    </Typography>
-                  </Box>
-                ) : null}
-
-                {articleContent?.sentiment || articleContent?.impact_score !== undefined ? (
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                      flexWrap: "wrap",
-                      py: 0.5,
-                      px: 0.5,
-                    }}
-                  >
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "text.secondary" }}>
-                      <IconBulb size={15} aria-hidden="true" />
-                      <Typography variant="caption" fontWeight={700}>
-                        Signal snapshot
-                      </Typography>
-                    </Box>
-                    <Box sx={{ flex: 1 }} />
-                    {articleContent.sentiment ? <SentimentBadge sentiment={articleContent.sentiment} /> : null}
-                    <ImpactScore score={articleContent.impact_score} />
-                  </Box>
-                ) : null}
-
-                {articleContent?.summary && articleContent.analysis_status !== "failed" ? (
-                  <Box
-                    data-testid="article-summary"
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 1,
-                      borderLeft: 3,
-                      borderColor: "primary.main",
-                      bgcolor: "action.hover",
-                    }}
-                  >
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.75 }}>
-                      <IconBulb size={16} color="primary" aria-hidden="true" />
-                      <SectionLabel>Summary</SectionLabel>
-                    </Box>
-                    <Typography variant="body2" sx={{ lineHeight: 1.65, textWrap: "pretty" }}>
-                      {articleContent.summary}
-                    </Typography>
-                  </Box>
-                ) : null}
-
-                {articleContent?.key_points && articleContent.key_points.length > 0 ? (
-                  <Box component="section">
-                    <SectionLabel>Key Takeaways</SectionLabel>
-                    <Stack component="ul" spacing={0.75} sx={{ listStyle: "none", p: 0, mt: 0.75 }}>
-                      {articleContent.key_points.map((point, index) => (
-                        <Box
-                          component="li"
-                          key={`${index}-${point.slice(0, 40)}`}
-                          sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}
-                        >
-                          <Box
-                            component="span"
-                            sx={{
-                              width: 20,
-                              height: 20,
-                              display: "grid",
-                              placeItems: "center",
-                              borderRadius: "50%",
-                              bgcolor: "action.selected",
-                              color: "primary.main",
-                              fontSize: 11,
-                              fontWeight: 800,
-                              flex: "0 0 auto",
-                              mt: 0.15,
-                            }}
-                          >
-                            {index + 1}
-                          </Box>
-                          <Typography variant="body2" sx={{ lineHeight: 1.55, textWrap: "pretty" }}>
-                            {point}
-                          </Typography>
-                        </Box>
-                      ))}
-                    </Stack>
-                  </Box>
-                ) : null}
-
-                {articleContent?.symbols && articleContent.symbols.length > 0 ? (
-                  <Box component="section">
-                    <SectionLabel>Stocks mentioned</SectionLabel>
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 0.75 }}>
-                      {articleContent.symbols.map((symbol) => (
-                        <Tooltip
-                          key={symbol.code}
-                          title={symbol.instrument_key ? `View ${symbol.trading_symbol} chart` : "View details"}
-                        >
-                          <Chip
-                            variant="outlined"
-                            color={symbol.instrument_key ? "primary" : "default"}
-                            size="small"
-                            clickable
-                            label={symbol.trading_symbol || symbol.name || symbol.code}
-                            icon={symbol.instrument_key ? <ShowChartIcon fontSize="small" /> : undefined}
-                            onClick={() => onSymbolClick(symbol)}
-                            data-testid="symbol-badge"
-                          />
-                        </Tooltip>
-                      ))}
-                    </Box>
-                  </Box>
-                ) : null}
-
-                {articleContent?.trade_ideas && articleContent.trade_ideas.length > 0 ? (
-                  <Box component="section">
-                    <SectionLabel>Trade Ideas</SectionLabel>
-                    <Stack spacing={0.75} sx={{ mt: 0.75 }}>
-                      {articleContent.trade_ideas.map((idea, index) => (
-                        <TradeIdeaCard
-                          key={`${idea.symbol}-${idea.direction}-${index}`}
-                          idea={idea}
-                        />
-                      ))}
-                    </Stack>
-                  </Box>
-                ) : null}
-
-                {articleContent?.description ? (
-                  <Box component="section" sx={{ pt: 0.5 }}>
-                    <SectionLabel>Full article</SectionLabel>
-                    {hasLlmSummary ? (
-                      <>
-                        <Button
-                          size="small"
-                          onClick={onToggleFullContent}
-                          aria-expanded={showFullContent}
-                          data-testid="article-toggle-full-content-btn"
-                          startIcon={showFullContent ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                          sx={{ mt: 0.5, alignSelf: "flex-start" }}
-                        >
-                          {showFullContent ? "Hide full article" : "View full article"}
-                        </Button>
-                        <Collapse in={showFullContent} unmountOnExit>
-                          <Stack spacing={1.25} sx={{ mt: 1 }}>
-                            {articleContent.description.split("\n\n").map((paragraph, index) => (
-                              <Typography
-                                key={`full-${index}-${paragraph.slice(0, 40)}`}
-                                variant="body2"
-                                sx={{ lineHeight: 1.7, mb: 0, textWrap: "pretty" }}
-                              >
-                                {paragraph}
-                              </Typography>
-                            ))}
-                          </Stack>
-                        </Collapse>
-                      </>
-                    ) : (
-                      <Stack spacing={1.25} sx={{ mt: 1 }}>
-                        {articleContent.description.split("\n\n").map((paragraph, index) => (
-                          <Typography
-                            key={`partial-${index}-${paragraph.slice(0, 40)}`}
-                            variant="body2"
-                            sx={{ lineHeight: 1.7, mb: 0, textWrap: "pretty" }}
-                          >
-                            {paragraph}
-                          </Typography>
-                        ))}
-                      </Stack>
-                    )}
-                  </Box>
-                ) : null}
-              </Stack>
-            </Box>
-            <Divider />
+        }
+      >
+        {(selected) => (
+          <Box data-testid="article-detail" style={{ display: "contents" }}>
             <Box
-              sx={{
-                minHeight: 48,
-                px: 1.5,
-                py: 0.75,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 1,
-                bgcolor: "background.paper",
+              component="header"
+              className="sticky top-0 z-20 shrink-0 bg-fin-surface border-b border-fin-border"
+              style={{
+                position: "sticky",
+                top: "0px",
+                "z-index": 2,
+                "padding-left": "16px",
+                "padding-right": "16px",
+                "padding-top": "12px",
+                "padding-bottom": "12px",
+                "background-color": palette.SURFACE,
+                "border-bottom": `1px solid ${palette.BORDER}`,
               }}
             >
-              {articleError && onRetryArticle ? (
-                <Button size="small" onClick={onRetryArticle} data-testid="article-retry">
-                  Retry
-                </Button>
-              ) : (
-                <Typography variant="caption" color="text.secondary">
-                  {hasLlmSummary ? "AI-assisted summary" : "Source article"}
-                </Typography>
-              )}
-              {selectedArticle.sourceUrl ? (
-                <Button
-                  size="small"
-                  href={selectedArticle.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  endIcon={<OpenInNewIcon fontSize="small" />}
-                >
-                  Open Original
-                </Button>
-              ) : (
-                <Button size="small" endIcon={<IconArrowUpRight size={14} />} disabled>
-                  No source link
-                </Button>
-              )}
+              <Box
+                className="flex items-start gap-6"
+                style={{ display: "flex", "align-items": "flex-start", gap: "12px" }}
+              >
+                <Box className="flex-1 min-w-0">
+                  <Box
+                    className="flex items-center gap-4 mb-3 min-w-0"
+                    style={{
+                      display: "flex",
+                      "align-items": "center",
+                      gap: "8px",
+                      "margin-bottom": "6px",
+                      "min-width": "0px",
+                    }}
+                  >
+                    <Text
+                      size="xs"
+                      fw={800}
+                      c="primary"
+                      style={{ "text-transform": "uppercase", "letter-spacing": "0.08em" }}
+                    >
+                      {selected().source}
+                    </Text>
+                    <Box
+                      style={{
+                        width: "3px",
+                        height: "3px",
+                        "border-radius": "50%",
+                        "background-color": palette.TEXT_MUTED,
+                      }}
+                    />
+                    <Text
+                      size="xs"
+                      c="dimmed"
+                      className="font-mono [font-variant-numeric:tabular-nums]"
+                    >
+                      {formatTimeAgo(content()?.publishedAt || selected().publishedAt)}
+                    </Text>
+                  </Box>
+                  <Title
+                    order={4}
+                    data-testid="article-title"
+                    style={{
+                      "font-size": `${typeSize("heading")}px`,
+                      "line-height": 1.2,
+                      "font-weight": 750,
+                      "text-wrap": "balance",
+                    }}
+                  >
+                    {selected().headline}
+                  </Title>
+                </Box>
+                <Show when={props.isMobile}>
+                  <ActionIcon
+                    size="sm"
+                    aria-label="Close article"
+                    onClick={() => props.onClose()}
+                    data-testid="close-article-btn"
+                    variant="subtle"
+                    style={{ "margin-top": "2px", flex: "0 0 auto" }}
+                  >
+                    <IconX size={12} />
+                  </ActionIcon>
+                </Show>
+              </Box>
             </Box>
-          </>
+
+            <Show
+              when={props.articleLoading}
+              fallback={
+                <>
+                  <Box className="flex-1 min-h-0 overflow-auto">
+                    <Stack className="gap-8" style={{ "max-width": "920px", padding: "24px 16px" }}>
+                      <Show when={props.articleError}>
+                        <Alert color="error" variant="filled" data-testid="article-error">
+                          {props.articleError}
+                        </Alert>
+                      </Show>
+
+                      <Show when={content()?.analysis_status === "failed"}>
+                        <Alert color="warning" variant="filled">
+                          ANALYSIS UNAVAILABLE
+                        </Alert>
+                      </Show>
+
+                      <Show when={content()?.sentiment || content()?.impact_score !== undefined}>
+                        <Box className="flex items-center justify-end gap-2" style={{ "min-height": "24px" }}>
+                          <Show when={content()?.sentiment}>
+                            {(sentiment) => <SentimentBadge sentiment={sentiment()} />}
+                          </Show>
+                          <ImpactScore score={content()?.impact_score} />
+                        </Box>
+                      </Show>
+
+                      <Show when={content()?.summary && content()?.analysis_status !== "failed"}>
+                        <Box
+                          data-testid="article-summary"
+                          style={{
+                            padding: "12px",
+                            "border-radius": "8px",
+                            "border-left": `3px solid ${palette.PRIMARY}`,
+                            "background-color": palette.SURFACE_ALT,
+                          }}
+                        >
+                          <Box
+                            className="flex items-center gap-3 mb-3"
+                            style={{
+                              display: "flex",
+                              "align-items": "center",
+                              gap: "12px",
+                              "margin-bottom": "12px",
+                            }}
+                          >
+                            <IconBulb size={16} color="primary" aria-hidden="true" />
+                            <SectionLabel>Summary</SectionLabel>
+                          </Box>
+                          <Text size="sm" style={{ "line-height": 1.65, "text-wrap": "pretty" }}>
+                            {content()!.summary}
+                          </Text>
+                        </Box>
+                      </Show>
+
+                      <Show when={(content()?.key_points?.length ?? 0) > 0}>
+                        <Box component="section">
+                          <SectionLabel>Key Takeaways</SectionLabel>
+                          <Stack
+                            component="ul"
+                            className="list-none"
+                            style={{ padding: "0px", "margin-top": "6px", "list-style": "none" }}
+                          >
+                            <For each={content()!.key_points ?? []}>
+                              {(point, index) => (
+                                <Box
+                                  component="li"
+                                  className="flex items-start gap-4"
+                                  style={{
+                                    display: "flex",
+                                    "align-items": "flex-start",
+                                    gap: "4px",
+                                  }}
+                                >
+                                  <Box
+                                    component="span"
+                                    style={{
+                                      width: "20px",
+                                      height: "20px",
+                                      display: "grid",
+                                      "place-items": "center",
+                                      "border-radius": "50%",
+                                      "background-color": palette.PRIMARY,
+                                      color: palette.BG,
+                                      "font-size": `${typeSize("micro")}px`,
+                                      "font-weight": 800,
+                                      flex: "0 0 auto",
+                                      "margin-top": "1px",
+                                    }}
+                                  >
+                                    {index() + 1}
+                                  </Box>
+                                  <Text
+                                    size="sm"
+                                    style={{ "line-height": 1.55, "text-wrap": "pretty" }}
+                                  >
+                                    {point}
+                                  </Text>
+                                </Box>
+                              )}
+                            </For>
+                          </Stack>
+                        </Box>
+                      </Show>
+
+                      <Show when={(content()?.symbols?.length ?? 0) > 0}>
+                        <Box component="section">
+                          <SectionLabel>Stocks mentioned</SectionLabel>
+                          <Box
+                            className="flex flex-wrap gap-2 mt-2"
+                            style={{
+                              display: "flex",
+                              "flex-wrap": "wrap",
+                              gap: "8px",
+                              "margin-top": "12px",
+                            }}
+                          >
+                            <For each={content()!.symbols ?? []}>
+                              {(symbol) => (
+                                <Tooltip
+                                  label={
+                                    symbol.instrument_key
+                                      ? `View ${symbol.trading_symbol} chart`
+                                      : "View details"
+                                  }
+                                >
+                                  <Box
+                                    component="button"
+                                    type="button"
+                                    onClick={() => props.onSymbolClick(symbol)}
+                                    onKeyDown={(event: KeyboardEvent) => {
+                                      if (event.key === "Enter" || event.key === " ") {
+                                        event.preventDefault();
+                                        props.onSymbolClick(symbol);
+                                      }
+                                    }}
+                                    data-testid="symbol-badge"
+                                    className="cursor-pointer border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
+                                  >
+                                    <Badge
+                                      variant="outline"
+                                      color={symbol.instrument_key ? "primary" : "secondary"}
+                                      size="sm"
+                                      style={{ cursor: "pointer" }}
+                                    >
+                                      {symbol.name || symbol.code}
+                                      {symbol.instrument_key ? (
+                                        <IconChartLine size={12} style={{ "margin-left": "4px" }} />
+                                      ) : null}
+                                    </Badge>
+                                  </Box>
+                                </Tooltip>
+                              )}
+                            </For>
+                          </Box>
+                        </Box>
+                      </Show>
+
+                      <Show when={(content()?.trade_ideas?.length ?? 0) > 0}>
+                        <Box component="section">
+                          <SectionLabel>Trade Ideas</SectionLabel>
+                          <Stack className="gap-2" style={{ "margin-top": "12px" }}>
+                            <For each={content()!.trade_ideas ?? []}>
+                              {(idea) => <TradeIdeaCard idea={idea} />}
+                            </For>
+                          </Stack>
+                        </Box>
+                      </Show>
+
+                      <Show when={content()?.description}>
+                        <Box component="section" style={{ "padding-top": "4px" }}>
+                          <SectionLabel>Full article</SectionLabel>
+                          <Show
+                            when={hasLlmSummary()}
+                            fallback={
+                              <Stack className="gap-4" style={{ "margin-top": "16px" }}>
+                                <For each={(content()?.description ?? "").split("\n\n")}>
+                                  {(paragraph) => (
+                                    <Text
+                                      size="sm"
+                                      style={{
+                                        "line-height": 1.7,
+                                        "margin-bottom": "0px",
+                                        "text-wrap": "pretty",
+                                      }}
+                                    >
+                                      {paragraph}
+                                    </Text>
+                                  )}
+                                </For>
+                              </Stack>
+                            }
+                          >
+                            <Button
+                              size="sm"
+                              onClick={() => props.onToggleFullContent()}
+                              aria-expanded={props.showFullContent}
+                              data-testid="article-toggle-full-content-btn"
+                              leftSection={
+                                props.showFullContent ? (
+                                  <IconChevronUp size={14} />
+                                ) : (
+                                  <IconChevronDown size={14} />
+                                )
+                              }
+                              variant="subtle"
+                              style={{ "margin-top": "4px", "align-self": "flex-start" }}
+                            >
+                              {props.showFullContent ? "Hide full article" : "View full article"}
+                            </Button>
+                            <Collapse in={props.showFullContent}>
+                              <Stack className="gap-4" style={{ "margin-top": "16px" }}>
+                                <For each={(content()?.description ?? "").split("\n\n")}>
+                                  {(paragraph) => (
+                                    <Text
+                                      size="sm"
+                                      style={{
+                                        "line-height": 1.7,
+                                        "margin-bottom": "0px",
+                                        "text-wrap": "pretty",
+                                      }}
+                                    >
+                                      {paragraph}
+                                    </Text>
+                                  )}
+                                </For>
+                              </Stack>
+                            </Collapse>
+                          </Show>
+                        </Box>
+                      </Show>
+                    </Stack>
+                  </Box>
+                  <Divider />
+                  <Box
+                    className="flex shrink-0 items-center justify-between gap-4 bg-fin-surface"
+                    style={{
+                      "min-height": "48px",
+                      "padding-left": "12px",
+                      "padding-right": "12px",
+                      "padding-top": "6px",
+                      "padding-bottom": "6px",
+                      display: "flex",
+                      "align-items": "center",
+                      "justify-content": "space-between",
+                      gap: "8px",
+                      "background-color": palette.SURFACE,
+                    }}
+                  >
+                    <Show when={props.articleError && props.onRetryArticle}>
+                      <Button
+                        size="sm"
+                        onClick={() => props.onRetryArticle?.()}
+                        data-testid="article-retry"
+                      >
+                        Retry
+                      </Button>
+                    </Show>
+                    <Show when={selected().sourceUrl}>
+                      <Box className="ml-auto">
+                        <Anchor
+                          href={selected().sourceUrl!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          size="sm"
+                          fw={600}
+                          c="primary"
+                          style={{ display: "inline-flex", "align-items": "center", gap: "4px" }}
+                        >
+                          Open Original
+                          <IconExternalLink size={12} />
+                        </Anchor>
+                      </Box>
+                    </Show>
+                  </Box>
+                </>
+              }
+            >
+              <Box
+                className="flex-1 min-h-0 overflow-auto"
+                style={{ padding: "16px" }}
+                data-testid="article-loading"
+              >
+                <Stack className="gap-3">
+                  <Skeleton h={72} className="rounded" />
+                  <Skeleton w="38%" />
+                  <Skeleton h={104} className="rounded" />
+                  <Skeleton h={80} className="rounded" />
+                  <Text size="sm" c="dimmed">
+                    Analyzing article...
+                  </Text>
+                </Stack>
+              </Box>
+            </Show>
+          </Box>
         )}
-      </Box>
+      </Show>
     </Box>
   );
 }

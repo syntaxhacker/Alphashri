@@ -135,8 +135,52 @@ export interface NiftyControlBlock {
   pe_doi: number | null;
   atm_ce_iv: number | null;
   atm_pe_iv: number | null;
+  /** PE − CE ATM skew (positive = puts richer). Distinct from `iv_surface`'s
+   *  25-delta RR, which is CE − PE — the two have opposite signs. */
+  put_skew?: number | null;
+  /** Legacy alias of `put_skew`; same PE − CE sign, kept for old payloads. */
   skew: number | null;
   gex_regime: string | null;
+}
+
+/** One surface-filtered leg from `report.iv_surface.points`. */
+export interface NiftyIvSurfacePoint {
+  strike: number;
+  ce_iv: number | null;
+  pe_iv: number | null;
+  ce_delta: number | null;
+  pe_delta: number | null;
+}
+
+/**
+ * `report.iv_surface` — ATM / 25Δ skew / term structure computed by the
+ * backend from the same chain. Prefer these numbers over re-deriving them from
+ * raw strikes; every field is nullable because a thin chain degrades block by block.
+ */
+export interface NiftyIvSurface {
+  atm?: {
+    strike: number | null;
+    ce_iv: number | null;
+    pe_iv: number | null;
+    avg_iv: number | null;
+  } | null;
+  skew?: {
+    strike_ce25: number | null;
+    ce_25d_iv: number | null;
+    strike_pe25: number | null;
+    pe_25d_iv: number | null;
+    /** CE − PE, in vol points (positive = calls rich). */
+    skew_25d: number | null;
+  } | null;
+  term?: { expiry: string; atm_iv: number | null }[];
+  coverage?: {
+    rows: number;
+    with_ce_iv: number;
+    with_pe_iv: number;
+    with_delta: number;
+  } | null;
+  degraded?: boolean | null;
+  points?: NiftyIvSurfacePoint[];
 }
 
 /** Rolling CE/PE OI change over the last N minutes of the tape. */
@@ -348,6 +392,67 @@ export interface NiftyStructureShift {
   level?: number | null;
 }
 
+/** Futures-positioning read: price vs OI decides the regime. */
+export type NiftyFuturesRegime =
+  | "long_buildup"
+  | "short_buildup"
+  | "long_unwinding"
+  | "short_covering"
+  | "neutral";
+
+/** One per-minute futures bar from the positioning feed. */
+export interface NiftyFuturesPoint {
+  t: string;
+  close: number;
+  oi: number;
+  volume: number;
+}
+
+/**
+ * `report.futures` — the cash index says nothing about positioning; this block
+ * carries the front-month future's price + OI so a price move can be told from
+ * a position being built or spent. Absent on payloads from before the feed.
+ */
+export interface NiftyFutures {
+  symbol: string;
+  instrument_key: string;
+  expiry: string;
+  series: NiftyFuturesPoint[];
+  /** 15-minute close change in points (null when the window is incomplete). */
+  change_pts: number | null;
+  /** 15-minute OI change in contracts. */
+  oi_change: number | null;
+  regime: NiftyFuturesRegime;
+  as_of: string | null;
+}
+
+/** One per-minute ITM put-volume point. */
+export interface NiftyItmPeFlowPoint {
+  t: string;
+  itm_pe_vol: number;
+  total_pe_vol: number;
+  /** ITM put volume as a share of all put volume, 0-100. */
+  share_pct: number;
+  spot: number;
+}
+
+/** Heaviest ITM put strike of the session. */
+export interface NiftyItmPeStrike {
+  strike: number;
+  volume: number;
+  oi: number;
+}
+
+/**
+ * `report.itm_pe_flow` — ITM puts are where hedges and stop-outs print, so
+ * their share of put volume is the hedging read the OI/CE-PE split misses.
+ */
+export interface NiftyItmPeFlow {
+  series: NiftyItmPeFlowPoint[];
+  top: NiftyItmPeStrike[];
+  as_of: string | null;
+}
+
 export interface NiftyReport {
   mode: NiftyReportMode;
   date: string;
@@ -396,6 +501,12 @@ export interface NiftyReport {
   positioning?: NiftyPositioningBlock;
   /** Structural tape shifts — absent renders nothing, `[]` renders empty. */
   structure?: NiftyStructureShift[];
+  /** Backend-computed IV surface — preferred over re-deriving from `strikes`. */
+  iv_surface?: NiftyIvSurface;
+  /** Front-month futures positioning — absent hides the futures panel. */
+  futures?: NiftyFutures | null;
+  /** Per-minute ITM put volume flow — absent hides the ITM flow panel. */
+  itm_pe_flow?: NiftyItmPeFlow | null;
 }
 
 /** Live Sensex context shown beside the Nifty report. */
@@ -436,14 +547,19 @@ export interface NiftyReplay {
   count: number;
   interval_sec: number;
   snapshots: NiftyReplayFrame[];
-  /** Skipped-minute counts by reason (``{chain-failed: 41, timeout: 12}``).
+  /** Skipped-minute counts by reason (``{"chain-failed": 41, timeout: 12}``).
    *  Absent for days recorded before the gap journal existed. */
   gap_reasons?: Record<string, number>;
 }
 
 /** Per-strike chain snapshot — `chain[strike] = [ce_ltp, pe_ltp, ce_oi, pe_oi, ce_vol, pe_vol]`
  *  with dead legs stored as `null` (so "no trade" stays distinguishable from
- *  "no price"). Absent on tapes recorded before the backend emitted it. */
+ *  "no price"). Absent on tapes recorded before the backend emitted it.
+ *
+ *  The served rows are trimmed to spot ± 500 pts (backend
+ *  `nifty.TAPE_CHAIN_WINDOW_PTS`) — the window every reader below renders — so
+ *  a strike far from spot is expected to be missing, not zero. A trimmed row
+ *  says so with `chain_truncated` / `chain_center` / `chain_window_pts`. */
 export type NiftyTapeChainTuple = [
   number | null,
   number | null,
@@ -492,8 +608,16 @@ export interface NiftyTapeRow {
   ce_vol?: number;
   pe_vol?: number;
   /** Per-strike chain snapshot backing the heatmap / participant-flow /
-   *  volume-profile visuals; absent on tapes recorded before it existed. */
+   *  volume-profile visuals; absent on tapes recorded before it existed.
+   *  Trimmed to spot ± `chain_window_pts` (500) by the backend — the window
+   *  those readers render, so a far strike is absent rather than zero. */
   chain?: Record<string, NiftyTapeChainTuple>;
+  /** The served chain was shortened to the readable window. */
+  chain_truncated?: boolean;
+  /** Strike centre the row's chain was trimmed around (its own spot). */
+  chain_center?: number | null;
+  /** Kept window in points around `chain_center`. */
+  chain_window_pts?: number;
 }
 
 /** A ready-to-trade burst signal block — `null` when the burst only merits a flag. */
@@ -589,6 +713,8 @@ export interface NiftyBurst {
   /** Wall events carry the target (max pain) and the tested strike. */
   target?: number | null;
   strike?: number;
+  /** Option leg the strike belongs to ("CE" | "PE"); per-strike bursts only. */
+  leg?: string;
   /** Wall strike the squeeze broke through. */
   wall?: number;
   /** Human headline supplied by the backend (wall/data-stale events). */

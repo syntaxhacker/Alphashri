@@ -44,7 +44,6 @@ DEFAULT_API_BASE = "http://localhost:8765"
 SNAPSHOT_PATH = "/api/market/snapshot"
 CHART_PATH = "/api/chart-patterns/symbol/{symbol}/chart"
 UNIVERSES = ("all_equity", "nifty500", "nse_fo")
-# RELIANCE: has data. POWERMECH: transient upstream failures. SPCL: no data.
 CHART_SYMBOLS = ("RELIANCE", "POWERMECH", "SPCL")
 
 BUDGETS = [
@@ -71,7 +70,6 @@ def percentile(values: list[float], pct: float) -> float | None:
 
 
 def latency_summary(samples: list[dict[str, Any]]) -> dict[str, Any]:
-    """p50/p95/min/max over the successful samples of one group."""
     lat = sorted(
         s["latency_ms"] for s in samples if s.get("status") is not None
     )
@@ -89,7 +87,6 @@ def latency_summary(samples: list[dict[str, Any]]) -> dict[str, Any]:
 def fetch_once(
     session: requests.Session, url: str, timeout: float
 ) -> dict[str, Any]:
-    """One streamed GET capturing wire bytes, headers and latency."""
     started = time.perf_counter()
     try:
         response = session.get(url, stream=True, timeout=timeout)
@@ -138,7 +135,6 @@ def fetch_once(
 
 
 def describe_snapshot(sample: dict[str, Any]) -> dict[str, Any]:
-    """Pull the reporting fields out of one snapshot response."""
     body = sample.get("payload") or {}
     rows = body.get("rows") if isinstance(body, dict) else None
     return {
@@ -151,14 +147,13 @@ def describe_snapshot(sample: dict[str, Any]) -> dict[str, Any]:
         "total": body.get("total") if isinstance(body, dict) else None,
         "update_mode": body.get("update_mode") if isinstance(body, dict) else None,
         "as_of": body.get("as_of") if isinstance(body, dict) else None,
-        "cached": None,  # inferred below from as_of equality, not a body field
+        "cached": None,
         "headers": sample["headers"],
         "error": sample.get("error"),
     }
 
 
 def describe_chart(sample: dict[str, Any]) -> dict[str, Any]:
-    """Pull the reporting fields out of one symbol-chart response."""
     body = sample.get("payload") or {}
     candles = body.get("candles") if isinstance(body, dict) else None
     return {
@@ -179,7 +174,6 @@ def maybe_authenticate(
     session: requests.Session, base: str,
     email: str, password: str,
 ) -> bool:
-    """One login attempt (only used when the anonymous probe gets 401)."""
     try:
         resp = session.post(
             f"{base}/api/auth/login",
@@ -238,7 +232,6 @@ def main() -> int:
         # Sleep only between requests, never after the last one.
         return sample
 
-    # --- Snapshot: cold (force=true) then warm, per universe -------------
     snapshot_groups: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for universe in UNIVERSES:
         groups = {"cold": [], "warm": []}
@@ -263,7 +256,6 @@ def main() -> int:
             )
         snapshot_groups[universe] = groups
 
-    # --- Chart: cold then cached, per symbol ----------------------------
     chart_groups: dict[str, list[dict[str, Any]]] = {}
     for symbol in CHART_SYMBOLS:
         samples = []
@@ -273,7 +265,6 @@ def main() -> int:
             time.sleep(args.spacing)
         chart_groups[symbol] = samples
 
-    # --- Summaries + budgets ---------------------------------------------
     summaries: dict[str, Any] = {}
     for universe in UNIVERSES:
         summaries[f"snapshot:{universe}"] = {
@@ -289,7 +280,6 @@ def main() -> int:
     warm_all = summaries["snapshot:all_equity"]["warm"]["p50"]
     warm_nifty500 = summaries["snapshot:nifty500"]["warm"]["p50"]
     cold_reliance = summaries["chart:RELIANCE:cold"]["p50"]
-    # Cold chart latency is the single first sample (see summaries above).
     cold_powermechan = chart_groups["POWERMECH"][0]["latency_ms"]
     cached_spcl = (
         chart_groups["SPCL"][1]["latency_ms"]
@@ -316,7 +306,6 @@ def main() -> int:
              "verdict": verdict}
         )
 
-    # --- Report -----------------------------------------------------------
     print(f"base={base}  requests={request_count}  "
           f"limit={args.limit}  runs={args.runs}+{args.chart_runs}")
     for universe in UNIVERSES:

@@ -77,8 +77,11 @@ describe("verdictMeta", () => {
     const meta = verdictMeta("bearish");
     expect(meta.icon).toBe("▼");
     expect(meta.label).toBe("Bearish");
-    expect(meta.colorToken).toBeTruthy();
-    expect(meta.tintToken).toBeTruthy();
+    // Palette tokens must be real strings, not undefined/empty.
+    expect(typeof meta.colorToken).toBe("string");
+    expect(meta.colorToken.length).toBeGreaterThan(0);
+    expect(typeof meta.tintToken).toBe("string");
+    expect(meta.tintToken.length).toBeGreaterThan(0);
   });
 
   test("bullish uses up icon", () => {

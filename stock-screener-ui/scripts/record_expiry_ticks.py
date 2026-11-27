@@ -51,8 +51,8 @@ def main() -> None:
     ap.add_argument("--strikes", default="22450-22950")
     args = ap.parse_args()
 
-    from api.orderflow_adapters.fyers import FyersAdapter
-    from api.orderflow_recorder import recorder_token
+    from api.broker_hub.adapters.fyers import FyersAdapter
+    from api.broker_hub import recorder_token
     from fyers_apiv3.fyersModel import FyersModel
 
     lo, hi = (int(x) for x in args.strikes.split("-"))

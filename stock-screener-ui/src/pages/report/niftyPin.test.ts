@@ -24,8 +24,6 @@ const wallsNear = {
 };
 
 const defaultMetrics = makeMetrics(22_800, 50);
-/** Tests that exercise symbol scaling pass their own metrics; legacy cases
- *  use the NIFTY defaults explicitly (never the old fake-report fallback). */
 function pinRisk(input: Omit<PinInput, "metrics"> & { metrics?: SymbolMetrics }) {
   return pinRiskBase({ ...input, metrics: input.metrics ?? defaultMetrics });
 }
@@ -159,7 +157,6 @@ describe("pinRisk", () => {
     expect(read?.level).toBe("LOW");
   });
 
-  // --- Symbol-aware thresholds (new) ---
 
   test("SENSEX: 100-pt strike step -> pinEdgeHigh=100, pinEdgeMedium=200, pinPainPts=200", () => {
     const metrics = makeMetrics(79_000, 100);
@@ -167,8 +164,6 @@ describe("pinRisk", () => {
     expect(metrics.pinEdgeMedium).toBe(200);
     expect(metrics.pinPainPts).toBe(200);
 
-    // Spot 79,000, max pain 79,200 (200 pts above = at pain threshold)
-    // Wall at 79,100 (100 pts away = HIGH threshold for SENSEX)
     const read = pinRisk({
       spot: 79_000,
       maxPain: 79_200,
@@ -178,7 +173,6 @@ describe("pinRisk", () => {
     expect(read?.level).toBe("HIGH");
     expect(read?.edgeDistance).toBe(100);
 
-    // Wall at 79,150 (150 pts away = MEDIUM for SENSEX)
     const read2 = pinRisk({
       spot: 79_000,
       maxPain: 79_200,
@@ -187,7 +181,6 @@ describe("pinRisk", () => {
     });
     expect(read2?.level).toBe("MEDIUM");
 
-    // Wall at 79,250 (250 pts away = LOW for SENSEX)
     const read3 = pinRisk({
       spot: 79_000,
       maxPain: 79_200,

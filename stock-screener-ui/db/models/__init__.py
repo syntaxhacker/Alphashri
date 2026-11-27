@@ -20,7 +20,10 @@ from .screener import Screener
 from .price_surge import PriceSurgeEvent
 from .chat import ChatConversation, ChatMessage
 from .replay_saved_config import ReplaySavedConfig
+from .user_saved_config import UserSavedConfig
 from .chart_patterns import PatternComputeJob, PatternHit, PatternImage, PatternTimeframeConfig
+from .option_snapshot import OptionChainSnapshot
+from .options_paper import OptionPaperPosition, OptionPaperLeg
 
 # --- Event Radar ---
 from .event import CorporateEvent, EventAnomaly
@@ -61,10 +64,14 @@ __all__ = [
     "ChatConversation",
     "ChatMessage",
     "ReplaySavedConfig",
+    "UserSavedConfig",
     "PatternComputeJob",
     "PatternHit",
     "PatternImage",
     "PatternTimeframeConfig",
+    "OptionChainSnapshot",
+    "OptionPaperPosition",
+    "OptionPaperLeg",
     # --- Event Radar ---
     "CorporateEvent",
     "EventAnomaly",

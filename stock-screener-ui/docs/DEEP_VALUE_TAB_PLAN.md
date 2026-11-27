@@ -1,7 +1,11 @@
-# PLAN — "Deep Value" tab: seriously undervalued stocks (India / USA / Global)
+# SHIPPED — "Deep Value" tab: seriously undervalued stocks (India / USA / Global)
 
-> Status: **PLAN ONLY — not implemented.** Awaiting sign-off on the 5 open questions in §12.
-> Owner: agent. Stack: React 19 + Vite + MUI 9 (`@/ui`) front, FastAPI back, TradingView scanner as data source.
+> Status: **Shipped.** The 5 questions in §12 were resolved on 2026-10-22 ("let's go") and the
+> plan was implemented. The **Deep Value tab** (`?tab=deepvalue`) remains, and the **Market Value
+> view (V1)** is also shipped: the **Table / Map / Movers / Value** toggle in `MarketMapView.tsx`
+> embeds the same Deep Value `ValuePanel` as a self-contained scan view (see
+> `docs/market-screener.md`).
+> Owner: agent. Stack: SolidJS 1.9 + Vite 8 + Tailwind 4 (`@/ui`) front, FastAPI back, TradingView scanner as data source.
 
 ---
 
@@ -133,12 +137,20 @@ One number, **0-100**, with four visible sub-scores so the UI can explain itself
 
 | Preset | Rules |
 |---|---|
-| **SERIOUS** (default) | P/E ≤ 12, P/S ≤ 1.5 (ex-Finance), ROE ≥ 12%, FCF yield ≥ 4%, EPS growth > 0, net cash or D/E ≤ 0.8, mcap ≥ ₹500cr/$500m, above 200-DMA |
+| **SERIOUS** | P/E ≤ 12, P/S ≤ 1.5 (ex-Finance), ROE ≥ 12%, FCF yield ≥ 4%, EPS growth > 0, net cash or D/E ≤ 0.8, mcap ≥ ₹500cr/$500m, above 200-DMA |
 | **DEEP** | P/E ≤ 8, P/B ≤ 1.0, ROE ≥ 15%, FCF yield ≥ 6%, net cash, above 200-DMA |
 | **GARP-VALUE** | P/E ≤ 18, ROE ≥ 15%, rev YoY ≥ 8%, EPS YoY ≥ 5%, FCF yield ≥ 2% |
 | **YIELD** | div yield ≥ 4%, P/E ≤ 14, FCF yield ≥ 5%, EPS growth > 0 |
 | **TURNAROUND** | P/E ≤ 12, EPS YoY > 0 but rev YoY < 3, price > SMA200 (early inflection) |
 | **NO GATE** | everything off, pure value ranking (research mode) |
+
+The rule column above is the original design sketch. The authoritative preset
+definitions (id, label, description, gates) live in `api/value_scan/presets.json`;
+`api/value_scan/filters.py` loads its gates from there and
+`src/api/valuePresets.generated.ts` is generated from the same file by
+`scripts/gen_value_presets.py` (byte-compare drift test). No preset is selected
+by default — the UI selector starts empty and the API `preset` param defaults to
+`None`.
 
 ---
 
@@ -267,7 +279,7 @@ Per `TEST_RULES.md`:
 
 **Guards (must pass before commit):** `npx vitest run src/test/ui-guard.test.ts` and `npx vitest run src/ui/inputs/inputs.w-h.test.tsx`.
 
-**E2E:** `e2e/value-scan.spec.ts` — open tab, switch India→USA, apply SERIOUS preset, assert rows + score chips, screenshot at 1440×900. Never run the full E2E suite (per AGENTS.md).
+**E2E:** `e2e/deep-value.spec.ts` — open tab, switch India→USA, apply the DEEP preset (visible option label `Deep`), assert rows + score chips, screenshot at 1440×900. Never run the full E2E suite (per AGENTS.md).
 
 ---
 

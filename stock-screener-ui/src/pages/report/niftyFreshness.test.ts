@@ -21,7 +21,7 @@ function makeBurst(type: string): NiftyBurst {
 }
 
 describe("computeNiftyFreshness", () => {
-  const nowMs = 1_700_000_000_000; // fixed timestamp for deterministic tests
+  const nowMs = 1_700_000_000_000;
 
   test("fresh (42s) during market hours → DATA 42s, not stale", () => {
     const result = computeNiftyFreshness({
@@ -50,7 +50,7 @@ describe("computeNiftyFreshness", () => {
   test("closed market → CLOSED, never stale", () => {
     const result = computeNiftyFreshness({
       nowMs,
-      lastBackendMs: nowMs - 300_000, // even very old
+      lastBackendMs: nowMs - 300_000,
       marketOpen: false,
       bursts: [],
     });
@@ -74,7 +74,7 @@ describe("computeNiftyFreshness", () => {
   test("data_stale burst forces STALE even when timestamp is fresh", () => {
     const result = computeNiftyFreshness({
       nowMs,
-      lastBackendMs: nowMs - 10_000, // only 10s old
+      lastBackendMs: nowMs - 10_000,
       marketOpen: true,
       bursts: [makeBurst("data_stale")],
     });

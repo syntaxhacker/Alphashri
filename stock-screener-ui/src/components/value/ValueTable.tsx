@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { createMemo } from "solid-js";
 import type { ValueRow } from "../../api/valueScan";
 import { TanStackTable } from "../common/TanStackTable";
 import { buildValueColumns } from "./valueColumns";
@@ -7,21 +7,23 @@ interface ValueTableProps {
   rows: ValueRow[];
   loading?: boolean;
   onRowClick?: (row: ValueRow) => void;
+  onSymbolClick?: (symbol: string, exchange?: string) => void;
 }
 
-export function ValueTable({ rows, loading = false, onRowClick }: ValueTableProps) {
-  const columns = useMemo(() => buildValueColumns(), []);
+export function ValueTable(props: ValueTableProps) {
+  const columns = createMemo(() => buildValueColumns(props.onSymbolClick));
   return (
     <TanStackTable<ValueRow>
-      data={rows}
-      columns={columns}
+      data={props.rows}
+      columns={columns()}
       dataTestId="value-table"
-      loading={loading}
+      ariaLabel="Deep value screening results"
+      loading={props.loading}
       loadingMessage="Scanning for deep value…"
       emptyMessage="No deep-value matches for these filters"
       enableSorting
       stickyHeader
-      onRowClick={onRowClick}
+      onRowClick={props.onRowClick}
       getRowTestId={(row) => `value-row-${row.symbol}`}
     />
   );

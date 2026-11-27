@@ -1,66 +1,51 @@
-import { useState } from "react";
+import { createSignal } from "solid-js";
 import { ScreenerPage, DEFAULT_DASHBOARD_UNIVERSE } from "../../components/screener/ScreenerPage";
 import { useScreenerState } from "../../hooks/useScreenerState";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "@solidjs/router";
 
 export function ScreenerContainer() {
   const [searchParams] = useSearchParams();
-  const rawScreener = searchParams.get("screener");
+  const raw = searchParams.screener;
+  const rawScreener = Array.isArray(raw) ? raw[0] : raw;
   const urlScreener = rawScreener?.includes(":")
     ? rawScreener.split(":").pop()
     : rawScreener || undefined;
 
-  const {
-    approachingStocks,
-    touchedStocks,
-    screenerOptions,
-    activeScreener,
-    isLoading,
-    error,
-    warning,
-    autoRefreshSeconds,
-    provider,
-    mode,
-    onRefresh,
-    onAutoRefreshChange,
-    onProviderChange,
-    onModeChange,
-    onScreenerChange,
-    onConfigScreenerSelect,
-    onSymbolClick,
-    onSymbolHover,
-  } = useScreenerState(urlScreener);
+  // Held as an object, never destructured: its fields are getters over the
+  // live store, and destructuring would pin the first snapshot.
+  const screener = useScreenerState(urlScreener);
 
-  const totalStocks = (approachingStocks ?? []).length + (touchedStocks ?? []).length;
-  const [universe, setUniverse] = useState(DEFAULT_DASHBOARD_UNIVERSE);
+  const totalStocks = () =>
+    (screener.approachingStocks ?? []).length + (screener.touchedStocks ?? []).length;
+  const [universe, setUniverse] = createSignal(DEFAULT_DASHBOARD_UNIVERSE);
 
   return (
     <ScreenerPage
-      screenerOptions={screenerOptions}
-      activeScreener={activeScreener}
-      onScreenerChange={onScreenerChange}
-      onConfigScreenerSelect={onConfigScreenerSelect}
-      title={`${(screenerOptions ?? []).find((s) => s.id === activeScreener)?.label || "Screener"} | Alphashri`}
+      screenerOptions={screener.screenerOptions}
+      activeScreener={screener.activeScreener}
+      onScreenerChange={screener.onScreenerChange}
+      onConfigScreenerSelect={screener.onConfigScreenerSelect}
+      title={`${(screener.screenerOptions ?? []).find((s) => s.id === screener.activeScreener)?.label || "Screener"} | Alphashri`}
       status={
-        isLoading && totalStocks === 0
+        screener.isLoading && totalStocks() === 0
           ? "Loading..."
-          : `${totalStocks} stocks${isLoading ? " • Updating..." : ""}`
+          : `${totalStocks()} stocks${screener.isLoading ? " • Updating..." : ""}`
       }
-      isLoading={isLoading}
-      autoRefreshSeconds={autoRefreshSeconds}
-      provider={provider}
-      mode={mode}
-      onRefresh={onRefresh}
-      onAutoRefreshChange={onAutoRefreshChange}
-      onProviderChange={onProviderChange}
-      onModeChange={onModeChange}
-      approachingStocks={approachingStocks}
-      touchedStocks={touchedStocks}
-      onSymbolClick={onSymbolClick}
-      onSymbolHover={onSymbolHover}
-      error={error}
-      warning={warning}
-      universe={universe}
+      isLoading={screener.isLoading}
+      autoRefreshSeconds={screener.autoRefreshSeconds}
+      provider={screener.provider}
+      mode={screener.mode}
+      onRefresh={screener.onRefresh}
+      onAutoRefreshChange={screener.onAutoRefreshChange}
+      onProviderChange={screener.onProviderChange}
+      onModeChange={screener.onModeChange}
+      approachingStocks={screener.approachingStocks}
+      touchedStocks={screener.touchedStocks}
+      onSymbolClick={screener.onSymbolClick}
+      onSymbolHover={screener.onSymbolHover}
+      error={screener.error}
+      warning={screener.warning}
+      universe={universe()}
       onUniverseChange={setUniverse}
     />
   );

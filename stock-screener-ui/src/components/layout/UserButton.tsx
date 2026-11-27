@@ -1,7 +1,7 @@
-import { useContext } from "react";
-import { IconLogout } from "@tabler/icons-react";
-import { Avatar, Box, Group, Text, UnstyledButton, Menu, MenuTarget, MenuDropdown, MenuItem, rem } from "@/ui";
-import { AuthContext } from "../auth/AuthProvider2";
+import { Show, createMemo, useContext } from "solid-js";
+import { IconLogout } from "../common/Icons";
+import { Avatar, Box, Group, Text, Menu, MenuTarget, MenuDropdown, MenuItem } from "@/ui";
+import { AuthContext } from "../auth/AuthProvider";
 
 
 declare global {
@@ -14,16 +14,30 @@ declare global {
   }
 }
 
-export function UserButton({ collapsed }: { collapsed?: boolean }) {
+/** `@` and `.` are the only word boundaries in an address. Mark them as break
+ *  opportunities so a long email wraps between tokens instead of being clipped
+ *  mid-token; `<wbr>` contributes no text, so the full address stays in the DOM. */
+function breakableEmail(email: string) {
+  return email.split(/(@|\.)/).map((part) => (
+    <>
+      {part}{(part === "@" || part === ".") && <wbr />}
+    </>
+  ));
+}
+
+export function UserButton(props: { collapsed?: boolean }) {
+  const collapsed = () => props.collapsed ?? false;
   // Prefer the auth context so the button re-renders when the user loads.
   // Fall back to the window global for Storybook (no provider) and tests.
   const auth = useContext(AuthContext);
-  const user = auth?.user
-    ? {
-        displayName: auth.user.display_name || auth.user.email?.split("@")[0] || "User",
-        email: auth.user.email,
-      }
-    : window.__ALPHASHRI_USER__ || { displayName: "User", email: "user@example.com" };
+  const user = createMemo(() =>
+    auth?.user
+      ? {
+          displayName: auth.user.display_name || auth.user.email?.split("@")[0] || "User",
+          email: auth.user.email,
+        }
+      : window.__ALPHASHRI_USER__ || { displayName: "User", email: "user@example.com" },
+  );
 
   const handleLogout = () => {
     if (window.handleLogout) {
@@ -34,40 +48,40 @@ export function UserButton({ collapsed }: { collapsed?: boolean }) {
   return (
     <Menu position="right-start" offset={8} shadow="md">
       <MenuTarget>
-        <UnstyledButton
+        <button
+          type="button"
           data-testid="user-menu-trigger"
           id="user-button"
-          sx={{
-            display: "block",
-            width: "100%",
-            p: "8px",
-            color: "text.primary",
-            borderRadius: "8px",
-            "&:hover": { bgcolor: "action.hover" },
-          }}
-          style={{ padding: collapsed ? "8px" : undefined }}
+          className="block w-full p-2 text-fin-text rounded-fin hover:bg-fin-surface-alt"
+          style={{ padding: collapsed() ? "8px" : undefined }}
         >
-          <Group justify={collapsed ? "center" : "flex-start"} wrap="nowrap" gap="sm">
-            <Avatar radius="xl" alt={user.displayName} data-testid="user-avatar" />
+          <Group justify={collapsed() ? "center" : "flex-start"} wrap="nowrap" gap="sm">
+            <Avatar radius="xl" alt={user().displayName} data-testid="user-avatar" />
 
-            {!collapsed && (
-              <Box flex={1} data-testid="user-info" style={{ minWidth: 0 }}>
+            <Show when={!collapsed()}>
+              <Box flex={1} data-testid="user-info" style={{ "min-width": "0px" }}>
                 <Text size="xs" fw={500} truncate data-testid="user-display-name">
-                  {user.displayName}
+                  {user().displayName}
                 </Text>
 
-                <Text c="dimmed" size="xs" truncate data-testid="user-email">
-                  {user.email}
+                <Text
+                  c="dimmed"
+                  size="xs"
+                  title={user().email}
+                  className="break-words"
+                  data-testid="user-email"
+                >
+                  {breakableEmail(user().email)}
                 </Text>
               </Box>
-            )}
+            </Show>
           </Group>
-        </UnstyledButton>
+        </button>
       </MenuTarget>
 
       <MenuDropdown data-testid="user-menu-dropdown">
         <MenuItem
-          leftSection={<IconLogout style={{ width: rem(14), height: rem(14) }} />}
+          leftSection={<IconLogout size={14} />}
           onClick={handleLogout}
           color="error"
           data-testid="logout-button"

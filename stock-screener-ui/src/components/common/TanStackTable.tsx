@@ -1,512 +1,319 @@
-import { useState, Fragment, useEffect, useMemo, useRef, type ReactNode, type CSSProperties } from "react";
-import TableContainer from "@mui/material/TableContainer";
-import Paper from "@mui/material/Paper";
-import { Box, ScrollArea, useDensity } from "@/ui";
-import * as palette from "@/ui/palette";
-import {
-  flexRender,
-  getCoreRowModel,
-  getGroupedRowModel,
-  getSortedRowModel,
-  getExpandedRowModel,
-  useReactTable,
-  type SortingState,
-  type ExpandedState,
-  type ColumnDef,
-  type Column,
-} from "@tanstack/react-table";
-import { TableLoadingState } from "./TableLoadingState";
-import { TableEmptyState } from "./TableEmptyState";
+import { For, Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
+import { Button, Paper, ScrollArea, ToolbarRow, useDensity, typeSize } from "@/ui";
+import { InlineLoader } from "./states";
+import { ColumnPicker } from "./ColumnPicker";
+import { resolveColumnPrefs, useColumnPrefs } from "./table/columnPrefs";
+import { getValue, useColumnViews } from "./table/columns";
+import { renderGroupRow, renderHeader, renderRow, type TableRenderContext } from "./table/renderers";
+import { useSorting } from "./table/sorting";
+import type { CSSProperties, TableMetrics, TableMetricsPreset, TableProps } from "./table/types";
+import { useRowWindow } from "./table/windowing";
+
+export { resolveColumnPrefs };
+export type {
+  ColumnPrefs,
+  GroupHeaderInfo,
+  ResolvedColumnPrefs,
+  SortEntry,
+  TableColumnDef,
+  TableColumnMeta,
+  TableMetrics,
+  TableMetricsPreset,
+  TableProps,
+} from "./table/types";
 
 /**
- * Column-level metadata understood by TanStackTable.
- * Usage: `meta: { align: "right" }` on a ColumnDef.
+ * `default` is the new comfortable rhythm. `dense` is the explicit opt-in for
+ * screener / market tables — those numbers are a contract, do not drift them.
+ * `paper` preserves the trading tables' 23px rhythm through the wrapper.
  */
-export interface TableColumnMeta {
-  align?: "left" | "center" | "right";
-}
+export const TABLE_METRICS: Record<TableMetricsPreset, TableMetrics> = {
+  default: { rowHeight: 32, cellPadding: "8px 12px", fontSize: typeSize("micro"), headerFontSize: typeSize("micro") },
+  comfortable: { rowHeight: 36, cellPadding: "10px 14px", fontSize: typeSize("micro"), headerFontSize: typeSize("micro") },
+  dense: { rowHeight: 18, cellPadding: "1px 6px", fontSize: typeSize("micro"), headerFontSize: typeSize("micro") },
+  paper: { rowHeight: 23, cellPadding: "2px 8px", fontSize: typeSize("micro"), headerFontSize: typeSize("micro") },
+};
 
-export interface GroupHeaderInfo<T> {
-  /** Grouping column value for this group (e.g. the date). */
-  value: unknown;
-  /** Original data rows in this group. */
-  rows: T[];
-  isExpanded: boolean;
-  toggle: () => void;
-}
+/** One arrow press moves the same element that owns focus and the region role. */
+const TABLE_HSCROLL_STEP = 80;
 
-interface Props<T> {
-  data: T[];
-  columns: ColumnDef<T>[];
-  initialState?: { sorting?: SortingState; expanded?: ExpandedState };
-  /** Group rows by these column ids (requires enableGrouping). */
-  grouping?: string[];
-  /** Enables TanStack row grouping + getGroupedRowModel. */
-  enableGrouping?: boolean;
-  /** Custom renderer for a full-width group header row. */
-  renderGroupHeader?: (group: GroupHeaderInfo<T>) => ReactNode;
-  /** Test id for group header rows, keyed by the grouping value. */
-  getGroupRowTestId?: (value: unknown) => string | undefined;
-  dataTestId?: string;
-  loading?: boolean;
-  loadingMessage?: string;
-  emptyMessage?: string;
-  emptyIcon?: ReactNode;
-  emptyAction?: ReactNode;
-  onRowClick?: (row: T) => void;
-  /** Accessible name for the <table> element (e.g. "Market screener results"). */
-  ariaLabel?: string;
-  getRowClassName?: (row: T) => string | undefined;
-  getRowStyle?: (row: T) => CSSProperties | undefined;
-  getRowTestId?: (row: T, index: number) => string | undefined;
-  /** Extra DOM attributes for each row (e.g. data-* used for external lookup). */
-  getRowAttributes?: (row: T, index: number) => Record<string, string | number | undefined>;
-  /**
-   * Emits the rows in the order they are rendered (after header sorting /
-   * grouping / expansion) whenever that order changes. Lets a caller drive
-   * prev/next navigation over exactly what the user sees.
-   */
-  onSortedRowsChange?: (rows: T[]) => void;
-  enableSorting?: boolean;
-  enableSortingRemoval?: boolean;
-  stickyHeader?: boolean;
-  className?: string;
-  style?: CSSProperties;
-  getRowCanExpand?: (row: T) => boolean;
-  renderSubComponent?: (row: T) => ReactNode;
-  /**
-   * When > 0, only a scroll-position window of this many rows is mounted once
-   * the row count exceeds it. Keeps large tables (e.g. the 530+ row 52W-high
-   * screener) responsive; the full row model still drives sorting/selection.
-   */
-  rowWindowSize?: number;
-  /**
-   * When true the table fills its parent's height (no 65vh cap) instead of
-   * being capped — use inside a flex column layout that already has a height.
-   */
-  fillContainer?: boolean;
-  /**
-   * Minimum table width override. Defaults to `max(640, columns * 96)`.
-   * Dense desk tables that must fit a fixed panel pass their real width.
-   */
-  minTableWidth?: number;
-  /**
-   * Opt-in bare mode: skip the outer Paper/TableContainer wrapper (use when
-   * the page already provides its own bordered container — avoids nested
-   * double borders). Returns the scroll area + table only. Default false.
-   */
-  bare?: boolean;
-  /** Ultra-dense rows (18px, 1px 6px cells) regardless of the global density. */
-  dense?: boolean;
-}
-
-const GROUP_ROW_ESTIMATE = 36;
-const EXPANDED_ROW_ESTIMATE = 220;
-
-/** Largest row index whose top offset is <= scrollTop (binary search). */
-function findRowIndexForOffset(offsets: number[], y: number): number {
-  let lo = 0;
-  let hi = offsets.length - 2;
-  let ans = 0;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if (offsets[mid] <= y) {
-      ans = mid;
-      lo = mid + 1;
-    } else {
-      hi = mid - 1;
-    }
+function onTableScrollRegionKeyDown(event: KeyboardEvent) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  const region = event.currentTarget as HTMLElement;
+  const target = event.target as HTMLElement | null;
+  if (
+    target &&
+    target !== region &&
+    (target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.tagName === "SELECT" ||
+      target.isContentEditable)
+  ) {
+    return;
   }
-  return ans;
+  if (region.scrollWidth <= region.clientWidth) return;
+  region.scrollLeft +=
+    event.key === "ArrowRight" ? TABLE_HSCROLL_STEP : -TABLE_HSCROLL_STEP;
+  event.preventDefault();
 }
 
-/** Returns the explicit column width, or undefined when the column has no size set. */
-function getColumnWidth<T>(column: Column<T, unknown>): number | undefined {
-  const size = (column.columnDef as { size?: number }).size;
-  return typeof size === "number" ? size : undefined;
-}
+export function TanStackTable<T>(props: TableProps<T>) {
+  const densityApi = useDensity();
+  const cols = useColumnPrefs(props);
+  const isDense = () => props.dense ?? false;
+  const isComfortable = () => densityApi.density() === "comfortable";
+  const metrics = (): TableMetrics =>
+    isDense()
+      ? TABLE_METRICS.dense
+      : props.metricsPreset
+        ? TABLE_METRICS[props.metricsPreset]
+        : isComfortable()
+          ? TABLE_METRICS.comfortable
+          : TABLE_METRICS.default;
 
-function getColumnMeta<T>(column: Column<T, unknown>): Partial<TableColumnMeta> {
-  return (column.columnDef.meta as Partial<TableColumnMeta> | undefined) ?? {};
-}
-
-export function TanStackTable<T>({
-  data,
-  columns,
-  initialState,
-  dataTestId,
-  loading = false,
-  loadingMessage,
-  emptyMessage = "No data",
-  emptyIcon,
-  emptyAction,
-  onRowClick,
-  ariaLabel,
-  getRowClassName,
-  getRowStyle,
-  getRowTestId,
-  getRowAttributes,
-  onSortedRowsChange,
-  enableSorting = true,
-  // Matches TanStack's default: a third click on a sorted column clears sorting.
-  // Pass false for tables that should only toggle asc/desc (e.g. experiments).
-  enableSortingRemoval = true,
-  stickyHeader = true,
-  className,
-  style,
-  grouping,
-  enableGrouping = false,
-  renderGroupHeader,
-  getGroupRowTestId,
-  getRowCanExpand,
-  renderSubComponent,
-  rowWindowSize = 0,
-  fillContainer = false,
-  minTableWidth,
-  bare = false,
-  dense = false,
-}: Props<T>) {
-  const [sorting, setSorting] = useState<SortingState>(initialState?.sorting ?? []);
-  const [expanded, setExpanded] = useState<ExpandedState>(initialState?.expanded ?? {});
-  const [scrollTop, setScrollTop] = useState(0);
-  const { density, tokens: densityTokens } = useDensity();
-  // Desk tables are dense by default (Bloomberg-style): 22-24px rows,
-  // 2px/8px cells, 11px tabular numerals. `comfortable` is the explicit
-  // opt-in escape hatch; `dense` stays the ultra-dense 18px matrix mode.
-  const isComfortable = density === "comfortable";
-  const rowEstimated = dense ? 18 : isComfortable ? densityTokens.tableRowHeight : 23;
-  const cellPad = dense
-    ? "1px 6px"
-    : isComfortable
-      ? densityTokens.tableCellPad
-      : "2px 8px";
-  const cellFontSize = dense ? 10 : 11;
-  const headerHeight = dense ? 20 : isComfortable ? 28 : 23;
-
-  const hasSizedColumns = useMemo(
-    () => columns.some((col) => typeof (col as { size?: number }).size === "number" && (col as { size?: number }).size !== 0),
-    [columns],
-  );
-  const visibleColumnCount = useMemo(
-    () => columns.filter((col) => (col as { size?: number }).size !== 0).length,
-    [columns],
-  );
-
-  const table = useReactTable<T>({
-    data,
-    columns,
-    state: enableGrouping ? { sorting, expanded, grouping: grouping ?? [] } : { sorting, expanded },
-    onSortingChange: setSorting,
-    onExpandedChange: setExpanded,
-    getCoreRowModel: getCoreRowModel(),
-    getGroupedRowModel: enableGrouping ? getGroupedRowModel() : undefined,
-    getSortedRowModel: getSortedRowModel(),
-    getExpandedRowModel: getExpandedRowModel(),
-    // Override TanStack's injected default size (150) so unsized columns are
-    // distinguishable from columns with an explicit `size` in column defs.
-    defaultColumn: { size: undefined },
-    enableSorting,
-    enableSortingRemoval,
-    // Keep day-group / row expansion state controlled by the caller instead of
-    // letting TanStack reset it whenever data or columns change (its default
-    // autoResetExpanded resets to the table's captured initialState, which is
-    // {}-initialized and collapses every day group on refetch).
-    autoResetExpanded: false,
-    getRowCanExpand: getRowCanExpand ? (row) => getRowCanExpand(row.original) : undefined,
-  });
-
-  // Emit the rendered order (post-sort/group/expand) so callers can navigate
-  // the exact sequence the user sees. Guarded by element identity so a parent
-  // that stores the array cannot cause an emit → setState → emit loop.
-  const emittedOrderRef = useRef<T[] | null>(null);
-  const sortedRowsForOrder = table.getRowModel().rows;
-  useEffect(() => {
-    if (!onSortedRowsChange) return;
-    const next = sortedRowsForOrder.map((row) => row.original);
-    const prev = emittedOrderRef.current;
-    if (prev && prev.length === next.length && prev.every((item, i) => item === next[i])) {
-      return;
-    }
-    emittedOrderRef.current = next;
-    onSortedRowsChange(next);
-  }, [sortedRowsForOrder, onSortedRowsChange]);
-
-  // Columns whose sample values are all numbers get right-aligned headers
-  // and cells by default (text columns stay left). Explicit `meta.align`
-  // always wins over this heuristic.
-  const numericColumnIds = new Set<string>();
-  const sampleRows = table.getRowModel().rows.slice(0, 5);
-  if (sampleRows.length > 0) {
-    for (const col of table.getAllLeafColumns()) {
-      const values = sampleRows
-        .map((r) => r.getValue(col.id))
-        .filter((v) => v !== null && v !== undefined && v !== "");
-      if (values.length > 0 && values.every((v) => typeof v === "number")) {
-        numericColumnIds.add(col.id);
+  let tableEl: HTMLTableElement | undefined;
+  createEffect(() => {
+    const el = tableEl;
+    if (!el) return;
+    const m = metrics();
+    el.style.setProperty("--tbl-row-h", `${m.rowHeight}px`);
+    el.style.setProperty("--tbl-cell-pad", m.cellPadding);
+    el.style.setProperty("--tbl-fs", `${m.fontSize}px`);
+    // Re-derive on column changes so a newly mounted <th> (the renderer pins
+    // its own inline size) picks up the same size as the cells it labels.
+    const visibleIds = new Set(cols.visibleColumns().map((c) => String(c.id)));
+    for (const th of el.querySelectorAll<HTMLElement>("thead th")) {
+      if (visibleIds.has(th.id.replace("paper-tanstack-header-", ""))) {
+        th.style.fontSize = `${m.headerFontSize}px`;
       }
     }
-  }
+  });
+  const sort = useSorting(props);
+  const view = useColumnViews(props, {
+    visibleColumns: cols.visibleColumns,
+    sortedData: sort.sortedData,
+  });
+  const win = useRowWindow(props, {
+    sortedData: sort.sortedData,
+    visibleColumns: cols.visibleColumns,
+    sorting: sort.sorting,
+  });
 
-  const showLoading = loading && data.length === 0;
-  const showEmpty = !loading && data.length === 0;
-  const colCount = table.getHeaderGroups()[0]?.headers.length ?? 1;
+  const ctx: TableRenderContext<T> = {
+    props,
+    visibleColumns: cols.visibleColumns,
+    colCount: view.colCount,
+    isNumeric: view.isNumeric,
+    columnView: view.columnView,
+    rowStyleBase: view.rowStyleBase,
+    getValue,
+    sorting: sort.sorting,
+    enableSorting: sort.enableSorting,
+    toggleSort: sort.toggleSort,
+    isRowExpanded: win.isRowExpanded,
+    toggleRow: win.toggleRow,
+    isGroupExpanded: win.isGroupExpanded,
+    toggleGroup: win.toggleGroup,
+  };
 
-  // Row windowing: for very large tables only a slice around the scroll
-  // position is mounted. The full row model remains active so sorting, grouping
-  // and row selection keep working over every row. Group headers and expanded
-  // sub-rows have different heights, so we track per-row estimates to keep the
-  // scroll spacers accurate.
-  const allRows = table.getRowModel().rows;
-  const useRowWindow = rowWindowSize > 0 && allRows.length > rowWindowSize;
+  const showLoading = () => props.loading && props.data.length === 0;
+  const showEmpty = () => !props.loading && props.data.length === 0;
+  const emptyMessage = () => props.emptyMessage ?? "No data";
 
-  const rowHeights: number[] = [];
-  for (const row of allRows) {
-    if (row.getIsGrouped()) rowHeights.push(GROUP_ROW_ESTIMATE);
-    else if (renderSubComponent && row.getIsExpanded()) rowHeights.push(rowEstimated + EXPANDED_ROW_ESTIMATE);
-    else rowHeights.push(rowEstimated);
-  }
-  const rowOffsets: number[] = [0];
-  for (let i = 0; i < rowHeights.length; i++) rowOffsets.push(rowOffsets[i] + rowHeights[i]);
-  const totalHeight = rowOffsets[allRows.length] ?? 0;
+  let scrollEl: HTMLDivElement | undefined;
+  let measureFrame = 0;
+  const [overflowing, setOverflowing] = createSignal(false);
+  const [atEnd, setAtEnd] = createSignal(false);
 
-  const windowStartIndex = useRowWindow ? findRowIndexForOffset(rowOffsets, scrollTop) : 0;
-  const rowWindowStart = useRowWindow
-    ? Math.min(Math.max(0, windowStartIndex - 4), Math.max(0, allRows.length - rowWindowSize))
-    : 0;
-  const rowWindowEnd = useRowWindow
-    ? Math.min(allRows.length, rowWindowStart + rowWindowSize)
-    : allRows.length;
-  const renderedRows = useRowWindow ? allRows.slice(rowWindowStart, rowWindowEnd) : allRows;
-  const topSpacerHeight = useRowWindow ? rowOffsets[rowWindowStart] : 0;
-  const bottomSpacerHeight = useRowWindow ? Math.max(0, totalHeight - rowOffsets[rowWindowEnd]) : 0;
+  const measureScroll = () => {
+    const el = scrollEl;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    // A consumer can deliberately move horizontal scrolling to an outer region
+    // (SectorPage does this so focus and the scrolled node are the same element).
+    // In that case this scrollport is `overflow: visible`; do not claim a region.
+    let overflowX = el.style.overflowX || el.style.overflow || "auto";
+    if (typeof getComputedStyle === "function") {
+      const computed = getComputedStyle(el).overflowX;
+      if (computed) overflowX = computed;
+    }
+    const scrollsHorizontally = overflowX === "auto" || overflowX === "scroll" || overflowX === "overlay";
+    const overflows = max > 2 && scrollsHorizontally;
+    setOverflowing(overflows);
+    setAtEnd(!overflows || el.scrollLeft >= max - 2);
+  };
+
+  const scheduleScrollMeasure = () => {
+    if (measureFrame !== 0) return;
+    if (typeof requestAnimationFrame !== "function") {
+      measureScroll();
+      return;
+    }
+    measureFrame = requestAnimationFrame(() => {
+      measureFrame = 0;
+      measureScroll();
+    });
+  };
+
+  const scrollRegionLabel = () =>
+    props.scrollRegionLabel ??
+    (props.ariaLabel
+      ? `${props.ariaLabel} — scroll sideways for all columns`
+      : "Data table — scroll sideways for all columns");
+
+  onMount(() => {
+    const el = scrollEl;
+    if (!el) return;
+    const resize =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(scheduleScrollMeasure) : null;
+    resize?.observe(el);
+    const table = el.querySelector("table");
+    if (table) resize?.observe(table);
+    const onWindowResize = () => scheduleScrollMeasure();
+    window.addEventListener("resize", onWindowResize);
+    scheduleScrollMeasure();
+    onCleanup(() => {
+      resize?.disconnect();
+      window.removeEventListener("resize", onWindowResize);
+      if (measureFrame !== 0 && typeof cancelAnimationFrame === "function") {
+        cancelAnimationFrame(measureFrame);
+      }
+      measureFrame = 0;
+    });
+  });
 
   const tableScroll = (
-      <ScrollArea className="paper-tanstack-scroll" sx={{ flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", bgcolor: palette.SURFACE }}
-        onScrollPositionChange={useRowWindow ? (pos) => setScrollTop(pos.y) : undefined}
+    <>
+      <Show when={props.enableColumnControls}>
+        <ToolbarRow
+          justify="flex-end"
+          wrap={false}
+          className="px-2 shrink-0 border-b border-fin-border bg-fin-surface"
+          style={{ height: "26px" }}
+          data-testid="table-column-controls"
+        >
+          <ColumnPicker
+            items={cols.columnPickerItems()}
+            tableId={props.tableId}
+            onMove={cols.moveColumnPref}
+            onToggle={cols.toggleColumnPref}
+            onReset={cols.resetColumnPrefs}
+          />
+        </ToolbarRow>
+      </Show>
+      <Show when={overflowing()}>
+        <div
+          data-testid={props.dataTestId ? `${props.dataTestId}-scroll-hint` : "table-scroll-hint"}
+          aria-hidden="true"
+          class="flex h-[16px] shrink-0 items-center justify-end border-b border-fin-border bg-fin-surface px-2 text-ui-micro text-fin-text-muted"
+        >
+          {atEnd() ? "← Older" : "Scroll →"}
+        </div>
+      </Show>
+      <ScrollArea
+        ref={(el: HTMLDivElement | undefined) => {
+          scrollEl = el;
+        }}
+        className="paper-tanstack-scroll"
+        style={{ flex: 1, "min-height": "0px", overflow: "auto", display: "flex", "flex-direction": "column", "background-color": "var(--color-fin-surface)" }}
+        role={overflowing() ? "region" : undefined}
+        tabIndex={overflowing() ? 0 : undefined}
+        aria-label={overflowing() ? scrollRegionLabel() : undefined}
+        data-scroll={overflowing() ? "horizontal" : undefined}
+        onScroll={scheduleScrollMeasure}
+        onKeyDown={onTableScrollRegionKeyDown}
       >
-        <Box
-          component="table"
-          data-testid={dataTestId}
-          aria-label={ariaLabel}
-          id={dataTestId ? `paper-tanstack-table-${dataTestId}` : undefined}
-          style={{ width: "100%", tableLayout: hasSizedColumns ? "fixed" : "auto", minWidth: minTableWidth ?? Math.max(640, visibleColumnCount * 96), ...style } as React.CSSProperties}
-          sx={{
-            width: "100%",
-            minWidth: minTableWidth ?? Math.max(640, visibleColumnCount * 96),
-            borderCollapse: "collapse",
-            bgcolor: palette.SURFACE,
-            // Badges/chips must not set the row height in a dense table: cap
-            // them so a status chip fits inside the 22-24px row budget.
-            "& .MuiChip-root": {
-              height: dense ? 14 : isComfortable ? 22 : 16,
-              fontSize: dense ? 9 : isComfortable ? 11 : 9.5,
-              borderRadius: 0.5,
-            },
-            "& .MuiChip-label": {
-              paddingInline: isComfortable ? 8 : 4,
-            },
-            // A default MUI checkbox is 38px tall (9px padding + 20px icon) and
-            // alone pushes a dense row to 43px. Cap it to the row budget; the
-            // hit area shrinks but the row stays scannable (18px target).
-            ...(isComfortable
-              ? {}
-              : {
-                  "& .MuiCheckbox-root": {
-                    padding: "1px",
-                    "& .MuiSvgIcon-root": { fontSize: 16 },
-                  },
-                }),
-            // Typography inside a cell must not set the row height: MUI's
-            // default body line-height (1.66) turns a 11-12px label into a
-            // 20px line box, which pushes a 23px row to 25px+. Cap it here so
-            // the row budget is honoured by every consumer (the cell height
-            // is a min-height in CSS table layout, so content wins without
-            // this). Not applied in comfortable mode.
-            ...(isComfortable
-              ? {}
-              : {
-                  "& .paper-tanstack-cell .MuiTypography-root, & .paper-tanstack-header-cell .MuiTypography-root":
-                    { lineHeight: 1.15 },
-                }),
-            // Keyboard-activated rows (onRowClick) need a visible focus ring —
-            // the row itself is the tab stop, not anything inside it.
-            "& tbody tr:focus-visible": {
-              outline: `2px solid ${palette.PRIMARY}`,
-              outlineOffset: -2,
-            },
-          }}
-          className={`paper-tanstack-table ${className || ""}`}
+        <table
+          ref={(el: HTMLTableElement) => (tableEl = el)}
+          data-testid={props.dataTestId}
+          aria-label={props.ariaLabel}
+          id={props.dataTestId ? `paper-tanstack-table-${props.dataTestId}` : undefined}
+          style={view.tableStyle()}
+          className={view.tableClassName()}
         >
         <thead>
-          {table.getHeaderGroups().map((hg) => (
-            <tr key={hg.id}>
-              {hg.headers.map((h) => {
-                const width = getColumnWidth(h.column);
-                const { align } = getColumnMeta(h.column);
-                return (
-                    <Box
-                    component="th"
-                    key={h.id}
-                    className="paper-tanstack-header-cell"
-                    id={`paper-tanstack-header-${String(h.column.id)}`}
-                    sx={{
-                      padding: width === 0 ? "0" : cellPad,
-                      height: headerHeight,
-                      fontSize: cellFontSize,
-                      lineHeight: 1.2,
-                      fontWeight: 600,
-                      fontVariantNumeric: "tabular-nums",
-                      whiteSpace: "nowrap",
-                      userSelect: "none",
-                      bgcolor: palette.SURFACE_ALT,
-                      color: palette.TEXT_MUTED,
-                      borderBottom: 1,
-                      borderColor: palette.BORDER,
-                      width: width !== undefined ? width : undefined,
-                      display: width === 0 ? "none" : undefined,
-                      textAlign: align ?? (numericColumnIds.has(h.column.id) ? "right" : "left"),
-                      cursor: h.column.getCanSort() ? "pointer" : "default",
-                      position: stickyHeader ? "sticky" : undefined,
-                      top: stickyHeader ? 0 : undefined,
-                      zIndex: stickyHeader ? 1 : undefined,
-                    }}
-                    onClick={h.column.getToggleSortingHandler()}
-                    colSpan={h.colSpan}
-                  >
-                    {h.isPlaceholder ? null : (
-                      <>
-                        {flexRender(h.column.columnDef.header, h.getContext())}
-                        {h.column.getIsSorted() === "asc" && " ▲"}
-                        {h.column.getIsSorted() === "desc" && " ▼"}
-                      </>
-                    )}
-                  </Box>
-                );
-              })}
-            </tr>
-          ))}
+          <tr>
+            <For each={cols.visibleColumns()}>{(col) => renderHeader(col, ctx)}</For>
+          </tr>
         </thead>
         <tbody>
-          {showLoading ? (
-            <tr>
-              <td colSpan={colCount}>
-                <TableLoadingState message={loadingMessage} />
-              </td>
-            </tr>
-          ) : showEmpty ? (
-            <tr>
-              <td colSpan={colCount}>
-                <TableEmptyState message={emptyMessage} icon={emptyIcon} action={emptyAction} />
-              </td>
-            </tr>
-          ) : (
-            <>
-              {useRowWindow && topSpacerHeight > 0 && (
-                <tr aria-hidden style={{ height: topSpacerHeight }}>
-                  <td colSpan={colCount} style={{ padding: 0, border: "none" }} />
-                </tr>
-              )}
-              {renderedRows.map((row, index) => (
-              <Fragment key={`row-group-${row.id}`}>
-                {row.getIsGrouped() ? (
-                  <Box
-                    component="tr"
-                    key={row.id}
-                    data-testid={getGroupRowTestId?.(row.groupingValue)}
-                    onClick={row.getToggleExpandedHandler()}
-                    sx={{ cursor: "pointer", bgcolor: palette.SURFACE_ALT }}
-                  >
-                    <Box component="td" colSpan={colCount} sx={{ padding: 0, border: "none", bgcolor: palette.SURFACE_ALT }}>
-                      {renderGroupHeader?.({
-                        value: row.groupingValue,
-                        rows: row.subRows.map((r) => r.original),
-                        isExpanded: row.getIsExpanded(),
-                        toggle: row.toggleExpanded,
-                      })}
-                    </Box>
-                  </Box>
-                ) : (
-                  <>
-                    <tr
-                      key={row.id}
-                      style={{ cursor: onRowClick ? "pointer" : undefined, ...getRowStyle?.(row.original) }}
-                      onClick={() => onRowClick?.(row.original)}
-                      onKeyDown={
-                        onRowClick
-                          ? (event) => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                onRowClick(row.original);
-                              }
-                            }
-                          : undefined
-                      }
-                      tabIndex={onRowClick ? 0 : undefined}
-                      className={getRowClassName?.(row.original)}
-                      data-testid={getRowTestId?.(row.original, index)}
-                      {...getRowAttributes?.(row.original, index)}
-                      data-row="stock"
-                    >
-                      {row.getVisibleCells().map((cell) => {
-                        const width = getColumnWidth(cell.column);
-                        const { align } = getColumnMeta(cell.column);
-                        return (
-                          <Box
-                            component="td"
-                            key={cell.id}
-                            className="paper-tanstack-cell"
-                            id={`paper-tanstack-cell-${String(cell.column.id)}-${row.id}`}
-                            sx={{
-                              padding: width === 0 ? "0" : cell.column.id === "toggle" ? "2px 4px" : cellPad,
-                              fontSize: cellFontSize,
-                              lineHeight: 1.2,
-                              fontVariantNumeric: "tabular-nums",
-                              whiteSpace: "nowrap",
-                              height: rowEstimated,
-                              borderBottom: 1,
-                              borderColor: palette.BORDER,
-                              bgcolor: palette.SURFACE,
-                              width: width !== undefined ? width : undefined,
-                              display: width === 0 ? "none" : undefined,
-                              textAlign: align ?? (numericColumnIds.has(cell.column.id) ? "right" : "left"),
-                              ...(width !== undefined
-                                ? { overflow: "hidden", textOverflow: "ellipsis" }
-                                : {}),
-                            }}
-                          >
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </Box>
-                        );
-                      })}
-                    </tr>
-                    {row.getIsExpanded() && renderSubComponent && (
-                      <tr key={`${row.id}-expanded`} className="paper-tanstack-expanded-row" id={`paper-expanded-row-${row.id}`} style={{ background: palette.BG }}>
-                        <td className="paper-tanstack-expanded-cell" colSpan={row.getVisibleCells().length} style={{ padding: 0, borderTop: `1px solid ${palette.BORDER}`, borderBottom: `1px solid ${palette.BORDER}`, background: palette.BG }}>
-                          {renderSubComponent(row.original)}
-                        </td>
-                      </tr>
-                    )}
-                  </>
+          <Show
+            when={showLoading()}
+            fallback={
+              <Show
+                when={showEmpty()}
+                fallback={(
+                  <For each={win.visibleItems()}>{(item) => {
+                    if (item.kind === "group") return renderGroupRow(item, ctx);
+                    return renderRow(item, ctx);
+                  }}</For>
                 )}
-              </Fragment>
-              ))}
-              {useRowWindow && bottomSpacerHeight > 0 && (
-                <tr aria-hidden style={{ height: bottomSpacerHeight }}>
-                  <td colSpan={colCount} style={{ padding: 0, border: "none" }} />
+              >
+                <tr>
+                  <td colSpan={view.colCount()}>
+                    <div className="flex flex-col items-center justify-center py-3">
+                      {props.emptyIcon}
+                      <div className="text-xs c-dimmed">{emptyMessage()}</div>
+                      {props.emptyAction}
+                    </div>
+                  </td>
                 </tr>
-              )}
-            </>
-          )}
+              </Show>
+            }
+          >
+            <tr>
+              <td colSpan={view.colCount()}>
+                <InlineLoader data-testid="table-loading-state" size="sm" message={props.loadingMessage} />
+              </td>
+            </tr>
+          </Show>
         </tbody>
-        </Box>
+      </table>
       </ScrollArea>
+      <Show when={win.hiddenCount() > 0}>
+        <div
+          class="flex items-center justify-between gap-2 px-2 h-[22px] shrink-0 border-t border-fin-border text-ui-micro text-fin-text-muted font-mono tabular-nums"
+          data-testid="table-window-footer"
+        >
+          <span>
+            showing {win.visibleItems().length} of {win.bodyItems().length} · {win.hiddenCount()} not rendered
+          </span>
+          <Button
+            size="xs"
+            variant="subtle"
+            data-testid="table-load-more"
+            style={{ height: "20px" }}
+            className="shrink-0"
+            onClick={win.loadMore}
+          >
+            Load more
+          </Button>
+        </div>
+      </Show>
+    </>
   );
 
-  if (bare) return tableScroll;
+  if (props.bare) return tableScroll;
+
+  const containerStyle: CSSProperties = {
+    display: "flex",
+    "flex-direction": "column",
+    overflow: "hidden",
+    "border-radius": "2px",
+    border: "1px solid var(--color-fin-border)",
+    "background-color": "var(--color-fin-surface)",
+    "max-height": props.fillContainer ? undefined : "65vh",
+    "min-height": props.fillContainer ? 0 : "200px",
+    flex: props.fillContainer ? "1 1 0%" : undefined,
+  };
 
   return (
-    <TableContainer component={Paper} elevation={0} className={`paper-tanstack-container ${className || ""}`} id={dataTestId ? `paper-tanstack-${dataTestId}` : undefined} sx={{ borderRadius: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: fillContainer ? "none" : "65vh", minHeight: fillContainer ? 0 : 200, flex: fillContainer ? 1 : undefined, height: fillContainer ? "100%" : undefined, border: 0, bgcolor: palette.SURFACE }}>
+    <Paper
+      className={`paper-tanstack-container ${props.className || ""}`}
+      id={props.dataTestId ? `paper-tanstack-${props.dataTestId}` : undefined}
+      style={containerStyle}
+    >
       {tableScroll}
-    </TableContainer>
+    </Paper>
   );
 }

@@ -409,7 +409,7 @@ flowchart TB
 
     subgraph Frontend["🖥️ Frontend"]
         direction TB
-        UI["React UI\nS/R Breakout Config"]
+        UI["Solid UI\nS/R Breakout Config"]
         CHART["Chart Visuals\nPP, R1, S1 overlay"]
     end
 

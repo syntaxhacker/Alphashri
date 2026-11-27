@@ -1,3 +1,9 @@
+import {
+  payoffAt as canonicalPayoffAt,
+  payoffCurve as canonicalPayoffCurve,
+  type OptionLeg,
+} from "@/utils/optionsMath";
+
 export interface PayoffLeg {
   strike: number;
   optionType: "CE" | "PE";
@@ -6,26 +12,43 @@ export interface PayoffLeg {
   entry: number;
 }
 
-function legSign(leg: PayoffLeg): number {
-  return leg.action === "SELL" ? -1 : 1;
+/** The simulator's leg shape mapped onto the canonical options-dock leg. */
+function toOptionLegs(legs: readonly PayoffLeg[]): OptionLeg[] {
+  return legs.map((leg): OptionLeg => ({
+    side: leg.action === "BUY" ? "buy" : "sell",
+    type: leg.optionType,
+    strike: leg.strike,
+    premium: leg.entry,
+    lots: leg.qty,
+    lotSize: 1,
+  }));
 }
 
-function intrinsic(leg: PayoffLeg, spot: number): number {
-  if (leg.optionType === "CE") return Math.max(0, spot - leg.strike);
-  return Math.max(0, leg.strike - spot);
+/** optionsMath needs a spot for its chart window; analytic facts only need it past every strike. */
+function referenceSpot(legs: readonly PayoffLeg[]): number {
+  const strikes = legs
+    .map((leg) => leg.strike)
+    .filter((strike) => Number.isFinite(strike) && strike > 0);
+  if (strikes.length === 0) return 1;
+  return (Math.min(...strikes) + Math.max(...strikes)) / 2;
 }
 
-/** Net debit (> 0) of the position: per-unit premium x qty, SELL legs negated. */
+function analyse(legs: readonly PayoffLeg[]) {
+  return canonicalPayoffCurve(toOptionLegs(legs), referenceSpot(legs));
+}
+
+/**
+ * Net debit (> 0). The canonical netPremium is credit-positive, so the adapter
+ * negates it to keep this module's documented debit/credit sign for consumers.
+ */
 export function netEntry(legs: PayoffLeg[]): number {
-  return legs.reduce((sum, leg) => sum + legSign(leg) * leg.entry * leg.qty, 0);
+  const netPremium = analyse(legs).netPremium;
+  return netPremium === 0 ? 0 : -netPremium;
 }
 
 /** Total P&L at expiry for a given spot. Never mutates inputs. */
 export function payoffAtExpiry(legs: PayoffLeg[], spot: number): number {
-  return legs.reduce(
-    (sum, leg) => sum + legSign(leg) * (intrinsic(leg, spot) - leg.entry) * leg.qty,
-    0,
-  );
+  return canonicalPayoffAt(spot, toOptionLegs(legs));
 }
 
 /** P&L evaluated at each spot. Never mutates inputs. */
@@ -34,7 +57,8 @@ export function payoffCurve(
   spots: number[],
 ): { spot: number; pnl: number }[] {
   if (legs.length === 0) return [];
-  return spots.map((spot) => ({ spot, pnl: payoffAtExpiry(legs, spot) }));
+  const optionLegs = toOptionLegs(legs);
+  return spots.map((spot) => ({ spot, pnl: canonicalPayoffAt(spot, optionLegs) }));
 }
 
 /** n evenly spaced spots from spot*(1-pctRange/100) to spot*(1+pctRange/100). */
@@ -50,127 +74,39 @@ export function curveSpots(spot: number, pctRange = 8, n = 61): number[] {
   return out;
 }
 
-/** Range extremes of curveSpots(100, 8), used to scale probe ranges off strikes. */
-const BASE_LO_FACTOR = curveSpots(100, 8)[0] / 100;
-const BASE_HI_FACTOR = curveSpots(100, 8)[curveSpots(100, 8).length - 1] / 100;
-
-function probeRange(legs: PayoffLeg[]): { lo: number; hi: number } {
-  const strikes = legs.map((leg) => leg.strike);
-  const minStrike = Math.min(...strikes);
-  const maxStrike = Math.max(...strikes);
-  const loRef = minStrike > 0 ? minStrike : 100;
-  const hiRef = maxStrike > 0 ? maxStrike : 100;
-  return { lo: loRef * BASE_LO_FACTOR, hi: hiRef * BASE_HI_FACTOR };
-}
-
-const SCAN_STEPS = 400;
-const BISECT_ITERS = 40;
-const EPS = 1e-9;
-
 /**
- * Find expiry breakevens within [lo, hi]: scan 400 steps for sign changes of
- * payoffAtExpiry, refine each by 40 bisection iterations, round to 1 decimal,
- * dedupe. Candidates are confirmed by checking strictly opposite signs on
- * both sides, so flat zero regions (e.g. zero-entry drafts) and touches that
- * never cross report nothing. Capped at 8 results. Returns [] for empty legs.
+ * dPnL/dS as spot → 0, from the PE legs only. optionsMath only tests the far
+ * right (CE) tail, so a net-long put's left tail would otherwise read as a
+ * finite max profit here; consumers treat a still-rising tail as unbounded.
  */
-export function breakevens(legs: PayoffLeg[], lo: number, hi: number): number[] {
-  if (legs.length === 0 || !(lo < hi)) return [];
-  const found: number[] = [];
-  const f = (s: number): number => payoffAtExpiry(legs, s);
-  let prevS = lo;
-  let prevV = f(lo);
-  if (prevV === 0) found.push(prevS);
-  for (let i = 1; i <= SCAN_STEPS; i += 1) {
-    const s = lo + ((hi - lo) * i) / SCAN_STEPS;
-    const v = f(s);
-    if (v === 0) {
-      found.push(s);
-    } else if (prevV !== 0 && Math.sign(v) !== Math.sign(prevV)) {
-      let a = prevS;
-      let b = s;
-      let fa = prevV;
-      for (let k = 0; k < BISECT_ITERS; k += 1) {
-        const mid = (a + b) / 2;
-        const fm = f(mid);
-        if (fm === 0) {
-          a = mid;
-          b = mid;
-          break;
-        }
-        if (Math.sign(fm) === Math.sign(fa)) {
-          a = mid;
-          fa = fm;
-        } else {
-          b = mid;
-        }
-      }
-      found.push((a + b) / 2);
-    }
-    prevS = s;
-    prevV = v;
-  }
-  const tick = (hi - lo) / SCAN_STEPS;
-  const rounded = found.map((s) => Math.round(s * 10) / 10);
-  const unique = [...new Set(rounded)].sort((a, b) => a - b);
-  const confirmed = unique.filter((be) => {
-    const below = f(be - tick);
-    const above = f(be + tick);
-    return (below < 0 && above > 0) || (below > 0 && above < 0);
-  });
-  return confirmed.slice(0, 8);
-}
-
-/** Dense scan over the probe range plus every strike kink. */
-function denseScan(legs: PayoffLeg[]): number[] {
-  const { lo, hi } = probeRange(legs);
-  const top = hi * 1.5;
-  const out: number[] = [];
-  for (let i = 0; i <= SCAN_STEPS; i += 1) {
-    out.push(lo + ((top - lo) * i) / SCAN_STEPS);
-  }
+function leftTailSlope(legs: readonly PayoffLeg[]): number {
+  let slope = 0;
   for (const leg of legs) {
-    out.push(leg.strike);
+    if (leg.optionType === "PE") {
+      slope += (leg.action === "BUY" ? 1 : -1) * leg.qty;
+    }
   }
-  return out;
+  return -slope;
 }
 
-/**
- * Max profit at expiry, or null when unbounded (upside slope positive beyond
- * the probe high, or downside slope still rising when moving down from the
- * probe low). Returns 0 for empty legs.
- */
+/** Analytic expiry breakevens. lo/hi are kept for signature compatibility only. */
+export function breakevens(legs: PayoffLeg[], _lo: number, _hi: number): number[] {
+  if (legs.length === 0) return [];
+  return analyse(legs).breakevens;
+}
+
+/** Max profit at expiry, or null when either tail is unbounded. */
 export function maxProfitAtExpiry(legs: PayoffLeg[]): number | null {
   if (legs.length === 0) return 0;
-  const { lo, hi } = probeRange(legs);
-  const up = payoffAtExpiry(legs, hi * 1.5);
-  if (up > payoffAtExpiry(legs, hi) + EPS) return null;
-  const down = payoffAtExpiry(legs, lo / 1.5);
-  if (down > payoffAtExpiry(legs, lo) + EPS) return null;
-  let best = -Infinity;
-  for (const s of denseScan(legs)) {
-    const v = payoffAtExpiry(legs, s);
-    if (v > best) best = v;
-  }
-  return best;
+  const result = analyse(legs);
+  if (result.maxProfit === null || leftTailSlope(legs) < 0) return null;
+  return result.maxProfit;
 }
 
-/**
- * Max loss at expiry (as a <= 0 number), or null when unbounded (payoff still
- * falling beyond the probe high on the upside, or below the probe low on the
- * downside). Returns 0 for empty legs.
- */
+/** Max loss at expiry (as a <= 0 number), or null when either tail is unbounded. */
 export function maxLossAtExpiry(legs: PayoffLeg[]): number | null {
   if (legs.length === 0) return 0;
-  const { lo, hi } = probeRange(legs);
-  const up = payoffAtExpiry(legs, hi * 1.5);
-  if (up < payoffAtExpiry(legs, hi) - EPS) return null;
-  const down = payoffAtExpiry(legs, lo / 1.5);
-  if (down < payoffAtExpiry(legs, lo) - EPS) return null;
-  let worst = Infinity;
-  for (const s of denseScan(legs)) {
-    const v = payoffAtExpiry(legs, s);
-    if (v < worst) worst = v;
-  }
-  return worst;
+  const result = analyse(legs);
+  if (result.maxLoss === null || leftTailSlope(legs) > 0) return null;
+  return result.maxLoss;
 }

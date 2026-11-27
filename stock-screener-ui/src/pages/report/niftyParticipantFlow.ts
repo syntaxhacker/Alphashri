@@ -23,20 +23,15 @@ import { chainLeg } from "./chainTuple";
 import { clockMinutes } from "./tapeRange";
 import { sortTapeRows } from "./tapeOrder";
 
-/** Minimal tape row — only `t` plus the optional per-strike chain. */
 export interface ParticipantFlowRow {
   t: string;
   chain?: Record<string, number[] | undefined> | null;
 }
 
-/** Who traded, read from ΔOI + premium direction. */
 export type FlowKind = "writers" | "buyers" | "cover" | "liquidation" | "none";
 
-/** One clock bucket of classified flow (₹ premium, see above). */
 export interface ParticipantFlowBucket {
-  /** `HH:MM` bucket start. */
   label: string;
-  /** Minutes since midnight of the bucket start (`null` when unparseable). */
   startMin: number | null;
   ceWriters: number;
   ceBuyers: number;
@@ -44,7 +39,6 @@ export interface ParticipantFlowBucket {
   peWriters: number;
   peBuyers: number;
   peCover: number;
-  /** (buyers + cover) − writers across both legs. */
   net: number;
 }
 
@@ -54,10 +48,8 @@ function finiteOrNull(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Minutes since midnight; `null` when the timestamp is unparseable. */
 export { clockMinutes as flowClockMinutes } from "./tapeRange";
 
-/** `HH:MM` label for a bucket start (`"—"` when unknown). */
 export function flowBucketLabel(startMin: number | null): string {
   if (startMin === null || !Number.isFinite(startMin)) return "—";
   const h = Math.floor(startMin / 60);

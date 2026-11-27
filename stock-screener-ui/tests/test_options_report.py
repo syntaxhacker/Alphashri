@@ -214,7 +214,6 @@ def test_near_walls_respect_the_spot_band_and_fall_back():
 
 def test_pcr_vol_and_zero_call_volume():
     strikes = options_report.build_strikes(_chain())
-    # PE volume 50 / CE volume 100
     assert options_report.compute_pcr_vol(strikes) == 0.5
 
     zero_ce = [{"strike": 100.0,
@@ -673,8 +672,40 @@ def test_route_error_is_a_json_envelope(route_client, monkeypatch):
 
 # ------------------------------------------- symbol-owned session analytics
 def test_lot_size_resolves_from_the_chain_contract_instrument_key():
-    chain = [{"ce": {"instrument_key": "NSE_FO|125833"}, "pe": {}}]
-    assert options_report.resolve_lot_size("NOT_A_LISTED_NAME", chain) == 500
+    """A chain contract's instrument_key resolves via the live instrument file.
+
+    Derive the fixture from the file ``resolve_lot_size`` reads so a regenerated
+    instrument list cannot turn a valid assertion into a false failure.
+    """
+    from pathlib import Path
+
+    path = (Path(__file__).resolve().parents[2] / "upstox_trader"
+            / "config_and_utils" / "nse_instruments.json")
+    if not path.exists():
+        pytest.skip("nse_instruments.json is absent — no chain contract fixture")
+
+    with open(path) as fh:
+        instruments = json.load(fh)
+
+    # Mirror _fo_lots' coercion/last-wins so the picked key+lot match production.
+    by_key: dict[str, int] = {}
+    for item in instruments:
+        if item.get("segment") != "NSE_FO":
+            continue
+        try:
+            lot = int(item.get("lot_size") or 0)
+        except (TypeError, ValueError):
+            continue
+        if lot <= 0 or not item.get("instrument_key"):
+            continue
+        by_key[str(item["instrument_key"])] = lot
+
+    if not by_key:
+        pytest.skip("no NSE_FO entries with a positive lot_size in nse_instruments.json")
+
+    key = min(by_key)  # deterministic: first sorted instrument key
+    chain = [{"ce": {"instrument_key": key}, "pe": {}}]
+    assert options_report.resolve_lot_size("NOT_A_LISTED_NAME", chain) == by_key[key]
     assert options_report.resolve_lot_size("NOT_A_LISTED_NAME", []) == 1
 
 
@@ -857,3 +888,58 @@ def test_timeline_names_the_symbol_not_nifty(mocked_upstream):
     assert events
     assert all("Nifty" not in e["detail"] for e in events)
     assert any("RELIANCE" in e["detail"] for e in events)
+
+
+# --------------------------------------------------------------- tape cache
+def _count_tape_parses(monkeypatch):
+    calls: list[str] = []
+    real = options_report._parse_tape
+
+    def counting(path):
+        calls.append(str(path))
+        return real(path)
+
+    monkeypatch.setattr(options_report, "_parse_tape", counting)
+    return calls
+
+
+def test_read_tape_reuses_parsed_rows_until_the_file_changes(monkeypatch):
+    today = datetime.now(config.IST).strftime("%Y-%m-%d")
+    _write_tape("RELIANCE", [{"t": f"{today}T09:20:00+05:30", "spot": 1400.0}])
+    calls = _count_tape_parses(monkeypatch)
+
+    first = options_report.read_tape("RELIANCE", today)
+    second = options_report.read_tape("RELIANCE", today)
+    assert first == second
+    assert len(calls) == 1                 # (mtime, size) unchanged -> no re-parse
+
+    path = options_report.tape_path("RELIANCE", today)
+    with open(path, "a") as fh:
+        fh.write(json.dumps({"t": f"{today}T09:21:00+05:30", "spot": 1401.0}) + "\n")
+    third = options_report.read_tape("RELIANCE", today)
+    assert len(calls) == 2                 # append invalidates the cached rows
+    assert len(third) == 2
+
+
+def test_repeated_live_calls_parse_the_tape_once(mocked_upstream, monkeypatch):
+    today = datetime.now(config.IST).strftime("%Y-%m-%d")
+    _write_tape("RELIANCE", [{"t": f"{today}T09:20:00+05:30", "spot": 1400.0}])
+    calls = _count_tape_parses(monkeypatch)
+
+    first = _live("RELIANCE", expiry=EXPIRY)
+    second = _live("RELIANCE", expiry=EXPIRY)
+    assert first["reference"] == second["reference"]
+    assert len(calls) == 1                 # chain/daily cached; tape no longer re-parsed
+
+
+def test_clear_cache_invalidates_the_tape_cache(monkeypatch):
+    today = datetime.now(config.IST).strftime("%Y-%m-%d")
+    _write_tape("RELIANCE", [{"t": f"{today}T09:20:00+05:30", "spot": 1400.0}])
+    calls = _count_tape_parses(monkeypatch)
+
+    options_report.read_tape("RELIANCE", today)
+    options_report.read_tape("RELIANCE", today)
+    assert len(calls) == 1
+    options_report.clear_cache()
+    options_report.read_tape("RELIANCE", today)
+    assert len(calls) == 2

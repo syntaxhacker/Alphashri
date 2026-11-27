@@ -71,9 +71,6 @@ def _sine_base(n: int = 140, level: float = 100.0, half: float = 2.0):
     return level + half * np.sin(i * 2.0 * np.pi / 20.0)
 
 
-# ---------------------------------------------------------------------------
-# Synthetic frames (always run — no cache needed)
-# ---------------------------------------------------------------------------
 
 
 def test_golden_sine_base():
@@ -127,9 +124,6 @@ def test_golden_seeded_random_walk():
     ]
 
 
-# ---------------------------------------------------------------------------
-# Real cached frames (skip when the cache is absent)
-# ---------------------------------------------------------------------------
 
 
 def _real(symbol: str):
@@ -162,6 +156,24 @@ def test_golden_real_360one():
     assert _real("360ONE") == [
         ["ascending_channel", "failed", 0, 1196.8523, 80.8, "2026-04-20 18:30", "2026-08-19 18:30"],
         ["rising_wedge", "failed", 0, 1045.2905, 65.8, "2026-04-06 18:30", "2026-09-27 18:30"],
+    ]
+
+
+def test_golden_daily_bar_dates_use_ist_session():
+    """18:30Z daily bars belong to the next IST session; hit dates must shift.
+
+    The geometry is identical to ``_sine_base`` (same positions), only the bar
+    stamps move to IST midnight, so every emitted date must be one day later
+    than the 00:00Z golden with no time-of-day suffix leaking through.
+    """
+    closes = _sine_base()
+    df = frame(closes)
+    df.index = pd.date_range("2024-01-01 18:30", periods=len(df), freq="D", tz="UTC")
+    hits = detect_patterns(normalize_ohlcv(df), "1D", "SYN")
+    sigs = [sig(h) for h in hits]
+    assert sigs == [
+        ["rectangle", "failed", 0, 102.5, 85.0, "2024-01-17", "2024-05-06"],
+        ["triple_bottom", "failed", 0, 102.5, 75.0, "2024-01-17", "2024-02-26"],
     ]
 
 

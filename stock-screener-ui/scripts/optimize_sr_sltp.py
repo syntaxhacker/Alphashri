@@ -1,14 +1,3 @@
-"""
-SR Breakout SL/TP Optimization — Apr 2, 2026
-
-Tests multiple SL/TP combinations against real 1-min Upstox data
-to find optimal levels for the Classic S/R Breakout strategy.
-
-Uses the FIXED entry method (live 1-min close, not daily close).
-
-Usage:
-    cd stock-screener-ui && python scripts/optimize_sr_sltp.py
-"""
 
 import sys
 from pathlib import Path

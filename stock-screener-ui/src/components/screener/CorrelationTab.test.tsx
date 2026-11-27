@@ -1,11 +1,15 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, act, fireEvent, within } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent, within } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
-import { MemoryRouter } from "react-router-dom";
-import type { ReactElement } from "react";
+import type { JSX } from "solid-js";
+
+let mockSearchParams: Record<string, string | undefined> = {};
+const mockSetSearchParams = vi.fn();
+vi.mock("@solidjs/router", () => ({
+  useSearchParams: () => [mockSearchParams, mockSetSearchParams],
+}));
 
 const mockSearchSymbols = vi.fn();
 vi.mock("../../api/symbols", () => ({
@@ -44,10 +48,6 @@ vi.mock("../../state/correlation", () => ({
   fetchCorrelationData: (...args: any[]) => mockFetchCorrelationData(...args),
 }));
 
-vi.mock("../../hooks/useStoreSubscription", () => ({
-  useStoreSubscription: vi.fn(),
-}));
-
 vi.mock("./CorrelationMatrix", () => ({
   CorrelationMatrix: (props: any) => (
     <div data-testid="correlation-matrix" data-matrix={!!props.matrix} data-loading={props.isLoading}>
@@ -79,16 +79,13 @@ vi.mock("../common/compact", () => ({
 
 import { CorrelationTab } from "./CorrelationTab";
 
-const renderWithProvider = (ui: ReactElement) =>
-  render(
-    <MemoryRouter>
-      <UIProvider>{ui}</UIProvider>
-    </MemoryRouter>,
-  );
+const renderWithProvider = (ui: JSX.Element) =>
+  render(() => <UIProvider>{ui}</UIProvider>);
 
 describe("CorrelationTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSearchParams = {};
     mockSymbols = [];
     mockTimeframe = "daily";
     mockPeriod = 90;
@@ -111,7 +108,9 @@ describe("CorrelationTab", () => {
 
   it("renders MultiSelect for symbols", () => {
     renderWithProvider(<CorrelationTab />);
-    expect(screen.getByText("Symbols")).toBeInTheDocument();
+    // The control row is a single dense line, so the field is identified by its
+    // accessible name rather than a separate visible "Symbols" label.
+    expect(screen.getByLabelText("Symbols")).toBeInTheDocument();
   });
 
   it("calls searchSymbols on search input", async () => {
@@ -120,11 +119,11 @@ describe("CorrelationTab", () => {
     ]);
     renderWithProvider(<CorrelationTab />);
     const input = screen.getByPlaceholderText("Search and select symbols");
-    // NOTE: userEvent.type per-keystroke simulation is swallowed by MUI
-    // Autocomplete in happy-dom when the parent re-renders (stateful data);
+    // NOTE: userEvent.type per-keystroke simulation is swallowed by the local Autocomplete in happy-dom
+    // when the parent re-renders (stateful data);
     // fireEvent exercises the same onSearchChange path. Real-browser E2E
     // covers actual typing.
-    fireEvent.change(input, { target: { value: "REL" } });
+    fireEvent.input(input, { target: { value: "REL" } });
     await waitFor(() => {
       expect(mockSearchSymbols).toHaveBeenCalledWith("REL", 10);
     });
@@ -136,7 +135,7 @@ describe("CorrelationTab", () => {
     ]);
     renderWithProvider(<CorrelationTab />);
     const input = screen.getByPlaceholderText("Search and select symbols");
-    fireEvent.change(input, { target: { value: "REL" } });
+    fireEvent.input(input, { target: { value: "REL" } });
 
     await waitFor(() => expect(mockSearchSymbols).toHaveBeenCalledWith("REL", 10));
     await screen.findByRole("option", { name: /RELIANCE/ });
@@ -153,22 +152,20 @@ describe("CorrelationTab", () => {
   });
 
   it("period Select changes options based on timeframe", async () => {
-    const user = userEvent.setup();
     renderWithProvider(<CorrelationTab />);
     const select = screen.getByTestId("correlation-period");
     expect(select).toBeInTheDocument();
     // Daily timeframe shows 30d, 90d, 180d, 1Y options
-    await user.click(within(select).getByRole("combobox"));
+    fireEvent.click(within(select).getByRole("combobox"));
     expect(await screen.findByRole("option", { name: "30d" })).toBeInTheDocument();
     expect(await screen.findByRole("option", { name: "90d" })).toBeInTheDocument();
   });
 
   it("Calculate button triggers fetchCorrelationData", async () => {
-      const user = userEvent.setup();
     mockSymbols = ["RELIANCE", "TCS"];
     renderWithProvider(<CorrelationTab />);
     const calcBtn = screen.getByRole("button", { name: /Calculate/ });
-    await user.click(calcBtn);
+    fireEvent.click(calcBtn);
     expect(mockFetchCorrelationData).toHaveBeenCalled();
   });
 
@@ -214,30 +211,18 @@ describe("CorrelationTab", () => {
 
   describe("URL search params", () => {
     it("initializes symbols/timeframe/period from URL search params", async () => {
-      const { MemoryRouter } = await import("react-router-dom");
-      render(
-        <MemoryRouter initialEntries={["/?symbols=RELIANCE,TCS&timeframe=daily&period=90"]}>
-          <UIProvider>
-            <CorrelationTab />
-          </UIProvider>
-        </MemoryRouter>,
-      );
+      mockSearchParams = { symbols: "RELIANCE,TCS", timeframe: "daily", period: "90" };
+      render(() => <UIProvider><CorrelationTab /></UIProvider>);
       await waitFor(() => {
         expect(mockSetSymbols).toHaveBeenCalledWith(["RELIANCE", "TCS"]);
       });
       expect(mockSetTimeframe).toHaveBeenCalledWith("daily");
-      expect(mockFetchCorrelationData).toHaveBeenCalled();
+      await waitFor(() => expect(mockFetchCorrelationData).toHaveBeenCalled());
     });
 
     it("initializes with intraday timeframe from URL", async () => {
-      const { MemoryRouter } = await import("react-router-dom");
-      render(
-        <MemoryRouter initialEntries={["/?symbols=INFY,WIPRO&timeframe=intraday&period=1"]}>
-          <UIProvider>
-            <CorrelationTab />
-          </UIProvider>
-        </MemoryRouter>,
-      );
+      mockSearchParams = { symbols: "INFY,WIPRO", timeframe: "intraday", period: "1" };
+      render(() => <UIProvider><CorrelationTab /></UIProvider>);
       await waitFor(() => {
         expect(mockSetSymbols).toHaveBeenCalledWith(["INFY", "WIPRO"]);
       });
@@ -245,18 +230,30 @@ describe("CorrelationTab", () => {
       expect(mockSetPeriod).toHaveBeenCalledWith(1);
     });
 
+    it("fetches exactly once when initialized from URL search params", async () => {
+      mockSearchParams = { symbols: "RELIANCE,TCS", timeframe: "daily", period: "90" };
+      renderWithProvider(<CorrelationTab />);
+      await waitFor(() => expect(mockFetchCorrelationData).toHaveBeenCalledTimes(1));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(mockFetchCorrelationData).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not issue the deferred URL fetch after the tab unmounts", async () => {
+      mockSearchParams = { symbols: "RELIANCE,TCS", timeframe: "daily", period: "90" };
+      // The component must be created inside render's owner for onCleanup to run.
+      const { unmount } = render(() => <UIProvider><CorrelationTab /></UIProvider>);
+      await Promise.resolve();
+      const before = mockFetchCorrelationData.mock.calls.length;
+      unmount();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(mockFetchCorrelationData).toHaveBeenCalledTimes(before);
+    });
+
     it("updates URL search params on calculate", async () => {
-      const user = userEvent.setup();
       mockSymbols = ["RELIANCE", "TCS", "INFY"];
-      const { MemoryRouter, useSearchParams } = await import("react-router-dom");
-      render(
-        <MemoryRouter initialEntries={["/"]}>
-          <UIProvider>
-            <CorrelationTab />
-          </UIProvider>
-        </MemoryRouter>,
-      );
-      await user.click(screen.getByRole("button", { name: /Calculate/ }));
+      mockSearchParams = {};
+      render(() => <UIProvider><CorrelationTab /></UIProvider>);
+      fireEvent.click(screen.getByRole("button", { name: /Calculate/ }));
       await waitFor(() => {
         expect(mockFetchCorrelationData).toHaveBeenCalled();
       });

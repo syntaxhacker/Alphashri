@@ -1,4 +1,3 @@
-// Layout
 export { Box } from "./layout/Box";
 export { Flex } from "./layout/Flex";
 export { Stack } from "./layout/Stack";
@@ -12,17 +11,21 @@ export { Divider } from "./layout/Divider";
 export { Collapse } from "./layout/Collapse";
 export { SimpleGrid } from "./layout/SimpleGrid";
 export { Grid, GridCol } from "./layout/Grid";
+export { Row } from "./layout/Row";
+export { Col } from "./layout/Col";
+export type { GridProps } from "./layout/Grid";
+export type { RowProps, RowAlign, RowJustify } from "./layout/Row";
+export type { ColProps, ColAlign } from "./layout/Col";
 export { Portal } from "./layout/Portal";
 
-// Typography
 export { Text } from "./typography/Text";
 export { Title } from "./typography/Title";
 export { Anchor } from "./typography/Anchor";
 export { Code } from "./typography/Code";
 export { List, ListItem } from "./typography/List";
 
-// Inputs
 export { Button } from "./inputs/Button";
+export { RangeSlider, Slider } from "./inputs/RangeSlider";
 export { ActionIcon } from "./inputs/ActionIcon";
 export { UnstyledButton } from "./inputs/UnstyledButton";
 export { TextInput } from "./inputs/TextInput";
@@ -36,8 +39,8 @@ export { Checkbox } from "./inputs/Checkbox";
 export { Chip } from "./inputs/Chip";
 export { SegmentedControl } from "./inputs/SegmentedControl";
 export { CopyButton } from "./inputs/CopyButton";
+export { FormField } from "./form/FormField";
 
-// Feedback
 export { Badge } from "./feedback/Badge";
 export { Alert } from "./feedback/Alert";
 export { Loader } from "./feedback/Loader";
@@ -47,14 +50,12 @@ export { Skeleton } from "./feedback/Skeleton";
 export { LoadingOverlay } from "./feedback/LoadingOverlay";
 export { Indicator } from "./feedback/Indicator";
 
-// Data display
 export { Tabs, TabsList, Tab, TabsPanel } from "./data-display/Tabs";
 export { Accordion, AccordionItem, AccordionControl, AccordionPanel } from "./data-display/Accordion";
 export { Timeline, TimelineItem } from "./data-display/Timeline";
 export { Tree } from "./data-display/Tree";
 export { Menu, MenuTarget, MenuDropdown, MenuItem } from "./data-display/Menu";
 
-// Overlay
 export { Modal } from "./overlay/Modal";
 export { Tooltip } from "./overlay/Tooltip";
 export { Popover, PopoverTarget, PopoverDropdown } from "./overlay/Popover";
@@ -62,38 +63,39 @@ export { Overlay } from "./overlay/Overlay";
 export { default as FloatingWindow } from "./overlay/FloatingWindow";
 export type { FloatingWindowProps, FloatingWindowGeometry, FloatingWindowHandle } from "./overlay/FloatingWindow";
 
-// Navigation
 export { NavLink } from "./navigation/NavLink";
 export { AppShell, AppShellHeader, AppShellNavbar, AppShellMain, AppShellSection } from "./navigation/AppShell";
 
-// Misc
 export { Avatar } from "./misc/Avatar";
 export { ThemeIcon } from "./misc/ThemeIcon";
 export { CloseButton } from "./misc/CloseButton";
 
-// Dates
 export { DatePicker } from "./dates/DatePicker";
 
-// Theme & providers
 export { UIProvider, uiTheme } from "./theme";
+export {
+  TYPE_CLASS,
+  TYPE_SCALE,
+  typeSize,
+  typeStyle,
+  typeToken,
+  type TypeRole,
+} from "./typography";
+export { cn } from "./cn";
+export { alpha } from "./alpha";
 
-// Density (Comfortable | Compact table density, persisted to localStorage)
 export { DensityProvider, useDensity, setDensity, getStoredDensity, DENSITY_TOKENS, DENSITY_STORAGE_KEY, TABLE_ROW_PY_VAR } from "./density";
 export type { Density, DensityTokens, DensityValue } from "./density";
 
-// Hooks
 export { useColorScheme, useTheme, useDebouncedValue, useMediaQuery, useTree, getTreeExpandedState, useDisclosure } from "./hooks";
 
-// Notifications
 export { showNotification, showSuccess, showError, Notifications } from "./notifications";
 
-// UI re-exports (for transitional use)
+// Transitional re-export for callers still importing `rem` from @/ui.
 export { rem } from "./hooks";
 
-
-// Types
 export type {
-  UIBaseProps, UISize, UIColor, UITone, UIFontWeight, UIAlign, UIFlexDirection, UIFlexWrap,
+  UITheme, UIBaseProps, UISize, UIColor, UITone, UIFontWeight, UIAlign, UIFlexDirection, UIFlexWrap,
   UIJustify, UIAlignItems, UIGap, UIRadius, UIVariant,
   UIBoxProps, UIFlexProps, UIStackProps, UIGroupProps, UICenterProps,
   UIPaperProps, UICardProps, UIScrollAreaProps, UIDividerProps, UICollapseProps,
@@ -103,6 +105,7 @@ export type {
   UILoadingOverlayProps, UIOverlayProps,
   UIButtonProps, UIActionIconProps, UIUnstyledButtonProps,
   UITextInputProps, UINumberInputProps, UISelectProps, UIMultiSelectProps,
+  UIFormFieldProps, UIFormFieldIds, UIFormFieldControlProps,
   UITextareaProps, UIPasswordInputProps,
   UISwitchProps, UICheckboxProps, UIChipProps, UISegmentedControlProps,
   UIModalProps, UITooltipProps, UIPopoverProps, UIPopoverTargetProps, UIPopoverDropdownProps,

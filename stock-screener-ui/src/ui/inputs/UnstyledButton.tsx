@@ -1,23 +1,17 @@
-import ButtonBase from "@mui/material/ButtonBase";
+import { cn } from "../cn";
 import type { UIUnstyledButtonProps } from "../types";
 
-export function UnstyledButton({ children, className, style, onClick, "data-testid": testId, sx, ...rest }: UIUnstyledButtonProps & { sx?: any }) {
+export function UnstyledButton(props: UIUnstyledButtonProps) {
   return (
-    <ButtonBase
-      className={className}
-      style={style as React.CSSProperties}
-      onClick={onClick}
-      data-testid={testId}
-      sx={{
-        justifyContent: "flex-start",
-        textAlign: "left",
-        font: "inherit",
-        color: "inherit",
-        ...(sx as object),
-      }}
-      {...(rest as object)}
+    <button
+      type="button"
+      id={props.id}
+      className={cn(props.className)}
+      style={props.style}
+      onClick={(e) => props.onClick?.(e)}
+      data-testid={props["data-testid"]}
     >
-      {children}
-    </ButtonBase>
+      {props.children}
+    </button>
   );
 }

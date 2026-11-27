@@ -48,17 +48,43 @@ def _use_tmp_instruments(monkeypatch, tmp_path: Path, records: list[dict]) -> Pa
     return path
 
 
-# ---------------------------------------------------------------------------
-# Detection rules on the real instruments file
-# ---------------------------------------------------------------------------
 
 
 def test_real_file_counts_match_verified_rules():
-    """218 F&O equity underlyings, 359 ETF/fund units (INF ISINs), disjoint."""
+    """The real file's membership follows the documented INF-ISIN rule.
+
+    Counts are derived from the same instruments file the production loader
+    reads. A legitimate data refresh (e.g. 359 -> 360 ETF units, as of
+    2026-05-18) must not break the suite; a regression in the detection rule
+    or a truncated/empty load must. Known INE-ISIN companies are pinned
+    separately in the tests below.
+    """
     fno = tags_mod.fno_symbols()
     etf = tags_mod.etf_symbols()
-    assert len(fno) == 218
-    assert len(etf) == 359
+
+    records = json.loads(universes.instruments_path().read_text(encoding="utf-8"))
+    expected_etf = {
+        str(rec.get("trading_symbol") or "").upper()
+        for rec in records
+        if isinstance(rec, dict)
+        and rec.get("segment") == "NSE_EQ"
+        and rec.get("instrument_type") == "EQ"
+        and str(rec.get("isin") or "").startswith("INF")
+        and str(rec.get("trading_symbol") or "").strip()
+    }
+    expected_fno = {
+        str(rec.get("underlying_symbol") or "").upper()
+        for rec in records
+        if isinstance(rec, dict)
+        and rec.get("segment") == "NSE_FO"
+        and rec.get("underlying_type") == "EQUITY"
+        and str(rec.get("underlying_symbol") or "").strip()
+    }
+    # Production sets equal the rule-derived sets: no name/ticker heuristics.
+    assert etf == frozenset(expected_etf)
+    assert fno == frozenset(expected_fno)
+    assert len(etf) >= 300  # real file currently has ~360 ETFs; floor guards a short load
+    assert len(fno) >= 200  # real file currently has ~218 F&O underlyings
     assert not (fno & etf)  # no symbol is both on the real file
 
 
@@ -98,9 +124,6 @@ def test_unknown_symbol_returns_empty():
     assert tags_mod.tags_for(None) == []  # str()'d, never raises
 
 
-# ---------------------------------------------------------------------------
-# Both tags, caching, failure modes
-# ---------------------------------------------------------------------------
 
 
 def test_symbol_in_both_universes_gets_both_tags(tmp_path, monkeypatch):
@@ -160,9 +183,6 @@ def test_missing_or_bad_instruments_file_never_raises(tmp_path, monkeypatch):
     assert tags_mod.tags_for("ANYTHING") == []
 
 
-# ---------------------------------------------------------------------------
-# Symbol normalization (shared helper)
-# ---------------------------------------------------------------------------
 
 
 def test_norm_symbol_case_and_blank():

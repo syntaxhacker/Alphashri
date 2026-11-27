@@ -1,4 +1,3 @@
-"""Concept diagrams in the NT dark SMC theme (src/ui/palette.ts:168-180). -> /tmp/opencode/concept_nt_*.png"""
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -40,7 +39,6 @@ def txt(ax, x, y, s, c=TEXT, fs=9, **k):
     ax.text(x, y, s, color=c, fontsize=fs, **k)
 
 
-# ---------- 1. FVG ----------
 fig, (a1, a2) = plt.subplots(1, 2, figsize=(11, 4.8))
 fig.patch.set_facecolor(BG)
 bull = [(10, 12, 9, 11), (11, 13, 10.5, 12.5), (14, 16, 13.8, 15.5),
@@ -69,7 +67,6 @@ dark(a2)
 fig.tight_layout()
 fig.savefig(f"{OUT}/concept_nt_fvg.png", dpi=110, facecolor=BG)
 
-# ---------- 2. iFVG ----------
 fig, ax = plt.subplots(figsize=(11, 5))
 fig.patch.set_facecolor(BG)
 bars = [(10, 12, 9, 11), (11, 13, 10.5, 12.5), (14, 16, 13.8, 15.5),
@@ -92,7 +89,6 @@ dark(ax)
 fig.tight_layout()
 fig.savefig(f"{OUT}/concept_nt_ifvg.png", dpi=110, facecolor=BG)
 
-# ---------- 3. LRL ----------
 fig, ax = plt.subplots(figsize=(11, 5))
 fig.patch.set_facecolor(BG)
 np.random.seed(3)
@@ -118,7 +114,6 @@ dark(ax)
 fig.tight_layout()
 fig.savefig(f"{OUT}/concept_nt_lrl.png", dpi=110, facecolor=BG)
 
-# ---------- 4. Playbook ----------
 fig, ax = plt.subplots(figsize=(12, 5.8))
 fig.patch.set_facecolor(BG)
 bars = [(50, 52, 49, 51), (51, 53, 50, 52.5), (52.5, 54, 52, 53.5),

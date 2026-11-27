@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 vi.mock("../state/auth", async () => (await import("./apiTestMocks")).fetchWithAuthModuleMock());
 
 import { fetchWithAuth } from "../state/auth";
+import { ApiError } from "./apiError";
 import {
   QueueFullError,
   buildPatternsQuery,
@@ -17,6 +18,7 @@ import {
   fetchSummary,
   fetchSymbolDetail,
   fetchSymbolChart,
+  clearPatternsApiCache,
 } from "./chartPatterns";
 import { errorResponse, okResponse } from "./apiTestMocks";
 
@@ -29,6 +31,7 @@ function queryOf(url: string): URLSearchParams {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearPatternsApiCache();
 });
 
 afterEach(() => {
@@ -217,16 +220,6 @@ describe("results + summary query building", () => {
     expect(buildPatternsQuery({ lookback_bars: null })).not.toContain("lookback_bars");
   });
 
-  it("buildPatternsQuery serializes compute_trendlines=0 only when false", () => {
-    expect(
-      new URLSearchParams(buildPatternsQuery({ compute_trendlines: false }).slice(1)).get(
-        "compute_trendlines",
-      ),
-    ).toBe("0");
-    expect(buildPatternsQuery({ compute_trendlines: false })).toContain("compute_trendlines=0");
-    expect(buildPatternsQuery({ compute_trendlines: true })).not.toContain("compute_trendlines");
-    expect(buildPatternsQuery({})).not.toContain("compute_trendlines");
-  });
 });
 
 describe("symbol endpoints", () => {
@@ -274,24 +267,28 @@ describe("symbol endpoints", () => {
     expect(queryOf(url).get("lookback_bars")).toBeNull();
   });
 
-  it("fetchSymbolChart sends compute_trendlines=0 only when computeTrendlines is false", async () => {
-    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
-    await fetchSymbolChart("IRCON", "1D", { computeTrendlines: false });
+  it("fetchSymbolChart appends market=usa only when market is set", async () => {
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "AAPL", candles: [], overlays: [] }));
+    await fetchSymbolChart("AAPL", "1D", { market: "usa" });
     let url = mockedFetch.mock.calls[0][0] as string;
-    expect(queryOf(url).get("compute_trendlines")).toBe("0");
+    expect(url).toContain("/api/chart-patterns/symbol/AAPL/chart?");
+    expect(queryOf(url).get("market")).toBe("usa");
+    expect(queryOf(url).get("timeframe")).toBe("1D");
 
     mockedFetch.mockClear();
     mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
-    await fetchSymbolChart("IRCON", "1D", { computeTrendlines: true });
+    await fetchSymbolChart("IRCON", "1D", { detectPatterns: false });
     url = mockedFetch.mock.calls[0][0] as string;
-    expect(queryOf(url).get("compute_trendlines")).toBeNull();
+    expect(queryOf(url).get("market")).toBeNull();
+  });
 
-    mockedFetch.mockClear();
-    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
-    await fetchSymbolChart("IRCON", "1D", { lookbackBars: 120, computeTrendlines: false });
-    url = mockedFetch.mock.calls[0][0] as string;
-    expect(queryOf(url).get("lookback_bars")).toBe("120");
-    expect(queryOf(url).get("compute_trendlines")).toBe("0");
+  it("fetchSymbolChart keeps other params alongside market=usa", async () => {
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "AAPL", candles: [], overlays: [] }));
+    await fetchSymbolChart("AAPL", "5m", { market: "usa", limit: 200 });
+    const params = queryOf(mockedFetch.mock.calls[0][0] as string);
+    expect(params.get("market")).toBe("usa");
+    expect(params.get("timeframe")).toBe("5m");
+    expect(params.get("limit")).toBe("200");
   });
 });
 
@@ -403,6 +400,44 @@ describe("results/summary/symbol error messages", () => {
     await expect(fetchSymbolDetail("SBIN", "1D")).rejects.toThrow("Failed to load SBIN");
   });
 
+  it("fetchSymbolChart passes freshness metadata through unchanged", async () => {
+    const payload = {
+      symbol: "IRCON",
+      timeframe: "15m",
+      candles: [{ t: "2026-11-27T10:15:00+05:30", o: 1, h: 2, l: 0.5, c: 1.5, v: 10 }],
+      overlays: [],
+      cached: true,
+      stale: false,
+      data_source: "cache+tail",
+      cache_through: "2026-11-27T10:00:00+05:30",
+      latest_bar: "2026-11-27T10:15:00+05:30",
+      appended: 3,
+      updated: 2,
+      market_open: true,
+      cache_age_sec: 12,
+      refreshing: false,
+      note: "Tail merged.",
+    };
+    mockedFetch.mockResolvedValue(okResponse(payload));
+
+    const result = await fetchSymbolChart("IRCON", "15m");
+
+    expect(result).toMatchObject(payload);
+  });
+
+  it("fetchSymbolChart sends refresh=1 only when refresh is true", async () => {
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D", { refresh: true });
+    let url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("refresh")).toBe("1");
+
+    mockedFetch.mockClear();
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D");
+    url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("refresh")).toBeNull();
+  });
+
   it("fetchSymbolChart throws the server detail on failure", async () => {
     mockedFetch.mockResolvedValue(errorResponse(500, { detail: "chart boom" }));
     await expect(fetchSymbolChart("SBIN", "1D")).rejects.toThrow("chart boom");
@@ -454,7 +489,7 @@ describe("fetchMarketStatus", () => {
 });
 
 describe("startScan extended body + 429 fallbacks", () => {
-  it("POSTs lookback_bars/symbols/compute_trendlines through untouched", async () => {
+  it("POSTs lookback_bars and symbols through untouched", async () => {
     mockedFetch.mockResolvedValue(
       okResponse({ job_id: "cpj_2", status: "queued", queue_position: 1, queue_size: 2 }),
     );
@@ -464,7 +499,6 @@ describe("startScan extended body + 429 fallbacks", () => {
       timeframe: "1D",
       symbols: ["SBIN", "TCS"],
       lookback_bars: 250,
-      compute_trendlines: false,
     });
 
     const [url, options] = mockedFetch.mock.calls[0];
@@ -474,7 +508,6 @@ describe("startScan extended body + 429 fallbacks", () => {
       timeframe: "1D",
       symbols: ["SBIN", "TCS"],
       lookback_bars: 250,
-      compute_trendlines: false,
     });
   });
 
@@ -518,5 +551,41 @@ describe("startScan extended body + 429 fallbacks", () => {
     expect(err.name).toBe("QueueFullError");
     expect(err.queueSize).toBeNull();
     expect(err.maxQueue).toBeNull();
+  });
+});
+
+describe("typed API errors (getJson / startScan)", () => {
+  it("(c) a 401 from getJson throws an ApiError with kind unauthorized (not network)", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(401, { detail: "Session expired" }));
+
+    const err = await fetchTimeframes().catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 401, kind: "unauthorized", message: "Session expired" });
+  });
+
+  it("a 401 from startScan throws the same typed ApiError", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(401, { detail: "Session expired" }));
+
+    const err = await startScan({ universe: "nifty500", timeframe: "1D" }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 401, kind: "unauthorized" });
+    expect((err as ApiError).message).toBe("Session expired");
+  });
+
+  it("a 500 from getJson is kind server (not network)", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(500, { detail: "boom" }));
+
+    const err = await fetchTimeframes().catch((e: unknown) => e);
+
+    expect(err).toMatchObject({ status: 500, kind: "server" });
+  });
+
+  it("(d) a successful getJson returns byte-identical data", async () => {
+    const payload = { timeframes: [{ id: "1D", label: "1D" }] };
+    mockedFetch.mockResolvedValue(okResponse(payload));
+
+    await expect(fetchTimeframes()).resolves.toEqual(payload.timeframes);
   });
 });

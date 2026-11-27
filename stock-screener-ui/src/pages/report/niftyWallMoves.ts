@@ -25,15 +25,12 @@ export interface WallMove {
 }
 
 export interface WallMoveState {
-  /** Identity of the symbol/mode/date/frame the values belong to. */
   context: string | null;
   call: number | null;
   put: number | null;
-  /** `${side}:${strike}` pairs already flashed in this context. */
   flashed: Set<string>;
 }
 
-/** Cap: a session can only visit so many strikes; never grow unbounded. */
 export const MAX_FLASHED_WALLS = 200;
 
 export function createWallMoveState(): WallMoveState {
@@ -54,7 +51,6 @@ export function nextWallMoveState(
   live: boolean,
   maxFlashed: number = MAX_FLASHED_WALLS,
 ): { moves: WallMove[]; state: WallMoveState } {
-  // Context switch (or a non-live frame): re-seed, clear the dedupe set.
   if (!live || prev.context !== context) {
     return {
       moves: [],

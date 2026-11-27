@@ -1,0 +1,94 @@
+{
+  "feature": "agri-page",
+  "route": "/agri",
+  "head": "25079b7c9efde6a438b6bfc1cb5dc3670f564465",
+  "viewports": [
+    1600,
+    390
+  ],
+  "sha256": {
+    "categories-1600.png": "09664c4e21375e4270b9ce8f35a98a44e80c32e86bc0541578c6c0624c46e73d",
+    "categories-390.png": "d1e102902b11f2ebe84feb65e984efdf671a19605e63532466c285762dadc3b4",
+    "data-1600.png": "e2fd96cf5bb5c3b872fed630ac0691b26ad3ed51f57fddb392630e7528b4c9aa",
+    "data-390.png": "bf2a4922356b22a2b8d87d2031b69b4637bcb28af49249a585cbdf7578adf2c5",
+    "dispersion-1600.png": "cdb6c810b91219fcee614909e539654afcb5d295ba1d81d16e8cd9cddff49aa3",
+    "dispersion-390.png": "ec5277a133a69b11044484908d75cb1b0aaf22373b70ff950dfdf7b13f0a0a5a",
+    "overview-bottom-1600.png": "cdb6c810b91219fcee614909e539654afcb5d295ba1d81d16e8cd9cddff49aa3",
+    "overview-bottom-390.png": "ec5277a133a69b11044484908d75cb1b0aaf22373b70ff950dfdf7b13f0a0a5a",
+    "overview-top-1600.png": "12267753be35c797c94fe6d2e0afd2659288e9d600e6900397af86a2b00427f5",
+    "overview-top-390.png": "6fb2c056b2ac2158c5f069d8925928e608db50cf9b92f7cb9e0851a9d4542b03",
+    "state-empty-1600.png": "f702b39d2bc40fa75cea07131e2d1c9d572a8a95d8f1d8a0edb91d37a8aa23ad",
+    "state-empty-390.png": "1b4c4dbb5e51fc8e39def39e74c93a765a30433322231f0962c68fb5778479d5",
+    "state-error-1600.png": "6967b27ea5d2cc281ee225e52daaf6979204bbf08808e5a33c3e434f532d4c39",
+    "state-error-390.png": "3c0517118e1a412f18b23a1e4c01b4d9340b00ddccb530259ba39a6cd1725e3c",
+    "state-loading-1600.png": "e478a587afe1a19849af759e8cf56b625fe77ff302cdb2041be8d5162b303961",
+    "state-loading-390.png": "b27cbafcbc2bcc8e29e6b984d137e2e113e5972bbc94d023d2ff9ab876246e1b"
+  },
+  "states": [
+    {
+      "id": "categories",
+      "files": {
+        "1600": "categories-1600.png",
+        "390": "categories-390.png"
+      },
+      "covers": "Categories view with group cards and B/C tier badges."
+    },
+    {
+      "id": "data",
+      "files": {
+        "1600": "data-1600.png",
+        "390": "data-390.png"
+      },
+      "covers": "Data view with one footer and one horizontal-scroll cue."
+    },
+    {
+      "id": "dispersion",
+      "files": {
+        "1600": "dispersion-1600.png",
+        "390": "dispersion-390.png"
+      },
+      "covers": "Top-priced mandis scrolled into view; one IQR/median population.",
+      "aliasOf": "overview-bottom"
+    },
+    {
+      "id": "overview-bottom",
+      "files": {
+        "1600": "overview-bottom-1600.png",
+        "390": "overview-bottom-390.png"
+      },
+      "covers": "Overview lower panels: rank movement, month profile, Top-priced mandis."
+    },
+    {
+      "id": "overview-top",
+      "files": {
+        "1600": "overview-top-1600.png",
+        "390": "overview-top-390.png"
+      },
+      "covers": "Overview top: headline strip, Price chart, Commodity Universe at the viewport."
+    },
+    {
+      "id": "state-empty",
+      "files": {
+        "1600": "state-empty-1600.png",
+        "390": "state-empty-390.png"
+      },
+      "covers": "Empty state with collapsed hero and universe."
+    },
+    {
+      "id": "state-error",
+      "files": {
+        "1600": "state-error-1600.png",
+        "390": "state-error-390.png"
+      },
+      "covers": "Error state with AGRI-warm alert and retry."
+    },
+    {
+      "id": "state-loading",
+      "files": {
+        "1600": "state-loading-1600.png",
+        "390": "state-loading-390.png"
+      },
+      "covers": "Loading state."
+    }
+  ]
+}

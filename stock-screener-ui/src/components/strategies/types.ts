@@ -30,6 +30,11 @@ export interface StrategiesPageProps {
   // View actions
   onViewChange: (view: StrategyView) => void;
 
+  // StrategiesPage passes these straight through to TemplateTreeView; they are
+  // optional so callers that only need the tree can omit them.
+  onEditTemplate?: (template: StrategyConfig) => void;
+  onSyncVariations?: (templateId: number) => void;
+
   // Strategy actions
   onCreateStrategy: (data: StrategyFormData) => void;
   onEditStrategy: (strategyId: number, data: StrategyFormData) => void;
@@ -46,7 +51,7 @@ export interface StrategiesPageProps {
   onSelectStrategy: (strategyId: number) => void;
 
   // Data actions
-  onUpdate: (strategyId: number, field: string, value: number) => Promise<void>;
+  onUpdate: (strategyId: number, field: string, value: number) => Promise<unknown>;
   onRefresh: () => void;
   onClearError: () => void;
 
@@ -62,7 +67,7 @@ export interface TemplateTreeViewProps {
   onCreateFromTemplate: (template: StrategyConfig) => void;
   onEditStrategy: (strategy: StrategyConfig) => void;
   onDeleteStrategy: (strategyId: number) => void;
-  onUpdate: (strategyId: number, field: string, value: number) => Promise<void>;
+  onUpdate: (strategyId: number, field: string, value: number) => Promise<unknown>;
   isLoading: boolean;
 }
 

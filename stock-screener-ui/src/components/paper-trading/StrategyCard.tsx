@@ -1,8 +1,8 @@
-import { memo, useMemo } from "react";
-import { Badge, Text, Progress, Tooltip, Button } from "@/ui";
-import Box from "@mui/material/Box";
-import { IconX } from "@tabler/icons-react";
+import { createMemo, Show } from "solid-js";
+import { Badge, Text, Progress, Tooltip, Button, useMediaQuery } from "@/ui";
+import { IconX } from "@/components/common/Icons";
 import { PositionsTableBody } from "./PositionsHelpers";
+import { PositionNarrowCards } from "./PositionNarrowCards";
 import type { PaperPosition } from "../../types/paperTrading";
 import { formatSignedPnl, getPnLTextColor } from "../../utils/ui-helpers";
 
@@ -28,67 +28,58 @@ function calcSummary(positions: PaperPosition[]) {
   return { totalPnl, count: positions.length };
 }
 
-export const StrategyCard = memo(function StrategyCard({
-  strategyName,
-  positions,
-  maxCapacity,
-  onSelectSymbol,
-  onClosePosition,
-  onCloseAll,
-}: StrategyCardProps) {
-  const summary = useMemo(() => calcSummary(positions), [positions]);
-  const capacityPct = Math.min(100, (summary.count / maxCapacity) * 100);
+export function StrategyCard(props: StrategyCardProps) {
+  const narrow = useMediaQuery("(max-width: 599px)");
+  const summary = createMemo(() => calcSummary(props.positions));
+  const capacityPct = () => Math.min(100, (summary().count / props.maxCapacity) * 100);
 
   return (
-    <Box
-      className="paper-strategy-group"
-      data-testid={`strategy-card-${strategyName}`}
-      sx={{ borderTop: 1, borderColor: "divider", "&:first-of-type": { borderTop: 0 } }}
-    >
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0.75,
-          px: 0.75,
-          py: 0.25,
-          minWidth: 0,
-          bgcolor: "action.hover",
-        }}
-      >
-        <Text size="xs" fw={600} truncate sx={{ minWidth: 0, flexShrink: 1 }}>{strategyName}</Text>
-        <Badge size="xs" variant="light" sx={{ flexShrink: 0 }}>{summary.count}</Badge>
-        <Text size="xs" c={getPnLTextColor(summary.totalPnl)} fw={600} sx={{ whiteSpace: "nowrap", flexShrink: 0 }}>
-          {formatSignedPnl(summary.totalPnl)}
+    <div class="paper-strategy-group border-t border-fin-border" data-testid={`strategy-card-${props.strategyName}`}>
+      <div class="flex items-center gap-1.5 px-1.5 py-0.5 min-w-0 bg-fin-surface-alt">
+        <Text size="xs" fw={600} className="truncate min-w-0">{props.strategyName}</Text>
+        <Badge size="xs" variant="light" className="shrink-0">{summary().count}</Badge>
+        <Text size="xs" c={getPnLTextColor(summary().totalPnl)} fw={600} className="whitespace-nowrap shrink-0 font-mono tabular-nums">
+          {formatSignedPnl(summary().totalPnl)}
         </Text>
-        <Box sx={{ flex: 1, minWidth: 8 }} />
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexShrink: 0 }}>
+        <div class="flex-1 min-w-[8px]" />
+        <div class="flex items-center gap-1.5 shrink-0">
           <Progress
-            value={capacityPct}
+            value={capacityPct()}
             size={4}
-            w={60}
-            color={capacityPct >= 100 ? "error" : "primary"}
-            aria-label={`${summary.count} of ${maxCapacity} positions`}
+            style={{ width: "60px" }}
+            color={capacityPct() >= 100 ? "error" : "primary"}
+            aria-label={`${summary().count} of ${props.maxCapacity} positions`}
           />
-          <Text size="xs" c="dimmed" sx={{ whiteSpace: "nowrap" }}>{summary.count}/{maxCapacity}</Text>
-        </Box>
+          <Text size="xs" c="dimmed" className="whitespace-nowrap font-mono tabular-nums">{summary().count}/{props.maxCapacity}</Text>
+        </div>
         <Tooltip label="Close all in this strategy">
           <Button
-            size="compact-xs"
+            size="xs"
             variant="subtle"
             color="error"
             onClick={(e) => {
               e.stopPropagation();
-              onCloseAll(positions);
+              props.onCloseAll(props.positions);
             }}
-            data-testid={`close-strategy-${strategyName}`}
-            sx={{ flexShrink: 0, minWidth: 0, px: 0.5 }}
+            data-testid={`close-strategy-${props.strategyName}`}
+            className="shrink-0 min-w-0 px-1"
           >
             <IconX size={12} />
           </Button>
         </Tooltip>
-      </Box>
-      <PositionsTableBody positions={positions} onSelect={onSelectSymbol} onClose={onClosePosition} />
-    </Box>
+      </div>
+      <Show
+        when={!narrow()}
+        fallback={
+          <PositionNarrowCards
+            positions={props.positions}
+            onSelect={props.onSelectSymbol}
+            onClose={props.onClosePosition}
+          />
+        }
+      >
+        <PositionsTableBody positions={props.positions} onSelect={props.onSelectSymbol} onClose={props.onClosePosition} />
+      </Show>
+    </div>
   );
-});
+}

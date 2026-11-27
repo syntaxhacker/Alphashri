@@ -127,7 +127,6 @@ class TestCalculatePivotPoints:
         prev_low = 80
         prev_close = 90
         points = calculate_pivot_points(prev_high, prev_low, prev_close, pivot_type="woodie")
-        # Classic values
         assert points.pp == 90.0
         assert points.r1 == 100.0
         assert points.s1 == 80.0
@@ -171,7 +170,6 @@ class TestCalculatePivotPoints:
         prev_low = 80.456
         prev_close = 90.789
         points = calculate_pivot_points(prev_high, prev_low, prev_close, pivot_type="fibonacci")
-        # Check that we get floating point results
         assert isinstance(points.pp, float)
         # The test_signal_generators.py rounds the results when returning as dict, but pivot_utils returns raw floats.
         # So we can verify raw values

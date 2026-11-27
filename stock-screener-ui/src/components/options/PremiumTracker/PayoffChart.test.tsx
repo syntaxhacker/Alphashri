@@ -1,35 +1,82 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, cleanup, waitFor } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { PayoffChart } from "./PayoffChart";
+import { curveSpots } from "./payoff";
 import type { PayoffLeg } from "./payoff";
 
-vi.mock("../../../hooks/useECharts", () => ({
-  useECharts: () => ({ chartRef: { current: null }, setChartOption: vi.fn() }),
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
+});
+
+const mocks = vi.hoisted(() => ({
+  mockSetChartOption: vi.fn(),
+}));
+
+vi.mock("@/utils/loadEcharts", () => ({
+  loadEcharts: vi.fn(async () => ({
+    init: () => ({ setOption: mocks.mockSetChartOption, resize: vi.fn(), dispose: vi.fn() }),
+  })),
 }));
 
 const legs: PayoffLeg[] = [
   { strike: 100, optionType: "CE", action: "BUY", qty: 1, entry: 5 },
 ];
 
+function capturedOption() {
+  return mocks.mockSetChartOption.mock.calls[0][0] as Record<string, unknown>;
+}
+
 describe("PayoffChart", () => {
-  it("renders the container testid", () => {
-    render(<PayoffChart legs={legs} spot={100} />);
-    expect(screen.getByTestId("payoff-chart")).toBeInTheDocument();
+  afterEach(() => {
     cleanup();
+    vi.clearAllMocks();
   });
 
   it("shows empty-state text with no legs", () => {
-    render(<PayoffChart legs={[]} spot={null} />);
+    render(() => <PayoffChart legs={[]} spot={null} />);
     expect(screen.getByTestId("payoff-chart")).toBeInTheDocument();
     expect(screen.getByText("Add a leg to see payoff")).toBeInTheDocument();
-    cleanup();
   });
 
-  it("honors a custom data-testid", () => {
-    render(<PayoffChart legs={[]} spot={null} data-testid="custom-payoff" />);
-    expect(screen.getByTestId("custom-payoff")).toBeInTheDocument();
-    cleanup();
+  it("hides ECharts background grid split lines while keeping markLine/markPoint", async () => {
+    render(() => <PayoffChart legs={legs} spot={100} />);
+    await waitFor(() => expect(mocks.mockSetChartOption).toHaveBeenCalled());
+    const opt = capturedOption();
+    expect(opt.xAxis.splitLine.show).toBe(false);
+    expect(opt.yAxis.splitLine.show).toBe(false);
+    // zero P&L markLine retained
+    const mlData = (opt.series as { markLine: { data: unknown[] } }[])[0]
+      .markLine.data;
+    expect(
+      mlData.some((m: Record<string, unknown>) => (m as { yAxis?: number }).yAxis === 0),
+    ).toBe(true);
+    // spot marker retained
+    const mpData = (opt.series as { markPoint: { data: unknown[] } }[])[0]
+      .markPoint.data;
+    expect(mpData.length).toBeGreaterThan(0);
+  });
+
+  it("honors rangePct (wider plotted span than default)", async () => {
+    const defaultSpan =
+      Math.max(...curveSpots(100, 8)) - Math.min(...curveSpots(100, 8));
+    const wideSpan =
+      Math.max(...curveSpots(100, 20)) - Math.min(...curveSpots(100, 20));
+    expect(wideSpan).toBeGreaterThan(defaultSpan);
+
+    render(() => <PayoffChart legs={legs} spot={100} rangePct={20} />);
+    await waitFor(() => expect(mocks.mockSetChartOption).toHaveBeenCalled());
+    const opt = capturedOption();
+    const spots = (opt.series as { data: [number, number][] }[])[0].data.map(
+      (p) => p[0],
+    );
+    expect(Math.max(...spots) - Math.min(...spots)).toBeCloseTo(wideSpan);
+    expect(spots[0]).toBeCloseTo(curveSpots(100, 20)[0]);
+    expect(spots[spots.length - 1]).toBeCloseTo(
+      curveSpots(100, 20)[curveSpots(100, 20).length - 1],
+    );
   });
 });

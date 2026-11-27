@@ -41,11 +41,7 @@ _OPEN = {"NORMAL_OPEN", "OPEN", "SPECIAL_OPEN"}
 _PRE_OPEN = {"PRE_OPEN_START", "PRE_OPEN_END"}
 
 
-# ---------------------------------------------------------------------------
-# pure helpers (unit-tested, no network)
-# ---------------------------------------------------------------------------
 def classify_status(status: str | None) -> str:
-    """Map a raw Upstox status string → OPEN / PRE_OPEN / CLOSED."""
     text = str(status or "").strip().upper()
     if text in _OPEN:
         return "OPEN"
@@ -55,7 +51,6 @@ def classify_status(status: str | None) -> str:
 
 
 def parse_status_payload(payload) -> dict:
-    """Normalise ``GET /market/status/:exchange`` → ``{exchange, raw, state, ...}``."""
     data = _data(payload)
     if not isinstance(data, dict):
         return {"exchange": None, "raw": None, "state": "CLOSED", "last_updated": None}
@@ -73,7 +68,6 @@ def parse_status_payload(payload) -> dict:
 
 
 def _fmt_epoch_ms(value, tz: dt.tzinfo = dt.timezone.utc) -> str:
-    """Epoch-millis → ``HH:MM`` in ``tz`` (``"—"`` when unparseable)."""
     try:
         moment = dt.datetime.fromtimestamp(float(value) / 1000, tz=dt.timezone.utc)
     except (TypeError, ValueError, OverflowError, OSError):
@@ -105,7 +99,6 @@ def parse_timings_payload(payload, exchange: str = "NSE") -> dict:
 
 
 def _exchange_names(values) -> list[str]:
-    """Exchange names from a ``closed/open_exchanges`` list (strings or ``{"exchange": ...}`` dicts)."""
     names: list[str] = []
     for entry in values or []:
         if isinstance(entry, dict):
@@ -116,14 +109,8 @@ def _exchange_names(values) -> list[str]:
 
 
 def parse_holidays_payload(payload, exchange: str = "NSE") -> list[dict]:
-    """Normalise ``GET /market/holidays`` → ``[{date, description}]``.
-
-    Keeps entries where ``exchange`` is closed (listed in ``closed_exchanges``
-    or absent from ``open_exchanges``), sorted by date. Settlement-only
-    holidays still count as non-trading days for the desk block.
-    """
     data = _data(payload)
-    if isinstance(data, dict):  # single-date shape: {"date": ..., ...}
+    if isinstance(data, dict):
         data = [data]
     if not isinstance(data, list):
         return []
@@ -146,7 +133,6 @@ def parse_holidays_payload(payload, exchange: str = "NSE") -> list[dict]:
 
 
 def next_holiday(holidays: list[dict], today: str) -> dict | None:
-    """First holiday on/after ``today`` (both ``YYYY-MM-DD``), else None."""
     for row in holidays or []:
         if isinstance(row, dict) and str(row.get("date", "")) >= today:
             return row
@@ -188,9 +174,7 @@ def status_for_date(exchange: str, date: str, today: str,
     }
 
 
-# ---------------------------------------------------------------------------
 # live sources (network, read-only)
-# ---------------------------------------------------------------------------
 def _get(path: str, timeout: float):
     return upstox_common.get(path, None, timeout)
 
@@ -254,9 +238,6 @@ def render(clock: dict) -> str:
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# cli
-# ---------------------------------------------------------------------------
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         prog="market_clock",

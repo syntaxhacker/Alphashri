@@ -6,29 +6,37 @@
   --font-size-xl: 20px;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* { box-sizing: border-box; }
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-fin-border) transparent;
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--color-fin-border); border-radius: 0; }
+::-webkit-scrollbar-track { background: transparent; }
 
 body {
   font: var(--font-size-sm) var(--font-family);
-  background: var(--mui-palette-background-default);
-  color: var(--mui-palette-text-primary);
+  background: var(--color-fin-bg);
+  color: var(--color-fin-text);
   -webkit-font-smoothing: antialiased;
 }
 body[data-color-scheme="light"] { color-scheme: light; }
 body[data-color-scheme="dark"] { color-scheme: dark; }
 
 @keyframes flash-up {
-  0% { background-color: rgba(63, 185, 80, 0.18); }
+  0% { background-color: color-mix(in srgb, var(--color-fin-positive) 18%, transparent); }
   100% { background-color: transparent; }
 }
 @keyframes flash-down {
-  0% { background-color: rgba(248, 81, 73, 0.14); }
+  0% { background-color: color-mix(in srgb, var(--color-fin-negative) 14%, transparent); }
   100% { background-color: transparent; }
 }
 .price-flash-up { animation: flash-up 0.6s ease-out; border-radius: 4px; }
 .price-flash-down { animation: flash-down 0.6s ease-out; border-radius: 4px; }
 @keyframes flash-chg {
-  0% { background-color: color-mix(in srgb, var(--mui-palette-info-main) 16%, transparent); }
+  0% { background-color: color-mix(in srgb, var(--color-fin-info) 16%, transparent); }
   100% { background-color: transparent; }
 }
 .price-flash-chg { animation: flash-chg 0.6s ease-out; border-radius: 4px; }
@@ -39,15 +47,53 @@ body[data-color-scheme="dark"] { color-scheme: dark; }
 /* Active/selected row highlight (paper trade history, backtest, replay).
    Targets the td because each cell sets its own background via sx. */
 .trade-row-highlighted td {
-  background-color: color-mix(in srgb, var(--mui-palette-primary-main) 18%, var(--mui-palette-background-paper)) !important;
+  background-color: color-mix(in srgb, var(--color-fin-primary) 18%, var(--color-fin-surface)) !important;
 }
 .trade-row-highlighted td:first-child {
-  box-shadow: inset 3px 0 0 0 var(--mui-palette-primary-main);
+  box-shadow: inset 3px 0 0 0 var(--color-fin-primary);
 }
 .trade-row-highlighted:hover td {
-  background-color: color-mix(in srgb, var(--mui-palette-primary-main) 26%, var(--mui-palette-background-paper)) !important;
+  background-color: color-mix(in srgb, var(--color-fin-primary) 26%, var(--color-fin-surface)) !important;
 }
 
+
+/* Row states for tables that carry `.paper-row-states` (the shared
+   TanStackTable). Three states, never more than one tint at a time:
+     base      — the panel surface, on the <tr> so every cell inherits it
+     hover     — 7% primary over the surface (lighter than the 16% selection)
+     focused   — a neutral inset outline, deliberately NOT a tint or the amber
+                 primary chrome, so focus can never read as "selected"
+   The old `td`-level hover is scoped away from these tables with
+   `:not(.paper-row-states)`: it painted `!important` on each cell, which is
+   why a row could show a hover fill and a selection fill at the same time. */
+.paper-row-states tbody tr[data-row="stock"] {
+  background-color: var(--color-fin-surface);
+}
+.paper-row-states tbody tr[data-clickable="true"]:hover {
+  background-color: color-mix(in srgb, var(--color-fin-primary) 7%, var(--color-fin-surface));
+}
+/* A selected row is an inline background from `getRowStyle`, which outranks
+   this stylesheet — so hover never repaints it. */
+.paper-row-states tbody tr[data-clickable="true"]:focus-visible {
+  outline: 1px solid var(--color-fin-text);
+  outline-offset: -1px;
+}
+
+.paper-tanstack-table:not(.paper-row-states) tbody tr:hover td {
+  background-color: color-mix(in srgb, var(--color-fin-surface-alt) 70%, var(--color-fin-surface)) !important;
+}
+/* Group headers are clickable too (expand/collapse) but are not stock rows, so
+   they keep the previous cell-level hover rather than the 7% row tint. */
+.paper-row-states tbody tr.paper-tanstack-group-row:hover td {
+  background-color: color-mix(in srgb, var(--color-fin-surface-alt) 70%, var(--color-fin-surface));
+}
+.paper-tanstack-table:not(.paper-row-states) tbody tr[data-row="stock"]:hover td:first-child {
+  box-shadow: inset 2px 0 0 0 var(--color-fin-primary);
+}
+.paper-tanstack-table:not(.paper-row-states) tbody tr:focus-visible {
+  outline: 1px solid var(--color-fin-text);
+  outline-offset: -1px;
+}
 
 /* 0-DTE walls — small, purposeful motion. */
 @keyframes wall-spark-draw {
@@ -68,4 +114,64 @@ body[data-color-scheme="dark"] { color-scheme: dark; }
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* Critical OI-burst badge pulse (NiftyReportPanel). */
+@keyframes nifty-critical-pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.4; }
+  100% { opacity: 1; }
+}
+.nifty-critical-pulse { animation: nifty-critical-pulse 1.2s ease-in-out infinite; }
+
+/* Feedback primitives. Only transform/opacity are animated: the spinner rotates
+   a partial arc over a static track, bars/dots cross-fade, and the skeleton
+   shimmer translates a translucent band. Inline `animation` values on the
+   elements are cancelled here under reduced motion (hence !important). */
+@keyframes fin-loader-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes fin-loader-fade {
+  0% { opacity: 1; }
+  50% { opacity: 0.25; }
+  100% { opacity: 1; }
+}
+@keyframes fin-skeleton-shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-fin-motion="loader"] {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  [data-fin-motion="skeleton"] {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+}
+
+/* Inline symbol/options dock: `flex-1` on the wrappers only constrains them if
+   their ancestors are flex containers with a definite height. The outlet and
+   the unclassed Portal wrapper are the missing links — make both flex columns
+   with `min-height: 0` so the dock shrinks to the outlet instead of overflowing. */
+[data-testid="chart-dock-outlet"] { display: flex; flex-direction: column; }
+[data-testid="chart-dock-outlet"] > * {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+/* A closed dock still leaves the Portal wrapper node behind, so `:empty` cannot
+   collapse the 38% flex item. The provider mirrors the dock state onto the
+   outlet; while closed, remove it from flex layout entirely. */
+[data-testid="chart-dock-outlet"][data-dock-open="false"] { display: none; }
+
+/* Fixed rail (desktop, no inline outlet) overlays #app-main; inset the main
+   content so nothing sits hidden behind it. Only applies while the rail is
+   open — the bottom sheet (<1200 px) and inline-outlet (≥1400 px) modes leave
+   it off. */
+html[data-dock-rail-open="true"] #app-main {
+  padding-right: clamp(480px, 36vw, 620px);
 }

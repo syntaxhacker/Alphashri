@@ -34,7 +34,6 @@ THIRTY_MINUTES = 30 * 60
 
 
 class _Bucket:
-    """Single token bucket refilled continuously at ``rate`` tokens/sec."""
 
     def __init__(self, rate_per_sec: float, capacity: float, now: float):
         if rate_per_sec <= 0 or capacity <= 0:
@@ -50,7 +49,6 @@ class _Bucket:
             self.updated = float(now)
 
     def consume(self, now: float) -> bool:
-        """Take one token if available."""
         self._refill(now)
         if self.tokens >= 1.0:
             self.tokens -= 1.0
@@ -58,7 +56,6 @@ class _Bucket:
         return False
 
     def deficit_wait(self, now: float) -> float:
-        """Seconds until one token is available (0 when available now)."""
         self._refill(now)
         if self.tokens >= 1.0:
             return 0.0
@@ -75,7 +72,6 @@ class UpstoxRateLimiter:
     ``clock``/``sleep`` are injectable for deterministic tests.
     """
 
-    # Upstox docs: Other Standard APIs (all our read endpoints).
     DEFAULT_PER_SECOND = 50
     DEFAULT_PER_MINUTE = 500
     DEFAULT_PER_30_MIN = 2000
@@ -113,7 +109,6 @@ class UpstoxRateLimiter:
         if (self._sec.deficit_wait(now) > 0
                 or self._min.deficit_wait(now) > 0
                 or self._30min.deficit_wait(now) > 0):
-            # Refill all (deficit_wait already refilled) but consume none.
             return False
         self._sec.consume(now)
         self._min.consume(now)
@@ -121,7 +116,6 @@ class UpstoxRateLimiter:
         return True
 
     def wait_time(self) -> float:
-        """Seconds until ``try_acquire()`` would succeed (0 when it would)."""
         now = float(self._clock())
         return max(
             self._sec.deficit_wait(now),
@@ -130,7 +124,6 @@ class UpstoxRateLimiter:
         )
 
     def acquire(self) -> bool:
-        """Block until every bucket allows one request; always returns True."""
         while True:
             if self.try_acquire():
                 return True
@@ -138,9 +131,6 @@ class UpstoxRateLimiter:
             self._sleep(max(delay, 0.0))
 
 
-# ---------------------------------------------------------------------------
-# Process-wide shared limiter
-# ---------------------------------------------------------------------------
 _SHARED_LOCK = threading.Lock()
 _SHARED: UpstoxRateLimiter | None = None
 

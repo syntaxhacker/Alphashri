@@ -50,7 +50,6 @@ R, traded = bp.rule_backtest(S)
 hr = float(traded["right"].mean()) if len(traded) else float("nan")
 lo, hi = bp.wilson(hr, len(traded)) if len(traded) else (0, 0)
 
-# snapshot skill per predictor vs close
 LEVELS = {"br_eq_pc", "br_w_pc", "br_eq_vwap", "br_w_vwap"}
 skill = []
 for p in bp.PREDICTORS + ["idx_vwap_gap"]:

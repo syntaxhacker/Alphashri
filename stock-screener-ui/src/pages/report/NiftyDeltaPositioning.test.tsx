@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { describe, expect, test } from "vitest";
+import type { JSX } from "solid-js";
+import { render, screen } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
@@ -24,11 +25,11 @@ import type {
   NiftyPositioningVerdict,
 } from "@/types/niftyReport";
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
+function TestWrapper(props: { children?: JSX.Element }) {
+  return <UIProvider>{props.children}</UIProvider>;
 }
 
-function r(jsx: React.ReactElement) {
+function r(jsx: () => JSX.Element) {
   return render(jsx, { wrapper: TestWrapper });
 }
 
@@ -67,7 +68,6 @@ function fullBlock(
   };
 }
 
-afterEach(cleanup);
 
 describe("fmtCr", () => {
   test("signs and groups positives with Indian grouping", () => {
@@ -84,7 +84,6 @@ describe("fmtCr", () => {
 
   test("rounds to 0 decimals", () => {
     expect(fmtCr(1234.6)).toBe("+1,235");
-    // rounds to zero -> unsigned zero, never "-0"
     expect(fmtCr(-0.4)).toBe("0");
   });
 
@@ -128,11 +127,8 @@ describe("verdict + signed tone + split helpers", () => {
     expect(positioningSplitLabel(53185, 10814, 83.1)).toBe(
       "53,185 Cr · bullish 83.1%",
     );
-    // share < 50 is not the dominant share: derive it from the two sides.
     expect(positioningSplitLabel(10000, 40000, 20)).toBe("40,000 Cr · bearish 80%");
-    // share absent -> the two sides still derive the dominant share
     expect(positioningSplitLabel(10000, 40000, null)).toBe("40,000 Cr · bearish 80%");
-    // everything absent -> single dash
     expect(positioningSplitLabel(null, null, null)).toBe(POSITIONING_DASH);
   });
 
@@ -176,7 +172,8 @@ describe("delta flip helpers", () => {
 
 describe("NiftyDeltaPositioning render", () => {
   test("full block: verdict, signed summary rows with formula tooltips", () => {
-    r(<NiftyDeltaPositioning positioning={fullBlock()} />);
+    r(() =>
+    <NiftyDeltaPositioning positioning={fullBlock()} />);
     const panel = screen.getByTestId("nifty-positioning-panel");
     expect(panel).toBeInTheDocument();
     expect(panel).toHaveTextContent("Delta positioning");
@@ -211,14 +208,16 @@ describe("NiftyDeltaPositioning render", () => {
   });
 
   test("delta flip stat carries the signed distance from spot", () => {
-    r(<NiftyDeltaPositioning positioning={fullBlock()} spot={25800} />);
+    r(() =>
+    <NiftyDeltaPositioning positioning={fullBlock()} spot={25800} />);
     const flip = screen.getByTestId("nifty-positioning-flip");
     expect(flip).toHaveTextContent("25,750");
     expect(flip).toHaveTextContent("-50 pts");
   });
 
   test("full block: draws the cumulative profile over the initiated flow", () => {
-    r(<NiftyDeltaPositioning positioning={fullBlock()} spot={25750} />);
+    r(() =>
+    <NiftyDeltaPositioning positioning={fullBlock()} spot={25750} />);
     const profile = screen.getByTestId("nifty-positioning-profile");
     expect(profile).toBeInTheDocument();
     const svg = profile.querySelector("svg");
@@ -243,7 +242,8 @@ describe("NiftyDeltaPositioning render", () => {
   });
 
   test("undefined block: dashes everywhere, empty table, no crash", () => {
-    r(<NiftyDeltaPositioning positioning={undefined} />);
+    r(() =>
+    <NiftyDeltaPositioning positioning={undefined} />);
     const panel = screen.getByTestId("nifty-positioning-panel");
     expect(panel).toBeInTheDocument();
     expect(screen.getByTestId("nifty-positioning-verdict")).toHaveTextContent(
@@ -271,11 +271,11 @@ describe("NiftyDeltaPositioning render", () => {
   });
 
   test("partial block: absent strikes still renders the panel safely", () => {
-    r(
+    r(() => (
       <NiftyDeltaPositioning
         positioning={fullBlock({ strikes: undefined as never, verdict: "balanced" })}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("nifty-positioning-panel")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-positioning-verdict")).toHaveTextContent(
       "BALANCED",
@@ -284,7 +284,8 @@ describe("NiftyDeltaPositioning render", () => {
   });
 
   test("empty strikes array renders the chart empty state", () => {
-    r(<NiftyDeltaPositioning positioning={fullBlock({ strikes: [] })} />);
+    r(() =>
+    <NiftyDeltaPositioning positioning={fullBlock({ strikes: [] })} />);
     expect(screen.getByTestId("nifty-positioning-profile")).toBeInTheDocument();
     expect(screen.getByText("No strike breakdown")).toBeInTheDocument();
     expect(
@@ -310,7 +311,6 @@ describe("delta profile", () => {
   });
 
   test("accumulates across the whole chain before windowing", () => {
-    // 20,000 sits outside the window and must still feed the running total.
     const rows = [
       strikeRow(20000, 1000),
       strikeRow(23000, -500),
@@ -321,7 +321,6 @@ describe("delta profile", () => {
     const points = buildDeltaProfile(rows, 23_100);
     expect(points.map((p) => p.strike)).toEqual([23000, 23100, 23300]);
     expect(points.map((p) => p.cumulative)).toEqual([500, 200, -200]);
-    // The zero crossing lands between 23,100 and 23,300 — the pivot.
     expect(points[1].cumulative).toBeGreaterThan(0);
     expect(points[2].cumulative).toBeLessThan(0);
   });
@@ -351,21 +350,18 @@ describe("delta profile", () => {
   });
 
   test("a flip outside the band omits the flip marker", () => {
-    // A whole-chain pivot can sit far outside the ±750 window; pinning the
-    // marker to the nearest edge strike would claim a level that is not there.
-    r(
+    r(() => (
       <NiftyDeltaPositioning
         positioning={fullBlock({ deltaFlip: 20000 })}
         spot={25750}
-      />,
-    );
+      />
+    ));
     expect(
       screen.getByTestId("nifty-positioning-profile-marker-spot"),
     ).toBeInTheDocument();
     expect(
       screen.queryByTestId("nifty-positioning-profile-marker-flip"),
     ).not.toBeInTheDocument();
-    // The headline chip still reports the true pivot.
     expect(screen.getByTestId("nifty-positioning-flip")).toHaveTextContent(
       "20,000",
     );
@@ -381,7 +377,8 @@ describe("delta profile", () => {
     const block = fullBlock({
       strikes: [23000, 23100, 25000].map((s) => strikeRow(s, 1)),
     });
-    r(<NiftyDeltaPositioning positioning={block} spot={23_100} />);
+    r(() =>
+    <NiftyDeltaPositioning positioning={block} spot={23_100} />);
     expect(
       screen.getByTestId("nifty-positioning-profile-readout"),
     ).toHaveTextContent("23,000–23,100");

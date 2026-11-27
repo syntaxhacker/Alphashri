@@ -12,7 +12,6 @@ export type SetupState = "QUIET" | "ARMED" | "TRIGGER";
 export interface SetupGate {
   key: SetupGateKey;
   pass: boolean;
-  /** Human sentence for the tooltip. */
   detail: string;
 }
 
@@ -23,30 +22,21 @@ export interface SetupRead {
 }
 
 export interface SetupInput {
-  /** Tape rows (spot per minute) for the session so far. */
   rows: Array<{ t: string; spot?: number }>;
   spot?: number | null;
   wallsNear?: { calls?: NiftyWall[] | null; puts?: NiftyWall[] | null } | null;
   walls?: { calls?: NiftyWall[] | null; puts?: NiftyWall[] | null } | null;
   strikes?: NiftyStrike[] | null;
   pressure?: PressureSeries | null;
-  /** Dealer-gamma block — SHORT gamma at spot means moves accelerate. */
   gex?: NiftyGex | null;
-  /** Classic pivots — a gate for "price is sitting on a level". */
   pivots?: NiftyPivots | null;
   /** Prior session high/low — the other level a breakout needs to clear. */
   prevDay?: { high?: number | null; low?: number | null } | null;
-  /** Symbol-aware thresholds — required; never fall back to NIFTY defaults. */
   metrics: SymbolMetrics;
 }
 
-/** Coil: current 30-min range vs the median 30-min range of the session. */
 export const COIL_MAX_RATIO = 0.7;
-/** Legacy wall gate constants (NIFTY-calibrated). Kept for backward compatibility. */
-export const WALL_MAX_DISTANCE = 100;
 export const WALL_MIN_OI = 10_000_000;
-/** Legacy level gate constant (NIFTY-calibrated). Kept for backward compatibility. */
-export const LEVEL_MAX_DISTANCE = 60;
 
 function ema(values: number[], span: number): number {
   if (values.length === 0) return 0;
@@ -77,24 +67,20 @@ export function setupRadar(input: SetupInput): SetupRead {
   const wallMinOi = metrics.wallMinOi;
   const levelMaxDistance = metrics.levelMaxDist;
 
-  // COIL — the last 30 minutes compressed relative to the session's own blocks.
   const recent = spots.slice(-30);
   const recentRange = recent.length >= 10 ? Math.max(...recent) - Math.min(...recent) : 0;
   const baseRange = median(blockRanges(spots));
   const coilRatio = baseRange > 0 ? recentRange / baseRange : 0;
   const coilPass = baseRange > 0 && coilRatio > 0 && coilRatio <= COIL_MAX_RATIO;
 
-  // TREND — above the 30-min average and a rising short EMA.
   const twap = recent.length ? recent.reduce((a, b) => a + b, 0) / recent.length : 0;
   const ema9 = ema(spots, 9);
   const ema20 = ema(spots, 20);
   const trendPass = twap > 0 && spot > twap && ema9 > ema20;
 
-  // RVOL — the pressure series owns the volume math.
   const rvol = input.pressure?.last3Ratio ?? 0;
   const rvolPass = rvol >= PRESSURE_BURST_RATIO;
 
-  // WALL — the nearest call wall above spot, close and heavy.
   const source = resolveWallBoard(input.wallsNear, input.walls);
   const callWalls = (source?.calls ?? []).filter(
     (w) => Number.isFinite(safeNum(w?.strike)) && safeNum(w?.strike) > spot,
@@ -121,11 +107,9 @@ export function setupRadar(input: SetupInput): SetupRead {
   const levelDistance = nearestLevel != null ? Math.abs(nearestLevel - spot) : Infinity;
   const levelPass = nearestLevel != null && levelDistance <= levelMaxDistance;
 
-  // GAMMA — dealers short gamma amplify a break instead of damping it.
   const regime = String(input.gex?.regime ?? "").trim().toLowerCase();
   const gammaPass = regime === "short";
 
-  // FUEL — that wall's call OI is being covered (SC/LU), not defended (SB).
   const wallRow = wall
     ? (input.strikes ?? []).find(
         (s) => Math.round(safeNum(s.strike)) === Math.round(wall.strike),

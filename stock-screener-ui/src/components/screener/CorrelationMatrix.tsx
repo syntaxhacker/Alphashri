@@ -6,14 +6,14 @@ interface CorrelationMatrixProps {
   isLoading?: boolean;
 }
 
-export function CorrelationMatrix({ matrix, symbols, isLoading }: CorrelationMatrixProps) {
+export function CorrelationMatrix(props: CorrelationMatrixProps) {
   return (
     <CorrelationHeatmap
-      matrix={matrix}
-      symbols={symbols}
-      isLoading={isLoading}
+      matrix={props.matrix}
+      symbols={props.symbols}
+      isLoading={props.isLoading}
       testId="correlation-matrix"
-      valueFormatter={(v) => v.toFixed(2)}
+      valueFormatter={(v: number) => v.toFixed(2)}
     />
   );
 }

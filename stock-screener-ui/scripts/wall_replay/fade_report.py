@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-"""In-sample / out-of-sample report for the improved fade book.
-
-Stages (each evaluated on train < 2025-11-01, test >= 2025-11-01, live Oct 2026):
-  1. corrected break+fade baseline
-  2. fade only
-  3. fade + wall OI rising
-  4. final: + entry before 13:00 + 15% trail give-back + ATM-at-wall strike + CE only
-
-Runs the four stages with 6 worker processes and writes
-reports/WALL_REPLAY/hist/IMPROVED.html.
-"""
 
 from __future__ import annotations
 
@@ -186,7 +175,6 @@ def main():
 
     tr, te, lv = final_tr
 
-    # frequency study: how far can the entry be loosened before the edge dies
     H2 = ROOT / "experiments" / "data" / "nifty_hist2"
     FREQ = {
         "tight (0.5 ATR, 2-bar)": {**AGGR, "failed_fade": False, "wall_oi_rising": True,
@@ -209,7 +197,6 @@ def main():
         a = hb.curve_stats(pl.run_dates(train, cfg, HIST))
         b = hb.curve_stats(pl.run_dates(test, cfg, HIST))
         freq_rows.append((name, a, b))
-    # next-expiry book, same config
     batch.TAPE = H2
     batch._CACHE.clear()
     d2 = sorted(p.stem for p in H2.glob("*.jsonl") if not p.stem.startswith("_") and ".gaps" not in p.stem)

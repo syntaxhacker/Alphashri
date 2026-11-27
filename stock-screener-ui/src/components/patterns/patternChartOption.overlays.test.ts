@@ -87,7 +87,6 @@ describe("buildPatternChartOption candles are always present", () => {
     const series = seriesOf<SeriesLike>(option);
     expect(series.filter((s) => s.type === "candlestick")).toHaveLength(1);
     expect(series[0].data).toEqual([]);
-    // No window → groups map to nothing, pivots need a window too.
     expect(series.every((s) => s.type === "candlestick")).toBe(true);
   });
 });
@@ -185,7 +184,7 @@ describe("buildPatternChartOption overlay grouping and legend naming", () => {
     expect(bigSel?.lineStyle?.width).toBe(3);
     expect(baseSib?.lineStyle?.width).toBe(1.5);
     expect(bigSib?.lineStyle?.width).toBe(2);
-    expect(baseSel?.endLabel?.fontSize).toBe(10);
+    expect(baseSel?.endLabel?.fontSize).toBe(12);
     expect(bigSel?.endLabel?.fontSize).toBe(12);
   });
 });
@@ -206,7 +205,6 @@ describe("buildPatternChartOption isSelectedOverlay", () => {
       selectedStartDate: "2026-05-04",
     });
     const names = seriesOf<SeriesLike>(option).map((s) => s.name);
-    // Selected group + one surviving sibling (suffixed as the second instance).
     expect(names).toContain("Rising Wedge");
     expect(names).toContain("Rising Wedge (2)");
     expect(names.filter((n) => n === "Rising Wedge (3)")).toHaveLength(0);
@@ -234,8 +232,6 @@ describe("buildPatternChartOption isSelectedOverlay", () => {
       overlays: [{ pattern_id: "rising_wedge", pattern_name: "Rising Wedge", trendlines: [boundary(101)] }],
       selectedPatternId: "rising_wedge",
     });
-    // Selected group is named after the hit fallback ("Pattern"); the matching
-    // sibling is skipped, so "Rising Wedge" never appears.
     expect(seriesOf<SeriesLike>(option).map((s) => s.name)).not.toContain("Rising Wedge");
   });
 
@@ -276,8 +272,6 @@ describe("buildPatternChartOption isSelectedOverlay", () => {
   });
 
   it("defaults the selection identity to the hit pattern id and start date", () => {
-    // No explicit selectedPatternId/selectedStartDate: the hit itself supplies
-    // both, so the overlay duplicating the hit instance is skipped.
     const option = buildPatternChartOption({
       candles: CANDLES,
       hit: HIT,

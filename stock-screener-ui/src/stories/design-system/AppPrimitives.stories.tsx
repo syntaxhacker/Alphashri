@@ -1,0 +1,242 @@
+import type { Meta, StoryObj } from "@storybook/html-vite";
+import { createSignal, onCleanup, onMount, Show } from "solid-js";
+import { solidStory } from "@/stories/solidStory";
+import { Badge, Button, Flex, Group, Stack, Text } from "@/ui";
+import { KeyValue } from "@/components/common/KeyValue";
+import { ExitReasonBadge, SideBadge, StatusBadge, TradingModeBadge } from "@/components/common/BadgeComponents";
+import { PnlText } from "@/components/common/PnlText";
+import { EmptyState, ErrorAlert, InlineLoader } from "@/components/common/states";
+import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
+import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
+import { ComponentIndex, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
+
+const meta: Meta = {
+  title: "App/Overview",
+  tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "Family landing page for the composed app widgets: key-value rows, semantic badges, empty and error states, compact panels, stat grids and the shared table. Every example reads one frozen NIFTY option-chain fixture; dedicated pages live under App/Components.",
+      },
+    },
+  },
+};
+export default meta;
+type Story = StoryObj;
+
+const components: FamilyComponentRef[] = [
+  { id: "app-components-badges--docs", name: "Badges", note: "Side, status, exit and mode badges" },
+  { id: "app-components-compactpanels--docs", name: "CompactPanels", note: "Titled panel with a stat grid" },
+  { id: "app-components-errorboundary--docs", name: "ErrorBoundary", note: "Contain a failed render" },
+  { id: "app-components-filterstatusrow--docs", name: "FilterStatusRow", note: "Active chips and clear-all" },
+  { id: "app-components-icons--docs", name: "Icons", note: "Terminal icon vocabulary" },
+  { id: "app-components-keyvalue--docs", name: "KeyValue", note: "Label, value, hint and tone" },
+  { id: "app-components-minilinechart--docs", name: "MiniLineChart", note: "Compact trend line" },
+  { id: "app-components-rangeinput--docs", name: "RangeInput", note: "Two-ended numeric range" },
+  { id: "app-components-sectionheader--docs", name: "SectionHeader", note: "Title with badge and tone" },
+  { id: "app-components-sparkline--docs", name: "Sparkline", note: "Inline trend sketch" },
+  { id: "app-components-states--docs", name: "States", note: "Empty, error and inline loading" },
+  { id: "app-components-symbollink--docs", name: "SymbolLink", note: "Symbol with chart navigation" },
+  { id: "app-components-tablecells--docs", name: "TableCells", note: "Shared cell renderers" },
+  { id: "app-components-tanstacktable--docs", name: "TanStackTable", note: "Dense, aligned data grid" },
+  { id: "app-components-tradestatsgrid--docs", name: "TradeStatsGrid", note: "Trade summary metrics" },
+  { id: "app-components-tradingdatepicker--docs", name: "TradingDatePicker", note: "Session-aware date choice" },
+  { id: "app-components-valuesandstates--docs", name: "ValuesAndStates", note: "Live value and table state widgets" },
+];
+
+// One labelled fixture shared by every example: spot, change and OI are a
+// single frozen snapshot so the page never implies a live quote.
+const FIXTURE_LABEL = "frozen NIFTY quote fixture";
+const SPOT_LABEL = "23,450.85";
+const CHANGE = 18.42;
+const CHANGE_PCT = 0.08;
+const EXPIRY = "19 NOV 2026 · next weekly";
+const AS_OF = "12:03:15 IST";
+
+interface MarketRow {
+  symbol: string;
+  ltp: number;
+  chg: number;
+  oi: number;
+}
+
+const marketRows: MarketRow[] = [
+  { symbol: "NIFTY", ltp: 23450.85, chg: 0.08, oi: 1204500 },
+  { symbol: "BANKNIFTY", ltp: 51284.5, chg: -0.18, oi: 884200 },
+  { symbol: "FINNIFTY", ltp: 23410.2, chg: 0.12, oi: 402100 },
+  { symbol: "MIDCPNIFTY", ltp: 12884.0, chg: -0.44, oi: 118900 },
+  { symbol: "NIFTYNEXT50", ltp: 68210.4, chg: 0.21, oi: 96500 },
+  { symbol: "SENSEX", ltp: 77420.6, chg: 0.05, oi: 210400 },
+  { symbol: "BANKEX", ltp: 58110.15, chg: -0.27, oi: 88400 },
+];
+
+// Fixed widths keep header/cell boundaries identical in normal and dense mode
+// and give the table a deterministic min-width before it starts to scroll.
+const marketColumns: TableColumnDef<MarketRow>[] = [
+  { id: "symbol", header: "Symbol", accessorKey: "symbol", size: 140, meta: { align: "left" } },
+  { id: "ltp", header: "LTP", accessorKey: "ltp", size: 150, meta: { align: "right" } },
+  {
+    id: "chg",
+    header: "Chg %",
+    accessorFn: (row) => row.chg,
+    size: 150,
+    meta: { align: "right" },
+    cell: ({ row }) => (
+      <span style={{ color: row.original.chg >= 0 ? "var(--color-fin-positive)" : "var(--color-fin-negative)", "font-variant-numeric": "tabular-nums" }}>
+        {row.original.chg >= 0 ? "+" : ""}{row.original.chg.toFixed(2)}
+      </span>
+    ),
+  },
+  { id: "oi", header: "OI", accessorKey: "oi", size: 200, meta: { align: "right" } },
+];
+
+const MARKET_TABLE_MIN_WIDTH = 640;
+const SCROLL_HINT_QUERY = "(max-width: 640px)";
+
+/** Cue only where four numeric columns cannot fit alongside the symbol. */
+const useNarrowViewport = () => {
+  const query = typeof window !== "undefined" && typeof window.matchMedia === "function"
+    ? window.matchMedia(SCROLL_HINT_QUERY)
+    : undefined;
+  const [narrow, setNarrow] = createSignal(query?.matches ?? false);
+  onMount(() => {
+    if (!query) return;
+    setNarrow(query.matches);
+    const onChange = (event: MediaQueryListEvent) => setNarrow(event.matches);
+    query.addEventListener("change", onChange);
+    onCleanup(() => query.removeEventListener("change", onChange));
+  });
+  return narrow;
+};
+
+const ChainHeaderSpecimen = () => (
+  <Stack gap="sm" style={{ "max-width": "760px" }}>
+    <Flex gap="sm" align="center" wrap="wrap">
+      <Badge variant="dot" color="success">LIVE</Badge>
+      <Text size="xs" c="dimmed">{FIXTURE_LABEL} · {AS_OF}</Text>
+    </Flex>
+    <CompactPanel title={`NIFTY option chain · ${FIXTURE_LABEL}`} description={`Spot ${SPOT_LABEL} · ${EXPIRY} expiry`}>
+      <CompactStatGrid cols={4}>
+        <CompactStat label="Spot" value={SPOT_LABEL} hint={`+${CHANGE} (${CHANGE_PCT.toFixed(2)}%)`} tone="success" />
+        <CompactStat label="PCR (OI)" value="1.12" tone="success" />
+        <CompactStat label="Max pain" value="23,400" />
+        <CompactStat label="Pin risk" value="HIGH" tone="warning" />
+      </CompactStatGrid>
+    </CompactPanel>
+  </Stack>
+);
+
+const KeyValueSpecimen = () => (
+  <Flex gap="lg" align="flex-start" wrap="wrap">
+    <Stack gap="xs" style={{ width: "320px" }}>
+      <Text size="xs" c="dimmed">{FIXTURE_LABEL}</Text>
+      <KeyValue label="Spot" value={SPOT_LABEL} hint={`+${CHANGE} (${CHANGE_PCT.toFixed(2)}%)`} tone="success" mono testId="spot" />
+      <KeyValue label="Expiry" value={EXPIRY} align="left" />
+      <KeyValue label="PCR (OI)" value="1.12" dense />
+      <KeyValue label="Max pain" value="23,400" align="left" />
+    </Stack>
+    <Stack gap="sm">
+      <Text size="xs" c="dimmed">Semantic badges and signed P and L.</Text>
+      <Group gap="sm" align="center" wrap="wrap">
+        <SideBadge side="BUY" />
+        <SideBadge side="SELL" />
+        <ExitReasonBadge reason="TP" />
+        <ExitReasonBadge reason="SL" />
+        <ExitReasonBadge reason="TRAILING_STOP" />
+        <StatusBadge running />
+        <StatusBadge running={false} statusUnknown />
+        <TradingModeBadge liveTrading />
+        <TradingModeBadge liveTrading={false} />
+      </Group>
+      <Group gap="lg" align="center" wrap="wrap">
+        <PnlText value={1240.5} />
+        <PnlText value={-318.25} />
+        <PnlText value={0} />
+      </Group>
+    </Stack>
+  </Flex>
+);
+
+const StatesSpecimen = () => {
+  const [attempts, setAttempts] = createSignal(0);
+  const [failed, setFailed] = createSignal(true);
+  return (
+    <Stack gap="md" style={{ "max-width": "640px" }}>
+      <EmptyState title="No rows for this filter" description="Widen the strike range or switch expiry." />
+      <Show
+        when={failed()}
+        fallback={<Text size="xs" c="success">{`Tape reloaded after ${attempts()} retry${attempts() === 1 ? "" : "ies"}.`}</Text>}
+      >
+        <ErrorAlert
+          title="Feed unavailable"
+          message="The options tape is temporarily unavailable."
+          withRetry
+          onRetry={() => { setAttempts((n) => n + 1); setFailed(false); }}
+        />
+      </Show>
+      <InlineLoader message="Loading option chain" />
+    </Stack>
+  );
+};
+
+const TableSpecimen = () => {
+  const [dense, setDense] = createSignal(false);
+  const narrow = useNarrowViewport();
+  return (
+    <Stack gap="sm" style={{ "max-width": "720px" }}>
+      <Group gap="sm" align="center" wrap="wrap">
+        <Text size="xs" c="dimmed">{`${FIXTURE_LABEL} · NIFTY ${SPOT_LABEL} · ${EXPIRY} · ${AS_OF}`}</Text>
+        <Button size="xs" variant="outline" onClick={() => setDense((v) => !v)}>
+          {dense() ? "Switch to normal" : "Switch to dense"}
+        </Button>
+      </Group>
+      <Show when={narrow()}>
+        <Flex gap="xs" align="center" wrap="wrap" data-testid="story-table-scroll-hint">
+          <Text size="xs" fw={700} tt="uppercase" c="primary" className="font-mono">Scroll sideways →</Text>
+          <Text size="xs" c="dimmed">LTP, Chg % and OI continue to the right — no values are hidden.</Text>
+        </Flex>
+      </Show>
+      <div
+        data-testid="story-table-scroll-region"
+        style={{ "max-width": "100%", "min-width": "0px", "overflow-x": "auto" }}
+      >
+        <TanStackTable
+          data={marketRows}
+          columns={marketColumns}
+          dataTestId="story-table-density"
+          ariaLabel={`Index quotes, ${dense() ? "dense" : "normal"} mode`}
+          dense={dense()}
+          stickyHeader
+          minTableWidth={MARKET_TABLE_MIN_WIDTH}
+        />
+      </div>
+    </Stack>
+  );
+};
+
+export const FamilyLanding: Story = {
+  render: () =>
+    solidStory(() => (
+      <FamilyPage>
+        <FamilyHero
+          name="App primitives"
+          count={components.length}
+          caption="NIFTY chain header"
+          purpose="Composed widgets the app screens reuse: data rows, semantic badges, state messages, compact stat panels and the shared table. They inherit spacing, type and semantic tones from the same tokens the lower-level primitives use."
+          specimen={<ChainHeaderSpecimen />}
+        />
+        <ComponentIndex items={components} />
+        <SpecimenPanel title="KeyValue and badges" note="One frozen quote rendered as label-value rows and semantic markers.">
+          <KeyValueSpecimen />
+        </SpecimenPanel>
+        <SpecimenPanel title="Shared states" note="Empty, error with retry and inline loading use the same vocabulary across screens.">
+          <StatesSpecimen />
+        </SpecimenPanel>
+        <SpecimenPanel title="Table density" note="One grid, one toggle; fixed column widths keep alignment in both modes, with a scroll cue at narrow widths.">
+          <TableSpecimen />
+        </SpecimenPanel>
+        <FamilyFooter source="src/components/common" pages="src/stories/components/app" />
+      </FamilyPage>
+    )),
+};

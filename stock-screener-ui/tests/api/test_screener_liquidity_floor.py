@@ -8,7 +8,6 @@ dropped right after TV enrichment — before any per-symbol Upstox fetch.
 import sys
 from pathlib import Path
 
-# Add project root to path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 

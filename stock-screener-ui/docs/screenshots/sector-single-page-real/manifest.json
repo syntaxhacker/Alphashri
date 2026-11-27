@@ -1,0 +1,148 @@
+{
+  "feature": "sector-single-page-real",
+  "route": "/sector",
+  "head": "25079b7c9efde6a438b6bfc1cb5dc3670f564465",
+  "viewports": [
+    1600,
+    390
+  ],
+  "sha256": {
+    "overview-1600.png": "2699e6bcbc00e07d23dd05fc82b6e5f70340f03662f99d8602ecb86485cd1862",
+    "rotation-1600.png": "54355111bbacb0fdc2a8aebceb68e1cf0c9ed9cd821db824da7a558ee5129b1d",
+    "rotation-board-1600.png": "750aec3505576fd85f9ac94ed11f836ba8631b2c3d43906c79978edfb08fc6cc",
+    "correlation-1600.png": "a871bff0518118c71f4fc576000434a2597f365acb7b229135ae90c816c9b320",
+    "correlation-rs-1600.png": "2eeae621c41da97cdf01d49334863389b8263a22b34bf322de6912c57aad428b",
+    "history-1600.png": "7df36b2ea219f901f38ab8bcf20a381dec8ccf3b209bf52fa918b073e193abe2",
+    "history-risk-1600.png": "8a47f2d002c80fd18e11c152595c55af2dec934539f3d879ea2e408b1f146a89",
+    "overview-table-1600.png": "50beb7302505229293bd853f069fed86fbb227f95c1e789916e9c9e4e60fad6f",
+    "correlation-us-1y-1600.png": "18cfa270ef5d2af298882177224b06b9dabe6781a040661de0c296ae5c1cfa2d",
+    "history-3y-1600.png": "42267b74c50f9c810fd25d976b52a55780c8c3b2d8c3c4b3019891952b0f109e",
+    "history-lab-1600.png": "9ddc954239a49a33384552621d283d30b7f05b922135dbe7d1e59b3ee01c3906",
+    "rotation-themes-empty-1600.png": "32d3586f7cadcf19913e61e37ba8169de7686a7e438e771068c26b7a52178212",
+    "overview-390.png": "1711a442848f8631d443d94d5898c7a53f1343bd7d20e8b1c5e6de48746266fa",
+    "rotation-390.png": "94a8e57b9480b5b8e96a60556b83d229794508c7f1206c5ffdc9e414a2ec38d0",
+    "rotation-board-390.png": "f5f2ee33de497afa957de3fe6eb3e87d8a054a0950cbe585324da1e834a326a7",
+    "correlation-390.png": "bc49893a2ed1092918086c02bcb2be51428d96968745dcc976a8394aea147836",
+    "correlation-rs-390.png": "aa15d98490e4c3287e3151aaf79b2a51834e4fc0ea81fd8eacd3c5c76e25d112",
+    "history-390.png": "5b7e92d84e6bb9a2744840645475fe8edbf87d40c611b214e21bbeb7458e9d4e",
+    "history-risk-390.png": "602b66c9833de7c4c439d27f947b079afbc5a57b20e8a01b3030e5a69726a5a3",
+    "overview-table-390.png": "7d1e070258498d572a35d2a462fb183a71576fc53bd4eb2f8b979bd6916298f5",
+    "correlation-us-1y-390.png": "36c0bd4d7b8f9cea00f4b4282a8e09baffed583cc3a576d53101bf5f6606d115",
+    "history-3y-390.png": "a0f0a90e1680505faf5e083403a33fbaebda9712c2ab7531cccfffa1b84b7a0a",
+    "history-lab-390.png": "de0ffbdbce30a969b44a9d3712d5a4524dc228facb720b9bb31227766157ab41",
+    "rotation-themes-empty-390.png": "de9beeaa190ccb9de418682141d76f53d48c82cea16489ac91f2eb542e1c642c"
+  },
+  "states": [
+    {
+      "id": "overview-loaded",
+      "files": {
+        "390": "overview-390.png",
+        "1600": "overview-1600.png"
+      },
+      "covers": "Overview at the top of /sector: summary strip, full-width sector heatmap and the alerts/movers column.",
+      "mock": false
+    },
+    {
+      "id": "rotation-loaded",
+      "files": {
+        "390": "rotation-390.png",
+        "1600": "rotation-1600.png"
+      },
+      "covers": "Rotation section after anchor navigation: regime, board and matrix.",
+      "mock": false
+    },
+    {
+      "id": "rotation-board-loaded",
+      "files": {
+        "390": "rotation-board-390.png",
+        "1600": "rotation-board-1600.png"
+      },
+      "covers": "Rotation board after scrolling it into view: every RRG quadrant and the sorted group rows.",
+      "mock": false
+    },
+    {
+      "id": "correlation-loaded",
+      "files": {
+        "390": "correlation-390.png",
+        "1600": "correlation-1600.png"
+      },
+      "covers": "Correlation section after anchor navigation: heatmap and relative strength.",
+      "mock": false
+    },
+    {
+      "id": "correlation-rs-loaded",
+      "files": {
+        "390": "correlation-rs-390.png",
+        "1600": "correlation-rs-1600.png"
+      },
+      "covers": "Relative Strength Rankings after scrolling the board into view: rank, 5D/1M/3M RS and beta.",
+      "mock": false
+    },
+    {
+      "id": "history-loaded",
+      "files": {
+        "390": "history-390.png",
+        "1600": "history-1600.png"
+      },
+      "covers": "History section after anchor navigation: lazy chunk mounted with overview data.",
+      "mock": false
+    },
+    {
+      "id": "history-risk-loaded",
+      "files": {
+        "390": "history-risk-390.png",
+        "1600": "history-risk-1600.png"
+      },
+      "covers": "History risk panel after scrolling it into view: max/current drawdown, recovery, Sharpe and volatility.",
+      "mock": false
+    },
+    {
+      "id": "overview-table-loaded",
+      "files": {
+        "390": "overview-table-390.png",
+        "1600": "overview-table-1600.png"
+      },
+      "covers": "Overview in Table view (dash=table): performance table, MOVE scale and the summary strip.",
+      "mock": false
+    },
+    {
+      "id": "correlation-us-1y-loaded",
+      "files": {
+        "390": "correlation-us-1y-390.png",
+        "1600": "correlation-us-1y-1600.png"
+      },
+      "covers": "Correlation after selecting US market and 1Y lookback: matrix, beta, rotation timeline and RS rankings.",
+      "mock": false
+    },
+    {
+      "id": "history-3y-loaded",
+      "files": {
+        "390": "history-3y-390.png",
+        "1600": "history-3y-1600.png"
+      },
+      "covers": "History with the 3Y lookback from hyears=3: rank overview, seasonality and risk panels.",
+      "mock": false
+    },
+    {
+      "id": "history-lab-loaded",
+      "files": {
+        "390": "history-lab-390.png",
+        "1600": "history-lab-1600.png"
+      },
+      "covers": "History Rotation Lab view (hview=lab): transition matrix and lab boards.",
+      "mock": false
+    },
+    {
+      "id": "rotation-themes-empty",
+      "files": {
+        "390": "rotation-themes-empty-390.png",
+        "1600": "rotation-themes-empty-1600.png"
+      },
+      "covers": "Rotation Themes selector (kind=theme, period=3M) from the real API: empty because backend returned 0 theme rows.",
+      "mock": false,
+      "kind": "theme",
+      "period": "3M"
+    }
+  ],
+  "source": "real-api"
+}

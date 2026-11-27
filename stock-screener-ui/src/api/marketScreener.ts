@@ -1,11 +1,23 @@
 import { fetchWithAuth } from "../state/auth";
 import { API_BASE } from "@/api/config";
+import { finiteNumber, finiteText } from "./wireParse";
+import { MARKET_ROW_CAP, MARKET_SYMBOL_CAP } from "../config/apiLimits";
+import { MARKET_UNIVERSE_DESCRIPTORS } from "../config/marketUniverses";
+import {
+  MARKET_INTRADAY_CHANGES,
+  type MarketIntradayField,
+} from "../config/marketIntraday";
+import { MARKET_EXTRA_COLUMNS } from "../config/marketExtraColumns";
 import type { MarketRow, MarketSnapshot, MarketUniverse } from "../types/marketScreener";
+import { apiErrorFromResponse } from "./apiError";
+import { isRecord } from "../utils/isRecord";
 
 const MARKET_API = `${API_BASE}/api/market`;
 
 export const DEFAULT_MARKET_UNIVERSE: MarketUniverse = "all_equity";
-export const MARKET_SNAPSHOT_LIMIT = 4000;
+export const MARKET_SNAPSHOT_LIMIT = MARKET_ROW_CAP;
+/** Backend hard cap on symbols per /api/market/snapshot request. */
+export const MARKET_SYMBOLS_MAX = MARKET_SYMBOL_CAP;
 
 const MARKET_SNAPSHOT_CACHE_PREFIX = "alphashri.market_snapshot.v1.";
 /** sessionStorage quota is ~5MB; stay well under it — an oversized entry is skipped, never truncated mid-row. */
@@ -100,17 +112,18 @@ export function writeCachedMarketSnapshot(universe: MarketUniverse, snapshot: Ma
   }
 }
 
-export const MARKET_UNIVERSES: { value: MarketUniverse; label: string }[] = [
-  { value: "all_equity", label: "All NSE" },
-  { value: "nifty500", label: "Nifty 500" },
-  { value: "nifty50", label: "Nifty 50" },
-  { value: "nse_fo", label: "F&O" },
-];
+/** Dropdown options come from the same descriptors the formatters read. */
+export const MARKET_UNIVERSES: { value: MarketUniverse; label: string }[] =
+  MARKET_UNIVERSE_DESCRIPTORS.map(({ value, label }) => ({ value, label }));
 
 export interface MarketSnapshotParams {
   universe?: MarketUniverse;
   limit?: number;
   force?: boolean;
+  /** Optional symbol filter (≤20); applied after the cached snapshot is built. */
+  symbols?: string[];
+  /** Columnar wire layout. Omitted requests the plain JSON rows envelope. */
+  format?: "columns";
 }
 
 export function buildMarketSnapshotUrl(params: MarketSnapshotParams = {}): string {
@@ -118,19 +131,28 @@ export function buildMarketSnapshotUrl(params: MarketSnapshotParams = {}): strin
   search.set("universe", params.universe ?? DEFAULT_MARKET_UNIVERSE);
   search.set("limit", String(params.limit ?? MARKET_SNAPSHOT_LIMIT));
   if (params.force) search.set("force", "true");
+  if (params.symbols?.length) search.set("symbols", params.symbols.join(","));
+  if (params.format === "columns") search.set("format", "columns");
   return `${MARKET_API}/snapshot?${search.toString()}`;
 }
 
 /** Wire shape (snake_case) — kept loose; the mapper is the validation boundary. */
 interface RawMarketRow {
+  [key: string]: unknown;
   symbol?: unknown;
   name?: unknown;
   sector?: unknown;
   exchange?: unknown;
   close?: unknown;
   change?: unknown;
+  change_1m?: unknown;
+  change_5m?: unknown;
   relative_volume?: unknown;
   market_cap_cr?: unknown;
+  /** Backend emits camelCase; accept the snake_case spelling too. */
+  marketCapUsdB?: unknown;
+  market_cap_usd_b?: unknown;
+  currency?: unknown;
   cap_tier?: unknown;
   rsi?: unknown;
   adx?: unknown;
@@ -142,6 +164,30 @@ interface RawMarketRow {
   high_52w?: unknown;
   low_52w?: unknown;
   pos_52w?: unknown;
+  pe_ratio?: unknown;
+  pb_ratio?: unknown;
+  dividend_yield?: unknown;
+  roe?: unknown;
+  ps_ratio?: unknown;
+  fcf_yield?: unknown;
+  revenue?: unknown;
+  net_income?: unknown;
+  debt_to_equity?: unknown;
+  current_ratio?: unknown;
+  gross_margin?: unknown;
+  operating_margin?: unknown;
+  rev_yoy?: unknown;
+  eps_yoy?: unknown;
+  volume?: unknown;
+  avg_volume?: unknown;
+  gap?: unknown;
+  atr?: unknown;
+  high?: unknown;
+  low?: unknown;
+  value_traded?: unknown;
+  to_52w_high_pct?: unknown;
+  from_52w_low_pct?: unknown;
+  range_vs_atr?: unknown;
   fno?: unknown;
   etf?: unknown;
 }
@@ -152,47 +198,128 @@ interface RawMarketSnapshot {
   total?: unknown;
   update_mode?: unknown;
   rows?: unknown;
+  stale?: unknown;
+  age_sec?: unknown;
+  cached?: unknown;
 }
 
-function toNumber(value: unknown): number | null {
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function toText(value: unknown): string | null {
-  return typeof value === "string" && value.trim() !== "" ? value : null;
-}
+/** Most extra fields are snake_case on the wire; these are the exceptions. */
+const EXTRA_RAW_OVERRIDES: Record<string, string> = {
+  bbUpper: "bb_upper",
+  bbLower: "bb_lower",
+  macdSignal: "macd_signal",
+  macdHist: "macd_hist",
+  stochK: "stoch_k",
+  stochD: "stoch_d",
+  stochRsiK: "stoch_rsi_k",
+  stochRsiD: "stoch_rsi_d",
+  adxPlus: "adx_plus",
+  adxMinus: "adx_minus",
+  hullMa9: "hull_ma9",
+  volatilityD: "volatility_d",
+  volatilityW: "volatility_w",
+  perf3m: "perf_3m",
+  perf6m: "perf_6m",
+  perfYtd: "perf_ytd",
+  perfY: "perf_y",
+  recommendAll: "recommend_all",
+  avgVolume30d: "avg_volume_30d",
+  avgVolume: "avg_volume",
+  valueTraded: "value_traded",
+  to52wHighPct: "to_52w_high_pct",
+  from52wLowPct: "from_52w_low_pct",
+  rangeVsAtr: "range_vs_atr",
+  peRatio: "pe_ratio",
+  pbRatio: "pb_ratio",
+  psRatio: "ps_ratio",
+  dividendYield: "dividend_yield",
+  fcfYield: "fcf_yield",
+  debtToEquity: "debt_to_equity",
+  currentRatio: "current_ratio",
+  grossMargin: "gross_margin",
+  operatingMargin: "operating_margin",
+  revYoy: "rev_yoy",
+  epsYoy: "eps_yoy",
+  netIncome: "net_income",
+};
 
 function toBool(value: unknown): boolean {
   return value === true || value === 1 || value === "true";
 }
 
+/** Legacy/partial payloads are INR; only an explicit USD marker flips it. */
+function toCurrency(value: unknown): "INR" | "USD" {
+  return typeof value === "string" && value.trim().toUpperCase() === "USD" ? "USD" : "INR";
+}
+
 export function mapMarketRow(raw: RawMarketRow | null | undefined): MarketRow {
   const r = raw ?? {};
+  const currency = toCurrency(r.currency);
+  const usdCap = finiteNumber(r.marketCapUsdB) ?? finiteNumber(r.market_cap_usd_b);
+  const intraday = Object.fromEntries(
+    MARKET_INTRADAY_CHANGES.map((spec) => [spec.field, finiteNumber(r[spec.raw])]),
+  ) as Record<MarketIntradayField, number | null>;
+  // Optional columns are omitted when TV has no value: the base row stays the
+  // same size for every symbol, and a 4000-row frame does not grow by ~50 null
+  // keys per row just because the picker offers them.
+  const extra = Object.fromEntries(
+    MARKET_EXTRA_COLUMNS.flatMap((spec) => {
+      const value = finiteNumber(r[EXTRA_RAW_OVERRIDES[spec.field] ?? spec.field]);
+      return value == null ? [] : [[spec.field, value]];
+    }),
+  ) as Record<string, number>;
   return {
-    symbol: toText(r.symbol) ?? "",
-    name: toText(r.name) ?? "",
-    sector: toText(r.sector),
-    exchange: toText(r.exchange),
-    close: toNumber(r.close),
-    change: toNumber(r.change),
-    relativeVolume: toNumber(r.relative_volume),
-    marketCapCr: toNumber(r.market_cap_cr),
-    capTier: toText(r.cap_tier)?.toLowerCase() ?? null,
-    rsi: toNumber(r.rsi),
-    adx: toNumber(r.adx),
-    sma20: toNumber(r.sma20),
-    sma50: toNumber(r.sma50),
-    sma200: toNumber(r.sma200),
-    perfW: toNumber(r.perf_w),
-    perf1m: toNumber(r.perf_1m),
-    high52w: toNumber(r.high_52w),
-    low52w: toNumber(r.low_52w),
-    pos52w: toNumber(r.pos_52w),
+    symbol: finiteText(r.symbol) ?? "",
+    name: finiteText(r.name) ?? "",
+    sector: finiteText(r.sector),
+    exchange: finiteText(r.exchange),
+    close: finiteNumber(r.close),
+    change: finiteNumber(r.change),
+    ...intraday,
+    ...extra,
+    relativeVolume: finiteNumber(r.relative_volume),
+    // One cap unit per currency: never let a stale field leak a ₹ figure into a
+    // USD row (or the reverse). The backend already emits the other as null.
+    marketCapCr: currency === "USD" ? null : finiteNumber(r.market_cap_cr),
+    marketCapUsdB: currency === "USD" ? usdCap : null,
+    currency,
+    capTier: finiteText(r.cap_tier)?.toLowerCase() ?? null,
+    rsi: finiteNumber(r.rsi),
+    adx: finiteNumber(r.adx),
+    sma20: finiteNumber(r.sma20),
+    sma50: finiteNumber(r.sma50),
+    sma200: finiteNumber(r.sma200),
+    perfW: finiteNumber(r.perf_w),
+    perf1m: finiteNumber(r.perf_1m),
+    high52w: finiteNumber(r.high_52w),
+    low52w: finiteNumber(r.low_52w),
+    pos52w: finiteNumber(r.pos_52w),
+    peRatio: finiteNumber(r.pe_ratio),
+    pbRatio: finiteNumber(r.pb_ratio),
+    dividendYield: finiteNumber(r.dividend_yield),
+    roe: finiteNumber(r.roe),
+    psRatio: finiteNumber(r.ps_ratio),
+    // Derived server-side from FCF / market cap; null where the source has no
+    // FCF coverage (India reports ~3.5%, the US ~85-90%).
+    fcfYield: finiteNumber(r.fcf_yield),
+    revenue: finiteNumber(r.revenue),
+    netIncome: finiteNumber(r.net_income),
+    debtToEquity: finiteNumber(r.debt_to_equity),
+    currentRatio: finiteNumber(r.current_ratio),
+    grossMargin: finiteNumber(r.gross_margin),
+    operatingMargin: finiteNumber(r.operating_margin),
+    revYoy: finiteNumber(r.rev_yoy),
+    epsYoy: finiteNumber(r.eps_yoy),
+    volume: finiteNumber(r.volume),
+    avgVolume: finiteNumber(r.avg_volume),
+    gap: finiteNumber(r.gap),
+    atr: finiteNumber(r.atr),
+    high: finiteNumber(r.high),
+    low: finiteNumber(r.low),
+    valueTraded: finiteNumber(r.value_traded),
+    to52wHighPct: finiteNumber(r.to_52w_high_pct),
+    from52wLowPct: finiteNumber(r.from_52w_low_pct),
+    rangeVsAtr: finiteNumber(r.range_vs_atr),
     fno: toBool(r.fno),
     etf: toBool(r.etf),
   };
@@ -202,12 +329,112 @@ export function mapMarketSnapshot(raw: RawMarketSnapshot | null | undefined): Ma
   const r = raw ?? {};
   const rows = Array.isArray(r.rows) ? r.rows.map((row) => mapMarketRow(row as RawMarketRow)) : [];
   return {
-    asOf: toText(r.as_of),
-    universe: toText(r.universe) ?? DEFAULT_MARKET_UNIVERSE,
-    total: toNumber(r.total) ?? rows.length,
-    updateMode: toText(r.update_mode) ?? "unknown",
+    asOf: finiteText(r.as_of),
+    universe: finiteText(r.universe) ?? DEFAULT_MARKET_UNIVERSE,
+    total: finiteNumber(r.total) ?? rows.length,
+    updateMode: finiteText(r.update_mode) ?? "unknown",
     rows,
+    stale: r.stale === true,
+    ageSec: finiteNumber(r.age_sec),
+    cached: r.cached === true,
   };
+}
+
+/** Columnar wire version this client understands — anything else is an error. */
+export const MARKET_COLUMNS_WIRE_FORMAT = "columns-v1";
+
+interface RawColumnarSnapshot {
+  format?: unknown;
+  meta?: unknown;
+  fields?: unknown;
+  columns?: unknown;
+}
+
+function malformedColumnar(reason: string): Error {
+  return new Error(`Malformed columnar market snapshot: ${reason}`);
+}
+
+/**
+ * Rebuilds the row envelope from the opt-in columnar payload. The decoder is
+ * the whole validation boundary: a bad field list or a ragged column must fail
+ * loudly instead of yielding half-mapped rows (a short column would silently
+ * shift every following value onto the wrong symbol).
+ */
+export function decodeColumnarSnapshot(payload: unknown): MarketSnapshot {
+  if (!isRecord(payload)) {
+    throw malformedColumnar("expected a JSON object");
+  }
+  const raw = payload as RawColumnarSnapshot;
+  if (raw.format !== MARKET_COLUMNS_WIRE_FORMAT) {
+    throw malformedColumnar(
+      `unsupported format ${JSON.stringify(raw.format)} (expected "${MARKET_COLUMNS_WIRE_FORMAT}")`,
+    );
+  }
+  if (!isRecord(raw.meta)) {
+    throw malformedColumnar("meta must be an object");
+  }
+  if (!Array.isArray(raw.fields)) {
+    throw malformedColumnar("fields must be an array");
+  }
+  if (!isRecord(raw.columns)) {
+    throw malformedColumnar("columns must be an object");
+  }
+  if (raw.fields.length === 0) {
+    if (Object.keys(raw.columns).length > 0) {
+      throw malformedColumnar("columns must be empty when fields is empty");
+    }
+    return mapMarketSnapshot({ ...(raw.meta as RawMarketSnapshot), rows: [] });
+  }
+
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  for (const field of raw.fields) {
+    if (typeof field !== "string" || field.trim() === "") {
+      throw malformedColumnar("fields must contain only non-empty strings");
+    }
+    if (seen.has(field)) throw malformedColumnar(`duplicate field "${field}"`);
+    seen.add(field);
+    fields.push(field);
+  }
+
+  const table = raw.columns;
+  const columns: unknown[][] = [];
+  let rowCount: number | null = null;
+  for (const field of fields) {
+    if (!Object.prototype.hasOwnProperty.call(table, field)) {
+      throw malformedColumnar(`missing column "${field}"`);
+    }
+    const column = table[field];
+    if (!Array.isArray(column)) {
+      throw malformedColumnar(`column "${field}" must be an array`);
+    }
+    if (rowCount === null) {
+      rowCount = column.length;
+    } else if (column.length !== rowCount) {
+      throw malformedColumnar(`column "${field}" has ${column.length} values, expected ${rowCount}`);
+    }
+    columns.push(column);
+  }
+
+  const rows: Record<string, unknown>[] = [];
+  for (let i = 0; i < (rowCount ?? 0); i += 1) {
+    const row: Record<string, unknown> = {};
+    // Insertion order follows `fields`; the mapped row keeps its own fixed order.
+    for (let f = 0; f < fields.length; f += 1) {
+      row[fields[f]] = columns[f][i];
+    }
+    rows.push(row);
+  }
+
+  return mapMarketSnapshot({ ...(raw.meta as RawMarketSnapshot), rows });
+}
+
+function isColumnarPayload(payload: unknown): boolean {
+  return isRecord(payload) && payload.format === MARKET_COLUMNS_WIRE_FORMAT;
+}
+
+function isPlainSnapshotPayload(payload: unknown): payload is RawMarketSnapshot {
+  return isRecord(payload) && Array.isArray(payload.rows);
 }
 
 export async function fetchMarketSnapshot(
@@ -216,8 +443,125 @@ export async function fetchMarketSnapshot(
 ): Promise<MarketSnapshot> {
   const response = await fetchWithAuth(buildMarketSnapshotUrl(params), init);
   if (!response.ok) {
-    const err = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new Error(err?.detail || `Market snapshot failed (HTTP ${response.status})`);
+    throw await apiErrorFromResponse(response, `Market snapshot failed (HTTP ${response.status})`);
   }
-  return mapMarketSnapshot((await response.json()) as RawMarketSnapshot);
+  const payload = (await response.json()) as unknown;
+  // A columnar body is decoded even when the caller did not ask for it — mapping
+  // it as plain rows would yield an empty table.
+  if (isColumnarPayload(payload)) return decodeColumnarSnapshot(payload);
+  // A `format=columns` request may still be answered by a backend (or a mock)
+  // that only speaks the plain envelope; that is the documented JSON fallback,
+  // not a broken payload. Anything else routed here is left to the decoder so
+  // it fails with the precise malformed-columnar reason.
+  if (params.format === "columns" && !isPlainSnapshotPayload(payload)) {
+    return decodeColumnarSnapshot(payload);
+  }
+  // A 200 without either envelope used to map to an empty snapshot, so a proxy
+  // error page or a truncated body rendered as "no rows for this universe".
+  if (!isPlainSnapshotPayload(payload)) {
+    console.error(
+      `[api] Market snapshot returned no rows array (universe=${params.universe ?? DEFAULT_MARKET_UNIVERSE}, status=${response.status})`,
+    );
+  }
+  return mapMarketSnapshot(payload as RawMarketSnapshot);
+}
+
+
+/** The only snapshot fields the pattern dock needs for its live-price line. */
+export interface MarketQuote {
+  symbol: string;
+  close: number | null;
+  change: number | null;
+}
+
+/**
+ * Trim symbols and dedupe case-insensitively (first occurrence wins, original
+ * casing preserved). Empty/whitespace-only entries are dropped.
+ */
+function dedupeSymbols(symbols: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of symbols) {
+    const sym = s.trim();
+    if (!sym) continue;
+    const key = sym.toUpperCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(sym);
+  }
+  return out;
+}
+
+/**
+ * Fetch live quotes for a single batch (≤20 symbols) via the cached
+ * snapshot's `symbols` filter.
+ */
+async function fetchQuotesBatch(symbols: string[], init?: RequestInit): Promise<MarketQuote[]> {
+  const response = await fetchWithAuth(buildMarketSnapshotUrl({ symbols }), init);
+  if (!response.ok) {
+    const err = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(err?.detail || `Market quotes failed (HTTP ${response.status})`);
+  }
+  const raw = (await response.json()) as RawMarketSnapshot;
+  const rows = Array.isArray(raw.rows) ? raw.rows : [];
+  return rows.map((row) => {
+    const r = row as RawMarketRow;
+    return {
+      symbol: finiteText(r.symbol) ?? "",
+      close: finiteNumber(r.close),
+      change: finiteNumber(r.change),
+    };
+  });
+}
+
+/**
+ * Fetch live quotes for a handful of symbols via the cached snapshot's
+ * `symbols` filter. An empty list short-circuits to `[]` (no network call).
+ *
+ * The backend caps the `symbols` filter at 20, so a longer list is deduped,
+ * chunked into batches of ≤20, fetched in parallel, and merged in input order.
+ * A single symbol still makes exactly one request.
+ */
+export async function fetchQuotes(symbols: string[], init?: RequestInit): Promise<MarketQuote[]> {
+  const clean = dedupeSymbols(symbols);
+  if (clean.length === 0) return [];
+  if (clean.length <= MARKET_SYMBOLS_MAX) return fetchQuotesBatch(clean, init);
+  const batches: string[][] = [];
+  for (let i = 0; i < clean.length; i += MARKET_SYMBOLS_MAX) {
+    batches.push(clean.slice(i, i + MARKET_SYMBOLS_MAX));
+  }
+  // One failed batch must not reject the whole quote set: settle every batch,
+  // merge the successes in input order, and only rethrow when every batch fails.
+  const outcomes = await Promise.allSettled(
+    batches.map((batch) => fetchQuotesBatch(batch, init)),
+  );
+  const merged: MarketQuote[] = [];
+  const seen = new Set<string>();
+  const failedBatches: number[] = [];
+  let firstError: unknown;
+  for (let i = 0; i < outcomes.length; i += 1) {
+    const outcome = outcomes[i];
+    if (outcome.status === "fulfilled") {
+      for (const quote of outcome.value) {
+        if (seen.has(quote.symbol)) continue;
+        seen.add(quote.symbol);
+        merged.push(quote);
+      }
+    } else {
+      failedBatches.push(i);
+      if (firstError === undefined) firstError = outcome.reason;
+    }
+  }
+  if (merged.length === 0 && firstError !== undefined) {
+    throw firstError;
+  }
+  // A partial set is returned on purpose, but the dropped symbols must not look
+  // like a symbol with no quote: the dock would silently omit live prices.
+  if (failedBatches.length > 0) {
+    console.warn(
+      `[api] Market quotes: ${failedBatches.length}/${batches.length} batches failed, returning ${merged.length}/${clean.length} symbols`,
+      firstError,
+    );
+  }
+  return merged;
 }

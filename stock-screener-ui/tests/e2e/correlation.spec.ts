@@ -75,8 +75,16 @@ test.describe("Correlation - UI", () => {
 
     await page.locator('[data-testid="tab-correlation"]').click();
 
-    await page.locator('[data-testid="correlation-period"]').click();
-    await expect(page.getByRole("listbox")).toBeVisible();
+    // Non-searchable Select -> native <select>: no role=listbox popup exists,
+    // and clicking the wrapper div is intercepted by the panel around it.
+    const period = page.locator('[data-testid="correlation-period"] select');
+    await expect(period).toBeVisible({ timeout: 5000 });
+    const values = await period.locator("option").evaluateAll((opts) =>
+      opts.map((o) => (o as HTMLOptionElement).value),
+    );
+    expect(values.length).toBeGreaterThan(1);
+    await period.selectOption(values[1]);
+    await expect(period).toHaveValue(values[1]);
   });
 
   test.skip("should show correlation data after calculate", async () => {

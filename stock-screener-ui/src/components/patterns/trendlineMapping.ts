@@ -39,21 +39,6 @@ export function mapTrendlines(trendlines: Trendline[] | undefined, times: string
     if (!byDay.has(day)) byDay.set(day, i);
   });
 
-  const nearest = (t: string): number | undefined => {
-    const target = parseEngineTimestamp(t);
-    if (Number.isNaN(target)) return undefined;
-    let best = -1;
-    let bestDiff = Number.POSITIVE_INFINITY;
-    parsed.forEach((value, i) => {
-      const diff = Math.abs(value - target);
-      if (diff < bestDiff) {
-        bestDiff = diff;
-        best = i;
-      }
-    });
-    return best >= 0 ? best : undefined;
-  };
-
   const mapped: AxisPoint[][] = [];
   for (const line of trendlines) {
     const points: AxisPoint[] = [];
@@ -62,7 +47,9 @@ export function mapTrendlines(trendlines: Trendline[] | undefined, times: string
       // Only fall back to a day match for date-only strings (legacy overlays); a
       // timed string must never collapse onto the first candle of the day.
       if (index === undefined && point.t.length <= 10) index = byDay.get(point.t.slice(0, 10));
-      if (index === undefined) index = nearest(point.t);
+      if (index === undefined) {
+        index = nearestIndexForTimestamp(parseEngineTimestamp(point.t), parsed);
+      }
       if (index !== undefined && index >= 0) points.push({ index, price: point.price });
     }
     if (points.length > 0) mapped.push(points);
@@ -70,7 +57,6 @@ export function mapTrendlines(trendlines: Trendline[] | undefined, times: string
   return mapped;
 }
 
-/** Nearest candle index for an already-parsed timestamp. */
 function nearestIndexForTimestamp(target: number, parsed: number[]): number | undefined {
   if (Number.isNaN(target) || parsed.length === 0) return undefined;
   let best = -1;
@@ -115,9 +101,6 @@ export function mapTimeSegment(
 
   const parsed = times.map((t) => parseEngineTimestamp(t));
 
-  // Degenerate zero-span segment (start == end): no slope to interpolate.
-  // Dot-mark it at its instant when inside the window, matching the chart's
-  // single-point handling (pre-existing card/fullscreen fixtures use these).
   if (t1 === t0) {
     const i = nearestIndexForTimestamp(t0, parsed);
     if (i === undefined) return [];
@@ -141,7 +124,6 @@ export function mapTimeSegment(
   ];
 }
 
-/** Expand mapped points into a null-padded data array aligned to the x-axis. */
 export function pointsToSeriesData(points: AxisPoint[], length: number): Array<number | null> {
   const data: Array<number | null> = Array.from({ length }, () => null);
   for (const point of points) {

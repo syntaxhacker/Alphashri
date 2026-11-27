@@ -1,21 +1,8 @@
-/**
- * Paper-position helpers shared by the NIFTY desk's P&L attribution, the
- * POSITIONS drawer and the toolbar button. Kept out of `NiftyReportPanel.tsx`
- * so the drawer can reuse the option-leg parser without importing the panel
- * (which imports the drawer).
- */
 
 import type { PaperPosition } from "@/types/paperTrading";
 import type { NiftyOptionSide, NiftyStrike } from "@/types/niftyReport";
 import type { NiftyPnlPosition } from "./niftyPnlAttribution";
 
-/**
- * Map one paper position to a NIFTY P&L leg. Paper symbols are usually
- * equity (`RELIANCE`) and carry no option strike — those map to `[]` so the
- * attribution panel shows its empty state instead of crashing. NIFTY option
- * legs (`NIFTY…25700CE`) map through; `entry_spot` falls back to the strike
- * (the journal records the premium, not the spot at entry).
- */
 export function paperToPnlLeg(p: PaperPosition): NiftyPnlPosition[] {
   if (!p || typeof p.symbol !== "string") return [];
   const sym = p.symbol.toUpperCase().replace(/\s+/g, "");
@@ -41,11 +28,9 @@ export function paperToPnlLeg(p: PaperPosition): NiftyPnlPosition[] {
   ];
 }
 
-/** One open leg, flattened for the drawer table. */
 export interface PositionRow {
   key: string;
   symbol: string;
-  /** `CE` / `PE` when the symbol parses as a NIFTY option, else null. */
   opt: "CE" | "PE" | null;
   strike: number | null;
   side: "BUY" | "SELL";
@@ -62,7 +47,6 @@ function finite(value: unknown): number | null {
   return typeof n === "number" && Number.isFinite(n) ? n : null;
 }
 
-/** Option strike / side parsed from a NIFTY option symbol (`NIFTY25700CE`). */
 export function parsePositionLeg(symbol: string): { opt: "CE" | "PE"; strike: number } | null {
   if (typeof symbol !== "string") return null;
   const sym = symbol.toUpperCase().replace(/\s+/g, "");
@@ -74,7 +58,6 @@ export function parsePositionLeg(symbol: string): { opt: "CE" | "PE"; strike: nu
   return { opt: m[2] as "CE" | "PE", strike };
 }
 
-/** Flatten the open book for the drawer. Missing numbers render as 0. */
 export function buildPositionRows(
   positions: PaperPosition[] | null | undefined,
 ): PositionRow[] {

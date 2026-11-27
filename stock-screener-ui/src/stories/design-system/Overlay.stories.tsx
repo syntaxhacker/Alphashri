@@ -1,0 +1,195 @@
+import type { Meta, StoryObj } from "@storybook/html-vite";
+import { createSignal, onCleanup, onMount, Show } from "solid-js";
+import { solidStory } from "@/stories/solidStory";
+import {
+  Box, Button, FloatingWindow, Group, Modal, Overlay,
+  Popover, PopoverDropdown, PopoverTarget, Stack, Text, Tooltip,
+} from "@/ui";
+import * as palette from "@/ui/palette";
+import { ComponentIndex, FamilyFooter, FamilyHero, FamilyPage, SpecimenPanel, type FamilyComponentRef } from "./FamilyLanding";
+
+const meta: Meta = {
+  title: "Design System/Overlay",
+  tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "Family landing page for layered surfaces: modal dialogs, tooltips, popovers, blocking overlays and floating windows. Each component has its own page under Design System/Components/Overlay; this page is an index plus a few composed examples from a frozen order fixture.",
+      },
+    },
+  },
+};
+export default meta;
+type Story = StoryObj;
+
+const components: FamilyComponentRef[] = [
+  { id: "design-system-components-overlay-floatingwindow--docs", name: "FloatingWindow", note: "Draggable, resizable title-bar window" },
+  { id: "design-system-components-overlay-modal--docs", name: "Modal", note: "Focused dialog with backdrop dismissal" },
+  { id: "design-system-components-overlay-overlay--docs", name: "Overlay", note: "Block or dim a bounded region" },
+  { id: "design-system-components-overlay-popover--docs", name: "Popover", note: "Anchored settings panel" },
+  { id: "design-system-components-overlay-tooltip--docs", name: "Tooltip", note: "Hover hint with an optional arrow" },
+];
+
+const TicketChromeSpecimen = () => {
+  const [opened, setOpened] = createSignal(false);
+  const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [saved, setSaved] = createSignal(false);
+  return (
+    <Stack gap="sm" style={{ "max-width": "720px" }}>
+      <Group gap="sm" align="center" wrap="wrap">
+        <Tooltip label="Refresh the option chain" position="top" withArrow>
+          <Button variant="outline" size="sm">Refresh chain</Button>
+        </Tooltip>
+        <Popover opened={settingsOpen()} onChange={setSettingsOpen} position="bottom-start" withArrow width={280}>
+          <PopoverTarget>
+            <Button variant="outline" size="sm">Structure settings</Button>
+          </PopoverTarget>
+          <PopoverDropdown p="sm">
+            <Stack gap="xs">
+              <Text size="sm" fw={600}>Structure settings</Text>
+              <Text size="xs" c="dimmed">Persisted per underlying and expiry.</Text>
+              <Button size="xs" onClick={() => { setSaved(true); setSettingsOpen(false); }}>
+                {saved() ? "Saved" : "Save settings"}
+              </Button>
+            </Stack>
+          </PopoverDropdown>
+        </Popover>
+        <Button size="sm" onClick={() => setOpened(true)}>Open paper order</Button>
+        <Text size="xs" c="dimmed">{opened() ? "Paper order dialog is open" : "No dialog open"}</Text>
+      </Group>
+      <Modal opened={opened()} onClose={() => setOpened(false)} title="Paper order" size="md">
+        <Stack gap="sm">
+          <Text size="sm">BUY 1 lot NIFTY 23,500 CE at the live LTP.</Text>
+          <Text size="xs" c="dimmed">Estimated debit and charges are shown before confirmation.</Text>
+          <Group gap="sm" wrap="wrap">
+            <Button color="success" onClick={() => setOpened(false)}>Commit to paper book</Button>
+            <Button variant="outline" onClick={() => setOpened(false)}>Cancel</Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </Stack>
+  );
+};
+
+const OverlaySpecimen = () => {
+  const [visible, setVisible] = createSignal(true);
+  return (
+    <Stack gap="sm">
+      <Group gap="sm" align="center" wrap="wrap">
+        <Button size="xs" variant="outline" onClick={() => setVisible((v) => !v)}>
+          {visible() ? "Hide overlay" : "Show overlay"}
+        </Button>
+        <Text size="xs" c="dimmed">Blocking a bounded region, not the page.</Text>
+      </Group>
+      <Box style={{ position: "relative", height: "140px", border: `1px solid ${palette.BORDER}`, background: palette.SURFACE_ALT }}>
+        <Box p="sm"><Text size="sm">Background content</Text></Box>
+        <Show when={visible()}>
+          <Overlay fixed={false} center>
+            <Box p="md" style={{ background: palette.SURFACE, border: `1px solid ${palette.BORDER}` }}>
+              <Text size="sm">Overlay content</Text>
+            </Box>
+          </Overlay>
+        </Show>
+      </Box>
+    </Stack>
+  );
+};
+
+const FLOATING_GUTTER = 16;
+
+const FloatingSpecimen = () => {
+  const [visible, setVisible] = createSignal(true);
+  const [minimized, setMinimized] = createSignal(false);
+  const [geometry, setGeometry] = createSignal({ x: 24, y: 12, width: 420, height: 228 });
+  let host: HTMLDivElement | undefined;
+
+  // Geometry is numeric px, so the window cannot wrap on a phone: clamp it to
+  // the measured host instead of letting the 420px box clip in this panel.
+  onMount(() => {
+    const fit = () => {
+      const avail = host?.clientWidth;
+      if (!avail) return;
+      setGeometry((g) => {
+        const width = Math.min(g.width, Math.max(200, avail - FLOATING_GUTTER * 2));
+        const x = Math.min(g.x, Math.max(FLOATING_GUTTER, avail - width - FLOATING_GUTTER));
+        return width === g.width && x === g.x ? g : { ...g, width, x };
+      });
+    };
+    fit();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(fit);
+    if (host) observer.observe(host);
+    onCleanup(() => observer.disconnect());
+  });
+
+  return (
+    <Stack gap="sm">
+      <Group gap="sm" align="center" wrap="wrap">
+        <Button size="xs" variant="outline" onClick={() => setVisible((v) => !v)}>
+          {visible() ? "Close window" : "Reopen window"}
+        </Button>
+        <Button size="xs" variant="outline" disabled={!visible()} onClick={() => setMinimized((v) => !v)}>
+          {minimized() ? "Restore" : "Minimize"}
+        </Button>
+        <Text size="xs" c="dimmed">{geometry().width < 420 ? "Compact layout — fits a phone" : "Wide layout — full desk window"}</Text>
+      </Group>
+      <Box style={{ position: "relative", height: "260px", border: `1px solid ${palette.BORDER}`, background: palette.SURFACE_ALT, overflow: "hidden" }}>
+        <div ref={(el) => { host = el; }} style={{ position: "absolute", inset: "0" }}>
+          <Show when={visible()}>
+            <FloatingWindow
+              title="OPTIONS REPLAY"
+              geometry={geometry()}
+              z-index={3}
+              minimized={minimized()}
+              onClose={() => setVisible(false)}
+              onMinimize={() => setMinimized((v) => !v)}
+              onGeometryChange={setGeometry}
+              testid="story-floating-window"
+            >
+              <Box p="sm">
+                <Text size="sm" fw={600}>Replay path · NIFTY</Text>
+                <Text size="xs" c="dimmed">Drag the title bar or any edge to resize; the label above follows the layout.</Text>
+              </Box>
+            </FloatingWindow>
+          </Show>
+        </div>
+      </Box>
+    </Stack>
+  );
+};
+
+export const FamilyLanding: Story = {
+  render: () =>
+    solidStory(() => (
+      <FamilyPage>
+        <FamilyHero
+          name="Overlay"
+          count={components.length}
+          caption="order ticket chrome"
+          purpose="Surfaces that sit above the current view: tooltips for a hint, popovers for a short task, modals for confirmation, overlays to block a region and floating windows for a persistent side desk. Open one at a time and give each a clear dismissal path."
+          specimen={<TicketChromeSpecimen />}
+        />
+        <ComponentIndex items={components} />
+        <SpecimenPanel title="Overlay" note="A local blocker keeps the rest of the panel visible and readable.">
+          <OverlaySpecimen />
+        </SpecimenPanel>
+        <SpecimenPanel title="FloatingWindow" note="Title bar and edges drive geometry through the same controlled props.">
+          <FloatingSpecimen />
+        </SpecimenPanel>
+        <SpecimenPanel title="Tooltip placement" note="Top and bottom positions with arrows; hover to inspect.">
+          <Box style={{ padding: "56px 8px 8px" }}>
+            <Group gap="lg" align="center" wrap="wrap">
+              <Tooltip label="Refresh the option chain" position="top" withArrow>
+                <Button variant="outline">Hover · top</Button>
+              </Tooltip>
+              <Tooltip label="Persisted per underlying and expiry" position="bottom" withArrow>
+                <Button variant="outline">Hover · bottom</Button>
+              </Tooltip>
+            </Group>
+          </Box>
+        </SpecimenPanel>
+        <FamilyFooter source="src/ui" pages="src/stories/components/overlay" />
+      </FamilyPage>
+    )),
+};

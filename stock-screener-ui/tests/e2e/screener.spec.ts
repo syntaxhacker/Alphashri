@@ -31,15 +31,27 @@ test.describe("Screener - Data Display", () => {
   });
   test("should display stock symbols as clickable links", async ({ page }) => {
     await openScreenerTable(page);
+    // SymbolLink renders the symbol body as a focusable <button> (inAppText),
+    // not an anchor — the ↗ TradingView affordance is the <a>.
     const firstSymbol = page
-      .locator('[data-testid="screener-table"] tbody a[data-testid^="symbol-link-"]')
+      .locator('[data-testid="screener-table"] tbody button[data-testid^="symbol-link-"]')
       .first();
     await expect(firstSymbol).toBeVisible();
+    const symbol = (await firstSymbol.textContent())?.trim() ?? "";
+    expect(symbol.length).toBeGreaterThan(0);
+
+    // Clicking the symbol body pins that symbol in the app-wide dock without
+    // leaving the screener.
+    await firstSymbol.click();
+    await expect(page.getByTestId("symbol-dock")).toBeVisible({ timeout: 15000 });
+    await expect(page).toHaveURL(/\/screener\//);
+    await expect(page).not.toHaveURL(/\/chart\//);
+    await expect(page.locator('[data-testid="symbol-dock"][data-mode="options"]')).toHaveCount(0);
+    expect(symbol.length).toBeGreaterThan(0);
   });
   test("should display approaching and touched sections", async ({ page }) => {
     await openScreenerTable(page);
 
-    // Just check that the table has rows
     const rowCount = await page.locator('[data-testid="screener-table"] tbody tr').count();
     expect(rowCount).toBeGreaterThan(0);
   });
@@ -49,11 +61,11 @@ test.describe("Screener - Data Display", () => {
       timeout: 15000,
     });
 
-    // Check for status text (contains last updated timestamp)
     const status = page.locator('[data-testid="screener-status"]');
     await expect(status).toBeVisible();
   });
 });
+
 test.describe("Screener - Screener Navigation", () => {
   test.beforeEach(async ({ page }) => {
     await setupScreenerApp(page);
@@ -73,8 +85,10 @@ test.describe("Screener - Screener Navigation", () => {
 
     await page.locator('[data-testid="tab-correlation"]').click();
 
-    // After switching, wait for table rows to be visible again
-    await expect(page.locator('[data-testid="screener-table"] tbody tr').first()).toBeVisible({
+    // The Correlation tab is its own panel, not a stock table. Assert the
+    // navigation landed on it instead of a table the tab never renders.
+    await expect(page).toHaveURL(/\/screener\/correlation/);
+    await expect(page.locator('[data-testid="correlation-tab"]')).toBeVisible({
       timeout: 10000,
     });
   });
@@ -173,7 +187,7 @@ test.describe("Screener - Error Handling", () => {
       const retryBtn = page.getByRole("button", {
         name: "Retry",
       });
-      const errorAlert = page.locator(".MuiAlert-root");
+      const errorAlert = page.getByTestId("screener-error-container");
       const count = (await retryBtn.count()) + (await errorAlert.count());
       expect(count).toBeGreaterThan(0);
     }
@@ -211,10 +225,14 @@ test.describe("Screener - Config Tab", () => {
       timeout: 10000,
     });
     await openConfigTab(page);
-    const trendingOption = page.locator("text=Trending").first();
-    await expect(trendingOption).toBeVisible({
-      timeout: 10000,
-    });
+    // The toolbar renders a native <select> (screener-select) whose hidden
+    // <option> also matches "text=Trending" — scope to the visible screener
+    // list panel so the assertion reads the rendered row label, not an option.
+    const trendingOption = page
+      .locator('[data-testid="screener-list-panel"]')
+      .getByText("Trending")
+      .first();
+    await expect(trendingOption).toBeVisible({ timeout: 10000 });
   });
   test("should display filter badges for screener with filters", async ({ page }) => {
     await page.goto("/?tab=screener");
@@ -222,8 +240,9 @@ test.describe("Screener - Config Tab", () => {
       timeout: 10000,
     });
     await openConfigTab(page);
-    const buyerInterest = page.locator("text=Buyer Interest+").first();
-    await buyerInterest.click();
+    // Switch via the native <select> — its hidden <option>s are not directly
+    // clickable, so "text=Buyer Interest+" would resolve to a hidden option.
+    await page.locator('[data-testid="screener-select"] select').selectOption("buyer_interest_enhanced");
     const filterBadges = page.locator('[data-testid="screener-active-badge"]');
     await expect(filterBadges.first()).toBeVisible({
       timeout: 10000,
@@ -247,7 +266,6 @@ test.describe("Screener - Config Tab", () => {
     });
     await openConfigTab(page);
 
-    // Check that "Active" badge is visible for Trending (default screener)
     const activeBadge = page.locator("text=Active");
     await expect(activeBadge).toBeVisible({
       timeout: 10000,
@@ -300,7 +318,7 @@ test.describe("Screener - Config Tab", () => {
     await page.waitForLoadState("networkidle");
     await page.fill('[data-testid="screener-name-input"]', "Test");
     const firstCol = page
-      .locator('[data-testid="create-screener-form"] .MuiFormControlLabel-label')
+      .locator('[data-testid="inline-form"] label')
       .first();
     await firstCol.click();
     await expect(page.locator('[data-testid="confirm-create-btn"]')).toBeEnabled();

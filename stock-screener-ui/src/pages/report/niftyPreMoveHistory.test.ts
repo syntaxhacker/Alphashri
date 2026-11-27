@@ -20,12 +20,10 @@ describe("appendPreMove", () => {
 
 describe("armedSpans", () => {
   test("a single armed read latches for 10 minutes (the 13:10 → 13:19 case)", () => {
-    // Armed at 13:10, then the score fades to 3-4 (the put window ages out).
     const points = [pt(0, 5), pt(1, 4), pt(2, 3), pt(3, 4), pt(4, 4)];
     const spans = armedSpans(points);
     expect(spans).toHaveLength(1);
     expect(spans[0].from).toBe(step(0));
-    // still open at the last sample: the latch has not expired
     expect(spans[0].to).toBe(step(4));
   });
 

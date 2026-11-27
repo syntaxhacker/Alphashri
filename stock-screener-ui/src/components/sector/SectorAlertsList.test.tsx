@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { SectorAlertsList } from "./SectorAlertsList";
-import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 afterEach(() => {
   cleanup();
@@ -12,15 +11,17 @@ afterEach(() => {
 
 describe("SectorAlertsList", () => {
   it("shows empty state when no alerts", () => {
-    renderWithProviders(<SectorAlertsList alerts={[]} />);
-    expect(screen.getByText("Waiting for major movements...")).toBeInTheDocument();
+    render(() => <SectorAlertsList alerts={[]} />);
+    expect(screen.getByTestId("sector-alerts-empty")).toHaveTextContent(
+      "No new 0.30% sector moves this poll.",
+    );
   });
 
   it("renders alert with timestamp and sector name", () => {
     const alerts = [
       { timestamp: "10:30:00", sector: "IT", direction: "SURGING" as const, delta: 1.5 },
     ];
-    renderWithProviders(<SectorAlertsList alerts={alerts} />);
+    render(() => <SectorAlertsList alerts={alerts} />);
     expect(screen.getByText(/10:30:00/)).toBeInTheDocument();
     expect(screen.getByText(/IT/)).toBeInTheDocument();
   });
@@ -29,7 +30,7 @@ describe("SectorAlertsList", () => {
     const alerts = [
       { timestamp: "10:30:00", sector: "IT", direction: "SURGING" as const, delta: 1.5 },
     ];
-    renderWithProviders(<SectorAlertsList alerts={alerts} />);
+    render(() => <SectorAlertsList alerts={alerts} />);
     expect(screen.getByText("SURGING (1.50%)")).toBeInTheDocument();
   });
 
@@ -37,7 +38,7 @@ describe("SectorAlertsList", () => {
     const alerts = [
       { timestamp: "10:30:00", sector: "Banking", direction: "DROPPING" as const, delta: -0.8 },
     ];
-    renderWithProviders(<SectorAlertsList alerts={alerts} />);
+    render(() => <SectorAlertsList alerts={alerts} />);
     expect(screen.getByText("DROPPING (-0.80%)")).toBeInTheDocument();
   });
 
@@ -46,7 +47,7 @@ describe("SectorAlertsList", () => {
       { timestamp: "10:30:00", sector: "IT", direction: "SURGING" as const, delta: 1.5 },
       { timestamp: "10:31:00", sector: "Banking", direction: "DROPPING" as const, delta: -0.8 },
     ];
-    renderWithProviders(<SectorAlertsList alerts={alerts} />);
+    render(() => <SectorAlertsList alerts={alerts} />);
     expect(screen.getByText("SURGING (1.50%)")).toBeInTheDocument();
     expect(screen.getByText("DROPPING (-0.80%)")).toBeInTheDocument();
   });
@@ -55,7 +56,7 @@ describe("SectorAlertsList", () => {
     const alerts = [
       { timestamp: "10:30:00", sector: "IT", direction: "SURGING" as const, delta: 1.5 },
     ];
-    renderWithProviders(<SectorAlertsList alerts={alerts} />);
+    render(() => <SectorAlertsList alerts={alerts} />);
     expect(screen.getByText("SURGING (1.50%)")).toBeInTheDocument();
     expect(screen.getByText(/SURGING/)).toBeInTheDocument();
   });
@@ -64,8 +65,35 @@ describe("SectorAlertsList", () => {
     const alerts = [
       { timestamp: "10:30:00", sector: "Banking", direction: "DROPPING" as const, delta: -0.8 },
     ];
-    renderWithProviders(<SectorAlertsList alerts={alerts} />);
+    render(() => <SectorAlertsList alerts={alerts} />);
     expect(screen.getByText("DROPPING (-0.80%)")).toBeInTheDocument();
     expect(screen.getByText(/DROPPING/)).toBeInTheDocument();
+  });
+
+  it("turns the sector label into a real button with Enter/Space activation", () => {
+    const onSectorClick = vi.fn();
+    const alerts = [
+      { timestamp: "10:30:00", sector: "IT", direction: "SURGING" as const, delta: 1.5 },
+    ];
+    render(() => <SectorAlertsList alerts={alerts} onSectorClick={onSectorClick} />);
+
+    const button = screen.getByTestId("sector-alert-symbol-IT");
+    expect(button.tagName).toBe("BUTTON");
+    expect(button).toHaveAttribute("aria-label", "Open IT lead stock chart");
+
+    fireEvent.click(button);
+    expect(onSectorClick).toHaveBeenCalledWith("IT");
+    fireEvent.keyDown(button, { key: "Enter" });
+    expect(onSectorClick).toHaveBeenCalledTimes(2);
+    fireEvent.keyDown(button, { key: " " });
+    expect(onSectorClick).toHaveBeenCalledTimes(3);
+  });
+
+  it("leaves the label inert when no sector handler is supplied", () => {
+    const alerts = [
+      { timestamp: "10:30:00", sector: "IT", direction: "SURGING" as const, delta: 1.5 },
+    ];
+    render(() => <SectorAlertsList alerts={alerts} />);
+    expect(screen.queryByTestId("sector-alert-symbol-IT")).not.toBeInTheDocument();
   });
 });

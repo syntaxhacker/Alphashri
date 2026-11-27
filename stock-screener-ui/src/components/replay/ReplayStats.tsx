@@ -9,32 +9,27 @@ interface ReplayStatsProps {
   isRunning: boolean;
 }
 
-export function ReplayStats({
-  trades,
-  summary,
-  progress,
-  totalCandles,
-  isRunning,
-}: ReplayStatsProps) {
-  const candleProgress = progress ? Math.round((progress.candle / progress.total) * 100) : 0;
+export function ReplayStats(props: ReplayStatsProps) {
+  const candleProgress = () =>
+    props.progress ? Math.round((props.progress.candle / props.progress.total) * 100) : 0;
 
   return (
     <TradeStatsGrid
-      trades={trades}
-      summary={summary}
-      isRunning={isRunning}
+      trades={props.trades}
+      summary={props.summary}
+      isRunning={props.isRunning}
       emptyText="Run a replay to see stats"
       testId="replay-stats"
       progressStat={
-        isRunning && progress
+        props.isRunning && props.progress
           ? {
-              value: `${progress.candle} / ${progress.total}`,
-              hint: `${progress.symbol} — ${progress.time}`,
+              value: `${props.progress.candle} / ${props.progress.total}`,
+              hint: `${props.progress.symbol} — ${props.progress.time}`,
             }
           : null
       }
       progressBar={
-        isRunning && totalCandles > 0 ? { percent: candleProgress, style: { flex: "none" } } : null
+        props.isRunning && props.totalCandles > 0 ? { percent: candleProgress(), style: { flex: "none" } } : null
       }
     />
   );

@@ -66,7 +66,6 @@ class TestBaseNewsScraper:
         assert self.scraper._generate_id("https://example.com/1") == id1
 
     def test_parse_date_generic(self):
-        # Test various date formats
         d1 = self.scraper._parse_date_generic("February 26, 2026 22:06")
         assert d1 is not None and d1.year == 2026
         
@@ -79,7 +78,6 @@ class TestBaseNewsScraper:
 class TestNewsAggregator:
     def setup_method(self):
         self.aggregator = NewsAggregator()
-        # Override scrapers with dummy for isolated testing
         self.aggregator.scrapers = {'dummy': DummyScraper()}
 
     def test_fetch_from_source(self):

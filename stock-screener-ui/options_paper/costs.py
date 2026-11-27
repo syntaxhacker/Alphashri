@@ -67,6 +67,32 @@ def _side_costs(premium_value: float, is_buy: bool, ch: Charges) -> dict:
     }
 
 
+def option_entry_cost(
+    entry_premium: float,
+    qty: int,
+    is_short: bool = False,
+    ch: Charges = CHARGES,
+) -> dict:
+    """Charges for opening one leg (one executed order).
+
+    A replay shows an open position, so only the entry side has been paid.
+    Charging a round trip here would make early frames depend on an exit
+    premium that has not happened yet — a lookahead. The exit side is booked
+    when the position is actually closed or settled at expiry.
+    """
+    if qty <= 0:
+        raise ValueError("qty must be positive")
+    premium_value = entry_premium * qty
+    side = _side_costs(premium_value, is_buy=not is_short, ch=ch)
+    return {
+        "qty": qty,
+        "premium_value": round(premium_value, 2),
+        "costs": side["total"],
+        "breakdown": side,
+        "costs_version": COSTS_VERSION,
+    }
+
+
 def option_round_trip_cost(
     entry_premium: float,
     exit_premium: float,

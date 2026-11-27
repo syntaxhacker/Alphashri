@@ -58,8 +58,7 @@ test.describe("Navigation V2 - Navigation Clicks", () => {
     await page.goto("/paper");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
     await page.locator('[data-testid="nav-screener"]').click();
-    expect(page.url()).toContain("/");
-    expect(page.url()).not.toContain("/paper");
+    await expect(page).toHaveURL(/\/screener/);
     await expect(page.locator('[data-testid="screener-page"]')).toBeVisible({ timeout: 15000 });
   });
 
@@ -67,7 +66,7 @@ test.describe("Navigation V2 - Navigation Clicks", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
     await page.locator('[data-testid="nav-news"]').click();
-    expect(page.url()).toContain("/news");
+    await expect(page).toHaveURL(/\/news/);
     await expect(page.locator('[data-testid="news-page"]')).toBeVisible({ timeout: 15000 });
   });
 
@@ -75,7 +74,7 @@ test.describe("Navigation V2 - Navigation Clicks", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
     await page.locator('[data-testid="nav-backtest"]').click();
-    expect(page.url()).toContain("/backtest");
+    await expect(page).toHaveURL(/\/backtest/);
     await expect(page.locator('[data-testid="backtest-view"]')).toBeVisible({ timeout: 15000 });
   });
 
@@ -83,7 +82,7 @@ test.describe("Navigation V2 - Navigation Clicks", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
     await page.locator('[data-testid="nav-paper"]').click();
-    expect(page.url()).toContain("/paper");
+    await expect(page).toHaveURL(/\/paper/);
     await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({
       timeout: 10000,
     });
@@ -93,7 +92,7 @@ test.describe("Navigation V2 - Navigation Clicks", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
     await page.locator('[data-testid="nav-sector"]').click();
-    expect(page.url()).toContain("/sector");
+    await expect(page).toHaveURL(/\/sector/);
     await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({
       timeout: 15000,
     });
@@ -105,7 +104,7 @@ test.describe("Navigation V2 - Navigation Clicks", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
     await page.locator('[data-testid="nav-strategies"]').click();
-    expect(page.url()).toContain("/strategies");
+    await expect(page).toHaveURL(/\/strategies/);
     await expect(page.locator('[data-testid="strategies-view"]')).toBeVisible({ timeout: 15000 });
   });
 
@@ -113,7 +112,7 @@ test.describe("Navigation V2 - Navigation Clicks", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
     await page.locator('[data-testid="nav-bots"]').click();
-    expect(page.url()).toContain("/bots");
+    await expect(page).toHaveURL(/\/bots/);
     await expect(page.locator('[data-testid="bots-view"]')).toBeVisible({ timeout: 10000 });
   });
 
@@ -121,7 +120,7 @@ test.describe("Navigation V2 - Navigation Clicks", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
     await page.locator('[data-testid="nav-options"]').click();
-    expect(page.url()).toContain("/options");
+    await expect(page).toHaveURL(/\/options/);
     await expect(page.locator('[data-testid="options-view"]')).toBeVisible({ timeout: 15000 });
   });
 
@@ -129,7 +128,7 @@ test.describe("Navigation V2 - Navigation Clicks", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
     await page.locator('[data-testid="nav-settings"]').click();
-    expect(page.url()).toContain("/settings");
+    await expect(page).toHaveURL(/\/settings/);
     await expect(page.locator('[data-testid="settings-page"]')).toBeVisible({ timeout: 15000 });
   });
 });
@@ -142,6 +141,7 @@ test.describe("Navigation V2 - Active State", () => {
   test("default active state on screener", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
+    await expect(page.locator('[data-testid="screener-page"]')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('[data-testid="nav-screener"]')).toHaveAttribute(
       "data-active",
       "true",
@@ -152,7 +152,8 @@ test.describe("Navigation V2 - Active State", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
     await page.locator('[data-testid="nav-news"]').click();
-    await page.waitForURL("**/news");
+    await expect(page).toHaveURL(/\/news/);
+    await expect(page.locator('[data-testid="news-page"]')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('[data-testid="nav-news"]')).toHaveAttribute("data-active", "true");
   });
 
@@ -160,7 +161,10 @@ test.describe("Navigation V2 - Active State", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
     await page.locator('[data-testid="nav-paper"]').click();
-    await page.waitForURL("**/paper");
+    await expect(page).toHaveURL(/\/paper/);
+    await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({
+      timeout: 10000,
+    });
     await expect(page.locator('[data-testid="nav-paper"]')).toHaveAttribute("data-active", "true");
   });
 
@@ -168,7 +172,8 @@ test.describe("Navigation V2 - Active State", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
     await page.locator('[data-testid="nav-bots"]').click();
-    await page.waitForURL("**/bots");
+    await expect(page).toHaveURL(/\/bots/);
+    await expect(page.locator('[data-testid="bots-view"]')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('[data-testid="nav-bots"]')).toHaveAttribute("data-active", "true");
   });
 
@@ -176,7 +181,8 @@ test.describe("Navigation V2 - Active State", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
     await page.locator('[data-testid="nav-settings"]').click();
-    await page.waitForURL("**/settings");
+    await expect(page).toHaveURL(/\/settings/);
+    await expect(page.locator('[data-testid="settings-page"]')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('[data-testid="nav-settings"]')).toHaveAttribute(
       "data-active",
       "true",
@@ -228,28 +234,27 @@ test.describe("Navigation V2 - Browser Navigation", () => {
   });
 
   test("click nav-strategies, then browser back -> returns to screener", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/screener");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
     await page.locator('[data-testid="nav-strategies"]').click();
-    await page.waitForURL("**/strategies");
+    await expect(page).toHaveURL(/\/strategies/);
     await expect(page.locator('[data-testid="strategies-view"]')).toBeVisible({ timeout: 15000 });
     await page.goBack();
-    await page.waitForURL("**/");
-    expect(page.url()).not.toContain("/strategies");
+    await expect(page).toHaveURL(/\/screener/);
+    await expect(page).not.toHaveURL(/\/strategies/);
     await expect(page.locator('[data-testid="screener-page"]')).toBeVisible({ timeout: 15000 });
   });
 
   test("click nav-options, then browser forward -> returns to options", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/screener");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
     await page.locator('[data-testid="nav-options"]').click();
-    await page.waitForURL("**/options");
+    await expect(page).toHaveURL(/\/options/);
     await expect(page.locator('[data-testid="options-view"]')).toBeVisible({ timeout: 15000 });
     await page.goBack();
-    await page.waitForURL("**/");
+    await expect(page).toHaveURL(/\/screener/);
     await page.goForward();
-    await page.waitForURL("**/options");
-    expect(page.url()).toContain("/options");
+    await expect(page).toHaveURL(/\/options/);
     await expect(page.locator('[data-testid="options-view"]')).toBeVisible({ timeout: 15000 });
   });
 });
@@ -262,7 +267,8 @@ test.describe("Navigation V2 - Unknown Route", () => {
   test("navigate to /unknown-page -> redirects to screener", async ({ page }) => {
     await page.goto("/unknown-page");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
-    expect(page.url()).not.toContain("/unknown-page");
+    await expect.poll(() => page.url(), { timeout: 15000 }).not.toContain("/unknown-page");
+    await expect(page).toHaveURL(/\/screener/);
     await expect(page.locator('[data-testid="screener-page"]')).toBeVisible({ timeout: 15000 });
   });
 });

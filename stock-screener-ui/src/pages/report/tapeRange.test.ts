@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   ascTapeByTime,
+  clockLabel,
   hhmmToMinutes,
   minutesToHhmm,
   rangeLabel,
@@ -83,6 +84,31 @@ describe("minutesToHhmm", () => {
     expect(minutesToHhmm(1441, { wrap: true })).toBe("00:01");
     expect(minutesToHhmm(1500, { wrap: true })).toBe("01:00");
     expect(minutesToHhmm(2879, { wrap: true })).toBe("23:59");
+  });
+});
+
+describe("clockLabel", () => {
+  test("peels the clock off an ISO stamp", () => {
+    expect(clockLabel("2026-10-26T09:16:00+05:30")).toBe("09:16");
+    expect(clockLabel("2026-10-26T14:03:00")).toBe("14:03");
+    expect(clockLabel("2026-10-26 09:16")).toBe("2026-");
+  });
+
+  test("passes a bare clock through, capped at five chars", () => {
+    expect(clockLabel("09:16")).toBe("09:16");
+    expect(clockLabel("14:03:22")).toBe("14:03");
+    expect(clockLabel("nope")).toBe("nope");
+  });
+
+  test("empty, null and undefined read as the placeholder", () => {
+    expect(clockLabel("")).toBe("--:--");
+    expect(clockLabel(null)).toBe("--:--");
+    expect(clockLabel(undefined)).toBe("--:--");
+  });
+
+  test("malformed ISO with no clock after T reads as the placeholder", () => {
+    expect(clockLabel("2026-10-26T")).toBe("--:--");
+    expect(clockLabel("prefixTGarbage")).toBe("Garba");
   });
 });
 

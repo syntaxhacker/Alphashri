@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useCallback } from "react";
+import { createEffect, createMemo, onMount } from "solid-js";
 import * as optionsState from "../state/optionsStore";
 import {
   subscribe,
+  subscribeToFields,
   getAvailableExpiries,
   getFilteredChain,
   getStrikeMatrix,
@@ -55,69 +56,122 @@ export function buildStrikeMatrix(
 }
 
 export function useOptionsState() {
-  useStoreSubscription(subscribe);
+  // The global version still drives the cheap field getters below, preserving
+  // the store's "notify every subscriber on every write" contract. The
+  // expensive derivations subscribe to their own inputs instead: a loading or
+  // positions notification must not re-filter and re-sort the option chain.
+  const version = useStoreSubscription(subscribe);
+  const chainVersion = useStoreSubscription((cb) =>
+    subscribeToFields(["optionChain", "filters", "spotPrice"], cb),
+  );
+  const expiryVersion = useStoreSubscription((cb) => subscribeToFields(["expiries"], cb));
+  const underlyingVersion = useStoreSubscription((cb) => subscribeToFields(["underlyings"], cb));
+  const selectionVersion = useStoreSubscription((cb) =>
+    subscribeToFields(["selectedUnderlying", "selectedExpiry"], cb),
+  );
 
-  useEffect(() => {
+  // The store is a module singleton. Reading the subscription counter first is
+  // what makes every getter below re-run when it notifies.
+  const readState = () => {
+    version();
+    return optionsState.getOptionsState();
+  };
+
+  onMount(() => {
     void optionsState.initOptionsState();
-  }, []);
-
-  const state = optionsState.getOptionsState();
-
-  useEffect(() => {
-    if (state.selectedUnderlying && state.selectedExpiry) {
-      void optionsState.fetchChain();
-    }
-  }, [state.selectedUnderlying, state.selectedExpiry]);
-
-  useEffect(() => {
     void optionsState.fetchPositions();
-  }, []);
+  });
 
-  const filteredChain = useMemo(
-    () => getFilteredChain(),
-    [state.optionChain, state.filters, state.spotPrice],
-  );
-  const strikeMatrix = useMemo(() => getStrikeMatrix(), [filteredChain]);
-  const availableExpiries = useMemo(() => getAvailableExpiries(), [state.expiries]);
-  const availableUnderlyings = useMemo(() => getAvailableUnderlyingSymbols(), [state.underlyings]);
+  // Track only the (underlying, expiry) pair. An effect that read the whole
+  // store would re-enter itself: fetchChain notifies, which would re-run it.
+  const selectionKey = createMemo(() => {
+    selectionVersion();
+    const s = optionsState.getOptionsState();
+    return `${s.selectedUnderlying}|${s.selectedExpiry}`;
+  });
 
-  const onSetUnderlying = useCallback((underlying: string) => {
+  createEffect(() => {
+    const [underlying, expiry] = selectionKey().split("|");
+    if (underlying && expiry) void optionsState.fetchChain();
+  });
+
+  const filteredChain = createMemo(() => {
+    chainVersion();
+    return getFilteredChain();
+  });
+  // Depends only on the filtered chain: it cannot be invalidated by loading,
+  // positions, expiry or spot-price writes that leave the chain untouched.
+  const strikeMatrix = createMemo(() => getStrikeMatrix(filteredChain()));
+  const availableExpiries = createMemo(() => {
+    expiryVersion();
+    return getAvailableExpiries();
+  });
+  const availableUnderlyings = createMemo(() => {
+    underlyingVersion();
+    return getAvailableUnderlyingSymbols();
+  });
+
+  const onSetUnderlying = (underlying: string) => {
     optionsState.setUnderlying(underlying);
-  }, []);
+  };
 
-  const onSetExpiry = useCallback(
-    (expiry: string) => {
-      optionsState.setExpiry(expiry);
-      if (state.selectedUnderlying) {
-        void optionsState.fetchChain();
-      }
-    },
-    [state.selectedUnderlying],
-  );
+  const onSetExpiry = (expiry: string) => {
+    // The [selectedUnderlying, selectedExpiry] effect owns the chain fetch;
+    // calling it here too produced two identical requests per expiry click.
+    optionsState.setExpiry(expiry);
+  };
 
-  const onSetFilters = useCallback((newFilters: Partial<typeof state.filters>) => {
+  const onSetFilters = (newFilters: Partial<OptionsFilters>) => {
     optionsState.setFilters(newFilters);
-  }, []);
+  };
 
-  const onChainRowClick = useCallback((contract: any) => {
-    console.log("Row clicked:", contract);
-  }, []);
+  const onChainRowClick = () => {};
 
+  // Getters, not values: a Solid component body runs once, so a snapshot would
+  // never show data that arrives after mount.
   return {
-    selectedUnderlying: state.selectedUnderlying,
-    selectedExpiry: state.selectedExpiry,
-    optionChain: state.optionChain,
-    positions: state.positions,
-    loading: state.loading,
-    error: state.error,
-    filters: state.filters,
-    spotPrice: state.spotPrice,
-    timestamp: state.lastUpdated,
-    summary: state.summary,
-    availableUnderlyings,
-    availableExpiries,
-    filteredChain,
-    strikeMatrix,
+    get selectedUnderlying() {
+      return readState().selectedUnderlying;
+    },
+    get selectedExpiry() {
+      return readState().selectedExpiry;
+    },
+    get optionChain() {
+      return readState().optionChain;
+    },
+    get positions() {
+      return readState().positions;
+    },
+    get loading() {
+      return readState().loading;
+    },
+    get error() {
+      return readState().error;
+    },
+    get filters() {
+      return readState().filters;
+    },
+    get spotPrice() {
+      return readState().spotPrice;
+    },
+    get timestamp() {
+      return readState().lastUpdated;
+    },
+    get summary() {
+      return readState().summary;
+    },
+    get availableUnderlyings() {
+      return availableUnderlyings();
+    },
+    get availableExpiries() {
+      return availableExpiries();
+    },
+    get filteredChain() {
+      return filteredChain();
+    },
+    get strikeMatrix() {
+      return strikeMatrix();
+    },
     setUnderlying: onSetUnderlying,
     setExpiry: onSetExpiry,
     setFilters: onSetFilters,

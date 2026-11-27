@@ -22,19 +22,14 @@ from pathlib import Path
 from datetime import datetime
 from unittest.mock import Mock, patch, MagicMock, AsyncMock
 
-# Add project paths
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
 
-# Import the paper trading router
 from api.paper_trading import router as paper_router
 
-# ============================================================================
-# Fixtures
-# ============================================================================
 
 @pytest.fixture
 def temp_journals_dir():
@@ -159,7 +154,6 @@ def mock_paper_trader():
                 pos.current_price = price
                 pos.unrealized_pnl = (price - pos.entry_price) * pos.quantity
 
-                # Check SL/TP
                 if pos.side == OrderSide.BUY:
                     if price <= pos.stop_loss or price >= pos.take_profit:
                         reason = ExitReason.STOP_LOSS if price <= pos.stop_loss else ExitReason.TAKE_PROFIT
@@ -200,7 +194,6 @@ def mock_risk_manager():
 
     def validate_trade(capital, cash, current_positions, current_exposure,
                        entry_price, stop_loss, take_profit, side="BUY"):
-        # Calculate risk/reward
         if side == "BUY":
             risk = abs(entry_price - stop_loss)
             reward = abs(take_profit - entry_price)
@@ -212,7 +205,6 @@ def mock_risk_manager():
         reward_pct = reward / entry_price * 100 if entry_price > 0 else 0
         rr_ratio = reward / risk if risk > 0 else 0
 
-        # Check minimum RR ratio
         if rr_ratio < 2:
             return {
                 'valid': False,
@@ -225,11 +217,9 @@ def mock_risk_manager():
                 'reason': f"Risk/reward ratio ({rr_ratio:.1f}) too low. Minimum 1:2 required."
             }
 
-        # Calculate position size
         shares = int((capital * 0.01) / risk) if risk > 0 else 0
         trade_value = shares * entry_price
 
-        # Check cash
         if trade_value > cash:
             return {
                 'valid': False,
@@ -356,16 +346,12 @@ def client(app):
     return TestClient(app)
 
 
-# ============================================================================
-# 1. Portfolio Management Tests
-# ============================================================================
 
 class TestPortfolioManagement:
     """Tests for portfolio endpoints."""
 
     def test_get_portfolio_with_positions(self, client, mock_paper_trader):
         """Test GET /api/paper/portfolio with positions."""
-        # Add a position
         from trading.paper_trader import PaperPosition, OrderSide
         mock_paper_trader.positions["RELIANCE"] = PaperPosition(
             symbol="RELIANCE",
@@ -431,16 +417,12 @@ class TestPortfolioManagement:
         assert "1,000,000" in data["message"]
 
 
-# ============================================================================
-# 2. Positions Management Tests
-# ============================================================================
 
 class TestPositionsManagement:
     """Tests for positions endpoints."""
 
     def test_get_all_positions(self, client, mock_paper_trader):
         """Test GET /api/paper/positions."""
-        # Add multiple positions as dicts (serializable)
         mock_paper_trader.positions = {
             "RELIANCE": {
                 "symbol": "RELIANCE",
@@ -488,9 +470,6 @@ class TestPositionsManagement:
         assert data["positions"] == []
 
 
-# ============================================================================
-# 3. Order Management Tests
-# ============================================================================
 
 class TestOrderManagement:
     """Tests for order endpoints."""
@@ -552,7 +531,6 @@ class TestOrderManagement:
 
     def test_place_order_insufficient_funds(self, client, mock_risk_manager):
         """Test POST /api/paper/order with insufficient funds."""
-        # Override risk manager to reject
         original_validate = mock_risk_manager.validate_trade
 
         def reject_trade(*args, **kwargs):
@@ -583,12 +561,10 @@ class TestOrderManagement:
         assert response.status_code == 400
         assert "Insufficient" in response.json()["detail"]
 
-        # Restore
         mock_risk_manager.validate_trade = original_validate
 
     def test_place_order_invalid_risk_reward(self, client, mock_risk_manager):
         """Test POST /api/paper/order with poor risk/reward ratio."""
-        # Override risk manager to reject
         original_validate = mock_risk_manager.validate_trade
 
         def reject_rr(*args, **kwargs):
@@ -619,7 +595,6 @@ class TestOrderManagement:
         assert response.status_code == 400
         assert "Risk/reward" in response.json()["detail"]
 
-        # Restore
         mock_risk_manager.validate_trade = original_validate
 
     def test_close_position(self, client, mock_paper_trader, mock_journal):
@@ -810,7 +785,6 @@ class TestOrderManagement:
         """Test POST /api/paper/close-all."""
         from trading.paper_trader import PaperPosition, OrderSide
 
-        # Add multiple positions
         for symbol in ["RELIANCE", "TCS"]:
             mock_paper_trader.positions[symbol] = PaperPosition(
                 symbol=symbol,
@@ -1053,9 +1027,6 @@ class TestOrderManagement:
         assert data["exit_reason"] == "MANUAL_CLOSE"
 
 
-# ============================================================================
-# 4. Signal Generation Tests
-# ============================================================================
 
 class TestSignalGeneration:
     """Tests for signal endpoints."""
@@ -1080,7 +1051,6 @@ class TestSignalGeneration:
         mock_screener_cls = MagicMock()
         mock_instance = MagicMock()
         mock_df = MagicMock()
-        # Create minimal row-like object
         mock_row = MagicMock()
         mock_row.name = "RELIANCE"
         mock_row.close = 2500.0
@@ -1117,16 +1087,12 @@ class TestSignalGeneration:
         assert "or_low" in data
 
 
-# ============================================================================
-# 5. Trade History Tests
-# ============================================================================
 
 class TestTradeHistory:
     """Tests for trade history endpoints."""
 
     def test_get_trades_default_limit(self, client, mock_journal):
         """Test GET /api/paper/trades with default limit."""
-        # Add some trades to journal
         from unittest.mock import MagicMock as TradeRecord
         for i in range(10):
             trade = TradeRecord(
@@ -1232,9 +1198,6 @@ class TestTradeHistory:
         # Should filter by notes containing the strategy name
         assert len(data["trades"]) >= 0
 
-# ============================================================================
-# 6. Risk Management Tests
-# ============================================================================
 
 class TestRiskManagement:
     """Tests for risk management endpoints."""
@@ -1267,7 +1230,6 @@ class TestRiskManagement:
 
     def test_validate_trade_invalid_rr(self, client, mock_risk_manager):
         """Test POST /api/paper/risk/validate - poor R:R."""
-        # Override to reject
         original_validate = mock_risk_manager.validate_trade
 
         def reject_rr(*args, **kwargs):
@@ -1296,13 +1258,9 @@ class TestRiskManagement:
         assert data["valid"] is False
         assert "Risk/reward" in data["reason"]
 
-        # Restore
         mock_risk_manager.validate_trade = original_validate
 
 
-# ============================================================================
-# 7. Runner Control Tests
-# ============================================================================
 
 class TestRunnerControl:
     """Tests for runner/bot control endpoints."""
@@ -1521,9 +1479,6 @@ class TestRunnerControl:
             mock_handle.close.assert_called_once()
 
 
-# ============================================================================
-# 8. Health Check Tests
-# ============================================================================
 
 class TestHealthCheck:
     """Tests for health check endpoint."""
@@ -1541,9 +1496,6 @@ class TestHealthCheck:
         assert "timestamp" in data
 
 
-# ============================================================================
-# 9. Error Handling Tests
-# ============================================================================
 
 class TestErrorHandling:
     """Tests for error handling."""
@@ -1591,5 +1543,126 @@ class TestErrorHandling:
         """Test handling of invalid date format in trades query."""
         response = client.get("/api/paper/trades?date=invalid-date")
 
-        # Should handle gracefully
         assert response.status_code in [200, 400, 422]
+
+
+class TestDashboardAnalyticsScanComplexity:
+    """Regression: per-bot drawdown scans each trade once, not once per prefix.
+
+    The old code rebuilt the cumulative-P&L curve from a prefix slice for every
+    trade, so ``net_pnl`` reads grew quadratically with the trade count. These
+    tests pin the linear access pattern *and* the exact drawdown figures so the
+    fast path cannot silently change accounting output or trade ordering.
+    """
+
+    class _CountingTrade:
+        def __init__(self, index, bot, base, net_pnl):
+            self.id = index + 1
+            self.symbol = f"SYM{index}"
+            self.side = "BUY"
+            self.quantity = 10
+            self.entry_price = 100.0
+            self.exit_price = 100.0
+            self.entry_time = base
+            self.exit_time = base
+            self.pnl = net_pnl
+            self.pnl_pct = 1.0
+            self.costs = 0.0
+            self.bot = bot
+            self.bot_id = 1
+            self.strategy_id = 10
+            self.strategy_name = "ORB"
+            self.exit_reason = "TP"
+            self._net = net_pnl
+            self.reads = 0
+
+        @property
+        def net_pnl(self):
+            self.reads += 1
+            return self._net
+
+    @staticmethod
+    def _run(values):
+        from datetime import timedelta
+
+        from api.paper import dashboard_analytics as da
+        import config
+
+        bot = MagicMock()
+        bot.id = 1
+        bot.uuid = "bot-1"
+        bot.name = "ORB Bot"
+        base = datetime.now(config.IST) - timedelta(hours=2)
+        trades = [
+            TestDashboardAnalyticsScanComplexity._CountingTrade(i, bot, base, v)
+            for i, v in enumerate(values)
+        ]
+
+        class _Query:
+            def __init__(self, rows):
+                self.rows = rows
+
+            def filter(self, *args, **kwargs):
+                return self
+
+            def order_by(self, *args, **kwargs):
+                return self
+
+            def all(self):
+                return self.rows
+
+        db = MagicMock()
+        db.__enter__.return_value = db
+        db.__exit__.return_value = None
+        db.query.side_effect = [_Query(trades), _Query([bot])]
+        user = MagicMock()
+        user.id = 1
+
+        with patch.object(da, "SessionLocal", return_value=db):
+            result = da.get_dashboard_analytics(preset="ALL", user=user)
+        return result, sum(t.reads for t in trades)
+
+    @staticmethod
+    def _reference_drawdown(values):
+        """The original rebuild-from-prefix algorithm, kept as an oracle."""
+        points = [
+            {"cumulative_pnl": sum(float(v) for v in values[: i + 1])}
+            for i in range(len(values))
+        ]
+        peak = 0.0
+        max_dd = 0.0
+        max_dd_pct = 0.0
+        for point in points:
+            value = float(point["cumulative_pnl"])
+            peak = max(peak, value)
+            drawdown = peak - value
+            drawdown_pct = (drawdown / peak * 100) if peak > 0 else 0.0
+            max_dd = max(max_dd, drawdown)
+            max_dd_pct = max(max_dd_pct, drawdown_pct)
+        return round(max_dd, 2), round(max_dd_pct, 2)
+
+    def test_net_pnl_reads_scale_linearly(self):
+        small = [((-1) ** i) * (100 + i) for i in range(40)]
+        large = [((-1) ** i) * (100 + i) for i in range(160)]
+
+        _, reads_small = self._run(small)
+        _, reads_large = self._run(large)
+
+        # Old code: ~44 reads/trade at N=40 vs ~103 at N=160 (ratio > 2).
+        # A single-pass scan keeps the per-trade count flat regardless of N.
+        assert reads_large / len(large) <= (reads_small / len(small)) * 1.3, (
+            reads_small, reads_large
+        )
+
+    def test_drawdown_values_and_order_preserved(self):
+        values = [120.0, -40.0, -90.0, 200.0, -150.0, 30.0, -25.0, 80.0]
+
+        result, _ = self._run(values)
+        ranking = result["bot_rankings"][0]
+
+        assert ranking["bot_id"] == "bot-1"
+        assert ranking["bot_name"] == "ORB Bot"
+        assert (
+            ranking["max_drawdown"],
+            ranking["max_drawdown_pct"],
+        ) == self._reference_drawdown(values)

@@ -6,140 +6,125 @@ import {
   Box,
   Button,
   CloseButton,
+  Collapse,
   Divider,
   Group,
   Loader,
   ScrollArea,
   Select,
+  Skeleton,
   Stack,
   Text,
   Title,
   ToolbarRow,
   Tooltip,
+  typeSize,
 } from "@/ui";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
-import MuiListItemButton from "@mui/material/ListItemButton";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import ListItemText from "@mui/material/ListItemText";
-import MuiDivider from "@mui/material/Divider";
-import MuiCollapse from "@mui/material/Collapse";
-import Skeleton from "@mui/material/Skeleton";
-import MuiAlert from "@mui/material/Alert";
-import Typography from "@mui/material/Typography";
-import Toolbar from "@mui/material/Toolbar";
-import IconButton from "@mui/material/IconButton";
-import CloseIcon from "@mui/icons-material/Close";
-import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import * as palette from "@/ui/palette";
 import {
   IconArrowLeft,
   IconChartLine,
+  IconChevronDown,
+  IconChevronUp,
   IconExternalLink,
   IconNews,
   IconRefresh,
-} from "@tabler/icons-react";
-import { Fragment } from "react";
-import type { ReactNode } from "react";
+  IconX,
+} from "../common/Icons";
+import { For, Show, Switch, Match, createMemo, type JSX } from "solid-js";
 import type { NewsItem, NewsSymbol, ArticleResponse } from "./news-types";
 import { AUTO_REFRESH_INTERVALS } from "./NewsLocalStorage";
+import { normalizeSourceName } from "./news-constants";
 import { formatTimeAgo } from "../../utils/ui-helpers";
 
-function ArticleSymbols({
-  symbols,
-  onSymbolClick,
-}: {
-  symbols: NewsSymbol[];
-  onSymbolClick: (s: NewsSymbol) => void;
-}) {
-  if (!symbols || symbols.length === 0) return null;
+export function ArticleSymbols(props: { symbols: NewsSymbol[]; onSymbolClick: (s: NewsSymbol) => void }) {
   return (
-    <Box data-testid="news-article-symbols">
-      <Text size="sm" c="dimmed" mb="xs">
-        Stocks mentioned:
-      </Text>
-      <Group gap="xs" align="center">
-        {symbols.map((symbol) => (
-          <Tooltip
-            key={symbol.code}
-            label={
-              symbol.instrument_key
-                ? `View ${symbol.trading_symbol} chart`
-                : `Open ${symbol.code} on Moneycontrol`
-            }
-          >
-            <Button
-              type="button"
-              size="xs"
-              variant="light"
-              color={symbol.instrument_key ? "primary" : "secondary"}
-              onClick={() => onSymbolClick(symbol)}
-              aria-label={`${symbol.instrument_key ? "View" : "Open"} ${symbol.trading_symbol || symbol.code}`}
-              data-testid={`news-symbol-${symbol.code}`}
-            >
-              {symbol.name || symbol.code}
-              {symbol.instrument_key ? <IconChartLine size={12} style={{ marginLeft: 4 }} /> : null}
-            </Button>
-          </Tooltip>
-        ))}
-      </Group>
-    </Box>
+    <Show when={props.symbols && props.symbols.length > 0}>
+      <Box data-testid="news-article-symbols">
+        <Text size="xs" fw={700} c="dimmed" tt="uppercase" style={{ "margin-bottom": "4px" }}>
+          Symbols
+        </Text>
+        <Group gap="xs" align="center">
+          <For each={props.symbols}>
+            {(symbol) => (
+              <Tooltip
+                label={
+                  symbol.instrument_key
+                    ? `View ${symbol.trading_symbol} chart`
+                    : `Open ${symbol.code} link`
+                }
+              >
+                <Box
+                  component="button"
+                  type="button"
+                  onClick={() => props.onSymbolClick(symbol)}
+                  onKeyDown={(event: KeyboardEvent) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      props.onSymbolClick(symbol);
+                    }
+                  }}
+                  data-testid={`news-symbol-${symbol.code}`}
+                  className="cursor-pointer border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
+                >
+                  <Badge
+                    variant="light"
+                    color={symbol.instrument_key ? "primary" : "secondary"}
+                    style={{ cursor: "pointer" }}
+                  >
+                    {symbol.name || symbol.code}
+                    <Show when={symbol.instrument_key}>
+                      <IconChartLine size={12} style={{ "margin-left": "4px" }} />
+                    </Show>
+                  </Badge>
+                </Box>
+              </Tooltip>
+            )}
+          </For>
+        </Group>
+      </Box>
+    </Show>
   );
 }
 
-function ArticleBody({
-  content,
-  loading,
-  error,
-}: {
+function ArticleBody(props: {
   content: ArticleResponse | null;
   loading: boolean;
   error: string | null;
 }) {
-  if (loading) {
-    return (
-      <Group justify="center" align="center" py="xl">
-        <Loader size="sm" />
-        <Text c="dimmed">Loading article...</Text>
-      </Group>
-    );
-  }
-  if (content?.description) {
-    return (
-      <Stack gap="sm">
-        {content.description.split("\n\n").map((para, idx) => (
-          <Text key={`${idx}-${para.slice(0, 40)}`} size="sm">
-            {para}
-          </Text>
-        ))}
-      </Stack>
-    );
-  }
-  if (error) {
-    return (
-      <Alert color="error" variant="light" title="Failed to load article">
-        <Text size="sm">{error}</Text>
-      </Alert>
-    );
-  }
   return (
-    <Text c="dimmed" ta="center" py="xl">
-      Unable to load article content.
-    </Text>
+    <Switch
+      fallback={
+        <Text c="dimmed" ta="center" py="xl">
+          Unable to load article content.
+        </Text>
+      }
+    >
+      <Match when={props.loading}>
+        <Group justify="center" align="center" py="xl">
+          <Loader size="sm" />
+          <Text c="dimmed">Loading article...</Text>
+        </Group>
+      </Match>
+      <Match when={props.content?.description}>
+        {(description) => (
+          <Stack gap="sm">
+            <For each={String(description()).split("\n\n")}>
+              {(para) => <Text size="sm">{para}</Text>}
+            </For>
+          </Stack>
+        )}
+      </Match>
+      <Match when={props.error}>
+        <Alert color="error" variant="light" title="Failed to load article">
+          <Text size="sm">{props.error}</Text>
+        </Alert>
+      </Match>
+    </Switch>
   );
 }
 
-export function ArticleView({
-  article,
-  content,
-  loading,
-  error,
-  onBack,
-  onClose,
-  onSymbolClick,
-  onRetryArticle,
-}: {
+export function ArticleView(props: {
   article: NewsItem;
   content: ArticleResponse | null;
   loading: boolean;
@@ -156,262 +141,276 @@ export function ArticleView({
         justify="space-between"
         align="center"
         className="news-article-header"
-        sx={{ borderBottom: 1, borderColor: "divider" }}
+        style={{ "border-bottom": `1px solid ${""}`, "border-bottom-color": "" }}
       >
         <Button
           variant="subtle"
           size="sm"
           leftSection={<IconArrowLeft size={14} />}
-          onClick={onBack}
+          onClick={props.onBack}
           data-testid="news-article-back-btn"
         >
           Back
         </Button>
-        <CloseButton onClick={onClose} />
+        <CloseButton onClick={props.onClose} />
       </Group>
 
-      <ScrollArea flex={1} p="sm" className="news-article-content">
+      <ScrollArea className="news-article-content min-h-0 flex-1" style={{ padding: "8px" }}>
         <Stack gap="sm">
           <Title order={4} data-testid="news-article-headline">
-            {article.headline}
+            {props.article.headline}
           </Title>
 
           <Text size="sm" c="dimmed" data-testid="news-article-meta">
-            {content?.source || article.source} |{" "}
-            {formatTimeAgo(content?.publishedAt || article.publishedAt)}
+            {props.content?.source || props.article.source} |{" "}
+            {formatTimeAgo(props.content?.publishedAt || props.article.publishedAt)}
           </Text>
 
-          <ArticleSymbols symbols={content?.symbols ?? []} onSymbolClick={onSymbolClick} />
+          <ArticleSymbols
+            symbols={props.content?.symbols ?? []}
+            onSymbolClick={props.onSymbolClick}
+          />
 
           <Divider />
 
-          <ArticleBody content={content} loading={loading} error={error} />
+          <ArticleBody content={props.content} loading={props.loading} error={props.error} />
 
-          {!loading && error && onRetryArticle && (
+          <Show when={!props.loading && props.error && props.onRetryArticle}>
             <Group justify="flex-start" align="center">
               <Button
                 size="xs"
                 variant="light"
-                onClick={onRetryArticle}
+                onClick={props.onRetryArticle}
                 data-testid="news-article-retry-btn"
               >
                 Retry
               </Button>
             </Group>
-          )}
+          </Show>
 
-          {article.sourceUrl && (
-            <Anchor href={article.sourceUrl} target="_blank" rel="noopener noreferrer" size="sm">
+          <Show when={props.article.sourceUrl}>
+            <Anchor
+              href={props.article.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              size="sm"
+            >
               <Group gap={4} align="center">
                 Open Original <IconExternalLink size={12} />
               </Group>
             </Anchor>
-          )}
+          </Show>
         </Stack>
       </ScrollArea>
     </Stack>
   );
 }
 
-export function NewsItemCard({
-  item,
-  isUnread,
-  selected = false,
-  meta,
-  testId = "news-item",
-  onClick,
-  variant = "default",
-}: {
+export function NewsItemCard(props: {
   item: NewsItem;
   isUnread: boolean;
   selected?: boolean;
-  meta?: ReactNode;
+  meta?: JSX.Element;
   testId?: string;
   onClick: (item: NewsItem) => void;
   variant?: "default" | "desk";
 }) {
-  const isDesk = variant === "desk";
+  const item = () => props.item;
+  const isUnread = () => props.isUnread;
+  const selected = () => props.selected ?? false;
+  const isDesk = () => (props.variant ?? "default") === "desk";
   return (
-    <ListItem disablePadding component={isDesk ? "div" : undefined}>
-      <MuiListItemButton
-        selected={selected}
-        onClick={() => onClick(item)}
-        aria-label={item.headline}
-        aria-current={selected ? "true" : undefined}
-        className={`news-item-card ${isUnread ? "unread" : ""}`}
-        data-testid={testId}
-        sx={
-          isDesk
-            ? {
-                alignItems: "flex-start",
-                gap: 1,
-                minHeight: 64,
-                px: 1.5,
-                py: 1,
-                borderRadius: 0,
-                borderLeft: 3,
-                borderLeftColor: selected ? "primary.main" : "transparent",
-                transitionProperty: "background-color, border-color, transform",
-                transitionDuration: "120ms",
-                "&:hover": { bgcolor: "action.hover" },
-                "&:active": { transform: "scale(0.995)" },
-              }
-            : { alignItems: "flex-start", gap: 1, py: 1 }
+    <Box
+      role="button"
+      tabIndex={0}
+      onClick={() => props.onClick(item())}
+      onKeyDown={(event: KeyboardEvent) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          props.onClick(item());
         }
+      }}
+      className={`news-item-card ${isUnread() ? "unread" : ""} flex items-start gap-4 cursor-pointer`}
+      style={{
+        "align-items": "flex-start",
+        gap: "8px",
+        ...(isDesk()
+          ? {
+              "min-height": "64px",
+              "padding-left": "12px",
+              "padding-right": "12px",
+              "padding-top": "8px",
+              "padding-bottom": "8px",
+              "border-radius": "0px",
+              "border-left": `3px solid ${selected() ? palette.PRIMARY : "transparent"}`,
+              "transition-property": "background-color, border-color, transform",
+              "transition-duration": "120ms",
+            }
+          : { "padding-top": "8px", "padding-bottom": "8px" }),
+      }}
+      aria-label={item().headline}
+      aria-current={selected() ? "true" : undefined}
+      data-testid={props.testId ?? "news-item"}
+    >
+      <Box
+        className="shrink-0"
+        style={{
+          "margin-top": "4px",
+          display: "flex",
+          "align-items": "center",
+          "justify-content": "center",
+        }}
       >
-        <ListItemIcon sx={{ minWidth: 18, mt: 0.55, justifyContent: "center" }}>
-          {isUnread ? (
-            <FiberManualRecordIcon sx={{ fontSize: 8 }} color="primary" aria-hidden="true" />
-          ) : null}
-        </ListItemIcon>
-        <ListItemText
-          primary={item.headline}
-          secondary={
-            <Box
-              component="div"
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 1,
-                minHeight: 18,
-              }}
-            >
-              <Box component="span" sx={{ minWidth: 0 }}>
-                {meta}
-              </Box>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                className="news-item-meta"
-                sx={{ flex: "0 0 auto", fontVariantNumeric: "tabular-nums" }}
-              >
-                {formatTimeAgo(item.publishedAt)}
-              </Typography>
-            </Box>
-          }
-          slotProps={{
-            primary: {
-              variant: "body2",
-              fontWeight: isUnread ? 600 : 400,
-              noWrap: !isDesk,
-              className: "news-item-headline",
-              ...(isDesk && {
-                sx: {
-                  display: "-webkit-box",
-                  WebkitBoxOrient: "vertical",
-                  WebkitLineClamp: 2,
-                  overflow: "hidden",
-                  lineHeight: 1.35,
-                  pr: 0.5,
-                },
-              }),
-            },
-            secondary: { component: "div", variant: "caption", sx: { mt: isDesk ? 0.5 : 0 } },
+        <Show when={isUnread()}>
+          <Box
+            style={{
+              width: "8px",
+              height: "8px",
+              "border-radius": "50%",
+              "background-color": palette.PRIMARY,
+            }}
+          />
+        </Show>
+      </Box>
+      <Box style={{ "min-width": "0px" }}>
+        <Text
+          size="sm"
+          fw={isUnread() ? 600 : 400}
+          className="news-item-headline"
+          style={{
+            display: isDesk() ? "-webkit-box" : undefined,
+            "-webkit-box-orient": isDesk() ? "vertical" : undefined,
+            "-webkit-line-clamp": isDesk() ? 2 : undefined,
+            overflow: isDesk() ? "hidden" : undefined,
+            "line-height": isDesk() ? 1.35 : undefined,
+            "padding-right": isDesk() ? "4px" : undefined,
+            // Line-clamp needs normal wrapping; `nowrap` clipped headlines
+            // mid-word with no ellipsis at narrow widths.
+            "white-space": isDesk() ? "normal" : undefined,
+            "overflow-wrap": isDesk() ? "anywhere" : undefined,
           }}
-        />
-      </MuiListItemButton>
-    </ListItem>
+        >
+          {item().headline}
+        </Text>
+        <Box
+          className="flex items-center justify-between gap-4 min-h-[18px]"
+          style={{
+            display: "flex",
+            "align-items": "center",
+            "justify-content": "space-between",
+            gap: "8px",
+            "min-height": "18px",
+          }}
+        >
+          <Box component="span" style={{ "min-width": "0px" }}>
+            {props.meta}
+          </Box>
+          <Text
+            size="xs"
+            c="dimmed"
+            className="news-item-meta"
+            style={{
+              flex: "0 0 auto",
+              "font-variant-numeric": "tabular-nums",
+              "margin-top": isDesk() ? "4px" : 0,
+            }}
+          >
+            {formatTimeAgo(item().publishedAt)}
+          </Text>
+        </Box>
+      </Box>
+    </Box>
   );
 }
 
-export function NewsSourceGroup({
-  source,
-  items,
-  isExpanded,
-  readIds,
-  onToggle,
-  onItemClick,
-  renderItem,
-  itemTestId,
-  variant = "default",
-}: {
+export function NewsSourceGroup(props: {
   source: string;
   items: NewsItem[];
   isExpanded: boolean;
   readIds: Set<string>;
   onToggle: () => void;
   onItemClick: (item: NewsItem) => void;
-  renderItem?: (item: NewsItem, isUnread: boolean) => ReactNode;
+  renderItem?: (item: NewsItem, isUnread: boolean) => JSX.Element;
   itemTestId?: string;
   variant?: "default" | "desk";
 }) {
-  const isDesk = variant === "desk";
+  const isDesk = () => (props.variant ?? "default") === "desk";
   return (
-    <Box component={isDesk ? "section" : "div"} className="news-source-group" sx={{ listStyle: "none" }}>
-      <ListItem disablePadding component="div">
-        <MuiListItemButton
-          onClick={onToggle}
-          aria-expanded={isExpanded}
-          data-testid={`news-source-group-${source}`}
-          sx={
-            isDesk
-              ? {
-                  position: "sticky",
-                  top: 0,
-                  zIndex: 1,
-                  minHeight: 36,
-                  px: 1.5,
-                  borderRadius: 0,
-                  borderTop: 1,
-                  borderColor: "divider",
-                  bgcolor: "background.default",
-                  transitionProperty: "background-color",
-                  transitionDuration: "120ms",
-                  "&:hover": { bgcolor: "action.hover" },
-                }
-              : { borderRadius: 1 }
+    <Box component={isDesk() ? "section" : "div"} className="news-source-group list-none">
+      <Box
+        role="button"
+        tabIndex={0}
+        onClick={props.onToggle}
+        onKeyDown={(e: KeyboardEvent) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            props.onToggle();
+          }
+        }}
+        aria-expanded={props.isExpanded}
+        data-testid={`news-source-group-${props.source}`}
+        className="flex items-center gap-2 cursor-pointer"
+        style={
+          isDesk()
+            ? {
+                position: "sticky",
+                top: 0,
+                "z-index": 1,
+                "min-height": "36px",
+                "padding-left": "12px",
+                "padding-right": "12px",
+                "border-radius": 0,
+                "border-top": `1px solid ${palette.BORDER}`,
+                "background-color": palette.BG,
+                "transition-property": "background-color",
+                "transition-duration": "120ms",
+              }
+            : { "border-radius": "8px" }
+        }
+      >
+        <Text size="sm" fw={700} style={{ "text-transform": "uppercase" }}>
+          {props.source}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {props.items.length} {props.items.length === 1 ? "article" : "articles"}
+        </Text>
+        <Box style={{ flex: 1 }} />
+        <Show when={props.isExpanded} fallback={<IconChevronDown size={12} />}>
+          <IconChevronUp size={12} />
+        </Show>
+      </Box>
+
+      <Collapse in={props.isExpanded}>
+        <Box
+          style={
+            isDesk()
+              ? { "padding-top": 0, "padding-bottom": 0 }
+              : { "padding-top": "4px", "padding-bottom": "4px" }
           }
         >
-          <ListItemText
-            primary={source}
-            secondary={`${items.length} ${items.length === 1 ? "article" : "articles"}`}
-            slotProps={{
-              primary: {
-                variant: "subtitle2",
-                sx: { textTransform: "uppercase", fontWeight: 700 },
-              },
-              secondary: { variant: "caption" },
+          <For each={props.items}>
+            {(item) => {
+              const isUnread = !props.readIds.has(item.id);
+              return props.renderItem ? (
+                props.renderItem(item, isUnread)
+              ) : (
+                <NewsItemCard
+                  item={item}
+                  isUnread={isUnread}
+                  testId={props.itemTestId}
+                  onClick={props.onItemClick}
+                  variant={props.variant}
+                />
+              );
             }}
-          />
-          {isExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-        </MuiListItemButton>
-      </ListItem>
-
-      <MuiCollapse in={isExpanded} timeout="auto" unmountOnExit>
-        <List dense disablePadding component={isDesk ? "div" : undefined} sx={{ py: isDesk ? 0 : 0.5 }}>
-          {items.map((item) => {
-            const isUnread = !readIds.has(item.id);
-            if (renderItem) return <Fragment key={item.id}>{renderItem(item, isUnread)}</Fragment>;
-            return (
-              <NewsItemCard
-                key={item.id}
-                item={item}
-                isUnread={isUnread}
-                testId={itemTestId}
-                onClick={onItemClick}
-                variant={variant}
-              />
-            );
-          })}
-        </List>
-      </MuiCollapse>
+          </For>
+        </Box>
+      </Collapse>
     </Box>
   );
 }
 
-export function NewsFilterControls({
-  sourceData,
-  selectedSource,
-  autoRefreshMs,
-  loading,
-  isRefreshing,
-  unreadCount,
-  onSourceChange,
-  onRefresh,
-  onAutoRefreshChange,
-  onMarkAllRead,
-}: {
+export function NewsFilterControls(props: {
   sourceData: { value: string; label: string }[];
   selectedSource: string;
   autoRefreshMs: string;
@@ -427,9 +426,9 @@ export function NewsFilterControls({
     <Stack gap={8}>
       <Select
         size="sm"
-        value={selectedSource}
-        onChange={(v) => v && onSourceChange(v)}
-        data={sourceData}
+        value={props.selectedSource}
+        onChange={(v) => v && props.onSourceChange(v)}
+        data={props.sourceData}
         style={{ width: "100%" }}
         className="news-source-select"
         data-testid="news-source-select"
@@ -440,9 +439,9 @@ export function NewsFilterControls({
             <ActionIcon
               variant="light"
               size="sm"
-              onClick={onRefresh}
-              loading={loading}
-              disabled={loading || isRefreshing}
+              onClick={props.onRefresh}
+              loading={props.loading}
+              disabled={props.loading || props.isRefreshing}
               className="news-refresh-btn"
               data-testid="news-refresh-btn"
             >
@@ -451,48 +450,32 @@ export function NewsFilterControls({
           </Tooltip>
           <Select
             size="sm"
-            value={autoRefreshMs}
-            onChange={(v) => v && onAutoRefreshChange(v)}
+            value={props.autoRefreshMs}
+            onChange={(v) => v && props.onAutoRefreshChange(v)}
             data={AUTO_REFRESH_INTERVALS}
             w={96}
             data-testid="news-auto-refresh-select"
           />
         </Group>
-        {unreadCount > 0 && (
-          <Badge
-            size="sm"
-            variant="light"
-            color="primary"
-            onClick={onMarkAllRead}
+        <Show when={props.unreadCount > 0}>
+          <button
+            type="button"
+            onClick={props.onMarkAllRead}
+            aria-label={`${props.unreadCount} unread — mark all as read`}
             data-testid="news-unread-badge"
-            style={{ cursor: "pointer" }}
+            class="cursor-pointer rounded border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-fin-primary)]"
           >
-            {unreadCount} unread
-          </Badge>
-        )}
+            <Badge size="sm" variant="light" color="primary">
+              {props.unreadCount} unread
+            </Badge>
+          </button>
+        </Show>
       </ToolbarRow>
     </Stack>
   );
 }
 
-const normalizeNewsSource = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
-
-export function NewsListContent({
-  loading,
-  error,
-  newsItems,
-  selectedSource,
-  selectedArticleId,
-  sourceNames,
-  groupedNewsItems,
-  expandedSources,
-  readIds,
-  onToggleSource,
-  onArticleClick,
-  renderItemMeta,
-  itemTestId,
-  variant = "default",
-}: {
+export function NewsListContent(props: {
   loading: boolean;
   error: string | null;
   newsItems: NewsItem[];
@@ -504,126 +487,142 @@ export function NewsListContent({
   readIds: Set<string>;
   onToggleSource: (source: string) => void;
   onArticleClick: (item: NewsItem) => void;
-  renderItemMeta?: (item: NewsItem) => ReactNode;
+  renderItemMeta?: (item: NewsItem) => JSX.Element;
   itemTestId?: string;
   variant?: "default" | "desk";
 }) {
-  if (loading && newsItems.length === 0) {
-    return (
-      <Box sx={{ p: 2 }} data-testid="news-loading">
-        <Stack spacing={1}>
-          {[0, 1, 2].map((row) => (
-            <Skeleton key={row} variant="rounded" height={64} />
-          ))}
-          <Typography variant="body2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Loader size="sm" />
-            Loading news...
-          </Typography>
-        </Stack>
-      </Box>
+  // Read by <For> and by every group's divider <Show>; without the memo each
+  // of those reads re-filters and re-normalizes the whole source list.
+  const visibleSources = createMemo(() => {
+    const normalizedSelectedSource = normalizeSourceName(props.selectedSource);
+    return props.sourceNames.filter(
+      (source) =>
+        props.selectedSource === "all" || normalizeSourceName(source) === normalizedSelectedSource,
     );
-  }
-  if (error) {
-    return (
-      <MuiAlert severity="error" sx={{ m: 1 }} data-testid="news-error">
-        {error}
-      </MuiAlert>
-    );
-  }
-  if (newsItems.length === 0) {
-    return (
-      <Box sx={{ px: 2, py: 4, textAlign: "center" }} data-testid="news-empty">
-        <IconNews size={32} aria-hidden="true" />
-        <Typography variant="subtitle1" fontWeight={600} sx={{ mt: 1 }}>
-          No news available
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          New articles will appear here when sources publish them.
-        </Typography>
-      </Box>
-    );
-  }
-  const normalizedSelectedSource = normalizeNewsSource(selectedSource);
-  const visibleSources = sourceNames.filter(
-    (source) => selectedSource === "all" || normalizeNewsSource(source) === normalizedSelectedSource,
-  );
-  const isDesk = variant === "desk";
+  });
+  const isDesk = () => (props.variant ?? "default") === "desk";
+
   return (
-    <List
-      dense
-      disablePadding
-      component={isDesk ? "section" : undefined}
-      className="news-source-groups"
-      aria-label="News stories by source"
-      sx={{ width: "100%" }}
-    >
-      {visibleSources.map((source, index) => (
-        <Box component={isDesk ? "section" : "li"} key={source} sx={{ listStyle: "none" }}>
-          <NewsSourceGroup
-            source={source}
-            items={groupedNewsItems[source]}
-            isExpanded={expandedSources.has(source)}
-            readIds={readIds}
-            onToggle={() => onToggleSource(source)}
-            onItemClick={onArticleClick}
-            variant={variant}
-            renderItem={(item, isUnread) => (
-              <NewsItemCard
-                item={item}
-                isUnread={isUnread}
-                selected={selectedArticleId != null && selectedArticleId === item.id}
-                meta={renderItemMeta?.(item)}
-                testId={itemTestId}
-                onClick={onArticleClick}
-                variant={variant}
-              />
+    <Switch
+      fallback={
+        <Box
+          component={isDesk() ? "section" : undefined}
+          className="news-source-groups"
+          style={{ width: "100%" }}
+          aria-label="News stories by source"
+        >
+          <For each={visibleSources()}>
+            {(source, index) => (
+              <Box component={isDesk() ? "section" : "li"} style={{ "list-style": "none" }}>
+                <NewsSourceGroup
+                  source={source}
+                  items={props.groupedNewsItems[source]}
+                  isExpanded={props.expandedSources.has(source)}
+                  readIds={props.readIds}
+                  onToggle={() => props.onToggleSource(source)}
+                  onItemClick={props.onArticleClick}
+                  variant={props.variant}
+                  renderItem={(item, isUnread) => (
+                    <NewsItemCard
+                      item={item}
+                      isUnread={isUnread}
+                      selected={
+                        props.selectedArticleId != null && props.selectedArticleId === item.id
+                      }
+                      meta={props.renderItemMeta?.(item)}
+                      testId={props.itemTestId}
+                      onClick={props.onArticleClick}
+                      variant={props.variant}
+                    />
+                  )}
+                />
+                <Show when={!isDesk() && index() < visibleSources().length - 1}>
+                  <Divider orientation="horizontal" />
+                </Show>
+              </Box>
             )}
-          />
-          {!isDesk && index < visibleSources.length - 1 ? <MuiDivider component="div" /> : null}
+          </For>
         </Box>
-      ))}
-    </List>
+      }
+    >
+      <Match when={props.loading && props.newsItems.length === 0}>
+        <Box style={{ padding: "16px" }} data-testid="news-loading">
+          <Stack className="gap-2">
+            <For each={[0, 1, 2]}>{() => <Skeleton h={64} radius="sm" visible />}</For>
+            <Text size="sm" c="dimmed" className="flex items-center gap-4">
+              <Loader size="sm" />
+              Loading news...
+            </Text>
+          </Stack>
+        </Box>
+      </Match>
+      <Match when={props.error}>
+        <Alert color="error" style={{ margin: "8px" }} data-testid="news-error">
+          {props.error}
+        </Alert>
+      </Match>
+      <Match when={props.newsItems.length === 0}>
+        <Box
+          style={{
+            "padding-left": "16px",
+            "padding-right": "16px",
+            "padding-top": "32px",
+            "padding-bottom": "32px",
+            "text-align": "center",
+          }}
+          data-testid="news-empty"
+        >
+          <IconNews size={32} aria-hidden="true" />
+          <Text size="sm" fw={600} style={{ "margin-top": "8px" }}>
+            No news available
+          </Text>
+        </Box>
+      </Match>
+    </Switch>
   );
 }
 
-export function NewsListHeader({
-  wsConnected,
-  isRefreshing,
-  onClose,
-}: {
+export function NewsListHeader(props: {
   wsConnected: boolean;
   isRefreshing: boolean;
   onClose: () => void;
 }) {
   return (
     <Box id="news-panel-header" data-testid="news-panel-header">
-      <Toolbar variant="dense" disableGutters sx={{ px: 1, gap: 1 }}>
-        <Typography variant="subtitle1" fontWeight={700} sx={{ textTransform: "uppercase" }}>
+      <ToolbarRow style={{ "padding-left": "8px", gap: "8px" }}>
+        <Text size="sm" fw={700} style={{ "text-transform": "uppercase" }}>
           News
-        </Typography>
-        {wsConnected && (
+        </Text>
+        <Show when={props.wsConnected}>
           <Tooltip label="Live updates connected">
-            <FiberManualRecordIcon
-              color="success"
-              sx={{ fontSize: 8 }}
-              data-testid="news-ws-indicator"
-            />
+            <Box style={{ color: palette.POSITIVE, "font-size": `${typeSize("micro")}px` }}>
+              <Box
+                style={{
+                  width: "8px",
+                  height: "8px",
+                  "border-radius": "50%",
+                  "background-color": palette.POSITIVE,
+                }}
+              />
+            </Box>
           </Tooltip>
-        )}
-        {isRefreshing && <Loader size="sm" />}
-        <Box sx={{ flexGrow: 1 }} />
-        <IconButton
-          edge="end"
+        </Show>
+        <Show when={props.isRefreshing}>
+          <Loader size="sm" />
+        </Show>
+        <Box style={{ "flex-grow": 1 }} />
+        <ActionIcon
           size="small"
           aria-label="Close news panel"
-          onClick={onClose}
+          onClick={props.onClose}
           className="news-close-btn"
           data-testid="news-close-btn"
+          variant="subtle"
         >
-          <CloseIcon fontSize="small" />
-        </IconButton>
-      </Toolbar>
-      <MuiDivider />
+          <IconX size={12} />
+        </ActionIcon>
+      </ToolbarRow>
+      <Divider />
     </Box>
   );
 }

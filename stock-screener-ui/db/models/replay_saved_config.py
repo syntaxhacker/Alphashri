@@ -1,4 +1,4 @@
-from sqlalchemy import Column, JSON, UniqueConstraint
+from sqlalchemy import Column, JSON, UniqueConstraint, Index
 
 from .base import Base, UserOwnedConfigMixin
 
@@ -11,6 +11,9 @@ class ReplaySavedConfig(UserOwnedConfigMixin, Base):
 
     __table_args__ = (
         UniqueConstraint('user_id', 'name', name='uq_user_replay_config'),
+        # Config lists are ordered by updated_at; a prefix-only user_id index
+        # forces a temp B-tree sort on every saved-config page load.
+        Index('ix_replay_saved_configs_user_updated', 'user_id', 'updated_at'),
     )
 
     def to_dict(self):

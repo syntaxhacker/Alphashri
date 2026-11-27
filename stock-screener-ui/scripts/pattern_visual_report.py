@@ -1,14 +1,3 @@
-"""Render one real detected hit per pattern to a self-contained HTML gallery.
-
-For every pattern in the catalog it scans a liquid universe (real Upstox V3
-candles), takes the first hit found, and draws the candlesticks + the detector's
-boundary trendlines + breakout/target/stop guides. This is the visual audit used
-to confirm each detector's geometry on real data (see docs/chart_patterns_verification.md).
-
-Usage:
-    .venv/bin/python scripts/pattern_visual_report.py
-    .venv/bin/python scripts/pattern_visual_report.py --out reports/patterns_visual
-"""
 from __future__ import annotations
 
 import argparse
@@ -67,7 +56,6 @@ def catalog_ids():
 
 
 def collect(hits_found: dict, limit_symbols: int):
-    """Scan (timeframe, symbol) pairs in parallel and keep the first hit per pattern."""
     pairs = [(symbol, tf) for tf in TIMEFRAMES for symbol in SYMBOLS[:limit_symbols]]
 
     def one(symbol: str, tf: str):

@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""
-Seed instruments from JSON to PostgreSQL database.
-
-Usage:
-    DATABASE_URL=postgresql://... python scripts/seed_instruments.py
-"""
 
 import sys
 import json
@@ -24,7 +18,6 @@ BATCH_SIZE = 1000
 
 
 def parse_date(date_str):
-    """Parse date string to datetime object."""
     if not date_str:
         return None
     try:
@@ -34,13 +27,11 @@ def parse_date(date_str):
 
 
 def seed():
-    """Seed instruments from JSON files to database."""
     db = SessionLocal()
     try:
         # Drop existing instruments table (checkfirst=True to avoid error if not exists)
         Instrument.__table__.drop(engine, checkfirst=True)
         
-        # Create new table
         Instrument.__table__.create(engine)
         print("Created instruments table")
         
@@ -93,7 +84,6 @@ def seed():
 
             break
 
-        # Update statistics
         count = db.query(Instrument).count()
         print(f"\nTotal instruments in DB: {count}")
     finally:

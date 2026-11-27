@@ -1,16 +1,17 @@
 // overlays.ts — pure canvas draw functions for tick-replay (no lightweight-charts import).
 // All take (ctx, coord) from <OverlayCanvas>. Unit-tested in overlays.test.ts.
+import { typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { OverlayCoord } from "./OverlayCanvas";
 import type { ReplayTrade, ReplayTrend, ReplayZone } from "./types";
 
 export const ZONE_STYLE: Record<ReplayZone["kind"], { fill: string; stroke: string }> = {
-  supply: { fill: "rgba(168,85,247,0.18)", stroke: palette.NT_TREND },
-  demand: { fill: "rgba(168,85,247,0.18)", stroke: palette.NT_TREND },
-  "fvg-bull": { fill: palette.NT_FVG_BULL_FILL, stroke: palette.NT_FVG_BULL_STROKE },
-  "fvg-bear": { fill: palette.NT_FVG_BEAR_FILL, stroke: palette.NT_FVG_BEAR_STROKE },
-  ifvg: { fill: palette.NT_IFVG_FILL, stroke: palette.NT_IFVG_STROKE },
-  lrl: { fill: "rgba(0,0,0,0)", stroke: palette.NT_TREND },
+  supply: { "fill": "rgba(168,85,247,0.18)", "stroke": palette.NT_TREND },
+  demand: { "fill": "rgba(168,85,247,0.18)", "stroke": palette.NT_TREND },
+  "fvg-bull": { "fill": palette.NT_FVG_BULL_FILL, "stroke": palette.NT_FVG_BULL_STROKE },
+  "fvg-bear": { "fill": palette.NT_FVG_BEAR_FILL, "stroke": palette.NT_FVG_BEAR_STROKE },
+  ifvg: { "fill": palette.NT_IFVG_FILL, "stroke": palette.NT_IFVG_STROKE },
+  lrl: { "fill": "rgba(0,0,0,0)", "stroke": palette.NT_TREND },
 };
 
 export function drawZoneBox(
@@ -38,7 +39,7 @@ export function drawZoneBox(
   ctx.strokeRect(x + 0.5, y + 0.5, Math.max(w - 1, 1), Math.max(h - 1, 1));
   if (label) {
     ctx.fillStyle = stroke;
-    ctx.font = "bold 10px monospace";
+    ctx.font = `bold ${typeSize("micro")}px monospace`;
     ctx.fillText(label, x + 4, y + 13);
   }
   ctx.restore();
@@ -75,7 +76,7 @@ export function drawZones(
       ctx.fill();
     }
     if (tr.label) {
-      ctx.font = "bold 10px monospace";
+      ctx.font = `bold ${typeSize("micro")}px monospace`;
       ctx.fillText(tr.label, Math.min(x1, x2) + 6, Math.min(y1, y2) - 6);
     }
     ctx.restore();
@@ -146,7 +147,7 @@ export function drawRiskReward(
   ctx.lineTo(g.left + g.width, g.yEntry);
   ctx.stroke();
   ctx.restore();
-  ctx.font = "600 10px monospace";
+  ctx.font = `600 ${typeSize("micro")}px monospace`;
   const risk = Math.abs(trade.entry - trade.sl).toFixed(1);
   const lx = g.left + g.width + 4;
   ctx.fillStyle = palette.NEGATIVE;

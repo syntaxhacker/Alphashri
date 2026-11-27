@@ -43,7 +43,6 @@ class TestCalculate52WHigh:
         """Test single value with exclude_current=True."""
         highs = [100]
         result = calculate_52w_high(highs, period=252, exclude_current=True)
-        # Excluding the only value leaves empty window
         assert result is None
 
     def test_single_value_include_current(self):
@@ -83,7 +82,6 @@ class TestParity:
         Both paper trading (runner_core.py) and backtest (week52_chaser.py)
         should now use the same calculate_52w_high() function.
         """
-        # Simulate daily highs for a stock
         highs = [100 + i for i in range(300)]  # 100, 101, ..., 399
 
         # Paper trading uses exclude_current=True
@@ -94,14 +92,12 @@ class TestParity:
 
     def test_realistic_scenario(self):
         """Test with realistic price data."""
-        # Simulate a stock making new highs
         highs = [
             100, 102, 101, 105, 103, 108, 110, 107, 112, 115,  # Days 1-10
             113, 118, 120, 119, 122, 125, 123, 128, 130, 127,  # Days 11-20
             132, 135, 133, 138, 140, 137, 142, 145, 143, 148,  # Days 21-30
         ]
 
-        # Calculate 52W high (with more than 30 days, but test with smaller period)
         result_excluded = calculate_52w_high(highs, period=30, exclude_current=True)
         result_included = calculate_52w_high(highs, period=30, exclude_current=False)
 

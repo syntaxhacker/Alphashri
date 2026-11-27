@@ -15,4 +15,4 @@ export const FIELD_W = {
 } as const;
 
 /** Row action buttons sit beside size="sm" inputs (40px tall) — match them. */
-export const ROW_BUTTON_SX = { height: 40 } as const;
+export const ROW_BUTTON_SX = { height: "40px" } as const;

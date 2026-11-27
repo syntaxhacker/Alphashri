@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { JSX } from "solid-js";
 import type { ReplayBundle, ReplayTrade, ReplayTrend, ReplayZone } from "../tick";
 
 export interface ReplayParamSpec {
@@ -43,6 +43,6 @@ export interface ReplayStrategyPlugin {
     fitPaddingAfterMin?: number;
   };
   /** Full-width row rendered after the param controls in review mode (e.g. KPI chips). */
-  panel?: (bundle: ReplayBundle, json: any) => ReactNode;
-  summary?: (bundle: ReplayBundle, json: any) => ReactNode;
+  panel?: (bundle: ReplayBundle, json: any) => JSX.Element;
+  summary?: (bundle: ReplayBundle, json: any) => JSX.Element | string;
 }

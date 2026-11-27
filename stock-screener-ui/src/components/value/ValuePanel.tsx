@@ -1,9 +1,12 @@
-import { useState } from "react";
-import { IconDownload, IconRefresh } from "@tabler/icons-react";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import { useNavigate } from "@solidjs/router";
+import { IconDownload, IconRefresh, IconSparkles } from "../common/Icons";
 import {
   ActionIcon,
   Alert,
+  Badge,
   Box,
+  Button,
   Divider,
   Loader,
   Select,
@@ -12,119 +15,245 @@ import {
   TabsList,
   Text,
   ToolbarRow,
+  useDisclosure,
 } from "@/ui";
 import { CompactPanel } from "../common/compact";
-import { useValueScan } from "../../hooks/useValueScan";
+import { PresetGallery } from "../market/presets/PresetGallery";
+import type { MarketFilterState } from "../market/marketFilters";
+import { useValueScanSolid } from "./useValueScanSolid";
 import {
   VALUE_MARKETS,
   VALUE_PRESETS,
   type ValueFilters,
+  type ValueMarket,
   type ValueRow,
 } from "../../api/valueScan";
 import { ValueFilters as ValueFilterBar } from "./ValueFilters";
 import { ValueTable } from "./ValueTable";
 import { ValueDetailDrawer } from "./ValueDetailDrawer";
-import { VALUE_CSV_HEADERS, escapeCsvCell, valueRowToCsvRow } from "./valueColumns";
+import {
+  VALUE_CSV_HEADERS,
+  buildChartHref,
+  escapeCsvCell,
+  isInAppChartExchange,
+  valueRowToCsvRow,
+} from "./valueColumns";
 
 interface ValuePanelProps {
   initialFilters?: Partial<ValueFilters>;
   onRowClick?: (row: ValueRow) => void;
   sectorOptions?: string[];
+  /** Embedded under another surface (e.g. the Market View switch). Drops the
+   *  standalone market tabs so the host's universe selector is the only one. */
+  embedded?: boolean;
+  /** Controlled market. Overrides `initialFilters.market` and stays in sync
+   *  with the host's universe. */
+  market?: ValueMarket;
+  /** Hide the self-contained market selector. Implied by `embedded`. */
+  hideMarketSelect?: boolean;
+  /**
+   * Host-owned chart opener (the Market panel's dock). Only used by an embedded
+   * panel for rows with an in-app chart; everywhere else the detail drawer owns
+   * the row click. The standalone tab omits it and needs no dock provider.
+   */
+  onOpenSymbol?: (symbol: string) => void;
+  /**
+   * Market-view presets opened from this panel's gallery. The host owns the
+   * market filter state; without a host the gallery still browses them.
+   */
+  onApplyMarketPreset?: (patch: Partial<MarketFilterState>) => void;
 }
 
-const PRESET_OPTIONS = Object.entries(VALUE_PRESETS).map(([value, meta]) => ({
-  value,
-  label: meta.label,
-}));
+const PRESET_OPTIONS = [
+  { value: "", label: "No preset" },
+  ...Object.entries(VALUE_PRESETS).map(([value, meta]) => ({
+    value,
+    label: meta.label,
+  })),
+];
 
-export function ValuePanel({ initialFilters = {}, onRowClick, sectorOptions = [] }: ValuePanelProps) {
-  const [filters, setFilters] = useState<ValueFilters>(() => ({
+const VALUE_WARNING_LABELS: Record<string, string> = {
+  cache_unavailable: "Price cache unavailable — live scan",
+  scoring_engine_unavailable: "Scoring engine unavailable — ranks may be incomplete",
+};
+
+function formatValueAsOf(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return `${new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Kolkata",
+  }).format(parsed)} IST`;
+}
+
+function humanizeValueWarning(warning: string): string {
+  if (VALUE_WARNING_LABELS[warning]) return VALUE_WARNING_LABELS[warning];
+  return warning.replace(/_/g, " ");
+}
+
+export function ValuePanel(props: ValuePanelProps) {
+  const navigate = useNavigate();
+  const [filters, setFilters] = createSignal<ValueFilters>({
     market: "india",
     limit: 100,
     sort: "score",
-    ...initialFilters,
-  }));
-  const [selected, setSelected] = useState<ValueRow | null>(null);
-  const { rows, sectors, meta, isLoading, error, refresh, warnings, lastUpdated } =
-    useValueScan(filters);
+    ...props.initialFilters,
+    ...(props.market !== undefined ? { market: props.market } : {}),
+  });
+  // A host-owned market follows its owner without rebuilding the other filters.
+  createEffect(() => {
+    const market = props.market;
+    if (market === undefined) return;
+    setFilters((f) => (f.market === market ? f : { ...f, market }));
+  });
+  const [selected, setSelected] = createSignal<ValueRow | null>(null);
+  const { data, rows, sectors, meta, isLoading, error, stale, refresh, warnings, lastUpdated } =
+    useValueScanSolid(filters);
 
-  const patch = (p: Partial<ValueFilters>): void =>
+  const patch = (p: Partial<ValueFilters>): void => {
     setFilters((f) => ({ ...f, ...p }));
+  };
+  const [galleryOpened, gallery] = useDisclosure(false);
+
+  const patchValueBounds = (bounds: Record<string, number | null>): void => {
+    patch(bounds as Partial<ValueFilters>);
+  };
+  const valueBounds = () =>
+    filters() as unknown as Record<string, number | null | undefined>;
+  const valueCurrency = () => (filters().market === "usa" ? "USD" : "INR");
+  const valueUniverse = () => (filters().market === "usa" ? "us" : "all_equity");
+
+  const canOpenInHost = (exchange: string | undefined): boolean =>
+    props.embedded === true &&
+    typeof props.onOpenSymbol === "function" &&
+    isInAppChartExchange(exchange);
 
   const handleRowClick = (row: ValueRow): void => {
-    setSelected(row);
-    onRowClick?.(row);
+    if (canOpenInHost(row.exchange)) {
+      // A previous row's drawer must not float over the dock opened here.
+      setSelected(null);
+      props.onOpenSymbol!(row.symbol);
+    } else {
+      setSelected(row);
+    }
+    props.onRowClick?.(row);
+  };
+
+  const handleSymbolClick = (symbol: string, exchange: string | undefined): void => {
+    if (canOpenInHost(exchange)) {
+      props.onOpenSymbol!(symbol);
+      return;
+    }
+    navigate(buildChartHref(symbol, exchange));
   };
 
   const exportCsv = (): void => {
+    // Filename and content come from the same payload, so they can never
+    // disagree about which market was exported.
+    const frame = data();
+    if (!frame || stale()) return;
     const lines = [
       VALUE_CSV_HEADERS.join(","),
-      ...rows.map((r) => valueRowToCsvRow(r).map(escapeCsvCell).join(",")),
+      ...frame.rows.map((r) => valueRowToCsvRow(r).map(escapeCsvCell).join(",")),
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `deep-value-${filters.market ?? "india"}.csv`;
+    a.download = `deep-value-${frame.market}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
   };
 
-  const showLoading = isLoading && rows.length === 0;
-  const showError = error !== null && rows.length === 0;
-  const showEmpty = !isLoading && error === null && rows.length === 0;
-  const sectorSummary = sectors
-    .slice(0, 5)
-    .map((s) => `${s.name} (${s.count})`)
-    .join(" · ");
+  const showLoading = () => isLoading() && rows().length === 0;
+  const showError = () => error() !== null;
+  const showEmpty = () => !isLoading() && error() === null && rows().length === 0;
+  const canExport = () => data() !== null && !stale();
+  // The standalone tab owns a market selector; an embedded panel must not show
+  // a second one — the host's universe selector drives `market` instead.
+  const showMarketTabs = () => !props.embedded && props.hideMarketSelect !== true;
+  // A payload whose own market disagrees with the tab cannot be presented as
+  // the requested market — say which universe these rows are, never imply it.
+  const marketMismatch = createMemo(() => {
+    const d = data();
+    return d !== null && d.market !== (filters().market ?? "india");
+  });
+  const sectorSummary = createMemo(() =>
+    sectors()
+      .slice(0, 5)
+      .map((s) => `${s.name} (${s.count})`)
+      .join(" · "),
+  );
 
   return (
     <CompactPanel testId="value-panel">
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+      <Box className="flex flex-col gap-1">
         <ToolbarRow justify="space-between" data-testid="value-header">
           <ToolbarRow gap={8}>
             <Text size="sm" fw={700} data-testid="value-title">
               DEEP VALUE
             </Text>
-            <Tabs
-              value={filters.market ?? "india"}
-              onChange={(v) => patch({ market: (v ?? "india") as ValueFilters["market"] })}
-              data-testid="value-market-tabs"
-            >
-              <TabsList>
-                {VALUE_MARKETS.map((m) => (
-                  <Tab
-                    key={m.value}
-                    value={m.value}
-                    data-testid={`value-market-tab-${m.value}`}
-                  >
-                    {m.label}
-                  </Tab>
-                ))}
-              </TabsList>
-            </Tabs>
+            <Show when={showMarketTabs()}>
+              <Tabs
+                value={filters().market ?? "india"}
+                onChange={(v) => patch({ market: (v ?? "india") as ValueFilters["market"] })}
+                data-testid="value-market-tabs"
+              >
+                <TabsList>
+                  <For each={VALUE_MARKETS}>{(m) => (
+                    <Tab
+                      value={m.value}
+                      data-testid={`value-market-tab-${m.value}`}
+                    >
+                      {m.label}
+                    </Tab>
+                  )}</For>
+                </TabsList>
+              </Tabs>
+            </Show>
             <Select
-              placeholder="Preset"
+              aria-label="Value preset"
               data={PRESET_OPTIONS}
-              value={filters.preset ?? ""}
-              onChange={(v) => patch({ preset: v ?? undefined })}
+              value={filters().preset ?? ""}
+              onChange={(v) => patch({ preset: v || undefined })}
               w={150}
               size="sm"
               data-testid="value-preset-select"
             />
+            <Button
+              size="sm"
+              variant="outline"
+              aria-haspopup="dialog"
+              aria-expanded={galleryOpened()}
+              onClick={gallery.open}
+              data-testid="value-preset-gallery"
+            >
+              <IconSparkles size={12} />
+              Presets
+            </Button>
           </ToolbarRow>
-          <ToolbarRow gap={8}>
-            {lastUpdated && (
+          <ToolbarRow gap={8} data-testid="value-header-secondary">
+            <Show when={filters().preset}>
+              <Badge size="xs" color="primary" variant="light" data-testid="value-preset-current">
+                {VALUE_PRESETS[filters().preset ?? ""]?.label ?? filters().preset}
+              </Badge>
+            </Show>
+            <Show when={lastUpdated()}>
               <Text size="xs" c="dimmed" data-testid="value-as-of">
-                {`as of ${lastUpdated}`}
+                {`as of ${formatValueAsOf(lastUpdated())}`}
               </Text>
-            )}
+            </Show>
             <ActionIcon
               size="sm"
               onClick={refresh}
-              loading={isLoading}
+              loading={isLoading()}
               data-testid="value-refresh"
               aria-label="Refresh"
             >
@@ -133,57 +262,89 @@ export function ValuePanel({ initialFilters = {}, onRowClick, sectorOptions = []
           </ToolbarRow>
         </ToolbarRow>
 
-        <ValueFilterBar filters={filters} onChange={patch} sectorOptions={sectorOptions} />
+        <ValueFilterBar filters={filters()} onChange={patch} sectorOptions={props.sectorOptions} />
         <Divider />
 
-        {showLoading && (
+        <Show when={showLoading()}>
           <Box
             data-testid="value-loading"
-            sx={{ display: "flex", alignItems: "center", gap: 1, py: 4, justifyContent: "center" }}
+            className="flex items-center justify-center gap-2 py-8"
           >
             <Loader size="sm" />
             <Text size="sm" c="dimmed">
               Scanning for deep value…
             </Text>
           </Box>
-        )}
-        {showError && (
+        </Show>
+        <Show when={showError()}>
           <Alert color="error" data-testid="value-error">
-            {`Value scan failed: ${error?.message ?? "unknown error"}`}
+            <div className="flex items-center justify-between gap-2">
+              <Text size="sm">{`Value scan failed: ${error()?.message ?? "unknown error"}`}</Text>
+              <Button
+                variant="outline"
+                color="error"
+                size="xs"
+                onClick={refresh}
+                data-testid="value-retry"
+              >
+                Retry
+              </Button>
+            </div>
           </Alert>
-        )}
-        {showEmpty && (
-          <Box data-testid="value-empty" sx={{ py: 4, textAlign: "center" }}>
+        </Show>
+        <Show when={marketMismatch()}>
+          <Alert color="warning" data-testid="value-market-mismatch">
+            {`Showing ${(data()?.market ?? "").toUpperCase()} results (${data()?.currency}) for the ${(filters().market ?? "india").toUpperCase()} request.`}
+          </Alert>
+        </Show>
+        <Show when={showEmpty()}>
+          <Box data-testid="value-empty" className="py-8 text-center">
             <Text size="sm" c="dimmed">
               No deep-value matches for these filters — loosen a gate or two.
             </Text>
           </Box>
-        )}
-        {!showEmpty && (
-          <ValueTable rows={rows} loading={isLoading} onRowClick={handleRowClick} />
-        )}
+        </Show>
+        <Show when={!showEmpty() && !(showError() && rows().length === 0)}>
+          <ValueTable
+            rows={rows()}
+            loading={isLoading()}
+            onRowClick={handleRowClick}
+            // Exchange-gated in buildValueColumns: in-app-chart rows reach the
+            // host dock when embedded, otherwise buildChartHref adds
+            // `?market=usa` for US rows so the chart picks the US provider.
+            onSymbolClick={handleSymbolClick}
+          />
+        </Show>
+
+        <Show when={meta()?.fields_complete === false}>
+          <Text size="xs" c="dimmed" className="py-1" data-testid="value-fields-partial">
+            Partial fundamentals — some source fields are unavailable for this market; a dash means
+            not reported, not zero.
+          </Text>
+        </Show>
 
         <Divider />
         <ToolbarRow justify="space-between" data-testid="value-footer">
           <ToolbarRow gap={8}>
             <Text size="xs" c="dimmed" data-testid="value-summary">
-              {`${rows.length} of ${meta?.matched ?? rows.length} matches · scanned ${meta?.scanned ?? 0}`}
+              {`${rows().length} of ${meta()?.matched ?? rows().length} matches · scanned ${meta()?.scanned ?? 0}`}
             </Text>
-            {sectorSummary && (
+            <Show when={sectorSummary()}>
               <Text size="xs" c="dimmed" data-testid="value-sectors">
-                {`sectors: ${sectorSummary}`}
+                {`sectors: ${sectorSummary()}`}
               </Text>
-            )}
+            </Show>
           </ToolbarRow>
           <ToolbarRow gap={8}>
-            {warnings.length > 0 && (
+            <Show when={warnings().length > 0}>
               <Text size="xs" c="dimmed" data-testid="value-warnings">
-                {warnings.join(" · ")}
+                {warnings().map(humanizeValueWarning).join(" · ")}
               </Text>
-            )}
+            </Show>
             <ActionIcon
               size="sm"
               onClick={exportCsv}
+              disabled={!canExport()}
               data-testid="value-export-csv"
               aria-label="Export CSV"
             >
@@ -192,7 +353,23 @@ export function ValuePanel({ initialFilters = {}, onRowClick, sectorOptions = []
           </ToolbarRow>
         </ToolbarRow>
       </Box>
-      <ValueDetailDrawer row={selected} onClose={() => setSelected(null)} />
+      <PresetGallery
+        opened={galleryOpened()}
+        onClose={gallery.close}
+        mode="value"
+        focus="value"
+        universe={valueUniverse()}
+        currency={valueCurrency()}
+        showMovers={typeof props.onApplyMarketPreset === "function"}
+        onMarketPreset={props.onApplyMarketPreset}
+        valueBounds={{ values: valueBounds, onChange: patchValueBounds }}
+        valuePresets={{
+          selected: filters().preset,
+          presets: VALUE_PRESETS,
+          onSelect: (id) => patch({ preset: id }),
+        }}
+      />
+      <ValueDetailDrawer row={selected()} onClose={() => setSelected(null)} />
     </CompactPanel>
   );
 }

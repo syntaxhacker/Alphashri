@@ -28,6 +28,7 @@ import pandas as pd
 
 from .. import features as F
 from .common import (
+    calendar_day_gap,
     flat_line_points,
     get_swings,
     make_hit,
@@ -36,7 +37,6 @@ from .common import (
     window_slice,
 )
 
-# Trailing windows (bars) scanned; the longest qualifying one is reported.
 WINDOWS = (30, 60, 90, 120, 180, 250)
 MIN_BARS = 20
 # Widest accepted base: a range wider than this is a trend, not a consolidation.
@@ -46,7 +46,6 @@ RANGE_MAX = float(os.environ.get("PATTERN_CONSOLIDATION_MAX_RANGE_PCT", "20.0"))
 MIN_RANGE_PCT = 1.5
 # Close must not drift more than 12% of price across the window (near-flat).
 NEAR_FLAT_MAX = 0.12
-# Last close must be inside the box, away from a mid-breakout at either edge.
 POS_MIN, POS_MAX = 15.0, 85.0
 TOUCH_TOL_ATR = 0.75
 # A trailing run of >= this many bars closing beyond the box (by more than
@@ -64,14 +63,9 @@ def _calendar_days(df: pd.DataFrame, start: int, end: int) -> int:
     """Calendar-day span of the bar window ``[start, end]`` (bar count fallback).
 
     ``base_days`` is labelled (and filtered) in days, but windows are scanned
-    in bars; on intraday frames a 120-bar base is hours, not days. Mirrors the
-    ``_bar_gap_days`` helper in ``detectors/reversal.py``.
+    in bars; on intraday frames a 120-bar base is hours, not days.
     """
-    try:
-        span = abs(float((df.index[int(end)] - df.index[int(start)]).days))
-        return int(span)
-    except (AttributeError, TypeError, IndexError, ValueError):
-        return int(abs(int(end) - int(start)))
+    return int(calendar_day_gap(df, end, start))
 
 
 def _tightness(range_pct: float, range_max: float) -> float:
@@ -182,7 +176,6 @@ class _BaseScan:
     def window_base(
         self, start: int, end: int, w: int, check_pos: bool = True
     ) -> dict | None:
-        """Memoized :func:`_window_base` equivalent over the cached arrays."""
         box = self.metrics(start, end)
         if box is None:
             return None
@@ -220,7 +213,6 @@ class _BaseScan:
         return k
 
     def _trailing_base_end_slow(self, start: int, end: int, tol: float, k: int) -> int:
-        """Reference scan (non-finite prices or a non-trailing ``end``)."""
         close = self.close
         for cand in range(end - 1, start + MIN_BARS - 2, -1):
             base = self.metrics(start, cand)
@@ -242,60 +234,40 @@ class _BaseScan:
         one vectorised pass. The largest qualifying ``cand`` wins (the
         descending loop this replaces broke at the first, i.e. largest, match).
         """
-        high = self.high[start:end]
-        low = self.low[start:end]
-        close = self.close[start:end]
         m_max = end - start
         if m_max < MIN_BARS:
             return int(end)
-        hi = np.maximum.accumulate(high)
-        lo = np.minimum.accumulate(low)
-        s0 = np.cumsum(close)
-        j = np.arange(m_max, dtype=float)
-        t0 = np.cumsum(j * close)
+        hi_m = m_max - BREAKOUT_MIN_BARS + 1
+        lo_m = MIN_BARS
+        if hi_m < lo_m:
+            return int(end)
+        high = self.high[start : start + hi_m]
+        low = self.low[start : start + hi_m]
+        close = self.close[start : start + hi_m]
+        hi = np.maximum.accumulate(high)[lo_m - 1 :]
+        lo = np.minimum.accumulate(low)[lo_m - 1 :]
+        s0 = np.cumsum(close)[lo_m - 1 :]
+        j_all = np.arange(hi_m, dtype=float)
+        t0 = np.cumsum(j_all * close)[lo_m - 1 :]
+        j = j_all[lo_m - 1 :]
         m = j + 1.0
         with np.errstate(divide="ignore", invalid="ignore"):
             mp = s0 / m
             range_pct = (hi - lo) / mp * 100.0
             # OLS slope on x = 0..m-1: sum((x-xbar)*y) / sum((x-xbar)^2).
-            slope = (t0 - (m - 1.0) * 0.5 * s0) / (m * (m * m - 1.0) / 12.0)
+            slope = (t0 - j * 0.5 * s0) / (m * (m * m - 1.0) / 12.0)
             ok = (hi > lo) & (mp > 0)
             ok &= (range_pct <= RANGE_MAX) & (range_pct >= MIN_RANGE_PCT)
             ok &= np.abs(slope * m / mp) <= NEAR_FLAT_MAX
-        ok &= m >= MIN_BARS
-        ok &= (m_max - j) >= BREAKOUT_MIN_BARS
-        ok &= (self._smax[start + 1 : end + 1] < lo - tol) | (
-            self._smin[start + 1 : end + 1] > hi + tol
+        ok &= (self._smax[start + lo_m : start + hi_m + 1] < lo - tol) | (
+            self._smin[start + lo_m : start + hi_m + 1] > hi + tol
         )
         hits = np.flatnonzero(ok)
-        return int(start + hits[-1]) if hits.size else int(end)
+        return int(start + lo_m - 1 + hits[-1]) if hits.size else int(end)
 
 
 def _scan_of(df: pd.DataFrame) -> _BaseScan:
-    """Fresh :class:`_BaseScan` for ``df`` (memo lives for one scan only)."""
     return _BaseScan(df)
-
-
-def _swing_indices(values: np.ndarray, left: int, right: int, kind: str) -> list[int]:
-    """Vectorised ``features._pivot_indices`` (same pivots, same order).
-
-    ``_pivot_indices`` slices a 5-element window and calls ``.max()``/``.min()``
-    in a Python loop — ~1.5 µs per bar, ~0.7 ms per frame, and this detector
-    needs both sides. ``sliding_window_view`` does the same comparisons in two
-    vector ops. ``max``/``min`` are exact, so the pivot set is unchanged.
-    """
-    n = len(values)
-    if n < left + right + 1:
-        return []
-    win = np.lib.stride_tricks.sliding_window_view(values, left + right + 1)
-    centre = values[left : n - right]
-    prev_v = values[left - 1 : n - right - 1]
-    next_v = values[left + 1 : n - right + 1]
-    if kind == "high":
-        ok = (centre >= win.max(axis=1)) & ((centre > prev_v) | (centre > next_v))
-    else:
-        ok = (centre <= win.min(axis=1)) & ((centre < prev_v) | (centre < next_v))
-    return (np.flatnonzero(ok) + left).tolist()
 
 
 def _swings_from(scan: _BaseScan, ctx: dict | None):
@@ -311,8 +283,8 @@ def _swings_from(scan: _BaseScan, ctx: dict | None):
         return cache[(2, 2)]
     high, low = scan.high, scan.low
     result = (
-        [(i, float(high[i])) for i in _swing_indices(high, 2, 2, "high")],
-        [(i, float(low[i])) for i in _swing_indices(low, 2, 2, "low")],
+        [(i, float(high[i])) for i in F.pivot_indices(high, 2, 2, "high")],
+        [(i, float(low[i])) for i in F.pivot_indices(low, 2, 2, "low")],
     )
     if ctx is not None:
         ctx.setdefault("_swings", {})[(2, 2)] = result
@@ -366,24 +338,36 @@ def _range_bound_swings(
     A genuine base swings back and forth, testing each edge repeatedly.
     """
     start, end = int(start), int(end)
-    H = [(p, q) for p, q in highs if start <= p <= end]
-    L = [(p, q) for p, q in lows if start <= p <= end]
-    if not H or not L:
+    mid = start + (end - start) // 2
+    # One pass over each pivot list replaces the per-window list filters and
+    # ``count_touches`` walks. A negative tol reproduces ``count_touches``
+    # returning 0 for a non-positive ATR.
+    tol = TOUCH_TOL_ATR * atr_val if atr_val > 0 else -1.0
+    near = [[0, 0], [0, 0]]
+    has_h = has_l = False
+    for p, q in highs:
+        if start <= p <= end:
+            has_h = True
+            half = 0 if p < mid else 1
+            if abs(q - hi) <= tol:
+                near[0][half] += 1
+    for p, q in lows:
+        if start <= p <= end:
+            has_l = True
+            half = 0 if p < mid else 1
+            if abs(q - lo) <= tol:
+                near[1][half] += 1
+    if not has_h or not has_l:
         return False
     # Two-sided oscillation in **both halves**: each half must touch both edges.
     # A single touch per edge anywhere lets a V-shape or a drift masquerade as a
     # range: a V tests one edge in the first half and the other in the second
     # (KOTAKBANK 1D; DRREDDY 1D *and* 1h), so one half never touches both.
     # Genuine bases swing back and forth throughout and pass easily.
-    mid = start + (end - start) // 2
-    for seg_lo, seg_hi in ((start, mid - 1), (mid, end)):
+    for half, (seg_lo, seg_hi) in enumerate(((start, mid - 1), (mid, end))):
         if seg_hi < seg_lo:
             continue
-        seg_h = [(p, q) for p, q in H if seg_lo <= p <= seg_hi]
-        seg_l = [(p, q) for p, q in L if seg_lo <= p <= seg_hi]
-        if F.count_touches(seg_h, 0.0, hi, atr_val, tol_atr=TOUCH_TOL_ATR) < 1:
-            return False
-        if F.count_touches(seg_l, 0.0, lo, atr_val, tol_atr=TOUCH_TOL_ATR) < 1:
+        if near[0][half] < 1 or near[1][half] < 1:
             return False
     return True
 
@@ -477,10 +461,13 @@ def detect_consolidation(df: pd.DataFrame, ctx: dict | None = None) -> list:
     L = [(p, q) for p, q in lows if start <= p <= end]
     touches = 1
     if atr_val > 0:
+        # Count only pivots inside the base window: H/L are filtered to
+        # [start, end], while the full-frame swings would credit stale touches
+        # at the same price level outside the base and inflate confidence.
         touches = max(
             1,
-            F.count_touches(highs, 0.0, hi, atr_val, tol_atr=TOUCH_TOL_ATR)
-            + F.count_touches(lows, 0.0, lo, atr_val, tol_atr=TOUCH_TOL_ATR),
+            F.count_touches(H, 0.0, hi, atr_val, tol_atr=TOUCH_TOL_ATR)
+            + F.count_touches(L, 0.0, lo, atr_val, tol_atr=TOUCH_TOL_ATR),
         )
 
     notes = f"consolidation {base_days}d; range {range_pct:.1f}%, pos {range_pos:.0f}%"

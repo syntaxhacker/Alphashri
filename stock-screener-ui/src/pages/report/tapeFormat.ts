@@ -23,45 +23,40 @@ import {
   formatReportRatio,
 } from "./reportFormat";
 
-/**
- * Terminal palette — matches the reference tape screenshot (pitch-black
- * desk, blue call/put deltas, brown Net, blue/brown Spot-flip).
- * Scoped to this table only; the global app palette stays untouched.
- */
 export const TAPE_TERM_BG = palette.BG;
-export const TAPE_SPOT = "#F2CC60";
-export const TAPE_CALL_DOI = "#80B5FF";
-export const TAPE_PUT_DOI = "#8AA4C2";
-export const TAPE_NET_HUE = "#7A4D16";
-export const TAPE_NET_TEXT = "#FFDDB3";
-export const TAPE_POS_HUE = "#1F7FFF";
-export const TAPE_FLIP_POS_TEXT = "#B3D1FF";
-export const TAPE_NEG_HUE = "#DB6D28";
-export const TAPE_FLIP_NEG_TEXT = "#FFC680";
+export const TAPE_CELL_RULE = palette.TAPE_CELL_RULE;
+export const TAPE_HEADER_RULE = palette.TAPE_HEADER_RULE;
+export const TAPE_COL_RULE = palette.TAPE_COL_RULE;
+export const TAPE_ROW_HOVER = palette.TAPE_ROW_HOVER;
+export const TAPE_ROW_LATEST = palette.TAPE_ROW_LATEST;
+export const TAPE_SPOT = palette.TAPE_SPOT;
+export const TAPE_CALL_DOI = palette.TAPE_CALL_DOI;
+export const TAPE_PUT_DOI = palette.TAPE_PUT_DOI;
+export const TAPE_NET_HUE = palette.TAPE_NET_HUE;
+export const TAPE_NET_TEXT = palette.TAPE_NET_TEXT;
+export const TAPE_POS_HUE = palette.TAPE_POS_HUE;
+export const TAPE_FLIP_POS_TEXT = palette.TAPE_FLIP_POS_TEXT;
+export const TAPE_NEG_HUE = palette.TAPE_NEG_HUE;
+export const TAPE_FLIP_NEG_TEXT = palette.TAPE_FLIP_NEG_TEXT;
 export const TAPE_TICK_POS = palette.POSITIVE;
 export const TAPE_TICK_NEG = palette.NEGATIVE;
 
-/** Signed compact OI delta: +170.16M / +5.53M / +850 / -12. */
 export function formatTapeCompact(v: number | null | undefined): string {
   return formatReportCompact(v, { sign: "always" });
 }
 
-/** Spot / strike-style price with Indian grouping. */
 export function formatTapePrice(v: number | null | undefined): string {
   return formatReportNum(v, { digits: 2 });
 }
 
-/** Signed points, e.g. +12 / -8. */
 export function formatTapeSigned(v: number | null | undefined): string {
   return formatReportNum(v, { digits: 2, sign: "always" });
 }
 
-/** Signed percent with 2 decimals. */
 export function formatTapePct(v: number | null | undefined): string {
   return formatReportPct(v, { digits: 2, sign: "always" });
 }
 
-/** Plain ratio with 2 decimals (PCR vol/OI). */
 export function formatTapeRatio(v: number | null | undefined): string {
   return formatReportRatio(v);
 }
@@ -80,7 +75,6 @@ export function formatIstClock(ms: number): string {
   return formatReportClock(ms);
 }
 
-/** Per-column max |value| across the rendered rows — the heat scale. */
 export interface TapeScale {
   call_doi: number;
   put_doi: number;
@@ -92,31 +86,36 @@ export interface TapeScale {
   spot_flip: number;
 }
 
-/** Largest |value| per heat column. Empty rows → all zeros (no tint). */
-export function computeTapeScale(rows: NiftyTapeRow[]): TapeScale {
-  const maxAbs = (pick: (r: NiftyTapeRow) => number | null | undefined): number =>
-    rows.reduce((m, r) => {
-      const v = pick(r);
-      return v === null || v === undefined || !Number.isFinite(v) ? m : Math.max(m, Math.abs(v));
-    }, 0);
-  return {
-    call_doi: maxAbs((r) => r.call_doi),
-    put_doi: maxAbs((r) => r.put_doi),
-    net: maxAbs((r) => r.net),
-    net_pct: maxAbs((r) => r.net_pct),
-    call_tick: maxAbs((r) => r.call_tick),
-    put_tick: maxAbs((r) => r.put_tick),
-    pcr_doi: maxAbs((r) => r.pcr_doi),
-    spot_flip: maxAbs((r) => r.spot_flip),
-  };
-}
+const maxAbs = (cur: number, v: number | null | undefined): number =>
+  v === null || v === undefined || !Number.isFinite(v) ? cur : Math.max(cur, Math.abs(v));
 
 /**
- * Magnitude heat: background alpha scales with |value| ÷ column max, so a
- * big print glows and a quiet one barely registers — "more has more
- * background, less has lesser opacity". `floor` keeps the hue legible even
- * at the minimum, `ceil` caps the strongest fill.
+ * One pass over the rows for all eight maxima. The old version ran eight
+ * `reduce`s — eight full scans of a ~375-row tape on every poll — for the same
+ * numbers.
  */
+export function computeTapeScale(rows: readonly NiftyTapeRow[]): TapeScale {
+  let call_doi = 0;
+  let put_doi = 0;
+  let net = 0;
+  let net_pct = 0;
+  let call_tick = 0;
+  let put_tick = 0;
+  let pcr_doi = 0;
+  let spot_flip = 0;
+  for (const r of rows) {
+    call_doi = maxAbs(call_doi, r.call_doi);
+    put_doi = maxAbs(put_doi, r.put_doi);
+    net = maxAbs(net, r.net);
+    net_pct = maxAbs(net_pct, r.net_pct);
+    call_tick = maxAbs(call_tick, r.call_tick);
+    put_tick = maxAbs(put_tick, r.put_tick);
+    pcr_doi = maxAbs(pcr_doi, r.pcr_doi);
+    spot_flip = maxAbs(spot_flip, r.spot_flip);
+  }
+  return { call_doi, put_doi, net, net_pct, call_tick, put_tick, pcr_doi, spot_flip };
+}
+
 export function tapeHeat(
   v: number,
   max: number,
@@ -130,40 +129,39 @@ export function tapeHeat(
 }
 
 /**
- * Spot change vs the previous chronological minute, keyed by row timestamp.
- * The first recorded row (and any unparseable pair) has no entry.
+ * `asc` is an optional pre-sorted view of `rows`. Callers that already hold the
+ * chronological tape pass it in so this derivation never sorts a second time.
  */
-export function computeSpotDeltas(rows: NiftyTapeRow[]): Map<string, number> {
-  const asc = ascTapeByTime(rows);
+export function computeSpotDeltas(
+  rows: readonly NiftyTapeRow[],
+  asc?: readonly NiftyTapeRow[],
+): Map<string, number> {
+  const sorted = asc ?? ascTapeByTime(rows);
   const out = new Map<string, number>();
-  for (let i = 1; i < asc.length; i++) {
-    const prev = asc[i - 1];
-    const cur = asc[i];
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
     if (!Number.isFinite(prev.spot) || !Number.isFinite(cur.spot)) continue;
     out.set(cur.t, cur.spot - prev.spot);
   }
   return out;
 }
 
-/** Session roll-up for the tape footer: spot range + biggest OI prints. */
-export function computeTapeSession(rows: NiftyTapeRow[]): {
+export function computeTapeSession(
+  rows: readonly NiftyTapeRow[],
+  asc?: readonly NiftyTapeRow[],
+): {
   spotHi: number;
   spotLo: number;
   maxCallDoi: number;
   maxPutDoi: number;
-  /**
-   * The CUMULATIVE net (put ΔOI − call ΔOI) at the last recorded minute.
-   * The tape's `net` is already a running total vs the baseline, so summing
-   * the column added the same cumulative figure up once per minute — a
-   * meaningless number that grew with the length of the session.
-   */
   netLast: number;
 } {
   let spotHi = -Infinity;
   let spotLo = Infinity;
   let maxCallDoi = 0;
   let maxPutDoi = 0;
-  const asc = ascTapeByTime(rows);
+  const sorted = asc ?? ascTapeByTime(rows);
   for (const r of rows) {
     if (Number.isFinite(r.spot)) {
       spotHi = Math.max(spotHi, r.spot);
@@ -174,7 +172,7 @@ export function computeTapeSession(rows: NiftyTapeRow[]): {
     if (Number.isFinite(c)) maxCallDoi = Math.max(maxCallDoi, c);
     if (Number.isFinite(p)) maxPutDoi = Math.max(maxPutDoi, p);
   }
-  const last = asc.length > 0 ? asc[asc.length - 1] : null;
+  const last = sorted.length > 0 ? sorted[sorted.length - 1] : null;
   const netLast = last && Number.isFinite(last.net) ? last.net : 0;
   return {
     spotHi: Number.isFinite(spotHi) ? spotHi : 0,
@@ -185,7 +183,6 @@ export function computeTapeSession(rows: NiftyTapeRow[]): {
   };
 }
 
-/** Row fields that participate in the live change-flash. */
 export const TAPE_FLASH_FIELDS = [
   "spot",
   "call_doi",
@@ -198,12 +195,6 @@ export const TAPE_FLASH_FIELDS = [
   "spot_flip",
 ] as const;
 
-/**
- * Compare the previous snapshot against the current rows and report which
- * cells actually moved, keyed by minute (`t`) → set of changed fields. Only
- * rows present in both snapshots can "change" — a brand-new minute is a
- * different event (the row flash), so it never appears here.
- */
 export function computeChangedCells(
   prev: Map<string, NiftyTapeRow>,
   rows: NiftyTapeRow[],
@@ -227,25 +218,30 @@ export function formatTapeBaseline(t: string | null | undefined): string {
   return formatTapeTime(t).slice(0, 5);
 }
 
-/** Earliest chronological row's HH:MM — explicit `tape.baseline_t` wins,
- * otherwise the first row's `t`; null when there is nothing to anchor to. */
-export function getTapeBaseline(tape?: NiftyTape, rows?: NiftyTapeRow[]): string | null {
+export function getTapeBaseline(
+  tape?: NiftyTape,
+  rows?: readonly NiftyTapeRow[],
+  asc?: readonly NiftyTapeRow[],
+): string | null {
   const explicit =
     tape?.baseline_t && tape.baseline_t.length > 0
       ? formatTapeBaseline(tape.baseline_t)
       : "";
   if (explicit) return explicit;
   if (rows && rows.length > 0) {
-    const asc = ascTapeByTime(rows);
-    const hhmm = formatTapeBaseline(asc[0]?.t);
+    const sorted = asc ?? ascTapeByTime(rows);
+    const hhmm = formatTapeBaseline(sorted[0]?.t);
     if (hhmm) return hhmm;
   }
   return null;
 }
 
-/** Honest ΔOI label: deltas are measured vs the baseline, not the open. */
-export function tapeDoiLabel(tape?: NiftyTape, rows?: NiftyTapeRow[]): string {
-  const baseline = getTapeBaseline(tape, rows);
+export function tapeDoiLabel(
+  tape?: NiftyTape,
+  rows?: readonly NiftyTapeRow[],
+  asc?: readonly NiftyTapeRow[],
+): string {
+  const baseline = getTapeBaseline(tape, rows, asc);
   return baseline ? `PCR ΔOI since ${baseline}` : "PCR ΔOI since open";
 }
 
@@ -258,9 +254,10 @@ export function tapeDoiLabel(tape?: NiftyTape, rows?: NiftyTapeRow[]): string {
  * flip − spot, so one level read with opposite signs in two places.
  */
 export function buildTapeHead(
-  rows: NiftyTapeRow[],
+  rows: readonly NiftyTapeRow[],
   tape?: NiftyTape,
   flipAtSpot?: number | null,
+  asc?: readonly NiftyTapeRow[],
 ): {
   pcrOi: number;
   pcrDoiDelta: number;
@@ -271,9 +268,9 @@ export function buildTapeHead(
   wallPut: number;
   spot: number;
 } {
-  const asc = ascTapeByTime(rows);
-  const first = asc[0];
-  const last = asc[asc.length - 1];
+  const sorted = asc ?? ascTapeByTime(rows);
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
   const pick = (rowVal: number, sumVal?: number): number =>
     rowVal !== 0 ? rowVal : (sumVal ?? 0);
   // A spot-relative flip (from `gexFlipAtSpot`) wins over the row's recorded

@@ -1,9 +1,3 @@
-/**
- * Parse a pasted symbol list into a clean, de-duplicated array.
- *
- * Accepts commas, semicolons, pipes, spaces, tabs and newlines as separators,
- * uppercases, trims and drops empties. Order is preserved (first occurrence).
- */
 export function parseSymbolList(input: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];

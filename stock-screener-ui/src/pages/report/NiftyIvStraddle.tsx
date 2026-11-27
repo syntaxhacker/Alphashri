@@ -1,26 +1,19 @@
-import { memo, useMemo } from "react";
+import { createMemo, Show } from "solid-js";
 import * as palette from "@/ui/palette";
 import { median } from "@/utils/reportParsers";
 import { MiniLineChart, type MiniSeries } from "@/components/common/charts/MiniLineChart";
-import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
-import { EmptyState } from "@/components/common/states";
+import { LocalCompactPanel, LocalCompactStat, LocalEmptyState } from "./reportBits";
 import type { NiftyReference, NiftyRegimeBlock, NiftyTape, NiftyTapeRow } from "@/types/niftyReport";
 import type { ReplayCandle } from "@/types/replay";
 
-/** Rendered for any absent/null field so a stat never shows a blank/NaN. */
 export const IV_DASH = "—";
 
-/**
- * Tolerant numeric coercion: `null`/`undefined`/empty-string are absent (not
- * zero), so a dead ATM leg is skipped instead of counted as premium 0.
- */
 function numOrNull(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
 
-/** Exact average of the present values (callers guarantee at least one). */
 function mean(values: number[]): number {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
@@ -52,11 +45,6 @@ export function buildStraddleSeries(rows: NiftyTapeRow[]): StraddlePoint[] {
   return out;
 }
 
-/**
- * Rolling ATM IV % per tape row — the average of the two ATM leg IVs. Rows
- * where both legs are missing are skipped; when only one leg carries an IV,
- * that leg's value is used.
- */
 export function buildIvSeries(rows: NiftyTapeRow[]): IvPoint[] {
   const out: IvPoint[] = [];
   for (const r of rows ?? []) {
@@ -71,19 +59,16 @@ export function buildIvSeries(rows: NiftyTapeRow[]): IvPoint[] {
   return out;
 }
 
-/** Last row's non-null average ATM IV, or `null` when the tape had none. */
 function lastAtmIv(rows: NiftyTapeRow[]): number | null {
   const series = buildIvSeries(rows);
   return series.length ? series[series.length - 1].iv : null;
 }
 
-/** Last row's usable straddle premium (`ce + pe`), or `null`. */
 function lastStraddle(rows: NiftyTapeRow[]): number | null {
   const series = buildStraddleSeries(rows);
   return series.length ? series[series.length - 1].straddle : null;
 }
 
-/** ISO timestamp or bare `HH:MM[:SS]` → `HH:MM`; falls back to the raw string. */
 export function formatIvTime(t: string | null | undefined): string {
   const raw = String(t ?? "").trim();
   if (!raw) return IV_DASH;
@@ -358,120 +343,107 @@ interface NiftyIvStraddleProps {
  * tracks the rolling straddle premium against ATM IV. Absent/empty tape
  * degrades to a friendly empty state without crashing.
  */
-function NiftyIvStraddleInner({
-  rows: rowsProp,
-  tape,
-  candles,
-  regime,
-  reference,
-}: NiftyIvStraddleProps) {
-  const rows = useMemo(
-    () =>
-      Array.isArray(rowsProp)
-        ? rowsProp
-        : Array.isArray(tape?.rows)
-          ? tape.rows
-          : [],
-    [rowsProp, tape],
+export function NiftyIvStraddle(props: NiftyIvStraddleProps) {
+  const rows = createMemo(() =>
+    Array.isArray(props.rows)
+      ? props.rows
+      : Array.isArray(props.tape?.rows)
+        ? props.tape!.rows
+        : [],
   );
+  const regime = () => props.regime;
+  const reference = () => props.reference ?? null;
+  const candles = () => props.candles;
 
-  const straddleSeries = useMemo(() => buildStraddleSeries(rows), [rows]);
-  const ivSeries = useMemo(() => buildIvSeries(rows), [rows]);
-  const chart = useMemo(
-    () => buildIvStraddleChart(straddleSeries, ivSeries),
-    [straddleSeries, ivSeries],
+  const straddleSeries = createMemo(() => buildStraddleSeries(rows()));
+  const ivSeries = createMemo(() => buildIvSeries(rows()));
+  const chart = createMemo(
+    () => buildIvStraddleChart(straddleSeries(), ivSeries()),
   );
 
   // Derived stats memoised on their true inputs: the helpers re-walk the
   // tape/candles on every call, so invoking them per render re-ran full
   // series builds + sorts on each parent render.
-  const atmIv = useMemo(() => atmIvNow(regime, rows), [regime, rows]);
-  const straddleVal = useMemo(() => straddleNow(regime, rows), [regime, rows]);
-  const straddlePct = useMemo(
-    () => straddleChangePct(regime, straddleSeries),
-    [regime, straddleSeries],
+  const atmIv = createMemo(() => atmIvNow(regime(), rows()));
+  const straddleVal = createMemo(() => straddleNow(regime(), rows()));
+  const straddlePct = createMemo(
+    () => straddleChangePct(regime(), straddleSeries()),
   );
-  const rv = useMemo(() => rvNow(regime, candles), [regime, candles]);
+  const rv = createMemo(() => rvNow(regime(), candles()));
 
-  const hasTape = straddleSeries.length > 0 || ivSeries.length > 0;
+  const hasTape = () => straddleSeries().length > 0 || ivSeries().length > 0;
   return (
-    <CompactPanel
+    <LocalCompactPanel
       title="IV · ATM IV, straddle & RV"
       testId="nifty-iv-straddle-panel"
-      sx={{
-        background: palette.TERM_BG,
-        border: `1px solid ${palette.TERM_BORDER}`,
-        borderColor: palette.TERM_BORDER,
-        borderRadius: 1,
+      style={{
+        "background-color": palette.TERM_BG,
+        "border": `1px solid ${palette.TERM_BORDER}`,
+        "border-color": palette.TERM_BORDER,
+        "border-radius": "1px",
       }}
     >
-      <CompactStatGrid>
-        <CompactStat
-          data-testid="nifty-iv-atm"
+      <div class="grid grid-cols-[repeat(5,minmax(0,1fr))] gap-[4px] w-full min-w-0">
+        <LocalCompactStat
+          testId="nifty-iv-atm"
           label="ATM IV"
-          valueSize="md"
-          value={fmtIvPct(atmIv)}
+          value={fmtIvPct(atmIv())}
         />
-        <CompactStat
-          data-testid="nifty-iv-straddle"
+        <LocalCompactStat
+          testId="nifty-iv-straddle"
           label="Straddle"
-          valueSize="md"
-          value={fmtIvValue(straddleVal)}
+          value={fmtIvValue(straddleVal())}
         />
-        <CompactStat
-          data-testid="nifty-iv-straddle-pct"
+        <LocalCompactStat
+          testId="nifty-iv-straddle-pct"
           label="Straddle Δ"
-          tone={straddlePctTone(straddlePct)}
-          valueSize="md"
-          value={fmtIvSignedPct(straddlePct)}
+          tone={straddlePctTone(straddlePct()) ?? undefined}
+          value={fmtIvSignedPct(straddlePct())}
         />
-        <CompactStat
-          data-testid="nifty-iv-rv"
+        <LocalCompactStat
+          testId="nifty-iv-rv"
           label="Realised vol"
-          valueSize="md"
-          value={fmtIvPct(rv)}
+          value={fmtIvPct(rv())}
         />
-        <CompactStat
-          data-testid="nifty-iv-ref-pe"
-          label={reference?.strike ? `PE ${Math.round(reference.strike)} Δ` : "PE Δ"}
+        <LocalCompactStat
+          testId="nifty-iv-ref-pe"
+          label={reference()?.strike ? `PE ${Math.round(reference()!.strike!)} Δ` : "PE Δ"}
           hint="fixed strike"
           tone={
-            reference?.pe_change == null
+            reference()?.pe_change == null
               ? undefined
-              : reference.pe_change > 0
+              : reference()!.pe_change! > 0
                 ? palette.POSITIVE
-                : reference.pe_change < 0
+                : reference()!.pe_change! < 0
                   ? palette.NEGATIVE
                   : undefined
           }
-          valueSize="md"
-          value={fmtIvSigned(reference?.pe_change)}
+          value={fmtIvSigned(reference()?.pe_change)}
         />
-      </CompactStatGrid>
+      </div>
 
-      {hasTape ? (
-        // Explicit px height (never vh — vh balloons on tall monitors).
-        // 100px still resolves the two-series straddle/IV tape; both lines
-        // span the full inner box edge to edge.
+      <Show
+        when={hasTape()}
+        fallback={
+          <LocalEmptyState
+            testId="nifty-iv-straddle-empty"
+            title="No intraday IV tape"
+            description="ATM IV and the straddle appear once the option tape has rows."
+          />
+        }
+      >
+        {/* Explicit px height (never vh — vh balloons on tall monitors).
+            100px still resolves the two-series straddle/IV tape; both lines
+            span the full inner box edge to edge. */}
         <MiniLineChart
-          series={chart.series}
-          labels={chart.labels}
+          series={chart().series}
+          labels={chart().labels}
           height={100}
           testId="nifty-iv-straddle-chart"
           formatValue={formatIvChartValue}
           emptyMessage="No intraday IV tape"
         />
-      ) : (
-        <EmptyState
-          data-testid="nifty-iv-straddle-empty"
-          title="No intraday IV tape"
-          description="ATM IV and the straddle appear once the option tape has rows."
-        />
-      )}
-    </CompactPanel>
+      </Show>
+    </LocalCompactPanel>
   );
 }
-
-/** Memoised leaf panel — tape/regime/candle props keep identity between unrelated parent renders. */
-export const NiftyIvStraddle = memo(NiftyIvStraddleInner);
-NiftyIvStraddle.displayName = "NiftyIvStraddle";

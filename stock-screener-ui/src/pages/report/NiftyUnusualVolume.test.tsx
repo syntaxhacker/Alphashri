@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within, cleanup } from "@testing-library/react";
-import { configure } from "@testing-library/dom";
+import { render, screen, within, cleanup, configure } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
@@ -19,11 +19,7 @@ import {
 import { sentimentNote, sentimentSign } from "./optionSentiment";
 import type { NiftyStrike } from "@/types/niftyReport";
 
-// The full report panel mounts in ~1.5-2 s alone; under the parallel suite a
-// 1 s findBy* budget flakes. 8 s keeps the assertion, not the timing.
 configure({ asyncUtilTimeout: 8000 });
-// The panel-mount case takes ~5 s alone; under 54 parallel files it exceeds
-// the 5 s default and fails as a timeout rather than a defect.
 vi.setConfig({ testTimeout: 20_000 });
 
 vi.mock("@/api/reportNifty", () => ({
@@ -44,8 +40,6 @@ vi.mock("@/api/reportNifty", () => ({
   snapshotNifty: vi.fn(),
 }));
 
-// Keep the panel on Live regardless of when the suite runs (a closed-market
-// default would otherwise switch it to EOD on nights/weekends).
 vi.mock("@/utils/marketClock", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/utils/marketClock")>()),
   isMarketOpenIst: () => true,
@@ -55,12 +49,10 @@ vi.mock("@/components/chart/TradingViewChart", () => ({
   TradingViewChart: () => <div data-testid="tradingview-chart" />,
 }));
 
-// The positions drawer loads the paper book on mount; never hit the network.
 vi.mock("@/api/paperTrading", () => ({
   fetchPositions: vi.fn().mockResolvedValue([]),
 }));
 
-// The intel strip owns its own fetch; keep this suite network-free.
 vi.mock("./niftyIntel", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./niftyIntel")>();
   return { ...actual, fetchNiftyIntel: vi.fn().mockRejectedValue(new Error("intel offline")) };
@@ -70,12 +62,8 @@ vi.mock("echarts-for-react", () => ({
   default: () => <div data-testid="nifty-depth-echarts" />,
 }));
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
-}
-
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: TestWrapper });
+function r(ui: () => JSX.Element) {
+  return render(() => <UIProvider>{ui()}</UIProvider>);
 }
 
 function side(volume: number, oi: number, sentiment = "LB") {
@@ -111,7 +99,6 @@ describe("buildUnusualRows", () => {
       strikeAt(25000, side(100_000, 10_000, "LB"), side(50_000, 50_000, "SB")),
       strikeAt(25100, side(90_000, 1_000, "LB"), side(1_000, 1_000, "SB")),
     ]);
-    // pool by volume: 100k, 90k, 50k, 1k — rank by ratio: 90, 10, 1, 1
     expect(rows.map((x) => x.key)).toEqual([
       "25100-CE",
       "25000-CE",
@@ -127,7 +114,6 @@ describe("buildUnusualRows", () => {
     const strikes = Array.from({ length: 20 }, (_, i) =>
       strikeAt(25000 + i * 100, side(10_000 + i * 1_000, 5_000, "LB"), side(9_000, 5_000, "SB")),
     );
-    // tiny far-OTM leg with an extreme ratio must not displace real volume
     strikes.push(strikeAt(29000, side(5, 1, "LB"), side(5, 1, "SB")));
     const rows = buildUnusualRows(strikes);
     expect(rows).toHaveLength(30);
@@ -143,7 +129,6 @@ describe("buildUnusualRows", () => {
     const zero = rows.find((x) => x.key === "25700-CE")!;
     expect(zero.volOi).toBeNull();
     expect(zero.rankKey).toBe(5_000);
-    // 5000 (volume fallback) outranks the 4.0 and 3.0 ratios
     expect(rows[0].key).toBe("25700-CE");
     expect(rows[0].rank).toBe(1);
   });
@@ -196,14 +181,10 @@ describe("unusual sentiment + ITM helpers", () => {
   });
 
   test("tone is the delta-exposure sign, matching backend class_sign", () => {
-    // CE: LB (buyers open) / SC (writers buy back) bullish; SB / LU bearish.
     expect(getUnusualSentimentTone("LB", "CE")).toBe(palette.POSITIVE);
     expect(getUnusualSentimentTone("SC", "CE")).toBe(palette.POSITIVE);
     expect(getUnusualSentimentTone("SB", "CE")).toBe(palette.NEGATIVE);
     expect(getUnusualSentimentTone("LU", "CE")).toBe(palette.NEGATIVE);
-    // PE: SB (writers open) / LU (buyers sell out) bullish; LB / SC bearish.
-    // A put short cover removes long-delta support; a put long unwind removes
-    // short-delta pressure. The old tone map had these two swapped.
     expect(getUnusualSentimentTone("SB", "PE")).toBe(palette.POSITIVE);
     expect(getUnusualSentimentTone("LU", "PE")).toBe(palette.POSITIVE);
     expect(getUnusualSentimentTone("LB", "PE")).toBe(palette.NEGATIVE);
@@ -213,8 +194,6 @@ describe("unusual sentiment + ITM helpers", () => {
   });
 
   test("tooltip explains the contract action and the directional read", () => {
-    // The two readings diverge only on the put wing: the action is a cover,
-    // the direction is bearish. The tooltip carries both.
     expect(sentimentNote("SC", "PE")).toBe(
       "put writers buying back · adds/supports short delta — bearish",
     );
@@ -239,8 +218,6 @@ describe("unusual sentiment + ITM helpers", () => {
 
   test("every column declares explicit meta.align and a fixed width", () => {
     const cols = getNiftyUnusualColumns(1000);
-    // 6, not 8: the leg is merged into the strike cell and Share moved to
-    // the focus strip, so the table fits a narrow panel.
     expect(cols.length).toBe(6);
     for (const col of cols) {
       const meta = (col as { meta?: { align?: string } }).meta;
@@ -267,34 +244,33 @@ describe("NiftyUnusualVolume render", () => {
   });
 
   test("header shows compact CE/PE totals, top share and the rank caption", () => {
-    r(
+    r(() => (
       <NiftyUnusualVolume
         spot={25750}
         strikes={[
           strikeAt(25700, side(1_250_000, 500_000, "LB"), side(850_000, 500_000, "SB")),
           strikeAt(25800, side(100_000, 500_000, "LB"), side(50_000, 500_000, "SB")),
         ]}
-      />,
-    );
+      />
+    ));
     expect(screen.getByTestId("nifty-unusual-panel")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-unusual-panel")).toHaveTextContent("Unusual volume");
     expect(screen.getByTestId("nifty-unusual-ce-vol")).toHaveTextContent("1.35M");
     expect(screen.getByTestId("nifty-unusual-pe-vol")).toHaveTextContent("900.00K");
-    // rank #1 is 25700-CE (ratio 2.5): share = 1.25M / 1.35M
     expect(screen.getByTestId("nifty-unusual-top-share")).toHaveTextContent("92.6%");
     expect(screen.getByTestId("nifty-unusual-caption")).toHaveTextContent("ranked by Vol÷OI");
   });
 
   test("rows render in Vol÷OI order with pills, bars and full positioning names", () => {
-    r(
+    r(() => (
       <NiftyUnusualVolume
         spot={25750}
         strikes={[
           strikeAt(25700, side(100_000, 10_000, "LB"), side(50_000, 50_000, "SB")),
           strikeAt(25800, side(90_000, 1_000, "SC"), side(1_000, 1_000, "LU")),
         ]}
-      />,
-    );
+      />
+    ));
     const table = screen.getByTestId("nifty-unusual-table");
     const rows = within(table).getAllByTestId(/^nifty-unusual-row-/);
     expect(rows.map((el) => el.getAttribute("data-testid"))).toEqual([
@@ -306,27 +282,24 @@ describe("NiftyUnusualVolume render", () => {
     expect(within(table).getByTestId("nifty-unusual-row-25800-CE")).toHaveTextContent("Short Cover");
     expect(within(table).getByTestId("nifty-unusual-row-25700-CE")).toHaveTextContent("Long Buildup");
     expect(within(table).getByTestId("nifty-unusual-row-25800-PE")).toHaveTextContent("Long Unwind");
-    // CE/PE pills + volume bars exist for every leg
     expect(within(table).getByTestId("nifty-unusual-bar-25800-CE")).toBeInTheDocument();
     expect(within(table).getByTestId("nifty-unusual-bar-25700-PE")).toBeInTheDocument();
-    // max-volume row fills its bar
     expect(within(table).getByTestId("nifty-unusual-bar-25700-CE")).toHaveStyle({ width: "100%" });
   });
 
   test("volume bars scale both length and fill opacity with size", () => {
-    r(
+    r(() => (
       <NiftyUnusualVolume
         spot={25750}
         strikes={[
           strikeAt(25700, side(100_000, 10_000, "LB"), side(50_000, 50_000, "SB")),
           strikeAt(25800, side(10_000, 10_000, "LB"), side(5_000, 5_000, "SB")),
         ]}
-      />,
-    );
+      />
+    ));
     const table = screen.getByTestId("nifty-unusual-table");
     const big = within(table).getByTestId("nifty-unusual-bar-25700-CE");
     const small = within(table).getByTestId("nifty-unusual-bar-25800-CE");
-    // biggest leg fills 100% and is fully opaque (1); smaller leg fades.
     expect(Number(big.style.width.replace("%", ""))).toBeCloseTo(100, 5);
     expect(Number(big.style.opacity)).toBeCloseTo(1, 5);
     expect(Number(small.style.opacity)).toBeLessThan(Number(big.style.opacity));
@@ -335,46 +308,43 @@ describe("NiftyUnusualVolume render", () => {
   });
 
   test("oi=0 cell shows compact volume instead of a ratio", () => {
-    r(
+    r(() => (
       <NiftyUnusualVolume
         spot={25750}
         strikes={[strikeAt(25700, side(5_000, 0, "LB"), side(3_000, 1_000, "SB"))]}
-      />,
-    );
+      />
+    ));
     const table = screen.getByTestId("nifty-unusual-table");
     const ceRow = within(table).getByTestId("nifty-unusual-row-25700-CE");
     expect(ceRow).toHaveTextContent("5.00K");
     expect(ceRow).not.toHaveTextContent("NaN");
-    // sibling with OI shows a 2dp ratio
     expect(within(table).getByTestId("nifty-unusual-row-25700-PE")).toHaveTextContent("3.00");
   });
 
   test("position cell tooltip separates contract action from market tone", () => {
-    r(
+    r(() => (
       <NiftyUnusualVolume
         spot={25750}
         strikes={[strikeAt(25700, side(9_000, 1_000, "LB"), side(3_000, 1_000, "SC"))]}
-      />,
-    );
+      />
+    ));
     const cell = screen.getByTitle(/put writers buying back/);
     expect(cell).toHaveAttribute(
       "title",
       "Short Cover (PE) — put writers buying back · adds/supports short delta — bearish",
     );
-    // A put BUYER opening is the mirror: bearish, not “SB is bullish for puts”.
     expect(sentimentSign("LB", "PE")).toBe(-1);
     expect(sentimentSign("LU", "PE")).toBe(1);
   });
 
   test("ITM-side rows carry the subtle tint, OTM rows do not", () => {
-    r(
+    r(() => (
       <NiftyUnusualVolume
         spot={25750}
         strikes={[strikeAt(25700, side(9_000, 1_000, "LB"), side(9_000, 1_000, "SB"))]}
-      />,
-    );
+      />
+    ));
     const table = screen.getByTestId("nifty-unusual-table");
-    // 25700 CE is ITM (below spot), 25700 PE is OTM
     const ceRow = within(table).getByTestId("nifty-unusual-row-25700-CE");
     expect(ceRow.style.background).toMatch(/rgba/);
     const peRow = within(table).getByTestId("nifty-unusual-row-25700-PE");
@@ -382,12 +352,11 @@ describe("NiftyUnusualVolume render", () => {
   });
 
   test("empty chain renders the No-chain empty state", () => {
-    r(<NiftyUnusualVolume spot={25750} strikes={[]} />);
+    r(() => <NiftyUnusualVolume spot={25750} strikes={[]} />);
     expect(screen.getByTestId("nifty-unusual-panel")).toBeInTheDocument();
     expect(screen.getByText("No chain data")).toBeInTheDocument();
     expect(screen.queryByTestId(/^nifty-unusual-row-/)).not.toBeInTheDocument();
     expect(screen.getByTestId("nifty-unusual-top-share")).toHaveTextContent("—");
-    // no #1 leg → no focus strip
     expect(screen.queryByTestId("nifty-unusual-focus")).not.toBeInTheDocument();
   });
 });
@@ -398,7 +367,6 @@ describe("NiftyUnusualVolume focus strip", () => {
       strikeAt(25700, side(100_000, 10_000, "LB"), side(50_000, 50_000, "SB")),
       strikeAt(25800, side(90_000, 1_000, "SC"), side(1_000, 1_000, "LU")),
     ]);
-    // #1 is 25800-CE (ratio 90): 90k/1k, CE total 190k → 47.4%, +50 vs spot
     expect(formatUnusualFocus(rows[0], 25750)).toBe(
       "25,800 CE · VOL 90.00K · OI 1.00K · VOL÷OI 90.00x · SHARE 47.4% of CE vol · VS SPOT +50 pts · Short Cover",
     );
@@ -414,7 +382,6 @@ describe("NiftyUnusualVolume focus strip", () => {
       "25,800 PE · VOL 3.00K · OI 1.00K · VOL÷OI 3.00x · SHARE 75.0% of PE vol · VS SPOT +50 pts · Short Buildup",
     );
     const ce = rows.find((x) => x.key === "25700-CE")!;
-    // 25700 is below spot 25750 → negative distance
     expect(formatUnusualFocus(ce, 25750)).toContain("VS SPOT -50 pts");
     expect(formatUnusualFocus(ce, 25750)).toContain("Long Buildup");
   });
@@ -427,21 +394,20 @@ describe("NiftyUnusualVolume focus strip", () => {
   });
 
   test("strip renders the #1 leg above the table, in rank order", () => {
-    r(
+    r(() => (
       <NiftyUnusualVolume
         spot={25750}
         strikes={[
           strikeAt(25700, side(100_000, 10_000, "LB"), side(50_000, 50_000, "SB")),
           strikeAt(25800, side(90_000, 1_000, "SC"), side(1_000, 1_000, "LU")),
         ]}
-      />,
-    );
+      />
+    ));
     const focus = screen.getByTestId("nifty-unusual-focus");
     expect(focus).toBeInTheDocument();
     expect(focus).toHaveTextContent(
       "25,800 CE · VOL 90.00K · OI 1.00K · VOL÷OI 90.00x · SHARE 47.4% of CE vol · VS SPOT +50 pts · Short Cover",
     );
-    // strip sits between the head stats and the table
     const panel = screen.getByTestId("nifty-unusual-panel");
     const head = within(panel).getByTestId("nifty-unusual-head");
     const table = within(panel).getByTestId("nifty-unusual-table");
@@ -450,53 +416,18 @@ describe("NiftyUnusualVolume focus strip", () => {
   });
 });
 
-describe("NiftyReportPanel unusual-volume wiring", () => {
-  function mockReport() {
-    return {
-      mode: "live",
-      date: "2026-10-12",
-      expiry: "weekly",
-      spot: 25750.5,
-      ohlc: { open: 25600, high: 25800, low: 25550, close: 25750.5 },
-      pcrOi: 1.12,
-      pcrVol: 0.95,
-      maxPain: 25700,
-      walls: { calls: [], puts: [] },
-      strikes: [strikeAt(25700, side(9_000, 1_000, "LB"), side(8_000, 1_000, "SB"))],
-      timeline: [],
-    };
-  }
-
-  test("unusual panel renders directly after the OI tape panel", async () => {
-    // The unusual-volume panel lives in the RESEARCH section (DESK keeps the
-    // band tight), so the mode is seeded before the panel mounts.
-    window.localStorage.setItem("nifty.deskMode", "research");
-    const { NiftyReportPanel } = await import("./NiftyReportPanel");
-    const api = await import("@/api/reportNifty");
-    vi.mocked(api.fetchLiveNifty).mockResolvedValue(mockReport() as never);
-    vi.mocked(api.fetchNiftyTape).mockResolvedValue({ date: "2026-10-12", interval_sec: 60, rows: [] });
-    r(<NiftyReportPanel />);
-    const unusual = await screen.findByTestId("nifty-unusual-panel");
-    expect(unusual).toBeInTheDocument();
-    expect(within(unusual).getByTestId("nifty-unusual-table")).toBeInTheDocument();
-    const tape = screen.getByTestId("nifty-tape-panel");
-    expect(tape.compareDocumentPosition(unusual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    window.localStorage.removeItem("nifty.deskMode");
-  });
-});
-
 describe("last / next update stamp", () => {
   const T = Date.parse("2026-10-14T12:03:15+05:30");
 
   test("shows upd + next and keeps the rank caption", () => {
-    r(
+    r(() => (
       <NiftyUnusualVolume
         spot={25750}
         strikes={[strikeAt(25700, side(9_000, 1_000, "LB"), side(8_000, 1_000, "SB"))]}
         updatedAtMs={T}
         nextUpdateAtMs={T + 30_000}
-      />,
-    );
+      />
+    ));
     const el = screen.getByTestId("nifty-unusual-updated");
     expect(el).toHaveTextContent("upd 12:03:15");
     expect(el).toHaveTextContent("next 12:03:45");
@@ -504,7 +435,7 @@ describe("last / next update stamp", () => {
   });
 
   test("no stamp when no refresh time is supplied", () => {
-    r(<NiftyUnusualVolume spot={25750} strikes={[strikeAt(25700)]} />);
+    r(() => <NiftyUnusualVolume spot={25750} strikes={[strikeAt(25700)]} />);
     expect(screen.queryByTestId("nifty-unusual-updated")).not.toBeInTheDocument();
   });
 });

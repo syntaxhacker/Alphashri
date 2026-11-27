@@ -26,23 +26,9 @@ from typing import Any, Optional
 import requests
 
 import config
+from news_llm_config import DEFAULT_MODEL, FALLBACK_MODELS, OPENROUTER_URL, model_candidates
 
 logger = logging.getLogger(__name__)
-
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-
-#: Preferred model: 1M context and it actually answers inside the timeout.
-#: The bigger 550B `nemotron-3-ultra-550b-a55b:free` is real but regularly
-#: exceeds a 45s budget, so it is a fallback rather than the default.
-DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning:free"
-
-#: Fallbacks, in order. `openrouter/free` auto-routes to a working free model,
-#: which makes the integration resilient to a specific `:free` ID being retired.
-FALLBACK_MODELS = (
-    "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "thinkingmachines/inkling:free",
-    "openrouter/free",
-)
 
 #: Headlines per call. One call per cycle keeps us far inside 20 rpm.
 MAX_HEADLINES = 25
@@ -119,6 +105,13 @@ def _extract_json_array(text: str) -> Optional[list]:
         return None
 
 
+def _as_bool(value: Any) -> bool:
+    """Parse a model-supplied boolean; `bool("false")` would be True."""
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+    return bool(value)
+
+
 def _build_user_prompt(headlines: list[str]) -> str:
     lines = [f"{i + 1}. {h}" for i, h in enumerate(headlines)]
     return "Headlines:\n" + "\n".join(lines)
@@ -184,7 +177,7 @@ def score_headlines(
         logger.info("news impact: OPENROUTER_API_KEY not set")
         return []
 
-    models = [model] if model else [DEFAULT_MODEL, *FALLBACK_MODELS]
+    models = model_candidates(model)
     user_prompt = _build_user_prompt(heads)
 
     for candidate in models:
@@ -211,7 +204,7 @@ def score_headlines(
                 direction = "neutral"
             out.append({
                 "index": idx,
-                "move": bool(item.get("move")),
+                "move": _as_bool(item.get("move")),
                 "symbol": str(item.get("symbol") or "")[:24],
                 "dir": direction,
                 "impact": impact,

@@ -23,7 +23,19 @@ class NewsArticle(Base):
     impact_score = Column(Integer, nullable=True)
     analysis_json = Column(Text, nullable=True)
 
-    symbols = relationship("NewsSymbolMention", back_populates="article", cascade="all, delete-orphan")
+    symbols = relationship(
+        "NewsSymbolMention",
+        back_populates="article",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+    __table_args__ = (
+        # Admin/impact queue: WHERE impact_score IS NULL ORDER BY published_at DESC.
+        Index("ix_news_articles_impact_published", "impact_score", "published_at"),
+        # Recent feed: WHERE source = ? AND fetched_at >= ? ORDER BY publish time.
+        Index("ix_news_articles_source_fetched", "source", "fetched_at"),
+    )
 
     def __repr__(self):
         return f"<NewsArticle(id={self.id}, headline='{self.headline[:50]}...', source='{self.source}')>"
@@ -86,6 +98,7 @@ class NewsSymbolMention(Base):
 
     __table_args__ = (
         Index('ix_news_symbol_mentions_instrument_key', 'instrument_key'),
+        Index('ix_news_symbol_mentions_symbol_code', 'symbol_code'),
         Index('ix_news_symbol_mentions_trading_symbol', 'trading_symbol'),
     )
 

@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { createSignal } from "solid-js";
+import { render, screen } from "@solidjs/testing-library";
 import { AnimatedValue, flashDirection } from "./AnimatedValue";
 
 afterEach(() => {
@@ -44,8 +45,21 @@ describe("flashDirection", () => {
 describe("AnimatedValue", () => {
   const fmt = (v: number) => v.toLocaleString("en-IN");
 
+  // Mount the component under a signal so the test can push new values —
+  // solid has no rerender().
+  function mount(initial: number | null) {
+    let setValue!: (v: number | null) => void;
+    function Harness() {
+      const [value, set] = createSignal<number | null>(initial);
+      setValue = set;
+      return <AnimatedValue value={value()} format={fmt} testId="av" />;
+    }
+    render(() => <Harness />);
+    return (v: number | null) => setValue(v);
+  }
+
   test("first render shows the formatted value with no flash class", () => {
-    render(<AnimatedValue value={26000} format={fmt} testId="av" />);
+    render(() => (<AnimatedValue value={26000} format={fmt} testId="av" />));
     const el = screen.getByTestId("av");
     expect(el).toHaveTextContent("26,000");
     expect(el.className).not.toContain("price-flash-up");
@@ -53,10 +67,8 @@ describe("AnimatedValue", () => {
   });
 
   test("an increase adds price-flash-up", () => {
-    const { rerender } = render(
-      <AnimatedValue value={100} format={fmt} testId="av" />,
-    );
-    rerender(<AnimatedValue value={110} format={fmt} testId="av" />);
+    const set = mount(100);
+    set(110);
     const el = screen.getByTestId("av");
     expect(el).toHaveTextContent("110");
     expect(el.className).toContain("price-flash-up");
@@ -64,28 +76,22 @@ describe("AnimatedValue", () => {
   });
 
   test("a decrease adds price-flash-down", () => {
-    const { rerender } = render(
-      <AnimatedValue value={100} format={fmt} testId="av" />,
-    );
-    rerender(<AnimatedValue value={90} format={fmt} testId="av" />);
+    const set = mount(100);
+    set(90);
     expect(screen.getByTestId("av").className).toContain("price-flash-down");
   });
 
   test("same value does not flash", () => {
-    const { rerender } = render(
-      <AnimatedValue value={100} format={fmt} testId="av" />,
-    );
-    rerender(<AnimatedValue value={100} format={fmt} testId="av" />);
+    const set = mount(100);
+    set(100);
     const el = screen.getByTestId("av");
     expect(el.className).not.toContain("price-flash-up");
     expect(el.className).not.toContain("price-flash-down");
   });
 
   test("change to null renders a dash without flashing", () => {
-    const { rerender } = render(
-      <AnimatedValue value={100} format={fmt} testId="av" />,
-    );
-    rerender(<AnimatedValue value={null} format={fmt} testId="av" />);
+    const set = mount(100);
+    set(null);
     const el = screen.getByTestId("av");
     expect(el).toHaveTextContent("—");
     expect(el.className).not.toContain("price-flash-up");
@@ -93,7 +99,7 @@ describe("AnimatedValue", () => {
   });
 
   test("null initial value renders a dash without flashing", () => {
-    render(<AnimatedValue value={null} format={fmt} testId="av" />);
+    render(() => (<AnimatedValue value={null} format={fmt} testId="av" />));
     const el = screen.getByTestId("av");
     expect(el).toHaveTextContent("—");
     expect(el.className).not.toContain("price-flash");
@@ -101,24 +107,24 @@ describe("AnimatedValue", () => {
 
   test("flash class clears after the timeout", () => {
     vi.useFakeTimers();
-    const { rerender } = render(
-      <AnimatedValue value={100} format={fmt} testId="av" />,
-    );
-    rerender(<AnimatedValue value={110} format={fmt} testId="av" />);
+    const set = mount(100);
+    set(110);
     expect(screen.getByTestId("av").className).toContain("price-flash-up");
-    act(() => {
-      vi.advanceTimersByTime(600);
-    });
+    vi.advanceTimersByTime(600);
     const el = screen.getByTestId("av");
     expect(el.className).not.toContain("price-flash-up");
     expect(el.className).not.toContain("price-flash-down");
   });
 
   test("incoming className is preserved alongside the flash class", () => {
-    const { rerender } = render(
-      <AnimatedValue value={100} className="my-num" testId="av" />,
-    );
-    rerender(<AnimatedValue value={101} className="my-num" testId="av" />);
+    let setValue!: (v: number | null) => void;
+    function Harness() {
+      const [value, set] = createSignal<number | null>(100);
+      setValue = set;
+      return <AnimatedValue value={value()} className="my-num" testId="av" />;
+    }
+    render(() => <Harness />);
+    setValue(101);
     const el = screen.getByTestId("av");
     expect(el.className).toContain("my-num");
     expect(el.className).toContain("price-flash-up");

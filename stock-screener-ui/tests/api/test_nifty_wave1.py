@@ -29,9 +29,6 @@ import api.reports_api.nifty as nifty
 from api.reports_api import chain10s
 
 
-# ---------------------------------------------------------------------------
-# fixtures / builders
-# ---------------------------------------------------------------------------
 
 @pytest.fixture(autouse=True)
 def _reset_state(monkeypatch, tmp_path):
@@ -96,9 +93,6 @@ def _ws_snapshot(rows: list[dict], spot: float = 23500.0,
             "legs": legs, "legs_ts": time.time() - age_sec}
 
 
-# ---------------------------------------------------------------------------
-# 1. chain10s frame reuse
-# ---------------------------------------------------------------------------
 
 class TestChain10sReuse:
     def test_fresh_frame_is_none_until_the_poller_has_run(self):
@@ -178,9 +172,6 @@ class TestChain10sReuse:
         assert rep["chain_source"] == "rest"
 
 
-# ---------------------------------------------------------------------------
-# 2. WS overlay
-# ---------------------------------------------------------------------------
 
 class TestWsOverlay:
     def test_overlay_replaces_walls_positioning_and_spot(self):
@@ -275,9 +266,6 @@ class TestWsOverlay:
         assert path.stat().st_mtime_ns == mtime
 
 
-# ---------------------------------------------------------------------------
-# 2b. post-close spot vs candle close, and 1-minute candle gaps
-# ---------------------------------------------------------------------------
 
 def _candle(time_str: str, o: float, h: float, l: float, c: float) -> dict:
     return {"time": time_str, "open": o, "high": h, "low": l, "close": c}
@@ -421,9 +409,6 @@ class TestCandleGapFill:
         assert nifty.fill_candle_gaps(None, [{"t": _T.format("09:16"), "spot": 1}]) == []
 
 
-# ---------------------------------------------------------------------------
-# 3. wall hysteresis
-# ---------------------------------------------------------------------------
 
 def _frame(t: str, spot: float, call_wall: float, put_wall: float) -> dict:
     return {"t": t, "spot": spot, "call_wall": call_wall,
@@ -532,9 +517,6 @@ class TestWallMoveHysteresis:
         assert walls and walls[0]["from"] == 23600 and walls[0]["to"] == 23800
 
 
-# ---------------------------------------------------------------------------
-# 4. breadth attach
-# ---------------------------------------------------------------------------
 
 class TestBreadthAttach:
     def test_cold_cache_is_omitted(self, monkeypatch):
@@ -781,9 +763,6 @@ class TestIvTerm:
         assert nifty._live_cache["default"]["data"]["spot"] == 2.0
 
 
-# ---------------------------------------------------------------------------
-# 5. snapshot cadence
-# ---------------------------------------------------------------------------
 
 class TestSnapshotCadence:
     def test_target_is_inside_35_seconds(self):
@@ -815,7 +794,7 @@ class TestSnapshotCadence:
         monkeypatch.setattr(nifty, "_compute_live", _fake_compute)
         monkeypatch.setattr(nifty, "write_snapshot",
                             lambda d, s: writes.append(s))
-        monkeypatch.setattr("trading.utils.is_market_open", lambda: True)
+        monkeypatch.setattr("trading.utils.is_derivatives_open", lambda: True)
 
         with pytest.raises(asyncio.CancelledError):
             asyncio.run(nifty.nifty_snapshot_task())
@@ -829,9 +808,6 @@ class TestSnapshotCadence:
         assert all(isinstance(s, str) and "T" in s for s in stamps)
 
 
-# ---------------------------------------------------------------------------
-# 6. tape watchdog + Telegram fan-out
-# ---------------------------------------------------------------------------
 
 def _tape_row(hhmm: str, spot: float = 23_700.0) -> dict:
     return {"t": f"{_DAY}T{hhmm}:30+05:30", "spot": spot}
@@ -890,6 +866,7 @@ class TestTelegramFanout:
             sent.append((message, cooldown_key))
 
         module.send_alert = send_alert
+        module._is_available = lambda: True
         monkeypatch.setitem(sys.modules, "trading.telegram_notifier", module)
         return sent
 

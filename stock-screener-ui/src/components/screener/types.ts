@@ -10,7 +10,7 @@ export type {
   SortDirection,
 } from "../../types";
 
-import type { Stock, SummaryItem, ScreenerOption, SortDirection } from "../../types";
+import type { Stock, SummaryItem, ScreenerOption } from "../../types";
 
 export interface ProfileFilterDef {
   key: string;
@@ -52,25 +52,10 @@ export interface ScreenerPageProps extends ScreenerHeaderProps {
   error?: string | null;
 }
 
-export interface ScreenerNavProps {
-  options: ScreenerOption[];
-  activeScreener: string;
-  onChange: (id: string) => void;
-}
-
-export interface ScreenerSummaryProps {
-  summary: SummaryItem[];
-}
-
 export interface ScreenerEmptyProps {
   message?: string;
 }
 
 export interface ScreenerLoadingProps {
   message?: string;
-}
-
-export interface TradingListProps {
-  symbols: string[];
-  title?: string;
 }

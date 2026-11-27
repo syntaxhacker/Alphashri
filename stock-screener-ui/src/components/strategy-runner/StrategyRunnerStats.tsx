@@ -12,34 +12,34 @@ interface Props {
   progress: { currentBot: number; totalBots: number; currentBotName: string };
 }
 
-export function StrategyRunnerStats({ trades, summary, isRunning, progress }: Props) {
-  const totalCosts = summary?.total_costs ?? 0;
-
-  const progressPct =
-    progress.totalBots > 0
-      ? Math.round((progress.currentBot / progress.totalBots) * 100)
+export function StrategyRunnerStats(props: Props) {
+  const progressPct = () =>
+    props.progress.totalBots > 0
+      ? Math.round((props.progress.currentBot / props.progress.totalBots) * 100)
       : 0;
+
+  const totalCosts = () => props.summary?.total_costs ?? 0;
 
   return (
     <TradeStatsGrid
-      trades={trades}
-      summary={summary}
-      isRunning={isRunning}
+      trades={props.trades}
+      summary={props.summary}
+      isRunning={props.isRunning}
       emptyText="Run a strategy comparison to see stats"
       extraStats={
-        totalCosts > 0 && (
-          <CompactStat label="Total Costs" value={formatCurrencySigned(totalCosts)} tone="error" />
-        )
+        totalCosts() > 0 ? (
+          <CompactStat label="Total Costs" value={formatCurrencySigned(totalCosts())} tone="error" />
+        ) : undefined
       }
       progressStat={
-        isRunning && progress.totalBots > 0
+        props.isRunning && props.progress.totalBots > 0
           ? {
-              value: `${progress.currentBot} / ${progress.totalBots}`,
-              hint: progress.currentBotName,
+              value: `${props.progress.currentBot} / ${props.progress.totalBots}`,
+              hint: props.progress.currentBotName,
             }
           : null
       }
-      progressBar={isRunning && progress.totalBots > 0 ? { percent: progressPct } : null}
+      progressBar={props.isRunning && props.progress.totalBots > 0 ? { percent: progressPct() } : null}
     />
   );
 }

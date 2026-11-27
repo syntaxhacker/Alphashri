@@ -1,81 +1,144 @@
-import { Box, Text } from "@/ui";
+import { For, Show } from "solid-js";
+import { ActionIcon, Box, CopyButton, Text } from "@/ui";
+import { IconCheck, IconCopy } from "../common/Icons";
 import type { InternalStockMover } from "./sectorUtils";
+import { formatSectorPercentage, clickOnSpace } from "./sectorUtils";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 import { MONO } from "@/ui/palette";
+import { displaySymbol } from "@/config/tvSymbols";
+import { SymbolLink } from "../common/SymbolLink";
+import { chartHrefForSymbol, useSymbolDock } from "../common/symbolDockContext";
 
-function pct(value: number): string {
-  return `${value.toFixed(2)}%`;
+// Decorated feed symbols (NSE:RELIANCE, BRK.B) need a canonical chart href;
+// plain tickers render through the shared dock button.
+function needsCanonicalLink(symbol: string): boolean {
+  const raw = String(symbol ?? "").trim();
+  return displaySymbol(raw) !== raw || raw.includes(".");
 }
 
-export function IntervalMoversTable({ movers }: { movers: InternalStockMover[] }) {
-  if (movers.length === 0) {
-    return (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-        <Text size="xs" c="dimmed" ta="center" py={1}>
-          Collecting baseline for interval moves...
-        </Text>
-      </Box>
-    );
-  }
+function pct(value: number): string {
+  return formatSectorPercentage(value, 2, false);
+}
+
+const GRID_COLS = "grid grid-cols-[minmax(0,1fr)_44px_44px_52px] items-center gap-0.5 min-h-[18px] px-0.5 border-b border-fin-border";
+const NUM_CELL = { "font-family": MONO, "font-variant-numeric": "tabular-nums" } as const;
+
+export interface IntervalMoversTableProps {
+  movers: InternalStockMover[];
+  market?: string;
+  onSymbolClick?: (symbol: string) => void;
+}
+
+export function IntervalMoversTable(props: IntervalMoversTableProps) {
+  const movers = () => props.movers ?? [];
+  const dock = useSymbolDock();
+  const openSymbol = (symbol: string) =>
+    props.onSymbolClick
+      ? props.onSymbolClick(symbol)
+      : dock.open(symbol, "chart", props.market);
 
   return (
-    <Box data-testid="interval-movers-table" sx={{ display: "flex", flexDirection: "column" }}>
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) 44px 44px 52px",
-          alignItems: "center",
-          gap: 0.5,
-          minHeight: 18,
-          px: 0.5,
-          borderBottom: "1px solid",
-          borderColor: "divider",
-        }}
-      >
-        {["Stock", "Prev", "Now", "Δ"].map((label, index) => (
-          <Text
-            key={label}
-            c="dimmed"
-            sx={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.3, textAlign: index === 0 ? "left" : "right" }}
-          >
-            {label}
-          </Text>
-        ))}
-      </Box>
-      {movers.map((mover) => (
+    <Show
+      when={movers().length > 0}
+      fallback={
         <Box
-          key={mover.symbol}
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr) 44px 44px 52px",
-            alignItems: "center",
-            gap: 0.5,
-            minHeight: 20,
-            px: 0.5,
-            borderBottom: "1px solid",
-            borderColor: "divider",
-          }}
+          data-testid="interval-movers-empty"
+          role="status"
+          className="flex flex-col items-center justify-center gap-0.5 p-2"
         >
-          <Text truncate sx={{ fontSize: 10.5, fontWeight: 600 }}>
-            {mover.symbol}
+          <Text size="xs" c="dimmed" ta="center">
+            First poll establishes the baseline.
           </Text>
-          <Text c="dimmed" ta="right" sx={{ fontFamily: MONO, fontSize: 10, fontVariantNumeric: "tabular-nums" }}>
-            {pct(mover.prev_change)}
-          </Text>
-          <Text ta="right" sx={{ fontFamily: MONO, fontSize: 10, fontVariantNumeric: "tabular-nums" }}>
-            {pct(mover.change)}
-          </Text>
-          <Text
-            c={getPnLTextColor(mover.delta)}
-            fw={700}
-            ta="right"
-            sx={{ fontFamily: MONO, fontSize: 10, fontVariantNumeric: "tabular-nums" }}
-          >
-            {mover.delta > 0 ? "+" : ""}
-            {pct(mover.delta)}
+          <Text className="text-ui-micro text-fin-text-muted">
+            1-minute movers appear on the next refresh.
           </Text>
         </Box>
-      ))}
-    </Box>
+      }
+    >
+      <Box data-testid="interval-movers-table" className="flex flex-col">
+        <Box className={GRID_COLS}>
+          <For each={["Stock", "Prev", "Now", "Δ"]}>
+            {(label, index) => (
+              <Text
+                c="dimmed"
+                className="text-ui-micro font-bold tracking-[0.3px]"
+                style={{ "text-align": index() === 0 ? "left" : "right" }}
+              >
+                {label}
+              </Text>
+            )}
+          </For>
+        </Box>
+        <For each={movers()}>
+          {(mover) => (
+            <Box className="grid grid-cols-[minmax(0,1fr)_44px_44px_52px] items-center gap-0.5 min-h-5 px-0.5 border-b border-fin-border">
+              {needsCanonicalLink(mover.symbol) ? (
+                <Box className="flex min-w-0 items-center gap-[2px]">
+                  <Box
+                    component="a"
+                    href={chartHrefForSymbol(mover.symbol, props.market)}
+                    data-testid={`interval-mover-${mover.symbol}`}
+                    onKeyDown={clickOnSpace}
+                    className="min-w-0 text-fin-text no-underline hover:text-fin-primary"
+                  >
+                    <Text truncate className="text-ui-micro font-semibold">
+                      {displaySymbol(mover.symbol)}
+                    </Text>
+                  </Box>
+                  <CopyButton value={displaySymbol(mover.symbol)}>
+                    {({ copied, copy }) => (
+                      <ActionIcon
+                        variant="subtle"
+                        color={copied ? "info" : "secondary"}
+                        size="xs"
+                        style={{ width: "16px", height: "16px", "min-height": "16px", padding: "0px" }}
+                        onClick={(event: MouseEvent) => {
+                          event.stopPropagation();
+                          copy();
+                        }}
+                        aria-label={`Copy ${displaySymbol(mover.symbol)}`}
+                        data-testid={`copy-symbol-${displaySymbol(mover.symbol)}`}
+                      >
+                        {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+                      </ActionIcon>
+                    )}
+                  </CopyButton>
+                </Box>
+              ) : (
+                <SymbolLink
+                  symbol={mover.symbol}
+                  inAppText
+                  tvLink={false}
+                  showChart={false}
+                  showOptions={false}
+                  showCopy
+                  size="xs"
+                  weight={600}
+                  testId={`interval-mover-${mover.symbol}`}
+                  onTextClick={(sym) => openSymbol(sym)}
+                  className="min-w-0 flex-1"
+                />
+              )}
+              <Text c="dimmed" ta="right" className="text-ui-micro font-mono tabular-nums" style={NUM_CELL}>
+                {pct(mover.prev_change)}
+              </Text>
+              <Text ta="right" className="text-ui-micro font-mono tabular-nums" style={NUM_CELL}>
+                {pct(mover.change)}
+              </Text>
+              <Text
+                c={getPnLTextColor(Number(mover.delta.toFixed(2)))}
+                fw={700}
+                ta="right"
+                className="text-ui-micro font-mono tabular-nums"
+                style={NUM_CELL}
+              >
+                {mover.delta > 0 ? "+" : ""}
+                {pct(mover.delta)}
+              </Text>
+            </Box>
+          )}
+        </For>
+      </Box>
+    </Show>
   );
 }

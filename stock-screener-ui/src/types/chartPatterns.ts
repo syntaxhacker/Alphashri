@@ -5,6 +5,8 @@
  * no runtime state lives here.
  */
 
+import type { ChartMarket } from "@/utils/chart/time";
+
 /** Timeframe registry entry (`chart_patterns/timeframes.py:TFSpec`). */
 export interface TFSpec {
   id: string;
@@ -107,27 +109,60 @@ export interface MarketStatus {
   reason: string;
 }
 
-/** A single trendline is a list of `{t, price}` points. */
+/** A pattern-boundary trendline: a list of `{t, price}` points. */
 export type Trendline = Array<{ t: string; price: number }>;
 
+/** Server-computed overlay lines (`ChartPayload.indicators`). */
+export type IndicatorSeriesId =
+  | "sma20"
+  | "sma50"
+  | "sma200"
+  | "bbUpper"
+  | "bbMiddle"
+  | "bbLower"
+  | "vwap";
+
 /**
- * Auto-computed standalone trendline (support/resistance) attached to a result
- * item or a symbol-chart payload as `trend_lines`. Transport shape only.
+ * One indicator line. `values` aligns 1:1 with the payload's `candles` order
+ * (`ChartIndicators.aligned === "candles"`); `null` marks a warm-up gap.
  */
-export interface TrendLine {
-  kind: "support" | "resistance";
-  start_date: string;
-  start_price: number;
-  end_date: string;
-  end_price: number;
-  slope: number;
-  touches: number;
-  span_bars: number;
-  violations: number;
+export interface IndicatorSeries {
+  id: IndicatorSeriesId;
+  values: (number | null)[];
 }
 
-/** View-only filter controlling which standalone trendlines are drawn. */
-export type TrendlinesView = "both" | "support" | "resistance" | "none";
+/** Golden/death cross between the fast and slow averages. */
+export interface IndicatorCross {
+  t: string;
+  kind: "golden" | "death";
+}
+
+/** Server-computed indicator bundle attached to a symbol chart payload. */
+export interface ChartIndicators {
+  aligned: "candles";
+  timeframe: string;
+  session: string;
+  partial_last: boolean;
+  series: IndicatorSeries[];
+  crosses: IndicatorCross[];
+}
+
+/** Server-computed horizontal support/resistance band. */
+export interface SRZone {
+  kind: "support" | "resistance" | "sr";
+  top: number;
+  bottom: number;
+  start_date: string;
+  end_date: string;
+  touches: number;
+  score: number;
+  /** Bars since the last confirmed touch; absent on older backends. */
+  bars_since_touch?: number;
+  /** Exact first-touch bar timestamp on intraday charts (ISO 8601). */
+  start_time?: string;
+  /** Exact last-touch bar timestamp on intraday charts (ISO 8601). */
+  end_time?: string;
+}
 
 /** Pattern hit row (`PatternHitDTO`, `GET /results`). */
 export interface PatternHitDTO {
@@ -153,8 +188,6 @@ export interface PatternHitDTO {
   bars_ago: number;
   volume_confirmed: boolean;
   trendlines: Trendline[];
-  /** Auto-computed standalone support/resistance lines (view-only overlay). */
-  trend_lines?: TrendLine[];
   notes: string;
   /** Swing pivots used to define the pattern: on-chart markers + manual audit. */
   pivots?: Array<{ t: string; price: number; kind?: "high" | "low" }>;
@@ -164,6 +197,13 @@ export interface PatternHitDTO {
   last_close?: number | null;
   /** Latest bar change % for the symbol/timeframe (enriched). */
   day_change_pct?: number | null;
+  /**
+   * Session date of the bar `last_close`/`day_change_pct` were computed from.
+   * `end_date` is the pattern formation date, not the close's bar date — never
+   * use it as a proxy. Absent = the enrichment cannot be dated, so chart
+   * candles win. Added by the backend on enriched items (optional for old rows).
+   */
+  close_bar_date?: string | null;
   /** Consolidation base length in bars/days (`consolidation` pattern only). */
   base_days?: number;
   /** Consolidation range as a percentage of price (`consolidation` pattern only). */
@@ -221,6 +261,18 @@ export interface SymbolDetail {
   patterns: PatternHitDTO[];
 }
 
+/**
+ * Where the chart candles came from. `cache+tail` means the cached frame was
+ * extended with a live tail; `cache+tail-failed` means the tail fetch failed
+ * and the cached frame was served stale.
+ */
+export type ChartDataSource =
+  | "provider"
+  | "cache"
+  | "cache+tail"
+  | "cache+tail-failed"
+  | "none";
+
 /** OHLCV candle (`GET /symbol/{symbol}/chart`). */
 export interface ChartCandle {
   t: string;
@@ -229,6 +281,8 @@ export interface ChartCandle {
   l: number;
   c: number;
   v: number;
+  /** Today's daily bar built from the 1-min tape while the session is open. */
+  is_partial?: boolean;
 }
 
 /**
@@ -252,8 +306,10 @@ export interface ChartPayload {
   timeframe: string;
   candles: ChartCandle[];
   overlays: PatternOverlay[];
-  /** Auto-computed standalone support/resistance lines (view-only overlay). */
-  trend_lines?: TrendLine[];
+  /** Server-computed SMA/BB/VWAP overlay bundle (null/absent on older backends). */
+  indicators?: ChartIndicators | null;
+  /** Server-computed support/resistance bands (view-only overlay). */
+  sr_zones?: SRZone[];
   /**
    * Live pattern hits detected on this timeframe (`detect_patterns=1`).
    * Absent unless detection was requested.
@@ -265,11 +321,56 @@ export interface ChartPayload {
    */
   as_of?: string | null;
   /**
+   * Completed-session frame date (`YYYY-MM-DD`) whose hits the detection ran on.
+   * The displayed candles can legitimately be newer — a 1D chart appends
+   * today's tape bar for display only, so `hits`/`bars_ago` stay pinned here.
+   */
+  detection_as_of?: string | null;
+  /**
    * Stale-first marker: a cached disk frame served while a background
    * refresh runs. Fresh wire responses omit these (or send `cached:false`).
    */
   cached?: boolean;
+  /** True when the returned series lags the expected live bar. */
   stale?: boolean;
+  /**
+   * Provenance of the returned candles. `cache+tail` means the cached frame
+   * was merged with a live tail; `cache+tail-failed` means that merge failed
+   * and the stale cache was served instead.
+   */
+  data_source?: ChartDataSource;
+  /** Last bar timestamp covered by the cache before the tail merge. */
+  cache_through?: string | null;
+  /** Latest bar timestamp in the returned candle series. */
+  latest_bar?: string | null;
+  /** Bars the tail merge appended to the cached frame. */
+  appended?: number;
+  /** Bars the tail merge repaired/replaced in the cached frame. */
+  updated?: number;
+  /** Holiday-aware session state for the chart's market. */
+  market_open?: boolean;
+  /** Seconds between the latest returned bar and the response time. */
+  cache_age_sec?: number | null;
+  /** A background cache refresh is still running after this response. */
+  refreshing?: boolean;
+  /**
+   * Machine-readable failure from the chart endpoint (`no_data`,
+   * `fetch_timeout`, `upstream_error`). Present with empty `candles`; the UI
+   * must show `note` instead of a blank chart.
+   */
+  error?: string | null;
+  /** Human-readable explanation that accompanies `error`. */
+  note?: string | null;
+  /** Non-fatal data warning, e.g. a failed live-tail merge over cached bars. */
+  warning?: string | null;
+  /** Data market: India uses Upstox, USA uses the provider registry. */
+  market?: ChartMarket;
+  /** Provider feed identifier (e.g. `yahoo`, `alpaca-iex`, `upstox`). */
+  feed?: string | null;
+  /** Honest latency label for the UI (e.g. `~1 min (forming)`). */
+  delay_label?: string | null;
+  /** US session date (`YYYY-MM-DD`, ET) for the returned candles. */
+  session_date?: string | null;
 }
 
 /** User-facing result filters (the filter rail). */
@@ -359,11 +460,6 @@ export interface PatternFilters {
    * `sort=distance` is never sent to `/results` or `/results/stream`.
    */
   sort: "confidence" | "newest" | "range_pos" | "breakout" | "distance";
-  /**
-   * View-only filter for standalone trendlines. CLIENT-ONLY: never sent to
-   * `/results` or `/summary` (not part of `baseQuery`), never restrictive.
-   */
-  trendlines: TrendlinesView;
 }
 
 /**
@@ -379,8 +475,6 @@ export interface PatternsQuery extends Partial<PatternFilters> {
   offset?: number;
   /** Card candle window in bars (omitted/null = server default). */
   lookback_bars?: number | null;
-  /** Skip server-side trendline computation (false = skip; omitted/true = compute). */
-  compute_trendlines?: boolean;
 }
 
 /** Breakout-watch setup (`GET /api/chart-patterns/watch/setups`). */

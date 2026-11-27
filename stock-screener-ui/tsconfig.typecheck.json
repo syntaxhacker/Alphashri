@@ -1,0 +1,26 @@
+{
+  // Ratchet scope: test files plus the clusters that are clean under the real
+  // app config. Not the whole app — see docs/TYPESCRIPT_DEBT.md. New errors in
+  // any included file (or its imported dependencies) fail the gate.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["vite/client", "vitest/globals", "node"]
+  },
+  "include": [
+    "src/**/*.d.ts",
+    "src/test/**/*.ts",
+    "src/api/**/*.ts",
+    "src/api/**/*.tsx",
+    "src/config/**/*.ts",
+    "src/config/**/*.tsx",
+    "src/state/**/*.ts",
+    "src/state/**/*.tsx",
+    "src/utils/**/*.ts",
+    "src/utils/**/*.tsx",
+    "src/types/**/*.ts",
+    "src/types/**/*.tsx",
+    "src/stories/**/*.ts",
+    "src/stories/**/*.tsx"
+  ],
+  "exclude": ["node_modules", "dist", "build", "coverage"]
+}

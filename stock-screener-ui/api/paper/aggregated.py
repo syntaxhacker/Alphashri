@@ -16,8 +16,10 @@ from .paper_api import router, _get_user_id
 from pathlib import Path
 
 
+# Sync `def`: the DB batch-reads and the per-bot paper-trader snapshot run on the
+# anyio worker pool instead of the event loop.
 @router.get("/aggregated")
-async def get_aggregated_dashboard(user: "User" = Depends(get_current_user)):
+def get_aggregated_dashboard(user: "User" = Depends(get_current_user)):
     user_id = _get_user_id(user)
     today = datetime.now(config.IST)
 
@@ -27,6 +29,8 @@ async def get_aggregated_dashboard(user: "User" = Depends(get_current_user)):
 
         # Batch-load all strategies for all bots (through bot_strategies association table)
         strategies_by_bot: dict = {}
+        strategy_ids_by_bot: dict = {}
+        strategy_raw_ids_by_bot: dict = {}
         if bot_ids:
             rows = db.query(
                 bot_strategies.c.bot_id,
@@ -45,11 +49,22 @@ async def get_aggregated_dashboard(user: "User" = Depends(get_current_user)):
                     "name": row.name,
                     "strategy_type": row.strategy_type,
                 })
+                strategy_ids_by_bot.setdefault(row.bot_id, set()).add(str(row.id))
+                strategy_raw_ids_by_bot.setdefault(row.bot_id, []).append(row.id)
+            # The hot loop tests every position against these ids, so resolve
+            # them once here rather than rebuilding a list for each position.
+            strategy_ids_by_bot = {
+                bid: frozenset(ids) for bid, ids in strategy_ids_by_bot.items()
+            }
 
         # Batch-load today's trades for all bots
         today_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
         today_end = today_start.replace(hour=23, minute=59, second=59)
-        all_trades = db.query(TradeModel).filter(
+        # Only strategy_id and net_pnl feed the per-bot daily P&L rollup.
+        all_trades = db.query(
+            TradeModel.strategy_id,
+            TradeModel.net_pnl,
+        ).filter(
             TradeModel.user_id == user_id,
             TradeModel.is_test == False,
             TradeModel.exit_time >= today_start,
@@ -59,6 +74,18 @@ async def get_aggregated_dashboard(user: "User" = Depends(get_current_user)):
         for t in all_trades:
             trades_by_strategy.setdefault(t.strategy_id, []).append(t)
 
+    # get_paper_trader is keyed by user, never by bot, and every bot above belongs
+    # to this user. Take one snapshot for the whole request instead of re-reading
+    # the same positions once per bot.
+    trader_positions = []
+    if bot_ids:
+        try:
+            from trading.paper_trader import get_paper_trader
+            trader = get_paper_trader(user_id)
+            trader_positions = trader.get_positions()
+        except Exception:
+            trader_positions = []
+
     bot_data = []
     total_positions = 0
     total_daily_pnl = 0.0
@@ -67,6 +94,8 @@ async def get_aggregated_dashboard(user: "User" = Depends(get_current_user)):
 
     for bot in bots:
         strategies = strategies_by_bot.get(bot.id, [])
+        strategy_ids = strategy_ids_by_bot.get(bot.id, frozenset())
+        raw_ids = strategy_raw_ids_by_bot.get(bot.id, ())
 
         running = False
         pid = None
@@ -79,23 +108,21 @@ async def get_aggregated_dashboard(user: "User" = Depends(get_current_user)):
             pass
 
         positions = []
-        portfolio_data = {}
+        bot_unrealized_pnl = 0.0
         try:
-            from trading.paper_trader import get_paper_trader
-            trader = get_paper_trader(user_id)
-            trader_positions = trader.get_positions()
             for p in trader_positions:
-                if str(p.get("strategy_id")) in [str(s["id"]) for s in strategies] or not strategies:
+                if str(p.get("strategy_id")) in strategy_ids or not strategy_ids:
                     positions.append(p)
                     total_positions += 1
-                    total_unrealized_pnl += float(p.get("pnl", 0))
+                    pnl = float(p.get("pnl", 0))
+                    bot_unrealized_pnl += pnl
+                    total_unrealized_pnl += pnl
                     total_value += float(p.get("current_price", 0)) * float(p.get("quantity", 0))
         except Exception:
             pass
 
         daily_pnl = 0.0
-        strat_ids = [s["id"] for s in strategies]
-        for sid in strat_ids:
+        for sid in raw_ids:
             for t in trades_by_strategy.get(sid, []):
                 daily_pnl += float(t.net_pnl or 0)
 
@@ -109,7 +136,7 @@ async def get_aggregated_dashboard(user: "User" = Depends(get_current_user)):
             "strategies": strategies,
             "position_count": len(positions),
             "daily_pnl": round(daily_pnl, 2),
-            "unrealized_pnl": round(sum(float(p.get("pnl", 0)) for p in positions), 2),
+            "unrealized_pnl": round(bot_unrealized_pnl, 2),
             "positions": positions[:10],
         })
 

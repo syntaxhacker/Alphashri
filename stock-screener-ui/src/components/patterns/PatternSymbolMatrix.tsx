@@ -1,13 +1,15 @@
-import { memo, useCallback, useMemo, useRef, type ReactNode } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
-import { alpha } from "@mui/material/styles";
+import { createMemo, For, Show } from "solid-js";
+import { alpha } from "@/ui/alpha";
 import { Box, Text } from "@/ui";
 import * as palette from "@/ui/palette";
+import type { TableColumnDef } from "@/components/common/TanStackTable";
 import { TanStackTable } from "@/components/common/TanStackTable";
+import { NumCell } from "@/components/common";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { SymbolLink } from "@/components/common/SymbolLink";
 import { hasIndexMembers } from "@/config/indexGroups";
 import { MembersButton } from "./MembersButton";
+import { PatternScrollRegion } from "./PatternScrollRegion";
 import {
   directionGlyph,
   directionTone,
@@ -27,18 +29,26 @@ export interface PatternSymbolMatrixProps {
   onShowMembers?: (symbol: string) => void;
   loading?: boolean;
   emptyMessage?: string;
-  /** Symbol currently shown in the docked chart — highlighted in the matrix. */
   activeSymbol?: string | null;
   /** Emits the rows in rendered (post-sort) order for prev/next navigation. */
   onRowsChange?: (rows: PatternMatrixRow[]) => void;
-  /** Hover intent for the right-side symbol preview (host debounces). */
   onSymbolPreview?: (symbol: string) => void;
   onSymbolPreviewEnd?: (symbol: string) => void;
-  /** Chart icon: open the symbol in the right-side chart. */
   onSymbolOpen?: (symbol: string) => void;
 }
 
 const MAX_CHIPS = 8;
+// Sized numeric columns already carry their values at 390px; the extra width
+// keeps the unsized chip column from collapsing into a mid-word clip.
+const MIN_MATRIX_WIDTH = 720;
+const MIN_COLUMN_WIDTH = 76;
+
+interface PreparedChips {
+  shown: PatternHitDTO[];
+  extra: number;
+}
+
+const EMPTY_CHIPS: PreparedChips = { shown: [], extra: 0 };
 
 const STATUS_RANK: Record<string, number> = { confirmed: 0, forming: 1, failed: 2, marginal: 2 };
 const DIRECTION_RANK: Record<string, number> = { bullish: 0, bearish: 1, neutral: 2 };
@@ -55,12 +65,24 @@ function rank(map: Record<string, number>, value: unknown): number {
 }
 
 function sortHits(hits: PatternHitDTO[]): PatternHitDTO[] {
-  return [...hits].sort(
-    (a, b) =>
-      rank(STATUS_RANK, a.status) - rank(STATUS_RANK, b.status) ||
-      rank(DIRECTION_RANK, a.direction) - rank(DIRECTION_RANK, b.direction) ||
-      (b.confidence ?? 0) - (a.confidence ?? 0),
-  );
+  // Decorate once: the original comparator recomputed lowercased ranks on every
+  // pairwise comparison, which dominated rows with many chips.
+  return hits
+    .map((hit, index) => ({
+      hit,
+      index,
+      status: rank(STATUS_RANK, hit.status),
+      direction: rank(DIRECTION_RANK, hit.direction),
+      confidence: hit.confidence ?? 0,
+    }))
+    .sort(
+      (a, b) =>
+        a.status - b.status ||
+        a.direction - b.direction ||
+        b.confidence - a.confidence ||
+        a.index - b.index,
+    )
+    .map((entry) => entry.hit);
 }
 
 /** Render/build counters for the matrix perf work. Every render/memo rebuild
@@ -97,35 +119,22 @@ export function matrixRenderStatsReset(): void {
   }
 }
 
-/** The host (`PatternsPage`) recreates its handler closures whenever
- *  `fullscreen` changes; stable identities keep the matrix `columns` memo
- *  (and therefore every memoised cell below) from being rebuilt on each
- *  chart open/close. */
-type Fn = (...args: any[]) => unknown;
-function useStableCallback<T extends Fn | undefined>(callback: T): T;
-function useStableCallback<T extends Fn | undefined>(callback: T): T | undefined {
-  if (callback == null) return undefined;
-  const ref = useRef(callback);
-  ref.current = callback;
-  return useCallback((...args: any[]) => ref.current(...args), []) as unknown as T;
+/** Numeric cell with the matrix render counter kept for the perf suite. */
+function NumText(props: {
+  value: number | null | undefined;
+  format: (value: number) => string;
+  tone?: "success" | "error" | "dimmed" | "default";
+}) {
+  matrixStats.numTextRenders += 1;
+  return <NumCell value={props.value} format={props.format} tone={props.tone} fw={600} />;
 }
 
-const NumText = memo(function NumText({ children, color }: { children: ReactNode; color?: string }) {
-  matrixStats.numTextRenders += 1;
-  return (
-    <Text c={color} fw={600} sx={{ fontSize: 11, lineHeight: 1.1 }}>
-      {children}
-    </Text>
-  );
-});
-
-const SymbolCell = memo(function SymbolCell({
-  row,
-  onShowMembers,
-  onSymbolPreview,
-  onSymbolPreviewEnd,
-  onSymbolOpen,
-}: {
+/**
+ * Not the kit's `SymbolCell`: this identity column also carries the hover
+ * preview, the chart icon and the index-members trigger under its own
+ * `patterns-matrix-*` test ids.
+ */
+function SymbolCell(props: {
   row: PatternMatrixRow;
   onShowMembers?: (symbol: string) => void;
   onSymbolPreview?: (symbol: string) => void;
@@ -133,142 +142,141 @@ const SymbolCell = memo(function SymbolCell({
   onSymbolOpen?: (symbol: string) => void;
 }) {
   matrixStats.symbolCellRenders += 1;
-  const canShowMembers = Boolean(onShowMembers && hasIndexMembers(row.symbol));
+  const row = () => props.row;
+  const canShowMembers = () => Boolean(props.onShowMembers && hasIndexMembers(row().symbol));
   return (
-    <Box sx={{ minWidth: 0 }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: "2px", minWidth: 0 }}>
+    <Box className="min-w-0">
+      <Box className="flex min-w-0 items-center gap-[2px]">
         <SymbolLink
-          symbol={row.symbol}
-          testId={`patterns-matrix-tv-${row.symbol}`}
-          chartTestId={`patterns-matrix-chart-${row.symbol}`}
-          onOpen={onSymbolOpen}
-          onPreview={onSymbolPreview}
-          onPreviewEnd={onSymbolPreviewEnd}
+          symbol={row().symbol}
+          testId={`patterns-matrix-tv-${row().symbol}`}
+          chartTestId={`patterns-matrix-chart-${row().symbol}`}
+          onOpen={props.onSymbolOpen}
+          onPreview={props.onSymbolPreview}
+          onPreviewEnd={props.onSymbolPreviewEnd}
+          showCopy
           size="xs"
           weight={700}
-          sx={{ flex: 1 }}
+          className="flex-1"
         />
-        {canShowMembers ? (
+        <Show when={canShowMembers()}>
           <MembersButton
-            symbol={row.symbol}
-            testId={`patterns-matrix-members-${row.symbol}`}
-            onShowMembers={onShowMembers}
+            symbol={row().symbol}
+            testId={`patterns-matrix-members-${row().symbol}`}
+            onShowMembers={props.onShowMembers}
             size={14}
             iconSize={11}
           />
-        ) : null}
+        </Show>
       </Box>
-      {row.name ? (
-        <Text c="dimmed" truncate sx={{ fontSize: 10, lineHeight: 1.1 }}>
-          {row.name}
+      <Show when={row().name}>
+        <Text c="dimmed" truncate title={row().name ?? undefined} className="text-ui-micro leading-[1.1]">
+          {row().name}
         </Text>
-      ) : null}
+      </Show>
     </Box>
   );
-});
+}
 
-const TfGlyph = memo(function TfGlyph({ cell }: { cell: MatrixCell | undefined }) {
+function TfGlyph(props: { cell: MatrixCell | undefined }) {
   matrixStats.tfGlyphRenders += 1;
-  if (!cell) {
+  const cell = () => props.cell;
+  if (!cell()) {
     return (
-      <Text c="dimmed" sx={{ fontSize: 11, lineHeight: 1.1 }}>
+      <Text c="dimmed" className="text-ui-micro leading-[1.1]">
         —
       </Text>
     );
   }
-  const tone = directionTone(cell.direction);
+  const tone = () => directionTone(cell()!.direction);
   return (
-    <Box
-      component="span"
+    <span
       title={
-        cell.count > 1
-          ? `${cell.count} patterns · latest: ${cell.patterns.join(", ")}`
-          : `1 pattern: ${cell.patterns.join(", ")}`
+        cell()!.count > 1
+          ? `${cell()!.count} patterns · latest: ${cell()!.patterns.join(", ")}`
+          : `1 pattern: ${cell()!.patterns.join(", ")}`
       }
-      sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "1px" }}
+      className="inline-flex items-center justify-center gap-[1px]"
     >
-      <Box component="span" sx={{ color: textToneChartColor(tone), fontSize: 11, lineHeight: 1, fontWeight: 700 }}>
-        {directionGlyph(cell.direction)}
-      </Box>
-      {cell.count > 1 ? (
-        <Box component="span" sx={{ color: palette.TEXT_MUTED, fontSize: 9, lineHeight: 1 }}>
-          {cell.count}
-        </Box>
-      ) : null}
-    </Box>
+      <span className="text-ui-micro font-bold leading-none" style={{ color: textToneChartColor(tone()) }}>
+        {directionGlyph(cell()!.direction)}
+      </span>
+      <Show when={cell()!.count > 1}>
+        <span className="text-ui-micro leading-none" style={{ color: palette.TEXT_MUTED }}>
+          {cell()!.count}
+        </span>
+      </Show>
+    </span>
   );
-});
+}
 
-const PatternChip = memo(function PatternChip({ hit, onSelect }: { hit: PatternHitDTO; onSelect: (hit: PatternHitDTO) => void }) {
+function PatternChip(props: { hit: PatternHitDTO; onSelect: (hit: PatternHitDTO) => void }) {
   matrixStats.patternChipRenders += 1;
-  const color = textToneChartColor(directionTone(hit.direction));
-  const label = `${hit.pattern_name} ${formatTfLabel(hit.timeframe)}`;
+  const hit = () => props.hit;
+  const tone = () => directionTone(hit().direction);
+  const label = () => `${hit().pattern_name} ${formatTfLabel(hit().timeframe)}`;
   return (
-    <Box
-      component="span"
-      role="button"
-      tabIndex={0}
-      aria-label={`Open ${label} chart`}
+    <button
+      type="button"
+      aria-label={`Open ${label()} chart`}
       onClick={(event) => {
         event.stopPropagation();
-        onSelect(hit);
+        props.onSelect(hit());
       }}
-      onKeyDown={(event: React.KeyboardEvent) => {
+      onKeyDown={(event) => {
         if (event.key !== "Enter" && event.key !== " ") return;
         event.preventDefault();
         event.stopPropagation();
-        onSelect(hit);
+        props.onSelect(hit());
       }}
-      title={`${label} — ${String(hit.status ?? "")}`}
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        flexShrink: 0,
-        height: 16,
-        px: "4px",
-        borderRadius: "3px",
-        border: `1px solid ${alpha(color, 0.45)}`,
-        bgcolor: alpha(color, 0.14),
-        color,
-        fontSize: 10,
-        lineHeight: 1,
-        whiteSpace: "nowrap",
-        cursor: "pointer",
-        userSelect: "none",
+      title={`${label()} — ${String(hit().status ?? "")}`}
+      className="inline-flex h-4 shrink-0 cursor-pointer select-none items-center whitespace-nowrap rounded-[3px] border px-1 text-ui-micro leading-none"
+      style={{
+        "border-color": alpha(textToneChartColor(tone()), 0.45),
+        background: alpha(textToneChartColor(tone()), 0.14),
+        color: textToneChartColor(tone()),
       }}
     >
-      {label}
-    </Box>
+      {label()}
+    </button>
   );
-});
+}
 
-export function PatternSymbolMatrix({
-  rows,
-  timeframes,
-  onSelect,
-  onShowMembers,
-  loading = false,
-  emptyMessage = "No symbols match the current filters.",
-  activeSymbol = null,
-  onRowsChange,
-  onSymbolPreview,
-  onSymbolPreviewEnd,
-  onSymbolOpen,
-}: PatternSymbolMatrixProps) {
+export function PatternSymbolMatrix(props: PatternSymbolMatrixProps) {
   matrixStats.matrixRenders += 1;
 
-  const onSelectStable = useStableCallback(onSelect);
-  const onShowMembersStable = useStableCallback(onShowMembers);
-  const onSymbolPreviewStable = useStableCallback(onSymbolPreview);
-  const onSymbolPreviewEndStable = useStableCallback(onSymbolPreviewEnd);
-  const onSymbolOpenStable = useStableCallback(onSymbolOpen);
+  const orderedTimeframes = createMemo(() => matrixTfOrder(props.timeframes));
 
-  const orderedTimeframes = useMemo(() => matrixTfOrder(timeframes), [timeframes]);
-  const visibleRows = useMemo(() => {
+  // Keyed on the source row object + ordered-timeframe array, so a fresh rows
+  // array holding the same row objects (a filter pass, a chip click, a selection
+  // change) keeps every derived reference. TanStackTable's stable row slots then
+  // see an unchanged frame and skip re-rendering those cells.
+  const rowCache = new WeakMap<
+    PatternMatrixRow,
+    { tfs: string[]; derived: PatternMatrixRow | null }
+  >();
+  const chipsCache = new WeakMap<PatternHitDTO[], PatternHitDTO[]>();
+  const chipsByRow = new WeakMap<PatternMatrixRow, PreparedChips>();
+
+  const orderedChips = (hits: PatternHitDTO[]): PatternHitDTO[] => {
+    const cached = chipsCache.get(hits);
+    if (cached) return cached;
+    const ordered = sortHits(hits);
+    chipsCache.set(hits, ordered);
+    return ordered;
+  };
+
+  const visibleRows = createMemo(() => {
     matrixStats.visibleRowsBuilds += 1;
-    const allowed = new Set(orderedTimeframes);
-    return rows
-      .flatMap((row) => {
+    const tfs = orderedTimeframes();
+    const allowed = new Set(tfs);
+    const out: PatternMatrixRow[] = [];
+    for (const row of props.rows) {
+      let cached = rowCache.get(row);
+      let derived: PatternMatrixRow | null;
+      if (cached && cached.tfs === tfs) {
+        derived = cached.derived;
+      } else {
         const byTimeframe = new Map<string, PatternHitDTO>();
         for (const hit of row.hits) {
           if (!allowed.has(hit.timeframe)) continue;
@@ -276,26 +284,43 @@ export function PatternSymbolMatrix({
           if (!prev || isFresherHit(hit, prev)) byTimeframe.set(hit.timeframe, hit);
         }
         const hits = [...byTimeframe.values()];
-        if (hits.length === 0) return [];
-        const best = [...hits].sort(compareConviction)[0] ?? null;
-        return [{ ...row, hits, best, hit_count: hits.length }];
-      })
-      .sort((a, b) => (a.best && b.best ? compareConviction(a.best, b.best) : a.best ? -1 : 1));
-  }, [rows, orderedTimeframes]);
+        if (hits.length === 0) {
+          derived = null;
+        } else {
+          // Linear best-of preserves sort's stable first-on-tie without a second array.
+          let best: PatternHitDTO | null = null;
+          for (const hit of hits) {
+            if (!best || compareConviction(hit, best) < 0) best = hit;
+          }
+          derived = { ...row, hits, best, hit_count: hits.length };
+          const ordered = orderedChips(hits);
+          const shown = ordered.slice(0, MAX_CHIPS);
+          chipsByRow.set(derived, { shown, extra: ordered.length - shown.length });
+        }
+        cached = { tfs, derived };
+        rowCache.set(row, cached);
+      }
+      if (derived) out.push(derived);
+    }
+    out.sort((a, b) => (a.best && b.best ? compareConviction(a.best, b.best) : a.best ? -1 : 1));
+    return out;
+  });
 
-  const onRowClick = useCallback((row: PatternMatrixRow) => {
-    if (row.best) onSelectStable(row.best);
-  }, [onSelectStable]);
+  const onRowClick = (row: PatternMatrixRow) => {
+    if (row.best) props.onSelect(row.best);
+  };
 
-  const columns = useMemo<ColumnDef<PatternMatrixRow>[]>(() => {
+  // Cell renderers read the volatile props (selection, chip callbacks) only when
+  // invoked, so this memo depends solely on the ordered timeframe list.
+  const columns = createMemo<TableColumnDef<PatternMatrixRow>[]>(() => {
     matrixStats.columnsBuilds += 1;
-    const tfColumns: ColumnDef<PatternMatrixRow>[] = orderedTimeframes.map((tf) => ({
+    const tfColumns: TableColumnDef<PatternMatrixRow>[] = orderedTimeframes().map((tf) => ({
       id: `tf-${tf}`,
       header: formatTfLabel(tf),
       accessorFn: (row) => row.timeframes[tf]?.confidence ?? null,
       size: 40,
       meta: { align: "center" },
-      cell: (info) => <TfGlyph cell={info.row.original.timeframes[tf]} />,
+      cell: (ctx) => <TfGlyph cell={ctx.row.original.timeframes[tf]} />,
     }));
 
     return [
@@ -305,13 +330,13 @@ export function PatternSymbolMatrix({
         accessorKey: "symbol",
         size: 140,
         meta: { align: "left" },
-        cell: (info) => (
+        cell: (ctx) => (
           <SymbolCell
-            row={info.row.original}
-            onShowMembers={onShowMembersStable}
-            onSymbolPreview={onSymbolPreviewStable}
-            onSymbolPreviewEnd={onSymbolPreviewEndStable}
-            onSymbolOpen={onSymbolOpenStable}
+            row={ctx.row.original}
+            onShowMembers={props.onShowMembers}
+            onSymbolPreview={props.onSymbolPreview}
+            onSymbolPreviewEnd={props.onSymbolPreviewEnd}
+            onSymbolOpen={props.onSymbolOpen}
           />
         ),
       },
@@ -321,7 +346,7 @@ export function PatternSymbolMatrix({
         accessorKey: "ltp",
         size: 92,
         meta: { align: "right" },
-        cell: (info) => <NumText>{formatMatrixPrice(info.getValue<number | null>())}</NumText>,
+        cell: (ctx) => <NumText value={ctx.row.original.ltp} format={formatMatrixPrice} />,
       },
       {
         id: "chg",
@@ -329,82 +354,112 @@ export function PatternSymbolMatrix({
         accessorKey: "day_change_pct",
         size: 74,
         meta: { align: "right" },
-        cell: (info) => {
-          const value = info.getValue<number | null>();
-          return <NumText color={changeTextTone(value)}>{formatMatrixPct(value)}</NumText>;
+        cell: (ctx) => {
+          const value = ctx.row.original.day_change_pct;
+          return <NumText value={value} format={formatMatrixPct} tone={changeTextTone(value)} />;
         },
       },
       ...tfColumns,
       {
         id: "score",
-        header: "Score",
+        header: () => (
+          <abbr
+            title="Pattern-fit confidence (geometry fit, R², volume) — not breakout conviction."
+            className="cursor-help no-underline"
+          >
+            Score
+          </abbr>
+        ),
         accessorFn: (row) => row.best?.confidence ?? null,
         size: 66,
         meta: { align: "right" },
-        cell: (info) => <NumText>{formatScore(info.getValue<number | null>())}</NumText>,
+        cell: (ctx) => (
+          <NumText value={ctx.row.original.best?.confidence} format={formatScore} />
+        ),
       },
       {
         id: "pos",
-        header: "Pos %",
+        header: () => (
+          <abbr
+            title="Position within the pattern's price range, 0% at the low and 100% at the high."
+            className="cursor-help no-underline"
+          >
+            Pos %
+          </abbr>
+        ),
         accessorFn: (row) => row.best?.range_pos ?? null,
         size: 64,
         meta: { align: "right" },
-        cell: (info) => <NumText>{formatRangePos(info.getValue<number | null>())}</NumText>,
+        cell: (ctx) => <NumText value={ctx.row.original.best?.range_pos} format={formatRangePos} />,
       },
       {
         id: "patterns",
         header: "Patterns",
-        accessorFn: (row) => row.hit_count,
-        meta: { align: "left" },
-        cell: (info) => {
-          const ordered = sortHits(info.row.original.hits);
-          const shown = ordered.slice(0, MAX_CHIPS);
-          const extra = ordered.length - shown.length;
+        accessorKey: "hit_count",
+        meta: { align: "center" },
+        cell: (ctx) => {
+          const chips = chipsByRow.get(ctx.row.original) ?? EMPTY_CHIPS;
+          const title = () => {
+            const labels = chips.shown.map(
+              (hit) => `${hit.pattern_name} ${formatTfLabel(hit.timeframe)}`,
+            );
+            if (chips.extra > 0) labels.push(`+${chips.extra} more`);
+            return labels.join(", ") || undefined;
+          };
           return (
-            <Box sx={{ display: "flex", alignItems: "center", gap: "4px", overflow: "hidden" }}>
-              {shown.map((hit, index) => (
-                <PatternChip
-                  key={`${hit.id ?? `${hit.pattern_id}-${hit.timeframe}`}-${index}`}
-                  hit={hit}
-                  onSelect={onSelectStable}
-                />
-              ))}
-              {extra > 0 ? (
-                <Text c="dimmed" sx={{ fontSize: 10, lineHeight: 1, flexShrink: 0 }}>
-                  {`+${extra}`}
+            <Box className="flex items-center gap-1 overflow-hidden" title={title()}>
+              <For each={chips.shown}>
+                {(hit) => <PatternChip hit={hit} onSelect={props.onSelect} />}
+              </For>
+              <Show when={chips.extra > 0}>
+                <Text c="dimmed" className="shrink-0 text-ui-micro leading-none">
+                  {`+${chips.extra}`}
                 </Text>
-              ) : null}
+              </Show>
             </Box>
           );
         },
       },
     ];
-  }, [orderedTimeframes, onSelectStable, onShowMembersStable, onSymbolPreviewStable, onSymbolPreviewEndStable, onSymbolOpenStable]);
+  });
+
+  const activeSymbol = () => props.activeSymbol ?? null;
 
   return (
-    <TanStackTable<PatternMatrixRow>
-      data={visibleRows}
-      columns={columns}
-      dataTestId="patterns-symbol-matrix"
-      loading={loading}
-      emptyMessage={emptyMessage}
-      enableSorting
-      stickyHeader
-      rowWindowSize={80}
-      onRowClick={onRowClick}
-      getRowStyle={(row) =>
-        activeSymbol && row.symbol === activeSymbol
-          ? {
-              background: "var(--mui-palette-action-selected)",
-              boxShadow: "inset 3px 0 0 var(--mui-palette-primary-main)",
-            }
-          : undefined
-      }
-      getRowAttributes={(row) => ({
-        "data-active": activeSymbol && row.symbol === activeSymbol ? "true" : undefined,
-      })}
-      getRowTestId={(row) => `patterns-matrix-row-${row.symbol}`}
-      onSortedRowsChange={onRowsChange}
-    />
+    <PatternScrollRegion
+      testId="patterns-matrix-scroll-region"
+      cueTestId="patterns-matrix-scroll-cue"
+      ariaLabel="Pattern matrix, scroll sideways for more columns"
+      stickyFirstColumn
+    >
+      <TanStackTable<PatternMatrixRow>
+        data={visibleRows()}
+        columns={columns()}
+        dataTestId="patterns-symbol-matrix"
+        loading={props.loading}
+        emptyMessage={props.emptyMessage ?? "No symbols match the current filters."}
+        enableSorting
+        stickyHeader
+        fillContainer
+        // One derived width keeps the table inside its panel: it scrolls rather
+        // than widening the docked-chart viewport at 1366px.
+        minTableWidth={Math.max(MIN_MATRIX_WIDTH, columns().length * MIN_COLUMN_WIDTH)}
+        rowWindowSize={80}
+        onRowClick={onRowClick}
+        getRowStyle={(row) =>
+          activeSymbol() && row.symbol === activeSymbol()
+            ? {
+                background: alpha(palette.PRIMARY, 0.12),
+                boxShadow: "inset 3px 0 0 var(--color-fin-primary)",
+              }
+            : undefined
+        }
+        getRowAttributes={(row) => ({
+          "data-active": activeSymbol() && row.symbol === activeSymbol() ? "true" : undefined,
+        })}
+        getRowTestId={(row) => `patterns-matrix-row-${row.symbol}`}
+        onSortedRowsChange={props.onRowsChange}
+      />
+    </PatternScrollRegion>
   );
 }

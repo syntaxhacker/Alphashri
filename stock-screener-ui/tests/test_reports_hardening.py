@@ -3,30 +3,21 @@
 * the option-positioning block must not be poisoned by a NaN (Starlette
   serialises with ``allow_nan=False``, so one NaN leg 500s the live report);
 * the profitability EMA scan must produce the SAME signals after the
-  per-bar rebuild was replaced by a single pass;
-* the per-endpoint in-memory caches must stay bounded (their keys embed
-  user-supplied windows / symbol lists).
+  per-bar rebuild was replaced by a single pass.
 """
 
 import math
 import sys
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from api.reports_api import delivery as dl  # noqa: E402
-from api.reports_api import events_feed as ef  # noqa: E402
 from api.reports_api import profitability as pb  # noqa: E402
 from api.reports_api.nifty_positioning import compute_positioning  # noqa: E402
 
 
-# --------------------------------------------------------------------------
-# NaN guard
-# --------------------------------------------------------------------------
 
 def _chain_row(delta="nan", oi=1000, prev_oi=500):
     """A chain row in the flat shape ``compute_positioning`` consumes."""
@@ -74,9 +65,6 @@ def test_a_normal_chain_still_produces_numbers():
     assert out["strikes"][0]["strike"] == 23000.0
 
 
-# --------------------------------------------------------------------------
-# profitability: one EMA pass instead of one per bar
-# --------------------------------------------------------------------------
 
 def _series(n=140):
     closes = [100.0 + i * 0.5 for i in range(n)]
@@ -106,29 +94,3 @@ def test_ema_cross_signals_are_actually_detected():
     ]
     # A steady uptrend has no down-cross, so there is no ema_cross entry.
     assert hits == []
-
-
-# --------------------------------------------------------------------------
-# bounded in-memory caches
-# --------------------------------------------------------------------------
-
-@pytest.mark.parametrize("module", [dl, ef])
-def test_mem_put_evicts_the_oldest_entries(module):
-    store: dict = {}
-    cap = module._MEM_CACHE_MAX
-    for i in range(cap + 25):
-        module._mem_put(store, f"k{i}", (0.0, {}))
-    assert len(store) == cap
-    # The oldest keys are gone, the newest are kept.
-    assert "k0" not in store
-    assert f"k{cap + 24}" in store
-
-
-def test_delivery_cache_stays_bounded_across_many_requests(monkeypatch):
-    dl.clear_cache()
-    monkeypatch.setattr(dl, "_fetch_bhavcopy", lambda day: None)
-    monkeypatch.setattr(dl, "_universe_symbols", lambda uid, cap: [])
-    for i in range(dl._MEM_CACHE_MAX + 20):
-        dl.serve_delivery(f"2026-10-{(i % 28) + 1:02d}", "nifty500", i % 100 + 1)
-    assert len(dl._delivery_mem) <= dl._MEM_CACHE_MAX
-    dl.clear_cache()

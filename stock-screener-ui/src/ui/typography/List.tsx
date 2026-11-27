@@ -1,98 +1,79 @@
-import MuiList from "@mui/material/List";
-import MuiListItem from "@mui/material/ListItem";
-import ListItemText from "@mui/material/ListItemText";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import Box from "@mui/material/Box";
+import { Show, splitProps } from "solid-js";
+import { cn } from "../cn";
+import { TYPE_CLASS, type TypeRole } from "../typography";
+import type { JSX } from "solid-js";
 import type { UIListProps, UIListItemProps } from "../types";
 
-const sizeMap: Record<string, string> = {
-  xs: "0.75rem",
-  sm: "0.875rem",
-  md: "1rem",
-  lg: "1.125rem",
-  xl: "1.25rem",
+/** Body copy tops out at `heading`; see Text for the shared-alias rationale. */
+const SIZE_ROLE: Record<string, TypeRole> = {
+  xs: "micro",
+  sm: "label",
+  md: "title",
+  lg: "heading",
+  xl: "heading",
 };
 
-export function List({
-  children,
-  type,
-  withPadding,
-  size,
-  spacing,
-  listStyleType,
-  center,
-  icon,
-  className,
-  style,
-  "data-testid": testId,
-  id,
-  ...rest
-}: UIListProps) {
-  const isOrdered = type === "ordered";
-  const sx: Record<string, unknown> = {
-    ...(size != null && { fontSize: sizeMap[size as string] ?? (size as string) }),
-    ...(withPadding && { pl: 3 }),
-    ...(listStyleType && { listStyleType: listStyleType as string }),
-    ...(center && { textAlign: "center" }),
-    ...(spacing != null && { "& > li + li": { mt: typeof spacing === "number" ? `${spacing}px` : spacing } }),
-    ...(isOrdered ? {} : { listStyleType: listStyleType ?? "disc" }),
-  };
+function sizeClass(size: UIListProps["size"]): string | undefined {
+  if (size == null) return undefined;
+  const role = SIZE_ROLE[String(size)];
+  return role ? TYPE_CLASS[role] : undefined;
+}
 
-  // Use Box as native ul/ol wrapper for listStyleType support, with MuiList for styling
+const LIST_TAGS: Record<string, (props: any) => JSX.Element> = {
+  ol: (props) => <ol {...props} />,
+  ul: (props) => <ul {...props} />,
+};
+
+export function List(props: UIListProps & Record<string, unknown>) {
+  const [known, rest] = splitProps(props, [
+    "children", "className", "style", "id", "data-testid", "type", "withPadding", "size",
+    "spacing", "listStyleType", "center", "icon",
+  ] as const);
+  // `icon` is kept for API parity; per-item icons are rendered by List.Item.
+  void known.icon;
+  void known.spacing;
+
+  const rootTag = known.type === "ordered" ? "ol" : "ul";
+  const Root = LIST_TAGS[rootTag];
+
   return (
-    <Box
-      component={isOrdered ? "ol" : "ul"}
-      className={className}
-      style={style}
-      id={id}
-      data-testid={testId}
-      sx={{
-        m: 0,
-        p: 0,
-        pl: withPadding ? 3 : 0,
-        listStylePosition: "inside",
-        ...sx,
+    <Root
+      className={cn(known.className, sizeClass(known.size))}
+      style={{
+        margin: 0,
+        padding: 0,
+        ...(known.withPadding ? { "padding-left": "24px" } : { "padding-left": "0px" }),
+        "list-style-position": "inside",
+        ...(known.listStyleType ? { "list-style-type": known.listStyleType } : {}),
+        ...(known.center ? { "text-align": "center" } : {}),
+        ...(known.type === "ordered" ? {} : { "list-style-type": known.listStyleType ?? "disc" }),
+        ...(known.style as Record<string, unknown> | undefined),
       }}
-      {...(rest as Record<string, unknown>)}
+      id={known.id}
+      data-testid={known["data-testid"]}
+      {...rest}
     >
-      <MuiList
-        dense
-        disablePadding
-        sx={{
-          listStyleType: "inherit",
-          p: 0,
-          "& .MuiListItem-root": {
-            display: "list-item",
-            listStyleType: "inherit",
-            px: 0,
-            py: 0.25,
-          },
-        }}
-      >
-        {/* Pass icon via context-like: clone children if needed, but keep simple */}
-        {icon ? (
-          <Box sx={{ "& .MuiListItemIcon-root": { minWidth: 28 } }}>{children}</Box>
-        ) : (
-          children
-        )}
-      </MuiList>
-    </Box>
+      {known.children}
+    </Root>
   );
 }
 
-export function ListItem({ children, className, style, "data-testid": testId, id, ...rest }: UIListItemProps & { icon?: React.ReactNode }) {
-  const icon = (rest as Record<string, unknown>).icon as React.ReactNode | undefined;
-  // Strip icon from rest to avoid DOM warning
-  const { icon: _omit, ...cleanRest } = rest as Record<string, unknown>;
+export function ListItem(props: UIListItemProps & { icon?: JSX.Element }) {
+  const [known, rest] = splitProps(props, [
+    "children", "className", "style", "id", "data-testid", "icon",
+  ] as const);
+
   return (
-    <MuiListItem className={className} style={style} id={id} data-testid={testId} sx={{ alignItems: "flex-start" }} {...(cleanRest as Record<string, unknown>)}>
-      {icon ? <ListItemIcon sx={{ minWidth: 28, mt: 0.25 }}>{icon}</ListItemIcon> : null}
-      <ListItemText
-        primary={children}
-        slotProps={{ primary: { component: "span", variant: "body2" } }}
-        sx={{ m: 0 }}
-      />
-    </MuiListItem>
+    <li
+      className={cn(known.className)}
+      style={known.style}
+      id={known.id}
+      data-testid={known["data-testid"]}
+      {...rest}
+    >
+      <Show when={known.icon}><span style={{ "margin-right": "8px" }}>{known.icon}</span></Show>
+      {known.children}
+    </li>
   );
 }
 

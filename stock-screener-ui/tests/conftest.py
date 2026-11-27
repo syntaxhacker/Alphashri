@@ -5,43 +5,95 @@ Provides both integration test fixtures (real DB) and unit test fixtures (mocks)
 import pytest
 import uuid
 import json
+import bcrypt
 from pathlib import Path
 from datetime import datetime
+from typing import Generator
 from unittest.mock import MagicMock, Mock, patch
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
 from db.database import Base, get_db
 from db.models import User, BotConfig, StrategyConfig
 from fastapi import FastAPI
+from api.auth import hash_password, get_current_user
 from tests.helpers.db import import_all_models
 
 
-# ============================================================================
-# Test Database Fixtures (Integration Tests)
-# ============================================================================
+def _fixture_hash(password: str) -> str:
+    """Fixture-only bcrypt hash at cost 4; production hashing is untouched."""
+    return bcrypt.hashpw(
+        password.encode("utf-8"), bcrypt.gensalt(rounds=4)
+    ).decode("utf-8")
 
-@pytest.fixture(scope="function")
-def test_db_engine():
-    """Create isolated in-memory SQLite database for each test."""
-    from sqlalchemy.pool import StaticPool
 
+# CI selects unit/API tests with a marker *exclusion* filter, which also has to
+# catch unmarked tests. A few integration/contract modules rely on their path
+# instead of a marker, so tag them by path at collection time. Adding markers
+# here never skips a test: it only makes -m filters see the real category.
+_PATH_MARKERS = (
+    ("tests/integration/", pytest.mark.integration),
+    ("tests/contract/", pytest.mark.contract),
+    ("tests/e2e/", pytest.mark.e2e),
+    ("tests/testcontainers/", pytest.mark.testcontainers),
+    # These are first-class API/unit suites for the paper/replay feature, but
+    # predate the marker convention. They must run in the develop PR tier when
+    # api/** or options_paper/** changes, not only on the nightly sweep.
+    ("tests/test_options_paper_replay_engine.py", pytest.mark.unit),
+    ("tests/test_options_paper_staggered_replay.py", pytest.mark.unit),
+    ("tests/api/test_options_paper", pytest.mark.unit),
+)
+
+
+def pytest_collection_modifyitems(items):
+    for item in items:
+        rel = item.path.relative_to(item.config.rootpath).as_posix()
+        for prefix, marker in _PATH_MARKERS:
+            if rel.startswith(prefix):
+                item.add_marker(marker)
+                break
+        else:
+            # Only the three root-level modules pytest.ini tries to ignore via
+            # its (non-functional) `ignore =` key. test_news_integration.py in
+            # tests/api/ is fully mocked and must stay in the unit shards.
+            if rel.startswith("tests/") and "/" not in rel[6:] and rel.endswith("_integration.py"):
+                item.add_marker(pytest.mark.integration)
+
+
+@pytest.fixture(scope="session")
+def _schema_template():
+    """Schema-only in-memory engine shared as the clone source for every test."""
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool
     )
-    
-    # Import all models to ensure they're registered with Base.metadata
     import_all_models()
     Base.metadata.create_all(bind=engine)
-    
     yield engine
-    
-    # Cleanup
-    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def test_db_engine(_schema_template):
+    """Fresh in-memory SQLite database per test, cloned from the shared schema.
+
+    A full SQLite backup of an empty schema is ~3 ms versus ~80-180 ms for
+    ``create_all`` + ``drop_all``. Each test still gets its own connection and
+    database, so direct ``sessionmaker(bind=test_db_engine)`` consumers that
+    commit cannot leak rows into the next test.
+    """
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool
+    )
+    with _schema_template.raw_connection() as src_proxy:
+        with engine.raw_connection() as dst_proxy:
+            src_proxy.driver_connection.backup(dst_proxy.driver_connection)
+    yield engine
     engine.dispose()
 
 
@@ -59,14 +111,100 @@ def test_db(test_db_engine):
     try:
         yield db
     finally:
-        # Rollback all changes
         db.rollback()
         db.close()
 
 
 # ============================================================================
-# User Fixtures
+# API-only fixtures (mirrored from tests/api/conftest.py)
+# ----------------------------------------------------------------------------
+# These live in the root conftest so they resolve even when pytest skips the
+# api conftest during collection (e.g. reversed explicit-file args, where only
+# the first argument's conftest chain is loaded). The api conftest still
+# defines the same names, so tests under tests/api/ keep using the closer
+# definition. Keep these in sync with tests/api/conftest.py.
 # ============================================================================
+
+@pytest.fixture(scope="function")
+def test_engine(_schema_template):
+    # `db` rolls back a connection transaction but a committed session still
+    # writes to the engine, so each test needs its own database. Cloning the
+    # shared schema keeps that isolation without a per-test create_all.
+    from db.models import User, UserSession, StrategyConfig, BotConfig, BacktestResult, BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument, Trade, Position, MarketHoliday, Stock52WeekTouch, Screener
+
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool
+    )
+    with _schema_template.raw_connection() as src:
+        with engine.raw_connection() as dst:
+            src.driver_connection.backup(dst.driver_connection)
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def db(test_engine) -> Generator[Session, None, None]:
+    TestSessionLocal = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=test_engine
+    )
+
+    connection = test_engine.connect()
+    transaction = connection.begin()
+
+    session = TestSessionLocal(bind=connection)
+
+    @event.listens_for(session, "after_transaction_end")
+    def restart_savepoint(db_session, transaction):
+        if transaction.nested and not transaction._parent.nested:
+            db_session.expire_all()
+            db_session.begin_nested()
+
+    session.begin_nested()
+
+    yield session
+
+    session.close()
+    transaction.rollback()
+    connection.close()
+
+
+@pytest.fixture(scope="function")
+def auth_client(db: Session) -> TestClient:
+    from api_server_fastapi import app
+
+    def override_get_db_for_client():
+        yield db
+
+    test_user = User(
+        email="test@example.com",
+        hashed_password=_fixture_hash("TestPassword123!"),
+        display_name="Test User",
+        is_active=True,
+        id=1,
+    )
+    db.add(test_user)
+    db.commit()
+
+    def override_get_current_user():
+        return test_user
+
+    app.dependency_overrides[get_db] = override_get_db_for_client
+    app.dependency_overrides[get_current_user] = override_get_current_user
+
+    # No `with`: entering the app lifespan per test starts network-backed
+    # background tasks that wedge TestClient.__exit__ (see tests/api/conftest.py).
+    test_client = TestClient(app)
+    try:
+        yield test_client
+    finally:
+        test_client.close()
+        app.dependency_overrides.clear()
+
+
 
 @pytest.fixture
 def test_user(test_db):
@@ -94,9 +232,6 @@ def test_user_uuid(test_user):
     return test_user.uuid
 
 
-# ============================================================================
-# Strategy Fixtures
-# ============================================================================
 
 @pytest.fixture
 def test_strategy(test_db):
@@ -122,9 +257,6 @@ def test_strategy_uuid(test_strategy):
     return test_strategy.uuid
 
 
-# ============================================================================
-# Bot Fixtures
-# ============================================================================
 
 @pytest.fixture
 def test_bot(test_db, test_user):
@@ -148,9 +280,6 @@ def test_bot_uuid(test_bot):
     return test_bot.uuid
 
 
-# ============================================================================
-# API Client Fixtures
-# ============================================================================
 
 @pytest.fixture
 def client_with_db(test_db_engine, test_user):
@@ -169,7 +298,6 @@ def client_with_db(test_db_engine, test_user):
         bind=test_db_engine
     )
     
-    # Import all models to ensure they're registered with Base.metadata
     import_all_models()
     Base.metadata.create_all(bind=test_db_engine)
     
@@ -225,9 +353,6 @@ def client(test_db_engine):
     app.dependency_overrides.clear()
 
 
-# ============================================================================
-# Mock Fixtures (Unit Tests)
-# ============================================================================
 
 @pytest.fixture
 def mock_db():
@@ -291,9 +416,6 @@ def mock_strategy():
     return strategy
 
 
-# ============================================================================
-# Test Data Fixtures
-# ============================================================================
 
 @pytest.fixture
 def sample_bot_data():
@@ -316,9 +438,6 @@ def sample_strategy_data(test_strategy_uuid):
     }
 
 
-# ============================================================================
-# Snapshot Fixtures
-# ============================================================================
 
 @pytest.fixture
 def temp_snapshot_dir(tmp_path):
@@ -352,9 +471,6 @@ def sample_bot_snapshot(temp_snapshot_dir):
     return snapshot_file
 
 
-# ============================================================================
-# Utility Fixtures
-# ============================================================================
 
 @pytest.fixture
 def validate_uuid():
@@ -368,9 +484,6 @@ def validate_uuid():
     return _validate
 
 
-# ============================================================================
-# State Reset Fixtures (Test Isolation)
-# ============================================================================
 
 @pytest.fixture(autouse=True, scope="function")
 def reset_trading_module_state():

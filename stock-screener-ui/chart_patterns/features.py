@@ -18,13 +18,10 @@ from typing import Iterable, Sequence
 
 import numpy as np
 import pandas as pd
+from numpy.lib.stride_tricks import sliding_window_view
 
 OHLCV_COLUMNS = ["open", "high", "low", "close", "volume"]
 
-# ---------------------------------------------------------------------------
-# Frame-scoped memo storage
-# ---------------------------------------------------------------------------
-#
 # ``atr_value`` and ``envelope_line`` are called many times with the same frame
 # inside one ``detect_patterns`` pass (~19 detectors, 63% of envelope calls are
 # exact duplicates). Caching on ``df.attrs`` looked free but pandas 3 deep-copies
@@ -42,19 +39,107 @@ OHLCV_COLUMNS = ["open", "high", "low", "close", "volume"]
 
 _FRAME_CACHE_MAX = 32
 _ENVELOPE_ENTRY_MAX = 512
+_MEAN_ENTRY_MAX = 512
 
 
 class _FrameEntry:
-    __slots__ = ("ref", "token", "atr", "envelope")
+    __slots__ = ("ref", "token", "atr", "envelope", "means")
 
     def __init__(self, token: tuple) -> None:
         self.ref = None
         self.token = token
         self.atr: dict[int, float] = {}
         self.envelope: dict[tuple, dict | None] = {}
+        self.means: dict[tuple[int, int], float] = {}
 
 
 _FRAME_CACHE: "OrderedDict[int, _FrameEntry]" = OrderedDict()
+
+
+# ``normalize_ohlcv`` produces a defensive copy, so every call allocates a
+# fresh frame. That is correct for callers (they mutate the result), but it
+# means repeated normalization of the *same* source — the scan path normalizes
+# once for detection and again for trendlines; live API reads normalize again
+# — pays the full validation/copy cost each time and throws away the frame
+# memo. This store caches the normalized template by source-frame identity,
+# keyed by a cheap fingerprint so an in-place edit (or a recycled ``id``)
+# misses rather than serving stale data. Hits still return a fresh defensive
+# copy; only the template is hidden, never handed to a caller.
+_NORM_CACHE_MAX = 32
+
+
+class _NormEntry:
+    __slots__ = ("ref", "fingerprint", "template")
+
+    def __init__(self, fingerprint: tuple, template: pd.DataFrame) -> None:
+        self.ref = None
+        self.fingerprint = fingerprint
+        self.template = template
+
+
+_NORM_CACHE: "OrderedDict[int, _NormEntry]" = OrderedDict()
+
+
+def _norm_fingerprint(df: pd.DataFrame) -> tuple | None:
+    """Fingerprint of everything the normalization fast path reads.
+
+    Returns ``None`` for frames that cannot be hashed as a float block (the
+    full coercion path is left uncached). ``hash(bytes)`` is O(columns*rows)
+    in C, far cheaper than the pandas Series construction it replaces.
+    """
+    try:
+        columns = tuple(str(c) for c in df.columns)
+        values = df.to_numpy(dtype=float, copy=False)
+        if values.dtype != np.float64:
+            return None
+        index = df.index
+        raw = getattr(index, "asi8", None)
+        index_sig = hash(raw.tobytes()) if raw is not None else hash(tuple(index))
+        return (columns, len(df), index_sig, hash(values.tobytes()))
+    except Exception:
+        return None
+
+
+def _norm_dropper(key: int, entry: _NormEntry):
+    def _drop(_ref) -> None:
+        if _NORM_CACHE.get(key) is entry:
+            _NORM_CACHE.pop(key, None)
+
+    return _drop
+
+
+def _norm_lookup(df: pd.DataFrame, fingerprint: tuple) -> _NormEntry | None:
+    try:
+        key = id(df)
+    except Exception:
+        return None
+    entry = _NORM_CACHE.get(key)
+    if (
+        entry is not None
+        and entry.ref is not None
+        and entry.ref() is df
+        and entry.fingerprint == fingerprint
+    ):
+        return entry
+    return None
+
+
+def _norm_store(df: pd.DataFrame, fingerprint: tuple, template: pd.DataFrame) -> None:
+    try:
+        key = id(df)
+    except Exception:
+        return
+    entry = _NormEntry(fingerprint, template)
+    try:
+        entry.ref = weakref.ref(df, _norm_dropper(key, entry))
+    except TypeError:
+        return
+    _NORM_CACHE[key] = entry
+    if len(_NORM_CACHE) > _NORM_CACHE_MAX:
+        try:
+            _NORM_CACHE.popitem(last=False)
+        except KeyError:
+            pass
 
 
 def _frame_token(df: pd.DataFrame) -> tuple | None:
@@ -122,9 +207,6 @@ def _frame_entry(df: pd.DataFrame) -> _FrameEntry | None:
     return entry
 
 
-# ---------------------------------------------------------------------------
-# Normalisation
-# ---------------------------------------------------------------------------
 
 
 def _normalized_copy(df: pd.DataFrame) -> pd.DataFrame | None:
@@ -177,9 +259,16 @@ def normalize_ohlcv(df: pd.DataFrame | None) -> pd.DataFrame | None:
     if not isinstance(df, pd.DataFrame) or df.empty:
         return None
 
+    fingerprint = _norm_fingerprint(df)
+    cached = _norm_lookup(df, fingerprint) if fingerprint is not None else None
+    if cached is not None:
+        return cached.template.copy()
+
     fast = _normalized_copy(df)
     if fast is not None:
-        return fast
+        if fingerprint is not None:
+            _norm_store(df, fingerprint, fast)
+        return fast.copy()
 
     out = df.copy()
     out.columns = [str(c).lower() for c in out.columns]
@@ -206,47 +295,64 @@ def normalize_ohlcv(df: pd.DataFrame | None) -> pd.DataFrame | None:
     return out
 
 
-# ---------------------------------------------------------------------------
-# Swing pivots (fractals)
-# ---------------------------------------------------------------------------
+
+
+def pivot_indices(
+    values,
+    left: int = 2,
+    right: int = 2,
+    kind: str = "high",
+    nan_tolerant: bool = False,
+) -> list[int]:
+    """Fractal positions where ``values[i]`` beats its ``[i-left, i+right]`` window.
+
+    ``nan_tolerant=False`` uses the strict-window rule: a NaN window fails the
+    extremum comparison. ``nan_tolerant=True`` mirrors
+    ``trendlines._swing_pivots``: such a window is accepted outright and the
+    strict-neighbour test still decides.
+    """
+    arr = np.asarray(values, dtype=float)
+    n = len(arr)
+    if n < left + right + 1:
+        return []
+    win = sliding_window_view(arr, left + right + 1)
+    centre = arr[left : n - right]
+    prev = arr[left - 1 : n - right - 1]
+    next_ = arr[left + 1 : n - right + 1]
+    if nan_tolerant:
+        has_nan = np.any(np.isnan(win), axis=1)
+        if kind == "high":
+            cond1 = has_nan | (centre >= np.max(win, axis=1))
+            cond2 = (centre > prev) | (centre > next_)
+        else:
+            cond1 = has_nan | (centre <= np.min(win, axis=1))
+            cond2 = (centre < prev) | (centre < next_)
+    elif kind == "high":
+        cond1 = centre >= np.max(win, axis=1)
+        cond2 = (centre > prev) | (centre > next_)
+    else:
+        cond1 = centre <= np.min(win, axis=1)
+        cond2 = (centre < prev) | (centre < next_)
+    return (np.flatnonzero(cond1 & cond2) + left).tolist()
 
 
 def _pivot_indices(values: np.ndarray, left: int, right: int, kind: str) -> list[int]:
-    n = len(values)
-    out: list[int] = []
-    if n < left + right + 1:
-        return out
-    for i in range(left, n - right):
-        window = values[i - left : i + right + 1]
-        centre = values[i]
-        if kind == "high":
-            if centre < window.max():
-                continue
-            # must be strictly above at least one neighbour (rejects all-flat)
-            if centre > values[i - 1] or centre > values[i + 1]:
-                out.append(i)
-        else:
-            if centre > window.min():
-                continue
-            if centre < values[i - 1] or centre < values[i + 1]:
-                out.append(i)
-    return out
+    # Legacy scalar behaviour treated a NaN window as non-rejecting, which is
+    # the NaN-tolerant mode; keep it for find_swing_highs/lows callers.
+    return pivot_indices(values, left, right, kind, nan_tolerant=True)
 
 
 def find_swing_highs(high: pd.Series, left: int = 2, right: int = 2) -> list[int]:
-    """Positions ``i`` where ``high[i]`` is the local max of ``[i-left, i+right]``."""
     return _pivot_indices(np.asarray(high, dtype=float), left, right, "high")
 
 
 def find_swing_lows(low: pd.Series, left: int = 2, right: int = 2) -> list[int]:
-    """Positions ``i`` where ``low[i]`` is the local min of ``[i-left, i+right]``."""
     return _pivot_indices(np.asarray(low, dtype=float), left, right, "low")
 
 
 def swing_points(
     df: pd.DataFrame, left: int = 2, right: int = 2
 ) -> list[tuple[int, str, float]]:
-    """All pivots as ``(position, "H"|"L", price)`` sorted by position."""
     highs = find_swing_highs(df["high"], left, right)
     lows = find_swing_lows(df["low"], left, right)
     pts = [(i, "H", float(df["high"].iloc[i])) for i in highs]
@@ -256,7 +362,6 @@ def swing_points(
 
 
 def pivot_frame(df: pd.DataFrame, left: int = 2, right: int = 2) -> pd.DataFrame:
-    """Frame with ``high_pivot`` / ``low_pivot`` columns (NaN elsewhere)."""
     hi = pd.Series(np.nan, index=df.index, dtype=float)
     lo = pd.Series(np.nan, index=df.index, dtype=float)
     for i in find_swing_highs(df["high"], left, right):
@@ -266,9 +371,6 @@ def pivot_frame(df: pd.DataFrame, left: int = 2, right: int = 2) -> pd.DataFrame
     return pd.DataFrame({"high_pivot": hi, "low_pivot": lo}, index=df.index)
 
 
-# ---------------------------------------------------------------------------
-# Least-squares lines
-# ---------------------------------------------------------------------------
 
 
 def linreg_fit(
@@ -304,7 +406,6 @@ def linreg_fit(
 def fit_pivot_line(
     pivots: Sequence[tuple[int, float]]
 ) -> tuple[float, float, float] | None:
-    """Fit a line through ``(position, price)`` pivots. ``None`` if < 2 pivots."""
     if len(pivots) < 2:
         return None
     xs = [p for p, _ in pivots]
@@ -313,14 +414,12 @@ def fit_pivot_line(
 
 
 def line_value(slope: float, intercept: float, x: float) -> float:
-    """Evaluate a line at ``x``."""
     return float(slope) * float(x) + float(intercept)
 
 
 def sample_line(
     slope: float, intercept: float, x0: int, x1: int
 ) -> list[dict]:
-    """Serialise a straight line as its two endpoints for overlays."""
     return [
         {"t": x0, "price": line_value(slope, intercept, x0)},
         {"t": x1, "price": line_value(slope, intercept, x1)},
@@ -328,20 +427,15 @@ def sample_line(
 
 
 def relative_slope(slope: float, span: int, mean_price: float) -> float:
-    """Total price drift of a line over ``span`` bars as a fraction of price."""
     if mean_price <= 0 or span <= 0:
         return 0.0
     return float(slope) * float(span) / float(mean_price)
 
 
 def is_horizontal(slope: float, span: int, mean_price: float, tol: float = 0.03) -> bool:
-    """True when the line drifts less than ``tol`` of price over ``span`` bars."""
     return abs(relative_slope(slope, span, mean_price)) <= tol
 
 
-# ---------------------------------------------------------------------------
-# Polynomial / curvature helpers
-# ---------------------------------------------------------------------------
 
 
 def polyfit_values(
@@ -365,7 +459,6 @@ def polyfit_values(
 
 
 def r2_of(y: Sequence[float], fitted: Sequence[float]) -> float:
-    """Coefficient of determination of ``fitted`` against ``y``."""
     ys = np.asarray(y, dtype=float)
     fs = np.asarray(fitted, dtype=float)
     ss_tot = float(((ys - ys.mean()) ** 2).sum())
@@ -373,6 +466,17 @@ def r2_of(y: Sequence[float], fitted: Sequence[float]) -> float:
         return 1.0
     ss_res = float(((ys - fs) ** 2).sum())
     return float(min(1.0, max(0.0, 1.0 - ss_res / ss_tot)))
+
+
+def quadratic_fit(y: Sequence[float]) -> tuple[np.ndarray, np.ndarray, float, float]:
+    xs = np.arange(len(y), dtype=float)
+    fitted, coeffs = polyfit_values(y, degree=2, x=xs)
+    r2 = r2_of(y, fitted)
+    if len(coeffs) >= 3 and abs(float(coeffs[0])) > 1e-12:
+        vertex = -float(coeffs[1]) / (2.0 * float(coeffs[0]))
+    else:
+        vertex = len(y) / 2.0
+    return fitted, coeffs, r2, vertex
 
 
 def curvature_sign(coeffs: Sequence[float]) -> int:
@@ -385,13 +489,9 @@ def curvature_sign(coeffs: Sequence[float]) -> int:
     return 1 if lead > 0 else -1
 
 
-# ---------------------------------------------------------------------------
-# Volatility / volume / extremes
-# ---------------------------------------------------------------------------
 
 
 def atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
-    """Average True Range (Wilder-style EMA of true range)."""
     if df is None or len(df) == 0:
         return pd.Series(dtype=float)
     high = df["high"].to_numpy(dtype=float)
@@ -439,7 +539,6 @@ def atr_value(df: pd.DataFrame, period: int = 14) -> float:
 def is_volume_confirmed(
     df: pd.DataFrame, idx: int, mult: float = 1.2, lookback: int = 20
 ) -> bool:
-    """True when volume at ``idx`` exceeds ``mult`` x mean of prior ``lookback``."""
     if df is None or df.empty:
         return False
     vol = df["volume"].to_numpy(dtype=float)
@@ -463,7 +562,6 @@ def is_volume_confirmed(
 def swing_extremes(
     df: pd.DataFrame, start: int, end: int
 ) -> tuple[float, float, int, int]:
-    """Highest high / lowest low (and their positions) within ``[start, end]``."""
     if df is None or df.empty:
         return 0.0, 0.0, start, end
     start = max(0, int(start))
@@ -473,6 +571,48 @@ def swing_extremes(
     hi_pos = int(seg_high.values.argmax()) + start
     lo_pos = int(seg_low.values.argmin()) + start
     return float(seg_high.iloc[hi_pos - start]), float(seg_low.iloc[lo_pos - start]), hi_pos, lo_pos
+
+
+def window_mean(df: pd.DataFrame, start: int, end: int) -> float:
+    """Mean close over the inclusive bar window, memoized per frame.
+
+    Detectors normalise slopes by the same window mean many times per pass
+    (channels, wedges, H&S candidates); the numpy slice avoids a pandas
+    ``iloc``/``astype`` chain on every call.
+    """
+    key = (int(start), int(end))
+    entry = _frame_entry(df)
+    if entry is not None:
+        cached = entry.means.get(key)
+        if cached is not None:
+            return cached
+    values = df["close"].to_numpy(dtype=float, copy=False)[start : end + 1]
+    value = float(values.mean())
+    if not np.isfinite(value) and bool(np.isnan(values).any()):
+        value = float(np.nanmean(values))
+    if entry is not None:
+        if len(entry.means) >= _MEAN_ENTRY_MAX:
+            entry.means.clear()
+        entry.means[key] = value
+    return value
+
+
+def _boundary_values(df: pd.DataFrame, side: str) -> np.ndarray:
+    """Current boundary column as a float64 array, without building a Series.
+
+    ``df[col].to_numpy()`` allocates a Series on every call (~16us) even when
+    nothing changed. The positional read returns the same block data in ~2us;
+    it still reads current values, so in-place edits and column reassignment are
+    both visible to the caller's byte hash.
+    """
+    col = "high" if side == "upper" else "low"
+    try:
+        values = df.values[:, df.columns.get_loc(col)]
+        if values.ndim == 1 and values.dtype == np.float64:
+            return values
+    except Exception:
+        pass
+    return df[col].to_numpy(dtype=float, copy=False)
 
 
 def envelope_line(
@@ -500,7 +640,7 @@ def envelope_line(
     # loop. ``worst`` (max pierce depth) is reported for the winning pair only and
     # is recomputed once after selection, so it can never influence which pair
     # wins.
-    boundary = df["high"].to_numpy(dtype=float) if side == "upper" else df["low"].to_numpy(dtype=float)
+    boundary = _boundary_values(df, side)
     n = len(boundary)
     # Frame-scoped memo: detectors ask for the same boundary repeatedly within
     # one pass. The key includes the boundary's byte hash so an in-place price
@@ -510,9 +650,15 @@ def envelope_line(
     memo_key = None
     if entry is not None:
         try:
+            # ``P`` is already a list of (position, price) 2-tuples. A shallow
+            # tuple avoids ~40 int/float conversions per call; numpy scalars
+            # hash equal to their native counterparts, so this key is
+            # interchangeable with the old converted form.
+            pivot_key = tuple(P)
+            hash(pivot_key)
             memo_key = (
                 side,
-                tuple((int(p), float(q)) for p, q in P),
+                pivot_key,
                 float(tol),
                 hash(boundary.tobytes()),
             )
@@ -536,10 +682,8 @@ def envelope_line(
     Q1 = qs[rows_j]
     span = X1 - X0
     slopes = (Q1 - Q0) / span
-    counts = span.astype(np.int64) + 1  # bars in [x0, x1], inclusive
+    counts = span.astype(np.int64) + 1
     num_pairs = len(X0)
-    best_key = None
-    best = -1
     viol = np.zeros(num_pairs, dtype=np.int64)
     # Cell budget per block keeps peak memory bounded; blocks run in pair order
     # so the global first-wins tie-break is unchanged.
@@ -552,22 +696,23 @@ def envelope_line(
         Pidx = np.repeat(np.arange(p0, p1), b_counts)
         cell_idx = np.arange(b_total)
         starts = np.cumsum(b_counts) - b_counts
-        K = (X0[Pidx] + (cell_idx - np.repeat(starts, b_counts))).astype(np.int64)
+        X0p = X0[Pidx]
+        K = (X0p + (cell_idx - np.repeat(starts, b_counts))).astype(np.int64)
         Kf = K.astype(np.float64)
-        y = Q0[Pidx] + slopes[Pidx] * (Kf - X0[Pidx])
+        y = Q0[Pidx] + slopes[Pidx] * (Kf - X0p)
         if side == "upper":
-            d = boundary[K] - y  # violation: price pierces above the line
+            d = boundary[K] - y
         else:
-            d = y - boundary[K]  # violation: price pierces below the line
+            d = y - boundary[K]
         over = d > tol
-        viol[sl] = np.bincount(Pidx, weights=over.astype(np.uint8), minlength=p1 - p0).astype(np.int64)
-        for k in range(p0, p1):
-            key = (int(viol[k]), -int(span[k]))
-            if best_key is None or key < best_key:
-                best_key = key
-                best = k
-    if best < 0:
-        return None
+        # Pidx holds GLOBAL pair indices (np.arange(p0, p1)), so bincount would
+        # size the result to the global max index instead of this block - offset
+        # by p0 to get exactly p1-p0 counts that fit the viol[sl] slice.
+        viol[sl] = np.bincount(Pidx - p0, weights=over, minlength=p1 - p0).astype(np.int64)
+    # Winner: fewest violations, then longest span, then first pair in
+    # ``triu_indices`` order. lexsort's last key is primary; the pair index is
+    # the final tie-break, so this is the same strict-``<`` scan as before.
+    best = int(np.lexsort((np.arange(num_pairs), -span, viol))[0])
     # Winner's cells are contiguous ([start, start+count)), so its worst pierce
     # depth is one small vectorised reduction instead of per-row work.
     x0b = int(X0[best])
@@ -607,7 +752,6 @@ def count_touches(
     atr_val: float,
     tol_atr: float = 0.75,
 ) -> int:
-    """How many pivots lie within ``tol_atr * ATR`` of a trendline."""
     if atr_val <= 0:
         return 0
     n = 0
@@ -652,7 +796,6 @@ def penetration_ratio(
 
 
 def last_n(pivots: Sequence[tuple[int, float]], n: int) -> list[tuple[int, float]]:
-    """Last ``n`` pivots (pivots are position-ordered)."""
     if n <= 0:
         return []
     return list(pivots[-n:])
@@ -661,5 +804,4 @@ def last_n(pivots: Sequence[tuple[int, float]], n: int) -> list[tuple[int, float
 def between(
     pivots: Sequence[tuple[int, float]], lo: int, hi: int
 ) -> list[tuple[int, float]]:
-    """Pivots with ``lo <= position <= hi``."""
     return [(p, q) for p, q in pivots if lo <= p <= hi]

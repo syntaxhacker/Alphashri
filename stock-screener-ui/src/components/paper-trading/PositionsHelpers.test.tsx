@@ -1,22 +1,37 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, test } from "vitest";
+import { afterEach, describe, it, expect, test, vi } from "vitest";
+import { render, screen } from "@solidjs/testing-library";
 import {
   nearBreakoutPct,
   formatNear,
   groupPositionsByStrategy,
   calcStrategySummary,
+  PositionsTableBody,
+  PNL_COLUMN_SIZE,
 } from "./PositionsHelpers";
 import type { PaperPosition, PaperScanItem } from "../../types/paperTrading";
 import { mockPosition } from "./testFixtures";
+
+vi.mock("../common/useTablePrefs", () => ({
+  useTablePrefs: () => ({
+    prefs: () => ({ sorting: [], order: [], hidden: [] }),
+    status: () => "ready",
+    error: () => null,
+    hydrated: () => true,
+    setSorting: vi.fn(),
+    setColumnPrefs: vi.fn(),
+    retry: vi.fn(),
+  }),
+}));
 
 describe("PositionsHelpers", () => {
   describe("nearBreakoutPct", () => {
     const baseItem: PaperScanItem = {
       symbol: "RELIANCE",
+      status: "watching",
       price: 2800,
       or_high: 2850,
       or_low: 2750,
-      high_52w: null,
     };
 
     it("returns 0 when price is at OR high", () => {
@@ -45,17 +60,17 @@ describe("PositionsHelpers", () => {
     });
 
     it("uses 52W high when OR levels unavailable", () => {
-      const item = { ...baseItem, or_high: null, or_low: null, high_52w: 3000 };
+      const item = { ...baseItem, or_high: undefined, or_low: undefined, high_52w: 3000 };
       expect(nearBreakoutPct(item)).toBeCloseTo(6.66, 1);
     });
 
     it("returns 9999 when all levels unavailable", () => {
-      const item = { ...baseItem, or_high: null, or_low: null, high_52w: null };
+      const item = { ...baseItem, or_high: undefined, or_low: undefined, high_52w: undefined };
       expect(nearBreakoutPct(item)).toBe(9999);
     });
 
     it("handles zero OR levels", () => {
-      const item = { ...baseItem, or_high: 0, or_low: 0, high_52w: null };
+      const item = { ...baseItem, or_high: 0, or_low: 0, high_52w: undefined };
       expect(nearBreakoutPct(item)).toBe(9999);
     });
 
@@ -72,22 +87,23 @@ describe("PositionsHelpers", () => {
 
   describe("formatNear", () => {
     it("formats valid percentage", () => {
-      const item: PaperScanItem = { symbol: "TEST", price: 2800, or_high: 2850, or_low: 2750 };
+      const item: PaperScanItem = { symbol: "TEST", status: "watching", price: 2800, or_high: 2850, or_low: 2750 };
       expect(formatNear(item)).toBe("1.75%");
     });
 
     it("returns dash for invalid values", () => {
       const item: PaperScanItem = {
         symbol: "TEST",
+        status: "watching",
         price: null as any,
-        or_high: null,
-        or_low: null,
+        or_high: undefined,
+        or_low: undefined,
       };
       expect(formatNear(item)).toBe("-");
     });
 
     it("returns dash for infinity", () => {
-      const item: PaperScanItem = { symbol: "TEST", price: 100, or_high: 0, or_low: 0 };
+      const item: PaperScanItem = { symbol: "TEST", status: "watching", price: 100, or_high: 0, or_low: 0 };
       expect(formatNear(item)).toBe("-");
     });
   });
@@ -202,26 +218,75 @@ describe("PositionsHelpers", () => {
 
   describe("nearBreakoutPct edge cases", () => {
     test("handles NaN price without crashing", () => {
-      const item = { symbol: "TEST", price: NaN as any, or_high: 2850, or_low: 2750 };
+      const item: PaperScanItem = { symbol: "TEST", status: "watching", price: NaN as any, or_high: 2850, or_low: 2750 };
       const result = nearBreakoutPct(item);
       expect(Number.isNaN(result) || result === 9999).toBe(true);
     });
 
     test("handles Infinity price without crashing", () => {
-      const item = { symbol: "TEST", price: Infinity, or_high: 2850, or_low: 2750 };
+      const item: PaperScanItem = { symbol: "TEST", status: "watching", price: Infinity, or_high: 2850, or_low: 2750 };
       const result = nearBreakoutPct(item);
       expect(Number.isFinite(result)).toBe(false);
     });
 
     test("handles orHigh/orLow both null with 52w_high = 0", () => {
-      const item = { symbol: "TEST", price: 2800, or_high: null, or_low: null, high_52w: 0 };
+      const item: PaperScanItem = { symbol: "TEST", status: "watching", price: 2800, or_high: undefined, or_low: undefined, high_52w: 0 };
       expect(nearBreakoutPct(item)).toBe(9999);
     });
 
     test("handles very large price values", () => {
-      const item = { symbol: "TEST", price: 1e10, or_high: 2850, or_low: 2750 };
+      const item: PaperScanItem = { symbol: "TEST", status: "watching", price: 1e10, or_high: 2850, or_low: 2750 };
       const result = nearBreakoutPct(item);
       expect(Number.isFinite(result)).toBe(true);
     });
+  });
+});
+
+describe("P&L cell — full signed amount and % stay visible", () => {
+  const FULL_AMOUNT = "₹-848";
+  const FULL_PCT = "(-11.48%)";
+  // Measured 12px monospace advance is ~6.5px; the shared table pads a sized
+  // cell 8px on each side. The whole single-line string must fit the column.
+  const MONO_ADVANCE_PX = 6.5;
+  const CELL_PADDING_PX = 16;
+  const MIN_CELL_PX = Math.ceil(`${FULL_AMOUNT} ${FULL_PCT}`.length * MONO_ADVANCE_PX + CELL_PADDING_PX);
+
+  const originalWidth = window.innerWidth;
+  afterEach(() => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
+  });
+
+  const renderPnlCell = (width: number) => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+    const { container } = render(() => (
+      <PositionsTableBody
+        positions={[mockPosition({ order_id: "pnl-row", symbol: "RELIANCE", pnl: -848, pnl_pct: -11.48 })]}
+      />
+    ));
+    const cell = container.querySelector('[id^="paper-tanstack-cell-pnl"]') as HTMLElement | null;
+    expect(cell).not.toBeNull();
+    return cell!;
+  };
+
+  test.each([1600, 390])("at %ipx the full amount and percent render with no ellipsis", (width) => {
+    const cell = renderPnlCell(width);
+
+    // geometry: the sized cell is wide enough for the whole string, and the
+    // shared table actually applies that width to the rendered <td>.
+    expect(PNL_COLUMN_SIZE).toBeGreaterThanOrEqual(MIN_CELL_PX);
+    expect(cell.style.width).toBe(`${PNL_COLUMN_SIZE}px`);
+
+    // structure: both halves are present as separate, untruncated rows.
+    const amount = screen.getByTestId("paper-pnl-amount");
+    const pct = screen.getByTestId("paper-pnl-pct");
+    expect(amount).toHaveTextContent(FULL_AMOUNT);
+    expect(pct).toHaveTextContent(FULL_PCT);
+    expect(cell.textContent).toContain(FULL_AMOUNT);
+    expect(cell.textContent).toContain(FULL_PCT);
+    expect(screen.getByTestId("paper-pnl-cell")).toHaveClass("flex-col");
+    expect(amount.className).not.toContain("truncate");
+    expect(pct.className).not.toContain("truncate");
+    expect(amount.style.textOverflow || "").not.toBe("ellipsis");
+    expect(pct.style.textOverflow || "").not.toBe("ellipsis");
   });
 });

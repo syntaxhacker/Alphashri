@@ -1,0 +1,8 @@
+# The repo-root .gitignore ignores *.json globally. Generated timing files
+# (pytest-timings.json, vitest-timings.json, *-summary.json) stay ignored;
+# only the checked-in budget files and the measured E2E shard manifest must be
+# trackable.
+!budgets.json
+!api_budgets.json
+!chart_ui_budgets.json
+!e2e-file-durations.json

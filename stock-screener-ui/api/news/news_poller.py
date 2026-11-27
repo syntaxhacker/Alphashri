@@ -1,7 +1,3 @@
-"""
-Background poller tasks: news prefetch, continuous polling, and sector polling.
-"""
-
 import asyncio
 import concurrent.futures
 import logging
@@ -267,13 +263,11 @@ async def news_poller_task():
 
             source_ids = [s['id'] for s in NEWS_SOURCES] if NEWS_SOURCES and isinstance(NEWS_SOURCES, list) else ['moneycontrol']
 
-            # Skip sources that consistently return nothing (tracked across cycles)
             if not hasattr(news_poller_task, '_dead_sources'):
                 news_poller_task._dead_sources = set()
             active_sources = [s for s in source_ids if s not in news_poller_task._dead_sources]
 
             async def _fetch_source(source_id: str) -> tuple:
-                """Fetch a single source with timeout."""
                 try:
                     items = await asyncio.wait_for(
                         asyncio.to_thread(fetch_news, source=source_id,
@@ -297,8 +291,7 @@ async def news_poller_task():
                 results.extend(await asyncio.gather(
                     *[_fetch_source(s) for s in active_sources[_start:_start + _batch]]))
 
-            async def _process_source(source_id: str, items: list, fetch_budget: dict):
-                """Process fetched items for a single source."""
+            async def _process_source(source_id: str, items: list, fetch_budget: dict, news_changed: dict):
                 key = f"_empty_count_{source_id}"
                 if not items:
                     count = getattr(news_poller_task, key, 0) + 1
@@ -398,8 +391,11 @@ async def news_poller_task():
                                 analysis=analysis,
                             )
                             saved_count += 1
-                            from cache.redis_client import invalidate_news_cache
-                            invalidate_news_cache()
+                            # Defer to a single global flush at the end of the
+                            # cycle: invalidate_news_cache() drops every news:*
+                            # key, so one call covers all saves — N calls per
+                            # cycle just repeat the same SCAN/DEL fan-out.
+                            news_changed["value"] = True
                         except Exception as save_err:
                             poller_logger.error(f"Failed to save article: {save_err}")
                     except Exception as e:
@@ -420,8 +416,20 @@ async def news_poller_task():
             # /api/health time out. Anything skipped stays unsaved and is
             # retried next cycle, and the URL dedupe below makes that safe.
             fetch_budget = {"left": NEWS_ARTICLE_BUDGET_PER_CYCLE}
+            news_changed = {"value": False}
             for source_id, items in results:
-                await _process_source(source_id, items, fetch_budget)
+                await _process_source(source_id, items, fetch_budget, news_changed)
+
+            # One global flush per cycle when anything was saved. The cache
+            # invalidation is pattern-wide (not per article), so its end state
+            # is identical to the former per-save calls without the repeated
+            # Redis SCAN/DEL work (up to 12 saves × 8 patterns per cycle).
+            if news_changed["value"]:
+                try:
+                    from cache.redis_client import invalidate_news_cache
+                    invalidate_news_cache()
+                except Exception as exc:
+                    poller_logger.warning("News cache invalidation failed: %s", exc)
 
         except asyncio.CancelledError:
             poller_logger.info("News poller cancelled")

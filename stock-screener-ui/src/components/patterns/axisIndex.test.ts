@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { TrendLine, Trendline } from "@/types/chartPatterns";
+import type { Trendline } from "@/types/chartPatterns";
 import { createAxisIndex } from "./axisIndex";
 import { mapTimeSegment, mapTrendlines } from "./trendlineMapping";
-import { mapStandaloneLine } from "./standaloneLines";
 
 /**
- * The axis index is a performance rewrite of `trendlineMapping` /
- * `standaloneLines` lookups: output must stay byte-identical, so these tests
- * differential-test the fast paths against the originals across sorted,
- * shuffled, duplicated and partially-unparseable time axes.
+ * The axis index is a performance rewrite of `trendlineMapping` lookups:
+ * output must stay byte-identical, so these tests differential-test the fast
+ * paths against the originals across sorted, shuffled, duplicated and
+ * partially-unparseable time axes.
  */
 
 const CANDLES_ISO = [
@@ -100,39 +99,8 @@ describe("axisIndex.mapTimeSegment matches mapTimeSegment", () => {
   });
 });
 
-function trendLine(overrides: Partial<TrendLine> = {}): TrendLine {
-  return {
-    kind: "support",
-    start_date: "2026-05-04",
-    start_price: 100,
-    end_date: "2026-05-08",
-    end_price: 110,
-    slope: 1,
-    touches: 3,
-    span_bars: 5,
-    violations: 0,
-    ...overrides,
-  };
-}
-
-describe("axisIndex.mapStandaloneLine matches mapStandaloneLine", () => {
-  it.each(AXES)("axis %s", (_name, times) => {
-    const axis = createAxisIndex(times);
-    const lines: TrendLine[] = [
-      trendLine(),
-      trendLine({ kind: "resistance", start_price: 120, end_price: 130 }),
-      trendLine({ start_date: "2025-01-01", end_date: "2025-01-10" }),
-      trendLine({ start_date: "2026-05-06", start_price: 105, end_date: "2026-05-06", end_price: 105 }),
-    ];
-    for (const line of lines) {
-      expect(axis.mapStandaloneLine(line)).toEqual(mapStandaloneLine(line, times));
-    }
-  });
-});
-
 describe("axisIndex.nearestIndex ties resolve to the earliest candle", () => {
   it("equidistant neighbours keep the earlier index", () => {
-    // Target 2026-05-04 10:15 is exactly between the two candles.
     const times = ["2026-05-04T09:15:00+05:30", "2026-05-04T11:15:00+05:30"];
     expect(createAxisIndex(times).nearestIndex(Date.parse("2026-05-04T10:15:00+05:30"))).toBe(0);
     // Same axis, reversed storage order: the earliest axis index is now the later candle.
@@ -160,14 +128,11 @@ describe("axisIndex.resolveIndex precedence", () => {
   it("exact beats day beats nearest", () => {
     const axis = createAxisIndex(CANDLES_ISO);
     expect(axis.resolveIndex(CANDLES_ISO[2]!)).toBe(2);
-    // Date-only string maps to the first candle of that day, not the nearest.
     expect(axis.resolveIndex("2026-05-06")).toBe(2);
     expect(axis.resolveIndex("garbage")).toBeUndefined();
   });
 
   it("a timed string never collapses onto the first candle of the day", () => {
-    // Two candles on one day: a 12:00 query is nearer the 14:00 candle, so a
-    // day-level collapse would wrongly land on index 0.
     const axis = createAxisIndex([
       "2026-05-06T09:15:00+05:30",
       "2026-05-06T14:00:00+05:30",

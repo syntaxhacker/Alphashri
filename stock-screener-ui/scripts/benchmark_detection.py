@@ -1,12 +1,3 @@
-"""Benchmark the chart-pattern detection hot path.
-
-Loads ~150 cached 1D frames from ``experiments/data/pattern_cache/candles/1D/``
-(``*.v2.pkl``) and times :func:`chart_patterns.engine.detect_patterns`
-end-to-end plus a per-detector breakdown.
-
-Usage:
-    PYTHONPATH=. .venv/bin/python scripts/benchmark_detection.py [--n 150]
-"""
 
 from __future__ import annotations
 
@@ -29,7 +20,6 @@ CACHE_GLOB = "experiments/data/pattern_cache/candles/1D/*.v2.pkl"
 
 
 def load_frames(n: int) -> list[tuple[str, pd.DataFrame]]:
-    """Load up to ``n`` cached 1D frames as normalised OHLCV (sorted by path)."""
     out: list[tuple[str, pd.DataFrame]] = []
     for path in sorted(glob.glob(CACHE_GLOB))[:n]:
         try:
@@ -65,7 +55,6 @@ def main() -> None:
     # Warm up once so import/first-call costs do not skew the numbers.
     detect_patterns(frames[0][1], "1D", frames[0][0])
 
-    # --- end-to-end pass (exactly what a universe screen runs per symbol) ---
     t0 = time.perf_counter()
     total_hits = 0
     for _ in range(args.repeat):
@@ -77,7 +66,6 @@ def main() -> None:
           f"-> {n_calls / dt:.1f} symbols/sec ({dt / n_calls * 1000:.0f} ms/symbol), "
           f"{total_hits} hits")
 
-    # --- per-detector breakdown (shared ctx, engine order, like detect_patterns) ---
     per_det: dict[str, float] = {}
     per_hits: dict[str, int] = {}
     for sym, df in frames:

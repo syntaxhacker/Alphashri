@@ -1,53 +1,57 @@
+import { Show, For } from "solid-js";
 import { Box, Collapse, Text, UnstyledButton, useDisclosure } from "@/ui";
-import { IconChevronDown } from "@tabler/icons-react";
+import { IconChevronDown } from "@/ui/icons";
 import type { PatternHitDTO } from "@/types/chartPatterns";
+import type { ChartMarket } from "@/utils/chart/time";
 import { formatChartTimestamp } from "./datetime";
-import { formatPrice } from "./shared";
+import { formatChartPrice } from "./chartFormat";
 
 /**
  * Collapsible audit list of the swing pivots that define the pattern, so a
  * trader can manually verify each turn against the chart. Renders nothing when
  * the hit carries no pivots (older persisted rows).
  */
-export function PivotList({ pivots }: { pivots?: PatternHitDTO["pivots"] }) {
+export function PivotList(props: { pivots?: PatternHitDTO["pivots"]; market?: ChartMarket }) {
   const [opened, { toggle }] = useDisclosure(false);
-  if (!pivots?.length) return null;
   return (
-    <Box
-      data-testid="patterns-detail-pivots"
-      sx={{ borderTop: "1px solid", borderColor: "divider", pt: 1 }}
-    >
-      <UnstyledButton
-        onClick={toggle}
-        aria-expanded={opened}
-        data-testid="patterns-detail-pivots-toggle"
-        sx={{ display: "flex", alignItems: "center", gap: 0.5, width: "100%", color: "text.secondary" }}
+    <Show when={props.pivots?.length}>
+      <Box
+        data-testid="patterns-detail-pivots"
+        className="border-t border-fin-border px-3 py-2"
       >
-        <IconChevronDown
-          size={14}
-          style={{ transform: opened ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}
-        />
-        <Text size="xs" fw={700} style={{ textTransform: "uppercase" }}>
-          Pivots
-        </Text>
-        <Text size="xs" c="dimmed">
-          ({pivots.length})
-        </Text>
-      </UnstyledButton>
-      <Collapse in={opened}>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, pt: 0.75 }}>
-          {pivots.map((pivot, i) => (
-            <Text
-              key={`${pivot.t}-${i}`}
-              size="xs"
-              c="text.secondary"
-              data-testid={`patterns-detail-pivot-${i}`}
-            >
-              {formatChartTimestamp(pivot.t)} · {formatPrice(pivot.price)} · {pivot.kind === "low" ? "Low" : "High"}
-            </Text>
-          ))}
-        </Box>
-      </Collapse>
-    </Box>
+        <UnstyledButton
+          onClick={toggle}
+          aria-expanded={opened()}
+          data-testid="patterns-detail-pivots-toggle"
+          className="flex w-full items-center gap-1 text-fin-text-muted"
+        >
+          <IconChevronDown
+            size={14}
+            style={{ transform: opened() ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}
+          />
+          <Text size="xs" fw={700} style={{ "text-transform": "uppercase" }}>
+            Pivots
+          </Text>
+          <Text size="xs" c="dimmed">
+            ({props.pivots!.length})
+          </Text>
+        </UnstyledButton>
+        <Collapse in={opened()}>
+          <Box className="flex flex-col gap-[2px] pt-1.5">
+            <For each={props.pivots}>
+              {(pivot, i) => (
+                <Text
+                  size="xs"
+                  c="text.secondary"
+                  data-testid={`patterns-detail-pivot-${i()}`}
+                >
+                  {formatChartTimestamp(pivot.t)} · {formatChartPrice(pivot.price, props.market)} · {pivot.kind === "low" ? "Low" : "High"}
+                </Text>
+              )}
+            </For>
+          </Box>
+        </Collapse>
+      </Box>
+    </Show>
   );
 }

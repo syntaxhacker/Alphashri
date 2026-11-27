@@ -34,7 +34,7 @@ def main() -> None:
     ap.add_argument("--underlying", default="NSE:NIFTY50-INDEX")
     args = ap.parse_args()
 
-    from api.orderflow_recorder import recorder_token
+    from api.broker_hub import recorder_token
     from fyers_apiv3.fyersModel import FyersModel
 
     combined = recorder_token("fyers_tbt")

@@ -1,5 +1,51 @@
 components:
   schemas:
+    AddLegRequest:
+      additionalProperties: true
+      description: One extra leg appended to an open position after entry.
+      properties:
+        action:
+          title: Action
+          type: string
+        entry_ts:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Entry Ts
+        expiry:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expiry
+        instrument_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Instrument Key
+        lots:
+          default: 1
+          title: Lots
+          type: integer
+        opt:
+          title: Opt
+          type: string
+        strike:
+          anyOf:
+          - type: string
+          - type: number
+          title: Strike
+        underlying:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Underlying
+      required:
+      - action
+      - opt
+      - strike
+      title: AddLegRequest
+      type: object
     AnalysisRequest:
       properties:
         analysts:
@@ -107,6 +153,54 @@ components:
       - reports
       - stats
       title: AnalysisResponse
+      type: object
+    AppliedFilters:
+      properties:
+        commodity:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Commodity
+        date_from:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Date From
+        date_to:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Date To
+        district:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: District
+        group:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Group
+        market:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Market
+        range:
+          title: Range
+          type: string
+        source:
+          default: local
+          title: Source
+          type: string
+        state:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State
+      required:
+      - range
+      title: AppliedFilters
       type: object
     BacktestRunRequest:
       properties:
@@ -452,6 +546,255 @@ components:
           title: Strategies
       title: BotUpdate
       type: object
+    CatalystCounts:
+      properties:
+        high:
+          default: 0
+          title: High
+          type: integer
+        low:
+          default: 0
+          title: Low
+          type: integer
+        medium:
+          default: 0
+          title: Medium
+          type: integer
+        total:
+          default: 0
+          title: Total
+          type: integer
+      title: CatalystCounts
+      type: object
+    CatalystRow:
+      description: One catalyst. ``headline`` is a real article title or ``None``.
+      properties:
+        confidence:
+          maximum: 1.0
+          minimum: 0.0
+          title: Confidence
+          type: number
+        event_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Event At
+        first_seen:
+          title: First Seen
+          type: string
+        headline:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Headline
+        invalidates:
+          items:
+            type: string
+          title: Invalidates
+          type: array
+        kind:
+          enum:
+          - news
+          - event
+          - positioning
+          title: Kind
+          type: string
+        move_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Move Pct
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        reasons:
+          items:
+            type: string
+          title: Reasons
+          type: array
+        rel_volume:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Rel Volume
+        score:
+          enum:
+          - high
+          - medium
+          - low
+          title: Score
+          type: string
+        sector:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sector
+        source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source
+        source_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Url
+        state:
+          enum:
+          - scheduled
+          - breaking
+          - confirmed
+          - fading
+          title: State
+          type: string
+        symbol:
+          title: Symbol
+          type: string
+      required:
+      - symbol
+      - kind
+      - first_seen
+      - state
+      - score
+      - confidence
+      title: CatalystRow
+      type: object
+    CatalystToday:
+      description: '``GET /api/catalysts/today`` payload.'
+      properties:
+        as_of:
+          title: As Of
+          type: string
+        available_sectors:
+          items:
+            $ref: '#/components/schemas/SectorOption'
+          title: Available Sectors
+          type: array
+        counts:
+          $ref: '#/components/schemas/CatalystCounts'
+        market:
+          $ref: '#/components/schemas/MarketIndices'
+        rows:
+          items:
+            $ref: '#/components/schemas/CatalystRow'
+          title: Rows
+          type: array
+        sector:
+          $ref: '#/components/schemas/SectorRead'
+        warnings:
+          items:
+            type: string
+          title: Warnings
+          type: array
+      required:
+      - as_of
+      title: CatalystToday
+      type: object
+    ChainIvRow:
+      properties:
+        ceDelta:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Cedelta
+        ceIv:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Ceiv
+        ceOi:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Ceoi
+        peDelta:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Pedelta
+        peIv:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Peiv
+        peOi:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Peoi
+        strike:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Strike
+      title: ChainIvRow
+      type: object
+    ChainSnapshotOut:
+      additionalProperties: true
+      properties:
+        expiry:
+          default: ''
+          title: Expiry
+          type: string
+        gaps:
+          default: 0
+          title: Gaps
+          type: integer
+        legs:
+          items:
+            items:
+              type: number
+            type: array
+          title: Legs
+          type: array
+        source:
+          default: ''
+          title: Source
+          type: string
+        spot:
+          default: 0.0
+          title: Spot
+          type: number
+        t:
+          default: ''
+          title: T
+          type: string
+      title: ChainSnapshotOut
+      type: object
+    ChartIndicators:
+      description: Optional indicator block; ``aligned`` is always ``candles``.
+      properties:
+        aligned:
+          default: candles
+          title: Aligned
+          type: string
+        crosses:
+          items:
+            $ref: '#/components/schemas/IndicatorCross'
+          title: Crosses
+          type: array
+        partial_last:
+          default: false
+          title: Partial Last
+          type: boolean
+        series:
+          items:
+            $ref: '#/components/schemas/IndicatorSeries'
+          title: Series
+          type: array
+        session:
+          title: Session
+          type: string
+        timeframe:
+          title: Timeframe
+          type: string
+      required:
+      - timeframe
+      - session
+      title: ChartIndicators
+      type: object
     ChatRequest:
       properties:
         conversation_id:
@@ -528,6 +871,123 @@ components:
       - exit_price
       title: ClosePositionRequest
       type: object
+    CloseRequest:
+      additionalProperties: true
+      properties:
+        premiums:
+          anyOf:
+          - additionalProperties:
+              type: number
+            type: object
+          - type: 'null'
+          title: Premiums
+      title: CloseRequest
+      type: object
+    CommoditiesResponse:
+      properties:
+        commodities:
+          items:
+            $ref: '#/components/schemas/CommodityOption'
+          title: Commodities
+          type: array
+        groups:
+          items:
+            $ref: '#/components/schemas/GroupOption'
+          title: Groups
+          type: array
+        ok:
+          title: Ok
+          type: boolean
+      required:
+      - ok
+      - commodities
+      title: CommoditiesResponse
+      type: object
+    CommodityOption:
+      properties:
+        group:
+          title: Group
+          type: string
+        key:
+          title: Key
+          type: string
+        label:
+          title: Label
+          type: string
+        unit:
+          title: Unit
+          type: string
+      required:
+      - key
+      - label
+      - group
+      - unit
+      title: CommodityOption
+      type: object
+    ComparisonPoint:
+      properties:
+        date:
+          title: Date
+          type: string
+        modal:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Modal
+      required:
+      - date
+      title: ComparisonPoint
+      type: object
+    ComparisonSeries:
+      properties:
+        key:
+          title: Key
+          type: string
+        label:
+          title: Label
+          type: string
+        points:
+          items:
+            $ref: '#/components/schemas/ComparisonPoint'
+          title: Points
+          type: array
+      required:
+      - key
+      - label
+      title: ComparisonSeries
+      type: object
+    ConfigEnvelope:
+      properties:
+        config:
+          additionalProperties: true
+          title: Config
+          type: object
+        saved:
+          title: Saved
+          type: boolean
+        scope:
+          title: Scope
+          type: string
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+        version:
+          title: Version
+          type: integer
+        warning:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Warning
+      required:
+      - scope
+      - version
+      - saved
+      - config
+      title: ConfigEnvelope
+      type: object
     ConfigResponse:
       properties:
         available_models:
@@ -557,6 +1017,91 @@ components:
       - default_analysts
       title: ConfigResponse
       type: object
+    ContractCandle:
+      properties:
+        c:
+          title: C
+          type: number
+        h:
+          title: H
+          type: number
+        l:
+          title: L
+          type: number
+        o:
+          title: O
+          type: number
+        oi:
+          anyOf:
+          - type: integer
+          - type: number
+          - type: 'null'
+          description: Open interest after the bar.
+          title: Oi
+        t:
+          description: Bar open time, IST ISO-8601.
+          title: T
+          type: string
+        v:
+          anyOf:
+          - type: integer
+          - type: number
+          default: 0
+          description: Traded quantity in the minute.
+          title: V
+      required:
+      - t
+      - o
+      - h
+      - l
+      - c
+      title: ContractCandle
+      type: object
+    ContractChartResponse:
+      properties:
+        cached:
+          default: false
+          title: Cached
+          type: boolean
+        candles:
+          items:
+            $ref: '#/components/schemas/ContractCandle'
+          title: Candles
+          type: array
+        empty_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: '`no_trades` when the contract simply has no prints in the window.'
+          title: Empty Reason
+        instrument_key:
+          title: Instrument Key
+          type: string
+        interval:
+          title: Interval
+          type: string
+        source:
+          default: upstox
+          title: Source
+          type: string
+      required:
+      - instrument_key
+      - interval
+      title: ContractChartResponse
+      type: object
+    DeleteResponse:
+      properties:
+        deleted:
+          title: Deleted
+          type: boolean
+        scope:
+          title: Scope
+          type: string
+      required:
+      - scope
+      - deleted
+      title: DeleteResponse
+      type: object
     DetectRequest:
       description: Single-symbol, synchronous pattern check (no job queue).
       properties:
@@ -576,6 +1121,232 @@ components:
       - symbol
       - timeframe
       title: DetectRequest
+      type: object
+    ExecIn:
+      properties:
+        entryTime:
+          default: 09:35
+          title: Entrytime
+          type: string
+        eodExit:
+          default: '15:10'
+          title: Eodexit
+          type: string
+        maxHoldMin:
+          default: 60
+          title: Maxholdmin
+          type: integer
+        slPct:
+          default: 30.0
+          title: Slpct
+          type: number
+        tpPct:
+          default: 60.0
+          title: Tppct
+          type: number
+        trailPct:
+          default: 0.0
+          title: Trailpct
+          type: number
+      title: ExecIn
+      type: object
+    ExpiryAnalytics:
+      properties:
+        atmIv:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Atmiv
+        date:
+          title: Date
+          type: string
+        dealer:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Dealer
+        dteDays:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Dtedays
+        iv:
+          items:
+            $ref: '#/components/schemas/ChainIvRow'
+          title: Iv
+          type: array
+        levels:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Levels
+        liquidity:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Liquidity
+        metrics:
+          $ref: '#/components/schemas/ExpiryMetrics'
+        positioning:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Positioning
+        rnd:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Rnd
+        spot:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Spot
+      required:
+      - date
+      title: ExpiryAnalytics
+      type: object
+    ExpiryInfo:
+      properties:
+        date:
+          title: Date
+          type: string
+        dte_days:
+          title: Dte Days
+          type: integer
+        lot_size:
+          title: Lot Size
+          type: integer
+        tick_size:
+          description: Minimum price increment in **rupees** (Upstox reports paise; divided by 100 here). NSE uses ₹0.05 at/above ₹250 and ₹0.01 below.
+          title: Tick Size
+          type: number
+        weekly:
+          title: Weekly
+          type: boolean
+      required:
+      - date
+      - weekly
+      - dte_days
+      - lot_size
+      - tick_size
+      title: ExpiryInfo
+      type: object
+    ExpiryMetrics:
+      properties:
+        fly25:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Fly25
+        n:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: N
+        r2:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: R2
+        rr25:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Rr25
+        slope:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Slope
+      title: ExpiryMetrics
+      type: object
+    FiltersPayload:
+      properties:
+        as_of:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: As Of
+        commodities:
+          items:
+            $ref: '#/components/schemas/CommodityOption'
+          title: Commodities
+          type: array
+        dataset:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dataset
+        district_markets:
+          additionalProperties:
+            items:
+              type: string
+            type: array
+          title: District Markets
+          type: object
+        districts:
+          items:
+            type: string
+          title: Districts
+          type: array
+        freshness_days:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Freshness Days
+        groups:
+          items:
+            $ref: '#/components/schemas/GroupOption'
+          title: Groups
+          type: array
+        markets:
+          items:
+            type: string
+          title: Markets
+          type: array
+        ok:
+          title: Ok
+          type: boolean
+        source_id:
+          default: local
+          title: Source Id
+          type: string
+        state_districts:
+          additionalProperties:
+            items:
+              type: string
+            type: array
+          title: State Districts
+          type: object
+        states:
+          items:
+            type: string
+          title: States
+          type: array
+      required:
+      - ok
+      - commodities
+      - groups
+      title: FiltersPayload
+      type: object
+    GroupOption:
+      properties:
+        key:
+          title: Key
+          type: string
+        label:
+          title: Label
+          type: string
+      required:
+      - key
+      - label
+      title: GroupOption
       type: object
     GroupPerformanceItem:
       properties:
@@ -644,6 +1415,156 @@ components:
           type: array
       title: HTTPValidationError
       type: object
+    IndexQuote:
+      properties:
+        change_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Change Pct
+        last:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Last
+      title: IndexQuote
+      type: object
+    IndicatorCross:
+      description: A golden/death SMA50×SMA200 event on a candle ``t`` string.
+      properties:
+        kind:
+          title: Kind
+          type: string
+        t:
+          title: T
+          type: string
+      required:
+      - t
+      - kind
+      title: IndicatorCross
+      type: object
+    IndicatorSeries:
+      description: One indicator line, aligned 1:1 with the response candles.
+      properties:
+        id:
+          title: Id
+          type: string
+        values:
+          items:
+            anyOf:
+            - type: number
+            - type: 'null'
+          title: Values
+          type: array
+      required:
+      - id
+      title: IndicatorSeries
+      type: object
+    Kpis:
+      properties:
+        arrivals_qtl:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Arrivals Qtl
+        arrivals_unit:
+          title: Arrivals Unit
+          type: string
+        chg_1m_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Chg 1M Pct
+        chg_1w_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Chg 1W Pct
+        chg_6m_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Chg 6M Pct
+        distance_to_msp_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Distance To Msp Pct
+        market_count:
+          default: 0
+          title: Market Count
+          type: integer
+        max:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max
+        min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Min
+        modal:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Modal
+        msp:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Msp
+        unit:
+          title: Unit
+          type: string
+      required:
+      - unit
+      - arrivals_unit
+      title: Kpis
+      type: object
+    LegIn:
+      properties:
+        action:
+          title: Action
+          type: string
+        lots:
+          default: 1
+          maximum: 50.0
+          minimum: 1.0
+          title: Lots
+          type: integer
+        opt:
+          title: Opt
+          type: string
+        strike:
+          anyOf:
+          - type: string
+          - type: integer
+          - type: number
+          title: Strike
+      required:
+      - action
+      - opt
+      - strike
+      title: LegIn
+      type: object
+    MarketIndices:
+      properties:
+        nifty:
+          anyOf:
+          - $ref: '#/components/schemas/IndexQuote'
+          - type: 'null'
+        sensex:
+          anyOf:
+          - $ref: '#/components/schemas/IndexQuote'
+          - type: 'null'
+        vix:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Vix
+      title: MarketIndices
+      type: object
     NewsQueueEnqueueRequest:
       properties:
         force:
@@ -681,6 +1602,413 @@ components:
           title: Force
           type: boolean
       title: NiftySnapshotRequest
+      type: object
+    OptionLegInput:
+      additionalProperties: true
+      properties:
+        action:
+          title: Action
+          type: string
+        expiry:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expiry
+        instrument_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Instrument Key
+        lots:
+          default: 1
+          title: Lots
+          type: integer
+        opt:
+          title: Opt
+          type: string
+        strike:
+          anyOf:
+          - type: string
+          - type: number
+          title: Strike
+      required:
+      - action
+      - opt
+      - strike
+      title: OptionLegInput
+      type: object
+    OptionPaperLegOut:
+      additionalProperties: true
+      properties:
+        action:
+          default: BUY
+          title: Action
+          type: string
+        entryPremium:
+          default: 0.0
+          title: Entrypremium
+          type: number
+        entryTs:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entryts
+        exitPremium:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Exitpremium
+        id:
+          default: 0
+          title: Id
+          type: integer
+        instrumentKey:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Instrumentkey
+        lots:
+          default: 0
+          title: Lots
+          type: integer
+        markPremium:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: 0.0
+          title: Markpremium
+        markTs:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Markts
+        optType:
+          default: CE
+          title: Opttype
+          type: string
+        positionId:
+          default: 0
+          title: Positionid
+          type: integer
+        qty:
+          default: 0
+          title: Qty
+          type: integer
+        strike:
+          default: 0.0
+          title: Strike
+          type: number
+      title: OptionPaperLegOut
+      type: object
+    OptionPaperOrderRequest:
+      additionalProperties: true
+      properties:
+        dry_run:
+          default: false
+          title: Dry Run
+          type: boolean
+        entry_ts:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Entry Ts
+        expiry:
+          title: Expiry
+          type: string
+        legs:
+          items:
+            $ref: '#/components/schemas/OptionLegInput'
+          title: Legs
+          type: array
+        name:
+          default: ''
+          title: Name
+          type: string
+        notes:
+          default: ''
+          title: Notes
+          type: string
+        slippage_ticks:
+          default: 0.0
+          title: Slippage Ticks
+          type: number
+        source:
+          enum:
+          - live
+          - replay
+          title: Source
+          type: string
+        underlying:
+          title: Underlying
+          type: string
+      required:
+      - underlying
+      - expiry
+      - source
+      title: OptionPaperOrderRequest
+      type: object
+    OptionPaperOrderResultOut:
+      additionalProperties: true
+      properties:
+        dryRun:
+          default: false
+          title: Dryrun
+          type: boolean
+        position:
+          anyOf:
+          - $ref: '#/components/schemas/OptionPaperPositionOut'
+          - type: 'null'
+        replay:
+          anyOf:
+          - $ref: '#/components/schemas/OptionReplayResultOut'
+          - type: 'null'
+      title: OptionPaperOrderResultOut
+      type: object
+    OptionPaperPositionListOut:
+      additionalProperties: true
+      properties:
+        positions:
+          items:
+            $ref: '#/components/schemas/OptionPaperPositionOut'
+          title: Positions
+          type: array
+      title: OptionPaperPositionListOut
+      type: object
+    OptionPaperPositionOut:
+      additionalProperties: true
+      properties:
+        breakevens:
+          items:
+            type: number
+          title: Breakevens
+          type: array
+        closeReason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Closereason
+        closedAt:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Closedat
+        costsEst:
+          default: 0.0
+          title: Costsest
+          type: number
+        createdAt:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Createdat
+        dte:
+          default: 0
+          title: Dte
+          type: integer
+        entrySpot:
+          default: 0.0
+          title: Entryspot
+          type: number
+        entryTs:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entryts
+        expiry:
+          default: ''
+          title: Expiry
+          type: string
+        id:
+          default: 0
+          title: Id
+          type: integer
+        legs:
+          items:
+            $ref: '#/components/schemas/OptionPaperLegOut'
+          title: Legs
+          type: array
+        lots:
+          default: 0
+          title: Lots
+          type: integer
+        markSpot:
+          default: 0.0
+          title: Markspot
+          type: number
+        markTs:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Markts
+        maxLoss:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Maxloss
+        maxProfit:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Maxprofit
+        name:
+          default: ''
+          title: Name
+          type: string
+        netDebit:
+          default: 0.0
+          title: Netdebit
+          type: number
+        notes:
+          default: ''
+          title: Notes
+          type: string
+        realizedPnl:
+          default: 0.0
+          title: Realizedpnl
+          type: number
+        source:
+          default: live
+          title: Source
+          type: string
+        status:
+          default: open
+          title: Status
+          type: string
+        totalPnl:
+          default: 0.0
+          title: Totalpnl
+          type: number
+        underlying:
+          default: ''
+          title: Underlying
+          type: string
+        unrealizedPnl:
+          default: 0.0
+          title: Unrealizedpnl
+          type: number
+        updatedAt:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updatedat
+        userId:
+          default: 0
+          title: Userid
+          type: integer
+        uuid:
+          default: ''
+          title: Uuid
+          type: string
+      title: OptionPaperPositionOut
+      type: object
+    OptionReplayResultOut:
+      additionalProperties: true
+      properties:
+        breakevens:
+          items:
+            type: number
+          title: Breakevens
+          type: array
+        coverage:
+          additionalProperties: true
+          title: Coverage
+          type: object
+        expiry:
+          default: ''
+          title: Expiry
+          type: string
+        frames:
+          items:
+            additionalProperties: true
+            type: object
+          title: Frames
+          type: array
+        maxLoss:
+          default: 0.0
+          title: Maxloss
+          type: number
+        maxProfit:
+          default: 0.0
+          title: Maxprofit
+          type: number
+        payoff:
+          additionalProperties: true
+          title: Payoff
+          type: object
+        positionId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Positionid
+        skipped:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Skipped
+        source:
+          default: ''
+          title: Source
+          type: string
+        summary:
+          additionalProperties: true
+          title: Summary
+          type: object
+        underlying:
+          default: ''
+          title: Underlying
+          type: string
+      title: OptionReplayResultOut
+      type: object
+    OptionsAnalyticsResponse:
+      properties:
+        asOf:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Asof
+        expiries:
+          items:
+            $ref: '#/components/schemas/ExpiryAnalytics'
+          title: Expiries
+          type: array
+        marketState:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Marketstate
+        quotesLive:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Quoteslive
+        rv:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Rv
+        sessionDate:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sessiondate
+        spot:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Spot
+        symbol:
+          title: Symbol
+          type: string
+        warnings:
+          items:
+            type: string
+          title: Warnings
+          type: array
+      required:
+      - symbol
+      title: OptionsAnalyticsResponse
       type: object
     OrderRequest:
       properties:
@@ -769,6 +2097,28 @@ components:
       required:
       - enabled
       title: PatternTimeframeToggleRequest
+      type: object
+    PatternsLookupRequest:
+      description: Batch availability of already-computed patterns (read-only, no detection).
+      properties:
+        symbols:
+          items:
+            type: string
+          maxItems: 500
+          title: Symbols
+          type: array
+        timeframe:
+          default: 1D
+          title: Timeframe
+          type: string
+        universe:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Universe
+      required:
+      - symbols
+      title: PatternsLookupRequest
       type: object
     PositionNotesUpdate:
       properties:
@@ -889,6 +2239,188 @@ components:
       - legs
       title: PremiumTrackerResponse
       type: object
+    PriceSource:
+      properties:
+        as_of:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: As Of
+        dataset:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dataset
+        id:
+          title: Id
+          type: string
+        label:
+          title: Label
+          type: string
+        rows:
+          default: 0
+          title: Rows
+          type: integer
+        status:
+          default: ready
+          title: Status
+          type: string
+      required:
+      - id
+      - label
+      title: PriceSource
+      type: object
+    PricesResponse:
+      properties:
+        as_of:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: As Of
+        comparison:
+          items:
+            $ref: '#/components/schemas/ComparisonSeries'
+          title: Comparison
+          type: array
+        data_source:
+          title: Data Source
+          type: string
+        dataset:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dataset
+        filters:
+          $ref: '#/components/schemas/AppliedFilters'
+        freshness_days:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Freshness Days
+        kpis:
+          $ref: '#/components/schemas/Kpis'
+        ok:
+          title: Ok
+          type: boolean
+        quotes:
+          items:
+            $ref: '#/components/schemas/Quote'
+          title: Quotes
+          type: array
+        quotes_total:
+          default: 0
+          title: Quotes Total
+          type: integer
+        series:
+          items:
+            $ref: '#/components/schemas/SeriesPoint'
+          title: Series
+          type: array
+        snapshot:
+          items:
+            $ref: '#/components/schemas/SnapshotRow'
+          title: Snapshot
+          type: array
+        source_id:
+          default: local
+          title: Source Id
+          type: string
+        warnings:
+          items:
+            type: string
+          title: Warnings
+          type: array
+      required:
+      - ok
+      - data_source
+      - filters
+      - kpis
+      title: PricesResponse
+      type: object
+    PutConfigRequest:
+      properties:
+        config:
+          additionalProperties: true
+          title: Config
+          type: object
+        version:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Version
+      required:
+      - config
+      title: PutConfigRequest
+      type: object
+    Quote:
+      properties:
+        arrivals_qtl:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Arrivals Qtl
+        commodity_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Commodity Key
+        date:
+          title: Date
+          type: string
+        district:
+          title: District
+          type: string
+        grade:
+          title: Grade
+          type: string
+        market:
+          title: Market
+          type: string
+        max:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max
+        min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Min
+        modal:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Modal
+        price_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Price Source
+        price_unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Price Unit
+        product_form:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Form
+        state:
+          title: State
+          type: string
+        variety:
+          title: Variety
+          type: string
+      required:
+      - date
+      - state
+      - district
+      - market
+      - variety
+      - grade
+      title: Quote
+      type: object
     RecordSurgeRequest:
       properties:
         direction:
@@ -980,6 +2512,45 @@ components:
       required:
       - date
       title: ReplayRequest
+      type: object
+    ReplaySessionListOut:
+      additionalProperties: true
+      properties:
+        sessions:
+          items:
+            $ref: '#/components/schemas/ReplaySessionOut'
+          title: Sessions
+          type: array
+      title: ReplaySessionListOut
+      type: object
+    ReplaySessionOut:
+      additionalProperties: true
+      properties:
+        date:
+          default: ''
+          title: Date
+          type: string
+        expiry:
+          default: ''
+          title: Expiry
+          type: string
+        frames:
+          default: 0
+          title: Frames
+          type: integer
+        source:
+          default: snapshot
+          enum:
+          - snapshot
+          - chain10s
+          - upstox
+          title: Source
+          type: string
+        underlying:
+          default: ''
+          title: Underlying
+          type: string
+      title: ReplaySessionOut
       type: object
     ResetRequest:
       properties:
@@ -1184,6 +2755,89 @@ components:
           type: boolean
       title: Run52wRangeRequest
       type: object
+    RunIn:
+      properties:
+        asOf:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Asof
+        costs:
+          default: true
+          title: Costs
+          type: boolean
+        date:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Date
+        slippageTicks:
+          default: 0
+          maximum: 5.0
+          minimum: 0.0
+          title: Slippageticks
+          type: integer
+        strategies:
+          items:
+            $ref: '#/components/schemas/StrategyIn'
+          maxItems: 8
+          minItems: 1
+          title: Strategies
+          type: array
+        symbol:
+          default: NIFTY
+          title: Symbol
+          type: string
+      required:
+      - strategies
+      title: RunIn
+      type: object
+    SRZone:
+      description: One support/resistance zone, never extended past the last candle.
+      properties:
+        bottom:
+          title: Bottom
+          type: number
+        end_date:
+          title: End Date
+          type: string
+        end_time:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Exact last-touch bar timestamp (intraday frames only).
+          title: End Time
+        kind:
+          title: Kind
+          type: string
+        score:
+          title: Score
+          type: number
+        start_date:
+          title: Start Date
+          type: string
+        start_time:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Exact first-touch bar timestamp (intraday frames only).
+          title: Start Time
+        top:
+          title: Top
+          type: number
+        touches:
+          title: Touches
+          type: integer
+      required:
+      - kind
+      - top
+      - bottom
+      - start_date
+      - end_date
+      - touches
+      - score
+      title: SRZone
+      type: object
     ScanRequest:
       properties:
         as_of_date:
@@ -1191,10 +2845,6 @@ components:
           - type: string
           - type: 'null'
           title: As Of Date
-        compute_trendlines:
-          default: true
-          title: Compute Trendlines
-          type: boolean
         force:
           default: false
           title: Force
@@ -1331,6 +2981,80 @@ components:
           title: Name
       title: ScreenerUpdate
       type: object
+    SectionRow:
+      description: One scanner row with the requested fields and per-section booleans.
+      properties:
+        fields:
+          additionalProperties: true
+          title: Fields
+          type: object
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        signals:
+          additionalProperties: true
+          title: Signals
+          type: object
+        symbol:
+          title: Symbol
+          type: string
+      required:
+      - symbol
+      title: SectionRow
+      type: object
+    SectionScanResponse:
+      description: Scanned rows plus feed freshness metadata for the UI.
+      properties:
+        delayed_rows:
+          default: 0
+          title: Delayed Rows
+          type: integer
+        generated_at:
+          title: Generated At
+          type: string
+        market:
+          title: Market
+          type: string
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        row_count:
+          default: 0
+          title: Row Count
+          type: integer
+        rows:
+          items:
+            $ref: '#/components/schemas/SectionRow'
+          title: Rows
+          type: array
+      required:
+      - market
+      - generated_at
+      title: SectionScanResponse
+      type: object
+    SectorBreadth:
+      properties:
+        advancing:
+          default: 0
+          minimum: 0.0
+          title: Advancing
+          type: integer
+        declining:
+          default: 0
+          minimum: 0.0
+          title: Declining
+          type: integer
+        total:
+          default: 0
+          minimum: 0.0
+          title: Total
+          type: integer
+      title: SectorBreadth
+      type: object
     SectorCorrelationResponse:
       properties:
         correlation_matrix:
@@ -1393,6 +3117,223 @@ components:
       - rank_change_1m
       title: SectorCorrelationSector
       type: object
+    SectorHistoryPersistence:
+      properties:
+        by_sector:
+          items:
+            $ref: '#/components/schemas/SectorHistoryPersistenceItem'
+          title: By Sector
+          type: array
+        transition_matrix:
+          items:
+            items:
+              anyOf:
+              - type: number
+              - type: 'null'
+            type: array
+          title: Transition Matrix
+          type: array
+        transition_n:
+          default: 0
+          title: Transition N
+          type: integer
+      required:
+      - by_sector
+      - transition_matrix
+      title: SectorHistoryPersistence
+      type: object
+    SectorHistoryPersistenceItem:
+      properties:
+        avg_next_rank:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Avg Next Rank
+        name:
+          title: Name
+          type: string
+        top3_months:
+          title: Top3 Months
+          type: integer
+        top3_persistence_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Top3 Persistence Pct
+        top3_stayed:
+          title: Top3 Stayed
+          type: integer
+      required:
+      - name
+      - top3_months
+      - top3_stayed
+      - top3_persistence_pct
+      - avg_next_rank
+      title: SectorHistoryPersistenceItem
+      type: object
+    SectorHistoryResponse:
+      properties:
+        as_of:
+          title: As Of
+          type: string
+        cached:
+          default: false
+          title: Cached
+          type: boolean
+        disclaimer:
+          title: Disclaimer
+          type: string
+        last_updated:
+          title: Last Updated
+          type: string
+        market:
+          title: Market
+          type: string
+        months:
+          items:
+            type: string
+          title: Months
+          type: array
+        persistence:
+          $ref: '#/components/schemas/SectorHistoryPersistence'
+        risk:
+          items:
+            $ref: '#/components/schemas/SectorHistoryRisk'
+          title: Risk
+          type: array
+        seasonality:
+          items:
+            $ref: '#/components/schemas/SectorHistorySeasonalityItem'
+          title: Seasonality
+          type: array
+        series:
+          items:
+            $ref: '#/components/schemas/SectorHistorySeries'
+          title: Series
+          type: array
+        source:
+          title: Source
+          type: string
+        universe:
+          items:
+            type: string
+          title: Universe
+          type: array
+        years:
+          title: Years
+          type: integer
+      required:
+      - market
+      - years
+      - months
+      - as_of
+      - last_updated
+      - source
+      - disclaimer
+      - universe
+      - series
+      - risk
+      - seasonality
+      - persistence
+      title: SectorHistoryResponse
+      type: object
+    SectorHistoryRisk:
+      properties:
+        current_drawdown:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Current Drawdown
+        max_drawdown:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max Drawdown
+        name:
+          title: Name
+          type: string
+        recovery_days:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Recovery Days
+        sharpe:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Sharpe
+        volatility:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Volatility
+      required:
+      - name
+      - max_drawdown
+      - current_drawdown
+      - recovery_days
+      - sharpe
+      - volatility
+      title: SectorHistoryRisk
+      type: object
+    SectorHistorySeasonalityItem:
+      properties:
+        avg_return:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Avg Return
+        hit_rate:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Hit Rate
+        month:
+          title: Month
+          type: integer
+        n:
+          title: N
+          type: integer
+        name:
+          title: Name
+          type: string
+      required:
+      - name
+      - month
+      - avg_return
+      - hit_rate
+      - n
+      title: SectorHistorySeasonalityItem
+      type: object
+    SectorHistorySeries:
+      properties:
+        is_benchmark:
+          title: Is Benchmark
+          type: boolean
+        monthly_returns:
+          items:
+            anyOf:
+            - type: number
+            - type: 'null'
+          title: Monthly Returns
+          type: array
+        name:
+          title: Name
+          type: string
+        ranks:
+          items:
+            anyOf:
+            - type: integer
+            - type: 'null'
+          title: Ranks
+          type: array
+      required:
+      - name
+      - is_benchmark
+      - monthly_returns
+      - ranks
+      title: SectorHistorySeries
+      type: object
     SectorItem:
       properties:
         advances:
@@ -1430,6 +3371,48 @@ components:
       - top_movers
       title: SectorItem
       type: object
+    SectorOption:
+      description: One data-derived value in the Monitor sector selector.
+      properties:
+        count:
+          default: 0
+          title: Count
+          type: integer
+        id:
+          title: Id
+          type: string
+        label:
+          title: Label
+          type: string
+      required:
+      - id
+      - label
+      title: SectorOption
+      type: object
+    SectorRead:
+      properties:
+        breadth:
+          $ref: '#/components/schemas/SectorBreadth'
+        change_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Change Pct
+        id:
+          default: all
+          title: Id
+          type: string
+        label:
+          default: MARKET
+          title: Label
+          type: string
+        relative_strength_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Relative Strength Pct
+      title: SectorRead
+      type: object
     SectorResponse:
       properties:
         last_updated:
@@ -1456,53 +3439,114 @@ components:
       - market
       title: SectorResponse
       type: object
-    StartExperimentRequest:
+    SeriesPoint:
       properties:
-        date_end:
+        arrivals_qtl:
           anyOf:
-          - type: string
+          - type: number
           - type: 'null'
-          default: ''
-          title: Date End
-        date_start:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: ''
-          title: Date Start
-        description:
-          default: ''
-          title: Description
+          title: Arrivals Qtl
+        date:
+          title: Date
           type: string
-        include_costs:
-          default: true
-          title: Include Costs
-          type: boolean
-        param_space:
-          additionalProperties: true
-          title: Param Space
-          type: object
-        session:
-          title: Session
-          type: string
-        strategy:
-          title: Strategy
-          type: string
-        symbols:
-          items:
-            type: string
-          title: Symbols
-          type: array
-        tf:
-          default: 5
-          title: Tf
+        market_count:
+          default: 0
+          title: Market Count
           type: integer
+        max:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max
+        min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Min
+        modal:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Modal
       required:
-      - session
-      - strategy
-      - symbols
-      - param_space
-      title: StartExperimentRequest
+      - date
+      title: SeriesPoint
+      type: object
+    SnapshotRow:
+      properties:
+        chg_1m_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Chg 1M Pct
+        chg_1w_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Chg 1W Pct
+        chg_6m_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Chg 6M Pct
+        date:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Date
+        freshness_days:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Freshness Days
+        group:
+          title: Group
+          type: string
+        key:
+          title: Key
+          type: string
+        label:
+          title: Label
+          type: string
+        markets:
+          default: 0
+          title: Markets
+          type: integer
+        max:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max
+        min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Min
+        modal:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Modal
+      required:
+      - key
+      - label
+      - group
+      title: SnapshotRow
+      type: object
+    SourcesResponse:
+      properties:
+        default:
+          default: local
+          title: Default
+          type: string
+        sources:
+          items:
+            $ref: '#/components/schemas/PriceSource'
+          title: Sources
+          type: array
+      required:
+      - sources
+      title: SourcesResponse
       type: object
     StockMover:
       properties:
@@ -1850,6 +3894,34 @@ components:
       - strategy_type
       title: StrategyCreate
       type: object
+    StrategyIn:
+      properties:
+        exec:
+          $ref: '#/components/schemas/ExecIn'
+        id:
+          maxLength: 80
+          minLength: 1
+          title: Id
+          type: string
+        legs:
+          items:
+            $ref: '#/components/schemas/LegIn'
+          maxItems: 12
+          minItems: 1
+          title: Legs
+          type: array
+        name:
+          maxLength: 80
+          minLength: 1
+          title: Name
+          type: string
+      required:
+      - id
+      - name
+      - legs
+      - exec
+      title: StrategyIn
+      type: object
     StrategyRunnerRequest:
       properties:
         bot_uuids:
@@ -2075,6 +4147,170 @@ components:
           title: Trailing Stop Pct
       title: StrategyUpdate
       type: object
+    SymbolChartResponse:
+      description: 'Documented shape of the chart payload (India and US paths).
+
+
+        The US path (``market=usa``) adds ``market``/``feed``/``delay_label``/
+
+        ``session_date`` and returns ``hits`` from live detection on the provider
+
+        frame. Fields are optional because empty/error branches omit most of them.
+
+        The handler writes a ``JSONResponse`` directly, so this model documents the
+
+        OpenAPI contract without re-encoding the candle-heavy payload.'
+      properties:
+        appended:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Bars appended by the live tail merge (0 when none).
+          title: Appended
+        as_of:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: As Of
+        cache_age_sec:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Seconds between `latest_bar` and response time (null unknown).
+          title: Cache Age Sec
+        cache_through:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Timestamp through which the cached frame is complete.
+          title: Cache Through
+        cached:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          description: True when candles were served from the live-edge disk cache.
+          title: Cached
+        candles:
+          items: {}
+          title: Candles
+          type: array
+        close_bar_date:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: IST session date (YYYY-MM-DD) of the last displayed candle.
+          title: Close Bar Date
+        data_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 'Candle provenance for this response: ''provider'' (network fetch), ''cache'' (disk cache only), ''cache+tail'' (cache + live tail merge), ''cache+tail-failed'' (tail attempted, cached frame served), or ''none'' (empty/error). Never reuse `source`, which tags pattern hits.'
+          title: Data Source
+        delay_label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: US quote delay, e.g. '~1 min (forming)'.
+          title: Delay Label
+        detection_as_of:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Detection As Of
+        expected_as_of:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expected As Of
+        feed:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 'US price feed: ''yahoo'', ''alpaca-iex'' or ''alpaca-sip''.'
+          title: Feed
+        hits:
+          items: {}
+          title: Hits
+          type: array
+        indicators:
+          anyOf:
+          - $ref: '#/components/schemas/ChartIndicators'
+          - type: 'null'
+          description: Backend-computed indicator series aligned to `candles` (SMA/BB/VWAP + golden/death crosses); null on empty/error.
+        latest_bar:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Timestamp (ISO 8601) of the last bar behind `candles`.
+          title: Latest Bar
+        market:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 'Chart market: ''india'' (default) or ''usa''.'
+          title: Market
+        market_open:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          description: Holiday-aware NSE session state at response time.
+          title: Market Open
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        overlays:
+          items: {}
+          title: Overlays
+          type: array
+        refreshing:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          description: True when a background cache refresh was kicked for this response.
+          title: Refreshing
+        session_date:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: US session date in ET (YYYY-MM-DD).
+          title: Session Date
+        sr_zones:
+          description: Backend-computed support/resistance zones (max 4, no rightward extension past the last candle).
+          items:
+            $ref: '#/components/schemas/SRZone'
+          title: Sr Zones
+          type: array
+        stale:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Stale
+        symbol:
+          title: Symbol
+          type: string
+        timeframe:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Timeframe
+        updated:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Bars repaired by the live tail merge (0 when none).
+          title: Updated
+        warning:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Non-fatal data warning (e.g. a failed live-tail merge).
+          title: Warning
+      required:
+      - symbol
+      title: SymbolChartResponse
+      type: object
     ThemeDetailResponse:
       properties:
         constituents:
@@ -2162,6 +4398,51 @@ components:
           - type: 'null'
           title: Reason
       title: TradeNotesUpdate
+      type: object
+    UnderlyingInfo:
+      properties:
+        default_expiry:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Expiry
+        exchange:
+          title: Exchange
+          type: string
+        expiries:
+          items:
+            $ref: '#/components/schemas/ExpiryInfo'
+          title: Expiries
+          type: array
+        fno:
+          title: Fno
+          type: boolean
+        instrument_key:
+          title: Instrument Key
+          type: string
+        market_state:
+          title: Market State
+          type: string
+        quotes_live:
+          description: True only while `market_state == "open"`. When false, chain LTPs are the last session's prints (a pre-open chain shows the previous close), not live prices.
+          title: Quotes Live
+          type: boolean
+        spot:
+          title: Spot
+          type: number
+        symbol:
+          title: Symbol
+          type: string
+      required:
+      - symbol
+      - exchange
+      - fno
+      - instrument_key
+      - spot
+      - expiries
+      - market_state
+      - quotes_live
+      title: UnderlyingInfo
       type: object
     UpdatePricesRequest:
       properties:
@@ -2290,7 +4571,7 @@ info:
 
     - Base URL in local development: `http://localhost:8765`.
 
-    - WebSocket routes (`/ws/orderflow`, `/ws/nifty/*`) are not represented in this schema.
+    - WebSocket routes (`/ws/nifty/*`) are not represented in this schema.
 
     - Endpoints marked with a padlock require a bearer token.
 
@@ -2303,7 +4584,14 @@ openapi: 3.1.0
 paths:
   /api/52w-range:
     get:
-      description: Get 52-week high/low for a single symbol. Checks Redis first, falls back to DB.
+      description: 'Get 52-week high/low for one symbol from the bulk range cache.
+
+
+        The per-symbol ``52w_range:{symbol}`` keys are gone: the bulk key already
+
+        holds every row, so there is one cached payload to read regardless of how
+
+        many symbols are requested.'
       operationId: get_52w_range_api_52w_range_get
       parameters:
       - in: query
@@ -2598,45 +4886,6 @@ paths:
       summary: Get News Queue Status
       tags:
       - admin
-  /api/admin/orderflow-journal:
-    get:
-      description: 'What order-flow data is on disk, per symbol, with session coverage.
-
-
-        Coverage is the share of session minutes that contain at least one stored
-
-        record, so a day that stopped early — or a file that mixes two brokers —
-
-        is visible instead of looking like a normal file.'
-      operationId: get_orderflow_journal_api_admin_orderflow_journal_get
-      parameters:
-      - description: YYYY-MM-DD; defaults to today (IST)
-        in: query
-        name: day
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: YYYY-MM-DD; defaults to today (IST)
-          title: Day
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      security:
-      - bearerAuth: []
-      summary: Get Orderflow Journal
-      tags:
-      - admin
   /api/admin/pattern-timeframes:
     get:
       operationId: get_pattern_timeframes_api_admin_pattern_timeframes_get
@@ -2763,35 +5012,38 @@ paths:
       - admin
   /api/agri/commodities:
     get:
+      description: Backward-compatible option list; now also carries group and unit.
       operationId: get_agri_commodities_api_agri_commodities_get
       responses:
         '200':
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/CommoditiesResponse'
           description: Successful Response
-      summary: Get Agri Commodities
+      summary: Tracked agri commodities
       tags:
       - agri
-  /api/agri/prices:
+  /api/agri/filters:
     get:
-      operationId: get_agri_prices_api_agri_prices_get
+      description: Commodity/group registries and the geographies present in the source.
+      operationId: get_agri_filters_api_agri_filters_get
       parameters:
-      - description: Commodity key (rice, wheat, arhar_tur, urad, moong, masoor, chana, soyabean, onion, potato, tomato)
+      - description: 'Source id: local | release:<tag>'
         in: query
-        name: commodity
+        name: source
         required: false
         schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: Commodity key (rice, wheat, arhar_tur, urad, moong, masoor, chana, soyabean, onion, potato, tomato)
-          title: Commodity
+          default: local
+          description: 'Source id: local | release:<tag>'
+          title: Source
+          type: string
       responses:
         '200':
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/FiltersPayload'
           description: Successful Response
         '422':
           content:
@@ -2799,7 +5051,151 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
-      summary: Get Agri Prices
+      summary: Agri price filter options
+      tags:
+      - agri
+  /api/agri/prices:
+    get:
+      description: Snapshot, time series, mandi quotes, KPIs and up to five comparisons.
+      operationId: get_agri_prices_api_agri_prices_get
+      parameters:
+      - description: 'Source id: local | release:<tag>'
+        in: query
+        name: source
+        required: false
+        schema:
+          default: local
+          description: 'Source id: local | release:<tag>'
+          title: Source
+          type: string
+      - description: Tracked commodity key
+        in: query
+        name: commodity
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Tracked commodity key
+          title: Commodity
+      - description: Commodity group key
+        in: query
+        name: group
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Commodity group key
+          title: Group
+      - description: State name
+        in: query
+        name: state
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: State name
+          title: State
+      - description: District name
+        in: query
+        name: district
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: District name
+          title: District
+      - description: Market / mandi name
+        in: query
+        name: market
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Market / mandi name
+          title: Market
+      - description: 1m | 3m | 6m | 1y | max, anchored to as_of
+        in: query
+        name: range
+        required: false
+        schema:
+          default: 6m
+          description: 1m | 3m | 6m | 1y | max, anchored to as_of
+          title: Range
+          type: string
+      - description: Inclusive ISO start date
+        in: query
+        name: from
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Inclusive ISO start date
+          title: From
+      - description: Inclusive ISO end date
+        in: query
+        name: to
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Inclusive ISO end date
+          title: To
+      - description: Comma-separated commodity keys (max 5)
+        in: query
+        name: compare
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Comma-separated commodity keys (max 5)
+          title: Compare
+      - description: Maximum quotes to return
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          description: Maximum quotes to return
+          maximum: 1000
+          minimum: 1
+          title: Limit
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricesResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Agri mandi price dashboard payload
+      tags:
+      - agri
+  /api/agri/sources:
+    get:
+      description: Local cache plus validated release snapshots; no network and no writes.
+      operationId: get_agri_sources_api_agri_sources_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourcesResponse'
+          description: Successful Response
+      summary: Agri price sources
       tags:
       - agri
   /api/auth/login:
@@ -4111,6 +6507,47 @@ paths:
       summary: Invalidate Screener Cache Endpoint
       tags:
       - admin
+  /api/catalysts/today:
+    get:
+      description: Sector-level catalyst read for the Home Monitor. The NIFTY Auto constituents and their live move/relative volume/52-week state come from the existing market snapshot; headlines come from Google News RSS. A dead source is reported in `warnings` -- the endpoint still returns whatever it can verify and never fabricates a row.
+      operationId: catalysts_today_api_catalysts_today_get
+      parameters:
+      - description: Market id. v1 supports `india`.
+        in: query
+        name: market
+        required: false
+        schema:
+          default: india
+          description: Market id. v1 supports `india`.
+          title: Market
+          type: string
+      - description: '`all` or any sector id returned in `available_sectors`.'
+        in: query
+        name: sector
+        required: false
+        schema:
+          default: all
+          description: '`all` or any sector id returned in `available_sectors`.'
+          title: Sector
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalystToday'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Today's sector catalysts for the Home Monitor
+      tags:
+      - catalysts
   /api/chart-patterns/detect:
     post:
       description: 'Run the detector on ONE symbol now and return the hits.
@@ -4430,6 +6867,40 @@ paths:
       summary: Get Patterns
       tags:
       - chart-patterns
+  /api/chart-patterns/patterns/lookup:
+    post:
+      description: 'Patterns already computed for these symbols on one timeframe.
+
+
+        DB read only. ``items`` holds just the symbols that have a stored hit; a
+
+        cold scan yields an empty list and clients show a dash. ``source`` is
+
+        always ``"stored"`` — this endpoint cannot produce a fresh detection.'
+      operationId: lookup_patterns_api_chart_patterns_patterns_lookup_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatternsLookupRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Batch stored pattern availability for a symbol list
+      tags:
+      - chart-patterns
   /api/chart-patterns/results:
     get:
       operationId: get_results_api_chart_patterns_results_get
@@ -4596,13 +7067,6 @@ paths:
           - type: integer
           - type: 'null'
           title: Lookback Bars
-      - in: query
-        name: compute_trendlines
-        required: false
-        schema:
-          default: true
-          title: Compute Trendlines
-          type: boolean
       - in: query
         name: max_52w_gap
         required: false
@@ -4832,13 +7296,6 @@ paths:
           - type: integer
           - type: 'null'
           title: Lookback Bars
-      - in: query
-        name: compute_trendlines
-        required: false
-        schema:
-          default: true
-          title: Compute Trendlines
-          type: boolean
       - in: query
         name: max_52w_gap
         required: false
@@ -5183,13 +7640,6 @@ paths:
           - type: 'null'
           title: Lookback Bars
       - in: query
-        name: compute_trendlines
-        required: false
-        schema:
-          default: true
-          title: Compute Trendlines
-          type: boolean
-      - in: query
         name: detect_patterns
         required: false
         schema:
@@ -5212,11 +7662,26 @@ paths:
           - type: string
           - type: 'null'
           title: From Date
+      - in: query
+        name: refresh
+        required: false
+        schema:
+          default: false
+          title: Refresh
+          type: boolean
+      - in: query
+        name: market
+        required: false
+        schema:
+          default: india
+          title: Market
+          type: string
       responses:
         '200':
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/SymbolChartResponse'
           description: Successful Response
         '422':
           content:
@@ -5719,235 +8184,6 @@ paths:
       summary: Get Today
       tags:
       - events
-  /api/experiments/list:
-    get:
-      operationId: list_sessions_api_experiments_list_get
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-      security:
-      - bearerAuth: []
-      summary: List Sessions
-      tags:
-      - experiments
-  /api/experiments/start:
-    post:
-      operationId: start_experiment_api_experiments_start_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/StartExperimentRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      security:
-      - bearerAuth: []
-      summary: Start Experiment
-      tags:
-      - experiments
-  /api/experiments/strategies:
-    get:
-      operationId: get_strategies_api_experiments_strategies_get
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-      summary: Get Strategies
-      tags:
-      - experiments
-  /api/experiments/{session}/cancel:
-    post:
-      operationId: cancel_experiment_api_experiments__session__cancel_post
-      parameters:
-      - in: path
-        name: session
-        required: true
-        schema:
-          title: Session
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      security:
-      - bearerAuth: []
-      summary: Cancel Experiment
-      tags:
-      - experiments
-  /api/experiments/{session}/chart/{run_id}:
-    get:
-      operationId: get_session_chart_api_experiments__session__chart__run_id__get
-      parameters:
-      - in: path
-        name: session
-        required: true
-        schema:
-          title: Session
-          type: string
-      - in: path
-        name: run_id
-        required: true
-        schema:
-          title: Run Id
-          type: integer
-      - description: Symbol to chart; NEWGEN uses the shared cache
-        in: query
-        name: symbol
-        required: false
-        schema:
-          default: NEWGEN
-          description: Symbol to chart; NEWGEN uses the shared cache
-          title: Symbol
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      security:
-      - bearerAuth: []
-      summary: Get Session Chart
-      tags:
-      - experiments
-  /api/experiments/{session}/pause:
-    post:
-      operationId: pause_experiment_api_experiments__session__pause_post
-      parameters:
-      - in: path
-        name: session
-        required: true
-        schema:
-          title: Session
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      security:
-      - bearerAuth: []
-      summary: Pause Experiment
-      tags:
-      - experiments
-  /api/experiments/{session}/results:
-    get:
-      operationId: get_session_results_api_experiments__session__results_get
-      parameters:
-      - in: path
-        name: session
-        required: true
-        schema:
-          title: Session
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      security:
-      - bearerAuth: []
-      summary: Get Session Results
-      tags:
-      - experiments
-  /api/experiments/{session}/resume:
-    post:
-      operationId: resume_experiment_api_experiments__session__resume_post
-      parameters:
-      - in: path
-        name: session
-        required: true
-        schema:
-          title: Session
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      security:
-      - bearerAuth: []
-      summary: Resume Experiment
-      tags:
-      - experiments
-  /api/experiments/{session}/state:
-    get:
-      operationId: get_session_state_api_experiments__session__state_get
-      parameters:
-      - in: path
-        name: session
-        required: true
-        schema:
-          title: Session
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      security:
-      - bearerAuth: []
-      summary: Get Session State
-      tags:
-      - experiments
   /api/health:
     get:
       operationId: health_api_health_get
@@ -6234,16 +8470,47 @@ paths:
       - market-ticker
   /api/market/snapshot:
     get:
-      description: Return the whole NSE market (one TV scan) shaped for the screener.
+      description: 'Return the whole NSE market (one TV scan) shaped for the screener.
+
+
+        The (potentially 58s cold) TV scan runs off the event loop via
+
+        ``asyncio.to_thread`` so it can never block other requests.
+
+
+        ``symbols`` is optional. An empty or whitespace-only value (e.g.
+
+        ``?symbols=``) means no filter and returns all rows; otherwise it filters
+
+        the full snapshot to the requested symbols (max 20, deduplicated
+
+        case-insensitively) and ``total`` is the number of matches. The filter runs
+
+        before ``limit`` truncates the response, so a symbol outside the first
+
+        ``limit`` rows of the universe is still found.
+
+
+        ``format`` is the wire layout, not a different dataset: both layouts encode
+
+        the same rows (``columns`` hoists the field names once and transposes the
+
+        values; ``json`` keeps the object envelope with ``rows``). Validated before
+
+        any scan so a typo cannot burn a TradingView call. Both layouts are encoded
+
+        once per cached frame and served as bytes from the encoded-body cache;
+
+        GZipMiddleware still compresses against the request''s ``Accept-Encoding``.'
       operationId: market_snapshot_api_market_snapshot_get
       parameters:
-      - description: 'Universe: all_equity (default), nifty50, nifty500 or nse_fo.'
+      - description: 'Universe: all_equity (default), us (US large/mid/small caps listed on NASDAQ/NYSE/AMEX), nifty50, nifty100, nifty200, nifty500, banknifty, sensex, nse_fo. indices is intentionally unsupported (see UNSERVABLE_UNIVERSES in api/market_screen/config.py for why).'
         in: query
         name: universe
         required: false
         schema:
           default: all_equity
-          description: 'Universe: all_equity (default), nifty50, nifty500 or nse_fo.'
+          description: 'Universe: all_equity (default), us (US large/mid/small caps listed on NASDAQ/NYSE/AMEX), nifty50, nifty100, nifty200, nifty500, banknifty, sensex, nse_fo. indices is intentionally unsupported (see UNSERVABLE_UNIVERSES in api/market_screen/config.py for why).'
           title: Universe
           type: string
       - description: Max rows returned (1..4000).
@@ -6257,23 +8524,39 @@ paths:
           minimum: 1
           title: Limit
           type: integer
-      - description: Bypass the 15s in-process cache and re-fetch from TradingView.
+      - description: Optional comma-separated symbols (max 20). Filtered against the full cached snapshot, before `limit` is applied; unknown symbols are omitted.
+        in: query
+        name: symbols
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Optional comma-separated symbols (max 20). Filtered against the full cached snapshot, before `limit` is applied; unknown symbols are omitted.
+          title: Symbols
+      - description: Bypass the in-process/disk cache and re-fetch from TradingView.
         in: query
         name: force
         required: false
         schema:
           default: false
-          description: Bypass the 15s in-process cache and re-fetch from TradingView.
+          description: Bypass the in-process/disk cache and re-fetch from TradingView.
           title: Force
           type: boolean
+      - description: 'Response layout: json (default, the object envelope with rows) or columns (columns-v1: fields + equal-length columns + meta). Both layouts are encoded once per cached snapshot and served from an in-process encoded-body cache.'
+        in: query
+        name: format
+        required: false
+        schema:
+          default: json
+          description: 'Response layout: json (default, the object envelope with rows) or columns (columns-v1: fields + equal-length columns + meta). Both layouts are encoded once per cached snapshot and served from an in-process encoded-body cache.'
+          title: Format
+          type: string
       responses:
         '200':
           content:
             application/json:
-              schema:
-                additionalProperties: true
-                title: Response Market Snapshot Api Market Snapshot Get
-                type: object
+              schema: {}
           description: Successful Response
         '422':
           content:
@@ -6281,7 +8564,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
-      summary: NSE market snapshot for the one-page screener
+      security:
+      - bearerAuth: []
+      summary: Market snapshot (NSE / US) for the one-page screener
       tags:
       - market
   /api/news:
@@ -6858,6 +9143,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - bearerAuth: []
       summary: Get Surges
       tags:
       - Notifications
@@ -6881,12 +9168,328 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
+      security:
+      - bearerAuth: []
       summary: Record Surge
       tags:
       - Notifications
+  /api/options-paper/chain-at:
+    get:
+      operationId: chain_at_api_options_paper_chain_at_get
+      parameters:
+      - in: query
+        name: underlying
+        required: true
+        schema:
+          title: Underlying
+          type: string
+      - in: query
+        name: date
+        required: true
+        schema:
+          title: Date
+          type: string
+      - in: query
+        name: time
+        required: true
+        schema:
+          title: Time
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChainSnapshotOut'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Get a historical option chain quote
+      tags:
+      - Options Paper
+  /api/options-paper/orders:
+    post:
+      description: Place a live or backdated paper structure; ``dryRun`` previews without writing.
+      operationId: place_order_api_options_paper_orders_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OptionPaperOrderRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptionPaperOrderResultOut'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Place a multi-leg options paper order
+      tags:
+      - Options Paper
+  /api/options-paper/positions:
+    get:
+      operationId: list_positions_api_options_paper_positions_get
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          default: open
+          enum:
+          - open
+          - closed
+          - expired
+          - all
+          title: Status
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptionPaperPositionListOut'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: List options paper positions
+      tags:
+      - Options Paper
+  /api/options-paper/positions/{position_id}:
+    get:
+      operationId: get_position_api_options_paper_positions__position_id__get
+      parameters:
+      - in: path
+        name: position_id
+        required: true
+        schema:
+          title: Position Id
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptionPaperPositionOut'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Get one options paper position
+      tags:
+      - Options Paper
+  /api/options-paper/positions/{position_id}/close:
+    post:
+      operationId: close_position_api_options_paper_positions__position_id__close_post
+      parameters:
+      - in: path
+        name: position_id
+        required: true
+        schema:
+          title: Position Id
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/CloseRequest'
+              - type: 'null'
+              title: Payload
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptionPaperPositionOut'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Close an options paper position
+      tags:
+      - Options Paper
+  /api/options-paper/positions/{position_id}/legs:
+    post:
+      description: Price one extra leg at its own entry time; no Trade is booked yet.
+      operationId: add_leg_api_options_paper_positions__position_id__legs_post
+      parameters:
+      - in: path
+        name: position_id
+        required: true
+        schema:
+          title: Position Id
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddLegRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptionPaperPositionOut'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Add a staggered leg to an options paper position
+      tags:
+      - Options Paper
+  /api/options-paper/replay/sessions:
+    get:
+      operationId: replay_sessions_api_options_paper_replay_sessions_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplaySessionListOut'
+          description: Successful Response
+      security:
+      - bearerAuth: []
+      summary: List replayable option chain sessions
+      tags:
+      - Options Paper
+  /api/options-paper/replay/{position_id}:
+    get:
+      operationId: replay_position_api_options_paper_replay__position_id__get
+      parameters:
+      - in: path
+        name: position_id
+        required: true
+        schema:
+          title: Position Id
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptionReplayResultOut'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Recompute replay frames for a position
+      tags:
+      - Options Paper
+  /api/options/analytics/{underlying}:
+    get:
+      description: 'Nearest ``expiries`` expiries of one underlying, from cache only.
+
+
+        Reads the expiry ladder from the underlying cache and each chain from the
+
+        chain cache, so a poll burst adds no Upstox calls. Any upstream/derivation
+
+        failure is a structured ``503 analytics_unavailable``.
+
+
+        Successful responses carry a browser cache window equal to the server TTL
+
+        and a body-derived ETag; a matching ``If-None-Match`` revalidation answers
+
+        304 without a body. The rate-limit and server-cache paths run before this,
+
+        so both cold (charged) and warm (free) request budgets are unchanged.'
+      operationId: get_options_analytics_api_options_analytics__underlying__get
+      parameters:
+      - in: path
+        name: underlying
+        required: true
+        schema:
+          title: Underlying
+          type: string
+      - description: Number of nearest expiries (1-6)
+        in: query
+        name: expiries
+        required: false
+        schema:
+          default: 3
+          description: Number of nearest expiries (1-6)
+          maximum: 6
+          minimum: 1
+          title: Expiries
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptionsAnalyticsResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: 'Multi-expiry option analytics: ATM IV, 25-delta skew, smile fit and levels'
+      tags:
+      - options
   /api/options/chain/{underlying}:
     get:
-      description: Get complete option chain with server-side analysis.
+      description: 'Get complete option chain with server-side analysis.
+
+
+        Served from a single-flight short-TTL cache keyed on underlying + expiry +
+
+        session state. Upstream failures are never cached — the loader raises before
+
+        anything is written, so a 401/429 is retried on the next request.
+
+
+        A cache hit returns the cached ``timestamp``, not a refreshed one: the field
+
+        describes when the quotes were actually read, and the UI''s LIVE/STALE badge
+
+        derives from it. Restamping a served-stale chain would claim a freshness the
+
+        prices do not have.'
       operationId: get_option_chain_api_options_chain__underlying__get
       parameters:
       - in: path
@@ -6903,6 +9506,15 @@ paths:
           description: Expiry date in YYYY-MM-DD format
           title: Expiry
           type: string
+      - description: Bypass the short-TTL chain cache
+        in: query
+        name: refresh
+        required: false
+        schema:
+          default: false
+          description: Bypass the short-TTL chain cache
+          title: Refresh
+          type: boolean
       responses:
         '200':
           content:
@@ -6916,6 +9528,61 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
       summary: Get Option Chain
+      tags:
+      - options
+  /api/options/contract-chart:
+    get:
+      description: 'Read-only OHLCV + open-interest series for the contract whose `instrument_key` the option chain published (for example `NSE_FO|106407`). The current session comes from Upstox''s intraday endpoint and the prior `days - 1` sessions from the historical one. Serialisation always deduplicates and sorts ascending; an empty series is a successful answer with `empty_reason: "no_trades"`.'
+      operationId: get_contract_chart_api_options_contract_chart_get
+      parameters:
+      - description: NSE F&O contract key from the option chain.
+        in: query
+        name: instrument_key
+        required: true
+        schema:
+          description: NSE F&O contract key from the option chain.
+          title: Instrument Key
+          type: string
+      - description: 'Bar size: `1m`, `5m` or `15m`.'
+        in: query
+        name: interval
+        required: false
+        schema:
+          default: 1m
+          description: 'Bar size: `1m`, `5m` or `15m`.'
+          title: Interval
+          type: string
+      - description: Sessions to return, today included (1-3).
+        in: query
+        name: days
+        required: false
+        schema:
+          default: 2
+          description: Sessions to return, today included (1-3).
+          title: Days
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractChartResponse'
+          description: Successful Response
+        '400':
+          description: Malformed instrument key, interval or `days`.
+        '401':
+          description: Upstox token missing, expired or rejected.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+        '502':
+          description: Upstox candle data unavailable.
+        '504':
+          description: Upstox candle request timed out.
+      summary: Minute premium candles for one option contract
       tags:
       - options
   /api/options/expiries/{underlying}:
@@ -7108,6 +9775,115 @@ paths:
       summary: Premium Tracker
       tags:
       - options
+  /api/options/screener:
+    get:
+      description: Rank OTM calls on the NSE stock F&O universe by momentum and torque.
+      operationId: get_options_screener_api_options_screener_get
+      parameters:
+      - description: Expiry YYYY-MM-DD (nearest by default)
+        in: query
+        name: expiry
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Expiry YYYY-MM-DD (nearest by default)
+          title: Expiry
+      - description: cheap_momentum|max_torque|balanced|high_pop|breakout
+        in: query
+        name: preset
+        required: false
+        schema:
+          default: cheap_momentum
+          description: cheap_momentum|max_torque|balanced|high_pop|breakout
+          title: Preset
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          maximum: 500
+          minimum: 1
+          title: Limit
+          type: integer
+      - description: Max cost per lot (₹)
+        in: query
+        name: max_cost
+        required: false
+        schema:
+          anyOf:
+          - minimum: 0
+            type: number
+          - type: 'null'
+          description: Max cost per lot (₹)
+          title: Max Cost
+      - description: Min probability of profit (%)
+        in: query
+        name: min_pop
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: Min probability of profit (%)
+          title: Min Pop
+      - description: Min option volume
+        in: query
+        name: min_volume
+        required: false
+        schema:
+          anyOf:
+          - minimum: 0
+            type: number
+          - type: 'null'
+          description: Min option volume
+          title: Min Volume
+      - description: Min OTM %
+        in: query
+        name: otm_min
+        required: false
+        schema:
+          default: 2.0
+          description: Min OTM %
+          minimum: 0
+          title: Otm Min
+          type: number
+      - description: Max OTM %
+        in: query
+        name: otm_max
+        required: false
+        schema:
+          default: 10.0
+          description: Max OTM %
+          minimum: 0
+          title: Otm Max
+          type: number
+      - description: Bypass snapshot/chain/momentum caches
+        in: query
+        name: refresh
+        required: false
+        schema:
+          default: false
+          description: Bypass snapshot/chain/momentum caches
+          title: Refresh
+          type: boolean
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Get Options Screener
+      tags:
+      - options-screener
   /api/options/spot-history/{underlying}:
     get:
       description: Get intraday historical spot price for charting.
@@ -7160,6 +9936,45 @@ paths:
       summary: Get Spot Price
       tags:
       - options
+  /api/options/underlying/{symbol}:
+    get:
+      description: 'Instrument key, F&O eligibility, real expiries and the expiry to open on.
+
+
+        ``default_expiry`` is the first expiry on or after today, except on expiry
+
+        day after 15:40 IST where it rolls to the next one (today stays listed).
+
+
+        ``quotes_live`` is true only while the F&O session is ``open``; pre-open and
+
+        closed chains carry the previous session''s LTPs.'
+      operationId: get_underlying_info_api_options_underlying__symbol__get
+      parameters:
+      - in: path
+        name: symbol
+        required: true
+        schema:
+          title: Symbol
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnderlyingInfo'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Underlying metadata for the option chain (expiries, lots, default expiry)
+      tags:
+      - options
   /api/options/underlyings:
     get:
       description: Get list of available underlying instruments for options trading.
@@ -7173,109 +9988,6 @@ paths:
       summary: Get Underlyings
       tags:
       - options
-  /api/orderflow/journal/files:
-    get:
-      description: Stored journal files, newest first — powers the replay picker.
-      operationId: list_journal_files_route_api_orderflow_journal_files_get
-      parameters:
-      - in: query
-        name: days
-        required: false
-        schema:
-          default: 30
-          title: Days
-          type: integer
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      security:
-      - bearerAuth: []
-      summary: List Journal Files Route
-      tags:
-      - Order Flow
-  /api/orderflow/journal/session:
-    get:
-      description: 'Stream one day''s stored records as NDJSON.
-
-
-        A whole session is ~180 MB, so a single JSON body would mean buffering it
-
-        twice in the browser. Streaming one record per line keeps memory flat on
-
-        both sides and lets the client feed its pipeline as it arrives.
-
-
-        Line 1 is a ``meta`` object; every later line is the stored record shape
-
-        (``{"ts", "kind", "data"}``) — identical to the bridge''s history replay, so
-
-        consumers need no new parsing logic.'
-      operationId: get_journal_session_api_orderflow_journal_session_get
-      parameters:
-      - in: query
-        name: symbol
-        required: true
-        schema:
-          title: Symbol
-          type: string
-      - in: query
-        name: day
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Day
-      - in: query
-        name: broker
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Broker
-      - in: query
-        name: start
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Start
-      - in: query
-        name: end
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: End
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      security:
-      - bearerAuth: []
-      summary: Get Journal Session
-      tags:
-      - Order Flow
   /api/paper/52w/{symbol}:
     get:
       description: Get 52-week high/low for a symbol (cached with 5min TTL for today, infinite for past).
@@ -8526,377 +11238,6 @@ paths:
       summary: Get Breadth
       tags:
       - reports
-  /api/reports/breakouts:
-    get:
-      description: Daily breakouts/breakdowns across the universe (own 1D candles).
-      operationId: get_breakouts_api_reports_breakouts_get
-      parameters:
-      - description: YYYY-MM-DD, default today IST
-        in: query
-        name: date
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: YYYY-MM-DD, default today IST
-          title: Date
-      - in: query
-        name: universe
-        required: false
-        schema:
-          default: nifty500
-          title: Universe
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Breakouts
-      tags:
-      - reports
-  /api/reports/daily:
-    get:
-      operationId: daily_report_api_reports_daily_get
-      parameters:
-      - in: query
-        name: date
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Date
-      - in: query
-        name: universe
-        required: false
-        schema:
-          default: nifty500
-          title: Universe
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                additionalProperties: true
-                title: Response Daily Report Api Reports Daily Get
-                type: object
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Daily Report
-      tags:
-      - reports
-  /api/reports/delivery:
-    get:
-      description: Top delivery-% rows from the NSE bhavcopy (fail-soft, never 500).
-      operationId: get_delivery_api_reports_delivery_get
-      parameters:
-      - description: YYYY-MM-DD, default today IST
-        in: query
-        name: date
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: YYYY-MM-DD, default today IST
-          title: Date
-      - in: query
-        name: universe
-        required: false
-        schema:
-          default: nifty500
-          title: Universe
-          type: string
-      - in: query
-        name: limit
-        required: false
-        schema:
-          default: 15
-          maximum: 100
-          minimum: 1
-          title: Limit
-          type: integer
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                additionalProperties: true
-                title: Response Get Delivery Api Reports Delivery Get
-                type: object
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Delivery
-      tags:
-      - reports
-  /api/reports/digest/send:
-    post:
-      operationId: send_digest_now_api_reports_digest_send_post
-      parameters:
-      - in: query
-        name: universe
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Universe
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                additionalProperties: true
-                title: Response Send Digest Now Api Reports Digest Send Post
-                type: object
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      security:
-      - bearerAuth: []
-      summary: Send Digest Now
-      tags:
-      - reports
-  /api/reports/events:
-    get:
-      description: Results/dividend/split events via yfinance (fail-soft, never 500).
-      operationId: get_events_api_reports_events_get
-      parameters:
-      - in: query
-        name: from
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: From
-      - in: query
-        name: to
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: To
-      - description: CSV symbols; else universe
-        in: query
-        name: symbols
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: CSV symbols; else universe
-          title: Symbols
-      - in: query
-        name: universe
-        required: false
-        schema:
-          default: nifty500
-          title: Universe
-          type: string
-      - in: query
-        name: limit
-        required: false
-        schema:
-          default: 100
-          maximum: 500
-          minimum: 1
-          title: Limit
-          type: integer
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                additionalProperties: true
-                title: Response Get Events Api Reports Events Get
-                type: object
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Events
-      tags:
-      - reports
-  /api/reports/events/recent:
-    get:
-      description: 'Trailing-window feed: what just fired (results, QIPs, upgrades, updates).'
-      operationId: get_recent_api_reports_events_recent_get
-      parameters:
-      - in: query
-        name: days
-        required: false
-        schema:
-          default: 7
-          maximum: 90
-          minimum: 1
-          title: Days
-          type: integer
-      - in: query
-        name: universe
-        required: false
-        schema:
-          default: nifty500
-          title: Universe
-          type: string
-      - description: CSV symbols; else universe
-        in: query
-        name: symbols
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: CSV symbols; else universe
-          title: Symbols
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                additionalProperties: true
-                title: Response Get Recent Api Reports Events Recent Get
-                type: object
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Recent
-      tags:
-      - reports
-  /api/reports/events/regime:
-    get:
-      description: Nifty 50 close vs its 20DMA (``regime_long_ok``); fail-soft, never 500.
-      operationId: get_regime_api_reports_events_regime_get
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                additionalProperties: true
-                title: Response Get Regime Api Reports Events Regime Get
-                type: object
-          description: Successful Response
-      summary: Get Regime
-      tags:
-      - reports
-  /api/reports/events/upcoming:
-    get:
-      description: Upcoming results + recent news catalysts for a pre-week watchlist.
-      operationId: get_upcoming_api_reports_events_upcoming_get
-      parameters:
-      - in: query
-        name: days
-        required: false
-        schema:
-          default: 14
-          maximum: 90
-          minimum: 1
-          title: Days
-          type: integer
-      - in: query
-        name: universe
-        required: false
-        schema:
-          default: nifty500
-          title: Universe
-          type: string
-      - description: CSV symbols; else universe
-        in: query
-        name: symbols
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: CSV symbols; else universe
-          title: Symbols
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                additionalProperties: true
-                title: Response Get Upcoming Api Reports Events Upcoming Get
-                type: object
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Upcoming
-      tags:
-      - reports
-  /api/reports/follow-through:
-    get:
-      description: Follow-through since a past breakout/breakdown report (own 1D candles).
-      operationId: get_follow_through_api_reports_follow_through_get
-      parameters:
-      - description: YYYY-MM-DD, default today IST
-        in: query
-        name: date
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: YYYY-MM-DD, default today IST
-          title: Date
-      - in: query
-        name: universe
-        required: false
-        schema:
-          default: nifty500
-          title: Universe
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Follow Through
-      tags:
-      - reports
   /api/reports/movers:
     get:
       description: "Get top gainers and losers for an index.\n\nReturns:\n{\n  \"index\": \"NIFTY\",\n  \"as_of\": \"2026-11-05T10:30:00+05:30\",\n  \"stale\": false,\n  \"source\": \"NIFTY50_WEIGHTS (Tickertape 2026-10-15)\",\n  \"gainers\": [{\"symbol\": \"HDFCBANK\", \"ltp\": 1750.0, \"change_pct\": 1.92, \"contribution_pct\": 0.206, \"volume\": 1234567}, ...],\n  \"losers\": [{\"symbol\": \"TCS\", \"ltp\": 3450.0, \"change_pct\": -2.52, \"contribution_pct\": -0.058, \"volume\": 987654}, ...],\n  \"live_only\": false\n}\n\nOn token/quote failure: 503 with {\"detail\": {\"code\": \"movers_unavailable\"}}\nOn historical (non-live) request: returns live_only: true (no history recorded)"
@@ -9569,13 +11910,32 @@ paths:
       description: 'Serve the day''s per-minute OI tape with derived deltas.
 
 
-        NOTE: past minutes are NEVER backfilled — rows exist only for minutes
+        Rows exist for minutes the recorder was alive during market hours. A
 
-        the recorder was alive during market hours, so gaps stay gaps. A
+        minute lost to a transient upstream failure is RETRIED inside its own
 
-        missing/empty tape yields a 404 ``{is_trading_day: False}`` envelope.
+        minute (up to :data:`TAPE_FETCH_ATTEMPTS`) and, if still missing, may be
 
-        See :func:`derive_tape_rows` for the per-row formulas.'
+        reconstructed from the 10-second chain feed — such a row carries
+
+        ``backfilled: true`` and ``source: "chain10s"`` and omits what that feed
+
+        cannot prove (walls, GEX, IV; ``max_pain`` is ``null`` with the computed
+
+        value in ``max_pain_computed``). Nothing is ever fabricated as a recorded
+
+        minute. A missing/empty tape yields a 404 ``{is_trading_day: False}``
+
+        envelope. See :func:`derive_tape_rows` for the per-row formulas.
+
+
+        Per-row ``chain`` snapshots are trimmed to the strikes the report UI can
+
+        read (:func:`_trim_tape_chains`) — the recorded file keeps every strike,
+
+        this response does not. A shortened row carries ``chain_truncated: true``,
+
+        ``chain_center`` (its spot) and ``chain_window_pts``.'
       operationId: get_nifty_tape_api_reports_nifty_tape_get
       parameters:
       - description: 'Tape date YYYY-MM-DD (default: today)'
@@ -10175,7 +12535,14 @@ paths:
 
         ``spot_flip``) are identical. A missing/empty tape is a 404 envelope — the
 
-        recorder only writes rows for minutes it was alive.'
+        recorder only writes rows for minutes it was alive.
+
+
+        Per-row chains are trimmed by :func:`api.reports_api.nifty._trim_tape_chains`
+
+        (the same rule the NIFTY endpoint uses), so SENSEX''s ~233-strike chain no
+
+        longer dominates the response; the recorded file keeps every strike.'
       operationId: get_options_tape_api_reports_options__underlying__tape_get
       parameters:
       - in: path
@@ -10373,40 +12740,29 @@ paths:
       summary: Get Profitability
       tags:
       - reports
-  /api/reports/us/bars:
-    get:
-      description: One-minute OHLC candles (o/h/l/c from the 10 s sampler).
-      operationId: get_bars_api_reports_us_bars_get
-      parameters:
-      - in: query
-        name: root
-        required: false
-        schema:
-          default: NQ
-          title: Root
-          type: string
-      - in: query
-        name: date
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Date
-      - in: query
-        name: limit
-        required: false
-        schema:
-          default: 390
-          maximum: 2000
-          minimum: 1
-          title: Limit
-          type: integer
+  /api/reports/sim/run:
+    post:
+      description: 'Replay one session''s recorded tape through every requested structure.
+
+
+        ``asOf`` truncates the tape at a minute (live mode); omitting it runs the
+
+        whole recorded day. The payload is exactly what the report UI renders.'
+      operationId: run_simulation_api_reports_sim_run_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunIn'
+        required: true
       responses:
         '200':
           content:
             application/json:
-              schema: {}
+              schema:
+                additionalProperties: true
+                title: Response Run Simulation Api Reports Sim Run Post
+                type: object
           description: Successful Response
         '422':
           content:
@@ -10414,193 +12770,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
-      summary: Get Bars
+      summary: Run Simulation
       tags:
-      - reports-us
-  /api/reports/us/eod:
+      - report-sim
+  /api/reports/sim/strategies:
     get:
-      description: Settled end-of-day card derived from the tape.
-      operationId: get_eod_api_reports_us_eod_get
-      parameters:
-      - in: query
-        name: root
-        required: false
-        schema:
-          default: NQ
-          title: Root
-          type: string
-      - in: query
-        name: date
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Date
+      description: The built-in structures the report UI offers as starting points.
+      operationId: get_strategies_api_reports_sim_strategies_get
       responses:
         '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Eod
-      tags:
-      - reports-us
-  /api/reports/us/live:
-    get:
-      description: Latest tape row for ``root`` (one upstream fetch only if the tape is empty).
-      operationId: get_live_api_reports_us_live_get
-      parameters:
-      - in: query
-        name: root
-        required: false
-        schema:
-          default: NQ
-          title: Root
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
+                additionalProperties: true
+                title: Response Get Strategies Api Reports Sim Strategies Get
+                type: object
           description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Live
+      summary: Get Strategies
       tags:
-      - reports-us
-  /api/reports/us/price:
-    get:
-      description: Futures last price only — cheap enough for a 5 s poll.
-      operationId: get_price_api_reports_us_price_get
-      parameters:
-      - in: query
-        name: root
-        required: false
-        schema:
-          default: NQ
-          title: Root
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Price
-      tags:
-      - reports-us
-  /api/reports/us/replay/dates:
-    get:
-      operationId: get_replay_dates_api_reports_us_replay_dates_get
-      parameters:
-      - in: query
-        name: root
-        required: false
-        schema:
-          default: NQ
-          title: Root
-          type: string
-      - in: query
-        name: limit
-        required: false
-        schema:
-          default: 30
-          maximum: 180
-          minimum: 1
-          title: Limit
-          type: integer
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Replay Dates
-      tags:
-      - reports-us
-  /api/reports/us/roots:
-    get:
-      description: Configured futures roots (NQ only for now).
-      operationId: get_roots_api_reports_us_roots_get
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-      summary: Get Roots
-      tags:
-      - reports-us
-  /api/reports/us/tape:
-    get:
-      description: Every recorded minute for a day, oldest first (replay frames).
-      operationId: get_tape_api_reports_us_tape_get
-      parameters:
-      - in: query
-        name: root
-        required: false
-        schema:
-          default: NQ
-          title: Root
-          type: string
-      - in: query
-        name: date
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Date
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Get Tape
-      tags:
-      - reports-us
-  /api/reports/us/tape/status:
-    get:
-      operationId: get_tape_status_api_reports_us_tape_status_get
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Successful Response
-      summary: Get Tape Status
-      tags:
-      - reports-us
+      - report-sim
   /api/rotation/overview:
     get:
       operationId: get_rotation_overview_api_rotation_overview_get
@@ -10956,6 +13144,59 @@ paths:
       summary: Update a saved screener
       tags:
       - screeners
+  /api/sections/scan:
+    get:
+      description: Evaluate user-defined signal sections against one TradingView scanner frame per market. Definitions are supplied as a JSON array in the `sections` query parameter; unknown or malformed definitions are dropped and reported in `note`. Delayed rows are excluded unless `allow_delayed` is set, and `delayed_rows` plus `note` always disclose them. Configured conditions are evaluated in Python after the fetch, never pushed to the scanner.
+      operationId: scan_sections_route_api_sections_scan_get
+      parameters:
+      - description: Market id. `india` or `america`.
+        in: query
+        name: market
+        required: false
+        schema:
+          default: india
+          description: Market id. `india` or `america`.
+          enum:
+          - india
+          - america
+          title: Market
+          type: string
+      - description: JSON array of SectionDefinition objects (id, concept, conditions, render).
+        in: query
+        name: sections
+        required: false
+        schema:
+          default: '[]'
+          description: JSON array of SectionDefinition objects (id, concept, conditions, render).
+          title: Sections
+          type: string
+      - description: Include delayed scanner rows, with a visible note and badge count.
+        in: query
+        name: allow_delayed
+        required: false
+        schema:
+          default: false
+          description: Include delayed scanner rows, with a visible note and badge count.
+          title: Allow Delayed
+          type: boolean
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectionScanResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Scan signal sections for a market
+      tags:
+      - sections
   /api/sector:
     get:
       description: 'Fetch latest stock data and aggregate by sector.
@@ -11121,6 +13362,53 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
           description: Validation Error
       summary: Get Group Performance
+      tags:
+      - sector
+  /api/sector/history:
+    get:
+      description: Monthly sector history, risk, seasonality and rank persistence.
+      operationId: get_sector_history_api_sector_history_get
+      parameters:
+      - in: query
+        name: market
+        required: false
+        schema:
+          default: india
+          pattern: ^(india|america)$
+          title: Market
+          type: string
+      - in: query
+        name: years
+        required: false
+        schema:
+          default: 5
+          maximum: 10
+          minimum: 1
+          title: Years
+          type: integer
+      - description: Bypass the daily cache and refetch
+        in: query
+        name: force
+        required: false
+        schema:
+          default: false
+          description: Bypass the daily cache and refetch
+          title: Force
+          type: boolean
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorHistoryResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Long-horizon sector history
       tags:
       - sector
   /api/sector/themes:
@@ -11607,6 +13895,15 @@ paths:
           description: 'Search source: ''local'' (DB instruments, default), ''tv'' (tradingview_screener lib via Query+col.like), ''auto'' (prefer local, fallback to tv)'
           title: Source
           type: string
+      - description: Only return underlyings that have NSE_FO equity contracts
+        in: query
+        name: fno
+        required: false
+        schema:
+          default: false
+          description: Only return underlyings that have NSE_FO equity contracts
+          title: Fno
+          type: boolean
       responses:
         '200':
           content:
@@ -11889,6 +14186,105 @@ paths:
       summary: Stream Analysis
       tags:
       - Trading Agents
+  /api/user-configs/{scope}:
+    delete:
+      description: 'Remove the saved payload for a scope. Idempotent: the goal is "no row".'
+      operationId: delete_user_config_api_user_configs__scope__delete
+      parameters:
+      - in: path
+        name: scope
+        required: true
+        schema:
+          title: Scope
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Delete saved config for a scope
+      tags:
+      - user-configs
+    get:
+      description: Read the saved payload for a scope, falling back to defaults.
+      operationId: get_user_config_api_user_configs__scope__get
+      parameters:
+      - in: path
+        name: scope
+        required: true
+        schema:
+          title: Scope
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigEnvelope'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Read saved config for a scope
+      tags:
+      - user-configs
+    put:
+      description: Upsert the saved payload for a scope (default slot only).
+      operationId: put_user_config_api_user_configs__scope__put
+      parameters:
+      - in: path
+        name: scope
+        required: true
+        schema:
+          title: Scope
+          type: string
+      - in: header
+        name: If-Match
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: If-Match
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PutConfigRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigEnvelope'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - bearerAuth: []
+      summary: Save config for a scope
+      tags:
+      - user-configs
   /api/value/scan:
     get:
       description: Return the ranked deep-value scan for ``market``.
@@ -12175,8 +14571,6 @@ tags:
   name: reports-nifty
 - description: Nifty intelligence aggregates.
   name: reports-nifty-intel
-- description: US market reports and tape.
-  name: reports-us
 - description: Options chain, analytics and sentiment.
   name: options
 - description: Options report generation.
@@ -12187,6 +14581,12 @@ tags:
   name: options-recorder
 - description: Historical options data.
   name: options-history
+- description: F&O momentum OTM options screener.
+  name: options-screener
+- description: Multi-leg options paper orders, positions and replay.
+  name: Options Paper
+- description: Strategy simulator over recorded option tape (replay + live as-of).
+  name: report-sim
 - description: Live index and commodity ticker data.
   name: market-ticker
 - description: Symbol search and instrument lookup.
@@ -12201,12 +14601,16 @@ tags:
   name: market
 - description: 'Event Radar: scheduled corporate catalysts and intraday tripwires.'
   name: events
+- description: 'Home Monitor: ranked scheduled and breaking market catalysts.'
+  name: catalysts
 - description: Sector rotation and sector-level analytics.
   name: sector
 - description: Market rotation analytics.
   name: rotation
 - description: Cross-asset correlation matrices.
   name: correlation
+- description: User-defined signal sections scanned from one market frame.
+  name: sections
 - description: Market heatmap data.
   name: heatmap
 - description: Exchange holiday calendar.
@@ -12217,8 +14621,8 @@ tags:
   name: brokers
 - description: Historical replay engine.
   name: replay
-- description: Research experiment tracking.
-  name: experiments
+- description: Per-user saved screen state (one default per scope).
+  name: user-configs
 - description: POC / NQ strategy tooling.
   name: poc
 - description: Order flow, depth and tape (incl. /ws WebSocket bridge).

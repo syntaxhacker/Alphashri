@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-"""
-Session Correlation EDA — last few weeks, which session follows what?
-yfinance 1h, ET sessions: Asia 18-03, Europe 03-09:30, NY 09:30-16, Overnight 18-09:30.
-Fetches ES=F & NQ=F for last ~8 weeks, daily session returns, correlations, lead-lag.
-
-Usage:
-  source .venv/bin/activate
-  python scripts/eda_session_corr.py --start 2026-07-01 --end 2026-08-29
-
-Output → reports/SESSION_CORR_EDA/
-"""
 import argparse, json, os
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -51,12 +40,10 @@ def build_daily_sessions(df):
         return pd.DataFrame()
     df=df.copy()
     df["et"]=df.index.tz_convert(TZ_ET)
-    # collect NY dates
     df["is_ny"] = df["et"].map(lambda x: x.time() >= pd.Timestamp("09:30").time() and x.time() < pd.Timestamp("16:00").time())
     ny_dates=sorted(df[df["is_ny"]]["et"].dt.normalize().unique())
     rows=[]
     for d in ny_dates:
-        # d is midnight ET
         if pd.isna(d): continue
         if d.tz is None:
             d_et=pd.Timestamp(d).tz_localize(TZ_ET)
@@ -64,7 +51,7 @@ def build_daily_sessions(df):
             d_et=pd.Timestamp(d).tz_convert(TZ_ET).normalize()
         ny_open=d_et+pd.Timedelta(hours=9, minutes=30)
         ny_close=d_et+pd.Timedelta(hours=16, minutes=0)
-        ov_start=ny_open-pd.Timedelta(hours=15, minutes=30) # 18:00 prior
+        ov_start=ny_open-pd.Timedelta(hours=15, minutes=30)
         asia_end=d_et+pd.Timedelta(hours=3, minutes=0)
         asia_start=ov_start
         eu_start=asia_end
@@ -87,13 +74,11 @@ def build_daily_sessions(df):
     return pd.DataFrame(rows).set_index("date")
 
 def corr_and_scatter(df, cols, title, out):
-    # heatmap
     sub=df[cols].dropna()
     if len(sub)<5:
         return
     corr=sub.corr(method="pearson")
     corr_s=sub.corr(method="spearman")
-    # fig heatmap
     fig, axes=plt.subplots(1,2, figsize=(13,5.2))
     sns.heatmap(corr, annot=True, fmt=".2f", cmap="RdBu_r", center=0, vmin=-1, vmax=1, square=True, ax=axes[0], cbar_kws={"label":"Pearson"})
     axes[0].set_title(f"{title} — Pearson")
@@ -109,7 +94,6 @@ def scatter_with_reg(x, y, xlabel, ylabel, title, out, color):
         return None
     r=float(m["x"].corr(m["y"]))
     rs=float(st.spearmanr(m["x"], m["y"]).correlation)
-    # p
     try:
         p=float(st.pearsonr(m["x"], m["y"]).pvalue)
     except: p=np.nan
@@ -123,7 +107,6 @@ def scatter_with_reg(x, y, xlabel, ylabel, title, out, color):
     ax.axhline(0, color=GRAY, lw=0.8); ax.axvline(0, color=GRAY, lw=0.8)
     ax.set_xlabel(f"{xlabel} return %"); ax.set_ylabel(f"{ylabel} return %")
     ax.set_title(f"{title}\nPearson r={r:.2f} Spearman ρ={rs:.2f} (n={len(m)}, p={p:.3f})", fontsize=10)
-    # quadrant counts
     q1=((m["x"]>0)&(m["y"]>0)).sum(); q2=((m["x"]<0)&(m["y"]>0)).sum(); q3=((m["x"]<0)&(m["y"]<0)).sum(); q4=((m["x"]>0)&(m["y"]<0)).sum()
     agree=q1+q3; disagree=q2+q4
     ax.text(0.02,0.98, f"agree {agree}/{len(m)} ({agree/len(m)*100:.0f}%)", transform=ax.transAxes, fontsize=8, va="top", ha="left", bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="#e2e8f0"))
@@ -145,29 +128,20 @@ def main():
     print(f"ES {0 if es is None else len(es)} 1h  NQ {0 if nq is None else len(nq)} 1h")
     es_daily=build_daily_sessions(es)
     nq_daily=build_daily_sessions(nq)
-    # save csv
     es_daily.to_csv(OUT/"es_daily_sessions.csv")
     nq_daily.to_csv(OUT/"nq_daily_sessions.csv")
-    # merge for cross
     merged=pd.DataFrame({"ES_ny":es_daily["ny"], "NQ_ny":nq_daily["ny"], "ES_ov":es_daily["overnight"], "NQ_ov":nq_daily["overnight"], "ES_eu":es_daily["europe"], "NQ_eu":nq_daily["europe"], "ES_asia":es_daily["asia"], "NQ_asia":nq_daily["asia"]})
-    # stats
     results={}
-    # 1) within ES
     corr_and_scatter(es_daily, ["asia","europe","overnight","ny"], "ES — session correlation (last few weeks)", FIG/"fig1_es_corr.png")
     corr_and_scatter(nq_daily, ["asia","europe","overnight","ny"], "NQ — session correlation", FIG/"fig1_nq_corr.png")
-    # 2) scatter Europe → NY
     r_es_eu_ny=scatter_with_reg(es_daily["europe"], es_daily["ny"], "Europe 03-09:30", "NY 09:30-16", "ES: Europe → NY", FIG/"fig2_es_eu_ny.png", ES_COLOR)
     r_nq_eu_ny=scatter_with_reg(nq_daily["europe"], nq_daily["ny"], "Europe 03-09:30", "NY 09:30-16", "NQ: Europe → NY", FIG/"fig2_nq_eu_ny.png", NQ_COLOR)
-    # 3) Overnight → NY
     r_es_ov_ny=scatter_with_reg(es_daily["overnight"], es_daily["ny"], "Overnight 18-09:30", "NY 09:30-16", "ES: Overnight → NY", FIG/"fig3_es_ov_ny.png", ES_COLOR)
     r_nq_ov_ny=scatter_with_reg(nq_daily["overnight"], nq_daily["ny"], "Overnight 18-09:30", "NY 09:30-16", "NQ: Overnight → NY", FIG/"fig3_nq_ov_ny.png", NQ_COLOR)
-    # 4) Asia → Europe
     r_es_as_eu=scatter_with_reg(es_daily["asia"], es_daily["europe"], "Asia 18-03", "Europe 03-09:30", "ES: Asia → Europe", FIG/"fig4_es_as_eu.png", ES_COLOR)
     r_nq_as_eu=scatter_with_reg(nq_daily["asia"], nq_daily["europe"], "Asia 18-03", "Europe 03-09:30", "NQ: Asia → Europe", FIG/"fig4_nq_as_eu.png", NQ_COLOR)
-    # 5) Cross ES NY vs NQ NY
     r_cross_ny=scatter_with_reg(merged["ES_ny"], merged["NQ_ny"], "ES NY", "NQ NY", "Cross: ES NY vs NQ NY", FIG/"fig5_cross_ny.png", PURPLE)
     r_cross_ov=scatter_with_reg(merged["ES_ov"], merged["NQ_ov"], "ES Overnight", "NQ Overnight", "Cross: ES Overnight vs NQ Overnight", FIG/"fig5_cross_ov.png", PURPLE)
-    # 6) Time series of session returns
     fig, axes=plt.subplots(2,1, figsize=(13,7), sharex=True)
     for ax, df, label, color in [(axes[0], es_daily, "ES", ES_COLOR),(axes[1], nq_daily, "NQ", NQ_COLOR)]:
         d=df.copy()
@@ -185,7 +159,6 @@ def main():
     plt.xticks(rotation=18)
     plt.tight_layout()
     fig.savefig(FIG/"fig6_timeseries.png", bbox_inches="tight"); plt.close(fig)
-    # 7) Agreement analysis: Asia+Europe agree vs NY
     def agree_stats(df):
         sub=df.dropna(subset=["asia","europe","ny"])
         agree=sub[((sub["asia"]>0)&(sub["europe"]>0)) | ((sub["asia"]<0)&(sub["europe"]<0))]
@@ -199,7 +172,6 @@ def main():
         return {"n_agree":len(agree),"hit_agree": hit(agree), "n_disagree":len(disagree),"hit_disagree": hit(disagree) if len(disagree) else np.nan}
     es_agree=agree_stats(es_daily)
     nq_agree=agree_stats(nq_daily)
-    # bar chart agree vs disagree hit
     fig, ax=plt.subplots(figsize=(8,4.2))
     labels=["ES agree\n(Asia & Europe same)","ES disagree\n(mixed)","NQ agree","NQ disagree"]
     vals=[es_agree["hit_agree"], es_agree["hit_disagree"], nq_agree["hit_agree"], nq_agree["hit_disagree"]]
@@ -214,7 +186,6 @@ def main():
     plt.tight_layout()
     fig.savefig(FIG/"fig7_agree.png", bbox_inches="tight"); plt.close(fig)
 
-    # collect results for report
     results={
         "window":f"{args.start}→{args.end}",
         "n_days":len(es_daily),
@@ -224,15 +195,12 @@ def main():
         "cross_ny":r_cross_ny, "cross_ov":r_cross_ov,
         "es_agree":es_agree, "nq_agree":nq_agree
     }
-    # plain english takeaways
     def one(r):
         if r is None: return "—"
         return f"r={r['r']:.2f} (ρ={r['rs']:.2f}, n={r['n']}, {r['agree']}/{r['n']} agree)"
 
-    # write json
     (OUT/"summary.json").write_text(json.dumps(results, indent=2, default=str))
 
-    # build HTML report (single page, one image per row as requested before)
     import base64
     def b64(p): return base64.b64encode(open(p,"rb").read()).decode() if p.exists() else ""
     html=[]
@@ -259,7 +227,6 @@ h1{{font-size:22px;letter-spacing:3px;margin:0 0 6px}} .sub{{color:#7a869a;font-
 </div>
 <div class="insight"><b>💡 In plain English:</b> Europe leads NY best. If Europe (03-09:30 ET) is green, NY (09:30-16) is green {r_es_eu_ny['agree'] if r_es_eu_ny else 0}/{r_es_eu_ny['n'] if r_es_eu_ny else 0} times ({(r_es_eu_ny['agree']/r_es_eu_ny['n']*100 if r_es_eu_ny and r_es_eu_ny['n'] else 0):.0f}%). Overnight alone is noisier. Asia→Europe is weak — Europe does its own thing. When <b>Asia & Europe agree</b> (both up or both down), NY follows {es_agree['hit_agree']:.0f}% (ES) / {nq_agree['hit_agree']:.0f}% (NQ) vs {es_agree['hit_disagree']:.0f}% / {nq_agree['hit_disagree']:.0f}% when they disagree (mixed → chop).</div>
 """)
-    # table agree
     html.append(f"""<div class="kpi"><div><b>ES Agree hit</b><br>{es_agree['hit_agree']:.0f}% (n={es_agree['n_agree']}) vs disagree {es_agree['hit_disagree']:.0f}% (n={es_agree['n_disagree']})</div><div><b>NQ Agree hit</b><br>{nq_agree['hit_agree']:.0f}% (n={nq_agree['n_agree']}) vs disagree {nq_agree['hit_disagree']:.0f}% (n={nq_agree['n_disagree']})</div></div>""")
     captions={
         "fig1_es_corr.png": "<b>Fig 1a — ES session correlation matrix (Pearson left, Spearman right)</b><br>Overnight↔NY and Europe↔NY show the strongest (r ~0.3-0.5). Asia↔Europe weak (~0.1). Overnight includes Asia+Europe so corr with Europe is mechanical (~0.7). <em>Read: focus on Europe→NY, not Asia→Europe.</em>",
@@ -285,7 +252,6 @@ h1{{font-size:22px;letter-spacing:3px;margin:0 0 6px}} .sub{{color:#7a869a;font-
     html.append('</div>')
     html.append(f"""<div class="insight" style="margin-top:16px"><b>Next week:</b> run <code>python scripts/eda_session_corr.py --start 2026-07-15 --end 2026-09-06</code> to see if Europe→NY holds. For trading: at 09:15 ET check Europe return (03-09:30). If Europe green & Asia green → trend size; if mixed → small/fade. Don't use Asia alone.</div></body></html>""")
     (OUT/"report.html").write_text("\n".join(html))
-    # markdown
     md=f"""# Session Correlation — Which Follows What?
 **Window** {args.start}→{args.end} · ES=F/NQ=F yfinance 1h ET · {len(es_daily)} days
 

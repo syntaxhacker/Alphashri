@@ -49,6 +49,46 @@ describe("buildPatternChartOption pivot markers", () => {
     expect(html).toContain("05 May 2026");
     expect(html).toContain("Pivot High: ₹104.00");
   });
+
+  it("formats a US pivot tooltip with $ and en-US grouping, never ₹", () => {
+    const option = buildPatternChartOption({
+      candles: CANDLES,
+      hit: HIT,
+      compact: false,
+      market: "usa",
+    });
+    const formatter = (option.tooltip as { formatter: (p: unknown) => string }).formatter;
+    const html = formatter([
+      {
+        axisValue: "2026-05-04T18:30:00+00:00",
+        seriesType: "scatter",
+        seriesName: "Pivot High",
+        marker: "",
+        value: [0, 1234567.5],
+      },
+    ]);
+    expect(html).toContain("Pivot High: $1,234,567.50");
+    expect(html).not.toContain("₹");
+  });
+
+  it("keeps the India tooltip byte-identical when market is omitted", () => {
+    const params = [
+      {
+        axisValue: "2026-05-04T18:30:00+00:00",
+        seriesType: "scatter",
+        seriesName: "Pivot High",
+        marker: "",
+        value: [0, 104],
+      },
+    ];
+    const htmlOf = (option: Record<string, unknown>) =>
+      (option.tooltip as { formatter: (p: unknown) => string }).formatter(params);
+    expect(
+      htmlOf(buildPatternChartOption({ candles: CANDLES, hit: HIT, compact: false })),
+    ).toBe(
+      htmlOf(buildPatternChartOption({ candles: CANDLES, hit: HIT, compact: false, market: "india" })),
+    );
+  });
 });
 
 describe("buildPatternChartOption sibling overlays", () => {
@@ -90,8 +130,6 @@ describe("buildPatternChartOption sibling overlays", () => {
     });
     const series = seriesOf<SeriesLike>(option);
     const names = series.map((s) => s.name);
-    // Selected pattern is named (not "Upper/Lower boundary") and drawn solid;
-    // sibling is drawn under its own name.
     expect(names).toContain("Falling Wedge");
     expect(names).toContain("Rising Wedge");
     expect(names).not.toContain("Upper boundary");
@@ -152,8 +190,6 @@ describe("buildPatternChartOption instance identity", () => {
       compact: false,
     });
     const names = seriesOf<SeriesLike>(option).map((s) => s.name);
-    // Selected instance (exact start_date match) is skipped as a sibling, the
-    // other instance stays — disambiguated with a suffix.
     expect(names).toContain("Rising Wedge");
     expect(names).toContain("Rising Wedge (2)");
   });
@@ -182,7 +218,6 @@ describe("buildPatternChartOption instance identity", () => {
     });
     const series = seriesOf<SeriesLike>(option);
     const uniqueNames = new Set(series.map((s) => s.name));
-    // No two series share a legend name.
     expect(uniqueNames.size).toBe(series.length);
     const legend = option.legend as { data?: string[] } | undefined;
     expect(new Set(legend?.data).size).toBe(legend?.data?.length);
@@ -212,12 +247,40 @@ describe("buildPatternChartOption instance identity", () => {
   });
 });
 
+describe("buildPatternChartOption purity", () => {
+  it("does not mutate its inputs and is deterministic for equal arguments", () => {
+    const candles: ChartCandle[] = CANDLES.map((c) => ({ ...c }));
+    const trendlines = [
+      [
+        { t: CANDLES[0]!.t, price: 104 },
+        { t: CANDLES[1]!.t, price: 107 },
+      ],
+    ];
+    const candlesBefore = structuredClone(candles);
+    const trendlinesBefore = structuredClone(trendlines);
+    const hitBefore = structuredClone(HIT);
+
+    const input = { candles, trendlines, hit: HIT, compact: false };
+    const first = buildPatternChartOption(input);
+    const second = buildPatternChartOption(input);
+
+    expect(candles).toEqual(candlesBefore);
+    expect(trendlines).toEqual(trendlinesBefore);
+    expect(HIT).toEqual(hitBefore);
+    expect((first.xAxis as { data?: unknown[] }).data).toEqual(
+      (second.xAxis as { data?: unknown[] }).data,
+    );
+    expect(seriesOf<SeriesLike>(first).map((s) => s.data)).toEqual(
+      seriesOf<SeriesLike>(second).map((s) => s.data),
+    );
+  });
+});
+
 describe("buildPatternChartOption performance", () => {
   it("builds the full option for 714 daily candles in under 20ms (median of 20)", () => {
     // Realistic fullscreen dock chart: 714 daily candles, naive engine
     // timestamps (which never exact-match the ISO candle axis, so every point
-    // exercises the nearest lookup), 15 sibling overlays, 24 pivots, 6
-    // standalone TLS/TLR lines.
+    // exercises the nearest lookup), 15 sibling overlays and 24 pivots.
     const candles: ChartCandle[] = [];
     const start = new Date("2023-01-02T09:15:00+05:30").getTime();
     let price = 100;
@@ -235,17 +298,6 @@ describe("buildPatternChartOption performance", () => {
         t: naiveAt(20 + k * 28),
         price: 100 + k,
         kind: (k % 2 === 0 ? "high" : "low") as "high" | "low",
-      })),
-      trend_lines: Array.from({ length: 6 }, (_, k) => ({
-        kind: (k % 2 === 0 ? "support" : "resistance") as "support" | "resistance",
-        start_date: candles[k * 10]!.t.slice(0, 10),
-        start_price: 90 + k * 2,
-        end_date: candles[600 + k * 5]!.t.slice(0, 10),
-        end_price: 110 + k * 2,
-        slope: 0.1,
-        touches: 3,
-        span_bars: 100,
-        violations: 0,
       })),
     };
     const overlays = Array.from({ length: 15 }, (_, k) => ({
@@ -279,7 +331,6 @@ describe("buildPatternChartOption performance", () => {
       overlays,
       compact: false,
     };
-    // Warm up, then take the median of 20 single builds.
     for (let i = 0; i < 5; i++) buildPatternChartOption(input);
     const samples: number[] = [];
     for (let i = 0; i < 20; i++) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTimeLabel } from "../chartTimeUtils";
+import { formatTimeLabel } from "./time";
 
 describe("formatTimeLabel", () => {
   it("extracts time from ISO string with T separator", () => {
@@ -27,17 +27,15 @@ describe("formatTimeLabel", () => {
   });
 
   it("handles undefined", () => {
-    // @ts-expect-error - testing edge case
     expect(formatTimeLabel(undefined)).toBe("");
   });
 
   it("handles null", () => {
-    // @ts-expect-error - testing edge case
     expect(formatTimeLabel(null)).toBe("");
   });
 
-  it("extracts first 5 characters (HH:MM) only", () => {
-    expect(formatTimeLabel("2025-01-15T09:30:45.123Z")).toBe("09:30");
+  it("renders explicit-offset timestamps in IST as HH:MM", () => {
+    expect(formatTimeLabel("2025-01-15T09:30:45.123Z")).toBe("15:00");
     expect(formatTimeLabel("2025-01-15T23:59:59+05:30")).toBe("23:59");
   });
 

@@ -10,6 +10,15 @@ Design rules:
 - additive: the 1-min tape/replay/live paths are untouched;
 - off-switch: ``CHAIN10S_ENABLED=0`` stops the task and the endpoint returns [];
 - market-hours gated; failures never raise (the next tick retries).
+
+Evidence files (all additive, none of them on the 7-tuple contract):
+- ``nifty_chain10s/{date}.gaps.jsonl`` — ``{t, reason, detail}`` for every
+  failed poll and every hole longer than 2× the nominal interval, so a silent
+  painter (stale chain, dead poller) is answerable after the log rotates.
+- ``nifty_chain10s_greeks/{date}.jsonl`` — the greeks/IV block of the FULL
+  rows that were already in memory (``LAST_FULL``), one line per poll:
+  ``{t, expiry, spot, rows:[{strike, ce:{iv,delta,gamma,theta,vega}, pe:{…}}]}``.
+  Opt out with ``CHAIN10S_GREEKS=0``.
 """
 
 from __future__ import annotations
@@ -25,6 +34,8 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Query
 
+from api.reports_api.report_io import read_jsonl
+
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 WINDOW_PTS = float(os.getenv("CHAIN10S_WINDOW_PTS", "750"))
@@ -33,6 +44,18 @@ BURST_INTERVAL_SEC = float(os.getenv("CHAIN10S_BURST_SEC", "3"))
 BURST_WINDOW_SEC = float(os.getenv("CHAIN10S_BURST_WINDOW_SEC", "90"))
 BURST_DELTA = float(os.getenv("CHAIN10S_BURST_DELTA", "1000000"))
 ENABLED = os.getenv("CHAIN10S_ENABLED", "1") != "0"
+#: Greeks evidence file (separate directory; the slim 7-tuple stays untouched).
+GREEKS_ENABLED = os.getenv("CHAIN10S_GREEKS", "1") != "0"
+#: Hard cap on strikes per greeks line — a 2.5-pt ladder inside a ±750-pt
+#: window would otherwise be 600 strikes × 6 polls/min. Nearest to spot wins.
+GREEKS_MAX_STRIKES = int(os.getenv("CHAIN10S_GREEKS_MAX_STRIKES", "400"))
+#: A hole longer than this multiple of INTERVAL_SEC is journalled as a gap.
+GAP_MULTIPLE = float(os.getenv("CHAIN10S_GAP_MULTIPLE", "2"))
+#: Upper bound for gap journalling. The loop sleeps 60 s while the market is
+#: closed, so anything longer than an hour is a session boundary (or a
+#: restart, where ``_last_ok_ts`` is already None) — not a poller hole.
+GAP_MAX_SEC = float(os.getenv("CHAIN10S_GAP_MAX_SEC", "3600"))
+GREEK_KEYS = ("iv", "delta", "gamma", "theta", "vega")
 
 LAST: dict[str, Any] = {"t": None, "spot": None, "rows": None, "expiry": None}
 #: Newest FULL parsed chain (greeks + prev_oi included), memory only. The disk
@@ -47,20 +70,107 @@ RECENT: deque = deque(maxlen=240)
 _task: Optional[asyncio.Task] = None
 _burst_until = 0.0
 _prev_oi: Optional[float] = None
+#: Epoch of the last successful snapshot — the only honest gap baseline.
+_last_ok_ts: Optional[float] = None
+#: ``(minute, reason)`` pairs already journalled per journal path, so a retry
+#: storm during an outage writes one line per reason per minute, not 6/min.
+_GAP_SEEN: dict[str, set[tuple[str, str]]] = {}
+
+
+def _data_root() -> Path:
+    import config
+
+    return (Path(getattr(config, "BASE_DIR", Path(__file__).resolve().parents[2]))
+            / "experiments" / "data")
 
 
 def _dir() -> Path:
-    import config
-
-    path = Path(getattr(config, "BASE_DIR", Path(__file__).resolve().parents[2])) / "experiments" / "data" / "nifty_chain10s"
+    path = _data_root() / "nifty_chain10s"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
-def _today_ist() -> str:
+def _greeks_dir() -> Path:
+    path = _data_root() / "nifty_chain10s_greeks"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _now_ist() -> datetime:
+    """Aware IST wall clock.
+
+    The snapshot stamp used to be ``datetime.now().astimezone()`` — on a
+    non-IST host (CI, a container with UTC) the ISO string carried a different
+    offset and ``_today_ist()`` could disagree with it across midnight, so the
+    day file and the stamps inside it split.
+    """
     import config
 
-    return datetime.now(config.IST).strftime("%Y-%m-%d")
+    return datetime.now(config.IST)
+
+
+def _today_ist() -> str:
+    return _now_ist().strftime("%Y-%m-%d")
+
+
+def _gap_path(date_str: str) -> Path:
+    return _dir() / f"{date_str}.gaps.jsonl"
+
+
+def _err_detail(exc: BaseException) -> str:
+    """One-line failure text for the gap journal. Never raises."""
+    try:
+        return f"{type(exc).__name__}: {str(exc)[:180]}"
+    except Exception:
+        return type(exc).__name__
+
+
+def _append_gap(date_str: str, t_iso: str, reason: str, detail: str = "") -> None:
+    """Append one ``{t, reason, detail}`` line to the day's gap journal.
+
+    Deduped by ``(minute, reason)`` so an outage that fails every 10 s counts
+    once per minute while still recording a *new* reason immediately. Never
+    raises: the poller must not die because its diary is read-only.
+    """
+    try:
+        path = _gap_path(date_str)
+        key = str(path)
+        seen = _GAP_SEEN.setdefault(key, set())
+        minute = str(t_iso)[:16]
+        if (minute, reason) in seen:
+            return
+        entry: dict[str, Any] = {"t": t_iso, "reason": reason}
+        if detail:
+            entry["detail"] = str(detail)[:200]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a") as fh:
+            fh.write(json.dumps(entry, separators=(",", ":")) + "\n")
+        seen.add((minute, reason))
+    except Exception:
+        pass
+
+
+def read_gaps(date_str: str) -> list[dict]:
+    """Parsed gap journal for a session (``[]`` when absent/corrupt)."""
+    path = _gap_path(date_str)
+    out: list[dict] = []
+    if not path.exists():
+        return out
+    try:
+        with open(path) as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(row, dict):
+                    out.append(row)
+    except OSError:
+        return []
+    return out
 
 
 def slim_rows(rows: list[dict], spot: float, window: float = WINDOW_PTS) -> list[list[float]]:
@@ -91,9 +201,104 @@ def slim_rows(rows: list[dict], spot: float, window: float = WINDOW_PTS) -> list
     return out
 
 
+def _leg_greeks(leg: Optional[dict]) -> dict[str, Optional[float]]:
+    """``{iv,delta,gamma,theta,vega}`` from one parsed leg, ``None`` when dead.
+
+    A dead/missing leg must read as ``null`` evidence, not as "zero gamma":
+    ``build_leg`` defaults missing gamma to ``0.0``, which downstream would
+    look like a real flat-gamma strike. A leg is dead when it carries no
+    instrument key and none of the greeks are present.
+    """
+    if not isinstance(leg, dict):
+        return {k: None for k in GREEK_KEYS}
+    present = [leg.get(k) for k in GREEK_KEYS]
+    dead = (not leg.get("instrument_key")
+            and not leg.get("ltp")
+            and all(v in (None, 0, 0.0) for v in present))
+    out: dict[str, Optional[float]] = {}
+    for key in GREEK_KEYS:
+        value = leg.get(key)
+        try:
+            out[key] = None if dead or value is None else float(value)
+        except (TypeError, ValueError):
+            out[key] = None
+    return out
+
+
+def greeks_rows(rows: list[dict], spot: float,
+                window: float = WINDOW_PTS,
+                max_strikes: Optional[int] = None) -> list[dict]:
+    """±``window`` strikes as ``{strike, ce:{…}, pe:{…}}``, bounded and sorted.
+
+    Pure: no I/O, no mutation of ``rows``. ``max_strikes`` keeps the strikes
+    nearest spot (ties keep the lower strike) so a fine-grained ladder cannot
+    produce an unbounded line.
+    """
+    cap = GREEKS_MAX_STRIKES if max_strikes is None else int(max_strikes)
+    out: list[dict] = []
+    spot = float(spot or 0)
+    for row in rows or []:
+        try:
+            strike = float(row.get("strike") or 0)
+        except (TypeError, ValueError):
+            continue
+        if strike <= 0 or (spot and abs(strike - spot) > window):
+            continue
+        out.append({
+            "strike": strike,
+            "ce": _leg_greeks(row.get("ce")),
+            "pe": _leg_greeks(row.get("pe")),
+        })
+    out.sort(key=lambda r: r["strike"])
+    if cap and spot and len(out) > cap:
+        keep = sorted(out, key=lambda r: (abs(r["strike"] - spot), r["strike"]))[:cap]
+        out = sorted(keep, key=lambda r: r["strike"])
+    return out
+
+
+def _write_greeks(snap: dict, rows: list[dict]) -> Optional[dict]:
+    """Append one greeks line per poll. Returns the payload, or ``None``.
+
+    Optional (``CHAIN10S_GREEKS=0``) and additive — the slim snapshot and its
+    7-tuple row contract are unchanged. The caller has already paid for the
+    chain fetch, so this is a projection of data in memory, never a fetch.
+    """
+    if not GREEKS_ENABLED:
+        return None
+    written = greeks_rows(rows, snap.get("spot") or 0)
+    if not written:
+        return None
+    payload = {
+        "t": snap["t"],
+        "expiry": snap.get("expiry") or "",
+        "spot": snap.get("spot"),
+        "rows": written,
+    }
+    path = _greeks_dir() / f"{str(snap['t'])[:10]}.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a") as fh:
+        fh.write(json.dumps(payload, separators=(",", ":")) + "\n")
+    return payload
+
+
 async def poll_once() -> Optional[dict]:
     """Fetch one chain, append the slim snapshot, update LAST. Never raises."""
-    global _prev_oi, _burst_until
+    global _prev_oi, _burst_until, _last_ok_ts
+    now = _now_ist()
+    t_iso = now.isoformat()
+    date_str = t_iso[:10]
+    ts_epoch = time.time()
+    # A hole is measured from the previous SUCCESS, before this attempt can
+    # reset the baseline. A restart leaves ``_last_ok_ts`` at None, so restart
+    # downtime is not reported as a poller gap (the session's own coverage
+    # still shows the hole).
+    if _last_ok_ts is not None:
+        elapsed = ts_epoch - _last_ok_ts
+        if GAP_MULTIPLE * INTERVAL_SEC < elapsed <= GAP_MAX_SEC:
+            _append_gap(
+                date_str, t_iso, "poll-gap",
+                f"gap {elapsed:.0f}s > {GAP_MULTIPLE:g}x {INTERVAL_SEC:.0f}s",
+            )
     try:
         # Lazy import: keeps this module import-light and cycle-free.
         from api.reports_api.nifty import _fetch_chain_payload, parse_chain_payload
@@ -102,16 +307,16 @@ async def poll_once() -> Optional[dict]:
         chain_expiry, spot, rows = parse_chain_payload(payload)
         slim = slim_rows(rows, spot)
         if not slim:
+            _append_gap(date_str, t_iso, "empty-chain",
+                        "chain parsed but no strikes inside the window")
             return None
-        now = datetime.now()
-        ts_epoch = time.time()
         snap = {
-            "t": now.astimezone().isoformat(),
+            "t": t_iso,
             "spot": round(float(spot), 2),
             "expiry": chain_expiry or expiry or "",
             "rows": slim,
         }
-        with open(_dir() / f"{_today_ist()}.jsonl", "a") as fh:
+        with open(_dir() / f"{date_str}.jsonl", "a") as fh:
             fh.write(json.dumps(snap, separators=(",", ":")) + "\n")
         total_oi = sum(r[2] + r[5] for r in slim)
         if _prev_oi is not None and abs(total_oi - _prev_oi) >= BURST_DELTA:
@@ -124,10 +329,17 @@ async def poll_once() -> Optional[dict]:
         LAST_FULL.update({"t": snap["t"], "ts": ts_epoch, "spot": snap["spot"],
                           "expiry": snap["expiry"], "rows": rows})
         RECENT.append(snap)
+        _last_ok_ts = ts_epoch
+        try:
+            _write_greeks(snap, rows)
+        except Exception as exc:
+            # Evidence is additive: a full disk must not cost the snapshot.
+            _append_gap(date_str, t_iso, "greeks-failed", _err_detail(exc))
         return snap
     except asyncio.CancelledError:
         raise
-    except Exception:
+    except Exception as exc:
+        _append_gap(date_str, t_iso, "poll-failed", _err_detail(exc))
         return None
 
 
@@ -203,25 +415,7 @@ def start_chain10s_task() -> Optional[asyncio.Task]:
 
 
 def _read_day(date_str: str) -> list[dict]:
-    path = _dir() / f"{date_str}.jsonl"
-    if not path.exists():
-        return []
-    out: list[dict] = []
-    try:
-        with open(path) as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(row, dict):
-                    out.append(row)
-    except OSError:
-        return []
-    return out
+    return read_jsonl(_dir() / f"{date_str}.jsonl")
 
 
 def summarise_snapshots(newest: list[dict],

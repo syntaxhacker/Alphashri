@@ -46,7 +46,6 @@ def _rows(date: str) -> list[dict]:
 
 
 def _at(rows: list[dict], at: str) -> tuple[int, dict]:
-    """Index of the last row at/before ``at`` (HH:MM, HH:MM:SS, or full ISO)."""
     if "T" in at:
         target = datetime.fromisoformat(at)
         idx = -1
@@ -72,7 +71,6 @@ def _px(row: dict, strike: float, opt: str) -> float:
     leg = (row.get("chain") or {}).get(str(int(strike))) or (row.get("chain") or {}).get(str(strike))
     if leg and len(leg) >= (1 if opt.upper() == "CE" else 2):
         return float(leg[0] if opt.upper() == "CE" else leg[1])
-    # Older tape has no chain: only the ATM premium is recorded.
     atm = row.get("atm_strike")
     try:
         if atm and abs(float(strike) - float(atm)) < 0.5:
@@ -218,7 +216,6 @@ def _close(state: dict, p: dict, px: float, at: str, reason: str) -> None:
 
 
 def _advance(state: dict, rows: list[dict], from_idx: int, to_idx: int) -> None:
-    """Walk rows forward, ratchet the stop, close on stop/target."""
     p = state.get("position")
     if not p:
         return
@@ -346,7 +343,7 @@ def cmd_enter(a) -> int:
     st = _load(a.date)
     if st.get("position"):
         raise SystemExit("a position is already open")
-    _advance(st, rows, idx, idx)  # no-op, keeps state consistent
+    _advance(st, rows, idx, idx)
     st["position"] = {
         "opt": a.opt.upper(), "strike": float(a.strike),
         "direction": a.direction.upper(), "lots": a.lots, "qty": a.lots * LOT,

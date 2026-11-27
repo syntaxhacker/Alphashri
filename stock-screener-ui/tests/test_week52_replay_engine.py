@@ -76,7 +76,6 @@ def _load_ctx(params=None):
     return engine.load(REPLAY_DATE, merged)
 
 
-# ---------------- load / registry ----------------
 
 class TestLoadAndRegistry:
 
@@ -106,7 +105,6 @@ class TestLoadAndRegistry:
         assert ctx.bars == []
 
 
-# ---------------- run ----------------
 
 class TestRun:
 
@@ -150,7 +148,6 @@ class TestRun:
         assert result.kpis["wins"] == sum(1 for t in result.trades if t["pnl"] > 0)
 
 
-# ---------------- generic endpoint uses engine load ----------------
 
 class TestGenericEndpointUsesLoad:
 

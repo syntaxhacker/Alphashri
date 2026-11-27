@@ -1,6 +1,7 @@
 // Mock API responses for E2E tests
 
 import { apiRoute } from "./routeHelper";
+import { setupHomeNetworkMocks, setupHomePatternMocks } from "./homeDeskFixtures";
 
 export const mockScreenersList = {
   screeners: [
@@ -324,7 +325,6 @@ const allBuyerInterestStocks = [
   },
 ];
 
-// Helper to create buyer interest response
 function createBuyerInterestResponse(direction: string) {
   let stocks = allBuyerInterestStocks;
   if (direction === "bullish") {
@@ -364,7 +364,6 @@ function createBuyerInterestResponse(direction: string) {
   };
 }
 
-// Export the counts for assertions
 export const mockBuyerInterestCounts = {
   total: allBuyerInterestStocks.length,
   bullish: allBuyerInterestStocks.filter((s) => s.wick_close_pct >= 60).length,
@@ -555,7 +554,6 @@ export async function setupSectorMocks(page: import("@playwright/test").Page) {
   });
 }
 
-// Track auth state per page object using WeakMap
 const authStateByPage = new WeakMap<import("@playwright/test").Page, boolean>();
 
 // Test user credentials - defined before setupApiMocks
@@ -570,7 +568,6 @@ export const testUser = {
 // Helper to setup API mocks in Playwright tests
 // IMPORTANT: This must be called BEFORE page.goto()
 export async function setupApiMocks(page: import("@playwright/test").Page) {
-  // Reset auth state for this page
   authStateByPage.set(page, false);
 
   // Mock auth endpoints
@@ -639,7 +636,6 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
       return;
     }
 
-    // Check if it's buyer_interest_enhanced
     if (url.includes("screener=buyer_interest_enhanced")) {
       const directionMatch = url.match(/pf_direction=([^&]+)/);
       const direction = directionMatch ? directionMatch[1] : "both";
@@ -652,7 +648,6 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
       return;
     }
 
-    // Default to trending response
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -674,6 +669,22 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
         last_updated: new Date().toISOString(),
       }),
     });
+  });
+
+  // Mock screener dashboard (registered after the broad /api/screener handler so it
+  // takes priority for /api/screener/dashboard requests).
+  await page.route(apiRoute("screener/dashboard"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockDashboardResponse),
+    });
+  });
+
+  // The app shell fetches news sources even on non-news routes; an unmocked
+  // call logs a console error and fails the evidence honesty guards.
+  await page.route(apiRoute("news/sources"), async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ sources: [] }) });
   });
 }
 
@@ -712,7 +723,6 @@ export const mockStrategyConfig = {
 // Track config state per page object using WeakMap (for parallel test safety)
 const configByPage = new WeakMap<import("@playwright/test").Page, typeof mockStrategyConfig>();
 
-// Helper to get or create config for a page
 function getConfigForPage(page: import("@playwright/test").Page): typeof mockStrategyConfig {
   if (!configByPage.has(page)) {
     configByPage.set(page, { ...mockStrategyConfig });
@@ -741,11 +751,27 @@ export async function loginAsTestUser(page: import("@playwright/test").Page) {
       body: JSON.stringify(testUser),
     });
   });
+
+  // Surge endpoints now require auth; the fake E2E token would otherwise
+  // produce expected 401 console noise in every spec.
+  await page.route(apiRoute("notifications/surge**"), async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ total: 0, today_count: 0, offset: 0, limit: 10, events: [] }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ status: "ok", id: 1 }),
+    });
+  });
 }
 
-// Helper to setup paper trading API mocks
 export async function setupPaperTradingMocks(page: import("@playwright/test").Page) {
-  // Initialize config for this page
   configByPage.set(page, { ...mockStrategyConfig });
 
   // Mock portfolio endpoint
@@ -856,7 +882,6 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
         }),
       });
     } else if (route.request().method() === "PUT") {
-      // Handle PUT - update config
       const body = route.request().postDataJSON();
       const updatedConfig = { ...config, ...body };
       configByPage.set(page, updatedConfig);
@@ -898,12 +923,10 @@ export async function setupPaperTradingMocks(page: import("@playwright/test").Pa
   });
 }
 
-// Helper to get current config for a specific page (for test assertions)
 export function getCurrentConfig(page: import("@playwright/test").Page) {
   return { ...getConfigForPage(page) };
 }
 
-// Multi-strategy bot mocks
 export async function setupMultiStrategyBotMocks(page: import("@playwright/test").Page) {
   const BOT_UUID_1 = "550e8400-e29b-41d4-a716-446655440000";
   const BOT_UUID_2 = "81b1e4e1-de04-4989-8357-96daade0bd86";
@@ -1140,7 +1163,6 @@ export async function setupMultiStrategyBotMocks(page: import("@playwright/test"
   });
 }
 
-// Correlation API mocks
 export const mockCorrelationResponse = {
   matrix: [
     [1.0, 0.85, 0.32],
@@ -1203,7 +1225,6 @@ export async function setupCorrelationMocks(page: import("@playwright/test").Pag
   });
 }
 
-// Options API mocks
 export async function setupOptionsMocks(page: import("@playwright/test").Page) {
   // Mock underlyings
   await page.route(apiRoute("options/underlyings"), async (route) => {
@@ -1591,7 +1612,6 @@ const mockEmptyPerformanceData: {
   net_pnl: number;
 }[] = [];
 
-// Full strategy mocks for strategies page
 export async function setupStrategiesMocks(page: import("@playwright/test").Page) {
   // Register specific routes BEFORE broad ones to avoid substring regex collisions.
   // apiRoute("strategies") regex also matches /api/strategies/templates, so templates
@@ -1795,7 +1815,6 @@ export async function setupStrategiesMocks(page: import("@playwright/test").Page
   });
 }
 
-// Empty state mocks
 export async function setupStrategiesEmptyMocks(page: import("@playwright/test").Page) {
   await page.route(apiRoute("strategies/templates"), async (route) => {
     await route.fulfill({
@@ -1843,7 +1862,6 @@ export async function setupStrategiesEmptyMocks(page: import("@playwright/test")
   });
 }
 
-// Error state mocks
 export async function setupStrategiesErrorMocks(page: import("@playwright/test").Page) {
   await page.route(apiRoute("strategies/templates"), async (route) => {
     await route.fulfill({
@@ -1862,10 +1880,14 @@ export async function setupStrategiesErrorMocks(page: import("@playwright/test")
   });
 }
 
-// Nifty report API mocks
 export const mockNiftyReport = {
   mode: "live",
   date: "2026-10-12",
+  market: {
+    is_open: false,
+    session_date: "2026-10-12",
+    as_of: "2026-10-12T10:00:00+05:30",
+  },
   expiry: "2026-10-14",
   spot: 22363.35,
   ohlc: { open: 22300, high: 22410.5, low: 22280, close: 22363.35 },
@@ -2086,9 +2108,6 @@ export async function setupNiftyTapeMocks(page: import("@playwright/test").Page)
   });
 }
 
-// ---------------------------------------------------------------------------
-// Deep Value scan (GET /api/value/scan)
-// ---------------------------------------------------------------------------
 
 const mockValueRow = {
   symbol: "SBILIFE",
@@ -2176,6 +2195,780 @@ export async function setupValueScanMocks(page: import("@playwright/test").Page)
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(body),
+    });
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Saved user configs (GET/PUT/DELETE /api/user-configs/{scope})
+ *
+ * Stateful per page: a GET returns the latest PUT, and a page that never
+ * wrote gets the server defaults with `saved: false` — exactly the contract
+ * in docs/SAVED_CONFIGS_PLAN.md §2.5.
+ *
+ * The wire body is FLAT — `{universe, sectors, capTiers, …, sort, view}` —
+ * as shipped in `api/user_configs.py:MarketFiltersV1` and emitted by
+ * `useMarketConfig.serializeMarketConfig`. The plan's `{universe, filters}`
+ * nesting never shipped; a nested body is still accepted (and flattened) so a
+ * seed written in the old shape cannot silently restore nothing.
+ * ------------------------------------------------------------------ */
+
+/** `market.filters` v1 defaults — flat, mirroring `MarketFiltersV1()`. */
+export const DEFAULT_MARKET_FILTERS_CONFIG = {
+  universe: "all_equity",
+  sectors: [] as string[],
+  capTiers: [] as string[],
+  priceMin: null as number | null,
+  priceMax: null as number | null,
+  dayChangeMin: null as number | null,
+  dayChangeMax: null as number | null,
+  mcapMinCr: null as number | null,
+  mcapMaxCr: null as number | null,
+  rsiMin: null as number | null,
+  rsiMax: null as number | null,
+  relVolMin: null as number | null,
+  relVolMax: null as number | null,
+  aboveSma20: false,
+  aboveSma50: false,
+  aboveSma200: false,
+  fnoOnly: false,
+  etfOnly: false,
+  sort: "mcap_desc",
+  view: "table",
+};
+
+export type MarketFiltersPayload = typeof DEFAULT_MARKET_FILTERS_CONFIG;
+
+/** Fields of a `market.filters` payload, flat. Seeds may pass a subset. */
+export type MarketFiltersSeed = Partial<MarketFiltersPayload> & {
+  /** Legacy plan §2.4 nesting; flattened on write. Prefer the flat fields. */
+  filters?: Partial<MarketFiltersPayload>;
+};
+
+export interface UserConfigEnvelope {
+  scope: string;
+  version: number;
+  saved: boolean;
+  updated_at: string | null;
+  config: Record<string, unknown>;
+  warning?: string;
+}
+
+export interface UserConfigMockHandle {
+  /** Latest persisted payload, flat, or null when nothing has been saved yet. */
+  stored: () => Record<string, unknown> | null;
+  /** Latest persisted payload for an arbitrary scope (e.g. `table.market.grid`). */
+  storedScope: (scope: string) => Record<string, unknown> | null;
+  /** Every PUT body seen, in order — proves a write happened without spying on the UI. */
+  puts: () => Record<string, unknown>[];
+  /** Flip to a non-2xx status to exercise the "Filters not saved" chip. */
+  setPutStatus: (status: number | null) => void;
+}
+
+type UserConfigEntry = { config: Record<string, unknown>; updatedAt: string };
+
+/** Scopes owned by the route handler, shared with `seedUserConfig` for pre-navigation seeds. */
+const userConfigScopesByPage = new WeakMap<
+  import("@playwright/test").Page,
+  Map<string, UserConfigEntry>
+>();
+
+/** v1 table prefs — the wire shape every `table.*` scope defaults to. */
+const DEFAULT_TABLE_CONFIG = {
+  sorting: [] as { id: string; desc: boolean }[],
+  order: [] as string[],
+  hidden: [] as string[],
+};
+
+function isTableScope(scope: string): boolean {
+  return scope.startsWith("table.");
+}
+
+function isSectionsScope(scope: string): boolean {
+  return scope === "user.sections";
+}
+
+function mergeSectionsConfig(raw: unknown): Record<string, unknown> {
+  const base = { sections: [] as Record<string, unknown>[], version: 1 };
+  return isPlainObject(raw) ? { ...base, ...raw } : base;
+}
+
+/** `table.*` bodies are echoed with the three v1 fields defaulted, never reshaped. */
+function mergeTableConfig(raw: unknown): Record<string, unknown> {
+  const base = JSON.parse(JSON.stringify(DEFAULT_TABLE_CONFIG)) as Record<string, unknown>;
+  return isPlainObject(raw) ? { ...base, ...raw } : base;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * Flatten a `market.filters` body onto the defaults, keeping unknown keys.
+ * A nested `filters` object is merged in first and a top-level `universe`
+ * wins — the same rule the server (`flatten_market_config`) and the frontend
+ * adapter (`parseMarketConfig`) apply, so a legacy seed behaves like a PUT.
+ */
+function mergeMarketFilters(raw: unknown): Record<string, unknown> {
+  const base = JSON.parse(
+    JSON.stringify(DEFAULT_MARKET_FILTERS_CONFIG),
+  ) as Record<string, unknown>;
+  if (!isPlainObject(raw)) return base;
+  const { filters, ...top } = raw;
+  return {
+    ...base,
+    ...(isPlainObject(filters) ? filters : {}),
+    ...top,
+  };
+}
+
+/**
+ * Mock the per-scope saved-config endpoints.
+ *
+ * `initial` seeds a *saved* row (GET → `saved: true`). Omit it for a fresh
+ * account so the first GET proves the `saved: false` defaults path.
+ * Call after `setupApiMocks` and before `page.goto()`.
+ */
+export async function setupUserConfigMocks(
+  page: import("@playwright/test").Page,
+  initial?: MarketFiltersSeed,
+): Promise<UserConfigMockHandle> {
+  const scopes = new Map<string, UserConfigEntry>();
+  userConfigScopesByPage.set(page, scopes);
+  if (initial) {
+    scopes.set("market.filters", {
+      config: mergeMarketFilters(initial),
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  let putStatus: number | null = null;
+  const puts: Record<string, unknown>[] = [];
+  let clock = 0;
+  const nextUpdatedAt = () => new Date(Date.UTC(2026, 10, 15, 9, 0, clock++)).toISOString();
+
+  await page.route(apiRoute("user-configs/[^/]+"), async (route) => {
+    const request = route.request();
+    const scope = new URL(request.url()).pathname.split("/").pop() ?? "";
+    const method = request.method();
+
+    if (scope !== "market.filters" && !isTableScope(scope) && !isSectionsScope(scope)) {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "unknown_scope" }),
+      });
+      return;
+    }
+
+    if (method === "PUT") {
+      if (putStatus !== null && putStatus >= 400) {
+        await route.fulfill({
+          status: putStatus,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "user_config_write_failed" }),
+        });
+        return;
+      }
+      let body: Record<string, unknown> = {};
+      try {
+        body = (JSON.parse(request.postData() || "{}") as Record<string, unknown>) ?? {};
+      } catch {
+        body = {};
+      }
+      puts.push(body);
+      const entry: UserConfigEntry = {
+        config: isTableScope(scope)
+          ? mergeTableConfig(body.config ?? body)
+          : isSectionsScope(scope)
+            ? mergeSectionsConfig(body.config ?? body)
+            : mergeMarketFilters(body.config),
+        updatedAt: nextUpdatedAt(),
+      };
+      scopes.set(scope, entry);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          scope,
+          version: 1,
+          saved: true,
+          updated_at: entry.updatedAt,
+          config: entry.config,
+        } satisfies UserConfigEnvelope),
+      });
+      return;
+    }
+
+    if (method === "DELETE") {
+      const deleted = scopes.delete(scope);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, scope, deleted }),
+      });
+      return;
+    }
+
+    const entry = scopes.get(scope) ?? null;
+    const envelope: UserConfigEnvelope = entry
+      ? {
+          scope,
+          version: 1,
+          saved: true,
+          updated_at: entry.updatedAt,
+          config: entry.config,
+        }
+      : {
+          scope,
+          version: 1,
+          saved: false,
+          updated_at: null,
+          config: isTableScope(scope)
+            ? mergeTableConfig(null)
+            : isSectionsScope(scope)
+              ? mergeSectionsConfig(null)
+              : mergeMarketFilters(null),
+        };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(envelope),
+    });
+  });
+
+  return {
+    stored: () => scopes.get("market.filters")?.config ?? null,
+    storedScope: (scope) => scopes.get(scope)?.config ?? null,
+    puts: () => puts,
+    setPutStatus: (status) => {
+      putStatus = status;
+    },
+  };
+}
+
+/**
+ * Saved desk layout (`/api/user-configs/window.home`). `setupUserConfigMocks`
+ * only serves `market.filters` / `table.*` and 404s every other scope, which
+ * disables persistence for the HOME desk. This helper keeps the scope's row in
+ * a page-scoped closure so a `page.reload()` truly re-reads the last PUT.
+ */
+export interface HomeConfigMockHandle {
+  /** Last persisted `window.home` payload (the PUT body's `config`), deep-cloned. */
+  stored: () => Record<string, unknown> | null;
+  /** Every payload the desk wrote, in order. */
+  puts: () => Record<string, unknown>[];
+  /** Exact URLs received by the mock (GET + PUT + DELETE). */
+  requests: () => string[];
+}
+
+export async function setupHomeConfigMocks(
+  page: import("@playwright/test").Page,
+): Promise<HomeConfigMockHandle> {
+  const scope = "window.home";
+  let saved: Record<string, unknown> | null = null;
+  let updatedAt: string | null = null;
+  const puts: Record<string, unknown>[] = [];
+  const requests: string[] = [];
+
+  const envelope = (config: Record<string, unknown>, isSaved: boolean) => ({
+    scope,
+    version: 1,
+    saved: isSaved,
+    updated_at: updatedAt,
+    config,
+  });
+  const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+  await page.route(apiRoute("user-configs/window.home"), async (route) => {
+    const request = route.request();
+    requests.push(request.url());
+    const method = request.method();
+
+    if (method === "PUT") {
+      let body: Record<string, unknown> = {};
+      try {
+        body = (JSON.parse(request.postData() ?? "{}") as Record<string, unknown>) ?? {};
+      } catch {
+        body = {};
+      }
+      const config = isPlainObject(body.config) ? (body.config as Record<string, unknown>) : body;
+      puts.push(config);
+      saved = config;
+      updatedAt = new Date(Date.UTC(2026, 10, 19, 9, 0, puts.length)).toISOString();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(envelope(config, true)),
+      });
+      return;
+    }
+
+    if (method === "DELETE") {
+      saved = null;
+      updatedAt = null;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, scope, deleted: true }),
+      });
+      return;
+    }
+
+    // `saved: false` makes the store use the page's own seeded defaults.
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(envelope(saved ?? { v: 1, active: "Main", layouts: [] }, saved !== null)),
+    });
+  });
+
+  return {
+    stored: () => (saved ? clone(saved) : null),
+    puts: () => clone(puts),
+    requests: () => [...requests],
+  };
+}
+
+/**
+ * Full /home desk mock stack. Callers register `setupApiMocks`,
+ * `loginAsTestUser` and the news mocks first — those order-sensitive handlers
+ * must stay ahead of the desk's config/network/pattern routes.
+ */
+export async function setupHomeDeskMocks(
+  page: import("@playwright/test").Page,
+): Promise<HomeConfigMockHandle> {
+  const config = await setupHomeConfigMocks(page);
+  await setupHomeNetworkMocks(page);
+  await setupHomePatternMocks(page);
+  return config;
+}
+
+/**
+ * Seed a saved row for a scope before navigation. Requires
+ * `setupUserConfigMocks(page)` on the same page so the GET handler reads it.
+ */
+export async function seedUserConfig(
+  page: import("@playwright/test").Page,
+  scope: string,
+  config: Record<string, unknown>,
+): Promise<void> {
+  const scopes = userConfigScopesByPage.get(page);
+  if (!scopes) {
+    throw new Error("seedUserConfig needs setupUserConfigMocks(page) first");
+  }
+  scopes.set(scope, {
+    config: isTableScope(scope) ? mergeTableConfig(config) : mergeMarketFilters(config),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+// Mock screener dashboard response (GET /api/screener/dashboard)
+// 2 sections x 1 panel x 3 rows, matching ScreenerDashboardResponse shape.
+// Panel ids "gainers" / "volume_surge" pass through as lone cards (no merge pair).
+export const mockDashboardResponse = {
+  universe: "nifty500",
+  as_of: "2026-10-21T15:30:00+05:30",
+  total: 6,
+  cached: false,
+  age_sec: 0,
+  sections: [
+    {
+      id: "movers",
+      title: "Movers",
+      total: 3,
+      panels: [
+        {
+          id: "gainers",
+          title: "Gainers",
+          metric_label: "Change %",
+          qualify: 3,
+          rows: [
+            {
+              symbol: "INDIAGLYCO",
+              name: "InterGlobe Aviation",
+              close: 3120.5,
+              change: 2.4,
+              logo: null,
+              sub_label: "Rel vol",
+              sub_value: "1.8x",
+              spark: [100, 102, 99, 101, 103, 102],
+            },
+            {
+              symbol: "RELIANCE",
+              name: "Reliance Industries",
+              close: 2940.0,
+              change: 1.2,
+              logo: null,
+              sub_label: "Rel vol",
+              sub_value: "1.4x",
+              spark: [98, 97, 99, 100, 101, 100],
+            },
+            {
+              symbol: "INFY",
+              name: "Infosys",
+              close: 1850.0,
+              change: 0.9,
+              logo: null,
+              sub_label: "Rel vol",
+              sub_value: "1.2x",
+              spark: [50, 51, 49, 50, 51, 50],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: "unusual",
+      title: "Unusual",
+      total: 3,
+      panels: [
+        {
+          id: "volume_surge",
+          title: "Volume Surge",
+          metric_label: "Volume surge",
+          qualify: 3,
+          rows: [
+            {
+              symbol: "TCS",
+              name: "Tata Consultancy Services",
+              close: 4120.0,
+              change: -0.5,
+              logo: null,
+              sub_label: "Vol surge",
+              sub_value: "3.2x",
+              spark: [200, 205, 202, 208, 206, 204],
+            },
+            {
+              symbol: "HDFCBANK",
+              name: "HDFC Bank",
+              close: 1750.0,
+              change: 1.1,
+              logo: null,
+              sub_label: "Vol surge",
+              sub_value: "2.8x",
+              spark: [150, 148, 152, 151, 153, 150],
+            },
+            {
+              symbol: "ICICIBANK",
+              name: "ICICI Bank",
+              close: 1280.0,
+              change: -1.3,
+              logo: null,
+              sub_label: "Vol surge",
+              sub_value: "2.5x",
+              spark: [80, 82, 79, 81, 83, 80],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+/* ------------------------------------------------------------------ *
+ * Options dock (P1) — E1 underlying metadata + E2 option chain
+ *
+ * The dock's budget is part of its contract, so the helper RETURNS counters:
+ * a test can assert 2 requests on open, 1 on an expiry change and 0 on a leg
+ * change without scraping the network log.
+ *
+ *   const dock = await setupOptionDockMocks(page);
+ *   …open the dock…
+ *   expect(dock.counts.underlying).toBe(1);
+ *   expect(dock.counts.chain).toBe(1);
+ *
+ * `dock.setChainStatus(429)` makes the NEXT chain response a rate-limit, which
+ * is how the "keep the last frame" state is exercised.
+ * ------------------------------------------------------------------ */
+
+export const mockOptionDockUnderlying = {
+  symbol: "RELIANCE",
+  exchange: "NSE",
+  fno: true,
+  instrument_key: "NSE_EQ|INE002A01018",
+  spot: 1417.4,
+  expiries: [
+    { date: "2026-11-26", weekly: true, dte_days: 10, lot_size: 500, tick_size: 0.05 },
+    { date: "2026-12-31", weekly: false, dte_days: 45, lot_size: 500, tick_size: 0.05 },
+  ],
+  default_expiry: "2026-11-26",
+  market_state: "open",
+};
+
+function optionDockChainBody(expiry: string, withLevels = true) {
+  const leg = (ltp: number, oi: number, iv: number | null, delta: number | null) => ({
+    instrument_key: `NSE_FO|${oi}`,
+    trading_symbol: `RELIANCE${expiry.replace(/-/g, "")}${oi}CE`,
+    strike_price: oi,
+    expiry,
+    instrument_type: "CE",
+    market_data: {
+      ltp,
+      oi,
+      prev_oi: oi - 1000,
+      volume: 25_000,
+      bid_price: Math.max(0, ltp - 0.5),
+      ask_price: ltp + 0.5,
+      close_price: ltp,
+    },
+    option_greeks:
+      iv == null
+        ? null
+        : { delta, gamma: 0.002, theta: -4, vega: 9, iv, pop: 0.4 },
+  });
+
+  const seeded = [
+    { strike: 1340, ce: leg(79.0, 18_000, 24.2, 0.88), pe: leg(3.1, 9_000, 24.0, -0.12) },
+    { strike: 1360, ce: leg(61.5, 24_000, 23.4, 0.79), pe: leg(5.4, 13_000, 23.2, -0.18) },
+    { strike: 1380, ce: leg(46.0, 31_000, 22.6, 0.68), pe: leg(9.1, 22_000, 22.4, -0.26) },
+    { strike: 1400, ce: leg(27.5, 52_000, 21.9, 0.42), pe: leg(14.2, 74_000, 21.6, -0.37) },
+    { strike: 1420, ce: leg(15.4, 86_000, 21.4, 0.31), pe: leg(21.8, 41_000, 21.2, -0.48) },
+    // An illiquid strike with no greeks: the UI must render "—", never 0.
+    { strike: 1440, ce: leg(2.1, 0, null, null), pe: leg(61.0, 12_000, 22.4, -0.71) },
+    { strike: 1460, ce: leg(6.3, 27_000, 22.8, 0.24), pe: leg(88.4, 8_000, 23.1, -0.79) },
+    { strike: 1480, ce: leg(3.4, 19_000, 23.6, 0.16), pe: leg(112.0, 5_000, 23.8, -0.86) },
+    { strike: 1500, ce: leg(1.9, 14_000, 24.4, 0.1), pe: leg(131.5, 3_000, 24.6, -0.91) },
+  ];
+  const byStrike = new Map(seeded.map((row) => [row.strike, row]));
+
+  // 50 strikes at a 5-point step. ATM (1420) sits at index 15 so the initial
+  // centre is a real scroll at both 1600×900 and 390×844 — a 9-row ladder fits
+  // the scroller and can never exercise follow/recentre. The seeded rows keep
+  // their exact values (1340 stays the first row, 1420 stays the max CE OI);
+  // fillers stay well below that OI so existing sorting assertions are stable.
+  const chain: Array<(typeof seeded)[number]> = [];
+  for (let strike = 1340; strike <= 1590; strike += 5) {
+    // 1415 is closer to spot 1417.4 than the seeded ATM strike 1420.
+    if (strike === 1415) continue;
+    const row = byStrike.get(strike);
+    if (row) {
+      chain.push(row);
+      continue;
+    }
+    const off = Math.abs(strike - 1420);
+    const ltp = Math.max(0.4, 14 + off * 0.07);
+    chain.push({
+      strike,
+      ce: leg(ltp, 6_000 + (strike % 7) * 1_000, 22.5, 0.2),
+      pe: leg(ltp + 0.5, 7_000 + (strike % 5) * 1_000, 22.5, -0.2),
+    });
+  }
+
+  return {
+    status: "ok",
+    underlying: "RELIANCE",
+    expiry,
+    spot: 1417.4,
+    timestamp: "2026-11-16T11:20:00+05:30",
+    summary: { pcr: 1.08, max_pain: 1420, total_ce_oi: 210_000, total_pe_oi: 226_000, dte: 10, atm_iv: 21.4 },
+    chain,
+    // Five distinct strikes so every badge code renders once. `withLevels=false`
+    // reproduces a legacy payload for the "no level → no badge" regression.
+    levels: withLevels
+      ? {
+          spot: 1417.4,
+          step: 5,
+          thin: false,
+          call_wall: { strike: 1470, side: "above", strength: 0.2, oi: 95_000 },
+          put_wall: { strike: 1390, side: "below", strength: 0.25, oi: 88_000 },
+          max_pain: { strike: 1420, side: "at", strength: 0.3, payout: 1_250 },
+          gex: {
+            support: { strike: 1400, side: "below", strength: 0.4, net_gex: 1.2 },
+            resistance: { strike: 1450, side: "above", strength: 0.6, net_gex: -1.8 },
+            fuel_up: null,
+            fuel_down: null,
+            flip: 1420,
+            regime: "short",
+            degraded: false,
+          },
+        }
+      : undefined,
+  };
+}
+
+export interface OptionDockMocks {
+  counts: { underlying: number; chain: number };
+  /** Override the next `/underlying/{symbol}` response status (404 → non-F&O). */
+  setUnderlyingStatus: (status: number) => void;
+  /** Override the next `/chain/…` response status (429 → paused, 401 → reconnect). */
+  setChainStatus: (status: number) => void;
+  reset: () => void;
+}
+
+export async function setupOptionDockMocks(
+  page: import("@playwright/test").Page,
+  options: {
+    fno?: boolean;
+    underlyingStatus?: number;
+    chainStatus?: number;
+    /** `closed` keeps the dock from polling, so request counts stay exact. */
+    marketState?: "open" | "closed" | "pre_open";
+    /** `false` omits the chain's `levels` block (legacy payload → no badges). */
+    levels?: boolean;
+  } = {},
+): Promise<OptionDockMocks> {
+  const counts = { underlying: 0, chain: 0 };
+  let underlyingStatus = options.underlyingStatus ?? 200;
+  let chainStatus = options.chainStatus ?? 200;
+  const fno = options.fno ?? true;
+  const marketState = options.marketState ?? "closed";
+  const withLevels = options.levels ?? true;
+
+  const reset = () => {
+    counts.underlying = 0;
+    counts.chain = 0;
+  };
+
+  await page.route(apiRoute("options/underlying/**"), async (route) => {
+    counts.underlying += 1;
+    if (underlyingStatus === 404) {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: { code: "not_fno", detail: "Unknown underlying" } }),
+      });
+      return;
+    }
+    if (underlyingStatus === 401) {
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: { code: "upstox_auth_required" } }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        fno
+          ? { ...mockOptionDockUnderlying, market_state: marketState }
+          : {
+              ...mockOptionDockUnderlying,
+              fno: false,
+              expiries: [],
+              default_expiry: null,
+              market_state: marketState,
+            },
+      ),
+    });
+  });
+
+  await page.route(apiRoute("options/chain/**"), async (route) => {
+    counts.chain += 1;
+    if (chainStatus === 429) {
+      await route.fulfill({
+        status: 429,
+        contentType: "application/json",
+        headers: { "Retry-After": "8" },
+        body: JSON.stringify({ detail: { code: "rate_limited", detail: "retry shortly" } }),
+      });
+      return;
+    }
+    if (chainStatus === 401) {
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: { code: "upstox_auth_required" } }),
+      });
+      return;
+    }
+    const expiry = new URL(route.request().url()).searchParams.get("expiry") ?? "2026-11-26";
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(optionDockChainBody(expiry, withLevels)),
+    });
+  });
+
+  return {
+    counts,
+    setUnderlyingStatus: (status: number) => {
+      underlyingStatus = status;
+    },
+    setChainStatus: (status: number) => {
+      chainStatus = status;
+    },
+    reset,
+  };
+}
+
+
+export const mockFnoScreenerResponse = {
+  status: "ok",
+  as_of: "2026-11-16T11:20:00+05:30",
+  expiry: "2026-11-26",
+  expiries: [
+    { date: "2026-11-26", days_to_expiry: 10 },
+    { date: "2026-12-31", days_to_expiry: 45 },
+  ],
+  preset: "cheap_momentum",
+  scanned: 120,
+  matched: 2,
+  stale: false,
+  warnings: [],
+  errors: [],
+  rows: [
+    {
+      symbol: "RELIANCE",
+      spot: 1417.4,
+      d1: 1.2,
+      d5: 4.5,
+      vol_ratio: 1.4,
+      above20: 1,
+      setup: "BREAKOUT",
+      call: "RELIANCE26NOV1420CE",
+      strike: 1420,
+      otm_pct: 0.18,
+      premium: 27.5,
+      cost_lot: 13_750,
+      breakeven: 1447.5,
+      pop: 62,
+      delta: 0.42,
+      gamma: 0.002,
+      theta: -4,
+      vega: 9,
+      iv: 21.9,
+      oi: 52_000,
+      volume: 85_000,
+      spread_pct: 1.8,
+      move_2pct_est: 0.45,
+    },
+    {
+      symbol: "TCS",
+      spot: 2485.1,
+      d1: 0.6,
+      d5: 2.1,
+      vol_ratio: 1.1,
+      above20: 1,
+      setup: "NEAR HIGH",
+      call: "TCS26NOV2500CE",
+      strike: 2500,
+      otm_pct: 0.6,
+      premium: 61.5,
+      cost_lot: 61_500,
+      breakeven: 2561.5,
+      pop: 58,
+      delta: 0.79,
+      gamma: 0.002,
+      theta: -6,
+      vega: 12,
+      iv: 23.4,
+      oi: 24_000,
+      volume: 40_000,
+      spread_pct: 2.2,
+      move_2pct_est: 0.3,
+    },
+  ],
+};
+
+export async function setupFnoScreenerMocks(page: import("@playwright/test").Page) {
+  await page.route(apiRoute("options/screener"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockFnoScreenerResponse),
     });
   });
 }

@@ -7,7 +7,7 @@ so nothing here touches Upstox, Redis or ``experiments/data``.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -23,10 +23,22 @@ SYMBOLS = ["SENSEX", "RELIANCE"]
 #: Fields the NIFTY tape writes; the generic tape row must carry all of them
 #: (plus ``underlying``) or the heatmap/radar/bursts rebuild breaks.
 TAPE_FIELDS = {
-    "t", "spot", "ce_oi", "pe_oi", "ce_vol", "pe_vol", "pcr_oi", "pcr_vol",
+    "t", "t_fetch", "t_write", "spot", "ce_oi", "pe_oi", "ce_vol", "pe_vol",
+    "ce_oi_change_day", "pe_oi_change_day", "pcr_oi", "pcr_vol",
     "max_pain", "max_pain_computed", "flip", "net_gex", "gex_degraded", "walls",
-    "expiry", "atm_strike", "atm_ce_ltp", "atm_pe_ltp", "atm_ce_iv",
-    "atm_pe_iv", "strikes_top", "chain", "underlying",
+    "call_wall", "put_wall", "expiry", "atm_strike", "atm_ce_ltp",
+    "atm_pe_ltp", "atm_ce_iv", "atm_pe_iv", "strikes_top", "chain",
+    "underlying",
+}
+
+#: The 24 fields ``nifty.build_leg`` keeps per leg — the snapshot contract.
+#: NIFTY has recorded all of them since the leg was widened; the generic
+#: recorder used to see only the 15 ``transform_option_contract`` preserved.
+LEG_FIELDS = {
+    "instrument_key", "ltp", "close_price", "oi", "prev_oi", "oi_change",
+    "volume", "price_change", "sentiment", "gamma", "delta", "theta", "vega",
+    "rho", "iv", "pop", "bid_price", "ask_price", "bid_qty", "ask_qty",
+    "buy_qty", "sell_qty", "last_trade_price", "last_trade_qty",
 }
 
 
@@ -36,6 +48,7 @@ def _ts(hour: int = 10, minute: int = 0, second: int = 5) -> datetime:
 
 def _leg(ltp: float, oi: int, volume: int, gamma: float,
          delta: float, key: str = "") -> dict:
+    """One raw Upstox leg (``call_options`` / ``put_options``)."""
     return {
         "instrument_key": key,
         "market_data": {
@@ -44,24 +57,46 @@ def _leg(ltp: float, oi: int, volume: int, gamma: float,
             "oi": oi,
             "prev_oi": max(0, oi - 50),
             "volume": volume,
+            "bid_price": ltp - 0.5,
+            "ask_price": ltp + 0.5,
+            "bid_qty": 100,
+            "ask_qty": 200,
+            "total_buy_quantity": 300,
+            "total_sell_quantity": 400,
+            "last_trade_price": ltp,
+            "last_trade_qty": 25,
         },
         "option_greeks": {
-            "delta": delta, "gamma": gamma, "theta": -1.0, "vega": 1.0, "iv": 12.5,
+            "delta": delta, "gamma": gamma, "theta": -1.0, "vega": 1.0,
+            "iv": 12.5, "rho": 0.02, "pop": 0.4,
         },
     }
 
 
 def _chain(spot: float = 84000.0, ce_oi: int = 1000, pe_oi: int = 1200,
-           step: float = 100.0, ce_key: str = "", pe_key: str = "") -> list[dict]:
+           step: float = 100.0, ce_key: str = "", pe_key: str = "",
+           expiry: str = "2026-10-30") -> list[dict]:
+    """Raw Upstox ``data`` items (``strike_price`` + call/put options)."""
     rows = []
     for i in range(-2, 3):
         strike = spot + i * step
         rows.append({
-            "strike": strike,
-            "ce": _leg(120.0 - i * 5, ce_oi, 4000 + i, 0.0012, 0.5, ce_key),
-            "pe": _leg(110.0 + i * 5, pe_oi, 5000 + i, 0.0011, -0.5, pe_key),
+            "strike_price": strike,
+            "expiry": expiry,
+            "call_options": _leg(120.0 - i * 5, ce_oi, 4000 + i, 0.0012, 0.5, ce_key),
+            "put_options": _leg(110.0 + i * 5, pe_oi, 5000 + i, 0.0011, -0.5, pe_key),
         })
     return rows
+
+
+def _payload(spot: float = 84000.0, chain: list[dict] | None = None,
+             expiry: str = "2026-10-30") -> dict:
+    """The raw ``/option/chain`` envelope the recorder now consumes."""
+    return {
+        "status": "success",
+        "underlying_spot_price": spot,
+        "data": _chain(spot=spot, expiry=expiry) if chain is None else chain,
+    }
 
 
 def _lines(path: Path) -> list[dict]:
@@ -70,14 +105,18 @@ def _lines(path: Path) -> list[dict]:
     return [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
 
 
+def _symbol_of(params: dict) -> str:
+    return str((params or {}).get("instrument_key") or "").split("|")[-1]
+
+
 @pytest.fixture()
 def recorder(tmp_path, monkeypatch):
     """Recorder with DATA_ROOT + every upstream call redirected/mocked."""
     monkeypatch.setattr(rec, "DATA_ROOT", tmp_path)
     monkeypatch.setattr(rec, "INTERVAL_SEC", 10.0)
     monkeypatch.setattr(rec, "SYMBOL_TIMEOUT_SEC", 25.0)
+    monkeypatch.setattr(rec, "GREEKS_ENABLED", True)
 
-    # --- rate limiter: capture the consumer slice, never block ---------------
     class FakeLimiter:
         instances: list["FakeLimiter"] = []
 
@@ -94,7 +133,6 @@ def recorder(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "upstox_trader.rate_limiter.UpstoxRateLimiter", FakeLimiter)
 
-    # --- instruments file: SENSEX is an index, RELIANCE is a stock lot 500 ---
     instruments = tmp_path / "nse_instruments.json"
     instruments.write_text(json.dumps([
         {"segment": "NSE_EQ", "instrument_key": "NSE_EQ|INE002A01018", "lot_size": 1},
@@ -105,21 +143,21 @@ def recorder(tmp_path, monkeypatch):
     ]))
     monkeypatch.setattr(rec, "_instruments_path", lambda: instruments)
 
-    # --- upstream mocks -----------------------------------------------------
     expiries = AsyncMock(return_value={
         "underlying": "SENSEX",
         "expiries": [{"date": "2026-10-30", "weekly": True, "days_to_expiry": 1}],
     })
-    chain = AsyncMock(return_value={"status": "ok", "spot": 84000.0,
-                                    "chain": _chain()})
+    payload = AsyncMock(return_value=_payload())
     bars = MagicMock(return_value=[])
     monkeypatch.setattr(rec, "get_expiries", expiries, raising=False)
-    monkeypatch.setattr(rec, "get_option_chain", chain, raising=False)
+    monkeypatch.setattr(rec, "fetch_upstox", payload, raising=False)
+    monkeypatch.setattr(rec, "get_instrument_key",
+                        lambda s: f"NSE_INDEX|{str(s).upper()}", raising=False)
     monkeypatch.setattr(rec, "fetch_candles_for_timeframe", bars)
 
     rec._reset_state()
     rec._gap_minutes.clear()
-    yield {"expiries": expiries, "chain": chain, "bars": bars,
+    yield {"expiries": expiries, "payload": payload, "bars": bars,
            "limiter": FakeLimiter, "root": tmp_path}
     rec._reset_state()
     rec._gap_minutes.clear()
@@ -130,6 +168,10 @@ class TestPaths:
         root = recorder["root"]
         assert rec.chain10s_path("SENSEX", "2026-10-29") == (
             root / "options_chain10s" / "SENSEX" / "2026-10-29.jsonl")
+        assert rec.chain10s_greeks_path("SENSEX", "2026-10-29") == (
+            root / "options_chain10s_greeks" / "SENSEX" / "2026-10-29.jsonl")
+        assert rec.chain10s_gap_path("SENSEX", "2026-10-29") == (
+            root / "options_chain10s" / "SENSEX" / "2026-10-29.gaps.jsonl")
         assert rec.tape_path("RELIANCE", "2026-10-29") == (
             root / "options_tape" / "RELIANCE" / "2026-10-29.jsonl")
         assert rec.snapshot_log_path("SENSEX", "2026-10-29") == (
@@ -167,11 +209,11 @@ class TestLotSize:
         assert rec.lot_size("RELIANCE", strikes) == 500
 
     async def test_report_carries_lot_size(self, recorder):
-        recorder["chain"].return_value = {
-            "status": "ok", "spot": 1310.0,
-            "chain": _chain(spot=1310.0, step=10.0,
-                            ce_key="NSE_FO|CE1", pe_key="NSE_FO|PE1"),
-        }
+        recorder["payload"].return_value = _payload(
+            spot=1310.0,
+            chain=_chain(spot=1310.0, step=10.0,
+                         ce_key="NSE_FO|CE1", pe_key="NSE_FO|PE1"),
+        )
         await rec.record_tick(now=_ts())
         assert rec.LAST["RELIANCE"]["lot_size"] == 500
         assert rec.LAST["SENSEX"]["lot_size"] == 20
@@ -211,7 +253,15 @@ class TestOneTick:
 
         frames = _lines(rec.snapshot_log_path("SENSEX", date_str))
         assert len(frames) == 1
-        assert set(frames[0]) == {"t", "fetched_at", "report", "sensex"}
+        # NIFTY replay-frame shape: the stamps sit on the LINE too, so one
+        # reader can classify a generic frame without walking into the report.
+        assert set(frames[0]) == {"t", "fetched_at", "mode", "snapshot_at",
+                                  "source", "report", "sensex"}
+        # The stamp mirrors the captured envelope (a live recorder frame is
+        # "live"; the manual snapshot `.json` is "snapshot").
+        assert frames[0]["mode"] == "live"
+        assert frames[0]["snapshot_at"] == frames[0]["t"]
+        assert frames[0]["source"] == "upstox-option-chain"
         assert frames[0]["sensex"] is None
         assert frames[0]["report"]["underlying"] == "SENSEX"
         assert frames[0]["report"]["gex"]["net_total"] is not None
@@ -243,13 +293,13 @@ class TestOneTick:
     async def test_minute_roll_writes_second_row(self, recorder):
         calls = {"n": 0}
 
-        async def fake_chain(symbol, expiry):
+        async def fake_chain(endpoint, params):
             calls["n"] += 1
             ce_oi = 1000 if calls["n"] <= 2 else 1500  # tick 1 -> tick 2
-            return {"status": "ok", "spot": 84000.0 + 10 * (calls["n"] > 2),
-                    "chain": _chain(ce_oi=ce_oi)}
+            return _payload(spot=84000.0 + 10 * (calls["n"] > 2),
+                            chain=_chain(ce_oi=ce_oi))
 
-        recorder["chain"].side_effect = fake_chain
+        recorder["payload"].side_effect = fake_chain
         await rec.record_tick(now=_ts(minute=0, second=5))
         await rec.record_tick(now=_ts(minute=1, second=5))
 
@@ -261,6 +311,145 @@ class TestOneTick:
         assert derived[1]["call_doi"] == 5 * 500
         assert derived[1]["put_doi"] == 0
         assert derived[1]["call_tick"] >= 0
+
+
+class TestSnapshotLegs:
+    """The snapshot carries the NIFTY ``build_leg`` field set, not 15 of 24."""
+
+    async def test_every_leg_has_all_24_fields(self, recorder):
+        recorder["payload"].return_value = _payload(
+            chain=_chain(ce_key="NSE_FO|CE1", pe_key="NSE_FO|PE1"))
+        await rec.record_tick(now=_ts())
+
+        report = rec.LAST["SENSEX"]
+        assert report["strikes"]
+        for row in report["strikes"]:
+            assert set(row["ce"]) == LEG_FIELDS
+            assert set(row["pe"]) == LEG_FIELDS
+        leg = report["strikes"][2]["ce"]
+        assert leg["instrument_key"] == "NSE_FO|CE1"
+        assert leg["bid_price"] == pytest.approx(119.5)
+        assert leg["ask_price"] == pytest.approx(120.5)
+        assert leg["bid_qty"] == 100 and leg["ask_qty"] == 200
+        assert leg["buy_qty"] == 300 and leg["sell_qty"] == 400
+        assert leg["last_trade_price"] == pytest.approx(120.0)
+        assert leg["last_trade_qty"] == 25
+        assert leg["rho"] == pytest.approx(0.02)
+        assert leg["pop"] == pytest.approx(0.4)
+        assert leg["oi_change"] == 50
+        assert leg["price_change"] == pytest.approx(0.0)
+
+    async def test_snapshot_file_has_full_legs_and_iv_surface(self, recorder):
+        await rec.record_tick(now=_ts())
+        last = json.loads(rec.snapshot_path("SENSEX", "2026-10-29").read_text())
+        assert set(last["strikes"][0]["ce"]) == LEG_FIELDS
+        surface = last["iv_surface"]
+        assert surface["atm"]["avg_iv"] is not None
+        assert surface["points"]
+        # self-expiry only: no second chain is fetched for a term structure
+        assert surface["term"] == []
+        # recorded on the replay frame too, not just the last-snapshot file
+        frame = _lines(rec.snapshot_log_path("SENSEX", "2026-10-29"))[0]
+        assert frame["report"]["iv_surface"]["atm"] == surface["atm"]
+
+    async def test_missing_order_book_fields_stay_null(self, recorder):
+        """A payload without depth must not read as "nobody bought or sold"."""
+        thin = _payload()
+        for item in thin["data"]:
+            for side in ("call_options", "put_options"):
+                for key in ("total_buy_quantity", "total_sell_quantity",
+                            "last_trade_price", "last_trade_qty"):
+                    item[side]["market_data"].pop(key, None)
+        recorder["payload"].return_value = thin
+        await rec.record_tick(now=_ts())
+        leg = rec.LAST["SENSEX"]["strikes"][0]["ce"]
+        assert leg["buy_qty"] is None
+        assert leg["sell_qty"] is None
+        assert leg["last_trade_price"] is None
+        assert leg["last_trade_qty"] is None
+
+
+class TestGreeks:
+    async def test_greeks_line_matches_the_nifty_evidence_shape(self, recorder):
+        await rec.record_tick(now=_ts())
+        path = rec.chain10s_greeks_path("SENSEX", "2026-10-29")
+        lines = _lines(path)
+        assert len(lines) == 1
+        line = lines[0]
+        assert set(line) == {"t", "expiry", "spot", "rows"}
+        assert line["t"].endswith("10:00:05+05:30")
+        assert line["expiry"] == "2026-10-30"
+        assert line["spot"] == pytest.approx(84000.0)
+        assert len(line["rows"]) == 5
+        row = line["rows"][0]
+        assert set(row) == {"strike", "ce", "pe"}
+        assert set(row["ce"]) == {"iv", "delta", "gamma", "theta", "vega"}
+        assert set(row["pe"]) == {"iv", "delta", "gamma", "theta", "vega"}
+        assert row["ce"]["iv"] == pytest.approx(12.5)
+        assert row["ce"]["gamma"] == pytest.approx(0.0012)
+        assert row["pe"]["delta"] == pytest.approx(-0.5)
+
+    async def test_one_greeks_line_per_poll(self, recorder):
+        await rec.record_tick(now=_ts(minute=0, second=5))
+        await rec.record_tick(now=_ts(minute=0, second=15))
+        assert len(_lines(rec.chain10s_greeks_path("SENSEX", "2026-10-29"))) == 2
+        assert rec.status()["per_symbol"]["SENSEX"]["greeks"] == 2
+
+    async def test_off_switch_keeps_the_slim_snapshot(self, recorder, monkeypatch):
+        monkeypatch.setattr(rec, "GREEKS_ENABLED", False)
+        await rec.record_tick(now=_ts())
+        assert not rec.chain10s_greeks_path("SENSEX", "2026-10-29").exists()
+        assert _lines(rec.chain10s_path("SENSEX", "2026-10-29"))
+        assert rec.status()["per_symbol"]["SENSEX"]["greeks"] == 0
+
+    async def test_failed_greeks_write_does_not_cost_the_tape(
+            self, recorder, monkeypatch):
+        real = rec._append_jsonl
+
+        def failing(path, obj):
+            if Path(path) == rec.chain10s_greeks_path("SENSEX", "2026-10-29"):
+                raise OSError("disk full")
+            real(path, obj)
+
+        monkeypatch.setattr(rec, "_append_jsonl", failing)
+        outcome = await rec.record_tick(now=_ts())
+        assert outcome["symbols"]["SENSEX"] == "ok"
+        assert _lines(rec.tape_path("SENSEX", "2026-10-29"))
+        gaps = _lines(rec.chain10s_gap_path("SENSEX", "2026-10-29"))
+        assert gaps and gaps[0]["reason"] == "greeks-write-failed"
+
+    async def test_no_extra_upstream_fetch(self, recorder):
+        await rec.record_tick(now=_ts())
+        # one chain call per symbol — greeks is a projection of that fetch
+        assert recorder["payload"].await_count == len(SYMBOLS)
+        assert recorder["expiries"].await_count == len(SYMBOLS)
+
+    async def test_greeks_window_matches_the_chain10s_window(self, recorder):
+        # Both evidence files share ``_window_for`` (5% of spot, floored at 750).
+        payload = _payload(spot=1300.0,
+                           chain=_chain(spot=1300.0, step=10.0))
+        inside, outside = 1900.0, 2100.0  # 600 in / 800 out of max(750, 65)
+        for strike in (inside, outside):
+            payload["data"].append({
+                "strike_price": strike, "expiry": "2026-10-30",
+                "call_options": _leg(1.0, 10, 1, 0.001, 0.01),
+                "put_options": _leg(1.0, 10, 1, 0.001, -0.01),
+            })
+        recorder["payload"].return_value = payload
+        await rec.record_tick(now=_ts())
+
+        rows = _lines(rec.chain10s_greeks_path("RELIANCE", "2026-10-29"))[0]["rows"]
+        strikes = {r["strike"] for r in rows}
+        assert inside in strikes
+        assert outside not in strikes
+        assert all(abs(s - 1300.0) <= 750.0 for s in strikes)
+        slim = _lines(rec.chain10s_path("RELIANCE", "2026-10-29"))[0]["rows"]
+        assert outside not in {cell[0] for cell in slim}
+
+    def test_window_scales_with_spot(self):
+        assert rec._window_for(1300.0) == 750.0     # 5% is below the floor
+        assert rec._window_for(84000.0) == 4200.0   # 5% of SENSEX spot
+        assert rec._window_for(0) == 750.0
 
 
 class TestStatusAndBudget:
@@ -293,14 +482,70 @@ class TestStatusAndBudget:
         assert recorder["expiries"].await_count == 2
 
 
+class TestIstTimestamps:
+    async def test_naive_tick_is_stamped_ist(self, recorder):
+        outcome = await rec.record_tick(now=datetime(2026, 10, 29, 10, 0, 5))
+        assert outcome["t"].endswith("10:00:05+05:30")
+        tape = _lines(rec.tape_path("SENSEX", "2026-10-29"))[0]
+        assert tape["t"].endswith("10:00:05+05:30")
+        chain10s = _lines(rec.chain10s_path("SENSEX", "2026-10-29"))[0]
+        assert chain10s["t"].endswith("10:00:05+05:30")
+        assert rec.status()["last_tick"].endswith("10:00:05+05:30")
+
+    async def test_utc_tick_is_converted_to_ist(self, recorder):
+        utc = datetime(2026, 10, 29, 4, 30, 5, tzinfo=timezone.utc)
+        outcome = await rec.record_tick(now=utc)
+        assert outcome["t"] == "2026-10-29T10:00:05+05:30"
+        assert rec.tape_path  # path helper still symbol/date scoped
+        assert _lines(rec.tape_path("SENSEX", "2026-10-29"))
+
+    def test_ist_helper_assumes_ist_for_naive(self):
+        assert rec._ist_iso(datetime(2026, 10, 29, 9, 15)) == (
+            "2026-10-29T09:15:00+05:30")
+
+
+class TestTapeDedupe:
+    async def test_duplicate_minute_survives_a_restart(self, recorder):
+        await rec.record_tick(now=_ts(minute=0, second=5))
+        # a restart clears every in-process gate; the day file must still win
+        rec._reset_state()
+        await rec.record_tick(now=_ts(minute=0, second=35))
+        assert len(_lines(rec.tape_path("SENSEX", "2026-10-29"))) == 1
+
+    async def test_duplicate_written_earlier_in_the_minute_is_seen(self, recorder):
+        path = rec.tape_path("SENSEX", "2026-10-29")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"t": "2026-10-29T10:00:01+05:30",
+                                    "spot": 84000.0}) + "\n")
+        await rec.record_tick(now=_ts(minute=0, second=45))
+        assert len(_lines(path)) == 1
+
+    async def test_tape_append_retries_once_on_transient_error(
+            self, recorder, monkeypatch):
+        real = rec._append_jsonl
+        state = {"calls": 0}
+
+        def flaky(path, obj):
+            if Path(path) == rec.tape_path("SENSEX", "2026-10-29") \
+                    and state["calls"] == 0:
+                state["calls"] += 1
+                raise OSError("disk hiccup")
+            real(path, obj)
+
+        monkeypatch.setattr(rec, "_append_jsonl", flaky)
+        await rec.record_tick(now=_ts())
+        assert state["calls"] == 1
+        assert len(_lines(rec.tape_path("SENSEX", "2026-10-29"))) == 1
+
+
 class TestFailures:
     async def test_one_symbol_failure_does_not_kill_the_other(self, recorder):
-        async def fake_chain(symbol, expiry):
-            if symbol == "RELIANCE":
+        async def fake_chain(endpoint, params):
+            if _symbol_of(params) == "RELIANCE":
                 raise RuntimeError("upstream 401")
-            return {"status": "ok", "spot": 84000.0, "chain": _chain()}
+            return _payload()
 
-        recorder["chain"].side_effect = fake_chain
+        recorder["payload"].side_effect = fake_chain
         outcome = await rec.record_tick(now=_ts())
 
         assert outcome["symbols"]["SENSEX"] == "ok"
@@ -312,12 +557,24 @@ class TestFailures:
         assert gaps[0]["symbol"] == "RELIANCE"
         assert rec.status()["last_error"].startswith("RuntimeError")
 
+    async def test_failed_fetch_journals_both_series(self, recorder):
+        recorder["payload"].side_effect = RuntimeError("upstream 401")
+        await rec.record_tick(now=_ts())
+        tape_gaps = _lines(rec.gap_log_path("SENSEX", "2026-10-29"))
+        chain_gaps = _lines(rec.chain10s_gap_path("SENSEX", "2026-10-29"))
+        assert tape_gaps[0]["reason"] == "tick-failed"
+        assert chain_gaps[0]["reason"] == "chain-failed"
+        assert chain_gaps[0]["symbol"] == "SENSEX"
+        assert "RuntimeError" in chain_gaps[0]["detail"]
+
     async def test_gap_journal_deduped_per_minute(self, recorder):
-        recorder["chain"].side_effect = RuntimeError("boom")
+        recorder["payload"].side_effect = RuntimeError("boom")
         for second in (5, 15, 25, 35, 45, 55):
             await rec.record_tick(now=_ts(minute=0, second=second))
         gaps = _lines(rec.gap_log_path("SENSEX", "2026-10-29"))
         assert len(gaps) == 1
+        chain_gaps = _lines(rec.chain10s_gap_path("SENSEX", "2026-10-29"))
+        assert len(chain_gaps) == 1
 
     async def test_no_expiry_skips_without_writing(self, recorder):
         recorder["expiries"].return_value = {"underlying": "SENSEX", "expiries": []}
@@ -327,12 +584,51 @@ class TestFailures:
         assert gaps and gaps[0]["reason"] == "no-expiry"
 
     async def test_empty_chain_is_not_persisted(self, recorder):
-        recorder["chain"].return_value = {"status": "ok", "spot": 84000.0, "chain": []}
+        recorder["payload"].return_value = _payload(chain=[])
         await rec.record_tick(now=_ts())
         assert not _lines(rec.chain10s_path("SENSEX", "2026-10-29"))
         assert not _lines(rec.tape_path("SENSEX", "2026-10-29"))
+        assert not _lines(rec.chain10s_greeks_path("SENSEX", "2026-10-29"))
         gaps = _lines(rec.gap_log_path("SENSEX", "2026-10-29"))
         assert gaps and gaps[0]["reason"] == "empty-chain"
+        chain_gaps = _lines(rec.chain10s_gap_path("SENSEX", "2026-10-29"))
+        assert chain_gaps and chain_gaps[0]["reason"] == "empty-chain"
+
+    async def test_hole_between_polls_is_journalled(self, recorder):
+        await rec.record_tick(now=_ts(minute=0, second=5))
+        await rec.record_tick(now=_ts(minute=1, second=5))
+        # age the baseline instead of sleeping: the next poll is a 45 s hole
+        rec._last_chain10s["SENSEX"]["mono"] -= 45.0
+        await rec.record_tick(now=_ts(minute=1, second=20))
+        gaps = _lines(rec.chain10s_gap_path("SENSEX", "2026-10-29"))
+        assert any(g["reason"] == "poll-gap" for g in gaps)
+
+    async def test_on_time_polls_do_not_journal_gaps(self, recorder):
+        await rec.record_tick(now=_ts(minute=0, second=5))
+        await rec.record_tick(now=_ts(minute=0, second=15))
+        assert not rec.chain10s_gap_path("SENSEX", "2026-10-29").exists()
+
+
+class TestFuturesBlock:
+    async def test_newest_futures_row_is_attached_to_sensex_only(self, recorder):
+        root = recorder["root"]
+        path = root / "sensex_futures" / "2026-10-29.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        rows = [
+            {"t": "2026-10-29T09:15:00+05:30", "basis": 40.0, "oi": 100},
+            {"t": "2026-10-29T10:00:00+05:30", "basis": 55.5, "oi": 120},
+        ]
+        path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+
+        await rec.record_tick(now=_ts())
+        assert rec.LAST["SENSEX"]["futures"]["basis"] == 55.5
+        assert "futures" not in rec.LAST["RELIANCE"]
+        frame = _lines(rec.snapshot_log_path("SENSEX", "2026-10-29"))[0]
+        assert frame["report"]["futures"]["basis"] == 55.5
+
+    async def test_absent_futures_file_is_not_an_error(self, recorder):
+        await rec.record_tick(now=_ts())
+        assert "futures" not in rec.LAST["SENSEX"]
 
 
 class TestIntraday:
@@ -384,12 +680,12 @@ class TestWalls:
         # A far 5000-pt wall must not win walls_near for an 84k spot (±1%).
         chain = _chain()
         chain.append({
-            "strike": 89000.0,
-            "ce": _leg(1.0, 9_000_000, 1, 0.0, 0.01),
-            "pe": _leg(1.0, 9_000_000, 1, 0.0, -0.01),
+            "strike_price": 89000.0,
+            "expiry": "2026-10-30",
+            "call_options": _leg(1.0, 9_000_000, 1, 0.0, 0.01),
+            "put_options": _leg(1.0, 9_000_000, 1, 0.0, -0.01),
         })
-        recorder["chain"].return_value = {"status": "ok", "spot": 84000.0,
-                                          "chain": chain}
+        recorder["payload"].return_value = _payload(chain=chain)
         await rec.record_tick(now=_ts())
         report = rec.LAST["SENSEX"]
         near = report["walls_near"]["calls"]
@@ -501,7 +797,8 @@ class TestEodAnalytics:
         await rec.record_tick(now=_ts())
         for symbol in SYMBOLS:
             frame = _lines(rec.snapshot_log_path(symbol, "2026-10-29"))[0]
-            assert set(frame) == {"t", "fetched_at", "report", "sensex"}
+            assert set(frame) == {"t", "fetched_at", "mode", "snapshot_at",
+                                  "source", "report", "sensex"}
             self._assert_analytics(frame["report"], symbol)
             last = json.loads(rec.snapshot_path(symbol, "2026-10-29").read_text())
             self._assert_analytics(last, symbol)
@@ -544,7 +841,7 @@ class TestEodAnalytics:
                 "RELIANCE": (1180.0, 1160.0, 1172.9)}
         expected_pp = {"SENSEX": 73125.01, "RELIANCE": 1170.97}
 
-        async def fake_fetch_upstox(endpoint, params=None):
+        async def fake_fetch_upstox(endpoint, params=None, base=None):
             text = endpoint.upper()
             symbol = "SENSEX" if "SENSEX" in text else "RELIANCE"
             assert "/HISTORICAL-CANDLE/" in text

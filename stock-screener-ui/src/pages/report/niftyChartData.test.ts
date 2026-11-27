@@ -3,10 +3,7 @@ import {
   candlesFromSpotPoints,
   candlesFromTape,
   clipToAsOf,
-  isOnSession,
-  pickFreshestCandles,
   selectBaseCandles,
-  sessionDateOf,
   type SpotPoint,
   type TapeSpotPoint,
 } from "./niftyChartData";
@@ -16,24 +13,16 @@ import type {
 } from "@/types/niftyReport";
 import type { ReplayCandle } from "@/types/replay";
 import {
-  tapeSpot,
+  mockReport as baseMockReport,
   spotPoint,
-  ohlcCandle,
-  spotCandle,
-  tapeCandle,
+  tapeSpot,
 } from "./reportTestFixtures";
 
 const SESSION = "2026-10-12";
 const PREV_SESSION = "2026-10-09";
 
 function mockReport(overrides?: Record<string, unknown>): NiftyReport {
-  return {
-    mode: "live",
-    date: SESSION,
-    intraday: [],
-    candles: [],
-    ...overrides,
-  } as unknown as NiftyReport;
+  return baseMockReport(SESSION, overrides);
 }
 
 function sessionTape(): TapeSpotPoint[] {
@@ -68,50 +57,6 @@ function prevSessionCandles(n: number): ReplayCandle[] {
     volume: 500 + i,
   }));
 }
-
-describe("sessionDateOf", () => {
-  test("returns the report's own date when present", () => {
-    expect(sessionDateOf(mockReport({ date: SESSION }))).toBe(SESSION);
-  });
-
-  test("falls back to market.session_date when date is empty", () => {
-    const report = mockReport({
-      date: "",
-      market: { is_open: true, session_date: SESSION, as_of: null },
-    });
-    expect(sessionDateOf(report)).toBe(SESSION);
-  });
-
-  test("prefers date over market.session_date", () => {
-    const report = mockReport({
-      date: SESSION,
-      market: { is_open: true, session_date: PREV_SESSION, as_of: null },
-    });
-    expect(sessionDateOf(report)).toBe(SESSION);
-  });
-
-  test("returns '' when neither date nor market.session_date is present", () => {
-    expect(sessionDateOf(mockReport({ date: "" }))).toBe("");
-    expect(
-      sessionDateOf(mockReport({ date: "", market: { is_open: null, session_date: null, as_of: null } })),
-    ).toBe("");
-  });
-});
-
-describe("isOnSession", () => {
-  test("accepts a timestamp whose date prefix matches the session", () => {
-    expect(isOnSession(`${SESSION}T09:15:00`, SESSION)).toBe(true);
-  });
-
-  test("rejects a timestamp from another session", () => {
-    expect(isOnSession(`${PREV_SESSION}T09:15:00`, SESSION)).toBe(false);
-  });
-
-  test("accepts everything when no session is pinned", () => {
-    expect(isOnSession(`${PREV_SESSION}T09:15:00`, "")).toBe(true);
-    expect(isOnSession("garbage", "")).toBe(true);
-  });
-});
 
 describe("candlesFromTape", () => {
   test("builds OHLC from consecutive spots: open = previous close, high/low span, volume 0", () => {
@@ -216,7 +161,7 @@ describe("candlesFromSpotPoints", () => {
     // The wicks exist: extremes exceed the body on both sides.
     expect(c.high).toBeGreaterThan(Math.max(c.open, c.close));
     expect(c.low).toBeLessThan(Math.min(c.open, c.close));
-    expect((c as { volume: number }).volume).toBe(0);
+    expect((c as unknown as { volume: number }).volume).toBe(0);
   });
 
   test("two minutes → two candles, each stamped `${minute}:00`", () => {
@@ -402,137 +347,4 @@ describe("clipToAsOf", () => {
       `${SESSION}T09:16:00`,
     ]);
   });
-});
-
-describe("pickFreshestCandles", () => {
-  const SESSION = "2026-10-12";
-  const PREV_SESSION = "2026-10-09";
-
-  test("stale intraday (11:56) vs fresh spot points (12:20) → spots win", () => {
-    const staleIntraday = [
-      ohlcCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
-      ohlcCandle(`${SESSION}T11:56:00`, 25700, 25720, 25680, 25710), // stale
-    ];
-    const freshSpots = [
-      spotCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
-      spotCandle(`${SESSION}T12:20:00`, 25750, 25760, 25740, 25755), // fresh
-    ];
-    const tape = [tapeCandle(`${SESSION}T09:15:00`, 25600, 25600, 25600, 25600)];
-
-    const report = mockReport({ intraday: staleIntraday });
-    const out = pickFreshestCandles(report, freshSpots, tape, SESSION);
-
-    // Merge, not winner-takes-all: keep the morning intraday history and
-    // append the fresh spot minute.
-    expect(out.map((c) => c.time)).toEqual([
-      `${SESSION}T09:15:00`,
-      `${SESSION}T11:56:00`,
-      `${SESSION}T12:20:00`,
-    ]);
-    expect(out[out.length - 1].time).toBe(`${SESSION}T12:20:00`);
-  });
-
-  test("fresh intraday vs older spots → intraday wins", () => {
-    const freshIntraday = [
-      ohlcCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
-      ohlcCandle(`${SESSION}T12:20:00`, 25750, 25760, 25740, 25755), // fresh
-    ];
-    const olderSpots = [
-      spotCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
-      spotCandle(`${SESSION}T11:56:00`, 25700, 25720, 25680, 25710), // older
-    ];
-    const tape = [tapeCandle(`${SESSION}T09:15:00`, 25600, 25600, 25600, 25600)];
-
-    const report = mockReport({ intraday: freshIntraday });
-    const out = pickFreshestCandles(report, olderSpots, tape, SESSION);
-
-    // The older 11:56 spot bar still fills a minute intraday did not cover.
-    expect(out.map((c) => c.time)).toEqual([
-      `${SESSION}T09:15:00`,
-      `${SESSION}T11:56:00`,
-      `${SESSION}T12:20:00`,
-    ]);
-    expect(out[out.length - 1].time).toBe(`${SESSION}T12:20:00`);
-  });
-
-  test("empty intraday and spots → tape is used", () => {
-    const tape = [
-      tapeCandle(`${SESSION}T09:15:00`, 25600, 25600, 25600, 25600),
-      tapeCandle(`${SESSION}T09:16:00`, 25620, 25620, 25620, 25620),
-    ];
-    const report = mockReport({ intraday: [], candles: [] });
-    const out = pickFreshestCandles(report, [], tape, SESSION);
-
-    expect(out).toEqual(tape);
-  });
-
-  test("session filtering respected: previous-day intraday dropped, today's spots win", () => {
-    const prevDayIntraday = [
-      ohlcCandle(`${PREV_SESSION}T15:25:00`, 25000, 25010, 24990, 25005),
-    ];
-    const todaySpots = [
-      spotCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
-      spotCandle(`${SESSION}T12:20:00`, 25750, 25760, 25740, 25755),
-    ];
-    const tape = [tapeCandle(`${SESSION}T09:15:00`, 25600, 25600, 25600, 25600)];
-
-    const report = mockReport({ intraday: prevDayIntraday });
-    const out = pickFreshestCandles(report, todaySpots, tape, SESSION);
-
-    expect(out).toEqual(todaySpots);
-  });
-
-  test("asOf clipping respected: only candles up to asOf are considered", () => {
-    const intraday = [
-      ohlcCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
-      ohlcCandle(`${SESSION}T12:20:00`, 25750, 25760, 25740, 25755),
-      ohlcCandle(`${SESSION}T13:00:00`, 25800, 25810, 25790, 25805),
-    ];
-    const spots = [
-      spotCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
-      spotCandle(`${SESSION}T12:20:00`, 25750, 25760, 25740, 25755),
-    ];
-    const tape = [tapeCandle(`${SESSION}T09:15:00`, 25600, 25600, 25600, 25600)];
-
-    const report = mockReport({ intraday });
-    // pickFreshestCandles doesn't clip — the caller clips after.
-    // But we verify session filtering still works.
-    const out = pickFreshestCandles(report, spots, tape, SESSION);
-    expect(out).toEqual(intraday); // intraday has the latest timestamp (13:00)
-  });
-
-  test("candles (EOD) can win over intraday and spots when latest", () => {
-    const intraday = [
-      ohlcCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
-    ];
-    const eodCandles = [
-      ohlcCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
-      ohlcCandle(`${SESSION}T15:29:00`, 25800, 25810, 25790, 25805), // latest
-    ];
-    const spots = [
-      spotCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
-      spotCandle(`${SESSION}T12:20:00`, 25750, 25760, 25740, 25755),
-    ];
-    const tape = [tapeCandle(`${SESSION}T09:15:00`, 25600, 25600, 25600, 25600)];
-
-    const report = mockReport({ intraday, candles: eodCandles });
-    const out = pickFreshestCandles(report, spots, tape, SESSION);
-
-    // 1-minute sources exist, so the 15-minute EOD series is not mixed in.
-    expect(out.map((c) => c.time)).toEqual([
-      `${SESSION}T09:15:00`,
-      `${SESSION}T12:20:00`,
-    ]);
-    expect(out[out.length - 1].time).toBe(`${SESSION}T12:20:00`);
-  });
-  test("EOD candles are the fallback when no 1-minute source exists", () => {
-    const eodCandles = [
-      ohlcCandle(`${SESSION}T09:15:00`, 25600, 25650, 25580, 25620),
-      ohlcCandle(`${SESSION}T15:29:00`, 25800, 25810, 25790, 25805),
-    ];
-    const report = mockReport({ intraday: [], candles: eodCandles });
-    const out = pickFreshestCandles(report, [], [], SESSION);
-    expect(out).toEqual(eodCandles);
-  });
-
 });

@@ -104,10 +104,7 @@ def _safe_float_or_none(value: Any) -> Optional[float]:
     return out
 
 
-# ---------------------------------------------------------------------------
 # Shared state (one writer per key conceptually; the SDK thread writes ticks)
-# ---------------------------------------------------------------------------
-
 _lock = threading.Lock()
 _state: dict[str, Any] = {
     "ts": None,
@@ -306,10 +303,6 @@ def is_live() -> bool:
         return False
 
 
-# ---------------------------------------------------------------------------
-# Subscription resolution (pure part is unit-testable)
-# ---------------------------------------------------------------------------
-
 def build_subscription_keys(payload: dict) -> tuple[list[str], list[str], dict]:
     """Split one ``/option/chain`` payload into subscribe groups.
 
@@ -442,10 +435,6 @@ def _install_mapping(mapping: dict) -> None:
         pass
 
 
-# ---------------------------------------------------------------------------
-# Tick decoding (pure routing over the SDK's already-decoded dicts)
-# ---------------------------------------------------------------------------
-
 def _ltp_of(feed: dict) -> Optional[float]:
     try:
         ltpc = (feed or {}).get("ltpc") or {}
@@ -492,10 +481,6 @@ def _apply_feed(ikey: str, feed: dict) -> None:
     except Exception:
         pass
 
-
-# ---------------------------------------------------------------------------
-# WebSocket session (blocking SDK — runs in a daemon thread)
-# ---------------------------------------------------------------------------
 
 def _run_ws_session(ltpc_keys: list, greeks_keys: list,
                     stop: threading.Event, err: threading.Event) -> None:

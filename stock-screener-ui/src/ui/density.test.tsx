@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup, act } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import {
   DensityProvider,
@@ -15,23 +15,21 @@ import {
 afterEach(() => {
   cleanup();
   localStorage.removeItem(DENSITY_STORAGE_KEY);
-  act(() => {
-    setDensity("compact");
-  });
+  setDensity("compact");
 });
 
 function DensityReader() {
   const { density, tokens } = useDensity();
   return (
-    <div data-testid="density-reader" data-density={density} data-row-height={tokens.tableRowHeight}>
-      {density}
+    <div data-testid="density-reader" data-density={density()} data-row-height={tokens.tableRowHeight}>
+      {density()}
     </div>
   );
 }
 
 describe("density", () => {
   it("defaults to compact (identical to pre-density styling)", () => {
-    render(<DensityReader />);
+    render(() => <DensityReader />);
     expect(screen.getByTestId("density-reader")).toHaveAttribute("data-density", "compact");
     expect(DENSITY_TOKENS.compact.tableCellPad).toBe("3px 8px");
     expect(DENSITY_TOKENS.compact.tableRowHeight).toBe(20);
@@ -40,10 +38,8 @@ describe("density", () => {
   });
 
   it("persists the choice to localStorage and mirrors the CSS var", () => {
-    render(<DensityReader />);
-    act(() => {
-      setDensity("comfortable");
-    });
+    render(() => <DensityReader />);
+    setDensity("comfortable");
     expect(screen.getByTestId("density-reader")).toHaveAttribute("data-density", "comfortable");
     expect(localStorage.getItem(DENSITY_STORAGE_KEY)).toBe("comfortable");
     expect(document.documentElement.style.getPropertyValue(TABLE_ROW_PY_VAR)).toBe("6px");
@@ -58,11 +54,11 @@ describe("density", () => {
   });
 
   it("DensityProvider value overrides the subtree and restores on unmount", () => {
-    const { unmount } = render(
+    const { unmount } = render(() => (
       <DensityProvider value="comfortable">
         <DensityReader />
-      </DensityProvider>,
-    );
+      </DensityProvider>
+    ));
     expect(screen.getByTestId("density-reader")).toHaveAttribute("data-density", "comfortable");
     unmount();
     expect(getStoredDensity()).toBe("compact");

@@ -8,8 +8,9 @@
 import type { PreviewCandle, PivotLevel } from "../../api/chartPreview";
 import type { ORBZone } from "../../types/backtest";
 import { theme } from "../../config/theme";
+import { typeSize } from "@/ui";
 import { buildPivotSeries } from "../../utils/chartLineBuilders";
-import { formatTimeLabel } from "../../utils/chartTimeUtils";
+import { formatTimeLabel } from "@/utils/chart/time";
 import { getCandleFromParams } from "../../utils/chartUtils";
 import {
   CHART_BG,
@@ -35,6 +36,13 @@ import {
   PIVOT_52W_HIGH,
 } from "../../config/colors";
 export { buildPivotSeries, formatTimeLabel };
+
+const CHART_FONT_FALLBACK = {
+  sm: `${typeSize("micro")}px`,
+  md: `${typeSize("label")}px`,
+  lg: `${typeSize("title")}px`,
+  xl: `${typeSize("heading")}px`,
+};
 
 export type ChartSize = "preview" | "expanded" | "full";
 
@@ -66,7 +74,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
     isDark = true,
   } = options;
 
-  const fontSizes = theme.fontSizes ?? { sm: "12px", md: "14px", lg: "16px", xl: "20px" };
+  const fontSizes = theme.fontSizes ?? CHART_FONT_FALLBACK;
 
   if (!candles || candles.length === 0) {
     return null;
@@ -320,7 +328,7 @@ export function formatTooltip(params: any, candles: PreviewCandle[], isDark: boo
   const { change, changeColor } = result.change;
   const textColor = isDark ? CHART_TEXT : CHART_LIGHT_TEXT;
   const fontFamily = theme.fontFamily ?? '"IBM Plex Sans", "Roboto", system-ui, sans-serif';
-  const fontSizes = theme.fontSizes ?? { sm: "12px", md: "14px", lg: "16px", xl: "20px" };
+  const fontSizes = theme.fontSizes ?? CHART_FONT_FALLBACK;
 
   return `
     <div style="padding: 4px 6px; font-family: ${fontFamily}; font-size: ${fontSizes.sm}; line-height: 1.3; color: ${textColor};">

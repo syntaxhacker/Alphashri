@@ -1,0 +1,629 @@
+// @vitest-environment happy-dom
+import type { JSX } from "solid-js";
+import "@testing-library/jest-dom/vitest";
+import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, fireEvent, cleanup } from "@solidjs/testing-library";
+import { PaperPositionsTable } from "./PaperPositionsTable";
+import { mockPosition } from "./testFixtures";
+import type { PaperBotSnapshot, PaperPosition, PaperTradingState } from "../../types/paperTrading";
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
+function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradingState {
+  return {
+    currentView: "live",
+    positions: [],
+    portfolio: null,
+    trades: [],
+    dailySummary: null,
+    symbolPerformance: [],
+    filterDate: null,
+    filterFromDate: null,
+    filterToDate: null,
+    filterSymbol: null,
+    filterStrategy: null,
+    filterBot: null,
+    filterSource: "equity",
+    selectedSymbol: null,
+    selectedStrategyId: null,
+    selectedStrategyTab: null,
+    selectedTradeId: null,
+    showAllTrades: false,
+    showOrbLines: false,
+    showPivotLines: false,
+    show52wLines: false,
+    showEmaLines: false,
+    chartData: null,
+    chartLoading: false,
+    chartTimeframe: "5min",
+    chartFromDate: null,
+    chartDataLive: null,
+    chartTimeframeLive: "5min",
+    chartFromDateLive: null,
+    chartDataHistory: null,
+    chartTimeframeHistory: "5min",
+    chartFromDateHistory: null,
+    isLoading: false,
+    error: null,
+    autoRefreshEnabled: true,
+    botRunning: false,
+    botPid: null,
+    botLogFile: null,
+    botSnapshot: null,
+    strategyConfig: null,
+    configLoading: false,
+    configError: null,
+    configDirty: false,
+    availableBots: [],
+    dashboardAnalyticsData: null,
+    dashboardAnalyticsLoading: false,
+    analyticsData: null,
+    analyticsLoading: false,
+    activityEvents: [],
+    activityLoading: false,
+    aggregatedData: null,
+    aggregatedLoading: false,
+    ...overrides,
+  };
+}
+
+const mockBotSnapshot: PaperBotSnapshot = {
+  timestamp: "2026-03-20T09:30:00Z",
+  watchlist: ["RELIANCE", "TCS", "INFY"],
+  strategy_watchlists: {},
+  open_positions: ["RELIANCE"],
+  scan_items: [
+    {
+      symbol: "RELIANCE",
+      status: "signal",
+      side: "LONG",
+      price: 2520,
+      or_high: 2525,
+      or_low: 2500,
+      or_range_pct: 1.0,
+      reason: "ORB breakout above 2525",
+      strategy_name: "ORB Strategy",
+      strategy_id: 1,
+    },
+    {
+      symbol: "TCS",
+      status: "watching",
+      side: "LONG",
+      price: 3850,
+      high_52w: 3900,
+      reason: "Near 52W high",
+      strategy_name: "ORB Strategy",
+      strategy_id: 1,
+    },
+    {
+      symbol: "INFY",
+      status: "skipped",
+      price: 4500,
+      reason: "Low volume",
+      strategy_name: "ORB Strategy",
+      strategy_id: 1,
+    },
+  ],
+  signals: [{ symbol: "RELIANCE", side: "LONG", price: 2520, notes: "ORB breakout" }],
+};
+
+// Module-level state — initialized before vi.mock hoists the factory
+let currentState: PaperTradingState = createMockState();
+const storeListeners = vi.hoisted(() => ({ notify: null as null | (() => void) }));
+
+vi.mock("../../state/paperTrading", () => {
+  return {
+    getPaperTradingState: vi.fn(() => currentState),
+    subscribe: vi.fn((cb: () => void) => {
+      storeListeners.notify = cb;
+      return vi.fn();
+    }),
+    setSelectedSymbol: vi.fn(),
+    setSelectedStrategyTab: vi.fn((tab: string) => {
+      currentState.selectedStrategyTab = tab;
+    }),
+    setSelectedTradeId: vi.fn(),
+    setShowAllTrades: vi.fn(),
+    updatePositionNotesAction: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
+vi.mock("../../api/paperTrading", () => ({
+  closePaperPosition: vi.fn().mockResolvedValue(undefined),
+  refreshLiveData: vi.fn().mockResolvedValue(undefined),
+  fetchPaperChart: vi.fn().mockResolvedValue(undefined),
+  closeAllPositions: vi.fn().mockResolvedValue(undefined),
+  refreshBotLiveData: vi.fn().mockResolvedValue(undefined),
+  fetch52WLevels: vi.fn().mockResolvedValue({ high_52w: 3625, low_52w: 2800 }),
+}));
+
+vi.mock("@solidjs/router", () => ({
+  useNavigate: vi.fn(() => vi.fn()),
+  useLocation: vi.fn(() => ({ pathname: "/" })),
+  BrowserRouter: ({ children }: { children: JSX.Element }) => <>{children}</>,
+}));
+
+vi.mock("../common/PreviewChartProvider", () => ({
+  usePreviewChart: vi.fn(() => ({
+    showPreviewChart: vi.fn(),
+    hidePreviewChart: vi.fn(),
+  })),
+}));
+
+type Sorting = Array<{ id: string; desc: boolean }>;
+const prefsMock = vi.hoisted(() => ({
+  ids: [] as string[],
+  calls: [] as Sorting[],
+  write: null as ((next: Sorting) => void) | null,
+}));
+
+vi.mock("../common/useTablePrefs", async () => {
+  const { createSignal } = await import("solid-js");
+  const [get, set] = createSignal<Sorting>([]);
+  prefsMock.write = set;
+  return {
+    useTablePrefs: (tableId: string) => {
+      prefsMock.ids.push(tableId);
+      return {
+        prefs: () => ({ sorting: get(), order: [], hidden: [] }),
+        setSorting: (next: Sorting) => {
+          prefsMock.calls.push(next);
+          set(next);
+        },
+        status: () => "ready",
+        error: () => null,
+        hydrated: () => true,
+        setColumnPrefs: () => {},
+        retry: () => {},
+      };
+    },
+  };
+});
+
+function setState(overrides: Partial<PaperTradingState>) {
+  currentState = createMockState(overrides);
+}
+
+function resetState() {
+  currentState = createMockState();
+}
+
+function r(component: () => JSX.Element) {
+  return render(component);
+}
+
+function rWithPosition(
+  positionOverrides: Partial<PaperPosition> = {},
+  stateOverrides: Partial<PaperTradingState> = {},
+) {
+  const pos = mockPosition({
+    symbol: "RELIANCE",
+    side: "BUY",
+    ...positionOverrides,
+  });
+  setState({
+    positions: [pos],
+    botSnapshot: null,
+    ...stateOverrides,
+  });
+  r(() => <PaperPositionsTable />);
+  return pos;
+}
+
+function rWithCloseAllEnabled(positionOverrides: Partial<PaperPosition> = {}) {
+  return rWithPosition(
+    { current_price: 2550, ...positionOverrides },
+    {
+      availableBots: [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true, live_trading: false }],
+    },
+  );
+}
+
+function rWithTwoPositions(
+  pos1Overrides: Partial<PaperPosition>,
+  pos2Overrides: Partial<PaperPosition>,
+  stateOverrides: Partial<PaperTradingState> = {},
+) {
+  const pos1 = mockPosition({ symbol: "RELIANCE", side: "BUY", ...pos1Overrides });
+  const pos2 = mockPosition({ symbol: "INFY", side: "BUY", ...pos2Overrides });
+  setState({ positions: [pos1, pos2], botSnapshot: null, ...stateOverrides });
+  r(() => <PaperPositionsTable />);
+  return { pos1, pos2 };
+}
+
+describe("PaperPositionsTable", () => {
+  beforeEach(() => {
+    resetState();
+    vi.clearAllMocks();
+    prefsMock.ids.length = 0;
+    prefsMock.calls.length = 0;
+    prefsMock.write!([]);
+  });
+
+  afterEach(() => {
+    resetState();
+  });
+
+  describe("Empty states", () => {
+    test("shows empty state when positions is empty and no botSnapshot", () => {
+      setState({ positions: [], botSnapshot: null, isLoading: false });
+      r(() => <PaperPositionsTable />);
+      expect(screen.getByTestId("positions-empty")).toBeInTheDocument();
+      expect(screen.getByText("No open positions")).toBeInTheDocument();
+    });
+
+    test("shows loading state when isLoading and no positions", () => {
+      setState({ isLoading: true, positions: [], botSnapshot: null });
+      r(() => <PaperPositionsTable />);
+      expect(screen.getByText("Loading positions...")).toBeInTheDocument();
+    });
+
+    test("no positions but botSnapshot present shows empty positions", () => {
+      setState({ positions: [], botSnapshot: mockBotSnapshot });
+      r(() => <PaperPositionsTable />);
+
+      expect(screen.getByTestId("positions-empty")).toBeInTheDocument();
+    });
+  });
+
+  describe("Single position display", () => {
+    test("renders single position with symbol, merged entry/curr, P&L %", () => {
+      rWithPosition({ pnl: 5000, pnl_pct: 2.0 });
+      expect(screen.getByText("RELIANCE")).toBeInTheDocument();
+      expect(screen.getByText((c) => c.includes("10") && c.includes("₹2500"))).toBeInTheDocument();
+      const row = screen.getByTestId("position-row-1-RELIANCE");
+      expect(row.textContent).toContain("+₹5.0K");
+      expect(row.textContent).toContain("+2.00%");
+    });
+
+    test("renders close button for each position row", () => {
+      rWithPosition();
+      const closeBtn = screen.getByTestId("close-position-1-RELIANCE");
+      expect(closeBtn).toBeInTheDocument();
+    });
+
+    test("position row click triggers symbol selection", async () => {
+      rWithPosition();
+      await fireEvent.click(screen.getByText("RELIANCE"));
+      const { setSelectedSymbol } = await import("../../state/paperTrading");
+      expect(setSelectedSymbol).toHaveBeenCalledWith("RELIANCE");
+      const { fetchPaperChart } = await import("../../api/paperTrading");
+      expect(fetchPaperChart).toHaveBeenCalledWith(
+        "RELIANCE",
+        expect.any(String),
+        expect.any(String),
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+  });
+
+  describe("Side indicator", () => {
+    test("BUY side shows symbol name", () => {
+      rWithPosition();
+      expect(screen.getByText("RELIANCE")).toBeInTheDocument();
+    });
+
+    test("SELL side shows symbol name", () => {
+      rWithPosition({ side: "SELL", pnl: -500, pnl_pct: -1.0 });
+      expect(screen.getByText("RELIANCE")).toBeInTheDocument();
+    });
+  });
+
+  describe("P&L text color", () => {
+    test("positive P&L with ₹ amount and percentage", () => {
+      rWithPosition({ pnl: 5000, pnl_pct: 2.0 });
+      const row = screen.getByTestId("position-row-1-RELIANCE");
+      expect(row.textContent).toContain("+₹5.0K");
+      expect(row.textContent).toContain("+2.00%");
+    });
+
+    test("negative P&L with ₹ amount and percentage", () => {
+      rWithPosition({ pnl: -500, pnl_pct: -0.2 });
+      const row = screen.getByTestId("position-row-1-RELIANCE");
+      expect(row.textContent).toContain("₹-500");
+      expect(row.textContent).toContain("-0.20%");
+    });
+  });
+
+  describe("Multiple positions grouped by strategy", () => {
+    test("renders positions in strategy card", () => {
+      rWithTwoPositions(
+        { strategy_id: 1, strategy_name: "ORB Strategy" },
+        {
+          symbol: "TCS",
+          side: "BUY",
+          strategy_id: 1,
+          strategy_name: "ORB Strategy",
+          order_id: "ord-2",
+        },
+      );
+      expect(screen.getByText((c) => c.includes("RELIANCE"))).toBeInTheDocument();
+      expect(screen.getByText((c) => c.includes("TCS"))).toBeInTheDocument();
+      expect(screen.getByTestId("strategy-card-ORB Strategy")).toBeInTheDocument();
+    });
+
+    test("renders separate cards for different strategies", () => {
+      rWithTwoPositions(
+        { strategy_id: 1, strategy_name: "ORB Strategy" },
+        { symbol: "INFY", side: "BUY", strategy_id: 2, strategy_name: "SR Breakout" },
+      );
+      expect(screen.getByTestId("strategy-card-ORB Strategy")).toBeInTheDocument();
+      expect(screen.getByTestId("strategy-card-SR Breakout")).toBeInTheDocument();
+    });
+
+    test("strategy panel shows count and P&L", () => {
+      rWithTwoPositions(
+        { strategy_id: 1, strategy_name: "ORB Strategy", pnl: 5000 },
+        { symbol: "INFY", side: "BUY", strategy_id: 2, strategy_name: "SR Breakout", pnl: 3000 },
+      );
+      expect(screen.getByText("ORB Strategy")).toBeInTheDocument();
+      expect(screen.getByText("SR Breakout")).toBeInTheDocument();
+    });
+  });
+
+  describe("live price tick row identity", () => {
+    test("unchanged position rows keep their DOM elements while the changed price updates and flashes", () => {
+      const pos1 = mockPosition({ symbol: "TICKTEST", order_id: "o1", current_price: 2500, pnl: 0, pnl_pct: 0 });
+      const pos2 = mockPosition({ symbol: "INFY", order_id: "o2", current_price: 1500, pnl: 0, pnl_pct: 0 });
+      setState({ positions: [pos1, pos2], botSnapshot: null });
+      r(() => <PaperPositionsTable />);
+
+      const beforeRel = screen.getByTestId("position-row-1-TICKTEST");
+      const beforeInfy = screen.getByTestId("position-row-1-INFY");
+      const infyText = beforeInfy.textContent;
+      expect(beforeRel.querySelector(".value-flash-up")).toBeNull();
+
+      setState({
+        positions: [{ ...pos1, current_price: 2510 }, { ...pos2 }],
+        botSnapshot: null,
+      });
+      storeListeners.notify!();
+
+      expect(screen.getByTestId("position-row-1-INFY")).toBe(beforeInfy);
+      expect(beforeInfy.textContent).toBe(infyText);
+      expect(beforeInfy.querySelector(".value-flash-up")).toBeNull();
+
+      const afterRel = screen.getByTestId("position-row-1-TICKTEST");
+      expect(afterRel).not.toBe(beforeRel);
+      expect(afterRel.textContent).toContain("₹2510.00");
+      const priceFlash = afterRel.querySelector(".value-flash-up");
+      expect(priceFlash).not.toBeNull();
+      expect(priceFlash).toHaveAttribute("data-flash-key", "1");
+      expect(priceFlash).toHaveAttribute("data-flash-direction", "up");
+    });
+  });
+
+  describe("CloseAll button", () => {
+    test("CloseAll button renders when positions exist", () => {
+      rWithCloseAllEnabled({ current_price: 2550 });
+      expect(screen.getByTestId("close-all-positions")).toBeInTheDocument();
+      expect(screen.getAllByText("Close All").length).toBeGreaterThanOrEqual(1);
+    });
+
+    test("CloseAll button NOT rendered when no positions", () => {
+      setState({ positions: [], botSnapshot: null });
+      r(() => <PaperPositionsTable />);
+
+      expect(screen.queryByTestId("close-all-positions")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Positions table container and header", () => {
+    test("positions header shows count", () => {
+      rWithTwoPositions({}, {});
+      expect(screen.getByText("Positions (2)")).toBeInTheDocument();
+    });
+
+    test("badge shows PAPER when no live bot selected", () => {
+      rWithPosition();
+      expect(screen.getByText("PAPER")).toBeInTheDocument();
+    });
+
+    test("badge shows LIVE when live bot is selected", () => {
+      rWithPosition({}, {
+        filterBot: "bot-1",
+        availableBots: [{
+          id: "bot-1",
+          name: "Live Bot",
+          strategies: [],
+          is_active: true,
+          live_trading: true,
+        }],
+      });
+      expect(screen.getByText("LIVE")).toBeInTheDocument();
+    });
+
+    test("positions panel data-testid present", () => {
+      rWithPosition();
+      expect(screen.getByTestId("positions-table-container")).toBeInTheDocument();
+    });
+
+    test("positions table has data-testid from DataTable", () => {
+      rWithPosition();
+      expect(screen.getByTestId("positions-table")).toBeInTheDocument();
+    });
+  });
+
+  describe("CloseAll button loading and error", () => {
+    test("closeAllPositions loading state shows loading indicator", async () => {
+      const { closeAllPositions } = await import("../../api/paperTrading");
+      vi.mocked(closeAllPositions).mockReturnValueOnce(new Promise(() => {}));
+      const confirmMock = vi.fn(() => true);
+      window.confirm = confirmMock as unknown as typeof window.confirm;
+
+      rWithCloseAllEnabled();
+
+      expect(screen.queryByText("Closing...")).not.toBeInTheDocument();
+      await fireEvent.click(screen.getByTestId("close-all-positions"));
+      expect(screen.getByText("Closing...")).toBeInTheDocument();
+    });
+
+    test("error alert renders when closeAllPositions fails", async () => {
+      const { closeAllPositions } = await import("../../api/paperTrading");
+      vi.mocked(closeAllPositions).mockRejectedValueOnce(new Error("Network error"));
+      const confirmMock = vi.fn(() => true);
+      window.confirm = confirmMock as unknown as typeof window.confirm;
+      const alertMock = vi.fn();
+      window.alert = alertMock as unknown as typeof window.alert;
+
+      rWithCloseAllEnabled();
+
+      await fireEvent.click(screen.getByTestId("close-all-positions"));
+      await waitFor(() => {
+        expect(alertMock).toHaveBeenCalledWith("Network error");
+      });
+    });
+  });
+
+  describe("Edge cases - guards", () => {
+    test("NaN current_price does not crash and renders fallback", () => {
+      rWithPosition({ current_price: NaN });
+      // composite key 1-RELIANCE, fallback to plain if needed
+      const row = screen.queryByTestId("position-row-1-RELIANCE") || screen.getByTestId("position-row-RELIANCE");
+      expect(row).toBeInTheDocument();
+      expect(screen.getByTestId("positions-table").textContent).not.toContain("NaN");
+    });
+
+    test("Infinity current_price guard fallback", () => {
+      rWithPosition({ current_price: Infinity });
+      const row = screen.queryByTestId("position-row-1-RELIANCE") || screen.getByTestId("position-row-RELIANCE");
+      expect(row).toBeInTheDocument();
+      expect(screen.getByTestId("positions-table").textContent).not.toContain("Infinity");
+    });
+
+    test("Infinity current_price excluded from closeAll payload", async () => {
+      const { closeAllPositions } = await import("../../api/paperTrading");
+      const confirmMock = vi.fn(() => true);
+      window.confirm = confirmMock as any;
+      rWithTwoPositions({ current_price: Infinity, symbol: "RELIANCE" }, { current_price: 2550, symbol: "TCS" }, {
+        availableBots: [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true, live_trading: false }],
+      });
+      await fireEvent.click(screen.getByTestId("close-all-positions"));
+      await waitFor(() => expect(closeAllPositions).toHaveBeenCalled());
+      const prices = (closeAllPositions as any).mock.calls[0][1];
+      expect(prices["RELIANCE"]).toBeUndefined();
+      expect(prices["TCS"]).toBe(2550);
+    });
+
+    test("quantity 0 renders 0× without crash", () => {
+      rWithPosition({ quantity: 0 });
+      const row = screen.queryByTestId("position-row-1-RELIANCE") || screen.getByTestId("position-row-RELIANCE");
+      expect(row.textContent).toContain("0×");
+    });
+
+    test("window.confirm false path does not call closePaperPosition", async () => {
+      const { closePaperPosition } = await import("../../api/paperTrading");
+      const confirmMock = vi.fn(() => false);
+      window.confirm = confirmMock as any;
+      rWithPosition({ current_price: 2550 });
+      const closeBtn = screen.queryByTestId("close-position-1-RELIANCE") || screen.getByTestId("close-position-RELIANCE");
+      await fireEvent.click(closeBtn);
+      expect(confirmMock).toHaveBeenCalled();
+      expect(closePaperPosition).not.toHaveBeenCalled();
+    });
+
+    test("window.confirm false path for Close All does not call closeAllPositions", async () => {
+      const { closeAllPositions } = await import("../../api/paperTrading");
+      const confirmMock = vi.fn(() => false);
+      window.confirm = confirmMock as any;
+      rWithCloseAllEnabled();
+      await fireEvent.click(screen.getByTestId("close-all-positions"));
+      expect(closeAllPositions).not.toHaveBeenCalled();
+    });
+
+    test("concurrent handleCloseAll double-click calls closeAllPositions only once", async () => {
+      const { closeAllPositions } = await import("../../api/paperTrading");
+      // pending promise to keep closing=true
+      let resolve: any;
+      vi.mocked(closeAllPositions).mockReturnValueOnce(new Promise((res) => { resolve = res; }) as any);
+      const confirmMock = vi.fn(() => true);
+      window.confirm = confirmMock as any;
+      rWithCloseAllEnabled();
+      const btn = screen.getByTestId("close-all-positions");
+      await fireEvent.click(btn);
+      // second click while still closing should be ignored (button is disabled when loading, so click throws pointer-events error)
+      try { await fireEvent.click(btn); } catch {}
+      expect(closeAllPositions).toHaveBeenCalledTimes(1);
+      resolve(undefined);
+      await waitFor(() => expect(screen.queryByText("Closing...")).not.toBeInTheDocument());
+    });
+
+    test("XSS symbol \"<script>\" is escaped not executed", () => {
+      const xss = "<script>alert(1)</script>";
+      rWithPosition({ symbol: xss });
+      // composite sanitizes non-alnum to -, so id becomes 1--script-alert-1--script-
+      const row = document.querySelector('[data-testid^="position-row-"]') as HTMLElement;
+      expect(row).toBeInTheDocument();
+      expect(row.textContent).toContain("<script>");
+      // No script element materializes in the row (symbol also rides inert,
+      // escaped attribute values like data-testid/aria-label)
+      expect(row.querySelector("script")).toBeNull();
+      // The text node is entity-escaped in the serialized HTML
+      expect(row.innerHTML).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+      // No script element created in DOM outside
+      const scripts = document.querySelectorAll("script");
+      // only original template scripts, not injected XSS
+      expect(Array.from(scripts).some(s=>s.textContent?.includes("alert(1)"))).toBe(false);
+    });
+  });
+});
+
+describe("PaperPositionsTable saved sort", () => {
+  beforeEach(() => {
+    resetState();
+    prefsMock.ids.length = 0;
+    prefsMock.calls.length = 0;
+    prefsMock.write!([]);
+  });
+
+  const stockRowIds = () =>
+    Array.from(document.querySelectorAll("tbody tr[data-row='stock']")).map(
+      (tr) => (tr as HTMLElement).dataset.testid,
+    );
+
+  function threePositions() {
+    return [
+      mockPosition({ symbol: "ZOO", order_id: "o1", entry_time: "2026-03-20T09:30:00Z" }),
+      mockPosition({ symbol: "AAPL", order_id: "o2", entry_time: "2026-03-20T10:30:00Z" }),
+      mockPosition({ symbol: "RELIANCE", order_id: "o3", entry_time: "2026-03-20T11:30:00Z" }),
+    ];
+  }
+
+  test("restores a saved sort on first render and reflects it in aria-sort", () => {
+    setState({ positions: threePositions(), botSnapshot: null });
+    prefsMock.write!([{ id: "symbol", desc: false }]);
+    r(() => <PaperPositionsTable />);
+
+    expect(prefsMock.ids).toContain("paper.positions");
+    expect(stockRowIds()).toEqual([
+      "position-row-1-AAPL",
+      "position-row-1-RELIANCE",
+      "position-row-1-ZOO",
+    ]);
+    expect(document.getElementById("paper-tanstack-header-symbol")).toHaveAttribute("aria-sort", "ascending");
+  });
+
+  test("a header click persists the new sort and reorders rows", () => {
+    setState({ positions: threePositions(), botSnapshot: null });
+    r(() => <PaperPositionsTable />);
+    // Empty saved prefs keep the current newest-entry-first default order.
+    expect(stockRowIds()).toEqual([
+      "position-row-1-RELIANCE",
+      "position-row-1-AAPL",
+      "position-row-1-ZOO",
+    ]);
+
+    fireEvent.click(document.getElementById("paper-tanstack-header-symbol")!);
+    expect(prefsMock.calls.length).toBeGreaterThan(0);
+    expect(prefsMock.calls.at(-1)![0]).toMatchObject({ id: "symbol", desc: false });
+    expect(stockRowIds()).toEqual([
+      "position-row-1-AAPL",
+      "position-row-1-RELIANCE",
+      "position-row-1-ZOO",
+    ]);
+  });
+});

@@ -1,0 +1,269 @@
+// @vitest-environment happy-dom
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
+import "@testing-library/jest-dom/vitest";
+import { UIProvider } from "@/ui";
+import { AuthProvider, useAuth } from "./AuthProvider";
+
+const TOKEN_KEY = "alphashri_token";
+const REFRESH_TOKEN_KEY = "alphashri_refresh_token";
+const USER_KEY = "alphashri_user";
+
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
+
+function TestConsumer() {
+  const auth = useAuth();
+  return (
+    <div>
+      <div data-testid="auth-user">{auth.user ? auth.user.email : "null"}</div>
+      <div data-testid="auth-authenticated">{String(auth.isAuthenticated)}</div>
+      <div data-testid="auth-loading">{String(auth.loading)}</div>
+      <div data-testid="auth-error">{auth.error || "null"}</div>
+      <button data-testid="btn-login" onClick={() => auth.login("a@b.com", "pw")}>
+        Login
+      </button>
+      <button
+        data-testid="btn-register"
+        onClick={() => auth.register("a@b.com", "pw", "User")}
+      >
+        Register
+      </button>
+      <button data-testid="btn-logout" onClick={() => auth.logout()}>
+        Logout
+      </button>
+      <button
+        data-testid="btn-check-auth"
+        onClick={() => auth.checkAuth?.()}
+      >
+        CheckAuth
+      </button>
+      <button data-testid="btn-clear-error" onClick={() => auth.clearError()}>
+        ClearError
+      </button>
+    </div>
+  );
+}
+
+function renderWithProvider() {
+  return render(() => (<UIProvider>
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>
+    </UIProvider>),
+  );
+}
+
+describe("AuthProvider2", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    mockFetch.mockReset();
+    // Default: /api/auth/me returns 401 (no auth)
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({}),
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("provides AuthContext and renders wrapper", () => {
+    renderWithProvider();
+    expect(screen.getByTestId("auth-provider")).toBeInTheDocument();
+  });
+
+  it("useAuth throws if used outside AuthProvider", () => {
+    expect(() =>
+      render(() => (<UIProvider>
+          <TestConsumer />
+        </UIProvider>),
+      ),
+    ).toThrow("useAuth must be used within an AuthProvider");
+  });
+
+  it("getAccessToken returns token from localStorage", () => {
+    localStorage.setItem(TOKEN_KEY, "test-token");
+    let token: string | null = null;
+    function Consumer() {
+      const auth = useAuth();
+      token = auth.getAccessToken();
+      return null;
+    }
+    render(() => (<UIProvider>
+        <AuthProvider>
+          <Consumer />
+        </AuthProvider>
+      </UIProvider>),
+    );
+    expect(token).toBe("test-token");
+  });
+
+  it("fetchWithAuth adds Authorization header when token exists", async () => {
+          localStorage.setItem(TOKEN_KEY, "test-token");
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 1, email: "test@test.com" }),
+    });
+
+    function Consumer() {
+      const auth = useAuth();
+      return (
+        <button
+          onClick={async () => {
+            await auth.fetchWithAuth("http://example.com/api/data");
+          }}
+        >
+          Fetch
+        </button>
+      );
+    }
+    render(() => (<UIProvider>
+        <AuthProvider>
+          <Consumer />
+        </AuthProvider>
+      </UIProvider>),
+    );
+    await fireEvent.click(screen.getByText("Fetch"));
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled();
+      const call = mockFetch.mock.calls[0];
+      const headers = (call[1] as any)?.headers;
+      expect(headers["Authorization"]).toBe("Bearer test-token");
+    });
+  });
+
+  it("login calls /api/auth/login and stores tokens on success", async () => {
+          mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: "new-token",
+          refresh_token: "new-refresh",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: 1,
+          email: "test@test.com",
+          display_name: "Test",
+          initial_capital: 0,
+          created_at: "2025-01-01T00:00:00Z",
+        }),
+      });
+
+    renderWithProvider();
+
+    await fireEvent.click(screen.getByTestId("btn-login"));
+
+    await waitFor(() => {
+      const loginCalls = mockFetch.mock.calls.filter(
+        (c) => typeof c[0] === "string" && (c[0] as string).includes("/api/auth/login"),
+      );
+      expect(loginCalls.length).toBeGreaterThanOrEqual(1);
+    });
+
+    // Tokens and user are stored on successful login.
+    await waitFor(() => {
+      expect(localStorage.getItem(TOKEN_KEY)).toBe("new-token");
+      expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBe("new-refresh");
+      expect(screen.getByTestId("auth-user")).toHaveTextContent("test@test.com");
+    });
+  });
+
+  it("login returns error on failure", async () => {
+          mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: async () => ({ detail: "Invalid credentials" }),
+    });
+
+    renderWithProvider();
+    await fireEvent.click(screen.getByTestId("btn-login"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("auth-error")).toHaveTextContent("Invalid credentials");
+    });
+  });
+
+  it("logout calls /api/auth/logout and clears stored tokens/user", async () => {
+    // Mount-time checkAuth would race the click; settle it first (default
+    // mock returns 401 → it finds nothing and stores nothing), then seed.
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({}),
+    });
+    renderWithProvider();
+    await waitFor(() => {
+      expect(screen.getByTestId("auth-loading")).toHaveTextContent("false");
+    });
+
+    localStorage.setItem(TOKEN_KEY, "test-token");
+    localStorage.setItem(REFRESH_TOKEN_KEY, "test-refresh");
+    localStorage.setItem(USER_KEY, JSON.stringify({ id: 1, email: "test@test.com" }));
+
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
+    await fireEvent.click(screen.getByTestId("btn-logout"));
+
+    await waitFor(() => {
+      expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
+      expect(localStorage.getItem(REFRESH_TOKEN_KEY)).toBeNull();
+      expect(localStorage.getItem(USER_KEY)).toBeNull();
+    });
+
+    const logoutCalls = mockFetch.mock.calls.filter(
+      (c) => typeof c[0] === "string" && (c[0] as string).includes("/api/auth/logout"),
+    );
+    expect(logoutCalls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("checkAuth validates stored token via /api/auth/me", async () => {
+    localStorage.setItem(TOKEN_KEY, "test-token");
+    localStorage.setItem(USER_KEY, JSON.stringify({ id: 1, email: "stored@test.com" }));
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 1,
+        email: "stored@test.com",
+        display_name: "Stored",
+        initial_capital: 0,
+        created_at: "2025-01-01T00:00:00Z",
+      }),
+    });
+
+    renderWithProvider();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("auth-user")).toHaveTextContent("stored@test.com");
+    });
+  });
+
+  it("clearError sets error state to null", async () => {
+          mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: async () => ({ detail: "Some error" }),
+    });
+
+    renderWithProvider();
+
+    await fireEvent.click(screen.getByTestId("btn-login"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("auth-error")).not.toHaveTextContent("null");
+    });
+
+    await fireEvent.click(screen.getByTestId("btn-clear-error"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("auth-error")).toHaveTextContent("null");
+    });
+  });
+
+});

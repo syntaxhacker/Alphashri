@@ -1,27 +1,24 @@
-import React, { memo, useState, useEffect, useMemo, useRef } from "react";
-import type { ColumnDef, SortingState } from "@tanstack/react-table";
-import { PanelModal } from "@/components/common/PanelModal";
-import { TanStackTable } from "@/components/common/TanStackTable";
+import { createEffect, createMemo, createSignal, Show, onCleanup } from "solid-js";
+import { TanStackTable, type TableColumnDef } from "@/components/common/TanStackTable";
+import { NumCell, SymbolCell } from "@/components/common/tableCells";
+import { LocalPanelModal } from "./LocalPanelModal";
 import * as palette from "@/ui/palette";
-import { Text, SegmentedControl, Button } from "@/ui";
-import Tooltip from "@mui/material/Tooltip";
-import Box from "@mui/material/Box";
+import { Loader, Text, SegmentedControl, Button, Tooltip } from "@/ui";
 import { formatNumberIN } from "@/utils/ui-helpers";
-import {
-  REPORT_FONT,
-  REPORT_PAD,
-  REPORT_RADIUS,
-} from "./reportTokens";
 import { fetchIndexMovers, IndexMoversResponse, IndexMoverRow } from "@/api/indexMovers";
+import { useSymbolDock } from "@/components/common/symbolDockContext";
 
 interface IndexMoversModalProps {
   open: boolean;
   onClose: () => void;
   index: "NIFTY" | "SENSEX";
+  /** Constituent symbol → app-wide chart dock. */
+  onOpenSymbol?: (symbol: string) => void;
 }
 
-const GAINER_COLOR = palette.POSITIVE;
-const LOSER_COLOR = palette.NEGATIVE;
+function formatSignedPct(v: number): string {
+  return `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
+}
 
 interface MoversTableRow extends IndexMoverRow {
   rank: number;
@@ -36,225 +33,125 @@ const TABS = [
 
 type TabValue = (typeof TABS)[number]["value"];
 
-function MoversTable({
-  rows,
-  index,
-}: {
+function MoversTable(props: {
   rows: MoversTableRow[];
   index: "NIFTY" | "SENSEX";
+  onOpenSymbol: (symbol: string) => void;
 }) {
-  const [_sorting, setSorting] = useState<SortingState>([{ id: "change_pct", desc: true }]);
-  const [sortMode, _setSortMode] = useState<"change" | "contribution" | "symbol">("change");
-
-  // Column definitions with explicit meta.align
-  const columns = useMemo<ColumnDef<MoversTableRow>[]>(() => [
+  const columns = createMemo<TableColumnDef<MoversTableRow>[]>(() => [
     {
+      id: "rank",
       header: "RANK",
       accessorKey: "rank",
       size: 50,
-      meta: { align: "center" },
-      cell: (info) => (
-        <Text
-          span
-          size="xs"
-          fw={600}
-          style={{
-            fontSize: REPORT_FONT.xs,
-            fontVariantNumeric: "tabular-nums",
-            color: palette.TEXT_MUTED,
-            fontFamily: palette.MONO,
-          }}
-        >
-          {info.getValue()}
-        </Text>
+      meta: { align: "right" },
+      cell: ({ row }) => (
+        <NumCell value={row.original.rank} fw={600} tone="dimmed" format={(v) => String(v)} />
       ),
     },
     {
+      id: "symbol",
       header: "SYMBOL",
       accessorKey: "symbol",
       size: 120,
       meta: { align: "left" },
-      cell: (info) => (
-        <Text
-          span
-          size="xs"
-          fw={700}
-          style={{
-            fontSize: REPORT_FONT.sm,
-            fontVariantNumeric: "tabular-nums",
-            fontFamily: palette.MONO,
-          }}
-        >
-          {info.getValue()}
-        </Text>
+      cell: ({ row }) => (
+        <SymbolCell symbol={row.original.symbol} onOpen={props.onOpenSymbol} />
       ),
     },
     {
+      id: "ltp",
       header: "LTP",
       accessorKey: "ltp",
       size: 90,
       meta: { align: "right" },
-      cell: (info) => (
-        <Text
-          span
-          size="xs"
-          fw={600}
-          style={{
-            fontSize: REPORT_FONT.sm,
-            fontVariantNumeric: "tabular-nums",
-            fontFamily: palette.MONO,
-          }}
-        >
-          {formatNumberIN(info.getValue() as number)}
-        </Text>
+      cell: ({ row }) => (
+        <NumCell value={row.original.ltp} fw={600} format={formatNumberIN} />
       ),
     },
     {
+      id: "change_pct",
       header: "CHANGE %",
       accessorKey: "change_pct",
       size: 90,
       meta: { align: "right" },
-      cell: (info) => {
-        const val = info.getValue() as number;
-        const isGainer = val > 0;
-        return (
-          <Text
-            span
-            size="xs"
-            fw={700}
-            style={{
-              fontSize: REPORT_FONT.sm,
-              fontVariantNumeric: "tabular-nums",
-              fontFamily: palette.MONO,
-              color: isGainer ? GAINER_COLOR : LOSER_COLOR,
-            }}
-          >
-            {isGainer ? "+" : ""}{val.toFixed(2)}%
-          </Text>
-        );
-      },
+      cell: ({ row }) => (
+        <NumCell value={row.original.change_pct} signed fw={700} format={formatSignedPct} />
+      ),
     },
     {
+      id: "contribution_pct",
       header: "CONTRIB %",
       accessorKey: "contribution_pct",
       size: 90,
       meta: { align: "right" },
-      cell: (info) => {
-        const val = info.getValue() as number | undefined;
-        if (val === undefined || val === null) {
-          return (
-            <Text
-              span
-              size="xs"
-              c="dimmed"
-              style={{
-                fontSize: REPORT_FONT.sm,
-                fontVariantNumeric: "tabular-nums",
-                fontFamily: palette.MONO,
-              }}
-            >
-              —
-            </Text>
-          );
-        }
-        const isGainer = val > 0;
-        return (
-          <Text
-            span
-            size="xs"
-            fw={600}
-            style={{
-              fontSize: REPORT_FONT.sm,
-              fontVariantNumeric: "tabular-nums",
-              fontFamily: palette.MONO,
-              color: isGainer ? GAINER_COLOR : LOSER_COLOR,
-            }}
-          >
-            {isGainer ? "+" : ""}{val.toFixed(2)}%
-          </Text>
-        );
-      },
+      cell: ({ row }) => (
+        <NumCell value={row.original.contribution_pct} signed fw={600} format={formatSignedPct} />
+      ),
     },
     {
+      id: "volume",
       header: "VOLUME",
       accessorKey: "volume",
       size: 110,
       meta: { align: "right" },
-      cell: (info) => (
-        <Text
-          span
-          size="xs"
-          c="dimmed"
-          style={{
-            fontSize: REPORT_FONT.xs,
-            fontVariantNumeric: "tabular-nums",
-            fontFamily: palette.MONO,
-          }}
-        >
-          {formatNumberIN(info.getValue() as number)}
-        </Text>
+      cell: ({ row }) => (
+        <NumCell value={row.original.volume} tone="dimmed" format={formatNumberIN} />
       ),
     },
-  ], [index]);
-
-  // Apply sort based on sortMode
-  useEffect(() => {
-    if (sortMode === "change") {
-      setSorting([{ id: "change_pct", desc: true }]);
-    } else if (sortMode === "contribution") {
-      setSorting([{ id: "contribution_pct", desc: true }]);
-    } else {
-      setSorting([{ id: "symbol", desc: false }]);
-    }
-  }, [sortMode]);
+  ]);
 
   return (
     <TanStackTable<MoversTableRow>
-      data={rows}
-      columns={columns}
+      data={props.rows}
+      columns={columns()}
       dataTestId="movers-table"
-      enableSorting={true}
+      enableSorting={false}
       initialState={{ sorting: [{ id: "change_pct", desc: true }] }}
-      onSortingChange={setSorting}
       dense
       fillContainer
       minTableWidth={560}
       getRowAttributes={(row) => ({
-        "data-mover-rank": row.rank,
-        "data-mover-symbol": row.symbol,
+        dataMoverRank: row.rank,
+        dataMoverSymbol: row.symbol,
       })}
     />
   );
 }
 
-export const IndexMoversModal = memo(function IndexMoversModal({
-  open,
-  onClose,
-  index,
-}: IndexMoversModalProps) {
-  const [data, setData] = useState<IndexMoversResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<TabValue>("gainers");
-  const abortRef = useRef<AbortController | null>(null);
-  const mountedRef = useRef(true);
+export function IndexMoversModal(props: IndexMoversModalProps) {
+  const open = () => props.open;
+  const index = () => props.index;
+  const dock = useSymbolDock();
+  // NIFTY 50 / SENSEX 30 are symbol chips: open the canonical index chart in
+  // the app-wide dock, never switch the report's underlying Select.
+  const openIndex = (value: "NIFTY" | "SENSEX") =>
+    dock.open(value === "SENSEX" ? "SENSEX" : "NIFTY");
+  const openSymbol = (symbol: string) =>
+    (props.onOpenSymbol ?? ((s) => dock.open(s)))(symbol);
+  const [data, setData] = createSignal<IndexMoversResponse | null>(null);
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const [tab, setTab] = createSignal<TabValue>("gainers");
+  let abortController: AbortController | null = null;
+  let mounted = true;
 
-  // Load all movers when modal opens
-  useEffect(() => {
-    if (!open) return;
-    mountedRef.current = true;
-    abortRef.current?.abort();
+  createEffect(() => {
+    if (!open()) return;
+    index();
+    mounted = true;
+    abortController?.abort();
     const controller = new AbortController();
-    abortRef.current = controller;
+    abortController = controller;
     setLoading(true);
     setError(null);
-    fetchIndexMovers(index, "all", controller.signal)
+    fetchIndexMovers(index(), "all", controller.signal)
       .then((res) => {
-        if (!mountedRef.current || controller.signal.aborted) return;
+        if (!mounted || controller.signal.aborted) return;
         setData(res);
       })
       .catch((e) => {
-        if (!mountedRef.current || controller.signal.aborted) return;
+        if (!mounted || controller.signal.aborted) return;
         if (e instanceof Error && e.message === "MOVERS_UNAVAILABLE") {
           setError("unavailable");
         } else {
@@ -262,173 +159,145 @@ export const IndexMoversModal = memo(function IndexMoversModal({
         }
       })
       .finally(() => {
-        if (mountedRef.current) setLoading(false);
+        if (mounted) setLoading(false);
       });
-    return () => {
-      mountedRef.current = false;
+    onCleanup(() => {
+      mounted = false;
       controller.abort();
-    };
-  }, [open, index]);
+    });
+  });
 
-  // Derive rows for current tab
-  const rows = useMemo(() => {
-    if (!data) return [];
+  const rows = createMemo(() => {
+    const d = data();
+    if (!d) return [];
+    const t = tab();
     let source: IndexMoverRow[];
-    if (tab === "gainers") source = data.gainers;
-    else if (tab === "losers") source = data.losers;
-    else source = [...data.gainers, ...data.losers].sort((a, b) => b.change_pct - a.change_pct);
+    if (t === "gainers") source = d.gainers;
+    else if (t === "losers") source = d.losers;
+    else source = [...d.gainers, ...d.losers].sort((a, b) => b.change_pct - a.change_pct);
 
     return source.map((r, i) => ({
       ...r,
       rank: i + 1,
       absChange: Math.abs(r.change_pct),
     }));
-  }, [data, tab]);
+  });
 
-  // Stale badge
-  const isStale = data?.stale === true;
+  const isStale = () => data()?.stale === true;
 
   return (
-    <PanelModal
-      open={open}
-      title={`MOVERS · ${index} ${index === "NIFTY" ? "50" : "30"}`}
-      onClose={onClose}
+    <LocalPanelModal
+      open={open()}
+      title={
+        <button
+          type="button"
+          data-testid="movers-index"
+          title={`Open ${index()} index report`}
+          onClick={() => openIndex(index())}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" && e.key !== " ") return;
+            e.preventDefault();
+            openIndex(index());
+          }}
+          class="cursor-pointer border-0 bg-transparent p-0 font-mono text-ui-title font-extrabold tracking-[0.08em] text-fin-text focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary"
+        >
+          MOVERS · {index()} {index() === "NIFTY" ? "50" : "30"}
+        </button>
+      }
+      onClose={props.onClose}
       maxWidth={720}
       autoHeight
       maxHeight="75vh"
       actions={
-        <Box sx={{ display: "flex", gap: 1 }}>
+        <div class="flex items-center gap-2">
           <SegmentedControl
-            value={tab}
-            onChange={setTab}
-            data={TABS}
+            value={tab()}
+            onChange={(v) => setTab(v as TabValue)}
+            data={[...TABS]}
             size="xs"
-            sx={{ minWidth: 0 }}
+            className="min-w-0"
           />
-          {isStale && (
-            <Tooltip title="Data is stale — quotes may be delayed">
-              <Box
-                component="span"
-                sx={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  px: REPORT_PAD.xs,
-                  py: "1px",
+          <Show when={isStale()}>
+            <Tooltip label="Data is stale — quotes may be delayed">
+              <span
+                class="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-ui-micro font-bold tracking-[0.05em] whitespace-nowrap"
+                style={{
                   border: `1px solid ${palette.WARNING}`,
-                  borderRadius: REPORT_RADIUS.sm,
                   color: palette.WARNING,
-                  fontSize: REPORT_FONT.micro,
-                  fontWeight: 700,
-                  letterSpacing: "0.05em",
                 }}
               >
                 STALE
-              </Box>
+              </span>
             </Tooltip>
-          )}
-        </Box>
+          </Show>
+        </div>
       }
     >
-      {loading && !data && (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minHeight: 120,
-            color: palette.TEXT_MUTED,
-          }}
+      <Show when={loading() && !data()}>
+        <div
+          class="flex items-center justify-center min-h-[120px] text-fin-text-muted"
         >
-          <Box
-            sx={{
-              width: 20,
-              height: 20,
-              borderRadius: "50%",
-              border: `2px solid ${palette.TEXT_MUTED}`,
-              borderTopColor: palette.PRIMARY,
-              animation: "spin 0.8s linear infinite",
-              "@keyframes spin": { to: { transform: "rotate(360deg)" } },
-            }}
-          />
-          <Text span size="xs" c="dimmed" sx={{ ml: 2 }}>
+          <Loader size="xs" color={palette.PRIMARY} />
+          <Text span size="xs" c="dimmed" style={{ "margin-left": "8px" }}>
             loading movers…
           </Text>
-        </Box>
-      )}
+        </div>
+      </Show>
 
-      {error && !data && (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minHeight: 120,
-            gap: REPORT_PAD.md,
-            flexWrap: "wrap",
-          }}
+      <Show when={error() && !data()}>
+        <div
+          class="flex items-center justify-center min-h-[120px] gap-2 flex-wrap"
         >
-          <Text span size="xs" c="error" fw={700}>
+          <Text span size="xs" c="error" fw={700} data-report-text="value" class="text-ui-body">
             unavailable
           </Text>
           <Button size="sm" variant="subtle" onClick={() => window.location.reload()}>
             Retry
           </Button>
-        </Box>
-      )}
+        </div>
+      </Show>
 
-      {data && rows.length === 0 && (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minHeight: 120,
-            color: palette.TEXT_MUTED,
-          }}
-        >
+      <Show when={data() && rows().length === 0}>
+        <div class="flex items-center justify-center min-h-[120px] text-fin-text-muted">
           <Text span size="xs" c="dimmed">
             No movers data
           </Text>
-        </Box>
-      )}
+        </div>
+      </Show>
 
-      {data && rows.length > 0 && (
-        <Box sx={{ minWidth: 0 }}>
-          <MoversTable rows={rows} index={index} />
-        </Box>
-      )}
+      <Show when={data() && rows().length > 0}>
+        <div class="min-w-0">
+          <MoversTable rows={rows()} index={index()} onOpenSymbol={openSymbol} />
+        </div>
+      </Show>
 
       {/* Footer meta */}
-      {data && (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            mt: REPORT_PAD.md,
-            pt: REPORT_PAD.sm,
-            borderTop: `1px solid ${palette.TERM_BORDER}`,
-            fontSize: REPORT_FONT.micro,
-            color: palette.TEXT_MUTED,
-            fontFamily: palette.MONO,
-          }}
+      <Show when={data()}>
+        <div
+          data-testid="movers-modal-footer"
+          data-report-spacing="8"
+          class="flex items-center justify-between gap-2 flex-wrap mt-2 pt-2 border-t border-fin-border font-mono text-ui-micro text-fin-text-muted"
         >
-          <Text span size="xs" c="dimmed">
-            Source: {data.source}
-          </Text>
-          <Text span size="xs" c="dimmed">
-            As of: {new Date(data.as_of).toLocaleTimeString("en-IN", {
-              hour12: false,
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-              timeZone: "Asia/Kolkata",
-            })}
-          </Text>
-        </Box>
-      )}
-    </PanelModal>
+          <span data-testid="movers-modal-source" class="inline-flex items-baseline gap-2 min-w-0">
+            <span data-report-text="label" class="text-ui-micro">Source:</span>
+            <span data-report-text="value" class="text-ui-body text-fin-text whitespace-nowrap">
+              {data()!.source}
+            </span>
+          </span>
+          <span data-testid="movers-modal-asof" class="inline-flex items-baseline gap-2 min-w-0">
+            <span data-report-text="label" class="text-ui-micro">As of:</span>
+            <span data-report-text="value" class="text-ui-body text-fin-text tabular-nums whitespace-nowrap">
+              {new Date(data()!.as_of).toLocaleTimeString("en-IN", {
+                hour12: false,
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                timeZone: "Asia/Kolkata",
+              })}
+            </span>
+          </span>
+        </div>
+      </Show>
+    </LocalPanelModal>
   );
-});
-
-IndexMoversModal.displayName = "IndexMoversModal";
+}

@@ -1,0 +1,152 @@
+{
+  "feature": "symbol-format-ui",
+  "route": "/screener/market",
+  "routes": [
+    "/screener/market",
+    "/paper",
+    "/sector",
+    "/report/profit",
+    "/"
+  ],
+  "head": "25079b7c9efde6a438b6bfc1cb5dc3670f564465",
+  "viewports": [
+    1600,
+    390
+  ],
+  "sha256": {
+    "symbol-screener-sections-loaded-1600.png": "8c4a2cd22596366641901b92fc807743c28492887ab2e06793cfacb3ab908e05",
+    "symbol-screener-sections-loaded-390.png": "e53411f92df435a0a2fa98882b08685a5f7a70b5c367a904e919c8fd029bd45f",
+    "symbol-screener-sections-empty-1600.png": "c6b514d80df42dc145c25bc249979210f97c7c951490d9db065e56be2d039b03",
+    "symbol-screener-sections-empty-390.png": "c76f15815c4bc484fd9877f6430c60faf825fc8f8d6a281f3e1e7fcb9781841b",
+    "symbol-screener-sections-error-1600.png": "52e3d6132369a3868485573753bc29cb1413655efeba6fb9b457b46365319b0a",
+    "symbol-screener-sections-error-390.png": "9040c6893360c04f2e610dcb60dc0b4a204ed08191d86b6fc33aef965841a11a",
+    "symbol-market-table-loaded-1600.png": "11026cd62bd66cc7dc5477aae3c34aed31bc171479d9e592f75900874aa0d66e",
+    "symbol-market-table-loaded-390.png": "03e1649de9f3848ce82dc7060ac278201cf2e9800b363668a3d625c7aded301a",
+    "symbol-paper-positions-loaded-1600.png": "a72e9d19e20a174be94e442ed0dd6773f19a36286368dbd1302e539b867a8b92",
+    "symbol-paper-positions-loaded-390.png": "525eafc54d76b061812fcaf26fafcc4beeae6d4a215e6c853c8313c53743142a",
+    "symbol-sector-movers-loaded-1600.png": "3fbe9e80b0652968fb0a27cc2dfca1c1237ee10c5a0fb78a43d8b20675ae1be1",
+    "symbol-sector-movers-loaded-390.png": "e3f415b9aebbd1fe488117af9f51e0cc3ec1cb139b56d3f34546e89d7f9201bd",
+    "symbol-report-profitability-loaded-1600.png": "e90f26834406c6a05f2934fc9a6bc3c7a5d2e15c067ac73ad6cacc3822172443",
+    "symbol-report-profitability-loaded-390.png": "4f891f66e675d8d143103aff7ba582e77b13dd64457d5601a7973f7cdc716793",
+    "symbol-ticker-home-loaded-1600.png": "a3883ee7b7b4df0a8dc56ca93698bec07c170a4ea9f0297fbc88b9f7df53790f",
+    "symbol-ticker-home-loaded-390.png": "d699ba91b35c9a999a90b9703da8e12d36e49fab47fb0328277f9ae3c1f9699f",
+    "symbol-screener-sections-loading-1600.png": "134c1d710555c35d0b89039d7147e21225744fba99b085ea5c2f037b596eaa88",
+    "symbol-screener-sections-loading-390.png": "8a71669d4d7fadfbafb80fa34802d89de647889a14b80c9f92fbbf13f0c9c894",
+    "symbol-screener-sections-delayed-off-1600.png": "2097cc22d7b2d0794535e17165370b02c8a8bfaca4ad9f09b10cbd3a385f3a0b",
+    "symbol-screener-sections-delayed-off-390.png": "9fd91a66da27556caabc4f2dc07f917f62645c548668bd7efd1149d05c235b46",
+    "symbol-screener-sections-universe-usa-1600.png": "6cc0130768f2dc065ccd70775229373b69340c25e0eedf85169be566b4b1db4f",
+    "symbol-screener-sections-universe-usa-390.png": "c41253dc68739a4898098672ba6932364d5e55314454b5802ca16d1264c548b2",
+    "symbol-screener-movers-tab-1600.png": "39449f6b229ae0d7762c1678d0d17dd718910ed25f7e74844f224ca8b3a2cae9",
+    "symbol-screener-movers-tab-390.png": "d6b5342673313296bd141c6e2c5e16e0055d56ec30511674defe58eb8076def8"
+  },
+  "states": [
+    {
+      "id": "screener-sections-loaded",
+      "covers": "screener-sections-loaded at 1600x1000 and 390x844 with strict in-capture assertions.",
+      "stateNote": "Mocked: user.sections has one pinned + two enabled sections; /api/sections/scan returns the nine NSE market-snapshot rows plus six dashboard rows (all copied from checked-in fixtures).",
+      "files": {
+        "390": "symbol-screener-sections-loaded-390.png",
+        "1600": "symbol-screener-sections-loaded-1600.png"
+      }
+    },
+    {
+      "id": "screener-sections-empty",
+      "covers": "screener-sections-empty at 1600x1000 and 390x844 with strict in-capture assertions.",
+      "stateNote": "Mocked: /api/user-configs/user.sections returns saved:true with an empty sections array; no scan is needed.",
+      "files": {
+        "390": "symbol-screener-sections-empty-390.png",
+        "1600": "symbol-screener-sections-empty-1600.png"
+      }
+    },
+    {
+      "id": "screener-sections-error",
+      "covers": "screener-sections-error at 1600x1000 and 390x844 with strict in-capture assertions.",
+      "stateNote": "Mocked: /api/sections/scan deliberately returns 502 so the failure surface is honest.",
+      "files": {
+        "390": "symbol-screener-sections-error-390.png",
+        "1600": "symbol-screener-sections-error-1600.png"
+      }
+    },
+    {
+      "id": "market-table-loaded",
+      "covers": "market-table-loaded at 1600x1000 and 390x844 with strict in-capture assertions.",
+      "stateNote": "Mocked: /api/market/snapshot rows are the checked-in NSE market-screener fixture; chart-pattern lookup is empty.",
+      "files": {
+        "390": "symbol-market-table-loaded-390.png",
+        "1600": "symbol-market-table-loaded-1600.png"
+      }
+    },
+    {
+      "id": "paper-positions-loaded",
+      "covers": "paper-positions-loaded at 1600x1000 and 390x844 with strict in-capture assertions.",
+      "stateNote": "Mocked: bots/paper positions carry fixture-derived RELIANCE + option-contract rows; P&L is a two-line amount/percent cell.",
+      "files": {
+        "390": "symbol-paper-positions-loaded-390.png",
+        "1600": "symbol-paper-positions-loaded-1600.png"
+      }
+    },
+    {
+      "id": "sector-movers-loaded",
+      "covers": "sector-movers-loaded at 1600x1000 and 390x844 with strict in-capture assertions.",
+      "stateNote": "Mocked: /api/sector top_stock_movers are bare NSE tickers; lazy rotation/history feeds use canonical NIFTY.",
+      "files": {
+        "390": "symbol-sector-movers-loaded-390.png",
+        "1600": "symbol-sector-movers-loaded-1600.png"
+      }
+    },
+    {
+      "id": "report-profitability-loaded",
+      "covers": "report-profitability-loaded at 1600x1000 and 390x844 with strict in-capture assertions.",
+      "stateNote": "Mocked: /api/reports/profitability with fixture-derived top signals (RELIANCE / INFY); no live report feeds needed.",
+      "files": {
+        "390": "symbol-report-profitability-loaded-390.png",
+        "1600": "symbol-report-profitability-loaded-1600.png"
+      }
+    },
+    {
+      "id": "ticker-home-loaded",
+      "covers": "ticker-home-loaded at 1600x1000 and 390x844 with strict in-capture assertions.",
+      "stateNote": "Mocked: __E2E_MOCK_MARKET_OPEN__ + /api/market-ticker with ^NSEI / ^NSEBANK feed keys; 390 opens the nav drawer so the tape clears toolbar, pulse and catalyst bands.",
+      "files": {
+        "390": "symbol-ticker-home-loaded-390.png",
+        "1600": "symbol-ticker-home-loaded-1600.png"
+      }
+    },
+    {
+      "id": "screener-sections-loading",
+      "covers": "screener-sections-loading at 1600x1000 and 390x844 with strict in-capture assertions.",
+      "stateNote": "Mocked: /api/sections/scan response is held open so the real SectionTable spinner is captured; released immediately after the frame.",
+      "files": {
+        "390": "symbol-screener-sections-loading-390.png",
+        "1600": "symbol-screener-sections-loading-1600.png"
+      }
+    },
+    {
+      "id": "screener-sections-delayed-off",
+      "covers": "screener-sections-delayed-off at 1600x1000 and 390x844 with strict in-capture assertions.",
+      "stateNote": "Mocked: same section fixtures; Include delayed toggled off and Refresh issues allow_delayed=false.",
+      "files": {
+        "390": "symbol-screener-sections-delayed-off-390.png",
+        "1600": "symbol-screener-sections-delayed-off-1600.png"
+      }
+    },
+    {
+      "id": "screener-sections-universe-usa",
+      "covers": "screener-sections-universe-usa at 1600x1000 and 390x844 with strict in-capture assertions.",
+      "stateNote": "Mocked: the in-app universe selector changes to USA; /api/sections/scan receives market=america and returns the checked-in US rows.",
+      "files": {
+        "390": "symbol-screener-sections-universe-usa-390.png",
+        "1600": "symbol-screener-sections-universe-usa-1600.png"
+      }
+    },
+    {
+      "id": "screener-movers-tab",
+      "covers": "screener-movers-tab at 1600x1000 and 390x844 with strict in-capture assertions.",
+      "stateNote": "Mocked: the Tab selector switches from Sections to Movers and mounts the checked-in screener dashboard fixture.",
+      "files": {
+        "390": "symbol-screener-movers-tab-390.png",
+        "1600": "symbol-screener-movers-tab-1600.png"
+      }
+    }
+  ]
+}

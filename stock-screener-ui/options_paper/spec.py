@@ -25,8 +25,10 @@ Sessions
 
 from __future__ import annotations
 
+import re
+import time as _time
 from dataclasses import dataclass, asdict
-from datetime import time
+from datetime import date, datetime, time
 
 # --------------------------------------------------------------------------
 # Sessions (all IST)
@@ -53,6 +55,10 @@ INDEX_LOTS: dict[str, int] = {
 # A handful of liquid F&O underlyings the sandbox may trade.
 # Names here are the *display* names; ``symbol`` is the tradable alias.
 STOCK_LOTS: dict[str, int] = {
+    # IRFC's 23-Nov-26 F&O series: lot 5,425 units (the broker master synced in
+    # May 2026 has no NSE_FO row for IRFC, so this is sourced from the recorded
+    # contract in scripts/market/irfc_90ce_research.py, not guessed).
+    "IRFC": 5425,
     "RELIANCE": 500,
     "HDFCBANK": 550,
     "ICICIBANK": 700,
@@ -145,8 +151,25 @@ class Instrument:
 def get_lot(symbol: str, policy: str | None = None) -> int:
     """Lot size for ``symbol`` under the configured policy.
 
-    Falls back to the live ``instruments`` master when the symbol is not in the
-    static tables, so newly-listed underlyings still work.
+    Precedence (first match wins; a lot is never invented):
+
+    1. ``REPORT_LOT_OVERRIDE`` when ``policy == "report"``.
+    2. Static ``INDEX_LOTS`` / ``STOCK_LOTS`` — authoritative when present, so
+       NIFTY stays 65 and IRFC stays 5425 regardless of what any fetch returns.
+    3. The CURRENT expiry's lot from the live Upstox ``/option/contract``
+       listing (``api.options_underlying``'s cached listing, or one read-only
+       fetch on a cold cache). Exchanges re-lot a series at rollover: KAYNES is
+       150 now while the master still carries a 100-lot 2026 series, CROMPTON is
+       2150 (2325 only in Jan/Feb) and TATAELXSI is 125 (175 in Jan/Feb). The
+       default/first upcoming expiry is the one an order trades, so that is the
+       lot used — not the smallest number found in a historical master row.
+    4. The instruments master (read-only) for offline/CI environments. Both
+       ``trading_symbol`` and ``name`` are searched (``name`` is empty for some
+       NSE_FO rows, e.g. HINDZINC), and when several historical lots share a
+       symbol the NEWEST expiry encoded in ``trading_symbol`` (e.g.
+       ``28 JUL 26``) wins over the minimum lot.
+
+    Unknown symbols raise ``KeyError``.
     """
     policy = policy or DEFAULT_LOT_POLICY
     sym = symbol.upper()
@@ -156,15 +179,152 @@ def get_lot(symbol: str, policy: str | None = None) -> int:
         return INDEX_LOTS[sym]
     if sym in STOCK_LOTS:
         return STOCK_LOTS[sym]
+    lot = _live_expiry_lot(sym)
+    if lot:
+        return lot
     lot = _lookup_master_lot(sym)
     if lot:
         return lot
     raise KeyError(f"unknown lot size for {symbol!r}")
 
 
+def _live_expiry_lot(symbol: str) -> int | None:
+    """Lot of the default expiry in the live contract listing (never guessed)."""
+    return _lot_from_listing(_live_listing(symbol))
+
+
+def _lot_from_listing(listing) -> int | None:
+    """Lot of the default (nearest upcoming) expiry in a contract ``listing``.
+
+    ``listing`` uses the ``api.options_underlying._listing`` shape — entries
+    with ``date`` (ISO) and ``lot_size``, sorted oldest-first. Past expiries are
+    skipped (today only after the 15:40 derivatives close, matching that
+    module's ``default_expiry`` rule); a zero/missing lot is skipped, never
+    invented. If every listed expiry is past, the latest one is used — it is
+    still authoritative broker data, unlike a guess.
+    """
+    try:
+        import config
+        now = datetime.now(config.IST)
+    except Exception:
+        return None
+    today = now.date()
+    rollover = now.time() >= time(15, 40)
+    entries = []
+    for row in listing or []:
+        try:
+            lot = int(row.get("lot_size") or 0)
+            expiry = date.fromisoformat(str(row.get("date") or "")[:10])
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if lot > 0:
+            entries.append((expiry, lot))
+    if not entries:
+        return None
+    entries.sort()
+    for expiry, lot in entries:
+        if expiry > today or (expiry == today and not rollover):
+            return lot
+    return entries[-1][1]
+
+
+def _live_listing(symbol: str) -> list[dict]:
+    """Per-expiry contract rows for ``symbol`` from the live listing.
+
+    A warm ``api.options_underlying`` cache is read synchronously — no HTTP.
+    On a cold cache one read-only ``/option/contract`` call is made through the
+    same client the route uses; it runs in a worker thread because that client
+    is async and ``get_lot`` has sync callers on both sides of the event loop.
+    Any upstream/resolution failure returns ``[]`` so the master fallback can
+    still answer offline. CI (no broker token/network) also stays offline.
+    """
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+
+    try:
+        import config
+        from api import options_underlying as ou
+
+        key = str(symbol or "").strip().upper()
+        if not key or getattr(config, "CI_MODE", False):
+            return []
+        entry = ou._cache.get(key)
+        if entry:
+            return list((entry.get("data") or {}).get("listing") or [])
+
+        instrument_key, exchange = ou._resolve_instrument(key)
+
+        async def _load():
+            return await ou._contract_rows(instrument_key)
+
+        def _run():
+            return asyncio.run(_load())
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            rows = _run()
+        else:
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                rows = pool.submit(_run).result(timeout=15)
+
+        listing = ou._listing(rows)
+        ou._cache[key] = {
+            "ts": _time.monotonic(),
+            "ttl": ou.CACHE_TTL_OPEN_SEC,
+            "data": {
+                "instrument_key": instrument_key,
+                "exchange": exchange,
+                "fno": bool(rows),
+                "spot": 0.0,
+                "listing": listing,
+            },
+        }
+        return listing
+    except Exception:
+        return []
+
+
+def _expiry_sort_key(trading_symbol: str) -> tuple[int, int, int]:
+    """Sortable key for the NSE expiry in a ``trading_symbol``.
+
+    ``"KAYNES 150 CE 28 JUL 27"`` -> ``(2027, 7, 28)``; unparseable -> zeros.
+    """
+    match = re.search(
+        r"\b(\d{1,2})\s+([A-Z]{3})\s+(\d{2})\b",
+        str(trading_symbol or "").upper(),
+    )
+    if not match:
+        return (0, 0, 0)
+    day, month_name, year = match.groups()
+    month = _MONTHS.index(month_name) + 1 if month_name in _MONTHS else 0
+    return (2000 + int(year), month, int(day))
+
+
+def _pick_master_lot(rows) -> int | None:
+    """Lot from ``(lot_size, trading_symbol)`` master rows.
+
+    When several historical series share a symbol the newest expiry encoded in
+    ``trading_symbol`` wins; taking the smallest lot returns a stale contract
+    size (KAYNES 100 instead of 150, CROMPTON 1800 instead of 2150).
+    """
+    candidates = [
+        (_expiry_sort_key(trading_symbol), int(lot or 0))
+        for lot, trading_symbol in rows
+        if int(lot or 0) > 0
+    ]
+    if not candidates:
+        return None
+    return max(candidates)[1]
+
+
 def _lookup_master_lot(symbol: str) -> int | None:
-    """Best-effort lot lookup from the live instruments table (read-only)."""
-    hint = MASTER_NAME_HINTS.get(symbol.upper(), symbol.upper())
+    """Best-effort lot lookup from the live instruments table (read-only).
+
+    ``trading_symbol`` stays in the match because some NSE_FO rows (HINDZINC)
+    have an empty ``name``. Newest expiry wins when a symbol has old series.
+    """
+    hint = MASTER_NAME_HINTS.get(symbol.upper(), symbol.upper()).replace(" ", "")
     try:
         import sqlite3
         import config
@@ -174,10 +334,21 @@ def _lookup_master_lot(symbol: str) -> int | None:
             db_path = Path(config.BASE_DIR) / db_path
         con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
         try:
+            where = (
+                "from instruments where segment like 'NSE_FO%' "
+                "and (replace(upper(trading_symbol), ' ', '') like ? "
+                "or replace(upper(name), ' ', '') like ?)"
+            )
+            params = (f"%{hint}%", f"%{hint}%")
+            rows = con.execute(
+                f"select lot_size, trading_symbol {where}", params
+            ).fetchall()
+            lot = _pick_master_lot(rows)
+            if lot:
+                return lot
+            # Single-column shape (mocked sqlite connections in lot tests).
             row = con.execute(
-                "select lot_size from instruments where segment like 'NSE_FO%' "
-                "and upper(name) like ? order by lot_size limit 1",
-                (f"%{hint}%",),
+                f"select lot_size {where} order by lot_size limit 1", params
             ).fetchone()
             return int(row[0]) if row else None
         finally:

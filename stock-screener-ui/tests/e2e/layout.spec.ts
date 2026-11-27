@@ -176,17 +176,13 @@ test.describe("Layout - Sidebar", () => {
     const navbar = page.locator('[data-testid="app-navbar"]');
     const toggleBtn = page.locator('[data-testid="sidebar-collapse-toggle"]');
 
-    // Get initial width - should be expanded (>100px)
     const initialBox = await navbar.boundingBox();
     expect(initialBox?.width).toBeGreaterThan(100);
 
-    // Toggle should be visible initially
     await expect(toggleBtn).toBeVisible({ timeout: 15000 });
 
-    // Click to collapse
     await toggleBtn.click({ timeout: 15000 });
 
-    // Wait for navbar width to shrink
     await expect(async () => {
       const box = await navbar.boundingBox();
       expect(box?.width).toBeLessThanOrEqual(100);

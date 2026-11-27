@@ -27,11 +27,60 @@ import type {
   WatchSetup,
 } from "../types/chartPatterns";
 import { fetchWithAuth } from "../state/auth";
+import type { ChartMarket } from "../utils/chart/time";
+import { apiErrorFromResponse } from "./apiError";
 import { API_BASE } from "./config";
 import { readSseStream } from "./sse";
 import { appendParams, buildQueryString } from "./queryParams";
 
 const CHART_PATTERNS_BASE = `${API_BASE}/api/chart-patterns`;
+
+/**
+ * Short-TTL, single-flight cache for the metadata registries. Every patterns
+ * window mounts independently (and other pages read the same registries), so
+ * without this each mount re-fetches byte-identical catalog payloads.
+ *
+ * Only successful payloads are cached: a failed request must stay retryable.
+ * `force` bypasses both the settled value and an in-flight request, which is
+ * the Retry path after an admin registry edit.
+ */
+export const REGISTRY_TTL_MS = 60_000;
+type RegistryKey = "timeframes" | "universes" | "patterns" | "watchSetups";
+interface RegistryEntry {
+  expiresAt: number;
+  value?: unknown;
+  pending?: Promise<unknown>;
+}
+const registryCache = new Map<RegistryKey, RegistryEntry>();
+
+/** Drop every cached registry payload (operator reset / tests). */
+export function clearPatternsApiCache(): void {
+  registryCache.clear();
+}
+
+async function cachedRegistry<T>(
+  key: RegistryKey,
+  force: boolean,
+  load: () => Promise<T>,
+): Promise<T> {
+  if (!force) {
+    const hit = registryCache.get(key);
+    if (hit?.pending) return hit.pending as Promise<T>;
+    if (hit && Date.now() < hit.expiresAt) return hit.value as T;
+  }
+  const pending = load();
+  // Publish the promise before awaiting so concurrent mounts share one fetch.
+  registryCache.set(key, { expiresAt: 0, pending });
+  try {
+    const value = await pending;
+    registryCache.set(key, { expiresAt: Date.now() + REGISTRY_TTL_MS, value });
+    return value;
+  } catch (error) {
+    // A forced call may have replaced this entry meanwhile; only drop ours.
+    if (registryCache.get(key)?.pending === pending) registryCache.delete(key);
+    throw error;
+  }
+}
 
 /** Thrown by `startScan` when the bounded compute queue is full (HTTP 429). */
 export class QueueFullError extends Error {
@@ -66,8 +115,6 @@ export interface ScanRequest {
   symbols?: string[];
   /** Lookback window in bars (omitted/null = server default). */
   lookback_bars?: number | null;
-  /** Skip server-side trendline computation (false = skip; omitted = compute). */
-  compute_trendlines?: boolean;
   /** Minimum relative volume pre-filter (scan-time only; omitted/null = any). */
   min_rel_volume?: number | null;
   /** Minimum watched volume in millions (scan-time only; omitted/null = any). */
@@ -140,8 +187,7 @@ async function readError(
 async function getJson<T>(url: string, fallback: string): Promise<T> {
   const response = await fetchWithAuth(url);
   if (!response.ok) {
-    const { detail } = await readError(response, fallback);
-    throw new Error(detail);
+    throw await apiErrorFromResponse(response, fallback);
   }
   return (await response.json()) as T;
 }
@@ -173,35 +219,39 @@ export function buildPatternsQuery(query: PatternsQuery = {}): string {
     ["to_date", query.to_date],
     // The default sort is implied by the server; only deviations hit the wire.
     ["sort", query.sort && query.sort !== "confidence" ? query.sort : null],
-    // Opt-out flag: only serialized when false (compute is the default).
-    ["compute_trendlines", query.compute_trendlines === false ? "0" : null],
     ["limit", query.limit],
     ["offset", query.offset],
   ]);
 }
 
-export async function fetchTimeframes(): Promise<TFSpec[]> {
-  const data = await getJson<{ timeframes: TFSpec[] }>(
-    `${CHART_PATTERNS_BASE}/timeframes`,
-    "Failed to fetch timeframes",
-  );
-  return data.timeframes ?? [];
+export async function fetchTimeframes(force = false): Promise<TFSpec[]> {
+  return cachedRegistry("timeframes", force, async () => {
+    const data = await getJson<{ timeframes: TFSpec[] }>(
+      `${CHART_PATTERNS_BASE}/timeframes`,
+      "Failed to fetch timeframes",
+    );
+    return data.timeframes ?? [];
+  });
 }
 
-export async function fetchUniverses(): Promise<UniversesResponse> {
-  const data = await getJson<UniversesResponse>(
-    `${CHART_PATTERNS_BASE}/universes`,
-    "Failed to fetch universes",
-  );
-  return { universes: data.universes ?? [], default: data.default ?? "" };
+export async function fetchUniverses(force = false): Promise<UniversesResponse> {
+  return cachedRegistry("universes", force, async () => {
+    const data = await getJson<UniversesResponse>(
+      `${CHART_PATTERNS_BASE}/universes`,
+      "Failed to fetch universes",
+    );
+    return { universes: data.universes ?? [], default: data.default ?? "" };
+  });
 }
 
-export async function fetchPatternCatalog(): Promise<PatternCatalogResponse> {
-  const data = await getJson<PatternCatalogResponse>(
-    `${CHART_PATTERNS_BASE}/patterns`,
-    "Failed to fetch pattern catalog",
-  );
-  return { families: data.families ?? [], patterns: data.patterns ?? [] };
+export async function fetchPatternCatalog(force = false): Promise<PatternCatalogResponse> {
+  return cachedRegistry("patterns", force, async () => {
+    const data = await getJson<PatternCatalogResponse>(
+      `${CHART_PATTERNS_BASE}/patterns`,
+      "Failed to fetch pattern catalog",
+    );
+    return { families: data.families ?? [], patterns: data.patterns ?? [] };
+  });
 }
 
 export async function startScan(req: ScanRequest): Promise<ScanResponse> {
@@ -216,8 +266,7 @@ export async function startScan(req: ScanRequest): Promise<ScanResponse> {
     throw new QueueFullError(detail, body?.queue_size ?? null, body?.max_queue ?? null);
   }
   if (!response.ok) {
-    const { detail } = await readError(response, `Failed to start scan (${response.status})`);
-    throw new Error(detail);
+    throw await apiErrorFromResponse(response, `Failed to start scan (${response.status})`);
   }
 
   return (await response.json()) as ScanResponse;
@@ -248,8 +297,7 @@ export async function detectPatterns(
     body: JSON.stringify({ symbol, timeframe, lookback_bars }),
   });
   if (!response.ok) {
-    const { detail } = await readError(response, `Pattern check failed (${response.status})`);
-    throw new Error(detail);
+    throw await apiErrorFromResponse(response, `Pattern check failed (${response.status})`);
   }
   return (await response.json()) as DetectResponse;
 }
@@ -314,14 +362,19 @@ export async function fetchPatternHit(hitId: number): Promise<PatternHitDTO> {
 export interface SymbolChartOptions {
   limit?: number;
   lookbackBars?: number | null;
-  /** Skip server-side trendline computation (false = skip; omitted = compute). */
-  computeTrendlines?: boolean;
+  /**
+   * Market feed selector. Only `usa` is sent on the wire (`market=usa`); an
+   * omitted value keeps the India URL byte-identical.
+   */
+  market?: ChartMarket;
   /** Run live pattern detection on this timeframe (`detect_patterns=1`). */
   detectPatterns?: boolean;
   /** Replay cutoff: truncate candles at this timestamp (`as_of_date`). */
   asOf?: string;
   /** Replay window start: filter hits to this window (`from_date`). */
   fromDate?: string;
+  /** Bypass the candle cache and force a fresh read (`refresh=1`). */
+  refresh?: boolean;
 }
 
 export async function fetchSymbolChart(
@@ -332,17 +385,19 @@ export async function fetchSymbolChart(
   const params = new URLSearchParams({ timeframe });
   const limit = typeof opts === "number" ? opts : opts?.limit;
   const lookbackBars = typeof opts === "number" ? undefined : opts?.lookbackBars;
-  const computeTrendlines = typeof opts === "number" ? undefined : opts?.computeTrendlines;
   const detectPatterns = typeof opts === "number" ? undefined : opts?.detectPatterns;
   const asOf = typeof opts === "number" ? undefined : opts?.asOf;
   const fromDate = typeof opts === "number" ? undefined : opts?.fromDate;
+  const refresh = typeof opts === "number" ? undefined : opts?.refresh;
+  const market = typeof opts === "number" ? undefined : opts?.market;
   appendParams(params, [
     ["limit", limit],
     ["lookback_bars", lookbackBars],
-    ["compute_trendlines", computeTrendlines === false ? "0" : null],
     ["detect_patterns", detectPatterns ? "1" : null],
     ["as_of_date", asOf],
     ["from_date", fromDate],
+    ["refresh", refresh ? "1" : null],
+    ["market", market],
   ]);
   return getJson<ChartPayload>(
     `${CHART_PATTERNS_BASE}/symbol/${encodeURIComponent(symbol)}/chart?${params.toString()}`,
@@ -507,12 +562,14 @@ export function buildWatchQuery(query: WatchQuery): string {
   ]);
 }
 
-export async function fetchWatchSetups(): Promise<WatchSetup[]> {
-  const data = await getJson<{ setups: WatchSetup[] }>(
-    `${CHART_PATTERNS_BASE}/watch/setups`,
-    "Failed to fetch watch setups",
-  );
-  return data.setups ?? [];
+export async function fetchWatchSetups(force = false): Promise<WatchSetup[]> {
+  return cachedRegistry("watchSetups", force, async () => {
+    const data = await getJson<{ setups: WatchSetup[] }>(
+      `${CHART_PATTERNS_BASE}/watch/setups`,
+      "Failed to fetch watch setups",
+    );
+    return data.setups ?? [];
+  });
 }
 
 export async function fetchWatch(query: WatchQuery): Promise<WatchPayload> {

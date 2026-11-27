@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { JobDTO, PatternHitDTO, PatternSummary } from "../types/chartPatterns";
+import { ApiError } from "../api/apiError";
 
 vi.mock("../api/chartPatterns", async () => {
   const actual = await vi.importActual<typeof import("../api/chartPatterns")>("../api/chartPatterns");
@@ -54,7 +55,6 @@ import {
   setFilter,
   setFilters,
   setLookbackBars,
-  setComputeTrendlines,
   resetFilters,
   applyFilters,
   passesResultFilters,
@@ -442,28 +442,6 @@ describe("filters", () => {
     expect(mocked.fetchResults).toHaveBeenCalled();
   });
 
-  it("trendlines defaults to both and is client-only (never in query args)", async () => {
-    expect(DEFAULT_PATTERN_FILTERS.trendlines).toBe("both");
-    setFilter("trendlines", "support");
-    await flush();
-    expect(getChartPatternsState().filters.trendlines).toBe("support");
-    expect(mocked.fetchResults).toHaveBeenCalledWith(
-      expect.not.objectContaining({ trendlines: expect.anything() }),
-    );
-    expect(mocked.fetchSummary).toHaveBeenCalledWith(
-      expect.not.objectContaining({ trendlines: expect.anything() }),
-    );
-  });
-
-  it("trendlines is not a restrictive filter", () => {
-    expect(
-      hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, trendlines: "support", min_avg_volume_10d: null }),
-    ).toBe(false);
-    expect(
-      hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, trendlines: "none", min_avg_volume_10d: null }),
-    ).toBe(false);
-  });
-
   it("applyFilters merges onto defaults, resets unspecified keys, and reloads", async () => {
     setFilter("family", ["reversal"]);
     setFilter("direction", ["bullish"]);
@@ -664,64 +642,7 @@ describe("result-level client filters", () => {
   });
 });
 
-describe("computeTrendlines", () => {
-  it("defaults to true", () => {
-    expect(getChartPatternsState().computeTrendlines).toBe(true);
-  });
-
-  it("setComputeTrendlines(false) forwards compute_trendlines: false to results + summary without a forced scan", async () => {
-    setUniverse("nifty500");
-    await flush();
-    mocked.fetchResults.mockClear();
-    mocked.fetchSummary.mockClear();
-    mocked.startScan.mockClear();
-
-    setComputeTrendlines(false);
-
-    await flush();
-    expect(getChartPatternsState().computeTrendlines).toBe(false);
-    expect(mocked.fetchResults).toHaveBeenCalledWith(
-      expect.objectContaining({ compute_trendlines: false }),
-    );
-    expect(mocked.fetchSummary).toHaveBeenCalledWith(
-      expect.objectContaining({ compute_trendlines: false }),
-    );
-    // View/compute-level toggle: reloads data but never forces a re-scan.
-    expect(mocked.startScan).not.toHaveBeenCalled();
-  });
-
-  it("setComputeTrendlines(true) sends compute_trendlines: true to results + summary", async () => {
-    setComputeTrendlines(false);
-    await flush();
-    mocked.fetchResults.mockClear();
-    mocked.fetchSummary.mockClear();
-
-    setComputeTrendlines(true);
-
-    await flush();
-    expect(getChartPatternsState().computeTrendlines).toBe(true);
-    expect(mocked.fetchResults).toHaveBeenCalledWith(
-      expect.objectContaining({ compute_trendlines: true }),
-    );
-    expect(mocked.fetchSummary).toHaveBeenCalledWith(
-      expect.objectContaining({ compute_trendlines: true }),
-    );
-  });
-
-  it("triggerScan forwards compute_trendlines: false to startScan", async () => {
-    setUniverse("nifty500");
-    setComputeTrendlines(false);
-    await flush();
-    mocked.startScan.mockClear();
-    mocked.fetchJob.mockImplementation(() => new Promise(() => {}));
-
-    await triggerScan(true);
-
-    expect(mocked.startScan).toHaveBeenCalledWith(
-      expect.objectContaining({ compute_trendlines: false, force: true }),
-    );
-  });
-
+describe("scan-time volume pre-filters", () => {
   it("triggerScan sends the default-on min_avg_volume_10d and omits it when cleared", async () => {
     setUniverse("nifty500");
     await flush();
@@ -751,12 +672,6 @@ describe("computeTrendlines", () => {
     expect(mocked.fetchSummary).toHaveBeenCalledWith(
       expect.not.objectContaining({ min_avg_volume_10d: expect.anything() }),
     );
-  });
-
-  it("resetChartPatternsState restores computeTrendlines to true", () => {
-    setComputeTrendlines(false);
-    resetChartPatternsState();
-    expect(getChartPatternsState().computeTrendlines).toBe(true);
   });
 });
 
@@ -819,12 +734,12 @@ describe("stale async responses", () => {
       releaseSlow = resolve;
     });
     mocked.streamResults
-      .mockImplementationOnce(async (_query, handlers) => {
+      .mockImplementationOnce(async (_query, handlers = {}) => {
         await slowGate;
         handlers.onItem?.({ id: 1, symbol: "STALE", pattern_id: "flag" } as never);
         handlers.onDone?.();
       })
-      .mockImplementationOnce(async (_query, handlers) => {
+      .mockImplementationOnce(async (_query, handlers = {}) => {
         handlers.onMeta?.({ total: 7, summary: SUMMARY, data_through: "2026-10-01" });
         handlers.onDone?.();
       });
@@ -851,11 +766,11 @@ describe("stale async responses", () => {
       releaseSlow = resolve;
     });
     mocked.streamResults
-      .mockImplementationOnce(async (_query, handlers) => {
+      .mockImplementationOnce(async (_query, handlers = {}) => {
         await slowGate;
         handlers.onError?.(new Error("slow boom"));
       })
-      .mockImplementationOnce(async (_query, handlers) => {
+      .mockImplementationOnce(async (_query, handlers = {}) => {
         handlers.onError?.(new Error("fast stream down"));
       });
     mocked.fetchResults.mockResolvedValueOnce({
@@ -1090,7 +1005,6 @@ describe("triggerScan", () => {
       universe: "nifty50",
       timeframe: "15m",
       force: false,
-      compute_trendlines: true,
       min_avg_volume_10d: 150,
     });
     const state = getChartPatternsState();
@@ -1173,7 +1087,7 @@ describe("loadSymbolDetail", () => {
     expect(mocked.fetchSymbolChart).toHaveBeenCalledWith(
       "IRCON",
       "1D",
-      { lookbackBars: 250, computeTrendlines: true },
+      { lookbackBars: 250 },
     );
   });
 
@@ -1183,36 +1097,9 @@ describe("loadSymbolDetail", () => {
 
     expect(getChartPatternsState().lookbackBars).toBeNull();
     await loadSymbolDetail("IRCON");
-    expect(mocked.fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1D", { computeTrendlines: true });
+    expect(mocked.fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1D", {});
   });
 
-  it("forwards computeTrendlines=false to fetchSymbolChart when TLS/TLR is off", async () => {
-    mocked.fetchSymbolDetail.mockResolvedValue({ symbol: "IRCON" } as never);
-    mocked.fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [], trend_lines: [] });
-
-    setComputeTrendlines(false);
-    await flush();
-    mocked.fetchSymbolChart.mockClear();
-    await loadSymbolDetail("IRCON");
-    expect(mocked.fetchSymbolChart).toHaveBeenCalledWith(
-      "IRCON",
-      "1D",
-      expect.objectContaining({ computeTrendlines: false }),
-    );
-  });
-
-  it("forwards computeTrendlines=true to fetchSymbolChart by default", async () => {
-    mocked.fetchSymbolDetail.mockResolvedValue({ symbol: "IRCON" } as never);
-    mocked.fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
-
-    expect(getChartPatternsState().computeTrendlines).toBe(true);
-    await loadSymbolDetail("IRCON");
-    expect(mocked.fetchSymbolChart).toHaveBeenCalledWith(
-      "IRCON",
-      "1D",
-      expect.objectContaining({ computeTrendlines: true }),
-    );
-  });
 });
 
 describe("lookbackBars", () => {
@@ -1351,33 +1238,8 @@ describe("setLookbackBars lifecycle", () => {
   });
 });
 
-describe("setComputeTrendlines lifecycle", () => {
-  it("is a no-op when the value is unchanged (no reload, no scan)", async () => {
-    expect(getChartPatternsState().computeTrendlines).toBe(true);
-    setComputeTrendlines(true);
-    await flush();
-    expect(mocked.fetchResults).not.toHaveBeenCalled();
-    expect(mocked.fetchSummary).not.toHaveBeenCalled();
-    expect(mocked.startScan).not.toHaveBeenCalled();
-  });
-
-  it("computeTrendlines:false does not suppress the empty-view auto-scan", async () => {
-    setUniverse("nifty500");
-    setComputeTrendlines(false);
-    // Clear the default-on volume pre-filter so the empty view stays auto-scannable.
-    setFilter("min_avg_volume_10d", null);
-    await flush();
-    mocked.startScan.mockClear();
-    selectTimeframe("15m");
-    await flush();
-    expect(mocked.startScan).toHaveBeenCalledWith(
-      expect.objectContaining({ compute_trendlines: false }),
-    );
-  });
-});
-
 describe("hasRestrictiveFilter exhaustive", () => {
-  it("flags every narrowing key and ignores view-only state", () => {
+  it("flags every narrowing key and ignores ordering/default state", () => {
     expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, family: ["reversal"] })).toBe(true);
     expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, direction: ["bullish"] })).toBe(true);
     expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, status: ["confirmed"] })).toBe(true);
@@ -1386,20 +1248,13 @@ describe("hasRestrictiveFilter exhaustive", () => {
     expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, volume_confirmed: false })).toBe(true);
     expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, min_base_days: 30 })).toBe(true);
     expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, max_range_pct: 20 })).toBe(true);
-    // Empty symbol string is not restrictive; view-only trendlines never is
-    // (with the default-on volume pre-filter cleared).
+    // Empty symbol string is not restrictive (with the default-on volume
+    // pre-filter cleared).
     expect(
       hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, symbol: "", min_avg_volume_10d: null }),
     ).toBe(false);
     expect(
       hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, symbol: null, min_avg_volume_10d: null }),
-    ).toBe(false);
-    expect(
-      hasRestrictiveFilter({
-        ...DEFAULT_PATTERN_FILTERS,
-        trendlines: "resistance",
-        min_avg_volume_10d: null,
-      }),
     ).toBe(false);
     // The default-on 10d avg volume pre-filter is baseline, not narrowing;
     // a non-default floor is restrictive.
@@ -1418,7 +1273,7 @@ describe("scan lifecycle extras", () => {
     mocked.startScan.mockClear();
     await triggerScan(true);
     expect(mocked.startScan).toHaveBeenCalledTimes(1);
-    const req = mocked.startScan.mock.calls[0][0] as Record<string, unknown>;
+    const req = mocked.startScan.mock.calls[0][0] as unknown as Record<string, unknown>;
     expect(req["symbols"]).toBeUndefined();
     expect(req["lookback_bars"]).toBe(250);
     expect(req["force"]).toBe(true);
@@ -1485,7 +1340,6 @@ describe("resetChartPatternsState", () => {
     setTimeframe("15m");
     setFilter("q", "bank");
     setLookbackBars(250);
-    setComputeTrendlines(false);
     setScanning(true);
     setJob(makeJob({ job_id: "cpj_dirty" }));
     await flush();
@@ -1494,7 +1348,6 @@ describe("resetChartPatternsState", () => {
     expect(state.universe).toBe("");
     expect(state.timeframe).toBe("1D");
     expect(state.lookbackBars).toBeNull();
-    expect(state.computeTrendlines).toBe(true);
     expect(state.filters).toEqual(DEFAULT_PATTERN_FILTERS);
     expect(state.job).toBeNull();
     expect(state.scanning).toBe(false);
@@ -1514,7 +1367,7 @@ describe("loadSymbolDetail extras", () => {
     mocked.fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "15m", candles: [], overlays: [] });
     await loadSymbolDetail("IRCON", "15m");
     expect(mocked.fetchSymbolDetail).toHaveBeenCalledWith("IRCON", "15m");
-    expect(mocked.fetchSymbolChart).toHaveBeenCalledWith("IRCON", "15m", { computeTrendlines: true });
+    expect(mocked.fetchSymbolChart).toHaveBeenCalledWith("IRCON", "15m", {});
   });
 
   it("stores an error when the detail request fails", async () => {
@@ -1525,18 +1378,17 @@ describe("loadSymbolDetail extras", () => {
     expect(getChartPatternsState().loading).toBe(false);
   });
 
-  it("forwards lookback + computeTrendlines:false together to the chart request", async () => {
+  it("forwards an explicit lookback to the chart request", async () => {
     mocked.fetchSymbolDetail.mockResolvedValue({ symbol: "IRCON" } as never);
     mocked.fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
     setLookbackBars(250);
-    setComputeTrendlines(false);
     await flush();
     mocked.fetchSymbolChart.mockClear();
     await loadSymbolDetail("IRCON");
     expect(mocked.fetchSymbolChart).toHaveBeenCalledWith(
       "IRCON",
       "1D",
-      { lookbackBars: 250, computeTrendlines: false },
+      { lookbackBars: 250 },
     );
   });
 });
@@ -1563,7 +1415,7 @@ describe("query coalescing and same-query reload", () => {
 
   it("a same-query reload keeps existing results until new items arrive", async () => {
     let releaseFirst!: () => void;
-    mocked.streamResults.mockImplementation(async (_query, handlers) => {
+    mocked.streamResults.mockImplementation(async (_query, handlers = {}) => {
       await new Promise<void>((resolve) => {
         releaseFirst = resolve;
       });
@@ -1580,7 +1432,7 @@ describe("query coalescing and same-query reload", () => {
     expect(getChartPatternsState().results.map((r) => r.symbol)).toEqual(["IRCON", "TCS"]);
 
     let releaseSecond!: () => void;
-    mocked.streamResults.mockImplementation(async (_query, handlers) => {
+    mocked.streamResults.mockImplementation(async (_query, handlers = {}) => {
       await new Promise<void>((resolve) => {
         releaseSecond = resolve;
       });
@@ -1613,7 +1465,7 @@ describe("query coalescing and same-query reload", () => {
       })
       .mockResolvedValue({ items: [], total: 0, summary: SUMMARY, data_through: "2026-09-30" });
     // Restore the pinned "stream unavailable" behaviour for this test.
-    mocked.streamResults.mockImplementation(async (_query, handlers) => {
+    mocked.streamResults.mockImplementation(async (_query, handlers = {}) => {
       handlers.onError?.(new Error("stream unavailable"));
     });
 
@@ -1631,5 +1483,75 @@ describe("query coalescing and same-query reload", () => {
     expect(getChartPatternsState().results).toEqual([]);
     expect(mocked.streamResults).toHaveBeenCalledTimes(2);
     expect(mocked.fetchResults).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("filter actions vs re-entrant URL sync", () => {
+  it("a stale applyFilters fired during a filter action's patch cannot revert the change", async () => {
+    // The patterns URL sync re-parses the not-yet-written URL on a store
+    // notification and calls applyFilters with the previous filter values.
+    // Arm exactly one such re-entrant call for the chip-removal action.
+    let armed = false;
+    const unsub = subscribe(() => {
+      if (!armed) return;
+      armed = false;
+      applyFilters({ direction: ["bearish"], min_avg_volume_10d: 150 });
+    });
+    try {
+      setFilter("direction", ["bearish"]);
+      await flush();
+      expect(getChartPatternsState().filters.direction).toEqual(["bearish"]);
+
+      armed = true;
+      setFilter("direction", []);
+      // Old code: the re-entrant applyFilters reverts state to ["bearish"]
+      // and the load below issues a stale query. Fixed code keeps [].
+      expect(getChartPatternsState().filters.direction).toEqual([]);
+      await flush();
+      const lastQuery = mocked.fetchResults.mock.calls.at(-1)?.[0] as
+        | { direction?: string[] }
+        | undefined;
+      expect(lastQuery?.direction).toEqual([]);
+    } finally {
+      unsub();
+    }
+  });
+});
+
+describe("typed API errors", () => {
+  it("a 401 from loadSummary surfaces status + kind and keeps the string error", async () => {
+    mocked.fetchSummary.mockRejectedValueOnce(new ApiError("Session expired", 401));
+
+    await loadSummary();
+    await flush();
+
+    const state = getChartPatternsState();
+    expect(state.apiError).toMatchObject({ status: 401, kind: "unauthorized" });
+    expect(state.error).toBe("Session expired");
+    expect(state.apiError?.message).toBe(state.error);
+  });
+
+  it("a 429 from loadResults carries retryAfterMs from the header", async () => {
+    mocked.fetchResults.mockRejectedValueOnce(new ApiError("Slow down", 429, 4000));
+
+    await loadResults({ offset: 0 });
+    await flush();
+
+    expect(getChartPatternsState().apiError).toMatchObject({
+      status: 429,
+      kind: "rate_limited",
+      retryAfterMs: 4000,
+    });
+  });
+
+  it("an abort is a silent no-op", async () => {
+    mocked.fetchSummary.mockRejectedValueOnce(new DOMException("Aborted", "AbortError"));
+
+    await loadSummary();
+    await flush();
+
+    const state = getChartPatternsState();
+    expect(state.apiError).toBeNull();
+    expect(state.error).toBeNull();
   });
 });

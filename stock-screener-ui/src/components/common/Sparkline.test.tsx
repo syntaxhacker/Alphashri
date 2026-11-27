@@ -1,12 +1,13 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, test } from "vitest";
+import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import { Sparkline } from "./Sparkline";
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: UIProvider });
+function r(jsx: JSX.Element) {
+  return render(() => jsx, { wrapper: UIProvider });
 }
 
 afterEach(cleanup);
@@ -74,7 +75,6 @@ describe("Sparkline", () => {
     const svg = screen.getByTestId("spark-animate");
     const polyline = svg.querySelector("polyline");
     expect(polyline).toHaveAttribute("pathLength", "1");
-    // strokeDasharray/strokeDashoffset are set as SVG attributes via JSX props
     expect(polyline).toHaveAttribute("stroke-dasharray", "1");
     expect(polyline).toHaveAttribute("stroke-dashoffset", "1");
     expect(polyline).toHaveStyle({ animation: "wall-spark-draw 420ms cubic-bezier(.22,1,.36,1) forwards" });

@@ -47,7 +47,6 @@ from api.reports_api._numeric import safe_opt_float as _f
 NIFTY_KEY = "NSE_INDEX|Nifty 50"
 VIX_KEY = "NSE_INDEX|India VIX"
 
-# Baseline window / session filters.
 BASELINE_LOOKBACK_DAYS = 25
 SESSION_START = "09:15"
 SESSION_END = "12:30"
@@ -63,27 +62,54 @@ VIX_TTL_SEC = 60
 INTRADAY_TTL_SEC = 60
 
 
-# ---------------------------------------------------------------------------
-# Safe casts
-# ---------------------------------------------------------------------------
-
 def _null_vix() -> dict:
     return {"ltp": None, "prev_close": None, "change_pct": None,
             "day_high": None, "day_low": None}
 
-
-# ---------------------------------------------------------------------------
-# control block
-# ---------------------------------------------------------------------------
 
 #: Signed premium-flow magnitude (₹ Cr) below which the flow carries no
 #: direction. Matches the absolute floor in ``nifty_positioning``: 50 Cr is
 #: ~0.1 % of a 58,000 Cr book, so anything smaller is noise, not a bias.
 from api.reports_api.nifty_positioning import FLOW_EPS_CR as FLOW_BIAS_EPS_CR
 
+#: Spot window used by the report's SESSION/15m/5m strip. A writer label is a
+#: DIRECTIONAL claim ("put writers" = index supported / up), so the index has to
+#: agree over the same window before the claim is published.
+SPOT_CONFIRM_MINUTES = 15
+
+
+def spot_change_from_tape(tape_rows: Optional[list[dict]],
+                          minutes: int = SPOT_CONFIRM_MINUTES) -> Optional[float]:
+    """Spot points gained over the tape's trailing ``minutes`` window.
+
+    Anchored exactly like the strip's 15m OI leg (``nifty._rolling_oi``): the
+    newest tape row is the endpoint and the base row is the one nearest
+    ``last - minutes``. ``None`` when either end lacks a usable timestamp or
+    spot — an unknown move is never read as a flat one.
+    """
+    clean = [r for r in tape_rows or []
+             if isinstance(r, dict) and r.get("t")]
+    if not clean:
+        return None
+    try:
+        stamps = [datetime.fromisoformat(str(r["t"])) for r in clean]
+        cut = stamps[-1] - timedelta(minutes=minutes)
+        idx = min(range(len(clean)),
+                  key=lambda i: abs((stamps[i] - cut).total_seconds()))
+    except (TypeError, ValueError):
+        return None
+    base = _f(clean[idx].get("spot"))
+    last = _f(clean[-1].get("spot"))
+    if (base is None or last is None
+            or not math.isfinite(base) or not math.isfinite(last)
+            or base <= 0 or last <= 0):
+        return None
+    return round(last - base, 2)
+
 
 def control_verdict(ce_doi: float, pe_doi: float,
-                    flow_bias: Optional[float] = None) -> str:
+                    flow_bias: Optional[float] = None,
+                    spot_change: Optional[float] = None) -> str:
     """Who is in control: read OI *build* together with the signed flow bias.
 
     ``flow_bias`` is the session's signed directional premium flow in **₹ Cr**
@@ -118,6 +144,15 @@ def control_verdict(ce_doi: float, pe_doi: float,
     ce_doi = −5M and pe_doi = +1M the comparison ``pe_doi > ce_doi * 1.25``
     was true (1M > −6.25M) and the panel printed "PUT WRITERS IN CONTROL" on
     a day the calls were being shed.
+
+    ``spot_change`` (points over the 15-minute tape window, see
+    :func:`spot_change_from_tape`) applies the same strict sign gate as
+    ``verify_burst_flow`` to WRITER labels: ``put_writers`` claims support (up)
+    and ``call_writers`` claims resistance (down). When the index moved the
+    other way the label is demoted to the neutral ``net_put_build`` /
+    ``net_call_build``. A flat or unknown move cannot contradict a claim, and
+    buyer labels are left alone — this fixes the 2026-11-26 tape where falling
+    put premium manufactured a bullish bias while spot fell 25 points in 15m.
     """
     if ce_doi <= 0 or pe_doi <= 0:
         return "balanced"
@@ -130,9 +165,16 @@ def control_verdict(ce_doi: float, pe_doi: float,
         # Old snapshot / no flow block: OI build is real, but WHO built it is
         # unknown — never assert a writer without flow evidence.
         return "net_put_build" if put_dominant else "net_call_build"
+    move = _f(spot_change)
     if put_dominant:
-        return "put_buyers" if bias < -FLOW_BIAS_EPS_CR else "put_writers"
-    return "call_buyers" if bias > FLOW_BIAS_EPS_CR else "call_writers"
+        verdict = "put_buyers" if bias < -FLOW_BIAS_EPS_CR else "put_writers"
+        if verdict == "put_writers" and move is not None and move < 0:
+            return "net_put_build"
+        return verdict
+    verdict = "call_buyers" if bias > FLOW_BIAS_EPS_CR else "call_writers"
+    if verdict == "call_writers" and move is not None and move > 0:
+        return "net_call_build"
+    return verdict
 
 
 def premium_flow_bias(rows: list[dict], spot: float) -> Optional[float]:
@@ -179,46 +221,33 @@ def premium_flow_bias(rows: list[dict], spot: float) -> Optional[float]:
 def atm_ivs(rows: list[dict], spot: float) -> tuple[Optional[float], Optional[float]]:
     """``(ce_iv, pe_iv)`` for the strike nearest ``spot``; ``None`` per dead leg.
 
-    Applies the same usability gates as :mod:`api.reports_api.iv_surface`:
-    finite, 1..100 vol points and a leg that actually carries open interest. A
-    dead strike's greek (2026-11-03: 281%, and 226% at the ATM after the close)
-    is not a market-implied vol and must not feed the RV/IV verdict.
+    The pick and the OI / 1..100 IV gates come from
+    :func:`api.reports_api.iv_surface.atm_block`, so the verdict cannot drift
+    from the ATM block published in ``report.iv_surface``. A dead strike's
+    greek (2026-11-03: 281%, and 226% at the ATM after the close) is not a
+    market-implied vol and must not feed the RV/IV verdict.
     """
-    from api.reports_api.iv_surface import _iv as _usable_iv
+    from api.reports_api.iv_surface import atm_block
 
-    if not rows:
-        return None, None
-    best: Optional[tuple[float, Optional[float], Optional[float]]] = None
-    for r in rows:
-        try:
-            strike = _f((r or {}).get("strike"))
-            if strike is None:
-                continue
-            ce, pe = (r.get("ce") or {}), (r.get("pe") or {})
-            ce_iv = _usable_iv(ce.get("iv"), ce.get("oi"))
-            pe_iv = _usable_iv(pe.get("iv"), pe.get("oi"))
-        except Exception:
-            continue
-        dist = abs(strike - spot) if spot else 0.0
-        if best is None or dist < best[0]:
-            best = (dist, ce_iv, pe_iv)
-    if best is None:
-        return None, None
-    ce_iv = round(best[1], 2) if best[1] is not None else None
-    pe_iv = round(best[2], 2) if best[2] is not None else None
+    block = atm_block(rows, spot)
+    ce_iv = round(block["ce_iv"], 2) if block["ce_iv"] is not None else None
+    pe_iv = round(block["pe_iv"], 2) if block["pe_iv"] is not None else None
     return ce_iv, pe_iv
 
 
 def compute_control(rows: list[dict], spot: float,
                     gex_regime: Optional[str] = None,
-                    flow_bias: Optional[float] = None) -> dict:
+                    flow_bias: Optional[float] = None,
+                    spot_change: Optional[float] = None) -> dict:
     """Sum today's net OI change per side, tag who is writing, add IV skew.
 
     ``flow_bias`` (₹ Cr, positive = bullish) is threaded into
     :func:`control_verdict` so a writer label needs flow evidence, not just the
     OI share (see that function). When the chain carries price changes, the
     price-confirmed :func:`premium_flow_bias` overrides the raw signed-delta
-    flow; the emitted ``flow_bias`` is the value actually used.
+    flow; the emitted ``flow_bias`` is the value actually used. ``spot_change``
+    is the tape's 15m spot move, which gates the writer label itself (the flow
+    number is left untouched so the panel still shows what the chain said).
     """
     ce_doi = 0
     pe_doi = 0
@@ -228,9 +257,13 @@ def compute_control(rows: list[dict], spot: float,
         ce_doi += _i(ce.get("oi")) - _i(ce.get("prev_oi"))
         pe_doi += _i(pe.get("oi")) - _i(pe.get("prev_oi"))
     atm_ce_iv, atm_pe_iv = atm_ivs(rows or [], _f(spot, 0.0) or 0.0)
-    skew = None
+    # Sign is PE − CE: a positive number means puts are richer (downside hedging
+    # is bid). That is the OPPOSITE sign of the 25-delta RR published in
+    # ``iv_surface.skew.skew_25d`` (CE − PE), so name it explicitly. ``skew`` is
+    # kept as a legacy alias for old payload consumers.
+    put_skew = None
     if atm_ce_iv is not None and atm_pe_iv is not None:
-        skew = round(atm_pe_iv - atm_ce_iv, 2)
+        put_skew = round(atm_pe_iv - atm_ce_iv, 2)
     regime = gex_regime if gex_regime in ("long", "short", "flat") else "flat"
     bias = _f(flow_bias)
     # Prefer the price-confirmed OI flow. Raw signed-delta flow calls added
@@ -239,13 +272,14 @@ def compute_control(rows: list[dict], spot: float,
     if confirmed is not None:
         bias = confirmed
     return {
-        "verdict": control_verdict(ce_doi, pe_doi, bias),
+        "verdict": control_verdict(ce_doi, pe_doi, bias, spot_change=spot_change),
         "ce_doi": ce_doi,
         "pe_doi": pe_doi,
         "flow_bias": round(bias, 2) if bias is not None else None,
         "atm_ce_iv": atm_ce_iv,
         "atm_pe_iv": atm_pe_iv,
-        "skew": skew,
+        "put_skew": put_skew,
+        "skew": put_skew,  # legacy alias; same PE − CE sign
         "gex_regime": regime,
     }
 
@@ -258,10 +292,6 @@ def _avg_iv(control: dict) -> Optional[float]:
         return None
     return round(sum(vals) / len(vals), 2)
 
-
-# ---------------------------------------------------------------------------
-# Indicators (pure)
-# ---------------------------------------------------------------------------
 
 def ema(values: list[float], period: int) -> Optional[float]:
     """Exponential moving average seeded with the first ``period`` mean."""
@@ -507,10 +537,6 @@ def realized_vol_pct(candles: Optional[list[dict]],
         return 0.0
     return round(math.sqrt(daily_var) * math.sqrt(TRADING_DAYS) * 100.0, 2)
 
-
-# ---------------------------------------------------------------------------
-# regime block
-# ---------------------------------------------------------------------------
 
 #: Below this share of a normal session range the tape is compressing.
 RANGE_SELL_BELOW_PCT = 75.0
@@ -790,10 +816,6 @@ def compute_regime(candles: Optional[list[dict]], baseline: Optional[float],
     }
 
 
-# ---------------------------------------------------------------------------
-# strength block
-# ---------------------------------------------------------------------------
-
 def strength_verdict(score: int) -> str:
     if score >= 65:
         return "strong"
@@ -832,10 +854,6 @@ def compute_strength(candles: Optional[list[dict]],
         "pos_in_range": round(pos, 4) if pos is not None else None,
     }
 
-
-# ---------------------------------------------------------------------------
-# Baseline (median of prior sessions' 09:15-12:30 range)
-# ---------------------------------------------------------------------------
 
 def median_session_range(candles: Optional[list[dict]], exclude_date: str,
                          start: str = SESSION_START, end: str = SESSION_END,
@@ -888,10 +906,6 @@ def normalize_candles(raw: Optional[list]) -> list[dict]:
     out.sort(key=lambda c: c["time"])
     return out
 
-
-# ---------------------------------------------------------------------------
-# Network fetchers (cached, never raise)
-# ---------------------------------------------------------------------------
 
 async def _fetch(path: str, params: Optional[dict] = None) -> dict:
     from api.options import fetch_upstox
@@ -1057,10 +1071,6 @@ def clear_caches() -> None:
     _VIX_CACHE.update(ts=0.0, value=None)
 
 
-# ---------------------------------------------------------------------------
-# Assembly
-# ---------------------------------------------------------------------------
-
 def build_verdicts(*, rows: list[dict], spot: float, gex: Optional[dict],
                    candles: Optional[list[dict]],
                    tape_rows: Optional[list[dict]] = None,
@@ -1068,17 +1078,23 @@ def build_verdicts(*, rows: list[dict], spot: float, gex: Optional[dict],
                    vix: Optional[dict] = None,
                    reference: Optional[dict] = None,
                    prev_close: Optional[float] = None,
-                   flow_bias: Optional[float] = None) -> dict:
+                   flow_bias: Optional[float] = None,
+                   spot_change: Optional[float] = None) -> dict:
     """Return the four frozen blocks. Pure — all I/O happens in the fetchers.
 
     ``flow_bias`` is the signed session premium flow (₹ Cr, positive =
     bullish) — ``positioning.flow``, the raw signed-delta figure, not the
     class-weighted ``initiated``; it is threaded into the control block so
-    writer labels require flow evidence.
+    writer labels require flow evidence. ``spot_change`` is the tape's 15m
+    spot move from :func:`spot_change_from_tape` and gates the writer label's
+    implied direction. Callers that do not supply it fall back to deriving it
+    from ``tape_rows`` so no report path can skip the gate by omission.
     """
+    if spot_change is None:
+        spot_change = spot_change_from_tape(tape_rows)
     control = compute_control(rows or [], _f(spot, 0.0) or 0.0,
                               gex_regime=(gex or {}).get("regime"),
-                              flow_bias=flow_bias)
+                              flow_bias=flow_bias, spot_change=spot_change)
     regime = compute_regime(candles=candles, baseline=baseline,
                             iv=_avg_iv(control), tape_rows=tape_rows,
                             reference=reference, prev_close=prev_close,

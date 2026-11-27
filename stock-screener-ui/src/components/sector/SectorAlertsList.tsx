@@ -1,53 +1,79 @@
+import { For, Show } from "solid-js";
 import { Box, Text } from "@/ui";
 import type { SectorAlert } from "./sectorUtils";
-import { formatPercentage } from "../../utils/ui-helpers";
+import { formatSectorPercentage as formatPercentage } from "./sectorUtils";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 
-export function SectorAlertsList({ alerts }: { alerts: SectorAlert[] }) {
-  if (alerts.length === 0) {
-    return (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-        <Text size="xs" c="dimmed" ta="center" py={1}>
-          Waiting for major movements...
-        </Text>
-      </Box>
-    );
-  }
+export interface SectorAlertsListProps {
+  alerts: SectorAlert[];
+  /** Resolves an alert's sector to its lead symbol; absent → label stays inert text. */
+  onSectorClick?: (sector: string) => void;
+}
+
+export function SectorAlertsList(props: SectorAlertsListProps) {
+  const alerts = () => props.alerts ?? [];
 
   return (
-    <Box data-testid="sector-alerts-table" sx={{ display: "flex", flexDirection: "column" }}>
-      {alerts.map((alert) => {
-        const positive = alert.direction === "SURGING";
-        const color = positive ? POSITIVE : NEGATIVE;
-        return (
-          <Box
-            key={`${alert.timestamp}-${alert.sector}`}
-            sx={{
-              display: "grid",
-              gridTemplateColumns: "62px minmax(0, 1fr) auto",
-              alignItems: "center",
-              gap: 0.5,
-              minHeight: 20,
-              px: 0.5,
-              borderBottom: "1px solid",
-              borderColor: "divider",
-            }}
-          >
-            <Text c="dimmed" sx={{ fontSize: 9, fontVariantNumeric: "tabular-nums" }}>
-              {alert.timestamp}
-            </Text>
-            <Text truncate sx={{ fontSize: 10.5 }}>
-              {alert.sector}
-            </Text>
-            <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
-              <Box sx={{ width: 5, height: 5, borderRadius: "50%", bgcolor: color, flexShrink: 0 }} />
-              <Text sx={{ fontSize: 9.5, fontWeight: 700, color, whiteSpace: "nowrap" }}>
-                {alert.direction} ({formatPercentage(alert.delta, 2, false)})
-              </Text>
-            </Box>
-          </Box>
-        );
-      })}
-    </Box>
+    <Show
+      when={alerts().length > 0}
+      fallback={
+        <Box
+          data-testid="sector-alerts-empty"
+          role="status"
+          className="flex flex-col items-center justify-center gap-0.5 p-2"
+        >
+          <Text size="xs" c="dimmed" ta="center">
+            No new 0.30% sector moves this poll.
+          </Text>
+          <Text className="text-ui-micro text-fin-text-muted">
+            Alerts compare consecutive refreshes.
+          </Text>
+        </Box>
+      }
+    >
+      <Box data-testid="sector-alerts-table" className="flex flex-col">
+        <For each={alerts()}>
+          {(alert) => {
+            const positive = alert.direction === "SURGING";
+            const color = positive ? POSITIVE : NEGATIVE;
+            return (
+              <Box
+                className="grid grid-cols-[62px_minmax(0,1fr)_auto] items-center gap-1 min-h-[20px] px-1 border-b border-fin-border"
+              >
+                <Text c="dimmed" className="text-ui-micro tabular-nums font-mono">
+                  {alert.timestamp}
+                </Text>
+                <Show when={props.onSectorClick} fallback={
+                  <Text truncate className="text-ui-micro">
+                    {alert.sector}
+                  </Text>
+                }>
+                  <button
+                    type="button"
+                    data-testid={`sector-alert-symbol-${alert.sector}`}
+                    aria-label={`Open ${alert.sector} lead stock chart`}
+                    onClick={() => props.onSectorClick?.(alert.sector)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      props.onSectorClick?.(alert.sector);
+                    }}
+                    className="min-w-0 truncate bg-transparent p-0 text-left text-ui-micro text-fin-text hover:text-fin-primary focus-visible:underline focus-visible:outline focus-visible:outline-1 focus-visible:outline-fin-text"
+                  >
+                    {alert.sector}
+                  </button>
+                </Show>
+                <Box className="inline-flex items-center gap-1">
+                  <Box className="size-[5px] rounded-full shrink-0" style={{ "background-color": color }} />
+                  <Text className="text-ui-micro font-bold whitespace-nowrap font-mono tabular-nums" style={{ color }}>
+                    {alert.direction} ({formatPercentage(alert.delta, 2, false)})
+                  </Text>
+                </Box>
+              </Box>
+            );
+          }}
+        </For>
+      </Box>
+    </Show>
   );
 }

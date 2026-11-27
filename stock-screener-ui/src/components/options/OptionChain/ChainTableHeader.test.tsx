@@ -1,8 +1,14 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import { screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
+});
+
 import { ChainTableHeader } from "./ChainTableHeader";
 import { SCALE_GREEN, SCALE_RED, SCALE_YELLOW, SCALE_GRAY } from "../../../config/colors";
 
@@ -32,31 +38,33 @@ const mockStyles = {
 };
 
 describe("ChainTableHeader", () => {
-  it("renders header container", () => {
-    renderWithProviders(
-      <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />,
-    );
-    expect(screen.getByTestId("options-chain-table-header")).toBeInTheDocument();
-  });
-
   it("renders CALLS (CE) header", () => {
-    renderWithProviders(
-      <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />,
-    );
+    render(() => 
+      <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />);
     expect(screen.getByText("CALLS (CE)")).toBeInTheDocument();
   });
 
   it("renders STRIKE header", () => {
-    renderWithProviders(
-      <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />,
-    );
+    render(() => 
+      <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />);
     expect(screen.getByText("STRIKE")).toBeInTheDocument();
   });
 
   it("renders PUTS (PE) header", () => {
-    renderWithProviders(
-      <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />,
-    );
+    render(() => 
+      <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />);
     expect(screen.getByText("PUTS (PE)")).toBeInTheDocument();
+  });
+
+  it("pins the strike header at the position supplied by the layout", () => {
+    render(() => (
+      <ChainTableHeader
+        theme={mockTheme as any}
+        styles={{ ...mockStyles, strikeCell: { left: "8px" } } as any}
+      />
+    ));
+    const strike = screen.getByTestId("options-chain-strike-header");
+    expect(strike.style.position).toBe("sticky");
+    expect(strike.style.left).toBe("8px");
   });
 });

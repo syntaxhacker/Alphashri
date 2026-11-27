@@ -1,29 +1,26 @@
-import type { ReactNode } from "react";
-import Dialog from "@mui/material/Dialog";
-import IconButton from "@mui/material/IconButton";
-import Box from "@mui/material/Box";
-import useMediaQuery from "@mui/material/useMediaQuery";
-import { useTheme } from "@mui/material/styles";
-import { IconX } from "@tabler/icons-react";
-import { Text } from "@/ui";
+import { Show, type JSX } from "solid-js";
+import { Box, Modal, Text, typeSize } from "@/ui";
 import * as palette from "@/ui/palette";
+import { withAlpha } from "@/utils/color";
+
+type CSSProperties = JSX.CSSProperties;
 
 export interface PanelModalProps {
   open: boolean;
-  title: ReactNode;
+  title: JSX.Element;
   onClose: () => void;
-  children: ReactNode;
-  actions?: ReactNode;
-  /**
-   * `drawer` docks the shell to the right edge: full viewport height, fixed
-   * ~720px rail on desktop, square edge. Used by the gamma/positions read-outs
-   * so they read as a side panel rather than a second full-screen dialog.
-   */
+  children?: JSX.Element;
+  actions?: JSX.Element;
+  /** `drawer` docks the shell to the right edge: full viewport height, rail
+   *  pinned to `drawerWidth` (capped at 74vw) on desktop, square edge. Used by
+   *  the gamma/positions read-outs so they read as a side panel rather than a
+   *  second full-screen dialog. */
   variant?: "modal" | "drawer";
-  /**
-   * Desktop paper width in px. Defaults to the full-width 92vw shell; a
-   * compact dialog passes e.g. 1040 to cap a content-hugging panel.
-   */
+  /** Desktop drawer width in px. Defaults to 720; the paper is capped at
+   *  `min(drawerWidth, 74vw)` so the report stays visible beside the drawer. */
+  drawerWidth?: number;
+  /** Desktop paper width in px. Defaults to the full-width 92vw shell; a
+   *  compact dialog passes e.g. 1040 to cap a content-hugging panel. */
   maxWidth?: number;
   /** Hug the content (height auto) instead of filling 88vh. */
   autoHeight?: boolean;
@@ -32,166 +29,134 @@ export interface PanelModalProps {
 }
 
 /**
- * Desk-mode shell: one panel at a time, 92vw × 88vh on desktop, full-screen on
- * phones. `autoHeight` switches to a centered content-hugging dialog (capped
- * by `maxHeight`). `Dialog` owns focus trap + `Esc` (via `onClose`); the body
- * is the only scroller so the title bar never leaves the viewport.
+ * Panel chrome over @/ui Modal. The overlay, focus cycle, Escape, backdrop and
+ * background inertness all belong to Modal; this component only adds the
+ * title/body/actions layout and the drawer sizing the report desk needs.
  */
-export function PanelModal({
-  open,
-  title,
-  onClose,
-  children,
-  actions,
-  variant = "modal",
-  maxWidth,
-  autoHeight = false,
-  maxHeight = "80vh",
-}: PanelModalProps) {
-  const theme = useTheme();
-  const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
-  const isDrawer = variant === "drawer";
-  const compact = !isDrawer && autoHeight;
-  const width = maxWidth != null ? `min(${maxWidth}px, 92vw)` : "92vw";
+export function PanelModal(props: PanelModalProps) {
+  const isDrawer = () => props.variant === "drawer";
+  const compact = () => !isDrawer() && (props.autoHeight ?? false);
+  const maxHeightValue = () => props.maxHeight ?? "80vh";
+  const panelWidth = () =>
+    props.maxWidth != null ? `min(${props.maxWidth}px, 92vw)` : "92vw";
+
+  const panelStyle = (): CSSProperties => ({
+    "background-color": palette.TERM_BG,
+    color: palette.TEXT,
+    border: `1px solid ${palette.TERM_BORDER}`,
+    "box-shadow": palette.DIALOG_SHADOW,
+    display: "flex",
+    "flex-direction": "column",
+    overflow: "hidden",
+    ...(isDrawer()
+      ? {
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: "100%",
+          "max-width": `min(${props.drawerWidth ?? 720}px, 74vw)`,
+          height: "100%",
+          "max-height": "100%",
+          "border-right": "none",
+          "border-radius": 0,
+        }
+      : {
+          width: compact() ? "100%" : panelWidth(),
+          "max-width": compact() ? panelWidth() : undefined,
+          height: compact() ? "auto" : "88vh",
+          "max-height": compact()
+            ? typeof maxHeightValue() === "number"
+              ? `${maxHeightValue()}px`
+              : (maxHeightValue() as string)
+            : "88vh",
+          "border-radius": "4px",
+        }),
+  });
+
+  const titleStyle: CSSProperties = {
+    flex: 1,
+    "min-width": 0,
+    overflow: "hidden",
+    "text-overflow": "ellipsis",
+    "white-space": "nowrap",
+  };
+
+  const bodyStyle = (): CSSProperties => ({
+    flex: compact() ? "0 1 auto" : 1,
+    "min-height": 0,
+    overflow: "auto",
+    padding: "8px",
+  });
+
+  const actionsStyle: CSSProperties = {
+    display: "flex",
+    "align-items": "center",
+    "justify-content": "flex-end",
+    gap: "8px",
+    padding: "12px 16px",
+    "flex-shrink": 0,
+    "border-top": `1px solid ${palette.TERM_BORDER}`,
+    "background-color": palette.TERM_HEADER,
+  };
+
+  // One stable node: Modal reads `title` several times, and re-creating this
+  // wrapper on every read would move the caller's title node out of the slot.
+  const titleNode: JSX.Element = (
+    <div
+      data-testid="panel-modal-titlebar"
+      class="flex min-h-9 items-center gap-2"
+    >
+      <div data-testid="panel-modal-title" style={titleStyle}>
+        <Show when={typeof props.title === "string"} fallback={props.title}>
+          <Text
+            span
+            size="xs"
+            fw={700}
+            style={{
+              "font-size": `${typeSize("micro")}px`,
+              "line-height": 1.2,
+              "letter-spacing": "0.08em",
+              "text-transform": "uppercase",
+              color: palette.TEXT_MUTED,
+            }}
+          >
+            {props.title as string}
+          </Text>
+        </Show>
+      </div>
+    </div>
+  );
 
   return (
-    <Dialog
+    <Modal
+      opened={props.open}
+      onClose={props.onClose}
       data-testid="panel-modal"
-      data-variant={variant}
-      data-compact={compact ? "true" : undefined}
-      open={open}
-      onClose={onClose}
-      maxWidth={false}
-      fullScreen={fullScreen}
-      sx={
-        isDrawer
-          ? {
-              "& .MuiDialog-container": {
-                justifyContent: "flex-end",
-                alignItems: "stretch",
-                p: 0,
-              },
-            }
-          : undefined
-      }
-      slotProps={{
-        paper: {
-          sx: {
-            width: isDrawer
-              ? { xs: "100%", lg: 720 }
-              : compact
-                ? { xs: "100%", lg: width }
-                : { xs: "100%", lg: "92vw" },
-            maxWidth: isDrawer
-              ? { lg: 720 }
-              : compact && maxWidth != null
-                ? { lg: maxWidth }
-                : { lg: "92vw" },
-            height: isDrawer
-              ? { lg: "100%" }
-              : compact
-                ? "auto"
-                : { lg: "88vh" },
-            maxHeight: isDrawer
-              ? { lg: "100%" }
-              : compact
-                ? maxHeight
-                : { xs: "100%", lg: "88vh" },
-            m: isDrawer ? 0 : undefined,
-            bgcolor: palette.TERM_BG,
-            color: palette.TEXT,
-            border: `1px solid ${palette.TERM_BORDER}`,
-            borderRight: isDrawer ? "none" : `1px solid ${palette.TERM_BORDER}`,
-            borderRadius: isDrawer ? 0 : "4px",
-            boxShadow: palette.DIALOG_SHADOW,
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-          },
-        },
-      }}
+      {...({
+        "data-variant": props.variant ?? "modal",
+        "data-compact": compact() ? "true" : undefined,
+      } as Record<string, unknown>)}
+      title={titleNode}
+      padding={0}
+      overlayProps={{ color: withAlpha(palette.BG, isDrawer() ? 0.18 : 0.5) }}
+      style={panelStyle()}
+      className={isDrawer() ? "justify-end items-stretch" : undefined}
     >
-      <Box
-        data-testid="panel-modal-titlebar"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-          px: 1.5,
-          minHeight: 36,
-          flexShrink: 0,
-          bgcolor: palette.TERM_HEADER,
-          borderBottom: `1px solid ${palette.TERM_BORDER}`,
-        }}
+      <div
+        data-testid="panel-modal-panel"
+        class="flex min-h-0 flex-col"
+        style={{ height: "100%" }}
       >
-        <Box
-          data-testid="panel-modal-title"
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {typeof title === "string" ? (
-            <Text
-              span
-              size="xs"
-              fw={700}
-              style={{
-                fontSize: 10,
-                lineHeight: 1.2,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: palette.TEXT_MUTED,
-              }}
-            >
-              {title}
-            </Text>
-          ) : (
-            title
-          )}
+        <Box data-testid="panel-modal-body" style={bodyStyle()}>
+          {props.children}
         </Box>
-        <IconButton
-          data-testid="panel-modal-close"
-          aria-label="Close panel"
-          size="small"
-          onClick={onClose}
-          sx={{ p: "2px", color: palette.TEXT_MUTED, "&:hover": { color: palette.TEXT } }}
-        >
-          <IconX size={14} />
-        </IconButton>
-      </Box>
-      <Box
-        data-testid="panel-modal-body"
-        sx={{
-          flex: compact ? "0 1 auto" : 1,
-          minHeight: 0,
-          overflow: "auto",
-          p: 1,
-        }}
-      >
-        {children}
-      </Box>
-      {actions ? (
-        <Box
-          data-testid="panel-modal-actions"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-end",
-            gap: 1,
-            px: 1.5,
-            py: 1,
-            flexShrink: 0,
-            borderTop: `1px solid ${palette.TERM_BORDER}`,
-            bgcolor: palette.TERM_HEADER,
-          }}
-        >
-          {actions}
-        </Box>
-      ) : null}
-    </Dialog>
+        <Show when={props.actions}>
+          <Box data-testid="panel-modal-actions" style={actionsStyle}>
+            {props.actions}
+          </Box>
+        </Show>
+      </div>
+    </Modal>
   );
 }

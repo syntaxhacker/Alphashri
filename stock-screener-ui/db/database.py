@@ -2,7 +2,7 @@
 Database connection and session management for Alphashri
 """
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 # Bot subprocesses can end up importing the parent project's config.py (the
@@ -32,14 +32,55 @@ if Path(_cfg.__file__).resolve().parent != _UI_DIR:
 
 SQLALCHEMY_DATABASE_URL = _cfg.DATABASE_URL
 
-engine_args = {}
-if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
-    engine_args["connect_args"] = {"check_same_thread": False}
-else:
+# WAL lets readers keep reading the last committed snapshot while a writer
+# commits, instead of the whole DB waiting on a rollback-journal lock. The batch
+# jobs commit ~3k rows at a time against a 185MB file, and in `journal_mode=delete`
+# that lock showed up as 3-7s stalls on the auth/config reads.
+# synchronous=NORMAL is the usual WAL pairing: it can lose the last transaction
+# on an OS crash, but not corrupt the file. cache_size is negative = KiB, so
+# -65536 is a 64MB page cache (default is 2MB).
+SQLITE_PRAGMAS: tuple[tuple[str, str | int], ...] = (
+    ("journal_mode", "WAL"),
+    ("busy_timeout", 5000),
+    ("synchronous", "NORMAL"),
+    ("cache_size", -65536),
+)
+
+
+def _is_sqlite_url(url: str) -> bool:
+    return url.startswith("sqlite")
+
+
+def apply_sqlite_pragmas(dbapi_connection, _connection_record=None) -> None:
+    """Set the SQLite pragmas on every new DBAPI connection."""
+    cursor = dbapi_connection.cursor()
+    try:
+        for pragma, value in SQLITE_PRAGMAS:
+            cursor.execute(f"PRAGMA {pragma}={value}")
+            # PRAGMA journal_mode returns a row; drain it so the statement is
+            # fully stepped before the next pragma runs.
+            cursor.fetchall()
+    finally:
+        cursor.close()
+
+
+def _attach_sqlite_pragmas(target_engine) -> None:
+    event.listen(target_engine, "connect", apply_sqlite_pragmas)
+
+
+def _build_engine(url: str):
+    engine_args = {}
+    if _is_sqlite_url(url):
+        engine_args["connect_args"] = {"check_same_thread": False}
+        built = create_engine(url, **engine_args)
+        _attach_sqlite_pragmas(built)
+        return built
     engine_args["pool_pre_ping"] = True
     engine_args["pool_recycle"] = 300
+    return create_engine(url, **engine_args)
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL, **engine_args)
+
+engine = _build_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

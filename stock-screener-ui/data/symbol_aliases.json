@@ -1,0 +1,31 @@
+{
+  "aliases": {
+    "PTC": "PTCIL",
+    "PTC02": "PTCIL",
+    "PTC03": "PTC",
+    "WI11": "WHEELS",
+    "UAM": "UNIMECH",
+    "Z": "ETERNAL",
+    "IA04": "INDIGO",
+    "OC03": "PAYTM",
+    "JIL01": "JSWINFRA",
+    "NII02": "COFORGE",
+    "PF14": "POLICYBZR",
+    "MT15": "MTARTECH",
+    "ST20": "STLTECH",
+    "CGC01": "CROMPTON",
+    "GH03": "MEDANTA",
+    "MP22": "MANKIND",
+    "MSW": "MSUMI",
+    "HGE": "HCG",
+    "YHT": "YATHARTH",
+    "SWS": "SWSOLAR",
+    "RE07": "RAJESHEXPO",
+    "PFR": "ABFRL",
+    "BPI02": "BERGEPAINT",
+    "LFH": "LTF",
+    "HFC": "HFCL",
+    "Motherson Sumi Wiring India": "MSUMI",
+    "Sterlite Technologies": "STLTECH"
+  }
+}

@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { describe, expect, test } from "vitest";
+import { render, screen, within, fireEvent } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 import { UIProvider } from "@/ui";
 import { NiftyGammaStrip } from "./NiftyGammaStrip";
 import type { NiftyGex, NiftyPositioningBlock } from "@/types/niftyReport";
@@ -24,7 +24,6 @@ function positioning(): NiftyPositioningBlock {
   };
 }
 
-/** Short-gamma book: cumulative gamma at spot is negative, flip above spot. */
 function shortGex(overrides: Partial<NiftyGex> = {}): NiftyGex {
   return {
     strikes: [
@@ -49,11 +48,10 @@ function shortGex(overrides: Partial<NiftyGex> = {}): NiftyGex {
   };
 }
 
-function r(node: React.ReactElement) {
+function r(node: () => JSX.Element) {
   return render(node, { wrapper: UIProvider });
 }
 
-/** Long-gamma book: cumulative gamma at spot is positive, flip below spot. */
 function longGex(overrides: Partial<NiftyGex> = {}): NiftyGex {
   return shortGex({
     strikes: [
@@ -69,11 +67,11 @@ function longGex(overrides: Partial<NiftyGex> = {}): NiftyGex {
   });
 }
 
-afterEach(cleanup);
 
 describe("NiftyGammaStrip — regime line", () => {
   test("renders net gamma, regime, flip, fuel and resistance", () => {
-    r(<NiftyGammaStrip gex={shortGex()} positioning={positioning()} spot={25_750} />);
+    r(() =>
+    <NiftyGammaStrip gex={shortGex()} positioning={positioning()} spot={25_750} />);
 
     const strip = screen.getByTestId("nifty-gamma-strip");
     expect(strip).toHaveStyle({ height: "24px" });
@@ -91,7 +89,8 @@ describe("NiftyGammaStrip — regime line", () => {
   });
 
   test("long gamma reads positive and a missing level falls back to a dash", () => {
-    r(<NiftyGammaStrip gex={longGex()} spot={25_750} />);
+    r(() =>
+    <NiftyGammaStrip gex={longGex()} spot={25_750} />);
 
     const strip = screen.getByTestId("nifty-gamma-strip");
     expect(strip).toHaveAttribute("data-tone", "long");
@@ -101,7 +100,8 @@ describe("NiftyGammaStrip — regime line", () => {
   });
 
   test("degrades to dashes without a gamma block", () => {
-    r(<NiftyGammaStrip spot={25_750} />);
+    r(() =>
+    <NiftyGammaStrip spot={25_750} />);
     const strip = screen.getByTestId("nifty-gamma-strip");
     expect(strip).toHaveAttribute("data-tone", "flat");
     expect(strip).toHaveTextContent("Γ —");
@@ -111,10 +111,11 @@ describe("NiftyGammaStrip — regime line", () => {
 
 describe("NiftyGammaStrip — drawer", () => {
   test("click opens the gamma & positioning drawer with both live panels", async () => {
-    const user = userEvent.setup();
-    r(<NiftyGammaStrip gex={shortGex()} positioning={positioning()} spot={25_750} />);
+    
+    r(() =>
+    <NiftyGammaStrip gex={shortGex()} positioning={positioning()} spot={25_750} />);
 
-    await user.click(screen.getByTestId("nifty-gamma-strip"));
+    await fireEvent.click(screen.getByTestId("nifty-gamma-strip"));
 
     const modal = await screen.findByTestId("nifty-gamma-modal");
     expect(screen.getByTestId("panel-modal")).toHaveAttribute("data-variant", "drawer");
@@ -126,12 +127,13 @@ describe("NiftyGammaStrip — drawer", () => {
   });
 
   test("keyboard Enter opens the drawer", async () => {
-    const user = userEvent.setup();
-    r(<NiftyGammaStrip gex={shortGex()} positioning={positioning()} spot={25_750} />);
+    
+    r(() =>
+    <NiftyGammaStrip gex={shortGex()} positioning={positioning()} spot={25_750} />);
 
     const strip = screen.getByTestId("nifty-gamma-strip");
     strip.focus();
-    await user.keyboard("{Enter}");
+    fireEvent.keyDown(strip, { key: "Enter" });
 
     expect(await screen.findByTestId("nifty-gamma-modal")).toBeInTheDocument();
   });

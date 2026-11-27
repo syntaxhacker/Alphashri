@@ -9,7 +9,6 @@ class TestRiskManagerEdgeCases:
     def test_zero_capital(self):
         """Test risk manager with zero capital."""
         rm = RiskManager()
-        # Should return 0 shares if capital is 0
         shares = rm.calculate_position_size(capital=0, entry_price=100, stop_loss=95)
         assert shares == 0
         
@@ -23,7 +22,6 @@ class TestRiskManagerEdgeCases:
     def test_extremely_low_capital(self):
         """Test risk manager with capital below min trade value."""
         rm = RiskManager(config=RiskConfig(min_trade_value=5000))
-        # Capital 1000 is below min_trade_value
         validation = rm.validate_trade(
             capital=1000, cash=1000, current_positions=0, current_exposure=0,
             entry_price=100, stop_loss=95, take_profit=110

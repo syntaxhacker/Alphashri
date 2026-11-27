@@ -1,0 +1,136 @@
+// @vitest-environment node
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import * as palette from "@/ui/palette";
+
+const TOKENS: Array<[string, string]> = [
+  ["--color-fin-bg", palette.BG_COLOR],
+  ["--color-fin-surface", palette.SURFACE_COLOR],
+  ["--color-fin-surface-alt", palette.SURFACE_ALT],
+  ["--color-fin-border", palette.BORDER_COLOR],
+  ["--color-fin-text", palette.TEXT_COLOR],
+  ["--color-fin-text-muted", palette.TEXT_MUTED_COLOR],
+  ["--color-fin-primary", palette.PRIMARY],
+  ["--color-fin-positive", palette.POSITIVE_COLOR],
+  ["--color-fin-negative", palette.NEGATIVE_COLOR],
+  ["--color-fin-warning", palette.WARNING],
+  ["--color-fin-info", palette.INFO],
+];
+
+/** Semantic borders derive from the anchors above and are mirrored in @theme. */
+const BORDER_TOKENS: Array<[string, string]> = [
+  ["--color-fin-border-subtle", palette.BORDER_SUBTLE],
+  ["--color-fin-border-default", palette.BORDER_DEFAULT],
+  ["--color-fin-border-strong", palette.BORDER_STRONG],
+  ["--color-fin-border-focus", palette.BORDER_FOCUS],
+  ["--color-fin-border-positive", palette.BORDER_POSITIVE],
+  ["--color-fin-border-negative", palette.BORDER_NEGATIVE],
+  ["--color-fin-border-warning", palette.BORDER_WARNING],
+  ["--color-fin-border-info", palette.BORDER_INFO],
+  ["--color-fin-border-disabled", palette.BORDER_DISABLED],
+];
+
+const THEME_CSS = readFileSync(fileURLToPath(new URL("../tailwind.css", import.meta.url)), "utf8");
+
+const themeValue = (token: string): string | undefined => {
+  const match = new RegExp(`${token}\\s*:\\s*([^;]+);`).exec(THEME_CSS);
+  return match?.[1].trim().toLowerCase();
+};
+
+describe("theme single source", () => {
+  it("tailwind @theme mirrors every palette anchor", () => {
+    const mismatched: string[] = [];
+    for (const [token, expected] of TOKENS) {
+      const actual = themeValue(token);
+      if (actual !== expected.toLowerCase()) mismatched.push(`${token}: theme=${actual} palette=${expected}`);
+    }
+    expect(mismatched, mismatched.join("\n")).toEqual([]);
+  });
+
+  it("tailwind @theme mirrors every semantic border token", () => {
+    const mismatched: string[] = [];
+    for (const [token, expected] of BORDER_TOKENS) {
+      const actual = themeValue(token);
+      if (actual !== expected.toLowerCase()) mismatched.push(`${token}: theme=${actual} palette=${expected}`);
+    }
+    expect(mismatched, mismatched.join("\n")).toEqual([]);
+  });
+
+  it("every semantic border token derives from an existing anchor, never a raw hex", () => {
+    expect(palette.BORDER_SUBTLE).toBe(palette.alpha(palette.BORDER, 0.6));
+    expect(palette.BORDER_DEFAULT).toBe(palette.BORDER);
+    expect(palette.BORDER_STRONG).toBe(palette.alpha(palette.TEXT_MUTED, 0.6));
+    expect(palette.BORDER_FOCUS).toBe(palette.alpha(palette.PRIMARY, 0.9));
+    expect(palette.BORDER_POSITIVE).toBe(palette.alpha(palette.POSITIVE, 0.7));
+    expect(palette.BORDER_NEGATIVE).toBe(palette.alpha(palette.NEGATIVE, 0.7));
+    expect(palette.BORDER_WARNING).toBe(palette.alpha(palette.WARNING, 0.7));
+    expect(palette.BORDER_INFO).toBe(palette.alpha(palette.INFO, 0.7));
+    expect(palette.BORDER_DISABLED).toBe(palette.alpha(palette.TEXT_MUTED, 0.25));
+  });
+
+  it("overrides every palette anchor in light theme, not just a color-scheme flag", () => {
+    // The toolbar toggle used to set `data-color-scheme` and nothing else: no
+    // token moved, so the app stayed black in both themes. A partial block is
+    // the same bug, half-applied, so every anchor must actually change.
+    const block = /:root\[data-color-scheme="light"\]\s*\{([\s\S]*?)\}/.exec(THEME_CSS)?.[1];
+    expect(block, "no light theme block — the toggle would only set color-scheme").toBeTruthy();
+    const light = (token: string) =>
+      new RegExp(`${token}\\s*:\\s*([^;]+);`).exec(block!)?.[1].trim().toLowerCase();
+
+    const missing = TOKENS.map(([token]) => token).filter((token) => !light(token));
+    expect(missing, `not overridden in light: ${missing.join(", ")}`).toEqual([]);
+
+    const unchanged = TOKENS.filter(([token, dark]) => light(token) === dark.toLowerCase()).map(([token]) => token);
+    expect(unchanged, `identical to the dark value: ${unchanged.join(", ")}`).toEqual([]);
+  });
+
+  it("overrides every semantic border token in light theme", () => {
+    const block = /:root\[data-color-scheme="light"\]\s*\{([\s\S]*?)\}/.exec(THEME_CSS)?.[1];
+    expect(block, "no light theme block").toBeTruthy();
+    const light = (token: string) =>
+      new RegExp(`${token}\\s*:\\s*([^;]+);`).exec(block!)?.[1].trim().toLowerCase();
+    const missing = BORDER_TOKENS.map(([token]) => token).filter((token) => !light(token));
+    expect(missing, `not overridden in light: ${missing.join(", ")}`).toEqual([]);
+    const unchanged = BORDER_TOKENS.filter(([token, dark]) => light(token) === dark.toLowerCase())
+      .map(([token]) => token);
+    expect(unchanged, `identical to the dark value: ${unchanged.join(", ")}`).toEqual([]);
+  });
+
+  it("no module outside palette.ts hardcodes a colour", async () => {
+    const { readdirSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const SRC = fileURLToPath(new URL("..", import.meta.url)).replace(/\/$/, "");
+    const walk = (dir: string, out: string[] = []): string[] => {
+      for (const name of readdirSync(dir)) {
+        const full = join(dir, name);
+        if (statSync(full).isDirectory()) walk(full, out);
+        else if (/\.(ts|tsx)$/.test(name) && !/\.(test|spec)\./.test(name)) out.push(full);
+      }
+      return out;
+    };
+    const offenders: string[] = [];
+    for (const file of walk(SRC)) {
+      const rel = file.slice(SRC.length + 1);
+      if (rel === "ui/palette.ts") continue;
+      const text = readFileSync(file, "utf8");
+      const hexes = text.match(/#[0-9a-fA-F]{6}\b/g);
+      if (hexes) offenders.push(`${rel}: ${[...new Set(hexes)].join(", ")}`);
+    }
+    expect(offenders, offenders.join("\n")).toEqual([]);
+  });
+
+  it("the desk theme reuses the global ramp instead of a near-miss copy", () => {
+    // TERM_* previously carried #2A2E35 / #15181C — one notch off BORDER and
+    // SURFACE_ALT. Two ramps one notch apart read as the same thing but cannot
+    // be retuned together, so the desk looked subtly unlike every other panel.
+    expect(palette.TERM_BG).toBe(palette.BG_COLOR);
+    expect(palette.TERM_BORDER).toBe(palette.BORDER_COLOR);
+    expect(palette.TERM_HEADER).toBe(palette.SURFACE_ALT_COLOR);
+  });
+
+  it("alpha() derives an rgba tint from an anchor", () => {
+    expect(palette.alpha("#D9902A", 0.5)).toBe("rgba(217, 144, 42, 0.5)");
+    expect(palette.alpha("#000", 1)).toBe("rgba(0, 0, 0, 1)");
+  });
+});

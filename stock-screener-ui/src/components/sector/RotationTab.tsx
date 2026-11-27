@@ -1,5 +1,4 @@
-import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import { Show, Switch, Match, For, createEffect, createMemo, createSignal, onCleanup, type JSX } from "solid-js";
 import {
   ActionIcon,
   Alert,
@@ -12,7 +11,7 @@ import {
   ToolbarRow,
 } from "@/ui";
 import { CompactPanel } from "@/components/common/compact";
-import { IconRefresh } from "@tabler/icons-react";
+import { IconRefresh } from "../screener/icons";
 import { NEGATIVE, POSITIVE, WARNING } from "@/ui/palette";
 import type {
   RotationKind,
@@ -20,9 +19,10 @@ import type {
   RotationRow,
   RotationStatus,
 } from "../../types/rotation";
-import { useRotationUrlState } from "../../hooks/useRotationUrlState";
-import { useRotationData } from "../../hooks/useRotationData";
-import { formatPercentage, formatTimeOnly } from "../../utils/ui-helpers";
+import type { RotationOverviewResponse } from "../../types/rotation";
+import { fetchRotationOverview } from "../../api/rotation";
+import { formatTimeOnly } from "../../utils/ui-helpers";
+import { formatSectorPercentage as formatPercentage } from "./sectorUtils";
 import { RotationRrg } from "./RotationRrg";
 import { RotationMatrix } from "./RotationMatrix";
 import { RotationBoard } from "./RotationBoard";
@@ -51,21 +51,124 @@ const MIN_OPTIONS = [1, 3, 5, 10].map((value) => ({
   value: String(value),
 }));
 
-
-
 const STATUS_ORDER: RotationStatus[] = ["booming", "heating", "cooling", "dumping", "neutral"];
 
-function Divider() {
-  return <Box sx={{ width: "1px", height: 12, bgcolor: "divider", flexShrink: 0 }} />;
+const KINDS: RotationKind[] = ["sector", "theme", "industry"];
+const PERIODS: RotationPeriod[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y"];
+const MIN_MEMBERS = [1, 3, 5, 10] as const;
+
+function readEnum<T extends string>(key: string, allowed: T[], fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  const value = new URLSearchParams(window.location.search).get(key);
+  return value && allowed.includes(value as T) ? (value as T) : fallback;
 }
 
-function StripLabel({ children }: { children: ReactNode }) {
+function readNumber(key: string, allowed: readonly number[], fallback: number): number {
+  if (typeof window === "undefined") return fallback;
+  const value = Number(new URLSearchParams(window.location.search).get(key));
+  return allowed.includes(value) ? value : fallback;
+}
+
+function readGroup(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("group");
+}
+
+function writeParams(patch: Record<string, string | null>): void {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null || value === "") url.searchParams.delete(key);
+    else url.searchParams.set(key, value);
+  }
+  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+// Inline Solid twins of src/hooks/useRotationUrlState and useRotationData —
+// both are still React in hooks/ (another owner), so they cannot be imported.
+function useRotationUrlState() {
+  const [kind, setKindState] = createSignal<RotationKind>(readEnum("kind", KINDS, "sector"));
+  const [period, setPeriodState] = createSignal<RotationPeriod>(readEnum("period", PERIODS, "1M"));
+  const [minMembers, setMinMembersState] = createSignal<number>(readNumber("min", MIN_MEMBERS, 3));
+  const [selectedId, setSelectedIdState] = createSignal<string | null>(readGroup());
+
+  const setKind = (next: RotationKind) => {
+    setKindState(next);
+    setSelectedIdState(null);
+    writeParams({ kind: next, group: null });
+  };
+
+  const setPeriod = (next: RotationPeriod) => {
+    setPeriodState(next);
+    writeParams({ period: next });
+  };
+
+  const setMinMembers = (next: number) => {
+    const safe = MIN_MEMBERS.includes(next as (typeof MIN_MEMBERS)[number]) ? next : 3;
+    setMinMembersState(safe);
+    writeParams({ min: String(safe) });
+  };
+
+  const setSelectedId = (next: string | null) => {
+    setSelectedIdState(next);
+    writeParams({ group: next });
+  };
+
+  return { kind, period, minMembers, selectedId, setKind, setPeriod, setMinMembers, setSelectedId };
+}
+
+function useRotationData(market: () => "india" | "america", kind: () => RotationKind) {
+  const [data, setData] = createSignal<RotationOverviewResponse | null>(null);
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const [version, setVersion] = createSignal(0);
+
+  createEffect(() => {
+    const m = market();
+    const k = kind();
+    void version();
+    const controller = new AbortController();
+    onCleanup(() => controller.abort());
+    setLoading(true);
+    setError(null);
+    fetchRotationOverview({
+      market: m,
+      kind: k,
+      minMembers: 1,
+      limit: 48,
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (controller.signal.aborted) return;
+        setData(response);
+      })
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        setError(err instanceof Error ? err.message : "Failed to load rotation data");
+        setData(null);
+      })
+      .finally(() => {
+        if (controller.signal.aborted) return;
+        setLoading(false);
+      });
+  });
+
+  const refresh = () => setVersion((v) => v + 1);
+
+  return { data, loading, error, refresh };
+}
+
+function Divider() {
+  return <Box className="h-3 w-px shrink-0 bg-fin-border" />;
+}
+
+function StripLabel(props: { children: JSX.Element }) {
   return (
     <Text
       c="dimmed"
-      sx={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" }}
+      className="text-ui-micro font-bold tracking-[0.5px] uppercase"
     >
-      {children}
+      {props.children}
     </Text>
   );
 }
@@ -77,24 +180,23 @@ function regimeTone(label: string): string {
   return WARNING;
 }
 
-export function RotationTab({ market }: { market: "india" | "america" }) {
+export function RotationTab(props: { market: "india" | "america" }) {
+  const market = () => props.market;
   const { kind, period, minMembers, selectedId, setKind, setPeriod, setMinMembers, setSelectedId } =
     useRotationUrlState();
   const { data, loading, error, refresh } = useRotationData(market, kind);
 
-  const [membersRow, setMembersRow] = useState<RotationRow | null>(null);
+  const [membersRow, setMembersRow] = createSignal<RotationRow | null>(null);
 
-  const visible = useMemo(
-    () => (data?.rows ?? []).filter((row) => row.members >= minMembers),
-    [data, minMembers],
+  const visible = createMemo(() =>
+    (data()?.rows ?? []).filter((row) => row.members >= minMembers()),
   );
 
-  const selectedRow = useMemo(
-    () => visible.find((row) => row.id === selectedId) ?? visible[0] ?? null,
-    [visible, selectedId],
+  const selectedRow = createMemo(
+    () => visible().find((row) => row.id === selectedId()) ?? visible()[0] ?? null,
   );
 
-  const counts = useMemo(() => {
+  const counts = createMemo(() => {
     const base: Record<RotationStatus, number> = {
       booming: 0,
       heating: 0,
@@ -102,51 +204,43 @@ export function RotationTab({ market }: { market: "india" | "america" }) {
       dumping: 0,
       neutral: 0,
     };
-    for (const row of visible) base[row.status] += 1;
+    for (const row of visible()) base[row.status] += 1;
     return base;
-  }, [visible]);
+  });
 
-  const regime = data?.regime ?? null;
-  const updatedAt = data?.last_updated ? formatTimeOnly(data.last_updated) : "";
+  const regime = () => data()?.regime ?? null;
+  const updatedAt = () => (data()?.last_updated ? formatTimeOnly(data()!.last_updated!) : "");
+  const selectedRowId = () => selectedRow()?.id ?? null;
 
   return (
     <Box
       data-testid="rotation-tab"
-      sx={{
-        flex: 1,
-        minHeight: 0,
-        minWidth: 0,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        bgcolor: "background.default",
-      }}
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-fin-bg"
     >
       <ToolbarRow
         gap={8}
-        wrap={false}
         data-testid="rotation-toolbar"
-        sx={{ overflowX: "auto", overflowY: "hidden" }}
+        className="flex-wrap"
         style={{
-          padding: "0 10px",
-          minHeight: 34,
-          height: 34,
-          borderBottom: "1px solid var(--mui-palette-divider)",
-          flexShrink: 0,
+          padding: "4px 10px",
+          "min-height": "34px",
+          "row-gap": "4px",
+          "border-bottom": "1px solid var(--color-fin-border)",
+          "flex-shrink": 0,
         }}
       >
-        <Text fw={700} sx={{ fontSize: 12, whiteSpace: "nowrap" }}>
+        <Text fw={700} className="text-ui-micro whitespace-nowrap">
           Rotation
         </Text>
         <SegmentedControl
-          value={kind}
+          value={kind()}
           onChange={(value) => setKind(value as RotationKind)}
           data={KIND_OPTIONS}
           size="xs"
           data-testid="rotation-kind"
         />
         <SegmentedControl
-          value={period}
+          value={period()}
           onChange={(value) => setPeriod(value as RotationPeriod)}
           data={PERIOD_OPTIONS}
           size="xs"
@@ -154,7 +248,7 @@ export function RotationTab({ market }: { market: "india" | "america" }) {
         />
         <StripLabel>Min</StripLabel>
         <Select
-          value={String(minMembers)}
+          value={String(minMembers())}
           onChange={(value) => setMinMembers(Number(value ?? 1))}
           data={MIN_OPTIONS}
           size="xs"
@@ -162,20 +256,20 @@ export function RotationTab({ market }: { market: "india" | "america" }) {
           aria-label="Minimum members"
           data-testid="rotation-min-members"
         />
-        <Box sx={{ flex: 1, minWidth: 8 }} />
-        {loading && data ? (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+        <Box className="flex-1 min-w-[8px]" />
+        <Show when={loading() && data()}>
+          <Box className="flex items-center gap-1">
             <Loader size="xs" />
-            <Text c="dimmed" sx={{ fontSize: 10 }}>
+            <Text c="dimmed" className="text-ui-micro">
               Updating
             </Text>
           </Box>
-        ) : null}
-        {updatedAt ? (
-          <Text c="dimmed" sx={{ fontSize: 10, whiteSpace: "nowrap" }}>
-            {updatedAt}
+        </Show>
+        <Show when={updatedAt()}>
+          <Text c="dimmed" className="text-ui-micro whitespace-nowrap font-mono tabular-nums">
+            {updatedAt()}
           </Text>
-        ) : null}
+        </Show>
         <ActionIcon
           variant="subtle"
           size="sm"
@@ -183,270 +277,225 @@ export function RotationTab({ market }: { market: "india" | "america" }) {
           onClick={refresh}
           data-testid="rotation-refresh"
         >
-          <IconRefresh size={15} />
+          <IconRefresh size={14} />
         </ActionIcon>
       </ToolbarRow>
 
-      {regime ? (
-        <Box
-          data-testid="rotation-regime"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            px: 1,
-            height: 26,
-            flexShrink: 0,
-            borderBottom: "1px solid",
-            borderColor: "divider",
-            overflow: "hidden",
-            whiteSpace: "nowrap",
-          }}
-        >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
-            <StripLabel>{regime.benchmark}</StripLabel>
-            <Text
-              c={regime.benchmark_change >= 0 ? "success" : "error"}
-              fw={600}
-              sx={{ fontSize: 11, fontVariantNumeric: "tabular-nums" }}
-            >
-              {formatPercentage(regime.benchmark_change)}
-            </Text>
-          </Box>
-          {regime.vix != null ? (
-            <>
-              <Divider />
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <StripLabel>VIX</StripLabel>
-                <Text sx={{ fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
-                  {regime.vix.toFixed(2)}
-                </Text>
-                {regime.vix_change != null ? (
-                  <Text
-                    c={regime.vix_change <= 0 ? "success" : "error"}
-                    fw={600}
-                    sx={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}
-                  >
-                    {formatPercentage(regime.vix_change)}
-                  </Text>
-                ) : null}
-              </Box>
-            </>
-          ) : null}
-          <Divider />
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <StripLabel>Breadth</StripLabel>
-            <Text sx={{ fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
-              {regime.breadth.toFixed(0)}%
-            </Text>
-          </Box>
-          <Divider />
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <Box
-              sx={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                bgcolor: regimeTone(regime.label),
-                flexShrink: 0,
-              }}
-            />
-            <Text
-              fw={700}
-              sx={{
-                fontSize: 10,
-                letterSpacing: 0.6,
-                textTransform: "uppercase",
-                color: regimeTone(regime.label),
-              }}
-            >
-              {regime.label}
-            </Text>
-          </Box>
-          <Box sx={{ flex: 1 }} />
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
-            {STATUS_ORDER.map((status) => {
-              const label = ROTATION_STATUS_LABELS[status].short;
-              const color = ROTATION_STATUS_COLORS_PANEL[status];
-              return (
-                <Box key={status} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                  <Box
-                    sx={{
-                      width: 5,
-                      height: 5,
-                      borderRadius: "50%",
-                      bgcolor: color,
-                      flexShrink: 0,
-                    }}
-                  />
-                  <Text c="dimmed" sx={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.3 }}>
-                    {label}
-                  </Text>
-                  <Text
-                    sx={{ fontSize: 10.5, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}
-                  >
-                    {counts[status]}
-                  </Text>
-                </Box>
-              );
-            })}
-          </Box>
-        </Box>
-      ) : null}
-
-      {error ? (
-        <Box
-          data-testid="rotation-error"
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            p: 1,
-          }}
-        >
+      <Show when={regime()}>
+        {(regimeAcc) => (
           <Box
-            sx={{ width: "100%", maxWidth: 520, display: "flex", flexDirection: "column", gap: 1 }}
+            data-testid="rotation-regime"
+            className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-2 min-h-[26px] shrink-0 border-b border-fin-border"
           >
-            <Alert color="error" title="Rotation data unavailable">
-              {error}
-            </Alert>
-            <Box>
-              <Button variant="outline" size="xs" onClick={refresh}>
-                Retry
-              </Button>
+            <Box className="flex items-center gap-1 min-w-0">
+              <StripLabel>{regimeAcc().benchmark}</StripLabel>
+              <Text
+                c={regimeAcc().benchmark_change >= 0 ? "success" : "error"}
+                fw={600}
+                className="text-ui-micro tabular-nums font-mono"
+              >
+                {formatPercentage(regimeAcc().benchmark_change)}
+              </Text>
+            </Box>
+            <Show when={regimeAcc().vix != null}>
+              <>
+                <Divider />
+                <Box className="flex items-center gap-1">
+                  <StripLabel>VIX</StripLabel>
+                  <Text className="text-ui-micro tabular-nums font-mono">
+                    {regimeAcc().vix!.toFixed(2)}
+                  </Text>
+                  <Show when={regimeAcc().vix_change != null}>
+                    <Text
+                      c={regimeAcc().vix_change! <= 0 ? "success" : "error"}
+                      fw={600}
+                      className="text-ui-micro tabular-nums font-mono"
+                    >
+                      {formatPercentage(regimeAcc().vix_change!)}
+                    </Text>
+                  </Show>
+                </Box>
+              </>
+            </Show>
+            <Divider />
+            <Box className="flex items-center gap-1">
+              <StripLabel>Breadth</StripLabel>
+              <Text className="text-ui-micro tabular-nums font-mono">
+                {regimeAcc().breadth.toFixed(0)}%
+              </Text>
+            </Box>
+            <Divider />
+            <Box className="flex items-center gap-1">
+              <Box
+                className="size-[6px] rounded-full shrink-0"
+                style={{ "background-color": regimeTone(regimeAcc().label) }}
+              />
+              <Text
+                fw={700}
+                className="text-ui-micro tracking-[0.6px] uppercase"
+                style={{ color: regimeTone(regimeAcc().label) }}
+              >
+                {regimeAcc().label}
+              </Text>
+            </Box>
+            <Box className="flex-1" />
+            <Box className="flex items-center gap-[10px]">
+              <For each={STATUS_ORDER}>
+                {(status) => (
+                  <Box className="flex items-center gap-1">
+                    <Box
+                      className="size-[5px] rounded-full shrink-0"
+                      style={{ "background-color": ROTATION_STATUS_COLORS_PANEL[status] }}
+                    />
+                    <Text c="dimmed" className="text-ui-micro font-bold tracking-[0.3px]">
+                      {ROTATION_STATUS_LABELS[status].short}
+                    </Text>
+                    <Text className="text-ui-micro font-semibold tabular-nums font-mono">
+                      {counts()[status]}
+                    </Text>
+                  </Box>
+                )}
+              </For>
             </Box>
           </Box>
-        </Box>
-      ) : loading || !data ? (
-        <Box
-          data-testid="rotation-loading"
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 1,
-          }}
-        >
-          <Loader size="sm" />
-          <Text size="xs" c="dimmed">
-            Loading rotation…
-          </Text>
-        </Box>
-      ) : visible.length === 0 ? (
-        <Box
-          data-testid="rotation-empty"
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            p: 1,
-          }}
-        >
-          <Text size="xs" c="dimmed">
-            No {kind} groups with at least {minMembers} members.
-          </Text>
-        </Box>
-      ) : (
-        <Box
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            display: "grid",
-            gap: 0.25,
-            p: 0.25,
-            overflow: "hidden",
-            gridTemplateAreas: {
-              xs: '"rrg" "matrix" "board" "detail"',
-              lg: '"rrg board" "matrix detail"',
-            },
-            gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 1.15fr) minmax(0, 1fr)" },
-            gridTemplateRows: { xs: "auto auto auto auto", lg: "minmax(0, 1.18fr) minmax(0, 0.82fr)" },
-          }}
-        >
-          <CompactPanel
-            testId="rotation-rrg-panel"
-            scrollable
-            flush
-            padded={false}
-            sx={{ gridArea: "rrg", minHeight: { xs: 300, lg: 0 } }}
-            title={
-              <Text sx={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: "text.secondary" }}>
-                Relative rotation
-              </Text>
-            }
-            description={
-              <Text sx={{ fontSize: 9.5, color: "text.disabled" }}>
-                RS 1M vs momentum · 50 = benchmark
-              </Text>
-            }
+        )}
+      </Show>
+
+      <Switch>
+        <Match when={error()}>
+          <Box
+            data-testid="rotation-error"
+            className="flex-1 min-h-0 flex items-center justify-center p-2"
           >
-            <RotationRrg
-              rows={visible}
-              selectedId={selectedRow?.id ?? null}
-              onSelect={setSelectedId}
-            />
-          </CompactPanel>
-          <CompactPanel
-            testId="rotation-matrix-panel"
-            scrollable
-            flush
-            padded={false}
-            sx={{ gridArea: "matrix", minHeight: { xs: 260, lg: 0 } }}
-            title={
-              <Text sx={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: "text.secondary" }}>
-                Multi-period
-              </Text>
-            }
-            description={<Text sx={{ fontSize: 9.5, color: "text.disabled" }}>group returns</Text>}
+            <Box
+              className="w-full max-w-[520px] flex flex-col gap-2"
+            >
+              <Alert color="error" title="Rotation data unavailable">
+                {error()}
+              </Alert>
+              <Box>
+                <Button variant="outline" size="xs" onClick={refresh}>
+                  Retry
+                </Button>
+              </Box>
+            </Box>
+          </Box>
+        </Match>
+        <Match when={loading() || !data()}>
+          <Box
+            data-testid="rotation-loading"
+            className="flex-1 min-h-0 flex items-center justify-center gap-2"
           >
-            <RotationMatrix
-              rows={visible}
-              selectedId={selectedRow?.id ?? null}
-              onSelect={setSelectedId}
-            />
-          </CompactPanel>
-          <CompactPanel
-            testId="rotation-board-panel"
-            scrollable
-            flush
-            padded={false}
-            sx={{ gridArea: "board", minHeight: { xs: 320, lg: 0 } }}
-            title={
-              <Text sx={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: "text.secondary" }}>
-                Rotation board
-              </Text>
-            }
-            description={<Text sx={{ fontSize: 9.5, color: "text.disabled" }}>sorted by {period}</Text>}
+            <Loader size="sm" />
+            <Text size="xs" c="dimmed">
+              Loading rotation…
+            </Text>
+          </Box>
+        </Match>
+        <Match when={visible().length === 0}>
+          <Box
+            data-testid="rotation-empty"
+            className="flex-1 min-h-0 flex items-center justify-center p-2"
           >
-            <RotationBoard
-              rows={visible}
-              selectedId={selectedRow?.id ?? null}
-              onSelect={setSelectedId}
-              period={period}
-            />
-          </CompactPanel>
-          <CompactPanel
-            testId="rotation-detail-panel"
-            scrollable
-            flush
-            padded={false}
-            sx={{ gridArea: "detail", minHeight: { xs: 200, lg: 0 } }}
+            <Text size="xs" c="dimmed">
+              No {kind()} groups with at least {minMembers()} members.
+            </Text>
+          </Box>
+        </Match>
+        <Match when={true}>
+          <Box
+            data-testid="rotation-grid"
+            className="flex-1 min-h-0 min-w-0 grid gap-[2px] p-[2px] overflow-x-hidden overflow-y-auto lg:overflow-hidden grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1.05fr)_minmax(0,0.95fr)]"
           >
-            <RotationDetail row={selectedRow} onOpenMembers={setMembersRow} />
-          </CompactPanel>
-        </Box>
-      )}
+            <CompactPanel
+              testId="rotation-rrg-panel"
+              scrollable
+              flush
+              padded={false}
+              className="min-h-0"
+              title={
+                <Text className="text-ui-micro font-bold uppercase tracking-[0.5px] text-fin-text-muted">
+                  Relative rotation
+                </Text>
+              }
+              description={
+                <Text className="text-ui-micro text-fin-text-muted">
+                  RS 1M vs momentum · 50 = benchmark
+                </Text>
+              }
+            >
+              <Box
+                data-testid="rotation-rrg-body"
+                className="flex min-h-[300px] w-full min-w-0 flex-1 flex-col lg:min-h-0"
+              >
+                <RotationRrg
+                  rows={visible()}
+                  selectedId={selectedRowId()}
+                  onSelect={setSelectedId}
+                />
+              </Box>
+            </CompactPanel>
+            <CompactPanel
+              testId="rotation-matrix-panel"
+              scrollable
+              flush
+              padded={false}
+              className="min-h-0"
+              title={
+                <Text className="text-ui-micro font-bold uppercase tracking-[0.5px] text-fin-text-muted">
+                  Multi-period
+                </Text>
+              }
+              description={<Text className="text-ui-micro text-fin-text-muted">group returns</Text>}
+            >
+              <RotationMatrix
+                rows={visible()}
+                selectedId={selectedRowId()}
+                onSelect={setSelectedId}
+              />
+            </CompactPanel>
+            <CompactPanel
+              testId="rotation-board-panel"
+              scrollable
+              flush
+              padded={false}
+              className="min-h-0"
+              title={
+                <Text className="text-ui-micro font-bold uppercase tracking-[0.5px] text-fin-text-muted">
+                  Rotation board
+                </Text>
+              }
+              description={<Text className="text-ui-micro text-fin-text-muted">sorted by {period()}</Text>}
+            >
+              <RotationBoard
+                rows={visible()}
+                selectedId={selectedRowId()}
+                onSelect={setSelectedId}
+                period={period()}
+              />
+            </CompactPanel>
+            <CompactPanel
+              testId="rotation-detail-panel"
+              scrollable
+              flush
+              padded={false}
+              className="min-h-0"
+            >
+              <Box
+                data-testid="rotation-detail-body"
+                className="flex min-h-[200px] w-full min-w-0 flex-1 flex-col lg:min-h-0"
+              >
+                <RotationDetail row={selectedRow()} onOpenMembers={(row) => setMembersRow(row)} />
+              </Box>
+            </CompactPanel>
+          </Box>
+        </Match>
+      </Switch>
 
       <ThemeMembersDrawer
-        open={membersRow !== null}
-        slug={membersRow?.slug ?? null}
-        name={membersRow?.name ?? ""}
+        open={membersRow() !== null}
+        slug={membersRow()?.slug ?? null}
+        name={membersRow()?.name ?? ""}
         onClose={() => setMembersRow(null)}
       />
     </Box>

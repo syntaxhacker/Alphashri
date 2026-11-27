@@ -1,80 +1,32 @@
-/**
- * Shared numeric vocabulary for the Nifty report panels.
- *
- * Every panel in this folder used to carry its own near-identical copy of the
- * number / percent / OI formatters. They had drifted apart: one printed the
- * Unicode minus "−" where another printed the ASCII "-", the K tier of the
- * compact scale used 2 decimals in one panel and 1 in another, and the "no
- * value" glyph was spelled three different ways. This module is the single
- * place the report's numbers are formatted, so a change lands once.
- *
- * Two number paths live here, on purpose:
- *
- * - {@link formatReportNum} — Indian-grouped magnitudes (index levels,
- *   strikes, OI counts). These read as "25,750".
- * - {@link formatReportPct} / {@link formatReportRatio} — fixed-decimal
- *   values without grouping. These read as "2.35%".
- *
- * Every helper is total: a null / undefined / non-finite input prints the
- * dash glyph instead of throwing.
- */
 
-/** Glyph printed for a missing value. */
 export const REPORT_DASH = "—";
 
-/** Unicode minus — the glyph the newer panels use for negative numbers. */
 export const REPORT_MINUS = "−";
 
-/** How a sign is rendered next to a number. */
 export type SignMode =
-  /** No "+" — negatives still carry a minus. */
   | "none"
-  /** "+" on zero and positives, the minus glyph on negatives. */
   | "always"
-  /** "+" on positives only; zero and negatives print without a "+". */
   | "nonzero";
 
-/** Options shared by every number helper in this module. */
 export interface ReportNumOptions {
-  /**
-   * Maximum fraction digits. Omitted → the locale default (3), which is what
-   * a bare `toLocaleString("en-IN")` produces.
-   */
   digits?: number;
-  /** Minimum fraction digits — pads with trailing zeros. Default 0. */
   minDigits?: number;
-  /** Sign rendering. Default "none". */
   sign?: SignMode;
-  /** Glyph used for a negative sign. Default "-". */
   minus?: string;
-  /** Round to an integer before formatting. Default false. */
   round?: boolean;
-  /** Glyph printed for a missing value. Default {@link REPORT_DASH}. */
   dash?: string;
 }
 
 /** Options for the compact M/K scale used by contract counts. */
 export interface ReportCompactOptions {
-  /** Decimals in the M (millions) tier. Default 2. */
   millions?: number;
-  /**
-   * Drop the decimals in the M tier once it reaches ten million ("96M"
-   * rather than "96.0M"). The intel strip reads that way; the tape does not.
-   */
   smartMillions?: boolean;
-  /** Decimals in the K (thousands) tier. Default 2. */
   thousands?: number;
-  /** Decimals in the plain tier. Default 0 (0 = locale default when grouped). */
   units?: number;
-  /** Sign rendering. Default "none". */
   sign?: SignMode;
-  /** Glyph used for a negative sign. Default "-". */
   minus?: string;
-  /** Round the plain tier to an integer. Default false. */
   round?: boolean;
-  /** Indian-group the plain tier. Default true. */
   grouped?: boolean;
-  /** Glyph printed for a missing value. Default {@link REPORT_DASH}. */
   dash?: string;
 }
 
@@ -82,7 +34,6 @@ function isMissing(value: number | null | undefined): value is null | undefined 
   return value === null || value === undefined || !Number.isFinite(value);
 }
 
-/** Prefix a sign onto an already-absolute body. */
 function withSign(
   body: string,
   value: number,

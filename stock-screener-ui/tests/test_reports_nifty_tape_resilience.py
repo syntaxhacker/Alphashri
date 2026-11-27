@@ -6,7 +6,8 @@ burst feed, the structure evidence and the desk watchers went blind for ten
 minutes (and an API restart was the only way back).
 
 These tests pin the three properties that fix it:
-  1. a failing chain fetch is logged, journalled and retried on the next tick;
+  1. a failing chain fetch is logged and RETRIED inside the same minute
+     (then journalled as a gap only if every attempt failed);
   2. the recorder task is never killed by a tick failure;
   3. a dead recorder is restarted by the watchdog.
 """
@@ -45,14 +46,17 @@ def _tmp_tape(tmp_path, monkeypatch):
     monkeypatch.setattr(nifty, "TAPE_DIR", tmp_path)
     monkeypatch.setattr(nifty, "SNAPSHOT_LOG_DIR", tmp_path / "snapshots")
     monkeypatch.setattr(nifty, "SNAPSHOT_DIR", tmp_path / "day_snapshots")
+    monkeypatch.setattr(nifty, "TAPE_RETRY_BACKOFF_SEC", (0.0, 0.0))
     monkeypatch.setattr(
         nifty, "_compute_sensex_live",
         AsyncMock(side_effect=RuntimeError("no sensex in tests")), raising=False)
     nifty._sensex_cache.clear()
     nifty._GAP_MINUTES.clear()
+    nifty._TAPE_INFLIGHT = False
     yield tmp_path
     nifty._sensex_cache.clear()
     nifty._GAP_MINUTES.clear()
+    nifty._TAPE_INFLIGHT = False
 
 
 @pytest.fixture()
@@ -98,8 +102,9 @@ class TestTickFailureIsSurvivable:
         # The status endpoint must be able to explain the hole.
         assert "401" in (nifty._tape_last_error or "")
 
-    async def test_the_next_tick_writes_after_a_failure(self, _tmp_tape):
-        """The failure is a bad MINUTE — the recorder carries on."""
+    async def test_a_failing_fetch_recovers_inside_the_same_minute(
+            self, _tmp_tape):
+        """The failure is a bad ATTEMPT: retried in-minute, so no hole."""
         calls = {"n": 0}
 
         async def flaky(*_a, **_k):
@@ -109,10 +114,11 @@ class TestTickFailureIsSurvivable:
             return _fake_report()
 
         with patch.object(nifty, "_compute_live", AsyncMock(side_effect=flaky)):
-            assert await nifty.record_nifty_tape_tick() is None
             row = await nifty.record_nifty_tape_tick()
-        assert row is not None, "the recorder did not recover on the next tick"
+        assert row is not None, "the recorder did not recover inside the minute"
         assert row["spot"] == 25000.0
+        assert calls["n"] == 2
+        assert nifty.read_gap_reasons(_today()) == {}
 
     async def test_the_recorder_loop_survives_a_failing_tick(
             self, _tmp_tape, _reset_recorder_state):

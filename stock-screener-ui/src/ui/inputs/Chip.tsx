@@ -1,105 +1,133 @@
-import { useState, useCallback } from "react";
-import MuiChip from "@mui/material/Chip";
-import type { UIChipProps } from "../types";
+import { createMemo, createSignal, Show, splitProps } from "solid-js";
+import { cn } from "../cn";
+import { typeSize, type TypeRole } from "../typography";
+import type { UIChipProps, UIColor } from "../types";
 
-function mapSize(size: UIChipProps["size"]): "small" | "medium" {
-  switch (size) {
-    case "xs":
-    case "sm":
-      return "small";
-    case "md":
-    case "lg":
-    case "xl":
-    default:
-      return "medium";
-  }
+/**
+ * Chip = an interactive filter. Shape language: 20px tall, 4px radius (a
+ * rounded rectangle, never a capsule), 11px label, 1px hairline that goes
+ * PRIMARY + 12% PRIMARY wash when checked. Reserving the capsule for nothing
+ * keeps the three "small pill" primitives read apart at a glance: a Chip is
+ * taller than a Badge (20 vs 16) and shorter than a SegmentedControl item (24).
+ */
+type ChipBox = { h: number; fontRole: TypeRole; px: number };
+
+// Every size keeps the 20px floor: a filter chip that shrinks below a Badge
+// (16px) stops being distinguishable from a status label. Dense tables that
+// genuinely need 16px pin it explicitly at the call site via `className`/`style`.
+const CHIP_BOX: Record<string, ChipBox> = {
+  xs: { h: 20, fontRole: "micro", px: 6 },
+  sm: { h: 20, fontRole: "micro", px: 6 },
+  md: { h: 20, fontRole: "micro", px: 8 },
+  lg: { h: 22, fontRole: "micro", px: 8 },
+  xl: { h: 24, fontRole: "micro", px: 10 },
+};
+
+function chipBox(size?: UIChipProps["size"]): ChipBox {
+  return CHIP_BOX[String(size)] ?? CHIP_BOX.md;
 }
 
-function mapColor(color: UIChipProps["color"]): "primary" | "secondary" | "success" | "error" | "warning" | "info" | "default" {
-  if (!color) return "default";
+/** Checked tone: hairline tone border + 12% tint. `outline` keeps the body clear. */
+function checkedClasses(color?: UIColor): { border: string; tint: string; text: string } {
   switch (color) {
     case "success":
-      return "success";
+      return { border: "border-fin-positive", tint: "bg-fin-positive/12", text: "text-fin-positive" };
     case "error":
     case "danger":
-      return "error";
+      return { border: "border-fin-negative", tint: "bg-fin-negative/12", text: "text-fin-negative" };
     case "warning":
-      return "warning";
+      return { border: "border-fin-warning", tint: "bg-fin-warning/12", text: "text-fin-warning" };
     case "info":
-      return "info";
+      return { border: "border-fin-info", tint: "bg-fin-info/12", text: "text-fin-info" };
     case "secondary":
-      return "secondary";
-    case "primary":
-      return "primary";
+      return { border: "border-fin-text-muted", tint: "bg-fin-surface-alt", text: "text-fin-text" };
     default:
-      return "default";
+      return { border: "border-fin-primary", tint: "bg-fin-primary/12", text: "text-fin-primary" };
   }
 }
 
-export function Chip({
-  checked,
-  defaultChecked,
-  onChange,
-  disabled,
-  size,
-  color,
-  variant,
-  value: _value,
-  children,
-  className,
-  style,
-  "data-testid": testId,
-  id,
-  onClick,
-  ...rest
-}: UIChipProps) {
-  const isControlled = checked !== undefined;
-  const [internalChecked, setInternalChecked] = useState<boolean>(defaultChecked ?? false);
-  const isChecked = isControlled ? (checked as boolean) : internalChecked;
+export function Chip(props: UIChipProps) {
+  const [known, _rest] = splitProps(props, [
+    "checked",
+    "defaultChecked",
+    "onChange",
+    "disabled",
+    "size",
+    "color",
+    "variant",
+    "label",
+    "value",
+    "children",
+    "className",
+    "style",
+    "id",
+    "data-testid",
+    "onClick",
+  ]);
 
-  const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (disabled) return;
-      onClick?.(e as never);
-      const next = !isChecked;
-      if (!isControlled) setInternalChecked(next);
-      onChange?.(next);
-    },
-    [disabled, isChecked, isControlled, onChange, onClick],
-  );
+  const isControlled = createMemo(() => known.checked !== undefined);
+  const [internalChecked, setInternalChecked] = createSignal<boolean>(known.defaultChecked ?? false);
+  const isChecked = createMemo(() => (isControlled() ? known.checked === true : internalChecked()));
+  const isOutline = createMemo(() => known.variant === "outline");
 
-  const muiSize = mapSize(size);
-  const muiColor = mapColor(color);
-
-  // variant mapping: filled -> filled when checked, light -> filled subtle, outline -> outlined
-  // Use MUI Chip variant accordingly: checked -> filled, unchecked -> outlined
-  const muiVariant: "filled" | "outlined" = (() => {
-    if (variant === "outline") return "outlined";
-    if (variant === "light") return isChecked ? "filled" : "outlined";
-    // filled (default)
-    return isChecked ? "filled" : "outlined";
-  })();
-
-  const sx: Record<string, unknown> = {
-    cursor: disabled ? "default" : "pointer",
-    ...(style ? { ...style } : {}),
+  const handleClick = (e: MouseEvent) => {
+    if (known.disabled) return;
+    known.onClick?.(e);
+    const next = !isChecked();
+    if (!isControlled()) setInternalChecked(next);
+    known.onChange?.(next);
   };
 
+  const shape = createMemo<Record<string, string>>(() => {
+    const box = chipBox(known.size);
+    return {
+      height: `${box.h}px`,
+      "border-radius": "4px",
+      "border-width": "1px",
+      "border-style": "solid",
+      "font-size": `${typeSize(box.fontRole)}px`,
+      "font-weight": "600",
+      "line-height": "1",
+      "letter-spacing": "0.01em",
+      "padding-left": `${box.px}px`,
+      "padding-right": `${box.px}px`,
+      cursor: known.disabled ? "not-allowed" : "pointer",
+    };
+  });
+
+  const base = createMemo(() =>
+    cn(
+      "inline-flex items-center justify-center gap-1 whitespace-nowrap select-none transition-colors",
+      known.disabled ? "opacity-50" : "",
+      known.className,
+    ),
+  );
+
+  const tone = createMemo(() => {
+    if (isChecked()) {
+      const t = checkedClasses(known.color);
+      // `outline` keeps the body transparent: the hairline border carries the state.
+      return cn(t.border, t.text, isOutline() ? "bg-transparent" : t.tint);
+    }
+    return "border-fin-border bg-transparent text-fin-text-muted hover:text-fin-text hover:border-fin-text-muted";
+  });
+
   return (
-    <MuiChip
-      label={children}
-      clickable={!disabled}
-      disabled={disabled}
-      size={muiSize}
-      color={isChecked ? muiColor : "default"}
-      variant={muiVariant}
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={isChecked()}
+      disabled={known.disabled}
+      id={known.id}
+      data-testid={known["data-testid"]}
+      className={cn(base(), tone())}
+      style={{ ...shape(), ...known.style }}
       onClick={handleClick}
-      className={className}
-      style={undefined}
-      id={id}
-      data-testid={testId}
-      sx={sx}
-      {...rest}
-    />
+    >
+      <Show when={isChecked()}>
+        <span aria-hidden="true" className="shrink-0 w-1 h-1 rounded-full bg-current" />
+      </Show>
+      {known.children ?? known.label}
+    </button>
   );
 }

@@ -55,9 +55,6 @@ def atr_frame() -> pd.DataFrame:
     )
 
 
-# ---------------------------------------------------------------------------
-# normalize_ohlcv
-# ---------------------------------------------------------------------------
 
 
 class TestNormalizeOhlcv:
@@ -304,10 +301,49 @@ class TestNormalizeOhlcv:
         assert fast_hits == full_hits
         assert fast_hits == plain_hits
 
+    def test_repeated_normalization_returns_equal_independent_frames(self):
+        # The normalization memo must return a fresh defensive copy on every
+        # hit: callers may mutate the result without corrupting the template
+        # or a previous result.
+        F._NORM_CACHE.clear()
+        df = make_frame([100.0, 101.0, 102.0, 103.0])
+        first = F.normalize_ohlcv(df)
+        second = F.normalize_ohlcv(df)
+        third = F.normalize_ohlcv(df)
+        assert first is not df and second is not df
+        assert first is not second and second is not third
+        pd.testing.assert_frame_equal(first, second)
+        pd.testing.assert_frame_equal(second, third)
+        first.iloc[0, first.columns.get_loc("close")] = -1.0
+        assert df["close"].iloc[0] == pytest.approx(100.0)
+        assert second["close"].iloc[0] == pytest.approx(100.0)
 
-# ---------------------------------------------------------------------------
-# linreg_fit / relative_slope / is_horizontal
-# ---------------------------------------------------------------------------
+    def test_normalization_memo_invalidated_by_in_place_edit(self):
+        F._NORM_CACHE.clear()
+        df = make_frame([100.0, 101.0, 102.0])
+        assert F.normalize_ohlcv(df)["close"].tolist() == [100.0, 101.0, 102.0]
+        df.loc[:, "close"] = [200.0, 201.0, 202.0]
+        edited = F.normalize_ohlcv(df)
+        # A fresh source object with the same values has no memo entry, so it
+        # recomputes; the edited frame must match that fresh result.
+        pd.testing.assert_frame_equal(edited, F.normalize_ohlcv(df.copy()))
+        assert edited["close"].tolist() == [200.0, 201.0, 202.0]
+
+    def test_normalization_memo_invalidated_by_column_reassignment(self):
+        F._NORM_CACHE.clear()
+        df = make_frame([100.0, 101.0, 102.0])
+        F.normalize_ohlcv(df)
+        df["close"] = [7.0, 8.0, 9.0]
+        assert F.normalize_ohlcv(df)["close"].tolist() == [7.0, 8.0, 9.0]
+
+    def test_normalization_memo_is_scoped_per_frame(self):
+        F._NORM_CACHE.clear()
+        a = make_frame([100.0, 101.0])
+        b = make_frame([200.0, 201.0])
+        assert F.normalize_ohlcv(a)["close"].tolist() == [100.0, 101.0]
+        assert F.normalize_ohlcv(b)["close"].tolist() == [200.0, 201.0]
+
+
 
 
 class TestLinregFit:
@@ -388,9 +424,6 @@ class TestRelativeSlopeAndHorizontal:
         assert F.is_horizontal(1.0, 10, 100.0, tol=0.05) is False
 
 
-# ---------------------------------------------------------------------------
-# atr / atr_value
-# ---------------------------------------------------------------------------
 
 
 class TestAtr:
@@ -481,9 +514,6 @@ class TestAtrValue:
         assert F.atr_value(narrow, period=2) != pytest.approx(1.375)
 
 
-# ---------------------------------------------------------------------------
-# is_volume_confirmed
-# ---------------------------------------------------------------------------
 
 
 class TestIsVolumeConfirmed:
@@ -544,9 +574,6 @@ class TestIsVolumeConfirmed:
         assert F.is_volume_confirmed(None, 0) is False
 
 
-# ---------------------------------------------------------------------------
-# count_touches
-# ---------------------------------------------------------------------------
 
 
 class TestCountTouches:
@@ -584,9 +611,6 @@ class TestCountTouches:
         assert F.count_touches([(0, 106.0)], 0.0, 100.0, 10.0, tol_atr=1.0) == 1
 
 
-# ---------------------------------------------------------------------------
-# r2_of / curvature_sign / polyfit_values
-# ---------------------------------------------------------------------------
 
 
 class TestR2Of:
@@ -643,9 +667,50 @@ class TestPolyfitValues:
         assert np.asarray(coeffs).tolist() == pytest.approx([2.0, 2.0], abs=1e-6)
 
 
-# ---------------------------------------------------------------------------
-# last_n / between
-# ---------------------------------------------------------------------------
+class TestQuadraticFit:
+    def test_concave_up_vertex(self):
+        x = np.arange(7)
+        y = (x - 3.0) ** 2 + 2.0
+        fitted, coeffs, r2, vertex = F.quadratic_fit(y)
+        assert len(fitted) == len(y)
+        assert np.asarray(coeffs).tolist() == pytest.approx([1.0, -6.0, 11.0], abs=1e-8)
+        assert vertex == pytest.approx(3.0)
+        assert 0.0 <= r2 <= 1.0
+        assert r2 == pytest.approx(1.0)
+
+    def test_concave_down_vertex(self):
+        x = np.arange(7)
+        y = -(x - 3.0) ** 2 + 10.0
+        fitted, coeffs, r2, vertex = F.quadratic_fit(y)
+        assert len(fitted) == len(y)
+        assert np.asarray(coeffs).tolist() == pytest.approx([-1.0, 6.0, 1.0], abs=1e-8)
+        assert vertex == pytest.approx(3.0)
+        assert 0.0 <= r2 <= 1.0
+
+    def test_noisy_series_reports_r2_in_unit_interval(self):
+        rng = np.random.default_rng(7)
+        x = np.arange(11)
+        y = 0.5 * (x - 5.0) ** 2 + 1.0 + rng.normal(0.0, 1.0, len(x))
+        fitted, _coeffs, r2, vertex = F.quadratic_fit(y)
+        assert len(fitted) == len(y)
+        assert 0.0 <= r2 <= 1.0
+        assert 0.0 < vertex < 10.0
+
+    def test_empty_input_does_not_raise(self):
+        fitted, coeffs, r2, vertex = F.quadratic_fit([])
+        assert len(fitted) == 0
+        assert len(coeffs) == 3
+        assert 0.0 <= r2 <= 1.0
+        assert vertex == pytest.approx(0.0)  # len(y)/2 fallback
+
+    def test_short_input_does_not_raise(self):
+        fitted, coeffs, r2, vertex = F.quadratic_fit([1.0, 2.0])
+        assert np.asarray(fitted).tolist() == [1.0, 2.0]
+        assert np.asarray(coeffs).tolist() == pytest.approx([0.0, 0.0, 1.5])
+        assert 0.0 <= r2 <= 1.0
+        assert vertex == pytest.approx(1.0)  # near-zero lead -> midpoint fallback
+
+
 
 
 class TestLastN:
@@ -678,9 +743,6 @@ class TestBetween:
         assert F.between([(2, 3.0)], 2, 2) == [(2, 3.0)]
 
 
-# ---------------------------------------------------------------------------
-# find_swing_highs / find_swing_lows / swing_points / pivot_frame
-# ---------------------------------------------------------------------------
 
 
 class TestSwingPivots:
@@ -715,6 +777,74 @@ class TestSwingPivots:
         assert F.find_swing_highs(pd.Series([1.0, 2.0, 5.0, 2.0, 1.0])) == [2]
 
 
+def _scalar_pivot_indices(values, left: int, right: int, kind: str) -> list[int]:
+    arr = np.asarray(values, dtype=float)
+    n = len(arr)
+    if n < left + right + 1:
+        return []
+    out: list[int] = []
+    for i in range(left, n - right):
+        window = arr[i - left : i + right + 1]
+        centre = arr[i]
+        if kind == "high":
+            if centre < window.max():
+                continue
+            if centre > arr[i - 1] or centre > arr[i + 1]:
+                out.append(i)
+        else:
+            if centre > window.min():
+                continue
+            if centre < arr[i - 1] or centre < arr[i + 1]:
+                out.append(i)
+    return out
+
+
+class TestPivotIndices:
+    @pytest.mark.parametrize("kind", ["high", "low"])
+    def test_random_parity_with_scalar_reference(self, kind):
+        rng = np.random.default_rng(20241121)
+        for trial in range(40):
+            n = int(rng.integers(0, 60))
+            values = np.round(100.0 + np.cumsum(rng.normal(0.0, 1.5, n)))
+            left = int(rng.integers(1, 4))
+            right = int(rng.integers(1, 4))
+            expected = _scalar_pivot_indices(values, left, right, kind)
+            assert F.pivot_indices(values, left, right, kind) == expected, (
+                f"kind={kind} trial={trial} n={n} left={left} right={right}"
+            )
+            assert F._pivot_indices(values, left, right, kind) == expected
+
+    def test_inclusive_window_plateau(self):
+        values = [1.0, 5.0, 5.0, 4.0, 1.0]
+        assert F.pivot_indices(values, 1, 1, "high") == [1, 2]
+        assert F._pivot_indices(values, 1, 1, "high") == [1, 2]
+
+    def test_short_and_empty_input(self):
+        assert F.pivot_indices([1.0, 2.0, 3.0], 2, 2) == []
+        assert F.pivot_indices([], 2, 2) == []
+
+    def test_non_high_kind_behaves_as_low(self):
+        values = [3.0, 2.0, 1.0, 2.0, 3.0]
+        assert F.pivot_indices(values, 1, 1, "low") == [2]
+        assert F.pivot_indices(values, 1, 1, "other") == [2]
+
+    def test_nan_tolerant_accepts_window_containing_nan(self):
+        values = np.array([1.0, 3.0, np.nan, 2.0, 1.0])
+        # i=1 and i=3 have a NaN in their window but still beat a neighbour;
+        # i=2 is NaN itself so no strict-neighbour comparison succeeds.
+        assert F.pivot_indices(values, 1, 1, "high", nan_tolerant=True) == [1, 3]
+        # Strict windows reject every NaN window regardless of neighbours.
+        assert F.pivot_indices(values, 1, 1, "high", nan_tolerant=False) == []
+
+    def test_nan_tolerant_low(self):
+        values = np.array([5.0, 3.0, np.nan, 2.0, 4.0])
+        assert F.pivot_indices(values, 1, 1, "low", nan_tolerant=True) == [1, 3]
+
+    def test_legacy_pivot_indices_keeps_nan_tolerant_semantics(self):
+        values = np.array([1.0, 3.0, np.nan, 2.0, 1.0])
+        assert F._pivot_indices(values, 1, 1, "high") == [1, 3]
+
+
 class TestSwingPointsAndPivotFrame:
     def _df(self) -> pd.DataFrame:
         return pd.DataFrame(
@@ -742,9 +872,6 @@ class TestSwingPointsAndPivotFrame:
         assert pf["low_pivot"].iloc[2] != pf["low_pivot"].iloc[2]  # NaN
 
 
-# ---------------------------------------------------------------------------
-# line_value / sample_line / fit_pivot_line
-# ---------------------------------------------------------------------------
 
 
 class TestLineHelpers:
@@ -768,9 +895,6 @@ class TestLineHelpers:
         assert r2 == pytest.approx(1.0)
 
 
-# ---------------------------------------------------------------------------
-# swing_extremes / envelope_line / penetration_ratio
-# ---------------------------------------------------------------------------
 
 
 class TestSwingExtremes:
@@ -797,6 +921,18 @@ class TestSwingExtremes:
         assert F.swing_extremes(None, 0, 5) == (0.0, 0.0, 0, 5)
         empty = pd.DataFrame({"high": [], "low": []})
         assert F.swing_extremes(empty, 2, 5) == (0.0, 0.0, 2, 5)
+
+
+class TestWindowMean:
+    def test_matches_pandas_mean_over_inclusive_window(self):
+        df = make_frame([10.0, 20.0, 30.0, 40.0, 50.0])
+        assert F.window_mean(df, 1, 3) == pytest.approx(30.0)
+        assert F.window_mean(df, 0, 4) == pytest.approx(30.0)
+        assert F.window_mean(df, 2, 2) == pytest.approx(30.0)
+
+    def test_skips_nan_like_pandas_mean(self):
+        df = make_frame([10.0, np.nan, 30.0])
+        assert F.window_mean(df, 0, 2) == pytest.approx(20.0)
 
 
 class TestEnvelopeLine:
@@ -850,6 +986,16 @@ class TestEnvelopeLine:
             make_frame([10.0] * 5, spread=0.0, high=[12.0] * 5), pivots, "upper", 0.5
         )
         assert edited == fresh
+        assert edited["viol"] == 5
+
+    def test_memo_invalidated_by_column_reassignment(self):
+        # The boundary reader returns a view, but it re-reads the frame each
+        # call, so replacing the whole column must also refit the line.
+        df = make_frame([10.0] * 5, spread=0.0)
+        pivots = [(0, 10.0), (4, 10.0)]
+        assert F.envelope_line(df, pivots, "upper", 0.5)["viol"] == 0
+        df["high"] = 12.0
+        edited = F.envelope_line(df, pivots, "upper", 0.5)
         assert edited["viol"] == 5
 
     def test_matches_independent_scalar_reference_on_random_frames(self):

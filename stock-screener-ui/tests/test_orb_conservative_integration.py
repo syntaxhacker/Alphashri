@@ -30,7 +30,6 @@ def mock_conservative_data():
     base_date = "2024-01-15 "
     data = []
     
-    # --- ORB Formation (9:15 to 10:00) ---
     times = ["09:15", "09:20", "09:25", "09:30", "09:35", "09:40", "09:45", "09:50", "09:55"]
     for t in times:
         data.append({
@@ -42,7 +41,6 @@ def mock_conservative_data():
             "volume": 1000
         })
         
-    # --- Actionable Bars (10:00 onwards) ---
     
     # 10:00 (Still no breakout, price inside 90-100 range)
     data.append({
@@ -119,7 +117,6 @@ def test_orb_conservative_engine_integration(mock_screener_usage, mock_conservat
 
     engine = BacktestEngine()
     
-    # Conservative parameters based on QA seed data
     conservative_params = {
         'or_minutes': 45,
         'stop_loss_pct': 0.4,
@@ -130,7 +127,6 @@ def test_orb_conservative_engine_integration(mock_screener_usage, mock_conservat
         'trend_filter': False
     }
 
-    # Execute
     result = engine.run(
         strategy_id='orb',
         symbols=['TEST_STOCK'],
@@ -138,7 +134,6 @@ def test_orb_conservative_engine_integration(mock_screener_usage, mock_conservat
         params=conservative_params
     )
     
-    # Asserts
     assert result is not None, "BacktestEngine should return a results dictionary."
     assert 'results' in result, "Result dictionary should contain a 'results' key."
     assert 'chart_data' in result, "Result dictionary should contain a 'chart_data' key."
@@ -160,6 +155,5 @@ def test_orb_conservative_engine_integration(mock_screener_usage, mock_conservat
     trade = trades[0]
     # Trade exit reason should be recorded as a Take Profit
     assert trade['exit_reason'] == 'TP', f"Expected exit reason 'TP', found {trade['exit_reason']}"
-    # Verification that percentages align
     assert trade['gross_pnl_pct'] >= 1.2, f"Gross PnL % should be >= 1.2, found {trade['gross_pnl_pct']}"
 

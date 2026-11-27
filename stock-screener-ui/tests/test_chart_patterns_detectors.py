@@ -53,9 +53,6 @@ def detector(pattern_id: str):
     return dict(DETECTORS)[pattern_id]
 
 
-# ---------------------------------------------------------------------------
-# Geometry builders (one per pattern id)
-# ---------------------------------------------------------------------------
 
 
 def _falling_wedge():
@@ -202,9 +199,6 @@ GEOMETRIES = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Registration / catalog
-# ---------------------------------------------------------------------------
 
 
 def test_every_catalog_pattern_is_registered():
@@ -222,9 +216,6 @@ def test_every_detector_documents_its_geometry():
         assert len(doc) >= 40, f"{pattern_id} detector needs a geometry docstring"
 
 
-# ---------------------------------------------------------------------------
-# Detection on clear geometry
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("pattern_id", sorted(PATTERN_CATALOG))
@@ -254,9 +245,6 @@ def test_flag_directions():
     assert detector("bear_flag")(F.normalize_ohlcv(_bear_flag()), {})[0].direction == "bearish"
 
 
-# ---------------------------------------------------------------------------
-# False-positive traps
-# ---------------------------------------------------------------------------
 
 
 def _hits_on(df):
@@ -291,9 +279,6 @@ def test_random_walk_has_no_textbook_hits():
     assert all(h.quality != "textbook" for h in hits)
 
 
-# ---------------------------------------------------------------------------
-# Level math (measured move / ATR stop / rr)
-# ---------------------------------------------------------------------------
 
 
 def test_compute_levels_bullish_measured_move():
@@ -381,9 +366,6 @@ def test_score_quality_monotonic_in_inputs():
     assert high_q in {"textbook", "strong"}
 
 
-# ---------------------------------------------------------------------------
-# Feature primitives
-# ---------------------------------------------------------------------------
 
 
 def test_find_swing_pivots():
@@ -450,6 +432,29 @@ def test_consolidation_hit_labels_days_from_index_span():
     assert hit.base_days == span_days
     assert hit.base_days < 250, "days must not be the raw bar window"
     assert hit.notes.startswith(f"consolidation {span_days}d;")
+
+
+def test_consolidation_touches_use_only_window_pivots(monkeypatch):
+    """A stale pivot on the box edge outside the base must not count as a touch."""
+    from chart_patterns.detectors import consolidation as C
+    from chart_patterns.detectors.common import fmt_date
+
+    captured = []
+    real_count = F.count_touches
+
+    def spy(pivots, slope, intercept, atr_val, tol_atr=0.75):
+        captured.append([(int(p), float(q)) for p, q in pivots])
+        return real_count(pivots, slope, intercept, atr_val, tol_atr=tol_atr)
+
+    monkeypatch.setattr(F, "count_touches", spy)
+    d = F.normalize_ohlcv(_consolidation())
+    hits = C.detect_consolidation(d, {})
+    assert hits and captured
+    start = next(i for i, t in enumerate(d.index) if fmt_date(t) == hits[0].start_date)
+    # _consolidation() has a high pivot at bar 5 that sits on the box top but
+    # lies before the detected base; it must be excluded from the touch count.
+    assert start > 0
+    assert all(p >= start for line in captured for p, _ in line)
 
 
 def test_volume_confirmation():

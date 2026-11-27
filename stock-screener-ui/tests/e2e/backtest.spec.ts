@@ -6,6 +6,7 @@ import {
   mockBacktestStrategies,
   gotoBacktest,
   selectSymbolAndRun,
+  selectSymbolFromMultiselect,
   waitForBacktestResult,
 } from "./helpers/backtestHelpers";
 
@@ -21,12 +22,7 @@ test.describe("Backtest View - Navigation", () => {
 
   test("should add symbol to list", async ({ page }) => {
     await gotoBacktest(page);
-    const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-    await symbolSelect.click();
-    await page.keyboard.type("RELIANCE", { delay: 50 });
-    await page.waitForSelector('[role="option"]', { timeout: 5000 });
-    const options = page.locator('[role="option"]');
-    await options.first().click();
+    await selectSymbolFromMultiselect(page, "RELIANCE");
     const runBtn = page.locator('[data-testid="run-backtest-btn"]');
     await runBtn.click();
     await expect(page.locator('[data-testid="results-table"]')).toBeVisible({
@@ -57,14 +53,7 @@ test.describe("Backtest View - Navigation", () => {
   test("should have reset option in run menu", async ({ page }) => {
     await gotoBacktest(page);
 
-    const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
-    await symbolSelect.click();
-    await page.keyboard.type("RELIANCE", { delay: 50 });
-    await page.waitForSelector('[role="option"]', { timeout: 5000 });
-    const option = page.locator('[role="option"]').first();
-    if (await option.isVisible()) {
-      await option.click();
-    }
+    await selectSymbolFromMultiselect(page, "RELIANCE");
 
     const runMenuBtn = page.locator('[data-testid="run-menu-btn"]');
     await expect(runMenuBtn).toBeEnabled({ timeout: 5000 });

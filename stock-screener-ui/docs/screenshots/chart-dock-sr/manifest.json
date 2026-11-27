@@ -1,0 +1,46 @@
+{
+  "feature": "chart-dock-sr",
+  "route": "/screener?tab=market&view=movers (1600 dock) and /chart/POWERGRID (390)",
+  "head": "25079b7c9efde6a438b6bfc1cb5dc3670f564465",
+  "viewports": [
+    1600,
+    390
+  ],
+  "data": "Real POWERGRID 1D candles and backend-computed sr_zones (500 bars, last close 266.75) from the chart perf fixture; API routes mocked in Playwright.",
+  "sha256": {
+    "chart-dock-sr-dock-1600.png": "67132c3300beaaabf691a1aa225349c258b6f64bb477b0742c903bf936b83df3",
+    "chart-dock-sr-fullscreen-1600.png": "43fffdf9dcb38c0219f1f180a8d7f23ccf4a0928aecab3c15673eeffaebe3600",
+    "chart-dock-sr-restored-1600.png": "5fcc5b4aa1c16bea5afeb6b6870ec21b40943c7249270cbd4fe121312bb96d80",
+    "chart-dock-sr-390.png": "8eaa9ad8378e5a7d3562a45856f56730be8596b72a3e2f7868cb3132be39b4a3"
+  },
+  "states": [
+    {
+      "id": "dock-loaded",
+      "files": {
+        "1600": "chart-dock-sr-dock-1600.png"
+      },
+      "covers": "App-wide POWERGRID chart dock with the restored fullscreen icon and one solid support plus one solid resistance band, both reaching the last candle."
+    },
+    {
+      "id": "fullscreen-loaded",
+      "files": {
+        "1600": "chart-dock-sr-fullscreen-1600.png"
+      },
+      "covers": "Fullscreen chart modal opened from the dock, with the same chart and one band per side."
+    },
+    {
+      "id": "dock-restored",
+      "files": {
+        "1600": "chart-dock-sr-restored-1600.png"
+      },
+      "covers": "Dock restored after Escape closed the fullscreen modal; the expand icon keeps focus and the tooltip is visible."
+    },
+    {
+      "id": "chart-loaded",
+      "files": {
+        "390": "chart-dock-sr-390.png"
+      },
+      "covers": "390px chart page with one solid support and one solid resistance band, extended to the current bar, and clean axis labels."
+    }
+  ]
+}

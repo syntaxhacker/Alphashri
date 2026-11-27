@@ -1,8 +1,8 @@
-// BacktestToolbar — always-visible control strip above the full-bleed chart.
-// Chart mode + Run/Reset live here; right-rail panels collapse from their own headers.
-import { Box, Button, Text } from "@/ui";
-import { IconPlayerPlay, IconLayoutGrid } from "@tabler/icons-react";
-
+// BacktestToolbar — always-visible control strip above the chart. Chart mode +
+// Run/Reset live here; right-rail panels collapse from their own headers.
+import { Button, Text, Box, ToolbarRow } from "@/ui";
+import * as palette from "@/ui/palette";
+import { IconPlayerPlay, IconLayoutGrid } from "@/components/common/Icons";
 interface BacktestToolbarProps {
   strategyLabel: string;
   symbolCount: number;
@@ -15,85 +15,96 @@ interface BacktestToolbarProps {
   onReset: () => void;
 }
 
-export function BacktestToolbar({
-  strategyLabel,
-  symbolCount,
-  days,
-  isRunning,
-  canRun,
-  chartMode,
-  onChartModeChange,
-  onRun,
-  onReset,
-}: BacktestToolbarProps) {
+export function BacktestToolbar(props: BacktestToolbarProps) {
+  const presetLabel = () => props.strategyLabel || "No strategy";
+  const metaLabel = () =>
+    `${props.symbolCount} symbol${props.symbolCount === 1 ? "" : "s"} · ${props.days}d`;
+  // The full preset stays reachable on hover even when the visible text ellipsizes.
+  const presetTitle = () => `${presetLabel()} · ${metaLabel()}`;
+
   return (
-    <Box
-      sx={{
-        flex: "0 0 auto",
-        height: 40,
-        display: "flex",
-        alignItems: "center",
-        gap: 1,
-        px: 1,
-        bgcolor: "background.paper",
-        borderBottom: "1px solid",
-        borderColor: "divider",
+    <ToolbarRow
+      gap={8}
+      className="w-full px-2 py-1.5"
+      style={{
+        "min-height": "40px",
+        "background-color": palette.SURFACE,
+        "border-bottom": `1px solid ${palette.BROWN}`,
       }}
       data-testid="backtest-toolbar"
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+      <Box className="flex flex-shrink-0 items-center gap-1">
         <Button
           size="sm"
-          variant={chartMode === "all" ? "filled" : "subtle"}
-          color={chartMode === "all" ? "primary" : "secondary"}
-          onClick={() => onChartModeChange("all")}
+          variant={props.chartMode === "all" ? "filled" : "subtle"}
+          color={props.chartMode === "all" ? "primary" : "secondary"}
+          onClick={() => props.onChartModeChange("all")}
           data-testid="chart-mode-all"
-          data-state={chartMode === "all" ? "active" : "inactive"}
+          data-state={props.chartMode === "all" ? "active" : "inactive"}
         >
           All trades
         </Button>
         <Button
           size="sm"
-          variant={chartMode === "trades" ? "filled" : "subtle"}
-          color={chartMode === "trades" ? "primary" : "secondary"}
-          onClick={() => onChartModeChange("trades")}
+          variant={props.chartMode === "trades" ? "filled" : "subtle"}
+          color={props.chartMode === "trades" ? "primary" : "secondary"}
+          onClick={() => props.onChartModeChange("trades")}
           data-testid="chart-mode-trades"
-          data-state={chartMode === "trades" ? "active" : "inactive"}
+          data-state={props.chartMode === "trades" ? "active" : "inactive"}
         >
           Per trade
         </Button>
       </Box>
 
-      <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 1.5, px: 1 }}>
-        <Text size="xs" c="text.secondary" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {strategyLabel || "No strategy"}
+      <Box className="flex min-w-0 flex-1 items-center gap-1.5">
+        <Text
+          size="xs"
+          c="dimmed"
+          span
+          truncate
+          className="min-w-0"
+          title={presetTitle()}
+          data-testid="backtest-preset-label"
+        >
+          {presetLabel()}
         </Text>
-        <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
-          {symbolCount} symbol{symbolCount === 1 ? "" : "s"} · {days}d
+        <Text size="xs" c="dimmed" span className="hidden flex-shrink-0 sm:inline">
+          {metaLabel()}
         </Text>
       </Box>
 
-      <Button
-        size="sm"
-        variant="filled"
-        onClick={onRun}
-        disabled={!canRun || isRunning}
-        loading={isRunning}
-        leftSection={isRunning ? undefined : <IconPlayerPlay size={12} />}
-        data-testid="toolbar-run-btn"
-      >
-        {isRunning ? null : "Run"}
-      </Button>
-      <Button
-        size="sm"
-        variant="subtle"
-        color="secondary"
-        onClick={onReset}
-        leftSection={<IconLayoutGrid size={12} />}
-        data-testid="toolbar-reset-layout"
-      >
-        Reset layout
-      </Button>
-    </Box>
+      <Box className="ml-auto flex flex-shrink-0 items-center gap-1.5">
+        <Button
+          size="sm"
+          variant="filled"
+          onClick={props.onRun}
+          disabled={!props.canRun || props.isRunning}
+          loading={props.isRunning}
+          leftSection={
+            props.isRunning ? undefined : (
+              <span className="hidden sm:inline-flex">
+                <IconPlayerPlay size={12} />
+              </span>
+            )
+          }
+          aria-label="Run backtest"
+          data-testid="toolbar-run-btn"
+        >
+          {props.isRunning ? null : "Run"}
+        </Button>
+        <Button
+          size="sm"
+          variant="subtle"
+          color="secondary"
+          onClick={props.onReset}
+          leftSection={<IconLayoutGrid size={12} />}
+          aria-label="Reset layout"
+          title="Reset layout"
+          data-testid="toolbar-reset-layout"
+        >
+          <span className="hidden sm:inline">Reset layout</span>
+        </Button>
+      </Box>
+    </ToolbarRow>
   );
 }

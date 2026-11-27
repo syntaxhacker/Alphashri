@@ -48,6 +48,7 @@ import json
 import logging
 import re
 import statistics
+import threading
 import time
 import urllib.parse
 from datetime import datetime, timedelta
@@ -57,12 +58,16 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 
 import config
+from api import options_levels as levels
 from api.options import (
     AVAILABLE_UNDERLYINGS,
     get_expiries,
     get_option_chain,
     get_option_sentiment,
 )
+from api.options_conventions import NEAR_BAND_PCT as _NEAR_BAND_PCT
+from api.options_math import put_call
+from api.reports_api._walls import as_report_walls as _as_report_walls
 
 try:  # pragma: no cover - import guard only (pandas/upstox client availability)
     from market_data.market_data import fetch_candles_for_timeframe
@@ -96,9 +101,9 @@ RATE_ACQUIRE_TIMEOUT_SEC = 2.0
 
 #: Heaviest OI strikes shown per side.
 _TOP_WALLS = 3
-#: ``walls_near`` band as a fraction of spot (1%): 240 pts on NIFTY, 850 on
-#: SENSEX, 14 on RELIANCE — a fixed 300 pts would cover a stock's whole chain.
-_NEAR_BAND_PCT = 0.01
+# ``walls_near`` band (1% of spot) is owned by api.options_conventions: 240 pts
+# on NIFTY, 850 on SENSEX, 14 on RELIANCE — a fixed 300 pts would cover a
+# stock's whole chain.
 
 #: Daily bars for pivots/baseline. One fetch per symbol per session — the
 #: previous completed session never changes inside a day.
@@ -136,14 +141,19 @@ _daily_cache: dict[str, dict] = {}
 TAPE_ROOT = Path(__file__).resolve().parent.parent.parent / "experiments" / "data" / "options_tape"
 _SAFE_SYMBOL_RE = re.compile(r"[^A-Z0-9_.-]+")
 
+#: JSONL tape -> parsed rows, keyed on ``(mtime_ns, size)`` so a recorder append
+#: invalidates it. The UI polls every ~15 s while the recorder appends; without
+#: this, each request re-parsed the entire session file (~24 ms for a 4k-row
+#: tape). Bounded like the other caches so a symbol sweep cannot grow it.
+TAPE_CACHE_MAX_ENTRIES = 32
+_TAPE_CACHE: dict[str, tuple[tuple[int, int], list[dict]]] = {}
+_TAPE_LOCK = threading.Lock()
+
 #: ``trading_symbol``/``asset_symbol`` -> lot size from the NSE_FO contracts.
 #: Lazy, 1h TTL (instrument files only change when the exchange rolls a lot).
 _FO_LOTS: dict = {"ts": 0.0, "by_key": {}, "by_symbol": {}}
 
 
-# --------------------------------------------------------------------------- #
-# per-event-loop asyncio state
-# --------------------------------------------------------------------------- #
 class _LoopState:
     """Semaphore + per-underlying locks bound to one event loop."""
 
@@ -183,9 +193,6 @@ def _symbol_lock(symbol: str) -> asyncio.Lock:
     return lock
 
 
-# --------------------------------------------------------------------------- #
-# Upstox budget (consumer "api")
-# --------------------------------------------------------------------------- #
 _RATE_LIMITER: Any = None
 _RATE_LIMITER_READY = False
 
@@ -223,9 +230,6 @@ async def _acquire_upstream() -> bool:
         return True
 
 
-# --------------------------------------------------------------------------- #
-# small coercion helpers (upstream sends None / strings / NaN)
-# --------------------------------------------------------------------------- #
 def _num(value: Any, default: float = 0.0) -> float:
     try:
         if value is None or isinstance(value, bool):
@@ -261,9 +265,6 @@ def _validate_expiry(expiry: str) -> str:
     return parsed.strftime("%Y-%m-%d")
 
 
-# --------------------------------------------------------------------------- #
-# pure shaping (unit-tested without HTTP)
-# --------------------------------------------------------------------------- #
 def build_side(contract: Optional[dict]) -> dict:
     """Flatten one chain leg into the frontend ``NiftyOptionSide`` shape.
 
@@ -324,55 +325,48 @@ def build_strikes(chain: list[dict]) -> list[dict]:
 
 
 def top_walls(strikes: list[dict], side: str, spot: float, n: int = _TOP_WALLS) -> list[dict]:
-    """Top-``n`` strikes by OI for ``'ce'``/``'pe'``, each with its distance."""
-    ranked = sorted(strikes, key=lambda r: r[side]["oi"], reverse=True)
-    out = []
-    for row in ranked[:n]:
-        entry = {"strike": row["strike"], "oi": row[side]["oi"]}
-        if spot:
-            entry["distance"] = round(row["strike"] - spot, 2)
-        out.append(entry)
-    return out
+    """Top-``n`` strikes by OI for ``'ce'``/``'pe'``, each with its distance.
+
+    Ranking lives in :func:`api.options_levels.top_walls`; this wrapper only
+    restores the report's row shape and its ``_TOP_WALLS`` default.
+    """
+    walls = levels.top_walls(
+        levels.normalize_strikes(strikes), side, spot=spot, n=n
+    )
+    return _as_report_walls(walls, spot)
 
 
 def near_walls(strikes: list[dict], side: str, spot: float, n: int = _TOP_WALLS) -> list[dict]:
-    """Heaviest OI inside a spot-relative band; falls back to the full chain."""
-    if not spot:
-        return top_walls(strikes, side, spot, n)
-    band = max(abs(spot) * _NEAR_BAND_PCT, 1e-9)
-    pool = [r for r in strikes if abs(r["strike"] - spot) <= band]
-    near = top_walls(pool, side, spot, n)
-    return near or top_walls(strikes, side, spot, n)
+    """Heaviest OI inside a spot-relative band; falls back to the full chain.
+
+    The band is computed here from ``_NEAR_BAND_PCT`` (1% of spot, with the old
+    tiny floor) and passed to the shared near-wall selector so the semantics
+    stay symbol-relative instead of NIFTY's fixed ``300`` points.
+    """
+    band = max(abs(spot) * _NEAR_BAND_PCT, 1e-9) if spot else None
+    walls = levels.near_walls(
+        levels.normalize_strikes(strikes), side, spot=spot, n=n, max_dist=band
+    )
+    return _as_report_walls(walls, spot)
 
 
 def compute_pcr_vol(strikes: list[dict]) -> float:
-    """PE volume / CE volume — 0 when there is no call volume."""
+    """PE volume / CE volume — 0 when there is no call volume.
+
+    Uses the shared :func:`api.options_math.put_call`; the 2-decimal rounding
+    and this report's ``0.0`` no-call-volume sentinel are presentation choices
+    kept here so the published payload does not change.
+    """
     ce_vol = sum(r["ce"]["volume"] for r in strikes)
     pe_vol = sum(r["pe"]["volume"] for r in strikes)
-    if ce_vol <= 0:
-        return 0.0
-    return round(pe_vol / ce_vol, 2)
+    ratio = put_call(ce_vol, pe_vol)
+    return round(ratio, 2) if ratio is not None else 0.0
 
 
 def compute_max_pain(strikes: list[dict]) -> float:
     """Max-pain strike (total writer payout minimised) over the chain."""
-    if not strikes:
-        return 0.0
-    best_strike = strikes[0]["strike"]
-    best_loss: Optional[float] = None
-    for cand in strikes:
-        cand_strike = cand["strike"]
-        loss = 0.0
-        for row in strikes:
-            strike = row["strike"]
-            if cand_strike > strike:
-                loss += (cand_strike - strike) * row["ce"]["oi"]
-            elif cand_strike < strike:
-                loss += (strike - cand_strike) * row["pe"]["oi"]
-        if best_loss is None or loss < best_loss:
-            best_loss = loss
-            best_strike = cand_strike
-    return float(best_strike)
+    pain = levels.compute_max_pain(levels.normalize_strikes(strikes))
+    return pain if pain is not None else 0.0
 
 
 def candles_to_intraday(df: Any) -> list[dict]:
@@ -427,9 +421,6 @@ def ohlc_from_intraday(intraday: list[dict], spot: float) -> dict:
     }
 
 
-# --------------------------------------------------------------------------- #
-# lot size (index table first, then the symbol's own NSE_FO contract)
-# --------------------------------------------------------------------------- #
 def _fo_lots() -> dict:
     """``NSE_FO`` instrument-key / asset-symbol -> lot size (lazy, 1h TTL).
 
@@ -494,9 +485,6 @@ def resolve_lot_size(symbol: str, chain: Optional[list[dict]] = None) -> int:
         return 1
 
 
-# --------------------------------------------------------------------------- #
-# daily candles -> pivots + baseline (symbol's own, never NIFTY's)
-# --------------------------------------------------------------------------- #
 def daily_rows_from_df(df: Any) -> list[list]:
     """Daily DataFrame -> raw Upstox candle rows ``[date, o, h, l, c, v, oi]``."""
     out: list[list] = []
@@ -561,45 +549,59 @@ def compute_pivots(candles: Optional[list], today: str) -> Optional[dict]:
         return None
 
 
-# --------------------------------------------------------------------------- #
-# generic recorder tape (per symbol — never the NIFTY tape)
-# --------------------------------------------------------------------------- #
 def tape_path(symbol: str, date_str: str) -> Path:
     """``experiments/data/options_tape/{SYMBOL}/{date}.jsonl``."""
     safe = _SAFE_SYMBOL_RE.sub("", str(symbol or "").upper()) or "UNKNOWN"
     return TAPE_ROOT / safe / f"{date_str}.jsonl"
 
 
-def read_tape(symbol: str, date_str: str) -> list[dict]:
-    """Raw recorder rows for this symbol/day; ``[]`` when the file is absent.
-
-    The recorder appends one JSON object per line. Blank/corrupt lines are
-    skipped. This never falls back to ``nifty_tape``.
-    """
-    path = tape_path(symbol, date_str)
-    if not path.exists():
-        return []
+def _parse_tape(path: Path) -> list[dict]:
+    """Parse one recorder JSONL file; blank/corrupt lines are skipped."""
     rows: list[dict] = []
-    try:
-        with open(path) as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
-                    continue
-                if isinstance(row, dict):
-                    rows.append(row)
-    except OSError:
-        return []
+    with open(path) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
     return rows
 
 
-# --------------------------------------------------------------------------- #
-# session block + timeline
-# --------------------------------------------------------------------------- #
+def read_tape(symbol: str, date_str: str) -> list[dict]:
+    """Raw recorder rows for this symbol/day; ``[]`` when the file is absent.
+
+    The recorder appends one JSON object per line while the UI polls, so the
+    parsed rows are reused while the file's ``(mtime, size)`` is unchanged.
+    This never falls back to ``nifty_tape``.
+    """
+    path = tape_path(symbol, date_str)
+    try:
+        stat = path.stat()
+        stamp = (stat.st_mtime_ns, stat.st_size)
+    except OSError:
+        return []
+    key = str(path)
+    with _TAPE_LOCK:
+        entry = _TAPE_CACHE.get(key)
+        if entry is not None and entry[0] == stamp:
+            return entry[1]
+    try:
+        rows = _parse_tape(path)
+    except OSError:
+        return []
+    with _TAPE_LOCK:
+        _TAPE_CACHE[key] = (stamp, rows)
+        if len(_TAPE_CACHE) > TAPE_CACHE_MAX_ENTRIES:
+            for old in list(_TAPE_CACHE)[: len(_TAPE_CACHE) - TAPE_CACHE_MAX_ENTRIES]:
+                _TAPE_CACHE.pop(old, None)
+    return rows
+
+
 def market_block() -> dict:
     """``{is_open, session_date, as_of}`` in IST (same contract as NIFTY).
 
@@ -660,9 +662,6 @@ def build_emas(intraday: Optional[list[dict]]) -> list[dict]:
     ]
 
 
-# --------------------------------------------------------------------------- #
-# cache (own namespace, 30 s, LRU-capped by symbol)
-# --------------------------------------------------------------------------- #
 def _cache_get(symbol: str, expiry: str, allow_stale: bool = False) -> Optional[dict]:
     entry = _chain_cache.get((symbol, expiry))
     if not entry:
@@ -694,6 +693,8 @@ def clear_cache() -> None:
     _chain_cache.clear()
     _intraday_cache.clear()
     _daily_cache.clear()
+    with _TAPE_LOCK:
+        _TAPE_CACHE.clear()
 
 
 def _intraday_get(symbol: str, allow_stale: bool = False) -> Optional[list[dict]]:
@@ -726,9 +727,6 @@ def _intraday_put(symbol: str, bars: list[dict]) -> None:
         _intraday_cache.pop(key, None)
 
 
-# --------------------------------------------------------------------------- #
-# upstream fetches (semaphore + rate limiter gated)
-# --------------------------------------------------------------------------- #
 async def _fetch_intraday(symbol: str) -> list[dict]:
     """Fetch 1-minute bars (no cache read) — ``[]`` on any failure.
 
@@ -1101,11 +1099,14 @@ async def _attach_analytics(symbol: str, report: dict, intraday: list[dict]) -> 
         pivots = report.get("pivots")
         prev = (pivots or {}).get("prev") if isinstance(pivots, dict) else None
         prev_close = _opt_num((prev or {}).get("close")) if isinstance(prev, dict) else None
+        # Same gate as NIFTY: falling spot must not be read as put writing.
+        spot_change = nv.spot_change_from_tape(tape)
         report.update(nv.build_verdicts(
             rows=report.get("strikes") or [], spot=spot, gex=report.get("gex"),
             candles=intraday or None, tape_rows=tape, baseline=baseline,
             vix=vix, reference=report.get("reference"),
             prev_close=prev_close, flow_bias=flow_bias,
+            spot_change=spot_change,
         ))
     except Exception:
         pass
@@ -1133,9 +1134,6 @@ async def _attach_analytics(symbol: str, report: dict, intraday: list[dict]) -> 
     return report
 
 
-# --------------------------------------------------------------------------- #
-# route
-# --------------------------------------------------------------------------- #
 @router.get("/{underlying}/live")
 async def get_live_option_report(
     underlying: str,

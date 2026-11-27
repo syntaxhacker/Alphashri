@@ -1,6 +1,6 @@
-# Market Screener — one-page NSE universe
+# Market Screener — NSE + USA universe
 
-> Single screen: all NSE stocks (~3,229) with cap tiers, client-side filters, tags (F&O/ETF), and a detail dock.
+> Single screen: NSE stocks (~3,229) or US NASDAQ/NYSE/AMEX names, with cap tiers, client-side filters, tags (F&O/ETF), and a detail dock.
 > Backend: `api/market_screen/` — `router.py` + `snapshot.py`, `GET /api/market/snapshot`.
 > Frontend: `src/components/market/`, `src/pages/market/MarketScreenerPage.tsx`; tab `?tab=market` in `ScreenerPage.tsx` (default tab unchanged).
 > No page navigation — toolbar, filter rail, virtualized table, detail dock on one screen.
@@ -10,7 +10,7 @@
 One screen for the full NSE universe (~3,229 stocks). No routing between pages:
 
 - **Toolbar**: market status badge (`market-mode-badge`: Live / Delayed / Unknown), last-updated, force-refresh.
-- **Filter rail** (`MarketFilterRail`): exchange segment, cap tier (large / mid / small / micro), price band, change %, volume, F&O / ETF tags, search.
+- **Filter rail** (`MarketFilterRail`): exchange segment, cap tier (India: large / mid / small / micro; USA absolute USD thresholds: mega ≥ $200B, large $10–200B, mid $2–10B, small $0.3–2B, micro < $0.3B), price band, change %, volume, F&O / ETF tags, search.
 - **Table** (`marketColumns.tsx`): `TanStackTable` with `rowWindowSize={80}`, `fillContainer`, sortable columns, fin-app alignment (text left, numbers right, badges/actions centre), row click opens the detail dock.
 - **Detail dock**: per-stock quote, tier, tags, 52w position; canvas reserved for a future map/sparkline mode — never inside the table.
 
@@ -22,7 +22,7 @@ Files: `api/market_screen/router.py` + `api/market_screen/snapshot.py`.
 
 | Param | Type | Meaning |
 |---|---|---|
-| `universe` | string | `all_equity` (default) \| `nifty500` \| `nifty50` \| `nse_fo` |
+| `universe` | string | `all_equity` (default) \| `nifty500` \| `nifty50` \| `nse_fo` \| `us` |
 | `limit` | int | row cap; default 4000 |
 | `force` | bool | bypass the 15 s cache and re-scan TradingView |
 
@@ -34,7 +34,7 @@ Response row fields:
 | `sector`, `industry`, `exchange` | classification + `NSE` |
 | `close`, `change`, `volume`, `relative_volume` | quote + volume vs average |
 | `market_cap`, `market_cap_cr` | cap value and ₹ crore |
-| `cap_tier` | `large` (rank 1–100), `mid` (101–250), `small` (251–500), `micro` (501+) — rank by market cap |
+| `cap_tier` | India: `large` (rank 1–100), `mid` (101–250), `small` (251–500), `micro` (501+) by rank; USA: `mega`/`large`/`mid`/`small`/`micro` by absolute USD cap (≥$200B / ≥$10B / ≥$2B / ≥$0.3B / else) |
 | `rsi`, `adx`, `atr`, `sma20`, `sma50`, `sma200` | technicals |
 | `perf_w`, `perf_1m`, `perf_3m` | performance windows |
 | `high_52w`, `low_52w`, `pos_52w` | 52w range and position within it |
@@ -54,6 +54,8 @@ With cookies → `streaming` (real-time). Without → `delayed_streaming_900` (1
 Files (confirmed): `src/components/market/MarketScreenerPanel.tsx`, `MarketFilterRail.tsx`, `marketColumns.tsx`, `marketFilters.ts`; `src/pages/market/MarketScreenerPage.tsx`; `src/api/marketScreener.ts`; `src/hooks/useMarketSnapshot.ts`; `src/types/marketScreener.ts`. Tab `?tab=market` in `src/components/screener/ScreenerPage.tsx`.
 
 Layout: fixed toolbar at top, collapsible filter rail, virtualized table filling the rest, detail dock sliding from the right on row selection. No nested bordered cards — one border per section, dividers inside.
+
+**Market Value view (V1, shipped).** The view toggle (`MarketViewToggle` in `MarketMapView.tsx`) offers **Table / Map / Movers / Value**. Selecting **Value** replaces the table region with the Deep Value `ValuePanel` (`<ValueView embedded market={…} />`, lazy-loaded so its scan pipeline stays out of the Market chunk); the current universe is mapped `india`/`usa` → the value scan market. It is a self-contained scan view — the table toolbar/filters, stale banner and symbol drawer are hidden in this mode, and the detail dock is closed. Fundamentals coverage and field limits are the Deep Value tab's (see Limitations below), not the snapshot table's.
 
 - All filtering (tier, tags, price band, change, volume, search) is **client-side** on the snapshot payload — no round-trip per filter change.
 - Table uses **DOM virtualization** via `TanStackTable` with `rowWindowSize={80}` and `fillContainer`; only visible rows are in the DOM.

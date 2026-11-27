@@ -1,12 +1,3 @@
-/**
- * The Nifty chart's pure maths — the price scale guard, the mark-line model,
- * candle resampling and the EMA overlay.
- *
- * Split out of `NiftyChartPanel.tsx` so the panel only carries the component.
- * Nothing here touches React: every function is a plain derivation of the
- * report the caller already has, which is what lets the panel memoise them
- * and lets the maths be unit-tested on its own.
- */
 
 import * as palette from "@/ui/palette";
 import {
@@ -22,16 +13,8 @@ import type {
 } from "@/types/niftyReport";
 import type { ReplayCandle } from "@/types/replay";
 
-/**
- * Max distance from spot (as a fraction of spot) at which a level is allowed
- * to widen the price scale. 0.6% ≈ 136 pts at a 22,740 spot — enough for the
- * GEX/pivot cluster around the tape, nowhere near the 22,500 fuel or 23,300
- * R2. Far levels are still drawn; they just never squash the candles.
- */
 const SCALE_LEVEL_PCT = AUTOSCALE_LEVEL_PCT;
 
-/** Extra band around the visible candle range, as a fraction of that range,
- *  that still counts as "visible" for scale purposes (i.e. ±5%). */
 const SCALE_RANGE_PAD_PCT = AUTOSCALE_RANGE_PAD_PCT;
 
 /** Two axis labels closer than this fraction of spot (≈23 pts at 22,740, or
@@ -52,8 +35,6 @@ export function levelsWithinScale(
   );
 }
 
-/** Session low/high from the candles actually charted (1m preferred, then the
- *  15m/EOD candles, then the OHLC summary). `null` when nothing usable. */
 export function candlePriceRange(report: NiftyReport): { low: number; high: number } | null {
   const src =
     report.intraday && report.intraday.length > 0
@@ -97,8 +78,6 @@ export function labelGapPctFor(
   return Math.min(0.01, Math.max(LABEL_COLLISION_PCT, gap / spot));
 }
 
-/** True when a level is close enough to spot (or to the visible candle range
- *  plus a small pad) to be worth folding into the price scale. */
 export function levelBelongsToScale(
   level: number,
   spot: number,
@@ -110,9 +89,6 @@ export function levelBelongsToScale(
   return level >= range.low - pad && level <= range.high + pad;
 }
 
-/** Codes in one formatter ("CW", "R1", "FLIP", "GFUEL↓", …) — used when
- *  merging a colliding label onto the neighbouring line. Handles already
- *  merged labels (`CW 23,000 · GRES`) by returning both codes. */
 function labelCodes(formatter: string): string[] {
   return formatter
     .split("·")
@@ -120,14 +96,6 @@ function labelCodes(formatter: string): string[] {
     .filter((code) => code.length > 0);
 }
 
-/**
- * Merge labels that would render on top of each other. Price lines closer
- * than `LABEL_COLLISION_PCT * spot` (~34 pts at 22,740) share one gutter
- * label instead of stacking unreadable tokens: the first line keeps its
- * price + style, later codes are appended (`PP 22,970 · MP`). Duplicate lines
- * inside the cluster are dropped — the same behaviour the GEX merge already
- * used for `CW 23,000 · GRES`, now applied to every mark line.
- */
 export function mergeCollidingLabels(
   lines: MarkLineData[],
   spot: number,
@@ -185,11 +153,9 @@ export function wallSide(strike: number, spot: number): WallSide {
 export function wallCode(isCall: boolean, side: WallSide, isFallbackPrimary: boolean): string {
   if (isCall) {
     if (side === "above") return "CW"; // call above spot = resistance (never fallback for calls above)
-    // Call wall below spot = broken resistance / support
     return isFallbackPrimary ? "CW (BELOW)" : "CW↓"; // fallback = no calls above at all
   } else {
     if (side === "below") return "PW"; // put below spot = support (never fallback for puts below)
-    // Put wall above spot = broken support / resistance
     return isFallbackPrimary ? "PW (ABOVE)" : "PW↑"; // fallback = no puts below at all
   }
 }
@@ -217,39 +183,30 @@ export function buildMarkLines(
   const allCalls = sortByField(report.walls?.calls ?? [], "oi", "desc");
   const allPuts = sortByField(report.walls?.puts ?? [], "oi", "desc");
 
-  // Classify calls by side vs spot
   const callsAbove = allCalls.filter((w) => wallSide(w.strike, report.spot) === "above");
   const callsBelow = allCalls.filter((w) => wallSide(w.strike, report.spot) === "below");
-  // Primary CW = highest-OI call ABOVE spot (resistance). If none above, fall back to highest overall but mark as broken.
   const primaryCall = callsAbove[0] ?? allCalls[0];
-  // Secondary: next highest OI call not on same strike as primary
   let secondaryCall: (typeof allCalls)[0] | undefined;
   if (callsAbove.length >= 2) {
     secondaryCall = callsAbove[1];
   } else if (callsAbove.length === 1) {
     secondaryCall = callsBelow[0];
   } else {
-    // No calls above, primary is callsBelow[0], secondary is callsBelow[1]
     secondaryCall = callsBelow[1];
   }
 
-  // Classify puts by side vs spot
   const putsBelow = allPuts.filter((w) => wallSide(w.strike, report.spot) === "below");
   const putsAbove = allPuts.filter((w) => wallSide(w.strike, report.spot) === "above");
-  // Primary PW = highest-OI put BELOW spot (support). If none below, fall back to highest overall but mark as broken.
   const primaryPut = putsBelow[0] ?? allPuts[0];
-  // Secondary: next highest OI put not on same strike as primary
   let secondaryPut: (typeof allPuts)[0] | undefined;
   if (putsBelow.length >= 2) {
     secondaryPut = putsBelow[1];
   } else if (putsBelow.length === 1) {
     secondaryPut = putsAbove[0];
   } else {
-    // No puts below, primary is putsAbove[0], secondary is putsAbove[1]
     secondaryPut = putsAbove[1];
   }
 
-  // Primary call wall (above spot = resistance, or below = broken fallback)
   if (primaryCall) {
     const side = wallSide(primaryCall.strike, report.spot);
     const isFallbackPrimary = callsAbove.length === 0; // no calls above → this primary is fallback
@@ -264,7 +221,6 @@ export function buildMarkLines(
     });
     used.push(primaryCall.strike);
   }
-  // Secondary call wall (next highest OI, but not same strike)
   if (secondaryCall && secondaryCall.strike !== primaryCall?.strike) {
     const side = wallSide(secondaryCall.strike, report.spot);
     // Secondary is never fallback primary
@@ -280,7 +236,6 @@ export function buildMarkLines(
     used.push(secondaryCall.strike);
   }
 
-  // Primary put wall (below spot = support, or above = broken fallback)
   if (primaryPut) {
     const side = wallSide(primaryPut.strike, report.spot);
     const isFallbackPrimary = putsBelow.length === 0; // no puts below → this primary is fallback
@@ -295,7 +250,6 @@ export function buildMarkLines(
     });
     used.push(primaryPut.strike);
   }
-  // Secondary put wall (next highest OI, but not same strike)
   if (secondaryPut && secondaryPut.strike !== primaryPut?.strike) {
     const side = wallSide(secondaryPut.strike, report.spot);
     // Secondary is never fallback primary

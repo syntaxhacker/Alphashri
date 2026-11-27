@@ -11,6 +11,8 @@ import pytest
 
 from api.news import news_impact
 
+pytestmark = pytest.mark.unit
+
 
 class _Resp:
     def __init__(self, status_code=200, payload=None):
@@ -194,6 +196,20 @@ def test_returns_empty_when_model_gives_no_valid_rows(monkeypatch):
     monkeypatch.setattr(news_impact.requests, "post",
                         lambda *a, **k: _Resp(200, _envelope("[1, 2, 3]")))
     assert news_impact.score_headlines(["one"]) == []
+
+
+def test_string_boolean_move_is_parsed_not_coerced_by_truthiness(monkeypatch):
+    monkeypatch.setattr(news_impact.config, "OPENROUTER_API_KEY", "k")
+    content = json.dumps([
+        {"i": 1, "move": "false", "dir": "bearish", "impact": 5, "why": "w"},
+        {"i": 2, "move": "true", "dir": "bullish", "impact": 5, "why": "w"},
+    ])
+    monkeypatch.setattr(news_impact.requests, "post", lambda *a, **k: _Resp(200, _envelope(content)))
+
+    out = news_impact.score_headlines(["one", "two"])
+
+    assert out[0]["move"] is False
+    assert out[1]["move"] is True
 
 
 def test_unknown_directory_symbol_is_truncated(monkeypatch):

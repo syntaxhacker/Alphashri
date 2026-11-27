@@ -1,4 +1,3 @@
-"""Main orchestration for daily ORB trading runner."""
 
 import sys
 import time

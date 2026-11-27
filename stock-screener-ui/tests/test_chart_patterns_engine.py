@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -62,9 +64,6 @@ def make_hit(conf, family, direction, start, end, pid="double_bottom"):
     )
 
 
-# ---------------------------------------------------------------------------
-# Edge cases
-# ---------------------------------------------------------------------------
 
 
 def test_none_input_returns_empty():
@@ -92,9 +91,6 @@ def test_unknown_timeframe_raises():
         detect_patterns(frame(np.linspace(100, 120, 80)), "bogus", "X")
 
 
-# ---------------------------------------------------------------------------
-# Orchestration
-# ---------------------------------------------------------------------------
 
 
 def test_engine_runs_and_fills_symbol_timeframe():
@@ -103,6 +99,31 @@ def test_engine_runs_and_fills_symbol_timeframe():
     for hit in hits:
         assert hit.symbol == "TEST"
         assert hit.timeframe == "1D"
+
+
+def test_engine_runs_on_us_provider_style_frame():
+    """Provider frames (tz-aware UTC index, int64 volume) need no NSE context."""
+    anchors = [(0, 112), (10, 100), (20, 115), (30, 100), (45, 115), (52, 100), (65, 118)]
+    n = 70
+    close = np.interp(np.arange(n), [a[0] for a in anchors], [a[1] for a in anchors])
+    idx = pd.date_range("2026-11-10 14:00", periods=n, freq="min", tz="UTC")
+    df = pd.DataFrame(
+        {
+            "open": np.concatenate([[close[0]], close[:-1]]),
+            "high": close + 0.5,
+            "low": close - 0.5,
+            "close": close,
+            "volume": np.full(n, 1000, dtype=np.int64),
+        },
+        index=idx,
+    )
+    hits = detect_patterns(df, "1m", "AAPL")
+    assert hits
+    assert all(h.symbol == "AAPL" and h.timeframe == "1m" for h in hits)
+    assert any(h.pattern_id == "triple_bottom" for h in hits)
+    # Overlay timestamps stay tz-aware ISO strings, matching the candle series.
+    points = [p for line in hits[0].trendlines for p in line]
+    assert points and all(p["t"].endswith("+00:00") for p in points)
 
 
 def test_engine_sorts_by_confidence_desc():
@@ -118,9 +139,6 @@ def test_engine_dedupes_overlapping_same_family_direction():
     assert len(reversal_bullish) == 1
 
 
-# ---------------------------------------------------------------------------
-# Dedupe algorithm
-# ---------------------------------------------------------------------------
 
 
 def test_dedupe_keeps_higher_confidence_overlap():
@@ -147,6 +165,36 @@ def test_dedupe_keeps_non_overlapping_same_family():
     a = make_hit(80, "reversal", "bullish", "2024-01-01", "2024-03-01")
     b = make_hit(70, "reversal", "bullish", "2024-05-01", "2024-07-01")
     assert len(_dedupe([a, b])) == 2
+
+
+def test_detector_exception_is_logged_and_isolated(monkeypatch, caplog):
+    """A crashing detector must be observable and must not abort the scan."""
+    import chart_patterns.engine as E
+
+    def boom(df, ctx):
+        raise RuntimeError("detector exploded")
+
+    patched = [
+        ("triple_bottom", boom) if pid == "triple_bottom" else (pid, fn)
+        for pid, fn in E.DETECTORS
+    ]
+    monkeypatch.setattr(E, "DETECTORS", patched)
+
+    with caplog.at_level(logging.ERROR, logger="chart_patterns.engine"):
+        hits = detect_patterns(triple_bottom_frame(), "1D", "TEST")
+
+    # Other detectors still run; the failing pattern contributes nothing.
+    assert hits
+    assert all(h.pattern_id != "triple_bottom" for h in hits)
+    assert any(h.pattern_id == "rectangle" for h in hits)
+    # The failure is logged with enough context to find the offending detector.
+    assert any(
+        "triple_bottom" in r.getMessage()
+        and "TEST" in r.getMessage()
+        and r.exc_info is not None
+        and "detector exploded" in str(r.exc_info[1])
+        for r in caplog.records
+    )
 
 
 def test_detect_patterns_output_is_stable_on_multi_pattern_frame():

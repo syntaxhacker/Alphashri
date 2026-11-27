@@ -1,50 +1,29 @@
-import { Box } from "@/ui";
-import { IconUsers } from "@tabler/icons-react";
+import { IconUsers } from "@/ui/icons";
 
 export interface MembersButtonProps {
   symbol: string;
   testId: string;
   onShowMembers?: (symbol: string) => void;
-  /** Hit area in px (16 list / 14 matrix). */
   size?: number;
   iconSize?: number;
 }
 
-/** Small index-members trigger rendered next to a symbol link. */
-export function MembersButton({
-  symbol,
-  testId,
-  onShowMembers,
-  size = 16,
-  iconSize = 12,
-}: MembersButtonProps) {
+export function MembersButton(props: MembersButtonProps) {
+  const size = () => props.size ?? 16;
   return (
-    <Box
-      component="button"
+    <button
       type="button"
-      title={`View ${symbol} members`}
-      aria-label={`View ${symbol} members`}
-      data-testid={testId}
+      title={`View ${props.symbol} members`}
+      aria-label={`View ${props.symbol} members`}
+      data-testid={props.testId}
       onClick={(event) => {
         event.stopPropagation();
-        onShowMembers?.(symbol);
+        props.onShowMembers?.(props.symbol);
       }}
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        width: size,
-        height: size,
-        p: 0,
-        border: 0,
-        bgcolor: "transparent",
-        color: "text.secondary",
-        cursor: "pointer",
-        flexShrink: 0,
-        "&:hover": { color: "primary.main" },
-      }}
+      className="inline-flex shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-fin-text-muted transition-colors hover:text-fin-primary"
+      style={{ width: `${size()}px`, height: `${size()}px` }}
     >
-      <IconUsers size={iconSize} />
-    </Box>
+      <IconUsers size={props.iconSize ?? 12} />
+    </button>
   );
 }

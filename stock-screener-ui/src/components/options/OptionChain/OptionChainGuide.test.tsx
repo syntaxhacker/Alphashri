@@ -1,9 +1,14 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import { screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { OptionChainGuide } from "./OptionChainGuide";
+
+vi.mock("@/ui", async () => {
+  const { mockSolidUi } = await import("@/test-utils/solidUiMock");
+  const { typeSize } = await import("@/ui/typography");
+  return { ...mockSolidUi(), typeSize };
+});
 
 afterEach(() => {
   cleanup();
@@ -11,39 +16,32 @@ afterEach(() => {
 });
 
 describe("OptionChainGuide", () => {
-  it("renders guide modal when opened", () => {
-    renderWithProviders(<OptionChainGuide opened={true} onClose={vi.fn()} />);
-    expect(screen.getByTestId("options-chain-guide-modal")).toBeInTheDocument();
+  it("is a compact key, not a how-to-read wall", () => {
+    render(() => <OptionChainGuide opened={true} onClose={vi.fn()} />);
+
+    expect(screen.getByText("Option chain key")).toBeInTheDocument();
+    expect(screen.queryByText("How to Read the Option Chain")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Options can be complex/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/PRO TIP/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("options-guide-pro-tip")).not.toBeInTheDocument();
   });
 
-  it("shows How to Read title", () => {
-    renderWithProviders(<OptionChainGuide opened={true} onClose={vi.fn()} />);
-    expect(screen.getByText("How to Read the Option Chain")).toBeInTheDocument();
-  });
+  it("keeps the CE/PE labels and the decision thresholds", () => {
+    render(() => <OptionChainGuide opened={true} onClose={vi.fn()} />);
 
-  it("shows CALL/PE explanation cards", () => {
-    renderWithProviders(<OptionChainGuide opened={true} onClose={vi.fn()} />);
     expect(screen.getByText("CALLS (CE)")).toBeInTheDocument();
     expect(screen.getByText("PUTS (PE)")).toBeInTheDocument();
+    expect(screen.getByTestId("options-guide-pcr")).toHaveTextContent("> 1.2 bullish · < 0.7 bearish");
+    expect(screen.getByTestId("options-guide-max-pain")).toHaveTextContent("expiry magnet, not a target");
+    expect(screen.getByTestId("options-guide-oi")).toHaveTextContent("high OI is a wall");
   });
 
-  it("shows PCR, Max Pain, OI explanations", () => {
-    renderWithProviders(<OptionChainGuide opened={true} onClose={vi.fn()} />);
-    expect(screen.getByTestId("options-guide-pcr")).toBeInTheDocument();
-    expect(screen.getByTestId("options-guide-max-pain")).toBeInTheDocument();
-    expect(screen.getByTestId("options-guide-oi")).toBeInTheDocument();
-  });
+  it("keeps the sentiment code key", () => {
+    render(() => <OptionChainGuide opened={true} onClose={vi.fn()} />);
 
-  it("shows sentiment badge meanings", () => {
-    renderWithProviders(<OptionChainGuide opened={true} onClose={vi.fn()} />);
-    expect(screen.getByTestId("options-guide-badge-lb")).toBeInTheDocument();
-    expect(screen.getByTestId("options-guide-badge-sb")).toBeInTheDocument();
-    expect(screen.getByTestId("options-guide-badge-sc")).toBeInTheDocument();
-    expect(screen.getByTestId("options-guide-badge-lu")).toBeInTheDocument();
-  });
-
-  it("shows pro tip", () => {
-    renderWithProviders(<OptionChainGuide opened={true} onClose={vi.fn()} />);
-    expect(screen.getByTestId("options-guide-pro-tip")).toBeInTheDocument();
+    for (const code of ["lb", "sb", "sc", "lu"]) {
+      expect(screen.getByTestId(`options-guide-badge-${code}`)).toBeInTheDocument();
+    }
+    expect(screen.getByTestId("options-guide-badge-lb")).toHaveTextContent("LB · Long buildup");
   });
 });

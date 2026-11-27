@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@solidjs/testing-library";
+import type { JSX } from "solid-js";
 
 vi.mock("@/state/auth", () => ({ fetchWithAuth: vi.fn() }));
 
@@ -10,8 +11,8 @@ import { normalizeReport } from "@/api/reportNifty";
 import { NiftyVerdictStrip } from "./NiftyVerdictStrip";
 import type { NiftyReport } from "@/types/niftyReport";
 
-function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
+function r(ui: () => JSX.Element) {
+  return render(() => <UIProvider>{ui()}</UIProvider>);
 }
 
 /**
@@ -100,7 +101,7 @@ export function sensexRawPayload() {
 describe("NiftyVerdictStrip SENSEX parity (no dashes on enriched frames)", () => {
   test("control / regime / VIX / strength all render values, never —", () => {
     const report = normalizeReport(sensexRawPayload());
-    r(<NiftyVerdictStrip report={report} mode="full" />);
+    r(() => <NiftyVerdictStrip report={report} mode="full" />);
 
     const control = screen.getByTestId("nifty-verdict-control");
     expect(within(control).getByTestId("nifty-verdict-control-primary")).toHaveTextContent(

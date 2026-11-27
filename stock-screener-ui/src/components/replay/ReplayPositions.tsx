@@ -1,18 +1,16 @@
+import { Show } from "solid-js";
 import { Text, Badge, Group, Box } from "@/ui";
-import type { ColumnDef } from "@tanstack/react-table";
-import { TanStackTable } from "../common/TanStackTable";
+import type { TableColumnDef } from "../paper-trading/TanStackTable";
+import { TanStackTable } from "../paper-trading/TanStackTable";
 import { SideBadge } from "../common/BadgeComponents";
 import { formatTimeOnly } from "../../utils/ui-helpers";
 import type { ReplayOpenPosition } from "../../types/replay";
-
 interface ReplayPositionsProps {
   positions: ReplayOpenPosition[];
 }
 
-export function ReplayPositions({ positions }: ReplayPositionsProps) {
-  if (positions.length === 0) return null;
-
-  const columns: ColumnDef<ReplayOpenPosition>[] = [
+export function ReplayPositions(props: ReplayPositionsProps) {
+  const columns: TableColumnDef<ReplayOpenPosition>[] = [
     {
       id: "symbol",
       header: "Symbol",
@@ -32,28 +30,28 @@ export function ReplayPositions({ positions }: ReplayPositionsProps) {
       header: "Qty",
       accessorKey: "quantity",
       meta: { align: "right" },
-      cell: ({ row }) => <Text size="xs" ta="center">{row.original.quantity}</Text>,
+      cell: ({ row }) => <Text size="xs" ta="center" className="font-mono tabular-nums">{row.original.quantity}</Text>,
     },
     {
       id: "entry_price",
       header: "Entry Price",
       accessorKey: "entry_price",
       meta: { align: "right" },
-      cell: ({ row }) => <Text size="xs" ta="right">{row.original.entry_price.toFixed(2)}</Text>,
+      cell: ({ row }) => <Text size="xs" ta="right" className="font-mono tabular-nums">{row.original.entry_price.toFixed(2)}</Text>,
     },
     {
       id: "sl",
       header: "SL",
       accessorKey: "sl",
       meta: { align: "right" },
-      cell: ({ row }) => <Text size="xs" ta="right" c="error">{row.original.sl.toFixed(2)}</Text>,
+      cell: ({ row }) => <Text size="xs" ta="right" c="error" className="font-mono tabular-nums">{row.original.sl.toFixed(2)}</Text>,
     },
     {
       id: "tp",
       header: "TP",
       accessorKey: "tp",
       meta: { align: "right" },
-      cell: ({ row }) => <Text size="xs" ta="right" c="success">{row.original.tp.toFixed(2)}</Text>,
+      cell: ({ row }) => <Text size="xs" ta="right" c="success" className="font-mono tabular-nums">{row.original.tp.toFixed(2)}</Text>,
     },
     {
       id: "strategy",
@@ -67,24 +65,26 @@ export function ReplayPositions({ positions }: ReplayPositionsProps) {
       header: "Entry Time",
       accessorKey: "entry_time",
       meta: { align: "left" },
-      cell: ({ row }) => <Text size="xs">{formatTimeOnly(row.original.entry_time)}</Text>,
+      cell: ({ row }) => <Text size="xs" className="font-mono tabular-nums">{formatTimeOnly(row.original.entry_time)}</Text>,
     },
   ];
 
   return (
-    <Box data-testid="replay-positions">
-      <Group gap={0.5} align="center" mb={0.5}>
-        <Text size="xs" fw={500}>Open Positions</Text>
-        <Badge variant="light" color="primary" size="xs">{positions.length}</Badge>
-      </Group>
-      <TanStackTable<ReplayOpenPosition>
-        data={positions}
-        columns={columns}
-        dataTestId="replay-positions-table"
-        emptyMessage="No open positions"
-        stickyHeader
-        dense
-      />
-    </Box>
+    <Show when={props.positions.length > 0}>
+      <Box data-testid="replay-positions">
+        <Group gap="xs" align="center" mb={0.5}>
+          <Text size="xs" fw={500}>Open Positions</Text>
+          <Badge variant="light" color="primary" size="xs">{props.positions.length}</Badge>
+        </Group>
+        <TanStackTable<ReplayOpenPosition>
+          data={props.positions}
+          columns={columns}
+          dataTestId="replay-positions-table"
+          emptyMessage="No open positions"
+          stickyHeader
+          dense
+        />
+      </Box>
+    </Show>
   );
 }

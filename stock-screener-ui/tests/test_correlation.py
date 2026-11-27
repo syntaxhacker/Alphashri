@@ -17,19 +17,24 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+import api.correlation as mod
 from api.correlation import (
     _compute_correlation,
-    _get_cache_meta_path,
-    _get_cache_path,
     _make_cache_key,
-    _read_cache,
-    _write_cache,
 )
 
 
-# ---------------------------------------------------------------------------
-# _compute_correlation
-# ---------------------------------------------------------------------------
+@pytest.fixture
+def isolated_cache(tmp_path, monkeypatch):
+    """Bind all four cache helpers to tmp_path so tests never touch experiments/."""
+    helpers = mod.make_cache_helpers(tmp_path, mod.CACHE_TTL_SECONDS)
+    monkeypatch.setattr(mod, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(mod, "_get_cache_path", helpers[0])
+    monkeypatch.setattr(mod, "_get_cache_meta_path", helpers[1])
+    monkeypatch.setattr(mod, "_read_cache", helpers[2])
+    monkeypatch.setattr(mod, "_write_cache", helpers[3])
+    return tmp_path
+
 
 @pytest.mark.unit
 class TestComputeCorrelation:
@@ -154,9 +159,6 @@ class TestComputeCorrelation:
         assert all(all(isinstance(v, (int, float)) for v in row) for row in matrix)
 
 
-# ---------------------------------------------------------------------------
-# _make_cache_key
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 class TestMakeCacheKey:
@@ -186,71 +188,58 @@ class TestMakeCacheKey:
         assert key == "RELIANCE_TCS_daily_30_days"
 
 
-# ---------------------------------------------------------------------------
-# Cache read/write roundtrip
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 class TestCacheRoundtrip:
 
-    @pytest.fixture
-    def cache_dir(self, tmp_path, monkeypatch):
-        import api.correlation as mod
-        monkeypatch.setattr(mod, "CACHE_DIR", tmp_path)
-        return tmp_path
-
-    def test_write_and_read_within_ttl(self, cache_dir):
+    def test_write_and_read_within_ttl(self, isolated_cache):
         data = {"matrix": [[1.0, 0.5], [0.5, 1.0]], "symbols": ["A", "B"], "cached": False}
-        _write_cache("test_key", data)
-        result = _read_cache("test_key")
+        mod._write_cache("test_key", data)
+        result = mod._read_cache("test_key")
         assert result is not None
         assert result["matrix"] == [[1.0, 0.5], [0.5, 1.0]]
         assert result["symbols"] == ["A", "B"]
 
-    def test_read_returns_none_for_missing_key(self, cache_dir):
-        result = _read_cache("nonexistent_key")
+    def test_read_returns_none_for_missing_key(self, isolated_cache):
+        result = mod._read_cache("nonexistent_key")
         assert result is None
 
-    def test_read_returns_none_after_ttl_expiry(self, cache_dir):
-        import api.correlation as mod
+    def test_read_returns_none_after_ttl_expiry(self, isolated_cache):
         import api.utils as utils_mod
         data = {"matrix": [[1.0]], "symbols": ["A"]}
-        _write_cache("expiry_key", data)
+        mod._write_cache("expiry_key", data)
 
         with patch.object(utils_mod, "time") as mock_time:
             mock_time.time.return_value = time.time() + mod.CACHE_TTL_SECONDS + 1
-            result = _read_cache("expiry_key")
+            result = mod._read_cache("expiry_key")
             assert result is None
 
-    def test_cache_files_created(self, cache_dir):
-        _write_cache("files_key", {"data": 1})
-        assert _get_cache_path("files_key").exists()
-        assert _get_cache_meta_path("files_key").exists()
+    def test_cache_files_created(self, isolated_cache):
+        mod._write_cache("files_key", {"data": 1})
+        assert mod._get_cache_path("files_key").exists()
+        assert mod._get_cache_meta_path("files_key").exists()
 
-    def test_cache_json_content(self, cache_dir):
+    def test_cache_json_content(self, isolated_cache):
         data = {"matrix": [[0.95]], "symbols": ["X"], "meta": {"data_points": 50}}
-        _write_cache("json_key", data)
-        with open(_get_cache_path("json_key"), "r") as f:
+        mod._write_cache("json_key", data)
+        with open(mod._get_cache_path("json_key"), "r") as f:
             loaded = json.load(f)
         assert loaded == data
 
-    def test_corrupt_meta_doesnt_crash(self, cache_dir):
+    def test_corrupt_meta_doesnt_crash(self, isolated_cache):
         data = {"matrix": [[1.0]], "symbols": ["A"]}
-        _write_cache("corrupt_key", data)
-        _get_cache_meta_path("corrupt_key").write_text("not valid json")
-        result = _read_cache("corrupt_key")
+        mod._write_cache("corrupt_key", data)
+        mod._get_cache_meta_path("corrupt_key").write_text("not valid json")
+        result = mod._read_cache("corrupt_key")
         assert result is None
 
-    def test_corrupt_data_doesnt_crash(self, cache_dir):
-        _get_cache_path("bad_data_key").write_text("not json")
-        _get_cache_meta_path("bad_data_key").write_text(json.dumps({"ts": time.time()}))
-        result = _read_cache("bad_data_key")
+    def test_corrupt_data_doesnt_crash(self, isolated_cache):
+        mod._get_cache_path("bad_data_key").write_text("not json")
+        mod._get_cache_meta_path("bad_data_key").write_text(json.dumps({"ts": time.time()}))
+        result = mod._read_cache("bad_data_key")
         assert result is None
 
 
-# ---------------------------------------------------------------------------
-# Endpoint validation
-# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
 class TestCorrelationEndpoint:
@@ -288,9 +277,7 @@ class TestCorrelationEndpoint:
         response = client.post("/api/correlation/", json={"symbols": ["RELIANCE"], "period": 0})
         assert response.status_code == 400
 
-    def test_valid_request_with_mocked_api(self, client, monkeypatch, tmp_path):
-        import api.correlation as mod
-        monkeypatch.setattr(mod, "CACHE_DIR", tmp_path)
+    def test_valid_request_with_mocked_api(self, client, monkeypatch, isolated_cache):
         monkeypatch.setattr(mod, "UPSTOX_API_KEY", "test_key")
         monkeypatch.setattr(mod, "UPSTOX_API_SECRET", "test_secret")
 
@@ -321,9 +308,7 @@ class TestCorrelationEndpoint:
         assert "normalized" in body
         assert "cached" in body
 
-    def test_cache_hit_returns_cached_true(self, client, monkeypatch, tmp_path):
-        import api.correlation as mod
-        monkeypatch.setattr(mod, "CACHE_DIR", tmp_path)
+    def test_cache_hit_returns_cached_true(self, client, monkeypatch, isolated_cache):
         monkeypatch.setattr(mod, "UPSTOX_API_KEY", "test_key")
         monkeypatch.setattr(mod, "UPSTOX_API_SECRET", "test_secret")
 
@@ -334,7 +319,7 @@ class TestCorrelationEndpoint:
             "meta": {"start_date": "2026-04-01", "end_date": "2026-04-30", "data_points": 30},
             "cached": False,
         }
-        _write_cache("RELIANCE_TCS_daily_30_days", cached_data)
+        mod._write_cache("RELIANCE_TCS_daily_30_days", cached_data)
 
         response = client.post("/api/correlation/", json={
             "symbols": ["RELIANCE", "TCS"],
@@ -348,15 +333,9 @@ class TestCorrelationEndpoint:
         assert body["cached"] is True
         assert body["matrix"] == [[1.0, 0.8], [0.8, 1.0]]
 
-    def test_insufficient_data_returns_warning(self, client, monkeypatch, tmp_path):
-        import api.correlation as mod
-        monkeypatch.setattr(mod, "CACHE_DIR", tmp_path)
+    def test_insufficient_data_returns_warning(self, client, monkeypatch, isolated_cache):
         monkeypatch.setattr(mod, "UPSTOX_API_KEY", "test_key")
         monkeypatch.setattr(mod, "UPSTOX_API_SECRET", "test_secret")
-        # Re-bind cache helpers (factory closes over dir at make time; tests mutate CACHE_DIR)
-        mod._get_cache_path, mod._get_cache_meta_path, mod._read_cache, mod._write_cache = mod.make_cache_helpers(
-            mod.CACHE_DIR, mod.CACHE_TTL_SECONDS
-        )
 
         mock_api = MagicMock()
         mock_api.fetch_historical_data_v3.return_value = None
@@ -374,7 +353,7 @@ class TestCorrelationEndpoint:
         assert "warning" in body
         assert body["matrix"] == []
 
-    def test_missing_credentials_returns_500(self, client, monkeypatch):
+    def test_missing_credentials_returns_500(self, client, monkeypatch, isolated_cache):
         monkeypatch.setattr("api.correlation.UPSTOX_API_KEY", None)
         monkeypatch.setattr("api.correlation.UPSTOX_API_SECRET", "test_secret")
 

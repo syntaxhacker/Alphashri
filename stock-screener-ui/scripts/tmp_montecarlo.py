@@ -28,10 +28,10 @@ print(f"sample: n={len(rs)} win={(rs > 0).mean() * 100:.1f}% mean={rs.mean():+.3
       f"sd={rs.std(ddof=1):.3f}R total={rs.sum():+.1f}R")
 
 rng = np.random.default_rng(SEED)
-paths = rng.choice(rs, size=(B, len(rs))).cumsum(axis=1)  # (B, 308) equity in R
+paths = rng.choice(rs, size=(B, len(rs))).cumsum(axis=1)
 term = paths[:, -1]
 peak = np.maximum.accumulate(paths, axis=1)
-dd = (paths - peak).min(axis=1)  # max drawdown per path (negative)
+dd = (paths - peak).min(axis=1)
 
 q = lambda p: np.percentile(term, p)
 print(f"terminal R: mean={term.mean():+.1f} median={np.median(term):+.1f} "

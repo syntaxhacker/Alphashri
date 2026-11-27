@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("../api/holidays_api", () => ({
   fetchHolidays: vi.fn(),
@@ -12,6 +12,7 @@ import {
   isTradingHoliday,
   isClearingHoliday,
   isMarketOpenNow,
+  calendarWeekday,
   checkDate,
   resetHolidays,
 } from "./holidays";
@@ -22,6 +23,10 @@ const mockedFetchHolidayCheck = vi.mocked(fetchHolidayCheck);
 beforeEach(() => {
   vi.clearAllMocks();
   resetHolidays();
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe("loadHolidays", () => {
@@ -72,6 +77,71 @@ describe("isTradingHoliday", () => {
 
     expect(isTradingHoliday("2026-01-26")).toBe(true);
     expect(isTradingHoliday("2026-01-20")).toBe(false);
+  });
+});
+
+describe("calendarWeekday — timezone independence", () => {
+  // 2026-11-16 is a Monday, 2026-11-21 a Saturday, 2026-11-22 a Sunday.
+  const cases: [string, number, string][] = [
+    ["2026-11-16", 1, "Monday"],
+    ["2026-11-20", 5, "Friday"],
+    ["2026-11-21", 6, "Saturday"],
+    ["2026-11-22", 0, "Sunday"],
+  ];
+
+  for (const tz of ["America/New_York", "Asia/Kolkata"]) {
+    for (const [dateStr, weekday, label] of cases) {
+      it(`reads ${dateStr} as ${label} in ${tz}`, () => {
+        vi.stubEnv("TZ", tz);
+        expect(calendarWeekday(dateStr)).toBe(weekday);
+      });
+    }
+  }
+
+  it("rejects a malformed date instead of guessing", () => {
+    expect(Number.isNaN(calendarWeekday("not-a-date"))).toBe(true);
+  });
+});
+
+describe("isTradingHoliday — weekend gate is the calendar day, not UTC", () => {
+  // Regression: `new Date("2026-11-16").getDay()` is 0 (Sunday) in New York
+  // because a bare YYYY-MM-DD parses as UTC midnight, so every Monday there
+  // was reported as a holiday and every Saturday as a trading day.
+  for (const tz of ["America/New_York", "Asia/Kolkata"]) {
+    describe(tz, () => {
+      beforeEach(() => vi.stubEnv("TZ", tz));
+
+      it("treats Monday as a trading day", () => {
+        expect(isTradingHoliday("2026-11-16")).toBe(false);
+      });
+
+      it("treats Friday as a trading day", () => {
+        expect(isTradingHoliday("2026-11-20")).toBe(false);
+      });
+
+      it("treats Saturday and Sunday as non-trading days", () => {
+        expect(isTradingHoliday("2026-11-21")).toBe(true);
+        expect(isTradingHoliday("2026-11-22")).toBe(true);
+      });
+    });
+  }
+
+  it("still reports a listed Monday exchange holiday as a holiday", async () => {
+    vi.stubEnv("TZ", "America/New_York");
+    mockedFetchHolidays.mockResolvedValue([
+      { date: "2026-01-26", description: "Republic Day", type: "trading" },
+    ]);
+
+    await loadHolidays();
+
+    expect(calendarWeekday("2026-01-26")).toBe(1);
+    expect(isTradingHoliday("2026-01-26")).toBe(true);
+  });
+
+  it("keeps the IST cash session open on a Monday for a US-timezone client", () => {
+    vi.stubEnv("TZ", "America/New_York");
+    // 04:15Z == 09:45 IST on Monday 2026-11-16, but still Sunday 23:15 in New York.
+    expect(isMarketOpenNow(new Date("2026-11-16T04:15:00Z"))).toBe(true);
   });
 });
 

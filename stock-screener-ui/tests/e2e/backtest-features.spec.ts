@@ -232,15 +232,14 @@ test.describe("Backtest Features", () => {
     test("should display zoom dropdown with All, 30D, 7D, 1D options", async ({ page }) => {
       await gotoBacktest(page);
       await runBacktest(page, "results-summary");
-      const zoomSelect = page.locator('[data-testid="chart-zoom-select"]');
+      const zoomSelect = page.locator('[data-testid="chart-zoom-select"] select');
       await expect(zoomSelect).toBeVisible();
-      await zoomSelect.click({ force: true });
-      await expect(page.getByRole("listbox")).toBeVisible({ timeout: 5000 });
-      for (const label of ["All", "30D", "7D", "1D"]) {
-        await expect(page.getByRole("option", { name: label, exact: true })).toBeVisible({
-          timeout: 5000,
-        });
-      }
+      // Non-searchable Select -> native <select>, so there is no role=listbox
+      // popup; assert the option set it actually exposes.
+      const values = await zoomSelect.locator("option").evaluateAll((opts) =>
+        opts.map((o) => (o as HTMLOptionElement).textContent?.trim()),
+      );
+      expect(values).toEqual(["All", "30D", "7D", "1D"]);
     });
   });
 
@@ -580,7 +579,17 @@ test.describe("Backtest Features", () => {
       await selectSymbolFromMultiselect(page, "RELIANCE");
       const chip = page.locator('[data-testid="chip-RELIANCE"]');
       await expect(chip).toBeVisible({ timeout: 5000 });
-      await chip.locator("svg").first().click({ force: true });
+      // The search listbox stays open over the chip strip after selecting, which
+      // keeps the remove button from ever becoming stable. Dismiss it first, as
+      // a user would, then use the labelled button (the inner <svg> is a 12px
+      // icon and not the click target once the row re-renders).
+      // Selecting from the listbox leaves it open over the chip strip, so a
+      // pointer click is intercepted and never reaches the button. Dismiss it
+      // the way the component expects — a mousedown outside the field — then
+      // the remove button is reachable.
+      await page.locator("body").click({ position: { x: 5, y: 5 } });
+      await expect(page.locator('[data-part="multiselect-listbox"]')).toHaveCount(0, { timeout: 5000 });
+      await chip.getByRole("button", { name: /remove/i }).click();
       await expect(chip).not.toBeVisible({
         timeout: 5000,
       });

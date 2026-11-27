@@ -32,9 +32,6 @@ def _write_tape(directory, date_str, spot=22700.0, premium=100.0):
         '{"bad json"\n' + __import__("json").dumps(row) + "\n", encoding="utf-8")
 
 
-# ---------------------------------------------------------------------------
-# Session stems
-# ---------------------------------------------------------------------------
 
 def test_available_dates_excludes_gap_logs_and_junk(tmp_path, monkeypatch):
     monkeypatch.setattr(tape, "TAPE_DIR", tmp_path)
@@ -111,9 +108,6 @@ def test_prev_session_close_for_today(tmp_path, monkeypatch):
     assert seen == [prev]  # the date BEFORE today, never today's own tape
 
 
-# ---------------------------------------------------------------------------
-# Stale CSV guard
-# ---------------------------------------------------------------------------
 
 def _write_csv(path, rows):
     lines = ["date,open,high,low,close,volume"]
@@ -147,9 +141,6 @@ def test_prev_session_close_without_tape_falls_back_to_a_current_csv(
     assert tape.prev_session_close(today.isoformat()) == pytest.approx(22811.35)
 
 
-# ---------------------------------------------------------------------------
-# Date-aware official close
-# ---------------------------------------------------------------------------
 
 def test_official_close_routes_past_dates_to_the_daily_candle(monkeypatch):
     today = dt.date.today().isoformat()
@@ -198,9 +189,6 @@ def test_official_close_returns_none_without_a_token(monkeypatch):
     assert tape.official_nifty_close("2026-10-16") is None
 
 
-# ---------------------------------------------------------------------------
-# Daily candle parsing
-# ---------------------------------------------------------------------------
 
 def test_parse_daily_candles_and_close_for_date():
     payload = {"data": {"candles": [

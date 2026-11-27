@@ -1,7 +1,3 @@
-/**
- * Paper Trading API Client
- */
-
 import type {
   PaperPosition,
   PaperTrade,
@@ -39,7 +35,7 @@ import {
   setDashboardAnalyticsLoading,
 } from "../state/paperTrading";
 import { apiFetch } from "../state/auth";
-import { isMarketClosedToday } from "../state/holidays";
+import { isMarketOpenNow } from "../state/holidays";
 import {
   startPaperBot,
   stopPaperBot,
@@ -81,7 +77,6 @@ export {
 import { API_BASE } from "@/api/config";
 
 
-// Fetch portfolio status
 export async function fetchPortfolio(): Promise<PortfolioStatus | null> {
   try {
     const data = await apiFetch(`${API_BASE}/api/paper/portfolio`);
@@ -93,12 +88,10 @@ export async function fetchPortfolio(): Promise<PortfolioStatus | null> {
   }
 }
 
-// Fetch open positions
 export async function fetchPositions(): Promise<PaperPosition[]> {
   try {
     const data = await apiFetch(`${API_BASE}/api/paper/positions`);
     const positions = data.positions || [];
-    console.log("[fetchPositions] raw response:", data, "positions[0]:", positions[0]);
     setPositions(positions);
     return positions;
   } catch (error) {
@@ -120,7 +113,6 @@ export async function fetch52WLevels(symbol: string): Promise<{ high_52w: number
   }
 }
 
-// Fetch trade history with optional bot and date filtering
 export async function fetchTrades(
   limit: number = 100,
   botId?: string | null,
@@ -149,7 +141,6 @@ export async function fetchTrades(
   }
 }
 
-// Delete a single trade
 export async function deleteTrade(tradeId: string): Promise<{ success: boolean; message: string }> {
   try {
     const data = await apiFetch(`${API_BASE}/api/paper/trades/${tradeId}`, {
@@ -198,7 +189,6 @@ export async function updatePositionNotes(
   }
 }
 
-// Fetch daily report
 export async function fetchDailyReport(date?: string): Promise<DailySummary | null> {
   try {
     const url = date
@@ -213,7 +203,6 @@ export async function fetchDailyReport(date?: string): Promise<DailySummary | nu
   }
 }
 
-// Fetch symbol performance
 export async function fetchSymbolPerformance(): Promise<SymbolPerformance[]> {
   try {
     const data = await apiFetch(`${API_BASE}/api/paper/journal/symbols`);
@@ -226,7 +215,6 @@ export async function fetchSymbolPerformance(): Promise<SymbolPerformance[]> {
   }
 }
 
-// Fetch chart data for a symbol
 export async function fetchPaperChart(
   symbol: string,
   date?: string,
@@ -271,9 +259,8 @@ export async function fetchPaperChart(
   }
 }
 
-// Refresh all live data
 export async function refreshLiveData(): Promise<void> {
-  if (isMarketClosedToday()) return;
+  if (!isMarketOpenNow()) return;
   setLoading(true);
 
   try {
@@ -300,7 +287,6 @@ function getLimitFromDateRange(fromDate?: string | null, toDate?: string | null)
   return 2000;
 }
 
-// Refresh history data with optional bot and date filtering
 export async function refreshHistoryData(
   botId?: string | null,
   fromDate?: string | null,
@@ -312,9 +298,7 @@ export async function refreshHistoryData(
   try {
     const limit = getLimitFromDateRange(fromDate, toDate);
     // If fromDate is provided, daysBack is ignored by fetchTrades (due to API logic)
-    await Promise.all([
-      fetchTrades(limit, botId, fromDate, toDate, fromDate ? 0 : daysBack),
-    ]);
+    await fetchTrades(limit, botId, fromDate, toDate, fromDate ? 0 : daysBack);
   } catch (error) {
     setError(error instanceof Error ? error.message : "Unknown error");
   } finally {
@@ -322,7 +306,6 @@ export async function refreshHistoryData(
   }
 }
 
-// Health check
 export async function healthCheck(): Promise<boolean> {
   try {
     const data = await apiFetch(`${API_BASE}/api/paper/health`);
@@ -332,7 +315,6 @@ export async function healthCheck(): Promise<boolean> {
   }
 }
 
-// Close a position manually
 export async function closePaperPosition(
   symbol: string,
   exitPrice: number,
@@ -372,7 +354,6 @@ export async function closeAllPositions(
   }
 }
 
-// Fetch strategy configuration
 export async function fetchStrategyConfig(strategyId?: number): Promise<StrategyConfig | null> {
   setConfigLoading(true);
   try {
@@ -393,7 +374,6 @@ export async function fetchStrategyConfig(strategyId?: number): Promise<Strategy
   }
 }
 
-// Update strategy configuration
 export async function updateStrategyConfig(config: Partial<StrategyConfig>): Promise<boolean> {
   setConfigLoading(true);
   try {
@@ -413,7 +393,6 @@ export async function updateStrategyConfig(config: Partial<StrategyConfig>): Pro
   }
 }
 
-// Fetch analytics data (equity curve, P&L analytics)
 export async function fetchAnalytics(daysBack: number = 90): Promise<AnalyticsData | null> {
   setAnalyticsLoading(true);
   try {
@@ -427,7 +406,6 @@ export async function fetchAnalytics(daysBack: number = 90): Promise<AnalyticsDa
   }
 }
 
-// Fetch activity feed
 export async function fetchActivityFeed(since?: string): Promise<ActivityEvent[]> {
   setActivityLoading(true);
   try {
@@ -444,7 +422,6 @@ export async function fetchActivityFeed(since?: string): Promise<ActivityEvent[]
   }
 }
 
-// Fetch aggregated dashboard
 export async function fetchAggregatedDashboard(): Promise<AggregatedDashboardData | null> {
   setAggregatedLoading(true);
   try {
@@ -489,7 +466,6 @@ export async function fetchDashboardAnalytics({
   }
 }
 
-// Reset strategy configuration to defaults
 export async function resetStrategyConfig(): Promise<boolean> {
   setConfigLoading(true);
   try {

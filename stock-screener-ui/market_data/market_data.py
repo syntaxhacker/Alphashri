@@ -17,6 +17,7 @@ Usage:
     df = fetch_candles_for_timeframe("INFY", "15m", lookback_bars=60)
 """
 
+import logging
 import math
 import sys
 from pathlib import Path
@@ -24,6 +25,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 _BASE = str(Path(__file__).parent.parent)
 sys.path.insert(0, str(Path(_BASE).parent))  # for upstox_trader
@@ -108,11 +111,29 @@ _DAILY_BACKFILL_LOOKBACK_DAYS = 10
 _client_cache = None
 
 
+def _reload_token_if_missing(client):
+    """Refresh a cached client whose auth handler was built before OAuth.
+
+    The API process can start before the user connects Upstox. The cached
+    client then keeps ``access_token=None`` forever, so chain endpoints that
+    build a fresh token keep working while candle fetches silently return
+    empty. A DB token arriving later must be picked up without a restart.
+    """
+    auth = getattr(client, "auth_handler", None)
+    if auth is None or getattr(auth, "access_token", None):
+        return client
+    try:
+        auth.load_token()
+    except Exception:
+        logger.debug("cached Upstox client token reload failed", exc_info=True)
+    return client
+
+
 def get_api_client():
     """Get an UpstoxAPI client. Tries env credentials first, falls back to DB token."""
     global _client_cache
     if _client_cache is not None:
-        return _client_cache
+        return _reload_token_if_missing(_client_cache)
 
     from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
     from backtest.utils import get_upstox_client_from_db
@@ -123,7 +144,7 @@ def get_api_client():
             api_secret=config.UPSTOX_API_SECRET,
             quiet=True,
         )
-        return _client_cache
+        return _reload_token_if_missing(_client_cache)
     except Exception:
         pass
 
@@ -132,7 +153,7 @@ def get_api_client():
         _client_cache = client[0] if client[0] else None
     else:
         _client_cache = client
-    return _client_cache
+    return _reload_token_if_missing(_client_cache) if _client_cache is not None else None
 
 
 def _lookback_days(spec_minutes: int, lookback_bars: int) -> int:
@@ -324,7 +345,11 @@ def fetch_candles_for_timeframe(
                     api, sym, df, today_str,
                     include_partial_today=bool(include_partial_today),
                 )
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "candle fetch failed symbol=%s timeframe=%s from=%s to=%s error=%s",
+            symbol, timeframe, eff_from, eff_to, exc,
+        )
         return None
 
     if df is None or df.empty:
@@ -479,7 +504,14 @@ def _fetch_historical_window(
             to_date=to_date,
             from_date=from_date,
         )
-    except Exception:
+    except Exception as exc:
+        # An expired token / rate-limit / bad payload used to look identical
+        # to "no candles" to every caller. Keep fail-soft, but leave an
+        # operator-visible trail with the symbol and window that failed.
+        logger.warning(
+            "historical window fetch failed symbol=%s tf=%s from=%s to=%s error=%s",
+            symbol, tf_minutes, from_date, to_date, exc,
+        )
         return None
 
 

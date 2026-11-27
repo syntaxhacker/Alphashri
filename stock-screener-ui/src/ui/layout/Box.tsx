@@ -1,62 +1,148 @@
-import MuiBox from "@mui/material/Box";
+import { splitProps } from "solid-js";
+import type { JSX } from "solid-js";
+import { cn } from "../cn";
 import type { UIBoxProps } from "../types";
+import { sp, toSz } from "./spacing";
 
-const sp = (v: unknown) => {
-  if (v == null) return undefined;
-  if (typeof v === "number") return `${v}px`;
-  const m: Record<string, string> = { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px" };
-  return (m[v as string] ?? v) as string;
+const BOX_KNOWN = [
+  "children", "className", "style", "id", "data-testid", "onClick", "onMouseEnter", "onMouseLeave",
+  "p", "px", "py", "pt", "pb", "pl", "pr", "m", "mx", "my", "mt", "mb", "ml", "mr",
+  "bg", "c", "opacity", "pos", "top", "right", "bottom", "left", "inset",
+  "w", "h", "miw", "maw", "mih", "mah", "flex",
+  "alignItems", "justifyContent", "flexDirection", "gap", "spacing", "component",
+] as const;
+
+export function Box(props: UIBoxProps & Record<string, unknown> & { alignItems?: unknown; justifyContent?: unknown; flexDirection?: unknown; gap?: unknown }) {
+  const [known, rest] = splitProps(props, BOX_KNOWN);
+
+  const styleObj: Record<string, string | number | undefined> = {};
+  if (known.p != null) styleObj.padding = sp(known.p);
+  if (known.px != null) { styleObj["padding-left"] = sp(known.px); styleObj["padding-right"] = sp(known.px); }
+  if (known.py != null) { styleObj["padding-top"] = sp(known.py); styleObj["padding-bottom"] = sp(known.py); }
+  if (known.pt != null) styleObj["padding-top"] = sp(known.pt);
+  if (known.pb != null) styleObj["padding-bottom"] = sp(known.pb);
+  if (known.pl != null) styleObj["padding-left"] = sp(known.pl);
+  if (known.pr != null) styleObj["padding-right"] = sp(known.pr);
+  if (known.m != null) styleObj.margin = sp(known.m);
+  if (known.mx != null) { styleObj["margin-left"] = sp(known.mx); styleObj["margin-right"] = sp(known.mx); }
+  if (known.my != null) { styleObj["margin-top"] = sp(known.my); styleObj["margin-bottom"] = sp(known.my); }
+  if (known.mt != null) styleObj["margin-top"] = sp(known.mt);
+  if (known.mb != null) styleObj["margin-bottom"] = sp(known.mb);
+  if (known.ml != null) styleObj["margin-left"] = sp(known.ml);
+  if (known.mr != null) styleObj["margin-right"] = sp(known.mr);
+  if (known.bg != null) styleObj["background-color"] = known.bg as string;
+  if (known.c != null) styleObj.color = known.c as string;
+  if (known.opacity != null) styleObj.opacity = known.opacity;
+  if (known.pos != null) styleObj.position = known.pos;
+  if (known.top != null) styleObj.top = toSz(known.top);
+  if (known.right != null) styleObj.right = toSz(known.right);
+  if (known.bottom != null) styleObj.bottom = toSz(known.bottom);
+  if (known.left != null) styleObj.left = toSz(known.left);
+  if (known.inset != null) styleObj.inset = toSz(known.inset);
+  if (known.w != null) styleObj.width = toSz(known.w);
+  if (known.h != null) styleObj.height = toSz(known.h);
+  if (known.miw != null) styleObj["min-width"] = toSz(known.miw);
+  if (known.maw != null) styleObj["max-width"] = toSz(known.maw);
+  if (known.mih != null) styleObj["min-height"] = toSz(known.mih);
+  if (known.mah != null) styleObj["max-height"] = toSz(known.mah);
+  if (known.flex != null) styleObj.flex = known.flex as string;
+  if (known.alignItems != null) styleObj["align-items"] = known.alignItems as string;
+  if (known.justifyContent != null) styleObj["justify-content"] = known.justifyContent as string;
+  if (known.flexDirection != null) styleObj["flex-direction"] = known.flexDirection as string;
+  if (known.gap != null) styleObj.gap = sp(known.gap);
+  if (known.spacing != null && known.gap == null) {
+    styleObj.gap = typeof known.spacing === "number" ? `${known.spacing * 8}px` : sp(known.spacing);
+  }
+
+// Solid compiles `<Tag>` to `createComponent(Tag, ...)`, which calls the
+// value as a function. A string tag is not callable, so dynamic elements go
+// through an intrinsic registry instead.
+const BOX_TAGS: Record<string, (p: any) => JSX.Element> = {
+  div: (p) => <div {...p} />,
+  span: (p) => <span {...p} />,
+  section: (p) => <section {...p} />,
+  article: (p) => <article {...p} />,
+  aside: (p) => <aside {...p} />,
+  header: (p) => <header {...p} />,
+  footer: (p) => <footer {...p} />,
+  main: (p) => <main {...p} />,
+  nav: (p) => <nav {...p} />,
+  ul: (p) => <ul {...p} />,
+  ol: (p) => <ol {...p} />,
+  li: (p) => <li {...p} />,
+  form: (p) => <form {...p} />,
+  fieldset: (p) => <fieldset {...p} />,
+  label: (p) => <label {...p} />,
+  p: (p) => <p {...p} />,
+  figure: (p) => <figure {...p} />,
+  figcaption: (p) => <figcaption {...p} />,
+  a: (p) => <a {...p} />,
+  button: (p) => <button {...p} />,
+  strong: (p) => <strong {...p} />,
+  em: (p) => <em {...p} />,
+  b: (p) => <b {...p} />,
+  i: (p) => <i {...p} />,
+  small: (p) => <small {...p} />,
+  hr: (p) => <hr {...p} />,
+  h1: (p) => <h1 {...p} />,
+  h2: (p) => <h2 {...p} />,
+  h3: (p) => <h3 {...p} />,
+  h4: (p) => <h4 {...p} />,
+  h5: (p) => <h5 {...p} />,
+  h6: (p) => <h6 {...p} />,
+  table: (p) => <table {...p} />,
+  thead: (p) => <thead {...p} />,
+  tbody: (p) => <tbody {...p} />,
+  tfoot: (p) => <tfoot {...p} />,
+  tr: (p) => <tr {...p} />,
+  th: (p) => <th {...p} />,
+  td: (p) => <td {...p} />,
+  caption: (p) => <caption {...p} />,
+  img: (p) => <img {...p} />,
+  input: (p) => <input {...p} />,
+  textarea: (p) => <textarea {...p} />,
+  select: (p) => <select {...p} />,
+  option: (p) => <option {...p} />,
 };
-const toSz = (v: unknown) => (typeof v === "number" ? `${v}px` : (v as string | undefined));
 
-export function Box({ children, className, style, id, "data-testid": testId, onClick, onMouseEnter, onMouseLeave, p, px, py, pt, pb, pl, pr, m, mx, my, mt, mb, ml, mr, bg, c, opacity, pos, top, right, bottom, left, w, h, miw, maw, mih, mah, flex, alignItems, justifyContent, flexDirection, gap, sx: sxProp, ...rest }: UIBoxProps & Record<string, unknown> & { alignItems?: unknown; justifyContent?: unknown; flexDirection?: unknown; gap?: unknown }) {
+  // Dynamic element: a plain string is not callable in Solid, so resolve it
+  // through the intrinsic registry (see above).
+  const Tag = BOX_TAGS[(known.component as string) ?? "div"] ?? BOX_TAGS["div"];
+
+
+  // Solid writes `style` straight to the DOM, so a bare number is emitted
+  // unitless (`width: 440`, `min-width: 320`). Those are invalid CSS and the
+  // browser drops them silently — which is how the backtest rail grew past its
+  // max-width until it starved the chart to 0px. Append `px` for the length
+  // properties that accept it; unitless properties (z-index, opacity, flex-grow,
+  // line-height, font-weight) and the unitless-legal zero are left alone.
+  const UNITLESS_PROPS = new Set([
+    "z-index", "opacity", "flex", "flex-grow", "flex-shrink", "font-weight",
+    "line-height", "order", "zoom", "column-count", "tab-size", "aspect-ratio",
+  ]);
+  const pxStyle = (style: Record<string, unknown> | undefined) => {
+    if (!style) return style;
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(style)) {
+      const kebab = key.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+      const unitless = UNITLESS_PROPS.has(kebab) || kebab.startsWith("--");
+      out[key] = typeof value === "number" && value !== 0 && !unitless ? `${value}px` : value;
+    }
+    return out;
+  };
+
   return (
-    <MuiBox
-      id={id as string}
-      className={className}
-      style={style}
-      data-testid={testId}
-      onClick={onClick as never}
-      onMouseEnter={onMouseEnter as never}
-      onMouseLeave={onMouseLeave as never}
-      sx={[{
-        ...(p != null && { p: sp(p) }),
-        ...(px != null && { px: sp(px) }),
-        ...(py != null && { py: sp(py) }),
-        ...(pt != null && { pt: sp(pt) }),
-        ...(pb != null && { pb: sp(pb) }),
-        ...(pl != null && { pl: sp(pl) }),
-        ...(pr != null && { pr: sp(pr) }),
-        ...(m != null && { m: sp(m) }),
-        ...(mx != null && { mx: sp(mx) }),
-        ...(my != null && { my: sp(my) }),
-        ...(mt != null && { mt: sp(mt) }),
-        ...(mb != null && { mb: sp(mb) }),
-        ...(ml != null && { ml: sp(ml) }),
-        ...(mr != null && { mr: sp(mr) }),
-        ...(bg != null && { bgcolor: bg as string }),
-        ...(c != null && { color: c as string }),
-        ...(opacity != null && { opacity }),
-        ...(pos && { position: pos }),
-        ...(top != null && { top: toSz(top) }),
-        ...(right != null && { right: toSz(right) }),
-        ...(bottom != null && { bottom: toSz(bottom) }),
-        ...(left != null && { left: toSz(left) }),
-        ...(w != null && { width: toSz(w) }),
-        ...(h != null && { height: toSz(h) }),
-        ...(miw != null && { minWidth: toSz(miw) }),
-        ...(maw != null && { maxWidth: toSz(maw) }),
-        ...(mih != null && { minHeight: toSz(mih) }),
-        ...(mah != null && { maxHeight: toSz(mah) }),
-        ...(flex != null && { flex: flex as string }),
-        ...(alignItems != null && { alignItems: alignItems as string }),
-        ...(justifyContent != null && { justifyContent: justifyContent as string }),
-        ...(flexDirection != null && { flexDirection: flexDirection as string }),
-        ...(gap != null && { gap: sp(gap) }),
-      }, ...(sxProp ? (Array.isArray(sxProp) ? sxProp : [sxProp]) : [])] as never}
+    <Tag
+      id={known.id}
+      className={cn(known.className)}
+      style={{ ...styleObj, ...pxStyle(known.style as Record<string, unknown>) }}
+      data-testid={known["data-testid"]}
+      onClick={known.onClick}
+      onMouseEnter={known.onMouseEnter}
+      onMouseLeave={known.onMouseLeave}
       {...rest}
     >
-      {children}
-    </MuiBox>
+      {known.children}
+    </Tag>
   );
 }

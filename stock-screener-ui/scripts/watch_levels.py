@@ -149,7 +149,7 @@ def consume_complete_lines(buffer: str, chunk: str) -> tuple[list[str], str]:
     if not data:
         return [], buffer or ""
     parts = data.split("\n")
-    tail = parts.pop()  # "" when the chunk ended on a newline
+    tail = parts.pop()
     return parts, tail
 
 
@@ -205,7 +205,7 @@ def last_completed_bar(rows: list[dict], now: datetime) -> dict | None:
             continue
         bar_min = ts.replace(second=0, microsecond=0)
         if bar_min >= cur_min:
-            continue  # forming bar (or future row): not complete yet
+            continue
         if best_min is None or bar_min > best_min or (
             bar_min == best_min and (best_ts is None or ts > best_ts)
         ):
@@ -214,7 +214,6 @@ def last_completed_bar(rows: list[dict], now: datetime) -> dict | None:
 
 
 def bar_closes_beyond(bar: dict | None, side: str, trigger: float) -> bool:
-    """True when the bar's ``spot`` close is beyond ``trigger``."""
     if not isinstance(bar, dict):
         return False
     try:
@@ -378,7 +377,6 @@ def _watch_close(
                             "source": "tape-close",
                         }
                     else:
-                        # Bar closed beyond but live already reclaimed it.
                         rejected_bars.add(str(bar.get("t")))
                         fallback_spot = live
                 else:
@@ -455,7 +453,6 @@ def main(argv: list[str] | None = None) -> int:
 
     hit = _watch_ws(levels, token, min(deadline, time.time() + 20))
     if hit is None:
-        # REST fallback: --interval cadence
         last = spot
         while time.time() < deadline:
             time.sleep(args.interval)

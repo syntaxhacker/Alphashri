@@ -1,21 +1,4 @@
 #!/usr/bin/env python3
-"""
-Update strategy configuration parameters via CLI.
-
-Usage:
-  # Show current params for all strategies
-  python scripts/update_strategy_params.py list
-
-  # Update specific params for a strategy
-  python scripts/update_strategy_params.py update "EMA Cross Default" --sl_pct=1.0
-  python scripts/update_strategy_params.py update "52W Chaser Swing" --sl_pct=2.0 --tp_pct=3.0 --trailing_stop_pct=2.0
-
-  # Update via API (requires running server + token)
-  python scripts/update_strategy_params.py api "EMA Cross Default" --sl_pct=1.0 --token=YOUR_API_TOKEN
-
-  # Bulk update from JSON file
-  python scripts/update_strategy_params.py bulk updates.json
-"""
 
 import argparse
 import json
@@ -28,7 +11,6 @@ from db.database import SessionLocal
 from db.models.bot import StrategyConfig
 
 
-# Fields that can be updated, grouped by strategy type
 COMMON_FIELDS = [
     "sl_pct", "tp_pct", "max_positions", "max_capital_per_trade_pct",
     "cooldown_minutes",
@@ -121,7 +103,6 @@ def cmd_update(args):
 
 
 def cmd_api(args):
-    """Update via API instead of direct DB."""
     import requests
 
     if not args.token:
@@ -168,7 +149,6 @@ def cmd_api(args):
 
 
 def cmd_bulk(args):
-    """Bulk update from JSON file."""
     with open(args.file) as f:
         data = json.load(f)
 
@@ -198,7 +178,6 @@ def main():
     parser = argparse.ArgumentParser(description="Update strategy config params")
     sub = parser.add_subparsers(dest="command")
 
-    # list
     p_list = sub.add_parser("list", help="Show all strategy params")
 
     def bool_or_none(v):
@@ -206,7 +185,6 @@ def main():
             return None
         return v.lower() in ("true", "1", "yes")
 
-    # update (direct DB)
     p_upd = sub.add_parser("update", help="Update strategy params (direct DB)")
     p_upd.add_argument("name", nargs="?", help="Strategy name")
     p_upd.add_argument("--sl_pct", type=float)
@@ -239,7 +217,6 @@ def main():
     p_upd.add_argument("--pivot_type", type=str)
     p_upd.add_argument("--description", type=str)
 
-    # api (via HTTP)
     p_api = sub.add_parser("api", help="Update via API (needs auth token)")
     p_api.add_argument("name", help="Strategy name")
     p_api.add_argument("--token", help="Auth token", required=True)
@@ -253,7 +230,6 @@ def main():
     ]:
         p_api.add_argument(f"--{name}", type=typ)
 
-    # bulk
     p_bulk = sub.add_parser("bulk", help="Bulk update from JSON file")
     p_bulk.add_argument("file", help="Path to JSON file")
 

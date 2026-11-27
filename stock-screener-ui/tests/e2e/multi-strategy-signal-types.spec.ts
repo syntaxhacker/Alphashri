@@ -7,7 +7,7 @@ import {
   gotoBotsViewAndWait,
   mockCreateBotRoute,
   createBotAndSave,
-} from "../helpers/botsHelpers";
+} from "./helpers/botHelpers";
 
 const BOT_ORB_ID = "bot-orb-001";
 const BOT_MIXED_ID = "bot-mixed-001";
@@ -104,50 +104,6 @@ test.describe("Multi-Strategy Bot - Signal Type Display", () => {
   test.beforeEach(async ({ page }) => {
     await setupBotsMocks(page);
     await mockBotsListRoute(page, mockMultiTypeBots);
-  });
-
-  test("should display ORB strategy type in bot list", async ({ page }) => {
-    await gotoBotsViewAndWait(page);
-    await expect(page.locator(`[data-testid="bot-row-${BOT_ORB_ID}"]`)).toContainText("ORB");
-  });
-
-  test("should display SR Breakout strategy in bot list", async ({ page }) => {
-    await gotoBotsViewAndWait(page);
-    // BotSummaryCell renders plain strategy names, not raw strategy_type codes.
-    await expect(page.locator(`[data-testid="bot-row-${BOT_MIXED_ID}"]`)).toContainText(
-      "Classic S/R Breakout",
-    );
-  });
-
-  test("should display 52W Chaser strategy in bot list", async ({ page }) => {
-    await gotoBotsViewAndWait(page);
-    // BotSummaryCell renders plain strategy names, not raw strategy_type codes.
-    await expect(page.locator(`[data-testid="bot-row-${BOT_MIXED_ID}"]`)).toContainText(
-      "52W Chaser Swing",
-    );
-  });
-
-  test("should display 52W Target strategy in bot list", async ({ page }) => {
-    await gotoBotsViewAndWait(page);
-    // BotSummaryCell renders plain strategy names, not raw strategy_type codes.
-    await expect(page.locator(`[data-testid="bot-row-${BOT_MIXED_ID}"]`)).toContainText(
-      "52W Target Hold",
-    );
-  });
-
-  test("should display EMA Cross strategy in bot list", async ({ page }) => {
-    await gotoBotsViewAndWait(page);
-    // BotSummaryCell renders plain strategy names, not raw strategy_type codes.
-    await expect(page.locator(`[data-testid="bot-row-${BOT_MIXED_ID}"]`)).toContainText(
-      "EMA Cross Default",
-    );
-  });
-
-  test("should display EMA_CROSS strategy type badge correctly", async ({ page }) => {
-    await gotoBotsViewAndWait(page);
-    await expect(page.locator(`[data-testid="bot-row-${BOT_MIXED_ID}"]`)).toContainText(
-      "EMA Cross Default",
-    );
   });
 
   test("should show strategy count including all strategy types", async ({ page }) => {

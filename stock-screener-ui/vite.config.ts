@@ -1,26 +1,97 @@
 /// <reference types="vite/client" />
 import { fileURLToPath, URL } from 'node:url';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { defineConfig, loadEnv } from 'vite';
-import react from '@vitejs/plugin-react';
+import solid from 'vite-plugin-solid';
+import tailwindcss from '@tailwindcss/vite';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
+
+type EmittedChunk = { type: string; fileName: string; code?: string };
+type ChunkStat = { file: string; bytes: number; kB: number };
+
+/**
+ * Emits a machine-readable chunk-size report after every production build and
+ * prints budget misses as WARN lines. It never fails the build: the bundle
+ * budgets are observational until a baseline week has been collected.
+ */
+function bundleBudgetReporter() {
+  const budgets = JSON.parse(
+    readFileSync(new URL('./perf/budgets.json', import.meta.url), 'utf8'),
+  ).bundle ?? {};
+
+  return {
+    name: 'bundle-budget-reporter',
+    generateBundle(_options: unknown, bundle: Record<string, EmittedChunk>) {
+      const chunks: ChunkStat[] = Object.values(bundle)
+        .filter((chunk) => chunk.type === 'chunk' && typeof chunk.code === 'string')
+        .map((chunk) => {
+          const bytes = Buffer.byteLength(chunk.code as string);
+          return { file: chunk.fileName, bytes, kB: +(bytes / 1000).toFixed(2) };
+        })
+        .sort((a, b) => b.bytes - a.bytes);
+      const totalBytes = chunks.reduce((sum, chunk) => sum + chunk.bytes, 0);
+      const largest = chunks[0] ?? { file: '-', bytes: 0, kB: 0 };
+      const enforcement = budgets.enforcement ?? 'warning-only';
+
+      writeFileSync(
+        new URL('./perf/bundle-sizes.json', import.meta.url),
+        `${JSON.stringify({
+          schema_version: 1,
+          generator: 'vite.config.ts/bundle-budget-reporter',
+          units: 'bytes and decimal kB (1000 bytes) of emitted, uncompressed .js',
+          enforcement,
+          largest_js_chunk: largest,
+          total_js_kb: +(totalBytes / 1000).toFixed(2),
+          total_js_bytes: totalBytes,
+          chunk_count: chunks.length,
+          chunks,
+        }, null, 2)}\n`,
+      );
+
+      const largestBudget = Number(budgets.largest_js_chunk_kb ?? 0);
+      const totalBudget = Number(budgets.total_js_kb ?? 0);
+      console.log(
+        `[bundle-budget] largest JS chunk ${largest.file} ${largest.kB} kB ` +
+          `(budget ${largestBudget || 'n/a'} kB); total JS ${(totalBytes / 1000).toFixed(2)} kB ` +
+          `across ${chunks.length} chunks (budget ${totalBudget || 'n/a'} kB); enforcement=${enforcement}`,
+      );
+      if (largestBudget && largest.kB > largestBudget) {
+        console.warn(
+          `[bundle-budget] WARN largest JS chunk ${largest.file} is ${largest.kB} kB > ${largestBudget} kB budget`,
+        );
+      }
+      if (totalBudget && totalBytes / 1000 > totalBudget) {
+        console.warn(
+          `[bundle-budget] WARN total JS ${(totalBytes / 1000).toFixed(2)} kB > ${totalBudget} kB budget`,
+        );
+      }
+    },
+  };
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
-  
+
   return {
+    // Solid ships browser + server builds behind export conditions. Keep the
+    // browser condition in every mode so `solid-js/web` resolves to the client
+    // build instead of the SSR stub. Only development needs the `development`
+    // condition: production builds must resolve production exports, otherwise
+    // packages such as lightweight-charts ship their (much larger) development
+    // bundle. Tests declare their own conditions in vitest.config.ts.
     resolve: {
       alias: {
-        '@': fileURLToPath(new URL('./src', import.meta.url)),
+        "@": fileURLToPath(new URL('./src', import.meta.url)),
+        tslib: fileURLToPath(new URL('./node_modules/tslib/tslib.es6.js', import.meta.url)),
       },
+      conditions:
+        mode === 'development'
+          ? ['development', 'browser']
+          : ['module', 'browser', 'production'],
     },
     plugins: [
-      react(),
-      // React Compiler disabled: the app is built on mutable module stores
-      // read during render (`useStoreSubscription` + `get*State()`), which the
-      // compiler memoizes as pure and renders stale (empty panels under lazy
-      // Suspense — reproduced 2026-11-07, PR #157 smoke failures). Re-enable
-      // only after migrating store consumers to `useSyncExternalStore`
-      // (see `useEventsStore` in src/state/events.ts).
+      solid(),
+      tailwindcss(),
       sentryVitePlugin({
         org: process.env.SENTRY_ORG,
         project: process.env.SENTRY_PROJECT,
@@ -29,23 +100,30 @@ export default defineConfig(({ mode }) => {
           filesToDeleteAfterUpload: ['dist/**/*.map'],
         },
       }),
+      bundleBudgetReporter(),
     ],
     build: {
       sourcemap: true,
       rollupOptions: {
         output: {
           manualChunks(id: string) {
-            if (id.includes("node_modules/react") || id.includes("node_modules/react-dom") || id.includes("node_modules/react-router-dom")) return "vendor";
-            if (id.includes("@mui/") || id.includes("@emotion/")) return "mui";
-            if (id.includes("@tanstack")) return "tanstack";
-            // echarts-for-react imports React. Keep it out of the shared "echarts"
-            // chunk so React is not duplicated into the 373 kB echarts bundle and
-            // the entry shell does not statically pull in the chart engine.
-            // echarts-for-react is only consumed by lazy page chunks (heatmap,
-            // report, options, paper trading), which pull echarts in lazily.
-            if (id.includes("echarts-for-react")) return undefined;
-            if (id.includes("echarts") || id.includes("zrender")) return "echarts";
-            if (id.includes("node_modules/@tabler/icons-react")) return "icons";
+            if (id.includes("node_modules/solid-js") || id.includes("node_modules/@solidjs")) return "vendor";
+            // Keep the chart engine out of the shared chunk so the entry shell
+            // does not statically pull it in (chart pages import it lazily).
+            // Scope to the package itself: a bare `echarts` match also caught
+            // src/pages/report/echartsSolid.ts, which dragged loadEcharts.ts
+            // into this chunk and turned the dynamic import into a static one.
+            // Split by subpackage so no emitted chart chunk trips the 500 kB
+            // warning. zrender and the chart/component trees do not import each
+            // other, so none of these groups can form a circular chunk. All of
+            // them still load only through the loadEcharts() dynamic import.
+            if (id.includes("node_modules/zrender")) return "echarts-zrender";
+            if (id.includes("node_modules/echarts/lib/chart/")) {
+              const advanced = /lib[\\/]chart[\\/](graph|tree|treemap|sankey|sunburst|radar|parallel|lines|custom|map|themeRiver|chord|heatmap|gauge|funnel|boxplot|effectScatter|helper|pie|candlestick)[\\/]/.test(id);
+              return advanced ? "echarts-charts-advanced" : "echarts-charts";
+            }
+            if (id.includes("node_modules/echarts/lib/component/")) return "echarts-components";
+            if (id.includes("node_modules/echarts")) return "echarts-core";
           },
         },
       },
@@ -67,6 +145,15 @@ export default defineConfig(({ mode }) => {
           '**/test-results/**',
           '**/playwright-report/**',
           '**/coverage/**',
+          // SQLite lives in the repo and the API/bots write it continuously.
+          // Vite does not run these through the module graph, so every WAL
+          // checkpoint arrives as a full `page reload db/alphashri.db-wal` —
+          // the dev app restarted itself every time a bot persisted a tick.
+          '**/db/**',
+          '**/*.db',
+          '**/*.db-wal',
+          '**/*.db-shm',
+          '**/*.db-journal',
         ],
       },
       proxy: {

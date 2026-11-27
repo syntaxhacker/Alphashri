@@ -16,6 +16,7 @@ import { MAX_PAIN_TOUCH_TOL, maxPainTouches } from "./maxPainTouches";
 import { formatReportNum } from "./reportFormat";
 import { safeNumNull } from "@/utils/reportParsers";
 import { chainLeg, chainMetric, type ChainMap } from "./chainTuple";
+import { clockLabel as tapeClockLabel, clockMinutes } from "./tapeRange";
 
 /** Minimal tape-row surface this builder reads — deliberately local so the
  *  component never depends on another agent's in-flight file. */
@@ -28,32 +29,31 @@ export interface HeatmapTapeRow {
   flip?: number | null;
   walls?: { call?: number; put?: number } | null;
   chain?: ChainMap | null;
+  /** Payload marker: the served chain was trimmed (see the backend's
+   *  `_trim_tape_chains`). The builder reads only the strikes it renders, so
+   *  these are documentation — a row whose chain was shortened is not a row
+   *  with missing data. */
+  chain_truncated?: boolean;
+  chain_center?: number | null;
+  chain_window_pts?: number;
 }
 
 type HeatCellSign = "ce" | "pe" | "flat";
 
 interface HeatBucket {
-  /** ISO timestamp of the bucket's last row (empty when no tape row landed). */
   t: string;
-  /** Short HH:MM label of the bucket's representative (last) row. */
   label: string;
   /** HH:MM wall-clock start of the bucket — used for axis ticks. */
   startLabel: string;
-  /** Spot of the bucket's representative row; null for a padded empty bucket
-   *  (tape started after the session's first candle). */
   spot: number | null;
   maxPain: number | null;
   flip: number | null;
   atmStrike: number | null;
-  /** Closest row *inside* this bucket whose spot sat on the max-pain pin
-   *  (`|spot − row maxPain| ≤ touchTol`). Null when no row touched. */
   touch: HeatBucketTouch | null;
 }
 
 interface HeatBucketTouch {
-  /** HH:MM of the touching row (not necessarily the representative). */
   label: string;
-  /** Spot of the touching row — where the circle is drawn. */
   spot: number;
   maxPain: number;
   distance: number;
@@ -64,39 +64,28 @@ interface HeatCell {
   strike: number;
   ceDoi: number | null;
   peDoi: number | null;
-  /** CE/PE LTP change vs the previous data bucket (premium evidence). This is
-   *  computed regardless of the cell `metric` so a read can tell buyers from
-   *  writers: OI up + premium up = buying, OI up + premium down = writing. */
   cePremiumDoi: number | null;
   pePremiumDoi: number | null;
   sign: HeatCellSign;
-  /** 0..1, normalized by the largest |ΔOI| in the whole model. */
   intensity: number;
 }
 
 interface OiHeatmap {
   buckets: HeatBucket[];
-  /** Ascending, within spot ± widthPts of the last row's spot. */
   strikes: number[];
   cells: HeatCell[];
   /** Largest |ΔOI| across all cells (0 when there is no data). */
   maxAbs: number;
-  /** True when no row carried a usable chain. */
   empty: boolean;
-  /** Field the cells colour (OI change / volume / premium change). */
   metric: "oi" | "volume" | "premium";
+  windowHalf: number;
+  windowPts: number;
 }
 
 interface HeatmapOptions {
   bucketMin?: number;
   widthPts?: number;
-  /** Max-pain touch window in points (any row in the bucket). */
   touchTol?: number;
-  /**
-   * Which field the cells colour: OI change (default), traded volume, or
-   * premium change. Volume answers "where is the fight" (2026-10-23 13:33
-   * printed 17.5M at 22,450 before the break); premium answers "who is paying".
-   */
   metric?: "oi" | "volume" | "premium";
   /**
    * Session anchor for the time axis (the first intraday candle, 09:15). When
@@ -104,11 +93,98 @@ interface HeatmapOptions {
    * buckets instead of being silently compressed out of the left edge.
    */
   startTime?: string | null;
+  /**
+   * Hard cap on displayed strike rows. A narrow pane cannot label 40 strikes
+   * at the 11px floor, so the window is centred on spot instead of smearing.
+   */
+  maxStrikes?: number;
 }
 
 /** Plot geometry (viewBox) shared with the flow strip below the heatmap. */
 export const HEATMAP_VB_W = 1000;
 export const HEATMAP_PAD_L = 64;
+
+/**
+ * Why the plot has nothing to draw. One empty state for three different facts
+ * is what made the pane read as a shrug:
+ *   no-data       — the recorder saved the session without a chain snapshot.
+ *   market-closed — nothing to record yet (clock, not a fault).
+ *   failed        — the tape feed returned nothing during a live session, which
+ *                   is a fetched-nothing result, not a quiet market.
+ * Pure, so the component can call it once per empty render.
+ *
+ * `minutes` is IST minute-of-day. The 09:20 grace window keeps the first five
+ * minutes of a live session from being mislabelled as a feed failure.
+ */
+export type HeatmapEmptyKind = "no-data" | "market-closed" | "failed";
+
+export const HEATMAP_FEED_GRACE_MINUTES = 9 * 60 + 20;
+
+export function heatmapEmptyKind(args: {
+  hasTape: boolean;
+  hasChain: boolean;
+  marketOpen: boolean;
+  /** True when the tape belongs to an already-finished session (replay/EOD).
+   *  The clock is then irrelevant: a closed market cannot explain a gap in a
+   *  session that has already been recorded. */
+  pastSession?: boolean;
+  /** IST minute-of-day for "now"; omit to skip the grace-window branch. */
+  minutes?: number;
+}): HeatmapEmptyKind {
+  // A tape with rows but no chain snapshot is a *source* gap, not a clock gap:
+  // the recorder was writing spot but never persisted a chain.
+  if (args.hasTape && !args.hasChain) return "no-data";
+  if (args.pastSession) return "no-data";
+  if (!args.marketOpen) return "market-closed";
+  if (args.minutes != null && args.minutes < HEATMAP_FEED_GRACE_MINUTES) return "market-closed";
+  return "failed";
+}
+
+/** IST calendar date (`YYYY-MM-DD`) of a tape stamp, or null when unusable. */
+export function heatmapSessionDate(rows: HeatmapTapeRow[]): string | null {
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    const t = rows[i]?.t;
+    if (typeof t === "string" && t.length >= 10) return t.slice(0, 10);
+  }
+  return null;
+}
+
+/** Today's IST calendar date — the anchor `heatmapSessionDate` is compared to. */
+export function istToday(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
+}
+
+export interface HeatmapCoverage {
+  rows: number;
+  chainRows: number;
+  strikes: number;
+  first: string;
+  last: string;
+}
+
+export function heatmapCoverage(rows: HeatmapTapeRow[]): HeatmapCoverage {
+  const strikes = new Set<number>();
+  let chainRows = 0;
+  for (const row of rows) {
+    if (!row || !row.chain || typeof row.chain !== "object") continue;
+    const keys = Object.keys(row.chain);
+    if (keys.length === 0) continue;
+    chainRows += 1;
+    for (const key of keys) {
+      const strike = Number(key);
+      if (Number.isFinite(strike) && strike > 0) strikes.add(strike);
+    }
+  }
+  const stamped = rows.filter((row) => row && typeof row.t === "string" && row.t.length > 0);
+  const sorted = [...stamped].sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+  return {
+    rows: rows.length,
+    chainRows,
+    strikes: strikes.size,
+    first: sorted.length > 0 ? heatTimeLabel(sorted[0].t) : "",
+    last: sorted.length > 0 ? heatTimeLabel(sorted[sorted.length - 1].t) : "",
+  };
+}
 
 /**
  * The heatmap's time axis: which wall-clock bucket each tape minute falls
@@ -119,25 +195,13 @@ export const HEATMAP_PAD_L = 64;
 
 /** IST wall-clock HH:MM for an ISO stamp or a bare HH:MM. */
 function heatTimeLabel(t: string): string {
-  if (!t) return "--:--";
-  if (t.includes("T")) {
-    const time = t.split("T")[1] ?? "";
-    return time.slice(0, 5) || "--:--";
-  }
-  return t.slice(0, 5);
+  return tapeClockLabel(t);
 }
 
 function heatMinutes(t: string): number | null {
-  const label = heatTimeLabel(t);
-  const m = /^(\d{1,2}):(\d{2})/.exec(label);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (!Number.isFinite(h) || !Number.isFinite(min) || h > 23 || min > 59) return null;
-  return h * 60 + min;
+  return clockMinutes(heatTimeLabel(t));
 }
 
-/** Minutes-since-midnight → zero-padded HH:MM (wraps past midnight). */
 function clockLabel(minutes: number): string {
   const total = ((Math.round(minutes) % 1440) + 1440) % 1440;
   const h = Math.floor(total / 60);
@@ -159,6 +223,17 @@ function hasChain(row: HeatmapTapeRow): boolean {
   return !!c && typeof c === "object" && Object.keys(c).length > 0;
 }
 
+// Cheap content signature of a tape row array: row count, the last row's
+// timestamp and spot, plus its chain's strike keys. Equal content yields the
+// same signature, so a model memo keyed on it skips rebuilds when a tape tick
+// hands over a fresh-but-equal array.
+export function tapeSignature(rows: HeatmapTapeRow[]): string {
+  if (rows.length === 0) return "0";
+  const last = rows[rows.length - 1];
+  const keys = last.chain ? Object.keys(last.chain).sort().join(",") : "";
+  return `${rows.length}|${last.t}|${last.spot ?? ""}|${keys}`;
+}
+
 export function buildOiHeatmap(
   rows: HeatmapTapeRow[],
   opts: HeatmapOptions = {},
@@ -167,7 +242,10 @@ export function buildOiHeatmap(
   const widthPts = opts.widthPts ?? 500;
   const touchTol = opts.touchTol ?? MAX_PAIN_TOUCH_TOL;
   const metric = opts.metric ?? "oi";
-  const empty: OiHeatmap = { buckets: [], strikes: [], cells: [], maxAbs: 0, empty: true, metric };
+  const empty: OiHeatmap = {
+    buckets: [], strikes: [], cells: [], maxAbs: 0, empty: true, metric,
+    windowHalf: 0, windowPts: 0,
+  };
 
   const asc = (rows ?? [])
     .filter((r) => r && typeof r.t === "string" && r.t.length > 0)
@@ -194,8 +272,27 @@ export function buildOiHeatmap(
       if (Number.isFinite(s) && s > 0 && Math.abs(s - refSpot) <= widthPts) universe.add(s);
     }
   }
-  const strikes = [...universe].sort((a, b) => a - b);
-  if (strikes.length === 0) return empty;
+  const allStrikes = [...universe].sort((a, b) => a - b);
+  if (allStrikes.length === 0) return empty;
+
+  // A pane of this width can only label ~11–21 rows at the 11px floor. Keep
+  // the strikes nearest spot rather than letting a wide chain become a smear.
+  const maxStrikes = Math.max(1, opts.maxStrikes ?? 21);
+  let strikes = allStrikes;
+  if (allStrikes.length > maxStrikes) {
+    let nearest = 0;
+    for (let i = 1; i < allStrikes.length; i++) {
+      if (Math.abs(allStrikes[i] - refSpot) < Math.abs(allStrikes[nearest] - refSpot)) nearest = i;
+    }
+    const start = Math.max(0, Math.min(allStrikes.length - maxStrikes, nearest - Math.floor((maxStrikes - 1) / 2)));
+    strikes = allStrikes.slice(start, start + maxStrikes);
+  }
+  const windowHalf = Math.floor((strikes.length - 1) / 2);
+  const windowPts = Math.max(
+    refSpot - strikes[0],
+    strikes[strikes.length - 1] - refSpot,
+    0,
+  );
 
   // Time buckets anchored at the session's first candle when the caller passes
   // `startTime`; otherwise at the first tape row's minute. Padding the axis
@@ -347,7 +444,7 @@ export function buildOiHeatmap(
     }
   }
 
-  return { buckets, strikes, cells, maxAbs, empty: false, metric };
+  return { buckets, strikes, cells, maxAbs, empty: false, metric, windowHalf, windowPts };
 }
 
 interface HeatmapRead {

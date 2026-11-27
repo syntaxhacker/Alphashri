@@ -23,7 +23,6 @@ def _dt(value) -> Optional[datetime]:
 
 
 def _gap_days(a: dict, b: dict) -> Optional[float]:
-    """Days from a's end to b's start (b is later)."""
     end, start = _dt(a.get("end_date")), _dt(b.get("start_date"))
     if end is None or start is None:
         return None

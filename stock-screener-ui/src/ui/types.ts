@@ -1,11 +1,11 @@
-import type { ReactNode, CSSProperties, MouseEvent, KeyboardEvent } from "react";
+import type { JSX } from "solid-js";
 
-export type UITheme = import("./muiTheme").MuiTheme;
+export type UITheme = typeof import("./sxTheme").sxTheme;
 
 export interface UIBaseProps {
-  children?: ReactNode;
+  children?: JSX.Element;
   className?: string;
-  style?: CSSProperties;
+  style?: JSX.CSSProperties;
   id?: string;
   "data-testid"?: string;
   onClick?: (e: MouseEvent) => void;
@@ -32,7 +32,16 @@ export type UIJustify = "flex-start" | "center" | "flex-end" | "space-between" |
 export type UIAlignItems = "flex-start" | "center" | "flex-end" | "stretch" | "baseline";
 export type UIGap = UISize | number | string;
 export type UIRadius = UISize | number | "xl";
-export type UIVariant = "filled" | "light" | "outline" | "subtle" | "default" | "transparent" | "white";
+export type UIVariant =
+  | "filled"
+  | "light"
+  | "outline"
+  | "subtle"
+  | "default"
+  | "transparent"
+  | "white"
+  /** Status pill: colour dot + label. */
+  | "dot";
 
 export interface UIBoxProps extends UIBaseProps {
   onClick?: (e: MouseEvent) => void;
@@ -85,7 +94,7 @@ export interface UIGroupProps extends UIFlexProps {
 }
 
 export interface UICenterProps extends UIBaseProps {
-  children?: ReactNode;
+  children?: JSX.Element;
   inline?: boolean;
 }
 
@@ -106,6 +115,7 @@ export interface UIScrollAreaProps extends UIBaseProps {
   offsetScrollbars?: boolean;
   scrollbarSize?: number;
   scrollHideDelay?: number;
+  onScroll?: (e: Event & { currentTarget: HTMLDivElement }) => void;
   onScrollPositionChange?: (pos: { x: number; y: number }) => void;
 }
 
@@ -113,7 +123,7 @@ export interface UIDividerProps extends UIBaseProps {
   orientation?: "horizontal" | "vertical";
   color?: UIColor;
   size?: number | string;
-  label?: ReactNode;
+  label?: JSX.Element;
   labelPosition?: "left" | "center" | "right";
 }
 
@@ -128,12 +138,10 @@ export interface UISimpleGridProps extends UIBaseProps {
   cols?: number;
   spacing?: UIGap;
   verticalSpacing?: UIGap;
-  type?: "container" | "media";
 }
 
 export interface UIGridProps extends UIBaseProps {
   gutter?: UIGap;
-  grow?: boolean;
   columns?: number;
 }
 
@@ -144,11 +152,32 @@ export interface UIGridColProps extends UIBaseProps {
 }
 
 export interface UITextProps extends UIBaseProps {
-  /** Merged with the size/weight/tone styles, never replacing them. */
-  sx?: import("@mui/material/styles").SxProps<UITheme>;
+  /** Solid alias for `className`, accepted by Text for legacy call sites. */
+  class?: string;
+  component?: keyof JSX.IntrinsicElements;
+  p?: number | string;
+  px?: number | string;
+  py?: number | string;
+  pt?: number | string;
+  pb?: number | string;
+  pl?: number | string;
+  pr?: number | string;
+  m?: number | string;
+  mx?: number | string;
+  my?: number | string;
+  mt?: number | string;
+  mb?: number | string;
+  ml?: number | string;
+  mr?: number | string;
+  w?: number | string;
+  maw?: number | string;
+  opacity?: number;
+  fs?: string;
+  /** `text-transform` — `uppercase` for section labels, `capitalize` for headings. */
+  tt?: "uppercase" | "lowercase" | "capitalize" | "none";
   /** Native tooltip — the full text when the visible label is truncated. */
   title?: string;
-  size?: UISize;
+  size?: UISize | string | number;
   fw?: UIFontWeight;
   c?: UIColor;
   ta?: UIAlign;
@@ -161,6 +190,13 @@ export interface UITextProps extends UIBaseProps {
 
 export interface UITitleProps extends UIBaseProps {
   order?: 1 | 2 | 3 | 4 | 5 | 6;
+  /** Native tooltip attribute — forwarded to the root element. */
+  title?: string;
+  component?: keyof JSX.IntrinsicElements;
+  mt?: number | string;
+  mb?: number | string;
+  ml?: number | string;
+  mr?: number | string;
   c?: UIColor;
   ta?: UIAlign;
   fw?: UIFontWeight;
@@ -171,6 +207,7 @@ export interface UITitleProps extends UIBaseProps {
 export interface UIAnchorProps extends UITextProps {
   href?: string;
   target?: string;
+  rel?: string;
   underline?: "always" | "hover" | "never";
   onClick?: (e: MouseEvent) => void;
   component?: any;
@@ -188,27 +225,31 @@ export interface UIListProps extends UIBaseProps {
   spacing?: UIGap;
   listStyleType?: string;
   center?: boolean;
-  icon?: ReactNode;
+  icon?: JSX.Element;
 }
 
 export interface UIListItemProps extends UIBaseProps {}
 
 export interface UIBadgeProps extends UIBaseProps {
   variant?: UIVariant;
+  /** Native tooltip attribute — forwarded to the badge element. */
+  title?: string;
   color?: UIColor;
   size?: UISize;
   radius?: UIRadius;
   fullWidth?: boolean;
-  leftSection?: ReactNode;
-  rightSection?: ReactNode;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
 }
 
 export interface UIAlertProps extends UIBaseProps {
   variant?: "filled" | "light" | "outline" | "default" | "transparent";
   color?: UIColor;
   radius?: UIRadius;
-  icon?: ReactNode;
-  title?: ReactNode;
+  icon?: JSX.Element;
+  title?: JSX.Element;
+  /** Optional control rendered as a flex sibling of the text block (Ant Design `action`). */
+  action?: JSX.Element;
   withCloseButton?: boolean;
   onClose?: () => void;
 }
@@ -258,14 +299,16 @@ export interface UIOverlayProps extends UIBaseProps {
 
 export interface UIButtonProps extends UIBaseProps {
   variant?: "filled" | "light" | "outline" | "subtle" | "default" | "transparent" | "white";
+  /** Native tooltip attribute — forwarded to the <button>. */
+  title?: string;
   color?: UIColor;
   size?: UISize;
   radius?: UIRadius;
   fullWidth?: boolean;
   disabled?: boolean;
   loading?: boolean;
-  leftSection?: ReactNode;
-  rightSection?: ReactNode;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
   type?: "button" | "submit" | "reset";
   compact?: boolean;
   onClick?: (e: MouseEvent) => void;
@@ -273,6 +316,8 @@ export interface UIButtonProps extends UIBaseProps {
 
 export interface UIActionIconProps extends UIBaseProps {
   variant?: "filled" | "light" | "outline" | "subtle" | "default" | "transparent";
+  /** Native tooltip attribute — forwarded to the <button>. */
+  title?: string;
   color?: UIColor;
   size?: UISize | number | string;
   radius?: UIRadius;
@@ -285,10 +330,20 @@ export interface UIUnstyledButtonProps extends UIBaseProps {
   onClick?: (e: MouseEvent) => void;
 }
 
+/**
+ * The one Mantine-era input prop with a real DOM target: `errorProps` is spread
+ * onto the rendered message node. The other styling props were never used and
+ * are not advertised on any public input type.
+ */
+export interface UIInputCompatProps {
+  errorProps?: Record<string, unknown>;
+}
+
 export interface UIInputWrapperProps extends UIBaseProps {
-  label?: ReactNode;
-  description?: ReactNode;
-  error?: ReactNode;
+  label?: JSX.Element;
+  description?: JSX.Element;
+  /** Message or flag; a string is shown as the helper text. */
+  error?: boolean | string | JSX.Element;
   required?: boolean;
   disabled?: boolean;
   readOnly?: boolean;
@@ -296,23 +351,70 @@ export interface UIInputWrapperProps extends UIBaseProps {
   placeholder?: string;
   /** Form field name — forwarded to the native input for FormData support. */
   name?: string;
+  /** Accessible name for the control (multi-selects render a combobox, not a label). */
+  "aria-label"?: string;
   /** Explicit control width (number → px). When set, fullWidth is disabled. */
   w?: number | string;
   /** Explicit control height (number → px). */
   h?: number | string;
 }
 
+/** ARIA props handed to the one control wrapped by `FormField`. */
+export interface UIFormFieldControlProps {
+  /** Stable control id; already wired to the label's `htmlFor`. */
+  id: string;
+  /** Ids of the rendered description/error nodes plus any forwarded ids. */
+  "aria-describedby"?: string;
+  /** Mirrors the field's `error` state. */
+  "aria-invalid": boolean;
+  /** Mirrors the field's `required`; absent when the field is not required. */
+  "aria-required"?: true;
+}
+
+/** Payload passed to `FormField`'s render prop. Values stay live across updates. */
+export interface UIFormFieldIds extends UIFormFieldControlProps {
+  /** Id of the description node (stable even when no description is rendered). */
+  descriptionId: string;
+  /** Id of the error node (stable even when no error is rendered). */
+  errorId: string;
+  /** The same props grouped for `{...ids.controlProps}` spreading. */
+  controlProps: UIFormFieldControlProps;
+}
+
+/**
+ * Unstyled label + description + error wrapper around a single control.
+ * `id` names the control (not the wrapper), matching the input family.
+ */
+export interface UIFormFieldProps extends Omit<UIBaseProps, "children"> {
+  label?: JSX.Element;
+  description?: JSX.Element;
+  /** Message or flag; JSX is rendered as elements, never stringified. */
+  error?: boolean | string | JSX.Element;
+  /** Renders the `*` marker and sets `aria-required` on the control. */
+  required?: boolean;
+  /** Extra ids appended to `aria-describedby` (deduplicated). */
+  "aria-describedby"?: string;
+  /** The sole control; receives stable ids and ARIA props. */
+  children: (ids: UIFormFieldIds) => JSX.Element;
+}
+
 export interface UITextInputProps extends UIInputWrapperProps {
+  /** Native autocomplete hint, forwarded to the input. */
+  autoComplete?: string;
+  /** Focus the control on mount, forwarded to the native input. */
+  autoFocus?: boolean;
   value?: string;
   defaultValue?: string;
   onChange?: (value: string) => void;
   onKeyDown?: (e: KeyboardEvent) => void;
-  leftSection?: ReactNode;
-  rightSection?: ReactNode;
+  onFocus?: (e: FocusEvent) => void;
+  onBlur?: (e: FocusEvent) => void;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
   type?: string;
 }
 
-export interface UINumberInputProps extends UIInputWrapperProps {
+export interface UINumberInputProps extends UIInputWrapperProps, UIInputCompatProps {
   value?: number | string;
   defaultValue?: number | string;
   onChange?: (value: number | string) => void;
@@ -326,31 +428,24 @@ export interface UINumberInputProps extends UIInputWrapperProps {
   hideControls?: boolean;
   suffix?: string;
   prefix?: string;
-  leftSection?: ReactNode;
-  rightSection?: ReactNode;
+  onFocus?: (e: FocusEvent) => void;
+  onBlur?: (e: FocusEvent) => void;
+  onKeyDown?: (e: KeyboardEvent) => void;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
 }
 
 export interface UISelectProps extends UIInputWrapperProps {
   value?: string | null;
   defaultValue?: string | null;
   onChange?: (value: string | null) => void;
-  data?: (string | { value: string; label: string; disabled?: boolean })[];
+  data?: (string | { value: string; label: string; disabled?: boolean; group?: string })[];
   searchable?: boolean;
   clearable?: boolean;
-  leftSection?: ReactNode;
-  rightSection?: ReactNode;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
   nothingFoundMessage?: string;
   placeholder?: string;
-  /**
-   * Legacy Mantine-compat props. Accepted so existing call sites keep
-   * typechecking, but intentionally swallowed — never forwarded to the DOM.
-   * @see stripLegacyInputProps
-   */
-  allowDeselect?: boolean;
-  maxDropdownHeight?: number | string;
-  comboboxProps?: unknown;
-  withinPortal?: boolean;
-  InputProps?: unknown;
 }
 
 export interface UIMultiSelectProps extends UIInputWrapperProps {
@@ -361,35 +456,23 @@ export interface UIMultiSelectProps extends UIInputWrapperProps {
   searchable?: boolean;
   /**
    * Controlled search text. Provide this together with `onSearchChange` so the
-   * typed query lives in the caller's state and cannot be wiped by MUI's
-   * internal `reset`/`blur` events.
+   * typed query lives in the caller's state and is preserved across internal reset/blur events.
    */
   searchValue?: string;
   /**
    * Fired for genuine search changes only: `reason` is `"input"` (typing,
-   * including backspace-to-empty) or `"clear"` (X button / Escape). MUI's
-   * `reset`/`blur`/`selectOption`/`removeOption` empties are not forwarded.
+   * including backspace-to-empty) or `"clear"` (X button / Escape). Empties from internal reset/blur handling are not forwarded.
    */
   onSearchChange?: (value: string, reason?: string) => void;
   clearable?: boolean;
   placeholder?: string;
   nothingFoundMessage?: string;
-  leftSection?: ReactNode;
-  rightSection?: ReactNode;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
   maxValues?: number;
   hidePickedOptions?: boolean;
   /** Hide the inline selected tags (the caller renders its own chip row). */
   hideTags?: boolean;
-  /**
-   * Legacy Mantine-compat props. Accepted so existing call sites keep
-   * typechecking, but intentionally swallowed — never forwarded to the DOM.
-   * @see stripLegacyInputProps
-   */
-  allowDeselect?: boolean;
-  maxDropdownHeight?: number | string;
-  comboboxProps?: unknown;
-  withinPortal?: boolean;
-  InputProps?: unknown;
 }
 
 export interface UITextareaProps extends UIInputWrapperProps {
@@ -409,31 +492,41 @@ export interface UIPasswordInputProps extends UITextInputProps {
 }
 
 export interface UISwitchProps extends UIBaseProps {
-  label?: ReactNode;
+  label?: JSX.Element;
+  name?: string;
   checked?: boolean;
   defaultChecked?: boolean;
-  onChange?: React.ChangeEventHandler<HTMLInputElement>;
+  /** Fired with the new checked state — the value-first convention shared by TextInput/Select/Chip. */
+  onChange?: (checked: boolean) => void;
   disabled?: boolean;
   size?: UISize;
   color?: UIColor;
   onLabel?: string;
   offLabel?: string;
-  description?: ReactNode;
+  description?: JSX.Element;
+  /** Validation failure — renders the negative border like every text control. */
+  error?: boolean | string;
 }
 
 export interface UICheckboxProps extends UIBaseProps {
-  label?: ReactNode;
+  label?: JSX.Element;
+  /** Accessible name for an icon-only checkbox (no visible label). */
+  "aria-label"?: string;
+  name?: string;
   checked?: boolean;
   defaultChecked?: boolean;
-  onChange?: React.ChangeEventHandler<HTMLInputElement>;
+  /** Fired with the new checked state — the value-first convention shared by TextInput/Select/Chip. */
+  onChange?: (checked: boolean) => void;
   disabled?: boolean;
   size?: UISize;
   color?: UIColor;
   indeterminate?: boolean;
-  description?: ReactNode;
+  description?: JSX.Element;
+  error?: boolean | string;
 }
 
 export interface UIChipProps extends UIBaseProps {
+  label?: JSX.Element;
   checked?: boolean;
   defaultChecked?: boolean;
   onChange?: (checked: boolean) => void;
@@ -458,70 +551,70 @@ export interface UISegmentedControlProps extends UIBaseProps {
 export interface UIModalProps extends UIBaseProps {
   opened: boolean;
   onClose: () => void;
-  title?: ReactNode;
+  title?: JSX.Element;
   size?: UISize | number | string;
   fullScreen?: boolean;
-  centered?: boolean;
   withCloseButton?: boolean;
   closeOnClickOutside?: boolean;
   closeOnEscape?: boolean;
   overlayProps?: UIOverlayProps;
   padding?: UISize | number | string;
-  transitionProps?: { duration?: number; timingFunction?: string };
 }
 
 export interface UITooltipProps extends UIBaseProps {
-  label: ReactNode;
+  label: JSX.Element;
   withArrow?: boolean;
-  position?: "top" | "bottom" | "left" | "right" | "top-start" | "top-end" | "bottom-start" | "bottom-end";
+  position?: "top" | "bottom" | "left" | "right" | "top-start" | "top-end" | "bottom-start" | "bottom-end" | "left-start" | "left-end" | "right-start" | "right-end";
   openDelay?: number;
   closeDelay?: number;
   disabled?: boolean;
   multiline?: boolean;
   color?: UIColor;
   /**
-   * Legacy Mantine-compat prop. Accepted so existing call sites keep
-   * typechecking, but intentionally swallowed — MUI renders in a portal
-   * handling of its own and must never receive this as a DOM attribute.
+   * Make the wrapper itself a tab stop so keyboard users can reach a tooltip
+   * whose trigger is plain text or otherwise not focusable. Off by default:
+   * buttons, links and inputs already carry the tab stop, and adding a second
+   * one around them would trap keyboard users in a duplicate stop. The
+   * opt-in wrapper is named from `label` and gains a visible focus ring, but
+   * is not an action — no Enter/Space activation is synthesised.
    */
-  withinPortal?: boolean;
+  focusable?: boolean;
 }
 
-export interface UIPopoverProps extends UIBaseProps {
+// Popover accepts a render-prop child, so it cannot inherit the plain
+// `children` type from UIBaseProps.
+export interface UIPopoverProps extends Omit<UIBaseProps, "children"> {
   opened?: boolean;
   onClose?: () => void;
   /** Mantine-style controlled callback: called with the next opened state. */
   onChange?: (opened: boolean) => void;
-  position?: "top" | "bottom" | "left" | "right" | "top-start" | "top-end" | "bottom-start" | "bottom-end";
+  position?: "top" | "bottom" | "left" | "right" | "top-start" | "top-end" | "bottom-start" | "bottom-end" | "left-start" | "left-end" | "right-start" | "right-end";
   withArrow?: boolean;
   width?: number | string;
   shadow?: string;
   offset?: number;
   trapFocus?: boolean;
   closeOnClickOutside?: boolean;
-  middlewares?: any;
-  keepMounted?: boolean;
   /** Render function receiving { ref, toggle, close, open, opened } or direct children */
-  children?: ReactNode | ((payload: { ref: any; toggle: () => void; close: () => void; opened: boolean }) => ReactNode);
+  children?: JSX.Element | ((payload: { ref: any; toggle: () => void; close: () => void; opened: boolean }) => JSX.Element);
 }
 
 export interface UIPopoverTargetProps extends UIBaseProps {}
 export interface UIPopoverDropdownProps extends UIBaseProps {}
 
 export interface UINavLinkProps extends UIBaseProps {
-  label: ReactNode;
-  description?: ReactNode;
-  icon?: ReactNode;
-  leftSection?: ReactNode;
-  rightSection?: ReactNode;
+  label: JSX.Element;
+  description?: JSX.Element;
+  icon?: JSX.Element;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
   href?: string;
   active?: boolean;
   disabled?: boolean;
   variant?: "light" | "filled" | "subtle";
   defaultOpened?: boolean;
   opened?: boolean;
-  onClick?: () => void;
-  children?: ReactNode;
+  children?: JSX.Element;
   autoContrast?: boolean;
 }
 
@@ -563,17 +656,15 @@ export interface UITabsProps extends UIBaseProps {
   value?: string | null;
   defaultValue?: string | null;
   onChange?: (value: string | null) => void;
-  variant?: "default" | "outline" | "pills" | "underline";
-  color?: UIColor;
   orientation?: "horizontal" | "vertical";
-  activateOnFocus?: boolean;
-  loop?: boolean;
 }
 
 export interface UITabProps extends UIBaseProps {
   value: string;
-  icon?: ReactNode;
-  rightSection?: ReactNode;
+  icon?: JSX.Element;
+  /** Leading slot, rendered before the icon — matches `UIButtonProps`. */
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
   disabled?: boolean;
 }
 
@@ -610,8 +701,8 @@ export interface UITimelineProps extends UIBaseProps {
 }
 
 export interface UITimelineItemProps extends UIBaseProps {
-  title?: ReactNode;
-  bullet?: ReactNode;
+  title?: JSX.Element;
+  bullet?: JSX.Element;
   color?: UIColor;
   lineVariant?: "solid" | "dashed" | "dotted";
   active?: boolean;
@@ -631,33 +722,30 @@ export interface UITreeProps extends UIBaseProps {
   onExpandedChange?: (expanded: string[]) => void;
   onNodeClick?: (node: UITreeNode) => void;
   levelOffset?: number;
-  renderNode?: (payload: { node: UITreeNode; expanded: boolean; hasChildren: boolean; level: number; elementProps?: any }) => ReactNode;
+  renderNode?: (payload: { node: UITreeNode; expanded: boolean; hasChildren: boolean; level: number; elementProps?: any }) => JSX.Element;
 }
 
 export interface UIMenuProps extends UIBaseProps {
   trigger?: "click" | "hover" | "click-hover";
   opened?: boolean;
   onChange?: (opened: boolean) => void;
-  position?: "top" | "bottom" | "left" | "right" | "top-start" | "top-end" | "bottom-start" | "bottom-end";
+  position?: "top" | "bottom" | "left" | "right" | "top-start" | "top-end" | "bottom-start" | "bottom-end" | "left-start" | "left-end" | "right-start" | "right-end";
   offset?: number;
   withArrow?: boolean;
   shadow?: string;
   closeOnItemClick?: boolean;
   closeOnClickOutside?: boolean;
   loop?: boolean;
-  children?: ReactNode;
-  /** Render function for custom trigger */
-  renderTarget?: (props: any) => ReactNode;
+  children?: JSX.Element;
 }
 
 export interface UIMenuTargetProps extends UIBaseProps {}
 export interface UIMenuDropdownProps extends UIBaseProps {}
 export interface UIMenuItemProps extends UIBaseProps {
-  leftSection?: ReactNode;
-  rightSection?: ReactNode;
+  leftSection?: JSX.Element;
+  rightSection?: JSX.Element;
   color?: UIColor;
   disabled?: boolean;
-  onClick?: () => void;
 }
 
 export interface UIAvatarProps extends UIBaseProps {
@@ -666,7 +754,7 @@ export interface UIAvatarProps extends UIBaseProps {
   color?: UIColor;
   radius?: UIRadius;
   size?: UISize | number | string;
-  children?: ReactNode;
+  children?: JSX.Element;
 }
 
 export interface UIThemeIconProps extends UIBaseProps {
@@ -674,40 +762,54 @@ export interface UIThemeIconProps extends UIBaseProps {
   color?: UIColor;
   size?: UISize | number | string;
   radius?: UIRadius;
-  children?: ReactNode;
+  children?: JSX.Element;
 }
 
 export interface UICloseButtonProps extends UIBaseProps {
   size?: UISize | number | string;
   variant?: "filled" | "light" | "outline" | "subtle" | "transparent";
   disabled?: boolean;
-  onClick?: () => void;
 }
 
+/** Copy shown by the date control. Override every string to localise the primitive. */
+export interface UIDatePickerLabels {
+  /** Accessible name for the clear button. */
+  clear?: string;
+  /** Live-region message announced when a pick is rejected. */
+  invalid?: string;
+  /** Accessible name for the input when no visible `placeholder` label is supplied. */
+  input?: string;
+}
+
+/**
+ * A single calendar date on a native `<input type="date">`.
+ *
+ * Single dates only: there is deliberately no range, time, timezone or locale
+ * model, and no custom calendar grid. `placeholder` doubles as the visible
+ * label. Removed from the old Mantine-era surface: `size`, `weekendDays`,
+ * `valueFormat`, `getDayProps` — none could be painted by a native date input.
+ */
 export interface UIDatePickerProps extends UIBaseProps {
   value?: Date | null;
   defaultValue?: Date | null;
   onChange?: (date: Date | null) => void;
   placeholder?: string;
-  size?: UISize;
   clearable?: boolean;
   minDate?: Date;
   maxDate?: Date;
   excludeDate?: (date: Date) => boolean;
-  weekendDays?: number[];
-  valueFormat?: string;
   disabled?: boolean;
-  getDayProps?: (date: Date) => Record<string, unknown>;
+  labels?: UIDatePickerLabels;
 }
 
 export interface UIInputLabelProps extends UIBaseProps {
-  children?: ReactNode;
+  children?: JSX.Element;
   required?: boolean;
   size?: UISize;
 }
 
 export interface UIThemeProviderProps {
-  children: ReactNode;
+  children: JSX.Element;
   defaultColorScheme?: "light" | "dark";
   forceColorScheme?: "light" | "dark";
 }
@@ -731,14 +833,15 @@ export interface UIThemeNotifyProps {
   title?: string;
   message: string;
   color?: UIColor;
-  icon?: ReactNode;
+  icon?: JSX.Element;
   autoClose?: number | boolean;
   withCloseButton?: boolean;
 }
 
 export interface UIUseColorSchemeResult {
-  isDark: boolean;
-  colorScheme: "light" | "dark";
+  /** Accessors, not snapshots — read them in JSX/effects to stay reactive. */
+  isDark: () => boolean;
+  colorScheme: () => "light" | "dark";
   toggleColorScheme: () => void;
   setColorScheme: (scheme: "light" | "dark") => void;
 }

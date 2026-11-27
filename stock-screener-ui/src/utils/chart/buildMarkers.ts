@@ -1,3 +1,4 @@
+import { typeSize } from "@/ui/typography";
 import type { UnifiedTrade, MarkerConfig } from "./types";
 import { filterVisibleTrades } from "./normalizeCommon";
 import {
@@ -118,6 +119,36 @@ function getEntrySymbol(trade: UnifiedTrade): { symbol: string; rotate?: number 
   return { symbol: "triangle", rotate: 180 };
 }
 
+/** A trade marker as consumed by ECharts' scatter series. Entry markers carry
+ *  `symbolRotate`; exit markers may carry `symbolOffset` instead. */
+export interface TradeMarker {
+  value: [number, number];
+  symbol: string;
+  symbolSize: number;
+  symbolRotate?: number;
+  symbolOffset?: [number, number];
+  itemStyle: { color: string; borderColor: string; borderWidth: number };
+  trade: UnifiedTrade;
+  trade_id: number;
+  label?: {
+    show: boolean;
+    formatter: string;
+    position: string;
+    color: string;
+    fontWeight: string;
+    fontSize: number;
+  };
+}
+
+/** One ECharts scatter series per marker bucket. */
+export interface TradeMarkerSeries {
+  name: string;
+  type: "scatter";
+  data: TradeMarker[];
+  symbolSize: number;
+  z: number;
+}
+
 export function buildTradeMarkers(
   trades: UnifiedTrade[],
   candles: { time: string }[],
@@ -143,8 +174,8 @@ export function buildTradeMarkers(
   const hasHighlight = highlightedTradeId != null;
   const filtered = filterVisibleTrades(trades, highlightedTradeId, showAllTrades);
 
-  const entryMarkers: any[] = [];
-  const exitMarkersByConfig: Map<string, any[]> = new Map();
+  const entryMarkers: TradeMarker[] = [];
+  const exitMarkersByConfig: Map<string, TradeMarker[]> = new Map();
   const entryIdxMap = new Map<number, number>();
 
   for (const config of exitConfigs) {
@@ -179,7 +210,7 @@ export function buildTradeMarkers(
                 position: "top",
                 color: CHART_AVG_ENTRY,
                 fontWeight: "bold",
-                fontSize: 12,
+                fontSize: typeSize("micro"),
               },
             }
           : {}),
@@ -211,7 +242,7 @@ export function buildTradeMarkers(
         const entryIdxForTrade = entryIdxMap.get(trade.id);
         const isSameCandle = entryIdxForTrade !== undefined && entryIdxForTrade === exitIdx;
 
-        const exitMarker: any = {
+        const exitMarker: TradeMarker = {
           value: [exitIdx, trade.exit_price],
           symbol: exitSymbol,
           symbolSize: exitSize,
@@ -231,7 +262,7 @@ export function buildTradeMarkers(
                   position: "bottom",
                   color: CHART_AVG_ENTRY,
                   fontWeight: "bold",
-                  fontSize: 11,
+                  fontSize: typeSize("micro"),
                 },
               }
             : {}),

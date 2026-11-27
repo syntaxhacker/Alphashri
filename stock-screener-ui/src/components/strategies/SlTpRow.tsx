@@ -6,18 +6,18 @@ interface SlTpRowProps {
   isSwing: boolean;
 }
 
-export function SlTpRow({ slDefault, tpDefault, isSwing }: SlTpRowProps) {
+export function SlTpRow(props: SlTpRowProps) {
   return (
-    <Stack spacing={1} sx={{ gap: 1, p: 1 }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-        <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Stop Loss %</Text>
-        <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+    <Stack spacing={1} className="gap-2 p-2">
+      <Box className="flex items-center gap-2 p-2">
+        <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Stop Loss %</Text>
+        <Box className="flex-1 flex items-center">
           <NumberInput
             size="sm"
             name="sl_pct"
-            defaultValue={slDefault}
+            defaultValue={props.slDefault}
             min={0.1}
-            max={isSwing ? 30 : 10}
+            max={props.isSwing ? 30 : 10}
             step={0.1}
             suffix="%"
             required
@@ -25,18 +25,18 @@ export function SlTpRow({ slDefault, tpDefault, isSwing }: SlTpRowProps) {
           />
         </Box>
       </Box>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-        <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Take Profit %</Text>
-        <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+      <Box className="flex items-center gap-2 p-2">
+        <Text size="sm" c="dimmed" className="min-w-[80px] flex items-center">Take Profit %</Text>
+        <Box className="flex-1 flex items-center">
           <NumberInput
             size="sm"
             name="tp_pct"
-            defaultValue={tpDefault}
+            defaultValue={props.tpDefault}
             min={0.1}
-            max={isSwing ? 20 : 10}
-            step={isSwing ? 0.5 : 0.1}
+            max={props.isSwing ? 20 : 10}
+            step={props.isSwing ? 0.5 : 0.1}
             suffix="%"
-            required={!isSwing}
+            required={!props.isSwing}
             data-testid="strategy-tp-pct-input"
           />
         </Box>

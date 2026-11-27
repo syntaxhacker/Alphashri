@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""Global cue snapshot: US index futures, cash indices, VIX, crude, GIFT Nifty, USD.
-
-Answers the only question that matters before the Indian open: what does the
-overnight tape hand us?
-
-Usage:
-    python scripts/market/futures_cue.py
-    python scripts/market/futures_cue.py --ndx-contrib
-"""
 
 from __future__ import annotations
 

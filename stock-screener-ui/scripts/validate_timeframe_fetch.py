@@ -32,8 +32,8 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_DIR = SCRIPT_DIR.parent  # stock-screener-ui
-ROOT_DIR = PROJECT_DIR.parent  # repo root
+PROJECT_DIR = SCRIPT_DIR.parent
+ROOT_DIR = PROJECT_DIR.parent
 
 for _p in (str(PROJECT_DIR), str(ROOT_DIR)):
     if _p not in sys.path:
@@ -50,16 +50,15 @@ try:
     )
 
     _IMPORT_ERROR: ImportError | None = None
-except ImportError as _exc:  # fetcher not yet implemented: main() exits 2
+except ImportError as _exc:
     fetch_candles_for_timeframe = None  # type: ignore[assignment]
     get_api_client = None  # type: ignore[assignment]
     _IMPORT_ERROR = _exc
 
 
-# Tolerances ---------------------------------------------------------------
-EPS_REL = 1e-9          # OHLC float epsilon (relative to price scale)
-INTRADAY_TOL_MIN = 1.0  # bar-spacing clock-skew tolerance (minutes)
-INTRADAY_MIN_FRAC = 0.4  # min fraction of diffs at the modal spacing
+EPS_REL = 1e-9
+INTRADAY_TOL_MIN = 1.0
+INTRADAY_MIN_FRAC = 0.4
 DAILY_MIN_FRAC = 0.7
 REQUIRED_COLS = ("open", "high", "low", "close", "volume")
 
@@ -71,11 +70,10 @@ class CheckResult(NamedTuple):
     last: str
     age: str
     spacing: str
-    status: str  # "PASS" | "FAIL"
+    status: str
     detail: str
 
 
-# Individual checks (import-safe: usable without the fetcher present) --------
 
 def check_tz_ascending_unique(df: pd.DataFrame) -> tuple[bool, str]:
     """UTC tz-aware, strictly ascending, duplicate-free index."""
@@ -93,7 +91,6 @@ def check_tz_ascending_unique(df: pd.DataFrame) -> tuple[bool, str]:
 
 
 def check_ohlc(df: pd.DataFrame) -> tuple[bool, str]:
-    """high >= max(open, close), low <= min(open, close) within epsilon."""
     missing = [c for c in REQUIRED_COLS if c not in df.columns]
     if missing:
         return False, f"missing columns {missing}"
@@ -146,7 +143,6 @@ def check_spacing(df: pd.DataFrame, tf_id: str) -> tuple[bool, str]:
         frac = float(mult7.mean())
         ok = 6.0 <= median_d <= 8.0 and frac >= DAILY_MIN_FRAC
         return ok, f"median={median_d:.2f}d x7={frac:.0%}"
-    # 1M: month lengths vary 28..31 days.
     in_month = (days >= 27.0) & (days <= 32.5)
     frac = float(in_month.mean())
     ok = 27.0 <= median_d <= 32.5 and frac >= DAILY_MIN_FRAC
@@ -154,7 +150,6 @@ def check_spacing(df: pd.DataFrame, tf_id: str) -> tuple[bool, str]:
 
 
 def check_one(df: pd.DataFrame | None, symbol: str, tf_id: str) -> CheckResult:
-    """Run all invariant checks on one fetched frame."""
     if df is None or df.empty:
         return CheckResult(symbol, tf_id, 0, "-", "-", "-", "FAIL", "empty")
     try:
@@ -189,7 +184,6 @@ def check_one(df: pd.DataFrame | None, symbol: str, tf_id: str) -> CheckResult:
     )
 
 
-# Runner --------------------------------------------------------------------
 
 def validate_symbol_timeframe(
     symbol: str,
@@ -232,7 +226,6 @@ def _print_table(results: list[CheckResult]) -> None:
     widths = [
         max(len(h), *(len(r[i]) for r in rows)) for i, h in enumerate(headers)
     ]
-    # Detail column printed on its own wrapped line for FAIL rows.
     print("  ".join(h.ljust(w) for h, w in zip(headers, widths)))
     print("  ".join("-" * w for w in widths))
     for r, row in zip(results, rows):

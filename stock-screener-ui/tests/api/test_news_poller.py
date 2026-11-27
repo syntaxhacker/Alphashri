@@ -5,14 +5,17 @@ Item coverage from test_cases/news.md:
   - news_poller.py: NEWS_SOURCES loading, fallback, LLM optional, prefetch delay,
     initialize last_seen_ids, detect new items, skip short/duplicate articles,
     persist with LLM, broadcast via WS, high-impact broadcast, cache invalidation
+
+The poller catches ``asyncio.CancelledError``/``asyncio.TimeoutError``. Patching
+the whole ``asyncio`` module turns those into ``except MagicMock()`` (TypeError),
+so tests patch a shim that keeps the real exception classes and real awaitable
+primitives while making ``sleep`` controllable.
 """
 
 import sys
-import json
 import asyncio as _real_asyncio
 from pathlib import Path
-from datetime import datetime
-from unittest.mock import Mock, MagicMock, patch, AsyncMock, call
+from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytest
 
@@ -20,9 +23,65 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 
-# =========================================================================
-# Helper: create a clean poller module patch environment
-# =========================================================================
+class _PollerAsyncio:
+    """Stand-in for the poller's asyncio: real exceptions + awaitables, fake time."""
+
+    CancelledError = _real_asyncio.CancelledError
+    TimeoutError = _real_asyncio.TimeoutError
+
+    def __init__(self, stop_after=None):
+        self.stop_after = stop_after
+        self.sleep_calls = 0
+        self.sleep_delays = []
+
+    @staticmethod
+    async def to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    @staticmethod
+    async def wait_for(awaitable, timeout):
+        return await _real_asyncio.wait_for(awaitable, timeout)
+
+    @staticmethod
+    async def gather(*awaitables):
+        return await _real_asyncio.gather(*awaitables)
+
+    @staticmethod
+    def get_event_loop():
+        return _real_asyncio.get_event_loop()
+
+    async def sleep(self, delay):
+        self.sleep_delays.append(delay)
+        self.sleep_calls += 1
+        if self.stop_after is not None and self.sleep_calls >= self.stop_after:
+            raise SystemExit("stop")
+
+
+@pytest.fixture
+def poller_asyncio(monkeypatch):
+    """Replace only the poller's asyncio entry points; keep real exception classes."""
+    shim = _PollerAsyncio()
+    monkeypatch.setattr('api.news.news_poller.asyncio', shim)
+    return shim
+
+
+@pytest.fixture(autouse=True)
+def _isolate_poller(monkeypatch):
+    """No real DB/network work and no leaked poller state between tests."""
+    import api.news.news_poller as np
+
+    task = np.news_poller_task
+    task._dead_sources = set()
+    for name in list(vars(task)):
+        if name.startswith('_empty_count_'):
+            delattr(task, name)
+    monkeypatch.setattr(
+        'api.news.news_impact.score_recent_articles',
+        lambda: {'scored': 0, 'moved': 0},
+    )
+    yield
+    task._dead_sources = set()
+
 
 @pytest.fixture
 def poller_module():
@@ -37,9 +96,31 @@ def poller_module():
     }
 
 
-# =========================================================================
-# _do_prefetch_sync
-# =========================================================================
+def _poller_vars(fetch_news, fetch_article=None, analyzer=None, sources=None):
+    """Build the tuple ``_get_module_vars`` is expected to return."""
+    return (
+        True,
+        True,
+        analyzer or MagicMock(
+            analyze_article=MagicMock(
+                return_value={'sentiment': 'BULLISH', 'impact_score': 5}
+            )
+        ),
+        fetch_news,
+        fetch_article or MagicMock(
+            return_value={'description': 'Valid content for testing.', 'symbols': []}
+        ),
+        sources or [{'id': 'mc'}],
+    )
+
+
+def _article(item_id, headline_tail=""):
+    return {
+        'id': item_id,
+        'headline': f'A sufficiently long headline for {item_id} {headline_tail}'.strip(),
+        'sourceUrl': f'http://test.com/{item_id}',
+    }
+
 
 class TestDoPrefetchSync:
     @patch('api.news.news_poller._get_module_vars')
@@ -131,7 +212,6 @@ class TestDoPrefetchSync:
 
         _do_prefetch_sync()
 
-        # Only the valid one should be saved
         assert mock_persistence.save_article.call_count == 1
 
     @patch('api.news.news_poller._get_module_vars')
@@ -161,185 +241,121 @@ class TestDoPrefetchSync:
         mock_persistence.save_article.assert_not_called()
 
 
-# =========================================================================
-# news_startup_prefetch
-# =========================================================================
-
 class TestNewsStartupPrefetch:
     @patch('api.news.news_poller._do_prefetch_sync')
-    @patch('api.news.news_poller.asyncio')
-    def test_runs_after_30s_delay(self, mock_asyncio, mock_prefetch):
+    def test_runs_after_30s_delay(self, mock_prefetch, poller_asyncio):
         from api.news.news_poller import news_startup_prefetch
-
-        mock_asyncio.sleep = AsyncMock()
-        mock_loop = AsyncMock()
-        mock_loop.run_in_executor = AsyncMock(return_value=None)
-        mock_asyncio.get_event_loop.return_value = mock_loop
 
         _real_asyncio.run(news_startup_prefetch())
 
-        mock_asyncio.sleep.assert_called_once_with(30)
+        assert poller_asyncio.sleep_delays == [30]
+        mock_prefetch.assert_called_once()
 
     @patch('api.news.news_poller._do_prefetch_sync')
-    @patch('api.news.news_poller.asyncio')
-    def test_skips_prefetch_when_news_not_available(self, mock_asyncio, mock_prefetch):
+    def test_skips_prefetch_when_news_not_available(self, mock_prefetch, poller_asyncio):
         from api.news.news_poller import news_startup_prefetch
 
         with patch('api.news.news_poller._news_available', False):
             _real_asyncio.run(news_startup_prefetch())
 
         mock_prefetch.assert_not_called()
+        assert poller_asyncio.sleep_delays == []
 
-
-# =========================================================================
-# news_poller_task — logic segments (with mocked sleep)
-# =========================================================================
 
 class TestNewsPollerLogic:
-    @pytest.mark.asyncio
     @patch('api.news.news_poller._get_module_vars')
     @patch('services.news_persistence.get_persistence_service')
-    @patch('api.news.news_poller.asyncio')
     @patch('api.news.news_poller.news_ws_manager')
     async def test_initializes_last_seen_ids(
-        self, mock_ws, mock_asyncio, mock_get_persistence, mock_get_vars
+        self, mock_ws, mock_get_persistence, mock_get_vars, poller_asyncio
     ):
+        poller_asyncio.stop_after = 2  # startup sleep + one completed cycle
         mock_ws.broadcast = AsyncMock()
         from api.news.news_poller import news_poller_task
 
-        mock_fetch_news = MagicMock()
-        mock_fetch_news.return_value = [
-            {'id': 'abc123', 'headline': 'First article with very long headline text here', 'sourceUrl': 'http://test.com/1'}
-        ]
-
-        mock_get_vars.return_value = (True, True, MagicMock(), mock_fetch_news, MagicMock(), [{'id': 'mc'}])
-
-        # Make the loop break after first iteration
-        async def fake_to_thread(fn, *args, **kwargs):
-            return fn(*args, **kwargs)
-        mock_asyncio.to_thread = fake_to_thread
-        mock_asyncio.sleep = AsyncMock(side_effect=[None, Exception("break loop")])
-
-        with pytest.raises(Exception, match="break loop"):
-            await news_poller_task()
-
-    @staticmethod
-    async def _make_sleep(max_calls):
-        """Return a controllable sleep that raises SystemExit after max_calls invocations."""
-        call_count = 0
-        async def _sleep(delay):
-            nonlocal call_count
-            call_count += 1
-            if call_count >= max_calls:
-                raise SystemExit("stop")
-        return _sleep
-
-    @pytest.mark.asyncio
-    @patch('api.news.news_poller._get_module_vars')
-    @patch('services.news_persistence.get_persistence_service')
-    @patch('api.news.news_poller.asyncio')
-    @patch('api.news.news_poller.news_ws_manager')
-    async def test_detects_new_items_via_id_comparison(
-        self, mock_ws, mock_asyncio, mock_get_persistence, mock_get_vars
-    ):
-        from api.news.news_poller import news_poller_task
-
-        mock_ws.broadcast = AsyncMock()
-
-        mock_fetch_news = MagicMock()
-        mock_fetch_news.side_effect = [
-            [{'id': 'new1', 'headline': 'Breaking news headline that is very long and interesting 1', 'sourceUrl': 'http://test.com/new1'}],
-            [{'id': 'new3', 'headline': 'Third news headline that is also very long and interesting 3', 'sourceUrl': 'http://test.com/new3'},
-             {'id': 'new2', 'headline': 'Second news headline that is also very long and interesting 2', 'sourceUrl': 'http://test.com/new2'},
-             {'id': 'new1', 'headline': 'Breaking news headline that is very long and interesting 1', 'sourceUrl': 'http://test.com/new1'}],
-        ]
-
-        mock_get_vars.return_value = (True, True, MagicMock(), mock_fetch_news, MagicMock(), [{'id': 'mc'}])
-
+        mock_fetch_news = MagicMock(return_value=[_article('abc123')])
+        mock_get_vars.return_value = _poller_vars(mock_fetch_news)
         mock_persistence = MagicMock()
         mock_persistence.get_article_by_url.return_value = None
         mock_get_persistence.return_value = mock_persistence
 
-        async def fake_to_thread(fn, *args, **kwargs):
-            return fn(*args, **kwargs)
-        mock_asyncio.to_thread = fake_to_thread
-        mock_asyncio.sleep = await self._make_sleep(6)
-
         with pytest.raises(SystemExit, match="stop"):
             await news_poller_task()
 
-        # fetch_news was called twice (init + detect)
-        assert mock_fetch_news.call_count >= 2
-
-    @pytest.mark.asyncio
-    @patch('api.news.news_poller._get_module_vars')
-    @patch('services.news_persistence.get_persistence_service')
-    @patch('api.news.news_poller.asyncio')
-    @patch('api.news.news_poller.news_ws_manager')
-    async def test_skips_articles_without_url_or_short_headline_in_poller(
-        self, mock_ws, mock_asyncio, mock_get_persistence, mock_get_vars
-    ):
-        from api.news.news_poller import news_poller_task
-
-        mock_ws.broadcast = AsyncMock()
-        mock_fetch_news = MagicMock()
-        mock_fetch_article = MagicMock()
-        mock_fetch_article.return_value = {'description': 'Valid content for testing.', 'symbols': []}
-        mock_fetch_news.side_effect = [
-            [{'id': 'old1', 'headline': 'This is a valid headline that should be long enough to pass 1', 'sourceUrl': 'http://test.com/old1'}],
-            [
-                {'id': 'short', 'headline': 'Short', 'sourceUrl': 'http://test.com/short'},
-                {'id': 'nourl', 'headline': 'This is another valid headline that should pass the filter', 'sourceUrl': ''},
-                {'id': 'valid', 'headline': 'This is a valid headline that should be long enough to pass 2', 'sourceUrl': 'http://test.com/valid'},
-            ],
-        ]
-
-        mock_get_vars.return_value = (True, True, MagicMock(), mock_fetch_news, mock_fetch_article, [{'id': 'mc'}])
-
-        mock_persistence = MagicMock()
-        mock_persistence.get_article_by_url.return_value = None
-        mock_get_persistence.return_value = mock_persistence
-
-        async def fake_to_thread(fn, *args, **kwargs):
-            return fn(*args, **kwargs)
-        mock_asyncio.to_thread = fake_to_thread
-        mock_asyncio.sleep = await self._make_sleep(7)
-
-        with pytest.raises(SystemExit, match="stop"):
-            await news_poller_task()
-
-        # Only the valid item (long headline + URL) should be saved
+        mock_fetch_news.assert_called_once()
         mock_persistence.save_article.assert_called_once()
 
-    @pytest.mark.asyncio
     @patch('api.news.news_poller._get_module_vars')
     @patch('services.news_persistence.get_persistence_service')
-    @patch('api.news.news_poller.asyncio')
     @patch('api.news.news_poller.news_ws_manager')
-    async def test_broadcasts_new_items_via_websocket(
-        self, mock_ws, mock_asyncio, mock_get_persistence, mock_get_vars
+    async def test_detects_new_items_via_id_comparison(
+        self, mock_ws, mock_get_persistence, mock_get_vars, poller_asyncio
     ):
+        poller_asyncio.stop_after = 3  # two completed cycles
+        mock_ws.broadcast = AsyncMock()
         from api.news.news_poller import news_poller_task
 
-        mock_ws.broadcast = AsyncMock()
-        mock_fetch_news = MagicMock()
-        mock_fetch_news.side_effect = [
-            [{'id': 'old1', 'headline': 'This is a valid headline that should be long enough to pass x1', 'sourceUrl': 'http://test.com/old1'}],
-            [{'id': 'new1', 'headline': 'This is a new headline that should trigger a broadcast x2', 'sourceUrl': 'http://test.com/new1'}],
-        ]
-
-        mock_fetch_article = MagicMock()
-        mock_fetch_article.return_value = {'description': 'Valid content.', 'symbols': []}
-        mock_get_vars.return_value = (True, True, MagicMock(), mock_fetch_news, mock_fetch_article, [{'id': 'mc'}])
-
+        mock_fetch_news = MagicMock(side_effect=[
+            [_article('new1', '1')],
+            [_article('new3', '3'), _article('new2', '2'), _article('new1', '1')],
+        ])
+        mock_get_vars.return_value = _poller_vars(mock_fetch_news)
         mock_persistence = MagicMock()
         mock_persistence.get_article_by_url.return_value = None
         mock_get_persistence.return_value = mock_persistence
 
-        async def fake_to_thread(fn, *args, **kwargs):
-            return fn(*args, **kwargs)
-        mock_asyncio.to_thread = fake_to_thread
-        mock_asyncio.sleep = await self._make_sleep(7)
+        with pytest.raises(SystemExit, match="stop"):
+            await news_poller_task()
+
+        assert mock_fetch_news.call_count == 2
+        # The second cycle walks the whole batch, so all three ids are seen.
+        seen_ids = {item['id'] for item in mock_ws.broadcast.call_args[0][0]['items']}
+        assert seen_ids == {'new1', 'new2', 'new3'}
+
+    @patch('api.news.news_poller._get_module_vars')
+    @patch('services.news_persistence.get_persistence_service')
+    @patch('api.news.news_poller.news_ws_manager')
+    async def test_skips_articles_without_url_or_short_headline_in_poller(
+        self, mock_ws, mock_get_persistence, mock_get_vars, poller_asyncio
+    ):
+        poller_asyncio.stop_after = 2
+        mock_ws.broadcast = AsyncMock()
+        from api.news.news_poller import news_poller_task
+
+        mock_fetch_news = MagicMock(return_value=[
+            {'id': 'short', 'headline': 'Short', 'sourceUrl': 'http://test.com/short'},
+            {'id': 'nourl', 'headline': 'A valid long headline that would otherwise pass', 'sourceUrl': ''},
+            _article('valid'),
+        ])
+        mock_get_vars.return_value = _poller_vars(mock_fetch_news)
+        mock_persistence = MagicMock()
+        mock_persistence.get_article_by_url.return_value = None
+        mock_get_persistence.return_value = mock_persistence
+
+        with pytest.raises(SystemExit, match="stop"):
+            await news_poller_task()
+
+        mock_persistence.save_article.assert_called_once()
+        assert mock_persistence.save_article.call_args.kwargs['url'] == 'http://test.com/valid'
+
+    @patch('api.news.news_poller._get_module_vars')
+    @patch('services.news_persistence.get_persistence_service')
+    @patch('api.news.news_poller.news_ws_manager')
+    async def test_broadcasts_new_items_via_websocket(
+        self, mock_ws, mock_get_persistence, mock_get_vars, poller_asyncio
+    ):
+        poller_asyncio.stop_after = 3
+        mock_ws.broadcast = AsyncMock()
+        from api.news.news_poller import news_poller_task
+
+        mock_fetch_news = MagicMock(side_effect=[
+            [_article('old1')],
+            [_article('new1')],
+        ])
+        mock_get_vars.return_value = _poller_vars(mock_fetch_news)
+        mock_persistence = MagicMock()
+        mock_persistence.get_article_by_url.return_value = None
+        mock_get_persistence.return_value = mock_persistence
 
         with pytest.raises(SystemExit, match="stop"):
             await news_poller_task()
@@ -349,95 +365,64 @@ class TestNewsPollerLogic:
         assert broadcast_call["type"] == "new_items"
         assert broadcast_call["source"] == "mc"
 
-    @pytest.mark.asyncio
     @patch('api.news.news_poller.news_ws_manager')
-    @patch('api.news.news_poller.asyncio')
-    @patch('services.news_persistence.get_persistence_service')
     async def test_broadcasts_high_impact_items_separately(
-        self, mock_get_persistence, mock_asyncio, mock_ws
+        self, mock_ws, poller_asyncio
     ):
         import api.news.news_poller as np
 
-        mock_fetch_article = MagicMock()
-        mock_fetch_article.return_value = {
-            'description': 'A' * 100,
-            'symbols': [],
-        }
-
+        poller_asyncio.stop_after = 3
+        mock_ws.broadcast = AsyncMock()
+        mock_fetch_news = MagicMock(side_effect=[
+            [_article('old1')],
+            [_article('high1')],
+        ])
         mock_analyzer = MagicMock()
         mock_analyzer.analyze_article.return_value = {
             'impact_score': 9,
             'sentiment': 'BULLISH',
         }
 
-        mock_fetch_news = MagicMock()
-        mock_fetch_news.side_effect = [
-            [{'id': 'old1', 'headline': 'This is a valid headline that should be long enough to pass xx1', 'sourceUrl': 'http://test.com/old1'}],
-            [{'id': 'high1', 'headline': 'This is a high impact headline that should trigger alert xx2', 'sourceUrl': 'http://test.com/high1'}],
-        ]
-
-        mock_persistence = MagicMock()
-        mock_persistence.get_article_by_url.return_value = None
-        mock_get_persistence.return_value = mock_persistence
-
-        async def fake_to_thread(fn, *args, **kwargs):
-            return fn(*args, **kwargs)
-        mock_asyncio.to_thread = fake_to_thread
-        mock_asyncio.sleep = await self._make_sleep(9)
-
-        mock_ws.broadcast = AsyncMock()
-
         with patch.multiple(np,
                             _news_available=True,
                             _llm_available=True,
                             article_analyzer=mock_analyzer,
                             fetch_news=mock_fetch_news,
-                            fetch_article_content=mock_fetch_article,
-                            NEWS_SOURCES=[{'id': 'mc'}]):
+                            fetch_article_content=MagicMock(
+                                return_value={'description': 'A' * 100, 'symbols': []}
+                            ),
+                            NEWS_SOURCES=[{'id': 'mc'}]), \
+             patch('services.news_persistence.get_persistence_service') as mock_get_persistence:
+            mock_persistence = MagicMock()
+            mock_persistence.get_article_by_url.return_value = None
+            mock_get_persistence.return_value = mock_persistence
+
             with pytest.raises(SystemExit, match="stop"):
                 from api.news.news_poller import news_poller_task
                 await news_poller_task()
 
-            # Check broadcast types
-            broadcast_calls = mock_ws.broadcast.call_args_list
-            types = [c[0][0]["type"] for c in broadcast_calls]
-
-            # Should have at least one broadcast for new items and one for high impact
+            types = [c[0][0]["type"] for c in mock_ws.broadcast.call_args_list]
+            assert "new_items" in types
             assert "high_impact_alert" in types
 
-    @pytest.mark.asyncio
     @patch('api.news.news_poller._get_module_vars')
     @patch('services.news_persistence.get_persistence_service')
-    @patch('api.news.news_poller.asyncio')
     @patch('api.news.news_poller.news_ws_manager')
     async def test_invalidates_cache_on_new_article_save(
-        self, mock_ws, mock_asyncio, mock_get_persistence, mock_get_vars
+        self, mock_ws, mock_get_persistence, mock_get_vars, poller_asyncio
     ):
+        poller_asyncio.stop_after = 3
+        mock_ws.broadcast = AsyncMock()
         from api.news.news_poller import news_poller_task
 
-        mock_ws.broadcast = AsyncMock()
-        mock_fetch_news = MagicMock()
-        mock_fetch_news.side_effect = [
-            [{'id': 'old1', 'headline': 'This is a valid headline that should be long enough to pass yy1', 'sourceUrl': 'http://test.com/old1'}],
-            [{'id': 'new1', 'headline': 'This is a new headline that should trigger cache invalidation yy2', 'sourceUrl': 'http://test.com/new1'}],
-        ]
-
-        mock_fetch_article = MagicMock()
-        mock_fetch_article.return_value = {
-            'description': 'Content for testing cache invalidation.',
-            'symbols': [{'code': 'RELIANCE'}],
-        }
-
-        mock_get_vars.return_value = (True, True, MagicMock(), mock_fetch_news, mock_fetch_article, [{'id': 'mc'}])
-
+        mock_fetch_news = MagicMock(side_effect=[
+            [_article('old1')],
+            [_article('new1')],
+        ])
+        mock_get_vars.return_value = _poller_vars(mock_fetch_news)
         mock_persistence = MagicMock()
         mock_persistence.get_article_by_url.return_value = None
         mock_get_persistence.return_value = mock_persistence
-
-        async def fake_to_thread(fn, *args, **kwargs):
-            return fn(*args, **kwargs)
-        mock_asyncio.to_thread = fake_to_thread
-        mock_asyncio.sleep = await self._make_sleep(8)
 
         with patch('cache.redis_client.cache_delete_pattern') as mock_cache_del:
             with patch('cache.redis_client.is_cache_available', return_value=True):
@@ -447,21 +432,13 @@ class TestNewsPollerLogic:
                 mock_cache_del.assert_called()
 
 
-# =========================================================================
-# sector_poller_task
-# =========================================================================
-
 class TestSectorPoller:
-    @pytest.mark.asyncio
     @patch('api.news.news_poller.sector_ws_manager')
-    @patch('api.news.news_poller.asyncio')
-    async def test_sector_poller_polls_both_markets(
-        self, mock_asyncio, mock_ws
-    ):
+    async def test_sector_poller_polls_both_markets(self, mock_ws, poller_asyncio):
         from api.news.news_poller import sector_poller_task
 
-        mock_ws.broadcast = AsyncMock()  # Make broadcast awaitable
-
+        poller_asyncio.stop_after = 2
+        mock_ws.broadcast = AsyncMock()
         mock_result = MagicMock()
         mock_result.model_dump.return_value = {}
 
@@ -469,12 +446,57 @@ class TestSectorPoller:
             return mock_result
 
         with patch('api.sector.get_sector_performance', side_effect=fake_sector) as mock_sector:
-            mock_asyncio.sleep = await TestNewsPollerLogic._make_sleep(6)
-
             with pytest.raises(SystemExit, match="stop"):
                 await sector_poller_task()
 
             assert mock_sector.call_count >= 2
-            markets = [call.kwargs.get("market") for call in mock_sector.call_args_list if call.kwargs]
+            markets = [c.kwargs.get("market") for c in mock_sector.call_args_list if c.kwargs]
             assert "india" in markets
             assert "america" in markets
+
+
+class TestCacheInvalidationCoalescing:
+    @patch('api.news.news_poller._get_module_vars')
+    @patch('services.news_persistence.get_persistence_service')
+    @patch('api.news.news_poller.news_ws_manager')
+    async def test_invalidates_once_per_cycle_with_saved_data_unchanged(
+        self, mock_ws, mock_get_persistence, mock_get_vars, poller_asyncio
+    ):
+        from api.news.news_poller import news_poller_task
+
+        poller_asyncio.stop_after = 2  # one cycle
+        mock_ws.broadcast = AsyncMock()
+        items = [_article(f'id{i}') for i in range(12)]
+        content = 'Full article body long enough for the persistence layer.'
+        symbols = [{'code': 'RELIANCE'}]
+        analysis = {'sentiment': 'BULLISH', 'impact_score': 5}
+
+        mock_fetch_news = MagicMock(return_value=items)
+        mock_fetch_article = MagicMock(return_value={'description': content, 'symbols': symbols})
+        mock_analyzer = MagicMock()
+        mock_analyzer.analyze_article.return_value = analysis
+        mock_get_vars.return_value = (True, True, mock_analyzer, mock_fetch_news,
+                                      mock_fetch_article, [{'id': 'mc'}])
+        mock_persistence = MagicMock()
+        mock_persistence.get_article_by_url.return_value = None
+        mock_get_persistence.return_value = mock_persistence
+
+        with patch('api.news.news_poller.NEWS_ARTICLE_BUDGET_PER_CYCLE', 12), \
+             patch('cache.redis_client.invalidate_news_cache') as mock_invalidate:
+            with pytest.raises(SystemExit, match="stop"):
+                await news_poller_task()
+
+        assert mock_persistence.save_article.call_count == 12
+        saved_urls = [c.kwargs['url'] for c in mock_persistence.save_article.call_args_list]
+        assert saved_urls == [f'http://test.com/id{i}' for i in range(12)]
+        first = mock_persistence.save_article.call_args_list[0].kwargs
+        assert first['headline'] == items[0]['headline']
+        assert first['content'] == content
+        assert first['source'] == 'mc'
+        assert first['source_url'] == items[0]['sourceUrl']
+        assert first['symbols'] == symbols
+        assert first['sentiment'] == 'BULLISH'
+        assert first['impact_score'] == 5
+        assert first['analysis'] == analysis
+
+        assert mock_invalidate.call_count == 1

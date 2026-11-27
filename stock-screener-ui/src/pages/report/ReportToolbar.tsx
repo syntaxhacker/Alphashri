@@ -1,0 +1,721 @@
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import type { JSX } from "solid-js";
+import { alpha, Box, Button, SegmentedControl, Select, Text, TextInput } from "@/ui";
+import * as palette from "@/ui/palette";
+import { IconChevronRight } from "@/ui/icons";
+import { CompactPanel } from "@/components/common/compact";
+import { NiftyDataFreshness } from "./NiftyDataFreshness";
+import { NiftyDeskGuide } from "./NiftyDeskGuide";
+import { NiftyPositionsDrawer } from "./NiftyPositionsDrawer";
+import { NiftyReplayBar } from "./NiftyReplayBar";
+import { dataFreshness } from "./niftyDataFreshness";
+import { wsBadgeLabel } from "./niftyFreshness";
+import { formatReportClock } from "./reportFormat";
+import { useNiftySpotTick } from "./niftyStreamSolid";
+import { REPORT_FONT } from "./reportTokens";
+import { useNiftyReport } from "./ReportContext";
+import { reportPresets } from "./reportWindowPresets";
+
+const INDEX_DATA: { value: string; label: string }[] = [
+  { value: "NIFTY", label: "NIFTY" },
+  { value: "SENSEX", label: "SENSEX" },
+  { value: "RELIANCE", label: "RELIANCE" },
+];
+const MODE_TOGGLE_DATA: { value: string; label: string }[] = [
+  { value: "live", label: "Live" },
+  { value: "eod", label: "EOD" },
+];
+const VIEW_TOGGLE_DATA: { value: string; label: string }[] = [
+  { value: "chart", label: "Chart" },
+  { value: "depth", label: "Depth" },
+];
+const DESK_TOGGLE_DATA: { value: string; label: string }[] = [
+  { value: "desk", label: "DESK" },
+  { value: "research", label: "RESEARCH" },
+];
+/** Top-level workspace: the chart-first monitor is the default landing view. */
+export const REPORT_VIEW_DATA: { value: string; label: string }[] = [
+  { value: "monitor", label: "MONITOR" },
+  { value: "desk", label: "DESK" },
+];
+const PRESET_DATA = reportPresets().map((preset) => ({ value: preset.id, label: preset.label }));
+
+const EXPIRY_SELECT_CLASS = "w-[104px] min-w-[104px] max-w-[104px] flex-none";
+
+// A native <select> clips "Nearest expiry" to "Nearest expi" inside the 104px
+// chevron-guttered field. Show a whole word instead and carry the full label in
+// the wrapper title and the control's accessible name; widening the field would
+// push Snapshot off the 1600 toolbar (it already has ~16px of slack).
+const EXPIRY_NEAREST_SHORT_LABEL = "Nearest";
+
+export function expiryOptionLabel(option: { value: string; label: string }): string {
+  return option.value === "nearest" ? EXPIRY_NEAREST_SHORT_LABEL : option.label;
+}
+
+export function expiryControlTitle(fullLabel: string): string {
+  return `Selected expiry: ${fullLabel}`;
+}
+
+/**
+ * Two fixed bands below 1200, one dense band at/above it.
+ *
+ * The old toolbar had four ad-hoc flex rows at 390 (~104px of chrome once the
+ * app nav bar is counted) and clipped "Depth" plus the whole DESK toggle at the
+ * panel edge. The two bands now own their height outright: 48px of controls +
+ * 20px of DATA/freshness = 68px, with no outer vertical padding or row gap to
+ * add a third band. The primary row still scrolls its selector strip behind a
+ * visible chevron/fade cue, so every tab is reachable and no label is squeezed
+ * through a native-select gutter. At 1600 both bands are inline and
+ * content-sized (`h-auto`), so there is still exactly one compact row and no
+ * control is rendered twice.
+ */
+export const TOOLBAR_PRIMARY_HEIGHT = 48;
+export const TOOLBAR_SECONDARY_HEIGHT = 20;
+export const TOOLBAR_CHROME_HEIGHT =
+  TOOLBAR_PRIMARY_HEIGHT + TOOLBAR_SECONDARY_HEIGHT;
+
+export const TOOLBAR_CLASS =
+  "flex flex-wrap items-center gap-x-2 gap-y-0 px-2 py-0 w-full max-w-full min-w-0 shrink-0 [&_[data-testid='nifty-updated-at']]:leading-[20px] min-[1200px]:flex-nowrap min-[1200px]:overflow-x-auto";
+
+export const TOOLBAR_PRIMARY_CLASS =
+  "flex flex-nowrap items-center gap-2 h-[48px] w-full min-w-0 min-[1200px]:h-auto min-[1200px]:w-auto min-[1200px]:flex-1";
+
+export const TOOLBAR_SECONDARY_CLASS =
+  "flex flex-nowrap items-center gap-2 h-[20px] w-full min-w-0 min-[1200px]:h-auto min-[1200px]:w-auto min-[1200px]:ml-auto";
+
+// The strip is the only scroll owner. Children are flex-none so a squeezed
+// control can never shrink its own text (the SegmentedControl track uses
+// overflow-hidden, which is what produced the "Depth" clip). Mandatory snap on
+// each toggle means a scroll always lands on a whole tab — "RELIANCE" is never
+// left half-shown at the strip edge at 390.
+export const TOOLBAR_STRIP_CLASS =
+  "flex flex-nowrap items-center gap-2 min-w-0 w-full overflow-x-auto overflow-y-hidden snap-x snap-mandatory min-[1200px]:w-auto min-[1200px]:overflow-visible min-[1200px]:snap-none";
+
+export const TOOLBAR_GROUP_CLASS = "flex items-center gap-2 flex-none";
+
+/** Fade width at the phone breakpoint — wide enough to cover a partial glyph. */
+export const TOOLBAR_FADE_CLASS = "w-10";
+
+// Refresh/Snapshot and the freshness readouts stay on their own single lines at
+// every width — a wrapped action was the fourth row at 390.
+export const TOOLBAR_ACTIONS_CLASS =
+  "flex flex-nowrap items-center gap-2 flex-none max-w-full min-w-0";
+
+// Hairline is decorative (WCAG's non-text exemption); the 18px height keeps
+// the divider inside the toolbar without stretching it.
+export const TOOLBAR_DIVIDER_CLASS = "w-px h-[18px] flex-none bg-fin-border";
+
+// 14 / 13 / 12: toggles carry the primary label step, selects and actions the
+// body step, group captions and status the micro step. The `!` beats the
+// SegmentedControl's inline 12px, just as the old shared label class did.
+const TOGGLE_LABEL_CLASS = "[&>button]:[font-size:var(--text-ui-label)]! shrink-0 snap-start";
+const BODY_LABEL_CLASS = "text-ui-body!";
+
+// Cluster captions sit above their controls: three inline captions would spend
+// the ~16px of 1600 slack three times over. A 16px caption + 4px gap + 26px
+// segmented track still fits inside the 48px primary band at 390.
+export const TOOLBAR_CLUSTER_CLASS = "flex flex-col items-start gap-1 flex-none";
+
+// The primitive paints its selected tab with a surface-alt fill. Key the
+// stronger fill on the same aria-pressed state so the active mode is unmissable
+// without adding a second selected-looking node.
+const SEGMENT_PRESSED_CLASS =
+  "[&_[aria-pressed='true']]:bg-fin-primary! [&_[aria-pressed='true']]:text-fin-bg!";
+
+/**
+ * The workspace switch uses the neutral focus token for both its pressed state
+ * and its keyboard ring: selecting a workspace is a view change, not a primary
+ * action, so it must not borrow the accent fill of the mode toggles.
+ */
+export const REPORT_VIEW_TOGGLE_CLASS = "flex items-center gap-1 shrink-0 snap-start";
+export const REPORT_VIEW_BUTTON_CLASS =
+  "inline-flex h-[22px] items-center rounded-sm border px-2 text-ui-micro whitespace-nowrap focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fin-text";
+export const REPORT_VIEW_PRESSED_CLASS = "border-fin-text bg-fin-surface-alt text-fin-text";
+export const REPORT_VIEW_IDLE_CLASS =
+  "border-fin-border text-fin-text-muted hover:bg-fin-surface-alt";
+
+const STRIP_STYLE: JSX.CSSProperties = {
+  "scrollbar-width": "none",
+};
+
+// The last third is fully opaque: a tab that would be cut mid-word ("RELIA")
+// is masked instead, so only whole labels are ever visible.
+export const STRIP_FADE_STYLE: JSX.CSSProperties = {
+  background: `linear-gradient(90deg, ${alpha(palette.SURFACE, 0)} 0%, ${alpha(palette.SURFACE, 1)} 62%, ${palette.SURFACE} 100%)`,
+};
+
+const STALE_BADGE_STYLE: JSX.CSSProperties = {
+  display: "inline-block",
+  border: "1px solid",
+  "border-color": palette.WARNING,
+  "border-radius": "9999px",
+  "padding-left": "8px",
+  "padding-right": "8px",
+  "padding-top": "2px",
+  "padding-bottom": "2px",
+  "white-space": "nowrap",
+};
+
+/** One status drives every freshness readout in the toolbar. Closed wins over
+ *  stale: a past session is a snapshot, not a broken live feed. */
+export type ToolbarFeedState = "live" | "stale" | "closed";
+
+export function deriveToolbarFeedState(input: {
+  marketClosed: boolean;
+  isStale: boolean;
+  tapeStale: boolean;
+}): ToolbarFeedState {
+  if (input.marketClosed) return "closed";
+  return input.isStale || input.tapeStale ? "stale" : "live";
+}
+
+/** The `10:00` in `SNAPSHOT 10:00` — IST HH:MM from the last update clock. */
+export function snapshotClockLabel(updatedAtMs: number | null): string {
+  const clock = formatReportClock(updatedAtMs ?? Number.NaN);
+  return clock === "—" ? "—" : clock.slice(0, 5);
+}
+
+/**
+ * Promote a stale age to the largest whole unit (m → h → d, days is the cap).
+ * Mirrors `getChainLiveState` in `src/hooks/chainLiveState.ts`; that helper takes
+ * a timestamp while the toolbar already holds minutes. The one-minute floor
+ * stops a zero/negative reading from claiming a live feed.
+ */
+export function formatStaleDuration(staleMins: number): string {
+  const minutes = Number.isFinite(staleMins) ? Math.max(1, Math.floor(staleMins)) : 1;
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
+/** The promoted label hides precision, so the tooltip carries the exact age. */
+export function toolbarStatusTitle(input: {
+  state: ToolbarFeedState;
+  staleMins: number;
+}): string {
+  if (input.state === "closed") return "Market closed — showing the last recorded snapshot";
+  if (input.state === "stale") {
+    const seconds = Number.isFinite(input.staleMins)
+      ? Math.max(0, Math.round(input.staleMins * 60))
+      : 0;
+    return `Feed not current — showing the last recorded data (${seconds} seconds old)`;
+  }
+  return "WebSocket feed connected";
+}
+
+export function toolbarStatusLabel(input: {
+  state: ToolbarFeedState;
+  updatedAtMs: number | null;
+  staleMins: number;
+  liveClockMs: number;
+}): string {
+  if (input.state === "closed") return `SNAPSHOT ${snapshotClockLabel(input.updatedAtMs)}`;
+  if (input.state === "stale") return `STALE ${formatStaleDuration(input.staleMins)}`;
+  return `Updated ${formatReportClock(input.liveClockMs)} · live (WS)`;
+}
+
+/** The single toolbar status line. `nifty-updated-at` keeps its testid, but its
+ *  text comes from one derived state so a snapshot can never also claim a live
+ *  WebSocket. The live clock still follows the spot tick. */
+function ToolbarStatus(props: {
+  state: ToolbarFeedState;
+  updatedAtMs: number | null;
+  staleMins: number;
+}) {
+  const tick = useNiftySpotTick();
+  const liveClockMs = () => {
+    const current = tick();
+    const tickMs = current?.ts ? Date.parse(current.ts) : Number.NaN;
+    return Number.isFinite(tickMs) ? tickMs : (props.updatedAtMs ?? Date.now());
+  };
+  return (
+    <Text
+      data-testid="nifty-updated-at"
+      size="xs"
+      c={props.state === "live" ? "dimmed" : "warning"}
+      span
+      title={toolbarStatusTitle({ state: props.state, staleMins: props.staleMins })}
+    >
+      {toolbarStatusLabel({
+        state: props.state,
+        updatedAtMs: props.updatedAtMs,
+        staleMins: props.staleMins,
+        liveClockMs: liveClockMs(),
+      })}
+    </Text>
+  );
+}
+
+function ClusterLabel(props: { text: string; testId: string }) {
+  return (
+    <Text
+      data-testid={props.testId}
+      size="xs"
+      fw={700}
+      c="dimmed"
+      span
+      className="tracking-[0.04em] whitespace-nowrap"
+    >
+      {props.text}
+    </Text>
+  );
+}
+
+export interface ReportToolbarProps {
+  onOpenSymbol?: (s: string) => void;
+  /** Leading control merged into the 48px row (e.g. the app nav toggle). */
+  leading?: JSX.Element;
+  /** Selected windowed-desk preset; the shell owns the saved-config write. */
+  presetId?: string;
+  onPresetChange?: (id: string) => void;
+}
+
+export function ReportToolbar(props: ReportToolbarProps) {
+  const store = useNiftyReport();
+
+  let strip: HTMLDivElement | undefined;
+  const setStrip = (el: HTMLDivElement) => {
+    strip = el;
+  };
+  const scrollStrip = () => {
+    if (!strip) return;
+    const max = strip.scrollWidth - strip.clientWidth;
+    strip.scrollTo({ left: strip.scrollLeft >= max - 4 ? 0 : max, behavior: "smooth" });
+  };
+
+  const symbol = () => store.selection.symbol();
+  const mode = () => store.selection.mode();
+  const expiry = () => store.selection.expiry();
+  const date = () => store.selection.date();
+  const view = () => store.ui.view();
+  const reportView = () => store.ui.reportView();
+  const isWindowDesk = () => store.ui.isWindowDesk();
+  const deskMode = () => store.ui.deskMode();
+  const report = () => store.data.report();
+  const tape = () => store.data.tape();
+  const loading = () => store.data.loading();
+  const snapshotting = () => store.data.snapshotting();
+  const marketClosed = () => store.data.freshness.marketClosed() || report()?.market?.is_open === false;
+  const isStale = () => store.data.freshness.isStale();
+  const updatedAtMs = () => store.data.freshness.updatedAtMs();
+  const staleMins = () => store.data.freshness.staleMins();
+  const replay = () => store.replay.replay();
+
+  const sessionDate = () => report()?.market?.session_date ?? tape()?.date ?? report()?.date;
+
+  // The tape is the data-age authority: a freshly fetched report must not let
+  // the toolbar claim a live feed after the feed has stopped. This mirrors the
+  // DATA badge's clock but feeds the *single* state that owns every label.
+  const [nowMs, setNowMs] = createSignal(Date.now());
+  createEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1_000);
+    onCleanup(() => clearInterval(id));
+  });
+  const dataAge = createMemo(() =>
+    dataFreshness({
+      nowMs: nowMs(),
+      marketOpen: !marketClosed(),
+      sessionDate: sessionDate(),
+      report: report(),
+      tape: tape(),
+      bursts: store.data.effectiveBursts(),
+    }),
+  );
+  const feedState = createMemo(() =>
+    deriveToolbarFeedState({
+      marketClosed: marketClosed(),
+      isStale: isStale(),
+      tapeStale: dataAge().stale,
+    }),
+  );
+  const shownStaleMins = createMemo(() => {
+    if (isStale()) return staleMins();
+    const ageMs = dataAge().tapeAgeMs;
+    return ageMs === null ? staleMins() : Math.max(1, Math.floor(ageMs / 60_000));
+  });
+
+  const selectedExpiryLabel = () =>
+    store.selection.expiryData().find((option) => option.value === expiry())?.label ?? expiry();
+
+  const replayForBar = () => {
+    const current = replay();
+    return mode() === "eod" && current && current.snapshots.length > 0 ? current : null;
+  };
+
+  const snapshotTitle = () =>
+    symbol() !== "NIFTY"
+      ? "Snapshots are recorded for NIFTY only"
+      : mode() === "eod"
+        ? "Only available in Live mode — an EOD date is history, not a snapshot"
+        : "Capture the current option chain";
+
+  return (
+    <CompactPanel padded={false}>
+      <Box data-testid="nifty-toolbar" className={TOOLBAR_CLASS}>
+        {/* Primary band — one row at 390; its strip scrolls instead of clipping. */}
+        <Box
+          data-testid="toolbar-primary-row"
+          className={TOOLBAR_PRIMARY_CLASS}
+          role="group"
+          aria-label="Report controls"
+        >
+          <Show when={props.leading}>
+            <Box data-testid="toolbar-leading" className="flex flex-none items-center">
+              {props.leading}
+            </Box>
+          </Show>
+          <Box className="relative flex min-w-0 flex-1 items-center">
+            <Box
+              data-testid="toolbar-strip"
+              ref={setStrip}
+              className={TOOLBAR_STRIP_CLASS}
+              style={STRIP_STYLE}
+            >
+              {/* Three labelled clusters: what, how, and which session. */}
+              <Box
+                data-testid="toolbar-cluster-underlying"
+                className={TOOLBAR_CLUSTER_CLASS}
+                role="group"
+                aria-label="Underlying"
+              >
+                <ClusterLabel text="UNDERLYING" testId="toolbar-cluster-underlying-label" />
+                <Box
+                  data-testid="toolbar-group-subject"
+                  className={TOOLBAR_GROUP_CLASS}
+                  role="group"
+                  aria-label="Underlying selector"
+                >
+                  <SegmentedControl
+                    data-testid="nifty-index-toggle"
+                    value={symbol()}
+                    onChange={(value) => store.selection.handleSymbolChange(value)}
+                    data={INDEX_DATA}
+                    size="xs"
+                    className={`${TOGGLE_LABEL_CLASS} ${SEGMENT_PRESSED_CLASS}`}
+                  />
+                </Box>
+              </Box>
+              <Box
+                data-testid="toolbar-divider-subject-session"
+                className={TOOLBAR_DIVIDER_CLASS}
+                aria-hidden="true"
+              />
+              <Box
+                data-testid="toolbar-cluster-mode"
+                className={TOOLBAR_CLUSTER_CLASS}
+                role="group"
+                aria-label="Mode"
+              >
+                <ClusterLabel text="MODE" testId="toolbar-cluster-mode-label" />
+                <Box
+                  data-testid="toolbar-group-mode"
+                  className={TOOLBAR_GROUP_CLASS}
+                  role="group"
+                  aria-label="Live or EOD, chart or depth, desk or research"
+                >
+                  <Show when={store.selection.hasRecordedHistory()}>
+                    <SegmentedControl
+                      data-testid="nifty-mode-toggle"
+                      value={mode()}
+                      onChange={(value) => store.selection.handleModeChange(value)}
+                      data={MODE_TOGGLE_DATA}
+                      size="xs"
+                      className={`${TOGGLE_LABEL_CLASS} ${SEGMENT_PRESSED_CLASS}`}
+                    />
+                  </Show>
+                  <SegmentedControl
+                    data-testid="nifty-view-toggle"
+                    value={view()}
+                    onChange={(value) => store.ui.handleViewChange(value)}
+                    data={VIEW_TOGGLE_DATA}
+                    size="xs"
+                    className={`${TOGGLE_LABEL_CLASS} ${SEGMENT_PRESSED_CLASS}`}
+                  />
+                  <SegmentedControl
+                    data-testid="nifty-desk-toggle"
+                    value={deskMode()}
+                    onChange={(value) => store.ui.handleDeskChange(value)}
+                    data={DESK_TOGGLE_DATA}
+                    size="xs"
+                    className={`${TOGGLE_LABEL_CLASS} ${SEGMENT_PRESSED_CLASS}`}
+                  />
+                </Box>
+              </Box>
+              <Box
+                data-testid="toolbar-cluster-workspace"
+                className={TOOLBAR_CLUSTER_CLASS}
+                role="group"
+                aria-label="Workspace"
+              >
+                <ClusterLabel text="VIEW" testId="toolbar-cluster-workspace-label" />
+                <Box
+                  data-testid="toolbar-group-workspace"
+                  className={TOOLBAR_GROUP_CLASS}
+                  role="group"
+                  aria-label="Monitor or windowed desk"
+                >
+                  <Box
+                    data-testid="nifty-report-view-toggle"
+                    className={REPORT_VIEW_TOGGLE_CLASS}
+                    role="group"
+                    aria-label="Report view"
+                  >
+                    <For each={REPORT_VIEW_DATA}>
+                      {(option) => (
+                        <button
+                          type="button"
+                          data-testid={`nifty-report-view-${option.value}`}
+                          aria-pressed={reportView() === option.value}
+                          title={`${option.label} view`}
+                          className={`${REPORT_VIEW_BUTTON_CLASS} ${
+                            reportView() === option.value
+                              ? REPORT_VIEW_PRESSED_CLASS
+                              : REPORT_VIEW_IDLE_CLASS
+                          }`}
+                          onClick={() => store.ui.handleReportViewChange(option.value)}
+                        >
+                          {option.label}
+                        </button>
+                      )}
+                    </For>
+                  </Box>
+                  <Show when={isWindowDesk()}>
+                    <Select
+                      data-testid="nifty-report-preset-select"
+                      aria-label="Report layout preset"
+                      value={props.presetId ?? ""}
+                      data={PRESET_DATA}
+                      onChange={(value) => props.onPresetChange?.(value ?? "")}
+                      size="xs"
+                      w={96}
+                      h={22}
+                      className={BODY_LABEL_CLASS}
+                    />
+                  </Show>
+                </Box>
+              </Box>
+              <Box
+                data-testid="toolbar-divider-mode-session"
+                className={TOOLBAR_DIVIDER_CLASS}
+                aria-hidden="true"
+              />
+              {/* Which session — contract expiry and the EOD history date. */}
+              <Box
+                data-testid="toolbar-cluster-session"
+                className={TOOLBAR_CLUSTER_CLASS}
+                role="group"
+                aria-label="Session"
+              >
+                <ClusterLabel text="SESSION" testId="toolbar-cluster-session-label" />
+                <Box
+                  data-testid="toolbar-group-session"
+                  className={TOOLBAR_GROUP_CLASS}
+                  role="group"
+                  aria-label="Expiry and history date"
+                >
+                  <Box title={expiryControlTitle(selectedExpiryLabel())} className="flex-none">
+                    <Select
+                      data-testid="nifty-expiry-select"
+                      value={expiry()}
+                      onChange={(value) => store.selection.handleExpiryChange(value)}
+                      data={store.selection
+                        .expiryData()
+                        .map((option) => ({ ...option, label: expiryOptionLabel(option) }))}
+                      size="xs"
+                      w={104}
+                      h={22}
+                      className={`${EXPIRY_SELECT_CLASS} ${BODY_LABEL_CLASS}`}
+                      aria-label={expiryControlTitle(selectedExpiryLabel())}
+                    />
+                  </Box>
+                  <Show when={mode() === "eod"}>
+                    <TextInput
+                      data-testid="nifty-date-input"
+                      type="date"
+                      value={date()}
+                      onChange={(value) => store.selection.setDate(value)}
+                      size="xs"
+                      w={110}
+                      h={22}
+                    />
+                  </Show>
+                  <Show when={symbol() !== "NIFTY" && expiry() !== "nearest"}>
+                    <span
+                      data-testid="nifty-generic-expiry-note"
+                      title="Recorded history (tape, OI stream, replay) is captured for the nearest expiry — the selected expiry applies to the live chain only."
+                      style={{
+                        "font-size": `${REPORT_FONT.micro}px`,
+                        "font-weight": 700,
+                        "letter-spacing": "0.04em",
+                        color: palette.TEXT_MUTED,
+                        border: `1px solid ${palette.TERM_BORDER}`,
+                        "border-radius": "3px",
+                        "padding-left": "4px",
+                        "padding-right": "4px",
+                        "white-space": "nowrap",
+                      }}
+                    >
+                      history = nearest expiry
+                    </span>
+                  </Show>
+                </Box>
+              </Box>
+              <Box
+                data-testid="toolbar-divider-session-state"
+                className={TOOLBAR_DIVIDER_CLASS}
+                aria-hidden="true"
+              />
+              {/* State — the real paper book, separate from the view. */}
+              <Box
+                data-testid="toolbar-group-state"
+                className={TOOLBAR_GROUP_CLASS}
+                role="group"
+                aria-label="Paper positions"
+              >
+                <Text size="xs" fw={700} c="dimmed" span className="tracking-[0.04em] whitespace-nowrap" title="Paper positions">
+                  STATE
+                </Text>
+                <NiftyPositionsDrawer
+                  positions={store.data.paperPositions()}
+                  strikes={report()?.strikes}
+                  onRefresh={() => void store.data.refreshPaperPositions()}
+                />
+              </Box>
+            </Box>
+            <Box
+              data-testid="toolbar-strip-fade"
+              aria-hidden="true"
+              className={`pointer-events-none absolute inset-y-0 right-0 ${TOOLBAR_FADE_CLASS} min-[1200px]:hidden`}
+              style={STRIP_FADE_STYLE}
+            />
+          </Box>
+          <button
+            type="button"
+            data-testid="toolbar-scroll-cue"
+            aria-label="Scroll report controls"
+            title="Scroll to more report controls"
+            onClick={scrollStrip}
+            className="inline-flex h-6 w-5 flex-none items-center justify-center rounded-fin border border-fin-border text-fin-text-muted min-[1200px]:hidden"
+          >
+            <IconChevronRight size={14} />
+          </button>
+          <Box
+            data-testid="toolbar-group-actions"
+            className={TOOLBAR_ACTIONS_CLASS}
+            role="group"
+            aria-label="Report actions"
+          >
+            <Button
+              data-testid="nifty-refresh-button"
+              size="xs"
+              className={BODY_LABEL_CLASS}
+              onClick={() => store.data.refresh()}
+              disabled={loading() || (mode() === "eod" && !date())}
+            >
+              Refresh
+            </Button>
+            <Button
+              data-testid="nifty-snapshot-button"
+              size="xs"
+              variant="outline"
+              className={BODY_LABEL_CLASS}
+              onClick={() => void store.data.snapshot()}
+              disabled={snapshotting() || loading() || mode() === "eod" || symbol() !== "NIFTY"}
+              title={snapshotTitle()}
+            >
+              Snapshot
+            </Button>
+            <NiftyDeskGuide />
+          </Box>
+        </Box>
+
+        {/* Secondary band — a 20px DATA/freshness line, not a full row. It is
+            a second line only below 1200; one dense row at 1600. */}
+        <Box
+          data-testid="toolbar-secondary-row"
+          className={TOOLBAR_SECONDARY_CLASS}
+          role="group"
+          aria-label="Data and freshness"
+        >
+          <Text data-testid="toolbar-data-label" size="xs" fw={700} c="dimmed" span className="tracking-[0.04em] whitespace-nowrap">
+            DATA FRESHNESS
+          </Text>
+          <Box data-testid="toolbar-status-divider" className={TOOLBAR_DIVIDER_CLASS} aria-hidden="true" />
+          <Box
+            data-testid="toolbar-group-status"
+            className={TOOLBAR_ACTIONS_CLASS}
+            role="group"
+            aria-label="Actions and data freshness"
+          >
+            <Show when={mode() === "live" && updatedAtMs() !== null}>
+              <ToolbarStatus
+                state={feedState()}
+                updatedAtMs={updatedAtMs()}
+                staleMins={shownStaleMins()}
+              />
+            </Show>
+            <Show when={mode() === "live"}>
+              <Show
+                when={feedState() === "live"}
+                fallback={
+                  <span
+                    data-testid="nifty-data-freshness"
+                    data-state={feedState() === "closed" ? "closed" : "stale"}
+                    title={
+                      feedState() === "closed"
+                        ? "Market closed — showing the last recorded snapshot"
+                        : "Feed not current — showing the last recorded data"
+                    }
+                    class="inline-flex items-center shrink-0 whitespace-nowrap border rounded-full px-2 py-[2px] text-ui-micro"
+                    style={{
+                      "border-color": feedState() === "stale" ? palette.WARNING : palette.TERM_BORDER,
+                      color: feedState() === "stale" ? palette.WARNING : palette.TEXT_MUTED,
+                    }}
+                  >
+                    <Text size="xs" fw={feedState() === "stale" ? 700 : 600} c={feedState() === "stale" ? "warning" : "dimmed"} span>
+                      {feedState() === "closed" ? "CLOSED" : "STALE"}
+                    </Text>
+                  </span>
+                }
+              >
+                <NiftyDataFreshness
+                  report={report()}
+                  tape={tape()}
+                  bursts={store.data.effectiveBursts()}
+                  marketOpen={!marketClosed()}
+                  sessionDate={sessionDate()}
+                />
+              </Show>
+            </Show>
+            <Show when={feedState() === "stale" && isStale()}>
+              <span
+                data-testid="nifty-stale-badge"
+                style={STALE_BADGE_STYLE}
+                title="WebSocket feed disconnected — snapshot age is reported by the status line"
+              >
+                <Text size="xs" fw={700} c="warning" span>
+                  {wsBadgeLabel(staleMins())}
+                </Text>
+              </span>
+            </Show>
+          </Box>
+        </Box>
+      </Box>
+      <Show when={replayForBar()}>
+        {(current) => (
+          <NiftyReplayBar
+            replay={current()}
+            replayIndex={store.replay.index()}
+            playing={store.replay.playing()}
+            coverage={store.replay.coverage()}
+            reasons={store.replay.reasons()}
+            holes={store.replay.holes()}
+            onScrub={(next) => store.replay.scrub(next)}
+            onTogglePlay={() => store.replay.togglePlay()}
+          />
+        )}
+      </Show>
+    </CompactPanel>
+  );
+}

@@ -42,7 +42,6 @@ test.describe("Market Ticker", () => {
   test("should display market ticker at the top of page", async ({ page }) => {
     await page.goto("/");
 
-    // Wait for market ticker to appear
     const ticker = page.locator('[data-testid="market-ticker"]');
     await expect(ticker).toBeVisible({ timeout: 10000 });
   });
@@ -50,51 +49,67 @@ test.describe("Market Ticker", () => {
   test("should display all 6 ticker items", async ({ page }) => {
     await page.goto("/");
 
-    // Wait for market ticker to appear
     const ticker = page.locator('[data-testid="market-ticker"]');
     await expect(ticker).toBeVisible({ timeout: 10000 });
 
-    await expect(ticker).toContainText("Nifty 50");
-    await expect(ticker).toContainText("Bank Nifty");
+    await expect(ticker).toContainText("NIFTY");
+    await expect(ticker).toContainText("BANKNIFTY");
     await expect(ticker).toContainText("Gold");
   });
 
   test("should display correct ticker labels", async ({ page }) => {
     await page.goto("/");
 
-    // Wait for market ticker
     const ticker = page.locator('[data-testid="market-ticker"]');
     await expect(ticker).toBeVisible({ timeout: 10000 });
 
-    await expect(ticker).toContainText("Nifty 50");
-    await expect(ticker).toContainText("Bank Nifty");
+    await expect(ticker).toContainText("NIFTY");
+    await expect(ticker).toContainText("BANKNIFTY");
     await expect(ticker).toContainText("Gold");
+  });
+
+  test("index tape items open the app-wide dock", async ({ page }) => {
+    await page.goto("/");
+
+    const nifty = page.locator('[data-testid="ticker-nsei"]');
+    await expect(nifty).toBeVisible({ timeout: 10000 });
+    await nifty.click();
+
+    await expect(page.getByTestId("symbol-dock")).toBeVisible({ timeout: 15000 });
+    await expect(page).not.toHaveURL(/\/chart\//);
   });
 
   test("should display positive changes in green", async ({ page }) => {
     await page.goto("/");
 
-    // Wait for market ticker
     await page.waitForSelector('[data-testid="market-ticker"]', { timeout: 10000 });
 
     const ticker = page.locator('[data-testid="market-ticker"]');
-    await expect(ticker).toContainText("+123.45 (0.55%)");
+    await expect(ticker).toBeVisible();
+
+    // The tile shows only the signed percent; the full signed absolute + percent
+    // stays in the change element's tooltip so no information is lost.
+    const change = page.locator('[data-testid="ticker-change-nsei"]');
+    await expect(change).toContainText("▲+0.55%");
+    await expect(change).toHaveAttribute("title", "+123.45 (0.55%)");
   });
 
   test("should display negative changes in red", async ({ page }) => {
     await page.goto("/");
 
-    // Wait for market ticker
     await page.waitForSelector('[data-testid="market-ticker"]', { timeout: 10000 });
 
     const ticker = page.locator('[data-testid="market-ticker"]');
-    await expect(ticker).toContainText("-87.65 (-0.18%)");
+    await expect(ticker).toBeVisible();
+
+    const change = page.locator('[data-testid="ticker-change-nsebank"]');
+    await expect(change).toContainText("▼-0.18%");
+    await expect(change).toHaveAttribute("title", "-87.65 (-0.18%)");
   });
 
   test("should display updated timestamp", async ({ page }) => {
     await page.goto("/");
 
-    // Wait for market ticker
     await page.waitForSelector('[data-testid="market-ticker"]', { timeout: 10000 });
 
     const ticker = page.locator('[data-testid="market-ticker"]');
@@ -113,7 +128,6 @@ test.describe("Market Ticker", () => {
 
     await page.goto("/");
 
-    // Wait for error state
     const ticker = page.locator('[data-testid="market-ticker"]');
     await expect(ticker).toBeVisible({ timeout: 10000 });
 
@@ -136,19 +150,17 @@ test.describe("Market Ticker", () => {
       });
     });
 
-    // Navigate and immediately check for loading
     const navigationPromise = page.goto("/");
 
     // Check loading state is shown - use try/catch since it may resolve quickly
     try {
-      const loadingTicker = page.locator('[data-testid="market-ticker"]');
-      const skeleton = loadingTicker.locator(".MuiSkeleton-root").first();
+      const loadingTicker = page.locator('[data-testid="market-ticker"].market-ticker-loading');
+      const skeleton = loadingTicker.locator("div.inline-block").first();
       await expect(skeleton).toBeVisible({ timeout: 500 });
     } catch {
       // Loading state may have passed already, which is fine
     }
 
-    // Resolve the route to continue
     resolveRoute();
     await navigationPromise;
   });

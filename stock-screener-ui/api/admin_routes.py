@@ -13,7 +13,6 @@ from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Query, HTTPException, Depends
 from pydantic import BaseModel
 
-from api.screener import _sanitize_for_json
 from api.auth import get_current_user
 
 router = APIRouter(tags=["admin"])
@@ -224,6 +223,11 @@ def _run_52w_batch_subprocess(skip_existing: bool, redis: bool, limit: int, skip
         cmd.append("--redis")
     if limit > 0:
         cmd.extend(["--limit", str(limit)])
+    # Keep the batch off the interactive `api` slice: its ~60/min would otherwise
+    # consume half of api's 120/min and leave the screener cold path starved.
+    child_env = os.environ.copy()
+    child_env["UPSTOX_RL_CONSUMER"] = os.environ.get("UPSTOX_52W_RL_CONSUMER", "scan52w")
+    child_env.setdefault("UPSTOX_RL_CAP_SCAN52W", "60")
     try:
         proc = subprocess.Popen(
             cmd,
@@ -231,6 +235,7 @@ def _run_52w_batch_subprocess(skip_existing: bool, redis: bool, limit: int, skip
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
+            env=child_env,
         )
     except Exception as e:
         # Launch failure must not leave a stale "running" status behind.
@@ -699,47 +704,6 @@ async def process_news_queue(body: NewsQueueProcessRequest, current_user=Depends
 
     result_data["queue"] = _news_queue_stats()["queue"]
     return result_data
-
-
-@router.get("/api/admin/orderflow-journal")
-async def get_orderflow_journal(
-    day: Optional[str] = Query(default=None, description="YYYY-MM-DD; defaults to today (IST)"),
-    current_user=Depends(get_current_user),
-):
-    """What order-flow data is on disk, per symbol, with session coverage.
-
-    Coverage is the share of session minutes that contain at least one stored
-    record, so a day that stopped early — or a file that mixes two brokers —
-    is visible instead of looking like a normal file.
-    """
-    _require_admin(current_user)
-
-    from api import orderflow_journal
-    from trading.utils import CONTINUOUS_CLOSE, MARKET_CLOSE, MARKET_OPEN
-
-    if day is not None:
-        try:
-            datetime.strptime(day, "%Y-%m-%d")
-        except ValueError:
-            raise HTTPException(status_code=400, detail="day must be YYYY-MM-DD")
-
-    try:
-        # Coverage is measured against the *continuous* session: from 15:15 the
-        # closing auction takes over and no trades print, so including 15:15-15:30
-        # would cap a perfect day below 100%.
-        summary = orderflow_journal.summarize_day(
-            day,
-            session_start=MARKET_OPEN,
-            session_close=CONTINUOUS_CLOSE,
-            full_session_close=MARKET_CLOSE,
-        )
-    except Exception as exc:  # noqa: BLE001 - surface, don't 500 blindly
-        raise HTTPException(status_code=500, detail=f"journal scan failed: {exc}")
-
-    summary["available_days"] = orderflow_journal.available_days()
-    summary["broker_available"] = orderflow_journal.is_enabled()
-    summary["fetched_at"] = datetime.now().isoformat()
-    return _sanitize_for_json(summary)
 
 
 class PatternTimeframeToggleRequest(BaseModel):

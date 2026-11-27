@@ -63,7 +63,7 @@ class TestListStrategies:
             assert 'description' in strategy
             assert 'params' in strategy
 
-    @patch('backtest.engine.list_strategies')
+    @patch('backtest.strategies.list_strategies')
     def test_list_strategies_delegates_to_module(self, mock_list_strategies):
         mock_list_strategies.return_value = [{'id': 'test', 'name': 'Test'}]
         result = BacktestEngine().list_strategies()
@@ -81,7 +81,7 @@ def _setup_mock_get_strategy(run_result=None, validate_errors=None, side_effect=
             'results': {'total_pnl': 1000}, 'chart_data': {}, 'candles': {}
         }
     mock_class = MagicMock(return_value=mock_instance)
-    return mock_class, mock_instance, patch('backtest.engine.get_strategy', return_value=mock_class)
+    return mock_class, mock_instance, patch('backtest.strategies.get_strategy', return_value=mock_class)
 
 
 class TestRun:
@@ -99,7 +99,7 @@ class TestRun:
         mock_class.return_value = mock_instance
         return mock_class
 
-    @patch('backtest.engine.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_with_valid_strategy(self, mock_get_strategy, mock_strategy_class):
         mock_get_strategy.return_value = mock_strategy_class
 
@@ -115,7 +115,7 @@ class TestRun:
         mock_get_strategy.assert_called_once_with('orb')
         mock_strategy_class.assert_called_once()
 
-    @patch('backtest.engine.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_stores_results(self, mock_get_strategy, mock_strategy_class):
         mock_get_strategy.return_value = mock_strategy_class
         expected_result = {
@@ -136,7 +136,7 @@ class TestRun:
         assert engine.last_results == expected_result
         assert result == expected_result
 
-    @patch('backtest.engine.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_stores_config(self, mock_get_strategy, mock_strategy_class):
         mock_get_strategy.return_value = mock_strategy_class
 
@@ -153,7 +153,7 @@ class TestRun:
         assert engine.last_config['days'] == 60
         assert engine.last_config['params'] == {'or_minutes': 30, 'sl_pct': 0.5}
 
-    @patch('backtest.engine.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_stores_run_time(self, mock_get_strategy, mock_strategy_class):
         mock_get_strategy.return_value = mock_strategy_class
 
@@ -170,7 +170,7 @@ class TestRun:
         assert engine.last_run_time is not None
         assert before <= engine.last_run_time <= after
 
-    @patch('backtest.engine.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_with_no_params(self, mock_get_strategy, mock_strategy_class):
         mock_get_strategy.return_value = mock_strategy_class
 
@@ -185,7 +185,7 @@ class TestRun:
         call_args = mock_strategy_class.return_value.run.call_args
         assert call_args[0][2] == {}
 
-    @patch('backtest.engine.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_with_progress_callback(self, mock_get_strategy, mock_strategy_class):
         mock_get_strategy.return_value = mock_strategy_class
 
@@ -214,7 +214,7 @@ class TestRun:
                 days=30
             )
 
-    @patch('backtest.engine.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_with_invalid_params_raises(self, mock_get_strategy):
         mock_instance = MagicMock()
         mock_instance.validate_params.return_value = ['or_minutes must be positive', 'sl_pct out of range']
@@ -231,7 +231,7 @@ class TestRun:
                 params={'or_minutes': -10}
             )
 
-    @patch('backtest.engine.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_validates_params(self, mock_get_strategy, mock_strategy_class):
         mock_get_strategy.return_value = mock_strategy_class
 
@@ -245,7 +245,7 @@ class TestRun:
 
         mock_strategy_class.return_value.validate_params.assert_called_once_with({'or_minutes': 45})
 
-    @patch('backtest.engine.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_returns_strategy_result(self, mock_get_strategy, mock_strategy_class):
         expected_result = {
             'results': {
@@ -270,7 +270,7 @@ class TestRun:
 
         assert result == expected_result
 
-    @patch('backtest.engine.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_with_multiple_symbols(self, mock_get_strategy, mock_strategy_class):
         mock_get_strategy.return_value = mock_strategy_class
 
@@ -284,7 +284,7 @@ class TestRun:
         call_args = mock_strategy_class.return_value.run.call_args
         assert call_args[0][0] == ['RELIANCE', 'TCS', 'INFY', 'HDFC']
 
-    @patch('backtest.engine.get_strategy')
+    @patch('backtest.strategies.get_strategy')
     def test_run_with_empty_symbols_list(self, mock_get_strategy, mock_strategy_class):
         mock_get_strategy.return_value = mock_strategy_class
 
@@ -515,7 +515,7 @@ class TestBacktestEngineErrorHandling:
     def test_run_strategy_creation_fails(self):
         mock_class = MagicMock(side_effect=TypeError("Missing required argument"))
 
-        with patch('backtest.engine.get_strategy', return_value=mock_class):
+        with patch('backtest.strategies.get_strategy', return_value=mock_class):
             engine = BacktestEngine()
 
             with pytest.raises(TypeError, match="Missing required argument"):

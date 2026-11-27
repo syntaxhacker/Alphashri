@@ -27,7 +27,9 @@ def _clean_state():
 
 
 async def _run_poller(monkeypatch, today_box, spot_box, seconds=0.08):
-    monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: True)
+    # The poller gates on derivatives-open (imported lazily inside the loop),
+    # so pin that predicate rather than relying on the wall clock/session.
+    monkeypatch.setattr("trading.utils.is_derivatives_open", lambda *a, **k: True)
     monkeypatch.setattr(nifty_ws_module, "_ist_today", lambda: today_box["d"])
 
     async def _ok(underlying: str):

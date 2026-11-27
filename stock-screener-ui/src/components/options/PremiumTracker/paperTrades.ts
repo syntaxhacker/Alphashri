@@ -1,3 +1,5 @@
+import { sessionDateKey } from "@/utils/chart/time";
+
 export type Conviction = "LOW" | "MEDIUM" | "HIGH";
 
 export interface PaperTrade {
@@ -16,6 +18,14 @@ export interface PaperTrade {
 }
 
 const STORAGE_KEY = "premium-paper-trades";
+
+/**
+ * Diary/paper-fill day key in IST. `toISOString().slice(0, 10)` is the UTC
+ * date — before 05:30 IST that is the previous session and mis-files the fill.
+ */
+export function todaySessionDate(nowMs: number = Date.now()): string {
+  return sessionDateKey(new Date(nowMs).toISOString()) ?? "";
+}
 
 function uid(): string {
   return `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;

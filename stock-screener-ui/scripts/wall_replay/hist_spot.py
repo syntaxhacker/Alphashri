@@ -78,7 +78,6 @@ def run(date: str, cfg: dict) -> list[dict]:
         return []
     closes = [float(r["spot"]) for r in rs]
     pdh, pdl, pdc = prev_day(date)
-    # opening range 09:15-09:29
     or_rows = [float(r["spot"]) for r in rs if r["t"][11:16] <= "09:29"]
     orh, orl = (max(or_rows), min(or_rows)) if or_rows else (0.0, 0.0)
     kind = cfg.get("kind", "orb")

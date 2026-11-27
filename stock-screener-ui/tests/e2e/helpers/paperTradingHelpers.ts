@@ -1,0 +1,66 @@
+import { Page, expect } from "@playwright/test";
+import {
+  setupApiMocks,
+  loginAsTestUser,
+  setupPaperTradingMocks,
+  setupMultiStrategyBotMocks,
+} from "../../mocks/apiResponses";
+
+export async function setupPaperTradingTestMocks(page: Page): Promise<void> {
+  await setupApiMocks(page);
+  await loginAsTestUser(page);
+  await setupPaperTradingMocks(page);
+  await setupMultiStrategyBotMocks(page);
+}
+
+export async function navigateToPaperTrading(page: Page): Promise<void> {
+  await page.goto("/paper", { timeout: 30000 });
+  await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
+  await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
+}
+
+export async function navigateToPaperTradingWithBot(
+  page: Page,
+  _botId: string = "2",
+): Promise<void> {
+  await navigateToPaperTrading(page);
+
+  const positionsTable = page.locator('[data-testid="positions-table-container"]');
+  const positionsEmpty = page.locator('[data-testid="positions-empty"]');
+  await Promise.race([
+    positionsTable.waitFor({ state: "visible", timeout: 20000 }),
+    positionsEmpty.waitFor({ state: "visible", timeout: 20000 }),
+  ]).catch(() => {});
+
+  // First bot is auto-selected via loadInitialData; confirm with keyboard
+  const botSelect = page.locator('[data-testid="bot-select"]');
+  await expect(botSelect).toBeVisible({ timeout: 10000 });
+
+  await botSelect.click();
+  await page.waitForTimeout(200);
+  await page.keyboard.press("Enter");
+
+  await page.waitForTimeout(500);
+
+  await page.waitForTimeout(500);
+
+  await page.waitForFunction(
+    () => {
+      const loadingText = document.body.textContent;
+      return !loadingText?.includes("Loading positions...");
+    },
+    { timeout: 10000 },
+  );
+
+  await page.waitForTimeout(500);
+}
+
+export async function verifyPaperTradingTabs(page: Page): Promise<void> {
+  await expect(page.locator('[data-testid="tab-live"]')).toBeVisible();
+  await expect(page.locator('[data-testid="trade-history-tab"]')).toBeVisible();
+  await expect(page.locator('[data-testid="tab-settings"]')).toBeVisible();
+}
+
+export function getBotSelector(page: Page) {
+  return page.locator('[data-testid="bot-select"]');
+}

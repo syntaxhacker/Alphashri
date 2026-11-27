@@ -1,10 +1,5 @@
-/**
- * Chart Preview API
- *
- * Fetches lightweight chart data for hover preview and expanded charts.
- */
-
 import { fetchWithAuth } from "../state/auth";
+import type { ORBZone } from "../types/backtest";
 import { API_ENDPOINTS } from "./config";
 
 const API_BASE = API_ENDPOINTS.CHART_PREVIEW;
@@ -18,12 +13,6 @@ export interface PreviewCandle {
   low: number;
   close: number;
   volume: number;
-}
-
-export interface PivotLevel {
-  date: string;
-  date_raw: string;
-  pp: number; // Pivot Point
 }
 
 export interface PivotLevel {
@@ -52,15 +41,35 @@ export interface ChartPreviewData {
 const previewCache = new Map<string, { data: ChartPreviewData; timestamp: number }>();
 const CACHE_TTL = 60 * 1000; // 1 minute cache
 
+const MAX_PREVIEW_DAYS = 30;
+
+function parseIsoDate(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value ?? "");
+  if (!match) return null;
+  const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 /**
- * Fetch chart preview data for a symbol.
- *
- * @param symbol - Stock symbol (e.g., "TATAMOTORS")
- * @param tf - Timeframe in minutes (default 15)
- * @param days - Days of history (default 1 for hover preview)
- * @param orMinutes - Opening range period in minutes (default 45)
- * @returns Chart preview data with candles, ORB zones, and pivot levels
+ * The endpoint always walks back from the last trading day, so a trade date has
+ * to be expressed as a session count for its candles to fall inside the window.
  */
+export function previewDaysForDate(date: string, today: Date = new Date()): number {
+  const target = parseIsoDate(date);
+  if (!target) return 1;
+
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  if (target.getTime() >= end.getTime()) return 1;
+
+  let sessions = 1;
+  const cursor = new Date(target);
+  while (cursor < end && sessions < MAX_PREVIEW_DAYS) {
+    cursor.setDate(cursor.getDate() + 1);
+    if (cursor.getDay() !== 0 && cursor.getDay() !== 6) sessions += 1;
+  }
+  return sessions;
+}
+
 export async function fetchChartPreview(
   symbol: string,
   tf: number = 15,
@@ -73,14 +82,13 @@ export async function fetchChartPreview(
 
   const cacheKey = `${symbol}:${tf}:${days}:${orMinutes}`;
 
-  // Check cache
   const cached = previewCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     return cached.data;
   }
 
   try {
-    const url = `${API_BASE}/${symbol}?tf=${tf}&days=${days}&or_minutes=${orMinutes}`;
+    const url = `${API_BASE}/${encodeURIComponent(symbol)}?tf=${tf}&days=${days}&or_minutes=${orMinutes}`;
     const response = await fetchWithAuth(url);
 
     if (!response.ok) {
@@ -94,7 +102,6 @@ export async function fetchChartPreview(
       return data;
     }
 
-    // Cache the result
     previewCache.set(cacheKey, { data, timestamp: Date.now() });
 
     return data;
@@ -104,12 +111,8 @@ export async function fetchChartPreview(
   }
 }
 
-/**
- * Clear the preview cache for a specific symbol or all.
- */
 export function clearPreviewCache(symbol?: string): void {
   if (symbol) {
-    // Clear all entries for this symbol
     for (const key of previewCache.keys()) {
       if (key.startsWith(symbol + ":")) {
         previewCache.delete(key);

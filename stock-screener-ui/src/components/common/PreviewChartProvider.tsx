@@ -1,46 +1,30 @@
-import {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  useMemo,
-  useRef,
-  useEffect,
-  type ReactNode,
-} from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  Paper,
-  Group,
-  Text,
-  Select,
-  CloseButton,
-  Loader,
-  ActionIcon,
-  Box,
-  Portal,
-} from "@/ui";
-import { IconArrowsMaximize } from "@tabler/icons-react";
-import { fetchChartPreview, type ChartPreviewData } from "../../api/chartPreview";
-import { buildChartOption } from "../chart/chartRenderer";
+import { Show, createContext, onCleanup, type JSX, useContext } from "solid-js";
+import { createStore } from "solid-js/store";
+import { useNavigate } from "@solidjs/router";
+import { Portal } from "@/ui";
+import { fetchChartPreview } from "../../api/chartPreview";
 import { loadEcharts } from "../../utils/loadEcharts";
 import { useNotification } from "../../hooks/useNotification";
-import { TIMEFRAMES, OR_MINUTES_OPTIONS } from "../../config/constants";
+import { HoverPreview } from "./preview/HoverPreview";
+import { ExpandedPanel } from "./preview/ExpandedPanel";
+import {
+  classifyPreviewResponse,
+  notifyErrorOnce,
+  RETRY_MESSAGE,
+  StaleRequestGuard,
+} from "./preview/request";
+import {
+  createExpandedState,
+  createHoverState,
+  type ChartInstanceBox,
+  type ExpandedState,
+  type HoverState,
+} from "./preview/types";
 
-let lastErrorNotified = "";
-let lastErrorTime = 0;
-const ERROR_DEDUP_MS = 5000;
-
-function notifyErrorOnce(notify: { error: (t: string, m: string) => void }, message: string) {
-  const now = Date.now();
-  if (message === lastErrorNotified && now - lastErrorTime < ERROR_DEDUP_MS) return;
-  lastErrorNotified = message;
-  lastErrorTime = now;
-  notify.error("Chart Error", message);
-}
+export type { ChartInstanceBox } from "./preview/types";
 
 interface PreviewChartContextValue {
-  showPreviewChart: (event: React.MouseEvent, symbol: string) => void;
+  showPreviewChart: (event: MouseEvent, symbol: string) => void;
   hidePreviewChart: () => void;
   toggleExpandedChart: (symbol: string) => void;
   collapseChart: () => void;
@@ -57,500 +41,258 @@ export function usePreviewChart() {
   return useContext(PreviewChartContext);
 }
 
-export function PreviewChartProvider({ children }: { children: ReactNode }) {
+export function PreviewChartProvider(props: { children?: JSX.Element }) {
   const notify = useNotification();
   const navigate = useNavigate();
 
-  const [hoverState, setHoverState] = useState<{
-    visible: boolean;
-    symbol: string | null;
-    x: number;
-    y: number;
-    data: ChartPreviewData | null;
-    loading: boolean;
-  }>({ visible: false, symbol: null, x: 0, y: 0, data: null, loading: false });
+  const [hoverState, setHoverState] = createStore<HoverState>(createHoverState());
+  const [expandedState, setExpandedState] = createStore<ExpandedState>(createExpandedState());
 
-  const [expandedState, setExpandedState] = useState<{
-    visible: boolean;
-    symbol: string | null;
-    data: ChartPreviewData | null;
-    loading: boolean;
-    timeframe: number;
-    orMinutes: number;
-  }>({ visible: false, symbol: null, data: null, loading: false, timeframe: 15, orMinutes: 45 });
+  let hoverTimer: number | null = null;
+  const hoverGuard = new StaleRequestGuard();
+  const hoverChartBox: ChartInstanceBox = { current: null };
+  const expandedChartBox: ChartInstanceBox = { current: null };
+  const expandedGuard = new StaleRequestGuard();
+  let echartsPrefetched = false;
 
-  const hoverTimerRef = useRef<number | null>(null);
-  const hoverChartRef = useRef<EChartsInstance | null>(null);
-  const expandedChartRef = useRef<EChartsInstance | null>(null);
-
-  const showPreviewChart = useCallback((event: React.MouseEvent, symbol: string) => {
-    // Prefetch the ECharts engine on hover so it's ready when the preview
-    // actually renders (no-op once cached on `window`).
+  const prefetchEcharts = () => {
+    if (echartsPrefetched) return;
+    echartsPrefetched = true;
     void loadEcharts();
-    // Immediately clear any pending show to prevent stale previews
-    if (hoverTimerRef.current) {
-      clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
+  };
+
+  const cancelHoverRequest = () => hoverGuard.cancel();
+  const cancelExpandedRequest = () => expandedGuard.cancel();
+
+  onCleanup(() => {
+    if (hoverTimer) {
+      clearTimeout(hoverTimer);
+      hoverTimer = null;
     }
-    hoverTimerRef.current = window.setTimeout(async () => {
-      // Set visible state with symbol
-      setHoverState((prev) => ({
-        ...prev,
+    cancelHoverRequest();
+    cancelExpandedRequest();
+    if (hoverChartBox.current) {
+      hoverChartBox.current.dispose();
+      hoverChartBox.current = null;
+    }
+    if (expandedChartBox.current) {
+      expandedChartBox.current.dispose();
+      expandedChartBox.current = null;
+    }
+  });
+
+  const loadHoverData = async (symbol: string) => {
+    const request = hoverGuard.begin();
+    try {
+      const data = await fetchChartPreview(symbol, 15, 1, 45);
+      if (!hoverGuard.isCurrent(request) || hoverState.symbol !== symbol) return;
+      const result = classifyPreviewResponse(data);
+      if (result.status === "transport") {
+        setHoverState({ data: null, loading: false, error: RETRY_MESSAGE });
+        return;
+      }
+      if (result.status === "server-error") {
+        setHoverState({ data: null, loading: false, error: result.message });
+        return;
+      }
+      setHoverState({ data: result.data, loading: false, error: null });
+    } catch {
+      if (!hoverGuard.isCurrent(request) || hoverState.symbol !== symbol) return;
+      setHoverState({ data: null, loading: false, error: RETRY_MESSAGE });
+    }
+  };
+
+  const showPreviewChart = (event: MouseEvent, symbol: string) => {
+    // Prefetch once; repeating the dynamic import on every pointer move is wasted work.
+    prefetchEcharts();
+    // Immediately clear any pending show to prevent stale previews
+    if (hoverTimer) {
+      clearTimeout(hoverTimer);
+      hoverTimer = null;
+    }
+    const x = event.clientX + 15;
+    const y = event.clientY + 15;
+    hoverTimer = window.setTimeout(() => {
+      hoverTimer = null;
+      if (hoverState.visible && hoverState.symbol === symbol) {
+        // Pausing over the same row must not reset data or refetch: that would
+        // dispose and recreate the ECharts instance on every pointer stop.
+        if (hoverState.x !== x || hoverState.y !== y) setHoverState({ x, y });
+        return;
+      }
+      setHoverState({
         visible: true,
         symbol,
-        x: event.clientX + 15,
-        y: event.clientY + 15,
+        x,
+        y,
         loading: true,
         data: null,
-      }));
-      try {
-        const data = await fetchChartPreview(symbol, 15, 1, 45);
-        setHoverState((prev) => {
-          if (prev.symbol !== symbol) {
-            return prev;
-          }
-          return { ...prev, data: data ?? null, loading: false };
-        });
-      } catch {
-        setHoverState((prev) => ({ ...prev, loading: false }));
-      }
-    }, 300);
-  }, []);
-
-  const hidePreviewChart = useCallback(() => {
-    if (hoverTimerRef.current) {
-      clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
-    }
-    if (hoverChartRef.current) {
-      hoverChartRef.current.dispose();
-      hoverChartRef.current = null;
-    }
-    setHoverState({ visible: false, symbol: null, x: 0, y: 0, data: null, loading: false });
-  }, []);
-
-  const fetchExpandedData = useCallback(
-    async (symbol: string, tf: number, orMinutes: number) => {
-      setExpandedState((prev) => ({ ...prev, loading: true, data: null }));
-      try {
-        const data = await fetchChartPreview(symbol, tf, 5, orMinutes);
-        if (data?.error) {
-          notifyErrorOnce(notify, data.error);
-          setExpandedState((prev) => ({ ...prev, loading: false }));
-          return;
-        }
-        setExpandedState((prev) => ({ ...prev, data: data ?? null, loading: false }));
-      } catch {
-        setExpandedState((prev) => ({ ...prev, loading: false }));
-      }
-    },
-    [notify],
-  );
-
-  const toggleExpandedChart = useCallback(
-    (symbol: string) => {
-      // Prefetch the ECharts engine when the expanded panel opens.
-      void loadEcharts();
-      if (hoverTimerRef.current) {
-        clearTimeout(hoverTimerRef.current);
-      }
-      hidePreviewChart();
-      setExpandedState((prev) => {
-        if (prev.visible && prev.symbol === symbol) {
-          if (expandedChartRef.current) {
-            expandedChartRef.current.dispose();
-            expandedChartRef.current = null;
-          }
-          return {
-            visible: false,
-            symbol: null,
-            data: null,
-            loading: false,
-            timeframe: prev.timeframe,
-            orMinutes: prev.orMinutes,
-          };
-        }
-        return { visible: true, symbol, data: null, loading: true, timeframe: 15, orMinutes: 45 };
+        error: null,
       });
-    },
-    [hidePreviewChart],
-  );
+      void loadHoverData(symbol);
+    }, 300);
+  };
 
-  const collapseChart = useCallback(() => {
-    if (expandedChartRef.current) {
-      expandedChartRef.current.dispose();
-      expandedChartRef.current = null;
+  const hidePreviewChart = () => {
+    if (hoverTimer) {
+      clearTimeout(hoverTimer);
+      hoverTimer = null;
     }
-    setExpandedState((prev) => ({
-      ...prev,
+    if (!hoverState.visible && !hoverGuard.active) return;
+    cancelHoverRequest();
+    if (hoverChartBox.current) {
+      hoverChartBox.current.dispose();
+      hoverChartBox.current = null;
+    }
+    setHoverState({
       visible: false,
       symbol: null,
+      x: 0,
+      y: 0,
       data: null,
       loading: false,
-    }));
-  }, []);
+      error: null,
+    });
+  };
 
-  const setTimeframe = useCallback(
-    (tf: string | null) => {
-      const val = parseInt(tf ?? "15");
-      setExpandedState((prev) => ({ ...prev, timeframe: val }));
-      const symbol = expandedState.symbol;
-      if (symbol) {
-        fetchExpandedData(symbol, val, expandedState.orMinutes);
+  const fetchExpandedData = async (symbol: string, tf: number, orMinutes: number) => {
+    const request = expandedGuard.begin();
+    setExpandedState({ loading: true, data: null, error: null });
+    try {
+      const data = await fetchChartPreview(symbol, tf, 5, orMinutes);
+      if (!expandedGuard.isCurrent(request)) return;
+      const result = classifyPreviewResponse(data);
+      if (result.status === "transport") {
+        setExpandedState({ loading: false, error: RETRY_MESSAGE });
+        return;
       }
-    },
-    [expandedState.symbol, expandedState.orMinutes, fetchExpandedData],
-  );
-
-  const setOrMinutes = useCallback(
-    (or: string | null) => {
-      const val = parseInt(or ?? "45");
-      setExpandedState((prev) => ({ ...prev, orMinutes: val }));
-      const symbol = expandedState.symbol;
-      if (symbol) {
-        fetchExpandedData(symbol, expandedState.timeframe, val);
+      if (result.status === "server-error") {
+        notifyErrorOnce(notify, result.message);
+        setExpandedState({ loading: false, error: result.message });
+        return;
       }
-    },
-    [expandedState.symbol, expandedState.timeframe, fetchExpandedData],
-  );
+      setExpandedState({ data: result.data, loading: false, error: null });
+    } catch {
+      if (!expandedGuard.isCurrent(request)) return;
+      setExpandedState({ loading: false, error: RETRY_MESSAGE });
+    }
+  };
 
-  const openFullChart = useCallback(
-    (symbol: string) => {
-      collapseChart();
-      navigate(`/chart/${symbol}`);
-    },
-    [collapseChart, navigate],
-  );
+  const retryExpanded = () => {
+    const symbol = expandedState.symbol;
+    if (symbol) void fetchExpandedData(symbol, expandedState.timeframe, expandedState.orMinutes);
+  };
 
-  const ctxValue = useMemo<PreviewChartContextValue>(
-    () => ({
-      showPreviewChart,
-      hidePreviewChart,
-      toggleExpandedChart,
-      collapseChart,
-    }),
-    [showPreviewChart, hidePreviewChart, toggleExpandedChart, collapseChart],
-  );
+  const toggleExpandedChart = (symbol: string) => {
+    prefetchEcharts();
+    hidePreviewChart();
+    const wasOpenForSymbol = expandedState.visible && expandedState.symbol === symbol;
+    if (wasOpenForSymbol) {
+      if (expandedChartBox.current) {
+        expandedChartBox.current.dispose();
+        expandedChartBox.current = null;
+      }
+      cancelExpandedRequest();
+      setExpandedState({
+        visible: false,
+        symbol: null,
+        data: null,
+        loading: false,
+        error: null,
+      });
+      return;
+    }
+    const timeframe = 15;
+    const orMinutes = 45;
+    setExpandedState({
+      visible: true,
+      symbol,
+      data: null,
+      loading: true,
+      error: null,
+      timeframe,
+      orMinutes,
+    });
+    void fetchExpandedData(symbol, timeframe, orMinutes);
+  };
+
+  const collapseChart = () => {
+    cancelExpandedRequest();
+    if (expandedChartBox.current) {
+      expandedChartBox.current.dispose();
+      expandedChartBox.current = null;
+    }
+    setExpandedState({ visible: false, symbol: null, data: null, loading: false, error: null });
+  };
+
+  const setTimeframe = (tf: string | null) => {
+    const val = parseInt(tf ?? "15");
+    setExpandedState({ timeframe: val });
+    const symbol = expandedState.symbol;
+    if (symbol) {
+      void fetchExpandedData(symbol, val, expandedState.orMinutes);
+    }
+  };
+
+  const setOrMinutes = (or: string | null) => {
+    const val = parseInt(or ?? "45");
+    setExpandedState({ orMinutes: val });
+    const symbol = expandedState.symbol;
+    if (symbol) {
+      void fetchExpandedData(symbol, expandedState.timeframe, val);
+    }
+  };
+
+  const openFullChart = (symbol: string) => {
+    collapseChart();
+    navigate(`/chart/${symbol}`);
+  };
+
+  // Only stable callbacks live in context. Putting preview state here would hand
+  // every consumer a new value on each pointer move and remount the whole subtree.
+  const ctxValue: PreviewChartContextValue = {
+    showPreviewChart,
+    hidePreviewChart,
+    toggleExpandedChart,
+    collapseChart,
+  };
 
   return (
     <PreviewChartContext.Provider value={ctxValue}>
-      {children}
+      {props.children}
 
-      {hoverState.visible && hoverState.symbol && (
+      <Show when={hoverState.visible && hoverState.symbol}>
         <Portal>
           <HoverPreview
-            symbol={hoverState.symbol}
+            symbol={hoverState.symbol!}
             x={hoverState.x}
             y={hoverState.y}
             data={hoverState.data}
             loading={hoverState.loading}
-            chartRef={hoverChartRef}
+            error={hoverState.error}
+            chartBox={hoverChartBox}
           />
         </Portal>
-      )}
+      </Show>
 
-      {expandedState.visible && expandedState.symbol && (
+      <Show when={expandedState.visible && expandedState.symbol}>
         <Portal>
           <ExpandedPanel
-            symbol={expandedState.symbol}
+            symbol={expandedState.symbol!}
             data={expandedState.data}
             loading={expandedState.loading}
+            error={expandedState.error}
             timeframe={expandedState.timeframe}
             orMinutes={expandedState.orMinutes}
-            chartRef={expandedChartRef}
+            chartBox={expandedChartBox}
             onTimeframeChange={setTimeframe}
             onOrMinutesChange={setOrMinutes}
             onClose={collapseChart}
             onOpenFull={openFullChart}
+            onRetry={retryExpanded}
           />
         </Portal>
-      )}
+      </Show>
     </PreviewChartContext.Provider>
-  );
-}
-
-interface HoverPreviewProps {
-  symbol: string;
-  x: number;
-  y: number;
-  data: ChartPreviewData | null;
-  loading: boolean;
-  chartRef: React.MutableRefObject<EChartsInstance | null>;
-}
-
-function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const adjustedX = Math.min(x, window.innerWidth - 340);
-  const adjustedY = Math.min(y, window.innerHeight - 220);
-
-  useEffect(() => {
-    if (!data || !containerRef.current) return;
-
-    const chartOption = buildChartOption({
-      symbol: data.symbol,
-      candles: data.candles,
-      orb_zones: data.orb_zones,
-      pivot_levels: data.pivot_levels,
-      high_52w: data.high_52w,
-      size: "preview",
-      showPivots: false,
-      show52wHigh: false,
-    });
-
-    if (!chartOption) return;
-
-    let cancelled = false;
-    // ECharts is loaded lazily (dynamic import, cached on `window`), so the
-    // preview chart renders as soon as the engine is available instead of
-    // requiring it in the initial shell.
-    void loadEcharts().then((echartsLib) => {
-      if (cancelled || !echartsLib) return;
-
-      const chartDiv = containerRef.current.querySelector(".echarts-container") as HTMLElement;
-      if (!chartDiv) return;
-
-      if (chartRef.current) {
-        chartRef.current.dispose();
-        chartRef.current = null;
-      }
-
-      chartRef.current = echartsLib.init(chartDiv);
-      chartRef.current.setOption(chartOption);
-      chartRef.current.resize();
-    });
-
-    return () => {
-      cancelled = true;
-      if (chartRef.current) {
-        chartRef.current.dispose();
-        chartRef.current = null;
-      }
-    };
-  }, [data, chartRef]);
-
-  return (
-    <Paper
-      ref={containerRef}
-      shadow="xl"
-      p={0}
-      pos="fixed"
-      left={adjustedX}
-      top={adjustedY}
-      w={320}
-      h={200}
-      style={{ zIndex: 9999, pointerEvents: "none", overflow: "hidden" }}
-      data-testid="preview-chart-hover"
-    >
-      <Group gap={6} px="xs" py={4}>
-        <Text size="xs" fw={600} c="primary">
-          {symbol}
-        </Text>
-        <Text size="xs" c="dimmed">
-          15m
-        </Text>
-      </Group>
-      <Box h={160} pos="relative">
-        {loading && (
-          <Box
-            pos="absolute"
-            inset={0}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
-          >
-            <Loader size="sm" />
-          </Box>
-        )}
-        {!loading && !data?.candles.length && (
-          <Box
-            pos="absolute"
-            inset={0}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
-          >
-            <Text size="xs" c="dimmed">
-              No data
-            </Text>
-          </Box>
-        )}
-        {!loading && (data?.candles.length ?? 0) > 0 && (
-          <div className="echarts-container" style={{ width: 320, height: 160, minHeight: 160 }} />
-        )}
-      </Box>
-    </Paper>
-  );
-}
-
-interface ExpandedPanelProps {
-  symbol: string;
-  data: ChartPreviewData | null;
-  loading: boolean;
-  timeframe: number;
-  orMinutes: number;
-  chartRef: React.MutableRefObject<EChartsInstance | null>;
-  onTimeframeChange: (val: string | null) => void;
-  onOrMinutesChange: (val: string | null) => void;
-  onClose: () => void;
-  onOpenFull: (symbol: string) => void;
-}
-
-function ExpandedPanel({
-  symbol,
-  data,
-  loading,
-  timeframe,
-  orMinutes,
-  chartRef,
-  onTimeframeChange,
-  onOrMinutesChange,
-  onClose,
-  onOpenFull,
-}: ExpandedPanelProps) {
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!data || !chartContainerRef.current) return;
-
-    const chartOption = buildChartOption({
-      symbol: data.symbol,
-      candles: data.candles,
-      orb_zones: data.orb_zones,
-      pivot_levels: data.pivot_levels,
-      high_52w: data.high_52w,
-      size: "expanded",
-      showPivots: true,
-      show52wHigh: true,
-    });
-
-    if (!chartOption) return;
-
-    let cancelled = false;
-    const handleResize = () => chartRef.current?.resize();
-
-    void loadEcharts().then((echartsLib) => {
-      if (cancelled || !echartsLib) return;
-
-      const chartDiv = chartContainerRef.current.querySelector(".echarts-container") as HTMLElement;
-      if (!chartDiv) return;
-
-      if (chartRef.current) {
-        chartRef.current.dispose();
-        chartRef.current = null;
-      }
-
-      chartRef.current = echartsLib.init(chartDiv);
-      chartRef.current.setOption(chartOption);
-      chartRef.current.resize();
-
-      window.addEventListener("resize", handleResize);
-    });
-
-    return () => {
-      cancelled = true;
-      window.removeEventListener("resize", handleResize);
-      if (chartRef.current) {
-        chartRef.current.dispose();
-        chartRef.current = null;
-      }
-    };
-  }, [data, chartRef]);
-
-  return (
-    <Paper
-      shadow="xl"
-      p={0}
-      pos="fixed"
-      top="50%"
-      left="50%"
-      w={650}
-      h={480}
-      style={{
-        zIndex: 10000,
-        transform: "translate(-50%, -50%)",
-        display: "flex",
-        flexDirection: "column",
-      }}
-      data-testid="preview-chart-expanded"
-    >
-      <Group gap="md" px="md" py="xs" sx={{ flexShrink: 0 }}>
-        <Text size="lg" fw={600} c="primary">
-          {symbol}
-          {data?.candles.length ? ` (${data.candles.length} candles)` : ""}
-        </Text>
-        <Select
-          size="xs"
-          w={70}
-          data={TIMEFRAMES.map((t) => ({ value: String(t.value), label: t.label }))}
-          value={String(timeframe)}
-          onChange={onTimeframeChange}
-          data-testid="preview-tf-select"
-        />
-        <Select
-          size="xs"
-          w={90}
-          data={OR_MINUTES_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
-          value={String(orMinutes)}
-          onChange={onOrMinutesChange}
-          data-testid="preview-or-select"
-        />
-        <CloseButton ml="auto" size="md" onClick={onClose} data-testid="preview-close-btn" />
-      </Group>
-
-      <Box
-        ref={chartContainerRef}
-        style={{ flex: 1, padding: 8, minHeight: 0, position: "relative" }}
-      >
-        {loading && (
-          <Box
-            pos="absolute"
-            inset={0}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Loader />
-          </Box>
-        )}
-        {!loading && (data?.candles.length ?? 0) === 0 && (
-          <Box
-            pos="absolute"
-            inset={0}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Text c="dimmed">No data available</Text>
-          </Box>
-        )}
-        {!loading && (data?.candles.length ?? 0) > 0 && (
-          <div
-            className="echarts-container"
-            style={{ width: "100%", height: "100%", minHeight: 0 }}
-          />
-        )}
-      </Box>
-
-      <Group justify="flex-end" px="md" py="xs" sx={{ flexShrink: 0 }}>
-        <ActionIcon
-          variant="subtle"
-          color="primary"
-          onClick={() => onOpenFull(symbol)}
-          data-testid="preview-open-full-btn"
-        >
-          <IconArrowsMaximize size={16} />
-        </ActionIcon>
-        <Text
-          size="xs"
-          c="primary"
-          style={{ cursor: "pointer" }}
-          onClick={() => onOpenFull(symbol)}
-          data-testid="preview-open-full-link"
-        >
-          Open Full Chart
-        </Text>
-      </Group>
-    </Paper>
   );
 }

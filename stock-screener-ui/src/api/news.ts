@@ -1,7 +1,3 @@
-/**
- * News API Client
- */
-
 import type {
   NewsItem,
   NewsSource,
@@ -14,33 +10,35 @@ import type {
   NewsArticle,
 } from "../components/news/news-types";
 import { fetchWithAuth } from "../state/auth";
+import { apiErrorFromResponse, asApiError, isAbortError } from "./apiError";
 import { jsonOrThrow } from "./utils/request";
 import { API_BASE, WS_BASE } from "./config";
 
-/**
- * Fetch latest news from a source
- */
 export async function fetchNews(
   source: string | undefined = undefined,
   limit: number = 25,
+  signal?: AbortSignal,
 ): Promise<NewsItem[]> {
-  try {
-    let url = `${API_BASE}/api/news?limit=${limit}`;
-    if (source && source !== "all") {
-      url += `&source=${source}`;
-    }
-    const response = await fetchWithAuth(url);
-    const data: NewsResponse = await jsonOrThrow<NewsResponse>(response, "Failed to fetch news");
-    return data.items || [];
-  } catch (error) {
-    console.error("Failed to fetch news:", error);
-    return [];
+  let url = `${API_BASE}/api/news?limit=${limit}`;
+  if (source && source !== "all") {
+    url += `&source=${source}`;
   }
+  let response: Response;
+  try {
+    response = await fetchWithAuth(url, signal ? { signal } : undefined);
+  } catch (error) {
+    // Keep the original AbortError: consumers' `isAbortError` guard keys off
+    // `name === "AbortError"` and treats it as a silent no-op.
+    if (isAbortError(error)) throw error;
+    throw asApiError(error, "Failed to fetch news");
+  }
+  if (!response.ok) {
+    throw await apiErrorFromResponse(response, "Failed to fetch news");
+  }
+  const data: NewsResponse = await jsonOrThrow<NewsResponse>(response, "Failed to fetch news");
+  return data.items || [];
 }
 
-/**
- * Fetch full article content
- */
 export async function fetchArticle(url: string): Promise<ArticleResponse | null> {
   try {
     const encodedUrl = encodeURIComponent(url);
@@ -52,9 +50,6 @@ export async function fetchArticle(url: string): Promise<ArticleResponse | null>
   }
 }
 
-/**
- * Fetch available news sources
- */
 export async function fetchNewsSources(): Promise<NewsSource[]> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/news/sources`);
@@ -69,9 +64,6 @@ export async function fetchNewsSources(): Promise<NewsSource[]> {
   }
 }
 
-/**
- * WebSocket message types for news updates
- */
 export interface NewsWebSocketMessage {
   type: "new_items" | "connected" | "ping";
   source?: string;
@@ -82,13 +74,6 @@ export interface NewsWebSocketMessage {
 
 export type NewsWebSocketCallback = (message: NewsWebSocketMessage) => void;
 
-/**
- * Create a WebSocket connection for real-time news updates
- * @param onMessage Callback function to handle incoming messages
- * @param onConnect Optional callback when connection is established
- * @param onDisconnect Optional callback when connection is lost
- * @returns WebSocket instance or null if connection failed
- */
 export function createNewsWebSocket(
   onMessage: NewsWebSocketCallback,
   onConnect?: () => void,
@@ -125,9 +110,6 @@ export function createNewsWebSocket(
   }
 }
 
-/**
- * Get chart data for a symbol mentioned in news
- */
 export async function fetchSymbolChart(
   symbol: string,
   days: number = 30,
@@ -143,9 +125,6 @@ export async function fetchSymbolChart(
   }
 }
 
-/**
- * Get articles for a specific symbol
- */
 export async function fetchArticlesForSymbol(
   symbol: string,
   limit: number = 10,
@@ -161,9 +140,6 @@ export async function fetchArticlesForSymbol(
   }
 }
 
-/**
- * Get article by ID with symbols
- */
 export async function fetchArticleById(articleId: number): Promise<NewsArticle | null> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/news/articles/${articleId}`);
@@ -174,9 +150,6 @@ export async function fetchArticleById(articleId: number): Promise<NewsArticle |
   }
 }
 
-/**
- * Get recent stored articles
- */
 export async function fetchRecentArticles(
   hours: number = 24,
   source?: string,
@@ -198,9 +171,6 @@ export async function fetchRecentArticles(
   }
 }
 
-/**
- * Search articles
- */
 export async function searchArticles(
   query: string,
   limit: number = 20,
@@ -219,9 +189,6 @@ export async function searchArticles(
   }
 }
 
-/**
- * Map a symbol to see how it maps to an instrument
- */
 export async function mapSymbol(symbol: string): Promise<SymbolMapping | null> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/news/map/${encodeURIComponent(symbol)}`);
@@ -232,9 +199,6 @@ export async function mapSymbol(symbol: string): Promise<SymbolMapping | null> {
   }
 }
 
-/**
- * Get news stats
- */
 export async function fetchNewsStats(): Promise<NewsStatsResponse | null> {
   try {
     const response = await fetchWithAuth(`${API_BASE}/api/news/stats`);

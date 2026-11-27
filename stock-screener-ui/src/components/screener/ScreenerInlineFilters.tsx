@@ -1,87 +1,154 @@
-import Box from "@mui/material/Box";
-import Paper from "@mui/material/Paper";
-import Chip from "@mui/material/Chip";
-import Button from "@mui/material/Button";
-import { Text } from "@/ui";
-import * as state from "../../state";
+import { Show, For } from "solid-js";
+import type { JSX } from "solid-js";
+import { Box, Badge, Button, Paper, Text, typeSize } from "@/ui";
+import { subscribe, profileMetaById } from "../../state";
+import { useStoreSnapshot } from "../../hooks/useStoreSubscription";
 import { fetchData } from "../../api";
 import * as palette from "@/ui/palette";
 
-export function ScreenerInlineFilters({ activeScreener, embedded = false }: { activeScreener: string; embedded?: boolean }) {
-  const profileMeta = (state as any).profileMetaById?.[activeScreener];
-  const filters: any[] = profileMeta?.filters || [];
-  if (!filters.length) return null;
+interface ScreenerInlineFiltersProps {
+  activeScreener: string;
+  embedded?: boolean;
+  /** Context-band status ("265 stocks"); shares the row, never a row of its own. */
+  status?: string;
+  /** One-line notices (52W source note, warning) shown in the same band. */
+  notes?: string[];
+}
 
-  const inner = (
+/** Fixed-height band — asserted by tests. Unmounting it shifts the table down. */
+export const SCREENER_INLINE_FILTERS_HEIGHT_CLASS = "h-[24px]";
+export const SCREENER_INLINE_FILTERS_PLACEHOLDER = "No filters";
+export const SCREENER_INLINE_FILTERS_EMPTY_TESTID = "screener-inline-filters-empty";
+
+const ROW_CLASS =
+  `flex items-center gap-2 px-2 ${SCREENER_INLINE_FILTERS_HEIGHT_CLASS} min-h-[24px] flex-nowrap overflow-hidden whitespace-nowrap flex-shrink-0 bg-fin-surface`;
+
+export function ScreenerInlineFilters(props: ScreenerInlineFiltersProps) {
+  const store = useStoreSnapshot(subscribe, () => profileMetaById);
+  const profileMeta = () => store()?.[props.activeScreener];
+  const filters = (): any[] => profileMeta()?.filters || [];
+  const notes = () => props.notes ?? [];
+  const status = () => props.status ?? "";
+  const embedded = () => props.embedded ?? false;
+  const hasContent = () => filters().length > 0 || notes().length > 0 || status().length > 0;
+
+  const trailing = (
     <>
-      <Text size="11px" c="dimmed" fw={600} sx={{ color: palette.TEXT_MUTED }}>
-        Filters:
-      </Text>
-      {filters.map((f: any) => (
-        <Chip
-          key={f.key}
-          size="small"
-          label={f.label || f.key}
-          title={f.label}
-          data-testid={`filter-chip-${f.key}`}
-          sx={{ fontSize: 11, height: 24, bgcolor: palette.SURFACE_ALT, color: palette.TEXT, border: 1, borderColor: palette.BORDER }}
-        />
-      ))}
-      <Box sx={{ flex: 1 }} />
-      <Button
-        size="small"
-        variant="outlined"
-        color="inherit"
-        data-testid="apply-filters-btn"
-        onClick={() => fetchData("upstox", "intraday", activeScreener, "manual")}
-        sx={{ fontSize: 11, height: 24, textTransform: "none" }}
-      >
-        Apply
-      </Button>
+      <FilterNotes notes={notes()} />
+      <Show when={status()}>
+        <Text className="text-ui-micro" c="dimmed" truncate data-testid="screener-status" title={status()}>
+          {status()}
+        </Text>
+      </Show>
     </>
   );
 
-  if (embedded) {
-    return (
-      <Box
-        data-testid="screener-inline-filters"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-          px: 1.5,
-          py: 1,
-          borderBottom: 1,
-          borderColor: palette.BORDER,
-          bgcolor: palette.SURFACE,
-          flexWrap: "wrap",
-          flexShrink: 0,
-        }}
-      >
-        {inner}
-      </Box>
-    );
-  }
-
+  // Always mounted: the band reserves its 24px even with no filters/notes/status,
+  // so the first filter (or first status tick) cannot push the table down.
   return (
-    <Paper
-      elevation={0}
-      data-testid="screener-inline-filters"
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: 1,
-        px: 1.5,
-        py: 1,
-        border: 1,
-        borderColor: palette.BORDER,
-        borderRadius: 2,
-        bgcolor: palette.SURFACE,
-        flexWrap: "wrap",
-        flexShrink: 0,
-      }}
+    <Show
+      when={embedded()}
+      fallback={
+        <Paper
+          elevation={0}
+          data-testid="screener-inline-filters"
+          className={`${ROW_CLASS} border border-fin-border rounded-fin`}
+        >
+          <FilterChips
+            filters={filters()}
+            activeScreener={props.activeScreener}
+            showPlaceholder={!hasContent()}
+            trailing={trailing}
+          />
+        </Paper>
+      }
     >
-      {inner}
-    </Paper>
+      <Box data-testid="screener-inline-filters" className={ROW_CLASS}>
+        <FilterChips
+          filters={filters()}
+          activeScreener={props.activeScreener}
+          showPlaceholder={!hasContent()}
+          trailing={trailing}
+        />
+      </Box>
+    </Show>
+  );
+}
+
+function FilterNotes(props: { notes: string[] }) {
+  return (
+    <Show when={props.notes.length > 0}>
+      <Text
+        c="dimmed"
+        truncate
+        className="text-ui-micro min-w-0 flex-shrink"
+        title={props.notes.join(" · ")}
+        data-testid="screener-52w-high-banner"
+      >
+        {props.notes.join(" · ")}
+      </Text>
+    </Show>
+  );
+}
+
+function FilterChips(props: {
+  filters: any[];
+  activeScreener: string;
+  showPlaceholder?: boolean;
+  trailing?: JSX.Element;
+}) {
+  const hasFilters = () => props.filters.length > 0;
+  return (
+    <>
+      <Show when={props.showPlaceholder}>
+        <Text
+          c="dimmed"
+          className="text-ui-micro leading-none whitespace-nowrap"
+          data-testid={SCREENER_INLINE_FILTERS_EMPTY_TESTID}
+        >
+          {SCREENER_INLINE_FILTERS_PLACEHOLDER}
+        </Text>
+      </Show>
+      <Show when={hasFilters()}>
+        <Text className="text-ui-micro flex-shrink-0" c="dimmed" fw={600}>
+          Filters:
+        </Text>
+        <For each={props.filters}>
+          {(f: any) => (
+            <Badge
+              size="xs"
+              variant="light"
+              color="secondary"
+              title={f.label}
+              data-testid={`filter-chip-${f.key}`}
+              style={{
+                "font-size": `${typeSize("micro")}px`,
+                height: "24px",
+                "background-color": palette.SURFACE_ALT,
+                color: palette.TEXT,
+                border: `1px solid ${palette.BORDER}`,
+                "border-radius": 0,
+              }}
+            >
+              {f.label || f.key}
+            </Badge>
+          )}
+        </For>
+      </Show>
+      <Box className="flex-1" />
+      {props.trailing}
+      <Show when={hasFilters()}>
+        <Button
+          size="xs"
+          variant="outline"
+          color="inherit"
+          data-testid="apply-filters-btn"
+          onClick={() => fetchData("upstox", "intraday", props.activeScreener, "manual")}
+          style={{ "font-size": `${typeSize("micro")}px`, height: "24px", "text-transform": "none" }}
+        >
+          Apply
+        </Button>
+      </Show>
+    </>
   );
 }

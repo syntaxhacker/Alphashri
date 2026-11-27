@@ -1,13 +1,50 @@
-import MuiDivider from "@mui/material/Divider";
+import { cn } from "../cn";
 import type { UIDividerProps } from "../types";
 
-export function Divider({ children, className, style, id, "data-testid": testId, orientation, color, size, label, labelPosition, ...rest }: UIDividerProps & Record<string, unknown>) {
-  void color; void size;
-  const orient = orientation === "vertical" ? "vertical" : "horizontal";
-  const textAlign = (labelPosition as never) ?? "center";
+/**
+ * `props` also carries the Mantine-shaped keys (`orientation`, `label`,
+ * `labelPosition`, `size`, `color`, `flexItem`). Spreading it painted them onto
+ * the element as invalid DOM attributes and, on the vertical branch, re-inserted
+ * `children` next to the label that is already rendered.
+ */
+function ariaAttributes(props: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(props)) {
+    if (key.startsWith("aria-")) out[key] = props[key];
+  }
+  return out;
+}
+
+export function Divider(props: UIDividerProps & Record<string, unknown>) {
+  void props.color; void props.size; void props.flexItem; void props.labelPosition;
+  const vertical = props.orientation === "vertical";
+  const base = vertical ? "h-full border-r border-fin-border" : "border-fin-border";
+  const forwarded = ariaAttributes(props as Record<string, unknown>);
+
+  // An <hr> is void, so a horizontal divider with a label needs a container
+  // that can actually render it. Keep the separator role on that container.
+  if (vertical || props.label != null) {
+    return (
+      <div
+        role="separator"
+        aria-orientation={vertical ? "vertical" : "horizontal"}
+        id={props.id}
+        className={cn(base, !vertical && "flex items-center gap-2 border-t", props.className)}
+        style={props.style}
+        data-testid={props["data-testid"]}
+        {...forwarded}
+      >
+        {props.label ?? props.children}
+      </div>
+    );
+  }
   return (
-    <MuiDivider id={id as string} className={className} style={style} data-testid={testId} orientation={orient} textAlign={textAlign} {...rest}>
-      {label ?? children}
-    </MuiDivider>
+    <hr
+      id={props.id}
+      className={cn(base, props.className)}
+      style={props.style}
+      data-testid={props["data-testid"]}
+      {...forwarded}
+    />
   );
 }

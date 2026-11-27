@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import os
+import time
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -11,9 +15,41 @@ from api.reports_api import chain10s, ticks
 
 @pytest.fixture()
 def tmp_dir(tmp_path, monkeypatch):
+    # poll_once() writes the process-wide LAST_FULL cache; a later tape test
+    # that expects a failing fetch would silently reuse it. Snapshot and
+    # restore the globals around every test.
+    saved_last = dict(chain10s.LAST)
+    saved_full = dict(chain10s.LAST_FULL)
+    saved_recent = list(chain10s.RECENT)
+    saved_prev_oi = chain10s._prev_oi
+    saved_burst = chain10s._burst_until
     monkeypatch.setattr(chain10s, "_dir", lambda: tmp_path)
+    monkeypatch.setattr(chain10s, "_greeks_dir", lambda: tmp_path / "greeks")
     monkeypatch.setattr(ticks, "_dir", lambda: tmp_path)
-    return tmp_path
+    chain10s._GAP_SEEN.clear()
+    chain10s._last_ok_ts = None
+    yield tmp_path
+    chain10s.LAST.clear()
+    chain10s.LAST.update(saved_last)
+    chain10s.LAST_FULL.clear()
+    chain10s.LAST_FULL.update(saved_full)
+    chain10s.RECENT.clear()
+    chain10s.RECENT.extend(saved_recent)
+    chain10s._prev_oi = saved_prev_oi
+    chain10s._burst_until = saved_burst
+    chain10s._last_ok_ts = None
+    chain10s._GAP_SEEN.clear()
+
+
+def _fake_chain(monkeypatch, rows, spot=22500.0, expiry="2026-10-27"):
+    async def fake_fetch(_expiry):
+        return expiry, {"data": []}
+
+    def fake_parse(_payload):
+        return expiry, spot, rows
+
+    monkeypatch.setattr("api.reports_api.nifty._fetch_chain_payload", fake_fetch)
+    monkeypatch.setattr("api.reports_api.nifty.parse_chain_payload", fake_parse)
 
 
 def test_slim_rows_keeps_only_the_atm_window_and_sorts():
@@ -165,22 +201,186 @@ def test_tick_endpoint_reads_and_windows(tmp_dir):
 
 
 def test_poll_once_writes_a_snapshot_and_tracks_last(tmp_dir, monkeypatch):
-    async def fake_fetch(_expiry):
-        return "2026-10-27", {"data": []}
-
-    def fake_parse(_payload):
-        return "2026-10-27", 22500.0, [
-            {"strike": 22500, "ce": {"ltp": 100, "oi": 1000, "volume": 10},
-             "pe": {"ltp": 90, "oi": 2000, "volume": 20}},
-        ]
-
-    monkeypatch.setattr("api.reports_api.nifty._fetch_chain_payload", fake_fetch)
-    monkeypatch.setattr("api.reports_api.nifty.parse_chain_payload", fake_parse)
+    _fake_chain(monkeypatch, [
+        {"strike": 22500, "ce": {"ltp": 100, "oi": 1000, "volume": 10},
+         "pe": {"ltp": 90, "oi": 2000, "volume": 20}},
+    ])
     chain10s._prev_oi = None
-    snap = __import__("asyncio").run(chain10s.poll_once())
+    snap = asyncio.run(chain10s.poll_once())
     assert snap is not None
     assert snap["spot"] == 22500.0
     assert snap["rows"][0][0] == 22500.0
     assert chain10s.LAST["spot"] == 22500.0
     written = (tmp_dir / f"{chain10s._today_ist()}.jsonl").read_text().strip()
     assert json.loads(written)["rows"][0][0] == 22500.0
+
+
+
+
+def test_poll_stamps_ist_even_when_the_host_is_not_ist(tmp_dir, monkeypatch):
+    _fake_chain(monkeypatch, [
+        {"strike": 22500, "ce": {"ltp": 100, "oi": 1000}, "pe": {"ltp": 90, "oi": 2000}},
+    ])
+    old_tz = os.environ.get("TZ")
+    os.environ["TZ"] = "UTC"
+    time.tzset()
+    try:
+        snap = asyncio.run(chain10s.poll_once())
+    finally:
+        if old_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = old_tz
+        time.tzset()
+    assert snap is not None
+    assert snap["t"].endswith("+05:30")
+    offset = datetime.fromisoformat(snap["t"]).utcoffset()
+    assert offset == timedelta(hours=5, minutes=30)
+    # The day file is named from the same IST clock as the stamp.
+    assert (tmp_dir / f"{snap['t'][:10]}.jsonl").exists()
+
+
+
+
+def test_gap_journal_records_a_failed_poll_with_detail(tmp_dir, monkeypatch):
+    async def boom(_expiry):
+        raise RuntimeError("upstream 502: no expiries")
+
+    monkeypatch.setattr("api.reports_api.nifty._fetch_chain_payload", boom)
+    assert asyncio.run(chain10s.poll_once()) is None
+    gaps = chain10s.read_gaps(chain10s._today_ist())
+    assert gaps, "a failed poll must leave a journal entry"
+    entry = gaps[-1]
+    assert entry["reason"] == "poll-failed"
+    assert "upstream 502" in entry["detail"]
+    assert entry["t"].endswith("+05:30")
+
+
+def test_gap_journal_dedupes_a_retry_storm_per_minute(tmp_dir, monkeypatch):
+    async def boom(_expiry):
+        raise RuntimeError("still down")
+
+    monkeypatch.setattr("api.reports_api.nifty._fetch_chain_payload", boom)
+    asyncio.run(chain10s.poll_once())
+    asyncio.run(chain10s.poll_once())
+    asyncio.run(chain10s.poll_once())
+    gaps = chain10s.read_gaps(chain10s._today_ist())
+    assert len([g for g in gaps if g["reason"] == "poll-failed"]) == 1
+
+
+def test_gap_journal_flags_a_hole_longer_than_two_intervals(tmp_dir, monkeypatch):
+    _fake_chain(monkeypatch, [
+        {"strike": 22500, "ce": {"ltp": 100, "oi": 1000}, "pe": {"ltp": 90, "oi": 2000}},
+    ])
+    chain10s._last_ok_ts = time.time() - (chain10s.INTERVAL_SEC * 3)
+    assert asyncio.run(chain10s.poll_once()) is not None
+    gaps = chain10s.read_gaps(chain10s._today_ist())
+    hole = [g for g in gaps if g["reason"] == "poll-gap"]
+    assert len(hole) == 1
+    assert "gap" in hole[0]["detail"]
+
+
+def test_gap_journal_ignores_a_normal_cadence_and_session_boundaries(tmp_dir, monkeypatch):
+    _fake_chain(monkeypatch, [
+        {"strike": 22500, "ce": {"ltp": 100, "oi": 1000}, "pe": {"ltp": 90, "oi": 2000}},
+    ])
+    # One interval: normal, no entry.
+    chain10s._last_ok_ts = time.time() - chain10s.INTERVAL_SEC
+    assert asyncio.run(chain10s.poll_once()) is not None
+    assert [g for g in chain10s.read_gaps(chain10s._today_ist())
+            if g["reason"] == "poll-gap"] == []
+    # Overnight/closed-market absence is a session boundary, not a poller hole.
+    chain10s._last_ok_ts = time.time() - (chain10s.GAP_MAX_SEC + 60)
+    assert asyncio.run(chain10s.poll_once()) is not None
+    assert [g for g in chain10s.read_gaps(chain10s._today_ist())
+            if g["reason"] == "poll-gap"] == []
+
+
+def test_gap_journal_records_an_out_of_window_chain(tmp_dir, monkeypatch):
+    _fake_chain(monkeypatch, [
+        {"strike": 1, "ce": {"ltp": 1}, "pe": {"ltp": 1}},
+    ], spot=22500.0)
+    assert asyncio.run(chain10s.poll_once()) is None
+    gaps = chain10s.read_gaps(chain10s._today_ist())
+    assert [g["reason"] for g in gaps] == ["empty-chain"]
+
+
+
+GREEK_ROWS = [
+    {"strike": 22500,
+     "ce": {"ltp": 100, "oi": 1000, "volume": 10, "instrument_key": "NSE_FO|1",
+            "iv": 12.5, "delta": 0.52, "gamma": 0.0012, "theta": -3.4, "vega": 11.2},
+     "pe": {"ltp": 90, "oi": 2000, "volume": 20, "instrument_key": "NSE_FO|2",
+            "iv": 13.1, "delta": -0.48, "gamma": 0.0011, "theta": -3.9, "vega": 10.4}},
+    {"strike": 22550,
+     "ce": {"ltp": 60, "oi": 300, "instrument_key": "NSE_FO|3", "iv": 14.0},
+     "pe": {}},  # dead put leg
+    {"strike": 26000,  # far outside the ±750 window
+     "ce": {"ltp": 1, "instrument_key": "NSE_FO|4", "iv": 99.0},
+     "pe": {"ltp": 1, "instrument_key": "NSE_FO|5", "iv": 99.0}},
+]
+
+
+def test_greeks_file_is_written_from_the_full_rows(tmp_dir, monkeypatch):
+    _fake_chain(monkeypatch, [dict(r) for r in GREEK_ROWS])
+    snap = asyncio.run(chain10s.poll_once())
+    assert snap is not None
+    # The slim contract is still a 7-tuple.
+    assert all(len(row) == 7 for row in snap["rows"])
+
+    path = tmp_dir / "greeks" / f"{snap['t'][:10]}.jsonl"
+    assert path.exists()
+    lines = [json.loads(x) for x in path.read_text().splitlines() if x.strip()]
+    assert len(lines) == 1
+    payload = lines[0]
+    assert set(payload) == {"t", "expiry", "spot", "rows"}
+    assert payload["t"] == snap["t"]
+    assert payload["expiry"] == "2026-10-27"
+    assert [r["strike"] for r in payload["rows"]] == [22500.0, 22550.0]
+    atm = payload["rows"][0]
+    assert set(atm) == {"strike", "ce", "pe"}
+    assert atm["ce"] == {"iv": 12.5, "delta": 0.52, "gamma": 0.0012,
+                         "theta": -3.4, "vega": 11.2}
+    assert atm["pe"]["delta"] == -0.48
+    # A dead put leg is null evidence, not zero gamma.
+    dead = payload["rows"][1]["pe"]
+    assert all(dead[k] is None for k in chain10s.GREEK_KEYS)
+
+
+def test_greeks_file_is_off_with_the_env_switch(tmp_dir, monkeypatch):
+    monkeypatch.setattr(chain10s, "GREEKS_ENABLED", False)
+    _fake_chain(monkeypatch, [dict(r) for r in GREEK_ROWS])
+    snap = asyncio.run(chain10s.poll_once())
+    assert snap is not None
+    assert not (tmp_dir / "greeks").exists()
+    # The slim snapshot is unaffected by the opt-out.
+    assert (tmp_dir / f"{snap['t'][:10]}.jsonl").exists()
+
+
+def test_greeks_write_failure_never_loses_the_snapshot(tmp_dir, monkeypatch):
+    _fake_chain(monkeypatch, [dict(r) for r in GREEK_ROWS])
+
+    def boom():
+        raise OSError("No space left on device")
+
+    monkeypatch.setattr(chain10s, "_greeks_dir", boom)
+    snap = asyncio.run(chain10s.poll_once())
+    assert snap is not None
+    assert (tmp_dir / f"{snap['t'][:10]}.jsonl").exists()
+    gaps = chain10s.read_gaps(chain10s._today_ist())
+    assert [g["reason"] for g in gaps] == ["greeks-failed"]
+
+
+def test_greeks_rows_is_bounded_and_keeps_the_strikes_nearest_spot():
+    rows = [{"strike": 22000 + i * 2.5,
+             "ce": {"instrument_key": f"CE{i}", "iv": 10.0},
+             "pe": {"instrument_key": f"PE{i}", "iv": 10.0}}
+            for i in range(121)]
+    out = chain10s.greeks_rows(rows, spot=22150, window=750, max_strikes=5)
+    assert len(out) == 5
+    assert [r["strike"] for r in out] == sorted(r["strike"] for r in out)
+    assert all(abs(r["strike"] - 22150) <= 5 for r in out)
+    far = chain10s.greeks_rows([{"strike": 26000, "ce": {}, "pe": {}}],
+                               spot=22500, window=750)
+    assert far == []
+

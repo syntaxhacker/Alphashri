@@ -108,9 +108,41 @@ def bot_with_strategy(db, bot, strategy):
     return bot, strategy
 
 
-# ============================================================================
-# Group 1: DB Model Tests
-# ============================================================================
+class _SharedSession:
+    """Proxy the test session so helper-owned ``SessionLocal`` calls cannot close it."""
+
+    def __init__(self, session):
+        self._session = session
+
+    def __enter__(self):
+        return self._session
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def close(self):
+        pass
+
+    def __getattr__(self, name):
+        return getattr(self._session, name)
+
+
+@pytest.fixture(autouse=True)
+def _production_helpers_use_test_db(db, monkeypatch):
+    """Bind every self-opened SessionLocal to the schema-initialized test session.
+
+    runner_core resolves its factory through trading.multi_strategy_runner first,
+    while position/history helpers import db.database.SessionLocal at call time;
+    both must land on the in-memory test DB (the file DB is empty in CI).
+    """
+    import db.database as db_module
+    import trading.multi_strategy_runner as multi_runner
+
+    def factory(*args, **kwargs):
+        return _SharedSession(db)
+
+    monkeypatch.setattr(db_module, "SessionLocal", factory)
+    monkeypatch.setattr(multi_runner, "SessionLocal", factory, raising=False)
 
 
 class TestBotRuntimeStateModel:
@@ -250,9 +282,6 @@ class TestPositionNewColumns:
         assert d["low_price"] == 2470.0
 
 
-# ============================================================================
-# Group 2: get_bot_state() Tests
-# ============================================================================
 
 
 class TestGetBotState:
@@ -374,9 +403,10 @@ class TestGetBotState:
     def test_get_bot_state_scan_items_from_redis(self, db, user, bot_with_strategy):
         bot, strategy = bot_with_strategy
 
+        now = datetime.now(IST).isoformat()
         scan_items = [
-            {"symbol": "RELIANCE", "strategy_id": strategy.id, "signal": "LONG"},
-            {"symbol": "TCS", "strategy_id": strategy.id, "signal": "SHORT"},
+            {"symbol": "RELIANCE", "strategy_id": strategy.id, "signal": "LONG", "timestamp": now},
+            {"symbol": "TCS", "strategy_id": strategy.id, "signal": "SHORT", "timestamp": now},
         ]
         mock_redis = MagicMock()
         mock_redis.get.return_value = json.dumps(scan_items)
@@ -393,9 +423,10 @@ class TestGetBotState:
     def test_get_bot_state_scan_items_from_db(self, db, user, bot_with_strategy):
         bot, strategy = bot_with_strategy
 
+        now = datetime.now(IST).isoformat()
         db_scan_items = [
-            {"symbol": "RELIANCE", "strategy_id": strategy.id, "signal": "LONG", "strategy_name": "ORB Best"},
-            {"symbol": "TCS", "strategy_id": strategy.id, "signal": "SHORT", "strategy_name": "ORB Best"},
+            {"symbol": "RELIANCE", "strategy_id": strategy.id, "signal": "LONG", "strategy_name": "ORB Best", "timestamp": now},
+            {"symbol": "TCS", "strategy_id": strategy.id, "signal": "SHORT", "strategy_name": "ORB Best", "timestamp": now},
         ]
         bot_runtime = BotRuntimeState(
             bot_id=bot.id,
@@ -427,7 +458,7 @@ class TestGetBotState:
         db.commit()
 
         redis_scan_items = [
-            {"symbol": "INFY", "strategy_id": strategy.id, "signal": "LONG", "strategy_name": "ORB Best"},
+            {"symbol": "INFY", "strategy_id": strategy.id, "signal": "LONG", "strategy_name": "ORB Best", "timestamp": datetime.now(IST).isoformat()},
         ]
         mock_redis = MagicMock()
         mock_redis.get.return_value = json.dumps(redis_scan_items)
@@ -443,7 +474,7 @@ class TestGetBotState:
         bot, strategy = bot_with_strategy
 
         db_scan_items = [
-            {"symbol": "RELIANCE", "strategy_id": strategy.id, "signal": "LONG", "strategy_name": "ORB Best"},
+            {"symbol": "RELIANCE", "strategy_id": strategy.id, "signal": "LONG", "strategy_name": "ORB Best", "timestamp": datetime.now(IST).isoformat()},
         ]
         bot_runtime = BotRuntimeState(
             bot_id=bot.id,
@@ -455,7 +486,7 @@ class TestGetBotState:
         db.commit()
 
         redis_scan_items = [
-            {"symbol": "TCS", "strategy_id": strategy.id, "signal": "SHORT", "strategy_name": "ORB Best"},
+            {"symbol": "TCS", "strategy_id": strategy.id, "signal": "SHORT", "strategy_name": "ORB Best", "timestamp": datetime.now(IST).isoformat()},
         ]
         mock_redis = MagicMock()
         mock_redis.get.return_value = json.dumps(redis_scan_items)
@@ -469,9 +500,6 @@ class TestGetBotState:
         mock_redis.get.assert_not_called()
 
 
-# ============================================================================
-# Group 3: persist_state() Integration Tests
-# ============================================================================
 
 
 class TestPersistState:
@@ -491,8 +519,7 @@ class TestPersistState:
         mock_config.max_total_capital_pct = max_cap
 
         with patch("trading.runner_core.SharedPortfolioManager"), \
-             patch("trading.runner_core.GlobalRiskManager"), \
-             patch("trading.runner_core.SessionLocal"):
+             patch("trading.runner_core.GlobalRiskManager"):
             runner = MultiStrategyRunner(bot_config=mock_config, user_id=user_id)
             runner.test_mode = True
         return runner
@@ -519,8 +546,7 @@ class TestPersistState:
         runner.portfolio = mock_portfolio
         runner.strategies = {}
 
-        with patch("db.database.SessionLocal", return_value=db):
-            runner.persist_state()
+        runner.persist_state()
 
         bot_state = db.query(BotRuntimeState).filter(
             BotRuntimeState.bot_id == bot_id
@@ -571,8 +597,7 @@ class TestPersistState:
         sr.last_scan_items = []
         runner.strategies = {strategy_id: sr}
 
-        with patch("db.database.SessionLocal", return_value=db):
-            runner.persist_state()
+        runner.persist_state()
 
         s_state = db.query(StrategyRuntimeState).filter(
             StrategyRuntimeState.bot_id == bot_id,
@@ -616,8 +641,7 @@ class TestPersistState:
         runner.portfolio = mock_portfolio
         runner.strategies = {}
 
-        with patch("db.database.SessionLocal", return_value=db):
-            runner.persist_state()
+        runner.persist_state()
 
         updated = db.query(BotRuntimeState).filter(
             BotRuntimeState.bot_id == bot_id
@@ -660,6 +684,7 @@ class TestPersistState:
         sr = MagicMock()
         sr.strategy_id = strategy_id
         sr.strategy_name = "ORB Best"
+        sr.strategy_type = "ORB"
         sr.status = "running"
         sr.signals_generated = 0
         sr.trades_executed = 0
@@ -671,8 +696,7 @@ class TestPersistState:
         runner.strategies = {strategy_id: sr}
 
         mock_redis = MagicMock()
-        with patch("db.database.SessionLocal", return_value=db), \
-             patch("cache.redis_client.get_redis_client", return_value=mock_redis):
+        with patch("cache.redis_client.get_redis_client", return_value=mock_redis):
             runner.persist_state()
 
         mock_redis.setex.assert_called_once()
@@ -720,6 +744,7 @@ class TestPersistState:
         sr = MagicMock()
         sr.strategy_id = strategy_id
         sr.strategy_name = "ORB Best"
+        sr.strategy_type = "ORB"
         sr.status = "running"
         sr.signals_generated = 0
         sr.trades_executed = 0
@@ -730,8 +755,7 @@ class TestPersistState:
         ]
         runner.strategies = {strategy_id: sr}
 
-        with patch("db.database.SessionLocal", return_value=db), \
-             patch("cache.redis_client.get_redis_client", return_value=MagicMock()):
+        with patch("cache.redis_client.get_redis_client", return_value=MagicMock()):
             runner.persist_state()
 
         bot_state = db.query(BotRuntimeState).filter(
@@ -746,9 +770,6 @@ class TestPersistState:
         assert parsed[1]["symbol"] == "TCS"
 
 
-# ============================================================================
-# Group 4: Position Restore Tests
-# ============================================================================
 
 
 class TestPositionRestore:
@@ -785,8 +806,7 @@ class TestPositionRestore:
         mock_config.max_total_positions = 10
         mock_config.max_total_capital_pct = 0.80
 
-        with patch("trading.runner_core.GlobalRiskManager"), \
-             patch("db.database.SessionLocal", return_value=db):
+        with patch("trading.runner_core.GlobalRiskManager"):
             runner = MultiStrategyRunner(bot_config=mock_config, user_id=user.id)
             runner.test_mode = True
             runner._load_positions_from_db()
@@ -831,10 +851,9 @@ class TestPositionRestore:
             "metadata": {"entry_reason": "Pivot breakout", "pivot_type": "classic"},
         }
 
-        with patch("db.database.SessionLocal", return_value=db):
-            runner = MultiStrategyRunner(bot_config=mock_config, user_id=user.id)
-            runner.test_mode = True
-            runner._persist_position_to_db(pos_data)
+        runner = MultiStrategyRunner(bot_config=mock_config, user_id=user.id)
+        runner.test_mode = True
+        runner._persist_position_to_db(pos_data)
 
         saved = db.query(Position).filter(
             Position.bot_id == bot_id,
@@ -847,9 +866,6 @@ class TestPositionRestore:
         assert saved.metadata_json == json.dumps({"entry_reason": "Pivot breakout", "pivot_type": "classic"})
 
 
-# ============================================================================
-# Group 5: Close All Direct DB Tests
-# ============================================================================
 
 
 class TestCloseAllDirectDB:
@@ -960,10 +976,12 @@ class TestCloseAllDirectDB:
         from unittest.mock import patch, MagicMock
 
         mock_cmd_path = MagicMock()
+        mock_cmd_dir = MagicMock()
+        mock_cmd_dir.__truediv__.return_value = mock_cmd_path
 
         with patch("api.bots_api.bot_operations.is_bot_running", return_value=(True, 12345)), \
              patch("api.bots_api.bot_operations.Path") as mock_path:
-            mock_path.return_value = mock_cmd_path
+            mock_path.return_value = mock_cmd_dir
 
             resp = app_client.post(
                 f"/api/bots/{bot.id}/close-all",
@@ -991,15 +1009,11 @@ class TestCloseAllDirectDB:
         assert len(trades) == 0
 
 
-# ============================================================================
-# Group 6: History Config Shadowing Tests
-# ============================================================================
 
 
 class TestHistoryConfigShadowing:
 
     def test_fetch_trades_with_strategy_id_no_config_shadowing(self, db, user, bot, strategy):
-        from db.database import SessionLocal
         from db.models import Trade as TradeModel
 
         trade = TradeModel(
@@ -1028,17 +1042,16 @@ class TestHistoryConfigShadowing:
 
         from api.paper.history import _get_trades_from_db
 
-        with patch("db.database.SessionLocal", return_value=db):
-            trades = _get_trades_from_db(
-                user_id=user.id,
-                bot_id=str(bot.id),
-                symbol=None,
-                strategy_id=strategy.id,
-                from_date=None,
-                to_date=None,
-                days_back=7,
-                limit=50,
-            )
+        trades = _get_trades_from_db(
+            user_id=user.id,
+            bot_id=str(bot.id),
+            symbol=None,
+            strategy_id=strategy.id,
+            from_date=None,
+            to_date=None,
+            days_back=7,
+            limit=50,
+        )
 
         assert len(trades) == 1
         assert trades[0]["symbol"] == "RELIANCE"

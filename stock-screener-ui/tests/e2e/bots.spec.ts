@@ -11,7 +11,7 @@ import {
   gotoBotsViewAndWait,
   mockCreateBotRoute,
   createBotAndSave,
-} from "../helpers/botsHelpers";
+} from "./helpers/botHelpers";
 
 const BOT_ID_1 = "550e8400-e29b-41d4-a716-446655440000";
 const BOT_ID_2 = "81b1e4e1-de04-4989-8357-96daade0bd86";
@@ -148,9 +148,10 @@ test.describe("Bots View - List", () => {
 
   test("should show Running status for running bots", async ({ page }) => {
     await gotoBotsViewAndWait(page);
-    // StatusBadge renders Running/Stopped (PID intentionally not shown since c310bd99).
-    await expect(page.locator(`[data-testid="bot-status-${BOT_ID_2}"]`)).toContainText("Running");
-    await expect(page.locator(`[data-testid="bot-status-${BOT_ID_1}"]`)).toContainText("Stopped");
+    // The badge renders upper-case state with the PID when running
+    // ("RUNNING #12345"); a stopped bot shows no PID.
+    await expect(page.locator(`[data-testid="bot-status-${BOT_ID_2}"]`)).toContainText(/running/i);
+    await expect(page.locator(`[data-testid="bot-status-${BOT_ID_1}"]`)).toContainText(/stopped/i);
   });
 });
 

@@ -1,0 +1,24 @@
+/** Framework-free identity helpers: de-duplicate a clicked card hit against
+ * live detected hits without importing a React module into Solid views. */
+
+import type { PatternHitDTO } from "@/types/chartPatterns";
+
+/**
+ * Structural identity for de-duplicating a clicked card hit against
+ * live-detected hits. Live detection returns the same pattern with
+ * ``id: null`` while a stored card hit carries a DB id, so the id-based
+ * identity would keep both as separate rows.
+ */
+export function fullscreenDedupeKey(hit: PatternHitDTO): string {
+  return `${hit.symbol}|${hit.timeframe}|${hit.pattern_id}|${hit.start_date}|${hit.end_date}`;
+}
+
+/**
+ * Test-isolation hook kept so suites can reset fullscreen bookkeeping between
+ * cases: the helpers above are pure and hold no module state, so there is
+ * nothing to reset here — call sites stay explicit rather than silently
+ * losing their reset step.
+ */
+export function __resetFullscreen(): void {
+  // Intentionally empty: `fullscreenDedupeKey` is a pure function.
+}

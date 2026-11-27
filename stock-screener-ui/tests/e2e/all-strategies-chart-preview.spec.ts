@@ -109,12 +109,12 @@ async function expectPatternChart(page: Page, timeout: number = 10000) {
  *  native `<select>` inside a FormControl div (no `[role="combobox"]`).
  *  Options are never "visible" boxes, so we wait for the option to be
  *  attached (the server ladder loads asynchronously) then use `selectOption`. */
-async function selectTimeframe(page: Page, value: string, label: string) {
-  const control = page.locator('[data-testid="patterns-timeframe-select"]');
-  const combo = control.getByRole("combobox");
-  await expect(combo).toBeVisible();
-  await combo.click();
-  await page.getByRole("option", { name: label, exact: true }).click();
+async function selectTimeframe(page: Page, value: string) {
+  const select = page.locator('[data-testid="patterns-timeframe-select"] select');
+  await expect(select).toBeVisible();
+  const option = page.locator(`[data-testid="patterns-timeframe-select"] option[value="${value}"]`);
+  await expect(option).toHaveCount(1);
+  await select.selectOption(value);
 }
 
 test.describe("Chart Preview - Symbol Chart", () => {
@@ -139,10 +139,10 @@ test.describe("Chart Preview - Timeframe Switching", () => {
       await setupChartPreviewMock(page, { symbol: "RELIANCE" });
       await gotoChart(page, "RELIANCE");
       await expectPatternChart(page);
-      await selectTimeframe(page, tf.id, tf.label);
+      await selectTimeframe(page, tf.id);
       await expect(
-        page.locator('[data-testid="patterns-timeframe-select"]'),
-      ).toContainText(tf.label);
+        page.locator('[data-testid="patterns-timeframe-select"] select'),
+      ).toHaveValue(tf.id);
       await expectPatternChart(page);
     });
   }
@@ -169,7 +169,7 @@ test.describe("Chart Preview - Timeframe Switching", () => {
     await gotoChart(page, "RELIANCE");
     await expectPatternChart(page);
     const initialCount = chartRequests;
-    await selectTimeframe(page, "30m", "30m");
+    await selectTimeframe(page, "30m");
     await expect.poll(async () => chartRequests, { timeout: 10000 }).toBeGreaterThan(initialCount);
     await expectPatternChart(page);
   });

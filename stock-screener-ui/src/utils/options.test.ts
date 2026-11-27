@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import {
   getAvailableUnderlyings,
   getExpiryDates,
@@ -58,6 +58,54 @@ describe("getExpiryDates", () => {
     const result = getExpiryDates("NIFTY");
     expect(result.length).toBeGreaterThanOrEqual(3);
     expect(result.length).toBeLessThanOrEqual(7);
+  });
+
+  // Same absolute instant must give the same calendar dates in every zone: the
+  // serialisation used to go through toISOString() (UTC) and lose a day in IST.
+  const expiryCases: Array<[string, string[]]> = [
+    ["2026-11-16T12:00:00Z", ["2026-11-19", "2026-11-26", "2026-12-31", "2027-01-28"]],
+    ["2026-12-31T12:00:00Z", ["2026-12-31", "2027-01-28", "2027-02-25"]],
+    ["2026-03-01T12:00:00Z", ["2026-03-05", "2026-03-26", "2026-04-30", "2026-05-28"]],
+  ];
+
+  describe.each(["America/New_York", "Asia/Kolkata", "UTC"])("in %s", (tz) => {
+    test.each(expiryCases)("at %s yields the same local expiry days", (instant, expected) => {
+      vi.stubEnv("TZ", tz);
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date(instant));
+        const result = getExpiryDates("NIFTY");
+
+        expect(result).toEqual(expected);
+        // Expiries are Thursdays; a UTC slip shows up as a Wednesday.
+        for (const dateStr of result) {
+          const [y, m, d] = dateStr.split("-").map(Number);
+          expect(new Date(y, m - 1, d).getDay()).toBe(4);
+        }
+      } finally {
+        vi.useRealTimers();
+        vi.unstubAllEnvs();
+      }
+    });
+  });
+
+  test("all zones agree on the same instants", () => {
+    const instants = expiryCases.map(([instant]) => instant);
+    const byZone: string[][] = [];
+    for (const tz of ["America/New_York", "Asia/Kolkata", "UTC"]) {
+      vi.stubEnv("TZ", tz);
+      vi.useFakeTimers();
+      byZone.push(
+        instants.flatMap((instant) => {
+          vi.setSystemTime(new Date(instant));
+          return getExpiryDates("NIFTY");
+        }),
+      );
+      vi.useRealTimers();
+    }
+    vi.unstubAllEnvs();
+    expect(byZone[0]).toEqual(byZone[1]);
+    expect(byZone[1]).toEqual(byZone[2]);
   });
 });
 

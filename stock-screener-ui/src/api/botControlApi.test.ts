@@ -30,8 +30,8 @@ import {
   setBotSnapshot,
   setLoading,
 } from "../state/paperTrading";
-import { fetchTrades as mockFetchTrades, refreshLiveData } from "./paperTrading";
-import { describeNormalizeBotPortfolio, mockError } from "./apiTestMocks";
+import { fetchTrades, refreshLiveData } from "./paperTrading";
+import { describeNormalizeBotPortfolio, makePaperTrade, mockError } from "./apiTestMocks";
 import {
   fetchPaperBotStatus,
   startPaperBot,
@@ -53,6 +53,7 @@ import {
 } from "./botControlApi";
 
 const mockedApiFetch = vi.mocked(apiFetch);
+const mockFetchTrades = vi.mocked(fetchTrades);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -403,7 +404,9 @@ describe("refreshBotLiveData", () => {
       .mockResolvedValueOnce(({ portfolio: { total_value: 200, initial_capital: 200 }, watchlist: ["BOT2"] }))
       .mockResolvedValueOnce(({ positions: [{ symbol: "BOT2_POS", side: "BUY" }] }))
       .mockResolvedValueOnce(({ scan_items: [{ symbol: "BOT2_SCAN" }] }));
-    mockFetchTrades.mockResolvedValue([{ exit_time: new Date().toISOString(), net_pnl: 200 }]);
+    mockFetchTrades.mockResolvedValue([
+      makePaperTrade({ exit_time: new Date().toISOString(), net_pnl: 200 }),
+    ]);
   }
 
   it("refreshes all bot data and updates state", async () => {
@@ -418,7 +421,7 @@ describe("refreshBotLiveData", () => {
       .mockResolvedValueOnce(({ scan_items: [{ symbol: "INFY" }], timestamp: scanTimestamp }));
 
     mockFetchTrades.mockResolvedValue([
-      { exit_time: new Date().toISOString(), net_pnl: 500, pnl: 500 },
+      makePaperTrade({ exit_time: new Date().toISOString(), net_pnl: 500, pnl: 500 }),
     ]);
 
     await refreshBotLiveData("bot-1");
@@ -450,7 +453,7 @@ describe("refreshBotLiveData", () => {
     await refreshBotLiveData("bot-1");
 
     const snapshot = vi.mocked(setBotSnapshot).mock.calls[0][0];
-    expect(snapshot.timestamp).toEqual(expect.any(String));
+    expect(snapshot?.timestamp).toEqual(expect.any(String));
   });
 
   it("does not throw when individual APIs return null/empty", async () => {
@@ -511,7 +514,7 @@ describe("refreshBotLiveData", () => {
 
     const portfolioCalls = vi.mocked(setPortfolio).mock.calls;
     expect(portfolioCalls).toHaveLength(1);
-    expect(portfolioCalls[0][0].initial_capital).toBe(200);
+    expect(portfolioCalls[0][0]?.initial_capital).toBe(200);
 
     const posCalls = vi.mocked(setPositions).mock.calls;
     expect(posCalls).toHaveLength(1);

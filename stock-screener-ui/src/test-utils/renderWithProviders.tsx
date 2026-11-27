@@ -1,16 +1,31 @@
-import type { ReactElement, ReactNode } from "react";
-import { render, type RenderResult } from "@testing-library/react";
+import { render } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
-import { BrowserRouter } from "react-router-dom";
+import type { JSX } from "solid-js";
 
-function TestWrapper({ children }: { children: ReactNode }) {
-  return <UIProvider>{children}</UIProvider>;
+/**
+ * The one UIProvider wrapper shared by every component test.
+ *
+ * No router here on purpose. In `@solidjs/router` v1 the router only renders
+ * `<Route>` definitions — arbitrary JSX children produce zero routes, so a
+ * router wrapper rendered an empty tree for every consumer. Components that
+ * need navigation should either declare their routes or mock
+ * `useNavigate`/`useSearchParams` (the pattern the converted suites use), which
+ * also keeps them hermetic from route-table changes.
+ */
+export function TestWrapper(props: { children: JSX.Element }) {
+  return <UIProvider>{props.children}</UIProvider>;
 }
 
-export function renderWithProviders(ui: ReactElement): RenderResult {
-  return render(ui, { wrapper: TestWrapper });
-}
-
-export function renderWithRouter(ui: ReactElement): RenderResult {
-  return render(<UIProvider><BrowserRouter>{ui}</BrowserRouter></UIProvider>);
+/**
+ * Render a zero-arg component under the canonical provider.
+ *
+ * `options` are spread after the default wrapper so callers keep Solid's full
+ * render contract (container, queries, a narrower wrapper, …) without forking
+ * a second helper.
+ */
+export function renderWithProviders(
+  ui: () => JSX.Element,
+  options?: Parameters<typeof render>[1],
+): ReturnType<typeof render> {
+  return render(ui, { wrapper: TestWrapper, ...options });
 }

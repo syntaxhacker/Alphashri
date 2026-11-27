@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, cleanup, act } from "@testing-library/react";
+import { createSignal } from "solid-js";
+import { render, cleanup } from "@solidjs/testing-library";
 
 const lwMocks = vi.hoisted(() => ({ series: [] as any[] }));
 
@@ -32,6 +33,7 @@ vi.mock("lightweight-charts", () => {
         setVisibleLogicalRange: vi.fn(),
         setVisibleRange: vi.fn(),
         timeToCoordinate: vi.fn(() => null),
+        height: vi.fn(() => 0),
       })),
     })),
     createSeriesMarkers: vi.fn(() => ({ setMarkers: vi.fn() })),
@@ -45,8 +47,11 @@ vi.mock("lightweight-charts", () => {
 });
 
 import {
+  LAST_VALUE_TAG_HEIGHT_PX,
   TradingViewChart,
   extendAutoscaleWithLevels,
+  lastValueTagPreference,
+  lastValueTagTickOverlap,
   levelWithinAutoscale,
   visibleBarsRange,
 } from "./TradingViewChart";
@@ -64,7 +69,7 @@ const CANDLES = [
 
 describe("TradingViewChart redraw loop", () => {
   test("default chart surface is pitch black with no grid lines", () => {
-    render(<TradingViewChart candles={CANDLES} />);
+    render(() => <TradingViewChart candles={CANDLES} />);
     const calls = vi.mocked(createChart).mock.calls;
     const opts = calls[calls.length - 1]?.[1] as any;
     expect(CHART_BG).toBe("#000000");
@@ -78,20 +83,16 @@ describe("TradingViewChart redraw loop", () => {
     const rafSpy = vi.spyOn(window, "requestAnimationFrame");
     const cancelSpy = vi.spyOn(window, "cancelAnimationFrame");
     try {
-      const { unmount } = render(<TradingViewChart candles={CANDLES} />);
+      const { unmount } = render(() => <TradingViewChart candles={CANDLES} />);
       expect(rafSpy).not.toHaveBeenCalled();
 
-      act(() => {
-        window.dispatchEvent(new Event("resize"));
-      });
+      window.dispatchEvent(new Event("resize"));
       expect(rafSpy).toHaveBeenCalledTimes(1);
       expect(cancelSpy).not.toHaveBeenCalled();
 
       // A second resize before the frame fires coalesces: the first frame
       // is cancelled instead of queueing a second one behind it.
-      act(() => {
-        window.dispatchEvent(new Event("resize"));
-      });
+      window.dispatchEvent(new Event("resize"));
       expect(rafSpy).toHaveBeenCalledTimes(2);
       expect(cancelSpy).toHaveBeenCalledTimes(1);
 
@@ -103,6 +104,74 @@ describe("TradingViewChart redraw loop", () => {
     } finally {
       rafSpy.mockRestore();
       cancelSpy.mockRestore();
+    }
+  });
+});
+
+describe("chart container fit observer", () => {
+  class FakeResizeObserver {
+    static instances: FakeResizeObserver[] = [];
+    readonly targets: Element[] = [];
+    readonly callback: (entries: unknown[], observer: unknown) => void;
+    disconnects = 0;
+
+    constructor(callback: (entries: unknown[], observer: unknown) => void) {
+      this.callback = callback;
+      FakeResizeObserver.instances.push(this);
+    }
+    observe(target: Element) {
+      this.targets.push(target);
+    }
+    unobserve(target: Element) {
+      const i = this.targets.indexOf(target);
+      if (i >= 0) this.targets.splice(i, 1);
+    }
+    disconnect() {
+      this.disconnects += 1;
+      this.targets.length = 0;
+    }
+    emit(width: number, height: number) {
+      this.callback(
+        [{ contentRect: { width, height } }],
+        this,
+      );
+    }
+  }
+
+  const sizeCalls = (chart: any) =>
+    chart.applyOptions.mock.calls.filter(
+      ([opts]: any[]) =>
+        opts && typeof opts.width === "number" && typeof opts.height === "number",
+    );
+
+  test("fits on the first observation, on a changed rect, and disconnects on unmount", () => {
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    FakeResizeObserver.instances = [];
+    try {
+      const { unmount } = render(() => <TradingViewChart candles={CANDLES} />);
+      const chart = vi.mocked(createChart).mock.results.at(-1)?.value as any;
+      // The sizing observer watches the engine container; the overlay-redraw
+      // observer watches its parent and is deliberately not selected here.
+      const fit = FakeResizeObserver.instances.find((ro) =>
+        ro.targets.some((el) => el.getAttribute("data-testid") === "tradingview-chart"),
+      );
+      expect(fit).toBeTruthy();
+      // happy-dom reports a 0×0 rect: no bogus zero-size apply before the
+      // observer's first real observation.
+      expect(sizeCalls(chart)).toHaveLength(0);
+
+      fit!.emit(800, 420);
+      expect(sizeCalls(chart).at(-1)?.[0]).toEqual({ width: 800, height: 420 });
+
+      fit!.emit(1280, 720);
+      expect(sizeCalls(chart).at(-1)?.[0]).toEqual({ width: 1280, height: 720 });
+      // A repeated observation of the same size must not re-apply options.
+      expect(sizeCalls(chart)).toHaveLength(2);
+
+      unmount();
+      expect(fit!.disconnects).toBeGreaterThan(0);
+    } finally {
+      vi.unstubAllGlobals();
     }
   });
 });
@@ -123,29 +192,46 @@ describe("mark-line overlay churn", () => {
     },
   ];
 
+  function renderReactive(initial: {
+    candles: typeof CANDLES;
+    markLines?: ReturnType<typeof levels>;
+    fitMarkLines?: boolean;
+    emaData?: any[];
+  }) {
+    const [candles, setCandles] = createSignal(initial.candles);
+    const [markLines, setMarkLines] = createSignal(initial.markLines ?? []);
+    const [emaData, setEmaData] = createSignal<any[] | undefined>(initial.emaData);
+    const utils = render(() => (
+      <TradingViewChart
+        candles={candles()}
+        fitMarkLines={initial.fitMarkLines}
+        markLines={markLines()}
+        emaData={emaData()}
+      />
+    ));
+    return { ...utils, setCandles, setMarkLines, setEmaData };
+  }
+
   test("identical overlay content across a poll re-render does not rebuild the price lines", () => {
     const start = lwMocks.series.length;
-    const { rerender } = render(
-      <TradingViewChart candles={CANDLES} fitMarkLines markLines={levels()} />,
-    );
+    const { setCandles, setMarkLines } = renderReactive({
+      candles: CANDLES,
+      markLines: levels(),
+      fitMarkLines: true,
+    });
     const candle = lwMocks.series[start];
     expect(candle.createPriceLine).toHaveBeenCalledTimes(2);
 
     // A poll hands over brand-new arrays with the same content: no rebuild.
-    rerender(
-      <TradingViewChart
-        candles={[...CANDLES]}
-        fitMarkLines
-        markLines={levels()}
-      />,
-    );
+    setCandles([...CANDLES]);
+    setMarkLines(levels());
     expect(candle.createPriceLine).toHaveBeenCalledTimes(2);
     expect(candle.removePriceLine).not.toHaveBeenCalled();
 
     // A level actually moving does rebuild the set.
     const moved = levels();
     moved[0] = { ...moved[0], yAxis: 25600 };
-    rerender(<TradingViewChart candles={[...CANDLES]} fitMarkLines markLines={moved} />);
+    setMarkLines(moved);
     expect(candle.removePriceLine).toHaveBeenCalledTimes(2);
     expect(candle.createPriceLine).toHaveBeenCalledTimes(4);
   });
@@ -156,11 +242,15 @@ describe("mark-line overlay churn", () => {
       { label: "EMA20", color: "#3b82f6", data: [1, 2] },
     ];
     const start = lwMocks.series.length;
-    const { rerender } = render(<TradingViewChart candles={CANDLES} emaData={ema()} />);
+    const { setCandles, setEmaData } = renderReactive({
+      candles: CANDLES,
+      emaData: ema(),
+    });
     // candle + volume + EMA9 + EMA20
     expect(lwMocks.series.length - start).toBe(4);
 
-    rerender(<TradingViewChart candles={[...CANDLES]} emaData={ema()} />);
+    setCandles([...CANDLES]);
+    setEmaData(ema());
     // Still four: the two line series were updated in place, not re-added.
     expect(lwMocks.series.length - start).toBe(4);
   });
@@ -171,38 +261,37 @@ describe("mark-line overlay churn", () => {
       { label: "EMA20", color: "#3b82f6", data: [25700, 25715] },
     ];
     const start = lwMocks.series.length;
-    const { rerender } = render(<TradingViewChart candles={CANDLES} emaData={ema()} />);
+    const { setCandles, setEmaData } = renderReactive({
+      candles: CANDLES,
+      emaData: ema(),
+    });
     const ema9 = lwMocks.series[start + 2];
     const ema20 = lwMocks.series[start + 3];
     expect(ema9.setData).toHaveBeenCalledTimes(1);
     expect(ema20.setData).toHaveBeenCalledTimes(1);
 
     // New array identities, identical content: no EMA setData again.
-    rerender(
-      <TradingViewChart
-        candles={CANDLES.map((c) => ({ ...c }))}
-        emaData={ema()}
-      />,
-    );
+    setCandles(CANDLES.map((c) => ({ ...c })));
+    setEmaData(ema());
     expect(ema9.setData).toHaveBeenCalledTimes(1);
     expect(ema20.setData).toHaveBeenCalledTimes(1);
 
     // A changed last EMA value re-pushes that series only.
     const bumped = ema();
     bumped[0] = { ...bumped[0], data: [25705, 25722] };
-    rerender(
-      <TradingViewChart
-        candles={CANDLES.map((c) => ({ ...c }))}
-        emaData={bumped}
-      />,
-    );
+    setCandles(CANDLES.map((c) => ({ ...c })));
+    setEmaData(bumped);
     expect(ema9.setData).toHaveBeenCalledTimes(2);
     expect(ema20.setData).toHaveBeenCalledTimes(1);
   });
 
   test("identical candle content across a poll does not re-push setData; changed candles do", () => {
     const start = lwMocks.series.length;
-    const { rerender } = render(<TradingViewChart candles={CANDLES} fitMarkLines markLines={levels()} />);
+    const { setCandles } = renderReactive({
+      candles: CANDLES,
+      markLines: levels(),
+      fitMarkLines: true,
+    });
     const candle = lwMocks.series[start];
     const volume = lwMocks.series[start + 1];
     expect(candle.setData).toHaveBeenCalledTimes(1);
@@ -215,13 +304,7 @@ describe("mark-line overlay churn", () => {
 
     // A poll hands over brand-new arrays with the same content: no setData,
     // no new autoscale closure.
-    rerender(
-      <TradingViewChart
-        candles={CANDLES.map((c) => ({ ...c }))}
-        fitMarkLines
-        markLines={levels()}
-      />,
-    );
+    setCandles(CANDLES.map((c) => ({ ...c })));
     expect(candle.setData).toHaveBeenCalledTimes(1);
     expect(volume.setData).toHaveBeenCalledTimes(1);
     expect(autoscaleCalls()).toBe(autoscaleAfterMount);
@@ -230,7 +313,7 @@ describe("mark-line overlay churn", () => {
     const ticked = CANDLES.map((c, i) =>
       i === CANDLES.length - 1 ? { ...c, close: c.close + 5 } : c,
     );
-    rerender(<TradingViewChart candles={ticked} fitMarkLines markLines={levels()} />);
+    setCandles(ticked);
     expect(candle.setData).toHaveBeenCalledTimes(2);
     expect(volume.setData).toHaveBeenCalledTimes(2);
     expect(autoscaleCalls()).toBe(autoscaleAfterMount + 1);
@@ -349,9 +432,7 @@ describe("fitMarkLines scale guard", () => {
 
   test("far levels are still drawn as price lines but do not extend the scale", () => {
     const start = lwMocks.series.length;
-    render(
-      <TradingViewChart candles={CANDLES} fitMarkLines markLines={lines()} />,
-    );
+    render(() => <TradingViewChart candles={CANDLES} fitMarkLines markLines={lines()} />);
     // Last mounted chart's candle series.
     const candle = lwMocks.series[start];
     // Both levels are drawn…
@@ -372,9 +453,7 @@ describe("fitMarkLines scale guard", () => {
 
   test("a tight engine range is floored back to the rendered window", () => {
     const start = lwMocks.series.length;
-    render(
-      <TradingViewChart candles={CANDLES} fitMarkLines markLines={lines()} />,
-    );
+    render(() => <TradingViewChart candles={CANDLES} fitMarkLines markLines={lines()} />);
     const candle = lwMocks.series[start];
     const applyCall = candle.applyOptions.mock.calls.find(
       ([opts]: any[]) => opts && "autoscaleInfoProvider" in opts,
@@ -395,26 +474,24 @@ describe("fitMarkLines scale guard", () => {
 
   test("far levels hide their gutter label + title (edge badges carry them); near keeps both", () => {
     const start = lwMocks.series.length;
-    render(
-      <TradingViewChart
-        candles={CANDLES}
-        fitMarkLines
-        markLines={[
-          {
-            yAxis: 22500,
-            includeInScale: false,
-            lineStyle: { color: "#f59e0b", type: "dotted", width: 1 },
-            label: { position: "insideEndTop", formatter: "GFUEL↓ 22500" },
-          },
-          {
-            yAxis: 22700,
-            includeInScale: true,
-            lineStyle: { color: "#16a34a", type: "solid", width: 1 },
-            label: { position: "insideEndTop", formatter: "GSUP 22700" },
-          },
-        ]}
-      />,
-    );
+    render(() => <TradingViewChart
+      candles={CANDLES}
+      fitMarkLines
+      markLines={[
+        {
+          yAxis: 22500,
+          includeInScale: false,
+          lineStyle: { color: "#f59e0b", type: "dotted", width: 1 },
+          label: { position: "insideEndTop", formatter: "GFUEL↓ 22500" },
+        },
+        {
+          yAxis: 22700,
+          includeInScale: true,
+          lineStyle: { color: "#16a34a", type: "solid", width: 1 },
+          label: { position: "insideEndTop", formatter: "GSUP 22700" },
+        },
+      ]}
+    />);
     const candle = lwMocks.series[start];
     const calls = candle.createPriceLine.mock.calls.map(([opts]: any[]) => opts);
     expect(calls).toHaveLength(2);
@@ -422,5 +499,97 @@ describe("fitMarkLines scale guard", () => {
     expect(calls[0]).toMatchObject({ price: 22500, axisLabelVisible: false, title: "" });
     // Near line: keeps its gutter label + in-chart title.
     expect(calls[1]).toMatchObject({ price: 22700, axisLabelVisible: true, title: "GSUP 22700" });
+  });
+});
+
+describe("last-value tag preference", () => {
+  test("compact drops the engine tag but keeps the horizontal last-price line", () => {
+    expect(lastValueTagPreference(true)).toEqual({
+      lastValueVisible: false,
+      priceLineVisible: true,
+    });
+  });
+
+  test("desktop keeps both the engine tag and the last-price line", () => {
+    expect(lastValueTagPreference(false)).toEqual({
+      lastValueVisible: true,
+      priceLineVisible: true,
+    });
+  });
+});
+
+/**
+ * 390px regression: the engine's white 22364.00 tag sat on the 22360.00 axis
+ * tick because the short pane maps a 4-point gap to less than a tag height.
+ * Compact mode removes the tag entirely, so the collision cannot render.
+ */
+describe("last-value tag / tick geometry", () => {
+  test("a 4-point gap overlaps the tag at phone scale but not at desk scale", () => {
+    // ~2px per index point on a 240px-tall phone pane (80-point window).
+    expect(LAST_VALUE_TAG_HEIGHT_PX).toBe(16);
+    expect(lastValueTagTickOverlap(22364, 22360, 2)).toBe(8);
+    // A taller desk pane separates the same prices by more than a tag height.
+    expect(lastValueTagTickOverlap(22364, 22360, 6)).toBe(0);
+  });
+
+  test("compact preference removes the tag regardless of scale", () => {
+    const overlap = lastValueTagTickOverlap(22364, 22360, 2);
+    expect(overlap).toBeGreaterThan(0);
+    expect(lastValueTagPreference(true).lastValueVisible).toBe(false);
+    expect(lastValueTagPreference(false).lastValueVisible).toBe(true);
+  });
+
+  test("non-finite or zero-scale geometry is inert", () => {
+    expect(lastValueTagTickOverlap(NaN, 22360, 2)).toBe(0);
+    expect(lastValueTagTickOverlap(22364, 22360, 0)).toBe(0);
+  });
+});
+
+describe("last-value tag option on the candle series", () => {
+  const lastValueCall = (series: any) =>
+    series.applyOptions.mock.calls.filter(
+      ([opts]: any[]) => opts && "lastValueVisible" in opts,
+    ).at(-1)?.[0];
+
+  test("hideLastValueTag suppresses the engine tag but keeps the price line", () => {
+    const start = lwMocks.series.length;
+    render(() => <TradingViewChart candles={CANDLES} hideLastValueTag />);
+    expect(lastValueCall(lwMocks.series[start])).toMatchObject({
+      lastValueVisible: false,
+      priceLineVisible: true,
+    });
+  });
+
+  test("default desktop chart keeps the engine tag", () => {
+    const start = lwMocks.series.length;
+    render(() => <TradingViewChart candles={CANDLES} />);
+    expect(lastValueCall(lwMocks.series[start])).toMatchObject({
+      lastValueVisible: true,
+      priceLineVisible: true,
+    });
+  });
+
+  test("toggling the preference updates options without re-pushing candle data", () => {
+    const [compact, setCompact] = createSignal(true);
+    const start = lwMocks.series.length;
+    render(() => <TradingViewChart candles={CANDLES} hideLastValueTag={compact()} />);
+    const candle = lwMocks.series[start];
+    expect(lastValueCall(candle)).toMatchObject({ lastValueVisible: false });
+
+    const setDataCalls = candle.setData.mock.calls.length;
+    setCompact(false);
+    expect(lastValueCall(candle)).toMatchObject({ lastValueVisible: true });
+    expect(candle.setData).toHaveBeenCalledTimes(setDataCalls);
+
+    // An unchanged preference does not re-apply the option on a poll tick.
+    const applied = candle.applyOptions.mock.calls.filter(
+      ([opts]: any[]) => opts && "lastValueVisible" in opts,
+    ).length;
+    setCompact(false);
+    expect(
+      candle.applyOptions.mock.calls.filter(
+        ([opts]: any[]) => opts && "lastValueVisible" in opts,
+      ).length,
+    ).toBe(applied);
   });
 });

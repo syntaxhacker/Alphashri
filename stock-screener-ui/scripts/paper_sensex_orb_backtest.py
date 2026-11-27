@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""ORB (Opening Range Breakout) backtest on SENSEX — wide grid, background-friendly.
-
-Tests OR duration {1,3,5,10,15,30,45} × buffer {0.0,0.1,0.3,0.5} ×
-SL {0.5,1.0,1.5,2.0} × TP {1.5,2.0,3.0,4.0} (+ optional trailing), on the
-1-min SENSEX cache (~23 days) and 60-min cache (3 months).
-
-Writes ranked results to experiments/data/orb_backtest_results.txt and a CSV.
-Usage: python3 scripts/paper_sensex_orb_backtest.py [--tf 1|60] [--trail]
-"""
 from __future__ import annotations
 
 import argparse
@@ -29,7 +20,6 @@ IST_TZ = __import__("config").IST
 
 
 def bs(side, spot, strike, t, iv=0.19, r=0.05):
-    """Black-Scholes premium on the spot (shared implementation)."""
     return _gr.bs_price(side, spot, strike, t, iv, r)
 
 
@@ -168,7 +158,6 @@ def main():
         w = csv.DictWriter(f, fieldnames=["or", "buf", "sl", "tp", "trail", "med", "posd", "net", "trades"])
         w.writeheader(); w.writerows(results)
     print(f"wrote {out} + {csv_out} ({len(results)} configs)", file=sys.stderr)
-    # print top 20 to stdout
     print(f"\nORB tf={args.tf}min — TOP 20 (by median day P&L)")
     print(f"{'OR':>3} {'buf':>5} {'SL':>5} {'TP':>5} {'med/day':>9} {'%pos':>6} {'net':>10} {'tr':>6}")
     for r in results[:20]:

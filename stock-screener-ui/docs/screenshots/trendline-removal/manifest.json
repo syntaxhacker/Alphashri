@@ -1,0 +1,94 @@
+{
+  "feature": "trendline-removal",
+  "route": "/patterns",
+  "head": "25079b7c9efde6a438b6bfc1cb5dc3670f564465",
+  "viewports": [
+    1600,
+    390
+  ],
+  "data": "ALL chart-bearing states (patterns-loaded, legend-loaded, fullscreen-loaded at 1600 and 390) share ONE real 200-bar IRCON 1D OHLCV fixture (2026-02-03 to 2026-11-25) from experiments/data/pattern_cache/candles/1D/IRCON.v3.pkl, with price \u20b9107.36 and consistent as-of 25 Nov / LAST CANDLE 2026-11-25; S/R bands come from the IRCON pattern fixture's own breakout/target/stop prices. Pattern rows mirror tests/mocks/patternEvidence.ts. Loading (pending matrix), error (mocked 500) and empty states are mocked; all other states use the shared pattern mocks. API routes are mocked in Playwright; no devtools/server restart.",
+  "sha256": {
+    "tl-patterns-loaded-1600.png": "4c6ee2b158f00046aaf435d03e1dd5caf27b87672585593f134ed9f9f0ceffde",
+    "tl-patterns-loaded-390.png": "9516891a0248a13a18f94f6abe2e30c266c80ea0e24268f0e19b0d275449224e",
+    "tl-toolbar-loaded-1600.png": "37100616bc61fc1bfbafb6091572ac33ace3002623f984ea3c1e6bca0ee8b9b6",
+    "tl-toolbar-loaded-390.png": "6b39b22f2669fbe0ba33af12998fb7c3c89e3d73f8ece8562294a149ff23f6d3",
+    "tl-filter-rail-loaded-1600.png": "4e7bdb753618f5569d8d99d532a90f4fc71a2c558e5c1fbd9718078548c29f2a",
+    "tl-filter-rail-loaded-390.png": "efba28106a6615e0288d322ae731c61f4ad9b663948260b91ebc00b5f5af45d7",
+    "tl-legend-loaded-1600.png": "47ff0f168b05e72eae743ad9897e6ea4f36091a106f248fe6cf17f61b2a7f717",
+    "tl-legend-loaded-390.png": "2277e70f2ff74502e7188738d7e619568f1c773cf4f3e3ef355323bd1319ffac",
+    "tl-fullscreen-loaded-1600.png": "e8ede0166ab1622116ce3fb97e8f96651a5d1345324e9bd3890bb58bac894299",
+    "tl-fullscreen-loaded-390.png": "9a1c9286fdc8d553f6426a62457c3796d7f8ca4a3ed050950bfb8395454fed4f",
+    "tl-patterns-empty-1600.png": "271c9799ea474f888f3f32f726f4346d27b2765b2a200547f0dfd1dcd8ac868f",
+    "tl-patterns-empty-390.png": "449fde72dce234d1f1cd64c64c2dcc24d7712e7e8bc882793aa948e474501e6f",
+    "tl-patterns-loading-1600.png": "4f548787c7c80de29522f9df4c6663976cca7433c1601356ae85aad59c51bf3f",
+    "tl-patterns-loading-390.png": "ab52ae1e471095558ec9d9420d0cec0bbf2c841e2d77f51852e0e00388ac5e3a",
+    "tl-patterns-error-1600.png": "3d952cd038230a6af13456104d63adbab280d341956eb62e73197f79163b07f8",
+    "tl-patterns-error-390.png": "f4f8c8ee17ec552beeab16f69cc3b66b8b83bb23fdbca0c13a34e037203ecb0d"
+  },
+  "states": [
+    {
+      "id": "patterns-loaded",
+      "covers": "Real IRCON pattern row with the shared real 200-bar 1D OHLCV chart docked at 1600 and modal at 390; topmost price tick fully inside the plot at 390. Falling Wedge boundary label, volume, S/R zones, \u20b9107.36 and 25 Nov / LAST CANDLE 2026-11-25 are consistent; no TLS/TLR text, testids or request params.",
+      "files": {
+        "1600": "tl-patterns-loaded-1600.png",
+        "390": "tl-patterns-loaded-390.png"
+      }
+    },
+    {
+      "id": "toolbar-loaded",
+      "covers": "Results toolbar with the view controls (Matrix/List/Grid) and BARS history set to 60, proving the view control row carries no TLS/TLR switch. Same fixture rows, no forbidden text and no 390px sideways overflow.",
+      "files": {
+        "1600": "tl-toolbar-loaded-1600.png",
+        "390": "tl-toolbar-loaded-390.png"
+      }
+    },
+    {
+      "id": "filter-rail-loaded",
+      "covers": "Filters modal with the draft filter rail open: opaque overlay masks page bleed, three columns at 1600; one labelled scrollport with cue and a single stacked column at 390 with no clipped glyph at the edge. Presets, family, Freshness, Structure, 52W gap \u2264 %, Base length (days) and Advanced sections are reachable. No TLS only / TLR only options remain.",
+      "files": {
+        "1600": "tl-filter-rail-loaded-1600.png",
+        "390": "tl-filter-rail-loaded-390.png"
+      }
+    },
+    {
+      "id": "legend-loaded",
+      "covers": "Same shared real 200-bar IRCON 1D fixture as patterns-loaded, with the chart legend showing 'Falling Wedge' and the indicators menu open (no TLS/TLR entries, S/R zones 2). \u20b9107.36 / 25 Nov / LAST CANDLE 2026-11-25 are identical to the other chart states.",
+      "files": {
+        "1600": "tl-legend-loaded-1600.png",
+        "390": "tl-legend-loaded-390.png"
+      }
+    },
+    {
+      "id": "fullscreen-loaded",
+      "covers": "Fullscreen pattern chart (maximized at 1600, modal with History=3 at 390) on the same shared real 200-bar IRCON 1D fixture; chart toolbar, Falling Wedge boundary, \u20b9107.36 and 25 Nov / LAST CANDLE 2026-11-25 consistent, no standalone TLS/TLR lines.",
+      "files": {
+        "1600": "tl-fullscreen-loaded-1600.png",
+        "390": "tl-fullscreen-loaded-390.png"
+      }
+    },
+    {
+      "id": "patterns-empty",
+      "covers": "Honest zero-result state: 'No patterns match the current filters' with Scan now / Refresh actions and no fabricated rows or prices.",
+      "files": {
+        "1600": "tl-patterns-empty-1600.png",
+        "390": "tl-patterns-empty-390.png"
+      }
+    },
+    {
+      "id": "patterns-loading",
+      "covers": "Loading placeholder from a deliberately pending matrix response (mocked, no timers): skeleton cards with directional filter chip; no results are invented while loading.",
+      "files": {
+        "1600": "tl-patterns-loading-1600.png",
+        "390": "tl-patterns-loading-390.png"
+      }
+    },
+    {
+      "id": "patterns-error",
+      "covers": "Mocked HTTP 500 on pattern results surfaces the red 'pattern results unavailable' alert above the empty result area, with the restrictive Direction: Bearish chip used to keep the error stable.",
+      "files": {
+        "1600": "tl-patterns-error-1600.png",
+        "390": "tl-patterns-error-390.png"
+      }
+    }
+  ]
+}

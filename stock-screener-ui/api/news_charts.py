@@ -235,7 +235,7 @@ async def get_recent_articles(
     Get recent news articles from the database.
     """
     from cache.redis_client import cache_get, cache_set, is_cache_available
-    from sqlalchemy import text
+    from sqlalchemy import bindparam, text
     from db.database import engine as _eng
 
     cache_key = f"news:recent:{hours}:{source or 'all'}:{limit}"
@@ -251,14 +251,21 @@ async def get_recent_articles(
         limit=limit
     )
     
-    # enrich with queue status
-    with _eng.connect() as conn:
-        queue_statuses = {
-            r[0]: r[1]
-            for r in conn.execute(text(
-                "SELECT article_id, status FROM news_analysis_queue WHERE status IN ('pending', 'processing')"
-            )).fetchall()
-        }
+    # Enrich with queue status. Restrict to this page's article ids: selecting
+    # every pending/processing row grows with the whole queue even when the
+    # caller asked for 20 articles.
+    article_ids = [a["id"] for a in articles if a.get("id") is not None]
+    queue_statuses: dict[int, str] = {}
+    if article_ids:
+        with _eng.connect() as conn:
+            stmt = text(
+                "SELECT article_id, status FROM news_analysis_queue "
+                "WHERE status IN ('pending', 'processing') "
+                "AND article_id IN :ids"
+            ).bindparams(bindparam("ids", expanding=True))
+            queue_statuses = {
+                r[0]: r[1] for r in conn.execute(stmt, {"ids": article_ids}).fetchall()
+            }
 
     for a in articles:
         qs = queue_statuses.get(a["id"])

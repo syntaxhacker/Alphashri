@@ -104,7 +104,6 @@ SETUPS: dict[str, dict] = {
     },
 }
 
-#: Upper bound on rows pulled from the store per ``arm`` call.
 _ARM_QUERY_LIMIT = 5000
 
 #: A ``confirmed`` hit counts as a fresh same-day break (not a stale
@@ -125,7 +124,6 @@ _FRESH_GAP_PCT_MAX = 5.0
 #: tape fallback).
 _UPSTOX_TOKEN_TTL_SECONDS = 24 * 3600
 
-#: Bounded fan-out for the per-symbol tape fallback (one 1m fetch each).
 _TAPE_WORKERS = 5
 
 #: Memoised tape prices stay valid this long (seconds) so repeated polls —
@@ -147,14 +145,12 @@ _NEAR52W_CACHE_DIR = (
     / "watch"
 )
 
-#: Bounded fan-out for the per-symbol daily-candle fetch of a computed arm.
 _NEAR52W_WORKERS = 4
 
 #: Minimum daily bars for a symbol to be screened (prior-high window plus a
 #: full ~20-session accumulation window). Shorter histories are skipped.
 _NEAR52W_MIN_BARS = 21
 
-#: Lookback for the prior 52W high (daily bars, latest bar excluded).
 _NEAR52W_LOOKBACK = 252
 
 #: Calendar window (days) for the prior 52W high: bars whose UTC index is
@@ -166,14 +162,11 @@ _NEAR52W_LOOKBACK = 252
 #: the last 252 bars so the screen still runs for young symbols.
 _NEAR52W_WINDOW_DAYS = 365
 
-#: Accumulation windows (daily bars): OBV slope + volume ratio denominator.
 _NEAR52W_ACCUM_WINDOW = 20
 
-#: Up/down-volume window and invalidate-level (recent low) window.
 _NEAR52W_UPDOWN_WINDOW = 10
 _NEAR52W_INVALIDATE_WINDOW = 10
 
-#: Volume-ratio numerator window (mean vol last 5 vs mean vol last 20).
 _NEAR52W_VOL_SHORT = 5
 
 #: Version of the ``near_52w`` detector + row shape. Bump whenever
@@ -194,7 +187,6 @@ _DETECT_CACHE_SUBDIR = "detect"
 
 
 def public_setups() -> list[dict]:
-    """Registry entries without internals (``source_pattern``/``kind``)."""
     return [
         {
             "id": setup["id"],
@@ -207,7 +199,6 @@ def public_setups() -> list[dict]:
 
 
 def _base_low_from_hit(hit: dict) -> Optional[float]:
-    """Base low from the hit's lower trendline, else ``None`` (caller falls back)."""
     try:
         lines = hit.get("trendlines") or []
         if len(lines) >= 2 and lines[1]:
@@ -271,7 +262,6 @@ def _near52w_session() -> str:
 
 
 def _near52w_cache_key(scope: str, timeframe: str) -> str:
-    """Filesystem-safe cache stem for a computed-arm scope (no session)."""
     safe = "".join(c for c in str(scope) if c.isalnum() or c in ("-", "_")) or "all"
     return f"near_52w__{safe}__{timeframe}"
 
@@ -348,7 +338,6 @@ def _near52w_cache_write(key: str, session: str, rows: list) -> None:
 
 
 def _detect_cache_file(setup_id: str, symbol: str, timeframe: str, session: str) -> Path:
-    """Detection-cache file for one symbol (version-pinned name)."""
     def _safe(part: object) -> str:
         return "".join(c for c in str(part) if c.isalnum() or c in ("-", "_")) or "x"
 
@@ -691,7 +680,6 @@ def _arm_computed(
 
 
 def _fetch_1d(candles, symbol: str):
-    """One symbol's 1D frame for a computed arm; ``None`` on any failure."""
     try:
         return candles.fetch_for_timeframe(symbol, "1D")
     except Exception:
@@ -931,7 +919,6 @@ def _instrument_keys(symbols: list[str]) -> dict[str, str]:
 
 
 def _ltp_batch(instrument_keys: list[str], token: str):
-    """One LTP request; the response or ``None`` on transport failure."""
     try:
         import requests
     except Exception:
@@ -982,7 +969,7 @@ def _ltp_prices(symbols: list[str]) -> dict[str, float]:
                 new_token = _try_refresh_upstox_token()
                 if new_token:
                     token = new_token
-                    continue  # retry the same batch with the fresh token
+                    continue
                 return out
             if resp.status_code == 401:
                 log.warning("breakout watch: LTP token expired (401)")
@@ -1080,7 +1067,6 @@ def _vol_adj_session_fraction(now=None) -> float:
 
 
 def _vol_adj_today(now=None):
-    """IST calendar date the tape's "today" volume belongs to. Never raises."""
     try:
         if now is None:
             try:
@@ -1353,7 +1339,6 @@ def live(rows: list[dict], *, min_rel_volume: float = 0.7) -> list[dict]:
 #: ``arm`` is disk-cached per session underneath, so rebuilds are cheap.
 _SNAPSHOT: dict[tuple, tuple[dict, float]] = {}
 
-#: Snapshot scopes: every setup × these universes × ``"1D"``.
 _SNAPSHOT_UNIVERSES: tuple[str, ...] = ("nifty500", "nifty50")
 #: Cap the armed rows per snapshot combo — ``live()`` is ~2s/symbol under
 #: market-hours contention, so an unbounded 200-row combo would take minutes.
@@ -1365,12 +1350,10 @@ _SNAPSHOT_REDIS_TTL = 300
 
 
 def _snapshot_key(setup: str, universe: Optional[str], timeframe: str) -> str:
-    """Redis key for one snapshot combo (mirrors :mod:`chart_patterns.jobs`)."""
     return f"watch_snapshot:{setup}:{universe}:{timeframe}"
 
 
 def _snapshot_now_iso() -> str:
-    """Now as an ISO string (IST when available). Never raises."""
     try:
         import config
 
@@ -1390,7 +1373,6 @@ def _mirror_snapshot(key: str, payload: dict, ts: float) -> None:
 
 
 def _read_mirrored_snapshot(key: str) -> tuple[Optional[dict], Optional[float]]:
-    """Mirrored ``(payload, ts)`` from Redis; ``(None, None)`` on miss."""
     try:
         from cache.redis_client import cache_get
 

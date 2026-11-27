@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   buildPayoffSeries,
   computeTradePayoffSeries,
+  displayOptionSymbol,
   isOptionTrade,
   optionBreakeven,
   optionPayoffAt,
@@ -85,6 +86,33 @@ describe("resolveUnderlyingSymbol", () => {
 
   test("returns empty string for empty input", () => {
     expect(resolveUnderlyingSymbol("")).toBe("");
+  });
+
+  test("strips exchange decoration before resolving the chartable underlying", () => {
+    expect(resolveUnderlyingSymbol("NSE:NIFTY26OCT23000PE")).toBe("NIFTY");
+    expect(resolveUnderlyingSymbol("NSE:RELIANCE")).toBe("RELIANCE");
+  });
+});
+
+describe("displayOptionSymbol", () => {
+  test("spaced and compact encodings of the same contract render identically", () => {
+    expect(displayOptionSymbol("NIFTY 2026-10-19 22900CE")).toBe("NIFTY 22900 CE");
+    expect(displayOptionSymbol("NIFTY26OCT22900CE")).toBe("NIFTY 22900 CE");
+  });
+
+  test("keeps the underlying and an explicit CE/PE label", () => {
+    expect(displayOptionSymbol("NIFTY26OCT23000PE")).toBe("NIFTY 23000 PE");
+    expect(displayOptionSymbol("RELIANCE26OCT3000CE")).toBe("RELIANCE 3000 CE");
+    expect(displayOptionSymbol("NIFTY25O0924000CE")).toBe("NIFTY 24000 CE");
+  });
+
+  test("strips exchange decoration before parsing", () => {
+    expect(displayOptionSymbol("NSE:NIFTY26OCT22900CE")).toBe("NIFTY 22900 CE");
+  });
+
+  test("falls back to the canonical equity label for non-options", () => {
+    expect(displayOptionSymbol("NSE:RELIANCE")).toBe("RELIANCE");
+    expect(displayOptionSymbol("  RELIANCE.NS  ")).toBe("RELIANCE");
   });
 });
 

@@ -6,6 +6,7 @@ import {
   formatCurrencyCompact,
   formatPercentage,
   formatPnl,
+  formatSignedPnl,
   formatDateTimeHuman,
   formatDateTimeCompact,
   formatTradeTime,
@@ -29,6 +30,7 @@ import {
   normalizeTime,
 } from "./ui-helpers";
 import { POSITIVE, NEGATIVE, MARKER_TP, MARKER_SL, MARKER_EOD, EXIT_DEFAULT } from "../config/colors";
+import { currencyFor, type CurrencyCode } from "../config/currency";
 import { THOUSANDS_K_CASES } from "./ui-helpers.test-fixtures";
 
 describe("formatCurrency", () => {
@@ -118,6 +120,26 @@ describe("formatPercentage", () => {
   test("handles zero", () => {
     expect(formatPercentage(0)).toBe("+0.00%");
   });
+
+  test("returns dash for null, undefined, NaN and infinities without throwing", () => {
+    expect(() => formatPercentage(null)).not.toThrow();
+    expect(() => formatPercentage(undefined)).not.toThrow();
+    expect(() => formatPercentage(NaN)).not.toThrow();
+    expect(formatPercentage(null)).toBe("—");
+    expect(formatPercentage(undefined)).toBe("—");
+    expect(formatPercentage(NaN)).toBe("—");
+    expect(formatPercentage(Infinity)).toBe("—");
+    expect(formatPercentage(-Infinity)).toBe("—");
+  });
+
+  test("keeps exact formatting for finite values with the sign option", () => {
+    expect(formatPercentage(5.5)).toBe("+5.50%");
+    expect(formatPercentage(-3.2)).toBe("-3.20%");
+    expect(formatPercentage(5.5, 2, false)).toBe("5.50%");
+    expect(formatPercentage(-3.2, 2, false)).toBe("-3.20%");
+    expect(formatPercentage(5.567, 1)).toBe("+5.6%");
+    expect(formatPercentage(5.567, 3)).toBe("+5.567%");
+  });
 });
 
 describe("formatDateTimeHuman", () => {
@@ -133,9 +155,7 @@ describe("formatDateTimeHuman", () => {
   });
 
   test("handles invalid input gracefully", () => {
-    // Invalid input produces NaN-based output, not '-'
     const result = formatDateTimeHuman("invalid");
-    // Just check it doesn't throw
     expect(typeof result).toBe("string");
   });
 });
@@ -163,7 +183,6 @@ describe("formatDateTimeCompact", () => {
 
 describe("formatTradeTime", () => {
   test("formats trade time with seconds", () => {
-    // Note: Result depends on local timezone, so just check format
     const result = formatTradeTime("2026-02-24T10:38:36Z");
     expect(result).toMatch(/\d{1,2} \w{3} \d{4}, \d{2}:\d{2}:\d{2}/);
   });
@@ -356,6 +375,34 @@ describe("formatDateHeader", () => {
     const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     expect(weekdays.some((d) => result.includes(d))).toBe(true);
   });
+
+  // A bare YYYY-MM-DD is a calendar day; every zone must render that same day.
+  const calendarDayCases: Array<[string, string]> = [
+    ["2026-03-20", "Fri, 20 Mar"],
+    ["2026-03-01", "Sun, 01 Mar"],
+    ["2026-12-31", "Thu, 31 Dec"],
+    ["2026-11-16", "Mon, 16 Nov"],
+  ];
+
+  describe.each(["America/New_York", "Asia/Kolkata", "UTC"])("in %s", (tz) => {
+    test.each(calendarDayCases)("%s renders %s", (input, expected) => {
+      vi.stubEnv("TZ", tz);
+      try {
+        expect(formatDateHeader(input)).toBe(expected);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+  });
+
+  test("west and east of UTC agree on the same calendar day", () => {
+    vi.stubEnv("TZ", "America/New_York");
+    const newYork = calendarDayCases.map(([input]) => formatDateHeader(input));
+    vi.stubEnv("TZ", "Asia/Kolkata");
+    const kolkata = calendarDayCases.map(([input]) => formatDateHeader(input));
+    vi.unstubAllEnvs();
+    expect(newYork).toEqual(kolkata);
+  });
 });
 
 describe("getPnLTextColor", () => {
@@ -523,5 +570,40 @@ describe("formatTimeAgo", () => {
 
   test("handles future dates", () => {
     expect(formatTimeAgo(new Date(now.getTime() + 60_000).toISOString())).toBe("just now");
+  });
+});
+
+describe("currency-aware formatting", () => {
+  test("INR stays byte-identical to the prior hardcoded output", () => {
+    expect(formatCurrency(1000)).toBe("₹1000");
+    expect(formatCurrency(1234.567, 2)).toBe("₹1234.57");
+    expect(formatCurrency(1234.567, 2, "INR")).toBe("₹1234.57");
+    expect(formatCurrencyCompact(1500)).toBe("₹1.5K");
+    expect(formatCurrencyCompact(100000)).toBe("₹1.0L");
+    expect(formatCurrencyCompact(10000000)).toBe("₹1.0Cr");
+    expect(formatPnl(5000)).toBe("+₹5.0K");
+    expect(formatSignedPnl(1500)).toBe("+₹1.5K");
+    expect(formatSignedPnl(-100000)).toBe("₹-1.0L");
+  });
+
+  test("USD uses $ with en-US grouping and billion compacts", () => {
+    expect(formatCurrency(1234.5, 2, "USD")).toBe("$1,234.50");
+    expect(formatCurrency(1234567, 0, "USD")).toBe("$1,234,567");
+    expect(formatCurrencyCompact(1200000000, "USD")).toBe("$1.2B");
+    expect(formatCurrencyCompact(1500, "USD")).toBe("$1.5K");
+    expect(formatPnl(5000, "USD")).toBe("+$5.0K");
+    expect(formatPnl(-3000, "USD")).toBe("$-3.0K");
+    expect(formatSignedPnl(1200000000, "USD")).toBe("+$1.2B");
+  });
+
+  test("unknown, null and missing currency codes default to INR", () => {
+    expect(currencyFor().code).toBe("INR");
+    expect(currencyFor(null).code).toBe("INR");
+    expect(currencyFor("GBP").code).toBe("INR");
+    expect(currencyFor(" inr ").code).toBe("INR");
+    expect(currencyFor("usd").code).toBe("USD");
+    expect(formatCurrency(1000, 0, undefined)).toBe("₹1000");
+    expect(formatCurrency(1000, 0, "GBP" as CurrencyCode)).toBe("₹1000");
+    expect(formatCurrencyCompact(1500, "GBP" as CurrencyCode)).toBe("₹1.5K");
   });
 });

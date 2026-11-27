@@ -95,9 +95,13 @@ class TestSchemaBuilds:
         )
 
     def test_path_count_floor(self, schema):
+        # Floor lowered 250 → 249 on 2026-11-24 (owner: main agent): the nine
+        # /api/experiments paths were deliberately removed with the Experiments
+        # tab. REGENERATED spec confirms 249 real paths; a router failure would
+        # still show up as a missing REQUIRED_PATH_PREFIXES path below.
         path_count = len(schema.get("paths") or {})
-        assert path_count >= 250, (
-            f"Only {path_count} paths in the live schema (expected >= 250). "
+        assert path_count >= 249, (
+            f"Only {path_count} paths in the live schema (expected >= 249). "
             "A router import probably failed and was swallowed by a try/except."
         )
 

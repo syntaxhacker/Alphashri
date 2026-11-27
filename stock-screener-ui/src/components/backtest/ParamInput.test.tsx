@@ -1,18 +1,19 @@
 // @vitest-environment happy-dom
+import type { JSX } from "solid-js";
+import { createSignal } from "solid-js";
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import {render, screen, cleanup, within, fireEvent} from "@testing-library/react";
+import {render, screen, cleanup, within, fireEvent} from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import { ParamInput } from "./ParamInput";
 import type { StrategyParam } from "../../types/backtest";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
 });
 
-function Wrapper({ children }: { children: React.ReactNode }) {
+function Wrapper({ children }: { children: JSX.Element }) {
   return <UIProvider>{children}</UIProvider>;
 }
 
@@ -39,7 +40,7 @@ describe("ParamInput", () => {
   describe("NumberInput", () => {
     it("renders a NumberInput for number type", () => {
       const param = mockParam({ type: "number" });
-      render(<ParamInput param={param} value={undefined} onChange={mockOnChange} />, {
+      render(() => <ParamInput param={param} value={undefined} onChange={mockOnChange} />, {
         wrapper: Wrapper,
       });
       expect(screen.getByTestId("param-test_param")).toBeInTheDocument();
@@ -47,7 +48,7 @@ describe("ParamInput", () => {
 
     it("displays default value when value is undefined", () => {
       const param = mockParam({ type: "number", default: 50 });
-      render(<ParamInput param={param} value={undefined} onChange={mockOnChange} />, {
+      render(() => <ParamInput param={param} value={undefined} onChange={mockOnChange} />, {
         wrapper: Wrapper,
       });
       // Input value is string
@@ -56,16 +57,15 @@ describe("ParamInput", () => {
 
     it("displays provided value", () => {
       const param = mockParam({ type: "number" });
-      render(<ParamInput param={param} value={25} onChange={mockOnChange} />, { wrapper: Wrapper });
+      render(() => <ParamInput param={param} value={25} onChange={mockOnChange} />, { wrapper: Wrapper });
       expect(within(screen.getByTestId("param-test_param")).getByRole("spinbutton")).toHaveValue(25);
     });
 
     it("allows typing a new value", async () => {
-      const user = userEvent.setup();
-      const param = mockParam({ type: "number" });
-      render(<ParamInput param={param} value={10} onChange={mockOnChange} />, { wrapper: Wrapper });
+          const param = mockParam({ type: "number" });
+      render(() => <ParamInput param={param} value={10} onChange={mockOnChange} />, { wrapper: Wrapper });
       const input = within(screen.getByTestId("param-test_param")).getByRole("spinbutton");
-      fireEvent.change(input, { target: { value: "30" } });
+      fireEvent.input(input, { target: { value: "30" } });
       expect(mockOnChange).toHaveBeenCalledWith(30);
     });
   });
@@ -76,7 +76,7 @@ describe("ParamInput", () => {
         type: "select",
         options: ["option1", "option2", "option3"],
       });
-      render(<ParamInput param={param} value={undefined} onChange={mockOnChange} />, {
+      render(() => <ParamInput param={param} value={undefined} onChange={mockOnChange} />, {
         wrapper: Wrapper,
       });
       expect(screen.getByTestId("param-test_param")).toBeInTheDocument();
@@ -88,7 +88,7 @@ describe("ParamInput", () => {
         options: ["opt1", "opt2"],
         default: "opt2",
       });
-      render(<ParamInput param={param} value={undefined} onChange={mockOnChange} />, {
+      render(() => <ParamInput param={param} value={undefined} onChange={mockOnChange} />, {
         wrapper: Wrapper,
       });
       expect(within(screen.getByTestId("param-test_param")).getByRole("combobox")).toHaveTextContent("opt2");
@@ -99,7 +99,7 @@ describe("ParamInput", () => {
         type: "select",
         options: ["opt1", "opt2"],
       });
-      render(<ParamInput param={param} value="opt1" onChange={mockOnChange} />, {
+      render(() => <ParamInput param={param} value="opt1" onChange={mockOnChange} />, {
         wrapper: Wrapper,
       });
       expect(within(screen.getByTestId("param-test_param")).getByRole("combobox")).toHaveTextContent("opt1");
@@ -110,7 +110,7 @@ describe("ParamInput", () => {
         type: "select",
         options: ["A", "B", "C"],
       });
-      render(<ParamInput param={param} value={undefined} onChange={mockOnChange} />, {
+      render(() => <ParamInput param={param} value={undefined} onChange={mockOnChange} />, {
         wrapper: Wrapper,
       });
       const select = screen.getByTestId("param-test_param");
@@ -121,7 +121,7 @@ describe("ParamInput", () => {
   describe("Checkbox for boolean", () => {
     it("renders a Checkbox for boolean type", () => {
       const param = mockParam({ type: "boolean" });
-      render(<ParamInput param={param} value={undefined} onChange={mockOnChange} />, {
+      render(() => <ParamInput param={param} value={undefined} onChange={mockOnChange} />, {
         wrapper: Wrapper,
       });
       expect(screen.getByTestId("param-test_param")).toBeInTheDocument();
@@ -129,7 +129,7 @@ describe("ParamInput", () => {
 
     it("displays default value when value is undefined", () => {
       const param = mockParam({ type: "boolean", default: true });
-      render(<ParamInput param={param} value={undefined} onChange={mockOnChange} />, {
+      render(() => <ParamInput param={param} value={undefined} onChange={mockOnChange} />, {
         wrapper: Wrapper,
       });
       expect(screen.getByTestId("param-test_param")).toBeChecked();
@@ -137,7 +137,7 @@ describe("ParamInput", () => {
 
     it("displays provided value true", () => {
       const param = mockParam({ type: "boolean" });
-      render(<ParamInput param={param} value={true} onChange={mockOnChange} />, {
+      render(() => <ParamInput param={param} value={true} onChange={mockOnChange} />, {
         wrapper: Wrapper,
       });
       expect(screen.getByTestId("param-test_param")).toBeChecked();
@@ -145,7 +145,7 @@ describe("ParamInput", () => {
 
     it("displays provided value false", () => {
       const param = mockParam({ type: "boolean" });
-      render(<ParamInput param={param} value={false} onChange={mockOnChange} />, {
+      render(() => <ParamInput param={param} value={false} onChange={mockOnChange} />, {
         wrapper: Wrapper,
       });
       expect(screen.getByTestId("param-test_param")).not.toBeChecked();
@@ -153,7 +153,7 @@ describe("ParamInput", () => {
 
     it("calls onChange with boolean when clicked", () => {
       const param = mockParam({ type: "boolean" });
-      render(<ParamInput param={param} value={false} onChange={mockOnChange} />, {
+      render(() => <ParamInput param={param} value={false} onChange={mockOnChange} />, {
         wrapper: Wrapper,
       });
       const checkbox = screen.getByTestId("param-test_param");
@@ -163,14 +163,12 @@ describe("ParamInput", () => {
 
     it("toggles correctly through rerender", () => {
       const param = mockParam({ type: "boolean" });
-      const { rerender } = render(
-        <ParamInput param={param} value={false} onChange={mockOnChange} />,
+      const [value, setValue] = createSignal(false);
+      render(() => <ParamInput param={param} value={value()} onChange={mockOnChange} />,
         { wrapper: Wrapper },
       );
       expect(screen.getByTestId("param-test_param")).not.toBeChecked();
-      rerender(<ParamInput param={param} value={true} onChange={mockOnChange} />, {
-        wrapper: Wrapper,
-      });
+      setValue(true);
       expect(screen.getByTestId("param-test_param")).toBeChecked();
     });
   });

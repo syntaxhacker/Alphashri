@@ -38,7 +38,6 @@ def _crow(t: str, atm_strike: float, quotes: dict,
     }
 
 
-# --- event -> action mapping -------------------------------------------
 
 def test_put_unwind_buys_ce():
     assert event_to_action({"side": "put", "delta": -9_000_000}) == "CE"
@@ -60,7 +59,6 @@ def test_unknown_side_or_bad_delta_skipped():
     assert event_to_action({}) is None
 
 
-# --- direction comes from the burst flow, not a fixed side rule ------------
 
 def test_put_liquidation_is_bearish_and_buys_the_pe():
     event = {"side": "put", "delta": -9_000_000, "flow": "liquidation",
@@ -99,7 +97,6 @@ def test_unclassified_unwind_keeps_the_legacy_reading():
     assert event_bearish(None) is None
 
 
-# --- next-bar entry (no lookahead, same strike) -------------------------
 
 def test_entry_is_next_bar_same_strike_premium():
     rows = [_crow("2026-10-21T15:03:00+05:30", 22700, {22700: (100.0, 170.0)}),
@@ -134,7 +131,6 @@ def test_chainless_rows_have_no_entry():
     assert next_bar_entry(rows, 0, 22700, "CE") is None
 
 
-# --- ATM-drift regression -------------------------------------------------
 
 def _drift_rows() -> list[dict]:
     """ATM rolls 22700 -> 22750 while the fixed 22700 CE keeps rising.
@@ -167,7 +163,6 @@ def test_naive_atm_exit_would_show_a_loss():
     assert apply_cost(181.0, 160.0)["net"] < 0
 
 
-# --- stop / target --------------------------------------------------------
 
 def test_target_hit_first():
     rows = [_crow("2026-10-21T15:04:00+05:30", 22700, {22700: (100.0, 0.0)}),
@@ -202,7 +197,6 @@ def test_no_touch_falls_back_to_eod():
     assert stop_target_exit(rows, 0, 100.0, 22700, "CE") == (2, 110.0, "eod_fallback")
 
 
-# --- horizon / eod exits --------------------------------------------------
 
 def test_horizon_picks_bar_at_15m():
     rows = [_crow(f"2026-10-21T15:{m:02d}:00+05:30", 22700,
@@ -255,7 +249,6 @@ def test_hold_minutes():
     assert hold_minutes(rows, 0, 1) == 15.0
 
 
-# --- costs -----------------------------------------------------------------
 
 def test_long_costs_net_below_gross():
     r = apply_cost(100.0, 125.0, qty=65)
@@ -269,7 +262,6 @@ def test_stop_loss_is_negative_net_of_costs():
     assert r["net"] < 0
 
 
-# --- dedupe / summarize -----------------------------------------------------
 
 def test_dedupe_keeps_first_within_5m():
     evs = [{"t": "2026-10-21T15:04:00+05:30"},

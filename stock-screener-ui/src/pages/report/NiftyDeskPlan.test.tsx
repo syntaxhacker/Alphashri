@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { UIProvider } from "@/ui";
 import type {
   NiftyIntradayCandle,
@@ -152,11 +152,11 @@ function emptyReport(): NiftyReport {
 }
 
 function renderPlan(report: NiftyReport) {
-  return render(
+  return render(() => (
     <UIProvider>
       <NiftyDeskPlan report={report} />
-    </UIProvider>,
-  );
+    </UIProvider>
+  ));
 }
 
 describe("NiftyDeskPlan", () => {
@@ -180,12 +180,10 @@ describe("NiftyDeskPlan", () => {
     expect(screen.getByTestId("desk-do-bear-stop")).toHaveTextContent("22,708");
     expect(screen.getByTestId("desk-do-bear-target")).toHaveTextContent("22,650");
     expect(screen.getByTestId("desk-do-bear-rr")).toHaveTextContent("2.2");
-    // The bull side is the counter-case: its break trigger is above spot.
     expect(screen.getByTestId("desk-do-bull-trigger")).toHaveTextContent("22,900");
     expect(screen.getByTestId("desk-do-bull-stop")).toHaveTextContent("22,882");
     expect(screen.getByTestId("desk-do-bull-target")).toHaveTextContent("23,000");
     expect(screen.getByTestId("desk-do-bull-rr")).toHaveTextContent("5.5");
-    // No nested stop/target cards — one inline stats row per side.
     expect(screen.getByTestId("desk-do-bear-stats")).toBeInTheDocument();
     expect(screen.queryByText(/5 reasons/)).not.toBeInTheDocument();
   });
@@ -239,15 +237,33 @@ describe("NiftyDeskPlan", () => {
   test("the header chevron collapses and reopens the body", () => {
     renderPlan(bearishReport());
     const toggle = screen.getByTestId("desk-plan-toggle");
+    const body = screen.getByTestId("desk-plan-body");
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByTestId("desk-plan-body")).toBeInTheDocument();
+    expect(body).not.toHaveStyle({ display: "none" });
 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByTestId("desk-plan-body")).not.toBeInTheDocument();
+    expect(body).toHaveStyle({ display: "none" });
 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByTestId("desk-plan-body")).toBeInTheDocument();
+    expect(body).not.toHaveStyle({ display: "none" });
+  });
+
+  test("the toggle's aria-controls resolves to a mounted body in both states", () => {
+    renderPlan(bearishReport());
+    const toggle = screen.getByTestId("desk-plan-toggle");
+
+    const openId = toggle.getAttribute("aria-controls");
+    expect(openId).toBe("nifty-desk-plan-body");
+    const body = document.getElementById(openId!);
+    expect(body).toBe(screen.getByTestId("desk-plan-body"));
+    expect(body).not.toHaveStyle({ display: "none" });
+
+    fireEvent.click(toggle);
+    const collapsedId = toggle.getAttribute("aria-controls");
+    expect(collapsedId).toBe("nifty-desk-plan-body");
+    expect(document.getElementById(collapsedId!)).toBe(body);
+    expect(body).toHaveStyle({ display: "none" });
   });
 });

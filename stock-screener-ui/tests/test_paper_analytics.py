@@ -90,17 +90,15 @@ class MockQuery:
 
 class TestAnalyticsEndpoint:
 
-    @pytest.mark.asyncio
-    async def test_analytics_empty(self, analytics_module):
-        result = await analytics_module.get_analytics(days_back=30, user=MockUser())
+    def test_analytics_empty(self, analytics_module):
+        result = analytics_module.get_analytics(days_back=30, user=MockUser())
         assert result["summary"]["total_trades"] >= 0
         assert isinstance(result["daily_pnl"], list)
         assert isinstance(result["equity_curve"], list)
         assert isinstance(result["drawdown"], list)
 
-    @pytest.mark.asyncio
-    async def test_analytics_summary_structure(self, analytics_module):
-        result = await analytics_module.get_analytics(days_back=30, user=MockUser())
+    def test_analytics_summary_structure(self, analytics_module):
+        result = analytics_module.get_analytics(days_back=30, user=MockUser())
         required_keys = {"total_trades", "winners", "losers", "win_rate",
                          "total_gross_pnl", "total_net_pnl", "total_costs",
                          "avg_win", "avg_loss", "profit_factor",
@@ -115,37 +113,33 @@ class TestAnalyticsEndpoint:
 
 class TestActivityFeedEndpoint:
 
-    @pytest.mark.asyncio
-    async def test_activity_feed_empty(self, activity_module):
-        result = await activity_module.get_activity_feed(since=None, limit=50, user=MockUser())
+    def test_activity_feed_empty(self, activity_module):
+        result = activity_module.get_activity_feed(since=None, limit=50, user=MockUser())
         assert isinstance(result["events"], list)
         assert isinstance(result["total"], int)
 
-    @pytest.mark.asyncio
-    async def test_activity_feed_with_trades(self, activity_module):
-        result = await activity_module.get_activity_feed(since=None, limit=50, user=MockUser())
+    def test_activity_feed_with_trades(self, activity_module):
+        result = activity_module.get_activity_feed(since=None, limit=50, user=MockUser())
         assert len(result["events"]) >= 0
 
 
 class TestAggregatedEndpoint:
 
-    @pytest.mark.asyncio
-    async def test_aggregated_empty(self, aggregated_module):
+    def test_aggregated_empty(self, aggregated_module):
         with patch.object(aggregated_module, "SessionLocal") as mock_session:
             mock_db = MagicMock()
             mock_db.__enter__.return_value = mock_db
             mock_db.__exit__.return_value = None
             mock_db.query.return_value.filter.return_value.all.return_value = []
             mock_session.return_value = mock_db
-            result = await aggregated_module.get_aggregated_dashboard(user=MockUser())
+            result = aggregated_module.get_aggregated_dashboard(user=MockUser())
             assert result["summary"]["total_bots"] == 0
             assert result["bots"] == []
 
 
 class TestDashboardAnalyticsEndpoint:
 
-    @pytest.mark.asyncio
-    async def test_dashboard_analytics_all_bots_ranking_and_extremes(self, dashboard_module):
+    def test_dashboard_analytics_all_bots_ranking_and_extremes(self, dashboard_module):
         bot = MockBot()
         winner = make_trade(
             id=1,
@@ -178,7 +172,7 @@ class TestDashboardAnalyticsEndpoint:
         mock_db.query.side_effect = [MockQuery([winner, loser]), MockQuery([bot])]
 
         with patch.object(dashboard_module, "SessionLocal", return_value=mock_db):
-            result = await dashboard_module.get_dashboard_analytics(
+            result = dashboard_module.get_dashboard_analytics(
                 preset="30D",
                 from_date=None,
                 to_date=None,
@@ -194,5 +188,22 @@ class TestDashboardAnalyticsEndpoint:
         assert result["biggest_winners"][0]["symbol"] == "RELIANCE"
         assert result["biggest_losers"][0]["symbol"] == "TCS"
         assert result["exit_reasons"][0]["reason"] == "TP"
+
+
+class TestHandlersRunOffTheEventLoop:
+    """Sync ORM handlers must be plain `def` so FastAPI uses the worker pool."""
+
+    def test_paper_read_handlers_are_sync(self):
+        import inspect
+
+        from api.paper import activity, aggregated, analytics, dashboard_analytics
+
+        for handler in (
+            analytics.get_analytics,
+            activity.get_activity_feed,
+            aggregated.get_aggregated_dashboard,
+            dashboard_analytics.get_dashboard_analytics,
+        ):
+            assert not inspect.iscoroutinefunction(handler), handler.__name__
 
 

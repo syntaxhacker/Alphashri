@@ -14,7 +14,7 @@ Pure functions, no I/O — the caller supplies the tape rows and the levels.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 #: OI build/unwind × premium up/down.
 FUEL_FRESH_BUYERS = "fresh_buyers"
@@ -285,3 +285,222 @@ def setup_for_burst(
             "playbook": "Put buyers pressing; short only on a failed bounce, stop above the level.",
         }
     return {}
+
+
+def leg_oi_ltp(row: Any, side: str) -> Optional[tuple[float, float]]:
+    """``(oi, ltp)`` from a chain10s 7-tuple for ``side``.
+
+    The slim row is ``[strike, ceLtp, ceOi, ceVol, peLtp, peOi, peVol]``.
+    A malformed / non-finite cell is ``None``, never a fabricated zero.
+    """
+    if not isinstance(row, (list, tuple)) or len(row) < 7:
+        return None
+    oi_at, ltp_at = (2, 1) if str(side).lower() == "call" else (5, 4)
+    try:
+        oi, ltp = float(row[oi_at]), float(row[ltp_at])
+    except (TypeError, ValueError):
+        return None
+    if oi != oi or ltp != ltp:  # NaN is missing, not a real quote
+        return None
+    return oi, ltp
+
+
+def same_strike_move(prev_frame: Optional[dict], cur_frame: Optional[dict],
+                     side: str) -> Optional[dict]:
+    """Largest same-strike OI move for ``side`` between two chain10s frames.
+
+    ``{strike, oi_delta, premium_change}`` or ``None`` when a frame is missing
+    or no strike is present in both. Comparing a strike to itself is the whole
+    point: an ATM roll changes the contract and makes a raw premium difference
+    a strike artefact rather than a trade.
+    """
+    if not isinstance(prev_frame, dict) or not isinstance(cur_frame, dict):
+        return None
+    prev: dict[float, tuple[float, float]] = {}
+    for row in prev_frame.get("rows") or []:
+        if not isinstance(row, (list, tuple)) or not row:
+            continue
+        try:
+            strike = float(row[0])
+        except (TypeError, ValueError):
+            continue
+        leg = leg_oi_ltp(row, side)
+        if leg is not None:
+            prev[strike] = leg
+    best: Optional[tuple[float, float, float, float]] = None
+    for row in cur_frame.get("rows") or []:
+        if not isinstance(row, (list, tuple)) or not row:
+            continue
+        try:
+            strike = float(row[0])
+        except (TypeError, ValueError):
+            continue
+        cur = leg_oi_ltp(row, side)
+        old = prev.get(strike)
+        if cur is None or old is None:
+            continue
+        oi_delta = cur[0] - old[0]
+        premium_change = cur[1] - old[1]
+        magnitude = abs(oi_delta)
+        if best is None or magnitude > best[0]:
+            best = (magnitude, strike, oi_delta, premium_change)
+    if best is None:
+        return None
+    return {"strike": best[1], "oi_delta": best[2],
+            "premium_change": best[3]}
+
+
+def minute_spot_change(rows: Iterable[dict], minute: str) -> Optional[float]:
+    """Spot change across one tape minute; ``None`` when either end is unknown."""
+    spots: list[tuple[str, float]] = []
+    for row in rows or ():
+        if not isinstance(row, dict):
+            continue
+        t = str(row.get("t") or "")[:16]
+        try:
+            spot = float(row.get("spot"))
+        except (TypeError, ValueError):
+            continue
+        if not t or spot <= 0 or spot != spot:
+            continue
+        spots.append((t, spot))
+    index = None
+    for i, (t, _) in enumerate(spots):
+        if t == minute:
+            index = i  # a late duplicate of the minute wins, as in the tape
+    if index is None or index == 0:
+        return None
+    return spots[index][1] - spots[index - 1][1]
+
+
+def implied_direction(flow: Optional[dict], side: str, delta: float) -> str:
+    """The direction the burst CLAIMS before verification: ``up``/``down``.
+
+    Prefers the flow verdict; without one falls back to the legacy OI-only leg
+    rule (call build and put unwind fade with PE, the other two with CE). This
+    claim is what the same-strike premium and the spot have to confirm.
+    """
+    if isinstance(flow, dict) and isinstance(flow.get("bearish"), bool):
+        return "down" if flow["bearish"] else "up"
+    building = float(delta or 0) > 0
+    return "down" if (str(side).lower() == "call") == building else "up"
+
+
+def minute_frames(frames: Iterable[dict]) -> dict[str, dict]:
+    """``{HH:MM: last frame}`` from a day's chain10s snapshots (last wins).
+
+    Shared by NIFTY's day file and each generic symbol's own day file: a minute
+    holds ~6 frames and the LAST one is the state the minute closed on.
+    """
+    out: dict[str, dict] = {}
+    for frame in frames or ():
+        if not isinstance(frame, dict):
+            continue
+        t = frame.get("t")
+        if isinstance(t, str) and len(t) >= 16:
+            out[t[:16]] = frame
+    return out
+
+
+def previous_minute_key(minute: str) -> Optional[str]:
+    """The preceding ``YYYY-MM-DDTHH:MM`` key, or ``None`` when unparseable."""
+    try:
+        from datetime import datetime, timedelta
+
+        prev = datetime.fromisoformat(minute) - timedelta(minutes=1)
+    except (TypeError, ValueError):
+        return None
+    return prev.strftime("%Y-%m-%dT%H:%M")
+
+
+def verify_burst_flow(burst: dict, rows: Iterable[dict], date_str: str,
+                      frames: dict[str, dict], classify) -> bool:
+    """Same-strike + spot confirmation gate, shared by NIFTY and generic feeds.
+
+    ``classify`` is ``nifty_bursts.classify_flow`` injected by the caller so the
+    2×2 buyer/writer rule stays single-sourced and this module stays free of a
+    circular import. Returns True when the burst may carry a directional plan;
+    on False the burst already has no flow verdict, no fuel and no plan, with
+    ``plan_suppressed`` set — both callers simply skip enrichment.
+
+    Only the burst is mutated. The chain frames and tape rows stay read-only,
+    and every value in ``confirmation`` comes from those two inputs — an absent
+    frame or premium is reported as missing, never invented.
+    """
+    minute = str(burst.get("t") or "")[:16]
+    side = str(burst.get("side") or "").lower()
+    cur_frame = frames.get(minute)
+    prev_key = previous_minute_key(minute)
+    prev_frame = frames.get(prev_key) if prev_key else None
+    move = (same_strike_move(prev_frame, cur_frame, side)
+            if side in ("call", "put") else None)
+    spot_change = minute_spot_change(rows, minute)
+    confirmation = {
+        "same_strike": move["strike"] if move else None,
+        "strike_oi_delta": move["oi_delta"] if move else None,
+        "strike_premium_change": move["premium_change"] if move else None,
+        "spot_change": spot_change,
+        "reasons": [],
+    }
+    burst["confirmation"] = confirmation
+
+    delta = 0.0
+    try:
+        delta = float(burst.get("delta") or 0)
+    except (TypeError, ValueError):
+        pass
+    is_zero_dte_unwind = bool(
+        cur_frame
+        and str(cur_frame.get("expiry") or "") == date_str
+        and delta < 0
+        and move is not None
+        and move["oi_delta"] < 0
+    )
+    if is_zero_dte_unwind:
+        # 0-DTE: an unwind at expiry is mechanical (roll-off / assignment).
+        burst["context"] = "expiry_unwind"
+        confirmation["reasons"].append("expiry_unwind")
+
+    def _deny(reason: str) -> bool:
+        if reason not in confirmation["reasons"]:
+            confirmation["reasons"].append(reason)
+        if burst.get("context") != "expiry_unwind":
+            burst["flow"] = "unconfirmed"
+            burst["bearish"] = None
+        burst["fuel_state"] = None
+        burst["signal"] = None
+        burst["plan_suppressed"] = True
+        return False
+
+    if side not in ("call", "put"):
+        return _deny("no_oi_flow_claim")
+    if move is None:
+        return _deny(
+            "missing_chain10s_frame"
+            if cur_frame is None or prev_frame is None else "no_shared_strike"
+        )
+
+    claimed = implied_direction(
+        {"bearish": burst["bearish"]} if isinstance(burst.get("bearish"), bool) else None,
+        side, delta,
+    )
+    verified = classify(side, move["oi_delta"], move["premium_change"])
+    if not verified:
+        return _deny("same_strike_premium_undecidable")
+    if ("down" if verified["bearish"] else "up") != claimed:
+        return _deny("same_strike_premium_disagrees")
+    if spot_change is None:
+        return _deny("spot_change_missing")
+    if spot_change != 0 and ("up" if spot_change > 0 else "down") != claimed:
+        return _deny("spot_disagrees")
+
+    # The verified values replace the ATM proxy: fuel and signal must read the
+    # contract that moved, not the nearest strike to spot.
+    burst["flow"] = verified["flow"]
+    burst["bearish"] = verified["bearish"]
+    burst["premChg"] = move["premium_change"]
+    if is_zero_dte_unwind:
+        _deny("expiry_unwind")
+        return False
+    return True
+

@@ -41,6 +41,7 @@ describe("formatRangePos", () => {
     expect(formatRangePos(undefined)).toBe("—");
     expect(formatRangePos(Number.NaN)).toBe("—");
     expect(formatRangePos(Number.POSITIVE_INFINITY)).toBe("—");
+    expect(formatRangePos(Number.NEGATIVE_INFINITY)).toBe("—");
   });
 });
 
@@ -57,14 +58,28 @@ describe("formatOneDecimal", () => {
     expect(formatOneDecimal(0.5)).toBe("0.5");
     expect(formatOneDecimal(-2.25)).toBe("-2.3");
   });
+
+  test("renders an em dash for missing or non-finite values", () => {
+    expect(formatOneDecimal(null)).toBe("—");
+    expect(formatOneDecimal(undefined)).toBe("—");
+    expect(formatOneDecimal(Number.NaN)).toBe("—");
+    expect(formatOneDecimal(Number.POSITIVE_INFINITY)).toBe("—");
+    expect(formatOneDecimal(Number.NEGATIVE_INFINITY)).toBe("—");
+  });
 });
 
 describe("formatSignedPct1", () => {
   test("prefixes positives with + and negatives with a true minus sign", () => {
     expect(formatSignedPct1(4.72)).toBe("+4.7%");
-    expect(formatSignedPct1(0)).toBe("+0.0%");
+    expect(formatSignedPct1(0)).toBe("0.0%");
     expect(formatSignedPct1(-0.84)).toBe("−0.8%");
     expect(formatSignedPct1(100)).toBe("+100.0%");
+  });
+
+  test("a sub-precision move renders as zero, never −0.0%", () => {
+    expect(formatSignedPct1(-0.04)).toBe("0.0%");
+    expect(formatSignedPct1(-0.0001)).toBe("0.0%");
+    expect(formatSignedPct1(0.04)).toBe("0.0%");
   });
 
   test("renders an em dash for missing or non-finite values", () => {
@@ -72,6 +87,7 @@ describe("formatSignedPct1", () => {
     expect(formatSignedPct1(undefined)).toBe("—");
     expect(formatSignedPct1(Number.NaN)).toBe("—");
     expect(formatSignedPct1(Number.POSITIVE_INFINITY)).toBe("—");
+    expect(formatSignedPct1(Number.NEGATIVE_INFINITY)).toBe("—");
   });
 });
 
@@ -125,6 +141,7 @@ describe("formatMatrixPrice", () => {
     expect(formatMatrixPrice(undefined)).toBe("—");
     expect(formatMatrixPrice(Number.NaN)).toBe("—");
     expect(formatMatrixPrice(Number.POSITIVE_INFINITY)).toBe("—");
+    expect(formatMatrixPrice(Number.NEGATIVE_INFINITY)).toBe("—");
   });
 });
 
@@ -141,5 +158,6 @@ describe("formatMatrixPct", () => {
     expect(formatMatrixPct(undefined)).toBe("—");
     expect(formatMatrixPct(Number.NaN)).toBe("—");
     expect(formatMatrixPct(Number.NEGATIVE_INFINITY)).toBe("—");
+    expect(formatMatrixPct(Number.POSITIVE_INFINITY)).toBe("—");
   });
 });

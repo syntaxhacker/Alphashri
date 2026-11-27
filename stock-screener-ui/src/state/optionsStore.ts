@@ -13,7 +13,7 @@ import {
   getPositions,
 } from "../api/upstoxOptions";
 import { getMoneyness } from "../utils/options";
-import { createSubscriber } from "./createSubscriber";
+import { createFieldSubscriber } from "./createSubscriber";
 
 export interface OptionsFilters {
   strikeRange: [number, number];
@@ -23,7 +23,7 @@ export interface OptionsFilters {
   sortOrder: "asc" | "desc";
 }
 
-export interface OptionPosition extends Position {}
+interface OptionPosition extends Position {}
 
 interface OptionsStore {
   selectedUnderlying: string;
@@ -39,6 +39,9 @@ interface OptionsStore {
   lastUpdated?: string;
   summary?: OptionChainSummary;
 }
+
+/** Fields a consumer may subscribe to individually (see {@link subscribeToFields}). */
+export type OptionsField = keyof OptionsStore;
 
 const defaultFilters: OptionsFilters = {
   strikeRange: [0, 1000000],
@@ -63,10 +66,13 @@ const initialState: OptionsStore = {
 
 let state: OptionsStore = { ...initialState };
 let initialized = false;
+let chainRequestId = 0;
+let expiryRequestId = 0;
+let spotRequestId = 0;
 
-const { subscribe, notify } = createSubscriber();
+const { subscribe, subscribeToFields, notify } = createFieldSubscriber<OptionsField>();
 
-export { subscribe };
+export { subscribe, subscribeToFields };
 
 export function getOptionsState(): OptionsStore {
   return state;
@@ -74,12 +80,12 @@ export function getOptionsState(): OptionsStore {
 
 function setLoading(loading: boolean): void {
   state = { ...state, loading };
-  notify();
+  notify(["loading"]);
 }
 
 function setError(error: string | null): void {
   state = { ...state, error };
-  notify();
+  notify(["error"]);
 }
 
 export function setUnderlying(underlying: string): void {
@@ -90,15 +96,25 @@ export function setUnderlying(underlying: string): void {
     optionChain: [],
     spotPrice: null,
     expiries: [],
+    error: null,
+    loading: true,
   };
-  notify();
+  notify([
+    "selectedUnderlying",
+    "selectedExpiry",
+    "optionChain",
+    "spotPrice",
+    "expiries",
+    "error",
+    "loading",
+  ]);
   fetchExpiriesForUnderlying(underlying);
   fetchSpotPriceForUnderlying(underlying);
 }
 
 export function setExpiry(expiry: string): void {
   state = { ...state, selectedExpiry: expiry };
-  notify();
+  notify(["selectedExpiry"]);
 }
 
 export function setFilters(newFilters: Partial<OptionsFilters>): void {
@@ -106,7 +122,7 @@ export function setFilters(newFilters: Partial<OptionsFilters>): void {
     ...state,
     filters: { ...state.filters, ...newFilters },
   };
-  notify();
+  notify(["filters"]);
 }
 
 export function resetFilters(): void {
@@ -114,7 +130,7 @@ export function resetFilters(): void {
     ...state,
     filters: defaultFilters,
   };
-  notify();
+  notify(["filters"]);
 }
 
 export async function fetchChain(): Promise<void> {
@@ -123,11 +139,16 @@ export async function fetchChain(): Promise<void> {
     return;
   }
 
+  const requestId = ++chainRequestId;
+  const underlying = state.selectedUnderlying;
+  const expiry = state.selectedExpiry;
+
   setLoading(true);
   setError(null);
 
   try {
-    const result = await getOptionChain(state.selectedUnderlying, state.selectedExpiry);
+    const result = await getOptionChain(underlying, expiry);
+    if (requestId !== chainRequestId) return;
     const contracts: OptionContract[] = [];
     if (result.chain) {
       for (const row of result.chain) {
@@ -138,19 +159,20 @@ export async function fetchChain(): Promise<void> {
     state = {
       ...state,
       optionChain: contracts,
-      spotPrice: result.spot || state.spotPrice,
+      spotPrice: result.spot && result.spot > 0 ? result.spot : state.spotPrice,
       lastUpdated: result.timestamp,
       summary: result.summary,
       loading: false,
     };
-    notify();
+    notify(["optionChain", "spotPrice", "lastUpdated", "summary", "loading"]);
   } catch (error) {
+    if (requestId !== chainRequestId) return;
     state = {
       ...state,
       error: error instanceof Error ? error.message : "Failed to fetch option chain",
       loading: false,
     };
-    notify();
+    notify(["error", "loading"]);
   }
 }
 
@@ -165,7 +187,7 @@ export async function fetchPositions(): Promise<void> {
       positions: result.positions || [],
       loading: false,
     };
-    notify();
+    notify(["positions", "loading"]);
   } catch (error) {
     state = {
       ...state,
@@ -173,30 +195,58 @@ export async function fetchPositions(): Promise<void> {
       error: error instanceof Error ? error.message : "Failed to fetch positions",
       loading: false,
     };
-    notify();
+    notify(["positions", "error", "loading"]);
   }
 }
 
 async function fetchExpiriesForUnderlying(underlying: string): Promise<void> {
+  const requestId = ++expiryRequestId;
   try {
     const expiries = await getExpiries(underlying);
-    state = { ...state, expiries };
-    if (expiries.length > 0 && !state.selectedExpiry) {
-      state = { ...state, selectedExpiry: expiries[0].date };
+    if (requestId !== expiryRequestId || state.selectedUnderlying !== underlying) return;
+    if (expiries.length === 0) {
+      state = {
+        ...state,
+        expiries: [],
+        loading: false,
+        error: `${underlying} has no live F&O expiries — reconnect the broker or pick another symbol.`,
+      };
+      notify(["expiries", "loading", "error"]);
+      return;
     }
-    notify();
+    state = { ...state, expiries, error: null };
+    const changedFields: OptionsField[] = ["expiries", "error"];
+    if (!state.selectedExpiry) {
+      state = { ...state, selectedExpiry: expiries[0].date };
+      changedFields.push("selectedExpiry");
+    }
+    notify(changedFields);
   } catch (error) {
-    console.error("Failed to fetch expiries:", error);
+    if (requestId !== expiryRequestId || state.selectedUnderlying !== underlying) return;
+    state = {
+      ...state,
+      expiries: [],
+      loading: false,
+      error: error instanceof Error ? error.message : `Failed to fetch expiries for ${underlying}`,
+    };
+    notify(["expiries", "loading", "error"]);
   }
 }
 
 async function fetchSpotPriceForUnderlying(underlying: string): Promise<void> {
+  const requestId = ++spotRequestId;
   try {
     const result = await getSpotPrice(underlying);
-    state = { ...state, spotPrice: result.spot };
-    notify();
+    if (requestId !== spotRequestId || state.selectedUnderlying !== underlying) return;
+    state = { ...state, spotPrice: result.spot > 0 ? result.spot : null };
+    notify(["spotPrice"]);
   } catch (error) {
-    console.error("Failed to fetch spot price:", error);
+    if (requestId !== spotRequestId || state.selectedUnderlying !== underlying) return;
+    state = {
+      ...state,
+      error: state.error ?? (error instanceof Error ? error.message : "Failed to fetch spot price"),
+    };
+    notify(["error"]);
   }
 }
 
@@ -264,10 +314,11 @@ export async function initOptionsState(): Promise<void> {
     if (underlyings.length > 0) {
       const first = underlyings[0].symbol;
       state = { ...state, selectedUnderlying: first };
-      notify();
+      notify(["underlyings", "selectedUnderlying"]);
       await fetchExpiriesForUnderlying(first);
       await fetchSpotPriceForUnderlying(first);
     }
+    // Global-only notify: no single field is known to have changed here.
     notify();
   } catch (error) {
     console.error("Failed to initialize options state:", error);

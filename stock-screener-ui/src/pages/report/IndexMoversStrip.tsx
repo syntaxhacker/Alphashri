@@ -1,425 +1,456 @@
-import { memo, useEffect, useState, useCallback, useRef } from "react";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Tooltip from "@mui/material/Tooltip";
-import { IconChevronRight } from "@tabler/icons-react";
-import { Text } from "@/ui";
+import { createEffect, createMemo, createSignal, For, Show, onCleanup } from "solid-js";
+import type { JSX } from "solid-js";
+import { Loader, Text, Tooltip } from "@/ui";
+import { IconChevronRight } from "@/components/common/Icons";
 import * as palette from "@/ui/palette";
 import {
   REPORT_FONT,
-  REPORT_ROW,
-  REPORT_PAD,
-  REPORT_RADIUS,
 } from "./reportTokens";
 import { fetchIndexMovers, IndexMoversResponse, IndexMoverRow } from "@/api/indexMovers";
+import { useSymbolDock } from "@/components/common/symbolDockContext";
 
 interface IndexMoversStripProps {
-  /** "NIFTY" | "SENSEX" — RELIANCE hides the strip entirely. */
   index: "NIFTY" | "SENSEX";
-  /** Called when user clicks EXPAND. */
   onExpand: () => void;
-  /** Optional: when in EOD/replay mode, strip shows "live only" message. */
+  /** Constituent symbol → app-wide chart dock. */
+  onOpenSymbol?: (symbol: string) => void;
+  /** Optional: in EOD/replay the band has no data: collapse it instead of reserving 24px; the mode banner declares the absence */
   liveOnly?: boolean;
-  /** Loading/error states from parent (optional override). */
   loading?: boolean;
   error?: string | null;
+  /** Other live-only surfaces (e.g. WINDOWS, WALLS) named by this one status row. */
+  unavailableSurfaces?: string[];
+  /** Single recovery control for every surface named in the status row. */
+  onRetry?: () => void;
 }
 
-const GAINER_COLOR = palette.POSITIVE;   // green
-const LOSER_COLOR = palette.NEGATIVE;    // red
-// 11px keeps 5+5 worst-case symbols inside a 1440px strip.
-const VALUE_FONT = REPORT_FONT.xs;
+/** One status row for any number of empty surfaces. A fixed 30px, never-wrap
+ *  row keeps 390 and 1600 to a single header line; the named surfaces appear
+ *  once, next to the one Retry, instead of stacking an empty band per surface. */
+export function UnavailableBandsStrip(props: {
+  surfaces?: string[];
+  testId?: string;
+  surfacesTestId?: string;
+  retryTestId?: string;
+  onRetry?: () => void;
+  onToggle?: () => void;
+  open?: boolean;
+  label?: string;
+  message?: string;
+  negative?: boolean;
+  children?: JSX.Element;
+}) {
+  const surfaces = () => props.surfaces ?? [];
+  return (
+    <div
+      data-testid={props.testId ?? "report-unavailable-strip"}
+      data-surfaces={surfaces().join("|")}
+      data-empty="true"
+      class="flex items-center gap-2 h-[30px] min-h-[30px] w-full max-w-full min-w-0 shrink-0 px-2 bg-fin-surface font-mono text-ui-micro whitespace-nowrap"
+    >
+      <Show when={props.label}>
+        <Text
+          span
+          size="xs"
+          fw={700}
+          c="dimmed"
+          data-report-text="label"
+          class="text-ui-micro font-extrabold uppercase tracking-[0.08em] shrink-0"
+          style={{ color: palette.TEXT_MUTED }}
+        >
+          {props.label}
+        </Text>
+      </Show>
+      <Show when={props.message}>
+        <Text
+          span
+          size="xs"
+          data-report-text="value"
+          class={`text-ui-micro shrink-0 ${props.negative ? "text-fin-negative" : "text-fin-text-muted"}`}
+        >
+          {props.message}
+        </Text>
+      </Show>
+      {props.children}
+      <Show when={surfaces().length > 0}>
+        <span
+          data-testid={props.surfacesTestId ?? "report-unavailable-surfaces"}
+          data-report-text="value"
+          class="text-ui-micro text-fin-text-muted min-w-0"
+        >
+          {surfaces().join(" · ")}
+        </span>
+      </Show>
+      <Show when={props.onRetry || props.onToggle}>
+        <span class="flex items-center gap-2 ml-auto shrink-0">
+          <Show when={props.onToggle}>
+            <button
+              type="button"
+              aria-expanded={props.open ?? false}
+              onClick={() => props.onToggle?.()}
+              class="inline-flex items-center justify-center whitespace-nowrap rounded-fin border border-fin-text-muted bg-transparent text-fin-text-muted hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 h-[20px] px-1 text-ui-micro font-bold tracking-[0.08em] uppercase"
+            >
+              {props.open ? "hide" : "details"}
+            </button>
+          </Show>
+          <Show when={props.onRetry}>
+            <button
+              type="button"
+              data-testid={props.retryTestId ?? "report-unavailable-retry"}
+              onClick={() => props.onRetry?.()}
+              class="inline-flex items-center justify-center whitespace-nowrap rounded-fin border border-fin-text-muted bg-transparent text-fin-text-muted hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 h-[20px] px-2 text-ui-micro font-bold"
+            >
+              Retry
+            </button>
+          </Show>
+        </span>
+      </Show>
+    </div>
+  );
+}
+
+export interface BandSlot {
+  label: string;
+  available: () => boolean;
+  band: () => JSX.Element;
+}
+
+/** Renders real bands only where data exists and collapses every empty surface
+ *  into one status row. All-empty → one strip; partial → only available bands. */
+export function AvailableBands(props: {
+  bands: BandSlot[];
+  testId?: string;
+  surfacesTestId?: string;
+  retryTestId?: string;
+  onRetry?: () => void;
+  onToggle?: () => void;
+  open?: boolean;
+}) {
+  const present = createMemo(() => props.bands.filter((b) => b.available()));
+  const missing = createMemo(() => props.bands.filter((b) => !b.available()).map((b) => b.label));
+  return (
+    <>
+      <For each={present()}>{(slot) => <>{slot.band()}</>}</For>
+      <Show when={missing().length > 0}>
+        <UnavailableBandsStrip
+          testId={props.testId}
+          surfacesTestId={props.surfacesTestId}
+          retryTestId={props.retryTestId}
+          surfaces={missing()}
+          onRetry={props.onRetry}
+          onToggle={props.onToggle}
+          open={props.open}
+        />
+      </Show>
+    </>
+  );
+}
+
+const GAINER_COLOR = palette.POSITIVE;
+const LOSER_COLOR = palette.NEGATIVE;
+// Values stay at the 13px body step; on a phone the strip wraps whole mover
+// groups rather than shrinking or ellipsing a symbol/percentage.
+const VALUE_FONT = REPORT_FONT.body;
 const ARROW_GAINER = "▲";
 const ARROW_LOSER = "▼";
 
-/** One mover line: symbol + % change. */
-function MoverItem({
-  row,
-  isGainer,
-}: {
+/** `toFixed` keeps a minus on values that round to zero; drop that sign. */
+function signedPct(value: number, forcePlus: boolean): string {
+  const rounded = value.toFixed(2);
+  if (rounded === "-0.00") return "0.00%";
+  return `${forcePlus && value > 0 ? "+" : ""}${rounded}%`;
+}
+
+function MoverItem(props: {
   row: IndexMoverRow;
   isGainer: boolean;
+  onOpen?: (symbol: string) => void;
 }) {
-  const arrow = isGainer ? ARROW_GAINER : ARROW_LOSER;
-  const color = isGainer ? GAINER_COLOR : LOSER_COLOR;
-  const signed = isGainer ? "+" : "";
+  const row = () => props.row;
+  const isGainer = () => props.isGainer;
+  const arrow = () => (isGainer() ? ARROW_GAINER : ARROW_LOSER);
+  const color = () => (isGainer() ? GAINER_COLOR : LOSER_COLOR);
+  const symbolStyle = () => ({
+    "font-size": `${VALUE_FONT}px`,
+    "font-variant-numeric": "tabular-nums",
+    color: color(),
+    "font-family": palette.MONO,
+  });
   return (
-    <Box
-      component="span"
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "4px",
-        flexShrink: 0,
-        whiteSpace: "nowrap",
-      }}
+    <span
+      class="inline-flex items-center gap-2 shrink-0 whitespace-nowrap"
     >
       <Text
         span
         size="xs"
-        fw={700}
-        style={{
-          fontSize: VALUE_FONT,
-          fontVariantNumeric: "tabular-nums",
-          color,
-          fontFamily: palette.MONO,
-        }}
+        data-report-text="label"
+        class="text-ui-micro"
+        style={{ color: color() }}
       >
-        {arrow}
+        {arrow()}
       </Text>
+      <Show
+        when={props.onOpen}
+        fallback={
+          <Text
+            span
+            size="xs"
+            fw={700}
+            data-report-text="value"
+            class="text-ui-body"
+            style={symbolStyle()}
+          >
+            {row().symbol}
+          </Text>
+        }
+      >
+        <button
+          type="button"
+          data-testid={`movers-symbol-${row().symbol}`}
+          data-report-text="value"
+          aria-label={`Open ${row().symbol} chart`}
+          title={`Open ${row().symbol} chart`}
+          onClick={() => props.onOpen?.(row().symbol)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" && e.key !== " ") return;
+            e.preventDefault();
+            props.onOpen?.(row().symbol);
+          }}
+          class="text-ui-body cursor-pointer border-0 bg-transparent p-0 font-bold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary"
+          style={symbolStyle()}
+        >
+          {row().symbol}
+        </button>
+      </Show>
       <Text
         span
         size="xs"
         fw={700}
+        data-report-text="value"
+        class="text-ui-body tabular-nums"
         style={{
-          fontSize: VALUE_FONT,
-          fontVariantNumeric: "tabular-nums",
-          color,
-          fontFamily: palette.MONO,
+          "font-size": `${VALUE_FONT}px`,
+          "font-variant-numeric": "tabular-nums",
+          color: color(),
+          "font-family": palette.MONO,
         }}
       >
-        {row.symbol}
+        {signedPct(row().change_pct, isGainer())}
       </Text>
-      <Text
-        span
-        size="xs"
-        fw={700}
-        style={{
-          fontSize: VALUE_FONT,
-          fontVariantNumeric: "tabular-nums",
-          color,
-          fontFamily: palette.MONO,
-        }}
-      >
-        {signed}{row.change_pct.toFixed(2)}%
-      </Text>
-    </Box>
+    </span>
   );
 }
 
 /** Gain/loss section (left or right). The per-symbol arrow already carries
  *  the direction, so the section no longer repeats it as a label. */
-function MoverSection({
-  rows,
-  isGainer,
-}: {
+function MoverSection(props: {
   rows: IndexMoverRow[];
   isGainer: boolean;
+  onOpen?: (symbol: string) => void;
 }) {
   return (
-    <Box
-      component="span"
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        flexShrink: 0,
-        minWidth: 0,
-      }}
-    >
-      {rows.map((row, i) => (
-        <MoverItem key={`${row.symbol}-${i}`} row={row} isGainer={isGainer} />
-      ))}
-    </Box>
+    <span class="flex items-center gap-2 min-w-0 shrink-0">
+      <For each={props.rows}>
+        {(row) => (
+          <MoverItem row={row} isGainer={props.isGainer} onOpen={props.onOpen} />
+        )}
+      </For>
+    </span>
   );
 }
 
 /**
- * Compact movers strip — always visible under WINDOWS, above WALLS.
+ * Compact movers strip — visible in live mode under WINDOWS, above WALLS.
  * Shows top 3 gainers + bottom 3 losers, one line, EXPAND button.
- * EOD/replay: "MOVERS · live only" (no fake rows).
+ * EOD/replay: collapsed (no empty band, no fake rows).
  * RELIANCE: parent should not render this component.
  */
-export const IndexMoversStrip = memo(function IndexMoversStrip({
-  index,
-  onExpand,
-  liveOnly = false,
-  loading: loadingProp,
-  error: errorProp,
-}: IndexMoversStripProps) {
-  const [data, setData] = useState<IndexMoversResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mountedRef = useRef(true);
+export function IndexMoversStrip(props: IndexMoversStripProps) {
+  const index = () => props.index;
+  const liveOnly = () => props.liveOnly ?? false;
+  const dock = useSymbolDock();
+  // Index names are symbol chips too: NIFTY 50 / SENSEX 30 open the canonical
+  // index chart in the app-wide dock, never the report's underlying Select.
+  const openIndex = (value: "NIFTY" | "SENSEX") =>
+    dock.open(value === "SENSEX" ? "SENSEX" : "NIFTY");
+  const openSymbol = (symbol: string) =>
+    (props.onOpenSymbol ?? ((s) => dock.open(s)))(symbol);
+  const [data, setData] = createSignal<IndexMoversResponse | null>(null);
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  let abortController: AbortController | null = null;
+  let mounted = true;
 
-  // Poll every 30s in live mode
-  const poll = useCallback(async () => {
-    if (!mountedRef.current || liveOnly) return;
-    abortRef.current?.abort();
+  const poll = async () => {
+    if (!mounted || liveOnly()) return;
+    abortController?.abort();
     const controller = new AbortController();
-    abortRef.current = controller;
+    abortController = controller;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchIndexMovers(index, 5, controller.signal);
-      if (!mountedRef.current || controller.signal.aborted) return;
+      const res = await fetchIndexMovers(index(), 5, controller.signal);
+      if (!mounted || controller.signal.aborted) return;
       setData(res);
     } catch (e) {
-      if (!mountedRef.current || controller.signal.aborted) return;
+      if (!mounted || controller.signal.aborted) return;
       if (e instanceof Error && e.message === "MOVERS_UNAVAILABLE") {
         setError("unavailable");
       } else {
         setError(e instanceof Error ? e.message : "Failed to load movers");
       }
     } finally {
-      if (mountedRef.current) setLoading(false);
+      if (mounted) setLoading(false);
     }
-  }, [index, liveOnly]);
+  };
 
-  // Initial load + interval
-  useEffect(() => {
-    mountedRef.current = true;
-    if (!liveOnly) {
-      poll();
-      pollTimerRef.current = window.setInterval(poll, 30_000);
+  createEffect(() => {
+    // Track the index/liveOnly inputs so switching re-arms the poll.
+    index();
+    liveOnly();
+    mounted = true;
+    if (!liveOnly()) {
+      void poll();
+      const id = window.setInterval(() => void poll(), 30_000);
+      onCleanup(() => window.clearInterval(id));
     }
-    return () => {
-      mountedRef.current = false;
-      abortRef.current?.abort();
-      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
-    };
-  }, [poll, liveOnly]);
+    onCleanup(() => {
+      mounted = false;
+      abortController?.abort();
+    });
+  });
 
-  // Use parent's loading/error if provided, else local
-  const isLoading = loadingProp ?? loading;
-  const isError = errorProp ?? error;
+  const isLoading = () => props.loading ?? loading();
+  const isError = () => props.error ?? error();
 
   // Stale detection: backend sets the `stale` flag
-  const isStale = data?.stale === true;
+  const isStale = () => data()?.stale === true;
 
-  // Live-only message
-  if (liveOnly) {
-    return (
-      <Box
-        data-testid="movers-strip"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: REPORT_ROW.normal,
-          px: REPORT_PAD.md,
-          borderTop: `1px solid ${palette.TERM_BORDER}`,
-          borderBottom: `1px solid ${palette.TERM_BORDER}`,
-          bgcolor: palette.TERM_HEADER,
-          fontFamily: palette.MONO,
-          fontSize: REPORT_FONT.xs,
-          color: palette.TEXT_MUTED,
-        }}
-      >
-        <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
-          MOVERS
-        </Text>
-        <Text span size="xs" c="dimmed" sx={{ ml: 2, fontStyle: "italic" }}>
-          · live only
-        </Text>
-      </Box>
-    );
-  }
+  const gainers = () => data()?.gainers ?? [];
+  const losers = () => data()?.losers ?? [];
 
-  // Loading state
-  if (isLoading && !data) {
-    return (
-      <Box
-        data-testid="movers-strip"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          height: REPORT_ROW.normal,
-          px: REPORT_PAD.md,
-          borderTop: `1px solid ${palette.TERM_BORDER}`,
-          borderBottom: `1px solid ${palette.TERM_BORDER}`,
-          bgcolor: palette.TERM_HEADER,
-        }}
-      >
-        <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
-          MOVERS
-        </Text>
-        <Box
-          component="span"
-          sx={{ ml: 2, display: "inline-flex", alignItems: "center", gap: 4 }}
-        >
-          <Box
-            sx={{
-              width: 12,
-              height: 12,
-              borderRadius: "50%",
-              border: `2px solid ${palette.TEXT_MUTED}`,
-              borderTopColor: palette.PRIMARY,
-              animation: "spin 0.8s linear infinite",
-              "@keyframes spin": { to: { transform: "rotate(360deg)" } },
-            }}
-          />
-          <Text span size="xs" c="dimmed">
-            loading…
-          </Text>
-        </Box>
-      </Box>
-    );
-  }
+  // The striped lane can be squeezed below its content width on a wide-viewport
+  // desk panel; the full mover text stays reachable from the tooltip.
+  const moversTitle = () => {
+    const label = `MOVERS · ${index()} ${index() === "NIFTY" ? "50" : "30"}`;
+    const format = (row: IndexMoverRow, isGainer: boolean) =>
+      `${isGainer ? ARROW_GAINER : ARROW_LOSER} ${row.symbol} ${signedPct(row.change_pct, isGainer)}`;
+    return [
+      label,
+      ...gainers().map((row) => format(row, true)),
+      ...losers().map((row) => format(row, false)),
+    ].join("  ");
+  };
 
-  // Error state
-  if (isError && !data) {
-    return (
-      <Box
-        data-testid="movers-strip"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          height: REPORT_ROW.normal,
-          px: REPORT_PAD.md,
-          borderTop: `1px solid ${palette.TERM_BORDER}`,
-          borderBottom: `1px solid ${palette.TERM_BORDER}`,
-          bgcolor: palette.TERM_HEADER,
-        }}
-      >
-        <Text span size="xs" fw={700} c="dimmed" style={{ letterSpacing: "0.1em" }}>
-          MOVERS
-        </Text>
-        <Text span size="xs" c="error" sx={{ ml: 2 }}>
-          unavailable
-        </Text>
-        <Button
-          size="sm"
-          variant="subtle"
-          onClick={poll}
-          sx={{ ml: "auto", minWidth: 0, px: 1, fontSize: REPORT_FONT.micro }}
-        >
-          Retry
-        </Button>
-      </Box>
-    );
-  }
-
-  // Render data
-  const gainers = data?.gainers ?? [];
-  const losers = data?.losers ?? [];
-
-  return (
-    <Box
+  const dataView = () => (
+    <div
       data-testid="movers-strip"
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: REPORT_PAD.md,
-        height: REPORT_ROW.normal,
-        minHeight: REPORT_ROW.normal,
-        px: REPORT_PAD.md,
-        borderTop: `1px solid ${palette.TERM_BORDER}`,
-        borderBottom: `1px solid ${palette.TERM_BORDER}`,
-        bgcolor: palette.TERM_HEADER,
-        fontFamily: palette.MONO,
-        fontSize: REPORT_FONT.xs,
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        flexShrink: 0,
-      }}
+      data-report-spacing="8"
+      class="flex items-center justify-between gap-2 h-[24px] min-h-[24px] px-2 bg-fin-surface font-mono text-ui-micro whitespace-nowrap shrink-0 max-[700px]:h-auto max-[700px]:min-h-0 max-[700px]:flex-wrap max-[700px]:gap-y-1 max-[700px]:py-1"
     >
-      <Box
-        component="span"
-        sx={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: REPORT_PAD.sm,
-          minWidth: 0,
-          flex: "1 1 auto",
-        }}
+      <span
+        data-testid="movers-row"
+        title={moversTitle()}
+        class="inline-flex items-center gap-2 min-w-0 flex-auto overflow-hidden max-[700px]:flex-wrap max-[700px]:gap-y-1"
+        style={{ "text-overflow": "ellipsis" }}
       >
-        <Text
-          span
-          size="xs"
-          fw={700}
-          c="dimmed"
-          style={{ letterSpacing: "0.1em", flexShrink: 0 }}
+        <button
+          type="button"
+          data-testid="movers-index"
+          data-report-text="label"
+          title={`Open ${index()} index report`}
+          onClick={() => openIndex(index())}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" && e.key !== " ") return;
+            e.preventDefault();
+            openIndex(index());
+          }}
+          class="shrink-0 cursor-pointer border-0 bg-transparent p-0 font-bold tracking-[0.08em] text-ui-micro focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary"
+          style={{ color: palette.TEXT_MUTED }}
         >
-          MOVERS · {index} {index === "NIFTY" ? "50" : "30"}
-        </Text>
+          MOVERS · {index()} {index() === "NIFTY" ? "50" : "30"}
+        </button>
 
         {/* Gainers */}
-        <MoverSection rows={gainers} isGainer={true} />
+        <MoverSection rows={gainers()} isGainer={true} onOpen={openSymbol} />
 
         {/* Separator — fixed 1px: a stretched flex item would push the
-            losers past the strip's `overflow: hidden`. */}
-        <Box
-          component="span"
-          sx={{
-            flex: "0 0 1px",
-            width: "1px",
-            minWidth: "1px",
-            height: 10,
-            alignSelf: "center",
-            bgcolor: palette.TERM_BORDER,
-            mx: REPORT_PAD.xs,
-          }}
+            losers past the strip edge. On a phone the groups wrap instead. */}
+        <span
+          aria-hidden="true"
+          class="shrink-0 self-center mx-2 h-[10px] w-[1px] min-w-[1px]"
+          style={{ "background-color": palette.alpha(palette.BORDER, 0.6) }}
         />
 
         {/* Losers */}
-        <MoverSection rows={losers} isGainer={false} />
-      </Box>
+        <MoverSection rows={losers()} isGainer={false} onOpen={openSymbol} />
+      </span>
 
       {/* Right side: EXPAND button + stale badge */}
-      <Box
-        component="span"
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: REPORT_PAD.sm,
-          flexShrink: 0,
-        }}
-      >
-        {isStale && (
-          <Tooltip title={`Data is stale (${data?.as_of})`} placement="bottom-start">
-            <Box
-              component="span"
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 2,
-                px: REPORT_PAD.xs,
-                py: "1px",
-                border: `1px solid ${palette.WARNING}`,
-                borderRadius: REPORT_RADIUS.sm,
+      <span data-testid="movers-actions" class="flex items-center gap-2 shrink-0">
+        <Show when={isStale()}>
+          <Tooltip label={`Data is stale (${data()?.as_of})`} position="bottom-start">
+            <span
+              class="inline-flex items-center gap-1 px-[2px] py-[1px] rounded-sm text-ui-micro font-bold tracking-[0.05em] whitespace-nowrap"
+              style={{
+                "background-color": palette.alpha(palette.WARNING, 0.12),
                 color: palette.WARNING,
-                fontSize: REPORT_FONT.micro,
-                fontWeight: 700,
-                letterSpacing: "0.05em",
               }}
             >
               STALE
-            </Box>
+            </span>
           </Tooltip>
-        )}
-        <Button
+        </Show>
+        <button
+          type="button"
           data-testid="movers-expand"
-          size="sm"
-          variant="subtle"
-          onClick={onExpand}
+          class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-fin border border-fin-text-muted text-fin-text-muted bg-transparent hover:bg-fin-surface-alt transition-colors duration-150 min-w-0 shrink-0 h-[20px] px-1 py-0 text-ui-micro font-bold tracking-[0.08em] uppercase"
+          onClick={() => props.onExpand()}
           aria-label="Expand index movers"
           title="Expand index movers"
-          sx={{
-            minWidth: 0,
-            px: REPORT_PAD.sm,
-            py: 0,
-            height: 20,
-            fontSize: REPORT_FONT.micro,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            border: `1px solid ${palette.TERM_BORDER}`,
-            borderRadius: REPORT_RADIUS.sm,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 2,
-          }}
         >
           EXPAND
           <IconChevronRight size={12} />
-        </Button>
-      </Box>
-    </Box>
+        </button>
+      </span>
+    </div>
   );
-});
 
-IndexMoversStrip.displayName = "IndexMoversStrip";
+  return (
+    <Show
+      when={liveOnly()}
+      fallback={
+        <Show
+          when={isLoading() && !data()}
+          fallback={
+            <Show when={isError() && !data()} fallback={dataView()}>
+              <UnavailableBandsStrip
+                testId="movers-strip"
+                retryTestId="movers-retry"
+                label="MOVERS"
+                message="unavailable"
+                negative
+                surfaces={props.unavailableSurfaces}
+                onRetry={props.onRetry ?? (() => void poll())}
+              />
+            </Show>
+          }
+        >
+          <UnavailableBandsStrip
+            testId="movers-strip"
+            retryTestId="movers-retry"
+            label="MOVERS"
+            message="loading…"
+            surfaces={props.unavailableSurfaces}
+          >
+            <Loader size="xs" color={palette.PRIMARY} />
+          </UnavailableBandsStrip>
+        </Show>
+      }
+    >
+      {/* Replay has no movers feed. The mode banner names MOVERS as unavailable
+          once for every live-only band; an empty 24px strip adds no information. */}
+      {null}
+    </Show>
+  );
+}

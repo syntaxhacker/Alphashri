@@ -2,9 +2,7 @@
 Chart API — helpers for resampling candles, ORB zones, pivot points, and chart preview.
 """
 
-import asyncio
 from datetime import datetime, timedelta
-from inspect import isawaitable
 from typing import Dict, Any, List
 
 import config
@@ -21,7 +19,7 @@ def _is_weekend(d: datetime) -> bool:
     return d.weekday() >= 5
 
 
-async def _get_last_trading_day(symbol: str) -> str:
+def _get_last_trading_day(symbol: str) -> str:
     """
     Find the most recent trading day using:
     1. Weekend check (datetime.weekday)
@@ -223,7 +221,7 @@ def _filter_to_last_n_trading_days(df, n: int):
 
 
 @router.get("/api/chart/preview/{symbol}")
-async def get_chart_preview(
+def get_chart_preview(
     symbol: str,
     tf: int = Query(15, ge=1, le=1440, description="Timeframe in minutes (1, 5, 15, 30, 60, 120, 240, 720, 1440)"),
     days: int = Query(1, ge=1, le=30, description="Days of history (default 1 for hover preview)"),
@@ -259,7 +257,7 @@ async def get_chart_preview(
 
     try:
         # Compute the last trading day using weekend + holiday checks
-        last_trading_day = await _get_last_trading_day(symbol)
+        last_trading_day = _get_last_trading_day(symbol)
 
         # Fetch enough calendar days to cover N trading days (+ buffer for weekends/holidays)
         calendar_days_back = days * 3  # 3x buffer is plenty since we're starting from a known trading day
@@ -271,14 +269,10 @@ async def get_chart_preview(
             symbol=symbol, unit='minutes', interval=1,
             from_date=from_date, to_date=to_date
         )
-        if isawaitable(df):
-            df = await df
 
         # Supplement with intraday data if available
         try:
             df_intraday = api.fetch_intraday_data_v3(symbol=symbol, interval='1')
-            if isawaitable(df_intraday):
-                df_intraday = await df_intraday
             if df_intraday is not None and hasattr(df_intraday, 'empty') and not df_intraday.empty:
                 if df is None or (hasattr(df, 'empty') and df.empty):
                     df = df_intraday

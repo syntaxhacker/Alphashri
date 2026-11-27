@@ -1,13 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
-import { MemoryRouter } from "react-router-dom";
-import { ThemeProvider } from "@mui/material/styles";
-import { muiTheme } from "@/ui/muiTheme";
+import { Route, Router } from "@solidjs/router";
 import { NavbarNested } from "./NavbarNested";
-import { AuthContext } from "../auth/AuthProvider2";
+import { AuthContext } from "../auth/AuthProvider";
 import * as hooks from "@/ui/hooks";
 
 const mockAdminAuth: any = {
@@ -19,9 +16,9 @@ const mockUserAuth: any = {
   isAuthenticated: true,
 };
 
-/** Every route the rail renders for an admin (20 items incl. Admin). */
+/** Every route the rail renders for an admin (17 items incl. HOME and Admin). */
 const NAV_IDS =
-  /^nav-(screener|news|backtest|experiments|paper|replay|strategy-runner|sector|agri-prices|heatmap|order-flow|patterns|reports|strategies|bots|options|index-report|us-report|settings|admin)$/;
+  /^nav-(home|screener|news|backtest|paper|replay|strategy-runner|sector|agri-prices|patterns|strategies|bots|options|index-report|profitability|settings|admin)$/;
 
 function renderNavbar(opts: {
   activePath?: string;
@@ -30,9 +27,9 @@ function renderNavbar(opts: {
   onMobileNavigate?: any;
 } = {}) {
   const { activePath = "/", collapsed = false, auth = mockAdminAuth, onMobileNavigate } = opts;
-  return render(
-    <ThemeProvider theme={muiTheme}>
-      <MemoryRouter>
+  return render(() => (
+    <Router
+      root={() => (
         <AuthContext.Provider value={auth}>
           <NavbarNested
             activePath={activePath}
@@ -40,9 +37,9 @@ function renderNavbar(opts: {
             onMobileNavigate={onMobileNavigate}
           />
         </AuthContext.Provider>
-      </MemoryRouter>
-    </ThemeProvider>,
-  );
+      )}
+    />
+  ));
 }
 
 beforeEach(() => {
@@ -70,54 +67,72 @@ afterEach(() => {
 
 // ── Nav list contract ──
 describe("NavbarNested nav list contract", () => {
-  it("renders all 20 nav items for admin (enforces list maintenance)", () => {
+  it("renders all 17 nav items for admin (enforces list maintenance)", () => {
     renderNavbar({ auth: mockAdminAuth, activePath: "/" });
     const items = screen.getAllByTestId(/^nav-/);
-    expect(items).toHaveLength(20);
+    expect(items).toHaveLength(17);
     const navIds = items.map((el) => el.getAttribute("data-testid")).filter(Boolean);
+    expect(navIds).toContain("nav-home");
     expect(navIds).toContain("nav-screener");
     expect(navIds).toContain("nav-agri-prices");
-    expect(navIds).toContain("nav-order-flow");
     expect(navIds).toContain("nav-patterns");
-    expect(navIds).toContain("nav-reports");
-    expect(navIds).toContain("nav-us-report");
     expect(navIds).toContain("nav-strategies");
     expect(navIds).toContain("nav-admin");
     // exact count: the full rail, including the Admin-only entry
-    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(20);
+    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(17);
   });
 
-  it("renders 19 items for non-admin (hides Admin)", () => {
+  it("renders 16 items for non-admin (hides Admin)", () => {
     renderNavbar({ auth: mockUserAuth });
-    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(19);
+    expect(screen.getAllByTestId(NAV_IDS)).toHaveLength(16);
     expect(screen.queryByTestId("nav-admin")).not.toBeInTheDocument();
   });
 
   it("renders expected testIds for all core routes", () => {
     renderNavbar({ auth: mockAdminAuth });
     const expected = [
+      "nav-home",
       "nav-screener",
       "nav-news",
       "nav-backtest",
-      "nav-experiments",
       "nav-paper",
       "nav-replay",
       "nav-strategy-runner",
       "nav-sector",
       "nav-agri-prices",
-      "nav-heatmap",
-      "nav-order-flow",
       "nav-patterns",
-      "nav-reports",
       "nav-strategies",
       "nav-bots",
       "nav-options",
       "nav-index-report",
-      "nav-us-report",
+      "nav-profitability",
       "nav-settings",
       "nav-admin",
     ];
     expected.forEach((id) => expect(screen.getByTestId(id)).toBeInTheDocument());
+  });
+
+  it("HOME entry is present, highlighted on /home, and navigates to /home", async () => {
+    render(() => (
+      <Router
+        root={(route) => (
+          <AuthContext.Provider value={mockAdminAuth}>
+            <NavbarNested activePath="/home" />
+            {route.children}
+          </AuthContext.Provider>
+        )}
+      >
+        <Route path="/home" component={() => <div data-testid="home-route-landed" />} />
+      </Router>
+    ));
+
+    const home = screen.getByTestId("nav-home");
+    expect(home).toBeInTheDocument();
+    expect(home).toHaveAttribute("aria-label", "HOME");
+    expect(home).toHaveAttribute("data-active", "true");
+
+    await fireEvent.click(home);
+    expect(await screen.findByTestId("home-route-landed")).toBeInTheDocument();
   });
 
   it("marks active path with data-active", () => {
@@ -151,41 +166,36 @@ describe("NavbarNested active path highlighting", () => {
     expect(paper).not.toHaveAttribute("data-active", "true");
   });
 
-  it("highlights root only for exact /", () => {
-    renderNavbar({ activePath: "/" });
+  it("highlights screener for the screener route and its tab paths", () => {
+    renderNavbar({ activePath: "/screener" });
     expect(screen.getByTestId("nav-screener")).toHaveAttribute("data-active", "true");
     expect(screen.getByTestId("nav-news")).not.toHaveAttribute("data-active");
+
+    cleanup();
+    renderNavbar({ activePath: "/screener/market" });
+    expect(screen.getByTestId("nav-screener")).toHaveAttribute("data-active", "true");
+
+    cleanup();
+    renderNavbar({ activePath: "/screener/correlation" });
+    expect(screen.getByTestId("nav-screener")).toHaveAttribute("data-active", "true");
+  });
+
+  it("does not highlight screener for exact / (route moved to /screener)", () => {
+    renderNavbar({ activePath: "/" });
+    expect(screen.getByTestId("nav-screener")).not.toHaveAttribute("data-active", "true");
   });
 
   it("highlights correct item each time activePath changes (rerender)", () => {
-    const { rerender } = render(
-      <ThemeProvider theme={muiTheme}>
-        <MemoryRouter>
-          <AuthContext.Provider value={mockAdminAuth}>
-            <NavbarNested activePath="/news" />
-          </AuthContext.Provider>
-        </MemoryRouter>
-      </ThemeProvider>,
-    );
+    renderNavbar({ activePath: "/news" });
     expect(screen.getByTestId("nav-news")).toHaveAttribute("data-active", "true");
-    rerender(
-      <ThemeProvider theme={muiTheme}>
-        <MemoryRouter>
-          <AuthContext.Provider value={mockAdminAuth}>
-            <NavbarNested activePath="/sector" />
-          </AuthContext.Provider>
-        </MemoryRouter>
-      </ThemeProvider>,
-    );
-    // happy-dom rerender may duplicate; query again
     cleanup();
     renderNavbar({ activePath: "/sector" });
     expect(screen.getByTestId("nav-sector")).toHaveAttribute("data-active", "true");
   });
 
   it("clears previous active when navigating to new path", () => {
-    renderNavbar({ activePath: "/heatmap" });
-    expect(screen.getByTestId("nav-heatmap")).toHaveAttribute("data-active", "true");
+    renderNavbar({ activePath: "/bots" });
+    expect(screen.getByTestId("nav-bots")).toHaveAttribute("data-active", "true");
     expect(screen.getByTestId("nav-options")).not.toHaveAttribute("data-active");
   });
 });
@@ -242,7 +252,7 @@ describe("NavbarNested nav item accessible names", () => {
     expect(screen.queryByText("Screener")).not.toBeInTheDocument();
 
     const items = screen.getAllByTestId(NAV_IDS);
-    expect(items).toHaveLength(20);
+    expect(items).toHaveLength(17);
     for (const item of items) {
       const label = item.getAttribute("aria-label");
       expect(label).toBeTruthy();
@@ -256,6 +266,9 @@ describe("NavbarNested nav item accessible names", () => {
     expect(screen.getByRole("button", { name: "Index Report" })).toBe(
       screen.getByTestId("nav-index-report"),
     );
+    expect(screen.getByRole("button", { name: "Profitability" })).toBe(
+      screen.getByTestId("nav-profitability"),
+    );
     expect(screen.getByRole("button", { name: "Admin" })).toBe(
       screen.getByTestId("nav-admin"),
     );
@@ -265,7 +278,7 @@ describe("NavbarNested nav item accessible names", () => {
     renderNavbar({ collapsed: false, auth: mockAdminAuth });
 
     const items = screen.getAllByTestId(NAV_IDS);
-    expect(items).toHaveLength(20);
+    expect(items).toHaveLength(17);
     items.forEach((item) => expect(item).toHaveAttribute("aria-label"));
     // Visible labels still render alongside the accessible name.
     expect(screen.getByText("Screener")).toBeInTheDocument();
@@ -277,8 +290,7 @@ describe("NavbarNested nav item accessible names", () => {
   it("still navigates on click when collapsed", async () => {
     const onMobileNavigate = vi.fn();
     renderNavbar({ collapsed: true, onMobileNavigate });
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("nav-index-report"));
+        await fireEvent.click(screen.getByTestId("nav-index-report"));
     expect(onMobileNavigate).toHaveBeenCalledTimes(1);
   });
 });
@@ -292,31 +304,27 @@ describe("NavbarNested theme toggle", () => {
   });
 
   it("toggles color scheme on click and persists to localStorage", async () => {
-    const user = userEvent.setup();
-    renderNavbar();
+        renderNavbar();
     const btn = screen.getByTestId("theme-toggle-btn");
-    // initial is dark (hook default)
-    const before = localStorage.getItem("mui-color-scheme");
-    await user.click(btn);
-    const after = localStorage.getItem("mui-color-scheme");
+    await fireEvent.click(btn);
+    const after = localStorage.getItem("color-scheme");
     // should have flipped to light or dark
     expect(after).toBeTruthy();
     expect(["light", "dark"]).toContain(after);
     // document attribute should be set
     expect(document.documentElement.getAttribute("data-color-scheme")).toBe(after);
     // clicking again flips back
-    await user.click(btn);
-    const flippedAgain = localStorage.getItem("mui-color-scheme");
+    await fireEvent.click(btn);
+    const flippedAgain = localStorage.getItem("color-scheme");
     expect(flippedAgain).not.toEqual(after);
   });
 
   it("toggles icon after click (moon/sun swap)", async () => {
-    const user = userEvent.setup();
-    renderNavbar();
+        renderNavbar();
     const btn = screen.getByTestId("theme-toggle-btn");
     const firstSvg = btn.querySelector("svg");
     expect(firstSvg).toBeTruthy();
-    await user.click(btn);
+    await fireEvent.click(btn);
     const secondSvg = screen.getByTestId("theme-toggle-btn").querySelector("svg");
     expect(secondSvg).toBeTruthy();
     // svg presence confirms render; class/paths may differ but at least button still renders
@@ -325,14 +333,13 @@ describe("NavbarNested theme toggle", () => {
   it("calls underlying useColorScheme toggle (spy)", async () => {
     const toggleSpy = vi.fn();
     vi.spyOn(hooks, "useColorScheme").mockReturnValue({
-      colorScheme: "dark",
-      isDark: true,
+      colorScheme: () => "dark",
+      isDark: () => true,
       toggleColorScheme: toggleSpy,
       setColorScheme: vi.fn(),
     } as any);
-    const user = userEvent.setup();
-    renderNavbar();
-    await user.click(screen.getByTestId("theme-toggle-btn"));
+        renderNavbar();
+    await fireEvent.click(screen.getByTestId("theme-toggle-btn"));
     expect(toggleSpy).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,59 +1,67 @@
-import * as React from "react";
-import Backdrop from "@mui/material/Backdrop";
-import Box from "@mui/material/Box";
-import { BLACK } from "@/ui/palette";
-import { withAlpha } from "@/utils/color";
+import { splitProps } from "solid-js";
+import { cn } from "../cn";
 import type { UIOverlayProps } from "../types";
 
-function colorWithOpacity(color: string | undefined, opacity: number | undefined): string | undefined {
-  if (!color) return undefined;
-  if (opacity == null) return color;
-  // If color is hex, convert to rgba via inline style trick: let CSS handle via opacity prop.
-  // Instead we set bgcolor to color and also opacity style; MUI Backdrop supports both.
-  // Return color as-is; opacity handled separately.
-  return color;
-}
+// Palette-derived translucent black backdrop.
+import * as palette from "../palette";
+import { alpha } from "../alpha";
 
-export function Overlay({
-  color,
-  opacity,
-  blur,
-  zIndex,
-  fixed,
-  center,
-  children,
-  className,
-  style,
-  "data-testid": testId,
-  ...rest
-}: UIOverlayProps) {
-  const bgcolor = colorWithOpacity(color as string, opacity);
+type OverlayProps = UIOverlayProps;
+
+const DEFAULT_BG = alpha(palette.SCALE_DARK[9], 0.5);
+
+export function Overlay(props: OverlayProps) {
+  // `dataTestid` is accepted for compatibility but is not part of UIOverlayProps.
+  const [local, rest] = splitProps(props as OverlayProps & { dataTestid?: string }, [
+    "color",
+    "opacity",
+    "blur",
+    "zIndex",
+    "fixed",
+    "center",
+    "children",
+    "className",
+    "style",
+    "id",
+    "dataTestid",
+    "onClick",
+    "onMouseEnter",
+    "onMouseLeave",
+  ]);
+
   return (
-    <Backdrop
-      open
-      className={className}
-      style={style}
-      data-testid={testId}
-      sx={[
-        {
-          position: fixed ? "fixed" : "absolute",
-          inset: 0,
-          bgcolor: bgcolor ?? withAlpha(BLACK, 0.5),
-          opacity: opacity != null && !color ? opacity : undefined,
-          // When color is provided with opacity, MUI's bgcolor alpha is color itself; we also set opacity for overlay blending
-          ...(bgcolor && opacity != null ? { opacity } : {}),
-          backdropFilter: blur != null ? `blur(${typeof blur === "number" ? `${blur}px` : blur})` : undefined,
-          zIndex: zIndex as any,
-          display: center ? "flex" : undefined,
-          alignItems: center ? "center" : undefined,
-          justifyContent: center ? "center" : undefined,
-          borderRadius: "inherit",
-        },
-        ...(Array.isArray(style) ? [] : []),
-      ]}
-      {...(rest as any)}
+    <div
+      id={local.id}
+      data-testid={local.dataTestid}
+      className={cn("inset-0", local.className)}
+      style={{
+        position: (local.fixed ?? true) ? "fixed" : "absolute",
+        inset: 0,
+        "z-index": local.zIndex ?? undefined,
+        "background-color": local.color ?? DEFAULT_BG,
+        opacity: local.opacity != null ? local.opacity : undefined,
+        "backdrop-filter":
+          local.blur != null ? `blur(${typeof local.blur === "number" ? `${local.blur}px` : local.blur})` : undefined,
+        display: local.center ? "flex" : undefined,
+        "align-items": local.center ? "center" : undefined,
+        "justify-content": local.center ? "center" : undefined,
+        ...local.style,
+      }}
+      onClick={local.onClick}
+      onMouseEnter={local.onMouseEnter}
+      onMouseLeave={local.onMouseLeave}
+      {...(rest as Record<string, unknown>)}
     >
-      {children ? <Box sx={{ display: center ? "flex" : "block", alignItems: center ? "center" : undefined, justifyContent: center ? "center" : undefined }}>{children}</Box> : null}
-    </Backdrop>
+      {local.children ? (
+        <div
+          style={{
+            display: local.center ? "flex" : "block",
+            ...(local.center ? { "align-items": "center", "justify-content": "center" } : {}),
+          }}
+        >
+          {local.children}
+        </div>
+      ) : null}
+    </div>
   );
 }

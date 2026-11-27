@@ -7,63 +7,28 @@ bound it cannot satisfy (unknown != pass). All numeric bounds are inclusive.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Mapping, Sequence
 
 from ._numeric import num as _num
 from .scoring import sector_bucket
 
-#: Preset name -> filter dict. Bounds are inclusive.
+#: Preset name -> filter dict. Bounds are inclusive. The single source of truth
+#: is ``presets.json`` (id -> {label, description, gates}); the frontend TS
+#: artifact is generated from that same file. Only ``gates`` is used here —
+#: labels/descriptions are presentation metadata owned by the generator.
+#:
+#: The "cheap" presets are MARKET-RELATIVE (percentile gates inside the row's
+#: own sector bucket) because absolute multiples do not travel between markets
+#: - P/E <= 12 is unremarkable in the USA and exceptional in India. Percentiles
+#: are computed on the pre-gate frame and attached as row["_pct"]. For SERIOUS,
+#: ``off_52w_high_pct_min`` is a portable stand-in for "above the 200dma" that
+#: does not empty a market simply in a downtrend.
+_PRESETS_PATH = Path(__file__).with_name("presets.json")
+_PRESET_SPECS: dict[str, dict] = json.loads(_PRESETS_PATH.read_text(encoding="utf-8"))
 PRESETS: dict[str, dict] = {
-    # NOTE: the "cheap" presets are MARKET-RELATIVE (percentile gates inside the
-    # row's own sector bucket) because absolute multiples do not travel between
-    # markets - P/E <= 12 is unremarkable in the USA and exceptional in India.
-    # Percentiles are computed on the pre-gate frame and attached as row["_pct"].
-    "SERIOUS": {
-        "pe_pct_max": 0.35,
-        "roe_pct_min": 0.55,
-        "fcf_yield_pct_min": 0.65,
-        "eps_yoy_pct_min": 0.50,
-        # not broken: better than the worst quarter of the market on drawdown
-        # from the 52w high (portable stand-in for "above the 200dma", which
-        # would empty a market that is simply in a downtrend)
-        "off_52w_high_pct_min": 0.25,
-        "min_eps_yoy": -50,
-        "max_de": 1.0,
-        "min_mcap_bn": 0.5,
-    },
-    "DEEP": {
-        "pe_pct_max": 0.15,
-        "pb_pct_max": 0.30,
-        "roe_pct_min": 0.70,
-        "fcf_yield_pct_min": 0.80,
-        "eps_yoy_pct_min": 0.50,
-        "off_52w_high_pct_min": 0.15,
-        "min_eps_yoy": -50,
-        "max_de": 0.8,
-        "min_mcap_bn": 0.5,
-    },
-    "GARP_VALUE": {
-        "pe_pct_max": 0.60,
-        "roe_pct_min": 0.70,
-        "rev_yoy_pct_min": 0.55,
-        "eps_yoy_pct_min": 0.55,
-        "min_rev_yoy": 5,
-        "min_eps_yoy": 5,
-        "min_fcf_yield": 1,
-    },
-    "YIELD": {
-        "min_div_yield": 4,
-        "pe_pct_max": 0.50,
-        "fcf_yield_pct_min": 0.60,
-        "min_eps_yoy": 0,
-    },
-    "TURNAROUND": {
-        "max_pe": 15,
-        "min_eps_yoy": 0,
-        "max_rev_yoy": 5,
-        "above_200dma": True,
-    },
-    "NO_GATE": {},
+    preset_id: dict(spec["gates"]) for preset_id, spec in _PRESET_SPECS.items()
 }
 
 #: Debt/equity ceiling used by the ``require_low_de`` boolean gate.
@@ -234,6 +199,10 @@ def _passes(row: Mapping, f: Mapping) -> bool:
 
     sectors = f.get("sectors")
     if sectors:
+        # The HTTP layer delivers a comma-separated query string; callers that
+        # build filter dicts in Python pass a list. Treat both identically.
+        if isinstance(sectors, str):
+            sectors = sectors.split(",")
         wanted = {str(s).strip().lower() for s in sectors if str(s).strip()}
         if wanted and sector_bucket(row.get("sector")).lower() not in wanted:
             return False

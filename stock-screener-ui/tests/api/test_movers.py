@@ -11,7 +11,6 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-# Ensure repo root is on path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from api.reports_api.movers import (
@@ -49,9 +48,7 @@ class TestConstituents:
         assert len(symbols) == 30
         assert weights == {}
         assert "SENSEX" in source
-        # Verify TATAMOTORS is NOT in the list (demerged)
         assert "TATAMOTORS" not in symbols
-        # Verify TMPV is included (current NSE symbol)
         assert "TMPV" in symbols
 
     def test_select_index_constituents_invalid(self):
@@ -90,11 +87,9 @@ class TestBuildRows:
         }
         rows = _build_rows(symbols, weights, quotes)
         assert len(rows) == 3
-        # Should be sorted by change_pct descending
         assert rows[0]["symbol"] == "HDFCBANK"
         assert rows[1]["symbol"] == "RELIANCE"
         assert rows[2]["symbol"] == "ICICIBANK"
-        # Contribution present
         assert "contribution_pct" in rows[0]
         assert abs(rows[0]["contribution_pct"] - 0.192) < 0.001
 
@@ -103,7 +98,6 @@ class TestBuildRows:
         weights = {"HDFCBANK": 10.0, "ICICIBANK": 8.0}
         quotes = {
             "HDFCBANK": {"ltp": 1750.0, "change_pct": 1.92, "volume": 1000000},
-            # ICICIBANK missing
         }
         rows = _build_rows(symbols, weights, quotes)
         assert len(rows) == 1
@@ -187,7 +181,6 @@ class TestEndpoint:
 
     def test_movers_limit_all(self, client):
         with patch("api.reports_api.movers._fetch_quotes", new_callable=AsyncMock) as mock_fetch:
-            # Return quotes for all NIFTY50 symbols
             quotes = {sym: {"ltp": 100.0 + i, "change_pct": (i - 25) * 0.1, "volume": 100000}
                       for i, sym in enumerate(NIFTY50_SYMBOLS)}
             mock_fetch.return_value = quotes
@@ -204,7 +197,6 @@ class TestEndpoint:
     def test_movers_sensex_no_weights(self, client):
         """SENSEX returns data but without contribution_pct (no verified weights)."""
         with patch("api.reports_api.movers._fetch_quotes", new_callable=AsyncMock) as mock_fetch:
-            # Return quotes for all SENSEX symbols
             from api.reports_api.movers import _select_index_constituents
             symbols, _, _ = _select_index_constituents("SENSEX")
             quotes = {sym: {"ltp": 100.0 + i, "change_pct": (i - 15) * 0.1, "volume": 100000}
@@ -216,7 +208,6 @@ class TestEndpoint:
             assert resp.status_code == 200
             data = resp.json()
             assert data["index"] == "SENSEX"
-            # No contribution_pct since no weights
             for row in data["gainers"] + data["losers"]:
                 assert "contribution_pct" not in row
 
@@ -246,7 +237,6 @@ class TestEndpoint:
             # Second call with limit=3 should use cache (same index)
             resp2 = client.get("/api/reports/movers?index=NIFTY&limit=3")
             assert resp2.status_code == 200
-            # Should have sliced from cached data
             assert len(resp2.json()["gainers"]) <= 3
             assert mock_fetch.call_count == 1  # Only one upstream call
 

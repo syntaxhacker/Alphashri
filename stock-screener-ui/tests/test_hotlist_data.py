@@ -41,9 +41,6 @@ def _no_live_inputs(tmp_path, monkeypatch):
 from india_board.scripts.hotlist_data import IST
 
 
-# ---------------------------------------------------------------------------
-# helpers
-# ---------------------------------------------------------------------------
 _HIGH_BUDGET = lambda: {"remaining": 1_000_000}  # noqa: E731  (test probe)
 
 
@@ -103,9 +100,6 @@ def _fake_chain(ticker: str) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# build_hotlist
-# ---------------------------------------------------------------------------
 def test_build_hotlist_picks_top_sources_and_indices():
     out = h.build_hotlist(_scan(), limit=10)
     tickers = out["tickers"]
@@ -201,9 +195,6 @@ def test_build_hotlist_is_json_safe():
     assert math.isfinite(0.0)
 
 
-# ---------------------------------------------------------------------------
-# refresh_once
-# ---------------------------------------------------------------------------
 _EXPECTED_KEYS = {
     "ts",
     "ticker",
@@ -308,9 +299,6 @@ def test_budget_probe_shapes():
     assert h._budget_low(lambda: 300, 10) is False
 
 
-# ---------------------------------------------------------------------------
-# interval floor + env override
-# ---------------------------------------------------------------------------
 def test_interval_floor_and_env_override(monkeypatch):
     monkeypatch.setenv("HOTLIST_INTERVAL_SEC", "10")
     assert h._env_interval() == 20.0  # < 20 -> clamped to the floor
@@ -328,9 +316,6 @@ def test_interval_floor_and_env_override(monkeypatch):
     assert h.HOTLIST_INTERVAL_SEC == 45
 
 
-# ---------------------------------------------------------------------------
-# persistence: malformed lines + prune
-# ---------------------------------------------------------------------------
 def test_history_skips_malformed_lines(tmp_path):
     day = datetime.now(IST).date().isoformat()
     path = tmp_path / f"{day}.jsonl"
@@ -375,9 +360,6 @@ def test_prune_keeps_recent_and_removes_old(tmp_path):
     assert not (tmp_path / f"{old}.jsonl").exists()
 
 
-# ---------------------------------------------------------------------------
-# market-hours gate
-# ---------------------------------------------------------------------------
 def test_market_hours_gate_saturday():
     saturday = datetime(2026, 9, 26, 10, 0, tzinfo=IST)
     assert h._is_market_open(saturday) is False

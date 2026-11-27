@@ -18,7 +18,6 @@ from unittest.mock import patch
 
 import pytest
 
-# Add project root to path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -42,13 +41,11 @@ class TestSymbolSearch:
                 assert response.status_code == 200
                 data = response.json()
 
-                # Verify response structure
                 assert 'results' in data
                 assert 'query' in data
                 assert 'total' in data
                 assert data['query'] == 'RELIANCE'
 
-                # Verify results contain RELIANCE
                 results = data['results']
                 assert len(results) > 0
                 assert any(r['symbol'] == 'RELIANCE' for r in results)
@@ -62,19 +59,16 @@ class TestSymbolSearch:
         """
         with patch('api_server_fastapi._instruments_cache', sample_instruments):
             with patch('api_server_fastapi._instruments_loaded', True):
-                # Test lowercase query
                 response = client.get("/api/symbols/search?q=tcs")
                 assert response.status_code == 200
                 data = response.json()
                 assert any(r['symbol'] == 'TCS' for r in data['results'])
 
-                # Test uppercase query
                 response = client.get("/api/symbols/search?q=HDFCBANK")
                 assert response.status_code == 200
                 data = response.json()
                 assert any(r['symbol'] == 'HDFCBANK' for r in data['results'])
 
-                # Test mixed case query
                 response = client.get("/api/symbols/search?q=InFy")
                 assert response.status_code == 200
                 data = response.json()
@@ -89,7 +83,6 @@ class TestSymbolSearch:
         """
         with patch('api_server_fastapi._instruments_cache', sample_instruments):
             with patch('api_server_fastapi._instruments_loaded', True):
-                # Test partial symbol match
                 response = client.get("/api/symbols/search?q=TA")
                 assert response.status_code == 200
                 data = response.json()
@@ -99,12 +92,10 @@ class TestSymbolSearch:
                 # Might match TCS (contains TA)
                 assert 'TATAMOTORS' in symbols
 
-                # Test partial name match
                 response = client.get("/api/symbols/search?q=Bank")
                 assert response.status_code == 200
                 data = response.json()
 
-                # Should match HDFC Bank in name field
                 symbols = [r['symbol'] for r in data['results']]
                 assert 'HDFCBANK' in symbols
 
@@ -117,7 +108,6 @@ class TestSymbolSearch:
         """
         with patch('api_server_fastapi._instruments_cache', sample_instruments):
             with patch('api_server_fastapi._instruments_loaded', True):
-                # Search by company name
                 response = client.get("/api/symbols/search?q=Tata")
                 assert response.status_code == 200
                 data = response.json()
@@ -127,7 +117,6 @@ class TestSymbolSearch:
                 # Should match TCS (Tata Consultancy Services)
                 assert 'TATAMOTORS' in symbols
 
-                # Search by full company name
                 response = client.get("/api/symbols/search?q=Infosys")
                 assert response.status_code == 200
                 data = response.json()
@@ -178,13 +167,11 @@ class TestSymbolSearch:
         """
         with patch('api_server_fastapi._instruments_cache', sample_instruments):
             with patch('api_server_fastapi._instruments_loaded', True):
-                # Test default limit (10)
                 response = client.get("/api/symbols/search?q=a")
                 assert response.status_code == 200
                 data = response.json()
                 assert len(data['results']) <= 10
 
-                # Test custom limit
                 response = client.get("/api/symbols/search?q=a&limit=3")
                 assert response.status_code == 200
                 data = response.json()
@@ -258,7 +245,6 @@ class TestSymbolSearch:
                 symbols = [r['symbol'] for r in data['results']]
                 assert 'NIFTY50' not in symbols
 
-                # Search for something that might match FUTURES
                 response = client.get("/api/symbols/search?q=RELIANCE")
                 assert response.status_code == 200
                 data = response.json()
@@ -289,12 +275,10 @@ class TestSymbolSearch:
                     assert 'name' in result
                     assert 'isin' in result
 
-                    # Verify field types
                     assert isinstance(result['symbol'], str)
                     assert isinstance(result['name'], str)
                     assert isinstance(result['isin'], str)
 
-                    # Verify score is not in response (internal use only)
                     assert 'score' not in result
 
     def test_symbol_search_special_characters(self, client, sample_instruments):
@@ -305,12 +289,10 @@ class TestSymbolSearch:
         """
         with patch('api_server_fastapi._instruments_cache', sample_instruments):
             with patch('api_server_fastapi._instruments_loaded', True):
-                # Test with special character
                 response = client.get("/api/symbols/search?q=M&M")
                 assert response.status_code == 200
                 data = response.json()
 
-                # Should handle special characters gracefully
                 assert 'results' in data
 
     def test_symbol_search_whitespace_handling(self, client, sample_instruments):
@@ -321,12 +303,10 @@ class TestSymbolSearch:
         """
         with patch('api_server_fastapi._instruments_cache', sample_instruments):
             with patch('api_server_fastapi._instruments_loaded', True):
-                # Test with leading/trailing spaces
                 response = client.get("/api/symbols/search?q=%20TCS%20")
                 assert response.status_code == 200
                 data = response.json()
 
-                # Should still find results
                 assert any(r['symbol'] == 'TCS' for r in data['results'])
 
     def test_symbol_search_min_query_length(self, client, sample_instruments):
@@ -337,7 +317,6 @@ class TestSymbolSearch:
         """
         with patch('api_server_fastapi._instruments_cache', sample_instruments):
             with patch('api_server_fastapi._instruments_loaded', True):
-                # Empty query should fail validation
                 response = client.get("/api/symbols/search?q=")
                 assert response.status_code == 422
 
@@ -392,6 +371,120 @@ class TestSymbolSearch:
 
                 symbols = [r['symbol'] for r in data['results']]
                 assert 'HDFCBANK' in symbols
+
+
+class TestSymbolSearchFnoFilter:
+    """`fno=true` must offer only underlyings with real NSE_FO contracts.
+
+    Selecting a non-F&O stock in the simulator yields no expiries/chain, so the
+    search must exclude it instead of letting the user pick it.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _reset_fno_cache(self):
+        from api import symbols as symbols_api
+
+        symbols_api._FNO_CACHE.update(
+            {"source": None, "ts": 0.0, "symbols": frozenset()}
+        )
+        yield
+
+    @pytest.fixture
+    def fno_instruments(self):
+        return [
+            {
+                "trading_symbol": "TESTFNO",
+                "name": "Test F&O Ltd",
+                "isin": "INE000A01001",
+                "segment": "NSE_EQ",
+                "instrument_type": "EQ",
+                "exchange": "NSE",
+            },
+            {
+                "trading_symbol": "TESTFNO 100 CE 26 DEC 26",
+                "name": "Test F&O Ltd",
+                "isin": "",
+                "segment": "NSE_FO",
+                "asset_type": "EQUITY",
+                "instrument_type": "CE",
+                "underlying_symbol": "TESTFNO",
+                "asset_symbol": "TESTFNO",
+                "exchange": "NSE",
+            },
+            {
+                "trading_symbol": "TESTNOFNO",
+                "name": "Test No F&O Ltd",
+                "isin": "INE000A01002",
+                "segment": "NSE_EQ",
+                "instrument_type": "EQ",
+                "exchange": "NSE",
+            },
+        ]
+
+    def test_fno_true_returns_only_contract_backed_underlyings(
+        self, client, fno_instruments
+    ):
+        with patch("api_server_fastapi._instruments_cache", fno_instruments):
+            with patch("api_server_fastapi._instruments_loaded", True):
+                response = client.get("/api/symbols/search?q=TEST&fno=true")
+                assert response.status_code == 200
+                data = response.json()
+
+                assert [r["symbol"] for r in data["results"]] == ["TESTFNO"]
+                assert data["total"] == 1
+                assert data["source"] == "local"
+
+    def test_fno_omitted_still_returns_non_fno_symbols(self, client, fno_instruments):
+        with patch("api_server_fastapi._instruments_cache", fno_instruments):
+            with patch("api_server_fastapi._instruments_loaded", True):
+                response = client.get("/api/symbols/search?q=TEST")
+                assert response.status_code == 200
+                data = response.json()
+
+                symbols = [r["symbol"] for r in data["results"]]
+                assert set(symbols) == {"TESTFNO", "TESTNOFNO"}
+                assert data["total"] == 2
+
+    def test_fno_true_returns_zero_for_non_fno_query(self, client, fno_instruments):
+        with patch("api_server_fastapi._instruments_cache", fno_instruments):
+            with patch("api_server_fastapi._instruments_loaded", True):
+                response = client.get("/api/symbols/search?q=TESTNOFNO&fno=true")
+                assert response.status_code == 200
+                data = response.json()
+
+                assert data["results"] == []
+                assert data["total"] == 0
+
+    def test_fno_true_returns_empty_when_contracts_are_unavailable(self, client):
+        # Derivative rows exist but none prove an equity F&O underlying (no
+        # asset_type), so the endpoint must not silently return the EQ stock.
+        instruments = [
+            {
+                "trading_symbol": "TESTFNO",
+                "name": "Test F&O Ltd",
+                "isin": "INE000A01001",
+                "segment": "NSE_EQ",
+                "instrument_type": "EQ",
+                "exchange": "NSE",
+            },
+            {
+                "trading_symbol": "TESTFNO FUT",
+                "name": "Test F&O Ltd",
+                "isin": "",
+                "segment": "NSE_FO",
+                "instrument_type": "FUTSTK",
+                "exchange": "NSE",
+            },
+        ]
+
+        with patch("api_server_fastapi._instruments_cache", instruments):
+            with patch("api_server_fastapi._instruments_loaded", True):
+                response = client.get("/api/symbols/search?q=TEST&fno=true")
+                assert response.status_code == 200
+                data = response.json()
+
+                assert data["results"] == []
+                assert data["total"] == 0
 
 
 class TestTvSymbolNormalization:

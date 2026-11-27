@@ -1,26 +1,4 @@
 #!/usr/bin/env python3
-"""Reusable dark-theme trading report (SNDK style).
-
-One builder for every strategy report: summary cards, left sidebar with
-clickable days, per-trade sections (Entry / Context / Exit / Partial), a table,
-and an embedded chart. No more rebuilding the HTML for each study.
-
-Usage:
-    from report_template import Report, trade_chart
-
-    r = Report("Wall fade", "19 trades · 1 lot")
-    r.cards([("Net", "+₹28,574", "19 trades · PF 4.72"),
-             ("Max DD", "−₹2,332", "worst −₹540")])
-    r.sidebar(trades, label=lambda t: f"{t['opt']} {t['strike']:.0f}")
-    for t in trades:
-        p = trade_chart(t, Path("figs") / f"{t['tid']}.png")
-        r.trade(t, p, entry="...", context="...", exit="...", partial="")
-    r.write(Path("report.html"))
-
-`trade_chart` handles:
-  - a long option  (t["opt"] in {"CE","PE"}, t["strike"])
-  - a structure    (t["legs"] = [(strike, opt, side), ...])
-"""
 
 from __future__ import annotations
 
@@ -88,7 +66,6 @@ def _date_h(d: str) -> str:
 
 
 def _bars(rows, strike, opt, bucket="5min"):
-    """Spot or option bars from tape rows."""
     out, prev = [], None
     for r in rows:
         px = float(r["spot"]) if opt is None else _leg_px(r, strike, opt)
@@ -138,7 +115,6 @@ def _mark(ax, bars, when, price, label="", kind="entry"):
 
 
 def trade_chart(t: dict, path: Path, rows: list, title: str = "") -> Path:
-    """Generic chart: spot candles + strikes + entry/exit, premium panel."""
     d = t["entry_time"][:10]
     ed = datetime.fromisoformat(t["entry_time"]).time().strftime("%H:%M")
     xd = datetime.fromisoformat(t["exit_time"]).time().strftime("%H:%M")

@@ -1,29 +1,28 @@
 import type {
   ChartCandle,
+  ChartIndicators,
   PatternHitDTO,
   PatternOverlay,
-  TrendLine,
-  TrendlinesView,
+  SRZone,
   Trendline,
 } from "@/types/chartPatterns";
 import { PATTERN_SERIES_COLORS } from "@/config/patterns";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
-import { toEpochSeconds as toTVTime } from "@/utils/chart/time";
+import { toEpochSeconds } from "@/utils/chart/time";
 import { createAxisIndex } from "./axisIndex";
-import { resolveVisibleStandalone } from "./standaloneLines";
+import {
+  CROSSES_LEGEND_NAME,
+  alignIndicatorCrosses,
+  alignIndicatorSeries,
+  alignSRZones,
+  type IndicatorLineStyle,
+} from "./patternIndicatorData";
 
-/**
- * Colours assigned in order to the patterns drawn on one chart: the selected
- * pattern takes the first colour, its siblings the next ones. Backward-compatible
- * alias of the shared `PATTERN_SERIES_COLORS` in `@/config/patterns` so the
- * TradingView adapter draws each pattern in the same colour as the ECharts
- * fullscreen view.
- */
 export const PATTERN_TV_COLORS: string[] = PATTERN_SERIES_COLORS;
 
 /** @deprecated Use `@/utils/chart/time.toEpochSeconds` directly for new code. */
-export { toTVTime };
+export const toTVTime = toEpochSeconds;
 
 export interface TVCandle {
   time: number;
@@ -31,6 +30,7 @@ export interface TVCandle {
   high: number;
   low: number;
   close: number;
+  isPartial?: boolean;
 }
 
 export interface TVVolume {
@@ -58,7 +58,12 @@ export interface TVLine {
   dashed: boolean;
   width: number;
   name: string;
-  /** Inline end-label text (e.g. `"TLS · 4 touches"`); falls back to `name`. */
+  /** Stable series key, set for indicator lines so they can update in place. */
+  id?: string;
+  /** Legend grouping key (BB upper/middle/lower all use `"BB"`). */
+  legendName?: string;
+  /** Explicit stroke style; pattern lines keep the `dashed` boolean. */
+  lineStyle?: IndicatorLineStyle;
   label?: string;
   /**
    * Whether this line draws an inline end label. Only a pattern group's first
@@ -78,7 +83,23 @@ export interface TVMarker {
   text: string;
   price?: number;
   size?: number;
-  group?: "pivots" | "keypoints";
+  group?: "pivots" | "keypoints" | "crosses";
+  /** Legend grouping key; golden/death crosses use `"Crosses"`. */
+  legendName?: string;
+}
+
+/** A support/resistance band ready for the zone primitive. Times are epochs. */
+export interface TVRect {
+  kind: SRZone["kind"];
+  top: number;
+  bottom: number;
+  start: number;
+  end: number;
+  touches: number;
+  score: number;
+  bars_since_touch?: number;
+  color: string;
+  legendName: string;
 }
 
 /** An overlay bundle, optionally carrying instance identity (mirrors `SiblingOverlay`). */
@@ -91,14 +112,19 @@ export interface BuildPatternTVDataInput {
   candles: ChartCandle[];
   hit?: PatternHitDTO | null;
   overlays?: TVSiblingOverlay[];
-  /**
-   * Standalone support/resistance lines. Defaults to the hit's own
-   * `trend_lines` when omitted (same fallback as the ECharts builder).
-   */
-  trendLines?: TrendLine[];
-  trendlinesView?: TrendlinesView;
-  /** Last N hits (newest first) to draw as historical patterns. */
   historyHits?: PatternHitDTO[];
+  /** Server-computed indicator bundle; ignored when its timeframe disagrees. */
+  indicators?: ChartIndicators | null;
+  /** Server-computed support/resistance bands (view-only overlay). */
+  srZones?: SRZone[];
+  /** Chart timeframe used to reject an indicator bundle built for another TF. */
+  timeframe?: string;
+  /**
+   * IANA zone used to pin *naive* candle timestamps. Defaults to IST; pass
+   * `TZ_US` for a US session. Timestamps with an explicit offset are always
+   * honoured as the true instant and are unaffected by this value.
+   */
+  timeZone?: string;
 }
 
 export interface BuildPatternTVDataResult {
@@ -106,7 +132,10 @@ export interface BuildPatternTVDataResult {
   volume: TVVolume[];
   levels: TVLevel[];
   lines: TVLine[];
+  /** Indicator overlays, separate so their series can update in place. */
+  indicatorLines: TVLine[];
   markers: TVMarker[];
+  zones: TVRect[];
 }
 
 function byTimeAsc(a: { time: number }, b: { time: number }): number {
@@ -126,28 +155,57 @@ function dedupeByTime(points: TVLinePoint[]): TVLinePoint[] {
 }
 
 /**
- * Pure mapper turning the same inputs the ECharts builder gets into
- * lightweight-charts data: sorted/unique candles + volume, horizontal
- * breakout/target/stop levels, pattern boundary trendlines + standalone
- * TLS/TLR 2-point segments, and pivot markers.
+ * One band per side keeps the price area legible. Zones arrive in score order,
+ * so the first aligned zone of each kind is the strongest one. An `sr` zone
+ * marks price inside a band rather than a side, so it stands in only when no
+ * sided zone survived alignment. Stretching the right edge to the last drawn
+ * bar lets an old touch still reach the current price area; the first touch
+ * stays the band's start.
  */
+export function selectDisplaySRZones(
+  zones: readonly TVRect[],
+  lastEpoch: number,
+): TVRect[] {
+  let support: TVRect | undefined;
+  let resistance: TVRect | undefined;
+  let sr: TVRect | undefined;
+  for (const zone of zones) {
+    if (zone.kind === "support" && !support) support = zone;
+    else if (zone.kind === "resistance" && !resistance) resistance = zone;
+    else if (zone.kind === "sr" && !sr) sr = zone;
+  }
+
+  const shown = [support, resistance].filter((zone): zone is TVRect => zone != null);
+  if (shown.length === 0 && sr) shown.push(sr);
+  return shown.map((zone) => ({ ...zone, end: lastEpoch }));
+}
+
 export function buildPatternTVData({
   candles,
   hit,
   overlays,
-  trendLines,
-  trendlinesView = "both",
   historyHits = [],
+  indicators,
+  srZones,
+  timeframe,
+  timeZone,
 }: BuildPatternTVDataInput): BuildPatternTVDataResult {
-  const empty: BuildPatternTVDataResult = { candles: [], volume: [], levels: [], lines: [], markers: [] };
+  const empty: BuildPatternTVDataResult = {
+    candles: [],
+    volume: [],
+    levels: [],
+    lines: [],
+    indicatorLines: [],
+    markers: [],
+    zones: [],
+  };
   const times = candles.map((c) => c.t);
   if (times.length === 0) return empty;
 
-  // Axis parses once per build; every group/standalone lookup below reuses it.
+  // Axis parses once per build; every group lookup below reuses it.
   const axis = createAxisIndex(times);
 
-  /** Epoch per candle index; non-finite when the timestamp is unparseable. */
-  const epochs: number[] = times.map(toTVTime);
+  const epochs: number[] = times.map((t) => toEpochSeconds(t, timeZone));
   const epochAt = (index: number): number =>
     index >= 0 && index < epochs.length ? epochs[index]! : NaN;
 
@@ -159,24 +217,26 @@ export function buildPatternTVData({
     byEpoch.set(t, c);
   });
   const sortedEpochs = [...byEpoch.keys()].sort((a, b) => a - b);
-  const tvCandles: TVCandle[] = sortedEpochs.map((t) => {
-    const c = byEpoch.get(t) as ChartCandle;
-    return { time: t, open: c.o, high: c.h, low: c.l, close: c.c };
-  });
-  const volume: TVVolume[] = sortedEpochs.map((t) => {
-    const c = byEpoch.get(t) as ChartCandle;
-    return {
-      time: t,
-      value: c.v,
-      color: c.c >= c.o ? withAlpha(POSITIVE, 0.9) : withAlpha(NEGATIVE, 0.9),
-    };
-  });
+  const sortedCandles = sortedEpochs.map((t) => byEpoch.get(t) as ChartCandle);
+  const lastIndex = sortedCandles.length - 1;
+  const tvCandles: TVCandle[] = sortedCandles.map((c, i) => ({
+    time: sortedEpochs[i]!,
+    open: c.o,
+    high: c.h,
+    low: c.l,
+    close: c.c,
+    // Only the newest bar can still be forming; a stale flag on an older bar
+    // (e.g. after dedupe/reordering) must never restyle a completed candle.
+    ...(i === lastIndex && c.is_partial === true ? { isPartial: true } : {}),
+  }));
+  const volume: TVVolume[] = sortedCandles.map((c, i) => ({
+    time: sortedEpochs[i]!,
+    value: c.v,
+    color: c.c >= c.o ? withAlpha(POSITIVE, 0.9) : withAlpha(NEGATIVE, 0.9),
+  }));
 
-  // Breakout/target/stop levels intentionally omitted: risk sizing is the
-  // trader's job, not the pattern engine's.
   const levels: TVLevel[] = [];
 
-  // Pattern boundary groups: the selected pattern solid, siblings dashed.
   const selectedId = hit?.pattern_id;
   const selectedStart = hit?.start_date ?? null;
   const isSelectedOverlay = (overlay: TVSiblingOverlay): boolean => {
@@ -224,8 +284,6 @@ export function buildPatternTVData({
     });
   });
 
-  // Two sibling instances can share a display name; disambiguate repeats while
-  // the first instance keeps the clean readable name (same as ECharts).
   const nameCounts = new Map<string, number>();
   const lines: TVLine[] = [];
   groups.forEach((group, index) => {
@@ -258,32 +316,103 @@ export function buildPatternTVData({
     });
   });
 
-  // Standalone support/resistance 2-point segments, gated by the view filter.
-  const visibleStandalone = resolveVisibleStandalone(trendLines, hit, trendlinesView);
-  visibleStandalone.forEach((line) => {
-    const mapped = axis.mapStandaloneLine(line);
-    if (!mapped) return;
-    const { name, color, points } = mapped;
-    const tvPoints = dedupeByTime(
-      points
-        .map((p) => ({ time: epochAt(p.index), value: p.price }))
-        .filter((p) => Number.isFinite(p.time) && Number.isFinite(p.value)),
-    );
-    if (tvPoints.length === 0) return;
-    lines.push({
-      points: tvPoints,
-      color,
-      dashed: false,
-      width: 1,
-      name,
-      label: `${name} · ${line.touches} touches`,
-      labelEligible: true,
-    });
-  });
   lines.sort((a, b) => (a.points[0]?.time ?? 0) - (b.points[0]?.time ?? 0));
 
-  // Pivot/key-point dot markers removed: the chart draws lines only.
-  const markers: TVMarker[] = [];
+  // Case-sensitive: `1m` (minute) and `1M` (month) are different frames, so a
+  // stale monthly bundle must not draw during a switch to the 1-minute chart.
+  const sameTimeframe = (a: unknown, b: string) =>
+    typeof a === "string" && a.trim() === b.trim();
+  const usableIndicators =
+    indicators && (timeframe == null || sameTimeframe(indicators.timeframe, timeframe))
+      ? indicators
+      : null;
 
-  return { candles: tvCandles, volume, levels, lines, markers };
+  const indicatorLines: TVLine[] = alignIndicatorSeries(usableIndicators, epochs, sortedEpochs).map(
+    (series) => {
+      // The BB band prints one tag (middle); its outer lines must never label.
+      const labelEligible = series.id !== "bbUpper" && series.id !== "bbLower";
+      return {
+        points: series.points,
+        color: series.color,
+        dashed: series.lineStyle === "dashed",
+        lineStyle: series.lineStyle,
+        width: series.width,
+        name: series.legendName,
+        id: series.id,
+        legendName: series.legendName,
+        ...(labelEligible ? { label: series.legendName } : {}),
+        labelEligible,
+      };
+    },
+  );
+
+  const markers: TVMarker[] = alignIndicatorCrosses(usableIndicators, sortedEpochs, {
+    timeZone,
+    skipPartialLast:
+      usableIndicators?.partial_last === true ||
+      sortedCandles[sortedCandles.length - 1]?.is_partial === true,
+  }).map((cross) => {
+    const golden = cross.kind === "golden";
+    return {
+      time: cross.time,
+      position: golden ? "belowBar" : "aboveBar",
+      shape: "square",
+      color: golden ? POSITIVE : NEGATIVE,
+      text: golden ? "GC" : "DC",
+      group: "crosses",
+      legendName: CROSSES_LEGEND_NAME,
+    };
+  });
+
+  const zones: TVRect[] = selectDisplaySRZones(
+    alignSRZones(srZones, sortedEpochs, timeZone).map((zone) => ({
+      kind: zone.kind,
+      top: zone.top,
+      bottom: zone.bottom,
+      start: zone.start,
+      end: zone.end,
+      touches: zone.touches,
+      score: zone.score,
+      ...(zone.bars_since_touch !== undefined
+        ? { bars_since_touch: zone.bars_since_touch }
+        : {}),
+      color: zone.color,
+      legendName: zone.legendName,
+    })),
+    sortedEpochs[sortedEpochs.length - 1]!,
+  );
+
+  return { candles: tvCandles, volume, levels, lines, indicatorLines, markers, zones };
+}
+
+/** Below this age a level is recent enough that printing its age adds noise. */
+export const SR_ZONE_AGE_LABEL_MIN_BARS = 20;
+
+/**
+ * On-canvas band label (`S 2,480 ×3`, `R 2,560 ×2`, `S/R testing`). The
+ * compact form (`S 2,480`) drops the touch count for narrow charts; callers
+ * pick it when the full pill would cover too much of the plot. Old levels add
+ * a short `· 42b` suffix to the full label only, so the compact and fallback
+ * forms keep their existing width.
+ */
+export function srZoneLabel(
+  zone: Pick<TVRect, "kind" | "touches" | "bars_since_touch">,
+  formattedTop: string,
+  compact = false,
+): string {
+  if (zone.kind === "sr") return "S/R testing";
+  const prefix = zone.kind === "support" ? "S" : "R";
+  const base = compact
+    ? `${prefix} ${formattedTop}`
+    : `${prefix} ${formattedTop} ×${zone.touches}`;
+  const age = zone.bars_since_touch;
+  if (
+    compact ||
+    typeof age !== "number" ||
+    !Number.isFinite(age) ||
+    age < SR_ZONE_AGE_LABEL_MIN_BARS
+  ) {
+    return base;
+  }
+  return `${base} · ${Math.floor(age)}b`;
 }

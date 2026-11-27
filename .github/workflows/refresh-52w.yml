@@ -1,0 +1,246 @@
+name: Refresh 52W ranges
+
+# Daily EOD 52W high/low refresh. Compute runs on a GitHub-hosted runner and
+# publishes a compact gzipped JSON asset to a monthly data-YYYY-MM release.
+# Local application is manual: scripts/sync_refresh_assets.py.
+
+on:
+  schedule:
+    - cron: '30 13 * * 1-5' # 19:00 IST, after NSE close
+    - cron: '30 15 * * 1-5' # 21:00 IST, catch-up
+  workflow_dispatch:
+    inputs:
+      to_date:
+        description: 'As-of date (YYYY-MM-DD). Empty uses today in Asia/Kolkata.'
+        required: false
+        type: string
+      limit:
+        description: 'Maximum symbols to process (0 = all). Use a small value for a smoke test.'
+        required: false
+        default: '0'
+        type: string
+      dry_run:
+        description: 'Compute and validate without creating or uploading a release.'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-52w
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment: production
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONPATH: ${{ github.workspace }}/stock-screener-ui:${{ github.workspace }}
+      UPSTOX_API_KEY: ${{ secrets.UPSTOX_API_KEY }}
+      UPSTOX_API_SECRET: ${{ secrets.UPSTOX_API_SECRET }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install 52W dependencies
+        run: |
+          uv pip install --system --python 3.12 \
+            sqlalchemy pandas numpy python-dotenv requests redis rich
+
+      - name: Fetch NSE instrument universe
+        run: python stock-screener-ui/scripts/fetch_instruments.py
+
+      - name: Compute 52W ranges (compute-only)
+        id: compute
+        env:
+          TO_DATE: ${{ inputs.to_date }}
+          LIMIT: ${{ inputs.limit || '0' }}
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          RAW=build/52w.json
+          ARGS=(
+            --source json
+            --output-json "$RAW"
+            --summary-json build/52w.summary.json
+            --no-db
+            --no-redis
+            --max-symbols "$LIMIT"
+            --allow-empty
+          )
+          if [ -n "${TO_DATE:-}" ]; then
+            ARGS+=(--to-date "$TO_DATE")
+          fi
+          python stock-screener-ui/scripts/compute_52w_ranges_upstox.py "${ARGS[@]}"
+
+          if [ ! -s "$RAW" ]; then
+            echo "No output written (empty catch-up or no symbols). Nothing to upload."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Validate 52W payload
+        id: validate
+        if: ${{ steps.compute.outputs.skip != 'true' }}
+        env:
+          RAW: build/52w.json
+          SUMMARY: build/52w.summary.json
+        run: |
+          set -euo pipefail
+          python - "$RAW" "$SUMMARY" "$GITHUB_OUTPUT" <<'PY'
+          import gzip
+          import json
+          import math
+          import sys
+          from datetime import date
+          from pathlib import Path
+
+          path, summary_path, output = sys.argv[1:4]
+          raw = open(path, "rb").read()
+          if raw[:2] == b"\x1f\x8b":
+              raw = gzip.decompress(raw)
+          data = json.loads(raw.decode("utf-8"))
+
+          if not isinstance(data, dict):
+              raise SystemExit("52W output is not a JSON object")
+          as_of = date.fromisoformat(str(data.get("as_of") or "")).isoformat()
+          symbols = data.get("symbols")
+          if not isinstance(symbols, dict):
+              raise SystemExit("52W output is missing symbols{...}")
+          count = data.get("count")
+          if count != len(symbols):
+              raise SystemExit(f"count {count!r} != {len(symbols)} symbols")
+          if count == 0:
+              # A true no-op exits before writing a file. A zero-row file means
+              # every fetch failed, so publishing it would silently freeze data.
+              raise SystemExit("52W output has 0 symbols; refusing to publish an empty asset")
+
+          summary = json.loads(Path(summary_path).read_text(encoding="utf-8"))
+          ok, failed, total = (
+              int(summary["ok"]),
+              int(summary["failed"]),
+              int(summary["total"]),
+          )
+          if failed > ok:
+              raise SystemExit(
+                  f"52W fetch failures ({failed}) exceed successes ({ok} of {total}); "
+                  "refusing to publish a partial universe"
+              )
+
+          for symbol, entry in symbols.items():
+              if not isinstance(entry, dict):
+                  raise SystemExit(f"{symbol}: entry is not an object")
+              for field in ("high", "low", "close"):
+                  value = entry.get(field)
+                  if not isinstance(value, (int, float)) or isinstance(value, bool):
+                      raise SystemExit(f"{symbol}: invalid {field}")
+                  if not math.isfinite(float(value)) or float(value) <= 0:
+                      raise SystemExit(f"{symbol}: non-positive/non-finite {field}")
+              if float(entry["high"]) < float(entry["low"]):
+                  raise SystemExit(f"{symbol}: high < low")
+              days = entry.get("days_ago")
+              if days is not None and (not isinstance(days, int) or days < 0):
+                  raise SystemExit(f"{symbol}: invalid days_ago")
+
+          with open(output, "a", encoding="utf-8") as out:
+              out.write(f"date={as_of}\n")
+              out.write(f"count={count}\n")
+          print(f"Validated {count} symbols as of {as_of}")
+          PY
+
+      - name: Package 52W asset and manifest
+        id: package
+        if: ${{ steps.compute.outputs.skip != 'true' && steps.validate.outputs.count != '0' }}
+        env:
+          DATE: ${{ steps.validate.outputs.date }}
+          COUNT: ${{ steps.validate.outputs.count }}
+          RAW: build/52w.json
+        run: |
+          set -euo pipefail
+          ASSET="build/52w/${DATE}.json.gz"
+          MANIFEST="build/manifests/52w-${DATE}.json"
+          mkdir -p "$(dirname "$ASSET")" "$(dirname "$MANIFEST")"
+          if gzip -t "$RAW" >/dev/null 2>&1; then
+            cp "$RAW" "$ASSET"
+          else
+            gzip -9 -n -c "$RAW" > "$ASSET"
+          fi
+          SHA=$(sha256sum "$ASSET" | cut -d' ' -f1)
+
+          python - "$ASSET" "$MANIFEST" "$DATE" "$COUNT" "$SHA" <<'PY'
+          import json
+          import sys
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          asset, manifest_path, as_of, count, sha = sys.argv[1:6]
+          manifest = {
+              "kind": "52w",
+              "as_of": as_of,
+              "date": as_of,
+              "rows": int(count),
+              "sha256": sha,
+              "created_at": datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds"),
+              "status": "complete",
+          }
+          Path(manifest_path).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          print(f"Wrote {asset} ({count} symbols) and {manifest_path}")
+          PY
+
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+          echo "manifest=$MANIFEST" >> "$GITHUB_OUTPUT"
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to monthly data release
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.dry_run != true) && steps.compute.outputs.skip != 'true' && steps.validate.outputs.count != '0' }}
+        env:
+          ASSET: ${{ steps.package.outputs.asset }}
+          MANIFEST: ${{ steps.package.outputs.manifest }}
+          DATE: ${{ steps.package.outputs.date }}
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_LIMIT: ${{ inputs.limit }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] \
+            && [ -n "${REQUESTED_LIMIT:-}" ] && [ "$REQUESTED_LIMIT" != "0" ]; then
+            echo "::warning::Smoke-test run (limit=$REQUESTED_LIMIT); not publishing a partial asset."
+            exit 0
+          fi
+
+          TAG="data-${DATE:0:7}"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --title "Market data ${DATE:0:7}" \
+              --notes "Automated daily refresh assets for ${DATE:0:7}." \
+              --latest=false || echo "::warning::Could not create $TAG; a concurrent run may have won the race."
+          fi
+          gh release view "$TAG" >/dev/null  # fail loudly if the tag still does not exist
+
+          gh release upload "$TAG" "$ASSET" "$MANIFEST" --clobber
+
+          PUBLISHED=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+          for name in "$(basename "$ASSET")" "$(basename "$MANIFEST")"; do
+            if ! printf '%s\n' "$PUBLISHED" | grep -Fqx "$name"; then
+              echo "::error::$TAG is missing $name after upload"
+              exit 1
+            fi
+          done
+          echo "Uploaded $ASSET and $MANIFEST to $TAG (verified)"

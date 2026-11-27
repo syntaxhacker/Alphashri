@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { StrategyRunnerStats } from "./StrategyRunnerStats";
@@ -47,25 +47,25 @@ function makeTrade(overrides: Partial<StrategyRunnerTrade> = {}): StrategyRunner
 
 describe("StrategyRunnerStats", () => {
   it("shows the strategy-comparison empty copy", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyRunnerStats trades={[]} summary={null} isRunning={false} progress={noProgress} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByText("Run a strategy comparison to see stats")).toBeInTheDocument();
   });
 
   it("does not put a testid on the root node", () => {
-    const { container } = render(
+    const { container } = render(() => (
       <UIProvider>
         <StrategyRunnerStats trades={[makeTrade()]} summary={null} isRunning={false} progress={noProgress} />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(container.querySelector("[data-testid]")).toBeNull();
   });
 
   it("renders the shared stats from a summary", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyRunnerStats
           trades={[makeTrade()]}
@@ -73,8 +73,8 @@ describe("StrategyRunnerStats", () => {
           isRunning={false}
           progress={noProgress}
         />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByText("Win Rate")).toBeInTheDocument();
     expect(screen.getByText("50.0%")).toBeInTheDocument();
     expect(screen.getByText("2.50")).toBeInTheDocument();
@@ -84,7 +84,7 @@ describe("StrategyRunnerStats", () => {
   });
 
   it("adds Total Costs only when costs are positive", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyRunnerStats
           trades={[makeTrade()]}
@@ -92,14 +92,14 @@ describe("StrategyRunnerStats", () => {
           isRunning={false}
           progress={noProgress}
         />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByText("Total Costs")).toBeInTheDocument();
     expect(screen.getByText("+₹50")).toBeInTheDocument();
   });
 
   it("drives progress from bots, not candles", () => {
-    render(
+    render(() => (
       <UIProvider>
         <StrategyRunnerStats
           trades={[]}
@@ -107,8 +107,8 @@ describe("StrategyRunnerStats", () => {
           isRunning
           progress={{ currentBot: 1, totalBots: 4, currentBotName: "ORB A" }}
         />
-      </UIProvider>,
-    );
+      </UIProvider>
+    ));
     expect(screen.getByText("Progress")).toBeInTheDocument();
     expect(screen.getByText("1 / 4")).toBeInTheDocument();
     expect(screen.getByText("ORB A")).toBeInTheDocument();

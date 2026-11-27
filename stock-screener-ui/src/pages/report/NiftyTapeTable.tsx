@@ -1,7 +1,6 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Box from "@mui/material/Box";
-import type { SxProps, Theme } from "@mui/material/styles";
-import { Text } from "@/ui";
+import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
+import type { JSX } from "solid-js";
+import { Button, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import type { NiftyGex, NiftyTape, NiftyTapeRow } from "@/types/niftyReport";
@@ -11,11 +10,16 @@ import { getNiftyTapeColumns } from "./NiftyTapeColumns";
 import { ascTapeByTime } from "./tapeRange";
 import {
   TAPE_CALL_DOI,
+  TAPE_CELL_RULE,
+  TAPE_COL_RULE,
+  TAPE_HEADER_RULE,
   TAPE_NEG_HUE,
   TAPE_NET_HUE,
   TAPE_NET_TEXT,
   TAPE_POS_HUE,
   TAPE_PUT_DOI,
+  TAPE_ROW_HOVER,
+  TAPE_ROW_LATEST,
   TAPE_SPOT,
   TAPE_TERM_BG,
   TAPE_FLIP_NEG_TEXT,
@@ -81,11 +85,6 @@ export {
 export type { TapeScale } from "./tapeFormat";
 export { getNiftyTapeColumns } from "./NiftyTapeColumns";
 
-/**
- * Cheap serialised signature of the live change-flash map. The flash map only
- * ever holds genuinely moved cells (tiny), so this string is cheap to build
- * and lets the column model keep a stable identity for equal content.
- */
 function serializeChangedCells(changed: Map<string, Set<string>>): string {
   if (changed.size === 0) return "";
   const parts: string[] = [];
@@ -96,9 +95,7 @@ function serializeChangedCells(changed: Map<string, Set<string>>): string {
 
 /**
  * Inverse of `serializeChangedCells`. Rebuilding the map from its canonical
- * string lets the column memo key on content instead of Map identity without
- * disabling a hook rule — a suppressed `exhaustive-deps` makes React Compiler
- * skip the whole component (it refuses to optimise files that silence rules).
+ * string lets the column memo key on content instead of Map identity.
  *
  * Timestamps are `HH:MM`, so the split is on the LAST colon; column ids never
  * contain one.
@@ -122,106 +119,63 @@ function getTapeRowTestId(): string {
 }
 
 /**
- * Static styles for the tape table wrap — hoisted so the `@keyframes`
- * tapeRowFlash / tapeCellFlash declarations (and every nested selector) keep
- * a stable identity instead of being re-allocated on every render.
+ * Static styles for the tape table wrap. The two `@keyframes` rules cannot be
+ * Tailwind classes, so they render as a plain `<style>` tag.
+ * Fixed px, not vh: vh balloons on tall monitors and squishes on short ones.
+ * ~150px shows the header + ~6 rows; the rest scrolls inside TanStackTable's
+ * own ScrollArea (the inner scroller — this wrap itself has no `overflow`).
  */
-const TAPE_TABLE_WRAP_SX: SxProps<Theme> = {
-  display: "flex",
-  // Fixed px, not vh: vh balloons on tall monitors and squishes on
-  // short ones. ~150px shows the header + ~6 rows; the rest scrolls
-  // inside TanStackTable's own ScrollArea (the inner scroller — this
-  // wrap itself has no `overflow`, so no flex-collapse risk).
-  minHeight: 120,
-  height: 150,
-  minWidth: 0,
-  background: TAPE_TERM_BG,
-  // Terminal density: pitch-black surfaces, muted grid lines,
-  // monospaced tabular numerals. Scoped descendant overrides only.
-  "& .paper-tanstack-container, & .paper-tanstack-scroll, & .paper-tanstack-table": {
-    background: `${TAPE_TERM_BG} !important`,
-  },
-  "& .paper-tanstack-cell": {
-    paddingTop: `${REPORT_PAD.xs}px`,
-    paddingBottom: `${REPORT_PAD.xs}px`,
-    background: `${TAPE_TERM_BG} !important`,
-    borderBottom: "1px solid #141414 !important",
-    fontSize: REPORT_FONT.xs,
-    fontFamily:
-      'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
-  },
-  "& .paper-tanstack-header-cell": {
-    paddingTop: `${REPORT_PAD.xs}px`,
-    paddingBottom: `${REPORT_PAD.xs}px`,
-    background: `${TAPE_TERM_BG} !important`,
-    borderBottom: "1px solid #2A2A2A !important",
-    color: "#8B949E",
-    fontSize: REPORT_FONT.micro,
-    textTransform: "uppercase",
-    verticalAlign: "bottom",
-  },
-  // Thin rules group the OI-delta trio and the flip column so the
-  // tape reads in blocks instead of one undifferentiated run.
-  "& [id^='paper-tanstack-cell-put_doi-'], & [id^='paper-tanstack-cell-net-'], & [id^='paper-tanstack-cell-spot_flip-']": {
-    borderLeft: "1px solid #1F1F1F !important",
-  },
+const TAPE_TABLE_WRAP_CLASS = [
+  "flex min-h-[120px] h-[150px] min-w-0",
+  // Terminal density: pitch-black surfaces pinned with !important over the
+  // shared table's defaults.
+  "[&_.paper-tanstack-container]:[background:var(--tape-bg)]! [&_.paper-tanstack-scroll]:[background:var(--tape-bg)]! [&_.paper-tanstack-table]:[background:var(--tape-bg)]!",
+  `[&_.paper-tanstack-cell]:[padding-top:${REPORT_PAD.xs}px]! [&_.paper-tanstack-cell]:[padding-bottom:${REPORT_PAD.xs}px]! [&_.paper-tanstack-cell]:[background:var(--tape-bg)]! [&_.paper-tanstack-cell]:[border-bottom:1px_solid_${TAPE_CELL_RULE}]! [&_.paper-tanstack-cell]:text-[${REPORT_FONT.xs}px]! [&_.paper-tanstack-cell]:[font-family:var(--tape-mono)]!`,
+  `[&_.paper-tanstack-header-cell]:[padding-top:${REPORT_PAD.xs}px]! [&_.paper-tanstack-header-cell]:[padding-bottom:${REPORT_PAD.xs}px]! [&_.paper-tanstack-header-cell]:[background:var(--tape-bg)]! [&_.paper-tanstack-header-cell]:[border-bottom:1px_solid_${TAPE_HEADER_RULE}]! [&_.paper-tanstack-header-cell]:[color:var(--tape-muted)]! [&_.paper-tanstack-header-cell]:text-[${REPORT_FONT.micro}px]! [&_.paper-tanstack-header-cell]:uppercase! [&_.paper-tanstack-header-cell]:align-bottom!`,
+  // Thin rules group the OI-delta trio and the flip column so the tape reads
+  // in blocks instead of one undifferentiated run.
+  `[&_[id^='paper-tanstack-cell-put_doi-']]:[border-left:1px_solid_${TAPE_COL_RULE}]! [&_[id^='paper-tanstack-cell-net-']]:[border-left:1px_solid_${TAPE_COL_RULE}]! [&_[id^='paper-tanstack-cell-spot_flip-']]:[border-left:1px_solid_${TAPE_COL_RULE}]!`,
   // Row hover: lift the whole tape line so the eye can track across.
-  "& tbody tr[data-row='stock']:hover .paper-tanstack-cell": {
-    background: "#101418 !important",
-  },
+  `[&_tbody_tr[data-row='stock']:hover_.paper-tanstack-cell]:[background:${TAPE_ROW_HOVER}]!`,
   // Newest minute pinned with a blue left accent.
-  "& tbody tr.tape-latest .paper-tanstack-cell:first-of-type": {
-    boxShadow: `inset 2px 0 0 0 ${TAPE_CALL_DOI}`,
-  },
-  "& tbody tr.tape-latest .paper-tanstack-cell": {
-    background: "#0A0F16 !important",
-  },
+  `[&_tbody_tr.tape-latest_.paper-tanstack-cell]:[background:${TAPE_ROW_LATEST}]! [&_tbody_tr.tape-latest_.paper-tanstack-cell:first-of-type]:[box-shadow:inset_2px_0_0_0_var(--tape-call)]!`,
   // IST column stays put while the numeric block scrolls sideways.
-  "& th:first-of-type, & td:first-of-type": {
-    position: "sticky",
-    left: 0,
-    zIndex: 2,
-    background: `${TAPE_TERM_BG} !important`,
-    boxShadow: "1px 0 0 0 #1F1F1F",
-  },
-  "& th:first-of-type": { zIndex: 3 },
+  `[&_th:first-of-type]:sticky [&_th:first-of-type]:left-0 [&_th:first-of-type]:z-[3] [&_th:first-of-type]:[background:var(--tape-bg)]! [&_th:first-of-type]:[box-shadow:1px_0_0_0_${TAPE_COL_RULE}]!`,
+  `[&_td:first-of-type]:sticky [&_td:first-of-type]:left-0 [&_td:first-of-type]:z-[2] [&_td:first-of-type]:[background:var(--tape-bg)]! [&_td:first-of-type]:[box-shadow:1px_0_0_0_${TAPE_COL_RULE}]!`,
   // OI-burst minutes get a coloured spine on the IST cell — the same
-  // blue/orange language as the tape columns. Declared after the
-  // latest-row rule so it wins on the newest minute.
-  "& tbody tr.tape-burst-call .paper-tanstack-cell:first-of-type": {
-    boxShadow: `inset 3px 0 0 0 ${TAPE_CALL_DOI}`,
-  },
-  "& tbody tr.tape-burst-put .paper-tanstack-cell:first-of-type": {
-    boxShadow: `inset 3px 0 0 0 ${TAPE_PUT_DOI}`,
-  },
-  // Live tick animations — inset glow fades out (background can't be
-  // animated here because cells pin it with !important).
-  "@keyframes tapeRowFlash": {
-    "0%": { boxShadow: "inset 0 0 0 100px rgba(31, 127, 255, 0.40)" },
-    "100%": { boxShadow: "inset 0 0 0 100px rgba(31, 127, 255, 0)" },
-  },
-  "@keyframes tapeCellFlash": {
-    "0%": { boxShadow: "inset 0 0 0 100px rgba(242, 204, 96, 0.45)" },
-    "100%": { boxShadow: "inset 0 0 0 100px rgba(242, 204, 96, 0)" },
-  },
-  "& tbody tr.tape-flash .paper-tanstack-cell": {
-    animation: "tapeRowFlash 1.5s ease-out",
-  },
-  "& .tape-cell-flash": {
-    animation: "tapeCellFlash 1.5s ease-out",
-  },
-};
+  // blue/orange language as the tape columns. Declared after the latest-row
+  // rule so it wins on the newest minute.
+  "[&_tbody_tr.tape-burst-call_.paper-tanstack-cell:first-of-type]:[box-shadow:inset_3px_0_0_0_var(--tape-call)]!",
+  "[&_tbody_tr.tape-burst-put_.paper-tanstack-cell:first-of-type]:[box-shadow:inset_3px_0_0_0_var(--tape-put)]!",
+  // Live tick animations (keyframes below).
+  "[&_tbody_tr.tape-flash_.paper-tanstack-cell]:[animation:tapeRowFlash_1.5s_ease-out]",
+  "[&_.tape-cell-flash]:[animation:tapeCellFlash_1.5s_ease-out]",
+].join(" ");
 
-function NiftyTapeTableInner({
-  rows,
-  tape,
-  live = false,
-  bursts,
-  updatedAtMs = null,
-  nextUpdateAtMs = null,
-  gex,
-  spot = null,
-}: {
+const TAPE_TABLE_WRAP_STYLE = {
+  background: TAPE_TERM_BG,
+  "--tape-bg": TAPE_TERM_BG,
+  "--tape-muted": palette.TEXT_MUTED,
+  "--tape-mono": palette.MONO,
+  "--tape-call": TAPE_CALL_DOI,
+  "--tape-put": TAPE_PUT_DOI,
+} as JSX.CSSProperties;
+
+const TAPE_FLASH_KEYFRAMES = `@keyframes tapeRowFlash {
+  0% { "box-shadow": inset 0 0 0 100px ${hexToRgba(TAPE_POS_HUE, 0.40)}; }
+  100% { "box-shadow": inset 0 0 0 100px ${hexToRgba(TAPE_POS_HUE, 0)}; }
+}
+@keyframes tapeCellFlash {
+  0% { "box-shadow": inset 0 0 0 100px ${hexToRgba(TAPE_SPOT, 0.45)}; }
+  100% { "box-shadow": inset 0 0 0 100px ${hexToRgba(TAPE_SPOT, 0)}; }
+}
+@keyframes tapePulse {
+  0% { opacity: 1; box-shadow: 0 0 0 0 ${hexToRgba(palette.POSITIVE, 0.5)}; }
+  70% { opacity: 0.6; box-shadow: 0 0 0 5px ${hexToRgba(palette.POSITIVE, 0)}; }
+  100% { opacity: 1; box-shadow: 0 0 0 0 ${hexToRgba(palette.POSITIVE, 0)}; }
+}`;
+
+export function NiftyTapeTable(props: {
   rows: NiftyTapeRow[];
   tape?: NiftyTape;
   /** Live mode: show the pulsing LIVE dot; EOD hides it. */
@@ -240,68 +194,69 @@ function NiftyTapeTableInner({
   /** Live spot used to place the flip; falls back to the tape's last spot. */
   spot?: number | null;
 }) {
-  const [order, setOrder] = useState<"newest" | "oldest">("newest");
+  const [order, setOrder] = createSignal<"newest" | "oldest">("newest");
   // Live tick feedback: which minute just arrived (row flash) and which
   // existing minutes had values revised (cell flash).
-  const [flashT, setFlashT] = useState<string | null>(null);
-  const [changed, setChanged] = useState<Map<string, Set<string>>>(new Map());
-  const prevRowsRef = useRef<Map<string, NiftyTapeRow>>(new Map());
-  const prevLatestRef = useRef<string>("");
-  const baseline = useMemo(() => getTapeBaseline(tape, rows), [rows, tape]);
-  /** Newest-first (default) or oldest-first; `ascTapeByTime` returns a fresh
-   * array, so the in-place reverse never touches the prop. */
-  const ordered = useMemo(() => {
-    const asc = ascTapeByTime(rows);
-    return order === "newest" ? asc.reverse() : asc;
-  }, [rows, order]);
-  const scale = useMemo(() => computeTapeScale(rows), [rows]);
-  const spotDeltas = useMemo(() => computeSpotDeltas(rows), [rows]);
+  const [flashT, setFlashT] = createSignal<string | null>(null);
+  const [changed, setChanged] = createSignal<Map<string, Set<string>>>(new Map());
+  let prevRows = new Map<string, NiftyTapeRow>();
+  let prevLatest = "";
+  let flashPending = false;
+
+  // One chronological view per snapshot. Seven derivations used to sort the
+  // same rows independently on every poll, so a tick paid seven O(n log n)
+  // sorts; they now share this memo and each derivation reads it pre-sorted.
+  const ascRows = createMemo(() => ascTapeByTime(props.rows));
+  const baseline = createMemo(() => getTapeBaseline(props.tape, props.rows, ascRows()));
+  /** Newest-first (default) or oldest-first. Reverse a COPY: `ascRows` is the
+   * shared chronological view and must stay ascending for the other memos. */
+  const ordered = createMemo(() => {
+    const asc = ascRows();
+    return order() === "newest" ? [...asc].reverse() : asc;
+  });
+  const scale = createMemo(() => computeTapeScale(props.rows));
+  const spotDeltas = createMemo(() => computeSpotDeltas(props.rows, ascRows()));
   // The column model embeds the live flash map in its cell closures. Keying
   // the memo on a cheap serialised signature (instead of the Map identity)
   // keeps the whole 12-column model stable across ticks whose flash content
   // is unchanged — a fresh-but-equal Map never rebuilds it.
-  const changedKey = useMemo(() => serializeChangedCells(changed), [changed]);
+  const changedKey = createMemo(() => serializeChangedCells(changed()));
   // Content-keyed identity: a fresh-but-equal Map keeps the previous instance,
   // so the 12-column model is not rebuilt on every tick.
-  const stableChanged = useMemo(() => deserializeChangedCells(changedKey), [changedKey]);
+  const stableChanged = createMemo(() => deserializeChangedCells(changedKey()));
   // The tape's own last spot is the fallback for the flip placement — the
   // recorded rows are the only spot the tape knows for sure.
-  const tapeSpot = useMemo(() => {
-    const asc = ascTapeByTime(rows);
+  const tapeSpot = createMemo(() => {
+    const asc = ascRows();
     return asc.length > 0 ? asc[asc.length - 1].spot : null;
-  }, [rows]);
+  });
   // Spot-relative gamma flip: the same level the gamma strip shows. Without
   // the gex block the tape keeps the flip recorded with its rows.
-  const flipAtSpot = useMemo(() => {
-    if (!gex) return null;
-    const reference = Number.isFinite(spot as number) ? (spot as number) : tapeSpot;
+  const flipAtSpot = createMemo(() => {
+    if (!props.gex) return null;
+    const reference = Number.isFinite(props.spot as number) ? (props.spot as number) : tapeSpot();
     if (reference === null || !Number.isFinite(reference)) return null;
-    return gexFlipAtSpot(gex, reference);
-  }, [gex, spot, tapeSpot]);
-  const columns = useMemo(
-    () =>
-      getNiftyTapeColumns(
-        baseline ?? undefined,
-        scale,
-        spotDeltas,
-        stableChanged,
-        flipAtSpot,
-      ),
-    [baseline, scale, spotDeltas, stableChanged, flipAtSpot],
+    return gexFlipAtSpot(props.gex, reference);
+  });
+  const columns = createMemo(() =>
+    getNiftyTapeColumns(
+      baseline() ?? undefined,
+      scale(),
+      spotDeltas(),
+      stableChanged(),
+      flipAtSpot(),
+    ),
   );
-  const head = useMemo(
-    () => buildTapeHead(rows, tape, flipAtSpot),
-    [rows, tape, flipAtSpot],
-  );
-  const doiLabel = useMemo(() => tapeDoiLabel(tape, rows), [rows, tape]);
-  const session = useMemo(() => computeTapeSession(rows), [rows]);
-  const flipSigned = `${head.flipDeltaPts >= 0 ? "+" : ""}${head.flipDeltaPts.toLocaleString("en-IN", { maximumFractionDigits: 0 })} pts`;
-  const latestT =
-    ordered.length > 0
-      ? order === "newest"
-        ? ordered[0].t
-        : ordered[ordered.length - 1].t
-      : "";
+  const head = createMemo(() => buildTapeHead(props.rows, props.tape, flipAtSpot(), ascRows()));
+  const doiLabel = createMemo(() => tapeDoiLabel(props.tape, props.rows, ascRows()));
+  const session = createMemo(() => computeTapeSession(props.rows, ascRows()));
+  const flipSigned = () =>
+    `${head().flipDeltaPts >= 0 ? "+" : ""}${head().flipDeltaPts.toLocaleString("en-IN", { maximumFractionDigits: 0 })} pts`;
+  const latestT = () => {
+    const o = ordered();
+    if (o.length === 0) return "";
+    return order() === "newest" ? o[0].t : o[o.length - 1].t;
+  };
 
   // Diff each incoming snapshot against the previous one: a new minute →
   // row flash; a revised value on an existing minute → cell flash. Both
@@ -309,14 +264,14 @@ function NiftyTapeTableInner({
   // Perf: snapshots whose content did not move skip setState AND the 1.6s
   // clear timer entirely, so a quiescent tick costs one effect with no
   // second render. The timer only (re)starts while a flash is actually lit.
-  const flashPendingRef = useRef(false);
-  useEffect(() => {
-    const prevRows = prevRowsRef.current;
-    const prevLatest = prevLatestRef.current;
-    prevLatestRef.current = latestT;
-    const isNewLatest = Boolean(prevLatest && latestT && prevLatest !== latestT);
+  createEffect(() => {
+    const rows = props.rows;
+    const latest = latestT();
+    const prevLatestSnapshot = prevLatest;
+    prevLatest = latest;
+    const isNewLatest = Boolean(prevLatestSnapshot && latest && prevLatestSnapshot !== latest);
     if (isNewLatest) {
-      setFlashT(latestT);
+      setFlashT(latest);
     }
     // A brand-new minute is never in the previous snapshot, so it can't
     // appear here — the row flash covers it. Only genuine revisions flash.
@@ -326,169 +281,174 @@ function NiftyTapeTableInner({
     }
     const snapshot = new Map<string, NiftyTapeRow>();
     for (const r of rows) snapshot.set(r.t, r);
-    prevRowsRef.current = snapshot;
+    prevRows = snapshot;
     if (isNewLatest || moved.size > 0) {
-      flashPendingRef.current = true;
+      flashPending = true;
     }
-    if (!flashPendingRef.current) return;
+    if (!flashPending) return;
     const id = setTimeout(() => {
-      flashPendingRef.current = false;
-      // Functional updates that return the previous state when already
-      // clear — React bails out, so an idle timer never forces a render.
+      flashPending = false;
       setFlashT((prev) => (prev === null ? prev : null));
       setChanged((prev) => (prev.size === 0 ? prev : new Map()));
     }, 1600);
-    return () => clearTimeout(id);
-  }, [rows, latestT]);
+    onCleanup(() => clearTimeout(id));
+  });
 
-  // Stable row class-name resolver: only identity-changes when its inputs do,
-  // so the table is not handed a new function every render.
-  const getRowClassName = useCallback(
-    (row: NiftyTapeRow) => {
-      const cls: string[] = [];
-      const side = bursts?.get(row.t);
-      if (side === "call") cls.push("tape-burst-call");
-      else if (side === "put") cls.push("tape-burst-put");
-      if (row.t === flashT) cls.push("tape-flash");
-      else if (row.t === latestT) cls.push("tape-latest");
-      return cls.length > 0 ? cls.join(" ") : undefined;
-    },
-    [bursts, flashT, latestT],
-  );
+  const getRowClassName = (row: NiftyTapeRow) => {
+    const cls: string[] = [];
+    const side = props.bursts?.get(row.t);
+    if (side === "call") cls.push("tape-burst-call");
+    else if (side === "put") cls.push("tape-burst-put");
+    if (row.t === flashT()) cls.push("tape-flash");
+    else if (row.t === latestT()) cls.push("tape-latest");
+    return cls.length > 0 ? cls.join(" ") : undefined;
+  };
+
+  const updatedStamp = () => props.updatedAtMs ?? null;
 
   return (
     // Fixed px chrome: root gaps are 4px; the table wrap below owns the only
-    // height budget. No `overflow` on this Box — it is not a page-column
+    // height budget. No `overflow` on this root — it is not a page-column
     // child, but the rule stands: only inner scroll containers scroll.
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0, background: TAPE_TERM_BG }}>
+    <div class="flex flex-col" style={{ gap: "4px", "min-width": "0", background: TAPE_TERM_BG }}>
       {/* Single wrapping stat line (was two stacked rows): PCR OI, ΔOI since
           baseline, max pain, flip, walls, then session meta + order toggle +
           LIVE dot all flow inline so the head is one ~18px line at width. */}
-      <Box data-testid="nifty-tape-head" sx={{ background: TAPE_TERM_BG, px: REPORT_PAD.sm / 8, pt: REPORT_PAD.xs / 8 }}>
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            flexWrap: "wrap",
-            columnGap: 1.5,
-            rowGap: REPORT_PAD.xs / 8,
-            fontVariantNumeric: "tabular-nums",
+      <div
+        data-testid="nifty-tape-head"
+        class="min-w-0"
+        style={{
+          background: TAPE_TERM_BG,
+          "padding-left": `${REPORT_PAD.sm / 8}px`,
+          "padding-top": `${REPORT_PAD.xs / 8}px`,
+        }}
+      >
+        <div
+          class="flex items-center flex-wrap"
+          style={{
+            "column-gap": "12px",
+            "row-gap": `${REPORT_PAD.xs / 8}px`,
+            "font-variant-numeric": "tabular-nums",
           }}
         >
-          <Box data-testid="nifty-tape-pcr" sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
-            <Text span fw={600} tt="uppercase" c="dimmed" style={{ fontSize: REPORT_FONT.xs - 1 }}>PCR OI</Text>
-            <Text span fw={700} data-testid="nifty-tape-head-pcr-oi" style={{ fontSize: REPORT_FONT.sm }}>{formatTapeRatio(head.pcrOi)}</Text>
-            <Text span c="dimmed" style={{ fontSize: REPORT_FONT.xs - 1 }}>snapshot</Text>
-          </Box>
-          <Box data-testid="nifty-tape-head-pcr-doi" sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
-            <Text span fw={600} tt="uppercase" c="dimmed" style={{ fontSize: REPORT_FONT.xs - 1 }}>{doiLabel}</Text>
-            <Text span fw={700} c={TAPE_CALL_DOI} style={{ fontSize: REPORT_FONT.sm }}>{formatTapeSigned(head.pcrDoiDelta)}</Text>
-          </Box>
-          <Box data-testid="nifty-tape-max-pain" sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
-            <Text span fw={600} tt="uppercase" c="dimmed" style={{ fontSize: REPORT_FONT.xs - 1 }}>Max pain</Text>
-            <Text span fw={700} data-testid="nifty-tape-head-max-pain" style={{ fontSize: REPORT_FONT.sm }}>{formatTapePrice(head.maxPain)}</Text>
-          </Box>
-          <Box data-testid="nifty-tape-flip" sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
-            <Text span fw={600} tt="uppercase" c="dimmed" style={{ fontSize: REPORT_FONT.xs - 1 }}>Flip</Text>
-            <Text span fw={700} data-testid="nifty-tape-head-flip" style={{ fontSize: REPORT_FONT.sm }}>
-              {formatTapePrice(head.flip)}{" "}
-              <Text span fw={700} c={head.flipDeltaPts >= 0 ? TAPE_FLIP_POS_TEXT : TAPE_FLIP_NEG_TEXT} style={{ fontSize: REPORT_FONT.xs - 1 }}>
-                {flipSigned}
+          <div data-testid="nifty-tape-pcr" class="flex items-baseline" style={{ gap: "4px" }}>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>PCR OI</Text>
+            <Text span fw={700} data-testid="nifty-tape-head-pcr-oi" style={{ "font-size": `${REPORT_FONT.sm}px` }}>{formatTapeRatio(head().pcrOi)}</Text>
+            <Text span c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>snapshot</Text>
+          </div>
+          <div data-testid="nifty-tape-head-pcr-doi" class="flex items-baseline" style={{ gap: "4px" }}>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>{doiLabel()}</Text>
+            <Text span fw={700} c={TAPE_CALL_DOI} style={{ "font-size": `${REPORT_FONT.sm}px` }}>{formatTapeSigned(head().pcrDoiDelta)}</Text>
+          </div>
+          <div data-testid="nifty-tape-max-pain" class="flex items-baseline" style={{ gap: "4px" }}>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>Max pain</Text>
+            <Text span fw={700} data-testid="nifty-tape-head-max-pain" style={{ "font-size": `${REPORT_FONT.sm}px` }}>{formatTapePrice(head().maxPain)}</Text>
+          </div>
+          <div data-testid="nifty-tape-flip" class="flex items-baseline" style={{ gap: "4px" }}>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>Flip</Text>
+            <Text span fw={700} data-testid="nifty-tape-head-flip" style={{ "font-size": `${REPORT_FONT.sm}px` }}>
+              {formatTapePrice(head().flip)}{" "}
+              <Text span fw={700} c={head().flipDeltaPts >= 0 ? TAPE_FLIP_POS_TEXT : TAPE_FLIP_NEG_TEXT} style={{ "font-size": `${REPORT_FONT.micro}px` }}>
+                {flipSigned()}
               </Text>
             </Text>
-            <Text span c="dimmed" style={{ fontSize: REPORT_FONT.xs - 1 }}>spot−flip</Text>
-          </Box>
-          <Box data-testid="nifty-tape-walls" sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
-            <Text span fw={600} tt="uppercase" c="dimmed" style={{ fontSize: REPORT_FONT.xs - 1 }}>Walls</Text>
-            <Text span fw={700} data-testid="nifty-tape-head-walls" style={{ fontSize: REPORT_FONT.sm }}>
-              {formatTapePrice(head.wallCall)} / {formatTapePrice(head.wallPut)}
+            <Text span c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>spot−flip</Text>
+          </div>
+          <div data-testid="nifty-tape-walls" class="flex items-baseline" style={{ gap: "4px" }}>
+            <Text span fw={600} tt="uppercase" c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>Walls</Text>
+            <Text span fw={700} data-testid="nifty-tape-head-walls" style={{ "font-size": `${REPORT_FONT.sm}px` }}>
+              {formatTapePrice(head().wallCall)} / {formatTapePrice(head().wallPut)}
             </Text>
-            <Text span c="dimmed" style={{ fontSize: REPORT_FONT.xs - 1 }}>call / put</Text>
-          </Box>
-          <Text c="dimmed" ta="left" span style={{ fontSize: REPORT_FONT.xs - 1 }}>
-            TICKS {rows.length} · one per minute
+            <Text span c="dimmed" style={{ "font-size": `${REPORT_FONT.micro}px` }}>call / put</Text>
+          </div>
+          <Text c="dimmed" ta="left" span style={{ "font-size": `${REPORT_FONT.micro}px` }}>
+            TICKS {props.rows.length} · one per minute
           </Text>
-          {updatedAtMs !== null && (
-            <Text
-              data-testid="nifty-tape-updated"
-              c="dimmed"
-              span
-              sx={{ fontVariantNumeric: "tabular-nums", fontSize: REPORT_FONT.xs - 1 }}
-            >
-              upd {formatIstClock(updatedAtMs)}
-              {nextUpdateAtMs !== null ? ` · next ${formatIstClock(nextUpdateAtMs)}` : ""}
-            </Text>
-          )}
-          <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }}>
-            SPOT {formatTapePrice(session.spotLo)}–{formatTapePrice(session.spotHi)}
+          <Show when={updatedStamp()}>
+            {(stamp) => (
+              <Text
+                data-testid="nifty-tape-updated"
+                c="dimmed"
+                span
+                style={{ "font-variant-numeric": "tabular-nums", "font-size": `${REPORT_FONT.micro}px` }}
+              >
+                upd {formatIstClock(stamp())}
+                {props.nextUpdateAtMs !== null && props.nextUpdateAtMs !== undefined
+                  ? ` · next ${formatIstClock(props.nextUpdateAtMs)}`
+                  : ""}
+              </Text>
+            )}
+          </Show>
+          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }}>
+            SPOT {formatTapePrice(session().spotLo)}–{formatTapePrice(session().spotHi)}
           </Text>
-          <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
-            <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }}>MAX ΔOI</Text>
-            <Text span fw={700} c={TAPE_CALL_DOI} style={{ fontSize: REPORT_FONT.xs - 1 }}>C {formatTapeCompact(session.maxCallDoi)}</Text>
-            <Text span fw={700} c={TAPE_PUT_DOI} style={{ fontSize: REPORT_FONT.xs - 1 }}>P {formatTapeCompact(session.maxPutDoi)}</Text>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
-            <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }}>NET</Text>
+          <div class="flex items-baseline" style={{ gap: "4px" }}>
+            <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }}>MAX ΔOI</Text>
+            <Text span fw={700} c={TAPE_CALL_DOI} style={{ "font-size": `${REPORT_FONT.micro}px` }}>C {formatTapeCompact(session().maxCallDoi)}</Text>
+            <Text span fw={700} c={TAPE_PUT_DOI} style={{ "font-size": `${REPORT_FONT.micro}px` }}>P {formatTapeCompact(session().maxPutDoi)}</Text>
+          </div>
+          <div class="flex items-baseline" style={{ gap: "4px" }}>
+            <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }}>NET</Text>
             <Text
               span
               fw={700}
-              c={session.netLast >= 0 ? TAPE_NET_TEXT : TAPE_FLIP_NEG_TEXT}
+              c={session().netLast >= 0 ? TAPE_NET_TEXT : TAPE_FLIP_NEG_TEXT}
               title="Cumulative put ΔOI − call ΔOI at the last recorded minute (the tape's `net` is already a running total — the column is never summed)"
-              style={{ fontSize: REPORT_FONT.xs - 1 }}
+              style={{ "font-size": `${REPORT_FONT.micro}px` }}
             >
-              {formatTapeCompact(session.netLast)}
+              {formatTapeCompact(session().netLast)}
             </Text>
-          </Box>
-          <Box
+          </div>
+          <Button
             data-testid="nifty-tape-order-toggle"
-            component="button"
+            variant="transparent"
             onClick={() => setOrder((o) => (o === "newest" ? "oldest" : "newest"))}
-            sx={{
-              border: "1px solid #2A2A2A",
+            style={{
+              border: `1px solid ${palette.TAPE_HEADER_RULE}`,
               background: "transparent",
               color: TAPE_CALL_DOI,
-              borderRadius: 999,
-              px: 1,
-              py: 0.25,
-              fontSize: REPORT_FONT.micro,
-              fontWeight: REPORT_FONT_WEIGHT.bold,
+              "border-radius": "9999px",
+              "padding-left": "8px",
+              "padding-right": "8px",
+              "padding-top": "0",
+              "padding-bottom": "0",
+              "font-size": `${REPORT_FONT.micro}px`,
+              "font-weight": REPORT_FONT_WEIGHT.bold,
               cursor: "pointer",
-              letterSpacing: REPORT_LETTER_SPACING.normal,
+              "letter-spacing": REPORT_LETTER_SPACING.normal,
             }}
           >
-            {order === "newest" ? "NEWEST FIRST ↓" : "OLDEST FIRST ↑"}
-          </Box>
-          {live && (
-            <Box
+            {order() === "newest" ? "NEWEST FIRST ↓" : "OLDEST FIRST ↑"}
+          </Button>
+          <Show when={props.live}>
+            <div
               data-testid="nifty-tape-live"
-              sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+              class="flex items-center"
+              style={{ gap: "4px" }}
             >
-              <Box
-                sx={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  bgcolor: palette.POSITIVE,
-                  "@keyframes tapePulse": {
-                    "0%": { opacity: 1, boxShadow: `0 0 0 0 ${hexToRgba(palette.POSITIVE, 0.5)}` },
-                    "70%": { opacity: 0.6, boxShadow: `0 0 0 5px ${hexToRgba(palette.POSITIVE, 0)}` },
-                    "100%": { opacity: 1, boxShadow: `0 0 0 0 ${hexToRgba(palette.POSITIVE, 0)}` },
-                  },
+              <div
+                style={{
+                  width: "7px",
+                  height: "7px",
+                  "border-radius": "50%",
+                  "background-color": palette.POSITIVE,
                   animation: "tapePulse 1.8s ease-out infinite",
                 }}
               />
-              <Text span fw={700} c={palette.POSITIVE} style={{ fontSize: REPORT_FONT.xs - 1 }}>LIVE</Text>
-            </Box>
-          )}
-        </Box>
-      </Box>
-      <Box
+              <Text span fw={700} c={palette.POSITIVE} style={{ "font-size": `${REPORT_FONT.micro}px` }}>LIVE</Text>
+            </div>
+          </Show>
+        </div>
+      </div>
+      <div
         data-testid="nifty-tape-table-wrap"
-        sx={TAPE_TABLE_WRAP_SX}
+        class={TAPE_TABLE_WRAP_CLASS}
+        style={TAPE_TABLE_WRAP_STYLE}
       >
+        <style>{TAPE_FLASH_KEYFRAMES}</style>
         <TanStackTable<NiftyTapeRow>
-          data={ordered}
-          columns={columns}
+          data={ordered()}
+          columns={columns()}
           dataTestId="nifty-tape-table"
           emptyMessage="No tape rows yet"
           fillContainer
@@ -498,41 +458,44 @@ function NiftyTapeTableInner({
           getRowTestId={getTapeRowTestId}
           getRowClassName={getRowClassName}
         />
-      </Box>
+      </div>
       {/* One dense legend line: tight column gap + no row gap so it stays a
           single wrapped line instead of two airy rows. */}
-      <Box
+      <div
         data-testid="nifty-tape-heat-legend"
-        sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 1, rowGap: 0, px: REPORT_PAD.sm / 8, pb: REPORT_PAD.xs / 8, lineHeight: REPORT_LINE_HEIGHT.snug }}
+        class="flex items-center flex-wrap"
+        style={{
+          "column-gap": "8px",
+          "row-gap": "0",
+          "padding-left": `${REPORT_PAD.sm / 8}px`,
+          "padding-bottom": `${REPORT_PAD.xs / 8}px`,
+          "line-height": REPORT_LINE_HEIGHT.snug,
+        }}
       >
-        <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }}>HEAT</Text>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_POS_HUE, 0.18), borderRadius: REPORT_RADIUS.sm / 2 }} />
-          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_POS_HUE, 0.45), borderRadius: REPORT_RADIUS.sm / 2 }} />
-          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_POS_HUE, 0.7), borderRadius: REPORT_RADIUS.sm / 2 }} />
-          <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }} title="Positive value in the signed columns — net put-led, call/put tick volume up, PCR up, spot above the flip">positive</Text>
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_NEG_HUE, 0.18), borderRadius: REPORT_RADIUS.sm / 2 }} />
-          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_NEG_HUE, 0.45), borderRadius: REPORT_RADIUS.sm / 2 }} />
-          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_NEG_HUE, 0.7), borderRadius: REPORT_RADIUS.sm / 2 }} />
-          <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }} title="Negative value in the signed columns — net call-led, call/put tick volume down, PCR down, spot below the flip">negative</Text>
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_NET_HUE, 0.7), borderRadius: REPORT_RADIUS.sm / 2 }} />
-          <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }}>net ΔOI (put−call)</Text>
-        </Box>
-        <Box data-testid="nifty-tape-burst-legend" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Box sx={{ width: 10, height: 8, background: TAPE_CALL_DOI, borderRadius: REPORT_RADIUS.sm / 2 }} />
-          <Box sx={{ width: 10, height: 8, background: TAPE_PUT_DOI, borderRadius: REPORT_RADIUS.sm / 2 }} />
-          <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }}>burst minute</Text>
-        </Box>
-        <Text c="dimmed" span style={{ fontSize: REPORT_FONT.xs - 1 }}>· brighter = bigger print</Text>
-      </Box>
-    </Box>
+        <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }}>HEAT</Text>
+        <div class="flex items-center" style={{ gap: "4px" }}>
+          <div style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_POS_HUE, 0.18), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <div style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_POS_HUE, 0.45), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <div style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_POS_HUE, 0.7), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }} title="Positive value in the signed columns — net put-led, call/put tick volume up, PCR up, spot above the flip">positive</Text>
+        </div>
+        <div class="flex items-center" style={{ gap: "4px" }}>
+          <div style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_NEG_HUE, 0.18), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <div style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_NEG_HUE, 0.45), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <div style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_NEG_HUE, 0.7), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }} title="Negative value in the signed columns — net call-led, call/put tick volume down, PCR down, spot below the flip">negative</Text>
+        </div>
+        <div class="flex items-center" style={{ gap: "4px" }}>
+          <div style={{ width: "10px", height: "8px", background: hexToRgba(TAPE_NET_HUE, 0.7), "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }}>net ΔOI (put−call)</Text>
+        </div>
+        <div data-testid="nifty-tape-burst-legend" class="flex items-center" style={{ gap: "4px" }}>
+          <div style={{ width: "10px", height: "8px", background: TAPE_CALL_DOI, "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <div style={{ width: "10px", height: "8px", background: TAPE_PUT_DOI, "border-radius": `${REPORT_RADIUS.sm / 2}px` }} />
+          <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }}>burst minute</Text>
+        </div>
+        <Text c="dimmed" span style={{ "font-size": `${REPORT_FONT.micro}px` }}>· brighter = bigger print</Text>
+      </div>
+    </div>
   );
 }
-
-/** Memoised leaf panel — report-payload props keep identity between unrelated parent renders. */
-export const NiftyTapeTable = memo(NiftyTapeTableInner);
-NiftyTapeTable.displayName = "NiftyTapeTable";

@@ -38,14 +38,6 @@ if [ "$RUN_PYTHON_TESTS" = "1" ] && [ "$SKIP_TESTS" != "1" ]; then
 else
   echo "⏭️  Skipping Python tests (opt in with RUN_PYTHON_TESTS=1)."
 fi
-    echo "✅ Python unit tests passed."
-    cd ..
-  else
-    echo "No Python files staged, skipping Python tests."
-  fi
-else
-  echo "⏭️  Skipping Python tests (SKIP_PYTHON=1)."
-fi
 
 STAGED_PY_MODELS=$(git diff --cached --name-only --diff-filter=ACM | grep -E 'stock-screener-ui/db/models/.*\.py$')
 if [ ! -z "$STAGED_PY_MODELS" ]; then

@@ -29,7 +29,6 @@ def cleanup_upstox_mocks():
     mods_to_clean = [k for k in sys.modules if k.startswith('upstox_trader')]
     saved = {k: sys.modules.pop(k) for k in mods_to_clean if k in sys.modules}
     yield
-    # Restore any mocks that were there before
     for mod, val in saved.items():
         sys.modules[mod] = val
 

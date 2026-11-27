@@ -59,9 +59,6 @@ def _no_http(monkeypatch) -> list:
     return calls
 
 
-# ---------------------------------------------------------------------------
-# (a) offhours_blocked / is_market_open
-# ---------------------------------------------------------------------------
 class TestOffhoursBlocked:
     def test_true_after_close_and_before_open(self):
         assert fyers_pacer.offhours_blocked(_at(MON, 16, 0)) is True
@@ -86,9 +83,6 @@ class TestOffhoursBlocked:
         assert fyers_pacer.is_market_open(_at(MON, 15, 31)) is False
 
 
-# ---------------------------------------------------------------------------
-# (b) acquire / paced_request raise before any HTTP; allow_offhours exempts
-# ---------------------------------------------------------------------------
 class TestEnforcement:
     def test_acquire_raises_before_http(self, monkeypatch):
         calls = _no_http(monkeypatch)
@@ -164,9 +158,6 @@ class TestEnforcement:
         fyers_pacer.acquire()  # must not raise
 
 
-# ---------------------------------------------------------------------------
-# (c) scan_data.cached_scan(trigger=False) never starts a scan
-# ---------------------------------------------------------------------------
 def _stale_scan_payload() -> dict:
     return {
         "generated_at": "2026-09-28T10:00:00+05:30",
@@ -204,9 +195,6 @@ class TestCachedScan:
         assert calls == [1]
 
 
-# ---------------------------------------------------------------------------
-# (d) fyers_data closed-market snapshot / symbol behaviour
-# ---------------------------------------------------------------------------
 def _synth_chain(ticker: str) -> dict:
     return {
         "ticker": ticker,
@@ -338,9 +326,6 @@ class TestSymbolClosed:
         assert len(calls) == 1, "a failed closed fetch must not loop"
 
 
-# ---------------------------------------------------------------------------
-# (e) throttled breadth fallback
-# ---------------------------------------------------------------------------
 class TestBreadthTtl:
     def test_default_ttl_constant(self):
         assert scan_data.BREADTH_TTL == 300.0

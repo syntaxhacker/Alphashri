@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as replayModule from "./replay";
 import type {
+  ReplayORLevels,
   ReplayPivotLevels,
   Replay52WLevel,
   ReplayEMAData,
@@ -231,9 +232,10 @@ describe("replay state module", () => {
   describe("setProgress", () => {
     it("sets progress object", () => {
       const progress: ReplayProgress = {
-        currentCandle: 100,
-        totalCandles: 1000,
-        currentSymbol: "TCS",
+        candle: 100,
+        total: 1000,
+        time: "09:15",
+        symbol: "TCS",
       };
 
       replayModule.setProgress(progress);
@@ -242,7 +244,7 @@ describe("replay state module", () => {
     });
 
     it("accepts null to clear progress", () => {
-      replayModule.setProgress({ currentCandle: 100, totalCandles: 1000, currentSymbol: "TCS" });
+      replayModule.setProgress({ candle: 100, total: 1000, time: "09:15", symbol: "TCS" });
       replayModule.setProgress(null);
 
       expect(replayModule.getReplayState().progress).toBeNull();
@@ -252,12 +254,17 @@ describe("replay state module", () => {
   describe("setSummary", () => {
     it("sets summary object", () => {
       const summary: ReplaySummary = {
-        totalTrades: 10,
-        winRate: 60,
-        totalPnl: 1000,
-        avgTradePnl: 100,
-        maxDrawdown: 50,
-        sharpeRatio: 1.5,
+        total_trades: 10,
+        winners: 6,
+        losers: 4,
+        win_rate: 60,
+        profit_factor: 1.5,
+        gross_pnl: 1200,
+        total_costs: 200,
+        net_pnl: 1000,
+        avg_win: 300,
+        avg_loss: -50,
+        strategy_breakdown: {},
       };
 
       replayModule.setSummary(summary);
@@ -269,7 +276,7 @@ describe("replay state module", () => {
   describe("addCandles", () => {
     it("adds candles for a symbol", () => {
       const candles: ReplayCandle[] = [
-        { timestamp: "09:15", open: 100, high: 101, low: 99, close: 100.5, volume: 1000 },
+        { time: "2025-01-15T09:15:00", open: 100, high: 101, low: 99, close: 100.5, volume: 1000 },
       ];
 
       replayModule.addCandles("TCS", candles);
@@ -280,10 +287,10 @@ describe("replay state module", () => {
 
     it("appends to existing candles", () => {
       replayModule.addCandles("TCS", [
-        { timestamp: "09:15", open: 100, high: 101, low: 99, close: 100.5, volume: 1000 },
+        { time: "2025-01-15T09:15:00", open: 100, high: 101, low: 99, close: 100.5, volume: 1000 },
       ]);
       replayModule.addCandles("TCS", [
-        { timestamp: "09:16", open: 100.5, high: 102, low: 100, close: 101.5, volume: 1200 },
+        { time: "2025-01-15T09:16:00", open: 100.5, high: 102, low: 100, close: 101.5, volume: 1200 },
       ]);
 
       const state = replayModule.getReplayState();
@@ -294,11 +301,13 @@ describe("replay state module", () => {
   describe("addORLevels", () => {
     it("adds OR levels to array", () => {
       const levels: ReplayORLevels = {
+        strategy: "ORB",
         symbol: "TCS",
-        date: "2025-01-01",
-        orHigh: 110,
-        orLow: 90,
-        breakoutLevel: 112,
+        or_high: 110,
+        or_low: 90,
+        or_range_pct: 22.2,
+        from_index: 0,
+        to_index: 8,
       };
 
       replayModule.addORLevels(levels);
@@ -310,13 +319,15 @@ describe("replay state module", () => {
   describe("addPivotLevels", () => {
     it("adds pivot levels to array", () => {
       const levels: ReplayPivotLevels = {
+        strategy: "SR",
         symbol: "TCS",
-        date: "2025-01-01",
-        pivot: 100,
+        pp: 100,
         r1: 102,
         r2: 104,
         s1: 98,
         s2: 96,
+        from_index: 0,
+        to_index: 10,
       };
 
       replayModule.addPivotLevels(levels);
@@ -327,7 +338,14 @@ describe("replay state module", () => {
 
   describe("add52WLevel", () => {
     it("adds 52-week high level", () => {
-      const level: Replay52WLevel = { symbol: "TCS", level: 1500, date: "2025-01-01" };
+      const level: Replay52WLevel = {
+        strategy: "52W",
+        symbol: "TCS",
+        high_52w: 1500,
+        low_52w: 900,
+        from_index: 0,
+        to_index: 20,
+      };
 
       replayModule.add52WLevel(level);
 
@@ -339,8 +357,9 @@ describe("replay state module", () => {
     it("sets EMA data for symbol", () => {
       const emaData: ReplayEMAData = {
         symbol: "TCS",
-        ema9: [100, 101, 102],
-        ema21: [99, 100, 101],
+        ema_fast_period: 9,
+        ema_slow_period: 21,
+        timeframes: { "5min": { ema_fast: [100, 101, 102], ema_slow: [99, 100, 101] } },
       };
 
       replayModule.setEMAData(emaData);
@@ -350,8 +369,14 @@ describe("replay state module", () => {
     });
 
     it("merges with existing EMA data for different symbols", () => {
-      replayModule.setEMAData({ symbol: "TCS", ema9: [100], ema21: [99] });
-      replayModule.setEMAData({ symbol: "INFY", ema9: [200], ema21: [199] });
+      const makeEma = (symbol: string, fast: number[], slow: number[]): ReplayEMAData => ({
+        symbol,
+        ema_fast_period: 9,
+        ema_slow_period: 21,
+        timeframes: { "5min": { ema_fast: fast, ema_slow: slow } },
+      });
+      replayModule.setEMAData(makeEma("TCS", [100], [99]));
+      replayModule.setEMAData(makeEma("INFY", [200], [199]));
 
       const state = replayModule.getReplayState();
       expect(Object.keys(state.emaData)).toHaveLength(2);

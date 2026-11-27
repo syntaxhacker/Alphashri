@@ -22,7 +22,6 @@ from datetime import datetime
 
 import pytest
 
-# Add project root to path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
@@ -32,9 +31,6 @@ class TestNewsAPI:
     Test suite for News API endpoints.
     """
 
-    # ===========================
-    # GET /api/news Tests
-    # ===========================
 
     def test_get_news_default_params(self, client, sample_news_items):
         """
@@ -187,7 +183,6 @@ class TestNewsAPI:
                     assert 'url' in item
                     assert 'timestamp' in item
 
-                    # Verify types
                     assert isinstance(item['title'], str)
                     assert isinstance(item['url'], str)
 
@@ -205,16 +200,12 @@ class TestNewsAPI:
                 assert response.status_code == 200
                 data = response.json()
 
-                # Verify fetchedAt is a valid ISO timestamp
                 assert 'fetchedAt' in data
                 try:
                     datetime.fromisoformat(data['fetchedAt'])
                 except ValueError:
                     pytest.fail("fetchedAt is not a valid ISO timestamp")
 
-    # ===========================
-    # GET /api/news/article Tests
-    # ===========================
 
     def test_get_article_valid_url(self, client, sample_article_content):
         """
@@ -231,7 +222,6 @@ class TestNewsAPI:
                 assert response.status_code == 200
                 data = response.json()
 
-                # Verify article structure
                 assert 'title' in data
                 assert 'content' in data
                 assert 'url' in data
@@ -302,19 +292,14 @@ class TestNewsAPI:
                 assert response.status_code == 200
                 data = response.json()
 
-                # Verify content is present
                 assert 'content' in data
                 assert isinstance(data['content'], str)
                 assert len(data['content']) > 0
 
-                # Verify title is present
                 assert 'title' in data
                 assert isinstance(data['title'], str)
                 assert len(data['title']) > 0
 
-    # ===========================
-    # GET /api/news/sources Tests
-    # ===========================
 
     def test_get_news_sources_available(self, client, sample_news_sources):
         """
@@ -359,12 +344,8 @@ class TestNewsAPI:
 
                 for source in data['sources']:
                     assert isinstance(source, str)
-                    # Should be valid for use in URL
                     assert source.isidentifier() or '-' in source
 
-    # ===========================
-    # Integration Tests
-    # ===========================
 
     def test_news_workflow(self, client, sample_news_items, sample_article_content):
         """
@@ -382,20 +363,17 @@ class TestNewsAPI:
             with patch('api_server_fastapi.NEWS_SOURCES', sources):
                 with patch('api_server_fastapi.fetch_news', mock_fetch_news):
                     with patch('api_server_fastapi.fetch_article_content', mock_fetch_article):
-                        # Step 1: Get sources
                         response = client.get("/api/news/sources")
                         assert response.status_code == 200
                         sources_data = response.json()
                         assert len(sources_data['sources']) > 0
 
-                        # Step 2: Get news feed
                         source = sources_data['sources'][0]
                         response = client.get(f"/api/news?source={source}")
                         assert response.status_code == 200
                         news_data = response.json()
                         assert len(news_data['items']) > 0
 
-                        # Step 3: Get article details
                         article_url = news_data['items'][0]['url']
                         response = client.get(f"/api/news/article?url={article_url}")
                         assert response.status_code == 200

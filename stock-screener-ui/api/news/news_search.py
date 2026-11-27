@@ -1,7 +1,3 @@
-"""
-Search and filter endpoints for news articles.
-"""
-
 import asyncio
 import sys
 from datetime import datetime
@@ -9,6 +5,10 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Path, Query
 
 router = APIRouter(tags=["news"])
+
+#: Article scrapes are I/O-bound but HTML parsing holds the GIL, so fan out in
+#: small ordered batches rather than all-at-once (same bound as the poller).
+_SENTIMENT_SCRAPE_BATCH = 4
 
 
 def _resolve(name):
@@ -110,26 +110,35 @@ async def get_symbol_sentiment(symbol: str = Path(..., description="Stock symbol
 
         all_news = await asyncio.to_thread(_aggregator.fetch_all, limit_per_source=15)
 
+        # Feed items arrive in fixed source order. Batch the scrapes but evaluate
+        # them in that same order so source precedence and the early stop at 5
+        # matches are unchanged — only the N serial HTTP round-trips change.
+        symbol_upper = symbol.upper()
         relevant_articles = []
-        for news_item in all_news:
-            url = news_item.get('sourceUrl')
+        for start in range(0, len(all_news), _SENTIMENT_SCRAPE_BATCH):
+            batch = all_news[start:start + _SENTIMENT_SCRAPE_BATCH]
+            articles = await asyncio.gather(*[
+                asyncio.to_thread(fetch_article_content, item.get('sourceUrl'))
+                for item in batch
+            ])
+            for news_item, article in zip(batch, articles):
+                url = news_item.get('sourceUrl')
+                headline = article.get('headline', '')
+                content = article.get('description', '')
+                extracted_symbols = [s.get('code', '') for s in article.get('symbols', [])]
 
-            article = await asyncio.to_thread(fetch_article_content, url)
+                if (symbol_upper in headline.upper() or
+                    symbol_upper in content.upper() or
+                    symbol_upper in extracted_symbols):
+                    relevant_articles.append({
+                        "url": url,
+                        "headline": headline,
+                        "content": content,
+                        "publishedAt": article.get('publishedAt')
+                    })
 
-            headline = article.get('headline', '')
-            content = article.get('description', '')
-            extracted_symbols = [s.get('code', '') for s in article.get('symbols', [])]
-
-            if (symbol.upper() in headline.upper() or
-                symbol.upper() in content.upper() or
-                symbol.upper() in extracted_symbols):
-                relevant_articles.append({
-                    "url": url,
-                    "headline": headline,
-                    "content": content,
-                    "publishedAt": article.get('publishedAt')
-                })
-
+                if len(relevant_articles) >= 5:
+                    break
             if len(relevant_articles) >= 5:
                 break
 
