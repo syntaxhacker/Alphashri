@@ -312,7 +312,8 @@ The sync must:
 3. Verify SHA256 + row count.
 4. Upsert agri rows into SQLite with the corrected key/source rules.
 5. Upsert 52W rows into SQLite.
-6. Refresh local Redis `52w_range:all` only if local Redis is present.
+6. Refresh local Redis `52w_range:all` (the single bulk key defined in
+   `trading/week52/keys.py`) only if local Redis is present.
 7. Invalidate the local screener cache.
 8. Print `MAX(date)` per agri key, the 52W row count, rows applied and any gap
    warnings.
@@ -361,14 +362,18 @@ does not compute 52W ranges locally.
 
 ### On-demand hard refresh (local compute)
 
-The scheduled hourly full-NSE compute (`compute_52w_ranges_task`) is no longer
-spawned, so local computation is on demand only. In the admin 52W panel, click
-"Clear cache + DB" (`DELETE /api/admin/52w-range/cache?clear_db=true`), then
-"Run batch" with Full refresh (`POST /api/admin/52w-range/run`,
-`api/admin_routes.py:255-277`). That launches the local subprocess script
-(~5-15 min). The `compute_52w_ranges_task` function still exists; it is simply
-not scheduled. The manual `scripts/sync_refresh_assets.py --latest` CLI remains
-available for applying release assets outside the app.
+The scheduled hourly full-NSE compute (`compute_52w_ranges_task`) was
+**removed** in the single-source refactor — both the task and its scheduler are
+gone, so local computation is on demand only. The admin 52W panel is the only
+local-compute orchestrator: click "Clear cache + DB"
+(`DELETE /api/admin/52w-range/cache?clear_db=true`), then "Run batch" with Full
+refresh (`POST /api/admin/52w-range/run`, `api/admin_routes.py:255-277`). That
+launches the local subprocess script (~5-15 min). The manual
+`scripts/sync_refresh_assets.py --latest` CLI remains available for applying
+release assets outside the app. Both scripts call the one change-only upsert in
+`trading/week52/upsert.py`; keys/TTLs and job status live in
+`trading/week52/keys.py` and `trading/week52/job.py`. Full architecture map:
+[`WEEK52_SINGLE_SOURCE.md`](./WEEK52_SINGLE_SOURCE.md).
 
 ---
 
