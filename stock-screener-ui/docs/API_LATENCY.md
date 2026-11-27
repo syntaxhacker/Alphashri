@@ -40,8 +40,9 @@ started by the harness):
 ```
 
 `--warmups` and `--iterations` override the defaults from the budget file
-(5 and 30). `--timeout` sets the per-request timeout (60 s by default; the first
-agri request can take ~20 s). `--route NAME` is repeatable.
+(5 and 30). `--timeout` sets the per-request timeout (60 s by default); current
+agri cold timings are in the [2026-11-28 re-measurement](#agri-cold-path-re-measured-2026-11-28)
+below. `--route NAME` is repeatable.
 
 ## Warm vs cold semantics
 
@@ -154,11 +155,33 @@ contract test.
 The requested health/login sample alone measured `health p95 2.42 ms` and
 `login p95 423.48 ms` over 30 iterations.
 
-`--in-process --mode cold` (one request in a fresh child interpreter):
-`health 14.62 ms` (INFO, no cold budget) and `agri_filters 20476 ms`
-(**FAIL** vs the 10 s cold budget — a repeatable ~20 s disk-cache reload in
-this workspace, not a warm-up artifact). Report mode exits 0; adding `--enforce`
-exits 1 for that route.
+`--in-process --mode cold` (one request in a fresh child interpreter,
+**2026-11-22 — historical, pre-fix**): `health 14.62 ms` (INFO, no cold budget)
+and `agri_filters 20476 ms` (verdict at the time: **FAIL** vs the 10 s cold
+budget — a repeatable ~20 s disk-cache reload). That figure predates the
+single-scan/bucketed-snapshot and covering-index/mmap fixes and is **superseded**
+by the 2026-11-28 re-measurement below. In report mode this run exits 0; adding
+`--enforce` would have exited 1 for that route.
+
+### Agri cold path re-measured (2026-11-28)
+
+After the fixes (`01545bb7` single geo/meta scan + bucketed snapshot,
+`afb072f5` covering index + mmap), the agri cold path was re-measured with
+`scripts/perf/bench_agri.py` on a deterministic **1,296,000-row / 501 MB**
+synthetic cache built from `api/agri/store.py`'s schema (the real
+`reports/agri/agri_prices.db` is importer-owned and was not touched).
+
+- **Cold (three fresh subprocesses, under load): 652 / 665 / 784 ms** — best
+  **652 ms**; all **PASS** vs the **10,000 ms** cold budget. An earlier
+  quiet-ish run measured **251 / 413 / 540 ms**. Worst case without the geo
+  index was **836 ms – 1.38 s**, still under 10 s.
+- **Warm: p50 46.25 ms, p95 59.91 ms, p99 79.83 ms** — PASS vs the 500 ms
+  warm budget.
+- Behaviour: `tests/api/test_agri` **341 passed**; the 21-request response
+  matrix was byte-identical.
+
+The **20,476 ms** figure above was measured **pre-fix** and no longer describes
+this path. Only the agri cold path was re-measured in this pass.
 
 ## Chart route warm run (2026-11-25, in-process, this workspace)
 
@@ -200,8 +223,9 @@ p50 **38.75 ms**, p95 **52.69 ms**, p99 **57.30 ms**, verdict **PASS**, exit 0.
   404. In-process that is `SKIP` ("no successful responses"), not a latency
   failure. Benchmark it with a `date=` parameter on a trading day via
   `--base-url` once a snapshot exists.
-- The first agri call in a fresh interpreter can take ~20 s; use the default
-  60 s timeout or raise `--timeout`.
+- The first agri call in a fresh interpreter is now fast on the re-measured
+  synthetic cache (see the 2026-11-28 re-measurement above); the default 60 s
+  timeout is ample. The old ~20 s guidance was pre-fix.
 - The chart budget is only deterministic in-process, where the harness seeds its
   own candle cache. Over `--base-url` the route reads whatever the live server
   has cached and may fetch upstream, so treat that number as informational.
