@@ -724,6 +724,16 @@ describe("MarketScreenerPanel — Movers view", () => {
     expect(screen.getByTestId("market-view-toggle")).toBeInTheDocument();
   });
 
+  test("applying a mover preset switches to the table and closes the gallery", async () => {
+    renderPanel({ initialView: "vis" });
+    fireEvent.click(await screen.findByTestId("market-movers-toggle"));
+    fireEvent.click(await screen.findByTestId("market-mover-gapUp"));
+    await waitFor(() =>
+      expect(screen.getByTestId("market-table-region")).not.toHaveClass("hidden"),
+    );
+    expect(screen.queryByTestId("market-preset-gallery")).toBeNull();
+  });
+
   test("the Vis tab renders the registry default heatmap", async () => {
     r(() => <MarketScreenerPanel />);
     await fireEvent.click(within(screen.getByTestId("market-view-toggle")).getByText("Vis"));

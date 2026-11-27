@@ -128,7 +128,21 @@ describe("ValuePanel", () => {
     expect(screen.getByTestId("value-row-TCS")).toBeInTheDocument();
     expect(screen.getByTestId("value-summary")).toHaveTextContent("2 of 2 matches");
     expect(screen.getByTestId("value-sectors")).toHaveTextContent("Banks (2)");
-    expect(screen.getByTestId("value-as-of")).toHaveTextContent("2026-10-21");
+    expect(screen.getByTestId("value-as-of")).toHaveTextContent("21 Oct");
+    expect(screen.getByTestId("value-as-of")).not.toHaveTextContent("2026-10-21T");
+  });
+
+  test("humanises API warning codes instead of printing machine names", async () => {
+    mockValueScan.mockResolvedValueOnce({
+      ...response(INDIA_ROWS()),
+      warnings: ["cache_unavailable"],
+    });
+    r(<ValuePanel />);
+    await screen.findByTestId("value-row-RELIANCE");
+    expect(screen.getByTestId("value-warnings")).toHaveTextContent(
+      "Price cache unavailable — live scan",
+    );
+    expect(screen.getByTestId("value-warnings")).not.toHaveTextContent("cache_unavailable");
   });
 
   test("switching market tabs sends the new market to the client", async () => {
@@ -579,7 +593,10 @@ describe("ValuePanel — preset gallery entry", () => {
         ),
       { timeout: 3000 },
     );
-    expect(screen.getByTestId("value-preset-active")).toHaveTextContent("Active");
+    // Apply closes the gallery; the header badge is the persistent active-state
+    // indicator (the custom Select does not re-read a late value prop).
+    expect(screen.queryByTestId("market-preset-gallery")).toBeNull();
+    expect(screen.getByTestId("value-preset-current")).toHaveTextContent("Deep");
   });
 
   test("a value scan preset applies and clears from the gallery", async () => {
@@ -596,6 +613,8 @@ describe("ValuePanel — preset gallery entry", () => {
         ),
       { timeout: 3000 },
     );
+    expect(screen.queryByTestId("market-preset-gallery")).toBeNull();
+    fireEvent.click(screen.getByTestId("value-preset-gallery"));
     fireEvent.click(screen.getByTestId("value-preset-clear-YIELD"));
     await waitFor(
       () =>
@@ -618,6 +637,7 @@ describe("ValuePanel — preset gallery entry", () => {
     expect(onApplyMarketPreset).toHaveBeenCalledTimes(1);
     expect(onApplyMarketPreset).toHaveBeenCalledWith({ mcapMinCr: 500, gapMin: 3, sort: "gap_desc" });
     expect(mockValueScan.mock.calls.length).toBe(calls);
+    expect(screen.queryByTestId("market-preset-gallery")).toBeNull();
   });
 
   test("Escape closes the gallery and returns focus to the Value tab entry", async () => {

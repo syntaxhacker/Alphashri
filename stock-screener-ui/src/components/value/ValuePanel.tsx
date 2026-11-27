@@ -4,6 +4,7 @@ import { IconDownload, IconRefresh, IconSparkles } from "../common/Icons";
 import {
   ActionIcon,
   Alert,
+  Badge,
   Box,
   Button,
   Divider,
@@ -71,6 +72,30 @@ const PRESET_OPTIONS = Object.entries(VALUE_PRESETS).map(([value, meta]) => ({
   value,
   label: meta.label,
 }));
+
+const VALUE_WARNING_LABELS: Record<string, string> = {
+  cache_unavailable: "Price cache unavailable — live scan",
+  scoring_engine_unavailable: "Scoring engine unavailable — ranks may be incomplete",
+};
+
+function formatValueAsOf(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return `${new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Kolkata",
+  }).format(parsed)} IST`;
+}
+
+function humanizeValueWarning(warning: string): string {
+  if (VALUE_WARNING_LABELS[warning]) return VALUE_WARNING_LABELS[warning];
+  return warning.replace(/_/g, " ");
+}
 
 export function ValuePanel(props: ValuePanelProps) {
   const navigate = useNavigate();
@@ -208,6 +233,11 @@ export function ValuePanel(props: ValuePanelProps) {
               size="sm"
               data-testid="value-preset-select"
             />
+            <Show when={filters().preset}>
+              <Badge size="xs" color="primary" variant="light" data-testid="value-preset-current">
+                {VALUE_PRESETS[filters().preset ?? ""]?.label ?? filters().preset}
+              </Badge>
+            </Show>
             <Button
               size="sm"
               variant="outline"
@@ -223,7 +253,7 @@ export function ValuePanel(props: ValuePanelProps) {
           <ToolbarRow gap={8}>
             <Show when={lastUpdated()}>
               <Text size="xs" c="dimmed" data-testid="value-as-of">
-                {`as of ${lastUpdated()}`}
+                {`as of ${formatValueAsOf(lastUpdated())}`}
               </Text>
             </Show>
             <ActionIcon
@@ -314,7 +344,7 @@ export function ValuePanel(props: ValuePanelProps) {
           <ToolbarRow gap={8}>
             <Show when={warnings().length > 0}>
               <Text size="xs" c="dimmed" data-testid="value-warnings">
-                {warnings().join(" · ")}
+                {warnings().map(humanizeValueWarning).join(" · ")}
               </Text>
             </Show>
             <ActionIcon

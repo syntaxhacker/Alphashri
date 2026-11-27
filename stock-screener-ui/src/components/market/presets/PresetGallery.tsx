@@ -202,7 +202,10 @@ export function PresetGallery(props: PresetGalleryProps) {
                   size="xs"
                   data-preset-apply="true"
                   data-testid="market-value-preset"
-                  onClick={() => props.onChange(DEEP_VALUE_PRESET)}
+                  onClick={() => {
+                    props.onChange(DEEP_VALUE_PRESET);
+                    props.onClose();
+                  }}
                 >
                   Apply
                 </Button>
@@ -287,7 +290,10 @@ export function PresetGallery(props: PresetGalleryProps) {
                       size="xs"
                       data-preset-apply="true"
                       data-testid={`market-mover-${preset.id}`}
-                      onClick={() => props.onChange({ ...preset.filters, sort: preset.sort })}
+                      onClick={() => {
+                        props.onChange({ ...preset.filters, sort: preset.sort });
+                        props.onClose();
+                      }}
                     >
                       Apply
                     </Button>
@@ -375,7 +381,10 @@ export function PresetGallery(props: PresetGalleryProps) {
                         size="xs"
                         data-preset-apply="true"
                         data-testid={`value-preset-apply-${id}`}
-                        onClick={() => props.valuePresets?.onSelect(id)}
+                        onClick={() => {
+                          props.valuePresets?.onSelect(id);
+                          props.onClose();
+                        }}
                       >
                         Apply
                       </Button>

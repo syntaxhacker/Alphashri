@@ -604,6 +604,9 @@ export function MarketScreenerPanel(props: MarketScreenerPanelProps = {}) {
   const [presetOwnsOrder, setPresetOwnsOrder] = createSignal(false);
   const applyPreset = (patch: Partial<MarketFilterState>) => {
     const { sort, ...bounds } = patch;
+    // A preset owns both bounds and order; showing the table makes the applied
+    // result visible instead of leaving the user on the Value/Vis surface.
+    if (sort) setViewMode("table");
     if (Object.keys(bounds).length > 0) {
       setFilters((current) => mergeMoverPresetFilters(current, bounds));
     }
