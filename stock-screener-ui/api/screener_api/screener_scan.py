@@ -606,56 +606,61 @@ def _enrich_with_touch_history(data, screener):
 
     cutoff_date = datetime.now(config.IST) - timedelta(days=7)
     touch_map = {}
+    last_touched_info = {}
     try:
+        from sqlalchemy import func, literal
+
         db = SessionLocal()
         try:
-            recent_touches = (
-                db.query(Stock52WeekTouch)
+            # Both reads are scoped to the same symbols. A UNION ALL returns
+            # them in one round-trip; the max per branch is resolved in Python
+            # because (symbol, touched_date) is unique, so the original
+            # "first row wins" / "single joined row" choice is unambiguous.
+            recent = (
+                db.query(
+                    literal('recent').label('kind'),
+                    Stock52WeekTouch.symbol.label('symbol'),
+                    Stock52WeekTouch.touched_date.label('touched_date'),
+                    Stock52WeekTouch.touched_price.label('touched_price'),
+                )
                 .filter(
                     Stock52WeekTouch.symbol.in_(symbols),
                     Stock52WeekTouch.touched_date >= cutoff_date,
                     Stock52WeekTouch.is_high == True,
                 )
-                .order_by(Stock52WeekTouch.symbol, Stock52WeekTouch.touched_date.desc())
-                .all()
             )
-            for touch in recent_touches:
-                if touch.symbol not in touch_map:
-                    touch_map[touch.symbol] = touch
-        finally:
-            db.close()
-    except Exception:
-        pass
-
-    last_touched_info = {}
-    try:
-        from sqlalchemy import func
-
-        db = SessionLocal()
-        try:
-            subq = (
+            max_dates = (
                 db.query(
-                    Stock52WeekTouch.symbol,
+                    Stock52WeekTouch.symbol.label('symbol'),
                     func.max(Stock52WeekTouch.touched_date).label('max_date'),
                 )
                 .filter(Stock52WeekTouch.symbol.in_(symbols))
                 .group_by(Stock52WeekTouch.symbol)
                 .subquery()
             )
-            latest_touches = (
-                db.query(Stock52WeekTouch)
-                .join(
-                    subq,
-                    (Stock52WeekTouch.symbol == subq.c.symbol)
-                    & (Stock52WeekTouch.touched_date == subq.c.max_date),
+            latest = (
+                db.query(
+                    literal('latest').label('kind'),
+                    Stock52WeekTouch.symbol.label('symbol'),
+                    Stock52WeekTouch.touched_date.label('touched_date'),
+                    Stock52WeekTouch.touched_price.label('touched_price'),
                 )
-                .all()
+                .join(
+                    max_dates,
+                    (Stock52WeekTouch.symbol == max_dates.c.symbol)
+                    & (Stock52WeekTouch.touched_date == max_dates.c.max_date),
+                )
             )
-            for touch in latest_touches:
-                last_touched_info[touch.symbol] = {
-                    'date': touch.touched_date,
-                    'price': touch.touched_price,
-                }
+            for kind, symbol, touched_date, touched_price in recent.union_all(latest).all():
+                if kind == 'recent':
+                    prior = touch_map.get(symbol)
+                    if prior is None or touched_date > prior[0]:
+                        touch_map[symbol] = (touched_date, touched_price)
+                else:
+                    last_touched_info[symbol] = {
+                        'date': touched_date,
+                        'price': touched_price,
+                    }
         finally:
             db.close()
     except Exception:
