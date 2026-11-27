@@ -1,7 +1,7 @@
 {
   "feature": "section-headings",
   "route": "/screener/market",
-  "head": "939e8438276e65128c28afde42a202f5d6843ea7",
+  "head": "e071ba8a61cd713ea6e9ace6c270863d29df170b",
   "viewports": [1600, 390],
   "sha256": {
     "sh-sections-loaded-1600.png": "7ba385c3fe6dce344544794be1c44948a773a35d00727a0348c54a9ed94465a8",

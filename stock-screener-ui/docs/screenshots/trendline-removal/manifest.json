@@ -1,7 +1,7 @@
 {
   "feature": "trendline-removal",
   "route": "/patterns",
-  "head": "58640c0f5565eec3c8f9ba6d694ce5f5167b1252",
+  "head": "e071ba8a61cd713ea6e9ace6c270863d29df170b",
   "viewports": [1600, 390],
   "data": "ALL chart-bearing states (patterns-loaded, legend-loaded, fullscreen-loaded at 1600 and 390) share ONE real 200-bar IRCON 1D OHLCV fixture (2026-02-03 to 2026-11-25) from experiments/data/pattern_cache/candles/1D/IRCON.v3.pkl, with price ₹107.36 and consistent as-of 25 Nov / LAST CANDLE 2026-11-25; S/R bands come from the IRCON pattern fixture's own breakout/target/stop prices. Pattern rows mirror tests/mocks/patternEvidence.ts. Loading (pending matrix), error (mocked 500) and empty states are mocked; all other states use the shared pattern mocks. API routes are mocked in Playwright; no devtools/server restart.",
   "sha256": {

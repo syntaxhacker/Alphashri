@@ -1,7 +1,7 @@
 {
   "feature": "value-preset-gallery",
   "route": "/screener/market?view=value",
-  "head": "9910d40c348302c8eb0877922ca4ed8c709c2936",
+  "head": "e071ba8a61cd713ea6e9ace6c270863d29df170b",
   "viewports": [
     1600,
     390
