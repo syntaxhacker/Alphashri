@@ -9,6 +9,7 @@ Covers (all against in-memory SQLite — never touches db/alphashri.db):
 """
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -167,6 +168,39 @@ def test_aggregate_theme_groups_skips_uncovered_and_empty():
     assert sector_module._aggregate_theme_groups(_theme_df(), "change", mapping) == []
     assert sector_module._aggregate_theme_groups(pd.DataFrame(), "change", {"a": {"HAL"}}) == []
     assert sector_module._aggregate_theme_groups(_theme_df(), "change", {}) == []
+
+
+def test_aggregate_theme_groups_exact_parity_edge_cases():
+    """Shared members, NaN weight, uncovered/empty theme and ties: exact JSON."""
+    df = pd.DataFrame({
+        'name': ['SHARED', 'A', 'B', 'C', 'D', 'NANW', 'TIE1', 'TIE2', 'UNC', 'SHARED'],
+        'change': [4.0, 2.0, -1.0, 1.0, 3.0, 5.0, 2.5, 2.5, 99.0, -50.0],
+        'market_cap_basic': [300.0, 100.0, 200.0, 200.0, 200.0, None,
+                             100.0, 100.0, 9999.0, 1.0],
+    })
+    mapping = {
+        't_shared1': {' shared ', 'A'},
+        't_shared2': {'SHARED', 'C', 'D'},
+        't_nanw': {'NANW'},
+        't_tie1': {'TIE1'},
+        't_tie2': {'TIE2'},
+        't_uncovered': {'MISSING'},
+        't_empty': set(),
+    }
+    info = {slug: {'name': f'Name {slug}'} for slug in mapping}
+    items = sector_module._aggregate_theme_groups(df, 'change', mapping, info)
+    assert json.dumps([g.model_dump() for g in items]) == json.dumps([
+        {'name': 'Name t_shared1', 'change': 3.5, 'stock_count': 2,
+         'advances': 2, 'declines': 0, 'slug': 't_shared1'},
+        {'name': 'Name t_shared2', 'change': 2.86, 'stock_count': 3,
+         'advances': 3, 'declines': 0, 'slug': 't_shared2'},
+        {'name': 'Name t_tie1', 'change': 2.5, 'stock_count': 1,
+         'advances': 1, 'declines': 0, 'slug': 't_tie1'},
+        {'name': 'Name t_tie2', 'change': 2.5, 'stock_count': 1,
+         'advances': 1, 'declines': 0, 'slug': 't_tie2'},
+        {'name': 'Name t_nanw', 'change': 0.0, 'stock_count': 1,
+         'advances': 1, 'declines': 0, 'slug': 't_nanw'},
+    ])
 
 
 
