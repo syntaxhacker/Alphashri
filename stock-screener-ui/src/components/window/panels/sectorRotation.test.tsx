@@ -101,6 +101,11 @@ const RESPONSE = {
 
 const CTX: Accessor<DockPanelContext> = () => ({ market: "india" });
 
+// A row name appears in the plot label, the compact summary and the legend.
+// The label and dot test ids pin each assertion to the intended surface.
+const IT_LABEL = "rotation-rrg-label-sector-it";
+const IT_DOT = "rotation-rrg-dot-sector-it";
+
 function MountSpec() {
   const spec = getPanelSpec("sector.rotation");
   const data = createMemo(() => spec?.data?.(CTX));
@@ -157,7 +162,7 @@ describe("sector.rotation — two-window request count", () => {
       expect(screen.getAllByTestId("sector-rotation-panel")).toHaveLength(2),
     );
     await waitFor(() =>
-      expect(screen.getAllByText("Information Technology")).toHaveLength(2),
+      expect(screen.getAllByTestId(IT_LABEL)).toHaveLength(2),
     );
     expect(ctl.fetchRotationOverview).toHaveBeenCalledTimes(1);
   });
@@ -169,7 +174,7 @@ describe("sector.rotation — two-window request count", () => {
       expect(screen.getAllByTestId("sector-rotation-panel")).toHaveLength(2),
     );
     await waitFor(() =>
-      expect(screen.getAllByText("Information Technology")).toHaveLength(2),
+      expect(screen.getAllByTestId(IT_LABEL)).toHaveLength(2),
     );
     expect(ctl.fetchRotationOverview).toHaveBeenCalledTimes(2);
     expect(
@@ -182,15 +187,22 @@ describe("sector.rotation window panel", () => {
   it("(a) renders a sector label from the mocked rotation response", async () => {
     renderPanel();
 
-    await waitFor(() => expect(screen.getByText("Information Technology")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId(IT_LABEL)).toHaveTextContent("Information Technology"),
+    );
     expect(screen.getByTestId("rotation-rrg-chart")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Information Technology/ })).toBeInTheDocument();
+    expect(screen.getByTestId(IT_DOT)).toHaveAttribute(
+      "aria-label",
+      expect.stringContaining("Information Technology"),
+    );
     expect(WINDOW_PANEL_TYPES.has("sector.rotation")).toBe(true);
   });
 
   it("(b) the kind control changes the fetched param (assert the URL the mock received)", async () => {
     renderPanel();
-    await waitFor(() => expect(screen.getByText("Information Technology")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId(IT_LABEL)).toHaveTextContent("Information Technology"),
+    );
 
     const before = String(ctl.fetchRotationOverview.mock.calls[0]?.[0]?.kind ?? "");
     expect(before).toBe("sector");
@@ -206,7 +218,9 @@ describe("sector.rotation window panel", () => {
 
   it("(b2) the period control is typed from RotationPeriod and changes its selection", async () => {
     renderPanel();
-    await waitFor(() => expect(screen.getByText("Information Technology")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId(IT_LABEL)).toHaveTextContent("Information Technology"),
+    );
 
     const period = screen.getByTestId("sector-rotation-period").querySelector("select")!;
     expect(Array.from(period.options).some((o) => o.value === "3M")).toBe(true);
@@ -273,9 +287,13 @@ describe("sector.rotation window panel", () => {
 
   it("(e) a point click opens the symbol dock with the row's real top-mover symbol", async () => {
     renderPanel();
-    await waitFor(() => expect(screen.getByText("Information Technology")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId(IT_LABEL)).toHaveTextContent("Information Technology"),
+    );
 
-    fireEvent.click(screen.getByRole("button", { name: /Information Technology/ }));
+    const dot = screen.getByTestId(IT_DOT);
+    expect(dot).toHaveAttribute("aria-label", expect.stringContaining("Information Technology"));
+    fireEvent.click(dot);
 
     expect(ctl.dockOpen).toHaveBeenCalledWith("TCS", "chart", "india");
   });
