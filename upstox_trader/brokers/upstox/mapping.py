@@ -1,4 +1,5 @@
 import json
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -18,6 +19,9 @@ INSTRUMENT_LIST_URL = (
 
 class UpstoxSymbolMap(BrokerSymbolMap):
     """Upstox symbol/instrument key resolution from cached NSE instrument list."""
+
+    # Class-level so instances built via __new__ in tests still have a lock.
+    _INDEX_LOCK = threading.Lock()
 
     def __init__(self):
         self._instruments: Optional[list[dict]] = None
@@ -57,15 +61,18 @@ class UpstoxSymbolMap(BrokerSymbolMap):
         instruments = self._instruments
         cached = getattr(self, "_token_index", None)
         if cached is None or cached[0] is not instruments:
-            by_symbol: dict[str, list[dict]] = {}
-            for inst in instruments:
-                try:
-                    by_symbol.setdefault(inst.get("trading_symbol"), []).append(inst)
-                except TypeError:
-                    # An unhashable symbol can never equal the string lookup key.
-                    pass
-            cached = (instruments, by_symbol)
-            self._token_index = cached
+            with self._INDEX_LOCK:
+                cached = getattr(self, "_token_index", None)
+                if cached is None or cached[0] is not instruments:
+                    by_symbol: dict[str, list[dict]] = {}
+                    for inst in instruments:
+                        try:
+                            by_symbol.setdefault(inst.get("trading_symbol"), []).append(inst)
+                        except TypeError:
+                            # An unhashable symbol can never equal the string lookup key.
+                            pass
+                    cached = (instruments, by_symbol)
+                    self._token_index = cached
         return cached[1]
 
     def resolve_token(

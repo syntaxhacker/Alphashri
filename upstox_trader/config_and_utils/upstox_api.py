@@ -4,6 +4,7 @@ Enhanced Upstox API client with real-time streaming capabilities.
 
 import gzip
 import json
+import threading
 import time
 import urllib.parse
 from datetime import datetime, timedelta
@@ -55,6 +56,9 @@ class UpstoxAPI(BaseAPIClient):
     - Seamless integration with old_tv_screen.py and other trading applications
     - Supports quiet mode to suppress console output when quiet=True
     """
+
+    # Class-level so instances built via __new__ in tests still have a lock.
+    _INDEX_LOCK = threading.Lock()
 
     def __init__(self, api_key: str, api_secret: str, quiet: bool = False):
         """
@@ -189,15 +193,18 @@ class UpstoxAPI(BaseAPIClient):
         instruments = self.instruments
         cached = getattr(self, "_instrument_index_cache", None)
         if cached is None or cached[0] is not instruments:
-            by_symbol: dict = {}
-            for inst in instruments:
-                try:
-                    by_symbol.setdefault(inst.get('trading_symbol'), []).append(inst)
-                except TypeError:
-                    # An unhashable symbol can never equal the string lookup key.
-                    pass
-            cached = (instruments, by_symbol, None)
-            self._instrument_index_cache = cached
+            with self._INDEX_LOCK:
+                cached = getattr(self, "_instrument_index_cache", None)
+                if cached is None or cached[0] is not instruments:
+                    by_symbol: dict = {}
+                    for inst in instruments:
+                        try:
+                            by_symbol.setdefault(inst.get('trading_symbol'), []).append(inst)
+                        except TypeError:
+                            # An unhashable symbol can never equal the string lookup key.
+                            pass
+                    cached = (instruments, by_symbol, None)
+                    self._instrument_index_cache = cached
         return cached
 
     def _name_index(self, cached: tuple) -> dict:
