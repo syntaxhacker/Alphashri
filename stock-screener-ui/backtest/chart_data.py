@@ -4,6 +4,7 @@ Chart Data Formatter
 Converts backtest results to ECharts-compatible format for visualization.
 """
 
+from bisect import bisect_right
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 from pathlib import Path
@@ -60,9 +61,18 @@ def format_candle_data(candle_data: Union[pd.DataFrame, Dict]) -> List[Dict]:
 
         return candles
 
-    # Handle DataFrame format
-    for idx, row in candle_data.iterrows():
-        dt = idx
+    # Handle DataFrame format with column arrays instead of one Series per row
+    if candle_data.empty:
+        return candles
+
+    index = candle_data.index
+    opens = candle_data['open'].to_numpy()
+    highs = candle_data['high'].to_numpy()
+    lows = candle_data['low'].to_numpy()
+    closes = candle_data['close'].to_numpy()
+    volumes = candle_data['volume'].to_numpy() if 'volume' in candle_data.columns else None
+
+    for i, dt in enumerate(index):
         if hasattr(dt, 'tz_convert') and dt.tz is not None:
             dt = dt.tz_convert(config.IST).replace(tzinfo=None)
 
@@ -70,11 +80,11 @@ def format_candle_data(candle_data: Union[pd.DataFrame, Dict]) -> List[Dict]:
             'time': dt.isoformat() if hasattr(dt, 'isoformat') else str(dt),
             'date': dt.strftime('%Y-%m-%d') if hasattr(dt, 'strftime') else str(dt)[:10],
             'time_str': dt.strftime('%H:%M') if hasattr(dt, 'strftime') else '00:00',
-            'open': float(row['open']),
-            'high': float(row['high']),
-            'low': float(row['low']),
-            'close': float(row['close']),
-            'volume': int(row.get('volume', 0)),
+            'open': float(opens[i]),
+            'high': float(highs[i]),
+            'low': float(lows[i]),
+            'close': float(closes[i]),
+            'volume': int(volumes[i]) if volumes is not None else 0,
         })
 
     return candles
@@ -152,18 +162,31 @@ def format_trade_markers(trades: List[Dict], candles: Optional[List[Dict]] = Non
     markers = []
 
     candle_time_map: Dict[str, int] = {}
+    times_by_date: Dict[str, List[str]] = {}
+    indices_by_date: Dict[str, List[int]] = {}
+    contiguous_dates = True
+    sorted_times = True
+    last_date = None
     if candles:
+        previous_time = None
         for i, c in enumerate(candles):
             candle_time_map[c['time'][:19]] = i
+            time = c['time']
+            date = c['date']
+            if previous_time is not None and time < previous_time:
+                sorted_times = False
+            previous_time = time
+            if date != last_date:
+                if date in times_by_date:
+                    contiguous_dates = False
+                times_by_date[date] = []
+                indices_by_date[date] = []
+                last_date = date
+            times_by_date[date].append(time)
+            indices_by_date[date].append(i)
+    use_bisect = sorted_times and contiguous_dates
 
-    def _find_idx(time_val: str) -> Optional[int]:
-        if not time_val:
-            return None
-        if candles is None:
-            return None
-        key = time_val[:19]
-        if key in candle_time_map:
-            return candle_time_map[key]
+    def _linear_find_idx(time_val: str) -> Optional[int]:
         trade_date = time_val[:10]
         best = -1
         for i, c in enumerate(candles):
@@ -176,6 +199,25 @@ def format_trade_markers(trades: List[Dict], candles: Optional[List[Dict]] = Non
             else:
                 break
         return best if best >= 0 else None
+
+    def _find_idx(time_val: str) -> Optional[int]:
+        if not time_val:
+            return None
+        if candles is None:
+            return None
+        key = time_val[:19]
+        if key in candle_time_map:
+            return candle_time_map[key]
+        if not use_bisect:
+            return _linear_find_idx(time_val)
+        trade_date = time_val[:10]
+        times = times_by_date.get(trade_date)
+        if not times:
+            return None
+        position = bisect_right(times, time_val) - 1
+        if position < 0:
+            return None
+        return indices_by_date[trade_date][position]
 
     for idx, trade in enumerate(trades):
         entry_idx = _find_idx(trade.get('entry_time', ''))
@@ -375,8 +417,10 @@ def calculate_52w_high_series(candles_df: pd.DataFrame, period: int = 252) -> Li
     if candles_df.empty:
         return []
 
+    rolling_high = candles_df['high'].rolling(window=period, min_periods=1).max()
+
     levels = []
-    for idx, row in candles_df.iterrows():
+    for i, idx in enumerate(candles_df.index):
         dt = idx
         if hasattr(dt, 'tz_convert') and dt.tz is not None:
             dt = dt.tz_convert(config.IST).replace(tzinfo=None)
@@ -385,7 +429,7 @@ def calculate_52w_high_series(candles_df: pd.DataFrame, period: int = 252) -> Li
         levels.append({
             'date': date_str,
             'date_raw': date_str,
-            '52w_high': round(float(rolling_high.loc[idx]), 2),
+            '52w_high': round(float(rolling_high.iloc[i]), 2),
         })
 
     return levels
@@ -529,19 +573,21 @@ def build_echarts_series(chart_data: Dict) -> Dict:
     # ORB zone lines (markLine data)
     orb_high_lines = []
     orb_low_lines = []
+    first_candle_by_date = {}
+    for candle in candles:
+        first_candle_by_date.setdefault(candle['date'], candle)
 
     for zone in orb_zones:
-        # Find candles for this date
-        day_candles = [c for c in candles if c['date'] == zone['date']]
-        if day_candles:
+        day_candle = first_candle_by_date.get(zone['date'])
+        if day_candle is not None:
             # ORB High line from OR end to last candle of day
             orb_high_lines.append({
-                'coord': [day_candles[0]['time'], zone['or_high']],
+                'coord': [day_candle['time'], zone['or_high']],
                 'lineStyle': {'type': 'dashed', 'color': '#4CAF50', 'width': 1},
             })
             # ORB Low line
             orb_low_lines.append({
-                'coord': [day_candles[0]['time'], zone['or_low']],
+                'coord': [day_candle['time'], zone['or_low']],
                 'lineStyle': {'type': 'dashed', 'color': '#F44336', 'width': 1},
             })
 
