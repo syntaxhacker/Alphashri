@@ -388,6 +388,8 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - `upstox_auth.py`'s `UpstoxAuthHandler.load_token()` checks DB → file. `save_token()` still writes to file for backward compat.
 - `UPSTOX_CONFIG` dict in root `config.py` only has `api_key`/`api_secret` (removed `access_token`)
 - Stale file-only patterns fixed: `sector_data.py` uses `UpstoxAuthHandler`, `upstox_auth_refresh.py` checks DB first
+- **EOD GitHub Actions jobs** (`refresh-52w.yml`) use the 1-year, read-only **Analytics Token**: secret `UPSTOX_ANALYTICS_TOKEN` → env `UPSTOX_ACCESS_TOKEN`, which `UpstoxAuthHandler.load_token()` picks up. OAuth access tokens expire daily at 03:30 IST and Upstox issues **no refresh token**, so they cannot power unattended batch runs; the Analytics Token covers historical candles, quotes and option-chain reads (no static IP needed) but **cannot place or modify orders**. OAuth access tokens still power trading/paper/broker endpoints that need order placement.
+- For compute-only scripts (e.g. `scripts/compute_52w_ranges_upstox.py`), either the key+secret pair **or** `UPSTOX_ACCESS_TOKEN` is sufficient; a token-only run passes empty key/secret to `UpstoxAPI` and relies on the auth handler loading the env token.
 
 ## Upstox Data Debugging
 - `scripts/test_upstox_data.py` — quick V3 API health check: tests LTP + intraday for 5 symbols, detects Cloudflare 1015 blocks and token expiry

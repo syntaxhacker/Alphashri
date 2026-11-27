@@ -411,13 +411,24 @@ def main() -> None:
 
     api_key = config.UPSTOX_API_KEY
     api_secret = config.UPSTOX_API_SECRET
-    if not api_key or not api_secret:
-        print("UPSTOX_API_KEY and UPSTOX_API_SECRET must be set (config / .env)")
+    # An existing token is sufficient on its own (e.g. the read-only Analytics
+    # Token used by EOD Actions, where OAuth tokens expire daily with no refresh).
+    access_token = os.environ.get("UPSTOX_ACCESS_TOKEN") or getattr(
+        config, "UPSTOX_ACCESS_TOKEN", None
+    )
+    has_key_pair = bool(api_key and api_secret)
+    if not has_key_pair and not access_token:
+        print(
+            "Either UPSTOX_API_KEY and UPSTOX_API_SECRET (config / .env) or "
+            "UPSTOX_ACCESS_TOKEN (env / config) must be set"
+        )
         sys.exit(1)
 
     from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
 
-    api = UpstoxAPI(api_key=api_key, api_secret=api_secret, quiet=True)
+    # With a token-only run the auth handler loads UPSTOX_ACCESS_TOKEN from the
+    # env, so empty key/secret strings are fine — they are never used for requests.
+    api = UpstoxAPI(api_key=api_key or "", api_secret=api_secret or "", quiet=True)
 
     if db_writes and args.migrate:
         init_db()
