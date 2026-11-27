@@ -1,9 +1,12 @@
 {
   "feature": "trendline-removal",
   "route": "/patterns",
-  "head": "30773d7bec3e497f9c7ca39c508583bbab46a08f",
-  "viewports": [1600, 390],
-  "data": "ALL chart-bearing states (patterns-loaded, legend-loaded, fullscreen-loaded at 1600 and 390) share ONE real 200-bar IRCON 1D OHLCV fixture (2026-02-03 to 2026-11-25) from experiments/data/pattern_cache/candles/1D/IRCON.v3.pkl, with price ₹107.36 and consistent as-of 25 Nov / LAST CANDLE 2026-11-25; S/R bands come from the IRCON pattern fixture's own breakout/target/stop prices. Pattern rows mirror tests/mocks/patternEvidence.ts. Loading (pending matrix), error (mocked 500) and empty states are mocked; all other states use the shared pattern mocks. API routes are mocked in Playwright; no devtools/server restart.",
+  "head": "b5a5fb9d04319f74d37cb68c971d30c5c4fab0ee",
+  "viewports": [
+    1600,
+    390
+  ],
+  "data": "ALL chart-bearing states (patterns-loaded, legend-loaded, fullscreen-loaded at 1600 and 390) share ONE real 200-bar IRCON 1D OHLCV fixture (2026-02-03 to 2026-11-25) from experiments/data/pattern_cache/candles/1D/IRCON.v3.pkl, with price \u20b9107.36 and consistent as-of 25 Nov / LAST CANDLE 2026-11-25; S/R bands come from the IRCON pattern fixture's own breakout/target/stop prices. Pattern rows mirror tests/mocks/patternEvidence.ts. Loading (pending matrix), error (mocked 500) and empty states are mocked; all other states use the shared pattern mocks. API routes are mocked in Playwright; no devtools/server restart.",
   "sha256": {
     "tl-patterns-loaded-1600.png": "4c6ee2b158f00046aaf435d03e1dd5caf27b87672585593f134ed9f9f0ceffde",
     "tl-patterns-loaded-390.png": "9516891a0248a13a18f94f6abe2e30c266c80ea0e24268f0e19b0d275449224e",

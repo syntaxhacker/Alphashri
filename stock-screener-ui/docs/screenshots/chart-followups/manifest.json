@@ -1,8 +1,11 @@
 {
   "feature": "chart-followups",
   "route": "/chart/POWERGRID",
-  "head": "30773d7bec3e497f9c7ca39c508583bbab46a08f",
-  "viewports": [1600, 390],
+  "head": "b5a5fb9d04319f74d37cb68c971d30c5c4fab0ee",
+  "viewports": [
+    1600,
+    390
+  ],
   "data": "Real POWERGRID 1D candles and backend-computed sr_zones (500 bars, last close 266.75) from the chart perf fixture; API routes mocked in Playwright.",
   "sha256": {
     "chart-followups-sr-1600.png": "03702f808c8243438c673e3ee71e18396d737cc6b5ff92a9d39ce7f386f5dd45",
