@@ -10,7 +10,8 @@ export function burstTimeLabel(t: string): string {
   return clockLabel(t);
 }
 
-export function compact(v: number): string {
+export function compact(v: number | null | undefined): string {
+  if (typeof v !== "number" || !Number.isFinite(v)) return "—";
   const sign = v < 0 ? "-" : "+";
   const abs = Math.abs(v);
   if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(2)}M`;

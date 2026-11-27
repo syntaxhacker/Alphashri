@@ -516,7 +516,7 @@ def _clear_all_enrichment() -> None:
 
 #: Hard upper bound on one symbol-chart candle fetch (seconds). Env-overridable
 #: for deployments on slower feeds; 0 disables the cap.
-_CHART_FETCH_TIMEOUT_SEC = float(os.environ.get("CHART_FETCH_TIMEOUT_SEC", "7.0"))
+_CHART_FETCH_TIMEOUT_SEC = float(os.environ.get("CHART_FETCH_TIMEOUT_SEC", "30.0"))
 #: TTL of a negative (empty-result) cache entry (seconds).
 _CHART_NEG_CACHE_TTL_SEC = float(os.environ.get("CHART_NEG_CACHE_TTL_SEC", "300.0"))
 #: TTL for a *timeout* entry. A timeout is transient (cold feed, one slow

@@ -909,3 +909,108 @@ class TestBurstGapAndBaseline:
         assert len(out) == 1
         assert out[0]["baseline"] == 1_000.0
         assert out[0]["score"] == 12.0
+
+
+# ---------------------------------------------------- non-directional events
+
+class TestBurstFlowGate:
+    """Only a directional OI claim may go through verify_burst_flow.
+
+    Wall relocations, coils, wall tests/rejections/breaks and the staleness
+    watchdog carry detector-native verdicts. The enrichment loop used to send
+    every merged burst through chain10s confirmation, which stamped these
+    non-directional events ``flow="unconfirmed"`` with ``plan_suppressed`` and
+    a null signal — an "unconfirmed" label on an event that claimed no
+    direction. Genuine OI bursts must keep full confirmation.
+    """
+
+    @staticmethod
+    def _denying_frames():
+        # A frame at a minute no burst uses: anything routed to
+        # verify_burst_flow is denied with "missing_chain10s_frame".
+        return {"2026-10-13T09:00": {
+            "rows": [[23_000.0, 80.0, 1_000.0, 0.0, 30.0, 5_000.0, 0.0]],
+        }}
+
+    @staticmethod
+    def _confirming_frames():
+        # 09:18 -> 09:19 call OI +10,000 with premium -10 = "writers" (bearish),
+        # which agrees with a call build's claimed direction. The conflicting
+        # spot then denies with "spot_disagrees" — confirmation is not weakened.
+        return {
+            "2026-10-13T09:18": {
+                "t": _t("09:18"),
+                "rows": [[22_500.0, 80.0, 1_000.0, 0.0, 30.0, 5_000.0, 0.0]],
+            },
+            "2026-10-13T09:19": {
+                "t": _t("09:19"),
+                "rows": [[22_500.0, 70.0, 11_000.0, 0.0, 30.0, 5_000.0, 0.0]],
+            },
+        }
+
+    @staticmethod
+    def _row(t, spot=22_500.0, call_wall=None, put_wall=None):
+        row = {"t": t, "spot": spot, "ce_oi": 1_000, "pe_oi": 5_000,
+               "ce_vol": 0, "pe_vol": 0, "pcr_oi": 1.0}
+        if call_wall is not None or put_wall is not None:
+            row["walls"] = {
+                "calls": [{"strike": call_wall, "oi": 5_000_000}] if call_wall else [],
+                "puts": [{"strike": put_wall, "oi": 5_000_000}] if put_wall else [],
+            }
+        return row
+
+    @classmethod
+    def _wall_tape(cls):
+        # Two strikes (100 pts) of call-wall migration in an adjacent minute.
+        return [cls._row(_t("14:00"), call_wall=23_000.0, put_wall=22_000.0),
+                cls._row(_t("14:01"), call_wall=23_100.0, put_wall=22_000.0)]
+
+    @classmethod
+    def _coil_tape(cls):
+        # Spot hugs the call wall on a tiny range; OI is flat, so the coil is
+        # the only event in the feed.
+        return [cls._row(f"{DATE}T14:{i:02d}:00+05:30", spot=22_748 + (i % 3),
+                         call_wall=22_750.0, put_wall=22_500.0)
+                for i in range(11)]
+
+    def _feed(self, tape_dir, tape, monkeypatch, frames=None):
+        _write_tape(tape_dir, tape)
+        monkeypatch.setattr(
+            nifty, "_cached_chain10s_minute_frames",
+            lambda date_str: self._denying_frames() if frames is None else frames)
+        return get_nifty_bursts(date=DATE, window=3, min_abs=1_000, _now=_t("09:18"))
+
+    def test_wall_move_is_not_stamped_unconfirmed(self, _tmp_tape, monkeypatch):
+        out = self._feed(_tmp_tape, self._wall_tape(), monkeypatch)
+        walls = [b for b in out["bursts"] if b.get("type") == "wall"]
+        assert walls, "expected a wall relocation in the feed"
+        for b in walls:
+            assert b.get("flow") != "unconfirmed", b
+            assert not b.get("plan_suppressed"), b
+            assert b.get("severity") in ("watch", "alert", "critical")
+
+    def test_coil_is_not_stamped_unconfirmed(self, _tmp_tape, monkeypatch):
+        out = self._feed(_tmp_tape, self._coil_tape(), monkeypatch)
+        coils = [b for b in out["bursts"] if b.get("type") == "coil"]
+        assert coils, "expected a coil in the feed"
+        for b in coils:
+            assert b.get("flow") != "unconfirmed", b
+            assert not b.get("plan_suppressed"), b
+            assert b.get("severity") == "watch"
+
+    def test_wall_move_has_a_stable_id(self, _tmp_tape, monkeypatch):
+        out = self._feed(_tmp_tape, self._wall_tape(), monkeypatch)
+        wall = next(b for b in out["bursts"] if b.get("type") == "wall")
+        assert wall["id"] == f"{_t('14:01')}-wall-call-23000-23100"
+        again = self._feed(_tmp_tape, self._wall_tape(), monkeypatch)
+        assert next(b for b in again["bursts"] if b.get("type") == "wall")["id"] == wall["id"]
+
+    def test_directional_burst_is_still_unconfirmed_on_conflicting_spot(self, _tmp_tape, monkeypatch):
+        rows = _spike_rows()
+        rows[-1] = {**rows[-1], "spot": 22_510.0}  # spot UP; call build claims DOWN
+        out = self._feed(_tmp_tape, rows, monkeypatch, frames=self._confirming_frames())
+        b = next(x for x in out["bursts"]
+                 if x.get("t") == _t("09:19") and not x.get("type"))
+        assert b["flow"] == "unconfirmed"
+        assert b["plan_suppressed"] is True
+        assert "spot_disagrees" in b["confirmation"]["reasons"]

@@ -2847,6 +2847,16 @@ def test_candle_fields_delegates_to_last_close_change(monkeypatch):
 
 
 
+def test_chart_fetch_timeout_default_is_bounded_30s():
+    """The forced-refresh candle fetch cap defaults to 30s (still bounded and
+    still overridable via CHART_FETCH_TIMEOUT_SEC).
+
+    A 7s cap aborted live refreshes that take ~7.01s and served a stale frame
+    with ``upstream timed out after 7s``.
+    """
+    assert cp_api._CHART_FETCH_TIMEOUT_SEC == 30.0
+
+
 def _hanging_fetch(symbol, timeframe, **kwargs):
     """Simulate a hung Upstox/TV feed that never returns."""
     import threading as _threading
