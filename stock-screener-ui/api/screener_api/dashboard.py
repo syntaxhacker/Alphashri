@@ -58,7 +58,10 @@ _LOGOID_RE = re.compile(r"^[A-Za-z0-9-]+$")
 CACHE_TTL_SECONDS = 60
 SPARK_BARS = 30
 SPARK_MAX_SYMBOLS = 60
-SPARK_WORKERS = 6
+# The fan-out waits on independent 1m candle reads: a fixed-latency stub
+# (60 symbols x 20 ms) ran 208/106/86 ms at 6/12/16 workers against 200/100/80
+# ms ideal. The wait is pool-bound, so 16 buys ~2.4x without a larger pool.
+SPARK_WORKERS = 16
 # 4000, not 3000. This is an input cap, not what bounds the panels: measured,
 # TV returns 4,000 rows for `india` either way and only ~2,450 of those are in
 # the `all_equity` universe list, which is the real binding limit
