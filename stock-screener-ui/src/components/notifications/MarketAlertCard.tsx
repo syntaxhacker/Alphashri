@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { ActionIcon, Box, Text } from "@/ui";
 import { displaySymbol } from "@/config/tvSymbols";
 import { IconX } from "../common/Icons";
@@ -142,6 +142,8 @@ export interface MarketAlertRowProps {
   active?: boolean;
   /** Toast width: drop the KIND + FACTS columns so the headline stays readable. */
   compact?: boolean;
+  /** Column geometry supplied by the log; standalone rows use the wide layout. */
+  layout?: LogLayout;
   onSelect?: (alert: MarketAlert) => void;
   onOpen?: (alert: MarketAlert) => void;
   onDismiss?: (id: string) => void;
@@ -159,6 +161,7 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
   const onSelect = () => props.onSelect;
   const onOpen = () => props.onOpen;
   const onDismiss = () => props.onDismiss;
+  const layout = () => props.layout ?? LOG_LAYOUT_WIDE;
   const sev = () => ALERT_SEVERITY[alert().severity];
   const symbol = () => displaySymbol(alert().symbol);
   const clickable = () => typeof onOpen() === "function" || typeof onSelect() === "function";
@@ -197,11 +200,12 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
     >
       <Rail severity={alert().severity} />
       <Box
+        data-col="kind"
         style={{
-          width: "34px",
+          width: `${layout().kind}px`,
           "padding-left": "6px",
           "flex-shrink": 0,
-          display: compact() ? "none" : "block",
+          display: compact() || layout().kind === 0 ? "none" : "block",
         }}
       >
         <Text size="xs" span c="dimmed">{ALERT_KIND_CODE[alert().kind]}</Text>
@@ -209,8 +213,9 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
       <Box
         component="span"
         data-testid="market-alert-severity"
+        data-col="sev"
         style={{
-          width: compact() ? "62px" : "70px",
+          width: compact() ? "62px" : `${layout().sev}px`,
           "flex-shrink": 0,
           overflow: "hidden",
         }}
@@ -228,7 +233,7 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
       <Show
         when={alert().href}
         fallback={
-          <Box style={{ width: "92px", "flex-shrink": 0, overflow: "hidden" }}>
+          <Box data-col="symbol" style={{ width: `${layout().symbol}px`, "flex-shrink": 0, overflow: "hidden" }}>
             <Text size="xs" span fw={700} truncate>{symbol()}</Text>
           </Box>
         }
@@ -236,27 +241,36 @@ export function MarketAlertRow(props: MarketAlertRowProps) {
         <a
           href={alert()!.href}
           data-testid="market-alert-link"
+          data-col="symbol"
           aria-label={`Open ${symbol()} — ${alert().title}`}
           title={alert()!.href}
           onClick={(e) => e.stopPropagation()}
-          class="inline-flex w-[92px] shrink-0 items-center overflow-hidden text-inherit no-underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary"
-          style={{ color: "inherit" }}
+          class="inline-flex shrink-0 items-center overflow-hidden text-inherit no-underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-fin-primary"
+          style={{ width: `${layout().symbol}px`, color: "inherit" }}
         >
           <Text size="xs" span fw={700} truncate>{symbol()}</Text>
         </a>
       </Show>
-      <Box className="flex-1 min-w-0 overflow-hidden">
-        <Text size="xs" span truncate>{alert().title}</Text>
+      <Box
+        data-col="headline"
+        data-testid="market-alert-row-headline"
+        className="flex-1 min-w-0 overflow-hidden"
+        style={{ "min-width": `${layout().headlineMin}px` }}
+      >
+        <Text size="xs" span truncate>
+          {layout().kind === 0 ? `${ALERT_KIND_CODE[alert().kind]} · ${alert().title}` : alert().title}
+        </Text>
       </Box>
       <Show when={!compact()}>
         <Show
           when={alert().metrics && alert().metrics!.length > 0}
-          fallback={<Box style={{ width: "232px", "flex-shrink": 0 }} />}
+          fallback={<Box data-col="facts" style={{ width: `${layout().facts}px`, "flex-shrink": 0 }} />}
         >
           <Box
             data-testid="market-alert-metrics"
+            data-col="facts"
             className="flex gap-1.5"
-            style={{ width: "232px", "flex-shrink": 0, overflow: "hidden" }}
+            style={{ width: `${layout().facts}px`, "flex-shrink": 0, overflow: "hidden" }}
           >
             <For each={alert().metrics!.slice(0, 3)}>{(m) => <Fact m={m} />}</For>
           </Box>
@@ -422,6 +436,66 @@ export interface MarketAlertLogProps {
 
 const LOG_COLUMNS = ["", "KIND", "SEV", "SYMBOL", "HEADLINE", "FACTS", "IST"] as const;
 
+/** Below this width the fixed terminal columns starve HEADLINE of all space. */
+export const LOG_NARROW_BREAKPOINT = 640;
+const LOG_RAIL = 2;
+const LOG_GAP = 4;
+const LOG_CHROME = 6;
+
+export interface LogLayout {
+  /** 0 = the KIND column is dropped so TYPE can keep a readable headline. */
+  kind: number;
+  sev: number;
+  symbol: number;
+  facts: number;
+  ist: number;
+  dismiss: number;
+  headlineMin: number;
+}
+
+const LOG_LAYOUT_WIDE: LogLayout = {
+  kind: 34,
+  sev: 70,
+  symbol: 92,
+  facts: 232,
+  ist: 34,
+  dismiss: 18,
+  headlineMin: 0,
+};
+
+const LOG_LAYOUT_NARROW: LogLayout = {
+  kind: 0,
+  sev: 64,
+  symbol: 70,
+  facts: 96,
+  ist: 34,
+  dismiss: 18,
+  headlineMin: 48,
+};
+
+export function logLayoutFor(width: number): LogLayout {
+  return width > 0 && width <= LOG_NARROW_BREAKPOINT ? LOG_LAYOUT_NARROW : LOG_LAYOUT_WIDE;
+}
+
+/** Every column except HEADLINE, plus the gaps between the flex children. */
+export function logFixedWidth(layout: LogLayout): number {
+  const columns = [
+    LOG_RAIL,
+    layout.kind,
+    layout.sev,
+    layout.symbol,
+    layout.facts,
+    layout.ist,
+    layout.dismiss,
+  ].filter((w) => w > 0);
+  return columns.reduce((sum, w) => sum + w, columns.length * LOG_GAP + LOG_CHROME);
+}
+
+/** HEADLINE keeps at least its minimum when the layout is used at `width`. */
+export function logLayoutFits(width: number, layout = logLayoutFor(width)): boolean {
+  return logFixedWidth(layout) + layout.headlineMin <= width;
+}
+
 /**
  * The Bloomberg view: a sticky-header log that fills the viewport, one alert
  * per 20px row, keyboard driven. ↑/↓ move the active row, ⏎ opens, Esc
@@ -475,6 +549,17 @@ export function MarketAlertLog(props: MarketAlertLogProps) {
   const heightStyle = () => (typeof props.height === "number" ? `${props.height}px` : props.height);
   const fill = () => props.fill ?? true;
 
+  const [viewportWidth, setViewportWidth] = createSignal(
+    typeof window === "undefined" ? Number.MAX_SAFE_INTEGER : window.innerWidth,
+  );
+  onMount(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    onCleanup(() => window.removeEventListener("resize", onResize));
+  });
+  const layout = createMemo(() => logLayoutFor(viewportWidth()));
+  const fits = createMemo(() => logLayoutFits(viewportWidth(), layout()));
+
   return (
     <Box
       data-testid="market-alert-log"
@@ -504,28 +589,48 @@ export function MarketAlertLog(props: MarketAlertLogProps) {
         }}
       >
         <Box style={{ width: "2px", "flex-shrink": 0 }} />
-        <Box style={{ width: "34px", "padding-left": "6px", "flex-shrink": 0 }}>
+        <Box
+          data-col="kind"
+          style={{
+            width: `${layout().kind}px`,
+            "padding-left": "6px",
+            "flex-shrink": 0,
+            display: layout().kind === 0 ? "none" : "block",
+          }}
+        >
           <Text size="xs" span c="dimmed">K</Text>
         </Box>
-        <Box style={{ width: "70px", "flex-shrink": 0 }}>
+        <Box data-col="sev" style={{ width: `${layout().sev}px`, "flex-shrink": 0 }}>
           <Text size="xs" span c="dimmed">SEV</Text>
         </Box>
-        <Box style={{ width: "92px", "flex-shrink": 0 }}>
+        <Box data-col="symbol" style={{ width: `${layout().symbol}px`, "flex-shrink": 0 }}>
           <Text size="xs" span c="dimmed">SYMBOL</Text>
         </Box>
-        <Box className="flex-1 min-w-0 overflow-hidden">
+        <Box
+          data-col="headline"
+          data-testid="market-alert-log-headline"
+          className="flex-1 min-w-0 overflow-hidden"
+          style={{ "min-width": `${layout().headlineMin}px` }}
+        >
           <Text size="xs" span c="dimmed">HEADLINE</Text>
         </Box>
-        <Box style={{ width: "232px", "flex-shrink": 0 }}>
+        <Box data-col="facts" style={{ width: `${layout().facts}px`, "flex-shrink": 0 }}>
           <Text size="xs" span c="dimmed">FACTS</Text>
         </Box>
-        <Box style={{ width: "34px", "flex-shrink": 0, "text-align": "right" }}>
+        <Box data-col="ist" style={{ width: `${layout().ist}px`, "flex-shrink": 0, "text-align": "right" }}>
           <Text size="xs" span c="dimmed">IST</Text>
         </Box>
-        <Box style={{ width: "18px", "flex-shrink": 0 }} />
+        <Box style={{ width: `${layout().dismiss}px`, "flex-shrink": 0 }} />
       </Box>
 
-      <Box ref={(el: HTMLDivElement) => (scrollRef = el)} style={{ flex: 1, "min-height": "0px", overflow: "auto" }}>
+      <Box
+        ref={(el: HTMLDivElement) => (scrollRef = el)}
+        data-testid="market-alert-log-scroll"
+        tabIndex={fits() ? undefined : 0}
+        role={fits() ? undefined : "region"}
+        aria-label={fits() ? undefined : "Alert log — scroll horizontally"}
+        style={{ flex: 1, "min-height": "0px", overflow: "auto" }}
+      >
         <Show when={rows().length > 0} fallback={
           <Box style={{ padding: "8px" }}>
             <Text size="xs" c="dimmed">NO ALERTS</Text>
@@ -536,6 +641,7 @@ export function MarketAlertLog(props: MarketAlertLogProps) {
               <MarketAlertRow
                 alert={a}
                 active={i() === activeIndex()}
+                layout={layout()}
                 onSelect={(al) => {
                   setActiveIndex(i());
                   props.onOpen?.(al);
@@ -561,7 +667,12 @@ export function MarketAlertLog(props: MarketAlertLogProps) {
           "background-color": palette.SURFACE,
         }}
       >
-        <Text size="xs" span c="dimmed">{rows().length} rows</Text>
+        <Box className="flex items-center gap-1">
+          <Text size="xs" span c="dimmed">{rows().length} rows</Text>
+          <Show when={!fits()}>
+            <Text data-testid="market-alert-log-scroll-cue" size="xs" span c="dimmed">SCROLL →</Text>
+          </Show>
+        </Box>
         <Text size="xs" span c="dimmed">↑↓ MOVE · ⏎ OPEN · ESC DISMISS</Text>
       </Box>
     </Box>
