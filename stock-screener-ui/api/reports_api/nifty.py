@@ -4326,6 +4326,7 @@ def detect_wall_moves(rows: list[dict],
                     if not flip and steps < float(min_strikes):
                         continue
                     out.append({
+                        "id": f"{row.get('t')}-wall-{side}-{old:.0f}-{new:.0f}",
                         "t": str(row.get("t")),
                         "type": "wall",
                         "kind": "wall",
@@ -4718,6 +4719,15 @@ def _drop_duplicate_minute_plans(bursts: list[dict]) -> None:
                 b["plan_suppressed"] = True
 
 
+#: Burst types that make a DIRECTIONAL OI claim, so chain10s can confirm it.
+#: A plain OI burst carries no ``type`` key and is the directional default.
+#: Everything else (coil, wall relocation, wall test/rejection/break,
+#: data_stale) carries its detector's native verdict: sending those through
+#: verify_burst_flow stamped "unconfirmed" on events that never claimed a
+#: direction, with a suppressed plan and no signal.
+DIRECTIONAL_BURST_TYPES = frozenset({"strike", "premium", "squeeze"})
+
+
 @router.get("/nifty/bursts")
 @router.get("/nifty/bursts", dependencies=[Depends(get_current_user)])
 def get_nifty_bursts(
@@ -4830,7 +4840,11 @@ def get_nifty_bursts(
     # held to same-strike confirmation (older tapes predate the poller).
     chain_frames = _cached_chain10s_minute_frames(date_str)
     for b in bursts:
-        if chain_frames:
+        # Only a directional OI claim can be confirmed by same-strike chain
+        # data. State/heads-up events keep their detector-native labels and
+        # severity instead of an invented "unconfirmed" verdict.
+        if chain_frames and (b.get("type") is None
+                             or b.get("type") in DIRECTIONAL_BURST_TYPES):
             try:
                 verified = verify_burst_flow(b, rows, date_str,
                                              chain_frames, classify_flow)
