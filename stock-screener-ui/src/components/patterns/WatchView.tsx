@@ -21,7 +21,7 @@ import type { MarketStatus, WatchRow, WatchSetup } from "@/types/chartPatterns";
 import type { WatchStreamMeta } from "@/api/chartPatterns";
 import { formatCurrency, formatPercentage } from "@/utils/ui-helpers";
 import type { CsvColumn } from "@/utils/copyCsv";
-import { isMarketOpenIst } from "@/utils/marketClock";
+import { isMarketOpenNow } from "@/state/holidays";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import { SymbolLink } from "@/components/common/SymbolLink";
 import { IconCheck, IconCopy } from "@/components/common/Icons";
@@ -76,11 +76,11 @@ function lastTouchDateOf(row: WatchRow): string | null | undefined {
 }
 
 /**
- * True between 09:15–15:30 IST, Mon–Fri. Delegates to the shared NSE session
- * clock so the watch list and the daily report can never disagree.
+ * Holiday-aware 09:15–15:30 IST gate. Delegates to the single user-facing
+ * market gate so the watch list agrees with every other screen on holidays.
  */
 export function isWatchLiveNow(now: Date = new Date()): boolean {
-  return isMarketOpenIst(now);
+  return isMarketOpenNow(now);
 }
 
 /**
@@ -452,8 +452,8 @@ export function sortFor(setup: string): Array<{ id: string; desc: boolean }> {
 /**
  * Breakout Watch tab body: setup picker + rel-vol filter + live watch table.
  * Polls `/watch` every 20s while the market is open. Liveness is gated on the
- * holiday-aware `/market-status` probe (`open === true`); the IST 09:15–15:30
- * Mon–Fri clock is only a fallback when that probe fails.
+ * holiday-aware `/market-status` probe (`open === true`); the holiday-aware
+ * `isMarketOpenNow()` gate is only a fallback when that probe fails.
  */
 export function WatchView(props: WatchViewProps) {
   const universe = () => props.universe;
