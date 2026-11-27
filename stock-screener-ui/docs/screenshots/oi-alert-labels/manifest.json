@@ -1,7 +1,7 @@
 {
   "feature": "oi-alert-labels",
   "route": "/report/index",
-  "head": "e071ba8a61cd713ea6e9ace6c270863d29df170b",
+  "head": "30773d7bec3e497f9c7ca39c508583bbab46a08f",
   "viewports": [1600, 390],
   "sha256": {
     "oi-wall-relocation-1600.png": "8ce95a5042c05da0dc2e8d68c9efab9506c6bab2cb7c9a3a737d8070eb5d56c0",
