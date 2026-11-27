@@ -828,30 +828,68 @@ def _aggregate_theme_groups(
         )
         norm_names = df_unique['name'].astype(str).str.strip().str.upper()
 
-        info = slug_to_info or {}
-        items: List[GroupPerformanceItem] = []
+        # Shared memberships mean a symbol can be claimed by several themes;
+        # invert once and walk the frame once instead of re-filtering it per
+        # theme. Summations reuse pandas Series so float results stay identical.
+        symbol_slugs: Dict[str, List[str]] = {}
+        stats: Dict[str, List[Any]] = {}
+        ordered_slugs: List[str] = []
         for slug, members in slug_to_members.items():
             wanted = {str(m).strip().upper() for m in members}
             if not wanted:
                 continue
-            sub = df_unique[norm_names.isin(wanted)]
-            if sub.empty:
+            ordered_slugs.append(slug)
+            stats[slug] = [0, 0, 0, [], []]
+            for symbol in wanted:
+                symbol_slugs.setdefault(symbol, []).append(slug)
+
+        vals = df_unique[period_col]
+        weights = df_unique['market_cap_basic']
+        valid_mask = (vals.notna() & weights.notna()).to_numpy()
+        # fillna keeps nullable-dtype NA rows out of advances/declines, as
+        # Series.sum() does on the comparison mask.
+        positive = (vals > 0).fillna(False).to_numpy(dtype=bool)
+        negative = (vals < 0).fillna(False).to_numpy(dtype=bool)
+        for name, val, weight, valid, up, down in zip(
+            norm_names, vals, weights, valid_mask, positive, negative
+        ):
+            slugs = symbol_slugs.get(name)
+            if not slugs:
                 continue
-            vals = sub[period_col]
-            weights = sub['market_cap_basic']
-            valid = vals.notna() & weights.notna()
-            total_w = float(weights[valid].sum()) if valid.any() else 0.0
-            if total_w > 0:
-                change = float((vals[valid] * weights[valid]).sum() / total_w)
+            for slug in slugs:
+                acc = stats[slug]
+                acc[0] += 1
+                if up:
+                    acc[1] += 1
+                elif down:
+                    acc[2] += 1
+                if valid:
+                    acc[3].append(val)
+                    acc[4].append(weight)
+
+        info = slug_to_info or {}
+        items: List[GroupPerformanceItem] = []
+        for slug in ordered_slugs:
+            count, advances, declines, valid_vals, valid_weights = stats[slug]
+            if not count:
+                continue
+            if valid_vals:
+                theme_vals = pd.Series(valid_vals)
+                theme_weights = pd.Series(valid_weights)
+                total_w = float(theme_weights.sum())
+                change = (
+                    float((theme_vals * theme_weights).sum() / total_w)
+                    if total_w > 0 else 0.0
+                )
             else:
                 change = 0.0
             items.append(GroupPerformanceItem(
                 name=str(info.get(slug, {}).get("name") or slug),
                 slug=str(slug),
                 change=round(change, 2),
-                stock_count=int(len(sub)),
-                advances=int((vals > 0).sum()),
-                declines=int((vals < 0).sum()),
+                stock_count=int(count),
+                advances=int(advances),
+                declines=int(declines),
             ))
 
         items.sort(key=lambda g: g.change, reverse=True)
