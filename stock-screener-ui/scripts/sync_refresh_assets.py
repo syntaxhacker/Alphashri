@@ -57,6 +57,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from common.numbers import optional_float as _to_float
 from trading.week52.upsert import upsert_52w_ranges
 
 DEFAULT_REPO = "syntaxhacker/Alphashri"
@@ -751,16 +752,6 @@ def _manifest_path(pair: AssetPair) -> Path:
 # ---------------------------------------------------------------------------
 # Apply
 # ---------------------------------------------------------------------------
-
-
-def _to_float(value: Any) -> Optional[float]:
-    if value is None or value == "":
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return number if math.isfinite(number) else None
 
 
 def normalize_agri_row(row: dict[str, Any]) -> Optional[dict[str, Any]]:

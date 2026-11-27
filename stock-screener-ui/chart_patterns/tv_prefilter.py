@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from api.tv import get_scanner_data
-from api.utils import optional_float
+from common.numbers import optional_float
 
 log = logging.getLogger(__name__)
 

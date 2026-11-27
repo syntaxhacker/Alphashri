@@ -1,31 +1,15 @@
 """Pure 52-week math helpers (extracted from api/screener_api/screener_models.py).
 
-Threshold readers and STALE_52W_BREAKOUT_PCT live in .config. This module has no
-api/db imports so it stays cheap for every screener caller.
+Threshold readers and STALE_52W_BREAKOUT_PCT live in .config. Numeric coercion
+comes from the stdlib-only ``common.numbers``; this module has no api/db imports
+so it stays cheap for every screener caller.
 """
 
 import math
 import re
 from typing import Optional
 
-
-def _to_float(value, default: float = 0.0) -> float:
-    """Finite-float coercion for screener fields (None/NaN/Inf/error -> default).
-
-    Deliberate leaf copy of ``api.utils._to_float``: importing api.utils pulls
-    ``api/__init__`` -> every router -> auth -> db at import time. Use a neutral
-    shared numeric helper instead once one exists; parity is guarded in tests.
-    """
-    try:
-        if value is None:
-            return default
-        out = float(value)
-        if not math.isfinite(out):
-            return default
-        return out
-    except Exception:
-        return default
-
+from common.numbers import to_float as _to_float
 
 from .config import (
     STALE_52W_BREAKOUT_PCT,
