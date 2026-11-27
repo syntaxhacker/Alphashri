@@ -50,9 +50,36 @@ def _extract_domain(key: str) -> str:
 _REDIS_HEALTH_CHECK_INTERVAL = 30  # seconds between explicit ping health checks
 _last_health_check_time = 0.0
 
+# Compute-only runs set REDIS_DISABLED before their worker pool starts. Read on
+# every call so a late `os.environ` change takes effect without a module reload.
+_REDIS_DISABLED_VALUES = frozenset({"1", "true", "yes"})
+_redis_unavailable_until = 0.0
+_REDIS_RECONNECT_COOLDOWN = 30.0
+_unavailable_warned = False
+
+
+def _redis_disabled() -> bool:
+    return os.getenv("REDIS_DISABLED", "").strip().lower() in _REDIS_DISABLED_VALUES
+
+
+def _warn_redis_unavailable(message: str, error: Exception) -> None:
+    global _unavailable_warned
+    if not _unavailable_warned:
+        _unavailable_warned = True
+        logger.warning("%s: %s", message, error)
+
 
 def get_redis_client():
-    global _redis_client, _redis_available, _CONSECUTIVE_FAILURES, _last_health_check_time
+    global _redis_client, _redis_available, _CONSECUTIVE_FAILURES, \
+        _last_health_check_time, _redis_unavailable_until
+
+    if _redis_disabled():
+        return None
+
+    # A dead Redis used to cost a 5-second connect timeout on every cache call.
+    # Back off after the first failure instead of retrying per call.
+    if _redis_unavailable_until > time.monotonic():
+        return None
 
     if _redis_client is not None:
         now = time.time()
@@ -62,11 +89,12 @@ def get_redis_client():
             _redis_client.ping()
             _last_health_check_time = now
             return _redis_client
-        except Exception:
+        except Exception as e:
             _redis_client = None
             _redis_available = False
             _CONSECUTIVE_FAILURES += 1
-            logger.warning("Redis connection lost, will attempt reconnect")
+            _redis_unavailable_until = time.monotonic() + _REDIS_RECONNECT_COOLDOWN
+            _warn_redis_unavailable("Redis connection lost, caching disabled", e)
 
     try:
         import redis
@@ -87,10 +115,10 @@ def get_redis_client():
         logger.info("Redis connected: %s", url)
     except Exception as e:
         _redis_client = None
+        _redis_available = False
         _CONSECUTIVE_FAILURES += 1
-        if _CONSECUTIVE_FAILURES >= _MAX_FAILURES_BEFORE_RESET:
-            _redis_available = False
-        logger.warning("Redis unavailable, caching disabled: %s", e)
+        _redis_unavailable_until = time.monotonic() + _REDIS_RECONNECT_COOLDOWN
+        _warn_redis_unavailable("Redis unavailable, caching disabled", e)
 
     return _redis_client
 
@@ -255,7 +283,7 @@ def cached(prefix: str, ttl: Optional[int] = None, key_builder: Optional[Callabl
 
 
 def close_redis():
-    global _redis_client, _redis_available
+    global _redis_client, _redis_available, _redis_unavailable_until, _unavailable_warned
     _flush_stats_to_redis()
     if _redis_client is not None:
         try:
@@ -264,6 +292,8 @@ def close_redis():
             pass
         _redis_client = None
         _redis_available = False
+    _redis_unavailable_until = 0.0
+    _unavailable_warned = False
 
 
 def _flush_stats_to_redis():
