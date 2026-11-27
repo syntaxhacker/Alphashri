@@ -96,8 +96,8 @@ export function useNiftyOiAlerts(
    * still get the derivation.
    */
   const toAlert = (b: OiBurst, chainNow: NiftyStrike[], spotNow: number): MarketAlert => {
-      // Wall geometry + stale-data warnings carry no trade plan: map them
-      // directly so no signal is derived from a zero-delta event.
+      // Wall geometry, relocations, coils + stale-data warnings carry no trade
+      // plan: map them directly so no signal is derived from a zero-delta event.
       if (isNonTradeAlertType(b.type)) return burstToAlert(b);
       const withheld = b.plan_suppressed === true || b.flow === "unconfirmed";
       const flowDir = withheld ? null : resolveOiDirection(b);

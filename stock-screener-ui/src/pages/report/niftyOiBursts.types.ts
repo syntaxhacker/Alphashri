@@ -50,13 +50,15 @@ export interface OiBurst {
   id: string;
   side: "call" | "put";
   t: string;
-  delta: number;
+  /** OI readings exist only on burst events. Wall relocations and system
+   *  warnings carry none — a missing reading must never print as a zero. */
+  delta?: number | null;
   baseline: number;
   score: number;
   severity: AlertSeverity;
-  cumDoi: number;
+  cumDoi?: number | null;
   spot: number;
-  tickVol: number;
+  tickVol?: number | null;
   /** Signal pre-computed by the backend; when absent the client derives one. */
   signal?: OiSignal | null;
   /** Buyer/writer flow label (`buyers`/`writers`/`covering`/`liquidation`)
@@ -106,6 +108,12 @@ export interface OiBurst {
     | "wall_break"
     | "data_stale";
   wall?: number;
+  /** Wall relocation levels (`from` → `to`) and its kind, mirrored from the
+   *  backend wall event. The backend sends no `wall` on a relocation. */
+  from?: number | null;
+  to?: number | null;
+  flip?: boolean;
+  migration_strikes?: number;
   strike?: number;
   target?: number | null;
   /** Backend headline / longer explanation (wall + data-stale events). */
@@ -113,8 +121,8 @@ export interface OiBurst {
   detail?: string | null;
   leg?: string;
   pct?: number;
-  range_pct?: number;
-  dist_pct?: number;
+  range_pct?: number | null;
+  dist_pct?: number | null;
   /** Structure evidence for the burst minute: the named level the underlying
    * closed beyond, and the direction (backend-attached). */
   structure?: OiStructure | null;

@@ -8,8 +8,15 @@ export function isWallEventType(type?: string | null): boolean {
   return type === "wall_test" || type === "rejection" || type === "break" || type === "wall_break";
 }
 
+/**
+ * Rows that carry no one-minute OI move: wall geometry, wall relocations,
+ * coils and tape watchdog warnings. None may enter plan/flow derivation —
+ * a wall relocation has `from`/`to` but no delta, and a coil's delta is 0.
+ */
 export function isNonTradeAlertType(type?: string | null): boolean {
-  return isWallEventType(type) || type === "data_stale";
+  return (
+    isWallEventType(type) || type === "wall" || type === "coil" || type === "data_stale"
+  );
 }
 
 /**
