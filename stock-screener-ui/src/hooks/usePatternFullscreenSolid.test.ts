@@ -465,6 +465,98 @@ describe("usePatternFullscreen timeframe options and cache identity", () => {
   });
 });
 
+describe("usePatternFullscreen cache freshness invalidation", () => {
+  beforeEach(() => {
+    framePrice = 1000;
+    vi.mocked(fetchPatternHit).mockResolvedValue(null as never);
+    vi.mocked(fetchQuotes).mockResolvedValue([
+      { symbol: "KAYNES", close: 2986, change: -12.94 },
+    ]);
+  });
+
+  afterEach(() => {
+    hook?.unmount();
+    hook = undefined;
+    vi.clearAllMocks();
+  });
+
+  test("appended bars are not replayed from the 60s symbol cache", async () => {
+    let appended = 3;
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => ({
+      ...chartPayload(framePrice),
+      appended,
+    }));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+
+    framePrice = 2000;
+    appended = 0;
+    vi.mocked(fetchSymbolChart).mockClear();
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    // Both phases are re-fetched: the appended payload invalidated the cache.
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+    expect(api.fullscreen()?.candles[0].c).toBe(2000);
+  });
+
+  test("a stale frame is never cached, so the next open re-reads the wire", async () => {
+    let stale = true;
+    vi.mocked(fetchSymbolChart).mockImplementation(async () => ({
+      ...chartPayload(framePrice),
+      stale,
+    }));
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+
+    framePrice = 2000;
+    stale = false;
+    vi.mocked(fetchSymbolChart).mockClear();
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+    expect(api.fullscreen()?.candles[0].c).toBe(2000);
+    expect(api.fullscreen()?.stale).toBe(false);
+  });
+
+  test("appended bars in the pattern phase invalidate the cached candle phase", async () => {
+    let patternAppended = 3;
+    vi.mocked(fetchSymbolChart).mockImplementation(async (_symbol, _tf, opts) => {
+      const detectPatterns = typeof opts === "object" && opts?.detectPatterns === true;
+      return {
+        ...chartPayload(framePrice, detectPatterns ? [makeHit(1, "2026-11-13")] : []),
+        appended: detectPatterns ? patternAppended : 0,
+      };
+    });
+
+    hook = renderSolidHook(() => usePatternFullscreen({ timeframe: "1D" }));
+    const api = hook.result.current;
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+
+    // The phase-2 response appended bars, so the phase-1 candle frame cached
+    // during the same open must not be replayed 60s later.
+    patternAppended = 0;
+    framePrice = 2000;
+    vi.mocked(fetchSymbolChart).mockClear();
+    api.openFromSymbol("KAYNES");
+    await settled(api);
+
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+    expect(api.fullscreen()?.candles[0].c).toBe(2000);
+  });
+});
+
 describe("usePatternFullscreen cleanup", () => {
   beforeEach(() => {
     vi.mocked(fetchPatternHit).mockResolvedValue(null as never);

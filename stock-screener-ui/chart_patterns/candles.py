@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import pickle
+import tempfile
 import threading
 import time
 from concurrent.futures import Future
@@ -368,6 +370,41 @@ def _merge_frames(old: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
     return merged[~merged.index.duplicated(keep="last")].sort_index()
 
 
+def atomic_write_pickle(path: Path, frame: pd.DataFrame) -> None:
+    """Write ``frame`` to ``path`` atomically (same-directory temp + fsync).
+
+    The temp file is created next to the destination (so ``os.replace`` is a
+    same-filesystem rename), flushed and fsynced, then swapped in. On any
+    failure the previous file is left untouched and the temp file is removed;
+    the exception propagates so callers can decide whether to retry/log.
+
+    Used by :func:`_write_cached` and by the live-tail refresh so a reader
+    never observes a half-written pickle during a concurrent refresh.
+    """
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path: Optional[Path] = None
+    try:
+        fd, tmp_name = tempfile.mkstemp(
+            dir=str(destination.parent),
+            prefix=f".{destination.name}.",
+            suffix=".tmp",
+        )
+        tmp_path = Path(tmp_name)
+        with os.fdopen(fd, "wb") as handle:
+            pickle.dump(frame, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(str(tmp_path), str(destination))
+        tmp_path = None
+    finally:
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+
+
 def _write_cached(
     path: Path, df: pd.DataFrame, is_today: bool, session_pin: Optional[str] = None
 ) -> None:
@@ -375,8 +412,7 @@ def _write_cached(
         return
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "wb") as f:
-            pickle.dump(df, f)
+        atomic_write_pickle(path, df)
         if is_today:
             # Pin to the frame's own last session when provided (1D): a frame
             # that stops short of the last completed session (the official

@@ -1,8 +1,11 @@
 {
   "feature": "index-report-ui-clarity",
   "route": "/report/index",
-  "head": "7129412bbb0a3a85815563147f291bb46dcab06a",
-  "viewports": [1600, 390],
+  "head": "25079b7c9efde6a438b6bfc1cb5dc3670f564465",
+  "viewports": [
+    1600,
+    390
+  ],
   "sha256": {
     "index-report-monitor-loaded-1600.png": "746bab169986df3cedfeb1199b34a9f644db8084d8c904b52df884f503bb115b",
     "index-report-monitor-loaded-390.png": "83c0d1bcf99425b993106913d499ff407bea5e2abbef4bd63070e291965f5c45",
@@ -22,38 +25,59 @@
   "states": [
     {
       "id": "monitor-loaded",
-      "files": { "1600": "index-report-monitor-loaded-1600.png", "390": "index-report-monitor-loaded-390.png" },
+      "files": {
+        "1600": "index-report-monitor-loaded-1600.png",
+        "390": "index-report-monitor-loaded-390.png"
+      },
       "covers": "Chart-first monitor view with a loaded report (spot 22,363, candles, EMA9 overlay legend, OI chain, movers, walls and heatmap at 1600). Full HH:MM time-axis ticks asserted in-browser at both widths; stale freshness 44d."
     },
     {
       "id": "desk-loaded",
-      "files": { "1600": "index-report-desk-loaded-1600.png", "390": "index-report-desk-loaded-390.png" },
+      "files": {
+        "1600": "index-report-desk-loaded-1600.png",
+        "390": "index-report-desk-loaded-390.png"
+      },
       "covers": "DESK view with real panel content (chart, chain, walls, flow, options analytics and a populated movers strip with TCS/INFY/WIPRO). No section error banner; full HH:MM time-axis ticks asserted at both widths."
     },
     {
       "id": "gex",
-      "files": { "1600": "index-report-gex-1600.png", "390": "index-report-gex-390.png" },
+      "files": {
+        "1600": "index-report-gex-1600.png",
+        "390": "index-report-gex-390.png"
+      },
       "covers": "DESK > OPTIONS ANALYTICS after a real page.click on the GEX tab: aria-pressed=true on GEX, false on Futures, and a populated GEX profile panel (net -142.60 Cr/pt, zero cross 22,350, gamma ramp) visible at both viewports."
     },
     {
       "id": "all-stats-popover",
-      "files": { "1600": "index-report-all-stats-popover-1600.png", "390": "index-report-all-stats-popover-390.png" },
+      "files": {
+        "1600": "index-report-all-stats-popover-1600.png",
+        "390": "index-report-all-stats-popover-390.png"
+      },
       "covers": "MONITOR view with the ALL STATS disclosure opened via nifty-live-tape-toggle; bounded popover shows the report snapshot including spot 22,363. Full HH:MM time-axis ticks asserted at both widths."
     },
     {
       "id": "loading",
-      "files": { "1600": "index-report-loading-1600.png", "390": "index-report-loading-390.png" },
+      "files": {
+        "1600": "index-report-loading-1600.png",
+        "390": "index-report-loading-390.png"
+      },
       "covers": "Report shell while nifty-report-loading is visible (MOCKED: delayed /api/reports/nifty/live route handler)."
     },
     {
       "id": "error",
-      "files": { "1600": "index-report-error-1600.png", "390": "index-report-error-390.png" },
+      "files": {
+        "1600": "index-report-error-1600.png",
+        "390": "index-report-error-390.png"
+      },
       "covers": "Report shell error banner (MOCKED: /api/reports/nifty/live fulfilled with HTTP 500 and detail 'mock failure'); exactly one alert carries the failure copy."
     },
     {
       "id": "snapshot-empty",
-      "files": { "1600": "index-report-snapshot-empty-1600.png", "390": "index-report-snapshot-empty-390.png" },
-      "covers": "App's real no-payload fallback reached by selecting EOD with no session date; nifty-report-empty-reason names the last recorded snapshot ('Snapshot 10:00 · 2026-10-12 — no live report for this selection')."
+      "files": {
+        "1600": "index-report-snapshot-empty-1600.png",
+        "390": "index-report-snapshot-empty-390.png"
+      },
+      "covers": "App's real no-payload fallback reached by selecting EOD with no session date; nifty-report-empty-reason names the last recorded snapshot ('Snapshot 10:00 \u00b7 2026-10-12 \u2014 no live report for this selection')."
     }
   ],
   "notes": [

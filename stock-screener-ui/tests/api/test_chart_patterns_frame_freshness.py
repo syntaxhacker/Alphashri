@@ -30,7 +30,8 @@ class _FakeUser:
 
 
 @pytest.fixture(autouse=True)
-def _clean_caches():
+def _clean_caches(monkeypatch):
+    monkeypatch.setattr(cp_api, "_india_market_open", lambda *a, **k: False)
     cp_api._clear_chart_caches()
     cp_api._clear_read_caches()
     yield
@@ -576,8 +577,30 @@ def _now_frozen(monkeypatch, day: str, hh: int, mm: int = 0,
     )
 
 
-def _stale_chart_setup(monkeypatch, tmp_path, base, last_completed=None):
-    """Wire a stale 1D disk frame + a 16-Nov 1-min tape, no network refresh."""
+def _append_daily_bar(df, session="2026-11-16", close=2980.0):
+    """Append one daily bar stamped 18:30 UTC of the previous calendar day."""
+    y, m, d = (int(p) for p in session.split("-"))
+    stamp = pd.Timestamp(_date(y, m, d), tz="UTC") - pd.Timedelta(hours=5, minutes=30)
+    merged = df.copy()
+    merged.loc[stamp] = {
+        "open": close, "high": close + 1.0, "low": close - 1.0,
+        "close": close, "volume": 500.0,
+    }
+    return merged
+
+
+def _tail_merge(frame, *, appended=0, updated=0, error=None):
+    last = frame.index[-1] if frame is not None and len(frame) else None
+    return SimpleNamespace(
+        frame=frame, appended=appended, updated=updated,
+        cache_through=last, latest_bar=last,
+        provider_called=error is None, error=error,
+    )
+
+
+def _stale_chart_setup(monkeypatch, tmp_path, base, last_completed=None, *,
+                       tail_frame=None, market_open=False, tail_error=None):
+    """Wire a stale 1D disk frame and an optional live-tail answer."""
     if last_completed is not None:
         lc = _date.fromisoformat(last_completed)
         monkeypatch.setattr(
@@ -590,15 +613,31 @@ def _stale_chart_setup(monkeypatch, tmp_path, base, last_completed=None):
     )
     monkeypatch.setattr(cp_api, "_stored_overlays", lambda *a, **k: [])
     monkeypatch.setattr(cp_api, "_kick_stale_first_refresh", lambda *a, **k: True)
+    monkeypatch.setattr(cp_api, "_india_market_open", lambda *a, **k: market_open)
+    monkeypatch.setattr(cp_api.candles, "missing_today_bar", lambda _df: False)
+    if tail_frame is not None or tail_error is not None:
+        def _tail(symbol, timeframe, cached, *, now=None, cache_path=None):
+            if tail_error is not None:
+                raise RuntimeError(tail_error)
+            return _tail_merge(
+                tail_frame,
+                appended=max(0, len(tail_frame) - len(base)),
+            )
+
+        monkeypatch.setattr(cp_api, "fetch_live_tail", _tail)
 
 
 def test_stale_1d_frame_gains_today_tape_bar_detection_on_base(monkeypatch, tmp_path):
-    """A 13-Nov cached frame + a 16-Nov tape → the chart displays a 16-Nov
+    """A 13-Nov cached frame + a 16-Nov live tail → the chart displays a 16-Nov
     candle and reports itself current (``as_of`` 16 Nov), while detection and
     ``detection_as_of`` stay on the 13-Nov base frame."""
     base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
+    merged = _append_daily_bar(base)
     _now_frozen(monkeypatch, "2026-11-16", 16, 0)
-    _stale_chart_setup(monkeypatch, tmp_path, base, last_completed="2026-11-16")
+    _stale_chart_setup(
+        monkeypatch, tmp_path, base, last_completed="2026-11-16",
+        market_open=True, tail_frame=merged,
+    )
     seen = {}
 
     def _detect(df, timeframe, symbol):
@@ -622,10 +661,10 @@ def test_stale_1d_frame_gains_today_tape_bar_detection_on_base(monkeypatch, tmp_
     body = resp.json()
     series = body["candles"]
     assert len(series) == len(base) + 1
-    # 16 Nov IST session is stamped 2026-11-15 18:30 UTC (same as the tape bar).
+    # 16 Nov IST session is stamped 2026-11-15 18:30 UTC (same as the tail bar).
     assert series[-1]["t"] == "2026-11-15T18:30:00+00:00"
     assert series[-1]["c"] == 2980.0
-    # Detection never sees the tape bar — it stays a completed-session hit.
+    # Detection never sees the live tail — it stays a completed-session hit.
     assert "detected_df" in seen
     assert cp_api.candles.frame_last_date(seen["detected_df"]) == "2026-11-13"
     # ``as_of`` describes the displayed series: today's bar is present, so the
@@ -633,22 +672,26 @@ def test_stale_1d_frame_gains_today_tape_bar_detection_on_base(monkeypatch, tmp_
     assert body["as_of"] == "2026-11-16"
     assert body["stale"] is False
     assert body["detection_as_of"] == "2026-11-13"
+    assert body["appended"] == 1
+    assert body["data_source"] == "cache+tail"
+    assert body["market_open"] is True
+    assert body["refreshing"] is False
     assert "expected_as_of" not in body
-    assert "synthesized from the intraday tape" in body["note"]
-    assert "detection through 2026-11-13" in body["note"]
+    assert "live tail" in body["note"]
     # The session is closed, so the appended bar is final (not in-progress).
     assert "is_partial" not in series[-1]
 
 
 def test_mid_session_chart_today_bar_is_partial_and_current(monkeypatch, tmp_path):
-    """Monday 10:30 IST: the cached frame ends on Friday 13, which *is* the last
-    completed session, and the chart must still show the live 16-Nov bar.
-
-    The old gate (``as_of < last_completed_session``) was False all session, so
-    the chart served Friday until 15:30."""
+    """Monday 10:30 IST: the cached frame ends on Friday 13 and the live tail
+    supplies the in-progress 16-Nov bar, which must be displayed and partial."""
     base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
+    merged = _append_daily_bar(base)
     _now_frozen(monkeypatch, "2026-11-16", 10, 30)
-    _stale_chart_setup(monkeypatch, tmp_path, base, last_completed="2026-11-13")
+    _stale_chart_setup(
+        monkeypatch, tmp_path, base, last_completed="2026-11-13",
+        market_open=True, tail_frame=merged,
+    )
 
     app, client = _chart_client()
     try:
@@ -669,13 +712,22 @@ def test_mid_session_chart_today_bar_is_partial_and_current(monkeypatch, tmp_pat
     assert body["as_of"] == "2026-11-16"
     assert body["stale"] is False
     assert body["detection_as_of"] == "2026-11-13"
+    assert body["appended"] == 1
 
 
-def test_closed_session_tape_bar_has_no_partial_marker(monkeypatch, tmp_path):
-    """After the 15:30 close the same gap yields a final bar, no ``is_partial``."""
+def test_closed_session_lagging_1d_frame_goes_to_network(monkeypatch, tmp_path):
+    """After the close a frame that predates the last completed session has no
+    live tail to advance it: it must be rejected so the normal fetch repairs
+    the cache instead of being served stale forever."""
     base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
+    fresh = _daily_frame([3300.0, 3382.0, 3430.0, 2980.0], "2026-11-16")
     _now_frozen(monkeypatch, "2026-11-16", 16, 0)
     _stale_chart_setup(monkeypatch, tmp_path, base, last_completed="2026-11-16")
+    fetch_calls: list = []
+    monkeypatch.setattr(
+        cp_api.candles, "fetch_for_timeframe",
+        lambda *a, **k: fetch_calls.append((a, k)) or fresh,
+    )
 
     app, client = _chart_client()
     try:
@@ -688,9 +740,13 @@ def test_closed_session_tape_bar_has_no_partial_marker(monkeypatch, tmp_path):
 
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body["candles"]) == len(base) + 1
+    assert fetch_calls, "the stale frame must not short-circuit the network repair"
+    assert len(body["candles"]) == len(fresh)
     assert body["as_of"] == "2026-11-16"
     assert body["stale"] is False
+    assert body["market_open"] is False
+    assert body["data_source"] == "provider"
+    assert "cached" not in body
     assert "is_partial" not in body["candles"][-1]
 
 
@@ -735,6 +791,7 @@ def test_no_session_today_never_appends(monkeypatch, tmp_path, day, holiday, exp
     base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
     _now_frozen(monkeypatch, day, 10, 30, holiday=holiday)
     _stale_chart_setup(monkeypatch, tmp_path, base)
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: base)
 
     app, client = _chart_client()
     try:
@@ -758,6 +815,7 @@ def test_lagging_base_without_tape_bar_reports_stale(monkeypatch, tmp_path):
     base = _daily_frame([3300.0, 3382.0, 3430.0], "2026-11-13")
     _now_frozen(monkeypatch, "2026-11-16", 16, 0)
     _stale_chart_setup(monkeypatch, tmp_path, base, last_completed="2026-11-16")
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: base)
     monkeypatch.setattr(
         "market_data.market_data.get_api_client",
         lambda: SimpleNamespace(fetch_intraday_data_v3=lambda **kwargs: pd.DataFrame()),
