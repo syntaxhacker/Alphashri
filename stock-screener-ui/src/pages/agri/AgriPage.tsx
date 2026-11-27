@@ -851,15 +851,16 @@ export function AgriPage() {
   const dispersionDescription = createMemo(() => {
     const summary = dispersionSummary();
     if (summary.markets === 0) {
-      return "Dot = modal · bar = min–max · halo = outside this set's IQR";
+      return "Dot = modal · bar = min–max";
     }
     const stats = `IQR/median of these ${summary.shown}: ${formatAgriPrice(summary.q1)}–${formatAgriPrice(summary.q3)} / ${formatAgriPrice(summary.median)}`;
+    const halo = summary.outliers > 0 ? " · halo = outside this set's IQR" : "";
     if (isMobile()) {
       // The eight-row plot needs its panel height for labels, so the mobile
       // caption stays to two-to-three lines.
-      return `${summary.shown} of ${summary.markets} mandis · ${stats} · as of ${formatAgriSessionDate(asOf())} · dot/bar = modal/range · halo = outside set IQR`;
+      return `${summary.shown} of ${summary.markets} mandis · ${stats} · as of ${formatAgriSessionDate(asOf())} · dot/bar = modal/range${halo}`;
     }
-    return `${summary.shown} highest-priced of ${summary.markets} mandis (${quotes().length}-quote page) · ${stats} · as of ${formatAgriSessionDate(asOf())} · dot = modal · bar = min–max · violet halo = outside this set's 1.5×IQR`;
+    return `${summary.shown} highest-priced of ${summary.markets} mandis (${quotes().length}-quote page) · ${stats} · as of ${formatAgriSessionDate(asOf())} · dot = modal · bar = min–max${halo}`;
   });
   const classifiedWarnings = createMemo(() =>
     warnings().map((text, index) => ({
@@ -1072,12 +1073,12 @@ export function AgriPage() {
   return (
     <Box
       data-testid="agri-page"
-      className="flex h-full w-full min-h-0 flex-col gap-2 overflow-x-hidden overflow-y-auto bg-fin-bg p-2 max-sm:pt-0"
+      className="flex h-full w-full min-h-0 flex-col gap-2 overflow-x-hidden overflow-y-auto bg-fin-bg p-2 pt-0"
     >
       <ToolbarRow
         gap={8}
         data-testid="agri-toolbar"
-        className="sticky top-0 z-20 shrink-0 rounded-[6px] border border-fin-border bg-fin-bg px-2 py-1"
+        className="sticky top-0 z-20 shrink-0 rounded-[6px] border border-fin-border bg-fin-bg px-2 py-1 sm:py-2"
       >
         <Box className="flex flex-wrap items-center gap-2 min-w-0" data-testid="agri-scan-group">
           <Text fw={700} className={`${MICRO_LABEL} max-sm:hidden`}>
@@ -1705,7 +1706,11 @@ export function AgriPage() {
                 "align-self": sparkEmpty() ? "start" : undefined,
               }}
               title="Commodity universe"
-              description="Click or press Enter / Space · change = 1M"
+              description={
+                isMobile()
+                  ? `${sparkRows().length} commodities · change = 1M`
+                  : `${sparkRows().length} commodities · scroll for more · change = 1M`
+              }
             >
               <Show
                 when={sparkRows().length > 0}

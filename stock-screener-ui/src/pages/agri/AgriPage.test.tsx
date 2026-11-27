@@ -1339,7 +1339,6 @@ describe("AgriPage redesign grammar", () => {
       "Floor",
       "Min–max",
       "Modal",
-      "Outlier",
     ]);
     const xAxis = (option.xAxis as Array<{ splitNumber: number; axisLabel: { formatter: (v: number) => string } }>)[0];
     expect(xAxis.splitNumber).toBeLessThanOrEqual(5);
@@ -1350,7 +1349,7 @@ describe("AgriPage redesign grammar", () => {
     const panel = screen.getByTestId("agri-dispersion-panel");
     expect(panel).toHaveTextContent("Top-priced mandis");
     expect(panel).toHaveTextContent("IQR/median of these 2");
-    expect(panel).toHaveTextContent("outside this set's 1.5×IQR");
+    expect(panel).not.toHaveTextContent("halo");
   });
 
   it("selects the hero from the universe grid by click, Enter and Space", async () => {
@@ -1453,8 +1452,9 @@ describe("AgriPage layout", () => {
     expect(screen.getByTestId("agri-page")).toHaveClass(
       "overflow-y-auto",
       "overflow-x-hidden",
-      "max-sm:pt-0",
+      "pt-0",
     );
+    expect(screen.getByTestId("agri-toolbar")).toHaveClass("sticky", "top-0", "sm:py-2");
     expect(screen.getByTestId("agri-body")).toHaveClass("overflow-visible");
     expect(screen.getByTestId("agri-body")).not.toHaveClass("overflow-y-auto");
     for (const [id, height] of CHART_PANEL_HEIGHTS_MOBILE) {

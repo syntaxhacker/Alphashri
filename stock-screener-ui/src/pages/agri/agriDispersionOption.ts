@@ -91,8 +91,22 @@ export function buildAgriDispersionOption(
   const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
   const maxPrice = prices.length > 0 ? Math.max(...prices) : 1;
   const pad = Math.max((maxPrice - minPrice) * 0.03, 1);
-  const axis = niceAxis(Math.max(0, minPrice - pad), maxPrice + pad, compact ? 3 : 5);
-  if (compact) axis.interval = (axis.max - axis.min) / 2;
+  const loBound = Math.max(0, minPrice - pad);
+  const hiBound = maxPrice + pad;
+  let axis = niceAxis(loBound, hiBound, compact ? 3 : 5);
+  if (compact) {
+    // Three readable labels on a 390 panel: snap to a unit grid and make the
+    // outer labels land on whole thousands (e.g. ₹13k / ₹16k / ₹19k).
+    const unit = 10 ** Math.floor(Math.log10(Math.max((hiBound - loBound) / 2, 1)));
+    const min = Math.floor(loBound / unit) * unit;
+    let step = Math.max(unit, Math.ceil((hiBound - loBound) / (2 * unit)) * unit);
+    let max = min + step * 2;
+    while (max < hiBound) {
+      step += unit;
+      max = min + step * 2;
+    }
+    axis = { min, max, interval: step };
+  }
 
   const tooltip = (params: unknown): string => {
     const list = asParams(params);
@@ -108,6 +122,56 @@ export function buildAgriDispersionOption(
       ...(row.outlier ? [field("Fence", "outside 1.5×IQR — outlier")] : []),
     ]);
   };
+
+  const baseSeries: Record<string, unknown>[] = [
+    {
+      name: "Floor",
+      type: "bar",
+      stack: STACK,
+      data: floor,
+      barMaxWidth: compact ? 6 : 9,
+      itemStyle: { color: "transparent" },
+      silent: true,
+      z: 1,
+    },
+    {
+      name: "Min–max",
+      type: "bar",
+      stack: STACK,
+      data: span,
+      barMaxWidth: compact ? 10 : 14,
+      // A visible rail + stronger fill keeps the range legible behind the dot.
+      itemStyle: {
+        color: alpha(AGRI_ACCENT, 0.34),
+        borderColor: alpha(AGRI_ACCENT, 0.85),
+        borderWidth: 1,
+      },
+      emphasis: { itemStyle: { color: alpha(AGRI_ACCENT, 0.5) } },
+      z: 2,
+    },
+    {
+      name: "Modal",
+      type: "scatter",
+      data: modals,
+      symbolSize: compact ? 7 : 9,
+      itemStyle: { color: AGRI_ACCENT, borderColor: t.text, borderWidth: 1 },
+      z: 6,
+    },
+  ];
+  // The top-priced population often has no points outside its own fence;
+  // painting an empty outlier series would promise a halo that never appears.
+  if (outliers.length > 0) {
+    baseSeries.push({
+      name: "Outlier",
+      type: "scatter",
+      data: outliers,
+      symbolSize: compact ? 13 : 16,
+      itemStyle: { color: alpha(AGRI_OUTLIER, 0.85) },
+      silent: true,
+      label: { show: false },
+      z: 4,
+    });
+  }
 
   return {
     ...baseOption(t, "", [], tooltip),
@@ -155,52 +219,6 @@ export function buildAgriDispersionOption(
         splitLine: { show: false },
       },
     ],
-    series: [
-      {
-        name: "Floor",
-        type: "bar",
-        stack: STACK,
-        data: floor,
-        barMaxWidth: compact ? 6 : 9,
-        itemStyle: { color: "transparent" },
-        silent: true,
-        z: 1,
-      },
-      {
-        name: "Min–max",
-        type: "bar",
-        stack: STACK,
-        data: span,
-        barMaxWidth: compact ? 10 : 14,
-        // A visible rail + stronger fill keeps the range legible behind the dot.
-        itemStyle: {
-          color: alpha(AGRI_ACCENT, 0.34),
-          borderColor: alpha(AGRI_ACCENT, 0.85),
-          borderWidth: 1,
-        },
-        emphasis: { itemStyle: { color: alpha(AGRI_ACCENT, 0.5) } },
-        z: 2,
-      },
-      {
-        name: "Modal",
-        type: "scatter",
-        data: modals,
-        symbolSize: compact ? 7 : 9,
-        itemStyle: { color: AGRI_ACCENT, borderColor: t.text, borderWidth: 1 },
-        z: 6,
-      },
-      {
-        name: "Outlier",
-        type: "scatter",
-        data: outliers,
-        // A halo behind the modal dot: drawing the outlier on top hid every
-        // modal (the top-priced mandis are often all outside the fence).
-        symbolSize: compact ? 13 : 16,
-        itemStyle: { color: alpha(AGRI_OUTLIER, 0.85) },
-        silent: true,
-        label: { show: false },
-        z: 4,
-      },
-    ],
+    series: baseSeries,
   };
 }

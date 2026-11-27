@@ -264,6 +264,29 @@ describe("dispersion option", () => {
     expect(tooltip([{ dataIndex: 4 }])).toContain("outlier");
   });
 
+  it("does not paint an empty outlier series when no mandi leaves the fence", () => {
+    const tight = Array.from({ length: 8 }, (_, index) => ({
+      market: `T${index}`,
+      label: `T${index}`,
+      date: "2026-11-24",
+      min: 1000 + index * 10,
+      modal: 1050 + index * 10,
+      max: 1100 + index * 10,
+      arrivals: null,
+      outlier: false,
+    }));
+    const option = buildAgriDispersionOption({
+      rows: tight,
+      unit: "₹/quintal",
+      isDark: true,
+    }) as Record<string, any>;
+    expect((option.series as Array<{ name: string }>).map((s) => s.name)).toEqual([
+      "Floor",
+      "Min–max",
+      "Modal",
+    ]);
+  });
+
   it("keeps only the top eight mandis on the plot", () => {
     const many = Array.from({ length: 12 }, (_, index) => ({
       date: "2026-11-17",
