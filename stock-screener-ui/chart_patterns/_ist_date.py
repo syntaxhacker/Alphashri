@@ -3,8 +3,8 @@
 Single source of truth for converting UTC candle indexes to IST session
 dates (``YYYY-MM-DD``). A bar stamped 18:30+ UTC belongs to the next IST
 session date, so formatting the raw UTC index mislabels it. ``config.IST``
-is the canonical IST timezone (repo-wide single source of truth); falls
-back to ``ZoneInfo("Asia/Kolkata")``. Never raises.
+is the canonical IST timezone (repo-wide single source of truth); these
+helpers must never construct their own zone. Never raises.
 """
 
 from __future__ import annotations
@@ -20,14 +20,9 @@ _tz = None
 def _ist_tz():
     global _tz
     if _tz is None:
-        try:
-            import config
+        import config
 
-            _tz = config.IST
-        except Exception:
-            from zoneinfo import ZoneInfo
-
-            _tz = ZoneInfo("Asia/Kolkata")
+        _tz = config.IST
     return _tz
 
 
