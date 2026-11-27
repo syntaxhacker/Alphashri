@@ -375,7 +375,12 @@ def _build_52w_candidates(ranges: dict, touched_gap_pct: float, max_gap: float, 
                 stock_data[key] = None
         stock_data['low_52w'] = round(low, 2)
         stock_data['source'] = 'upstox'
-        stock_data['rationale'] = _build_rationale(screener, stock_data)
+        # Rationale is attached only to rows that survive the profile gate.
+        # Keep the candidate-stage gap so the string matches the original
+        # computation even after a live LTP refresh rewrites to_52w_high; the
+        # placeholder holds the field's position in the payload.
+        stock_data['rationale'] = None
+        stock_data['_rationale_gap52'] = stock_data['to_52w_high']
         # The displayed price is a stored close, never a live tick: say so, and
         # say when it was captured, so the UI can label it instead of implying LTP.
         stock_data['ltp_fresh'] = False
@@ -384,6 +389,17 @@ def _build_52w_candidates(ranges: dict, touched_gap_pct: float, max_gap: float, 
 
         candidates.append(stock_data)
     return candidates
+
+
+def _attach_rationales(screener: str, rows: list[dict]) -> None:
+    """Build rationale only for rows actually returned, with their original gap."""
+    for stock in rows:
+        gap52 = stock.pop('_rationale_gap52', None)
+        if gap52 is None:
+            continue
+        seed = dict(stock)
+        seed['to_52w_high'] = gap52
+        stock['rationale'] = _build_rationale(screener, seed)
 
 
 def build_52w_skeleton_data(profile_filters=None, provider='upstox', mode='historical'):
@@ -424,6 +440,7 @@ def build_52w_skeleton_data(profile_filters=None, provider='upstox', mode='histo
     touched = data['touched']
     approaching.sort(key=lambda s: _to_float(s.get('to_52w_high'), 999))
     _sort_touched(touched)
+    _attach_rationales(screener, approaching + touched)
 
     return {
         'approaching': approaching,
@@ -444,6 +461,7 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
     screener = '52w_high'
     warning = None
     touched_gap_pct = touched_52w_gap_threshold_pct()
+    profile_meta = _profile_meta(screener)
 
     ranges = load_all_52w_ranges()
     if not ranges:
@@ -454,7 +472,7 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
             'provider': provider,
             'mode': mode,
             'screener': screener,
-            'profile_meta': _profile_meta(screener),
+            'profile_meta': profile_meta,
             'summary': [],
             'warning': 'No 52-week range data. Run scripts/compute_52w_ranges_upstox.py --redis.',
         }
@@ -514,8 +532,8 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
         'provider': provider,
         'mode': mode,
         'screener': screener,
-        'profile_meta': _profile_meta(screener),
-        'summary': _summary_items_for(screener, approaching, touched),
+        'profile_meta': profile_meta,
+        'summary': [],
         'warning': warning,
         'touched_gap_pct': touched_gap_pct,
     }
@@ -554,6 +572,7 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
     )
     _sort_touched(data['touched'])
 
+    _attach_rationales(screener, data['approaching'] + data['touched'])
     data['summary'] = _summary_items_for(screener, data['approaching'], data['touched'])
     return data
 def _enrich_with_tv_scanner_data(stocks: list[dict]) -> None:
