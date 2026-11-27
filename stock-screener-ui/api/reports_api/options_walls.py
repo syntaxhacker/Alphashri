@@ -33,7 +33,7 @@ from datetime import datetime, timedelta
 from functools import lru_cache
 from heapq import nlargest
 import statistics
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -72,6 +72,8 @@ GAP_SEC = 120
 COOLDOWN_MIN = 15
 #: Strike rows in the expanded wall map (keeps the payload and the chart legible).
 MAP_MAX_STRIKES = 14
+
+TopFn = Callable[[dict, str, int], list[tuple[float, float]]]
 
 
 def _tape_path(symbol: str, date_str: str):
@@ -197,6 +199,29 @@ def _prior_row(rows: list[dict], index: int, minutes: int) -> Optional[dict]:
     return None
 
 
+def _prior_index(epochs: list[float], index: int, minutes: int) -> Optional[int]:
+    """Index counterpart of ``_prior_row`` for ordered epochs.
+
+    ``_nearest_index`` can land on the row just *after* the cutoff, so the
+    bisected candidate is walked to the last row at or before the target;
+    that is the row ``_prior_row`` would have found scanning backwards.
+    """
+    if index <= 0:
+        return None
+    target = epochs[index] - minutes * 60
+    candidate = _nearest_index(epochs, target, index)
+    # A substitute nearest-index implementation may return the boundary row;
+    # the prior row must always come strictly before index.
+    candidate = min(candidate, index - 1)
+    if epochs[candidate] > target:
+        while candidate > 0 and epochs[candidate] > target:
+            candidate -= 1
+        return candidate if epochs[candidate] <= target else None
+    while candidate + 1 < index and epochs[candidate + 1] <= target:
+        candidate += 1
+    return candidate
+
+
 def _vol_delta(rows: list[dict], index: int, side: str, strike: float,
                minutes: int) -> Optional[float]:
     """Volume delta over the last ``minutes``; volume is cumulative per day."""
@@ -223,6 +248,7 @@ def _clamp(value: float, low: float, high: float) -> float:
 def _scan_events(
     rows: list[dict], window_min: int, expiry_day: bool,
     epochs: Optional[list[float]] = None,
+    top_fn: Optional[TopFn] = None,
 ) -> list[dict]:
     """First touch / break transitions across the recorded window.
 
@@ -247,7 +273,7 @@ def _scan_events(
             base = _nearest(rows[: idx + 1], target)
         chain = _chain(row)
         base_chain = _chain(base)
-        top = _top(base_chain, "call", 1)
+        top = (top_fn or _top)(base_chain, "call", 1)
         if not top:
             continue
         strike = top[0][1]
@@ -311,7 +337,8 @@ def _nearest_strike(chain: dict, spot: float) -> Optional[float]:
 
 
 def _material_nearest(
-    chain: dict, spot: float, side: str, top_n: int
+    chain: dict, spot: float, side: str, top_n: int,
+    top_fn: Optional[TopFn] = None,
 ) -> Optional[float]:
     """Nearest material wall on the spot's side.
 
@@ -322,14 +349,15 @@ def _material_nearest(
     """
     if not spot:
         return None
-    top = _top(chain, side, top_n)
+    top_fn = top_fn or _top
+    top = top_fn(chain, side, top_n)
     if not top:
         return None
     top_oi = top[0][0]
     floor = 0.25 * top_oi
     # All strikes in the chain with material OI (>= 25% of the top wall).
     material = [
-        s for oi, s in _top(chain, side, max(len(chain), 1)) if oi >= floor
+        s for oi, s in top_fn(chain, side, max(len(chain), 1)) if oi >= floor
     ]
     if side == "call":
         primary = [s for _, s in top if s > spot]
@@ -354,6 +382,7 @@ def _build_wall_map(
     spot: float,
     top_n: int,
     open_chain: dict,
+    top_fn: Optional[TopFn] = None,
 ) -> Optional[dict]:
     """Strike x time OI-change grid for the expanded view.
 
@@ -401,9 +430,12 @@ def _build_wall_map(
         required.add(nearest)
 
     selected = set(required)
+    top_fn = top_fn or _top
     for chain in (first_chain, last_chain):
         for side in ("call", "put"):
-            selected.update(strike for _, strike in _top(chain, side, max(4, top_n)))
+            selected.update(
+                strike for _, strike in top_fn(chain, side, max(4, top_n))
+            )
 
     if len(selected) > MAP_MAX_STRIKES:
         optional = selected - required
@@ -469,8 +501,8 @@ def _build_wall_map(
     top_put: list[Optional[float]] = []
     for row in sample_rows:
         chain = _chain(row)
-        calls = _top(chain, "call", 1)
-        puts = _top(chain, "put", 1)
+        calls = top_fn(chain, "call", 1)
+        puts = top_fn(chain, "put", 1)
         top_call.append(calls[0][1] if calls else None)
         top_put.append(puts[0][1] if puts else None)
     gaps = sorted(abs(strikes[index] - strikes[index + 1]) for index in range(len(strikes) - 1))
@@ -523,6 +555,21 @@ def compute_wall_state(
             "message": f"no {symbol} tape for {date_str}",
         })
 
+    # One request sees the same tape chains from many angles (event scan,
+    # tracked walls, sampled map rows).  Chain objects stay alive in ``rows``
+    # for the whole call, so identity is a safe memo key; keep the chain in the
+    # entry as well in case a caller supplies an ephemeral empty chain.
+    top_cache: dict[tuple[int, str, int], tuple[dict, list[tuple[float, float]]]] = {}
+
+    def _cached_top(chain: dict, side: str, n: int) -> list[tuple[float, float]]:
+        key = (id(chain), side, n)
+        hit = top_cache.get(key)
+        if hit is not None and hit[0] is chain:
+            return hit[1]
+        result = _top(chain, side, n)
+        top_cache[key] = (chain, result)
+        return result
+
     last = rows[-1]
     last_t = str(last.get("t"))
     last_epoch = _epoch(last_t)
@@ -543,8 +590,8 @@ def compute_wall_state(
     # side), falling back to strikes with OI >= 25% of the top wall. Always
     # shown in calls/puts (even outside top-N by OI) and exposed at payload
     # level as nearest_call / nearest_put.
-    nearest_call_strike = _material_nearest(chain, spot, "call", top_n)
-    nearest_put_strike = _material_nearest(chain, spot, "put", top_n)
+    nearest_call_strike = _material_nearest(chain, spot, "call", top_n, _cached_top)
+    nearest_put_strike = _material_nearest(chain, spot, "put", top_n, _cached_top)
 
     exp = str(expiry or last.get("expiry") or "")
     dte: Optional[int] = None
@@ -583,15 +630,15 @@ def compute_wall_state(
 
     # The wall being defended is the top wall at the start of the window
     # (74,000 at 13:55), not the current top (which can migrate to 74,200).
-    tracked_call = _top(base_chain, "call", 1)
-    tracked_put = _top(base_chain, "put", 1)
+    tracked_call = _cached_top(base_chain, "call", 1)
+    tracked_put = _cached_top(base_chain, "put", 1)
     call_strike = tracked_call[0][1] if tracked_call else None
     put_strike = tracked_put[0][1] if tracked_put else None
     if call_strike is None:
-        current_call = _top(chain, "call", 1)
+        current_call = _cached_top(chain, "call", 1)
         call_strike = current_call[0][1] if current_call else None
     if put_strike is None:
-        current_put = _top(chain, "put", 1)
+        current_put = _cached_top(chain, "put", 1)
         put_strike = current_put[0][1] if current_put else None
 
     call_oi = _oi(chain, call_strike, "call") if call_strike else 0.0
@@ -645,7 +692,7 @@ def compute_wall_state(
                      if len(rows) > 1 else 0.0)
     stale = age_sec > STALE_SEC or last_interval > GAP_SEC
 
-    events = _scan_events(rows, window_min, expiry_day, epochs)
+    events = _scan_events(rows, window_min, expiry_day, epochs, _cached_top)
 
     reasons: list[str] = []
     if dte is not None:
@@ -772,6 +819,34 @@ def compute_wall_state(
             return "BUILDING"
         return "STABLE"
 
+    # The window scan in _vol_mult used to re-walk the tape backwards for
+    # every displayed wall and side.  With ordered epochs the prior row is a
+    # bisect over the already-built list; unordered stamps keep the original
+    # backward scan so the very same row is chosen.
+    prior_index_cache: dict[tuple[int, int], Optional[int]] = {}
+    vol_delta_cache: dict[tuple[int, str, float, int], Optional[float]] = {}
+
+    def _delta_for(index: int, side: str, strike: float,
+                   minutes: int) -> Optional[float]:
+        key = (index, side, strike, minutes)
+        if key in vol_delta_cache:
+            return vol_delta_cache[key]
+        if ordered_epochs:
+            prior_key = (index, minutes)
+            if prior_key not in prior_index_cache:
+                prior_index_cache[prior_key] = _prior_index(epochs, index, minutes)
+            prior_index = prior_index_cache[prior_key]
+            value: Optional[float] = None
+            if prior_index is not None:
+                now_v = _vol(_chain(rows[index]), strike, side)
+                then_v = _vol(_chain(rows[prior_index]), strike, side)
+                if now_v is not None and then_v is not None:
+                    value = max(0.0, now_v - then_v)
+        else:
+            value = _vol_delta(rows, index, side, strike, minutes)
+        vol_delta_cache[key] = value
+        return value
+
     def _vol_mult(side: str, strike: float,
                   vol_5: Optional[float]) -> Optional[float]:
         """vol_5m vs the median 5-min volume delta over the last window_min rows."""
@@ -781,7 +856,7 @@ def compute_wall_state(
         deltas: list[float] = []
         for offset in range(len(window)):
             index = len(rows) - len(window) + offset
-            delta = _vol_delta(rows, index, side, strike, 5)
+            delta = _delta_for(index, side, strike, 5)
             if delta is not None:
                 deltas.append(delta)
         med = _median(deltas)
@@ -821,8 +896,8 @@ def compute_wall_state(
         if now_ltp is not None:
             prem_chg_30m = _pct_change(now_ltp, ltp_30)
 
-        vol_5 = _vol_delta(rows, last_index, side, strike, 5)
-        vol_30 = _vol_delta(rows, last_index, side, strike, 30)
+        vol_5 = _delta_for(last_index, side, strike, 5)
+        vol_30 = _delta_for(last_index, side, strike, 30)
         vol_mult = _vol_mult(side, strike, vol_5)
 
         flow = _flow_label(erosion_5m, prem_chg_5m)
@@ -908,7 +983,7 @@ def compute_wall_state(
     def _rows_for(side: str) -> list[dict]:
         out: list[dict] = []
         seen: set[float] = set()
-        for _oi_now, strike in _top(chain, side, top_n):
+        for _oi_now, strike in _cached_top(chain, side, top_n):
             out.append(_row_dict(side, strike))
             seen.add(strike)
         # The nearest wall is always shown, even outside the top-N by OI.
@@ -960,6 +1035,7 @@ def compute_wall_state(
             spot,
             top_n,
             open_chain,
+            _cached_top,
         )
         if include_map
         else None
