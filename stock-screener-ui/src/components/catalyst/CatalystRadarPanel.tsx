@@ -346,7 +346,7 @@ export function CatalystRadarPanel(props: CatalystRadarPanelProps) {
             when={!showInitialLoading()}
             fallback={
               <Box className="flex min-h-0 flex-1 items-center justify-center">
-                <InlineLoader data-testid="catalyst-loading" message="Loading catalysts…" />
+                <InlineLoader data-testid="catalyst-loading" message="LOADING…" />
               </Box>
             }
           >

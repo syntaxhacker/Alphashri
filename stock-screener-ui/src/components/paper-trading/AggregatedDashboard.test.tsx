@@ -161,6 +161,19 @@ describe("AggregatedDashboard", () => {
     expect(screen.getByText("No closed trades found for this period.")).toBeInTheDocument();
   });
 
+  it("collapses zero-trade data into one empty state", () => {
+    const base = mockDashboardData();
+    paperTradingState.setDashboardAnalyticsData({
+      ...base,
+      summary: { ...base.summary, total_trades: 0 },
+      period: { ...base.period, trade_count: 0 },
+    });
+    render(() => <AggregatedDashboard />);
+
+    expect(screen.getAllByText("No closed trades found for this period.")).toHaveLength(1);
+    expect(screen.queryByText("Equity Curve")).not.toBeInTheDocument();
+  });
+
   it("renders summary, bot rankings, strategy rows, winners, and losers", () => {
     paperTradingState.setDashboardAnalyticsData(mockDashboardData());
     render(() => <AggregatedDashboard />);

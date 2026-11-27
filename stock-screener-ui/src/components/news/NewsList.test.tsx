@@ -114,6 +114,13 @@ describe("NewsList", () => {
         wrapper: TestWrapper,
       });
       expect(screen.getByTestId("news-loader")).toBeInTheDocument();
+      expect(screen.getByTestId("news-loader")).toHaveTextContent("LOADING…");
+      expect(screen.queryByText(/Loading market headlines/i)).not.toBeInTheDocument();
+    });
+
+    it("does not claim a live feed when no connection state is supplied", () => {
+      render(() => (<NewsList {...defaultProps} />), { wrapper: TestWrapper });
+      expect(screen.queryByText("Live")).not.toBeInTheDocument();
     });
 
     it("renders error state", () => {

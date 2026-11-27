@@ -1,6 +1,7 @@
 import { For, Show, createMemo } from "solid-js";
 import type { ComponentProps, JSX } from "solid-js";
 import { Box, Button, Text } from "@/ui";
+import type { DeskOverlayKey } from "./niftyReportStore.types";
 import * as palette from "@/ui/palette";
 import { hexToRgba } from "@/utils/color";
 import { formatNumberIN } from "@/utils/ui-helpers";
@@ -25,6 +26,16 @@ import { NiftyOiChain, getNiftyOiColumns } from "./reportCells";
 import type { NiftyStrike } from "@/types/niftyReport";
 
 const TF_OPTIONS = ["1m", "5m", "15m"] as const;
+
+// The V shortcut opens these real panels directly; no "coming soon" surface.
+const VISUAL_SHORTCUTS: { key: DeskOverlayKey; label: string; reads: string }[] = [
+  { key: "chart", label: "Chart", reads: "Price and S/R levels" },
+  { key: "heat", label: "OI heatmap", reads: "CE/PE builds by strike" },
+  { key: "flowChart", label: "Flow + gamma", reads: "Cumulative OI and gamma" },
+  { key: "pressure", label: "Volume pressure", reads: "Minutes ≥2× median" },
+  { key: "gex", label: "GEX profile", reads: "Dealer gamma by strike" },
+  { key: "iv", label: "IV skew", reads: "Implied vol across strikes" },
+];
 
 export function ReportOverlays() {
   const store = useNiftyReport();
@@ -356,12 +367,35 @@ export function ReportOverlays() {
 
       <PanelModal
         open={ui.visualsOpen()}
-        title="Visuals grid"
+        title="Visuals"
         onClose={() => ui.setVisualsOpen(false)}
+        autoHeight
+        maxWidth={760}
       >
-        <Text data-testid="nifty-visuals-stub" size="sm" c="dimmed">
-          Visuals grid coming soon — press V to toggle this stub.
-        </Text>
+        <Box
+          data-testid="nifty-visuals-stub"
+          className="grid grid-cols-1 gap-1 min-[700px]:grid-cols-2"
+        >
+          <For each={VISUAL_SHORTCUTS}>
+            {(shortcut) => (
+              <Button
+                data-testid={`nifty-visuals-${shortcut.key}`}
+                size="sm"
+                variant="outline"
+                className="h-auto min-h-[32px] justify-start py-1"
+                onClick={() => {
+                  ui.setVisualsOpen(false);
+                  ui.setOverlayOpen?.(shortcut.key, true);
+                }}
+              >
+                <Box className="flex min-w-0 flex-col items-start">
+                  <Text size="xs" fw={700}>{shortcut.label}</Text>
+                  <Text size="xs" c="dimmed">{shortcut.reads}</Text>
+                </Box>
+              </Button>
+            )}
+          </For>
+        </Box>
       </PanelModal>
     </>
   );

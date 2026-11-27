@@ -3,7 +3,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@solidjs/testing-library";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import { NotificationsPanel } from "./NotificationsPanel";
+import { formatSurgeMove, NotificationsPanel } from "./NotificationsPanel";
 import { fetchSurges } from "../../api/notifications";
 import { createSignal } from "solid-js";
 import type { PriceSurgeEvent } from "../../types/notifications";
@@ -221,5 +221,29 @@ describe("NotificationsPanel", () => {
     dock.open.mockClear();
     await fireEvent.keyDown(symbol, { key: " " });
     expect(dock.open).toHaveBeenCalledWith("RELIANCE");
+  });
+});
+
+describe("surge move formatting", () => {
+  it("derives the sign from the value, never showing -0.0%", () => {
+    expect(formatSurgeMove(-0.04)).toBe("0.0%");
+    expect(formatSurgeMove(0.04)).toBe("0.0%");
+    expect(formatSurgeMove(-2.5)).toBe("-2.5%");
+    expect(formatSurgeMove(2.5)).toBe("+2.5%");
+  });
+
+  it("renders a tiny negative alert without the -0.0% artifact", async () => {
+    mockedFetchSurges.mockResolvedValueOnce({
+      total: 1,
+      events: [makeEvent({ move_pct: -0.04, direction: "down" })],
+    });
+    render(() => (<UIProvider>
+        <NotificationsPanel opened onClose={vi.fn()} />
+      </UIProvider>),
+    );
+
+    const card = await screen.findByTestId("surge-card-1");
+    expect(card).toHaveTextContent("0.0%");
+    expect(card).not.toHaveTextContent("-0.0%");
   });
 });

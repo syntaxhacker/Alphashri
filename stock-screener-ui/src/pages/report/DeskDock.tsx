@@ -36,54 +36,49 @@ export const DOCK_HELP: Record<DeskDockKey, DockHelp> = {
     label: "Delta",
     short: "Delta",
     shows: "positioning",
-    title:
-      "Delta positioning — where option writers are net long or short directional exposure. The value shows the current delta balance. Opens the delta profile.",
+    title: "Delta positioning — where option writers are net long or short directional exposure.",
   },
   setup: {
     label: "Dealer gamma",
     short: "Gamma",
     shows: "regime",
-    title:
-      "Dealer gamma regime — long gamma dampens moves, short gamma amplifies them. The value shows the current regime. Opens the dealer gamma profile.",
+    title: "Dealer gamma regime — long gamma dampens moves, short gamma amplifies them.",
   },
   market: {
     label: "IV skew",
     short: "IV",
     shows: "strikes",
-    title:
-      "Implied volatility skew across strikes. The value shows how many strikes are in the chain. Opens the IV skew chart.",
+    title: "Implied volatility skew across strikes.",
   },
   strips: {
     label: "Desk",
     short: "Desk",
     shows: "panels",
-    title:
-      "Desk panels — option walls and market breadth. Opens the walls and breadth panels.",
+    title: "Desk panels — option walls and market breadth.",
   },
   analytics: {
     label: "Data",
     short: "Data",
     shows: "panels",
-    title:
-      "Data panels — the live trade tape and flow windows. Opens the tape and flow panels.",
+    title: "Data panels — the live trade tape and flow windows.",
   },
   futures: {
     label: "Futures basis",
     short: "Futures",
     shows: "basis",
-    title: "Index futures basis — futures close against spot with open-interest change. Opens the futures basis panel.",
+    title: "Index futures basis — futures close against spot with open-interest change.",
   },
   itm: {
     label: "ITM PE flow",
     short: "ITM PE",
     shows: "premium",
-    title: "ITM PE flow — put premium share of the option chain through the session. Opens the ITM PE flow panel.",
+    title: "ITM PE flow — put premium share of the option chain through the session.",
   },
   alerts: {
     label: "Alerts",
     short: "Alerts",
     shows: "log",
-    title: "Alerts log — option open-interest bursts and risk alerts. Opens the alert log.",
+    title: "Alerts log — option open-interest bursts and risk alerts.",
   },
 };
 
@@ -351,7 +346,7 @@ export function DeskDock(props: {
           class="flex-1 min-h-0 items-center justify-center px-2 max-[600px]:hidden"
         >
           <span class="text-ui-micro" style={{ color: palette.TEXT_MUTED }}>
-            Select a desk panel below · ALT+1..{props.tabs.length} to toggle · ESC to close
+            Select a desk panel below
           </span>
         </div>
       </Show>

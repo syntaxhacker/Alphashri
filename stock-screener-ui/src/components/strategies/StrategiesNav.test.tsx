@@ -30,13 +30,13 @@ describe("StrategiesNav", () => {
     expect(screen.getByText("Strategies")).toBeInTheDocument();
   });
 
-  it("shows description text", () => {
+  it("keeps the identity band to the title and view switch — no generic subtitle", () => {
     render(() => (
       <UIProvider>
         <StrategiesNav activeView="tree" onChange={vi.fn()} />
       </UIProvider>
     ));
-    expect(screen.getByText("Manage templates, variations, and performance in one place")).toBeInTheDocument();
+    expect(screen.queryByText("Manage templates, variations, and performance in one place")).not.toBeInTheDocument();
   });
 
   it("renders segmented control with tabs", () => {
