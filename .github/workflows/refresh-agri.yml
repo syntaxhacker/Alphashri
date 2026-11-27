@@ -2,8 +2,8 @@ name: Refresh agri mandi prices
 
 # Whole-date agri pull. The collector writes a compact JSONL delta; this job
 # validates/quarantines it, gzips it, writes a manifest, and uploads both to a
-# monthly data-YYYY-MM release. Local application is manual:
-# scripts/sync_refresh_assets.py.
+# monthly data-YYYY-MM release. Local application is automatic via the
+# release-sync watcher, or manual via scripts/sync_refresh_assets.py.
 
 on:
   schedule:
