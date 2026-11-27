@@ -9,7 +9,7 @@ import type {
 import { HistoryPanel } from "./HistoryLab";
 import { HistoryScroller } from "./HistoryScroller";
 import { HistoryPanelEmpty } from "./HistoryStates";
-import { RiskTable } from "./RiskTable";
+import { RiskDrawdownPanel } from "./risk/RiskDrawdownPanel";
 import { SectorRankHeatmap, SectorRankSummary } from "./visuals/SectorRankHeatmap";
 import { SeasonalityHeatmap } from "./visuals/SeasonalityHeatmap";
 import { PersistenceMatrix } from "./visuals/PersistenceMatrix";
@@ -54,12 +54,13 @@ export function HistoryOverview(props: HistoryOverviewProps) {
   return (
     <Box
       data-testid="sector-history-overview"
-      className="flex flex-1 min-h-0 flex-col gap-2 overflow-x-hidden overflow-y-auto p-2"
+      className="flex flex-1 min-h-0 flex-col gap-2 overflow-x-hidden overflow-y-auto p-2 scroll-pb-4"
     >
       <HistoryPanel
         testId="sector-history-rank-panel"
         title="Sector Rank History"
         description={rankDescription()}
+        className="shrink-0"
       >
         <HistoryScroller
           testId="sector-history-rank-scroll"
@@ -74,7 +75,7 @@ export function HistoryOverview(props: HistoryOverviewProps) {
         <SectorRankSummary months={props.months} series={props.series} />
       </HistoryPanel>
 
-      <Box className="grid min-w-0 grid-cols-1 gap-2 lg:grid-cols-2">
+      <Box className="grid min-w-0 shrink-0 grid-cols-1 gap-2 lg:grid-cols-2">
         <HistoryPanel
           testId="sector-history-seasonality-panel"
           title="Seasonality"
@@ -124,6 +125,7 @@ export function HistoryOverview(props: HistoryOverviewProps) {
         testId="sector-history-rotation-panel"
         title="Rotation Timeline"
         description="rank trajectory over time"
+        className="shrink-0"
       >
         <RotationTimeline months={props.months} series={props.series} />
       </HistoryPanel>
@@ -132,6 +134,7 @@ export function HistoryOverview(props: HistoryOverviewProps) {
         testId="sector-history-risk-panel"
         title="Risk"
         description="drawdown · Sharpe · volatility"
+        className="shrink-0"
       >
         <Show
           when={props.risk.length > 0}
@@ -142,7 +145,7 @@ export function HistoryOverview(props: HistoryOverviewProps) {
             />
           }
         >
-          <RiskTable risk={props.risk} series={props.series} />
+          <RiskDrawdownPanel risk={props.risk} series={props.series} />
         </Show>
       </HistoryPanel>
 
@@ -150,7 +153,7 @@ export function HistoryOverview(props: HistoryOverviewProps) {
         <Text
           c="dimmed"
           data-testid="sector-history-disclaimer"
-          className="text-ui-micro leading-snug px-1"
+          className="text-ui-micro leading-snug px-1 shrink-0"
         >
           {props.disclaimer}
         </Text>

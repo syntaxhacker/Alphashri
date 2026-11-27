@@ -269,7 +269,7 @@ describe("UnderwaterDrawdown", () => {
     expect(screen.getByText("monthly closes; risk table uses daily closes")).toBeInTheDocument();
     expect(screen.getByTestId("history-underwater-chart")).toBeInTheDocument();
     expect(screen.getByTestId("history-underwater-caption")).toHaveTextContent(expectedCaption);
-    expect(chartCapture.styles.at(-1)).toMatchObject({ height: "250px" });
+    expect(chartCapture.styles.at(-1)).toMatchObject({ height: "250px", flex: "none" });
     expect(chartCapture.options.at(-1)!.aria.enabled).toBe(true);
     expectNoNaN(chartCapture.options.at(-1));
   });
@@ -403,7 +403,7 @@ describe("SeasonalityRadial", () => {
     expect(strip).toHaveClass("order-first", "sm:order-none");
     expect(strip.parentElement).toBe(chart.parentElement);
     expect(strip.parentElement).toHaveAttribute("data-testid", "history-seasonality-radial-body");
-    expect(chartCapture.styles.at(-1)).toMatchObject({ height: "300px" });
+    expect(chartCapture.styles.at(-1)).toMatchObject({ height: "300px", flex: "none" });
   });
 
   test("renders the chart and the history footer", () => {
@@ -416,7 +416,7 @@ describe("SeasonalityRadial", () => {
     expect(screen.getByTestId("history-seasonality-radial-note")).toHaveTextContent(
       "avg return by month · hit rate in tooltip · n=5 per month · history, not a forecast",
     );
-    expect(chartCapture.styles.at(-1)).toMatchObject({ height: "300px" });
+    expect(chartCapture.styles.at(-1)).toMatchObject({ height: "300px", flex: "none" });
     expectNoNaN(chartCapture.options.at(-1));
   });
 
@@ -543,8 +543,21 @@ describe("RelativeStrength", () => {
     expect(screen.getByTestId("history-relative-strength-key")).toHaveTextContent(
       "above 100 = outperform · below 100 = lag",
     );
-    expect(chartCapture.styles.at(-1)).toMatchObject({ height: "240px" });
+    expect(chartCapture.styles.at(-1)).toMatchObject({ height: "240px", flex: "none" });
     expectNoNaN(chartCapture.options.at(-1));
+  });
+
+  test("can suppress the duplicated method footer when the host panel owns it", () => {
+    render(() => (
+      <RelativeStrength
+        months={MONTHS}
+        series={[BENCHMARK, SECTOR]}
+        sector="NIFTY IT"
+        showHeader={false}
+        showFooter={false}
+      />
+    ));
+    expect(screen.queryByTestId("history-relative-strength-key")).not.toBeInTheDocument();
   });
 
   test("hides the internal title and indexed note when showHeader is false", () => {
@@ -713,7 +726,7 @@ describe("RelativeStrengthTrail", () => {
     expect(screen.getByTestId("history-rs-trail-quadrants")).toHaveTextContent(
       "descriptive, not JdK RRG",
     );
-    expect(chartCapture.styles.at(-1)).toMatchObject({ height: "280px" });
+    expect(chartCapture.styles.at(-1)).toMatchObject({ height: "280px", flex: "none" });
     expectNoNaN(chartCapture.options.at(-1));
   });
 

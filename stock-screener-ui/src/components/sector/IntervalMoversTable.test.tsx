@@ -15,7 +15,9 @@ afterEach(() => {
 describe("IntervalMoversTable", () => {
   it("shows empty state when no movers", () => {
     render(() => <IntervalMoversTable movers={[]} />);
-    expect(screen.getByText("Collecting baseline for interval moves...")).toBeInTheDocument();
+    expect(screen.getByTestId("interval-movers-empty")).toHaveTextContent(
+      "First poll establishes the baseline.",
+    );
   });
 
   it("renders mover rows with symbol, previous change, current change, and delta", () => {

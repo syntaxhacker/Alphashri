@@ -86,11 +86,12 @@ export function HistoryHeader(props: HistoryHeaderProps) {
         <Show when={props.cached !== null}>
           <Text
             fw={700}
-            c={props.cached ? "dimmed" : "success"}
+            c="dimmed"
             data-testid="sector-history-cached"
+            title={props.cached ? "Cached month-end history" : "Latest completed month"}
             className="text-ui-micro tracking-[0.4px] whitespace-nowrap"
           >
-            {props.cached ? "CACHED" : "LIVE"}
+            {props.cached ? "CACHED" : "LATEST"}
           </Text>
         </Show>
         <ActionIcon

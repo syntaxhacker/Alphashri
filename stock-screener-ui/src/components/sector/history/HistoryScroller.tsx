@@ -120,7 +120,9 @@ export function HistoryScroller(props: HistoryScrollerProps) {
         data-testid={`${props.testId}-hint`}
         class={`mb-1 items-center justify-end ${overflowing() ? "flex" : "hidden"}`}
       >
-        <span class="text-ui-micro text-fin-text-muted">{atEnd() ? "← Older" : "Scroll →"}</span>
+        <span class="rounded-[1px] border border-fin-border bg-fin-surface-alt px-1 py-px text-ui-micro text-fin-text-muted">
+          {atEnd() ? "Scroll ← older" : "Scroll → newer"}
+        </span>
       </div>
       <div
         ref={(node) => {

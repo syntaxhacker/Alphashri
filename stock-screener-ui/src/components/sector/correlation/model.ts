@@ -26,6 +26,12 @@ export function strengthRows(sectors: CorrelationSector[]): CorrelationSector[] 
   );
 }
 
+/** Zero is neutral everywhere: no leading plus, no gain/loss tint. */
+export function signTone(value: number): "positive" | "negative" | "neutral" {
+  if (!Number.isFinite(value) || value === 0) return "neutral";
+  return value > 0 ? "positive" : "negative";
+}
+
 export function signed(value: number): string {
-  return value > 0 ? `+${value}` : String(value);
+  return signTone(value) === "positive" ? `+${value}` : String(value);
 }

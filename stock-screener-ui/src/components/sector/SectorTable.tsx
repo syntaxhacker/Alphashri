@@ -6,6 +6,7 @@ import { TanStackTable } from "../common/TanStackTable";
 import { SymbolLink } from "../common/SymbolLink";
 import { useSymbolDock } from "../common/symbolDockContext";
 import { getPnLTextColor } from "../../utils/ui-helpers";
+import { formatSectorPercentage, normalizePercentText } from "./sectorUtils";
 import { POSITIVE, NEGATIVE, TEXT_MUTED } from "@/ui/palette";
 
 interface SectorTableProps {
@@ -20,7 +21,9 @@ export const SECTOR_TABLE_MIN_WIDTH = 760;
 export function getMovementBarValue(pctChange: number): { capped: number; color: string } {
   const normalized = (pctChange + 3) / 6;
   const capped = Math.max(0, Math.min(1, normalized)) * 100;
-  const color = getPnLTextColor(pctChange);
+  // A value that prints 0.00% must also read neutral, not red because its
+  // unrounded float was -0.001.
+  const color = getPnLTextColor(Number(pctChange.toFixed(2)));
   return { capped, color };
 }
 
@@ -41,7 +44,7 @@ function getMovementBar(pctChange: number) {
         className="text-ui-micro font-mono tabular-nums"
         style={{ color: color === "success" ? POSITIVE : NEGATIVE }}
       >
-        Δ {pctChange >= 0 ? "+" : ""}{pctChange.toFixed(2)}%
+        Δ {formatSectorPercentage(pctChange, 2)}
       </Text>
     </Box>
   );
@@ -76,7 +79,7 @@ function TopMoversCell(props: { text: string; onOpen?: (symbol: string) => void 
         <For each={parts()}>
           {(part) => {
             const symbol = part[1];
-            const raw = part[2];
+            const raw = normalizePercentText(part[2]);
             return (
               <Text span className="text-ui-micro font-mono tabular-nums">
                 {link(symbol)}
@@ -115,13 +118,21 @@ export function SectorTable(props: SectorTableProps) {
       size: 80,
       cell: ({ row }) => {
         const val = row.original.avg_change;
+        const rounded = Number(val.toFixed(2));
+        const tone = getPnLTextColor(rounded);
         return (
           <Box
             className="flex items-center justify-end whitespace-nowrap font-semibold tabular-nums font-mono text-ui-micro"
-            style={{ color: getPnLTextColor(val) === "success" ? POSITIVE : NEGATIVE }}
+            style={{
+              color:
+                tone === "success"
+                  ? POSITIVE
+                  : tone === "error"
+                    ? NEGATIVE
+                    : TEXT_MUTED,
+            }}
           >
-            {val >= 0 ? "+" : ""}
-            {val.toFixed(2)}%
+            {formatSectorPercentage(val, 2)}
           </Box>
         );
       },
