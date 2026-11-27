@@ -323,3 +323,56 @@ def test_compute_wall_state_matches_naive_reference(monkeypatch):
             rows, include_map=include_map, **kwargs
         )
         assert actual == expected
+
+
+def test_prior_index_keeps_the_latest_row_at_or_before_the_cutoff():
+    # Nearest index can land just after the cutoff (60 is nearer 50 than 0);
+    # the volume delta must still use the 5-minute-old row.
+    epochs = [0.0, 300.0, 600.0, 900.0, 1200.0]
+    for index in range(len(epochs)):
+        for minutes in (5, 30):
+            target = epochs[index] - minutes * 60
+            expected = next(
+                (j for j in range(index - 1, -1, -1) if epochs[j] <= target),
+                None,
+            )
+            assert options_walls._prior_index(epochs, index, minutes) == expected
+
+
+def test_prior_index_zero_minutes_never_returns_the_current_row():
+    epochs = [100.0, 100.0, 100.0, 160.0, 220.0, 220.0, 280.0, 340.0]
+    for index in range(len(epochs)):
+        target = epochs[index]
+        expected = next(
+            (j for j in range(index - 1, -1, -1) if epochs[j] <= target),
+            None,
+        )
+        actual = options_walls._prior_index(epochs, index, 0)
+        assert actual == expected
+        assert actual != index
+
+
+def test_volume_path_matches_naive_backward_scan(monkeypatch):
+    """The bisected prior row must reproduce the original per-wall scan."""
+    rows = _parity_rows()
+    now = datetime.fromisoformat(rows[-1]["t"]) + timedelta(minutes=1)
+    kwargs = dict(
+        symbol="NIFTY", date_str=DATE_STR, expiry=DATE_STR, now=now,
+        top_n=3,
+    )
+
+    def naive_prior_index(epochs, index, minutes):
+        target = epochs[index] - minutes * 60
+        return next(
+            (j for j in range(index - 1, -1, -1) if epochs[j] <= target),
+            None,
+        )
+
+    for window_min in (5, 60):
+        for include_map in (False, True):
+            call = dict(kwargs, window_min=window_min, include_map=include_map)
+            with monkeypatch.context() as m:
+                m.setattr(options_walls, "_prior_index", naive_prior_index)
+                expected = options_walls.compute_wall_state(rows, **call)
+            actual = options_walls.compute_wall_state(rows, **call)
+            assert actual == expected
