@@ -22,8 +22,8 @@ Design constraints (see ``docs/options-report-symbols.md``):
 - **Single-flight + budget.** One ``asyncio.Lock`` per underlying (10 calls in
   the TTL window = one upstream chain fetch), a global ``Semaphore(4)`` so a
   fan-out cannot open 20 chains at once, and every upstream call acquires a
-  token from ``upstox_trader.rate_limiter`` under the ``api`` consumer slice
-  (150/min). The distinct-symbol cache is capped at
+  token from ``upstox_trader.rate_limiter`` under the shared ``options``
+  consumer slice. The distinct-symbol cache is capped at
   :data:`CACHE_MAX_SYMBOLS` (≈15) so a selector sweep cannot grow unbounded.
 - **Symbol-owned analytics, not NIFTY's.** GEX / positioning / pivots / baseline
   / ATM reference / verdicts / structure are all computed from the *symbol's own*
@@ -67,6 +67,7 @@ from api.options import (
 )
 from api.options_conventions import NEAR_BAND_PCT as _NEAR_BAND_PCT
 from api.options_math import put_call
+from api.reports_api._rate_limit import get_rate_limiter
 from api.reports_api._walls import as_report_walls as _as_report_walls
 
 try:  # pragma: no cover - import guard only (pandas/upstox client availability)
@@ -78,8 +79,8 @@ router = APIRouter(prefix="/api/reports/options", tags=["options-report"])
 
 logger = logging.getLogger(__name__)
 
-#: Non-NIFTY symbols move slower than an index and share the 150/min ``api``
-#: Upstox slice with the rest of the desk. 30 s is the audited floor.
+#: Non-NIFTY symbols move slower than an index and share the ``options``
+#: Upstox slice with the recorder. 30 s is the audited floor.
 CACHE_TTL_SEC = 30.0
 #: ``(SYMBOL, expiry) -> {"ts": float, "data": dict}`` — never NIFTY's cache.
 _chain_cache: dict[tuple[str, str], dict] = {}
@@ -193,22 +194,12 @@ def _symbol_lock(symbol: str) -> asyncio.Lock:
     return lock
 
 
-_RATE_LIMITER: Any = None
-_RATE_LIMITER_READY = False
-
-
 def _rate_limiter() -> Any:
-    """Lazy singleton ``UpstoxRateLimiter(consumer="options")`` (None if absent)."""
-    global _RATE_LIMITER, _RATE_LIMITER_READY
-    if not _RATE_LIMITER_READY:
-        _RATE_LIMITER_READY = True
-        try:
-            from upstox_trader.rate_limiter import UpstoxRateLimiter
+    """Lazy ``UpstoxRateLimiter(consumer="options")`` (None if absent).
 
-            _RATE_LIMITER = UpstoxRateLimiter(consumer="options")
-        except Exception:
-            _RATE_LIMITER = None
-    return _RATE_LIMITER
+    Kept as a module-level hook so tests can patch the report's limiter.
+    """
+    return get_rate_limiter("options")
 
 
 async def _acquire_upstream() -> bool:

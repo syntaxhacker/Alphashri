@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 from api.tv import get_scanner_data
+from api.utils import optional_float
 
 log = logging.getLogger(__name__)
 
@@ -38,19 +39,7 @@ _TV_BATCH_SIZE = 80
 
 
 def _to_float(value) -> float | None:
-    try:
-        if value is None:
-            return None
-        if isinstance(value, bool):
-            return None
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    if number != number:
-        return None
-    if number in (float("inf"), float("-inf")):
-        return None
-    return number
+    return optional_float(value, reject_bool=True)
 
 
 def fetch_tv_volume_metrics(symbols: list[str], *, limit: int | None = None) -> dict[str, dict]:

@@ -2,7 +2,7 @@
 api/utils.py — Shared helpers for API layer to reduce DRY clones.
 
 Centralizes:
-- Data normalizers (_to_float, _sanitize_for_json, _ensure_datetime_index)
+- Data normalizers (_to_float, optional_float, _sanitize_for_json, _ensure_datetime_index)
 - Common response builders (_make_empty_chart_response)
 - Cache helpers for JSON+TTL meta-file caches (_get_cache_path, _get_cache_meta_path, _read_cache, _write_cache)
   Used by correlation.py and sector.py to eliminate ~26-line duplicate cache logic.
@@ -62,6 +62,22 @@ def _to_float(value: Any, default: float = 0.0) -> float:
         return out
     except Exception:
         return default
+
+
+def optional_float(value: Any, *, reject_bool: bool = False) -> Optional[float]:
+    """Finite float or ``None`` — nullable numeric fields, no default substitution.
+
+    ``_to_float`` turns missing values into ``0.0``; aggregations and TV payloads
+    need to keep "missing" distinct from zero. ``reject_bool`` preserves TV's
+    guard against pandas boolean placeholders becoming 0.0/1.0.
+    """
+    if value is None or (reject_bool and isinstance(value, bool)):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
 
 
 def finite_or_none(value: Any) -> Optional[float]:
