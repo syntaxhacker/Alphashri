@@ -455,7 +455,8 @@ describe("SectorHistoryTab", () => {
 
     const overview = screen.getByTestId("sector-history-overview");
     expect(overview).toHaveClass("overflow-y-auto");
-    expect(overview).toHaveClass("scroll-pb-4");
+    expect(overview).toHaveClass("pb-6");
+    expect(overview).toHaveClass("scroll-pb-6");
     expect(screen.getByTestId("sector-history-risk-row-Banking")).toHaveClass("py-1");
     for (const testId of [
       "sector-history-rank-panel",

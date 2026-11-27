@@ -111,7 +111,12 @@ async function openSectionManager(page: Page): Promise<Locator> {
   const toggle = page.getByTestId("market-view-toggle");
   const sectionsTab = toggle.getByRole("button", { name: "Sections", exact: true });
   await expect(sectionsTab).toBeVisible();
-  await sectionsTab.click();
+  // The narrow track has a right-edge scroll cue; bring the tab to the start
+  // before clicking so the cue does not intercept the pointer.
+  // At 390px the scroll cue overlays the right edge of the track; keyboard
+  // activation reaches the same onChange handler without the intercepted click.
+  await sectionsTab.focus();
+  await sectionsTab.press("Enter");
   await page.getByTestId("market-sections-add").click();
   const dialog = page.getByTestId("section-manager-modal");
   await expect(dialog).toContainText("Signal Sections");
