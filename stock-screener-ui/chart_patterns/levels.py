@@ -25,6 +25,7 @@ Algorithm (backend contract):
 
 from __future__ import annotations
 
+from operator import itemgetter
 from typing import Optional, Sequence
 
 import numpy as np
@@ -51,6 +52,7 @@ MERGE_PRICE_MAX = 0.02
 OVERLAP_RATIO = 0.5
 
 _OHLC = ("open", "high", "low", "close")
+_WIRE_FIELDS = itemgetter("t", "o", "h", "l", "c")
 
 
 def _to_frame(candles) -> Optional[pd.DataFrame]:
@@ -118,9 +120,9 @@ def _numeric_column(rows: Sequence, key: str) -> np.ndarray:
 def _prepare_frame(candles) -> Optional[pd.DataFrame]:
     """Sanitised numeric OHLC frame from wire candles or a DataFrame.
 
-    The wire fast path builds the numeric columns directly instead of
-    ``DataFrame.from_records`` + four ``pd.to_numeric`` passes + a ``.loc``
-    block copy. Values, index and invalid-bar rules are unchanged.
+    The wire fast path extracts all five fields in one C-level pass per row,
+    avoiding five Python-level dict scans on the chart hot path. Values, index
+    and invalid-bar rules are unchanged; odd inputs take the original path.
     """
     if isinstance(candles, pd.DataFrame):
         frame = _to_frame(candles)
@@ -137,16 +139,29 @@ def _prepare_frame(candles) -> Optional[pd.DataFrame]:
     if n == 0:
         return None
     try:
-        index: list = []
-        for i in range(n):
-            candle = rows[i]
-            if not isinstance(candle, dict):
-                return None
-            index.append(candle.get("t", i))
-        opens = _numeric_column(rows, "o")
-        highs = _numeric_column(rows, "h")
-        lows = _numeric_column(rows, "l")
-        closes = _numeric_column(rows, "c")
+        try:
+            # One C-level pass per row replaces five Python-level dict lookups
+            # and keeps the wire index in the same order as the OHLC columns.
+            extracted = list(map(_WIRE_FIELDS, rows))
+            index = [row[0] for row in extracted]
+            columns = zip(*extracted)
+            next(columns)  # timestamps are the index, not a numeric column
+            opens, highs, lows, closes = (
+                np.fromiter(column, dtype=float, count=n) for column in columns
+            )
+        except (TypeError, ValueError, KeyError):
+            # Missing keys, non-dict rows or uncoercible values: the original
+            # per-column path defines their NaN/default semantics.
+            index: list = []
+            for i in range(n):
+                candle = rows[i]
+                if not isinstance(candle, dict):
+                    return None
+                index.append(candle.get("t", i))
+            opens = _numeric_column(rows, "o")
+            highs = _numeric_column(rows, "h")
+            lows = _numeric_column(rows, "l")
+            closes = _numeric_column(rows, "c")
         finite = (
             np.isfinite(opens)
             & np.isfinite(highs)
@@ -156,15 +171,15 @@ def _prepare_frame(candles) -> Optional[pd.DataFrame]:
         positive = (opens > 0.0) & (highs > 0.0) & (lows > 0.0) & (closes > 0.0)
         ordered = highs >= lows
         good = finite & positive & ordered
-        return pd.DataFrame(
-            {
-                "open": np.where(good, opens, np.nan),
-                "high": np.where(good, highs, np.nan),
-                "low": np.where(good, lows, np.nan),
-                "close": np.where(good, closes, np.nan),
-            },
-            index=index,
+        values = np.column_stack(
+            (
+                np.where(good, opens, np.nan),
+                np.where(good, highs, np.nan),
+                np.where(good, lows, np.nan),
+                np.where(good, closes, np.nan),
+            )
         )
+        return pd.DataFrame(values, index=index, columns=list(_OHLC))
     except Exception:
         return None
 
@@ -230,8 +245,12 @@ def _cluster_touches(
     ``tolerance`` (ties favour the lower mean); otherwise it opens a new
     cluster. ``<=`` makes the tolerance boundary inclusive.
     """
+    ordered = sorted(points, key=lambda item: (item[0], item[1]))
     clusters: list[dict] = []
-    for index, price in sorted(points, key=lambda item: (item[0], item[1])):
+    # np.add.reduce on a reusable buffer is the same reduction np.mean uses on
+    # the price list, without rebuilding an array on every touch.
+    buffer = np.empty(len(ordered), dtype=float)
+    for index, price in ordered:
         if not np.isfinite(price):
             continue
         best = None
@@ -250,9 +269,12 @@ def _cluster_touches(
                 {"prices": [float(price)], "indices": [int(index)], "mean": float(price)}
             )
             continue
-        best["prices"].append(float(price))
+        prices = best["prices"]
+        prices.append(float(price))
         best["indices"].append(int(index))
-        best["mean"] = float(np.mean(best["prices"]))
+        count = len(prices)
+        buffer[:count] = prices
+        best["mean"] = float(np.add.reduce(buffer[:count]) / count)
     return clusters
 
 
