@@ -222,18 +222,21 @@ def _fetch_90d_daily(api, symbol):
         return None
 
 
-def _lookup_upstox_52w_high(symbol):
+def _lookup_upstox_52w_high(symbol, ranges=None):
     """Upstox-computed 52W high for symbol (range cache / stock_52w_range table).
 
-    Returns the high as float, or None when unavailable/invalid. Never raises —
-    callers fall back to TradingView in that case.
+    ``ranges`` is the bulk payload loaded once per screen. A symbol absent from
+    it still goes through ``get_52w_range`` so the per-symbol DB fallback (and
+    direct callers that patch it) keep the same behaviour. Returns the high as
+    float, or None when unavailable/invalid. Never raises — callers fall back
+    to TradingView in that case.
     """
     try:
-        from trading.week52.ranges import get_52w_range
-    except Exception:
-        return None
-    try:
-        info = get_52w_range(symbol)
+        if ranges is None or symbol not in ranges:
+            from trading.week52.ranges import get_52w_range
+            info = get_52w_range(symbol)
+        else:
+            info = ranges[symbol]
     except Exception:
         return None
     if not isinstance(info, dict):
@@ -241,7 +244,7 @@ def _lookup_upstox_52w_high(symbol):
     return _to_float(info.get('high'), 0) or None
 
 
-def _resolve_52w_gap(symbol, tv_52w_high, price):
+def _resolve_52w_gap(symbol, tv_52w_high, price, ranges=None):
     """Resolve (high_52w, to_52w_high, source) preferring Upstox.
 
     Uses the Upstox-computed 52W high and the Upstox current price. Falls back
@@ -253,7 +256,7 @@ def _resolve_52w_gap(symbol, tv_52w_high, price):
     price = _to_float(price, 0)
     if price <= 0:
         return None, None, None
-    upstox_high = _lookup_upstox_52w_high(symbol)
+    upstox_high = _lookup_upstox_52w_high(symbol, ranges)
     if upstox_high and upstox_high > 0:
         gap = gap_pct_to_52w_high(upstox_high, price)
         if gap is not None and is_plausible_52w_gap(gap):
@@ -338,7 +341,7 @@ def _compute_days_ago(api, symbol, today_high=None):
     return _last_touch_days_ago(df, threshold)
 
 
-def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52w_buckets, profile_filters):
+def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52w_buckets, profile_filters, ranges=None):
     from concurrent.futures import ThreadPoolExecutor, as_completed
     import random
 
@@ -493,7 +496,7 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             # Authoritative gap: Upstox 52W high vs Upstox current price.
             # TradingView is only a fallback (marked source='tv'). Stale rows
             # (price far above the recorded high) are skipped, not emitted.
-            high_52w, to_52w_high, price_source = _resolve_52w_gap(symbol, tv_52w_high, upstox_price)
+            high_52w, to_52w_high, price_source = _resolve_52w_gap(symbol, tv_52w_high, upstox_price, ranges)
             if high_52w is None or to_52w_high is None:
                 return None
             adx = float(row_data.get('ADX', 0))
@@ -504,9 +507,23 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             est_days, confidence = estimate_days_to_52w(upstox_price, high_52w, adx, atr, recent_return, perf_w)
             touched_gap = touched_52w_gap_threshold_pct()
             touched_52w = is_within_52w_touch_gap(to_52w_high, touched_gap)
+            # The near-high and touch-recency stats use different today_high
+            # arguments, so compute them separately from one shared frame.
+            need_days_ago = screener_clean in ('touched_52w_high', '52w_high')
+            need_touch_days = use_52w_buckets and tv_52w_high > 0
+            daily_df = (
+                _fetch_90d_daily(api, symbol)
+                if need_days_ago or need_touch_days else None
+            )
             days_ago = None
-            if screener_clean in ('touched_52w_high', '52w_high'):
-                days_ago = _compute_days_ago(api, symbol, today_high=upstox_price if touched_52w else None)
+            if need_days_ago:
+                if daily_df is None:
+                    days_ago = 0 if touched_52w else None
+                else:
+                    days_ago = _touch_stats_from_df(
+                        daily_df, tv_52w_high,
+                        upstox_price if touched_52w else None,
+                    )[0]
             c_open = _to_float(current_candle.get('open'), c_close)
             is_bullish = c_close >= c_open
             sentiment = _classify_sentiment(wick_close_pct, is_bullish)
@@ -570,9 +587,12 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
 
             # Enrichment only: touch-recency is a nicety, so a bar-lookup
             # failure must never drop an otherwise-valid row.
-            if use_52w_buckets and tv_52w_high > 0:
+            if need_touch_days:
                 try:
-                    touch_days = _days_since_touch(api, symbol, tv_52w_high)
+                    touch_days = (
+                        _touch_stats_from_df(daily_df, tv_52w_high)[1]
+                        if daily_df is not None else None
+                    )
                 except Exception:
                     touch_days = None
                 if touch_days is not None:
@@ -708,7 +728,7 @@ def _enrich_with_touch_history(data, screener):
         data['_debug_moved_by_history'] = moved_count
 
 
-def fetch_screener_data(provider='upstox', mode='historical', screener='trending', profile_filters=None, _retry_api=True):
+def fetch_screener_data(provider='upstox', mode='historical', screener='trending', profile_filters=None, _retry_api=True, _ranges=None):
     from concurrent.futures import ThreadPoolExecutor, as_completed
     import trending_upside
 
@@ -769,11 +789,24 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
     blacklisted_symbols = set()
     rows_data = [row.to_dict() for _, row in tv_df.iterrows()]
 
+    # Loading the bulk payload once per screen avoids deserializing the whole
+    # 52w_range:all blob for every candidate. Leave ranges None when nothing
+    # loaded so the legacy per-symbol lookup (including its DB fallback) runs.
+    if _ranges is None and use_api:
+        try:
+            from trading.week52.ranges import load_all_52w_ranges
+            loaded = load_all_52w_ranges()
+            if loaded:
+                _ranges = loaded
+        except Exception:
+            pass
+    ranges = _ranges
+
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {
             executor.submit(
                 _process_single_stock,
-                row_data, screener, use_api, api, use_intraday, use_52w_buckets, profile_filters
+                row_data, screener, use_api, api, use_intraday, use_52w_buckets, profile_filters, ranges
             ): row_data
             for row_data in rows_data
         }
@@ -795,7 +828,7 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
 
     # If Upstox API returned no data (market closed, expired token), fall back to TV prices
     if use_api and _retry_api and len(approaching) + len(touched) == 0:
-        return fetch_screener_data(provider, mode, screener, profile_filters, _retry_api=False)
+        return fetch_screener_data(provider, mode, screener, profile_filters, _retry_api=False, _ranges=ranges)
 
     return {
         'approaching': approaching,
