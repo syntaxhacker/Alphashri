@@ -1017,6 +1017,14 @@ Use this when fixing CI on an open PR or merging a release:
 - **Definition of green is the head SHA.** Confirm every required check passes on the current PR head after the last commit; then merge. After merging #266/#267/#269 etc., sync local `develop`, verify the merge commits, and confirm no open PRs remain.
 - **Report the final order and merge commits** (`#266` → `#267` → `#268`, then any CI-recovery PR), plus the exact checks. Do not call a release green from a local run.
 
+## Market levels (LevelBook)
+
+- Additive single-source contract for trading levels lives in `market_levels/`; see [docs/LEVELS_ARCHITECTURE.md](./docs/LEVELS_ARCHITECTURE.md) before touching it.
+- Detectors are one file per source with a `DetectorSpec` + pure `detect(ctx)` that only wraps upstream math (`compute_sr_zones`, `calculate_pivot_points`, `api.options_levels.build_levels`). No I/O, no clock, no network, no DB, no second formula.
+- There is one `market_levels/registry.py` and one `market_levels/service.py`: detectors only register and return levels; they never fetch data or fuse. Registration and orchestration/fusion have no second implementation.
+- Fusion (`fuse_levels`) is backend-only: no cross-source merge, provenance/evidence preserved, sides filled from spot, deterministic source → strength → distance → id rank. Do not re-fuse in the UI.
+- Phase 1 is read-only: existing chart/report/API outputs are unchanged. Parity + integration tests pin every raw field; `scripts/perf/bench_levels.py` is the deterministic perf check.
+
 ## Known Issues / Deferred
 - **Replay system name→ID migration** (Phase 3) — deferred, known limitation
 - **Portfolio summary compact redesign** — mentioned but not started
