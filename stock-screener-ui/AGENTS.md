@@ -684,8 +684,8 @@ If a push shows no progress for >30s and an `askpass.sh` child exists, kill it; 
 
 ## Performance budgets and checks
 
-- **Last checked: 2026-11-25**
-- **Next check: 2026-12-02**
+- **Last checked: 2026-11-28**
+- **Next check: 2026-12-05**
 - Short index + measurement methodology: [docs/PERFORMANCE.md](./docs/PERFORMANCE.md). Machine-readable budgets: [`perf/budgets.json`](./perf/budgets.json) (test/wall budgets), [`perf/api_budgets.json`](./perf/api_budgets.json) (API latency budgets) and [`perf/chart_ui_budgets.json`](./perf/chart_ui_budgets.json) (interactive chart/UI, initial targets). Detail docs: [docs/TESTING_SPEED.md](./docs/TESTING_SPEED.md), [docs/API_LATENCY.md](./docs/API_LATENCY.md), [docs/CHART_PERFORMANCE.md](./docs/CHART_PERFORMANCE.md), [`scripts/test/run_changed.py`](./scripts/test/run_changed.py).
 
   **Denominators (do not mix):** **~9,237** node ids collected with no marker filter → **8,987** after the full exclusion marker (`-m "not (slow or … or postgres)"`, push/nightly sweep) → **662** in the PR fast tier (`-m "unit and not slow"`). The 662-test tier is the PR gate; the 8,987 sweep is a push/nightly debt alarm.
@@ -699,7 +699,7 @@ If a push shows no progress for >30s and an `askpass.sh` child exists, kill it; 
 | Frontend changed-only (`vitest run --changed`) | **< 2 min** |
 | Frontend full suite | **≤ 10 min on a 16 GB runner; ≤ 25 min on an 8 GB host with `--maxWorkers=1`** |
 | API warm reads | per-endpoint **warm p95** budgets in [`perf/api_budgets.json`](./perf/api_budgets.json) (e.g. health 100 ms, login 500 ms, agri filters 500 ms), measured in [docs/API_LATENCY.md](./docs/API_LATENCY.md) |
-| API cold agri filter path | **API_COLD** exception = the `cold` budget for `agri_filters` in [`perf/api_budgets.json`](./perf/api_budgets.json): **10,000 ms**. Other routes have `cold: null` (INFO, not enforced). See the known current breach in [docs/API_LATENCY.md](./docs/API_LATENCY.md) |
+| API cold agri filter path | **API_COLD** exception = the `cold` budget for `agri_filters` in [`perf/api_budgets.json`](./perf/api_budgets.json): **10,000 ms**. Other routes have `cold: null` (INFO, not enforced). Re-measured **PASS** on 2026-11-28 — the former breach is resolved (only the agri cold path was re-measured in that pass); see [docs/API_LATENCY.md](./docs/API_LATENCY.md) and [`scripts/perf/bench_agri.py`](./scripts/perf/bench_agri.py) |
 
 ### Interactive UI & chart performance (mandatory for chart work)
 

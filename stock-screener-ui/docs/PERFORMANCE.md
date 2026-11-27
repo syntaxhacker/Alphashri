@@ -1,7 +1,7 @@
 # Performance — index
 
-- **Last checked: 2026-11-26**
-- **Next check: 2026-12-03**
+- **Last checked: 2026-11-28**
+- **Next check: 2026-12-05**
 
 Short index only. The budgets and the enforcement rules live in
 [`AGENTS.md` → *Performance budgets and checks*](../AGENTS.md#performance-budgets-and-checks).
@@ -12,9 +12,9 @@ Keep this page a pointer; do not duplicate numbers here.
 | Topic | Source |
 |---|---|
 | Wall/test budgets (backend + frontend) | [`perf/budgets.json`](../perf/budgets.json) |
-| API latency budgets (per-route warm p95, including the seeded-cache chart route; `API_COLD` = `agri_filters` cold budget 10,000 ms) | [`perf/api_budgets.json`](../perf/api_budgets.json) |
+| API latency budgets (per-route warm p95, including the seeded-cache chart route; `API_COLD` = `agri_filters` cold budget 10,000 ms — re-measured **PASS** 2026-11-28, see [docs/API_LATENCY.md](./API_LATENCY.md)) | [`perf/api_budgets.json`](../perf/api_budgets.json) |
 | Interactive chart/UI protocol, budgets and scripts (initial targets pending baseline) | [docs/CHART_PERFORMANCE.md](./CHART_PERFORMANCE.md) · [`perf/chart_ui_budgets.json`](../perf/chart_ui_budgets.json) · [`scripts/perf/`](../scripts/perf/) |
-| API benchmark, warm/cold semantics, verdicts, known breach | [docs/API_LATENCY.md](./API_LATENCY.md) · [`scripts/bench_api.py`](../scripts/bench_api.py) |
+| API benchmark, warm/cold semantics, verdicts, agri cold path re-measured/resolved 2026-11-28 | [docs/API_LATENCY.md](./API_LATENCY.md) · [`scripts/bench_api.py`](../scripts/bench_api.py) · [`scripts/perf/bench_agri.py`](../scripts/perf/bench_agri.py) |
 | Backend fast changed-test runner (selection rules, markers, flags) | [docs/TESTING_SPEED.md](./TESTING_SPEED.md) · [`scripts/test/run_changed.py`](../scripts/test/run_changed.py) |
 | CI shard/tier facts (12 python shards; E2E 20 shards) | [`.github/workflows/test.yml`](../../.github/workflows/test.yml) · `AGENTS.md` |
 
@@ -38,7 +38,10 @@ last-checked / next-check on every review.
   (from `perf/api_budgets.json`); p50/p95/p99 come from the measured samples
   only. Warm and cold are separate tables, never averaged together. Cold paths
   must be tagged `API_COLD` — only `/api/agri/filters` has an agreed cold budget
-  (10,000 ms); other routes report `cold: null` as INFO.
+  (10,000 ms); other routes report `cold: null` as INFO. That agri cold budget
+  was re-measured as **PASS** on 2026-11-28 (only the agri cold path was
+  re-measured in that pass); see [docs/API_LATENCY.md](./API_LATENCY.md) and
+  [`scripts/perf/bench_agri.py`](../scripts/perf/bench_agri.py).
 - **Chart route warm read.** The in-process chart benchmark pre-seeds a
   session-current `1D` candle file under its own temp workdir and disables only
   the stale-first *background* refresh, so the measured p95 is candle-cache
@@ -97,7 +100,10 @@ trade projections (`api/strategy_performance.py`,
 two paper test files); benchmark/test harness (`scripts/perf/db_query_bench.py`,
 `tests/perf/test_db_query_bench.py`, new tests).
 
-**Caveats:** agri backend/caches/tests excluded throughout. Live
+**Caveats:** agri backend/caches/tests excluded throughout this loop; the agri
+cold path was re-measured separately on 2026-11-28 (PASS; only agri cold was
+re-measured in that pass) — see [docs/API_LATENCY.md](./API_LATENCY.md) and
+[`scripts/perf/bench_agri.py`](../scripts/perf/bench_agri.py). Live
 `db/alphashri.db` hash drifted from the externally running uvicorn/WAL
 checkpoints — never opened, migrated, restored or written by this work; all
 verification was in-memory SQLite or read-only. A mixed-directory explicit-file
