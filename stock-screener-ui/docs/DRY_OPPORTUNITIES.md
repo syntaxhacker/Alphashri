@@ -1,8 +1,19 @@
 # DRY Opportunities Report
 
-**Branch:** refactor/dry-opportunities (created from main)
-**Date:** Wed Jun  3 05:00:29 PM IST 2026
+**Original audit:** branch `refactor/dry-opportunities` (created from main), Wed Jun  3 05:00:29 PM IST 2026
+**Latest update:** 2026-11-27 (status + reproducible check only; no new jscpd run)
 **Package.json checks:** Used `check:duplicates` (jscpd), `check:unused` (knip), `check:deps` (depcheck), `check:all`
+
+## Status (2026-11-27)
+
+**Completed — 52W consolidation.** Canonical package `trading/week52/` (config, math, ranges, job, keys, upsert, defaults). One change-only `stock_52w_range` upsert shared by the compute and release-sync scripts; `week52_range_lookup.py` / `week52_job_status.py` are re-export shims only; Chaser/Target defaults live once in `defaults.py` with parity across callers. See `docs/WEEK52_SINGLE_SOURCE.md`.
+
+**Remaining candidates — re-measure with the next run.** No new jscpd numbers are recorded here; all counts below are historical, and the ad-hoc `npx jscpd ...` commands are superseded. Reproduce with `bun run check:duplicates:python` (wrapper: `scripts/check_duplicates_python.sh`):
+- **Market-hours gate** — one canonical `trading.utils.is_market_open()`; reconcile holiday-unaware/holiday-aware helpers and the simple fallback.
+- **Screener profile registry** — one descriptor per profile instead of scattered literals/branches.
+- **Options rate limiter** — shared limiter across options/broker call sites.
+- **`_to_float`** — confirm all callers use the `api/utils.py` copy; fold any new copies back into it.
+- **Timezone helpers** — reuse `config.IST`, `frame_last_date()`, `fmt_date()`; no new forks.
 
 ## Summary from jscpd (similar code)
 - Ran `bun run check:duplicates` and targeted `jscpd src --min-lines 5 --ignore "**/*.test.*"`
@@ -86,6 +97,7 @@ See full jscpd/knip output in terminal for exact clones.
      - chaser:747-756 <-> target:386-396
      - chaser:762-781 <-> target:406-425
    - *Strong recommendation:* These two 52W strategies share ~20-30%+ code. Extract common logic into `backtest/strategies/base_52w.py` or shared `week52_utils.py` (some utils already exist). Use inheritance (BaseSignalGenerator mentioned in AGENTS). This is the #1 Python DRY win.
+    - *Status (2026-11-27): completed via the `trading/week52/` consolidation — see "Status (2026-11-27)"; the recommendation above is historical.*
 
 2. **Internal duplicates in strategies:**
    - week52_target.py has several self-clones (15 lines, 11 lines, 12 lines).

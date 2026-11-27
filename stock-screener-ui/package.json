@@ -33,7 +33,7 @@
     "check:unused": "knip",
     "check:deps": "depcheck",
     "check:all": "bun run lint && bun run check:duplicates && bun run check:duplicates:python && bun run check:unused",
-    "check:duplicates:python": "jscpd api/ scripts/ trading/ backtest/ db/ -f python --min-lines 5 --reporters console --threshold 10 || echo 'DRY note: threshold exceeded (migrations/strategy boilerplate intentional - see docs/DRY_OPPORTUNITIES.md); treated as non-fatal for this check.'",
+    "check:duplicates:python": "bash scripts/check_duplicates_python.sh",
     "check:bundle": "node scripts/check_bundle_interop.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
