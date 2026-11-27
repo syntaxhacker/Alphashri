@@ -1,11 +1,11 @@
 # Value preset-gallery fix pass — evidence
 
 Worktree: `/workspaces/react/.agent-worktrees/value-filter-redesign/stock-screener-ui`
-Branch / HEAD: `feat/value-filter-redesign` @ **`b4b6ac4d`**
+Branch / HEAD: `feat/value-filter-redesign` @ **`9910d40c`**
 App: `http://127.0.0.1:5176` → API `127.0.0.1:8766` (QA login; real value scan).
 Captured: 2026-11-27T03:31–03:42Z, after the `b4b6ac4d` commit.
 
-Independent regrade: **A+** at `b4b6ac4d`. Superseded pre-commit frames were discarded.
+Independent regrade: **A+** at `b4b6ac4d`. Frames were captured before the no-conflict develop merge at `9910d40c`; the Value surfaces are unchanged by that merge. Superseded pre-commit frames were discarded.
 
 ## Frames (28, 14 states × 1600/390)
 
