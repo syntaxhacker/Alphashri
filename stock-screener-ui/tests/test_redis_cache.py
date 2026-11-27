@@ -59,6 +59,48 @@ def _patched_redis(fake_redis):
         yield rc
 
 
+class _InfoRecordingRedis:
+    """fakeredis has no INFO, so serve the sections and log every command."""
+
+    def __init__(self, inner):
+        self.inner = inner
+        self.commands = []
+
+    def hset(self, key, mapping=None, **kwargs):
+        self.commands.append("hset")
+        return self.inner.hset(key, mapping=mapping or kwargs)
+
+    def dbsize(self):
+        self.commands.append("dbsize")
+        return self.inner.dbsize()
+
+    def info(self, section=None):
+        self.commands.append(f"info:{section}")
+        memory = {
+            "used_memory": 1234567,
+            "used_memory_human": "1.18M",
+            "used_memory_peak": 2345678,
+            "used_memory_peak_human": "2.24M",
+            "maxmemory_policy": "allkeys-lru",
+            "mem_fragmentation_ratio": 1.37,
+        }
+        stats = {
+            "evicted_keys": 11,
+            "expired_keys": 22,
+            "keyspace_hits": 3300,
+            "keyspace_misses": 700,
+        }
+        if section == "memory":
+            return memory
+        if section == "stats":
+            return stats
+        return {**memory, **stats}
+
+    def scan_iter(self, match=None, count=100):
+        self.commands.append(f"scan:{match}")
+        return self.inner.scan_iter(match=match, count=count)
+
+
 class TestMakeCacheKey:
     def test_basic_key(self):
         key = make_cache_key("screener", "upstox", "intraday", "trending")
@@ -312,6 +354,34 @@ class TestCacheStats:
             assert stats["misses"] == 3
             assert stats["total_requests"] == 10
             assert stats["hit_rate"] == 70.0
+
+    def test_stats_uses_one_keyspace_scan(self, fake_redis):
+        import cache.redis_client as rc
+
+        client = _InfoRecordingRedis(fake_redis)
+        for key in ("screener:a", "screener:b", "news:a", "backtest:a", "nocolon"):
+            fake_redis.set(key, "v")
+        rc._global_hits = 7
+        rc._global_misses = 3
+        rc._domain_hits.update({"screener": 7, "other": 1})
+        rc._domain_misses.update({"news": 3})
+
+        previous_flush = rc._last_flush_time
+        rc._last_flush_time = time.time()
+        try:
+            with patch("cache.redis_client.get_redis_client", return_value=client):
+                rc._redis_available = True
+                stats = rc.get_cache_stats()
+        finally:
+            rc._last_flush_time = previous_flush
+
+        assert stats["by_prefix_keys"] == {"screener": 2, "other": 0, "news": 1}
+        assert stats["by_domain"]["news"] == {
+            "hits": 0, "misses": 3, "total": 3, "hit_rate": 0.0,
+        }
+        assert stats["used_memory_bytes"] == 1234567
+        assert stats["keyspace_hits"] == 3300
+        assert client.commands == ["dbsize", "info:memory", "info:stats", "scan:*"]
 
 
 class TestCacheInvalidation:

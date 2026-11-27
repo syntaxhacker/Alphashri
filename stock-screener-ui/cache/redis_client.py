@@ -397,7 +397,8 @@ def get_cache_stats() -> dict:
         stats["keyspace_hits"] = stats_info.get("keyspace_hits", 0)
         stats["keyspace_misses"] = stats_info.get("keyspace_misses", 0)
 
-        for domain in set(list(d_hits.keys()) + list(d_misses.keys())):
+        domains = set(list(d_hits.keys()) + list(d_misses.keys()))
+        for domain in domains:
             dh = d_hits.get(domain, 0)
             dm = d_misses.get(domain, 0)
             if dh + dm > 0:
@@ -408,12 +409,23 @@ def get_cache_stats() -> dict:
                     "hit_rate": round(dh / (dh + dm) * 100, 1),
                 }
 
-        for prefix in set(list(d_hits.keys()) + list(d_misses.keys())):
+        if domains:
+            prefix_counts: dict[str, int] = defaultdict(int)
             try:
-                count = sum(1 for _ in client.scan_iter(match=f"{prefix}:*", count=500))
-                stats["by_prefix_keys"][prefix] = count
+                for key in client.scan_iter(match="*", count=500):
+                    # A key without a colon matches no "prefix:*" pattern,
+                    # including the synthetic "other" domain from _extract_domain.
+                    if ":" not in key:
+                        continue
+                    prefix = key.split(":", 1)[0]
+                    if prefix in domains:
+                        prefix_counts[prefix] += 1
             except Exception:
-                stats["by_prefix_keys"][prefix] = -1
+                stats["by_prefix_keys"] = {prefix: -1 for prefix in domains}
+            else:
+                stats["by_prefix_keys"] = {
+                    prefix: prefix_counts.get(prefix, 0) for prefix in domains
+                }
 
     except Exception as e:
         logger.warning("get_cache_stats error: %s", e)
