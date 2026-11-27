@@ -57,6 +57,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from trading.week52.upsert import upsert_52w_ranges
+
 DEFAULT_REPO = "syntaxhacker/Alphashri"
 DEFAULT_API_URL = "https://api.github.com"
 DEFAULT_CACHE_DIR = PROJECT_ROOT / "reports" / "refresh_assets"
@@ -902,61 +904,10 @@ def apply_52w_data(
     data: dict[str, Any],
 ) -> tuple[int, int]:
     """Change-only upsert of a validated 52W payload into stock_52w_range."""
-    from db.models.stock_52w_touch import Stock52WeekRange
-
     symbols = data.get("symbols") or {}
     if not isinstance(symbols, dict) or not symbols:
         return 0, 0
-
-    now = datetime.now(IST).replace(tzinfo=None)
-    added = 0
-    updated = 0
-    symbol_list = list(symbols)
-
-    session = session_factory()
-    try:
-        for offset in range(0, len(symbol_list), 400):
-            chunk = symbol_list[offset : offset + 400]
-            existing = {
-                row.symbol: row
-                for row in session.query(Stock52WeekRange)
-                .filter(Stock52WeekRange.symbol.in_(chunk))
-                .all()
-            }
-            for symbol in chunk:
-                entry = symbols[symbol]
-                current = existing.get(symbol)
-                if current is None:
-                    session.add(
-                        Stock52WeekRange(
-                            symbol=symbol,
-                            high_52w=entry["high"],
-                            low_52w=entry["low"],
-                            close=entry["close"],
-                            days_ago=entry.get("days_ago"),
-                            updated_at=now,
-                        )
-                    )
-                    added += 1
-                elif (
-                    current.high_52w != entry["high"]
-                    or current.low_52w != entry["low"]
-                    or current.close != entry["close"]
-                    or current.days_ago != entry.get("days_ago")
-                ):
-                    current.high_52w = entry["high"]
-                    current.low_52w = entry["low"]
-                    current.close = entry["close"]
-                    current.days_ago = entry.get("days_ago")
-                    current.updated_at = now
-                    updated += 1
-            session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
-    return added, updated
+    return upsert_52w_ranges(session_factory, symbols)
 
 
 def count_52w(session_factory: Callable[[], Any]) -> int:

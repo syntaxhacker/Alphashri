@@ -69,13 +69,16 @@ export function getStrategyDefaults(strategyId: string): Record<string, any> {
       trade_size: 100,
       max_positions: 3,
     },
+    // Backend strategies consume stop_loss_pct/take_profit_pct. The sl_pct/tp_pct
+    // names in strategyParamKeys are DB variation fields, remapped in
+    // state/backtest.ts — do not duplicate them here.
     "52w_chaser": {
       entry_threshold_pct: 3.0,
-      stop_loss_pct: 3.0,
-      take_profit_pct: 5.0,
+      stop_loss_pct: 2.0,
+      take_profit_pct: 3.0,
       enable_trailing_stop: false,
-      trailing_stop_pct: 3.0,
-      trailing_activation_pct: 2.0,
+      trailing_stop_pct: 2.0,
+      trailing_activation_pct: 3.0,
       max_holding_days: 30,
       cooldown_days: 30,
       trade_size: 100,
@@ -84,7 +87,7 @@ export function getStrategyDefaults(strategyId: string): Record<string, any> {
     "52w_target": {
       entry_threshold_pct: 2.0,
       stop_loss_pct: 2.0,
-      trailing_stop_pct: 0.5,
+      trailing_stop_pct: 2.0,
       max_holding_days: 15,
       cooldown_days: 7,
       trade_size: 100,

@@ -9,6 +9,7 @@ import json
 import os
 import sqlite3
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -22,7 +23,9 @@ if str(ROOT) not in sys.path:
 
 from api.agri import store
 from db.models.stock_52w_touch import Stock52WeekRange
+from scripts import compute_52w_ranges_upstox as batch
 from scripts import sync_refresh_assets as sync
+from trading.week52.upsert import upsert_52w_ranges
 
 pytestmark = pytest.mark.unit
 
@@ -352,6 +355,93 @@ class TestApplyIsIdempotent:
             assert runs[-1]["status"] == "ok"
         finally:
             engine.dispose()
+
+
+class TestShared52wUpsert:
+    def test_both_entry_points_share_one_helper(self):
+        assert batch.upsert_52w_ranges is sync.upsert_52w_ranges is upsert_52w_ranges
+
+    def test_apply_delegates_symbol_map_to_shared_helper(self, monkeypatch):
+        data = {"symbols": {"AAA": {"high": 110.0, "low": 80.0, "close": 100.0}}}
+        calls = []
+
+        def spy(factory, symbols, **kwargs):
+            calls.append((factory, symbols, kwargs))
+            return 1, 0
+
+        monkeypatch.setattr(sync, "upsert_52w_ranges", spy)
+        assert sync.apply_52w_data("factory", data) == (1, 0)
+        assert calls == [("factory", data["symbols"], {})]
+
+    @staticmethod
+    def _make_session_factory():
+        engine = create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Stock52WeekRange.__table__.create(bind=engine)
+        Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        seeded = Session()
+        try:
+            seeded.add_all(
+                [
+                    Stock52WeekRange(
+                        symbol="AAA",
+                        high_52w=110.0,
+                        low_52w=80.0,
+                        close=100.0,
+                        days_ago=3,
+                        updated_at=datetime(2026, 1, 2, 9, 15),
+                    ),
+                    Stock52WeekRange(
+                        symbol="BBB",
+                        high_52w=210.0,
+                        low_52w=180.0,
+                        close=199.0,
+                        days_ago=None,
+                        updated_at=datetime(2026, 1, 2, 9, 15),
+                    ),
+                ]
+            )
+            seeded.commit()
+        finally:
+            seeded.close()
+        return Session, engine
+
+    @staticmethod
+    def _snapshot(Session):
+        session = Session()
+        try:
+            return {
+                row.symbol: (row.high_52w, row.low_52w, row.close, row.days_ago)
+                for row in session.query(Stock52WeekRange).all()
+            }
+        finally:
+            session.close()
+
+    def test_batch_and_sync_produce_the_same_change_only_result(self, monkeypatch):
+        payload = {
+            "AAA": {"high": 110.0, "low": 80.0, "close": 100.0, "days_ago": 3},
+            "BBB": {"high": 210.0, "low": 180.0, "close": 200.0, "days_ago": None},
+            "CCC": {"high": 10.0, "low": 5.0, "close": 7.0, "days_ago": 1},
+        }
+        batch_session, batch_engine = self._make_session_factory()
+        sync_session, sync_engine = self._make_session_factory()
+        monkeypatch.setattr(batch, "SessionLocal", batch_session)
+        try:
+            first_batch = batch.persist_ranges(payload, redis=False)
+            first_sync = sync.apply_52w_data(sync_session, {"symbols": payload})
+            assert first_batch == first_sync == (1, 1)
+            assert self._snapshot(batch_session) == self._snapshot(sync_session)
+
+            second_batch = batch.persist_ranges(payload, redis=False)
+            second_sync = sync.apply_52w_data(sync_session, {"symbols": payload})
+            assert second_batch == second_sync == (0, 0)
+            assert self._snapshot(batch_session) == self._snapshot(sync_session)
+        finally:
+            batch_engine.dispose()
+            sync_engine.dispose()
 
 
 class TestFlatReleaseNames:

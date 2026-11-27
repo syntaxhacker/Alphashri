@@ -55,7 +55,7 @@ class Run52wRangeRequest(BaseModel):
 def clear_52w_range_data(*, clear_db: bool) -> dict:
     """Clear Redis 52W cache; optionally wipe stock_52w_range table for full Upstox rerun."""
     from cache.redis_client import invalidate_52w_range_cache, invalidate_screener_cache
-    from trading.week52_job_status import JOB_STATUS_KEY
+    from trading.week52.job import JOB_STATUS_KEY
     from cache.redis_client import cache_delete
 
     redis_deleted = invalidate_52w_range_cache()
@@ -87,29 +87,29 @@ def clear_52w_range_data(*, clear_db: bool) -> dict:
 async def get_52w_range_status(current_user=Depends(get_current_user)):
     """52W Upstox batch job progress + DB coverage (admin only)."""
     _require_admin(current_user)
-    from trading.week52_job_status import get_job_status, is_job_stale, job_age_sec
-
-    import os
+    from trading.week52 import config
+    from trading.week52.job import get_job_status, is_job_stale, job_age_sec
 
     raw = get_job_status() or {"status": "idle", "message": "No batch job recorded yet"}
     job = dict(raw) if isinstance(raw, dict) else {"status": "idle"}
     age = job_age_sec(job) if isinstance(raw, dict) else None
     job["age_sec"] = round(age, 1) if age is not None else None
     try:
-        job["stale"] = bool(is_job_stale(raw))
+        job["stale"] = bool(is_job_stale(raw, config.job_stale_sec()))
     except Exception:
         job["stale"] = False
-    interval = int(os.environ.get("SCREENER_52W_INTERVAL_SEC", "3600"))
+    interval = config.batch_interval_sec()
     return {
         "job": job,
         "database": _52w_range_db_stats(),
         "fetched_at": datetime.now().isoformat(),
         "schedule": {
             "interval_sec": interval,
-            "mode": "incremental",
+            "mode": "manual",
             "description": (
-                f"Auto-runs Upstox batch every {interval // 60} min when idle, "
-                "then invalidates screener cache"
+                "No in-process scheduler runs. Start the Upstox 52W batch on demand "
+                "via POST /api/admin/52w-range/run; published release assets are "
+                "applied by the release-sync watcher."
             ),
         },
         "run_hint": "python scripts/compute_52w_ranges_upstox.py --redis",
@@ -146,16 +146,17 @@ def _blocking_52w_job() -> dict | None:
     """Return the job dict if a *fresh* batch is running, else None.
 
     A 'running' job older than SCREENER_52W_STALE_SEC is reset to failed
-    (fail_job) so a crashed/hung subprocess cannot block the scheduler or
-    admin endpoints forever. Pure-stale jobs return None (not blocking).
+    (fail_job) so a crashed/hung subprocess cannot block the admin endpoints
+    forever. Pure-stale jobs return None (not blocking).
     """
-    from trading.week52_job_status import fail_job, get_job_status, is_job_stale, job_age_sec
+    from trading.week52 import config
+    from trading.week52.job import fail_job, get_job_status, is_job_stale, job_age_sec
 
     job = get_job_status()
     if not job or job.get("status") != "running":
         return None
     try:
-        stale = is_job_stale(job)
+        stale = is_job_stale(job, config.job_stale_sec())
     except Exception:
         stale = False
     if not stale:
@@ -180,14 +181,14 @@ def _watch_52w_batch_subprocess(proc: "subprocess.Popen") -> None:
             rc = proc.wait()
         except Exception as e:
             try:
-                from trading.week52_job_status import fail_job
+                from trading.week52.job import fail_job
 
                 fail_job(f"batch watcher error: {e}")
             except Exception:
                 pass
             return
         try:
-            from trading.week52_job_status import fail_job, get_job_status
+            from trading.week52.job import fail_job, get_job_status
 
             job = get_job_status() or {}
             if job.get("status") == "running":
@@ -209,12 +210,10 @@ def _run_52w_batch_subprocess(skip_existing: bool, redis: bool, limit: int, skip
     # defaults (3 workers x 0.35s ~= 514/min) exhaust it in ~4 minutes and
     # starve the report charts/pivots for the next 30 minutes. Throttle from
     # the environment so the daily 52W refresh cannot starve interactive data.
-    workers = os.environ.get("SCREENER_52W_WORKERS")
-    delay = os.environ.get("SCREENER_52W_DELAY_SEC")
-    if workers:
-        cmd.extend(["--workers", str(workers)])
-    if delay:
-        cmd.extend(["--delay", str(delay)])
+    from trading.week52 import config
+
+    cmd.extend(["--workers", str(config.batch_workers())])
+    cmd.extend(["--delay", str(config.batch_delay_sec())])
     if skip_updated_today:
         cmd.append("--skip-updated-today")
     elif skip_existing:
@@ -240,7 +239,7 @@ def _run_52w_batch_subprocess(skip_existing: bool, redis: bool, limit: int, skip
     except Exception as e:
         # Launch failure must not leave a stale "running" status behind.
         try:
-            from trading.week52_job_status import fail_job
+            from trading.week52.job import fail_job
 
             fail_job(f"batch failed to start: {e}")
         except Exception:
@@ -418,7 +417,7 @@ async def invalidate_news_cache_endpoint(
 async def invalidate_screener_cache_endpoint(
     refresh_52w: bool = Query(
         False,
-        description="If true, also start incremental 52W Upstox batch when idle",
+        description="If true, also start an on-demand 52W Upstox batch when no batch is running",
     ),
     current_user=Depends(get_current_user),
 ):

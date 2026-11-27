@@ -1,11 +1,7 @@
-"""Tests for week52 batch: staleness, market hours delegation, prompt run, workers/delay."""
+"""Tests for week52 batch defaults, market hours, canonical lookups and admin orchestration."""
 import sys
 from pathlib import Path
-import inspect
-from unittest.mock import patch, MagicMock, AsyncMock
-import asyncio
-
-import pytest
+from unittest.mock import patch, MagicMock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -66,38 +62,25 @@ class TestSkipUpdatedToday:
             assert "INFY" in filtered
 
 
-class TestPromptInitialRun:
-    def test_compute_task_prompt_vs_interval(self):
-        # Inspect source for prompt initial run: first sleep 5, else interval
-        from api_server_fastapi import compute_52w_ranges_task
-        src = inspect.getsource(compute_52w_ranges_task)
-        assert "first" in src
-        assert "await asyncio.sleep(5)" in src
-        assert "await asyncio.sleep(interval)" in src
-        assert "SCREENER_52W_INTERVAL_SEC" in src
+class TestAdminIsSoleOrchestrator:
+    """The in-process 52W scheduler is gone; the admin route owns local compute."""
 
-    @pytest.mark.asyncio
-    async def test_task_skips_when_market_closed(self):
-        from api_server_fastapi import compute_52w_ranges_task
-        # Patch sleeps to fast-forward and market hours to False to test continue path
-        with patch("api_server_fastapi._is_market_hours", return_value=False), \
-             patch("api_server_fastapi.asyncio.sleep", new_callable=AsyncMock) as mock_sleep, \
-             patch("trading.week52_job_status.get_job_status", return_value=None), \
-             patch("api.admin_routes._run_52w_batch_subprocess") as mock_run:
-            # mock sleep to raise CancelledError after first iteration
-            async def fake_sleep(secs):
-                raise asyncio.CancelledError()
-            mock_sleep.side_effect = fake_sleep
-            try:
-                await compute_52w_ranges_task()
-            except asyncio.CancelledError:
-                pass
-            mock_run.assert_not_called()
+    def test_scheduler_removed_from_api_server(self):
+        import api_server_fastapi
+
+        for name in ("compute_52w_ranges_task", "_52w_batch_changed_ranges"):
+            assert not hasattr(api_server_fastapi, name), f"{name} still scheduled"
+
+    def test_admin_route_starts_batch_in_subprocess(self):
+        from api import admin_routes
+
+        assert callable(admin_routes.run_52w_range_batch)
+        assert callable(admin_routes._run_52w_batch_subprocess)
 
 
 class TestWeek52RangeLookup:
     def test_sanitize_bulk(self):
-        from trading.week52_range_lookup import _sanitize_52w_ranges_bulk
+        from trading.week52.ranges import _sanitize_52w_ranges_bulk
         data = {
             "RELIANCE": {"high": 100, "low": 90, "close": 95},
             "BAD": {"high": float("inf"), "low": 90, "close": 95},
@@ -109,9 +92,9 @@ class TestWeek52RangeLookup:
         assert "BAD2" not in clean
 
     def test_load_all_uses_redis_first(self):
-        from trading.week52_range_lookup import load_all_52w_ranges
+        from trading.week52.ranges import load_all_52w_ranges
         with patch("cache.redis_client.cache_get", return_value={"TCS": {"high": 100, "low": 50, "close": 80}}) as mock_get, \
-             patch("db.database.SessionLocal") as mock_db_cls:
+             patch("trading.week52.ranges.SessionLocal") as mock_db_cls:
             result = load_all_52w_ranges()
             assert "TCS" in result
             mock_db_cls.assert_not_called()
@@ -122,52 +105,3 @@ class TestWeek52RangeLookup:
             data = fetch_52w_high_data()
             assert data["approaching"] == []
             assert data["warning"] is not None
-
-
-class TestBatchCacheInvalidation:
-    """A no-op prompt startup run must not wipe the prewarmed screener cache."""
-
-    def test_changed_ranges_helper(self):
-        from api_server_fastapi import _52w_batch_changed_ranges
-
-        assert _52w_batch_changed_ranges({"status": "completed", "ok": 0}) is False
-        assert _52w_batch_changed_ranges({"status": "completed", "ok": 3}) is True
-        assert _52w_batch_changed_ranges({"status": "failed", "ok": 1}) is True
-        assert _52w_batch_changed_ranges({"status": "running", "ok": 3}) is None
-        assert _52w_batch_changed_ranges(None) is None
-
-    async def _run_one_cycle(self, job, monkeypatch):
-        from api_server_fastapi import compute_52w_ranges_task
-
-        monkeypatch.setenv("SCREENER_52W_MAX_WAIT_SEC", "0")
-        sleep_calls = []
-
-        async def fake_sleep(secs):
-            sleep_calls.append(secs)
-            if len(sleep_calls) >= 2:
-                raise asyncio.CancelledError()
-
-        with patch("api_server_fastapi._is_market_hours", return_value=True), \
-             patch("api_server_fastapi.asyncio.sleep", new=fake_sleep), \
-             patch("trading.week52_job_status.get_job_status", return_value=job), \
-             patch("api.admin_routes._run_52w_batch_subprocess") as mock_run, \
-             patch("cache.redis_client.invalidate_screener_cache") as mock_invalidate:
-            try:
-                await compute_52w_ranges_task()
-            except asyncio.CancelledError:
-                pass
-            return mock_run, mock_invalidate
-
-    @pytest.mark.asyncio
-    async def test_prompt_run_with_no_changes_keeps_cache(self, monkeypatch):
-        job = {"status": "completed", "ok": 0, "total": 120, "skipped": 120}
-        mock_run, mock_invalidate = await self._run_one_cycle(job, monkeypatch)
-        mock_run.assert_called_once()
-        mock_invalidate.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_real_range_update_invalidates_cache(self, monkeypatch):
-        job = {"status": "completed", "ok": 5, "total": 120, "skipped": 115}
-        mock_run, mock_invalidate = await self._run_one_cycle(job, monkeypatch)
-        mock_run.assert_called_once()
-        mock_invalidate.assert_called_once()

@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from trading.orb_signals import ORBSignal, SignalType
+from trading.week52.defaults import TargetDefaults
 from trading.week52_utils import Base52WSignalGenerator, calculate_52w_high
 
 
@@ -18,16 +19,17 @@ class Week52TargetSignalGenerator(Base52WSignalGenerator):
     strategy_type: str = "52W_TARGET"
 
     def __init__(self, config: dict):
-        self.sl_pct: float = float(config.get("sl_pct", 2.0))
-        self.tp_pct: float = float(config.get("tp_pct", 0.0))
-        self.entry_threshold_pct: float = float(config.get("entry_threshold_pct", 2.0))
-        self.trailing_stop_pct: float = float(config.get("trailing_stop_pct", 2.0))
-        self.near_high_activation_pct: float = float(config.get("near_high_activation_pct", 1.0))
-        self.near_high_trail_pct: float = float(config.get("near_high_trail_pct", 0.5))
-        self.max_holding_days: int = int(config.get("max_holding_days", 15))
-        self.cooldown_days: int = int(config.get("cooldown_days", 7))
-        self.recent_touch_days: int = int(config.get("recent_touch_days", 5))
-        self.min_avg_volume: float = float(config.get("min_avg_volume", 50000))
+        defaults = TargetDefaults
+        self.sl_pct: float = float(config.get("sl_pct", defaults.sl_pct))
+        self.tp_pct: float = float(config.get("tp_pct", defaults.tp_pct))
+        self.entry_threshold_pct: float = float(config.get("entry_threshold_pct", defaults.entry_threshold_pct))
+        self.trailing_stop_pct: float = float(config.get("trailing_stop_pct", defaults.trailing_stop_pct))
+        self.near_high_activation_pct: float = float(config.get("near_high_activation_pct", defaults.near_high_activation_pct))
+        self.near_high_trail_pct: float = float(config.get("near_high_trail_pct", defaults.near_high_trail_pct))
+        self.max_holding_days: int = int(config.get("max_holding_days", defaults.max_holding_days))
+        self.cooldown_days: int = int(config.get("cooldown_days", defaults.cooldown_days))
+        self.recent_touch_days: int = int(config.get("recent_touch_days", defaults.recent_touch_days))
+        self.min_avg_volume: float = float(config.get("min_avg_volume", defaults.min_avg_volume))
         super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct)
 
     def check_entry(

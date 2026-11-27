@@ -55,16 +55,15 @@ IST = config.IST
 
 from trading.week52_utils import calculate_52w_high, get_date_from_ns, Week52HighTracker
 
-# Canonical filter defaults shared with the live-signal path.
-# Imported from trading.week52_chaser_signals so backtest and API screen the
-# same thing; the UI backtest page only exposes `enable_filters` (default
-# False here, in get_params(), and in the generator). See the constant block
-# in trading/week52_chaser_signals.py for the ablation rationale.
-from trading.week52_chaser_signals import (
+# Canonical filter defaults shared with the live-signal path. The UI backtest
+# page only exposes `enable_filters` (default False here, in get_params(), and
+# in the generator). See trading.week52.defaults for the ablation rationale.
+from trading.week52.defaults import (
     CHASER_ADX_MIN,
     CHASER_ENABLE_FILTERS_DEFAULT,
     CHASER_RSI_HI,
     CHASER_VOLUME_MULT,
+    ChaserDefaults,
 )
 
 
@@ -325,16 +324,16 @@ if _NAUTILUS_AVAILABLE:
         """Configuration for 52-Week High Chaser strategy."""
         instrument_id: InstrumentId
         bar_type: BarType
-        entry_threshold_pct: float = 2.0
-        stop_loss_pct: float = 2.0
-        take_profit_pct: float = 3.0
-        enable_trailing_stop: bool = False
-        trailing_stop_pct: float = 2.0
-        trailing_activation_pct: float = 3.0
-        max_holding_days: int = 30
-        cooldown_days: int = 30
+        entry_threshold_pct: float = ChaserDefaults.entry_threshold_pct
+        stop_loss_pct: float = ChaserDefaults.sl_pct
+        take_profit_pct: float = ChaserDefaults.tp_pct
+        enable_trailing_stop: bool = ChaserDefaults.enable_trailing_stop
+        trailing_stop_pct: float = ChaserDefaults.trailing_stop_pct
+        trailing_activation_pct: float = ChaserDefaults.trailing_activation_pct
+        max_holding_days: int = ChaserDefaults.max_holding_days
+        cooldown_days: int = ChaserDefaults.cooldown_days
         trade_size: int = 100
-        enable_filters: bool = False
+        enable_filters: bool = ChaserDefaults.enable_filters
         historical_df: Optional[pd.DataFrame] = None
 else:
     Week52ChaserConfig = None
@@ -358,16 +357,16 @@ def run_single_stock_backtest(args):
         )
 
 
-        entry_threshold_pct = float(params.get('entry_threshold_pct', 3.0))
-        stop_loss_pct = float(params.get('stop_loss_pct', 3.0))
-        take_profit_pct = float(params.get('take_profit_pct', 5.0))
-        enable_trailing_stop = bool(params.get('enable_trailing_stop', False))
-        trailing_stop_pct = float(params.get('trailing_stop_pct', 3.0))
-        trailing_activation_pct = float(params.get('trailing_activation_pct', 2.0))
-        max_holding_days = int(params.get('max_holding_days', 30))
-        cooldown_days = int(params.get('cooldown_days', 30))
+        entry_threshold_pct = float(params.get('entry_threshold_pct', ChaserDefaults.entry_threshold_pct))
+        stop_loss_pct = float(params.get('stop_loss_pct', ChaserDefaults.sl_pct))
+        take_profit_pct = float(params.get('take_profit_pct', ChaserDefaults.tp_pct))
+        enable_trailing_stop = bool(params.get('enable_trailing_stop', ChaserDefaults.enable_trailing_stop))
+        trailing_stop_pct = float(params.get('trailing_stop_pct', ChaserDefaults.trailing_stop_pct))
+        trailing_activation_pct = float(params.get('trailing_activation_pct', ChaserDefaults.trailing_activation_pct))
+        max_holding_days = int(params.get('max_holding_days', ChaserDefaults.max_holding_days))
+        cooldown_days = int(params.get('cooldown_days', ChaserDefaults.cooldown_days))
         trade_size = int(params.get('trade_size', 100))
-        enable_filters = bool(params.get('enable_filters', False))
+        enable_filters = bool(params.get('enable_filters', ChaserDefaults.enable_filters))
         include_costs = bool(params.get('include_costs', True))
 
         venue, instrument_id, instrument = build_nautilus_equity_instrument(symbol)
@@ -507,7 +506,7 @@ class Week52ChaserStrategy(BaseStrategy):
                 key='entry_threshold_pct',
                 label='Entry Threshold %',
                 type='number',
-                default=3.0,
+                default=ChaserDefaults.entry_threshold_pct,
                 min=1.0,
                 max=10.0,
                 step=0.5,
@@ -516,7 +515,7 @@ class Week52ChaserStrategy(BaseStrategy):
                 key='stop_loss_pct',
                 label='Stop Loss %',
                 type='number',
-                default=3.0,
+                default=ChaserDefaults.sl_pct,
                 min=1.0,
                 max=8.0,
                 step=0.5,
@@ -525,7 +524,7 @@ class Week52ChaserStrategy(BaseStrategy):
                 key='take_profit_pct',
                 label='Take Profit %',
                 type='number',
-                default=5.0,
+                default=ChaserDefaults.tp_pct,
                 min=1.0,
                 max=15.0,
                 step=0.5,
@@ -534,13 +533,13 @@ class Week52ChaserStrategy(BaseStrategy):
                 key='enable_trailing_stop',
                 label='Enable Trailing Stop',
                 type='boolean',
-                default=False,
+                default=ChaserDefaults.enable_trailing_stop,
             ),
             StrategyParam(
                 key='trailing_stop_pct',
                 label='Trailing Stop %',
                 type='number',
-                default=3.0,
+                default=ChaserDefaults.trailing_stop_pct,
                 min=1.0,
                 max=5.0,
                 step=0.5,
@@ -549,7 +548,7 @@ class Week52ChaserStrategy(BaseStrategy):
                 key='trailing_activation_pct',
                 label='Trailing Activation %',
                 type='number',
-                default=2.0,
+                default=ChaserDefaults.trailing_activation_pct,
                 min=0.5,
                 max=5.0,
                 step=0.5,
@@ -558,7 +557,7 @@ class Week52ChaserStrategy(BaseStrategy):
                 key='max_holding_days',
                 label='Max Holding Days',
                 type='number',
-                default=30,
+                default=ChaserDefaults.max_holding_days,
                 min=10,
                 max=60,
                 step=5,
@@ -567,7 +566,7 @@ class Week52ChaserStrategy(BaseStrategy):
                 key='cooldown_days',
                 label='Cooldown Days',
                 type='number',
-                default=30,
+                default=ChaserDefaults.cooldown_days,
                 min=10,
                 max=60,
                 step=5,
@@ -585,21 +584,21 @@ class Week52ChaserStrategy(BaseStrategy):
                 key='enable_filters',
                 label='Enable Filters',
                 type='boolean',
-                default=False,
+                default=ChaserDefaults.enable_filters,
             ),
         ]
 
     def validate_params(self, params: Dict) -> List[str]:
         errors = []
 
-        if float(params.get('stop_loss_pct', 3.0)) >= float(params.get('take_profit_pct', 5.0)):
+        if float(params.get('stop_loss_pct', ChaserDefaults.sl_pct)) >= float(params.get('take_profit_pct', ChaserDefaults.tp_pct)):
             errors.append("Stop Loss should be less than Take Profit")
 
-        if float(params.get('entry_threshold_pct', 3.0)) <= 0:
+        if float(params.get('entry_threshold_pct', ChaserDefaults.entry_threshold_pct)) <= 0:
             errors.append("Entry Threshold must be positive")
 
-        if bool(params.get('enable_trailing_stop', False)):
-            if float(params.get('trailing_stop_pct', 3.0)) <= 0:
+        if bool(params.get('enable_trailing_stop', ChaserDefaults.enable_trailing_stop)):
+            if float(params.get('trailing_stop_pct', ChaserDefaults.trailing_stop_pct)) <= 0:
                 errors.append("Trailing Stop must be positive when enabled")
 
         return errors
