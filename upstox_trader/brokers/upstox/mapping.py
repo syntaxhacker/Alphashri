@@ -52,14 +52,31 @@ class UpstoxSymbolMap(BrokerSymbolMap):
             self._instruments = []
         return self._instruments
 
+    def _instrument_index(self) -> dict[str, list[dict]]:
+        """Index the master by trading symbol, preserving row order per symbol."""
+        instruments = self._instruments
+        cached = getattr(self, "_token_index", None)
+        if cached is None or cached[0] is not instruments:
+            by_symbol: dict[str, list[dict]] = {}
+            for inst in instruments:
+                try:
+                    by_symbol.setdefault(inst.get("trading_symbol"), []).append(inst)
+                except TypeError:
+                    # An unhashable symbol can never equal the string lookup key.
+                    pass
+            cached = (instruments, by_symbol)
+            self._token_index = cached
+        return cached[1]
+
     def resolve_token(
         self,
         symbol: str,
         exchange: str = "NSE_EQ",
     ) -> Optional[str]:
         """Resolve symbol to Upstox instrument key."""
-        instruments = self._load_instruments()
-        if not instruments:
+        self._load_instruments()
+        index = self._instrument_index()
+        if not index:
             return None
 
         clean = symbol.upper().strip()
@@ -68,18 +85,16 @@ class UpstoxSymbolMap(BrokerSymbolMap):
                 clean = clean[: -len(suffix)]
                 break
 
-        for inst in instruments:
+        candidates = index.get(clean, ())
+        for inst in candidates:
             if (
-                inst.get("trading_symbol") == clean
-                and inst.get("segment") == exchange
+                inst.get("segment") == exchange
                 and inst.get("instrument_type") == "EQ"
             ):
                 return inst.get("instrument_key")
 
-        for inst in instruments:
-            if inst.get("trading_symbol") == clean and inst.get(
-                "instrument_type"
-            ) in ("EQ", "INDEX"):
+        for inst in candidates:
+            if inst.get("instrument_type") in ("EQ", "INDEX"):
                 return inst.get("instrument_key")
 
         return None
